@@ -232,12 +232,10 @@ Two controller classes occur in saves. Both start with the controller base recor
 | 7 | `u32` flags | mostly 7; `0x87` seen on `dog_make`; never contains 8 (§3.2) |
 | 8 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the automata it currently controls |
 
-**Object offsets and names (Q5, corrected 2026-10-23, AT22 partial).**
-The stream order above is unchanged. The earlier table mixed two receiver views:
-primary controller C and serializable interface S=C+4. Constructor, QI and
-secondary thunks prove the adjustment statically. See
-[the inherited lifecycle contract](automata-controller-lifecycle.md), §§2–8,
-for instruction citations, ownership, predicates and numeric qualifications.
+**Object offsets and names (Q5, corrected 2026-10-23).** The stream order above is unchanged. Offsets are
+given against both views of the object: the primary controller C and the serializable interface S = C + 4,
+which Read and Write receive. [The inherited lifecycle contract](automata-controller-lifecycle.md) specifies
+the fields' behaviour.
 
 | Record field | Relative to S | Relative to C | Meaning |
 |---|---|---|---|
@@ -252,17 +250,9 @@ for instruction citations, ownership, predicates and numeric qualifications.
 | 8 count | +0x44 | +0x48 | controlled-automata count u32 |
 | 8 list storage | +0x40 | +0x44 | list sentinel pointer; node payload at node+8 |
 
-CheckFlag/SetFlag therefore use the actual flags C+0x40, not the list pointer.
-IsExpired uses `lifetime > 0 && elapsed >= lifetime`; tick deactivation uses
-strict `elapsed > lifetime`. Historical corpus measurements and the CheckFlag(8)
-null-reference serialization rule of §§3.2/6.1 are unchanged.
-
-The lifecycle contract §§6.1–6.3 now expands inherited sound selection/commands,
-effect-trigger QI/predicates/source Release, and view point tests/visibility;
-§11.1 supplies sixteen further **proposed, unexecuted** composition rows.
-Init may deactivate through a false effect predicate yet still issue its final
-sound start. These bounded base rules do not close AT22's other owned helpers,
-exceptional domains, Read ownership or complete concrete controllers.
+CheckFlag/SetFlag therefore use the real flags word C+0x40, not the list pointer. IsExpired is
+`lifetime > 0 && elapsed >= lifetime`; tick deactivation needs strict `elapsed > lifetime`. Historical corpus
+measurements and the CheckFlag(8) null-reference rule of §§3.2/6.1 are unchanged.
 
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`

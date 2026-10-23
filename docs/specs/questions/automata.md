@@ -69,49 +69,20 @@ AT21 stays here rather than being archived as wholly answered by inference.
   support only, no invented base CLSID or complete-owner claim]
 
 **Partial source answer 2026-10-23 (re-automata-controller-lifecycle4):**
-[The inherited base lifecycle contract](../automata-controller-lifecycle.md),
-§§2–12, proves S=C+4: saved position S+0x10 is live C+0x14, flags S+0x3C
-are C+0x40 and list head is C+0x44. It specifies zero initial reference count,
-adjusted QI hit/miss output effects, raw template assignment without template
-ref acquisition, occupant replacement acquire/store/release order, Init and
-Shutdown direct state/reference chronology versus direct base destruction,
-finite bounds, mutable grid bytes, first-match controlled removal and float
-tick/expiry equality. The saved floats are elapsed lifetime and lifetime;
-animation age uses scaled delta, not integer 1. The actual serializable identity
-4A18672B is not a registered base factory: this director registers the two
-concrete routes, whose inherited/override provenance is tabulated. Thirteen
-literal discriminators are **proposed/unexecuted**, not native output evidence.
-**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4, R2):**
-The same contract §§6.1–6.3 now proves PlaySFX's selected-ID store and retained
-stop ID, exact sound-command arguments, effect-list short-circuit predicates
-through QI output Q followed by Release of source R, and view outputs/terrain/
-five-point short-circuit/visibility setter. Sixteen further proposed/unexecuted
-composition rows (§11.1) distinguish raw byte2, false-with-output, safe empty-list
-true-with-null, Init's post-deactivation sound start, and repeat cleanup.
-L1/L7 retain projection status; L10 now derives bounds through owned helpers.
-No native execution or complete-owner claim follows.
-
-**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4, R3):**
-The contract §§11.2–11.5 ADDS secondary Read's S=C+4 local stream/reference/store
-order, unconditional post-prefix continuation and full EAX status normalization,
-append-without-clear/count-increment behavior; base22's finite lot-direction
-midpoints; base23's rectangular rejection, height equality and optional distance
-chain; the directly needed owned intersection edge order; and base28–30/32
-selector4/queue/state-point/row-selection branches and return widths. Seventeen
-new independent proposed/unexecuted fixtures include same valid occupant, partial
-output failure prefixes, nonnull full pointer with AL0, exact product-spill
-discrimination and Read→geometry→behavior→state composition. This differs from a
-transactional Read, circular-radius predicate or implicit behavior installation.
-Earlier 29 fixtures remain UNRUN and L1/L7 projections are retained.
-
-**Remain open:** template-instance and foreign intersection/queue-point algorithms,
-complete callback types, foreign Read reference acquisition/stream semantics,
-allocation/exceptional failures, runtime position initialization, reentry/exception
-domains and complete derived contracts. Slot24/36 semantic signatures, state
-tick's third argument type and animation tick's last two argument types remain
-unresolved. AT22 stays open, so no whole entry is moved to answered; no live
-wrapper, new factory, whole-owner or family coverage admission follows. AT21
-registration/upstream residuals and AT23/AD3/AD4 remain unchanged.
+[The inherited base lifecycle contract](../automata-controller-lifecycle.md) settles the layout question:
+the serializable interface is S = C + 4, so saved position S+0x10 is live C+0x14, saved flags S+0x3C are the
+flags word C+0x40 and the list sentinel is C+0x44. It specifies construction defaults, QI/AddRef/Release,
+template and occupant assignment, Init, Activate and the flag accessors, the sound/effect/view helpers,
+Shutdown versus direct destruction, animation tick and expiry, position and bounds, the grid bytes,
+controlled-automata removal, the lot-facing point and within-radius test, the state callbacks and behavior
+selection, the secondary Read, and the attractor/generator override map. The director registers only the
+two concrete factories; `4A18672B` is a serialization identity, not a base factory. Its conformance fixtures
+are proposed and have not been run.
+**Remain open:** the runtime value of global `00B227CC` (constructor position); slot 24/36 meanings and the
+untyped extra arguments of state tick and DoAnimationTick; CreateTemplateInstance `0051BDF0`; whether
+SC4ReadGZSerializable retains returned references; the secondary Write body; allocation-failure, exception,
+reentrancy and non-finite numeric behaviour; the runtime x87 precision setting; the derived controllers' own
+contracts. AT22 stays open.
 
 <!-- from: glue-automata-managers4 (2026-10-22) -->
 - **AT23 - §§6.1, 7.2, 11, 15; automata-managers.md §§1, 2.2:** Please publish the complete inherited
