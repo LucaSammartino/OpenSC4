@@ -379,9 +379,9 @@ cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
-SC4ViewUtilities	view utilities	renderer	view-utilities.md	-	-	-
-fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
-fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	-	-	-
+SC4ViewUtilities	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
+fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
+fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
 SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
 SC4MarkedCellView	overlay views	renderer	overlay-views.md	-	-	-
 SC4PathInfoView	overlay views	renderer	network-overlay-views.md	-	-	-

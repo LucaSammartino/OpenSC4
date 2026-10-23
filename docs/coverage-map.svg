@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 57.8% · implemented 37.8% · verified 19.7% · replaced in game 18.1%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 6cf8b6eb, regress-train130.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 57.8% · implemented 38.1% · verified 19.7% · replaced in game 18.1%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main d1372f7e, regress-train131.out.</text>
 <rect x="18.0" y="146.0" width="74.2" height="113.0" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="259.0" width="74.2" height="106.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.2" y="146.0" width="94.8" height="81.0" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -609,9 +609,9 @@
 <rect x="1083.6" y="420.2" width="0.9" height="6.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1083.6" y="426.5" width="0.9" height="1.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1021.2" y="353.1" width="63.3" height="74.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="1021.2" y="427.9" width="63.3" height="66.0" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1021.2" y="493.9" width="31.6" height="0.6" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1052.8" y="493.9" width="31.6" height="0.6" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1021.2" y="427.9" width="63.3" height="66.0" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1021.2" y="493.9" width="31.6" height="0.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1052.8" y="493.9" width="31.6" height="0.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1021.2" y="427.9" width="63.3" height="66.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1021.2" y="494.4" width="42.8" height="27.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1021.2" y="521.9" width="42.8" height="24.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
