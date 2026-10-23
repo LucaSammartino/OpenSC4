@@ -12,9 +12,9 @@ fn stored_add(a: f32, b: f32) -> f32 {
 }
 
 pub(super) fn lattice_index(q: f32, upper: bool) -> Result<i32, ContractError> {
-    // This bounded domain makes every operation in the bias technique exact
-    // before the final binary32 store under both published ledger precisions.
-    if !q.is_finite() || !(0.0..=16_777_216.0).contains(&q) {
+    // Literal bit conversion, including negative coordinates and values beyond
+    // the nearby-integer equivalence interval (§3.2). PC53/nearest-even subset.
+    if !q.is_finite() {
         return Err(ContractError::InvalidInput);
     }
     let scaled = f64::from(q) * 0.0625;
@@ -57,12 +57,12 @@ impl WallRange {
             Edge::East => Self {
                 start: [x1, z0],
                 end: z1,
-                inner: [x1 - 1, z0],
+                inner: [x1.checked_sub(1).ok_or(ContractError::InvalidInput)?, z0],
             },
             Edge::South => Self {
                 start: [x0, z1],
                 end: x1,
-                inner: [x0, z1 - 1],
+                inner: [x0, z1.checked_sub(1).ok_or(ContractError::InvalidInput)?],
             },
             Edge::West => Self {
                 start: [x0, z0],
@@ -334,17 +334,28 @@ impl WallShape {
         }
         let mut cell = range.start;
         let varying = self.axis() / 2;
-        let position = |c: [i32; 2]| -> Vec2 { c.map(|v| (v * 16) as f32) };
+        let position = |c: [i32; 2]| -> Result<Vec2, ContractError> {
+            Ok([
+                c[0].checked_mul(16).ok_or(ContractError::InvalidInput)? as f32,
+                c[1].checked_mul(16).ok_or(ContractError::InvalidInput)? as f32,
+            ])
+        };
         let first = host.terrain_height(cell);
         if !first.is_finite() {
             return Err(ContractError::InvalidInput);
         }
         let previous = self.bounds;
-        self.begin(lot, position(cell));
+        self.begin(lot, position(cell)?);
         let mut h0 = first;
         while cell[varying] < range.end {
             let mut next = cell;
-            next[varying] += 1;
+            next[varying] = next[varying].checked_add(1).ok_or(ContractError::InvalidInput)?;
+            let current_position = position(cell)?;
+            let next_position = position(next)?;
+            if f64::from(next_position[varying]) - f64::from(current_position[varying]) != 16.0 {
+                // §3.2 explicitly excludes unrepresentable 16 m traversal steps.
+                return Err(ContractError::InvalidInput);
+            }
             let h1 = host.terrain_height(next);
             if !h1.is_finite() {
                 return Err(ContractError::InvalidInput);
@@ -366,11 +377,11 @@ impl WallShape {
                     self.emit(
                         lot,
                         WallSample {
-                            position: position(cell),
+                            position: current_position,
                             terrain_height: h0,
                         },
                         WallSample {
-                            position: position(next),
+                            position: next_position,
                             terrain_height: h1,
                         },
                         scale,
@@ -389,7 +400,7 @@ impl WallShape {
             return Err(ContractError::InvalidInput);
         }
         self.finish(WallSample {
-            position: position(range.start),
+            position: position(range.start)?,
             terrain_height: fallback,
         });
         Ok(self.geometry_present
@@ -595,7 +606,8 @@ impl<T: Texture> RetainingWallModel<T> {
             self.rotation = Some(rotation);
             self.recolour_pending = true;
         }
-        if self.facing_test && !self.shape.side.wall_faces(rotation) {
+        // §3: +6A is an enable flag, never a bypass of the facing restriction.
+        if !self.facing_test || !self.shape.side.wall_faces(rotation) {
             return None;
         }
         // LM5: an unresolved texture supplies no drawable band plan.

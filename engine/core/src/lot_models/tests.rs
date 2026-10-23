@@ -811,9 +811,14 @@ fn wall_fallback_zoom_four_highlight_and_cull_order() {
     assert_eq!(model.sort_value(), 0x8000_2A86);
     assert!(model.recolour_pending());
     model.set_facing_test(false);
+    // DIFFERS from the old fixture: §3 says zero skips, not bypasses facing.
+    assert!(model.draw(false, zoom(4), Edge::East, &mut factory).is_none());
+    assert!(model.draw(false, zoom(4), Edge::South, &mut factory).is_none());
+    model.set_facing_test(true);
+    assert!(model.draw(false, zoom(4), Edge::East, &mut factory).is_none());
     assert!(
         model
-            .draw(false, zoom(4), Edge::East, &mut factory)
+            .draw(false, zoom(4), Edge::South, &mut factory)
             .unwrap()
             .recolour_required
     );
@@ -1258,6 +1263,58 @@ fn foundation_unchecked_scale_and_signed_existing_count() {
     model.set_top_scale(-16., &mut light).unwrap();
     assert_eq!(model.shape().top.repeats, [-2., -3.]);
     assert!(light.normals.is_empty());
+}
+
+#[test]
+fn literal_signed_lattice_and_reversed_foundation_border() {
+    // At -16 and -32 the biased words are 4B3FFFFF and 4B3FFFFE;
+    // upper(-16) stores 4B3FFFFE then adds one after subtraction.
+    let bounds = Bounds {
+        min: [-32., 0., -16.],
+        max: [-16., 0., 0.],
+    };
+    assert_eq!(
+        WallRange::new(Edge::North, bounds).unwrap(),
+        WallRange {
+            start: [-2, -1],
+            end: -1,
+            inner: [-2, -1]
+        }
+    );
+    // Outside the earlier arbitrary 2^24 coordinate restriction, still an
+    // exact 16 m traversal and an ordinary literal bias conversion.
+    let bounds = Bounds {
+        min: [33_554_432., 0., 80.],
+        max: [33_554_448., 0., 96.],
+    };
+    assert_eq!(
+        WallRange::new(Edge::North, bounds).unwrap(),
+        WallRange {
+            start: [2_097_152, 5],
+            end: 2_097_153,
+            inner: [2_097_152, 5]
+        }
+    );
+    let mut model = FoundationModel::<Binding>::new(
+        Footprint {
+            min: [32., 0.],
+            max: [0., 16.],
+        },
+        41.,
+        40.,
+        16.,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5],
+        },
+    )
+    .unwrap();
+    let mut host = FoundationSamples { calls: Vec::new() };
+    let change = model
+        .adjust_from_terrain(false, &mut host, &mut Light::default())
+        .unwrap();
+    assert_eq!(host.calls, ["width"]); // Reversed index bounds sample nothing.
+    assert_eq!(change.base, 24.); // C=0, maximumDrop=0 => N=1.
 }
 
 #[test]

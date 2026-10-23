@@ -10,8 +10,6 @@ pub struct Footprint {
 impl Footprint {
     pub(super) fn valid(self) -> bool {
         self.min.into_iter().chain(self.max).all(f32::is_finite)
-            && self.min[0] <= self.max[0]
-            && self.min[1] <= self.max[1]
             && (self.max[0] - self.min[0]).is_finite()
             && (self.max[1] - self.min[1]).is_finite()
     }

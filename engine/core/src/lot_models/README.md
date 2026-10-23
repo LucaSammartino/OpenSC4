@@ -16,8 +16,8 @@ ABI integration, native pool/layout or final GPU equivalence is claimed.
 
 Stored values are binary32; explicit binary64 register operations select
 round-to-nearest/ties-to-even PC53. There is no ambient-control-word or
-general PC64 equivalence claim. The wall lattice helper uses bias/store/bits,
-not floor/ceil, for nonnegative coordinates through 2^24. Wall ledgers are
+general PC64 equivalence claim. The lattice helper uses literal bias/store/bits,
+not floor/ceil, including signed coordinates and values beyond 2^24. Wall ledgers are
 published PC53/64 analytical examples, not native observations. Cell world
 coordinates are unsigned bytes. InvalidInput denotes unsupported nonfinite,
 overflowing, invalid-mode, unbacked-element, foreign-error or allocation
@@ -47,6 +47,10 @@ Wall `rebuild`/`setup_from_bounds` own traversal. `triangles()` returns the
 full stored list including tails; `draw_lit` recolours it. Legacy `draw`
 reports pending recolour when no raw light was supplied. Vec capacity is a
 portable allocation choice, not a native heap guarantee.
+The compatibility name `facing_test` stores the section 3 enable flag: false
+skips drawing, and true still requires a facing side. It never bypasses facing.
+Signed cell shifts and 16 m representability are checked against the explicit
+finite wall domain; invalid overflow domains remain LM8.
 
 Cell `from_record`, `update_vertices` and `draw_owned` are the settled path.
 `Orientation::from_byte` accepts all record bytes: values above 3 retain UVs
@@ -88,7 +92,7 @@ applies only to walls, 8.2 only to cells, and sections 2/3/4 to their named owne
 | Foundation | 1.2 | Published setup/bounds/sort/draw/lifetime entries | open: LM2, remaining inventory/inherited slots, constructor fields, allocation failure and pool |
 | Foundation | 2 | `FoundationShape::new`, `draw_lit` | `foundation_raw_draw_recolours_only_on_rotation_and_skips_highlight` |
 | Foundation | 2.1 | `load_textures`, `sort_value` | `settled_owner_zero_same_fallback_and_key_mutation`; `foundation_unsupported_inputs_and_settled_independent_top_draw` |
-| Foundation | 2.2 | `adjust_from_terrain`, `adjust_height_to_terrain`, `empty` | `foundation_border_order_exact_multiple_and_force_without_relight`; `foundation_unchecked_scale_and_signed_existing_count`; `terminal_release_and_drop_order_for_every_owner` |
+| Foundation | 2.2 | `adjust_from_terrain`, `adjust_height_to_terrain`, `empty` | `foundation_border_order_exact_multiple_and_force_without_relight`; `foundation_unchecked_scale_and_signed_existing_count`; `terminal_release_and_drop_order_for_every_owner`; `literal_signed_lattice_and_reversed_foundation_border` |
 | Foundation | 2.3 | `FoundationShape::new`, `recolour`, `set_top_scale` | `foundation_quad_uv_order_and_raw_normal_colours`; `foundation_unchecked_scale_and_signed_existing_count` |
 | Foundation | 5 | `FoundationTerrain`, `FoundationLighting`, `TextureFactory` | `foundation_border_order_exact_multiple_and_force_without_relight` |
 | Foundation | 6 | `adjust_height_to_terrain` | `foundation_exact_step_and_adjacent_f32_boundary` |
@@ -100,7 +104,7 @@ applies only to walls, 8.2 only to cells, and sections 2/3/4 to their named owne
 | Wall | 1.2 | Published setup/bounds/sort/init/draw/lifetime entries | open: LM2, remaining inventory/inherited slots, constructor fields, allocation failure and pool |
 | Wall | 3 | `init`, `setup_from_bounds`, `draw_lit`, `draw` | `sampled_wall_model_preserves_stored_tail_and_colours`; `wall_public_facing_vector_and_all_rotations` |
 | Wall | 3.1 | `load_texture`, `load_owner_key` | `settled_owner_zero_same_fallback_and_key_mutation` |
-| Wall | 3.2 | `WallRange::new`, `WallShape::{rebuild,emit,finish,recolour}` | `wall_range_raw_order_bounds_and_tail_literals`; `wall_empty_narrow_ties_flat_neighbour_and_missing_inner`; `settled_wall_literal_four_side_ledger` |
+| Wall | 3.2 | `WallRange::new`, `WallShape::{rebuild,emit,finish,recolour}` | `wall_range_raw_order_bounds_and_tail_literals`; `wall_empty_narrow_ties_flat_neighbour_and_missing_inner`; `settled_wall_literal_four_side_ledger`; `literal_signed_lattice_and_reversed_foundation_border` |
 | Wall | 5 | `WallTerrain`, `WallLighting`, explicit caller box | `wall_range_raw_order_bounds_and_tail_literals` |
 | Wall | 6 | `WallShape::emit` | `settled_wall_literal_four_side_ledger` |
 | Wall | 7 | Unsupported unpublished/exceptional contracts | open: LM2, LM8 |
