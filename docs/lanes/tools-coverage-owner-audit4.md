@@ -1,18 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| tools-coverage-owner-audit4: public owner closure audit | Codex; tools-coverage-owner-audit4 (detached reserved worktree) | in progress: audit/report complete; guard context limit blocked final commit/queue sequence; no queue written | Authorized coordinator/fresh round: finalize delivery from committed report, preserving caps; no self restart or additional research required. |
+| tools-coverage-owner-audit4: public owner qualification audit | Codex; tools-coverage-owner-audit4 (detached reserved worktree) | in progress: independent Directory and HTML qualification; previous accounting preserved | Review all published operations against current production algorithms and assertions; withhold incomplete owners; complete own report and queue. |
 
 ## Handoff
-- Goal: explain coverage selection blindness using public policy/spec/source/reports and select concrete owner closures.
+- Goal: substantive independent whole-owner qualification for Directory and HTML; preserve prior accounting and failures.
 - Done: 7bde56f5 initial handoff; 196146d6 reproduced accounting; e822a6a7 corrected whole-train accounting and substantive findings; full final report is below and is committed with this handoff.
 - Done: 18-owner machine table validated, four areas, 378309 attributed bytes; 89 public source hashes; all named current SPECIFIED/unimplemented owners and references validated.
 - Done: pinned107 whole normalized report matches published; default108 repeat is byte-identical; independent owner/status sums match headline; protected-path assertion passes; diff check clean before final documentation-only update.
-- Next exact step: coordinator or separately authorized continuation removes this Handoff, sets final ready row, commits only this lane report, writes own normal docs queue using actual HEAD. Do not repeat research, builds or game requests.
+- Next exact step: compare framework chapter 6 and paths chapter 3 against authoritative rz_files directory; then complete canonical HTML operation ledger, independent literal witnesses and classification checks. No engine execution or edits.
 - Evidence: build-runs/owner-closure.{tsv,json}, closure-selections.json, finalize_audit_evidence.py, accounting-reproduction.json, audit_accounting.py, owner-accounting.json and owner-audit-*.md, all local ignored evidence.
 - Facts: train100 +8437 implemented bytes/109 functions through PersistResourceManager; trains101-108 all headline deltas zero. Initial final-resolution-only zero comparison was corrected.
-- Facts: Directory4385 B and HTML38218 B supported mapping-review candidates; no arithmetic bug proved. Explicit cap0: runtime, player-drive, LegacyControl, WWW; GZ messages1 remaining; other capacities UNKNOWN unless report says otherwise.
+- Facts: Directory4385 B and HTML38218 B are prior inventory candidates, NOT accepted weights or qualification. Recheck current attribution. Explicit cap0: runtime, player-drive, LegacyControl, WWW; GZ messages1 remaining; other capacities UNKNOWN unless report says otherwise.
 - No engine/tests/maps/shadows/generated reports/defaults/region/ABI edits; only own lane report tracked. No game requests or new questions.
 - Guard: context150k OVER denied final git+guard command after final report edit; obeyed, no merge-queue entry and no self restart. Return state continue, not ready.
+
+## Independent qualification: first milestone (2026-10-23)
+
+**Directory: WITHHELD.** The prior candidate designation was a review lead, not qualification. Framework §6 describes enumeration, list wrappers, recursive *listing*, create rollback and split. Paths §3.8 additionally publishes `RemoveDirectoryA(path, recursive)` (0x0091BF93): initial OS remove; early failure for nonrecursive/error 2/3/19/not-directory; recursively remove children in enumeration order; remove files only after all children succeed; final OS remove; stop at first failure. No such production algorithm exists in `engine/core/src/rz_files/directory.rs`. Its host trait (31–44) has no error-code or file-delete boundary; `host.remove_directory` at 329 is used solely for outermost-first rollback of created prefixes. This is a missing published operation, not an unknown OS wildcard or a requirement for a shadow.
+
+Authoritative implementation: `rz_files/directory.rs`; `paths/directory.rs` reexports it, rather than implementing another Directory. DirectoryEntry is a separate exact map owner (paths §3.10: three named bodies/94 B), not additional Directory credit. `cRZPath`, find wrappers, file deletion, strings and sort templates retain their boundaries. Borrowed entry invalidation on reread differs from independently copied name lifetime. Platform encoding/wildcards are host primitives, not automatic portable gaps. Framework's older entry-layout summary (427–428) differs from paths' later PA5 owner-pointer/name/kind description; no new native-layout proof is claimed here.
+
+Independent literal removal witness, fixed before any implementation execution: nonempty `P\\` contains child `d` and file `f`; initial remove fails with error 145; directory existence succeeds; recursive removal of `P\\d\\` fails. Expected false; initial remove, eligibility check, child enumeration/removal; **no delete of `f`, no final parent remove**. Companion cases: initial success stops; errors 2/3/19 stop before enumeration; child success then file failure prevents final remove; complete children/files success performs final remove and returns its result. Actual: **UNRUN / algorithm absent**, never executed-native disagreement. No Rust tests or engine commands written/run.
+
+**HTML: review in progress; known contradictions already require withholding.** Canonical HD5 resets position but preserves pushback/token/root/style; `parse.rs:9–23` does not reset position. HD6d numeric conversion uses a radix heuristic and whitespace/sign-aware saturating unsigned conversion before modular negation; `mod.rs:1202–1207` instead wraps leading decimal digits. Current SCRIPT returns SkipUntilToken and source agrees (`parse.rs:137–139`); stale historical answers are not the contract. Full-operation ledger and finite witnesses are the next step. Coverage inputs remain unchanged.
+
+Original budgets: core-htmldocument4 state 1 consumed, at most 2 remaining; re-htmldocument4 RE 3 exhausted; re-html-core-answers4 research 1. core-rzdirectory4 state 1 consumed/original limit 3; core-paths-directories4 parent 1 + contract-fix phase 2 = 3 exhausted. Recursive-helper owner assignment/budget requires explicit review and remains UNKNOWN: Directory capacity cannot restart capped Paths.
 
 ## Result and accounting
 
