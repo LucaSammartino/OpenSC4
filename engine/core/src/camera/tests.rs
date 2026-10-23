@@ -614,9 +614,9 @@ fn clamping_an_outside_target_moves_it_and_zeros_velocity() {
 }
 
 #[test]
-fn inconsistent_scroll_edges_exhaust_steps_and_keep_original_start() {
-    // A U-shaped polygon has contradictory inward half-planes x>=2/x<=1.
-    // No point can satisfy every edge, so the edge-count budget is exhausted.
+fn inconsistent_scroll_edges_accept_stationary_outside_start() {
+    // Contradictory half-planes do not project a stationary outside point:
+    // all start/end distances are equal, so no edge can be selected (§2.5).
     let polygon = [
         [0.0, 0.0],
         [3.0, 0.0],

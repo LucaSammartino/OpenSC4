@@ -77,10 +77,19 @@ pub trait TerrainView {
     fn ray_cast(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec3>;
 }
 
+/// Foreign view-utilities inputs/notification, never a camera owner result.
+/// Called without a camera lock; the callback can read the computed camera.
+pub trait CameraViewUtilities: std::fmt::Debug + Send + Sync {
+    /// Corner indices 0, 1, 2, 3, as consumed by §2.5.
+    fn city_corners(&self, rotation: u32, city_size: Vec2) -> [Vec3; 4];
+    fn update_camera_position(&self, control: &CameraControl);
+}
+
 #[derive(Debug)]
 pub struct CameraControl {
     initialised: bool,
     loaded: bool,
+    references: u32,
     camera: Option<CameraHandle>,
     plane_origin: Vec3,
     corner: Vec3,
@@ -110,6 +119,7 @@ pub struct CameraControl {
     city_size: Vec2,
     messages: Vec<ViewMessage>,
     message_server: Option<Arc<dyn ViewMessageServer>>,
+    view_utilities: Option<Arc<dyn CameraViewUtilities>>,
 }
 
 impl Default for CameraControl {
@@ -117,6 +127,7 @@ impl Default for CameraControl {
         Self {
             initialised: false,
             loaded: false,
+            references: 0,
             camera: None,
             plane_origin: [0.0; 3],
             corner: [0.0; 3],
@@ -148,6 +159,7 @@ impl Default for CameraControl {
             city_size: [4096.0, 4096.0],
             messages: Vec::new(),
             message_server: None,
+            view_utilities: None,
         }
     }
 }
@@ -162,6 +174,15 @@ impl CameraControl {
     }
     pub fn class_id(&self) -> u32 {
         CAMERA_CONTROL_CLASS_ID
+    }
+    pub fn reference_count(&self) -> u32 {
+        self.references
+    }
+    /// Literal shared AddRef ledger (§7). CA10 blocks control-specific
+    /// QueryInterface/Release/destruction dispatch, not Rust allocation life.
+    pub fn add_ref(&mut self) -> u32 {
+        self.references = self.references.wrapping_add(1);
+        self.references
     }
     pub fn initialised(&self) -> bool {
         self.initialised
@@ -293,6 +314,9 @@ impl CameraControl {
     }
     pub fn set_message_server(&mut self, server: Option<Arc<dyn ViewMessageServer>>) {
         self.message_server = server;
+    }
+    pub fn set_view_utilities(&mut self, utilities: Option<Arc<dyn CameraViewUtilities>>) {
+        self.view_utilities = utilities;
     }
     fn send_message(&mut self, message: &LiveViewMessage) {
         self.messages.push(ViewMessage {
@@ -466,7 +490,14 @@ impl CameraControl {
         pairs.map(|p| [p[0], 0.0, p[1]])
     }
     pub fn update_scroll_bounds(&mut self) {
-        self.update_scroll_bounds_with_corners(self.city_corners());
+        if !self.bounds_in_use {
+            return;
+        }
+        let corners = self.view_utilities.as_ref().map_or_else(
+            || self.city_corners(),
+            |view| view.city_corners(self.current.rotation, self.city_size),
+        );
+        self.update_scroll_bounds_with_corners(corners);
     }
     /// Allows a foreign view to supply its four documented city corners;
     /// camera-plane conversion and polygon construction remain owner logic.
@@ -624,8 +655,13 @@ impl CameraControl {
             if self.camera.is_some() {
                 self.update_camera_zoom_and_rotation_params();
                 self.update_camera_position_params();
-                if self.bounds.is_empty() {
-                    self.update_scroll_bounds();
+                // §2.6's literal optional-view guard covers both operations.
+                // CA9 asks for the generic helper's separate guard contract.
+                if let Some(view) = self.view_utilities.clone() {
+                    view.update_camera_position(self);
+                    if self.bounds.is_empty() {
+                        self.update_scroll_bounds();
+                    }
                 }
             }
         }
@@ -686,6 +722,18 @@ fn dot2(a: [f64; 2], b: [f64; 2]) -> f64 {
 }
 
 pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to: Vec2) -> Vec2 {
+    clamp_polygon_observed(polygon, enabled, original, to, |_| {})
+}
+
+// The observer counts completed edge projections, allowing §6.1's exhaustion
+// discriminator to prove it reaches the budget instead of an earlier exit.
+fn clamp_polygon_observed(
+    polygon: &[Vec2],
+    enabled: bool,
+    original: Vec2,
+    to: Vec2,
+    mut projected: impl FnMut(usize),
+) -> Vec2 {
     if !enabled || polygon.is_empty() {
         return to;
     }
@@ -722,10 +770,10 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
             let fraction = start_side / (start_side - f64::from(end_side));
             if fraction < f64::from(best) {
                 best = fraction as f32;
-                first = Some(([-v[0], -v[1]], length));
+                first = Some((i, [-v[0], -v[1]], length));
             }
         }
-        let Some((edge, length)) = first else {
+        let Some((edge_index, edge, length)) = first else {
             return end;
         };
         let fraction = if best >= 0.001_f32 {
@@ -748,9 +796,14 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
         let along = dot2(remaining.map(f64::from), unit);
         start = intersection;
         end = std::array::from_fn(|j| (f64::from(intersection[j]) + unit[j] * along) as f32);
+        projected(edge_index);
     }
     original
 }
+
+#[cfg(test)]
+#[path = "closure_tests.rs"]
+mod closure_tests;
 
 #[cfg(test)]
 mod ground_failure_contracts {
