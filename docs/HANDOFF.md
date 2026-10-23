@@ -5,14 +5,15 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state — USER STOP, 2026-10-23 09:35 BST
+## 0. Current state — USER STOP, 2026-10-23 11:10 BST
 
-**STOP is set** (`python tools/lanes.py stop`). Nothing runs: all nine workers, the train123 pipeline and
-the refiller have exited. Clear STOP only when the user explicitly resumes.
+**STOP is set** (`python tools/lanes.py stop`). Nothing runs: the nine stopped workers are landed and
+the refiller has exited. Clear STOP only when the user explicitly resumes.
 
-**Main:** train123 landed as `cf436ba3` after review. Its gate passed (5746 Rust, Clippy, CTest 68/68), and
-the regress was clean with no worsened comparison row vs train122 ([run 300](runs/train123-300.md)). All five
-lane tips are ancestors of main. No batch is in flight.
+**Main:** the nine stopped workers were finished and landed as train124 (8 lanes, [run 301](runs/train124-301.md))
+and train125 (`core-my-street-sim4`, [run 302](runs/train125-302.md)); both gates and regresses were clean (the
+train124 netmgr 72/73 -> 71/73 dip was run noise, back to 72/73 in train125). Every lane tip is an ancestor of
+main. The new core modules are unwired, so coverage did not move. No batch is in flight.
 
 **Coverage** (`tools/coverage.py`): specified 57.8%, implemented 36.1%, verified 19.7%, replaced 18.1%
 (3,226,906 / 2,018,463 / 1,099,943 / 1,012,661 of 5,584,842 bytes). Over the 12 hours ending at this stop
@@ -22,10 +23,6 @@ parallel partial slices.
 
 **Unlanded work** (worktrees removed 2026-10-23; every unlanded branch is pushed to origin, and each removed
 worktree's build-runs text is in `build-runs/worktree-archive-2026-10-23.tar.gz`, local only):
-- Nearest to landing, the nine workers stopped mid-round: `core-auto-game-pause4`, `core-lot-models-contracts4`,
-  `core-missing-plugin-reporter4`, `core-my-street-sim4`, `core-network-routines4`, `core-property-setter-helpers4`,
-  `core-rz-system-service-pointer4`, `core-terrain-overlays-contracts4`, `re-automata-controller-lifecycle4`.
-  Three end in an ungated "WIP: preserve uncommitted lane work" commit.
 - `re-curve-editor-views4`: spec transliterates x87 instruction sequences (CONTRIBUTING.md "Specs"); rewrite
   as behaviour before landing.
 - Held Codex lanes (`git branch --no-merged main`, about 35): mostly blocked on unpublished contracts; review
@@ -42,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 300 (FireFlames and DrawContext core contracts, string-encoding and UI-feedback specs, and an unapproved UTF8 qualification draft landed after a clean gate and a regression with no worsened comparison rows; coverage unchanged.); 299 (Bounded Geometry algorithms and six reviewed public contracts landed after actual5726Rust/68CTest and standard game regression with zero worsened comparison rows; original native and capture limits remain.); 298 (Seven bounded portable Sprites, GameLife, Video, Ripples, Transport, TextDecal and standalone UTF8 implementations landed after actual5714Rust/68CTest and standard clean game regression; native and whole-owner limits remain.); 297 (Bounded LocalGrid, RigidBody and EffectsParser algorithms plus strict exact-function accounting tooling landed after actual5584Rust/68CTest/247tools and standard clean game regression; empty ledger adds zero credits.); 296 (Bounded TypeInfo lifecycle/placement algorithms landed after actual5511Rust/68CTest and standard game regression; named gaps and previous failed checks remain recorded.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 302 (The unwired MyStreetSim core module landed after a clean gate and regression; coverage unchanged.); 301 (Seven unwired core modules and the automata controller lifecycle spec landed after a clean gate and regression; one netmgr shadow month of run noise; coverage unchanged.); 300 (FireFlames and DrawContext core contracts, string-encoding and UI-feedback specs, and an unapproved UTF8 qualification draft landed after a clean gate and a regression with no worsened comparison rows; coverage unchanged.); 299 (Bounded Geometry algorithms and six reviewed public contracts landed after actual5726Rust/68CTest and standard game regression with zero worsened comparison rows; original native and capture limits remain.); 298 (Seven bounded portable Sprites, GameLife, Video, Ripples, Transport, TextDecal and standalone UTF8 implementations landed after actual5714Rust/68CTest and standard clean game regression; native and whole-owner limits remain.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
