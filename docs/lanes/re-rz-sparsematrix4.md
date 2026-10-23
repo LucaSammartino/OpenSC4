@@ -12,7 +12,13 @@
 - Catalog fixture metadata establishes supported host-admission workflow only; live REA target remains UNKNOWN. No live retry.
 - Current binary SHA256 matches prior export-summary hash 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b; locate actual export summary next.
 - Name query: 18 matrix names, 1 iterator, 2 foreign AutoPtr entries; not 39 unique bodies.
-- Next: inspect summary, canonical instruction queries and matching decomp; publish algorithms by calls 25–30.
+- Primary binary/export identity complete: version 1.1.641.0 and matching SHA above; export base 00400000.
+- Published substantive spec §1–9: signed coordinates, lookup, counts/ranges, bounds/replacement/alias order,
+  removal endpoint wrap, extrema/sentinel tie, fixed-column iterator, exact-entry ledger; 12 UNEXECUTED vectors.
+- Filed SM1–SM5 in docs/specs/questions/rz-sparse-matrix.md; minimal framework-rz-files link added.
+- Important: 009a5bf2 and 009a5c36 are record initializers, not lookup/end; 009a7577 is iterator equality.
+- Public 39/3358 remains unreconciled: 18 matrix labels + iterator + 2 foreign AutoPtrs are not unique-owner proof.
+- Next: regenerate question index, verify caller/alias/ledger facts and docs links/diff; final bounded partial report.
 - No engine reads, builds, runtime/game requests, ABI proposals or native-executed vectors.
 
 ## Round 2 report (2026-10-23)

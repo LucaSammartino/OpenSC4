@@ -22,7 +22,8 @@ syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback,
 | `cRZFile` | 8,216 | vtable `0x00ABFED0`, 33 slots, object 0x80 bytes, interface `cIGZFile` iid `0xE020364F` (QueryInterface also accepts iid 1, the base) |
 | `cRZIniFile` | 6,617 | vtable `0x00ACF150`, 20 slots, no QueryInterface (slot 0 is the deleting destructor); `cHitIniFile` (vtable `0x00AD23B8`) derives from it |
 
-Not in this spec yet: `cRZSparseMatrix`, `cRZSysServPtr`,
+Sparse matrix/column iterator behavior is separately bounded in [rz-sparse-matrix.md](rz-sparse-matrix.md).
+Not in this spec yet: `cRZSysServPtr`,
 `cRZTimer` (same subsystem, later rounds); the language utility (docs/specs/language-utility.md, owned
 by the strings lane).
 
