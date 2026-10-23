@@ -1,16 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-network-routines4 (portable placement demolition helper) | Codex / core-network-routines4 | in progress | Audit contracts, implement ordinary domain, literal fixtures, stable gate |
+| core-network-routines4 (portable placement demolition helper) | Codex, finished by Claude / `core-network-routines4` | ready: network-routines §§2–8 helper in fc4-core with the eight §8 vectors as tests; ABI unchanged; no game runs | Land via the merge train. Wiring into network_rules/plugin is a separate lane. |
 
-## Handoff
-- Goal: first owned network-routines §§2–8 ordinary-domain helper; no native/ABI wiring.
-- Reused reserved detached worktree at daafcc9ee966d301a0c2e514521f1f977d78c40a; initial status clean.
-- Bounded source audit: network_rules has only whole-helper demolition_region_ok foreign bridge; no dedicated routines module in network_occupants.
-- R1 implemented the four preserved dirty files, then direct PowerShell focused cargo test completed exit 0: 11 owned passed/0 failed; filtered integration suites 0. Provider capacity error/turn.failed interrupted BEFORE commit/full gate, not a compiler failure.
-- SAME R2 preserved HEAD 6b37d2f063fda0e7fb785742925d777f02a54fc6 and all four dirty files unchanged. Raw R1 manifest/events/result/status, failed Bash log, successful focused command/output and source SHA256 snapshot archived in build-runs/recovery-r2/.
-- Completed source audit against network-routines sections 2–8, shared zones::CellRegion, literal test ledgers, and prior-family admission evidence. No competing dedicated owner or algorithm diagnostic; no production edits or focused-test repeat.
-- Formatting passed for three explicit absolute Rust paths (MSRV 1.75); relative-path attempt failed file lookup, warning-only absolute retry passed. Raw failure retained. Earlier R1 Bash E_ACCESSDENIED was pre-Cargo; format warning was not a compiler failure.
-- STOP 2026-10-23 09:16:47: coordinator stopped all lanes. The combined summary/implementation-commit/guard command was denied before execution. Production and tests remain the same FOUR dirty files; no implementation commit or full qualification gate started. Do not queue.
-- Next only on coordinator authorization: finish extracting exact focused command/output from archived raw events, commit stable implementation, then FIRST ONE canonical qbuild all and collect its terminal result. Full qualification remains pending; no extra focused baseline.
-- Ordinary <=257 logical bitmap only; native layout, shared COM, allocation/pointer/alias/reentry/exception domains excluded under NRT1. No ABI/plugin/default/game/whole-owner promotion; NO14/18–20/27–31 and capped algorithms untouched.
-- Current manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-network-routines4-r2-manifest.json. Coordinator supplied full both-key/dependency admission and drained-state evidence; no process/provider action by this worker.
+## Report
+- `engine/core/src/network_occupants/placement_demolition.rs` implements
+  `ComputeDemolitionRegionForPlacementCells` (docs/specs/network-routines.md §§2–8): signed bounds from the
+  input cells, half-open lot rects appended per input (duplicates kept), a cleared `CellRegion` whose stored
+  highs keep the extra clear border, an x-outer/z-inner scan that sets a bit and the zone-type mask bit on
+  each zoned cell whose filtered occupant lookup misses, the post-scan `0xFC00` rejection, cost cleared just
+  before the preview, and the eleven-argument DemolishRegion preview whose AL is returned unchanged.
+- `ExclusionFilter` is the temporary filter: occupant included iff QI `0xA9764C8C` returns zero, every
+  non-null QI output released; type/holder predicates always true; QI views for IID 1/0x46A80026/0xE4FDA3D4.
+- `RegionOutput` keeps a displaced previous region rather than dropping it (the helper never destroys it).
+- Host trait exposes only the foreign primitives; demolition itself, lot/occupant/zone services stay foreign.
+- Tests: `tests_placement_demolition.rs`, 11 tests covering §8 vectors 1–8 plus admission and max-size cases.
+- Gate: cargo workspace 5725 passed / 0 failed (summed over 27 `test result:` lines); clippy -D warnings 0
+  diagnostics; CMake build pass; ctest 68/68 on rerun (first run: `plugin_ini_turbo_test` failed on a
+  wall-clock window under machine load; this lane touches no plugin code). fmt clean on the 3 .rs files.
+- Not done: no C ABI, plugin or network_rules wiring; native region/filter layout and the allocation-failure
+  branches (including the null-filter preview) are not modelled; out-of-city input or malformed lot rects
+  return `Unsupported`, a portable validation policy and not native behaviour (spec NRT1). No new questions.
