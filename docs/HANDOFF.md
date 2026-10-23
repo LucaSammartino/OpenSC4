@@ -5,143 +5,114 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state (2026-10-23, run4 open-ended)
+## 0. Current state — USER STOP, 2026-10-23 09:16 BST
 
-**Checkpoint575 reviewed at actual round577 (not a backdated575 snapshot):** relative to
-checkpoint550, exact byte numerators are3226982/2018539/1099943/1012661:
-specified+76, implemented+76, verified/replaced unchanged. The fixed denominator remains
-5584842B/29536functions; rounded headlines remain57.8/36.1/19.7/18.1. The train121
-LandValue withdrawal and train122 actual exact sample remain separate evidence. Selection
-continues the required change after the earlier flat trains: substantive newly published
-owned algorithms and complete-function qualification, rather than repeated baseline gates
-or owner inventories. Registry3 is now admitted; UTF8 qualification is a public DRAFT,
-approvedfalse with owner unresolved, not numeric credit. Independently review its complete
-normal semantics, actual source-matched provenance and unchanged attribution before any
-admission. Next checkpoint600.
+The user stopped the goal and authorized halting. **STOP is set** through normal
+`python tools/lanes.py stop`. No new work, worker rounds, refills, probes, source changes,
+publications or validation runs. The three collaboration helpers have stopped. Running
+workers receive the normal guard instruction to commit their handoff and return; their
+process presence below is a snapshot, not a claim that all have exited.
 
-**Provider recovery08:52:** ClipR1 upstream error AND turn.failed both report selected-model
-capacity before any tool calls; the wrapper reported handshake/tool coverage first.
-Both are retained. Actual same-model AVAILABLE/exit0 at08:49:58 qualified only that exact
-pause, archived by resolve-codex-capacity-pause-20261023-0850.py after raw-event/model/time
-checks. Prior30188 positively ABSENT; hidden refiller21192 identity and normal owner lock
-VERIFIED. No refund, model switch or guard relaxation. Clip's missing truthful failure
-report was committed5b2f3854 in its EXISTING worktree and published through the normal
-compare-and-swap publisher; no source/spec/READY credit. Fresh same-scope R2 admission
-passed after this actual report completion, preserving original1 consumed; another real
-active AutoPause overlap may still hold dispatch. Do not count that conditional brief.
-Actual9backend+9CLI proof08:56 is coordinator-live-workers-0856.json; newer08:59 proof
-observed8, so the historical9 is not a current capacity claim. Keep refilling plus three
-independent currently usable spares; RZ TextFile and SysPtr share a key and cannot count
-as two simultaneous replacements.
+**Last landed train122:** `d9c8a9a351b0639d1e50acb295ea27d0bc2a322a`, 08:43:32.
+Postchecks and reports pushed `8e69a1ac`; latest main before this stop note `b5e4b7c3`.
+SysPtr/MyStreet/PropertySetter/NetworkUI/AutoPause/MissingPlugin/Geometry exact supplied
+tips are all ancestors. Gate5726Rust/0/0 in27 summaries, Clippy31.1s, native50/50,
+CTest68/68,231.4s. Both standard game profiles clean2032/ref0/Release0/detach,
+124.109s/608.469s. Root and Live independently inspected the full comparison delta:
+ZERO worse. LandValue71/72 to72/72 reflects the new sample, not a capture fix.
+All seven train122 worktrees now removed with branches and ALL ignored evidence retained:
+the final RE MissingPlugin target was independently qualified by exact WT/manifest/branch
+identity after the generic substring checker confused it with the active CORE name.
+Proof `build-runs/coordinator-train122-missing-plugin-exact-cleanup.json` records ordinary
+cleanup success; original generic false-positive evidence remains unchanged.
 
-**train122 landed d9c8a9a351:** Seven reviewed deliveries landed at d9c8a9a351 on 08:43:32: SysPtr1482c9b3, MyStreet24d25b18, PropertySetter38a19379, NetworkUI57734a13, AutoPause8dce076c, MissingPlugin952a0fa4, Geometry4aab2002. Gate5726 Rust/0failed/0ignored in27summaries, Clippy31.1s, native50/50 in63.2s, CTest68/68 in133.1s, total231.4s. Standard regression finished08:39:50 with bothclean2032/ref0/Release0/detach,124.109s/608.469s. Root full delta review and independent Live review found ZERO worsened rows. LandValue71/72 to72/72 in this new run, but native_step_capture remains0 and train121 failure/capture gap remain recorded. Netmgr72/73,3uncompared,13resyncs,NM10=65 differences on25lines stays nonexact. Gate artifacts archived with exact bdfe562d/treeca83b5d8/engine2fa02d88 identities. Actual run299; next300 requires fresh reservation. Root Registry3 admission added76B to specified/implemented only, ownerpartial3/48/native0, unchanged strictresolver and247toolsPASS/1skip45.27s; no denominator change. Fresh qualified cleanup pending. New real dependencies release Clip/Preview/MPR/Property/MyStreet refills; restore9actual and maintain3independent launchable spares. Coverage57.8/36.1/19.7/18.1; rounds571 (open-ended).
+**Train123 is NOT landed.** Integration `34f4dadfd42897c69a78964cb9a98d49769b211d`
+contains DrawContext `fab671ba`, FireFlames `a2fa7c19`, Encoding `d38a9b12`,
+UIfeedback `82bdc668`, UTF8 qualification DRAFT `e083d3cd`. Each bounded delivery
+was independently reviewed; the UTF8 qualification intentionally remains owner=null,
+approved=false and earns no credit. Gate PASS09:12:14: 5746Rust/0/0 in27
+summaries, CTest68/68,244.1s; exact record `build-runs/gate-train123.json`.
+Pipeline19860 started09:07:45 and is already running the standard regression.
+It stops at ready-for-review and DOES NOT automatically land. Do not start a duplicate
+game/check. If still running at a later resume, collect that existing operation.
+Run300 reserved; next301 requires a fresh collision reservation. Artifact archive
+`build-runs/gate-artifacts/train123/manifest.json` pins DLL18485248B
+SHA25690016d63e651d36bb3581fcbae4c941b1d1ea2ab211b54c3a2b09ada1aa69b74,
+PDB175255552B SHAd7f04de793093032e682db7c787cc778d8eaa95ac0a027ca67b1a386fb3eb93b,
+LastTest495821B SHA8bc54db93880b890f7add5e5ab9792a88d248dbf3cae90332d9aa9dcc9b7d92d.
+Every actual comparison delta must be reviewed before any future landing.
 
-**Train122 running:** exact integrationbdfe562dd9bca524595e62d4923005f12bf3fd2a contains
-SysPtr1482c9b3/MyStreet24d25b18/PropertySetter38a19379/NetworkUI57734a13/AutoPause8dce076c/
-MissingPlugin952a0fa4/Geometry4aab2002, all independently reviewed. Actual merge terminal0;
-run299 reserved after full126-worktree collision scan. First pipeline launcher raced the
-unfinished merge and stopped at its current-batch assertion before any gate; preserve
-train122-pipeline-launch.err, no validation occurred. After actual merge collection,
-one pipeline24640 started08:25:19; gate/regression pending. No automatic landing:
-review every actual shadow delta under the published train121 acceptance requirement.
-Core AT22 arrived READY after this cut, for next123 after independent acceptance.
+**Stop snapshot:** heartbeat09:16:48,9 actual backends, no provider pause, zero pending
+launchable briefs,581 total rounds. Refiller18188 was identity/owner-lock verified;
+STOP prevents dispatch regardless of process lifetime. Latest independent nine-worker
+proof09:14:26 is `coordinator-current-worker-identity-091426-3e2e63b0.json`.
+A subsequent read verified these exact nine PIDs still present:
 
-**Capacity08:26:** actual8/9 heartbeat, refiller30188 verified/owner-locked, no provider
-pause or STOP. FireFINAL and UTF8 qualification are actually launched (rounds568).
-NetworkRoutines distinct newly specified helper implementation is under immediate review
-for the ninth slot; Curve meaningful R2 and post122 implementations are being screened.
-Maintain at least three independent launchable reviewed replacements even when nine run;
-current lack of spares is active refill work, never a reason to wait for the absent user.
-
-**Train121 acceptance correction:** LandValue actually worsened72/72 to71/72;
-`regress-train121.out` explicitly reports1worse despite clean-process PASS. Root missed
-that delta before landing. The unchanged resolver correctly withdrew27functions/6711B,
-verified19.7 to19.6; preserve this lower result. Independent diagnosis supports a temporal
-input-coherence gap, complete cause UNKNOWN; all five LV source blobs/spec/layouts are
-unchanged120-to121. Existing ABI layouts are already applied; safe native capture
-installation/lifetime remains unproved. No rerun, credit restoration or algorithm patch.
-See [the acceptance incident](ops/acceptance-incident-train121.md). Inspect every shadow
-delta before the next landing; structured worsening enforcement is under review.
-The incident is published and independently reviewed. Complete cause remains unresolved;
-future unrelated deliveries require explicit
-review of their actual shadow deltas and retain this nonexact baseline.
-
-**Registry exact-function admission:** ROOT independently accepted the complete null/full-u32
-semantics and actual source-matched archived gate for00473B50/70/90. Published qualifications,
-literal assertion limits and retained tree-change warning are in docs/coverage-functions/registry-pilot-review.md.
-Unchanged strict resolver/report/treemap/audit accepted exactly3functions/76B in each of
-specified and implemented; owner remainspartial3/48, native verified/replaced false.
-Full tools247PASS/1skip45.27s, actualsession6653exit0; no engine/game rerun or denominator change.
-Bytes now3226982/2018539/1093232/1012661; headline57.8/36.1/19.6/18.1, including the LV loss.
-
-**Capacity recovery08:13:** fresh heartbeat08:11:40 was8/9 actual workers. FireFlamesR1
-ended with a new selected-model-at-capacity error; preserve work and consumed round.
-Actual same-model AVAILABLE/exit0 probe08:12:59 archived beside the exact Codex pause;
-only that pause cleared. Prior dispatcher38700 positively ABSENT. New hidden dispatcher
-30188/Windowscreation134372132757635549 actually started08:14:35, identity/normal owner
-lock verified. Clip's explicit scheduling hold is DONE: its active AutoPause dependency still points at its
-initial baseline ancestor, so ancestry alone incorrectly calls it launchable. Encoding,
-UIfeedback and reviewed LotModels FINAL are independent normal-queued replacements;
-queued work and collaboration helpers never count toward nine actual workers.
-Train121 fresh bounded cleanup11.328s/allseven eligible/errors[] and normal cleanup
-completed: seven worktrees removed, branches and ALL ignored evidence retained;
-coordinator-train121-cleanup-complete.md records final identities and archive paths.
-
-**train121 landed 373e2400ba:** All seven bounded deliveries Sprites4be79b5b/GameLife510eac4c/Videoaa33ba6f/Ripplesc4197354/Transportc91e4510/TextDecald8b95dd3/UTF8f655a0a4 ACTUALLYlanded07:57:26. Gate5714Rust/0/0 in27summaries, Clippy33.0s/native50of50/71.5s/Ct68of68/150.6s/259.4s; regressionPASS07:56:07 bothclean2032/ref0/Release0/detach,112.563s/573.359s. Netmgr72of73/4uncompared/12resyncs/NM10=74on22 remainsnonexact. Exactgateheadb88a7e99/tree8c880164/enginecff19339 archived, normalnonFFland preserves laterdocs-onlymain09a92fed. Textmissingnormalqueue recoveredonlyafteractual5517gate/source/independentreview, CONTINUE/contextguard/rootFIVEclientactions retained; no extra check/round or gateoverride. Other priorformatter/native/MSRV/unknownterminals retained. Native0 and everyGL/VP/WR/AS/Q11-14/TDO/numeric/lifetime boundary remain, no wholeowner/default promotion. Actualrun298/next299. Mandatorynineactual+reviewedspares remains; latestfreshheartbeat9 withRadiusspare. ProviderSysPtr/AT22 capacityfailures retained with consumedrounds, actualsame-model probes0736/0748 cleared only exactpauses; newrefiller26096 afteroldpositivelyabsent. Registry3pilot provenance and staticsemanticreview matched, but ledgerstillEMPTY pending explicit reviewedpublication/normalresolver. Freshcleanup required. Coverage57.8/36.1/19.6/18.1; rounds561 (open-ended).
-
-**07:39:31 actual9/9 independently verified:** coordinator-nine-workers-os-0739.json proves exact backend creation/cwd/argv/current manifest and ONE direct primary Codex CLI for all nine; no helpers, queued work or servers counted. Geometry37952/Draw23488/Flames10072/AT2230524/MissingPlugin28560/Lot21188/Property34912/MyStreet28472/Curve38160. SysServPtr round1 interrupted by actual selected-model-at-capacity; partial work and consumed round retained. Real same-model AVAILABLE/exit0 probe07:36:23, exact pause archived/cleared without refund. Old refiller11732 positively ABSENT; new17580 hidden/owner-locked OS VERIFIED in coordinator-refiller-0738-root-proof.json. No STOP/provider pause now. Prepare useful launchable spares immediately rather than relying on this snapshot. TextDecald8b95dd3 independently5517/Clippy/native4/Ct68 stable PASS; missing normal queue recovered with exact full occupants-and-props scope, no new round/test/source/gate override. First recovery attempt safely stopped before any write on a wrong presumed scope, then used the unchanged actual original full key. TransportR2c91e5537/0/26 and UTF8R2f6555504/0/26 complete terminal/source/log acceptance CLEAR, coordinator-transport-utf8-r2-ready-review.json. Next121 includes all seven actual READY deliveries; original terminal failures and native0 retained.
-
-**Complete restart note after train120, 07:34 BST.** User is absent and authorizes autonomous project work. Keep the active goal running toward 100% coverage; do not ask routine questions or stop after a status update. Read prompt.txt, ops/rules.md, this section, the fresh heartbeat and normal guard after every restart. STOP outranks capacity: land READY, commit, push and end. Never infer current state from this snapshot.
-
-**Capacity is an active incident: snapshot 5/9 actual workers, zero launchable briefs, four vacancies.** Nine actual guarded CLI workers is mandatory, max3glue. Three collaboration helpers are separate coordinators and do not count. Assign distinct useful refill work immediately, prepare independently reviewed full-scope briefs, normalqueue and verify actual backend/primary CLI identities. Completions opened vacancies while acceptance and new substantive briefs continued; the target has not been relaxed. Do not enter a long idle wait below nine without replacement briefs covering vacancies.
-
-| Worker at snapshot | Backend PID | Consumed / limit |
+| Worker | Backend PID | Original family consumption |
 |---|---:|---|
-| core-draw-context-contracts4 | 23488 | 1/2 child; original 2/3 |
-| re-system-service-pointer4 | 19956 | 1/3 |
-| core-fire-flames-contracts4 | 10072 | 1/2 child; original 2/3 |
-| re-automata-controller-lifecycle4 | 30524 | 1/3 |
-| re-missing-plugin-reporter4 | 28560 | 1/3 |
+| RE Automata controller lifecycle | 14144 | FINAL3/3 |
+| CORE LotModels contracts | 29168 | FINAL parent1+child2=3/3 |
+| CORE TerrainOverlays contracts | 25260 | FINAL parent1+child2=3/3 |
+| CORE NetworkRoutines | 30232 | 2/3 |
+| CORE MissingPlugin reporter | 29944 | 1/3 |
+| CORE MyStreetSim | 25188 | 1/3 |
+| CORE PropertySetter helpers | 13052 | 1/3 |
+| CORE AutoGamePause | 26424 | 1/3 |
+| CORE RZ SysServPtr | 38480 | 2/3 |
 
-Current authority is build-runs/run4-heartbeat.json plus run4-coordinator-state.json and actual process/manifest identity, not this table. Genuine refiller11732/creation1792725083.9827074 remains owner-locked; exact Windows identity proof coordinator-refiller-0648-root-proof.json. CIM UNKNOWN is a visibility error, not permission to duplicate/restart it. Current workers include original FIRST research SysServPtr/Automata base-controller/MissingPlugin and inherited DrawContext/FireFlames algorithm phases. Every worker preserves cleanroom, original family budget and STOP.
+These are unfinished worker states, not READY qualification. Preserve all dirty source,
+evidence, current operations and remaining original budgets during wind-down. No force
+process termination or validator/compiler/cache restart was performed. Capacity was not
+continuously nine; completions and repeated real provider failures produced vacancies.
+The policy now requires nine actual workers plus three independently launchable spares
+when resumed, but the stop snapshot has zero launchable spares. STOP overrides that target.
 
-**Latest landing:** train120, exact main8770e5aac07ddc5264e6b50535ece94431a82963 at07:27:44; postchecks committed/pushed d723dc19. Four exact lane ancestors verified: LocalGrid898afea7, CoverageFunctions92ef5e8f, Rigid988e0880, EffectsParsere43af123. Combined5584Rust/0/0 in27summaries, Clippy32.6s, native50/50, CTest68/68/132.9s; tools247PASS/1skip/0fail in46.25s, actualsession16677exit0. Normal regressionPASS07:27:10, bothclean2032/ref0/Release0/detach, replacement110.719s/shadow623.516s. Netmgr72/73, three uncompared configuration draws,14resyncs,NM10=63on21lines remains nonexact. Aura/RNG/copied-state and traffic undefined-field exclusions remain.
+**Other completed or held work:** RadiusR2 and CurveEditorR2 now have own READY docs queues;
+their final deliveries are NOT independently reviewed after STOP. Watercraft original
+RE3/3 remains WIP: independent review recommends a coherent bounded DOCS publication,
+but ROOT has NOT promoted/enqueued it; WC3–7 and the CORE park remain. Tooltip CORE is
+a conditional draft, not queued, waiting actual123 publication/full admission and a small
+unapplied wording clarification. RZ TextFile research draft is unqueued and shares the
+RZ hold with SysServPtr. Preview is blocked by active NetworkRoutines; ClipR2 is blocked
+by active AutoPause's full other-free-functions key. Native UTF8 remains conditional on
+full strings+other-free admission and a published/version-tested direct-call ABI.
+Do not count these drafts or holds as launchable replacements.
 
-Stable gate archive gate-artifacts/train120/manifest.json: tree2211a25538d7cfbd9679049abf32910796d00c38/engine1e62808f6a715190bb3ecb91d99ffe3477e61954; DLL18409984B SHA256f4d6af412b965a9db227bc1e1dd260fd031831709395c156917a64b876554b40; PDB173993984B SHA256081a477ccc9e759f71751a86b91df6cbf8f7c63f100073513e81deff5ecfda43; completeLastTest480196B SHA25680b12a5ef71aec52e2652d0dfe5bf61c03fe111278c6846b9bec6c4d86b30d31. Actual run297, next298 requires fresh collision reservation. No current train at this snapshot.
+**Coverage on main:** specified57.8% (3226982B/14605functions), implemented36.1%
+(2018539B/8985), verified19.7% (1099943B/4325), replaced18.1% (1012661B/3899),
+fixed denominator5584842B/29536functions. Three exact Registry functions added76B to
+specified and implemented only, ownerpartial3/48/native0. Strict unchanged resolver,
+treemap/audit and full tools247PASS/1skip45.27s qualified that admission.
+No owner, exclusion or denominator adjustment. UTF8 DRAFT is not admitted.
+Checkpoint575 was reviewed at actual577: +76/+76/0/0 bytes vs550; next600.
 
-**Post120 cleanup DONE:** fresh bounded12.297s COMPLETE/errors[]/eligible all4 proof cleanup-bounded/20261023-072937-e7ddc8f689-result.json; normal run4-cleanup removed those four landed clean worktrees, preserving ALL ignored evidence and branches. Never remove active/unlanded/parked worktrees. The bounded helper is read-only until normal cleanup; UNKNOWN authorizes nothing, exact own inspector only on deadline.
+**Errors and binding holds:** train121 LandValue really worsened72/72 to71/72 and withdrew
+6711B/27verified functions; root missed its printed worsening before landing. The complete
+incident is [recorded here](ops/acceptance-incident-train121.md). Train122's later exact
+samples do not erase that failure. Native per-Step capture remains0; safe observer
+installation/lifetime remains unproved. Structured worsening enforcement is HELD by
+existing tooling claims; the immediate coordinator rule requires complete delta review.
 
-**Queue and next train121:** six normal READY entries currently plan: Sprites4be79b5b, GameLife510eac4c, Videoaa33ba6f, Ripplesc4197354, Transportc91e4510, UTF8f655a0a4. Root source/retained gate reviews for first four are coordinator-gol-sprites-ready-review.json and coordinator-video-ripples-ready-review.json; finish current Transport/UTF8 terminal receipt acceptance, retaining earlier semantic reviews and native0. TextDecald8b95dd3 actually reports CONTINUE with5517/Clippy/native4/Ct68 PASS, context guard blocked own queue creation. Live independently reviews source/terminal and legitimate missing-queue recovery; no redundant source/check round. Geometry383385db WIP reports existing all pending optionalstats18344, original parent1+child1 consumed, FINAL child2 remains only if meaningful incomplete qualification and fresh old-operation drainage. Paths reviewing. Overlay6860eb81 FINAL original3/3 WIP: scoped37/Rust5466/Clippy, stats20976/CTest and terminal unknown. Only collect its actual existing operation if still alive; no fourth/new gate/READY override.
+Latest provider error was SysServPtrR1 selected-model-capacity after ONE actual command,
+not zero. Same-model AVAILABLE/exit0 at09:07:53 qualified its exact pause; prior21192
+positively absent, new18188 verified. ClipR1 had upstream capacity before tools, masked
+by the wrapper's handshake diagnostic; both are retained. Missing failure reports were
+truthfully committed through normal detached-commit/publisher CAS in existing WTs before
+fresh same-family resumes; no source credit, refund, guard edit or fourth round.
+Every historical formatter/native/MSRV/unknown terminal remains in the respective report.
+TerrainR1's5597 gatePASS and1260-line formatterFAIL are distinct; FINAL source correction
+is unfinished. NetworkR1 had11 focusedPASS, dirty partial production and capacity error;
+no all had started. Original3/3 holds, KeyList235/238/ref4, REA/Singleflight and all other
+parked failures remain binding. Region RE belongs to LucaSammartino through2026-11-21.
 
-**Refill in progress:** LotModels exclusive child original2/3 strict reservation actually executed after finite outside-lock proof; root content peer approved new LM3-7 triangle/range/foundation/cell/combiner corrections, normal queue pending. PropertySetter helpers FIRST research11entries1585B partial prior facts preserved, full data-formats guardGO; Paths peer pending. MyStreetSim FIRST research explicitly outside prior MySims spec, full mysims guardGO; draft/peer pending. Happiness/GeneralResponseCurve EntryViews are explicit prior identity-only owners; Renderer screening full resource/editor FIRST research. These are preparations, not live workers. Helpers Live/Paths/Renderer handle independent refills and acceptances; do not count conditional/blocked briefs toward vacancies.
-
-**Coverage and checkpoint:** measured57.8/36.1/19.7/18.1, exact bytes3226906/2018463/1099943/1012661 over fixed5584842 game bytes,29536functions; exclusions6100/924106 unchanged. Twenty flat trains101-120. Checkpoint550 recorded at551 rounds,92 run4 trains landed; current rounds552, next575. Since checkpoint525 the four headline/byte numerators have not advanced. Selection now prioritizes substantive newly settled DrawContext/FireFlames/LotModels algorithms, explicitly unstudied research owners and qualifying complete functions, rather than new partial owner inventory or repeated already-proven verifiers.
-
-Exact-function accounting capability is now main, EMPTY ledger and ZERO new credit. Registry three pilots32/25/19B remain withheld because no tracked source-matched validation provenance and independent exact semantic admission was supplied. Supply actual archived source-matched provenance and full normal-function decisions before any numeric admission. No denominator/library/attribution changes, partial-function fractions, host-computed owner outcomes or whole-owner credit. docs/COVERAGE.md and coverage-functions/registry-review.md define the strict protocol.
-
-**Common instruction fix published d4f10281 before120:** remove mandatory pre-edit baseline all, require one stable final all after meaningful fixtures and declared MSRV, explicit owned-file formatting, never redirect rustfmt filename headers into source. Codex transport now collects SAME asynchronous command through actual terminal with supported long waits. Full tools233PASS/1skip/0fail81.82s actual95724exit0 before publication. No guard/cap/cache-policy relaxation.
-
-**Finite operational interventions:** watcher34884 completed07:08:20,898.34s,29passes,9 confirmed attempts/budget9, no error. Exact exit15 optional clients: Transport8008, Geometry18416 then31540 (different identities), Sprites31540 then26152, Effects10084, LocalGrid26772, Text31480, GameLife19172. Same parents/daemons survived every action. Full exact timestamps/source/journals in coordinator-watch9-complete-action-summary.json; own copies exist. Correct LocalGrid/Effects author omissions in acceptance notes; later actual canonical PASS remains separately proved. No native/gate success follows from a statistics interruption.
-
-New watcher33840 at07:15:06 failed initial pin of ended GameLife2848 BEFORE controller creation: targets{},passes[],attempts0,budget0, explicit finished/error. No automatic retry/adoption. After actual case review root separately made ONE finite controller attempt each on active Geometry18344 and Text22372 at07:21:47/56, both exact exit15, same parent/daemon retained; optional-stats-20261023-072146.json and optional-stats-20261023-072155.json plus coordinator-stats-once journals. No current root watcher is active. Never restart validator/compiler/cache daemon or assume process absence proves historical exit.
-
-**True blockers preserved:** tooling-key canonicality bug in lanes.py rejects valid build-infrastructure own declarations then falsely scans report prose. coordinator-tool-key-canonicality-review.md documents it. FIRST claim-metadata PhaseA draft is real but depends on capped/unlanded REA source with genuine overlapping tools/lanes.py changes; do not delete valid WIP claims, add fake map keys, silently drop dependency or bypass denial. BMP/other research held. REA original3/3 remains production-unsupported despite205tools/2metadata/component canary proofs; no fourth/source retry/forced landing. Singleflight timeout source repair is capped unqualified, not implemented by operator interventions.
-
-Original family<=3 throughout. Changed implementation phase is allowed only for genuinely NEW published algorithms and proven remaining budget: freeze original parent limit=used, retain park/evidence, reserve one exclusive child under short coordinator lock after finite outside-lock census; same full keys/deps/normal guard/peer. Parent+child<=3, no siblings spending same rounds, ref reconstruction or capped alias. Specific CoreNetoccNO15-17 no-alias restriction remains. Controller/Groups historical budgets unknown: no invented FIRST. DrawContext/FireFlames/LotModels reservations and root peer notes are in build-runs, each actual parent1 frozen +childceil2. RE families stay independent and capped as recorded.
-
-FontFINAL40de95ab cap3 exhausted WIP:678 bridge checks0fail/nativeoriginal0, existing all partial19/69 then terminal unknown after thread-not-found; exact original failure/native/visibility history retained, no further gate/game. TextEdit/Scene/Glyph/ModelEffects/Advice/Flora/Lua/Tutorial/Singleflight capped failures remain held. KeyList native235/238 with3EraseFirst differences/ref4 remains WIP; no fourth persistence alias. Full widget work, native timer/grid/RNG/rule ABI gaps and real inherited owner holds remain. Region RE is reserved wholly to LucaSammartino through2026-11-21; no region work. Assignment truth is docs/assignments.tsv.
-
-**Clean room and operating loop:** RE never implementation; engine never original/private RE. Coordinator never original bodies; copy required evidence into owned ignored build-runs. Game install read-only, restore test city after save tests, no public/external messages without separate authority. Private git push authorized. All file/source edits via apply_patch. Never put unbounded global open-file census under state lock. Use run4_coord_lock.py for short state mutations; finite ownership inspection outside lock. Never fake a gate, SOURCE/PASS result or body/coverage denominator.
-
-Canonical waits only: coordinator-heartbeat-wait.py train|backlog wraps tools/lane_heartbeat.py --wait-until train|backlog --timeout60 and prints native status. Before a long wait cover vacancies with launchable briefs. Exit4 prepare reviewed replacements immediately;0 handle train;5 STOP or real provider pause;2 inspect alerts;3 switch to backlog. Provider pause clears only on actual same-model one-call proof. Every train: questions/gen tables/coverage/treemap/doccheck, full tools if changed, status commit/push, fresh-qualified cleanup. Full restart note every10trains; next130. Every25rounds compare actual coverage and change selection after3flat trains; next575.
-
-**Backup watchdog only (expires 2026-10-23 08:29 BST):** this coordinator retains full primary responsibility for keeping **nine actual worker lanes** running, preparing reviewed replacements and refilling immediately below nine. Do not wait for the backup watchdog, its alerts or acknowledgement. The user's seven-lane threshold applies only to backup intervention; it does not lower the coordinator's target or transfer responsibility. Read `build-runs/lane-capacity-watchdog-note.md` and `build-runs/lane-capacity-watchdog-request.json`; acknowledgement in `build-runs/lane-capacity-watchdog-ack.json` is informational. The observer cannot see host PIDs or directly message this CLI. Watchdog expiry does not stop this run or change coordinator duties.
-
-**Next three actions:** (1) Restore actual9 and spare backlog immediately: queue LotModels/PropertySetter/MyStreet/Editor research after normal peers/guards, handle meaningful Geometry recovery, keep independent candidate screening; verify actual OS/manifest identities. (2) Finish current READY acceptance/missing Text queue recovery, cut121 promptly with every actual READY entry, reserve298, normal gate/regress/archive/land, generate/doccheck/commit/push/qualified cleanup. No extra rounds on completed READY. (3) Publish complete-function provenance and exact semantic review for actual Registry pilots if qualified; otherwise retain empty ledger and favor larger unstudied owners. Resolve genuine scope/tool faults through reviewed lawful source/admission work, preserve all caps/failures/native limits.
-
-<!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 299 (Bounded Geometry algorithms and six reviewed public contracts landed after actual5726Rust/68CTest and standard game regression with zero worsened comparison rows; original native and capture limits remain.); 298 (Seven bounded portable Sprites, GameLife, Video, Ripples, Transport, TextDecal and standalone UTF8 implementations landed after actual5714Rust/68CTest and standard clean game regression; native and whole-owner limits remain.); 297 (Bounded LocalGrid, RigidBody and EffectsParser algorithms plus strict exact-function accounting tooling landed after actual5584Rust/68CTest/247tools and standard clean game regression; empty ledger adds zero credits.); 296 (Bounded TypeInfo lifecycle/placement algorithms landed after actual5511Rust/68CTest and standard game regression; named gaps and previous failed checks remain recorded.); 295 (Portable HTML hooks, registry and sparse matrix plus bounded VariantStorage, Sprites, TextDecal and Controller contracts landed after actual5499Rust/68CTest and standard game regression.). See `docs/manual-checks.md`.
-<!-- END GENERATED -->
+**If the user explicitly resumes:** first read prompt.txt, ops/rules.md, this note, fresh
+heartbeat and normal guard; clear STOP only on that resume authority. Collect current
+train123 and all worker handoffs without duplicate operations. Review full train delta
+before normal landing/postchecks/qualified cleanup; review Radius/Curve independently.
+Restore actual9 and three disjoint usable spares through normal guards. No automatic
+Watercraft promotion, UTF8 admission, unpark, model switch or budget reset.
+The previous section0 is archived verbatim in
+[handoff-before-user-stop-2026-10-23.md](history/handoff-before-user-stop-2026-10-23.md).
 
 ## Where everything else is
 
