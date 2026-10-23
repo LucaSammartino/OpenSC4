@@ -78,6 +78,11 @@ pub trait GeometryTerrain {
     fn max_allowed_height(&self) -> f32;
 }
 
+// Static-record lifecycle is distinct from the degree-valued geometry input.
+pub mod type_info;
+#[cfg(test)]
+mod type_info_tests;
+
 /// The terrain as the grading writes it (§9.7).
 pub trait GradingTerrain: GeometryTerrain {
     /// Terrain slot 50 `SetAltitudeAtVertex`.
