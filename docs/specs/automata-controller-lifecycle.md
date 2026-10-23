@@ -674,16 +674,175 @@ expectations, not portable outputs or original execution. Geometry arithmetic
 uses x87 PC=53 and round-to-nearest, masked exceptions, finite exact operands;
 no unspecified runtime initializer is used. References identify independently
 valid objects. Primitive mutations/return channels below are independent inputs.
+For Read fixtures R1–R4, start from an independently supplied live C with
+position=(1,2,3), elapsed3, lifetime8, template T, clock K and empty list/count0
+unless the row overrides these. These are fixture values, not constructor
+defaults. Every unspecified stream output leaves its destination unchanged;
+the header output is0, the occupant-reference output is null unless named, and
+the final status AL is0 unless named. Each list-reference output is explicitly
+listed. Reference helpers are reference-neutral in R1–R3; R4 can independently
+supply either neutral or retaining helpers and must record their own acquisition
+events. All returned nonnull references have independent keepalives, so none
+relies on a destroyed object surviving its old Release. Intermediate primitive
+status words are0 unless specified and do not gate this Read's continuation.
 
 | ID | Raw inputs | Expected local behavior |
 |---|---|---|
 | R1 Read replacement / full-word status | old O1 retained; helper ID26BB767E writes O2; +0x24 replies sound=0x1234, flags=0x1002, count=0; final status EAX=0x12340000 | null occupant before Release(O1), then helper-write O2; no local AddRef(O2); EAX=1 despite nonzero full status word; template/clock unchanged locally |
-| R2 Read partial outputs | old O1; helper writes null and returns 0; vector primitive changes only x to −7 and returns 0; subsequent primitives leave their output unchanged except count=0; final AL=2 | Release(O1), occupant null; original y/z survive, x=−7; all later calls still occur; EAX=0 with stores retained |
+| R2 Read partial outputs | old O1; helper writes null and returns 0; vector primitive changes only x to −7 and returns 0; subsequent primitives leave their output unchanged except count=0; final AL=2 | Release(O1), occupant null; position=(−7,2,3); all later calls still occur; EAX=0 with stores retained |
 | R3 Read append / repeat | existing list [A], count initially1; incoming count2, helper outputs B then null; repeat Read with old occupant null, count1 and helper output D; helpers reference-neutral, independently live A/B/D | first physical list [A,B,null], stored count2, second [A,B,null,D], stored count1; one allocator/node per input entry, no local payload AddRef/Release or clearing; incoming nonzero count is not incremented |
 | R4 same/null occupant | independent keepalive O; old O; helper writes O, then next Read helper writes null, then third writes null; count0 throughout | first null-store/Release(O)/helper-write O even though identical; second null-store/Release(O)/helper-write null; third no old Release; helper retention remains its supplied behavior |
 | R5 asymmetric lot | lot words (−2,3,4,6), directions0,1,2,3; +0x38 AL=0 with valid outputs | X0=−32,Z0=48,X1=80,Z1=112; outputs respectively (24,0,47), (81,0,80), (24,0,113), (−33,0,80); +0x38 result ignored; no height call or random selection |
 | R6 radius equality / rectangle corner | flags0, stored bounds min=(−2,7,30), max=(9,8,80) from occupant+0x28; null lot service; base template radius4; no distance output | expanded xz=[−6,13]×[26,84]; points (−6,−100,26) and (13,999,84) accepted, (13.5,0,84) rejected; accepted corner disproves a circle assumption; y unused |
 | R7 height threshold / early exit | R6 fixture but flag0x1000 set; height returns11; point=(13,16,84), then (13,16.5,84), then (13.5,16,84) | first true AL at equality h+5; second false AL; third false before flag/height query; no distance-output writes |
+
+## 11.4. Accepted-point distance output and owned intersection orchestration
+
+This is the nonnull distance-output continuation of §11.3, **not an additional
+acceptance predicate**. At `00515B4E–00515B69`, CheckFlag(0x10) chooses virtual
+slot22 GetLotFacingPoint versus virtual slot11 GetPosition, each with one local
+vec3 output pointer. The body copies that output's x,z into center U and the
+input point's x,z into V. It calls owned helper `00514E70` with (U,V,intersection
+output I), ignoring y. If its AL is nonzero it calls foreign
+`LengthOfLine2D` `005D76A0` with (I,V), else with (U,V). The returned ST0 is
+stored binary32 to the caller's distance-output (`00515B9A–00515BBE`). The
+distance does not get compared against radius. Length internals are foreign;
+no square-root implementation or success policy for it is claimed here.
+
+`00514E70–00514F57` is attributed to the base controller in the export and is
+directly called by base slot23 at `00515B9A`. It is therefore included only as
+the needed owned orchestration, not as a route/pathfinding algorithm. ECX=C,
+three vec2 pointers U,V,I; ret12, normalized boolean **AL** only. It calls owned
+slot20 again for min/max, independently of the earlier radius check. For those
+returned bounds it calls the foreign `LinesIntersect2D` `005D74D0` with U,V,
+the following pair of local vec2 endpoints, and **the same** output I each time:
+
+| Call order | Endpoint1 | Endpoint2 | Call instruction |
+|---|---|---|---|
+| 1 | (min.x,min.z) | (max.x,min.z) | `00514EBC` |
+| 2 | (max.x,min.z) | (max.x,max.z) | `00514EF0` |
+| 3 | (max.x,max.z) | (min.x,max.z) | `00514F19` |
+| 4 | (min.x,max.z) | (min.x,min.z) | `00514F42` |
+
+Each endpoint is a raw two-word copy, no arithmetic. The first nonzero AL returns
+true immediately; after four zero AL replies the helper returns false. No nearest
+intersection ordering, degenerate/collinear policy, output initialization or
+rollback is owned here. Failed primitives may mutate I. If all fail, caller
+slot23 ignores I and uses U,V for length anyway. The foreign segment algorithm
+remains opaque and must be supplied as individual calls, not a completed
+controller intersection or radius verdict. Mutating/aliased input pointers and
+callbacks changing bounds are outside the finite composition fixtures.
+
+## 11.5. Base state callbacks and behavior rows (R3 ADDS)
+
+Ownership comes from primary table `00A95D90` slots28–30/32:
+`0051BB60`, `0051BCA0`, `0051BCE0`, `0051BAB0`. Generator inherits these;
+attractor inherits tick/behavior but overrides enter/exit with `0051BFB0` and
+`0051C030`. Those override bodies are not used to infer the base rules below.
+There is no base callback dispatcher, behavior cache, same-behavior comparison
+or implicit enter/exit transition in these four bodies.
+
+**Shared raw boundary, not a controller-state oracle.** Enter, tick and qualifying
+behavior rows push occupant C+0x0C and raw word1 for direct manager helper
+`GetControllerQInfo` `0051B9D0`. The intervening city virtual +0xBC has **no
+arguments** and returns the manager receiver in EAX; the two pending stack words
+are consumed by the direct helper's ret8, not by the city getter. This is visible
+at `0051BAEC–0051BAF9`, `0051BB7D–0051BB8A`, `0051BCB0–0051BCBD` and the
+helper's ret8 at `0051BAA4`. Queue storage/creation/ref effects remain with
+[the manager contract §7](automata-controller-manager.md#7-queue-access-and-normal-mutation).
+Tick and behavior then explicitly call `InitQueuePoint` `00516070` on the
+returned Q with current occupant as its one argument; they do not null-test Q.
+They inspect raw Q bytes/vectors **after** that primitive returns. No queue-point
+calculation internals are imported. Enter only null-tests Q and does not make
+this additional explicit InitQueuePoint call; the manager primitive may do so
+internally on a newly created entry.
+
+| Base callback | Raw stack channels | Local normal rule / result |
+|---|---|---|
+| Enter `0051BCA0–0051BCD6` | A pointer, 32-bit selector; ret8 | selector !=4: no calls; selector4: manager/Q request above, if Q nonnull call `005184E0` AddToQueue(Q,A). Ignore return. Always false **AL**. |
+| Exit `0051BCE0–0051BD4D` | A pointer, 32-bit selector; ret8 | selector !=4: no calls; selector4: get manager, inline current-occupant-key lookup, on match call `005172D0` RemoveFromQueue(entry+8,A). Always false **AL**. |
+| State tick `0051BB60–0051BC95` | A pointer, 32-bit selector, third **unread/untyped** word; ret12 | selector !=4: no calls, false AL. Selector4: manager/Q request then explicit InitQueuePoint(Q,occupant). If Q+0x20 byte zero, call A+0x34 with null and return true AL regardless of that call's return. Otherwise compute/forward point as below and return false AL. |
+
+Exit does not call GetControllerQInfo or create an entry. Its inline lookup
+unsigned-divides occupant pointer bits by the bucket count obtained from
+(manager+0x74 minus manager+0x70) arithmetic-shifted-right two, then follows
+next links comparing exact keys at node+4 (`0051BCFC–0051BD29`). It stops at
+the first match. The entry+8 address guard is not a valid zero-bucket/null-manager
+fallback; normal storage and a nonzero bucket count are required. This is the
+same local key/bucket structure used in §9, not a host-supplied complete lookup
+verdict. No controlled-list/count or reference API call is directly performed
+by enter/exit/tick; queue operations may acquire/release A per the manager
+contract. Repeated calls repeat their local tests and primitive requests; local
+code does not suppress duplicate enters or absent exits. No callback here
+sets C's template, behavior pointer, activation flags or state-selector field.
+
+**Tick point.** With Q+0x20 nonzero, query A+0xC0, no arguments, full EAX
+pointer P (`0051BBB0`). A **nonnull full pointer with AL=0** still takes the
+nonnull branch. Null P copies Q+8/+0x0C/+0x10 as a vec3. Nonnull P first calls
+P+0x2C with a local vec3 output, then P+0x44 with no arguments for ST0 scale s.
+The comparison at `0051BBFB–0051BC0A` keeps s only for ordered s>1; otherwise
+replaces it with binary32 1 (masked unordered included). For finite qualified
+inputs, denote position output p and direction d=Q+0x14/+0x18/+0x1C. The x87
+operation/store association at `0051BC10–0051BC43` is:
+
+- x: multiply s×d.x, add binary32 p.x without an intervening binary32 product
+  store, then store binary32 x;
+- y and z: separately multiply s×d.y and s×d.z, store each product binary32,
+  reload it, add its binary32 position component and store binary32 result.
+
+Then city+0xA0 supplies a service whose +0x48 gets x,z as raw binary32 words,
+returns ST0 and unconditionally overwrites local **y** as binary32. Finally
+A+0x28 receives that local vec3 pointer (`0051BC4F–0051BC73`); its return is
+ignored. This is not the +0x150/+0x34 height channel used by bounds or the global
+height receiver in radius rejection. The initially copied `00B227CC` vector is
+fully overwritten in the null-P branch, or by a full-vector P+0x2C reply in
+the fixtures; partial position-output replies retain the runtime-global residual.
+No position result is locally stored back into C. Tick's third word remains
+untyped; animation tick's two trailing words (§7) also remain untyped.
+
+**Behavior selection, `0051BAB0–0051BB5D`.** Inputs are one binary32 threshold
+argument t and a vec3 pointer p, ret8; EAX is a borrowed row pointer or zero,
+not AL status. It dereferences template C+0x10 without a null check and scans
+from template+0x38 to template+0x3C in **0x7C-byte** steps. An empty range
+returns EAX=0 without dereferencing p. For each row B, read binary32 r=B+4.
+Compare r with t; ordered r<t or unordered skips the row (`0051BAD0–0051BADC`).
+Otherwise if the full word at B+0 is anything other than 4, immediately return
+B. A selector4 row requests Q and explicitly initializes it as above. If byte
+Q+0x20 is zero skip; otherwise calculate dx=p.x−Q.x and dz=p.z−Q.z, then
+dx²+dz² and x87 square root **without binary32 intermediate stores**
+(`0051BB12–0051BB2E`). Return B if this result <=r. The second comparison's
+C0/C3 test also selects on masked unordered if reached (`0051BB33–0051BB36`),
+unlike the first threshold comparison; no trap/payload behavior is inferred.
+On skip it reloads the current template's end pointer, advances by 0x7C and
+continues. Exhaustion returns zero. All references to template/rows/Q are
+borrowed; this body does no local AddRef/Release, row mutation, lifetime/flag
+copy or behavior installation. Repeated same-result queries still scan and,
+for each reached qualifying selector4 row, request/init Q again. Normal stable
+template storage and callbacks returning normally are required.
+
+### Second milestone: independent literals and compositions
+
+These R8–R17 are also **PROPOSED / UNEXECUTED**. Each foreign reply is one raw
+operation, never a completed controller answer. Geometry uses the finite PC53,
+nearest-even, masked domain of §11.3; state arithmetic adds exact rational inputs
+where shown. Queue/list payloads are valid identities and callbacks do not reenter.
+
+| ID | Independent raw inputs | Native-derived expectation |
+|---|---|---|
+| R8 optional distance, first intersection | R6 bounds/radius; point V=(13,999,84); flag0x10 clear; occupant+0x20 supplies U=(5,6,9); Lines reply1 AL0 writes I=(−9,−8), reply2 AL2 writes I=(9,40); Length reply ST0=7 | accepted ALtrue; both owned slot20 calls use the R6 occupant bounds; edge1 (−2,30)→(9,30), then edge2 (9,30)→(9,80); owned short-circuit after2, length receives I,V, distance7. Supplied primitive outputs are call-channel discriminators, not claims about the foreign geometry algorithm. |
+| R9 all intersection calls fail | occupant bounds R6; point=(13,0,84); stored position U=(5,6,9), flag0x20 clear, so occupant+0x20 supplies U; all four Lines AL0 mutate I; Length(U,V) supplies13 | all four edges in §11.4 order with min.xz=(−2,30), max.xz=(9,80); failed I ignored by slot23; distance13 and ALtrue even though 13>radius4; no acceptance recheck |
+| R10 facing-distance composition | R5 lot direction3; radius100; slot20 obtains same lot bounds; point V=(−33,0,80); flag0x10 set; four Lines AL0; Length reply0 | slot22 produces U=(−33,0,80), not occupant position; length(U,V), distance0; both bounds calls still use owned slot20/lot conversion; no whole facing/radius oracle |
+| R11 enter/exit selectors and repeat | A valid; enter(A,3), enter(A,4) twice with Q nonnull; exit(A,4) with matching occupant key, then exit(A,4) with key absent; exit(A,3) | no primitive for selector3; each enter4 requests Q with O,1 then AddToQueue(Q,A); matched exit directly looks up then RemoveFromQueue(Q,A), absent exit no queue call; all six returns false AL; duplicate/ref consequences belong to individual manager primitive, not a local suppression |
+| R12 tick invalid queue point | tick(A,4,0xDEADBEEF); Q Init reply writes Q+0x20=0; A+0x34(null) reply EAX=0 | invokes detach/null exactly once, no A+0xC0, scale, service or position-forward calls; returns true AL; repeated call repeats request/init/detach if byte remains0 |
+| R13 tick null versus low-byte-zero pointer | Q Init writes valid byte1, point=(−7,3,11), direction=(2,0,−3); A+0xC0 returns0, then independently valid P=0x00123400; P+0x2C writes (10,20,30); P+0x44 gives0.5; city+0xA0 service+0x48 returns9 | null P forwards (−7,9,11); full nonnull P with AL0 takes position/scale branch, cap1 gives (12,9,27); each height call receives x,z before A+0x28; both false AL |
+| R14 tick product-spill discriminator | valid Q, nonnull P writes (−1,−1,−1); s=1+2^−23, d.x=d.y=d.z=1−2^−24; service height11 | exact product=1+2^−24−2^−47; x add before binary32 spill yields 2^−24−2^−47, bits337FFFFE; z's product rounds to1 then add gives +0; forwarded (bits337FFFFE,11,+0). y arithmetic is overwritten by height. A uniform rounded-product implementation differs. |
+| R15 behavior ordering/equality | rows B0 selector2,r2; B1 selector4,r5; B2 selector7,r9; t3; p=(−2,999,11); Q Init byte1, point=(−5,−8,7) | B0 skipped; B1 distance sqrt(3²+4²)=5 equals threshold, returns full pointer B1; t5 also B1; t=5.5 skips B1 and returns B2 without Q request; p.y unused |
+| R16 behavior absent/invalid/repeat | empty valid template range with p null; then rows B1 selector4,r5 and B2 selector7,r9, t3; Q Init writes invalid byte0; repeat query; then nonempty query t10 | empty returns0 without Q/p access; two repeats each request/init Q then select B2; t10 skips both, returns0; no enter/exit callback or behavior installation is implied |
+| R17 Read→facing→query→state composition | Read R1 with helper-write O2 and vector(−7,3,11), flags0x10, count0; keep preexisting borrowed template containing R15 rows, radius100; O2 lot words R5, direction3; then facing, behavior t3/p=(−2,999,11) with valid Q=(−5,−8,7), enter(A,4), tick R13 null-P using Q point, exit(A,4) with matching key | Read releases O1 before writing O2; does not replace template/clock; facing=(−33,0,80); query returns B1 with no ref acquire/installation; enter independently requests Q/AddToQueue; tick explicitly reinitializes Q and forwards (−5,9,7), false AL; exit locally finds O2 key/RemoveFromQueue and false AL; no controller-level cached behavior transition or whole-state host callback |
+
+These seventeen new rows make **46 proposed/unexecuted fixtures** with the earlier
+L1–L13/N1–N16. The earlier 29 remain UNRUN; L1/L7 remain projections. No portable
+result or native execution verdict has been generated for any of them.
 
 ## 12. Body and signature ledger; unsupported domains
 
@@ -723,9 +882,9 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 25 CheckEffectTriggers | no args; no defined result; ret0 | Supported §6.2 normal list/QI/activation/source-Release CFG; foreign QI retention unspecified |
 | 27 HandleViewChanged | no args; AL true; ret0 | Supported §6.3 normal outputs/predicate/store CFG and §8 finite bounds; foreign view algorithm separate |
 | 26 NotifySourceDataChanged | no args; void | Supported §6 |
-| 28 state tick / 29 enter / 30 exit | unreconciled callback arguments/channels | Unknown beyond dispatch table; decomp navigation is not a numeric contract |
+| 28 state tick / 29 enter / 30 exit | A, u32 selector, tick third untyped word; AL bool; ret12 / ret8 / ret8 | Supported local branches, raw arguments and finite tick association §11.5; foreign queue/position/service algorithms and tick third-word type remain Partial |
 | 31 HandleRemoveAutomaton | A pointer; AL true; ret4 | Supported direct list effects and inline table lookup; foreign queue effects not closed |
-| 32 behavior template | unreconciled | Unknown |
+| 32 behavior template | binary32 t, vec3 pointer; EAX borrowed row/null; ret8 | Supported local row scan/threshold/selector4 distance branches §11.5; foreign queue-point calculation remains separate |
 | 33 IsFull | none; EAX 0/1 | Supported unsigned capacity predicate |
 | 34 grid storage address | none; EAX C+0x24 | Supported; external writes/membership Foreign |
 | 35 IsExpired | none; EAX 0/1 | Supported finite comparison |
@@ -736,14 +895,17 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | secondary 3/4 Write/Read | S receiver, serializer; Read full EAX0/1, ret4 | Supported Read local order/stores/appends §11.2; foreign reference acquisition/stream algorithms and exceptional failure remain Partial |
 | secondary 5 GetGZCLSID | none; EAX 4A18672B | Supported identity, not factory admission |
 | PlaySFX `00515770` | raw low byte in four-byte slot; no defined result; ret4 | Supported §6.1 normal range/index and exact-integer coordinate domain; foreign RNG/sound internals separate |
-| intersection `00514E70`, CreateTemplateInstance `0051BDF0` | unreconciled | Unknown owned helper bodies; no blanket credit from public attribution metadata |
+| intersection `00514E70` | three vec2 pointers; AL bool; ret12 | Supported owned edge-call order/short circuit §11.4; foreign LinesIntersect2D arithmetic Unknown here |
+| CreateTemplateInstance `0051BDF0` | unreconciled | Unknown; not studied, no closure from names or derived callers |
 | template/occupant/automaton/clock/grid/message/queue/heap internals | single raw calls only | Foreign; do not count their code as base-controller behavior |
 
-AT22 remains partial: owned state/behavior/template-instance/intersection
-algorithms, complete callback signature proof, Read reference chronology,
-allocation/partial-failure paths, runtime position initialization, exceptional
-and reentrant behavior, broad FP/numeric domains and complete derived owner
-contracts remain unsupported. AT21 registration/upstream notification residuals,
+AT22 remains partial: template-instance and foreign intersection/queue-point
+algorithms, tick's unused argument type and complete callback signature proof,
+foreign Read reference acquisition/stream semantics, allocation/exceptional-failure
+paths, runtime position initialization, exceptional and reentrant behavior,
+broad FP/numeric domains and complete derived owner contracts remain unsupported.
+Read's local status/output-prefix behavior and owned state/row/geometry branches
+above are supported only in their stated domain. AT21 registration/upstream notification residuals,
 AT23, AD3/AD4 and historical warning counts are unchanged. No ABI rows, native
 execution route, default activation, family completion or 48-entry/6556-byte
 coverage credit is proposed by this publication.

@@ -7,8 +7,10 @@
 - Goal: final authorized R3, two bounded native proof milestones; no fourth round.
 - Preserved R1 `77321b20`/`4a4fc554`/`77f5168b` and R2 through `3991b3b3`, with ignored evidence.
 - Ownership checked first: base table 00A95D90 slots22/23/28–30/32; attractor overrides29/30, generator inherits these but overrides activation/template/radius.
-- Next: finish byte-backed Read 005180E0 (receiver S=C+4), geometry 00516C40/00515A80, publish independent proposed unexecuted literals.
-- Then: base 0051BB60/0051BCA0/0051BCE0/0051BAB0 local signatures/branches and composition.
+- Done: milestone `d1f28698` proves Read local chronology and finite facing/radius rejection, with R1–R7 proposed/unexecuted fixtures; commit succeeded despite packed-refs lock denial.
+- Done: second proof: optional-distance/intersection orchestration, base state/behavior bodies, R8–R17 (46 total proposed/unexecuted fixtures); AT22 partial note narrowed.
+- Gate: R3 rational/UTF8/no-BOM/link/table/fixture checks, questions check, doccheck check and diff check passed; x bits337FFFFE versus z00000000 independently derived.
+- Next: commit second milestone, finalize report and exact clean committed DOCS queue; no further research round.
 - No original execution, portable/build/game/process/provider operations; AT22 stays partial.
 - q.py Bash backend returned Access denied before commands ran; using direct PowerShell read/query calls. This is tooling evidence only.
 - Historical R2 report below remains intact until final report replacement.

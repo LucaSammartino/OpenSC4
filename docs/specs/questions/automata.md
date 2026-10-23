@@ -91,11 +91,25 @@ true-with-null, Init's post-deactivation sound start, and repeat cleanup.
 L1/L7 retain projection status; L10 now derives bounds through owned helpers.
 No native execution or complete-owner claim follows.
 
-**Remain open:** owned state/behavior/template-instance/intersection
-algorithms and callback signatures, Read ownership, allocation/partial failures,
-runtime position initialization, reentry/exception domains and complete derived
-contracts. Slots 22–24, 28–30, 32 and 36 retain explicit signature/body limits;
-the tick's last two argument types are unresolved. AT22 stays open; no live
+**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4, R3):**
+The contract §§11.2–11.5 ADDS secondary Read's S=C+4 local stream/reference/store
+order, unconditional post-prefix continuation and full EAX status normalization,
+append-without-clear/count-increment behavior; base22's finite lot-direction
+midpoints; base23's rectangular rejection, height equality and optional distance
+chain; the directly needed owned intersection edge order; and base28–30/32
+selector4/queue/state-point/row-selection branches and return widths. Seventeen
+new independent proposed/unexecuted fixtures include same valid occupant, partial
+output failure prefixes, nonnull full pointer with AL0, exact product-spill
+discrimination and Read→geometry→behavior→state composition. This differs from a
+transactional Read, circular-radius predicate or implicit behavior installation.
+Earlier 29 fixtures remain UNRUN and L1/L7 projections are retained.
+
+**Remain open:** template-instance and foreign intersection/queue-point algorithms,
+complete callback types, foreign Read reference acquisition/stream semantics,
+allocation/exceptional failures, runtime position initialization, reentry/exception
+domains and complete derived contracts. Slot24/36 semantic signatures, state
+tick's third argument type and animation tick's last two argument types remain
+unresolved. AT22 stays open, so no whole entry is moved to answered; no live
 wrapper, new factory, whole-owner or family coverage admission follows. AT21
 registration/upstream residuals and AT23/AD3/AD4 remain unchanged.
 
