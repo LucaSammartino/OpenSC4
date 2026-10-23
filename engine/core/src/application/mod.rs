@@ -12,7 +12,13 @@ pub mod directories;
 mod lifecycle;
 pub mod preference_application;
 #[cfg(test)]
+mod resource_tests;
+pub mod resources;
+#[cfg(test)]
 mod settled_tests;
+pub mod ui;
+#[cfg(test)]
+mod ui_tests;
 pub mod video;
 
 use crate::commands::parse_delimited_text;

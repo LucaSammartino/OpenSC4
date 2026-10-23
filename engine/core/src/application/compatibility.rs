@@ -175,11 +175,11 @@ pub struct RegistryEntry {
     pub path: Vec<u8>,
 }
 
-/// §14.2 publishes class;path but leaves class-ID syntax and malformed-entry
-/// handling open (AP13). Preserve class bytes for the foreign class factory.
+/// Split only the first semicolon. A missing separator has class zero (empty
+/// token) and leaves the entire value as the path; conversion is in resources.
 pub fn registry_entry(entry: &[u8], data: &[u8], language: Option<&[u8]>) -> Option<RegistryEntry> {
-    let split = entry.iter().position(|b| *b == b';')?;
-    let mut path = entry[split + 1..].to_vec();
+    let split = entry.iter().position(|b| *b == b';');
+    let mut path = entry[split.map_or(0, |index| index + 1)..].to_vec();
     for (key, value) in [
         (b"%DataDirectory%".as_slice(), data),
         (b"%Language%".as_slice(), language.unwrap_or(b"English")),
@@ -195,7 +195,7 @@ pub fn registry_entry(entry: &[u8], data: &[u8], language: Option<&[u8]>) -> Opt
         path = out;
     }
     Some(RegistryEntry {
-        class: entry[..split].to_vec(),
+        class: entry[..split.unwrap_or(0)].to_vec(),
         path,
     })
 }
