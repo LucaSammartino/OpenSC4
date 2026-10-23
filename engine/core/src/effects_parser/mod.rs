@@ -10,6 +10,8 @@
 
 use crate::effects::ComponentRecord;
 
+pub mod script;
+
 #[cfg(test)]
 mod tests;
 
