@@ -751,7 +751,6 @@ fn ordinance_apply_calls_only_changed_rows() {
             },
         ],
         row_map: vec![2, 0, 1],
-        ..Default::default()
     };
     h.checks.extend([(300, 1u8), (301, 0), (302, 1)]);
     let mut d = open(&mut h, 1, 0);
@@ -945,7 +944,6 @@ fn on_shutdown_releases_window_once_initialised() {
                 edited: 1,
             }],
             row_map: vec![0],
-            ..Default::default()
         },
         ..Default::default()
     };

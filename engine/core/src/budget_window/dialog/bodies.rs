@@ -478,8 +478,8 @@ impl SubBudgetWindow {
         self.clear_sliders();
         let (mut q, mut p, mut control) = (0u32, 0u32, Some(0x0ABCDE03u32));
         // Owner scale initialization is BW17; do not publish a fabricated total.
-        self.group_total_a = self.amount_scale.map(|_| 0);
         if self.list_a.len != 0 {
+            self.group_total_a = self.amount_scale.map(|_| 0);
             for &dept in &depts {
                 let mut first = true;
                 for item in host.department_line_items(dept) {

@@ -148,8 +148,10 @@ fn offscreen_ordinances_contribute_with_low64_product() {
 
 #[test]
 fn neighbor_six_scans_headers_totals_and_hidden_rows() {
-    let mut h = Rec::default();
-    h.deal_list = vec![1, 2, 3, 4];
+    let mut h = Rec {
+        deal_list: vec![1, 2, 3, 4],
+        ..Default::default()
+    };
     h.deal_kinds
         .extend([(1, 0x4773FFE1), (2, 0x4773FFE1), (3, 0x4773FFE3), (4, 0x4773FFE2)]);
     for deal in 1..=4 {
@@ -185,8 +187,10 @@ fn neighbor_six_scans_headers_totals_and_hidden_rows() {
     // Release. BW17 leaves temporary-list balance open; no invented releases.
     assert!(refs.deals.lock().unwrap().values().all(|&n| n == 1));
 
-    let mut h = Rec::default();
-    h.deal_list = (1..=10).collect();
+    let mut h = Rec {
+        deal_list: (1..=10).collect(),
+        ..Default::default()
+    };
     for deal in 1..=10 {
         h.deals.insert(deal, Deal::default());
     }
@@ -278,14 +282,16 @@ fn combo_missing_interface_and_invalid_division_are_safe() {
 
 #[test]
 fn individual_reenumerates_viewport_preserves_and_rebuilds_snapshot() {
-    let mut h = Rec::default();
-    h.restore = (1..=12)
-        .map(|occupant| IndividualRestoreInfo {
-            occupant,
-            level0: 0.0,
-            level1: 0.0,
-        })
-        .collect();
+    let mut h = Rec {
+        restore: (1..=12)
+            .map(|occupant| IndividualRestoreInfo {
+                occupant,
+                level0: 0.0,
+                level1: 0.0,
+            })
+            .collect(),
+        ..Default::default()
+    };
     let mut d = open(&mut h, 0, 0x1234); // Unknown service: zero working values.
     assert_eq!(d.restore_records().len(), 12);
     assert_eq!(d.restore_occupants(), (1..=12).collect::<Vec<_>>());
@@ -366,8 +372,10 @@ fn item_property_is_type_checked_released_and_returns_borrowed_object() {
 
 #[test]
 fn group_refresh_reuses_header_and_reads_display_separately_from_total() {
-    let mut h = Rec::default();
-    h.group = vec![10];
+    let mut h = Rec {
+        group: vec![10],
+        ..Default::default()
+    };
     h.funding.insert(10, 0.5);
     h.items.insert(10, vec![item(1, 1, 0, 25, 0)]);
     h.total_income.insert(10, i64::MAX);
@@ -389,6 +397,9 @@ fn group_refresh_reuses_header_and_reads_display_separately_from_total() {
     h.paints.clear();
     d.refresh_group(&mut h, WIN);
     assert_eq!(d.group_income_total(), Some(-2));
+    d.set_list_len(false, 0);
+    assert_eq!(d.refresh_group(&mut h, WIN), Some((0, 0)));
+    assert_eq!(d.group_income_total(), Some(-2)); // No reset for a zero stored A count.
     assert_eq!(
         h.paints,
         [BodyPaint::GroupHeader {
