@@ -1,33 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-geometry-utilities-contracts4: public geometry delta | Codex, `core-geometry-utilities-contracts4` | in progress: final stable gate qualification | Archive historical evidence, then collect exactly one replacement canonical all |
-
-## Handoff
-
-- Goal: qualify the existing committed bounded geometry delta; no algorithm changes.
-- Source: HEAD383385db, engine4f6381b35ed54cd78fc8280308cbc9e5f1fd9b2d, clean.
-- Read final admission, host census, optional-stats journal and own R2 manifest.
-- Old session9399 collection attempted once: Unknown process id; receipt unavailable.
-- Historical canonical Rust5511/0/0, Clippy complete, native4/4 links and CTest20/68
-  are partial evidence, with terminal/native return codes UNKNOWN.
-- ROOT journal records only optional client18344 exit15; later disappearance cause UNKNOWN.
-- No validator/cache/daemon/process changes authorized or performed.
-- Next: archive all existing build-runs bytes with SHA256, then one serial qbuild all;
-  collect the same operation to terminal and compare strict engine snapshots.
-- No new game requests, engine edits, questions, ABI changes or broad coverage claims.
-- Prior report below is historical until reconciled with the final gate.
+| core-geometry-utilities-contracts4: public geometry delta | Codex, `core-geometry-utilities-contracts4` | ready: stable all PASS, cargo5511/0/0, clippy0 diagnostics, CTest68/68; bounded portable scope only | Coordinator may land existing delta; GU1/2/3/5/6/GU7 and exact vector limits remain |
 
 ## Report
 
 Implemented the newly public bounded geometry delta in core only. No C ABI,
-plugin, defaults, maps, game requests, native execution or foreign algorithms.
-This is **WIP**, not a landing-ready gate result. The canonical gate remains
-alive, blocked on its own cache-statistics client; it was not cancelled or duplicated.
+plugin, defaults, maps, game requests, geometry owner-body native measurements
+or foreign algorithm changes. **Ready within the bounded portable scope**:
+one replacement stable canonical all completed successfully on unchanged committed
+engine source. This final round changed only this report; no algorithm expansion.
 
 Commits: a41cb7c2 records the independent ledger before comparisons;
 1e6c4bf7 adds the implementation; bd03cb5f reconciles operation stages,
 public DIFFERS expectations and the exact 37-body supported/partial checklist.
-The reserved detached worktree was reused with initially clean main.. history.
+The reserved detached worktree was reused; final round began at clean383385db.
 No refs/config/guard flags were changed and no agents were launched.
 
 ### Changes and domains
@@ -77,25 +63,47 @@ No refs/config/guard flags were changed and no agents were launched.
   during development, so this is focused evidence, not the canonical stable gate.
 - qbuild fmt: **exit0, 9 files**, no format diffs (one external canonicalization
   warning). Relative file arguments first failed to resolve; absolute paths passed.
-- One canonical all started on committed source
+- Historical canonical all started on committed source
   **bd03cb5f7edaf2abaeca7d3bc1cfb0a9216ab4c1**, engine tree
-  **4f6381b35ed54cd78fc8280308cbc9e5f1fd9b2d**. Engine remained clean at stop.
-  Actual aggregate workspace Rust terminal, clippy terminal, native RC and full
-  CTest result are **not yet collected**. Linked edges are not treated as a pass.
-- `build-runs/geometry-canonical.py` is the still-running parent. It will preserve
-  full terminal in `build-runs/geometry-canonical-terminal.log` and before/after
-  tracked-engine SHA256/tree/source records in `build-runs/geometry-source-evidence.json`
-  when the original invocation exits. These final artifacts are pending, not claimed
-  present. This report commit changes HEAD only: compare engine tree/content
-  separately if the helper's whole-snapshot stable flag sees the report-only HEAD change.
+  **4f6381b35ed54cd78fc8280308cbc9e5f1fd9b2d**. Historical Rust5511/0/0 over26
+  summaries and Clippy finished52.22s are preserved. Native4/4 linked edges lack
+  a terminal return receipt; later CTest20/68 lacks a final footer. Its canonical
+  terminal/native RC remain UNKNOWN, not FAIL or PASS. Final collector artifacts
+  `geometry-canonical-terminal.log` and `geometry-source-evidence.json` were absent.
+- Session9399 recovery attempted exactly once in this round: `Unknown process id`.
+  Archived all43 existing build-runs files (686683 bytes), including raw focused
+  and canonical logs, q receipts, source helpers/records and ROOT journals,
+  into `build-runs/geometry-final-r2/historical/` before overwriting fixed logs.
+  `historical-index.json` records verified per-file byte counts and SHA256.
+- **Final stable canonical all PASS**, 2026-10-23 06:43:32.510145 to
+  06:46:38.190914 UTC, same tool session73592 collected to actual terminal0.
+  Exact command: `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py
+  --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-geometry-utilities-contracts4 all`.
+  PID27380 and cwd/argv/timestamps/terminalRC are recorded in
+  `build-runs/geometry-final-r2/operation.json`; terminal output in `terminal.log`.
+- Every workspace Rust summary independently aggregated: **26 summaries,
+  5511 passed / 0 failed / 0 ignored**, test exit0. **Clippy exit0,
+  0 diagnostics**, finished0.24s (external path-canonicalization warning retained).
+  Native build **PASS2/2 edges**, 2.3s; **CTest68/68**, 0 failed, full final
+  footer136.8s. Native wrapper `fc4verify: PASS`141.7s returned successfully
+  through qbuild, whose actual terminalRC is0. No separate raw native child-RC
+  receipt was emitted; linked edges alone were never used to qualify this run.
+- Before/after source HEAD **a450261ab662ff192f891dd59edaa6fbb99ad61c**;
+  engine tree **4f6381b35ed54cd78fc8280308cbc9e5f1fd9b2d**, clean both times.
+  All **2593 tracked engine files** have matching before/after SHA256 records;
+  aggregate **92802acfe11914a80bd40d2c3c7c5bf98b42ac348867ae6d0f23e66859020a5c**.
+  Records: `source-before.json`, `source-after.json`; independent summary and
+  immutable final log copies/hashes: `summary.json`, `completed/`, all under
+  `build-runs/geometry-final-r2/`. Subsequent report-only commits do not change
+  the measured engine; content/tree checks are independent of report HEAD.
 - Old expectations changed only for documented public DIFFERS: plane association,
   tied overlap operand, unsupported failed-crossing scratch, common text-failure
   outputs, negative width's terminating integer dimension, and Reset's retained bounds.
   Existing production plain/DXT3 payload tests remain and pass.
 
-### Exact blocking evidence for ROOT
+### Historical interruption and final authority
 
-At **2026-10-23 06:16:39 UTC**, the same client was still waiting (created
+At **2026-10-23 06:16:39 UTC**, the old client was waiting (created
 06:10:06.204403 UTC): **PID18344**, parent **30268**, argv
 `C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json`, cwd
 `C:/Users/tlori/FreeCity4/.claude/worktrees/core-geometry-utilities-contracts4`.
@@ -104,12 +112,19 @@ Parent30268 is the lane's `fc4verify.py --wt <WT> build ctest`, created
 06:08:18.364310 UTC; parent31440 is this lane's `qbuild.py --wt <WT> all`,
 created06:05:33.375984 UTC; its parent is the canonical collector PID38756.
 Full exact argv/cwd/creation/parent/port proof is in
-`build-runs/geometry-process-proof.json`. Client output has not completed;
-collector **session9399** has returned no final terminal. The build log's final
-linked edges are output evidence only, not a native RC/full-gate assertion.
-No cancellation, second gate, cache RPC, kill, restart or environment/config change
-was attempted. A targeted CIM query was denied; psutil read-only inspection of
-the known own PID and descendants supplied the actual proof.
+`build-runs/geometry-process-proof.json`, now also archived. This is historical
+evidence, not fresh liveness. ROOT's copied journal records only optional client18344
+exit15 at07:21:46.530467 local, with the parent/daemon alive immediately afterward.
+Later parent/backend disappearance causes remain UNKNOWN. The copied07:35:02
+scoped census reports no own compiler refs/errors and six clear output probes;
+daemon14096 on port4463 is a persistent cache, not an owned compiler.
+
+Final admission and R2 manifest authorize exactly one replacement all after
+missing-receipt recovery and archive. The replacement completed; no baseline,
+quick, focused repeat, process interruption, cache RPC/restart, environment/config
+change, agent, fourth round, merge/rebase/push or shared-state mutation was performed.
+Only detached-HEAD commits were made; Git emitted a packed-refs.lock permission
+warning during the handoff commit, which still completed normally.
 
 ### Questions and next steps
 
@@ -119,12 +134,13 @@ ROOT can regenerate the question index. GU4 is publicly answered; GU1/2/3/5/6
 residuals remain open. README enumerates all37 bodies without 37/37, 7509-byte,
 native, full-owner, runtime or default credit.
 
-ROOT must address the external statistics blockage and collect **existing session9399**,
-not launch a duplicate check. Then inspect actual complete workspace summaries,
-clippy/native RC/full CTest and source-engine/content records before any ready
-promotion. N3 PC64 and the exact M2 sentinel17 fixture remain unexecuted; no
-unsafe/uninitialized cases need execution. No game runs or shadow claims (n/a).
-Manifest remains `C:/Users/tlori/FreeCity4/build-runs/run4-core-geometry-utilities-contracts4-r1-manifest.json`.
+Coordinator may land this bounded delta using the completed stable gate above.
+No new questions in this final round. N3 PC64 and the exact M2 sentinel17 fixture
+remain UNRUN; M1 intermediate words remain UNASSERTED. AmbientPC64, extended
+exponent/transcendentals, unchecked/uninitialized domains and foreign ownership,
+cleanup and clipping-tail qualifications remain as published. No game runs or
+shadow claims (n/a), whole37/7509 closure, owner/default/native geometry credit.
+Current authority: `C:/Users/tlori/FreeCity4/build-runs/run4-core-geometry-utilities-contracts4-r2-manifest.json`.
 
 ## Independent public vector ledger (before output comparison)
 Expected values are copied from public §10.1; these are proposed, not native measurements.
@@ -194,4 +210,4 @@ the qualifications below limit what was actually exercised.
 | M5 | PASS first65535/final23/FFFF0018 closure |
 
 No new game labels; ABI exports unchanged. This report does not promote
-GU1/2/3/5/6 residuals or the historical gate into current completion evidence.
+GU1/2/3/5/6/GU7 residuals or the historical partial gate into completion evidence.
