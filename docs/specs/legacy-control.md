@@ -239,8 +239,8 @@ Steps (`0x00957A9B`):
 8. `InterpretPropertiesGZWinCommon(control, props, true)` (§8).
 9. `DoExceptions(control, true)` (§7.3).
 10. `control->Init()` (`+0x10`).
-11. Attach: if the pending parent is null, `RZ::WM()` slot 3 (`+0x0C`, returns the manager's top window,
-    *[inferred]*) `->ChildAdd(control)` (`+0x38`); else `pendingParent->ChildAdd(control)`, then release the
+11. Attach: if the pending parent is null, `RZ::WM()` slot 3 (`+0x0C`, returns the manager's current main/root
+    window) `->ChildAdd(control)` (`+0x38`); else `pendingParent->ChildAdd(control)`, then release the
     pending parent and null `+0x14`.
 12. `control->PullToFront()` (`+0x5C`).
 13. If `interp`: `interp(control, props, false)`.
@@ -250,6 +250,13 @@ Steps (`0x00957A9B`):
 
 So every interpreter runs twice: once before `Init`/attach (`firstPass = true`) and once after attach and
 `PullToFront` (`firstPass = false`). The type interpreter always runs before the common one in each pass.
+
+The default parent is the **current manager main window**, not necessarily the window initially created
+by the manager (LC5). Manager slot 3 returns its stored window without AddRef (`0x009DB37A`);
+`cGZWin::GetMainWindow` forwards to exactly that slot (`0x0099BE2A`). Manager initialization supplies
+a base window when none is present (`0x009DB1BC`), and slot 4 can replace it (`0x009DAB04`). Thus changing
+the manager main window before a build changes the parent used by that build. The adapter does not
+release this borrowed default-parent result. This does not identify it with any particular application UI panel.
 
 Worked example: block `clsid=0x592` (GZWinText) with no `iid`. Step 2 gives `iid = 0x212CDC1F`. If GZCOM can
 create `0x592`, the control gets params `0xE85EEBDE = 0x592`, `0x08D6E462 = 0x212CDC1F`, the Text interpreter
@@ -301,6 +308,21 @@ All take the property list in a register (not a stack argument) and scan it **li
 Missing values leave the destination untouched. Some callers initialise it; others do not. Only the defaults
 explicitly documented below are guaranteed; unchecked scans and uninitialised destinations are outside the
 defined-input conformance domain (§13.3).
+
+**Portable text and scan domain (LC9) [choice].** A portable String is valid UTF-8; preserve its bytes
+without normalization or locale conversion. Invalid UTF-8 is an unsupported input, reported explicitly,
+not a missing/wrong-type property, replacement text or a successful native-equivalence result. This
+restriction applies both to typed String readers and to interpreter strings. The original uses byte
+strings and CRT scans; no UTF-8 validation by the original is claimed.
+
+Decimal/hexadecimal conversions must fit the scan destination: signed decimal in −2147483648…2147483647,
+unsigned decimal or hexadecimal in 0…4294967295. A negative token for an unsigned destination is outside
+this portable domain. Report overflow explicitly rather than saturating or wrapping it. This is distinct
+from a checked scan with too few conversions, which follows its documented skip rule, and from arithmetic
+on already valid 32-bit values, whose documented wrapping behavior remains required. Preserve the
+published zero defaults for partial area/Folders/Outline scans and the TreeView initial position −3;
+this policy does not turn all incomplete scans into errors. Unsupported input need not roll back earlier
+effects, but must never be reported as an equivalent successful build.
 
 ### 7.6 Script fragment format (serialiser `0x00965F73`) (answers LC3)
 
@@ -393,6 +415,53 @@ empty comments, `GetFlag` true for `0x1` and `0x2` only, gives
 
 A control with neither parameter that answers only `IGZWin` gives `clsid=GZWin iid=IGZWin `; one whose stored
 class is `0x12345678` (not in the table) gives `clsid=0x12345678 `.
+
+### 7.7 Per-type writer vocabulary: partial LC8 evidence
+
+The following words are confirmed outputs of the §7.6 writers. This is a vocabulary inventory,
+**not an unconditional output list or a complete emission contract**. A word may depend on getter
+success, metadata, flags, or repeated records. Do not implement every listed word unconditionally,
+or claim that an empty suffix is equivalent to the original. LC8 remains open for the precise
+conditions, values and repeated-record behavior. Each row's evidence address is in §7.6's writer table.
+
+For compactness, `font colours` below means, in order, `colorfontnormal`, `colorfontdisabled`,
+`colorfonthilited`; `font backgrounds` means `colorfontnormalbkg`, `colorfontdisabledbkg`,
+`colorfonthilitedbkg`. These abbreviations are not literal script words. All spellings below are literal,
+including capitalization. Identifying a vocabulary does not add a new requirement on interpreter inputs.
+
+| Type | Confirmed output words |
+|---|---|
+| FlatRect | `colorleft`, `colortop`, `colorright`, `colorbottom`, repeated `style` |
+| Text | `font`, `align`, `notify`, `wrapped`, `opaque`, `forecolor`, `bkgcolor`, `gutters`, `textoffsets`, bare `autofit` |
+| TextEdit | `font`, `initvalue`, font colours, font backgrounds, `caretcolor`, `highlightcolor`, `outlinecolor`, `maxtext`, `gutters`, `overwrite`, `insertindex`, `insertpos`, `caretperiod`, `maxundo`, `hscrollimage`, `vscrollimage`, `hscrollimageRect`, `vscrollimageRect`, bare `autofit` |
+| ListBox | `vscrollbar`, `hscrollbar`, `font`, font colours, `highlightcolor`, `outlinecolor`, `sunken`, `outline`, `scrollbargutters`, `gutters`, `sort`, `drop`, `initselection`, repeated `listelement`, bare `autofit` |
+| LineInput | `font`, font colours, `colorLT`, `colorRB`, `colorLTinside`, `colorRBinside`, `fillcolorhighlite`, `gutters`, `filled`, `editable`, `style`, `fillalphahilite`, `caretpos`, `charlimit`, `selection` |
+| Combo | `font`, font colours, `highlightcolor`, `editable`, `outlinecolor`, `initselection`, `combodownarrowimage`, `combodownarrowrect`, `combodowncolor`, `buttongutter`, `gutters`, repeated `listelement` |
+| Btn | `image`, `font`, font colours, font backgrounds, `toggle`, `triggerondown`, `showcaption`, `fill`, `autosize`, `wrapcaption`, `shiftcaption`, `tips`, `tipsdelay`, `tipstimeout`, `style`, `gutters`, `tiptext`, `tipres`, `tipoffsets`, `tipflag`, `align`, `btnclicksnd`, `btnupsnd` |
+| BMP | `image`, `imagerect`, `notify`, `transparentbkg`, `edgeimage`, `alpha` |
+| Slider | `minmaxvalue`, `direction`, `image`, `initvalue` |
+| Scrollbar | `minmaxvalue`, `direction`, `pagesize`, `linesize`, `linepagecount`, `image`, `initvalue` |
+| OptGrp | `maincaption`, `itemcaption`, `drawfill`, `outline`, `gutters`, `labelfont`, `buttonfont`, `captiontextresid`, `backimage`, `labelfontcolornormal`, `labelfontcolordisabled`, `buttonfontcolornormal`, `buttonfontcolorhilited`, `buttonfontcolordisabled`, `outlinecolor`, `initselection`, `autofilltype`, `autofillsize`, bare `autofit`; child callback emits `option`, `optionmoveto`, `optionsetsize` |
+| Spinner | `image`, `font`, `outline`, `fill`, `autonumber`, `autonumbercomma`, `autonumbercurrency`, `initvalue`, `minmax`, `stepsize`, `coloroutlinel`, `coloroutlinet`, `coloroutliner`, `coloroutlineb`, `digits`, `align`, `colorfontnormal` |
+| Outline | `colordark`, `colorlight`, repeated `style`, repeated `node` |
+| TextTicker | `font`, `speed`, `frequency` |
+| Gen | `image`, `blttype`, `userdata`, `moveable`, `sizeable`, `defaultkeys`, `closevisible`, `gobackvisible`, `minmaxvisible`, `closedisabled`, `gobackdisabled`, `minmaxdisabled`, `titlebar`, `fill`, `outline`, `paint`, `sidebar`, `gutters` |
+| FileBrowser | `defaultpath`, `backdir`, `defaultselectiontype`, `defaultselectionname`, `defaultselectionextension`, `filesortprimary`, `filesortsecondary`, `directorysort`, `column1data`, `column2data`, `column3data`; `filenamefont`, `fileextensionfont`, `drivenamefont` and their colour/alignment words below; `iconcolumnwidth`, `extensioncolumnwidth`, `rowheight`, `linegridenabled`, `linegridcolor`, `columngridenabled`, `columngridcolor`, `highlightcolorforeground`, `highlightcolorbackground`, `backdirtext`, `drivelistsize`, `backgroundcolor`, `backgroundtransparent`, `outline`, `backgroundimage`, repeated `filter` |
+| Folders | `font`, `image`, repeated `listelement` |
+| TreeView | `displayroot`, `displaynodeicons`, `displaytreelines`, `multiselect`, `icongutter`, `rowheight`, `minmaxboxsize`, `backgroundcolor`, `highlightcolor`, repeated `image`, `roottext`, `rooticon`, `rooticonselected`, `rooticonexpanded`, `rooticonexpandedselected`, `rootcolorforeground`, `rootcolorbackground`, `rootcolorforegroundhilited`, `rootcolorbackgroundhilited`, `rootfont`, `rootexpanded`, `rootselected`, repeated `node` |
+| Grid | `font`, `fontcolor`, `textalign`, `textwrapping`, `gutters`, `selrule`, `maxselcount`, `olinecolor`, `dcolwidth`, `drowheight`, `colhdrsz`, `rowhdrsz`; the 23 style words of §9.5 step 10; `colgridclr`, `rowgridclr`, repeated `wingridcell`, `wingridcol`, `wingridrow` |
+
+FileBrowser colour/alignment suffixes are `foregroundcolor`, `backgroundcolor`, `foregroundcolorhilited`,
+`backgroundcolorhilited`, `alignment`, with prefix `filename`, `fileextension` or `drivename`.
+`foregroundcolordisabled` and `backgroundcolordisabled` are additionally confirmed for `filename` and
+`drivename`; do not assume symmetric disabled output for `fileextension`.
+
+Some established format facts are useful even before LC8 is closed: `autofit` is a bare word plus a space,
+not `autofit=yes` (helper `0x0095C07A`); quoted text is inserted without quote/backslash escaping
+(`0x0095C028`). The option child walker (`0x0095F87B`) appends a definition followed by move and size for
+each visited button. Move/size use `word="unsignedID:(signedX,signedY)" `; size is width/height from its
+area. This differs from the interpreter's grouping of all definitions before all geometry effects.
+These facts alone do not establish a lossless text round trip.
 
 ## 8. The common interpreter (`0x0095660D`)
 
@@ -534,7 +603,7 @@ space, §4), read here by ID.
    - `rootfont` `0x1410`: if it reads as Uint32 (type 6): font = window-class manager (`RZ::WCM()`) slot
      `+0x14` (id); tree `+0x9C` (0, font); store the id as control parameter `0xFAA3BE85` (helper
      `0x0094C222`, parameter = `0xFAA3BE85` + index 0). Else if it reads as String: **only** store the text as
-     parameter `0xFAA3BE85` (helper `0x0094C255`); the root font is not changed.
+   parameter `0xFAA3BE85` (helper `0x0094C255`); the root font is not changed.
    - `rootexpanded` `0x1411` (Uint32) → `+0xB4` (0, value == 1).
    - `rootselected` `0x1412` (Uint32): only when value == 1 → `+0xE0` (0, 0).
 3. **Always**: `+0x24` (colour constructor called with (0, 0, 0, 1)).
@@ -568,6 +637,16 @@ Worked example: `image=folder:{1234,1}:(0,0,0,0)`, `node=a:Alpha:Root:last:folde
 `node=b:Beta:a:first::::::::::no:yes`: the image loads with its full rectangle and gets index *i*; node `a`
 is inserted under 0 at −3 with icons (*i*, 1, 2, 3), node `b` under `a` at −2 with icons (0, 1, 2, 3) and
 is selected. Listing `b` before `a` gives the same tree (the search restarts from the list head per step).
+
+**TreeView duplicate maps (LC10) [compat].** Each of the three metadata maps populated in §9.2 is a
+unique-key map: the **first** value inserted for an equal key survives, later equal-key insertions do
+not overwrite it. String keys compare their full bytes lexicographically, case-sensitively; the
+reverse image-handle map compares its signed 32-bit handle keys. This does not suppress the later
+record's widget calls or resource load: only the stored map entry is first-wins. For example two image
+definitions named `leaf` can create two widget image handles, while the name-to-handle metadata still
+points to the first. `Leaf` is a different key. Evidence: unique insertion helpers `0x0095811B`,
+`0x009581AC`, `0x00958230`; string comparator `0x0094C990` → `0x004B5CA0`. A portable implementation
+must not reject a duplicate merely because the map already has that key.
 
 ### 9.3 GZWinFileBrowser (`0x00954212`)
 
@@ -687,6 +766,22 @@ missing → (0,0,0)) → **always** `+0xE8` (column colour, row colour). Nothing
 
 Worked example: `wingridrow=2,4,18` → `+0x10C(2, 3, 18)`; `wingridcol=2,4,60` → `+0x104(2, 1, 60)`.
 
+**Grid notifier payloads and indeterminate inputs (LC10).** The cell notifier's text remains its fresh
+empty string even for literal-text and string-resource cells: those setters affect the widget, not
+that descriptor. The column notifier receives coordinate `(first,0)` and a copy of all three scanned
+32-bit numbers `(first,second,third)`; the row notifier receives `(0,first)` and that same three-word
+payload. The helpers copy 12 bytes, including on replacement (`0x009583C5–0x00958432`,
+`0x009584E0–0x0095854D`); callers are in `0x0095A250`, with the row handoff at `0x0095AEEC`. Thus the column's
+second number is retained in metadata even though the sizing call ignores it.
+
+*[choice]* Track whether the style scratch and resource-key components used by step 11 have defined
+values. If the scan decision depends on an uninitialized style value, or a non-text cell would consume
+a key component never successfully scanned, report unsupported edge input; do not initialize it to
+zero and claim native equivalence. A checked/partial scan that leaves an already established component
+unchanged retains that component as §9.5 requires. Text cells still produce descriptor key `(0,0)` and
+empty descriptor text. This excludes undefined native values, not every partial scan with defined
+carry-over. See the scratch test and unguarded scan at `0x0095AA12–0x0095AA32`.
+
 ### 9.4 Image-key parameter helper (`0x0094C1DA`) (answers LC6)
 
 `StoreImageKey(win, group, instance, n)` (group in a register, instance and n on the stack): wraps
@@ -695,6 +790,16 @@ variant)` (`+0x1C8`); returns true. It does not depend on whether the image load
 with n = 0 after a successful image load; FileBrowser uses n = 0 for the background and k + 1 for filters.
 The font counterpart (`0x0094C222` Uint32 / `0x0094C255` String) stores the value as parameter
 `0xFAA3BE85 + n`.
+
+**Named fonts (LC13) [compat].** The String helper stores a **copy of the string bytes**, not a font ID,
+font pointer, resource key, or borrowed String object. Its parameter is `0xFAA3BE85 + n` modulo 2^32,
+with variant type `0x800E` and the String's byte length; the variant owns that byte buffer. Evidence:
+helper `0x0094C255`, String constructor `0x00915CDE`, and byte-copy/type assignment
+`0x0091545E–0x009154BC`. The source String can be destroyed after the call. Base
+`cGZWin::SetParam` (`0x0099D7C8`) only replaces the parameter-map entry and retains the variant; it does
+not resolve a font or invoke a font setter. Therefore this branch changes metadata only on the base
+window. A custom parameter override is foreign behavior, not an implied font-application effect of
+this adapter. The serializer can recover the named font from that metadata (§7.6).
 
 ### 9.6 GZWinFolders (`0x0094D17E`)
 
@@ -773,8 +878,8 @@ Colour setters below receive the graphics service's packed colour for the three 
 low-byte component conversion. A numeric font either goes directly to a font-ID setter or is resolved through
 the window-control manager, as indicated. A String font goes through the existing named-font helper
 `0x0094C255`. Both forms record font metadata with helper `0x0094C222`/`0x0094C255`, selector 0 unless stated.
-The String-font helper's exact stored payload and any indirect font application are not settled by this
-owner inventory (LC13). No direct font-object/ID setter is called on that branch; do not invent one.
+The String-font helper's copied payload and base-window behavior are specified in §9.4 (LC13); no direct
+font-object/ID setter is called on that branch.
 Where a default `main9` is stated, resolve the
 name to an ID and then obtain its font object from the window-control manager.
 
@@ -1013,7 +1118,7 @@ components; load buffer, read image mode key `0x10001` (U, default 0), map 0→0
 On load success call `I+0x34(mode,buffer)`; always store resource parameter `0xAB428C5D` and record selector
 0 after valid syntax. Then `gutters` (P) calls `I+0x68(x,y)`. Finally install a new 8-byte procedure object
 (vtable `0x00AD53EC`, initial count 0) through `I+0x1C`. Its message semantics are external to this owner
-and remain LC12; allocation failure passes null to that setter.
+and are specified in §13.1 (LC12); allocation failure passes null to that setter.
 
 Second pass scans String entries in property order: key `0x10002` requires `(%u,%d)` and calls
 `I+0x78(unsignedId,signedValue)`; key `0x10003` requires `(%u,%d,%d,%d,%d)` and calls
@@ -1073,12 +1178,10 @@ Second pass populates **all options before any option geometry**, then selects, 
 ## 11. Open questions
 
 - LC8. Word sets of the 19 per-type script-fragment writers (§7.6 table; not owner functions).
-- LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
-- LC9. Portable string-byte and overflowing numeric-scan behavior.
-- LC10. TreeView duplicate map keys and Grid scratch/notifier domains.
-- LC11. Additional unchecked interpreter scans and allocation failures (§13.3).
-- LC12. SC3WinGen's installed procedure object and its external message behavior (§13.1).
-- LC13. Named-font helper payload and indirect application (§9.9).
+
+LC5 and LC9–LC13 are answered in §§6, 7.5, 9.2, 9.4, 9.5 and 13.1–13.3. LC8 still blocks a claim
+of complete per-type serialization or native round-trip equivalence; §7.7 inventories confirmed words
+but does not supply every emission condition and repeated-record contract.
 
 ## 12. Coverage of owner functions (honest)
 
@@ -1118,8 +1221,35 @@ For a generator, the SC3 first pass installs its default procedure (`I+0x1C`), t
 runs, then `DoExceptions` can install the caller's pending procedure at that same generator offset before
 `Init`. Therefore a caller-supplied procedure is handed over after the default procedure, not before it.
 If the generator query fails, the pending procedure is retained until a later handoff or destruction.
-No attempt is made to reinterpret its callback result or to synthesize input messages. The default
-procedure's actual message IDs, result policy and reference handling by the generator remain LC12.
+No attempt is made by the adapter to reinterpret its callback result or to synthesize input messages.
+
+**Default SC3 procedure (LC12) [compat].** The 8-byte object initially has count 0 and vtable
+`0x00AD53EC`. Its six slots are QueryInterface (`0x0094C813`), AddRef (`0x0094C7CE`), Release
+(`0x0094C7E5`), structured-message callback (`0x0062C980`), scalar-message callback (`0x0094C835`),
+and deleting destructor (`0x0094C851`). QueryInterface accepts only `1` and `0x22E85D8E`, returns the
+same object with one AddRef, and returns false leaving the output untouched for every other IID.
+The structured callback always returns false and does not mutate the supplied message. The scalar
+callback returns true **only** for message IDs `0xA2BF8AD0` and `0xA2BF8AD1`, false for all other IDs;
+it ignores the window and remaining three arguments. These callbacks neither draw nor forward messages.
+Instruction evidence: `0x0062C980–0x0062C984`, `0x0094C835–0x0094C850`.
+
+Each AddRef increments the object count and retains the COM DLL director. Each Release invokes the director's
+`+0x28` lifetime hook, decrements a nonzero object count, and deletes the object when the resulting count is zero;
+return that resulting count. No separate adapter reference is acquired before installation: generator
+`SetWinProc` retains the new default procedure once. Do not add a synthetic balancing Release in the
+adapter after that installation.
+
+Generator replacement (`0x009998C8–0x009999B9`) is identity-sensitive: setting the same pointer returns
+true without reference changes or notifications. With a different pointer, the old procedure receives
+message `0xA2BF8AD6` then is released; the new pointer is stored, AddRef'd if non-null, then receives
+`0xA2BF8AD5` followed by `0xA2BF8AD8`. Notifications initially have three zero payload words. Each first
+uses the structured callback `(window,&message)`; on false, if a procedure is still installed, its scalar
+callback receives `(window,id,payload1,payload2,payload3)`, including structured-callback edits. The
+window is the generator's base window. Null installs only detach the old one. The return is true.
+For the default procedure all three notification IDs therefore produce false from both callbacks.
+Replacing it with the caller's UseWinProc procedure releases its sole generator reference and destroys
+it. This specifies the boundary needed for this adapter; other generator input and drawing behavior
+belongs to the generator owner.
 
 ### 13.2 Drawing contract at the interface level
 
@@ -1154,12 +1284,23 @@ Unchecked scans are **not** equivalent to checked readers. BMP/Button/Spinner im
 and gutter strings, ticker colours, OptGrp IDs/style and caption resource, and TextEdit outline colour
 without an accompanying numeric outline can expose stale/uninitialised native values. OptGrp image-key
 scratch starts at zero once per pass, then can be partially overwritten by a malformed later option.
-No portable deterministic native result is asserted for these inputs (LC11). Do not extrapolate the
+No portable deterministic native result is asserted for these inputs. Do not extrapolate the
 zero-default choices granted to Folders/Outline/area in earlier sections to every unchecked scan.
 
-*[choice]* Until LC9/LC11 are settled, a portable adapter may report unsupported malformed/overflowing
+**Portable edge policy (LC11) [choice].** A portable adapter must report unsupported malformed/overflowing
 inputs before calling a setter with indeterminate arguments; distinguish this from a faithful successful
-build. Low-memory behavior also is not generally recoverable: several temporary String/variant allocations
+build. In particular require a numeric `outline` when `outlinecolor` is used, complete in-range components
+for unchecked image/resource/gutter/colour tuples, and in-range supported OptGrp IDs/style selectors
+before indexing option storage or emitting option setters. Do not turn unknown option styles into a
+successful default. For malformed later OptGrp image tuples, do not imitate the native reuse of earlier
+image-key scratch as if it were a newly valid key. This policy is deliberately narrower than the native
+unchecked domain; §9's defined-input effects remain normative. Earlier effects may remain on failure;
+neither a successful build nor transactional rollback may be claimed.
+
+Allocation failure is an explicit unsupported execution outcome: no successful native-equivalence result
+is required and no fabricated successful setter payload is permitted. Known null calls (including the
+SC3 procedure setter) describe native evidence, not a promise of recovery. Low-memory behavior also is
+not generally recoverable: several temporary String/variant allocations
 are dereferenced without a null check or passed as null to a recipient. This spec does not promise safe
 recovery, transactional rollback or a usable partially constructed widget after allocation failure.
 
@@ -1172,7 +1313,7 @@ and `T(k,text)` below describe fixture inputs, not original-program code. A pass
 selected type interpreter and interface query/release; a full-build test includes §6 and both common passes.
 Unless specified, other properties are absent and resources load successfully. Compare packed colours
 through the graphics-service fixture. Numeric float vectors use round-to-nearest, ties-to-even. Every
-successfully obtained per-type interface is released once. String-font helper internals are excluded (LC13).
+successfully obtained per-type interface is released once. String-font metadata follows §9.4.
 
 | ID | Fixture/input | Expected observation |
 |---|---|---|
@@ -1208,7 +1349,17 @@ successfully obtained per-type interface is released once. String-font helper in
 | LCV30 | destroy attached control with own-control true, then equivalent fixture false | true: remove from parent, Shutdown, Release; false: Release only; pending parent/procedure and vocabulary released in §5.2 order |
 | LCV31 | GetScriptFragment with null control and sentinel out | false; sentinel unchanged; non-null defined control follows §7.6 frame and common-word ordering, per-type writer words remain LC8 |
 | LCV32 | malformed checked key (Combo arrow or Scrollbar image) | no image load/setter/metadata for that key; independent gutters/limits still applied |
-| LCV33 | TextEdit outlinecolor without numeric outline, overflowing/partial unchecked key, or OOM | classify unsupported edge domain (LC9/LC11); do not assert a deterministic native setter argument or successful rollback |
+| LCV33 | TextEdit outlinecolor without numeric outline, overflowing/partial unchecked key, or OOM | classify unsupported edge domain (§13.3); do not assert a deterministic native setter argument or successful rollback |
+| LCV34 | Replace manager main window A with B, build with no pending parent | ChildAdd on B after Init, then PullToFront; no AddRef/Release of borrowed default parent |
+| LCV35 | String font `MenuFont` with selector 2; destroy source String | parameter `0xFAA3BE87`, variant type `0x800E`, copied 8 bytes remain `MenuFont`; no font setter or font resolution by base SetParam |
+| LCV36 | Typed String contains bytes C3 28; or decimal scan token 2147483648 for a signed destination | explicit unsupported UTF-8/overflow outcome, respectively; not missing property, replacement text, wrapping success or native-equivalence success |
+| LCV37 | TreeView image definitions `leaf`→handle 4, `leaf`→handle 9, `Leaf`→handle 11 | all defined widget effects still occur; name-to-handle metadata retains `leaf`→4 and distinct `Leaf`→11; duplicate alone is accepted |
+| LCV38 | Defined Grid scan state; literal text cell `hello` with F=`0x40000` | widget receives hello; notifier descriptor has F, key (0,0), empty text; no copying hello into descriptor |
+| LCV39 | Grid column `2,4,60`, row `2,4,18` | notifier records at (2,0) with (2,4,60), and (0,2) with (2,4,18); sizing calls (2,1,60), (2,3,18) |
+| LCV40 | Grid key scan inhibited before any resource component is established; non-text resource cell consumes it | explicit unsupported outcome, not a zero-key resource load; defined carry-over after a previous complete scan remains allowed |
+| LCV41 | New SC3 default proc: structured notification; scalar IDs D0, D1, D5, D6, D8 with prefix `0xA2BF8A` | structured returns false unchanged; scalar returns true, true, false, false, false; no drawing/forwarding |
+| LCV42 | Default procedure count 0; install P, install same P, replace with caller Q | first install retains P to 1, sends D5 then D8; same pointer no effects; replacement sends D6 to P and releases/destroys P, retains Q and sends D5 then D8; notification payloads initially zero |
+| LCV43 | Default procedure QI IID `0x22E85D8E`, then unknown IID with sentinel output | first returns same pointer and adds one reference; second false, sentinel and count unchanged |
 
 Existing Slider, TreeView, FileBrowser, Grid, Folders, FlatRect and Outline worked examples in §9.1–§9.8
 remain the corresponding test inputs for those earlier contracts. LCV01–LCV33 supplement those examples;
