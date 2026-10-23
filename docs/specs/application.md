@@ -1190,9 +1190,8 @@ Paths below are literal Windows strings. Foreign primitive outcomes are fixture 
 | AP15-read-init | Read-segment initialization false; read-open false | Path and read-open still attempted; shutdown and release, no close; no template pointer installed |
 | AP15-views | Source view absent; destination view present; rebuilding fails | Destination zoom=0 then rotation=0; missing destination instead makes neither setter call |
 | AP15-invalid | No city, temporary writer successfully opens segment | Native city dereference is invalid; not a native false/no-op vector |
-
 | AP13-hex | Keys/classes `12junk`, `123456789`, `-1`, ` 0Xff` | Numeric results 0x12, 0x12345678, 0, 0xFF; no whole-file rejection |
-| AP13-separator | Value `086D4A89;C:\\a;b.dat`; separately value `C:\\a.dat` without semicolon | First class 0x086D4A89/path `C:\\a;b.dat`; second class 0/path entire value; failed class creation skips entry |
+| AP13-separator | Value `086D4A89;a;b.dat`; separately value `a.dat` without semicolon | First class 0x086D4A89/path `a;b.dat`; second class 0/path entire value; failed class creation skips entry |
 | AP13-groups | Packed exemplars off; begin PACKED_EXEMPLARS twice, end with arbitrary value, then ordinary entry | First end clears shared condition bit despite outer group; ordinary entry no longer excluded by that condition |
 | AP13-unknown-group | Begin unknown name, ordinary entry, end arbitrary value | Unknown group imposes no condition; end pops that name |
 | AP13-bad-end | END_GROUP without any BEGIN_GROUP | Invalid unchecked empty-stack access; no native safe-ignore contract |
@@ -1217,7 +1216,7 @@ Paths below are literal Windows strings. Foreign primitive outcomes are fixture 
 | AP13-captions | All managers present | Seven localized captions in table order, followed by literal UTF-8 ellipsis for 0x5377BE31 |
 | AP14-name-filter | ASCII city name ` A<>:*?  B `; empty destination | Filename `City - A B .sc4`; prohibited bytes deleted and ASCII spaces collapsed; space before extension survives |
 | AP14-name-cap | ASCII city name long enough that full candidate exceeds256 bytes | Filtered filename capped256 bytes before suffix selection; no repair of a truncated .sc4 extension |
-| AP14-savedcity | Application directory C:\\Game\\; global suffix .sc4 | RequestLoadCity stub uses literal SavedCity.sc4, replacing the initially fetched directory |
+| AP14-savedcity | Nonempty application directory; global suffix .sc4 | RequestLoadCity stub uses literal SavedCity.sc4, replacing the initially fetched directory |
 | AP14-preferences-partial | full=false, pause byte2, city/simulator present, speed50, command line has -x:GP | Pause true; no language/video work; simulator speed20; GP processed last from a command-line copy |
 | AP14-preferences-window | full=true, current800x600x16, requested1024x768x32, windowed0 | Set windowed1; request1024x768x32 then fullscreen=false; driver selection follows |
 | AP14-preferences-driver | full=true, driver override0x12345678, graphics interface present | Preference hardware byte255; select exactly that override; release queried interface |

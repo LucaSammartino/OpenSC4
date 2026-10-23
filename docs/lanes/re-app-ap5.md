@@ -32,7 +32,7 @@ Other application questions AP3–AP11 remain outside this closure task.
 - AP15: directory slots 51–58, including distinct slot 56; destructive obliteration
   failure behavior, view defaults, cleanup and invalid no-city access.
 
-Section 16 supplies spec-level conformance vectors for implementers. These include
+Section 16 supplies spec-level conformance vectors in one continuous table for implementers. These include
 success, ordering, malformed input, preserved state, unsupported native invalid inputs,
 failure cleanup and the observed native defects. No executable implementation or tests
 were supplied by this RE lane.
