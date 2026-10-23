@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 324 (Bootstrap directors, RZ strings and GZ framework core specified; Lua host questions answered; vehicles landed partial (run 5).); 323 (City window, map view and place-lot tool landed partial (run 5).); 322 (Six new or extended specs (widgets, web, GZ graphics, SC resources, sound, particles) mapped; effect commands landed WIP (run 5).); 321 (Audio answers and the native build queue landed; automata record shadow credited (run 5).); 320 (Model registration effects claimed; Lua host WIP, aircraft and DX7 driver spec work landed (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 329 (Network manager shadow exact without resyncs; view3dwin, city-tools and effects questions answered; lot editor spec mapped (run 5).); 328 (netmgr-exact5 strict shadow, 73/73 exact, 0 resyncs, lists as run 323); 326 (advisor record shadow, clean game but 0/73 exact; AD17/AD18 block verification); 325 (GZ graphics and SC resources implemented (claims wait on GZG6/SCR7); advisors shadow landed default-off; lane cap 20 (run 5).); 324 (Bootstrap directors, RZ strings and GZ framework core specified; Lua host questions answered; vehicles landed partial (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

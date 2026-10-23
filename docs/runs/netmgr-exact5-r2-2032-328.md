@@ -1,5 +1,5 @@
-tag: netmgr-exact5-r2-2032-323
-run: 323
+tag: netmgr-exact5-r2-2032-328
+run: 328
 date: 2026-10-23
 lane: glue-netmgr-exact5
 dll: SHA256 29012747892A86BDED77225B6113002D1AA3DDB99A44B3894BD1989CC75DBD58 (engine source 0baa6a1f)

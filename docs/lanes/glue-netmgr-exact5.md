@@ -1,14 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netmgr-exact5: network-lot record 11 shadow | Codex, `.claude/worktrees/glue-netmgr-exact5` (engine lane) | ready; cargo 6232/0/0, clippy clean, CTest 68/68; run 323 clean, netmgr 73/73, 0 resyncs; 3 C ABI additions; no questions | 1. Coordinator review and coverage credit. |
+| glue-netmgr-exact5: network-lot record 11 shadow | Codex, `.claude/worktrees/glue-netmgr-exact5` (engine lane) | ready; cargo 6232/0/0, clippy clean, CTest 68/68; run 328 clean, netmgr 73/73, 0 resyncs; 3 C ABI additions; no questions | 1. Coordinator review and coverage credit. |
 
 ## Report
 
-`netmgr-exact5-r2-2032 73/73`: one load line and 72 month lines, every mismatch count zero, zero configuration differences and zero resynced lines. Konradshohe reached 2032-01-03; verdict clean, ref_warnings=0, foreign exceptions=0, stalls=0, rtc=0. Run record: [323](../runs/netmgr-exact5-r2-2032-323.md).
+`netmgr-exact5-r2-2032 73/73`: one load line and 72 month lines, every mismatch count zero, zero configuration differences and zero resynced lines. Konradshohe reached 2032-01-03; verdict clean, ref_warnings=0, foreign exceptions=0, stalls=0, rtc=0. Run record: [328](../runs/netmgr-exact5-r2-2032-328.md).
 
 The original April record 11 gap had two causes. The core's lot-state boundary walk omitted the north columns specified by network-manager §6.3; the pending set also needed the SGI bucket/rehash processing order in §8.5 NM13. Commit `7812f988` implemented these, captured the generator input per §17.3, compared configuration choices, and removed record resyncs and the NM10/NM11 suppression. Diagnostic corrections and updated conformance expectations are in `cb48b856`.
 
-Strict replay then exposed a shadow sampling bug: every configuration was registered with token 0 and an empty object array, and the read-only host supplied no object-ID callback. Mandatory prop/flora random draws were missing. In the first strict run March's next-word positions diverged 322/318 and April's 327/319; subsequent configuration choices diverged. April lot counts already agreed, 527/527. That run was clean but only `netmgr-exact5-r1-2032 2/73`, with zero resynced lines; [run 322](../runs/netmgr-exact5-r1-2032-322.md) preserves the failed comparison.
+Strict replay then exposed a shadow sampling bug: every configuration was registered with token 0 and an empty object array, and the read-only host supplied no object-ID callback. Mandatory prop/flora random draws were missing. In the first strict run March's next-word positions diverged 322/318 and April's 327/319; subsequent configuration choices diverged. April lot counts already agreed, 527/527. That run was clean but only `netmgr-exact5-r1-2032 2/73`, with zero resynced lines; [run 327](../runs/netmgr-exact5-r1-2032-327.md) preserves the failed comparison.
 
 Commit `0baa6a1f` completes the shadow input: decode kept objects through the existing Rust `fc4_lot_config_object_array` at detail 3 (prop-lotconfig §B3.3), assign stable nonzero configuration tokens, retain uniquely owned SDK object records, and expand families through the city's public `GetObjectIDArray` interface. SDK vector payloads are freed during city shutdown. No guessed native signatures or C++ simulation rules were added. The focused test verifies configuration/mandatory-prop/flora draws across an RNG reload, including a one-ID prop, optional props and empty lists.
 
