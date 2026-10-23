@@ -2101,3 +2101,100 @@ EF15; entry/exit publication does not establish its child command algorithms.
 | EC40 | pending `(Name,0,Renamed,0)`; `effect Name -priority bad` | priority=0, live name `Renamed`, pending used byte=1; inline priority remains unmarked and unconverted; no second lookup for Renamed; block entered |
 | EC41 | returning exit with collection C and current name `Renamed` | C+14 receives `Renamed` and current description; name then empty, description/pending record retained. Null C instead clears name without publication |
 | EC42 | C+14 throws on exit | live name and description retained; generic block not popped; no implicit second exit |
+
+### 19.11 `testEffect`: preview creation and ordered instance setup
+
+The `cTestEffectCommand` descriptor `00A9F8D8` calls `0059D1D0`.
+This root command creates a preview instance; it does not add a component to
+the current effect description. It requires a nonnull preview manager at
+`P+8C`. There is no current-effect-name or collection-presence guard.
+The positional finder requests at least one value and its AL is ignored.
+The first selected record supplies the effect name, preserving case. Further
+selected records beyond the second are ignored by this owner.
+
+The second selected record, if any, supplies the source position. If its
+foreign CountArguments reply is exactly 3, ParseVector3 supplies `(x,y,z)`.
+Every other count takes the ParseVector2 path: its `(x,z)` reply is sent to
+terrain service `00B43CF4`, slot `+34(x,z)`, and source position becomes
+`(x, binary32(height + 4.0), z)`. The addition uses x87 with a binary32 4.0
+operand and one final binary32 store; do not narrow the returned height before
+adding. Absent a second record, the position is `(512,100,512)` and no terrain
+call occurs. CountArguments/ParseVector2 validation remains the reader's
+contract; this owner does not add an exactly-two requirement to that branch.
+
+Next the following options are read, in this order. Each lookup requests at
+least one value, uses only the first selected record, and applies no owner
+range check. Conversion failures propagate before manager lookup/creation.
+
+| Option | Conversion | Absent value | Purpose |
+|---|---|---|---|
+| `sourceScale` | ParseFloat, binary32 store | 1 | uniform scale of source transform |
+| `scale` | ParseFloat, binary32 store | 1 | uniform scale of instance transform |
+| `trans` | ParseVector3 | `(0,0,0)` | translation of instance transform |
+
+After these conversions, manager slot `+14(name)` tests existence. False throws
+`No such effect`; no create call, preview-list append, speed/target/hard lookup
+or description mutation occurs. True calls manager slot `+1C(name,&instance)`
+with an initially null output pointer. A false create result returns normally,
+releasing a nonnull returned pointer if supplied, and omits all remaining
+setup. A true reply is required to provide a usable nonnull instance for the
+remaining normal domain; this owner has no null-output recovery branch.
+
+On successful creation, the instance is appended to the retained preview list
+at `P+4BC` **before** any instance setter. The list takes a reference. This is
+followed by instance slot `+20(&sourceTransform)`, then slot
+`+1C(&instanceTransform)`. Each transform has identity 3-by-3 basis, the
+translation and scalar above, and flags byte 1 for scalar exactly equal to
+1, otherwise 3. The comparison is x87 equality: unordered also takes flags 3.
+The source transform's change byte is 2. The same temporary is reused for the
+instance transform: after the first setter, a nonzero flags byte causes basis
+reset and one change-byte increment; replacing translation/scale increments
+it twice more, modulo 256. Thus with ordinary setters that do not modify their
+input, the second transform has change byte 5. This byte is not a floating
+value. The transform layout is change byte `+00`, flags byte `+01`, basis
+`+04..+24`, translation `+28..+30`, scalar `+34`; padding bytes are not set by
+this command. The second setter is not omitted for identity values.
+
+Only after both setters return are these further options looked up:
+
+| Order | Option and minimum values | Required instance/list action |
+|---:|---|---|
+| 1 | `speed`, 1 | ParseFloat to binary32; slot `+30(0,&value,1)` |
+| 2 | `target`, 1 | ParseVector3; slot `+2C(5,&vector,1)` |
+| 3 | `hard`, 0 | append integer 1 if present, otherwise 0, to list `P+4C8` |
+
+Missing speed or target omits its setter; there is no synthesized speed zero
+or target vector. The hard list gets one entry even when `hard` is absent,
+but only after all preceding setup returns. There is no start/restart call
+in this command. Normal completion releases the local instance reference;
+the preview list retains its own. A later conversion or foreign-call exception
+does not undo an earlier preview append, transform setter or option mark, and
+may leave preview and hard-list lengths unequal. Do not infer exceptional
+reference cleanup from the normal release tail. No rollback is installed here.
+
+Evidence: selection/defaults `0059D1DE–0059D289`; vector/terrain choice and
+binary32 store `0059D292–0059D31E`; preliminary options
+`0059D322–0059D3D4`; existence/create gates `0059D3D8–0059D442`;
+retained-list append `0059D448–0059D453`, helper `0059D7E0`;
+transform stores/comparisons/setters `0059D458–0059D5BF`;
+late options and hard append `0059D5C2–0059D68E`, integer-list helper
+`0059D6C0`; normal release `0059D693–0059D6AD`. Default translation reads
+zero-fill word `00B22CC0` in the PE virtual data tail; it is not file data
+following the section's raw bytes. Terrain offset 4.0 is `00A8E17C`.
+
+### 19.12 Preview command conformance vectors (unexecuted)
+
+The manager and instance replies are independent foreign inputs; these cases
+do not call a renderer or claim an in-game verdict. Setter callbacks below
+return without modifying their input transform.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC43 | `testEffect Name`; exists=true, create=true with I | retain I in preview list; source setter gets identity basis, `(512,100,512)`, scale 1, flags 1/change 2; instance setter gets identity basis, `(0,0,0)`, scale 1, flags 1/change 5; no speed/target setter; append hard=0; release local I |
+| EC44 | `testEffect Name 10,20,30 ignored`; second record CountArguments=3 and vector reply `(10,20,30)` | source translation exactly that vector; no terrain call; extra selected record ignored |
+| EC45 | second record CountArguments=2, ParseVector2=`(10,30)`, terrain height=7 | terrain slot +34 called with `(10,30)`; source translation `(10,11,30)`; one binary32 store after height+4 |
+| EC46 | `testEffect Name -sourceScale 2 -scale 3 -trans 4,5,6 -speed 7 -target 8,9,10 -hard`; normal replies | source scalar 2, flags 3; instance scalar 3, translation `(4,5,6)`, flags 3; setters then speed slot +30 `(0,7,1)`, target slot +2C `(5,(8,9,10),1)`; hard=1 |
+| EC47 | invalid trans conversion and exists would be false | conversion exception precedes existence call; sourceScale/scale/trans marks survive; no preview/hard append |
+| EC48 | valid preliminary options; exists=false | `No such effect`; no create or late option lookup |
+| EC49 | exists=true, create=false with nonnull I; speed token invalid | no append or setter or speed conversion; normal local Release I |
+| EC50 | create=true with I; source/instance setters return; speed conversion throws | I already retained in preview list and both transforms sent; no target/hard lookup, hard list unchanged; exception propagated without rollback |

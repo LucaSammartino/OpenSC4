@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-effects-commands5 — effects script command contracts | Codex / detached re-effects-commands5 | in progress: round 2 checkpoint, EFP1–EFP6 published, EF15 incomplete | Resume testEffect and remaining definition/nested handlers; no ready queue while EF15 remains open. |
+| re-effects-commands5 — effects script command contracts | Codex / detached re-effects-commands5 | in progress: round 3, EFP1–EFP6 published, EF15 incomplete | Trace testEffect and remaining definition/nested handlers; no ready queue while EF15 remains open. |
 
 ## Report
 
@@ -42,7 +42,8 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Done round 2: effects-parser §13 answers EFP2: all five rotation branches, turns not degrees, asymmetric intermediate stores, six static vectors; questions/doccheck passed.
 - Done round 2: eee0dd22 closes EFP2; effects §19.4–19.6 now documents seven identifier/trigger handlers plus resource enter/exit/import, 18 further static vectors.
 - Done: 790c6cff publishes identifier/resource contracts; §19.7–19.8 adds camera and priority declarations, ten static vectors; camera span truncates/clips, priority exact-name duplicates keep first.
-- Exact next step: re_query asm 0059D1D0 --bytes --max 56, then page by 56; testEffect pseudocode is badly stack-aliased, so verify transforms and every service call from instructions before publishing.
+- Done round 3: effects §19.11–19.12 publishes testEffect, eight static vectors EC43–EC50; instruction-verified transforms, terrain height+4, preview retention before setters, late options and failure prefixes.
+- Exact next step: publish six root definition-block entry/exit contracts and constructor defaults, starting particles 005A1A50 / 0059D9B0. DynamicParticle labels Parse/EndBlock are reversed; descriptor hooks establish roles.
 - EF15 remains open: §19 covers 14 of 21 root descriptors; testEffect and the six other definition blocks still require execution contracts, plus nested handlers and full class inventory.
 - Corrected prior spec error: AddRef/Release are F3C0/F3D0, not F3E0/F3F0; destructor 005A27F0 -> 0059F4E0.
 - Static evidence only; no game requests, no ABI changes. EFP7 deliberately outside task.
@@ -56,4 +57,5 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Explicitly permitted engine read: main checkout effects_parser/README.md only.
 - q.py cannot start Git Bash (CreateFileMapping access denied); use bounded PowerShell calls.
 - Round 2 commits: eee0dd22 rotations, 790c6cff identifiers/resources, e51d6a67 camera/priority, c5ad01a0 effect entry/exit. Budget reserved for checkpoint/continuation; no pending process or game labels.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5-r2-manifest.json.
+- Round 3 resumed at c5ad01a0; corrected ignored PE helper virtual-tail reads (B22CC0 is zero-fill). No published prior constant was changed.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5-r3-manifest.json.
