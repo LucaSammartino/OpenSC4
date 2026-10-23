@@ -43,7 +43,7 @@ repeat Init/show/hide/moves, identity changes after teardown, Shutdown and
 destruction. No native, portable, device, effect, game or renderer was executed.
 
 - `python build-runs/local-grid-analytic.py`: PASS, exact rational checks for
-  G1–G7 and B, 28 binary32 words, 13 relative file links. This checks fixed
+  G1–G7 and B, 28 binary32 words, 15 relative file links including this report. This checks fixed
   literals, not a host geometry oracle or future implementation output.
 - `python tools/questions.py index`, then `check`: PASS; LGH1 indexed.
 - `python tools/doccheck.py check`: PASS.
