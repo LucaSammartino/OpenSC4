@@ -12,9 +12,9 @@ creation class ID. Regenerated docs/specs/QUESTIONS.md. Commit: `2869269f9`.
 Network §6.2.3/tests 52–53 specify pylon Draw and all message decisions, including pass-zero-only
 dirty rebuilding, dispatch-state label suppression, unsigned tick conversion and visibility transitions.
 Commit: `cb51c38e8`. Network §4.7.2/tests 54–55 specify pole occupant bounds, unsigned destination
-comparisons and the signed-conversion/wrapping quirk. These are partial NO33/NO36/NO43 answers.
+comparisons and the signed-conversion/wrapping quirk (`9162e3b21`). These are partial NO33/NO36/NO43 answers.
 
-Validation: `python tools/doccheck.py check` passed before the final report; rerun on the final edits.
+Validation: `python tools/doccheck.py check` and `git diff --check` passed on the final spec edits.
 No engine, plugin, capi, tools/coverage-map.tsv or ABI edits; no ABI proposals; no game runs or
 implementation tests. Evidence is the main checkout export and bounded decomp excerpts; numeric
 decisions above were checked in instruction bytes. REA was not used because the session has no binary.
@@ -28,7 +28,7 @@ Git commits succeeded despite an incidental packed-refs.lock permission message;
 
 ## Handoff
 - Goal: answer NO33, NO36, NO40, NO41, NO43 and UG5 without engine reads or edits.
-- Done: NO41 answered (2869269f9); pylon Draw/messages (cb51c38e8); pole bounds §4.7.2/tests 54–55.
+- Done: NO41 answered (2869269f9); pylon Draw/messages (cb51c38e8); pole bounds (9162e3b21), tests 54–55.
 - Next: finish NO36 model/MySim/number-label composition first, then NO40/UG5 connection and base geometry.
 - Still open: NO33/NO43 pole model/resource/transform/Pick/wire/Draw and diagonal-floor numeric order.
 - Pylon source: main decomp/cSC4PylonOccupant.c lines 762–978 (MySim/replacement), 1217–1363 (label), 1385–1575 (model).

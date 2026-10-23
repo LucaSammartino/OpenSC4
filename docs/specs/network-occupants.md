@@ -1502,7 +1502,9 @@ increments and f32 output stores. The extrema are compared as unsigned but conve
 point as **signed** integers (`0x00649A6B–0x00649AA4`, `0x00649AB8–0x00649B22`). Each multiplication
 is done after signed conversion; the y addition is one x87 addition followed by an f32 store.
 This is a cell-covering rectangle, independent of the actual rendered wire extrema and model box.
-GetBounds/GetWorldBounds use this occupant box; the separate Pick path uses a model-derived box.
+GetWorldBounds uses this occupant box. GetBounds instead forwards to the held model's +1C method
+when a model exists and otherwise leaves the output untouched (`0x00649E50–0x00649E6C`);
+the separate Pick path uses a model-derived box.
 The floor and wall lists do not expand this occupant rectangle.
 
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
