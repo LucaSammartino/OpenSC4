@@ -178,7 +178,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
-| animation-tick-manager | 3 | 0 | TK4 | questions/animation-tick-manager.md |
+| animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -235,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| lot-models | 8 | 0 | LM9 | questions/lot-models.md |
+| lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
@@ -312,7 +312,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
-| water-ripples | 10 | 0 | WR11 | questions/water-ripples.md |
+| water-ripples | 4 | 6 | WR11 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
@@ -320,4 +320,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **492** | **1246** | | |
+| **total** | **482** | **1257** | | |
