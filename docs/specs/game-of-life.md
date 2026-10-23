@@ -52,6 +52,13 @@ Padding gaps are not body bytes. No folded/shared simulator entry has been estab
 QI/AddRef/Release and inherited vtable entries are excluded rather than credited to this owner.
 This inventory does not prove absence of further inlined, folded, or as-yet unattributed operations.
 
+| Ledger category | Exact extent |
+|---|---|
+| Supported | Four simulator bodies' normal storage, byte stores, branches and operation order; listed parent inline zeroing, clear, cleanup, readout and call boundaries only. |
+| Partial | Init/randomization/cleanup depend on successful foreign primitive behavior; generation callbacks require valid non-destructive, non-reentrant lifetime; parent initialization/destruction beyond the cited slices is not closed. |
+| Foreign | Allocation/free, RNG construction and draws, marked-cell-view calls, parent base/COM references, vector growth, picking, scheduling and drawing. Their bodies are not simulator inventory bytes. |
+| Unknown | Further inlined/folded attribution, suppress setter/reachability, invalid-memory/overflow/exception/reentry behavior and external normal maximum dimension. No inferred safe result. |
+
 ## 2. Storage, construction and lifetime
 
 **[compat]** Offsets are relative to the embedded simulator; cells are unsigned bytes, one per position.
@@ -305,6 +312,20 @@ The literal result above, rather than a Boolean grid alone, checks age and alloc
   L,D,K, frees A, nulls C, frees B, nulls P. Destruction helper afterward passes null twice to the foreign
   free primitive. This records call order, not an assumption that the primitive tolerates null or that
   every parent lifetime admits repeated Shutdown.
+
+### 6.6 Ordinary-domain age saturation and sparse/crowded states
+
+- **V16 — reachable saturation:** Init(5,4,0), mode=0 edits (1,1),(2,1),(1,2),(2,2), makes C rows
+  `0 0 0 0 0 / 0 1 1 0 0 / 0 1 1 0 0 / 0 0 0 0 0`. Each nonzero cell has three neighbors;
+  every other cell has fewer than three. One advance yields the same positions at byte 2, a second
+  at byte 3. After 189 advances from byte 1 the four bytes are 190, the next gives 191, and the
+  next retains 191. At those saturated cells the live callback still runs. This supplies reachable
+  ordinary states for V10's 190/191 boundary, without a foreign high-byte grid supplier.
+- **V17 — sparse and crowded reachable grids:** separate Init(5,4,0) cases with mode-0 edits only
+  (2,1), or only (2,1),(3,1), both publish twenty zero bytes after one advance (neighbor counts at
+  the live cells are respectively 0, or 1 each). P retains the corresponding old 1 bytes. Separately,
+  Init(3,3,0) followed by all nine mode-0 edits makes C three rows `1 1 1`; every cell counts eight,
+  publishes three rows `0 0 0`, and selects dead callback at all nine visits while P retains all ones.
 
 ## 7. Limits and open questions
 
