@@ -88,6 +88,11 @@ implementer of the class tables and records.
   names/addresses but no algorithms. The core implements published state, two table selections and Init's
   known state changes; no owner-result callbacks or invented geometry are supplied. [missing; sections
   4.1-4.3 remain open, including native pool allocation required by section 13 test 4]
+  **Progress 2026-10-23 (re-netocc-answers5):** constructor defaults, exact table bits/retained-pointer
+  behavior and unrotated floor/wall generation now appear in §§4.1,4.6,4.7.1 and tests 43–44. Harvested
+  §§4.2–4.7 also supply connection removal, distress, model/position and drawing summaries. Complete
+  connection/cell-walk, model/resource, transform/bounds/Pick/Draw algorithms still require verification;
+  the diagonal floor's numeric operation order remains NO43. NO33 stays open for full owner closure.
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the

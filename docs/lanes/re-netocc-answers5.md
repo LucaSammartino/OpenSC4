@@ -41,6 +41,7 @@ NO14 and NO29–NO32 were not reached. Work was bounded to finish and land verif
 answers within the measured lane budget rather than declaring these wider questions answered.
 
 ## Handoff
+- Round-3 milestone: NO33 partial constructor/table precision and unrotated floor/wall geometry published in §§4.1/4.6/4.7.1, vectors 43–44. Diagonal transform operation order and full owner algorithms remain open; NO43 cross-reference corrected from harvested NO37.
 - Round-3 milestone: NO36 partial state/ref/tick/position/visibility rules in §6.2.1 with vectors 40–42; timer is shared u32, excess discarded, source/owner AddRef new before old Release. Full texture/model/draw/pick/message closure not claimed.
 - Round-3 milestone: UG5 partial rules added to network §3.6.1, underground §4 and tests 9–13. Exact-version/ref/helper, creation quad/neighbors, static cleanup/packing, enumeration and ref/state-change behavior verified against bytes; UG5 remains open for full geometry/view/message/bounds.
 - Round 3 resumed 2026-10-23 at detached HEAD 05313cf6; new manifest run4-re-netocc-answers5-r3-manifest.json.

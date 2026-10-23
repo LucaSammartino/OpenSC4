@@ -1150,6 +1150,13 @@ a virtual base at `+0x120` (`0x00AA9D30`, 19 slots).
 | `+0x114` | pointer | the "powerpolezap" effect while distressed |
 | `+0x118` | bool | **preview** (slots 13, 14) |
 
+**Constructor defaults** *[compat; NO33 partial]* (`0x0064DC43–0x0064DD33`): identity rotation,
+zero translation and scale 1; transform counter/mask +68/+69 both zero; position and cell zero;
+connections and all three vertex lists empty; kind +B8=0; delegate +BC=null; rotation/zoom +C0/+C4=−1;
+attachment table +E4=null; stale +D0=true; floor height +10C=0; +110, subscription +111, distressed +112
+and preview +118 all false; effect +114=null. This does not promise zeroed padding or a usable attachment
+table before a supported exemplar selects it.
+
 ### 4.2 Interface slots *[compat]*
 
 `cISC4PowerPoleOccupant` (vtable `0x00AA9EB0`), pop sizes from the ABI table:
@@ -1347,6 +1354,15 @@ points (x, y, z):
 (0, 38.7, 4.8), (0, 38.7, −4.8)). The attachment points of a pole for orientation `r` are the four table points of
 `r mod 4` plus the pole's position.
 
+The displayed decimal coordinates are **binary32 constants**. Positive bit patterns are
+31.7=`0x41FD999A`, 38.7=`0x421ACCCD`, 4.8=`0x4099999A`, 6.5=`0x40D00000`,
+3.3=`0x40533333`, 4.5=`0x40900000`; negatives change the sign bit. The data at the two cited table
+addresses confirms the signs/order in the table. Subtype selection uses an unsigned shift/mask;
+the jump table at `0x00649B90` maps 1/2 to A and 3/4 to B. Any other subtype **retains** +E4:
+on a fresh object it remains null, after selecting A it stays A, and after selecting B it stays B.
+No default table is supplied (`0x00649B59–0x00649B89`). The record reader's shared-table overwrite
+in §4.4 therefore affects later users of that same table.
+
 **Removing.**
 - `RemoveConnection(record, quiet)` (`0x0064A560`): release the record's pole (left null); remove each of its lines
   from the occupant manager (`RemoveOccupant(line, true, 0)`) and release it; empty the list; not inserted; when this
@@ -1362,7 +1378,7 @@ When this pole does not own the wire and the other pole exists, the answer is th
 Otherwise the cells from this pole's cell to the record's cell are walked in `trunc(max(|dx|, |dz|)) + 1` steps
 (`0x0064A4D0`) and appended to `out` as (x, z) pairs *[summary]*; true.
 
-### 4.7 Position, model, effect and drawing *[summary; NO37]*
+### 4.7 Position, model, effect and drawing *[summary; NO33/NO43]*
 
 **Position** (occupant slot 9 `SetPosition(p)`, `0x0064C540`): the position becomes `p`; the model is moved
 (`SetModelPosition` `0x0064AC70`); the cell becomes `(trunc(p.x × (1/w)), trunc(p.z × (1/w)))` with `w` the terrain's
@@ -1390,6 +1406,43 @@ underground view with the textures `0x0912220E` and `0x08080004` and the tint fr
 curves), its width scaled by the zoom's scaling factor (§4.3).
 
 ---
+
+#### 4.7.1 Floor and wall inputs *[compat; NO33/NO43 partial]*
+
+CreateFloor empties the +E8 list and emits four 24-byte vertices. Without the diagonal-model rotation,
+at pole position `(x,y,z)` their positions are `(x−5,y,z−5)`, `(x−5,y,z+5)`, `(x+5,y,z+5)`,
+`(x+5,y,z−5)`, with UVs `(0,0),(0,1),(1,1),(1,0)` and white RGBA `(255,255,255,255)`.
+This is a 10×10 square at the pole's **position y**, not at +10C. The coordinate inputs are the signed
+unit-square corners multiplied by f32 10 and then f32 0.5; transformed x/z are rounded to f32 before
+adding the pole position and storing f32. Sources: `0x0064BFDF–0x0064C02C`,
+`0x0064C162–0x0064C2A0`; UV arrays `0x00AA9B18/0x00AA9B28`.
+
+There is a separate diagonal-model branch: when exemplar model property `0x27812821` succeeds and the
+instance's high word is `0x0503` or `0x0504`, it constructs a Y rotation from the double at `0x00AA9D28`
+before transforming the square (`0x0064C086–0x0064C162`). Exact rotated-coordinate operation order
+remains within NO43; the unrotated vector below does not test that branch.
+
+AddWallQuad clears its destination list and uses floor vertices A/B as the top endpoints. It emits four
+vertices in order **top A, bottom A, bottom B, top B**, where each bottom preserves its top's x/z but
+has y=+10C. UVs are `(0,0)`, `(0,f32((topA.y−bottomY)×0.0625))`,
+`(1,f32((topB.y−bottomY)×0.0625))`, `(1,0)`. The subtraction and multiplication feed the f32 store
+without an intervening f32 temporary. RGB becomes white on each vertex; its source endpoint's alpha
+is retained. The two endpoints can have different heights/alphas. Negative V is not clamped
+(`0x0064C2C0–0x0064C46E`, factor `0x00A8E174` is f32 0.0625).
+
+CreateWalls clears both wall lists and selects these **ordered floor-index pairs** for +F4 then +100:
+
+| Cached view rotation +C0 | First wall | Second wall |
+|---|---|---|
+| 0 | `(2,3)` | `(1,2)` |
+| 1 | `(1,2)` | `(0,1)` |
+| 2 | `(0,1)` | `(3,0)` |
+| 3 | `(3,0)` | `(2,3)` |
+
+Each list is rebuilt with AddWallQuad, not appended to old geometry (`0x0064C470–0x0064C53B`). The
+table is indexed by the cached rotation without a range check; these rules require rotation 0…3.
+Wire sampling/cell walks, complete bounds/Pick/Draw and remaining resource/model decisions stay open
+in NO33/NO43. The construction and geometry facts here are not a complete pole-owner algorithm.
 
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
 
@@ -2178,3 +2231,17 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     initially unplaced object: insertion is still requested. SetVisibility on an uninserted object calls
     only the base; on a manager-inserted object it additionally requests renderer placement matching the
     supplied visibility, using the placement semantics in test 20.
+43. **Pole constructor/table selection** (§4.1/§4.6). A fresh pole has no connections/delegate/effect,
+    no table, rotation/zoom −1, identity transform and stale=true. Exemplar instances `0x00000100`,
+    `0x00000200` select A; `0x00000300`, `0x00000400` select B. On a fresh object subtype 0 leaves
+    null; A→subtype 0 preserves A; B→subtype 15 preserves B. Compare attachment coordinates as f32
+    bits, e.g. A r0 point0 `(0,0x41FD999A,0x4099999A)` and B r0 point0
+    `(0xC0533333,0x41FD999A,0x40533333)`, before position addition.
+44. **Pole floor/wall geometry** (§4.7.1). With a non-diagonal model, position `(10,20,30)` and floor
+    height +10C=4, floor vertices are `(5,20,25),(5,20,35),(15,20,35),(15,20,25)` with the four
+    listed UVs, white RGBA. Rotation 0 first wall is `(15,20,35),(15,4,35),(15,4,25),(15,20,25)`
+    with UVs `(0,0),(0,1),(1,1),(1,0)`; second wall uses floor endpoints 1/2. Rebuild twice: four
+    floor vertices and four per wall, with no growth. Rotations 1/2/3 follow the pair table.
+    In an AddWallQuad-only fixture use top A y=36/alpha=64, top B y=20/alpha=128, bottomY=4:
+    V is 2 and 1 at the two bottom vertices, alpha sequence 64/64/128/128. With topA y=−12,
+    its bottom V is −1, with no clamp.
