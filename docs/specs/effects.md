@@ -1765,3 +1765,150 @@ effects-parser.md §§9–11 cover the first-duplicate rule, retained records,
 failure prefixes, case-folded per-type names, anonymous indices, pointer
 replacement and final lifetime. They supplement the existing runtime vectors
 in §17 rather than claiming command coverage from runtime tests.
+
+### 19.4 Root identifiers and message-trigger records
+
+The four resource-ID declarations below take **exactly two arguments** (three
+token records including the command), not a minimum positional prefix. Missing
+or surplus records, including switch records, throw `Wrong number of arguments`
+before copying a name or changing a map. There are no default IDs.
+
+| Root literal | Descriptor / handler | Parser map / result |
+|---|---|---|
+| `textureID` | `00A9F86C` / `0059F890` | texture names, `P+AC` |
+| `modelID` | `00A9F87C` / `0059FE50` | model names, `P+B8` |
+| `soundID` | `00A9F88C` / `0059FF40` | sound names, `P+C4` |
+| `brushID` | `00A9F89C` / `005A0030` | brush names, `P+D0` |
+
+Argument 1 is copied as the key, then each copied byte is lowercased by the
+native CRT locale's tolower service (`009F0543` → `009F047B`). The input token
+string is unchanged. In the ASCII domain, `Smoke` and `SMOKE` select the same
+key. The four maps are separate: declaring a sound does not change a texture
+of the same name. Map lookup/insertion takes place **before** converting
+argument 2 through ParseUint; a missing key is inserted with unsigned value 0.
+On successful conversion its returned 32-bit word overwrites that entry.
+Duplicate declarations overwrite; there is no owner range check, resource
+lookup, loader call or description construction. On a throwing conversion a
+new zero entry remains, or an existing entry keeps its old value. These commands
+do not create a component record or apply component options.
+
+Evidence: arity/copy/fold/assignment in `0059F890–0059F975`,
+`0059FE50–0059FF35`, `0059FF40–005A0025`, `005A0030–005A0115`;
+zero insertion `0059F980–0059F9FD`, especially `0059F9CB` before insertion.
+These hooks have no confirmed `c*Command` class name in the export. They are
+identified by their positively registered descriptor/hook pairs, rather than
+inventing class names from their command literals.
+
+`effectID` (`00A9F8AC`, `0059A640`) requires **exactly three arguments**:
+group ID, instance ID, effect name. It converts the first two with ParseUint
+in that order, copies/lowercases the name by the same CRT service, then, if
+`P+90` is nonnull, calls collection slot `+50(name,groupID,instanceID)`.
+It does not resolve the name locally, change the current group-ID word, apply
+component options, or check the collection's return. With a null collection,
+conversion and folding still occur, but the collection call is omitted.
+Bad arity throws `Wrong number of arguments` before conversions.
+Evidence: `0059A640–0059A72A`.
+
+`instance` (`00A9FA08`, `0059A730`) is the same registered descriptor at root
+and within `effectGroup`. It requires **exactly two arguments**: instance ID,
+effect name. It converts the ID, copies/lowercases the name, and, if `P+90`
+is nonnull, calls `+50(name,P+49C,instanceID)`. It reads the current group word
+at the call, without restoring or defaulting it. A null collection does not
+skip conversion/folding. It has the same arity error and no local component
+append. Collection duplicate policy and how IDs resolve at runtime belong to
+that service. Evidence: `0059A730–0059A819`.
+
+`messageTrigger` (`00A9F8E8`, `0059E820`) asks the positional reader for at
+least two values. The first is converted with ParseUint; the second is copied
+**without case folding**. It builds a temporary record of that unsigned word
+and string, and, if `P+90` is nonnull, passes its address to collection slot
+`+54`. It destroys the temporary after the call returns. Extra selected
+positional values are ignored by this handler; a null collection still permits
+the reader/conversion/string copy. No component options or local description
+append occurs. Evidence: `0059E820–0059E8C3`; the owned call boundary is the
+record `(messageID,name)`, not a guessed message-system registration algorithm.
+
+### 19.5 Resource blocks and explicit resource import
+
+`effectsResource` is `cEffectsResourceCommand`, descriptor `00A9F918`, enter
+`00596810`, exit `00596970`. It requires exactly two arguments: resource
+instance ID and resource name. Arity errors precede the check for an already
+held resource at `P+94`; a nonnull resource then throws `Can't nest resource
+blocks`. Nesting is tested by that pointer, not by generic block-stack depth.
+The byte `P+A4` enables resource creation/saving. If it is zero, entry still
+performs both checks and enters the generic block, but does not convert either
+argument, create a resource, or change the collection.
+
+When enabled, argument 1 is converted with ParseUint. The resource key is three
+32-bit words `(EA5118B0,EA5118B1,instanceID)` hex. The live resource manager
+at `00B43CA8` is asked through slot `+18` for that key, interface `CA51189B`,
+output `P+94`, and final arguments 0,0. The owner ignores the call's status
+and tests the returned pointer. A null result is not a local parse error:
+entry continues with the old collection/key unchanged. A nonnull result gets
+slot `+0C` with the raw name pointer from argument 2, with no local case
+folding or numeric conversion; its result is ignored. The key is then copied
+to `P+98..A0`; QI for `C97CF5CE` obtains the resource's collection, which
+replaces retained `P+90` through the shared reference-assignment service.
+Finally the temporary QI reference is released. All enabled and disabled normal
+paths then enter the generic block. A manager pointer is required on enabled
+entry; this owner supplies no null-manager guard. The shared QI/assignment
+contracts govern reference operations, not a command-specific ownership transfer.
+Evidence: `00596810–0059696D`.
+
+On exit, if `P+A4` is zero or `P+94` null, the hook does nothing. Otherwise it
+asks the same manager through `+7C(P+9C,&segment)` with initially null output.
+A false AL throws `couldn't find segment for effect group 0x%08x` with the
+stored group word; there is no save or collection restoration. On success it
+calls manager `+30(&key,segment)`; false AL throws `couldn't save effects
+resource key 0x%08x` with the instance word. Both errors leave the current
+resource/collection held, and generic end dispatch does not pop a throwing hook.
+
+After a successful save, entry's previous arbitrary `P+90` is **not** restored.
+If `P+8C` is nonnull, QI for `C97CF5CE` on that object supplies the replacement
+collection, assigned with shared reference management and its temporary QI
+reference released. If `P+8C` is null, `P+90` is cleared before releasing its
+old nonnull value. Next `P+94` is cleared before releasing the resource, then
+the returned nonnull segment is released. The stored key remains unchanged.
+This is save-and-restore-to-base behavior, not a general stack of collections.
+Evidence: `00596970–00596AA5`.
+
+`loadResource` is `cLoadResourceCommand`, descriptor `00A9F934`, handler
+`00596AB0`. It asks for at least one initial positional value, converts only
+the first with ParseUint, and forms the same fixed-type/group key. Extra
+positionals are ignored. A null global resource manager makes it return after
+conversion. With a manager, it calls `+0C(&key,CA51189B,&resource,0,0)` with a
+null-initialized output. False AL throws `Effects resource 0x%08x not found`;
+there is no import. With true AL it calls returned resource slot
+`+14(P+90)` then releases that resource when nonnull. No guard protects the
+import call against a true status with null output; valid successful fixtures
+must supply a live resource. The current collection is passed even if null.
+Import behavior and resource lookup are individual foreign services; there is
+no local component append, P+90 replacement, or resource-block entry here.
+Evidence: `00596AB0–00596B6A`.
+
+### 19.6 Identifier and resource conformance vectors (unexecuted)
+
+Reader behavior is effects-parser §9. Unless a row says otherwise, foreign
+services return normally with live outputs. All constants in keys/IDs are hex.
+These expectations are independent static predictions, not recorded game runs.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC7 | `textureID Smoke 7`; ParseUint=7; texture map empty | key `smoke` inserted as 0 before conversion, then set to 7; original `Smoke` token retained; no loader/collection call |
+| EC8 | `modelID smoke bad`; empty model map; ParseUint throws | model key `smoke` remains 0; texture map unchanged; no successful assignment |
+| EC9 | same failure with model `smoke` initially 9 | old 9 retained; no duplicate error |
+| EC10 | `soundID Bell 8`, then `soundID BELL 10`; returned uints 8,10 | one sound entry `bell` ending at 10; brush/texture/model maps untouched |
+| EC11 | any of four ID declarations with one or three arguments | arity exception, no folding, insertion or conversion |
+| EC12 | `effectID G I Smoke`; uint replies FEDCBA98,89ABCDEF; collection C | conversions G then I, fold `smoke`, call `C+50(smoke,FEDCBA98,89ABCDEF)`; no P+49C write |
+| EC13 | `instance I Smoke`; group=12345678, null P+90 | convert I and fold name; no collection call; group unchanged |
+| EC14 | `effectGroup 9` entry, returning end, then `instance 7 Smoke` | group remains 9 after the block end; instance uses 9, not a restored outer value |
+| EC15 | `messageTrigger M MiXeD ignored`; uint reply 42; collection C | call `C+54` once with record `(42,MiXeD)`; no conversion/read of `ignored`; temporary destroyed after call |
+| EC16 | disabled `effectsResource bad name`, P+94 null | no uint conversion or resource call; generic block entered; exit hook does nothing |
+| EC17 | `effectsResource` with bad arity and P+94 nonnull | arity error wins over nesting error; neither creation nor block entry |
+| EC18 | enabled `effectsResource 7 Name`, null P+94; creation returns null | create request key `(EA5118B0,EA5118B1,7)`, IID CA51189B, 0,0; old key/P+90 unchanged; block entered |
+| EC19 | same creation returns R, QI gives C; base P+8C=B; successful exit returns segment S, base QI gives K | R name setter precedes key store and assignment P+90=C; block entered. Exit obtains S using EA5118B1, saves key with S, assigns K, clears/releases R, releases S; stored key retained |
+| EC20 | active enabled resource exit; segment request AL=0 | segment error; no save, restoration or resource release; generic block remains on stack |
+| EC21 | segment request succeeds; save AL=0 | save error; no restoration/resource/segment normal cleanup; active resource/collection and generic block retained |
+| EC22 | `loadResource 7 extra`; global manager null | reader/conversion of 7 occurs; extra ignored; no resource call |
+| EC23 | same import with manager: load AL=0 | not-found exception; no import or local collection replacement |
+| EC24 | same import with manager: load AL=1 and resource R | R+14 receives current P+90, then R released; no component-option lookup or block entry |
