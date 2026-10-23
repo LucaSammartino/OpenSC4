@@ -150,9 +150,9 @@ addition and conversion `0x0082C30F`–`0x0082C31A`, minimum-one rule
 `0x0082C31F`–`0x0082C326`. Non-finite values are outside the settled contract.
 
 ClearGradient forwards `(null,0,0)` to engine slot 12; SetGradientTransform forwards
-its arguments to the same slot. These calls require an engine. The exact
-fixed-point gradient conversion is deferred in GZG1; it must not be replaced
-with the 3D packed-state gradient rules.
+its arguments to the same slot. These calls require an engine. The buffer's
+fixed-point gradient conversion is specified in §4.2; it must not be replaced
+with the 3D packed-state gradient rules. Hardware-specific conversion remains GZG2.
 
 ## 3. Context transforms, drawing and target changes
 
@@ -288,10 +288,17 @@ coverage. The product and addition use double constants, are passed to floor
 as binary64, then converted to an integer; do not use truncation or nearest-even
 rounding instead. This follows `0x0082E8A0`, with instruction evidence at
 `0x0082E8D0`–`0x0082E942`; `0x009EFF60` dispatches to the CRT floor routine.
-The line helper emits individual one-pixel, half-open spans and includes its
-terminal major-axis position, subject to clipping (`0x0082D040`). In particular
-an ordinary horizontal integer Line from `(2,3)` to `(4,3)` covers x=2,3,4.
-This does not establish identical caps for the result-1 stroke-quad route.
+The line helper emits individual one-pixel, half-open spans (`0x0082D040`).
+Its endpoint tests are directional; the inclusive loop limit alone does not
+mean that both submitted endpoints are covered. An ordinary horizontal integer
+Line from `(2,3)` to `(4,3)` covers x=2,3; reversing that call covers x=3,4.
+An integer Line with identical endpoints produces no span. These examples use
+an enclosing clip at least two pixels wide and high and the convenience call's
+half-pixel shift. Instruction evidence: the fixed-point low bits are forced
+odd at `0x0082D051`–`0x0082D068`; the endpoint diamond tests compare with 128
+at `0x0082D18A`–`0x0082D27E`; rejected start/end columns are removed at
+`0x0082D2C0`–`0x0082D2E5`. This corrects the previous inclusive-terminal
+example. It does not establish identical caps for result-1 stroke quads.
 
 Filled software triangles, quads and polygons use the same simple-polygon span
 builder; triangles and quads pass each complete group separately, whereas kind
@@ -299,9 +306,120 @@ builder; triangles and quads pass each complete group separately, whereas kind
 `clip.top <= y < clip.bottom`; x endpoints are read as **signed 16-bit** values
 from the builder's packed record and intersected with the clip's half-open
 horizontal interval. Only nonempty intervals reach engine slot 22
-(`0x0082E430`, `0x0082E5C0`, `0x0082E740`). The builder's exact closure and
-concave/self-intersecting coverage remain unclosed GZG1 work; this handoff does
-not establish a general polygon winding rule.
+(`0x0082E430`, `0x0082E5C0`, `0x0082E740`). The builder's closure and coverage
+are specified below; it does not implement a general polygon winding rule.
+
+#### 3.2.3 Polygon closure, ordering and fixed-point coverage
+
+For result 1, kind 8 is a **triangle fan**, with triangles
+`(p0,p1,p2), (p0,p2,p3), …, (p0,p[n-2],p[n-1])`. The vertices are copied
+unchanged, then submitted directly to engine Draw as kind 6/count `3*(n-2)`.
+There is no ear selection, intersection detection, winding correction or second
+software fallback based on the return from that final engine call. The last
+triangle closes the boundary to p0 without requiring a repeated first vertex.
+For a concave or self-intersecting input, the contract is this fan, even when
+its triangles overlap or extend outside the intended outline. Counts below
+three are unchecked allocation inputs to this route, not a supported empty
+polygon convention (`0x0082F810`, final call `0x0082F943`–`0x0082F95A`).
+
+For result 2, SetPolygonSimple emits nothing for fewer than three points.
+Otherwise it rotates the input order to start at the **first** vertex having
+the lowest y; equal minima do not replace that vertex. It implicitly connects
+the last vertex to the first. One boundary follows increasing input indices,
+the other decreasing indices, starting from that minimum. The forward boundary
+supplies the left edge and the backward boundary the right edge. They are not
+sorted or exchanged when reversed. Consequently `(0,0),(0,4),(4,4),(4,0)`
+covers the 4×4 square, while reversing that order produces no nonempty spans.
+Repeating the first point is unnecessary; equal-height/duplicate vertices are
+skipped when seeking the next edge with a strictly higher ending row.
+Evidence: `0x00932700` and `0x00932450`.
+
+The coverage contract is two ordered chains, **one interval per visited row**.
+It is not even-odd filling, nonzero-winding filling, or sorting all scanline
+intersections. A chain advances through successive vertices only while their
+ending rows equal the current row. The forward walk ends drawing when it runs
+out of vertices. The backward walk ends drawing if a later ending row falls
+below the current row. Thus concave outlines with multiple row intersections,
+local downward turns and self intersections must retain this chain behavior;
+they are not repaired into a general polygon. Only intervals whose ordered
+left edge is strictly less than their right edge survive context clipping.
+
+Pixel centres select rows. Each vertex has saved binary32 coordinates
+`X=x-0.5`, `Y=y-0.5`, and ending row `ceil(y-0.5)`. The ceil argument is stored
+as binary64 from the x87 subtraction **before** rounding through the saved
+binary32 Y; these are distinct conversion paths. The first visited row is the
+minimum vertex's ending row; an edge is active up to but excluding its ending
+row. For an edge from saved coordinates `(Xa,Ya)` to `(Xb,Yb)`, let
+`s=(Xb-Xa)/(Yb-Ya)`, stored as binary64. At an edge's first row r, its signed
+16.16 accumulator is
+`floor(((r-Ya)*s+Xa)*65536+0.5)+65535`, and its per-row increment is
+`floor(s*65536+0.5)`. The edge x is the accumulator's arithmetic right shift
+by 16. Both accumulators advance once per row. There is no fresh division
+per row, so accumulated fixed-point error is observable. Intermediate x87
+operations between stores retain their native precision; this is not a series
+of binary32 arithmetic operations. The selected x is narrowed to 16 bits and
+later sign-extended by the context before clipping. Numeric evidence:
+`0x00932870`–`0x00932897`, `0x0093122D`–`0x0093128F`,
+`0x00932549`–`0x0093256E`, `0x00932636`–`0x0093265A`.
+
+#### 3.2.4 Outline ellipses through the cubic route
+
+Kind 4/result 2 converts each corner pair into four independent cubics, then
+submits them together through DrawNoTransform as kind 2, with sixteen points
+per ellipse (`0x0082E9F4`–`0x0082EA07`, `0x0082CC60`). Result 1 also takes
+this route when antialiasing is enabled; its non-AA outline-quad construction
+remains a separate boundary. Unlike the filled-ellipse result-1 quirk, this
+conversion advances to each subsequent corner pair. Trailing unmatched
+corners are ignored. With centre `(cx,cy)`, radii `(rx,ry)`, and
+`k=0.552284777164459228515625` (binary32 constant `0x00AC1788`), the cubic
+control records, in order, are:
+
+| Arc | Start; control 1; control 2; end |
+|---|---|
+| Right to bottom | `(cx+rx,cy); (cx+rx,cy+k*ry); (cx+k*rx,cy+ry); (cx,cy+ry)` |
+| Bottom to left | `(cx,cy+ry); (cx-k*rx,cy+ry); (cx-rx,cy+k*ry); (cx-rx,cy)` |
+| Left to top | `(cx-rx,cy); (cx-rx,cy-k*ry); (cx-k*rx,cy-ry); (cx,cy-ry)` |
+| Top to right | `(cx,cy-ry); (cx+k*rx,cy-ry); (cx+rx,cy-k*ry); (cx+rx,cy)` |
+
+The radius and `k*radius` temporaries are binary32; the centre arithmetic stays
+in x87 until output stores. Each output coordinate is binary32. Shared endpoint
+records are repeated, rather than using a connected-curve convention.
+Instruction evidence: `0x0082CC90`–`0x0082CDB5`. This route changes geometry
+kind and therefore offers kind 2 to the engine again; its resulting route must
+not be inferred solely from the earlier kind-4 response.
+
+#### 3.2.5 Cubic raster subdivision and overshoot
+
+Kind 2/result 2 quantizes all eight components of each complete cubic to
+signed 24.8 coordinates using `floor(value*256+0.5)`. For each coordinate
+independently, denote those four integers by P0…P3 and define
+`A=P3-3*P2+3*P1-P0`, `B=3*(P2-2*P1+P0)`, `C=3*(P1-P0)`.
+The curvature bound is the maximum of `abs(2*B)` and `abs(2*(B+3*A))`
+across x and y. N is the smallest power of two, starting at 1 and capped at
+1024, for which `4*N*N` reaches that bound. This is adaptive subdivision,
+unlike the sixteen-interval result-1 route (`0x0082D5A0`).
+
+The polynomial `P(t)=P0+C*t+B*t*t+A*t*t*t` is sampled in signed 64-bit
+fixed arithmetic. Write `H1=2^30/N`, `H2=2^30/N^2`, `H3=2^30/N^3`.
+The initial position is `P0*2^30+2^29`; the first, second and third forward
+differences are respectively `C*H1+B*H2+A*H3`, `2*B*H2+6*A*H3`,
+and `6*A*H3`. All three scale factors are exact integers for the supported N.
+Each new position adds the first difference, the first difference then adds
+the second, and the second then adds the third. Arithmetic right shift by 30
+selects the next 24.8 endpoint; adjacent endpoints feed the ordinary integer
+line helper. Coefficient arithmetic before widening is 32-bit; forward
+differences and their additions use 64-bit words. This does not use a floating
+point Bézier evaluator after input quantization.
+
+*[compat, quirk]* There are **N+1 segments**, not N. The samples run through
+`t=(N+1)/N`, one step beyond the final control point. There is no final clamp
+to P3. For the exactly straight cubic `(0.5,0.5),(1.5,0.5),(2.5,0.5),(3.5,0.5)`,
+the bound is zero, N=1, and its two helper calls end at `(3.5,0.5)` and
+`(6.5,0.5)`. This is a native overshoot, not a connected-polyline segment.
+Evidence: subdivision `0x0082D7E4`–`0x0082D818`; scale/multiply/add widths
+`0x0082D818`–`0x0082D9E9`; count increment, updates, arithmetic shifts and
+calls `0x0082D9EC`–`0x0082DAB1`. The misleadingly named `0x009F0D10`
+is the CRT 64-bit multiplication helper, confirmed by its instructions.
 
 ### 3.3 Blit binding and suspension
 
@@ -739,6 +857,46 @@ point are unchanged, including on failure (`0x00988F60`). This must not be
 confused with GenericBufferClip's directly mutable arguments or the stretched
 variant's two-rectangle mapping.
 
+#### 6.3.1 Stretch clipping and source mutation
+
+`GenericBufferClipStretch(destinationBuffer,sourceRect,destinationRect,optionalClip)`
+takes mutable signed-integer source and destination rectangles. It records the
+original destination left/top and the two ratios
+`sx=source.width/destination.width`, `sy=source.height/destination.height`,
+each stored as binary32 after signed integer extent loads and x87 division. It clips
+destination edges in the same order as ordinary clipping: buffer right, left
+at zero, buffer bottom, top at zero, then optional right, left, bottom, top.
+The buffer dimensions come from slots 9 and 10; it does not use an area origin.
+Source bounds are not inspected. Unlike ordinary clipping, no source edge is
+changed during that destination intersection (`0x00930CF0`–`0x00930E64`).
+
+Failure from an empty buffer intersection can stop before later destination
+edges are changed. Failure after optional clipping leaves all four optional
+edge changes in place. In either case sourceRect is unchanged. If destination
+needs no edge change, positive width and height suffice for success: sourceRect
+is left completely unchanged too. *[quirk]* When an edge did change, the helper
+returns false, without changing sourceRect, if **either** `sx==0.5` and the
+remaining destination width is 1, **or** `sy==0.5` and the remaining height is 1.
+This special rejection does not occur on the unchanged-destination path
+(`0x00930E41`–`0x00930EA1`).
+
+For successful changed destinations, source left/top become their old values
+plus `trunc((newDestinationEdge-oldDestinationEdge)*ratio)` on each changed
+left/top edge. Source right is then `trunc(newSourceLeft+newDestinationWidth*sx)`;
+bottom is `trunc(newSourceTop+newDestinationHeight*sy)`. The latter truncations
+include the source origin in the expression, rather than truncating an extent
+and adding an origin afterward. Products/additions stay in x87 until the
+truncating conversion; the stored ratios are binary32. If the resulting source
+edges on an axis are equal, a zero left/top makes right/bottom increase by one;
+any nonzero left/top makes left/top decrease by one instead. This is an
+equality repair, not validation or clipping against a source surface.
+The helper returns a boolean only in the low byte, locks neither buffer and
+acquires no references. It has no initial guard against zero destination
+extent before ratio division. Numeric/conversion evidence:
+`0x00930D14`–`0x00930D69`, `0x00930EA1`–`0x00930F59`.
+
+#### 6.3.2 Indexed-file conversion and ownership
+
 `AlphaSurfaceFromFile(filename,levels)` takes a filename pointer and an
 **unsigned 32-bit** level count. MaskSurfaceFromFile takes the filename pointer
 alone. Both obtain a new type-2, 8-bit buffer, with dimensions read as 32-bit
@@ -798,19 +956,19 @@ after slot 30; the following bytes are a string, not additional methods.
 |---|---|
 | 0–2 | QI, AddRef, Release (`0x0098B7A0`, `0x0098B820`, `0x0098B830`) |
 | 3 | store canvas type and request initial `(0,0,width,height)` bounds, `0x0098BCC0` |
-| 4 | canvas realization/configuration, `0x0098DD70` (GZG4) |
-| 5 | folded getter `0x00680920` (GZG4) |
+| 4 | realize once from a four-word bounds record; §7.4, `0x0098DD70` |
+| 5 | byte-valued realized-state getter, `0x00680920` |
 | 6 | Shutdown, `0x0098DDB0` |
-| 7–8 | listener attach/remove helpers, `0x0098DC40`, `0x0098DCB0` (GZG4) |
+| 7–8 | suspend/release window; resume/recreate window, `0x0098DC40`, `0x0098DCB0` |
 | 9–10 | set four bounds; copy saved bounds, `0x0098BD80`, `0x0098CAB0` |
 | 11–12 | show and focus; show, `0x0098BA30`, `0x0098BA50` |
 | 13–14 | set title; forward to slot 15, `0x0098B9B0`, `0x0098CAE0` |
-| 15 | host event pump, `0x0098C690` (GZG4) |
-| 16–17 | folded entries `0x008265C0`, `0x0068D1B0` (GZG4) |
-| 18 | host-window procedure bridge, `0x0098CDB0` (GZG4) |
+| 15 | request repaint event 4 unless paint is suppressed, `0x0098C690` |
+| 16–17 | signed client mouse x/y getters, `0x008265C0`, `0x0068D1B0` |
+| 18 | filter/repost queued keyboard input; returns discarded-message count, `0x0098CDB0` |
 | 19 | post a packaged host message, `0x0098BA60` |
-| 20 | folded entry `0x00578900` (GZG4) |
-| 21–22 | host-window helpers `0x0098B850`, `0x0098B8E0` (GZG4) |
+| 20 | address of stored HWND word, not HWND value, `0x00578900` |
+| 21–22 | shut down and delete canvas; center window in work area, `0x0098B850`, `0x0098B8E0` |
 | 23–24 | width, height getters `0x0098CC30`, `0x0098CC40` |
 | 25–28 | folded entries `0x0068D1C0`, `0x0081F910`, `0x006AAEB0`, `0x0040D390` (GZG4) |
 | 29–30 | input-channel enabled query; nested enable/disable, `0x0098BAC0`, `0x0098BDC0` |
@@ -838,8 +996,8 @@ routine; do not combine its exported field offsets with complete-object offsets.
 
 Windows realization (`0x0098D9C0`) coordinates the graphics driver window/mode,
 and registers `MSWHEEL_ROLLMSG`. Registration failure stores `0xFFFFFFFF`.
-The windowed/driver-owned paths emit canvas-event subtypes **8** and **9**;
-the exact conditions and HWND ownership are GZG4. These native host resources
+Window realization and release emit canvas-event subtypes **8** and **9**
+under the conditions in §7.4. These native host resources
 are *[compat-limit]*: other operating systems may use their own window system
 while preserving the canvas/listener contract.
 
@@ -880,9 +1038,155 @@ notification. A combined mask affects both channels independently
 
 DoMessage (`0x0098BD00`) returns true for all input messages. For type
 `0xFA0C6390`, it queries IID `0x1A0C615F`; subtype **13** updates two stored
-coordinate words from that message. Other types, failed QI and other subtypes
-do not update those words. The acquired interface is released. Exact payload
-coordinate names and translation into mouse/key/canvas events are GZG4.
+coordinate words from that message. They are signed **client x and y in pixels**,
+not desktop coordinates, deltas or dimensions. Other types, failed QI and other
+subtypes do not update those words. The acquired interface is released. The
+handler receives the message-target subobject at complete-object `+0x10`:
+the stores at handler-relative `+0x2C/+0x30` therefore update the same complete
+`+0x3C/+0x40` words read by primary slots 16–17. The eight-byte position getter
+and both stores are verified at `0x0098BD43`–`0x0098BD5C`; the getters use integer
+loads at `0x008265C0` and `0x0068D1B0`.
+
+### 7.4 Native realization, interfaces and event translation
+
+**Window lifetime.** The canvas does not independently create or destroy an
+HWND. It asks the active graphics driver to change mode through driver slot 66
+(`+0x108`), passing the canvas window-procedure bridge. The first native message
+records the HWND if none was saved, then installs resource icon 1000 as the class
+icon. Realization requires the framework interface `0x23EA70A1` and graphics
+driver-control interface `0xC47B747C`. With creation requested and no saved HWND,
+it searches the driver's mode records in enumeration order for the first matching
+client width, height, current mode discriminator and low-six-bit screen format.
+It requests that mode, then accepts driver slot 50's status only when **zero**.
+Success centers the window if the graphics service reports a windowed mode,
+registers `MSWHEEL_ROLLMSG` (zero becomes sentinel `0xFFFFFFFF`), and sends canvas
+event 8. A missing interface, no matching mode, missing driver or nonzero status
+returns false; it does not emit event 8 (`0x0098D9C0`–`0x0098DB9E`, matching
+tests `0x0098DA90`–`0x0098DADA`, status test `0x0098DB12`–`0x0098DB30`).
+
+With creation disabled **or an HWND already saved**, the same helper instead
+requests driver mode `-1` with arguments `(null,1,1)` when that interface and
+driver exist. It clears the saved HWND, frees and clears its auxiliary allocation,
+emits event 9, and returns true. This cleanup still occurs when driver QI fails;
+the helper never calls DestroyWindow directly (`0x0098DBA1`–`0x0098DC3D`). Thus
+calling this helper with creation enabled while an HWND exists releases it; it
+is not an idempotent ensure-window operation.
+
+Primary slot 4 is idempotent when the realized byte is already nonzero. Otherwise
+it saves the supplied four-word bounds, clears the auxiliary allocation pointer,
+invokes realization, and **sets the realized byte even on failure**, returning
+the helper's result (`0x0098DD70`). Slot 7, when realized, sets its suspended byte,
+shows the window, emits event 6, releases the native window as above, then clears
+the realized byte; it always returns true. Slot 8, when unrealized, obtains the
+graphics bounds, saves them, invokes realization and sets the realized byte. On
+failure it calls Shutdown, including that method's normal service cleanup; on
+success it clears suspension, emits event 7, then shows/focuses the window. When
+already realized it returns true without these actions (`0x0098DC40`,
+`0x0098DCB0`). Native failure does not promise rollback to the preceding HWND.
+
+Centering uses SPI_GETWORKAREA and the outer GetWindowRect size, places that
+rectangle centrally using signed integer division, and passes current visibility
+as MoveWindow's repaint argument. Failed work-area/window queries leave it alone;
+fullscreen mode skips centering (`0x0098B8E0`). Primary slot 21 first calls canvas
+Shutdown if realized, then invokes its deleting destructor with flag 1 and
+returns integer zero (`0x0098B850`). This deletes the canvas irrespective of
+outstanding reference counts: it is not an ordinary Release or an application
+quit request. The indirect call uses complete-object `+0x18`'s slot 3, whose
+thunk subtracts 24 and reaches the deleting destructor; flag bit 0 controls
+GlobalHeapFree (`0x0098B85F`–`0x0098B867`, `0x0098CC20`–`0x0098CC27`,
+`0x0098CD90`–`0x0098CDAD`). A close message instead emits event 10; it does not
+directly delete the canvas.
+
+**Adjusted interfaces and listeners.** QI for `0xE46397DB` returns complete `+4`.
+Its slots 0–2 subtract 4 before invoking primary QI/AddRef/Release; slot 3 returns
+the primary canvas pointer without AddRef; slot 4 returns the **HWND value**;
+slot 5 returns a zero 16-bit value; slot 6 takes `(listener,enable)` and manages
+native-message listeners. QI for `0x3AC7A210` returns `+8`; its slots 0–2 subtract
+8 and slot 3 returns the stored message-server pointer, borrowed. The `+0xC`
+subinterface's slot 3 is the folded true-returning one-argument handler; the
+`+0x10` subinterface's slot 3 is DoMessage. Their QI/ref thunks subtract 12/16;
+the service and service's embedded unknown thunks subtract 20/24. These are
+adjustments to one lifetime, not independent reference counts (tables
+`0x00ADAD3C`–`0x00ADAD88`; thunks `0x0098CB00`–`0x0098CC20`). The `+0xC/+0x10`
+tables do not imply extra QI identities beyond §7.1's explicit cases.
+
+Listener enable rejects null or an already-stored pointer; a new pointer is
+inserted at the front and retained once overall. Disable removes/releases an existing pointer
+and returns true; null or missing pointers return false. Native messages visit
+listeners in reverse registration order before built-in handling. Each receives
+`(HWND,message,wParam,lParam,out handled)` with handled initially false. The first
+listener setting it true ends processing and supplies the window-procedure
+return value (`0x0098C6F0`, `0x0098D28C`–`0x0098D2F0`). Listener mutation during
+dispatch is not guarded by a snapshot.
+
+**Windows messages.** Except where noted, the following handled messages return
+zero. The registered legacy wheel message is first rewritten to `WM_MOUSEWHEEL`
+with `wParam` shifted left 16 bits, before listeners run. Unlisted messages,
+including middle-button, double-click, WM_SYSCHAR, WM_SYSDEADCHAR and WM_QUIT,
+reach DefWindowProc; this window procedure does not implement a thread-level
+WM_QUIT pump (`0x0098D230`–`0x0098D71A`).
+
+| Native message | Observable translation |
+|---|---|
+| WM_DESTROY (2) | Return zero; no explicit PostQuitMessage. |
+| WM_MOVE (3) | Get client rectangle in desktop coordinates, offset its origin to the two **unsigned** lParam words, save bounds and notify the screen buffer's bounds setter. |
+| WM_SIZE (5) | Keep mapped client origin, replace width/height with unsigned lParam words, save and notify buffer bounds; no separate resize canvas event here. |
+| WM_ACTIVATE (6) | Emit canvas subtype 2 when LOWORD(wParam) is nonzero, otherwise subtype 3. Minimized high word does not select the subtype. |
+| WM_PAINT (15) | For saved HWND only, BeginPaint, repaint helper, EndPaint. If paint suppression is clear, emit canvas subtype 4; otherwise fill the client area with brush handle 16 when HDC is non-null. |
+| WM_CLOSE (16) | Emit canvas subtype 10. |
+| WM_SETCURSOR (32) | Return 1 without default processing. |
+| WM_INPUTLANGCHANGE (81) | Refresh locale ANSI code page from LOWORD(lParam); zero becomes `0x10`; return DefWindowProc's result. |
+| WM_KEYDOWN / WM_SYSKEYDOWN (256/260) | Unless key input disabled or virtual key `0xE5`, emit key subtype 5. |
+| WM_KEYUP / WM_SYSKEYUP (257/261) | Same gate, key subtype 6. |
+| WM_CHAR (258) | Unless key input disabled, emit text subtype 4 using the encoding path below. |
+| WM_MENUCHAR (288) | Call DefWindowProc; preserve a nonzero result, otherwise return `0x10000`. |
+| WM_MOUSEMOVE (512) | Save signed lParam x/y; unless mouse input disabled, emit mouse subtype 13 with clamped client position. |
+| WM_LBUTTONDOWN / WM_RBUTTONDOWN (513/516) | Save signed x/y; unless disabled, capture the HWND if needed and emit mouse subtype 7/8. |
+| WM_LBUTTONUP / WM_RBUTTONUP (514/517) | Save signed x/y; unless disabled, release capture if this HWND owns it and neither left nor right button remains down, then emit subtype 10/11. |
+| WM_MOUSEWHEEL (522) | Unless disabled, convert signed lParam desktop x/y through ScreenToClient; emit mouse subtype 14 with clamped position and wheel amount. Does not directly update saved x/y. |
+| WM_EXITSIZEMOVE (562) | Save mapped client desktop bounds, notify buffer bounds, then emit canvas subtype 5. |
+
+Mouse positions in emitted messages clamp each axis to `[0,width-1]` and
+`[0,height-1]`, with the lower clamp performed first. A zero-sized axis can
+therefore yield -1. Raw signed positions are stored before mouse-disable checks;
+message feedback through DoMessage can subsequently replace them with the
+clamped subtype-13 position. Mouse flags map native MK_SHIFT/MK_CONTROL to
+bits 1/2, current Alt key state to bit 4, and native left/right/middle button
+state to bits `0x10/0x20/0x40`. Keyboard flags sample all six states with
+GetKeyState and additionally preserve lParam bit `0x40000000`. Key messages
+carry the virtual-key word and LOWORD(lParam) repeat count. The signed loads,
+clamps and message arguments are visible at `0x0098BE50`–`0x0098BEE8`,
+`0x0098B6E0`–`0x0098B79F` and `0x0098C400`–`0x0098C478`.
+
+Wheel amount is signed `trunc(delta*100/120)`. **Only a positive result above
+999 is replaced by 100**; negative extremes do not receive the corresponding
+clamp. A successful SPI_GETWHEELSCROLLLINES query multiplies by
+`min(unsigned lines,10)`; query failure leaves that amount unscaled
+(`0x0098BF20`–`0x0098C07F`). This is a scaled wheel amount, not raw wheel ticks.
+
+WM_CHAR compares the locale code page with the current framework code page.
+When equal, it emits the sign-extended low input byte directly, with repeat
+count and sampled flags. When unequal, it appends the byte to a pending string;
+on the first byte it determines the encoding's additional-byte count and adds
+one. Once that many bytes exist, it converts the whole string to framework
+encoding, emits one subtype-4 message per converted **signed byte**, and clears
+both strings and the pending count. It does not emit Unicode code points or a
+single multi-byte text message (`0x0098D080`–`0x0098D226`; byte sign extension
+at `0x0098D0D8`).
+
+**Queue filtering is not a normal dispatch pump.** Slot 18 removes messages with
+PeekMessage's inclusive filter `0x100..0x108`, all HWNDs, and PM_REMOVE. It saves
+at most 1024, removes character/system-character/dead-character messages, and
+works backwards over key releases: matching earlier presses for the same key
+and intervening matching-key records are discarded, stopping at another key
+release. Surviving records are reposted in their original order. The return is
+the number explicitly marked discarded; PostMessage failures are not included.
+The routine also contains mouse coalescing tests, but those are unreachable
+under this keyboard-only PeekMessage filter. A further PeekMessage occurs after
+the 1024th saved message, **before** the count check: a 1025th available message
+is consumed without being saved, reposted or counted. Verify this boundary with
+a recording host, not a live input queue (`0x0098CDB7`–`0x0098CDED`,
+`0x0098CE40`–`0x0098CE49`, complete routine `0x0098CDB0`–`0x0098D077`).
 
 ## 8. Conformance vectors
 
@@ -956,6 +1260,44 @@ a vector explicitly says otherwise.
 | GZG-V59 | Valid indexed alpha input byte 255, levels 3 | output 3, since inner divisor is 85; no clamp to levels-1 |
 | GZG-V60 | Legacy loader lock fails, positive dimensions; recording allocator that rejects invalid frees without dereferencing | no Unlock or buffer Release; attempted pixel free uses one-past-end address; no reliable normal-return assertion |
 | GZG-V61 | Graphics driver index equals count; missing driver ID | null in both cases; no AddRef, active-driver fallback or driver creation |
+| GZG-V62 | Canvas primary slot 15; paint suppression clear, then set | canvas subtype 4 only on first call; no PeekMessage, TranslateMessage or DispatchMessage |
+| GZG-V63 | Canvas slot 4 with unrealized canvas; recording driver has no matching mode | false, no event 8; realized-state getter nevertheless true |
+| GZG-V64 | Canvas native helper creation requested while HWND exists; driver-control QI fails | HWND cleared, auxiliary allocation freed/cleared, event 9, true; no DestroyWindow call |
+| GZG-V65 | Enable native listeners A, B, A; A declines, B handles message with result 123 | enables return true, true, false; one retained reference per listener; visit B first and stop; return 123, skip A and built-in/default handling |
+| GZG-V66 | Disable nonexistent listener, then remove A, then remove A again | false, true, false; one Release only |
+| GZG-V67 | Mouse enabled; canvas 100×50; WM_MOUSEMOVE at signed client `(-3,60)` | immediate saved position `(-3,60)`; subtype-13 message carries `(0,49)`; feeding it through DoMessage makes getters return `(0,49)` |
+| GZG-V68 | Mouse disabled; same move | saved raw position still changes; no mouse message |
+| GZG-V69 | Mouse move on zero-width, zero-height canvas | emitted clamped coordinates `(-1,-1)` |
+| GZG-V70 | Key enabled; WM_SYSKEYDOWN, virtual key `0x41`, repeat 3, lParam bit 30 set, Shift held | key subtype 5, key `0x41`, repeat 3; flags include 1 and `0x40000000`; no menu/default route |
+| GZG-V71 | Key enabled; WM_KEYDOWN with virtual key `0xE5` | zero return, no key message |
+| GZG-V72 | Wheel delta +120, scroll-lines query returns 3; then delta +1200, query returns 3 | subtype 14 amounts 300 and 300: +1200 becomes 1000, is replaced by 100, then multiplied by 3 |
+| GZG-V73 | Wheel delta -1200, scroll-lines query returns 3 | subtype 14 amount -3000; positive-only reset does not apply |
+| GZG-V74 | Equal locale/framework encodings; WM_CHAR byte `0xE9`, repeat 2 | one key subtype-4 message with signed byte -23 and repeat 2 |
+| GZG-V75 | Slot-18 host queue contains exactly 1025 unrelated-key-down records in filter range, no releases | saves/reposts first 1024 in order, consumes last without reposting, discarded count zero |
+| GZG-V76 | WM_DESTROY, WM_CLOSE, WM_QUIT, with recording native default handler | destroy returns zero; close emits canvas event 10; quit reaches default handler; none directly calls PostQuitMessage |
+| GZG-V77 | QI Windows subinterface `0xE46397DB`; primary slot 20 and subinterface slot 4 | primary returns address of HWND storage; subinterface returns stored HWND value; getter calls do not AddRef |
+| GZG-V78 | Recording lifetime fixture invokes primary slot 21 with realized byte nonzero and outstanding references | Shutdown first, deleting destructor with flag 1 next, integer zero; no reference-count test or framework quit request; do not dereference the native canvas afterward |
+
+### 8.1 Additional native geometry and stretch-clip vectors
+
+These are declarative expectations from native instructions, not game-run
+measurements. All geometry vectors use a recording engine and enclosing clip
+unless another clip is specified.
+
+| ID | Input / observation boundary | Expected behavior |
+|---|---|---|
+| GZG-V79 | Integer convenience Line `(2,3)` to `(4,3)`, result 2, clip `(0,0,10,10)` | two one-pixel spans, at `(2,3)` and `(3,3)`; no `(4,3)` |
+| GZG-V80 | Reverse V79, then identical endpoints `(2,3)` to `(2,3)` | reverse covers `(3,3),(4,3)` in increasing x order; identical endpoints emit nothing |
+| GZG-V81 | Kind 8/result 1, five vertices p0…p4 | one direct engine kind-6 submission with nine points: p0,p1,p2,p0,p2,p3,p0,p3,p4; final response does not trigger another fallback |
+| GZG-V82 | Kind 8/result 2, vertices `(0,0),(0,4),(4,4),(4,0)` | span `[0,4)` on rows 0,1,2,3 |
+| GZG-V83 | Reverse the vertex order of V82 | no nonempty spans; boundaries are not exchanged to fix winding |
+| GZG-V84 | Append `(0,0)` to V82; separately submit only two points with result 2 | repeated first vertex preserves V82; two-point polygon emits no spans |
+| GZG-V85 | Kind 4/result 2, two different ellipse corner pairs; engine handles following kind 2 | one kind-2 submission/count 32: four cubics for each ellipse, with repeated endpoints; second pair is used |
+| GZG-V86 | Kind 2/result 2, straight cubic `(0.5,0.5),(1.5,0.5),(2.5,0.5),(3.5,0.5)` | N=1; line helper receives endpoints at x=0.5,3.5,6.5, y=0.5 throughout; overshoot is retained |
+| GZG-V87 | Stretch clip, buffer 10×10, source `(2,4,6,8)`, destination `(-2,-2,6,6)`, no extra clip | true low byte; destination `(0,0,6,6)`, source `(3,5,6,8)` |
+| GZG-V88 | Stretch clip, buffer 10×10, source `(0,0,2,2)`, destination `(9,0,13,4)` | false low byte; destination `(9,0,10,4)`, source unchanged because sx=0.5 and clipped width=1 |
+| GZG-V89 | Stretch clip, source `(0,0,1,1)`, destination `(0,0,2,2)`, extra clip `(0,0,1,2)` | false low byte and source unchanged; same call without extra clip succeeds with both rectangles unchanged |
+| GZG-V90 | Stretch clip, source `(5,7,6,8)`, destination `(9,9,13,13)`, buffer 10×10 | true; destination `(9,9,10,10)`; extent truncation collapses source axes, then equality repair gives source `(4,6,5,7)` |
 
 ## 9. Evidence limits and open questions
 
@@ -970,9 +1312,10 @@ had a binary open.
 This spec settles the interface-level context, engine selection/initialization
 boundary, buffer dispatch and host/service rules listed above. It does **not**
 claim all generic geometry coverage, SimGL vertex emission, all graphics
-service IO helpers, Windows event translation or standalone alpha pixel kernels.
-Those are explicit follow-up questions, not free design choices. They are filed
-as GZG1 through GZG5 in
+service IO helpers or standalone alpha pixel kernels. The Windows canvas event
+translation is settled in §7.4, including the misleading former pump/listener labels.
+Those remaining gaps are explicit follow-up questions, not free design choices.
+They are filed as GZG1–GZG3 and GZG5 in
 [questions/gz-graphics.md](questions/gz-graphics.md). An engine lane can implement
 the settled contracts and linked software kernels while leaving those unresolved
 operations outside any replacement/compatibility claim.
