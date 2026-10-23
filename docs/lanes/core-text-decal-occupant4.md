@@ -4,6 +4,17 @@
 
 ## Portable owner implementation
 
+## Handoff
+- Goal: bounded FIRST portable TextDecal owner; implementation and final checks complete.
+- Done: 07020c67 algorithms; f1ef930e lifecycle/records/18 fixtures; 6e493859 final code; c810a1d4 full report.
+- Final frozen source6e493859: cargo5517/0/0, clippyRC0/0 diagnostics, native4/4 RC0, CTest68/68 RC0; qbuild all RC0. All handles terminal.
+- Guard denied queue creation after report commit: context budget exceeded. No merge-queue file was written.
+- Exact next step: coordinator review full report below and publish own ready queue for actual final HEAD if authorized; no source edits or check reruns needed.
+- Engine SHA values and prior failures are recorded below. No ABI changes, no game runs, no new questions; TDO1 remains open.
+- This is maxRounds1; no new implementation round/refund/rename requested. Guard requires transport state continue solely for budget handoff.
+
+## Report
+
 Source: engine/core/src/text_decal_occupant.rs and its tests.rs fixture module.
 Base detached HEAD482b170d; train115 publication and full engine admission
 were established by the brief. Existing consumer owners stay unchanged.
