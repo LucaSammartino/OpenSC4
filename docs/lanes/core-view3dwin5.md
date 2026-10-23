@@ -1,8 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-view3dwin5: cSC4View3DWin owner closure | Codex / core-view3dwin5 | in progress | Audit existing ui_windows::view3d against owner specs, implement and validate. |
+| core-view3dwin5: cSC4View3DWin owner closure | Codex / core-view3dwin5 | continue; owner closure incomplete | Collect corrected gate session 40468, then finish pending owner contracts; no merge queue. |
 
 ## Handoff
+- Goal: close existing cSC4View3DWin core owner against view3d-window/ui-windows/view3d; no plugin or C ABI changes.
+- STOP: round-2 lane guard reports context 152k > 150k. Continuation required; no merge-queue file written.
+- Round-2 commits: be6919b0 Init/shutdown/messages; 297fac15 GUI/city lifecycle; 451ff699 command/catalog tools; b38997a8 GUI ordering and clippy correction plus questions.
+- Existing inherited milestones remain below as historical evidence. Current code is engine/core/src/ui_windows/view3d.rs and its submodules; do not duplicate.
+- Focused tests: 41 passed after messages, 46 passed after GUI/city. Expanded suite initially 47/49 due to reversed mock Close(bool) expectations; corrected expectations are covered by the full gate's 6124 passing tests.
+- Round-2 full gate 1 (451ff699): terminal FAIL; cargo 6124 passed/0 failed/0 ignored; clippy one collapsible_match lint (2 reported diagnostics including build warning); CMake ABI configure timed out 900 s; CTest skipped/0 run.
+- Failed evidence preserved in build-runs/evidence-round2-gate1/; earlier-round evidence in build-runs/evidence-round2/ and evidence-gate-1/.
+- CORRECTED FULL GATE OUTSTANDING: exec session 40468, collector functions cell 46. Source b38997a8. Do not launch another check. Collect this same operation to terminal, or inspect its already-completed result/logs if the collector finished.
+- Last attempted log read was denied by the guard; corrected gate's terminal verdict is UNKNOWN. The active collector may itself be denied on its next wait; this does not establish process completion.
+- Corrected gate uses _CL_=/Z7, private _MSPDBSRV_ENDPOINT_=fc4lane-core-view3dwin5-r2-final, CMAKE_TOOLCHAIN_FILE=<WT>/build-runs/cmake-release-probe.cmake. This selects Release without skipping compiler capability checks; prior /Z7-only attempt still timed out.
+- Next exact step: collect session 40468, read bounded PASS/FAIL lines and current build-runs logs; update gate evidence. Do not repeat all unless a real diagnostic changes source or inputs.
+- Owner closure remains incomplete: section 1.1 GZOnCommand/window override dispatch; section 5 pre-city-shutdown and refresh integration; section 6 advice/button integration; sections 6d–6f remaining interface getters/picking and host-aware catalog teardown; section 6h dialog/budget/mayor visibility; section 6i buttons/menu/popup geometry and remembered selections; section 6j widget data/ambient light; section 6k opaque identity/resolution; section 6l background/coverage helpers; paint tail VW10.
+- Audit notification clock/mission payload conversion, focus-loss exit routing, final pre-city-init progress ordering, and lifecycle-object/save-reference synchronization before claiming closure. Existing trait callbacks are not closure evidence for owner logic still behind them.
+- README owner table remains honest but some grouped related-spec rows need splitting to one row per section. T1–T18 now have tests; full owner coverage is not claimed.
+- New questions VW14–VW16 appended to docs/specs/questions/view3d-window.md (null failures/overlay lifetime, pre-city shutdown, GZOnCommand). VW6–VW13 retained. Coordinator must regenerate question index; forbidden tools not run.
+- No game request or shadow run: core-only work, no plugin/C API wiring, ABI unchanged. No game request outstanding.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin5-r2-manifest.json. Detached HEAD: commit normally, no refs/branch changes. Final documentation commit follows b38997a8.
+
+## Superseded earlier handoff
 - Goal: close cSC4View3DWin core owner; foreign window/renderer/camera/simulator traits; no C ABI or plugin changes.
 - Worktree reused at reserved detached HEAD; initial working tree clean.
 - Existing module: engine/core/src/ui_windows/view3d.rs. Do not duplicate.
