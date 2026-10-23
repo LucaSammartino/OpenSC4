@@ -7,6 +7,33 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-23, run4 open-ended)
 
+**Checkpoint575 reviewed at actual round577 (not a backdated575 snapshot):** relative to
+checkpoint550, exact byte numerators are3226982/2018539/1099943/1012661:
+specified+76, implemented+76, verified/replaced unchanged. The fixed denominator remains
+5584842B/29536functions; rounded headlines remain57.8/36.1/19.7/18.1. The train121
+LandValue withdrawal and train122 actual exact sample remain separate evidence. Selection
+continues the required change after the earlier flat trains: substantive newly published
+owned algorithms and complete-function qualification, rather than repeated baseline gates
+or owner inventories. Registry3 is now admitted; UTF8 qualification is a public DRAFT,
+approvedfalse with owner unresolved, not numeric credit. Independently review its complete
+normal semantics, actual source-matched provenance and unchanged attribution before any
+admission. Next checkpoint600.
+
+**Provider recovery08:52:** ClipR1 upstream error AND turn.failed both report selected-model
+capacity before any tool calls; the wrapper reported handshake/tool coverage first.
+Both are retained. Actual same-model AVAILABLE/exit0 at08:49:58 qualified only that exact
+pause, archived by resolve-codex-capacity-pause-20261023-0850.py after raw-event/model/time
+checks. Prior30188 positively ABSENT; hidden refiller21192 identity and normal owner lock
+VERIFIED. No refund, model switch or guard relaxation. Clip's missing truthful failure
+report was committed5b2f3854 in its EXISTING worktree and published through the normal
+compare-and-swap publisher; no source/spec/READY credit. Fresh same-scope R2 admission
+passed after this actual report completion, preserving original1 consumed; another real
+active AutoPause overlap may still hold dispatch. Do not count that conditional brief.
+Actual9backend+9CLI proof08:56 is coordinator-live-workers-0856.json; newer08:59 proof
+observed8, so the historical9 is not a current capacity claim. Keep refilling plus three
+independent currently usable spares; RZ TextFile and SysPtr share a key and cannot count
+as two simultaneous replacements.
+
 **train122 landed d9c8a9a351:** Seven reviewed deliveries landed at d9c8a9a351 on 08:43:32: SysPtr1482c9b3, MyStreet24d25b18, PropertySetter38a19379, NetworkUI57734a13, AutoPause8dce076c, MissingPlugin952a0fa4, Geometry4aab2002. Gate5726 Rust/0failed/0ignored in27summaries, Clippy31.1s, native50/50 in63.2s, CTest68/68 in133.1s, total231.4s. Standard regression finished08:39:50 with bothclean2032/ref0/Release0/detach,124.109s/608.469s. Root full delta review and independent Live review found ZERO worsened rows. LandValue71/72 to72/72 in this new run, but native_step_capture remains0 and train121 failure/capture gap remain recorded. Netmgr72/73,3uncompared,13resyncs,NM10=65 differences on25lines stays nonexact. Gate artifacts archived with exact bdfe562d/treeca83b5d8/engine2fa02d88 identities. Actual run299; next300 requires fresh reservation. Root Registry3 admission added76B to specified/implemented only, ownerpartial3/48/native0, unchanged strictresolver and247toolsPASS/1skip45.27s; no denominator change. Fresh qualified cleanup pending. New real dependencies release Clip/Preview/MPR/Property/MyStreet refills; restore9actual and maintain3independent launchable spares. Coverage57.8/36.1/19.7/18.1; rounds571 (open-ended).
 
 **Train122 running:** exact integrationbdfe562dd9bca524595e62d4923005f12bf3fd2a contains
