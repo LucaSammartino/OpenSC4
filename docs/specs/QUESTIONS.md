@@ -25,6 +25,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AA | audio-ambience |
 | AC | animation-coordinator |
 | AD | advisors, automata-managers |
+| ADIR | app-directors |
 | AF | aircraft |
 | AGP | auto-game-pause |
 | AM | automata |
@@ -82,6 +83,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GT | glyph-textures |
 | GU | geometry-utilities |
 | GZ | framework-gz-services |
+| GZF | gz-framework-core |
 | GZG | gz-graphics |
 | HD | html-document |
 | HG | foundations |
@@ -149,6 +151,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RS | residential |
 | RY | regional-city |
 | RZ | framework-rz-files |
+| RZS | rz-strings |
 | SCR | sc-resources |
 | SG | simgrid |
 | SL | strings-language |
@@ -196,6 +199,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
+| app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 10 | 6 | AP17 | questions/application.md |
 | audio | 0 | 4 | AU17 | questions/audio.md |
 | audio-ambience | 3 | 10 | AA14 | questions/audio-ambience.md |
@@ -246,6 +250,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
+| gz-framework-core | 9 | 0 | GZF10 | questions/gz-framework-core.md |
 | gz-graphics | 5 | 0 | GZG6 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
@@ -261,7 +266,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
-| lua-host | 2 | 5 | LH6 | questions/lua-host.md |
+| lua-host | 0 | 7 | LH6 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
@@ -320,6 +325,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
+| rz-strings | 5 | 0 | RZS6 | questions/rz-strings.md |
 | sc-resources | 5 | 1 | SCR7 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -344,7 +350,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| vehicles | 2 | 0 | VH3 | questions/vehicles.md |
+| vehicles | 9 | 0 | VH10 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
@@ -358,4 +364,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **577** | **1357** | | |
+| **total** | **599** | **1359** | | |
