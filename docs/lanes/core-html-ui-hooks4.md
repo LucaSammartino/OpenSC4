@@ -1,24 +1,94 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | in progress: R2 current-source validation; preserved R1 source 8ffe72d2 and engine 2abc42af; ABI unchanged | 1. Qualify absent old operation. 2. Focused quick once. 3. One stable-source all; report actual results. |
+| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | WIP R2: current-source core 3336/0, HTML fixtures 8/8; quick waiting on optional stats PID 15368; current full/clippy/native RC/ctest unmeasured; engine 2abc42af unchanged; ABI unchanged | 1. Coordinator reviews exact live observer request. 2. Collect same quick session 45516 to terminal. 3. One canonical all on stable source, full result/source identity. |
 
-## Handoff
+## R2 report: current-source qualification and remaining blocker
 
-- Goal: qualify existing standalone owner source; no scope or algorithm expansion.
-- R1 source/report retained below verbatim; report commit d65c01e7, source 8ffe72d2.
-- First observation: old PIDs 35852/8132/34624/3324 absent; daemon 8644 and conhost 20024 present.
-- Copied root journal: ONLY Grid 29472 and Catalog 37168 interrupted (exit 15).
-- HTML old client/parent were already absent; HTML exit and disappearance cause UNKNOWN.
-- No process/RPC/cache/daemon action taken. Old session 92092 is not a handle in this CLI.
-- Read copied R1 result, host proof (full other SC4 classes guard exit 0/dependency exit 0), process proof and journal.
-- Preflight saved in build-runs/html-r2/preflight.json; no own checker/compiler hits, global AccessDenied retained.
-- Once-only current-source quick session 45516: core 3336/0; all eight HTML fixtures passed; native link 4/4 is not a gate verdict.
-- Still live: qbuild 36088 created 1792727089.2347448; fc4verify 34912 created 1792727089.2772796.
-- Read-only stats 15368 created 1792727255.100597; parent 34912; port 4466. No intervention by lane.
-- Finite coordinator request: build-runs/coordinator-request-core-html-ui-hooks4-r2.md; exact snapshot html-r2/quick-observation.json.
-- Next: collect SAME quick session to terminal after coordinator review; no overlapping checks or new baseline.
-- Then one canonical all only when quick is terminal; engine tree remains 2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-html-ui-hooks4-r2-manifest.json.
+This is the original lane's second round. Source and all eight authored fixtures
+are unchanged. No evidenced compiler/test/published-contract defect justified a
+source change. The 36 independent groups, HU1–HU4, raw primitive boundaries and
+9/1272 attribution without native-byte credit remain as reported in R1 below.
+No App/window/CAPI/plugin/ABI/default/coverage or native/game expansion occurred.
+
+Milestones: `bcf0332e` records R2 liveness and historical limits; `fd3411e4`
+records actual fixture execution and the exact new observer blocker. Both change
+only this lane report. No dirty work was discarded or reformatted.
+
+### Operation ownership and historical baseline
+
+The first operation inspection found old qbuild 35852, fc4verify 8132, stats
+34624 and backend 3324 absent. Scoped psutil preflight independently found no
+own checker/compiler hits. Global AccessDenied is explicit in
+`build-runs/html-r2/preflight.json`; this is not an exhaustive host assertion.
+Daemon 8644 creation 1792726273.2470572 and conhost 20024 creation
+1792726273.2513285 matched the supplied port-4466 proof. Daemon identity differs
+from earlier 22580; disappearance/replacement cause is UNKNOWN.
+
+Read the exact copied `coordinator-six-stats-observer-interruptions.json`:
+root interrupted ONLY Grid 29472 and Catalog 37168 (each exit 15). HTML stats
+34624 and its parent were already absent; root took NO action on HTML. Its
+baseline exit/native RC and disappearance cause remain UNKNOWN. Session 92092
+is not an available handle in this CLI, and no cross-CLI wait was invented.
+Existing baseline logs were preserved under `build-runs/html-r2/pre-r2-*` with
+hashes/mtimes in preflight.json. Their Rust/clippy/build hashes match R1.
+Pre-existing ctest artifacts have later mtimes and unqualified source/provenance;
+they are preserved but supply no R1 terminal/native RC or R2 ctest credit.
+
+### Actual current-source focused run
+
+Started **one** canonical `qbuild quick` after the actual no-checker inspection,
+at HEAD `bcf0332e4885adf451a60d9a70d7458bb3ff1efe`, tracked engine tree
+`2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4`. It tested fc4-core on i686 MSVC:
+**3336 passed, 0 failed, 0 ignored**, plus a zero-test doc result. All **8/8**
+HTML fixtures appear by name as `ok`, including the 14/9/7/6 group fixtures and
+four boundary/integration fixtures. Test compile 53.66s; unit execution 2.92s.
+The expected ledgers were not changed to fit these results.
+
+`fc4verify-quick-test.log` SHA256:
+`a01adaaf0ab0c9e55b0d242e058304356aded8cfdb2bf267fe4b567656712cc2`.
+Native log ends `[4/4] Linking CXX shared library FreeCity4.dll`; that is an
+edge count, **not native RC or a terminal gate verdict**. Its SHA256 is
+`7f825c79c850a807b4b26b0b0307cdeb8f818317ef2d45a44aaeb92aff3212cc`,
+mtime 1792727253.2905436. Source file hashes remain exactly the R1 values below.
+
+### Active blocker and exact next action
+
+The SAME quick validator remains alive, waiting on its read-only optional cache
+statistics client. Terminal collection in the same exec session returned no
+output; no exit was invented. Session **45516** is still the owned handle.
+Final scoped snapshot: `build-runs/html-r2/final-ownership.json` (295 global
+AccessDenied entries retained; no own compiler hit). Exact identities:
+
+- qbuild **36088**, creation **1792727089.2347448**, parent 9568.
+- fc4verify **34912**, creation **1792727089.2772796**, parent 36088.
+- stats **15368**, creation **1792727255.100597**, parent 34912;
+  `sccache.EXE --show-stats --stats-format json`, `SCCACHE_SERVER_PORT=4466`.
+- All three cwd is this worktree; exact argv/environment and log identities are
+  in `quick-observation.json` and `final-ownership.json`.
+
+One finite coordinator review request is recorded at
+`build-runs/coordinator-request-core-html-ui-hooks4-r2.md`. Coordinator owns
+review/intervention eligibility; lane has made no RPC, kill, cancel, signal,
+daemon restart or cache config change. Revalidate exact identities before any
+root action, journal it, and collect **this same validator** to terminal. Do not
+launch another quick/baseline/cargo/ctest while it is live. Then run **one**
+canonical `qbuild all` against stable committed source, retaining terminal exit,
+true all-Rust sums, clippy, native RC, ctest and before/after engine identities.
+Current-source full gate and clippy remain **unmeasured**, and all was withheld
+because quick is still active. No new baseline was run.
+
+Supplied real host proof `coordinator-html-hooks-r2-host-proof.json` records
+full `other SC4 classes` engine `--resume` lane check **exit 0**, stdout `ok`,
+dependency-ancestor-main **exit 0**. Current manifest/runtime guard is valid.
+This is distinct from an enginecheck capability: none is configured here;
+no invented capability, substitute claim or tools/ execution was used.
+Historical R1 failures below remain retained. No formatter was rerun because no
+Rust file changed. No new questions; existing HU1–HU4 remain open. Game: n/a,
+no requests, native/shadow/default/whole-owner credit. State remains **WIP**.
+
+R2 manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-html-ui-hooks4-r2-manifest.json`.
+
+## R1 historical report (retained; present-tense check status is historical)
 
 ## Delivery and limits
 
