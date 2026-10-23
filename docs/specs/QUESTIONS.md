@@ -146,7 +146,7 @@ generated index: the questions live one file per spec, so read only the file for
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
 | SV | foundations, ordinance |
 | TB | texture-bindings |
-| TD | tools-com-director |
+| TD | text-decal-occupant, tools-com-director |
 | TE | text-edit |
 | TG | traffic-simulator |
 | TI | network-type-info |
@@ -254,7 +254,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
+| occupants-props | 11 | 7 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 3 | 6 | OV10 | questions/overlay-manager.md |
@@ -299,6 +299,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
+| text-decal-occupant | 1 | 0 | TD2 | questions/text-decal-occupant.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
@@ -320,4 +321,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **492** | **1246** | | |
+| **total** | **492** | **1248** | | |

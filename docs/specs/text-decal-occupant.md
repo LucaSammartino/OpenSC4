@@ -275,3 +275,56 @@ stream's established error semantics. There is no owner-level rollback of alread
 The following is bounded static publication, not complete class byte credit. Literal proposed
 vectors are in [text-decal-vectors.md](text-decal-vectors.md); all are **UNEXECUTED**.
 No original execution, implementation oracle or live reference traces have been used.
+
+### 8.1 Native-body, thunk, folded and foreign checklist
+
+The old metadata attribution "35 / 3545B" is not a denominator or proof of coverage.
+The inventory below is constructed from constructor-installed views, address searches and
+instruction pages, and separates physical bodies from delegated contracts. Checked means
+statically inspected for the bounded rules above, not executed or proved over invalid storage.
+
+| Native entries checked | Contract |
+|---|---|
+| `005F7650` QI | §1 |
+| `005F76C0` Shutdown; `005F77C0` RemoveDecals | §§4,6 |
+| `005F7810` UpdateDecal; `005F7A50` MoveDecal; `005F7AA0` SetPosition | §§3–5 |
+| `005F7B10` height; `005F7B50` RGB; `005F7C00` alpha | §3, including parity/NaN domains |
+| `005F7C80` routing; `005F7D60` orientation; `005F8170` dynamic | §§3–4 |
+| `005F7D80` allocation; `005F84D0` factory | §6, pool primitive only; no guessed size/OOM contract |
+| `005F7DB0` Write; `005F7E50` Read | §7 |
+| `005F7F40` Init; `005F8030` message; `005F81F0` flags | §6 |
+| `005F8190` source replacement; `005F82E0` text | §§3–4 |
+| `005F8300` constructor | §§1–2 |
+| `005F8410` text output; `005F8430` CLSID | §§1,3; CLSID full EAX=8B79C707 |
+| `005F8510` deleting destructor; unlabeled `005F8570` destructor body | §6; checked separately, neither silently invokes Shutdown |
+
+That is 25 named/search entries (including factory/deleting wrapper) plus one separately
+identified destructor body. Nine distinct adjusting thunks were checked: QI `005F8440`,
+`005F8450`, `005F8460`, `005F8470`, `005F8480`, `005F84A0` subtract respectively
+4,8,12,16,20,40; deleting-destructor thunk `005F8490` subtracts20; record thunks
+`005F84B0/005F84C0` subtract4. The folded `005F8400` AsOccupant body is separately
+checked, not a newly owned algorithm (nor evidence for another class's whole owner).
+The resulting 36-entry local checklist is not a complete-class-byte coverage claim.
+
+Foreign mappings below are **delegated established embedded-prop/base/holder contracts**, not
+newly analyzed owner bodies. Slot numbers are zero-based, from the constructor-installed vtables.
+This records which dispatch remains outside this owner's algorithms, including folded names
+whose export attribution is another class; it does not promote names into layout proof.
+
+| View | Foreign slots and targets |
+|---|---|
+| TextDecal `00AA5680` | 1 `005ECAF0`, 2 `005ECB00`: checked adjustments +12 into shared occupant AddRef/Release; 3 folded `005F8400` above |
+| prop `00AA5620` | 1–2 `005ED5C0/005ED5D0`; 3–8 `005EFE60,00458C60,004E13E0,00648F10,005ED280,005EF4C0`; 9–14 `005EC9D0,005EC9E0,005ED290,005ED560,005ED400,005ECA10`; 15–23 `005EEFF0,005EE230,007C2740,005ED570,005ED580,005ED590,005ECA50,00477120,005ECAE0` |
+| message `00AA5610` | 1–2 `005ED5F0/005ED600`; 0 is own QI thunk, 3 own DoMessage |
+| occupant `00AA5588` | 1–2 `005ED620/005ED630`; 5–8 `00458A40,006C2040,006BDD80,005ED1F0`; 10–19 `005DED60,005E8E20,005E8A60,005E8AA0,005E8AE0,005E9010,00458A50,005E90E0,005E8B10,006AAC50`; 20–29 `005E91C0,0078DAF0,005E92D0,005E9350,005E9410,005E8BF0,005E8C20,005ECAC0,004302C0,005E8B70`; 31–33 `005E8BA0,005E8BC0,005E8BE0`; 0/3/4/9/30 are own entries already checked |
+| serializable `00AA556C` | 1–2 `005ED650/005ED660`; 0/3/4/5 own entries |
+| holder `00AA5508` (25 slots) | 1–2 `005ED680/005ED690`; 3–10 `005FEC20,005FECA0,005FD290,005FD2D0,005FD260,005FD230,005FEDA0,005FFA40`; 11–21 `005FF950,005FF860,005FF770,005FDEF0,005FF6D0,005FDFD0,005FEBC0,005FF3C0,005FEF00,005FEE10,005FF160`; 0/22/23/24 own thunks |
+| exemplar holder `00AA54F0` | 1–4 `005ED6C0,005ED6D0,00458E60,0060CE80`; 0 own QI thunk; following null word not a method |
+
+Primitive source/font rendering, terrain altitude queries, renderer view acquisition, manager
+Add/Remove/Set and AddRef/Release remain foreign primitives. The owner algorithms in §§3–7
+must compute their arguments and order. Complete physical layout compatibility also requires
+the established embedded prop; unrelated storage masquerading as its views is unsupported,
+not a reason to fall back to plain prop behavior. Global floating-point environment proof is
+still open as **TD1**; owner status is **partial for arbitrary-input bit exactness**, with a
+coherent normal-domain contract and exact-environment-conditioned vectors.
