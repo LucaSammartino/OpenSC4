@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-nettool-shadow5: scripted network tool shadow | Codex / glue-nettool-shadow5 (detached reserved lane) | **ready: measured diagnostics**, ABI unchanged; full gate PASS, cargo 6694/0, clippy clean, CTest 69/69; turbo and normal clean through 2032, both 5/14 exact, refs=0 | Answer NT27-NT29; complete piece/bridge/powerline adapters and resolve differences before coverage credit or profile enablement |
+| glue-nettool-shadow5: scripted network tool shadow | Codex / glue-nettool-shadow5 (detached reserved lane) | in progress: round 2 contracts merged | Implement NT27-NT29; gate and new 2032 run |
+
+## Handoff
+- Goal: correct nine inexact public-result probes using NT27-NT29, measure all 14 through 2032, READY queue either way.
+- Done: merged re-nettool-nt27 as af12f558f; successful merge printed packed-refs permission error; no ref repair attempted.
+- Prior results below: 5/14 exact at turbo and normal, clean refs=0; source 5b266ce51.
+- Next: inspect geometry draw/cost and plugin host; implement staircase rows, retained pricing and Boolean public failure.
+- No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
+- Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
 
 ## Implementation and scope
 
