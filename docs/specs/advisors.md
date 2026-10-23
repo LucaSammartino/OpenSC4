@@ -60,6 +60,10 @@ it. The other advice classes (`cSC4CitySituationAdvice` `0x8BE3753B`, `cSC4MySim
 `cSC4MySimBalloonAdvice` `0x6B70EFAD`) and the MySim advisors (`0x4A1DBBBF`, My Street sim `0x0BF606A5`) are
 created through the same tables but belong to the city-situation and MySim specs.
 
+For **record-only** integration, `cSC4CitySituationAdvice` is covered here too: its CLSID must resolve to an
+advice supporting IID `0x8A09F5F5`, with exactly the base advice record (§11.3.1, AD17). Its additional
+city-situation interface and live behaviour still belong to the city-situation spec.
+
 Factory CLSIDs are not generally QI IIDs: the advisor's additional QI identity is `cIGZUnknown` 1; only
 CityPlanning adds its own CLSID. Non-MySim advisors reject `cISC4MySim` `0x0A1DA42F`. See §12.2 (AD14) for
 pointer adjustments, ownership and failure output.
@@ -1440,6 +1444,44 @@ loaded byte := !error, and that is returned. The neighbour-deal advice (`0x6A384
 own record (corrected): `u16 2`, this advice record, then `s32 dealType` (`nd_type`); its Read requires version 2
 (`Write` `0x00420F40`, `Read` `0x00420F80`; all 10,842 corpus entries; save-records.md §7.2) *[compat]*.
 
+#### 11.3.1 CitySituationAdvice record and factory identity (AD17)
+
+`cSC4CitySituationAdvice` (`0x8BE3753B`) writes **exactly** the version-4 advice record above: no subclass
+version, prefix, suffix or city-situation fields. Its serializable vtable `0x00A84508` uses the very same Write
+`0x00408090` and Read `0x004082F0` entries as plain advice's `0x00A80884`; only the CLSID getter differs
+(`0x00423000` returns `0x8BE3753B`). The constructor installs that serializable table at object +`0x10`
+(`0x0042349A`), after constructing the base advice at object +4 (`0x00423475`–`0x00423480`). Thus the identical
+serializer addresses also address the same base fields. Serializable QI adjusts back by `0x10`
+(`0x004238D0`); subclass QI delegates to base advice at +4 (`0x0042303B`–`0x00423042`). The game's COM director
+registers its own factory (`0x00423DD0`, registration in `0x00460090`), so a reference read with the advice IID
+must retain this object rather than fail resolution.
+
+A record-only implementation may register this CLSID with its plain-advice record adapter (`AdviceKind::Plain`
+in the current terminology), provided it preserves the captured CLSID and object/reference identity on output,
+supports the advice IID and uses the base Read semantics, including text dirty. Writing the object back as
+CLSID `0x8A09F5F4`, dropping it from its owner's advice list, or adding a subclass record **DIFFERS**. This
+permission covers serialization only; it does not assert that a plain advice supplies the subclass's live
+city-situation behaviour or its extra IID `0x6BEB1E8A` (`0x00423024`).
+
+#### 11.3.2 Read transitions and strict record comparison (AD18)
+
+Advice Read is a load operation, not a byte-preserving decode. It always enables `text dirty` after reading
+the subject (`0x004083F0`–`0x004083FD`, mask `0x10`, enable 1); Write persists the full 32-bit flags word
+(`0x004080BB`–`0x004080C3`). For a fresh object reading a successful version-4 record with input flags `F`, an
+immediate Write therefore contains `F OR 0x10`. When the captured advice was clean, the changed low byte at
+zero-based record offset **10** is a required load transition *[quirk]*. The loaded byte is not a stream field.
+
+For the **strict live-record shadow**, compare all captured and rewritten bytes without restoring or masking
+the dirty bit: this transition remains a reported difference, and that sample cannot be credited as exact.
+An additional **load-transition conformance** result may compare the output with the input record after
+changing just the expected flags word to `F OR 0x10`; it must check every other byte and label the result as
+transition conformance, not strict equality. A diagnostic reconstruction that restores the captured bit must
+likewise report the restoration separately and cannot turn a strict mismatch into an exact line. This is a
+comparison contract, not permission to change core Read or the native object. In particular a dirty input
+already containing `0x10` needs no adjustment and must round-trip exactly under the same fresh-object,
+version-4, reference-identity assumptions. Older input versions and reading into a non-empty effect list have
+the additional transformations already specified above and are separate conformance cases.
+
 ### 11.4 Subject (`0x6A26D049`), version 4
 
 ```
@@ -2083,3 +2125,18 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
     give IDs 444 and −7; an absent key gives 0. Mutating `[1]` to 555 between ID calls changes the next result
     without reloading the lists. Save records contain neither these lists/selection nor the displayed advice text;
     a newly created object must rebuild them via Init (§11.2–§11.3), not read fictitious stream fields.
+32. **AD17 city-situation record (required vectors, not measured runs)**: construct a reference graph containing
+    a `0x4BE372CD` advisor and two distinct `0x8BE3753B` advice references, one also referenced elsewhere. Resolve
+    each with IID `0x8A09F5F5`. Give the first a base version-4 record with flags `0x12`, two effects in order and
+    a non-null subject; give the second flags `0x10`, no effects and null subject. Fresh-object Read/Write must
+    retain both list entries, the shared reference, both subclass CLSIDs, effects and subject identity, with
+    exactly the base record framing. With both input dirty bits set, all records compare byte-for-byte. Repeat
+    using a plain record adapter registered for `0x8BE3753B`: same result. An unresolved reference, a remapped
+    plain CLSID, an added version word or a dropped list entry fails.
+33. **AD18 loading versus strict equality (required vectors, not measured runs)**: use a fresh advice for each
+    version-4 input, stable reference IDs and no Init/text refresh between Read and Write. Flags `0x00000002`
+    become `0x00000012`; flags `0x80000000` become `0x80000010`. Only byte 10 changes, by `0x10`; strict result
+    is different, load-transition conformance passes. Inputs `0x00000012` and `0x80000010` remain unchanged and
+    pass both checks. Repeat for `0x8BE3753B` using its base-record adapter. Flip one priority byte as well:
+    strict and transition checks must both fail. Restore only the captured dirty bit for a diagnostic compare:
+    report that adjustment and retain the original strict mismatch verdict.

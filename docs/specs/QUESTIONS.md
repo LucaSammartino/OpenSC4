@@ -194,7 +194,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 4 | 14 | AD19 | questions/advisors.md |
+| advisors | 2 | 16 | AD19 | questions/advisors.md |
 | aircraft | 5 | 3 | AF9 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
@@ -364,4 +364,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **603** | **1359** | | |
+| **total** | **601** | **1361** | | |
