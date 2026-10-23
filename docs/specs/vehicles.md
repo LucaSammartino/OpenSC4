@@ -107,8 +107,8 @@ The exact TrainCar and Train record contracts, including load failure and recons
   missing cars (`cSC4TrainCar::Init`, flag `0x10000000`). `Shutdown` releases them.
 - `StartTrip` (`0x005588D0`) builds the trip and posts `0x0C05E4CD`; a train that cannot start reports an accident
   *[summary]*.
-- `DoAnimationTick` (2.3 KB) moves the cars behind the engine and plays random AEMS sounds; `HandleCollision`
-  enters a 5000 ms state with a random direction.
+- `DoAnimationTick` (2.3 KB) moves the cars behind the engine and plays random AEMS sounds; Train's
+  `HandleCollision` requests a 20000 ms final state and perturbs car directions (§12.4).
 - **Player driving**: `DoPlayerDriveTick` and `PlayerDriveCheckForDerail`: going too fast through a curve (a random
   draw against the speed) **derails** the train (flag `0x08000000`, an event, the derail sound) *[summary]*.
 
@@ -373,6 +373,20 @@ yaw. Set flag `0x10000000` and request final state 20 with 5000 ms timeout; retu
 fails, retaining the preceding message/direction/flag changes. There is no direct model-transform replacement
 in this method. Instruction constants and operation order: `0x0055C8C0–0x0055CA73`.
 
+Train overrides this contract (`0x00558E00`). It requests final COLLIDE for **20000 ms** on the locomotive
+unless already in state 20, then walks the owned cars in stored order using one local RNG seeded
+`0xFFFFFFFF`. For each car, first copy the locomotive's measured speed `+0x94`, draw the same random unit
+vector R, scale by `0.25/length(R)` **before** discarding its Y component, and normalize the car's facing plus
+that horizontal perturbation. This does not normalize the projected XZ vector to length 0.25. The locomotive
+facing is unchanged. If this car already has state 20, return **success immediately**, even if a previous
+state request failed; later cars are untouched and the final locomotive speed reset is skipped. Otherwise
+request the same final 20000 ms state on the car and remember any failure, continuing to later cars. After
+the entire list, set locomotive speed to zero immediately and return whether all requests succeeded.
+There is no target-null gate, vehicle collision-message post, or explicit `0x10000000` flag set in this override.
+The early success and skipped reset are literal quirks. Numeric evidence:
+`0x00558E18–0x00558E3F`, `0x00558E79–0x00558F4F`; duration bits `0x469C4000`, quarter-scale constant
+`0x00A8821C=0.25`.
+
 `ResolveCollision` (`0x0055F7B0`) takes a collision vector V, impulse I, PlayerDrive state S and drive parameters
 P. First round `q = I/P[+0x48]` to f32. Let `m = sqrt(Vx²+Vy²+Vz²)`. If `m > 0.01` **or** `q > 2`, add
 `(m−0.01) × 2000` to the state's unsigned damage count at `+0x60`, multiplying that increment by q when
@@ -413,6 +427,8 @@ Conformance vectors:
 | Null collision target | Success; no message, RNG or state change. |
 | Nonnull target; already in state 20 | One all-zero `0x49E64802` post; no direction draw or new timeout. |
 | F=(1,0,0), supplied unit R=(0,1,0) | New facing approximately `(0.89442719,0.44721360,0)`; flag set before final 5000 ms state request. |
+| Train with two noncolliding cars; each supplied R=(0,1,0) | Each car keeps its facing after normalization and receives measured-speed copy plus final 20000 ms state; locomotive facing unchanged and speed reset to zero. |
+| Train's first car already COLLIDE; second car untouched initially | First car still receives speed copy and a direction draw, then immediate success; no second-car work and no locomotive speed reset. |
 | Damage D=49,50,99,100 with H=100 | Respectively no effect, injured, injured, crash; only the last creates accident `(2,30000)` and event `(11,1)`. |
 | D=100,H=100; effect request fails | Accident/flag/event still occur; prior effect retained. |
 | D=100,H=100; call UpdateAfterDamage twice | Two accident requests and two `(11,1)` events; no once-only latch. |
