@@ -50,6 +50,19 @@ enum Op {
 }
 
 struct Host {
+    funds_value: i32,
+    hover: Vec<(bool, u32, u32)>,
+    dialog_calls: Vec<DialogCall>,
+    widgets: Vec<WidgetCall>,
+    lighting: Vec<f32>,
+    popup_calls: Vec<PopupCall>,
+    popup_items: Vec<CatalogItem>,
+    selection: Option<CatalogItem>,
+    reference_calls: Vec<(u64, u32)>,
+    written_records: Vec<Option<ObjectRecord>>,
+    read_record: Option<ObjectRecord>,
+    helper_calls: Vec<(u32, u32)>,
+    pictures: Vec<BackgroundPicture>,
     ops: Vec<Op>,
     takers: Vec<u32>,
     init_fail: Option<u32>,
@@ -72,6 +85,19 @@ struct Host {
 impl Default for Host {
     fn default() -> Self {
         Self {
+            funds_value: 100,
+            hover: Vec::new(),
+            dialog_calls: Vec::new(),
+            widgets: Vec::new(),
+            lighting: Vec::new(),
+            popup_calls: Vec::new(),
+            popup_items: Vec::new(),
+            selection: None,
+            reference_calls: Vec::new(),
+            written_records: Vec::new(),
+            read_record: None,
+            helper_calls: Vec::new(),
+            pictures: Vec::new(),
             ops: Vec::new(),
             takers: Vec::new(),
             init_fail: None,
@@ -102,6 +128,152 @@ impl Host {
                 _ => None,
             })
             .collect()
+    }
+}
+
+impl WidgetHost for Host {
+    fn status_snapshot(&self) -> StatusSnapshot {
+        StatusSnapshot {
+            date: [12003, 4, 5],
+            start_year: 2000,
+            population: 1234,
+            city_name: "City".into(),
+            budget_visible: true,
+            visual_time: (13, 45),
+            ..StatusSnapshot::default()
+        }
+    }
+    fn widget(&mut self, call: WidgetCall) {
+        self.widgets.push(call);
+    }
+    fn ambient_light(&mut self, hour: f32) -> bool {
+        self.lighting.push(hour);
+        self.changed
+    }
+}
+
+impl DialogHost for Host {
+    fn establish_preferences(&self) -> EstablishData {
+        EstablishData {
+            difficulty: 2,
+            city: "é".repeat(520),
+            mayor: "Mayor".into(),
+        }
+    }
+    fn dialog(&mut self, call: DialogCall) -> Option<EstablishData> {
+        let reply = match &call {
+            DialogCall::Establish { data, .. } if self.changed => Some(data.clone()),
+            _ => None,
+        };
+        self.dialog_calls.push(call);
+        reply
+    }
+    fn budget_dialog_enabled(&self) -> bool {
+        self.filter_allocation
+    }
+}
+
+impl PopupHost for Host {
+    fn popup(&mut self, call: PopupCall) -> Option<u32> {
+        let reply = if self.filter_allocation {
+            match call {
+                PopupCall::Script { instance, .. } => Some(instance),
+                PopupCall::Catalog { .. } => Some(600),
+                PopupCall::Query(token, _) => Some(token + 1),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        self.popup_calls.push(call);
+        reply
+    }
+    fn catalog_items(&mut self, _: &CatalogQuery) -> Vec<CatalogItem> {
+        self.popup_items.clone()
+    }
+    fn popup_state(&mut self, _: u32) -> [u32; 2] {
+        [7, 9]
+    }
+    fn popup_selected(&mut self, _: u32) -> Option<CatalogItem> {
+        self.selection
+    }
+    fn popup_height(&self) -> i32 {
+        if self.moved {
+            601
+        } else {
+            600
+        }
+    }
+    fn tutorial_running(&self) -> bool {
+        !self.tutorial
+    }
+    fn utility_extra_enabled(&self, _: u32) -> bool {
+        self.changed
+    }
+    fn situation_visible(&self) -> bool {
+        self.changed
+    }
+}
+
+impl ReferenceHost for Host {
+    fn read_view_record(&mut self, _: u32) -> Option<ObjectRecord> {
+        self.read_record.clone()
+    }
+    fn reference_body_available(&mut self, _: u32) -> bool {
+        self.changed
+    }
+    fn write_view_record(&mut self, _: u32, record: Option<ObjectRecord>) {
+        self.written_records.push(record);
+    }
+    fn save_identity(&mut self, object: u32, offset: u32) -> u64 {
+        self.reference_calls.push((u64::from(object), offset));
+        u64::from(object) + 0x10000
+    }
+    fn resolve_identity(&mut self, identity: u64, iid: u32) -> Option<u32> {
+        self.reference_calls.push((identity, iid));
+        self.filter_allocation
+            .then_some((identity - 0x10000) as u32)
+    }
+}
+
+impl HelperHost for Host {
+    fn background_mode(&self) -> bool {
+        self.moved
+    }
+    fn background_files(&mut self, _: bool) -> Vec<String> {
+        (0..self.pictures.len()).map(|i| i.to_string()).collect()
+    }
+    fn load_background(&mut self, path: &str) -> Option<BackgroundPicture> {
+        self.pictures.get(path.parse::<usize>().unwrap()).cloned()
+    }
+    fn renderer_background(&mut self, picture: u32, three_d: bool) {
+        self.helper_calls.push((picture, u32::from(three_d)));
+    }
+    fn release_picture(&mut self, picture: u32) {
+        self.helper_calls.push((picture, 0xFFFF));
+    }
+    fn coverage_clear(&mut self) {
+        self.helper_calls.push((0, 0));
+    }
+    fn coverage_effect(&mut self, effect: u32, radius: u32) {
+        self.helper_calls.push((effect, radius));
+    }
+    fn stop_helper(&mut self, helper: u32) -> bool {
+        self.helper_calls.push((helper, 4));
+        self.changed
+    }
+    fn helper_stopped(&mut self, helper: u32, value: u32) {
+        self.helper_calls.push((helper, value));
+    }
+    fn renderer_pick(&mut self, _: bool, _: i32, _: i32, _: u32) -> Option<[f32; 3]> {
+        self.terrain
+    }
+    fn acquire_occupant_interface(&mut self, iid: u32) -> bool {
+        self.helper_calls.push((iid, 1));
+        self.filter_allocation
+    }
+    fn release_occupant_interface(&mut self) {
+        self.helper_calls.push((0x26BB_767E, 0));
     }
 }
 
@@ -167,9 +339,6 @@ impl MessageHost for Host {
     }
     fn filter_window_passthrough(&self) -> bool {
         false
-    }
-    fn establish_city_dialog(&mut self) -> bool {
-        self.changed
     }
 }
 
@@ -332,7 +501,10 @@ fn catalog_item_guards_network_intersections_lot_move_and_null_allocation() {
     v.invoke_catalog_item(&mut host, 0x6A2B_245F, 42, false);
     let movement = Op::Control(90, ControlCall::Event(InputEvent::Move(50, 60, 0)));
     assert!(host.ops.contains(&movement));
-    assert_eq!(host.ops.last(), Some(&Op::Control(90, ControlCall::Release)));
+    assert_eq!(
+        host.ops.last(),
+        Some(&Op::Control(90, ControlCall::Release))
+    );
     host.filter_allocation = false;
     host.ops.clear();
     v.invoke_zoning_tool(&mut host, 1);
@@ -366,7 +538,10 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
     v.owner.lifecycle.progress = Some(99);
     v.pre_city_init(&mut host);
     assert!(v.owner.motion.city_initializing);
-    assert_eq!(v.owner.view.filter.unwrap().realistic_flags, Some([true; 3]));
+    assert_eq!(
+        v.owner.view.filter.unwrap().realistic_flags,
+        Some([true; 3])
+    );
     assert_eq!(v.owner.motion.edge_speed, 0.8);
     assert_eq!(
         &host.ops[..4],
@@ -383,7 +558,9 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
     assert!(!v.owner.motion.city_initializing);
     assert_eq!(v.persistent_controls(), 1);
     assert_eq!(v.lifecycle_state().progress, None);
-    assert!(host.ops.contains(&Op::City(CityCall::CitySize(0xC9C6_28EC, 1024))));
+    assert!(host
+        .ops
+        .contains(&Op::City(CityCall::CitySize(0xC9C6_28EC, 1024))));
     assert_eq!(
         host.ops
             .iter()
@@ -456,7 +633,9 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
             Op::Gui(GuiCall::ClearFocus(0x0987_B48F)),
         ]
     );
-    assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
+    assert!(host
+        .ops
+        .contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
     let fields = v.gui_state().fields.clone();
     let windows = v.gui_state().windows.clone();
     let overlay = v.gui_state().overlay.unwrap();
@@ -517,14 +696,21 @@ fn gui_failed_creations_and_shutdown_progress_order() {
     v.owner.lifecycle.progress = Some(42);
     host.ops.clear();
     v.shutdown(&mut host);
-    let gui_end = host.ops.iter().rposition(|o| matches!(o, Op::Gui(_))).unwrap();
+    let gui_end = host
+        .ops
+        .iter()
+        .rposition(|o| matches!(o, Op::Gui(_)))
+        .unwrap();
     let progress = host
         .ops
         .iter()
         .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(42)))
         .unwrap();
     assert!(gui_end < progress);
-    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+    assert_eq!(
+        host.ops.last(),
+        Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands))
+    );
 }
 
 #[test]
@@ -585,9 +771,14 @@ fn init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure() {
         })
         .collect();
     assert_eq!(cheats, CHEATS[..10].iter().map(|c| c.0).collect::<Vec<_>>());
-    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::InitTail)));
+    assert_eq!(
+        host.ops.last(),
+        Some(&Op::Lifecycle(LifecycleCall::InitTail))
+    );
     assert_eq!(v.lifecycle_state().progress, Some(12));
-    assert!(host.ops.contains(&Op::Lifecycle(LifecycleCall::Release(11))));
+    assert!(host
+        .ops
+        .contains(&Op::Lifecycle(LifecycleCall::Release(11))));
     host.init_fail = None;
     assert!(v.init(&mut host));
     host.ops.clear();
@@ -628,7 +819,10 @@ fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
         assert!(host.ops.contains(&Op::Control(id, ControlCall::Shutdown)));
         assert!(host.ops.contains(&Op::Control(id, ControlCall::Release)));
     }
-    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+    assert_eq!(
+        host.ops.last(),
+        Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands))
+    );
 }
 
 #[test]
@@ -660,7 +854,25 @@ fn vw_t3_deferred_budget_deduplicates_and_command_qi_has_priority() {
     host.changed = true;
     v.replay_deferred(&mut host);
     assert!(v.owner.deferred.is_empty());
-    assert_eq!(host.ops, vec![Op::Window(MessageCall::BudgetFailure)]);
+    assert_eq!(
+        host.ops,
+        vec![
+            Op::Window(MessageCall::BudgetFailure),
+            Op::Action(ActionCall::Region { prompt: false })
+        ]
+    );
+    assert_eq!(
+        host.dialog_calls,
+        [
+            DialogCall::HiddenPauseSimulatorClock,
+            DialogCall::Bankruptcy {
+                group: 0x96A0_06B0,
+                instance: 0x0A5C_F71D,
+                id: 0x2A5C_FB2C
+            },
+            DialogCall::HiddenResumeSimulatorClock,
+        ]
+    );
 }
 
 #[test]
@@ -725,7 +937,8 @@ fn window_focus_accelerator_button_filter_and_clock_routes() {
     assert!(v.window_message(&mut host, button.clone()));
     assert!(host.ops.is_empty());
     assert!(v.filter_message(&mut host, button));
-    assert_eq!(host.ops, vec![Op::Window(MessageCall::Button(19))]);
+    assert!(host.ops.is_empty()); // unknown button has no invented action
+    assert!(host.popup_calls.is_empty());
     for kind in [0x13, 0x0D, 0x14] {
         v.window_message(
             &mut host,
@@ -781,12 +994,15 @@ fn notification_view_hidden_pause_mission_and_progress_guards() {
     assert_eq!(
         host.ops,
         [
-            Refresh::PausedOverlay,
-            Refresh::Speed,
-            Refresh::Alert,
-            Refresh::Mission(7, 7)
+            Op::Window(MessageCall::Refresh(Refresh::PausedOverlay)),
+            Op::Window(MessageCall::Refresh(Refresh::Speed)),
+            Op::Speed(0x6A4F_BB31, true, false),
+            Op::Speed(0x4A4F_BB60, false, false),
+            Op::Speed(0x8998_BBDF, false, false),
+            Op::Window(MessageCall::Refresh(Refresh::Alert)),
+            Op::Alert(None),
+            Op::Window(MessageCall::Refresh(Refresh::MissionActivation(7))),
         ]
-        .map(|r| Op::Window(MessageCall::Refresh(r)))
     );
     host.ops.clear();
     v.owner.lifecycle.progress = Some(99);
@@ -1007,7 +1223,11 @@ fn vw_t10_buttons_visit_persistent_before_stack_and_stop() {
 
 #[test]
 fn vw_t8_right_click_drag_threshold_and_modifiers() {
-    for (point, mods, jumps) in [((102, 103), 0, true), ((104, 100), 0, false), ((100, 100), 1, false)] {
+    for (point, mods, jumps) in [
+        ((102, 103), 0, true),
+        ((104, 100), 0, false),
+        ((100, 100), 1, false),
+    ] {
         let mut v = view();
         let mut h = Host::default();
         v.on_mouse(&mut h, InputEvent::DownR(100, 100, 0), context());
@@ -1054,9 +1274,10 @@ fn tutorial_blocks_move_before_drag_and_rewrites_button_coordinates() {
     h.tutorial = true;
     h.rewrite = Some((12, 13));
     v.on_mouse(&mut h, InputEvent::DownL(1, 2, 0), context());
-    assert!(h
-        .ops
-        .contains(&Op::Control(2, ControlCall::Event(InputEvent::DownL(12, 13, 0)))));
+    assert!(h.ops.contains(&Op::Control(
+        2,
+        ControlCall::Event(InputEvent::DownL(12, 13, 0))
+    )));
 }
 
 #[test]
@@ -1161,7 +1382,13 @@ fn paint_gates_preserve_tail_and_write_time_before_draw() {
     assert!(v.paint(&mut h, 1_000_000, 0));
     assert_eq!(
         h.ops,
-        [Op::ResetPaint, Op::Cost(0.5), Op::Time(7.0), Op::Draw, Op::Tail]
+        [
+            Op::ResetPaint,
+            Op::Cost(0.5),
+            Op::Time(7.0),
+            Op::Draw,
+            Op::Tail
+        ]
     );
     h.ops.clear();
     v.motion_mut().city_initializing = true;
@@ -1364,7 +1591,10 @@ fn render_cheat_recorder_and_debug_flags_keep_their_quirks() {
     assert!(v.process_cheat(&mut h, 0x88F3_D4BC, &["RP", "property"]));
     assert_eq!(
         h.ops,
-        [Op::Property("property".into(), "".into()), Op::Message(0xC9F7_75BB)]
+        [
+            Op::Property("property".into(), "".into()),
+            Op::Message(0xC9F7_75BB)
+        ]
     );
     h.ops.clear();
     h.changed = false;
@@ -1404,7 +1634,10 @@ fn vw_t16_trigger_transitions_and_four_reference_save_roundtrip() {
     v.retract_global_trigger(&mut h, 123);
     v.retract_global_trigger(&mut h, 123);
     v.retract_global_trigger(&mut h, 123);
-    assert_eq!(h.ops, [Op::Send(0xAA37_5FE8, 123, 1), Op::Send(0xAA37_5FE8, 123, 0)]);
+    assert_eq!(
+        h.ops,
+        [Op::Send(0xAA37_5FE8, 123, 1), Op::Send(0xAA37_5FE8, 123, 0)]
+    );
     assert!(!v.global_trigger_state(123));
     v.assert_global_trigger(&mut h, 123);
     v.assert_global_trigger(&mut h, 123);
@@ -1434,17 +1667,386 @@ fn level_only_notifies_changes_and_contour_pair_removes_returned_layer() {
     v.set_view_level(&mut h, 1);
     assert!(h.ops.is_empty());
     v.set_view_level(&mut h, 3);
-    assert_eq!(h.ops, [Op::Send(0xC6CD_BF1A, 0, 0), Op::Send(0xC6CD_BF1B, 0, 0)]);
+    assert_eq!(
+        h.ops,
+        [Op::Send(0xC6CD_BF1A, 0, 0), Op::Send(0xC6CD_BF1B, 0, 0)]
+    );
     h.ops.clear();
     v.toggle_contours(&mut h);
     v.toggle_contours(&mut h);
-    assert_eq!(h.ops, [Op::Contour(true, 0x07F9_4205), Op::Contour(false, 42)]);
+    assert_eq!(
+        h.ops,
+        [Op::Contour(true, 0x07F9_4205), Op::Contour(false, 42)]
+    );
     assert_eq!(v.owner_state().view.contour_layer, None);
+}
+
+#[test]
+fn widgets_refresh_from_notifications_and_visual_clock() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.set_cost_indicator(&mut h, -101, 101);
+    for kind in [0x0AB9_9380, 0x0772_FAD4, 0x6695_6814, 0x4477_8233] {
+        v.notification(
+            &mut h,
+            Notification {
+                kind,
+                ..Notification::default()
+            },
+        );
+    }
+    assert_eq!(
+        h.widgets,
+        [
+            WidgetCall::CityName {
+                window: 2,
+                name: "City".into()
+            },
+            WidgetCall::Funds(100, [0x44, 0x55, 0x66]),
+            WidgetCall::RefreshBudget,
+            WidgetCall::Date([3, 4, 5]),
+            WidgetCall::Population(1234),
+            WidgetCall::RefreshRenderer,
+        ]
+    );
+    assert_eq!(h.lighting, [13.75]);
+    h.changed = false;
+    h.widgets.clear();
+    v.update_ambient_light(&mut h);
+    assert!(h.widgets.is_empty());
+}
+
+#[test]
+fn popup_restores_state_reinvokes_selected_tool_and_balances_teardown() {
+    let mut v = view();
+    let mut h = Host {
+        selection: Some(CatalogItem {
+            kind: 0x4A2B_2466,
+            item: 1,
+        }),
+        ..Host::default()
+    };
+    v.set_current_control(&mut h, Some(77), 0);
+    h.ops.clear();
+    assert!(v.handle_button_activated(&mut h, 0x2992_0899));
+    assert!(h.ops.contains(&Op::Control(77, ControlCall::Shutdown)));
+    assert!(h.ops.contains(&Op::Tool(ToolSpec::Zone(1))));
+    let layout = h
+        .popup_calls
+        .iter()
+        .find_map(|call| match call {
+            PopupCall::Catalog { layout, .. } => Some(layout),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(layout.remembered, [0, 1]);
+    assert_eq!(layout.rows, 1);
+    assert_eq!(layout.cell, [44, 44]);
+    assert_eq!(layout.spacing, 5);
+    assert_eq!(layout.callout, [0xA85F_1A83, 0xE9C8_6C9D]);
+    assert_eq!(layout.frame_id, 0x8A6E_61E0);
+    h.popup_calls.clear();
+    v.handle_button_activated(&mut h, 0x2992_0899); // same kind toggles
+    assert_eq!(v.tertiary_kind(), 0);
+    assert_eq!(v.owner.lifecycle.remembered_catalogs[&0x20C], [7, 9]);
+    assert_eq!(
+        h.popup_calls,
+        [
+            PopupCall::Query(600, 0x8A2C_AD8B),
+            PopupCall::Release(601),
+            PopupCall::Hide(600),
+            PopupCall::Release(600),
+            PopupCall::ChildDelete {
+                parent: v.as_igzwin(),
+                window: 600
+            },
+        ]
+    );
+    assert!(!h
+        .ops
+        .iter()
+        .any(|op| matches!(op, Op::Control(77, ControlCall::Event(_)))));
+}
+
+#[test]
+fn popup_row_limits_tutorial_and_view_level_gate_selection() {
+    for (tall, secondary, rows) in [(false, false, 6), (true, false, 8), (true, true, 6)] {
+        let mut v = view();
+        let mut h = Host {
+            moved: tall,
+            popup_items: vec![
+                CatalogItem {
+                    kind: 0x4A2B_2467,
+                    item: 0x2992_37BF
+                };
+                20
+            ],
+            selection: Some(CatalogItem {
+                kind: 0x4A2B_2467,
+                item: 0x2992_37BF,
+            }),
+            ..Host::default()
+        };
+        v.invoke_catalog_popup(&mut h, secondary, 88, 99, 0x290, CatalogQuery::default());
+        assert!(h
+            .popup_calls
+            .iter()
+            .any(|call| matches!(call, PopupCall::Catalog { layout, .. } if layout.rows == rows)));
+        assert!(!h.ops.iter().any(|op| matches!(op, Op::Tool(_)))); // subway needs 2
+        v.close_owner_secondary(&mut h);
+        v.owner.view.level = 2;
+        h.ops.clear();
+        v.invoke_catalog_popup(&mut h, secondary, 88, 99, 0x290, CatalogQuery::default());
+        assert!(h.ops.contains(&Op::Tool(ToolSpec::Network(7))));
+        v.close_owner_secondary(&mut h);
+        h.ops.clear();
+        h.tutorial = false;
+        v.invoke_catalog_popup(&mut h, secondary, 88, 99, 0x290, CatalogQuery::default());
+        assert!(!h.ops.iter().any(|op| matches!(op, Op::Tool(_))));
+    }
+}
+
+#[test]
+fn scripted_popup_filters_alignment_failure_and_secondary_close_order() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.handle_button_activated(&mut h, 0x6991_EE42);
+    v.handle_button_activated(&mut h, 0xAB95_37B7);
+    assert!(h.popup_calls.contains(&PopupCall::Align {
+        window: 0xCB95_403E,
+        anchor: 0xAAAA,
+        target: 0xAB95_37B7,
+        flags: 0,
+        margin: -75
+    }));
+    assert!(h
+        .popup_calls
+        .contains(&PopupCall::Filter(0xCB95_403E, true)));
+    h.popup_calls.clear();
+    v.close_owner_secondary(&mut h);
+    let hidden: Vec<_> = h
+        .popup_calls
+        .iter()
+        .filter_map(|call| match call {
+            PopupCall::Hide(token) => Some(*token),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(hidden, [0xCB95_403E, 0x8993_02FC]);
+    assert_eq!((v.secondary_kind(), v.tertiary_kind()), (0, 0));
+    h.filter_allocation = false;
+    v.handle_button_activated(&mut h, 3);
+    assert_eq!(v.tertiary_win(), None);
+    assert!(v.owner.popups.iter().all(Option::is_none));
+}
+
+#[test]
+fn button_filter_executes_commands_and_day_night_preferences_in_order() {
+    let mut v = view();
+    let mut h = Host::default();
+    assert!(v.filter_message(
+        &mut h,
+        WindowMessage {
+            kind: 3,
+            data: [0x2872_59F6, 0x2A4F_BB08, 0],
+            ..WindowMessage::default()
+        }
+    ));
+    assert_eq!(h.popup_calls, [PopupCall::Execute(0x6A93_5CC9)]);
+    h.popup_calls.clear();
+    v.handle_button_activated(&mut h, 0xCA35_CB76);
+    assert_eq!(
+        h.popup_calls,
+        [
+            PopupCall::DayNightNotifications,
+            PopupCall::DayNightPreference(1),
+            PopupCall::DayNightButton(0xCA35_CB74, false),
+            PopupCall::DayNightButton(0xCA35_CB76, true),
+            PopupCall::DayNightButton(0xCA35_CB78, false)
+        ]
+    );
+    assert_eq!(h.ops, [Op::Action(ActionCall::VisualTimeMode(1))]);
+}
+
+#[test]
+fn save_uses_opaque_identities_subobjects_and_load_interfaces_before_init() {
+    let mut v = view();
+    let mut h = Host::default();
+    for (field, token) in [(0xF0, 10), (0xF4, 20), (0xF8, 30), (0x154, 40)] {
+        v.owner.lifecycle.objects.insert(field, token);
+    }
+    v.owner.view.triggers.insert(99, 2);
+    assert_eq!(v.save_object_record(&mut h, false), None);
+    assert!(h.reference_calls.is_empty());
+    let record = v.save_object_record(&mut h, true).unwrap();
+    assert_eq!(h.reference_calls, [(10, 0), (20, 8), (30, 4), (40, 0)]);
+    assert_eq!(
+        record.identities,
+        [Some(0x1000A), Some(0x10014), Some(0x1001E), Some(0x10028)]
+    );
+    let mut loaded = view();
+    h.reference_calls.clear();
+    loaded.load_object_record(&mut h, &record).unwrap();
+    assert_eq!(
+        h.reference_calls,
+        [
+            (0x1000A, 0xC9C6_28EC),
+            (0x10014, 0xE9C6_22D8),
+            (0x1001E, 0xA9C7_41B3),
+            (0x10028, 0x8695_664E)
+        ]
+    );
+    assert_eq!(loaded.renderer(), Some(20));
+    assert_eq!(loaded.model_maker(), Some(30));
+    assert!(!loaded.owner.view.not_loaded);
+    assert_eq!(loaded.owner.view.triggers[&99], 2);
+    let mut bad = record.clone();
+    bad.header.3 = 5;
+    h.reference_calls.clear();
+    assert!(loaded.load_object_record(&mut h, &bad).is_err());
+    assert!(h.reference_calls.is_empty());
+    h.read_record = Some(record);
+    loaded.notification(
+        &mut h,
+        Notification {
+            kind: 0x26C6_3341,
+            data: [33, 0],
+            ..Notification::default()
+        },
+    );
+    loaded.notification(
+        &mut h,
+        Notification {
+            kind: 0x26C6_3344,
+            data: [33, 0],
+            ..Notification::default()
+        },
+    );
+    assert_eq!(h.written_records.len(), 1);
+    assert_eq!(h.written_records[0].as_ref().unwrap().triggers, [(99, 2)]);
+}
+
+#[test]
+fn background_first_valid_image_releases_all_loads_and_picking_is_null_safe() {
+    let mut v = view();
+    let mut h = Host {
+        pictures: vec![
+            BackgroundPicture {
+                token: 1,
+                width: 63,
+                height: 63,
+            },
+            BackgroundPicture {
+                token: 2,
+                width: 64,
+                height: 32,
+            },
+            BackgroundPicture {
+                token: 3,
+                width: 64,
+                height: 64,
+            },
+            BackgroundPicture {
+                token: 4,
+                width: 128,
+                height: 128,
+            },
+        ],
+        ..Host::default()
+    };
+    assert!(!v.add_background_image(&mut h, true));
+    assert_eq!(v.owner.background_mode, 0);
+    v.owner.lifecycle.objects.extend([(0x150, 10), (0xF4, 20)]);
+    assert!(v.add_background_image(&mut h, true));
+    assert_eq!(v.owner.background_mode, 2);
+    assert_eq!(
+        h.helper_calls,
+        [(1, 0xFFFF), (2, 0xFFFF), (3, 1), (3, 0xFFFF)]
+    );
+    let mut point = [1.0; 3];
+    v.owner.lifecycle.objects.remove(&0xF4);
+    assert!(!v.pick_terrain(&mut h, 1, 2, 0, &mut point));
+    assert_eq!(point, [0.0; 3]);
+    v.owner.lifecycle.objects.insert(0xF4, 20);
+    assert!(v.pick_occupant(&mut h, 1, 2, &mut point));
+    assert_eq!(point, [10.0, 20.0, 30.0]);
+    assert_eq!(
+        &h.helper_calls[h.helper_calls.len() - 2..],
+        [(0x26BB_767E, 1), (0x26BB_767E, 0)]
+    );
+    h.terrain = None;
+    assert!(!v.pick_occupant(&mut h, 1, 2, &mut point));
+    assert_eq!(point, [0.0; 3]);
+}
+
+#[test]
+fn helper_stop_branch_and_coverage_effect_contract() {
+    let v = view();
+    let mut h = Host::default();
+    v.show_coverage(&mut h);
+    assert_eq!(
+        h.helper_calls,
+        [(0, 0), (0x3AE4_BEA3, 32), (0x3AE4_BEAB, 32)]
+    );
+    h.helper_calls.clear();
+    v.stop_foreign_helper(&mut h, 99);
+    assert_eq!(h.helper_calls, [(99, 4), (99, 0)]);
+    h.helper_calls.clear();
+    h.changed = false;
+    v.stop_foreign_helper(&mut h, 99);
+    assert_eq!(h.helper_calls, [(99, 4)]);
+}
+
+#[test]
+fn establish_result_character_limit_and_bankruptcy_gate_does_not_save() {
+    let mut v = view();
+    let mut h = Host::default();
+    assert!(v.do_establish_city_dialog(&mut h));
+    assert_eq!(
+        &h.dialog_calls[1..],
+        [
+            DialogCall::Difficulty(2),
+            DialogCall::CityName("é".repeat(511)),
+            DialogCall::CityNamePreference("é".repeat(511)),
+            DialogCall::NameChanged,
+            DialogCall::MayorPreference("Mayor".into()),
+            DialogCall::SavePreferences,
+            DialogCall::EstablishCity,
+        ]
+    );
+    h.dialog_calls.clear();
+    h.changed = false;
+    assert!(!v.do_establish_city_dialog(&mut h));
+    assert_eq!(h.dialog_calls.len(), 1);
+    h.dialog_calls.clear();
+    h.filter_allocation = false;
+    v.do_budget_failure(&mut h);
+    assert!(h.dialog_calls.is_empty());
+    assert_eq!(h.ops, [Op::Action(ActionCall::Region { prompt: false })]);
+}
+
+#[test]
+fn accelerator_replacement_acquires_before_release_and_null_clears() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.set_key_accelerator(&mut h, Some(5));
+    h.ops.clear();
+    v.set_key_accelerator(&mut h, Some(5));
+    assert_eq!(
+        h.ops,
+        [
+            Op::Lifecycle(LifecycleCall::AddRef(5)),
+            Op::Lifecycle(LifecycleCall::Release(5))
+        ]
+    );
+    assert_eq!(v.key_accelerator(), Some(5));
+    v.set_key_accelerator(&mut h, None);
+    assert_eq!(v.key_accelerator(), None);
 }
 
 impl StatusHost for Host {
     fn funds(&self) -> i32 {
-        100
+        self.funds_value
     }
     fn draw_cost(&mut self, display: CostDisplay) {
         self.ops.push(Op::CostDisplay(display));
@@ -1459,7 +2061,10 @@ impl StatusHost for Host {
     fn clock_widgets(&mut self, h: u32, m: u32, f: u32) {
         self.ops.push(Op::Clock(h, m, f));
     }
-    fn clock_hover(&mut self) {}
+    fn clock_hover_active(&self) -> bool { self.changed }
+    fn clock_hover_widgets(&mut self, visible: bool, hour: u32, minute: u32) {
+        self.hover.push((visible, hour, minute));
+    }
     fn rating_widgets(&mut self, col: i32, delta: i32) {
         self.ops.push(Op::Rating(col, delta));
     }
@@ -1606,6 +2211,9 @@ impl CommandHost for Host {
         self.ops.push(Op::Panel(id, on));
     }
     fn mayor_subpanel(&mut self, _: u32, _: bool) {}
+    fn mayor_subpanel_visible(&self, _: u32) -> bool {
+        self.changed
+    }
     fn mysim_visible(&mut self, _: bool) {}
     fn advisor_visible(&mut self, _: bool) {}
     fn news_ticker_visible(&mut self, _: bool) {}
@@ -1653,7 +2261,10 @@ fn vw_t15_query_tool_twice_is_one_tool_and_cancel_closes_both_menus() {
     h.ops.clear();
     assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF1));
     assert!(v.owner.stack.is_empty());
-    assert_eq!(&h.ops[h.ops.len() - 2..], &[Op::Close(true), Op::Close(false)]);
+    assert_eq!(
+        &h.ops[h.ops.len() - 2..],
+        &[Op::Close(true), Op::Close(false)]
+    );
     h.established = false;
     v.process_motion_panel_command(&mut h, 0x6A93_5CF3);
     assert!(v.owner.stack.is_empty());

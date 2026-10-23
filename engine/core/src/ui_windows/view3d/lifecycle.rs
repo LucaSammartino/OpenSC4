@@ -127,6 +127,7 @@ pub enum LifecycleCall {
     CreateProgress,
     InitTail,
     Release(u32),
+    AddRef(u32),
     Stop(u32),
     ProgressShutdown(u32),
     UnregisterCommands,
@@ -146,6 +147,30 @@ pub trait LifecycleHost: InputHost {
 }
 
 impl View3DWin {
+    pub fn renderer(&self) -> Option<u32> {
+        self.owner.lifecycle.objects.get(&0xF4).copied()
+    }
+
+    pub fn model_maker(&self) -> Option<u32> {
+        self.owner.lifecycle.objects.get(&0xF8).copied()
+    }
+
+    pub fn key_accelerator(&self) -> Option<u32> {
+        self.owner.lifecycle.objects.get(&0x120).copied()
+    }
+
+    pub fn set_key_accelerator(&mut self, host: &mut impl LifecycleHost, accelerator: Option<u32>) {
+        if let Some(new) = accelerator {
+            host.lifecycle(LifecycleCall::AddRef(new));
+        }
+        if let Some(old) = self.owner.lifecycle.objects.remove(&0x120) {
+            host.lifecycle(LifecycleCall::Release(old));
+        }
+        if let Some(new) = accelerator {
+            self.owner.lifecycle.objects.insert(0x120, new);
+        }
+    }
+
     /// Foreign base-window construction precedes this factory. `new` is the
     /// token-only compatibility constructor; adapters use this final hook.
     pub fn constructed(this: u32, win: super::WinToken, host: &mut impl LifecycleHost) -> Self {

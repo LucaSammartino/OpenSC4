@@ -83,6 +83,34 @@ pub trait CheatHost: InputHost + StateHost {
 }
 
 impl View3DWin {
+    pub fn get_view_level_info(&self, out: &mut u32) {
+        *out = self.owner.view.level;
+    }
+
+    pub fn set_view_level_info(&mut self, host: &mut impl StateHost, level: &u32) {
+        self.set_view_level(host, *level);
+    }
+
+    pub fn terrain_query_enabled(&self) -> bool {
+        self.owner.view.terrain_query
+    }
+
+    pub fn last_selected_building(&self) -> Option<u32> {
+        self.owner.view.last_building
+    }
+
+    pub fn set_last_selected_building(&mut self, id: u32) {
+        self.owner.view.last_building = Some(id);
+    }
+
+    pub fn last_selected_lot(&self) -> Option<u32> {
+        self.owner.view.last_lot
+    }
+
+    pub fn set_last_selected_lot(&mut self, id: u32) {
+        self.owner.view.last_lot = Some(id);
+    }
+
     pub fn view_state_mut(&mut self) -> &mut ViewState {
         &mut self.owner.view
     }

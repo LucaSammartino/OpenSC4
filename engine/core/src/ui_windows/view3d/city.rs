@@ -112,7 +112,7 @@ impl View3DWin {
             });
         }
         self.city_object(host, 0x150, CityObject::ImageLoader);
-        host.message_call(MessageCall::Refresh(Refresh::Background));
+        self.refresh(host, Refresh::Background);
         for hook in [0xAA76_5647, 0xAA76_563A] {
             host.city(CityCall::ScriptHook(0x6A23_1EAA, hook));
         }
@@ -157,17 +157,17 @@ impl View3DWin {
             host.city(CityCall::CitySize(control, host.city_size()));
         }
         for refresh in [Refresh::Clock24, Refresh::AmbientLight] {
-            host.message_call(MessageCall::Refresh(refresh));
+            self.refresh(host, refresh);
         }
         for id in [0x4992_046A, 0xE992_0494] {
             host.city(CityCall::EnableChild(id, true));
         }
         for refresh in [Refresh::SimulationClock, Refresh::Population] {
-            host.message_call(MessageCall::Refresh(refresh));
+            self.refresh(host, refresh);
         }
         host.city(CityCall::DayNightButtons);
         host.city(CityCall::BondMessage);
-        host.message_call(MessageCall::Refresh(Refresh::MayorRating));
+        self.refresh(host, Refresh::MayorRating);
         if host.city_established() {
             self.city_established(host);
         } else {
@@ -214,8 +214,8 @@ impl View3DWin {
             host.gui(GuiCall::EnableChild(id, true));
         }
         self.remove_current_control(host, false);
-        host.message_call(MessageCall::Refresh(Refresh::Budget));
-        host.message_call(MessageCall::Refresh(Refresh::CityName));
+        self.refresh(host, Refresh::Budget);
+        self.refresh(host, Refresh::CityName);
     }
 
     pub fn city_obliterated(&mut self, host: &mut impl CityHost) {

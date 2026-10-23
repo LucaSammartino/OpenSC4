@@ -34,6 +34,8 @@ pub enum Refresh {
     Alert,
     PausedOverlay,
     Mission(u32, u32),
+    /// VW18: retain raw activation payload until its derived argument is known.
+    MissionActivation(u32),
     Zoom,
     Background,
     CursorPosition,
@@ -51,7 +53,11 @@ pub enum MessageCall {
     Load(u32),
     Save(u32),
     BudgetFailure,
-    DisasterButton { window: u32, flag: u32, enabled: bool },
+    DisasterButton {
+        window: u32,
+        flag: u32,
+        enabled: bool,
+    },
     Progress([u32; 2]),
     Focus,
     InvokeCatalog(u32, u32),
@@ -62,7 +68,14 @@ pub enum MessageCall {
 
 /// These are foreign window/dispatcher/URL/tutorial services. The owner decides
 /// routing, precedence, guards, deduplication and return values.
-pub trait MessageHost: super::ActionHost + LifecycleHost {
+pub trait MessageHost:
+    super::ActionHost
+    + LifecycleHost
+    + super::WidgetHost
+    + super::HelperHost
+    + super::ReferenceHost
+    + super::DialogHost
+{
     fn message_call(&mut self, call: MessageCall);
     /// Return true when tutorial consumes a message; it may also rewrite it.
     fn tutorial_message(&mut self, message: &mut WindowMessage) -> bool;
@@ -75,12 +88,40 @@ pub trait MessageHost: super::ActionHost + LifecycleHost {
     fn city_view_hidden(&self) -> bool;
     fn paused_overlay_exists(&self) -> bool;
     fn filter_window_passthrough(&self) -> bool;
-    fn establish_city_dialog(&mut self) -> bool;
 }
 
 impl View3DWin {
-    fn refresh(&mut self, host: &mut impl MessageHost, refresh: Refresh) {
+    pub(super) fn refresh(&mut self, host: &mut impl MessageHost, refresh: Refresh) {
         host.message_call(MessageCall::Refresh(refresh));
+        match refresh {
+            Refresh::CityName => self.update_city_name(host),
+            Refresh::Budget => self.update_funds(host),
+            Refresh::SimulationClock => self.update_date(host),
+            Refresh::Population => self.update_population(host),
+            Refresh::AmbientLight => self.update_ambient_light(host),
+            Refresh::Clock24 => self.update_24hour_clock(host, 24, 0),
+            Refresh::ClockHover => self.update_clock_hover(host, None),
+            Refresh::Zoom => self.update_zoom_buttons(host),
+            Refresh::MayorRating => {
+                let data = host.status_snapshot();
+                self.update_mayor_rating(host, data.rating, data.rating_width);
+            }
+            Refresh::Speed => {
+                let data = host.status_snapshot();
+                self.update_speed_buttons(host, data.speed, data.paused);
+            }
+            Refresh::Alert => {
+                let data = host.status_snapshot();
+                self.update_alert_border(host, data.disaster, data.situation, data.paused);
+            }
+            Refresh::Background => {
+                let mode = host.background_mode();
+                self.add_background_image(host, mode);
+            }
+            // VW10/VW18: the remaining refresh boundaries lack sufficient
+            // owner contracts; never infer mission data from an integer token.
+            _ => {}
+        }
     }
 
     /// cIGZMessageTarget2: command QI wins even for a notification's type.
@@ -96,9 +137,20 @@ impl View3DWin {
             0x26D3_1EC2 => host.message_call(MessageCall::PreCityShutdown),
             0x26D3_1EC4 => self.city_established(host),
             0x26D3_1EC5 => self.city_obliterated(host),
-            0x26C6_3341 => host.message_call(MessageCall::Load(a)),
+            0x26C6_3341 => {
+                host.message_call(MessageCall::Load(a));
+                if let Some(record) = host.read_view_record(a) {
+                    // Read may precede Init; no city-sized allocation or UI.
+                    let _ = self.load_object_record(host, &record);
+                }
+            }
             0x26C6_3343 => self.remove_all_controls(host, false),
-            0x26C6_3344 => host.message_call(MessageCall::Save(a)),
+            0x26C6_3344 => {
+                host.message_call(MessageCall::Save(a));
+                let available = host.reference_body_available(a);
+                let record = self.save_object_record(host, available);
+                host.write_view_record(a, record);
+            }
             0x0AB9_9380 => self.refresh(host, Refresh::CityName),
             0x0772_FAD4 | 0x08DA_C3E7 | 0x08DA_C3E8 => self.refresh(host, Refresh::Budget),
             0x06CD_B65B => {
@@ -121,7 +173,7 @@ impl View3DWin {
                 self.refresh(host, Refresh::Speed);
                 self.refresh(host, Refresh::Alert);
                 if message.kind == 0xABBB_CA64 {
-                    self.refresh(host, Refresh::Mission(a, a));
+                    self.refresh(host, Refresh::MissionActivation(a));
                 }
             }
             0xA6B7_9602 | 0xA6B7_9612 => {
@@ -139,7 +191,7 @@ impl View3DWin {
             0xA6B7_9621 => self.temporary_hidden_pause(host),
             0xCA1B_1E64 | 0xAA1B_2002 => {
                 if message.kind == 0xCA1B_1E64 && self.secondary_kind() == 0x4992_3239 {
-                    host.close_secondary();
+                    self.close_owner_secondary(host);
                 }
                 host.message_call(MessageCall::DisasterButton {
                     window: 0x8991_EE08,
@@ -151,12 +203,15 @@ impl View3DWin {
             0xAA5C_F1E3 => {
                 if host.modal_safe() {
                     host.message_call(MessageCall::BudgetFailure);
+                    self.do_budget_failure(host);
                 } else if !self.owner.deferred.iter().any(|m| m.kind == message.kind) {
                     self.owner.deferred.push(message);
                 }
             }
             0xAC08_3D7D => self.refresh(host, Refresh::Mission(a, 1)),
-            0x4A44_667F if message.progress_interface && self.owner.lifecycle.progress.is_some() => {
+            0x4A44_667F
+                if message.progress_interface && self.owner.lifecycle.progress.is_some() =>
+            {
                 host.message_call(MessageCall::Progress([a, b]));
             }
             _ => {}
@@ -174,7 +229,11 @@ impl View3DWin {
         }
     }
 
-    pub fn window_message(&mut self, host: &mut impl MessageHost, mut message: WindowMessage) -> bool {
+    pub fn window_message(
+        &mut self,
+        host: &mut impl MessageHost,
+        mut message: WindowMessage,
+    ) -> bool {
         if host.tutorial_message(&mut message) {
             return true;
         }
@@ -235,7 +294,11 @@ impl View3DWin {
 
     /// Child filter owns button/tab routes; normal DoMessage leaves buttons to
     /// cGZWin. Unrecognized messages are not consumed by this filter.
-    pub fn filter_message(&mut self, host: &mut impl MessageHost, mut message: WindowMessage) -> bool {
+    pub fn filter_message(
+        &mut self,
+        host: &mut impl MessageHost,
+        mut message: WindowMessage,
+    ) -> bool {
         if host.tutorial_message(&mut message) {
             return true;
         }
@@ -250,7 +313,7 @@ impl View3DWin {
         }
         match message.data[0] {
             0x2872_59F6 => {
-                host.message_call(MessageCall::Button(message.data[1]));
+                self.handle_button_activated(host, message.data[1]);
                 true
             }
             0x2872_59F7 => {
@@ -266,7 +329,7 @@ impl View3DWin {
                     _ => return false,
                 };
                 let on = host.tab_toggled(tab);
-                if panel == 1 && !host.city_established() && !host.establish_city_dialog() {
+                if panel == 1 && !host.city_established() && !self.do_establish_city_dialog(host) {
                     host.toggle_tab(tab, false);
                     return true;
                 }

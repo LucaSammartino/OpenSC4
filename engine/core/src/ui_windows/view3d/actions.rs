@@ -66,7 +66,7 @@ pub trait ActionHost: CheatHost + CommandHost {
 }
 
 impl View3DWin {
-    fn install_tool(&mut self, host: &mut impl ActionHost, spec: ToolSpec, move_once: bool) {
+    pub(super) fn install_tool(&mut self, host: &mut impl ActionHost, spec: ToolSpec, move_once: bool) {
         let control = host.create_tool(spec);
         self.set_current_control(host, control, 2);
         if let Some(control) = control {
@@ -107,9 +107,9 @@ impl View3DWin {
     pub fn invoke_catalog_item(&mut self, host: &mut impl ActionHost, kind: u32, item: u32, close: bool) {
         if close {
             if kind == 0x6A5A_C478 {
-                host.close_secondary();
+                self.close_owner_secondary(host);
             } else {
-                host.close_tertiary();
+                self.close_owner_tertiary(host);
             }
         }
         match kind {

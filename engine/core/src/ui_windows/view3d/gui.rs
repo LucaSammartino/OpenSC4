@@ -343,6 +343,9 @@ impl View3DWin {
     }
 
     pub fn remove_gui(&mut self, host: &mut impl GuiHost) {
+        if self.owner.popups.iter().any(Option::is_some) {
+            self.close_owner_secondary(host);
+        }
         self.gui_release_field(host, 0x18C, true, true);
         self.gui_release_field(host, 0x190, false, false);
         self.gui_release_field(host, 0x194, true, true);

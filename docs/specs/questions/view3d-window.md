@@ -65,3 +65,25 @@
 - **VW16 - §1.1 window slot 143:** what are `GZOnCommand` (`0x007E5BA0`)'s arguments, return value and effects?
   It is listed as a city-window override but has no behavioral section in the owner spec. Is it distinct from
   the window-message and notification command paths? [no invented override dispatch; owner closure pending]
+
+<!-- from: core-view3dwin5 (2026-10-23, round 3) -->
+- **VW17 - §6i remaining menu inventory:** what script/catalog kinds, groups, backgrounds and remembered-state
+  fields do buttons `0x36`/`0x8A32DDDB`, `0x49E95D2B`, `0x8991EE08`, `0x2B79E398`, `0xEA6E379D`,
+  `0xABB27B91`, `0x09DE87AE` and `0xE9DE87A7` select? Which landscape catalogs correspond to the five default
+  state pairs at `+0x2A8` through `+0x2C8`? Which catalog identity is used for utilities and zoning, and which
+  background is used where none is listed? What are the bus-stop and pipe buttons' command-server IDs (VW9)?
+  [unidentified buttons return unhandled; specified typed bus/pipe tools are callable; catalog 0/background 0
+  means unspecified to the foreign provider, not a claimed resource identity; unspecified state fields use
+  logical per-button memory keys; exact inventory remains open]
+
+<!-- from: core-view3dwin5 (2026-10-23, round 3) -->
+- **VW18 - §§1.1, 5.1, 6, 6f, 6j–6l remaining opaque contracts:** how is mission activation data1 converted
+  into UpdateMissionProgress's first argument? What payload fields select the advice-link subpanel/graph/budget,
+  and what is the terrain debug-string contract (only its slot name is given)? Do renderer/model-maker and
+  accelerator getters AddRef, or return borrowed handles? (Filter and input-control getters specify this.)
+  Which background mode is selected on zoom refresh? What are the coverage-helper recalculation arguments,
+  visibility/clear guards and spatial set operations beyond the two effect IDs/radius 32? The remaining §6l
+  constructors are named with addresses but no owner-visible setup/teardown contracts; which extra view actions
+  do they require beyond the already specified GUI lifetime? [raw MissionActivation retained without guessing a
+  derived value; advice, debug/info and opaque helper operations stay foreign/open; background mode is supplied
+  by the host, first-valid-picture selection and reference lifetime are implemented]

@@ -46,7 +46,7 @@ impl QueryTool {
     }
 }
 
-pub trait CommandHost: InputHost {
+pub trait CommandHost: InputHost + super::PopupHost {
     fn city_established(&self) -> bool;
     fn edge_scrolling_preference(&self) -> bool;
     fn simulator_paused(&self) -> bool;
@@ -62,6 +62,7 @@ pub trait CommandHost: InputHost {
     /// buttons with flag 0x1000 (§6h).
     fn panel_buttons(&mut self, panel: u32, visible: bool);
     fn mayor_subpanel(&mut self, id: u32, visible: bool);
+    fn mayor_subpanel_visible(&self, id: u32) -> bool;
     fn mysim_visible(&mut self, visible: bool);
     fn advisor_visible(&mut self, visible: bool);
     fn news_ticker_visible(&mut self, visible: bool);
@@ -87,7 +88,14 @@ impl View3DWin {
             return;
         }
         if !self.owner.panels.mayor_none_shown {
-            for panel in [0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125] {
+            for panel in [
+                0x49ED_F9B7,
+                0x41,
+                0x9988_7755,
+                0x1520_0002,
+                0x1520_0003,
+                0xABC5_4125,
+            ] {
                 host.mayor_subpanel(panel, panel == id);
             }
         }
@@ -120,11 +128,28 @@ impl View3DWin {
     }
 
     pub fn hide_panel(&mut self, host: &mut impl CommandHost, panel: u32) {
-        host.close_secondary();
+        self.close_owner_secondary(host);
         host.panel_buttons(panel, false);
         match panel {
             1 => {
-                for id in [0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125] {
+                self.owner.panels.mayor_none_shown = ![
+                    0x49ED_F9B7,
+                    0x41,
+                    0x9988_7755,
+                    0x1520_0002,
+                    0x1520_0003,
+                    0xABC5_4125,
+                ]
+                .into_iter()
+                .any(|id| host.mayor_subpanel_visible(id));
+                for id in [
+                    0x49ED_F9B7,
+                    0x41,
+                    0x9988_7755,
+                    0x1520_0002,
+                    0x1520_0003,
+                    0xABC5_4125,
+                ] {
                     host.mayor_subpanel(id, false);
                 }
                 self.owner.panels.mayor_shown = false;
@@ -142,7 +167,8 @@ impl View3DWin {
     pub fn panel_command(&mut self, host: &mut impl CommandHost, command: u32) {
         let (tab, panel) = match command {
             0x6A93_5C34 => {
-                let god = !host.city_established() || (self.owner.view.god_override && self.owner.modifiers & 7 == 7);
+                let god = !host.city_established()
+                    || (self.owner.view.god_override && self.owner.modifiers & 7 == 7);
                 (0x2988_BC85, if god { 0 } else { 4 })
             }
             0x6A93_5CA4 => (0xC988_BC79, 1),
@@ -156,8 +182,14 @@ impl View3DWin {
     }
 
     /// The child filter receives an already toggled tab, unlike ProcessCommand.
-    pub fn apply_panel_tab(&mut self, host: &mut impl CommandHost, _tab: u32, panel: u32, on: bool) {
-        host.close_secondary();
+    pub fn apply_panel_tab(
+        &mut self,
+        host: &mut impl CommandHost,
+        _tab: u32,
+        panel: u32,
+        on: bool,
+    ) {
+        self.close_owner_secondary(host);
         if on {
             if let Some(old) = self.owner.panels.current {
                 self.hide_panel(host, old);
@@ -189,7 +221,7 @@ impl View3DWin {
         }
         host.auxiliary_ui_visible(!minimized);
         host.news_ticker_visible(!minimized);
-        host.close_secondary();
+        self.close_owner_secondary(host);
         host.restore_button_visible(minimized);
         host.rotation_ui_visible(!minimized);
     }
@@ -286,8 +318,8 @@ impl View3DWin {
             }
             0x6A93_5CF1 => {
                 self.remove_all_controls(host, false);
-                host.close_tertiary();
-                host.close_secondary();
+                self.close_owner_tertiary(host);
+                self.close_owner_secondary(host);
             }
             0x6A93_5CF3 => self.query_tool_command(host, QueryTool::Query),
             0x6A93_5CF4 => self.query_tool_command(host, QueryTool::TrafficQuery),

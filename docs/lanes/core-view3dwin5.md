@@ -1,8 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-view3dwin5: cSC4View3DWin owner closure | Codex / core-view3dwin5 | continue; owner closure incomplete | Collect corrected gate session 40468, then finish pending owner contracts; no merge queue. |
+| core-view3dwin5: cSC4View3DWin owner closure | Codex / core-view3dwin5 | in progress | Round 3: finish buttons/catalogs/status/helpers/save references; Rust gate only; native gate: coordinator. |
 
 ## Handoff
+- Round-3 milestone: popup/button ownership, widgets/ambient light, opaque save references, background/picking/helpers and establish/bankruptcy results implemented; new VW17/VW18 questions appended. T2–T4 remain covered.
+- Round-3 qbuild test completed PASS: 6134 passed, 0 failed, 0 ignored (build-runs/qbuild-test.log). Subsequent audit changes add hover/zoom widgets and interface getters; rerun final Rust gate after finishing audit.
+- Diagnostic evidence: focused Cargo test before expectation updates was 47/49 (old callback-only expectations); first fmt attempt used wrong relative prefix and reported files absent. No native build started in round 3.
+- Next exact step: finish popup null/no-op audit and final tests, format owned files via apply_patch, then qbuild test/clippy/fmt, rewrite README/report, enqueue ready with native gate: coordinator.
+- Round 3 resumed at f2926150 (detached HEAD, clean). Task supersedes old native-gate collection: do not run native build/CTest or qbuild all/verify. Gate: test, clippy, fmt owned Rust files.
+- Round-3 manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin5-r3-manifest.json.
+- Next: implement remaining owner rows and audit T2–T4, preserve open VW6–VW16 boundaries, finish README and report then enqueue ready for coordinator native gate.
 - Goal: close existing cSC4View3DWin core owner against view3d-window/ui-windows/view3d; no plugin or C ABI changes.
 - STOP: round-2 lane guard reports context 152k > 150k. Continuation required; no merge-queue file written.
 - Round-2 commits: be6919b0 Init/shutdown/messages; 297fac15 GUI/city lifecycle; 451ff699 command/catalog tools; b38997a8 GUI ordering and clippy correction plus questions.
