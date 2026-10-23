@@ -88,6 +88,9 @@ export/decomp offsets supplied the evidence. Detached commits print a nonfatal
 packed-refs.lock permission denial but commit successfully; no ref/config/maintenance
 workaround was attempted. Intermediate SE28 wording was corrected before its ledger
 milestone commit; final expected raw bytes are unambiguously E9 CC CC CC.
+Initial inline Python queue validation failed with SyntaxError after PowerShell
+stripped its string quotes; replaced with ignored file-based validation, keeping
+that failed command distinct from the corrected check.
 
 ### Next steps
 
