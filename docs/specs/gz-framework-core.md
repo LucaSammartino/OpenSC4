@@ -143,6 +143,51 @@ one pointer, permits null, stores it without retaining/releasing either old or
 new value, and has no promised result (`0x00879427`–`0x0087944E`). This differs
 from static sSetApplication, which explicitly AddRefs its argument (§2.1).
 
+### 2.5 Streams and propagated debug setting (GZF11)
+
+*[compat]* The following are thiscall on the framework primary. Pops excludes
+the return address; AL means a byte boolean, EAX a full pointer/value. Selectors
+0 and 1 identify the two output streams, 2 the input stream.
+
+| Slot / target | Arguments after this; Pops | Result |
+|---|---|---|
+| 31 / `0x008796BD` | none; 0 | EAX borrowed output stream 0 |
+| 32 / `0x0087970D` | none; 0 | EAX borrowed output stream 1 |
+| 33 / `0x0087975D` | none; 0 | EAX borrowed input stream 2 |
+| 34 / `0x0087950F` | selector, iid, out; 12 | AL stream QI result |
+| 35 / `0x008797AD` | selector, unknown pointer; 8 | AL replacement QI result, or true on clear |
+| 29 / `0x0087948C` | signed 32-bit level; 4 | void, propagated setting |
+
+*[compat]* Each stream getter lazily creates and retains a null-output stream
+(0/1) or null-input stream (2) when its slot is empty. Repeated getters return
+the same borrowed pointer without adding a caller reference. Allocation failure
+returns null, leaving the slot empty and retryable (`0x008796BD`–`0x008797AC`).
+Generic stream QI returns false without a write or getter call for an invalid
+selector or null out. Otherwise it calls the selected getter and delegates
+QI(iid, out), inheriting the stream's output-write and acquired-reference rules.
+It does not preclear out. If the getter cannot allocate, this operation
+dereferences null instead of returning false (`0x0087952A`–`0x00879567`).
+
+*[compat]* SetStream rejects selectors outside 0–2 without changing streams.
+For a valid selector it first releases/clears the previous stream. Null
+replacement returns true. Nonnull replacement receives QI for `0xC51B11CB`
+(0/1) or `0x051B11BD` (2), with the actual cleared slot as out. Its boolean is
+returned and its acquired reference becomes the framework's retained reference.
+On ordinary no-write QI failure, the old stream is lost and the slot stays
+empty; there is no rollback, second AddRef or cleanup of a failure output write.
+The next getter supplies a null stream (`0x008797AD`–`0x00879859`). Keep the
+replacement alive across the call, especially when reusing the old borrowed
+stream. These inventory entries were previously mislabeled as stream setters
+and a stream operation: slots 31–33 are getters and slot 34 is a QI bridge.
+
+*[compat]* Propagated SetDebugLevel stores a separate value at +`0x138` and
+requests environment variable `GZFRAMEWORK_DEBUG_LEVEL` with signed decimal
+`%d` text. Environment-write failure is ignored; there is no result or rollback
+(`0x00879492`–`0x008794BC`). It does not traverse participants or change the
+basic level at +`0x128`: slots 25–27 read that basic value, and slot 28 only
+stores it (`0x00879480`, `0x00879487`, `0x008794BF`). Thus basic level 7 followed
+by propagated level −2 leaves all three basic getters at 7 and requests `-2`.
+
 ## 3. COM (`cGZCOM`)
 
 ### 3.1 Interfaces and inventory
@@ -197,6 +242,26 @@ The instructions confirm dword writes and unsigned bit shifts (`0x0087B55E`–
 *[choice]* Until GZF2 is answered, inject an ID provider at the core boundary
 instead of claiming an unrelated UUID algorithm is compatible.
 
+### 3.3 Running state and library enumeration (GZF11)
+
+*[compat]* SetServiceRunning takes one byte in a dword stack slot (thiscall,
+Pops 4, void). It stores that byte without normalizing it, initializing or
+shutting down libraries, or notifying a director (`0x0087B385` → `0x0091DD91`).
+
+*[compat]* Callback EnumerateLibraries(callback, context), primary slot 12,
+is thiscall, Pops 8, void. Null callback is a no-op. Otherwise each call supplies
+a borrowed library-entry interface pointer and context to a **cdecl** callback.
+False in AL cancels before the next entry; true continues in the internal tree
+traversal order. There is no automatic AddRef/Release, snapshot, or guarantee
+for mutation during enumeration (`0x0087B70F`–`0x0087B741`). Array enumeration
+(slot 13) takes (outArray, inoutCount), Pops 8, returns EAX count. The count
+pointer must be writable and nonnull. Null array writes/returns the total,
+ignoring incoming capacity. Otherwise incoming capacity is unsigned and clamped
+down to the total; exactly that many pointers are written in the same traversal
+order and AddRef'd once each for the caller. Zero capacity writes no elements;
+excess elements remain untouched. The returned count is the number copied,
+not necessarily the total (`0x0087B6C4`–`0x0087B70C`).
+
 ## 4. Command server
 
 ### 4.1 Inventory
@@ -237,6 +302,52 @@ the generator collection; it returns true (`0x0092AE88`). Execution delegates
 through the active dispatcher and string conversion through registered generators;
 the server does not directly execute game tools or Lua. Null-dispatcher execution,
 bulk partial failure and enumeration cancellation are GZF3.
+
+### 4.3 Identity, formatting and generator replay (GZF11)
+
+*[compat]* Command primary QI(iid, out) accepts `1`, `0xCB90253A` and
+`0xCB90253B` at the primary pointer, and `0x287FB697` at primary+4. Querying
+IID 1 through that inherited system-service face instead yields the lifetime
+face primary+8. Success writes a face/AddRefs/returns true; unsupported queries
+return false without writing out; nonnull writable out is required on success
+(`0x0092980D`, `0x0091DD67`, `0x009457C6`). All faces share the initially zero
+count. AddRef returns its increment modulo 2^32. Release with unsigned count
+greater than one decrements/returns it; at zero or one it deletes through the
+lifetime face and returns zero (`0x0094BC3F`, `0x00920BF0`). Destruction releases
+held generators/dispatchers and destroys the registry, but does not call public
+Shutdown or promise its unregistration callbacks (`0x0092AE01`, `0x0092AFD5`).
+
+*[compat]* ExecuteCommandFormatted (`0x009298AE`) is **cdecl varargs**:
+stack arguments are (command-primary pointer, format, variadic words), with
+caller cleanup and full 32-bit execution status in EAX. The native printf
+formatter receives a 511-byte limit in a 512-byte local buffer. Positive result
+N dispatches primary slot 19 with (formatted bytes, N, first variadic word),
+returning its status; the final local byte is forced to NUL. Zero or negative
+formatting result returns status 2 without execution (`0x009298B7`–`0x009298F3`).
+**Quirk:** the first variadic word is both the first printf argument and the
+third text-execution argument; there is no separately skipped output argument.
+Even a format with no conversions needs that word if execution occurs. Null
+format, missing words or mismatched printf types have no checked failure
+contract. Negative overflow status is not a successful truncated command.
+Slot 19 forwards to the default string generator's slot 8, or returns 2 if
+absent (`0x00929BBA`); formatting does not bypass the text parser.
+
+*[compat]* RegisterCommandGenerator(pointer) and UnregisterCommandGenerator(pointer)
+are thiscall, Pops 4, AL boolean. New registration retains one reference in a
+pointer-identity set and replays existing commands in unsigned-ID map order
+through generator slot 5 with (ID, borrowed name-string interface, borrowed
+parameter-description interface). Insertion precedes replay; callback results
+are ignored (`0x0092AB0B`, `0x00929E54`). Duplicate registration returns true
+without another retained reference or replay. Unregistration removes/releases
+a present pointer, sends no callbacks, and returns true even if absent
+(`0x0092A236`); temporary references are balanced (`0x0096E773`). Normal
+command-removal notification uses generator slot 6 with those same arguments.
+Neither operation writes an output argument or propagates callback failure.
+Null is not rejected: with an empty command map it is inserted and returns true,
+and unregistering it returns true. With existing commands a newly inserted null
+reaches the helper's “notify all” meaning, finds null again and recurses without
+progress (`0x0092AB41`–`0x0092AB50`, `0x00929E63`–`0x00929E9C`). There is no
+safe false-return contract for that misuse.
 
 ## 5. Command-system supports
 
@@ -396,7 +507,8 @@ Service ID `0x09B69C4E`, logging IID `0x09B69C46`; the logging face table is
 `0x00AD2130`; its Init/Shutdown slots 8/9 are `0x009342C9` / `0x00935228`.
 The secondary lifetime table is `0x00AD2118`. Constructor `0x00934C88` starts
 with empty backend/deferred collections, default level `0x7FFFFFFF`, initialized
-false, null internally owned output helpers, and recursion depth zero. *[compat]*
+false, allocated empty internal name sets (null on allocation failure), and
+recursion depth zero. *[compat]*
 
 | Logging-face slots | Inventory |
 |---|---|
@@ -448,9 +560,67 @@ String conversion of an invalid filter/log value returns respectively
 by StringFromLogLevel, `0x00933B6E`).
 
 *[compat]* Shutdown is guarded by initialized, removes the framework tick
-registration, releases its backend collection and deletes the internal output
-helpers, then returns true (`0x00935228`). Backend-name collisions, output
-format truncation/allocation failure and initialization configuration remain GZF7.
+registration, releases its backend collection and deletes the internal name
+sets, then returns true (`0x00935228`). Public stream/output/accessor contracts
+are in §7.3; initialization configuration and further formatting failure details
+remain GZF7.
+
+### 7.3 Stream creation, diagnostics and accessors (GZF11)
+
+*[compat]* AddOutputStream(name, stream, timestampByte, outBackend), slot 7,
+is thiscall on the logging face, Pops 16, AL boolean. It creates a default
+backend with copied name, retained stream and passed low timestamp byte. Null
+name is unchecked (strlen); null stream is stored, not rejected here. The out
+pointer may be null. Allocation failure returns false without writing it.
+Successful construction calls AddOutputBackEnd with that backend's name and
+pointer but **ignores its result** and returns true. Nonnull out receives the
+new backend and one caller reference; the temporary reference is released
+(`0x00933C77`–`0x00933CE0`, `0x00935361`). AddOutputBackEnd rejects recorded
+duplicate names without replacement (`0x00934D82`–`0x00934D89`): therefore this
+wrapper can return true and a caller-owned backend that is not routed. Without
+out, rejection destroys the new backend when its temporary reference is released.
+
+*[compat]* No-argument slot 6 (`0x009CDC23`) returns the stored backend-name
+set pointer at logging-face+`0x28`; slot 15 (`0x009D858F`) returns the observed
+category-name set pointer at +`0x24`. Pops 0, EAX pointer, borrowed, no AddRef,
+copy or lock. These are internal string sets, not queried interfaces/streams.
+Construction allocates empty sets; Shutdown deletes them and nulls their
+pointers, invalidating earlier borrows (`0x00934C88`, `0x00935228`). Backend
+registration records its name; accepted public output records its category
+even when every backend filters the text (`0x00934D8E`–`0x00934DA1`,
+`0x00935170`–`0x00935183`). Concrete container ABI is not a portable interface.
+
+*[compat]* Output and OutputLevel (slots 16/17) are **cdecl varargs**, void,
+with stack arguments (logging-face pointer, category, format, ...) and
+(logging-face pointer, category, signed 32-bit level, format, ...). Uninitialized,
+null category or null format means no category insertion, formatting or delivery;
+empty nonnull strings are accepted. Output assigns level 0; OutputLevel passes
+the supplied level. Each inserts a copied category under the service lock, then
+formats and submits to §7.2; these are not unformatted text aliases
+(`0x00935148`–`0x00935227`). Deferred category/text storage is owned by the router.
+
+*[compat]* Their shared formatting helper (`0x00934F88`, thiscall on the whole
+service; category, level, format, va_list; Pops 16; void) first tries 1024 bytes.
+On negative formatter status it retries allocations of 2048, 4096, 8192, 16384,
+32768 and 65536 bytes until nonnegative status; the next size, 131072, exceeds
+the signed 100000-byte bound. It submits the last buffer even if status stays
+negative. The alternative initial-result-at-least-1024 branch allocates only
+1025 bytes and formats once again, not result+1 bytes. Allocation success and
+termination after final overflow are unchecked (`0x00934FCF`–`0x00935035`).
+Thus overflow/invalid format/low memory has no promised false result, safe drop
+or clean truncation. GZF7 retains the full printf vocabulary and low-memory
+consequences, not the public guards or ordinary bounded formatting settled here.
+
+*[compat]* DumpOutputLevels(stream), slot 14, is thiscall, Pops 4, void. It
+borrows a nonnull output stream without AddRef and writes `All Backends:\n`,
+`-------------\n`, `All unspecified groups showing ` + default level
+description + newline, then each configured category in stored map order as
+`Group '` + name + `' showing ` + level description + newline. After another
+`-------------\n` it invokes each backend's slot 6 with the same stream in
+backend-list order under the service lock. Stream-operation results are ignored;
+null stream is unchecked. No initialized guard precedes the global heading;
+it changes no levels and drains no pending messages (`0x00933FAA`). Exact
+level-description vocabulary remains the GZF7 level table.
 
 ## 8. File-system service
 
@@ -641,6 +811,28 @@ on failure. Rows involving existing buffer/command specs inherit their fixtures.
 | GZC50 | Construct logger on A, Init on B, submit record on A, tick on B | delivery deferred until B drains; repeated Init on A does not rebind |
 | GZC51 | Valid cached data and plugin directories; respective setter given nonexistent P | false; each cache stays valid and getter returns P without INI lookup |
 | GZC52 | Framework helper/COM/application getters with reference recorders; SetApplication(P), then null | stable embedded addresses; application P then null; no AddRef/Release from these calls |
+| GZC53 | Empty framework; each stream getter twice | one retained null stream per selector; stable borrowed pointers; no caller AddRef |
+| GZC54 | SetStream(0, P), P answers QI; then stream query | setter queries `0xC51B11CB`; stores acquired reference; later query inherits stream QI result/output writes |
+| GZC55 | Existing input; SetStream(2, P), P rejects QI without writing | old reference released before QI(`0x051B11BD`); false; getter next creates null input |
+| GZC56 | Stream query invalid selector or null out; SetStream(3, P) | false; no getter/replacement QI/output write; streams untouched |
+| GZC57 | SetStream(1, null), getter; allocation failure on a separate empty getter | clear true; lazy null output; failed getter null, later getter retries |
+| GZC58 | Basic level 7; propagate −2 with environment recorder rejecting write | basic getters stay 7; environment `GZFRAMEWORK_DEBUG_LEVEL=-2` attempted; no result/rollback |
+| GZC59 | COM SetServiceRunning low byte 2 then 0 | bytes stored unchanged; no lifecycle/director calls |
+| GZC60 | Three COM libraries; null-array count query, then array capacity 2, element 3 sentinel | count query 3; copy count 2, two AddRefs; sentinel untouched |
+| GZC61 | Same COM, capacities 0 then 5 | no elements/refs at 0; second count clamped to 3, three pointers/refs |
+| GZC62 | COM null callback, then callback false on first entry | zero then one borrowed visits, unchanged context; no AddRef |
+| GZC63 | Command QI primary IDs 1, `0xCB90253A`, `0xCB90253B`, service IID, unknown sentinel | primary for first three; primary+4 for service; +1 ref each; failure leaves sentinel |
+| GZC64 | Command initial count zero; Release with destructor/callback recorder | deletes/returns 0; held refs released; no public Shutdown replay |
+| GZC65 | Formatted-entry slot-19 spy; format `%u`, first variadic word 12 | text `12`, length 2, third word 12; result exactly spy status |
+| GZC66 | Formatted-entry spy; empty format, then negative formatter result | status 2 with no execution in each case |
+| GZC67 | Commands registered 9 then 2; register G twice, unregister twice | replay IDs 2,9 once through slot 5; one retained ref; all true; no removal replay |
+| GZC68 | Empty command map; register then unregister null | both true; no refs/callbacks; remove before adding commands |
+| GZC69 | AddOutputStream with out sentinel; force allocation failure | false; sentinel unchanged; no backend registration |
+| GZC70 | Backend name X exists; AddOutputStream(X, stream, 0, out) | true; new caller-owned backend retains stream; original stays routed |
+| GZC71 | Uninitialized logger output; initialized output with null category or format | no category insertion, formatting or delivery |
+| GZC72 | Initialized logger, accepting backend; Output(C, `x=%d`, 4), OutputLevel(C, 7, `y=%d`, 5) | observed set contains C once; `x=4` level 0, `y=5` level 7 |
+| GZC73 | Log set getters before use and after Shutdown with ref recorder | borrowed distinct empty sets initially, no AddRef; null after Shutdown; prior borrows invalid |
+| GZC74 | Dump with no category overrides, backend dump recorder | global heading/default description/separators emitted; backend receives same borrowed stream; no routing or tick |
 
 ## 11. Remaining work
 

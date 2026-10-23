@@ -36,14 +36,3 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   unassigned-parameter default variant, final/error callbacks, short reads and
   embedded NUL behavior. Confirm malformed quoted/tagged EOF cases with vectors.
 
-<!-- from: core-gzframework5 (2026-10-23) -->
-- **GZF11 — Inventory-only entry contracts (§§2–4, 7):** Several named entries
-  have targets but no complete behavioral contract: framework stream setters,
-  stream operation/SetStream and propagated debug setting; COM SetServiceRunning
-  and enumeration; command service QI/base lifetime, formatted execution and
-  generator registration replay/return contracts; logging AddOutputStream,
-  DumpOutputLevels, Output versus OutputLevel and unnamed accessors. Please give
-  signatures, null/error/output-write behavior and ownership, or explicitly mark
-  these entries open. [Only described behavior is implemented; inventory-only
-  entries have no claimed native implementation. Formatted bytes can already
-  pass through execute_text; no native varargs format policy is guessed.]
