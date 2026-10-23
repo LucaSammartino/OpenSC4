@@ -2,6 +2,18 @@
 |---|---|---|---|
 | core-utf8-validation4 (standalone counted-byte validator) | Codex / `core-utf8-validation4` (engine lane; reserved detached HEAD) | WIP: source `6cc9dc9d`; focused 5/0; Rust 5504/0; clippy completed; canonical native gate pending statistics client PID 38168; CTest unrun, 68 configured; ABI unchanged; no questions | (1) Coordinator resolves statistics wait; (2) collect original session 26284 through terminal and full CTest; (3) verify stable source and promote only after a complete gate. |
 
+## Handoff
+
+- SAME R2 of 3; R1 consumed, one remaining round after this one. Goal: qualify unchanged standalone policy source with a durable canonical whole-gate receipt.
+- Start HEAD `0f29ee68`, engine tree `93ec65884a6ec407ea6fb403583eeece2d3d37e1`; source implementation `6cc9dc9d`. No algorithm or fixture changes authorized absent actual diagnostics.
+- R1 Rust 5504/0 and Clippy clean; later actual CTest completed 06:53:03, 68/68 in 158.87s. Earlier statements below about CTest unrun describe only the 06:49 report time.
+- R1 native RC and qbuild terminal/COMPLETE remain unknown. Old session 26284 is not a handle owned by this fresh tool conversation; no guessed collection calls.
+- Next: archive inherited logs/snapshots/stall and copied host evidence with hashes before overwrite; verify manifest and 1327-file identity; run one canonical all only if no durable old terminal receipt exists.
+- Preserve copied host absence/read-sharing evidence; persistent daemon 14660 is not proof of an active checker. No process kill, restart, game, ABI, CAPI or plugin changes.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-utf8-validation4-r2-manifest.json`; worktree is intentionally detached. Commit normally without ref changes.
+
+## R1 historical report (superseded where corrected above)
+
 ## Implementation and scope
 
 Implemented the standalone public utf8-validation.md §§2–3 policy in `engine/core/src/utf8_validation.rs`; `lib.rs` has one additive module export. No pre-existing standalone owner or own lane report was found before implementation. Source/test milestone: `6cc9dc9d`; focused-pass record: `362c2952`; pending-gate record: `aaf93300`.
