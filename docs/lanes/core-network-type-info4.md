@@ -1,10 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-network-type-info4 (bounded static record lifecycle; FULL network-occupants + network-tools scope) | `Codex` / `core-network-type-info4` (engine lane) | WIP: implementation 07d6b4ea; 18-body boundary 10 specified / 8 partial; fmt 3 files PASS; focused logs 3340 unit + 13 doc passed on 80b4cfa1, wrapper stalled in owned stats child; final all NOT RUN; ABI unchanged; no game | 1. Collect existing session 85444 after stats stall. 2. Canonical all on committed engine 401165a4. 3. Qualify gates before readiness. |
+| core-network-type-info4 (bounded static record lifecycle; FULL network-occupants + network-tools scope) | `Codex` / `core-network-type-info4` (engine lane) | in progress: SAME original R2/3; admitted clean 0997f540 / engine 401165a4; prior focused terminal UNKNOWN; final-source all next; ABI unchanged; no game | Run ONE canonical all on unchanged engine, preserve exact diagnostics and source/log identities, then qualify bounded code only. |
+
+## Handoff
+
+Goal: SAME original R2/3 final-source qualification, FULL network-occupants + network-tools keys/dependency unchanged; no owner expansion.
+Done: admitted clean HEAD 0997f540762523ea1751e730d0b2dc96e1513e8b, engine 401165a4445644af9c1a8f4c54ba47760bb168c5; own fresh bounded psutil audit found old 21584/32164/27760/26980/38048 absent and no matching live checker (only inspector itself).
+Prior session 85444 handle is unavailable in this resumed transport; its terminal/exit/cause remain UNKNOWN. Earlier 3340 unit + 13 doc/native 4/4 are earlier-source progress, not wrapper PASS.
+Read both copied engine briefs/admission/process proof and both coordinator optional-stats action records. Root terminated exact earlier stats clients 28696 (05:16:35) and 21412 (05:32:21 action, 05:32:22 exit), each exit 15; parents/daemon survived, cache unavailable, Ninja failure preserved. Root did not interrupt latest 26980.
+Archived current logs/report and clean source identity before any new checker at build-runs/type-info-r2-qualification/before/; original baseline-evidence untouched.
+Next: ONE canonical qbuild all on committed engine 401165; retain yielded handle if needed, collect actual terminal, archive after identities/summaries/log SHA, then final report and own queue.
+No Rust edits in R2; prior fmt 3-file PASS retained. Historical baseline72044 RC1 mixed-source and quick25431 RC1 filename-header failures remain failures.
+Bounds remain 18 native bodies = 10 specified / 8 partial; thirteen records are not thirteen owners; TI1–TI4 Unsupported/foreign; no ABI/plugin/game/default/coverage changes.
 
 ## Report
 
-Core-only FIRST bounded TypeInfo lifecycle implementation, dependent on landed research merge 3ff8a10a.
+Core-only bounded TypeInfo lifecycle implementation, SAME original R2/3 continuation, dependent on landed research merge 3ff8a10a.
 Scope keys include FULL network-occupants and network-tools (the outer reload belongs to NetworkTool), with network-geometry integration. This is not the earlier occupant/record continuation or a completed NetworkTool/TypeInfo owner.
 
 ### Changes and boundary
