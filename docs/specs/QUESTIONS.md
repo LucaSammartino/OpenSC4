@@ -194,7 +194,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 2 | 14 | AD17 | questions/advisors.md |
+| advisors | 4 | 14 | AD19 | questions/advisors.md |
 | aircraft | 5 | 3 | AF9 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
@@ -251,7 +251,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | gz-framework-core | 9 | 0 | GZF10 | questions/gz-framework-core.md |
-| gz-graphics | 5 | 0 | GZG6 | questions/gz-graphics.md |
+| gz-graphics | 6 | 0 | GZG7 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
@@ -326,7 +326,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 5 | 0 | RZS6 | questions/rz-strings.md |
-| sc-resources | 5 | 1 | SCR7 | questions/sc-resources.md |
+| sc-resources | 6 | 1 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 11 | 0 | SS12 | questions/sound-system.md |
@@ -364,4 +364,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1359** | | |
+| **total** | **603** | **1359** | | |
