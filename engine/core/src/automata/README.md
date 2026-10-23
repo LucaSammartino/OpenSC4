@@ -47,13 +47,13 @@ assignment, rather than unimplemented owner behavior.
 | Helicopter | §3.4 Flight model | Other owner; its rotor model is §4 |
 | Airplane | §4 Helicopter | Other owner; airplane rules are §3 |
 | Helicopter | §4 Helicopter | `Helicopter::{pursue_goal,push_mission_loiter,set_helicopter_state}`, `HelicopterChaseGeometry`; `helicopter_chase_pops_invalid_target_but_reports_missing_controls_for_valid_target`, `phase_and_loiter_ammo_are_independent_of_goal_stack`; parameters open: AF1, rotor/attitude/collision open: AF2, controls/chase gates open: AF3, Init/sounds open: AF4, spotlight/player/weapons open: AF5, messages/dispatch open: AF6 |
-| Airplane | §5 Air dispatch sources | Not owned by Airplane; foreign dispatch-source station bookkeeping; §8 test 3 remains outside these owners |
-| Helicopter | §5 Air dispatch sources | Not owned by Helicopter; foreign dispatch-source station bookkeeping; §8 test 3 remains outside these owners |
+| Airplane | §5 Air dispatch sources | Not owned by Airplane; foreign source bookkeeping. Shared property helper `initialize_fire_plane_station_units` covers §8 test 3; oversized masks open: AF8 |
+| Helicopter | §5 Air dispatch sources | Not owned by Helicopter; foreign source bookkeeping. Same shared property helper/test; oversized masks open: AF8 |
 | Airplane | §6 Quirks | `clip_aircraft_to_world`; `altitude_uses_highest_surface_and_clip_keeps_outward_margin` |
 | Helicopter | §6 Quirks | Same shared geometry/test |
 | Airplane | §7 Open questions | `AircraftUnsupported::question`; open: AF1/AF2 plus newly filed AF3–AF7 |
 | Helicopter | §7 Open questions | `AircraftUnsupported::question`; open: AF1/AF2 plus newly filed AF3–AF7 |
-| Airplane | §8 Conformance tests | Tests 1/2: `airplane_default_and_explicit_speed_parameters`, `airplane_derived_defaults_and_explicit_overrides`; test 3 is dispatch-source behavior, not an airplane owner test |
+| Airplane | §8 Conformance tests | Tests 1/2: `airplane_default_and_explicit_speed_parameters`, `airplane_derived_defaults_and_explicit_overrides`; test 3: `fire_plane_station_with_three_units_sets_available_property_to_seven` validates the shared station-property helper |
 | Helicopter | §8 Conformance tests | No helicopter-specific test assigned by this section; shared records/placement/chase/phase tests cover its settled contracts |
 
 ## Shared automaton contracts
@@ -69,6 +69,7 @@ assignment, rather than unimplemented owner behavior.
   exactly 1. `concrete_versions_accept_zero_but_aircraft_base_requires_one`,
   `aircraft_records_nest_base_and_home_without_traffic`, and
   `truncated_owner_reads_are_atomic_at_every_byte_boundary` cover both owners.
+  `failed_aircraft_write_never_attempts_home_vector` checks nested stream failure.
   Reads need no city; loaded placements are applied only at first Init.
 - **automata.md §6.6:** flight phases 0/1/3 are independent of the stack;
   airplane phase 1 refills ammo to 3 only when it changes. An airplane pops

@@ -1,9 +1,131 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! aircraft.md §8 (owner tests 1/2), automata.md §§6.4,6.6,14 test 15.
-//! §8 test 3 belongs to the foreign dispatch source, not either flight owner.
+//! aircraft.md §8 tests 1–3, automata.md §§6.4,6.6,14 test 15.
+//! Test 3 covers the source's property rule through a foreign station boundary.
 
 use fc4_core::automata::*;
-use fc4_core::stream::{ByteReader, ByteWriter, RefValue};
+use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue};
+
+struct Station {
+    building: bool,
+    units: Option<u32>,
+    available: Option<u32>,
+}
+
+impl AirStationProperties for Station {
+    fn is_building_occupant(&self) -> bool {
+        self.building
+    }
+    fn property_u32(&self, id: u32) -> Option<u32> {
+        assert_eq!(id, 0x0C0AFDD7);
+        self.units
+    }
+    fn set_property_u32(&mut self, id: u32, value: u32) {
+        assert_eq!(id, 0xCC0AFDDB);
+        self.available = Some(value);
+    }
+}
+
+#[test]
+fn fire_plane_station_with_three_units_sets_available_property_to_seven() {
+    // aircraft §8 test 3 checks the actual property write, not a fake
+    // dispatch manager computing an expected bit mask for itself.
+    let mut station = Station {
+        building: true,
+        units: Some(3),
+        available: None,
+    };
+    assert_eq!(initialize_fire_plane_station_units(&mut station), Ok(Some(3)));
+    assert_eq!(station.available, Some(7));
+    for count in [0, 32, 33] {
+        station.units = Some(count);
+        station.available = None;
+        let result = initialize_fire_plane_station_units(&mut station);
+        match count {
+            0 => {
+                assert_eq!(result, Ok(None));
+                assert_eq!(station.available, None);
+            }
+            32 => {
+                assert_eq!(result, Ok(Some(32)));
+                assert_eq!(station.available, Some(u32::MAX));
+            }
+            _ => {
+                assert_eq!(result, Err(AircraftUnsupported::StationUnitCount));
+                assert_eq!(station.available, None);
+            }
+        }
+    }
+    station.units = None;
+    assert_eq!(initialize_fire_plane_station_units(&mut station), Ok(None));
+    station.building = false;
+    station.units = Some(3);
+    assert_eq!(initialize_fire_plane_station_units(&mut station), Ok(None));
+    assert_eq!(station.available, None);
+}
+
+/// Fail during the nested automaton header. Any attempted home float write
+/// after this failure is a violation of automata §6.4's short-circuit rule.
+#[derive(Default)]
+struct HeaderFailure {
+    words: usize,
+    floats: usize,
+    failed: bool,
+}
+
+impl OutStream for HeaderFailure {
+    fn put_u8(&mut self, _: u8) -> bool {
+        !self.failed
+    }
+    fn put_u16(&mut self, _: u16) -> bool {
+        self.words += 1;
+        if self.words == 3 {
+            self.failed = true;
+        }
+        !self.failed
+    }
+    fn put_u32(&mut self, _: u32) -> bool {
+        !self.failed
+    }
+    fn put_u64(&mut self, _: u64) -> bool {
+        !self.failed
+    }
+    fn put_f32(&mut self, _: f32) -> bool {
+        self.floats += 1;
+        !self.failed
+    }
+    fn put_f64(&mut self, _: f64) -> bool {
+        !self.failed
+    }
+    fn put_bytes(&mut self, _: &[u8]) -> bool {
+        !self.failed
+    }
+    fn put_str(&mut self, _: &[u8]) -> bool {
+        !self.failed
+    }
+    fn put_ref(&mut self, _: &RefValue) -> bool {
+        !self.failed
+    }
+    fn error(&self) -> i32 {
+        i32::from(self.failed)
+    }
+}
+
+#[test]
+fn failed_aircraft_write_never_attempts_home_vector() {
+    let mut failure = HeaderFailure::default();
+    assert!(!Airplane::default().write(&mut failure));
+    assert!(failure.failed);
+    assert_eq!(failure.floats, 0);
+    let mut failure = HeaderFailure::default();
+    assert!(!Helicopter::default().write(&mut failure));
+    assert_eq!(failure.floats, 0);
+    let mut failure = HeaderFailure {
+        failed: true,
+        ..HeaderFailure::default()
+    };
+    assert!(!Airplane::default().write(&mut failure));
+    assert_eq!(failure.words, 0);
+}
 
 struct Exemplar<'a> {
     list: Option<&'a [f32]>,

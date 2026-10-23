@@ -2,7 +2,7 @@
 //! Aircraft-owned rules from aircraft.md and automata.md §§6.4, 6.6.
 //!
 //! The summary-only control laws are explicit errors, not simulated with an
-//! invented flight model. See README.md's owner closure table and AF1–AF6.
+//! invented flight model. See README.md's owner closure table and AF1–AF8.
 //! Owners use ordinary exclusive mutation; getters do not borrow a RefCell.
 
 use crate::stream::{InStream, OutStream, RefValue};
@@ -29,6 +29,8 @@ pub enum AircraftUnsupported {
     PlayerControls,
     /// AF6: dispatch transitions and aircraft-specific message routing.
     DispatchAndMessages,
+    /// AF8: station unit counts exceeding the available-units property's width.
+    StationUnitCount,
 }
 
 impl AircraftUnsupported {
@@ -40,6 +42,7 @@ impl AircraftUnsupported {
             Self::EffectsAndLifecycle => "AF4",
             Self::PlayerControls => "AF5",
             Self::DispatchAndMessages => "AF6",
+            Self::StationUnitCount => "AF8",
         }
     }
 }
@@ -49,6 +52,37 @@ impl AircraftUnsupported {
 pub trait DriveParameterSource {
     fn drive_parameters(&self) -> Option<&[f32]>;
     fn parent(&self) -> Option<&dyn DriveParameterSource>;
+}
+
+/// The property boundary for aircraft.md §8 test 3. Station membership and
+/// inter-station call numbering remain the foreign dispatch source's job.
+pub trait AirStationProperties {
+    fn is_building_occupant(&self) -> bool;
+    fn property_u32(&self, id: u32) -> Option<u32>;
+    fn set_property_u32(&mut self, id: u32, value: u32);
+}
+
+/// Initialize only the specified fire-plane available-unit property (§5).
+/// Returns the registered unit count, or None for an ineligible station.
+pub fn initialize_fire_plane_station_units(
+    station: &mut dyn AirStationProperties,
+) -> Result<Option<u32>, AircraftUnsupported> {
+    if !station.is_building_occupant() {
+        return Ok(None);
+    }
+    let count = station.property_u32(0x0C0A_FDD7).unwrap_or(0);
+    if count == 0 {
+        return Ok(None);
+    }
+    let mask = match count {
+        1..=31 => (1u32 << count) - 1,
+        32 => u32::MAX,
+        // Literal 2^n-1 no longer fits the u32 property. AF8 asks for the
+        // native overflow rule; do not wrap a shift or mutate the station.
+        _ => return Err(AircraftUnsupported::StationUnitCount),
+    };
+    station.set_property_u32(0xCC0A_FDDB, mask);
+    Ok(Some(count))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -185,7 +219,9 @@ pub trait AircraftWorld {
     fn bounds(&self) -> AircraftBounds;
     fn terrain_height(&self, x: f32, z: f32) -> f32;
     fn water_height(&self, x: f32, z: f32) -> Option<f32>;
+    /// Absolute world-space top, not a size to add to terrain height.
     fn building_height(&self, x: f32, z: f32) -> Option<f32>;
+    /// Absolute world-space top, not a size to add to terrain height.
     fn prop_height(&self, x: f32, z: f32) -> Option<f32>;
 }
 

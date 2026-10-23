@@ -84,6 +84,7 @@ pub use aircraft::{
     AirplaneDriveParameters, ChaseTarget, DriveParameterSource, FlightPhase, FlightPhaseChange, Helicopter,
     HelicopterChaseGeometry, CLSID_AIRCRAFT, CLSID_AIRPLANE, CLSID_HELICOPTER,
 };
+pub use aircraft::{initialize_fire_plane_station_units, AirStationProperties};
 
 #[cfg(test)]
 mod tests;

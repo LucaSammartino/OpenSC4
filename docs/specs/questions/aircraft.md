@@ -46,3 +46,10 @@
   or recomputed from their parents? [literal finite-list implementation: missing entries act as zero;
   an existing list, including empty, stops inheritance; explicit zero uses the derived arithmetic, while no
   list uses the printed constants; no undocumented clamping or rescaling]
+
+<!-- from: core-aircraft5 (2026-10-23) -->
+- **AF8 - §5/§8 test 3, station unit mask width:** what happens when a fire-plane station's unit count
+  exceeds 32, so `2^n - 1` exceeds the available-units u32 property's width? Is there an exemplar limit,
+  wider property type, clamp, or wrapping rule? [core property initialization handles 1–32 exactly,
+  ignores zero/missing counts and non-building occupants, and returns Unsupported(AF8) before mutation
+  for larger counts; station membership/call numbering remain foreign to the flight owners]
