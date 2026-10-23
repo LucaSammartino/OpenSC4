@@ -266,14 +266,16 @@ impl KeyInput {
         host.emit(Effect::HideOwner);
         host.emit(Effect::Window158Zero);
         for h in &mut self.held[..2] {
-            if let Some(pointer) = h.take() {
+            if let Some(pointer) = *h {
                 host.input_effect(InputEffect::HeldSlot10(pointer));
                 host.emit(Effect::Release(pointer));
+                *h = None;
             }
         }
-        if let Some(pointer) = self.held[2].take() {
+        if let Some(pointer) = self.held[2] {
             host.input_effect(InputEffect::HeldWindowSlot14(pointer));
             host.emit(Effect::Release(pointer));
+            self.held[2] = None;
         }
         host.emit(Effect::BaseShutdown);
     }

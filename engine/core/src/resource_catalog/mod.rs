@@ -352,9 +352,13 @@ impl<'a> Catalog<'a> {
             SelectorReply::QiFailed => {}
             SelectorReply::VisibleIndex(i) => {
                 let mapped = self.visible_to_original.get(i).copied();
-                // QI success always releases, even if safe bounds refuse lookup.
+                if let Some(mapped) = mapped {
+                    self.descriptor_index = mapped as u32;
+                }
+                // Native success stores before Release. The checked extension
+                // also balances the QI when refusing an invalid map index.
                 host.emit(Effect::ReleaseSelector);
-                self.descriptor_index = mapped.ok_or(Boundary::CheckedIndex)? as u32;
+                mapped.ok_or(Boundary::CheckedIndex)?;
             }
         }
         self.update_key_list(Key::default(), host)?;
@@ -362,6 +366,21 @@ impl<'a> Catalog<'a> {
             host.emit(Effect::FocusList(list));
         }
         Ok(false)
+    }
+
+    pub fn command(
+        &mut self,
+        command: u32,
+        control: u32,
+        modal: bool,
+        selector_reply: SelectorReply,
+        host: &mut impl RowPrimitives<'a>,
+    ) -> Result<bool, Boundary> {
+        if command == 0x287259F6 {
+            self.button(control, modal, host)
+        } else {
+            self.selector_command(command, control, selector_reply, host)
+        }
     }
 
     pub fn kill_self(&self, modal_flag_1000: bool, result: u32, host: &mut impl Effects) {
@@ -372,7 +391,8 @@ impl<'a> Catalog<'a> {
         });
     }
 
-    /// The add-resource AL is published, but execution remains an explicit RC4 boundary.
+    /// Add-resource's published AL is true, but its execution cannot complete
+    /// here: Err(AddResource) is an unsupported boundary, never native false.
     pub fn button(&self, id: u32, modal: bool, host: &mut impl Effects) -> Result<bool, Boundary> {
         match id {
             0x24C93018 => {
@@ -398,19 +418,22 @@ impl<'a> Catalog<'a> {
         self.destroy_descriptors(host);
         self.current_preview = None;
         host.emit(Effect::ClearCurrentPreview);
-        if let Some(list) = self.list.take() {
+        if let Some(list) = self.list {
             host.emit(Effect::Release(list));
+            self.list = None;
         }
         host.emit(Effect::BaseShutdown);
     }
 
     fn destroy_descriptors(&mut self, host: &mut impl Effects) {
-        for d in self.descriptors.drain(..) {
+        for d in &self.descriptors {
             if let Some(p) = d.preview {
                 host.emit(Effect::Release(p));
             }
             host.emit(Effect::DestroyDescriptorName);
         }
+        // Preserve the backing allocation; end becomes begin after destruction.
+        self.descriptors.clear();
     }
 
     /// Explicit scoped effects; does not silently call Shutdown or act as Drop.

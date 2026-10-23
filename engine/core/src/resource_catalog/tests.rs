@@ -695,6 +695,17 @@ fn button_maps_and_foreign_al_are_distinct_and_add_resource_unsupported() {
     h.trace.clear();
     assert!(!input.command(0x287259f6, 0x24c9301a, &mut h));
     assert!(h.trace.is_empty());
+    assert_eq!(
+        c.command(0x287259f6, 0x24c9301a, true, SelectorReply::MissingChild, &mut h),
+        Ok(false)
+    );
+    assert_eq!(h.effects(), vec![Effect::ModalClose(0)]);
+    h.trace.clear();
+    assert_eq!(
+        c.command(0, 0x24c9301a, true, SelectorReply::MissingChild, &mut h),
+        Ok(false)
+    );
+    assert!(h.trace.is_empty());
 }
 
 #[test]
