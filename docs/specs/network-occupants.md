@@ -1089,6 +1089,30 @@ discards its result, then packs these three tuples in argument order to `PackRen
 | `0x00B4685C` | `(1,1,1,0,1,1,0,3,4,5,−1,−1.0,1,−1)` |
 | `0x00B46864` | `(1,1,1,0,1,0,0,3,4,5,−1,−1.0,1,−1)` |
 
+#### 3.6.2 Unattached connection floor and walls *[compat; NO40/UG5 partial]*
+
+These builders use the four surface vertices at +1D0 (stride 24) and the four terrain heights +160,
+not the pole's floor or the underground piece's ratio tables. CreateFloor (`0x00656010–0x00656149`)
+first clears +A0. With an attached occupant at +C8 it leaves that list empty. Without one it copies
+the four surface vertices in order, retaining position/UV/alpha and replacing RGB with white, then
+invokes ModelStateChanged with the latch behavior in §3.6.1. Creation's height subtraction has already
+happened in the surface inputs; this builder does not subtract another cell size.
+
+CreateWalls (`0x00655F10`) clears the four lists at +6C/+78/+84/+90. Without an attached occupant,
+it resets the wall count +68 to zero and builds all four ordered endpoint pairs `(1,0),(0,3),(3,2),(2,1)`,
+one per list, then invokes ModelStateChanged. With an attached occupant the cleared lists stay empty;
+the old wall count is retained and no ModelStateChanged follows. These are standalone builder rules,
+not the descriptor-dependent CreateGeometry dispatch contract.
+
+AddWallQuad (`0x006555E0–0x0065574E`) **appends** four vertices to its destination. For endpoints A/B,
+top positions use surface x/z and terrain y; bottom positions use the complete surface positions.
+Order is top A, bottom A, bottom B, top B. RGB is white; alpha comes from A for the first two and
+B for the last two. UVs are `(0,0),(0,V),(1,V),(1,0)` with the **same**
+`V=f32((terrainHeight[A]−surfaceY[A])×0.0625)` at both bottom vertices, even if B's drop differs.
+Subtraction and multiplication remain on the x87 stack until the f32 V store; no f32 subtraction
+temporary intervenes (`0x00655659–0x0065567F`, `0x0065569C–0x006556EE`). The wall builder clears
+its lists before appending; the helper itself does not clear them.
+
 UG5 remains open for the descriptor-dependent geometry, complete Draw/view/transform and message decisions;
 NO40/NO41 also remain open. Neither a successful lookup nor these packing tuples is an owner-closure claim.
 
@@ -1637,6 +1661,51 @@ placement call follows (`0x005F12A0–0x005F12C6`, also occupant-view-relative).
 The record/placement/packed-state rules above and these state operations answer parts of NO36. Texture
 composition, RebuildModel, Draw/Pick, complete transform/bounds/sort and message behavior still require
 their own verified rules; these setters do not substitute for those algorithms.
+
+#### 6.2.2 Bounds, transforms, picking and texture selection *[compat; NO36 partial]*
+
+GetBounds copies local min/max at primary +B4/+C0; GetWorldBounds copies world min/max at +CC/+D8.
+The occupant-view GetBoundingBox copies that same world pair to separate outputs. These getters do
+not rebuild, clear dirty or transform corners (`0x005F0D60`, `0x005F0DA0`, `0x005F08C0`).
+GetSortValue returns the current **texture ID +148**, including zero, rather than the class ID
+(`0x005F08B0`). RebuildModel owns updates to the cached bounds; stale getters remain stale.
+
+GetTransform increments the **output** change byte modulo 256, copies the matrix, translation and
+scale from +80…+B0, and copies the internal mask +7D. It does not copy the internal counter +7C.
+SetTransform increments the internal counter, copies those same 13 floats and the input mask, and
+does not copy the input counter. Neither getter nor setter rebuilds the model, updates bounds,
+places the occupant or dirties +68 (`0x005F0DE0–0x005F0EFA`).
+
+Pick returns false immediately for UI state zero. Otherwise it starts with the cached world box,
+replaces its minimum y with `f32(maxY − ViewportUnitsToWorldUnits(50)/f32(cos(viewPitch)))`,
+and ray-tests this box. The conversion/division stays extended until the final min-y store; cosine
+is explicitly rounded to f32 first. A hit succeeds only when its ray-origin distance is strictly
+less than the pick context's existing distance; only then is the distance replaced. A tie is false
+and preserves the old distance. This path neither rebuilds a dirty model nor tests the rendered
+triangles (`0x005F0F40–0x005F1006`, cosine store `0x005F0F9F`, distance gate `0x005F0FE3–0x005F0FF0`).
+
+RebuildCurrentTexture first releases/nulls a binding if present; otherwise releases a nonzero raw
+texture ID when the texture manager exists. It does **not** zero +148 at that point. For types 0/6
+it selects instances from table A, types 1/5 table B; other non-4 types use instance zero. Resource
+type/group are `0x7AB50E44/0x1ABE787D`. A successful binding replaces +148 with that binding's
+texture ID; a failed/null binding leaves the old +148 unchanged. The return is whether +148 is
+nonzero, so it can be true after a failed replacement of a previously nonzero ID. Type 4 calls
+BuildMySimTexture instead; its full pixel-composition behavior remains open.
+
+| Dispatch state | Table A instance | Table B instance |
+|---|---|---|
+| 0 | `0xEA3EE100` | `0x14315E00` |
+| 1 | `0xEA3EE110` | `0x14315E10` |
+| 2 | `0xEA3EE120` | `0x14315E20` |
+| 3 | `0xEA3EE130` | `0x14315E30` |
+| 4 | `0xEA3EE140` | `0x14315E40` |
+| 5 | `0xEA3EE150` | `0x14315E50` |
+| 6 | `0xEA3EE120` | `0x14315E20` |
+
+These arrays are indexed without a range check; values outside 0…6 have no supported resource
+contract. Sources: `0x005F1610–0x005F1705`, tables `0x00AA4F20/0x00AA4F3C`.
+This section settles the accessors, picker and ordinary texture selection, not NO36's remaining
+billboard construction, label/MySim composition, Draw and message owner algorithms.
 
 ### 6.3 Record *[compat]*
 
@@ -2265,3 +2334,27 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     `0xA5A5A5A5`. Repeat with a different +74 sentinel; construction must not promise zero there.
     SetDispatchType(4) then makes it 4 with the setter effects in test 40. A portable implementation
     can represent the pre-set dispatch type as unspecified rather than reading uninitialized memory.
+46. **Pylon cached bounds and transforms** (§6.2.2). Seed distinct local/world boxes and dirty=1:
+    getters return the seeded boxes unchanged and leave dirty=1. Texture ID `0x12345678` is also
+    GetSortValue's result. GetTransform into a counter-255 output returns counter 0 and the internal
+    mask/13 floats while preserving the internal counter. SetTransform with input counter 99 into
+    internal counter 255 gives internal counter 0, copies mask/13 floats, and leaves dirty/bounds intact.
+47. **Pylon pick** (§6.2.2). UI=0 never tests the ray. With UI=1, cached maxY=100, view conversion
+    of 50 equal to 20 and pitch zero, the tested minY is 80 regardless of cached minY. A hit at
+    distance 8 replaces old distance 10 and succeeds; against old distance 8 it fails without changing
+    the distance. Dirty stays unchanged in all cases.
+48. **Pylon texture replacement** (§6.2.2). Type 6/state 6 requests instance `0xEA3EE120`;
+    type 5/state 1 requests `0x14315E10`; type 2 requests zero. With old raw ID 7 and no binding,
+    a failed replacement releases 7 but retains +148=7 and returns true. Repeat from +148=0:
+    failed replacement returns false. With an old binding, release/null that binding instead of
+    separately releasing its raw ID. A successful new binding replaces +148 with its own ID.
+49. **Unattached connection builders** (§3.6.2). With no attached occupant and four distinct surface
+    vertices, CreateFloor emits exactly four white-RGB copies preserving alpha/UV/position. Calling it
+    twice leaves four vertices. With an attached occupant it clears to zero and leaves the latch alone.
+    CreateWalls without an attachment emits four lists for `(1,0),(0,3),(3,2),(2,1)` and count 4;
+    with an attachment it clears all four lists but retains a seeded count 3 and does not notify.
+50. **Connection wall slope/append** (§3.6.2). Surface A=`(2,4,6)`/alpha 64, terrain A y=36;
+    surface B=`(8,12,10)`/alpha 128, terrain B y=28. The appended positions are
+    `(2,36,6),(2,4,6),(8,12,10),(8,28,10)`; UVs `(0,0),(0,2),(1,2),(1,0)`;
+    alphas 64/64/128/128 and white RGB. B's drop 16 does not give a different V.
+    Appending to a one-vertex destination leaves five vertices. A negative A drop gives negative V.
