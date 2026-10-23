@@ -34,6 +34,28 @@ pub struct Format {
     /// alpha, red, green, blue masks, flags, FourCC, bits, converter key.
     pub words: [u32; 8],
 }
+/// The specified compressed preference precedes the still-open ordinary ranking.
+pub fn select_format(request: u32, candidates: &[Format], host: &mut impl Device) -> Result<Format> {
+    let request = match request {
+        5..=7 => {
+            let key = [9, 11, 13][(request - 5) as usize];
+            if let Some(candidate) = candidates.iter().find(|f| f.words[7] == key) {
+                return Ok(*candidate);
+            }
+            [3, 2, 2][(request - 5) as usize]
+        }
+        0..=4 => request,
+        _ => return Err(Error::InvalidInput),
+    };
+    let mut selected = [0];
+    let mut args = vec![request];
+    args.extend(candidates.iter().flat_map(|f| f.words));
+    host.unresolved("RD6-ranking", &args, &mut selected)?;
+    candidates
+        .get(selected[0] as usize)
+        .copied()
+        .ok_or(Error::Unsupported("RD6-ranking"))
+}
 #[derive(Default, Debug)]
 pub struct TextureManager {
     pub records: Vec<Texture>,
@@ -134,21 +156,43 @@ impl TextureManager {
         self.device = device;
         // RD6 explicitly leaves ranking and availability open. Supply resolved tables
         // at the boundary, not an algorithm based on guessed native formats.
-        if self.formats.is_none() || self.converters.is_none() {
-            let mut words = [0; 8 * 8 + 15 * 8];
-            host.unresolved("RD6", &[device], &mut words)?;
-            self.formats = Some(std::array::from_fn(|i| Format {
-                words: std::array::from_fn(|j| words[i * 8 + j]),
-            }));
-            self.converters = Some(std::array::from_fn(|i| {
-                std::array::from_fn(|j| words[64 + i * 8 + j] != 0)
-            }));
+        if self.formats.is_none() {
+            let mut count = [0];
+            host.dx(device, Call::TextureFormats, &[], &[], &mut count);
+            let mut candidates = Vec::new();
+            for i in 0..count[0] {
+                let mut words = [0; 8];
+                host.dx(device, Call::TextureFormats, &[i], &[], &mut words);
+                candidates.push(Format { words });
+            }
+            let mut formats = [Format::default(); 8];
+            for (i, format) in formats.iter_mut().enumerate() {
+                *format = select_format(i as u32, &candidates, host)?;
+            }
+            self.formats = Some(formats);
+        }
+        if self.converters.is_none() {
+            let mut words = [0; 15 * 8];
+            let keys: Vec<_> = self.formats.unwrap().iter().map(|f| f.words[7]).collect();
+            host.unresolved("RD6-converters", &keys, &mut words)?;
+            self.converters = Some(std::array::from_fn(|i| std::array::from_fn(|j| words[i * 8 + j] != 0)));
         }
         let name = self.new_name();
         self.create(name, 0, 4, 1, 1, 1, host)?;
         // The known white pixel is an immediate value, not a foreign address.
         let mut white = [0];
-        host.unresolved("RD6", &[0xffff_ffff, self.surface(name), 0, 4, 1, 1], &mut white)?;
+        host.unresolved(
+            "RD6",
+            &[
+                0xffff_ffff,
+                self.surface(name),
+                0,
+                self.formats.unwrap()[4].words[7],
+                1,
+                1,
+            ],
+            &mut white,
+        )?;
         Ok(())
     }
     pub fn lose(&mut self, host: &mut impl Device) {
@@ -261,6 +305,12 @@ impl TextureManager {
         result
     }
     fn load_surface(&self, surface: u32, u: Upload, source: u32, bits: u32, host: &mut impl Device) -> Result<bool> {
+        let format = self.get(u.name).ok_or(Error::InvalidInput)?.format as usize;
+        let key = self
+            .formats
+            .and_then(|f| f.get(format).copied())
+            .ok_or(Error::Unsupported("RD6"))?
+            .words[7];
         let mut out = [0; 5]; // mapped address, pitch, bits, linear-size flag, linear byte size
         loop {
             let hr = host.dx(surface, Call::LockSurface, &[0x2821], &[], &mut out);
@@ -288,7 +338,7 @@ impl TextureManager {
                 "RD6",
                 &[
                     source,
-                    self.get(u.name).unwrap().format,
+                    key,
                     u.pixels,
                     pitch,
                     destination,

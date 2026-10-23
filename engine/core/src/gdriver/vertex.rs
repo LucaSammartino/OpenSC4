@@ -60,8 +60,8 @@ pub fn offset(format: u32, kind: usize, index: u32) -> Result<u32> {
 }
 pub fn fvf(format: u32) -> u32 {
     let f = pack(format);
-    u32::from(f & 3 != 0) * 2
-        | u32::from(f & 0x300 != 0) * 0x40
+    (u32::from(f & 3 != 0) * 2)
+        | (u32::from(f & 0x300 != 0) * 0x40)
         | match (f >> 14) & 15 {
             0 => 0,
             1 => 0x100,

@@ -50,3 +50,7 @@
   float matrices/viewport sizes, including non-finite inputs and double-rounding cases, or are ordinary
   finite conformance vectors sufficient? [current: f64 intermediates with single output rounding; exact
   x87 quotient/extended accumulator emulation is pending clarification]
+  *Implementation follow-up 2026-10-23:* a rational discriminator (width 30, matrix words `3e2f59ff`
+  and `40a4645f`) proves f64 produces `30888888` versus x87 `30888889`. Core now uses a software
+  64-significand-bit accumulator and correctly rounds finite operations; the remaining question is the
+  FPU control-word assumptions and NaN-payload/exception behavior, which the spec does not prescribe.

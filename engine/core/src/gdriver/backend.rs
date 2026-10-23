@@ -81,6 +81,7 @@ pub enum Call {
     Blt,
     PostMessage,
     PlaceholderDevice,
+    TextureFormats,
 }
 
 pub trait Device: Host {

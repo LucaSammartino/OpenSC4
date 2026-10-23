@@ -3,6 +3,7 @@
 //! backend extends gdrivers_director::Host; graphics identities use its tokens.
 pub mod backend;
 pub mod context;
+pub mod extended;
 pub mod primitive;
 pub mod stage;
 pub mod texture;
@@ -362,10 +363,11 @@ impl Driver {
                 self.window = 0;
             }
             self.error = 6;
-            host.write(flag, &u32::MAX.to_le_bytes())?;
-            if let Err(e) = setup {
-                return Err(e);
+            if flag == 0 {
+                return Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite));
             }
+            host.write(flag, &u32::MAX.to_le_bytes())?;
+            setup?;
         } else if show {
             dx(host, self.window, Call::ShowWindow, &[]);
             dx(host, self.window, Call::UpdateWindow, &[]);
@@ -461,7 +463,7 @@ impl Driver {
         }
         self.textures.init(self.context.dd, self.device, host)?;
         self.primitives
-            .init(self.context.dd, self.context.d3d, self.device, true, host);
+            .init(self.context.dd, self.context.d3d, self.device, host);
         self.default_state(host);
         self.client_screen = client;
         for pair in self.client_screen.chunks_mut(2) {
@@ -485,6 +487,9 @@ impl Driver {
         result
     }
     pub fn flush(&mut self, host: &mut impl Device) -> Result<()> {
+        if self.context.dd == 0 && !self.lost {
+            return Ok(());
+        }
         let hr = dx(host, self.context.dd, Call::CooperativeLevel, &[]);
         if self.lost {
             if failed(hr) || failed(dx(host, self.context.dd, Call::RestoreAll, &[])) {
@@ -492,13 +497,16 @@ impl Driver {
             }
             let mut objects = [0; 3];
             host.unresolved("RD8-restore", &[self.context.identity], &mut objects)?;
+            release(host, &mut self.context.device);
+            release(host, &mut self.context.d3d);
+            release(host, &mut self.context.dd);
             self.context.device = objects[0];
             self.context.d3d = objects[1];
             self.context.dd = objects[2];
             self.device = objects[0];
             self.lost = false;
             self.default_state(host);
-            self.primitives.init(objects[2], objects[1], objects[0], true, host);
+            self.primitives.init(objects[2], objects[1], objects[0], host);
             self.textures.init_device(objects[0], host)?;
             dx(host, 0, Call::PostMessage, &[0x8acaa95f]);
             dx(host, 0, Call::PostMessage, &[0x6acb92a9]);
@@ -513,6 +521,7 @@ impl Driver {
             release(host, &mut self.context.d3d);
             let mut placeholder = [0];
             host.dx(0, Call::PlaceholderDevice, &[], &[], &mut placeholder);
+            self.context.device = placeholder[0];
             self.device = placeholder[0];
             self.scene = false;
             return Ok(());
@@ -636,8 +645,8 @@ impl Driver {
     pub fn clear(&mut self, mask: u32, host: &mut impl Device) {
         self.submit(host);
         let flags = u32::from(mask & 0x4000 != 0)
-            | u32::from(mask & 0x1000 != 0) * 2
-            | u32::from(mask & 0x2000 != 0 && self.current.byte(0x21) != 0) * 4;
+            | (u32::from(mask & 0x1000 != 0) * 2)
+            | (u32::from(mask & 0x2000 != 0 && self.current.byte(0x21) != 0) * 4);
         dx(
             host,
             self.device,
@@ -804,25 +813,15 @@ impl Driver {
             self.projection = m;
             let mut viewport = [0; 6];
             host.dx(self.device, Call::GetViewport, &[], &[], &mut viewport);
-            // f64 retains the products of f32 operands exactly. RD11 records the
-            // remaining x87 extended-precision quotient rounding boundary.
-            let a = -0.5 / (viewport[2] as f64 * 0.5);
-            let b = 0.5 / (viewport[3] as f64 * 0.5);
-            let mut p = m;
-            for r in 0..4 {
-                let i = r * 4;
-                p[i] = (m[i] as f64 + m[i + 3] as f64 * a) as f32;
-                p[i + 1] = (m[i + 1] as f64 + m[i + 3] as f64 * b) as f32;
-                p[i + 2] = ((m[i + 2] as f64 + m[i + 3] as f64) * 0.5) as f32;
-            }
-            for v in &mut p[8..12] {
-                *v = -*v;
-            }
+            let p = extended::projection(m, viewport[2], viewport[3]);
             host.dx(self.device, Call::Transform, &[3], &floats(&p), &mut []);
         }
     }
     pub fn load_identity(&mut self, host: &mut impl Device) {
         self.load_matrix(IDENTITY, host);
+    }
+    pub fn matrix_mode(&mut self, mode: u32) {
+        self.matrix_mode = mode;
     }
     pub fn set_viewport(&mut self, rect: Option<[u32; 4]>, host: &mut impl Device) {
         self.submit(host);
@@ -1220,9 +1219,15 @@ pub struct D3DLight {
 impl Default for D3DLight {
     fn default() -> Self {
         Self {
-            kind: 1, colors: [[0.; 4]; 3], position: [0.; 3], direction: [0., 0., 10.],
-            range: None, falloff: 1., attenuation: [0.; 3],
-            theta: f32::from_bits(0x3f47ae14), phi: f32::from_bits(0x3fc8f5c3),
+            kind: 1,
+            colors: [[0.; 4]; 3],
+            position: [0.; 3],
+            direction: [0., 0., 10.],
+            range: None,
+            falloff: 1.,
+            attenuation: [0.; 3],
+            theta: f32::from_bits(0x3f47ae14),
+            phi: f32::from_bits(0x3fc8f5c3),
         }
     }
 }

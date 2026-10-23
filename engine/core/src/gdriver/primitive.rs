@@ -12,6 +12,7 @@ pub struct VertexBuffer {
     pub stride: u32,
     pub format: u32,
     pub flags: u32,
+    pub discard: bool,
 }
 impl VertexBuffer {
     pub fn copy(&self, host: &mut impl Device) -> Self {
@@ -25,6 +26,7 @@ impl VertexBuffer {
             stride: self.stride,
             format: self.format,
             flags: self.flags,
+            discard: self.discard,
         }
     }
     pub fn assign(&mut self, source: &Self, host: &mut impl Device) {
@@ -41,19 +43,20 @@ impl VertexBuffer {
             stride: source.stride,
             format: source.format,
             flags: source.flags,
+            discard: source.discard,
         };
     }
     pub fn recreate(&mut self, capacity: u32, dd: u32, d3d: u32, host: &mut impl Device) -> u32 {
         self.cursor = 0;
         self.mapped = 0;
         self.locked = false;
+        self.discard = false;
         release(host, &mut self.token);
         self.capacity = capacity;
         if capacity == 0 {
             return 0;
         }
         if failed(dx(host, dd, Call::RestoreAll, &[])) {
-            self.capacity = 0;
             return FAIL;
         }
         let mut out = [0];
@@ -81,12 +84,13 @@ impl VertexBuffer {
         }
         if discard {
             self.cursor = 0;
+            self.discard = true;
         }
         let mut out = [0];
         let mut hr = host.dx(
             self.token,
             Call::LockVertexBuffer,
-            &[if discard { 0x2021 } else { 0x1021 }],
+            &[if self.discard { 0x2021 } else { 0x1021 }],
             &[],
             &mut out,
         );
@@ -95,13 +99,16 @@ impl VertexBuffer {
             if failed(self.recreate(capacity, dd, d3d, host)) {
                 return None;
             }
+            self.discard = true;
             hr = host.dx(self.token, Call::LockVertexBuffer, &[0x2021], &[], &mut out);
         }
         if failed(hr) {
             return None;
         }
+        self.discard = false;
         if out[0] == 0 {
-            dx(host, self.token, Call::UnlockVertexBuffer, &[]);
+            self.locked = true;
+            self.unlock(dd, d3d, host);
             return None;
         }
         let first = self.cursor;
@@ -144,14 +151,20 @@ pub struct PrimitiveManager {
     device: u32,
 }
 impl PrimitiveManager {
-    pub fn init(&mut self, dd: u32, d3d: u32, device: u32, hardware: bool, host: &mut impl Device) -> u32 {
+    pub fn init(&mut self, dd: u32, d3d: u32, device: u32, host: &mut impl Device) -> u32 {
         self.stop(host);
         self.dd = dd;
         self.d3d = d3d;
         self.device = device;
         self.buffer.format = 11;
         self.buffer.stride = 32;
-        self.buffer.flags = if hardware { 0x10000 } else { 0x10800 };
+        let mut capabilities = [0];
+        host.dx(device, Call::GetCaps, &[], &[], &mut capabilities);
+        self.buffer.flags = if capabilities[0] & 0x80000 != 0 {
+            0x10000
+        } else {
+            0x10800
+        };
         let hr = self.buffer.recreate(65536 / 32, dd, d3d, host);
         self.started = !failed(hr);
         hr
@@ -165,6 +178,7 @@ impl PrimitiveManager {
         self.buffer.locked = false;
         self.buffer.mapped = 0;
         self.buffer.cursor = 0;
+        self.buffer.discard = false;
     }
     pub fn flush(&mut self, host: &mut impl Device) -> u32 {
         if !self.started && !self.entries.is_empty() {

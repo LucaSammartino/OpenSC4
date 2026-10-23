@@ -110,6 +110,10 @@ impl Device for Recorder {
     fn unresolved(&mut self, question: &'static str, args: &[u32], out: &mut [u32]) -> Result<()> {
         // Explicit test inputs at open proof boundaries, never claimed as native defaults.
         match question {
+            "RD6-ranking" => {
+                // Fixture: ordinary request 3 selects index 0, request 2 index 1.
+                out[0] = u32::from(args[0] == 2);
+            }
             "RD9-stage-defaults" => {
                 out[3..7].copy_from_slice(&[0, 0, 3, 3]);
             }
@@ -164,7 +168,7 @@ fn fixture() -> (Driver, Recorder) {
     );
     d.textures.converters = Some([[true; 8]; 15]);
     d.textures.new_name();
-    d.primitives.init(11, 12, 10, true, &mut h);
+    d.primitives.init(11, 12, 10, &mut h);
     d.interleaved_arrays(11, 32, 0x4000);
     h.calls.clear();
     (d, h)
@@ -507,104 +511,383 @@ fn defaults_clear_quantization_and_stencil_failures() {
 fn immediate_states_capabilities_fog_and_multipliers() {
     let (mut d, mut h) = fixture();
     d.fog_capable = true;
-    for (cap, state) in [(0,15),(1,7),(2,52),(3,22),(4,27),(6,28)] {
-        d.capability(cap,true,&mut h).unwrap();
-        assert_eq!(h.states[&state],if cap==3 {2} else {1});
-        assert_eq!(d.is_enabled(cap,&mut h).unwrap(),cap!=6);
-        d.capability(cap,false,&mut h).unwrap();
-        assert!(!d.is_enabled(cap,&mut h).unwrap());
+    for (cap, state) in [(0, 15), (1, 7), (2, 52), (3, 22), (4, 27), (6, 28)] {
+        d.capability(cap, true, &mut h).unwrap();
+        assert_eq!(h.states[&state], if cap == 3 { 2 } else { 1 });
+        assert_eq!(d.is_enabled(cap, &mut h).unwrap(), cap != 6);
+        d.capability(cap, false, &mut h).unwrap();
+        assert!(!d.is_enabled(cap, &mut h).unwrap());
     }
-    assert!(d.is_enabled(7,&mut h).unwrap());d.lost=true;assert!(!d.is_enabled(7,&mut h).unwrap());d.lost=false;
-    for (slot,args,states) in [
-        (16,vec![6],vec![(23,7)]),(17,vec![0x123],vec![(14,0x23)]),
-        (18,vec![3,99,0xff],vec![(58,0xff),(56,4),(57,99)]),
-        (19,vec![0xabc],vec![(59,0xabc)]),(20,vec![0,1,5],vec![(53,2),(54,1),(55,6)]),
-        (21,vec![4,5],vec![(19,5),(20,6)]),(22,vec![7,0.5f32.to_bits()],vec![(25,8),(24,128)]),
-        (23,vec![1],vec![(9,2)]),
-    ] {d.state(slot,&args,&mut h).unwrap();for (state,value) in states {assert_eq!(h.states[&state],value);}}
-    d.error=6;h.failures.push_back((Call::RenderState,FAIL));d.state(16,&[0],&mut h).unwrap();assert_eq!(d.error,6);
-    d.fog_int(0,2,&mut h).unwrap();assert_eq!(h.states[&140],3);
-    d.fog_float(1,&[1.,0.,0.,1.],&mut h).unwrap();assert_eq!(h.states[&34],0xffff0000);
-    for (p,state) in [(2,38),(3,36),(4,37)] {d.fog_float(p,&[0.25],&mut h).unwrap();assert_eq!(h.states[&state],0.25f32.to_bits());}
-    d.fog_int(1,0,&mut h).unwrap();assert_eq!(d.get_error(),1);d.fog_capable=false;d.fog_int(0,0,&mut h).unwrap();assert_eq!(d.get_error(),3);
-    d.color_multiplier([0.5,1.,0.],&mut h);assert_eq!(h.states[&139],0xff80ff00);assert_eq!(h.states[&137],1);assert_eq!(&d.material[4..7],&[1.;3]);
-    d.alpha_multiplier(0.25,&mut h);assert_eq!(h.states[&145],0);assert_eq!(d.material[3],0.25);
-    d.enable_vertex_colors(false,true,&mut h);assert_eq!(h.states[&147],0);d.alpha_multiplier(f32::NAN,&mut h);assert_eq!(h.states[&145],1);
-    assert_eq!(h.calls.iter().filter(|c|c.call==Call::RenderState&&c.args==[137,1]).count(),1);
-    d.default_state(&mut h);d.color_multiplier([1.;3],&mut h);assert_eq!(h.calls.iter().filter(|c|c.call==Call::RenderState&&c.args==[137,1]).count(),2);
+    assert!(d.is_enabled(7, &mut h).unwrap());
+    d.lost = true;
+    assert!(!d.is_enabled(7, &mut h).unwrap());
+    d.lost = false;
+    for (slot, args, states) in [
+        (16, vec![6], vec![(23, 7)]),
+        (17, vec![0x123], vec![(14, 0x23)]),
+        (18, vec![3, 99, 0xff], vec![(58, 0xff), (56, 4), (57, 99)]),
+        (19, vec![0xabc], vec![(59, 0xabc)]),
+        (20, vec![0, 1, 5], vec![(53, 2), (54, 1), (55, 6)]),
+        (21, vec![4, 5], vec![(19, 5), (20, 6)]),
+        (22, vec![7, 0.5f32.to_bits()], vec![(25, 8), (24, 128)]),
+        (23, vec![1], vec![(9, 2)]),
+    ] {
+        d.state(slot, &args, &mut h).unwrap();
+        for (state, value) in states {
+            assert_eq!(h.states[&state], value);
+        }
+    }
+    d.error = 6;
+    h.failures.push_back((Call::RenderState, FAIL));
+    d.state(16, &[0], &mut h).unwrap();
+    assert_eq!(d.error, 6);
+    d.fog_int(0, 2, &mut h).unwrap();
+    assert_eq!(h.states[&140], 3);
+    d.fog_float(1, &[1., 0., 0., 1.], &mut h).unwrap();
+    assert_eq!(h.states[&34], 0xffff0000);
+    for (p, state) in [(2, 38), (3, 36), (4, 37)] {
+        d.fog_float(p, &[0.25], &mut h).unwrap();
+        assert_eq!(h.states[&state], 0.25f32.to_bits());
+    }
+    d.fog_int(1, 0, &mut h).unwrap();
+    assert_eq!(d.get_error(), 1);
+    d.fog_capable = false;
+    d.fog_int(0, 0, &mut h).unwrap();
+    assert_eq!(d.get_error(), 3);
+    d.color_multiplier([0.5, 1., 0.], &mut h);
+    assert_eq!(h.states[&139], 0xff80ff00);
+    assert_eq!(h.states[&137], 1);
+    assert_eq!(&d.material[4..7], &[1.; 3]);
+    d.alpha_multiplier(0.25, &mut h);
+    assert_eq!(h.states[&145], 0);
+    assert_eq!(d.material[3], 0.25);
+    d.enable_vertex_colors(false, true, &mut h);
+    assert_eq!(h.states[&147], 0);
+    d.alpha_multiplier(f32::NAN, &mut h);
+    assert_eq!(h.states[&145], 1);
+    assert_eq!(
+        h.calls
+            .iter()
+            .filter(|c| c.call == Call::RenderState && c.args == [137, 1])
+            .count(),
+        1
+    );
+    d.default_state(&mut h);
+    d.color_multiplier([1.; 3], &mut h);
+    assert_eq!(
+        h.calls
+            .iter()
+            .filter(|c| c.call == Call::RenderState && c.args == [137, 1])
+            .count(),
+        2
+    );
 }
 
 #[test]
 fn primitive_copy_merge_immediate_overtake_and_failure_paths() {
-    let (mut d,mut h)=fixture();
-    for i in 0..96 {h.memory.insert(0x4000+i,(i%256) as u8);}
-    d.draw_arrays(0,0,3,&mut h).unwrap();d.draw_arrays(0,0,3,&mut h).unwrap();
-    assert_eq!(d.primitives.entries.len(),1);assert_eq!(d.primitives.entries[0].count,6);
-    let mapped=h.calls.iter().find(|c|c.call==Call::LockVertexBuffer).unwrap().target;
-    assert_eq!(mapped,d.primitives.buffer.token);
-    d.interleaved_arrays(38,44,0x4000);d.draw_arrays(0,0,3,&mut h).unwrap();assert_eq!(positions(&h,Call::Draw).len(),1);assert!(positions(&h,Call::DrawBuffer).is_empty());
-    d.state(15,&[],&mut h).unwrap();assert!(positions(&h,Call::Draw)[0]<positions(&h,Call::DrawBuffer)[0]);
-    d.interleaved_arrays(33,24,0x4000);d.draw_arrays(0,0,3,&mut h).unwrap();assert_eq!(d.get_error(),1);assert!(d.primitives.entries.is_empty());
-    d.interleaved_arrays(11,32,0x4000);h.write(0x9000,&[2,3,4]).unwrap();d.draw_elements(0,3,1,0x9000,&mut h).unwrap();d.draw_elements(0,3,1,0x9000,&mut h).unwrap();
-    assert_eq!(d.primitives.entries.len(),1);assert_eq!(d.primitives.entries[0].indices.as_deref(),Some(&[0,1,2,3,4,5][..]));
-    d.primitives.started=false;assert_eq!(d.primitives.flush(&mut h),FAIL);assert_eq!(d.primitives.entries.len(),1);d.primitives.stop(&mut h);assert!(d.primitives.entries.is_empty());
-    assert_eq!(primitive::expanded(2,&[4,5,6,7]).unwrap().1.unwrap(),[4,5,6,4,6,7]);
-    assert_eq!(primitive::expanded(7,&[0,1,2,3,4,5]).unwrap().1.unwrap(),[0,1,3,0,3,2,2,3,5,2,5,4]);
+    let (mut d, mut h) = fixture();
+    for i in 0..96 {
+        h.memory.insert(0x4000 + i, (i % 256) as u8);
+    }
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    assert_eq!(d.primitives.entries.len(), 1);
+    assert_eq!(d.primitives.entries[0].count, 6);
+    let mapped = h
+        .calls
+        .iter()
+        .find(|c| c.call == Call::LockVertexBuffer)
+        .unwrap()
+        .target;
+    assert_eq!(mapped, d.primitives.buffer.token);
+    d.interleaved_arrays(38, 44, 0x4000);
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    assert_eq!(positions(&h, Call::Draw).len(), 1);
+    assert!(positions(&h, Call::DrawBuffer).is_empty());
+    d.state(15, &[], &mut h).unwrap();
+    assert!(positions(&h, Call::Draw)[0] < positions(&h, Call::DrawBuffer)[0]);
+    d.interleaved_arrays(33, 24, 0x4000);
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    assert_eq!(d.get_error(), 1);
+    assert!(d.primitives.entries.is_empty());
+    d.interleaved_arrays(11, 32, 0x4000);
+    h.write(0x9000, &[2, 3, 4]).unwrap();
+    d.draw_elements(0, 3, 1, 0x9000, &mut h).unwrap();
+    d.draw_elements(0, 3, 1, 0x9000, &mut h).unwrap();
+    assert_eq!(d.primitives.entries.len(), 1);
+    assert_eq!(
+        d.primitives.entries[0].indices.as_deref(),
+        Some(&[0, 1, 2, 3, 4, 5][..])
+    );
+    d.primitives.started = false;
+    assert_eq!(d.primitives.flush(&mut h), FAIL);
+    assert_eq!(d.primitives.entries.len(), 1);
+    d.primitives.stop(&mut h);
+    assert!(d.primitives.entries.is_empty());
+    assert_eq!(
+        primitive::expanded(2, &[4, 5, 6, 7]).unwrap().1.unwrap(),
+        [4, 5, 6, 4, 6, 7]
+    );
+    assert_eq!(
+        primitive::expanded(7, &[0, 1, 2, 3, 4, 5]).unwrap().1.unwrap(),
+        [0, 1, 3, 0, 3, 2, 2, 3, 5, 2, 5, 4]
+    );
 }
 
 #[test]
 fn vertex_buffer_lost_lock_retry_and_failed_unlock_clear_mapping() {
-    let (mut d,mut h)=fixture();let b=&mut d.primitives.buffer;
-    h.failures.push_back((Call::LockVertexBuffer,LOST));let before=b.token;
-    assert!(b.reserve(2,false,11,12,&mut h).is_some());assert_ne!(b.token,before);assert!(b.locked);
-    h.failures.push_back((Call::UnlockVertexBuffer,FAIL));assert_eq!(b.unlock(11,12,&mut h),FAIL);assert!(!b.locked);assert_eq!(b.mapped,0);assert_eq!(b.cursor,0);
-    h.failures.push_back((Call::CreateVertexBuffer,FAIL));assert_eq!(b.recreate(16,11,12,&mut h),FAIL);assert_eq!(b.token,0);assert_eq!(b.capacity,0);
-    assert!(b.reserve(1,true,11,12,&mut h).is_none());assert_eq!(b.recreate(0,11,12,&mut h),0);
+    let (mut d, mut h) = fixture();
+    let b = &mut d.primitives.buffer;
+    h.failures.push_back((Call::LockVertexBuffer, LOST));
+    let before = b.token;
+    assert!(b.reserve(2, false, 11, 12, &mut h).is_some());
+    assert_ne!(b.token, before);
+    assert!(b.locked);
+    h.failures.push_back((Call::UnlockVertexBuffer, FAIL));
+    assert_eq!(b.unlock(11, 12, &mut h), FAIL);
+    assert!(!b.locked);
+    assert_eq!(b.mapped, 0);
+    assert_eq!(b.cursor, 0);
+    h.failures.push_back((Call::CreateVertexBuffer, FAIL));
+    assert_eq!(b.recreate(16, 11, 12, &mut h), FAIL);
+    assert_eq!(b.token, 0);
+    assert_eq!(b.capacity, 0);
+    assert!(b.reserve(1, true, 11, 12, &mut h).is_none());
+    assert_eq!(b.recreate(0, 11, 12, &mut h), 0);
 }
 
 #[test]
 fn texture_descriptor_upload_retry_addressing_and_no_device_creation() {
-    let (mut d,mut h)=fixture();let n=d.create_texture(2,8,4,3,3,&mut h).unwrap();
-    let create=h.calls.iter().find(|c|c.call==Call::CreateSurface).unwrap();assert_eq!(&create.args[..7],&[0x7c,0x21007,8,4,3,0x401008,0x20004]);
-    h.failures.push_back((Call::LockSurface,LOST));assert!(d.textures.load(Upload{x:1,y:2,..upload(n)},&mut h).unwrap());
-    assert_eq!(positions(&h,Call::LockSurface).len(),2);assert_eq!(positions(&h,Call::RestoreSurface).len(),1);assert_eq!(positions(&h,Call::UnlockSurface).len(),1);
-    assert!(!d.textures.load(Upload{level:3,..upload(n)},&mut h).unwrap());assert!(!d.textures.load(Upload{kind:99,..upload(n)},&mut h).unwrap());
-    assert!(d.textures.load(Upload{level:2,..upload(n)},&mut h).unwrap());assert_eq!(positions(&h,Call::AttachedSurface).len(),2);
-    d.textures.lose(&mut h);let m=d.create_texture(1,16,16,0,2,&mut h).unwrap();assert_eq!(d.textures.surface(m),0);assert!(d.textures.valid(m));
-    d.textures.init_device(10,&mut h).unwrap();assert_ne!(d.textures.surface(m),0);assert!(!d.textures.alpha(m));
-    let count=h.calls.len();let allocated=d.create_texture(4,0,2,1,0,&mut h).unwrap();assert_eq!(d.error,3);assert!(d.is_texture(allocated));assert_eq!(h.calls.len(),count);
-    d.ready=false;d.delete_textures(&[m],&mut h);assert!(d.is_texture(m));
-    assert_eq!(texture::source_format(8,1),Some((10,4)));assert_eq!(texture::source_format(9,0),Some((12,8)));assert_eq!(texture::source_format(10,0),Some((14,8)));
+    let (mut d, mut h) = fixture();
+    let n = d.create_texture(2, 8, 4, 3, 3, &mut h).unwrap();
+    let create = h.calls.iter().find(|c| c.call == Call::CreateSurface).unwrap();
+    assert_eq!(&create.args[..7], &[0x7c, 0x21007, 8, 4, 3, 0x401008, 0x20004]);
+    h.failures.push_back((Call::LockSurface, LOST));
+    assert!(d
+        .textures
+        .load(
+            Upload {
+                x: 1,
+                y: 2,
+                ..upload(n)
+            },
+            &mut h
+        )
+        .unwrap());
+    assert_eq!(positions(&h, Call::LockSurface).len(), 2);
+    assert_eq!(positions(&h, Call::RestoreSurface).len(), 1);
+    assert_eq!(positions(&h, Call::UnlockSurface).len(), 1);
+    assert!(!d.textures.load(Upload { level: 3, ..upload(n) }, &mut h).unwrap());
+    assert!(!d.textures.load(Upload { kind: 99, ..upload(n) }, &mut h).unwrap());
+    assert!(d.textures.load(Upload { level: 2, ..upload(n) }, &mut h).unwrap());
+    assert_eq!(positions(&h, Call::AttachedSurface).len(), 2);
+    d.textures.lose(&mut h);
+    let m = d.create_texture(1, 16, 16, 0, 2, &mut h).unwrap();
+    assert_eq!(d.textures.surface(m), 0);
+    assert!(d.textures.valid(m));
+    d.textures.init_device(10, &mut h).unwrap();
+    assert_ne!(d.textures.surface(m), 0);
+    assert!(!d.textures.alpha(m));
+    let count = h.calls.len();
+    let allocated = d.create_texture(4, 0, 2, 1, 0, &mut h).unwrap();
+    assert_eq!(d.error, 3);
+    assert!(d.is_texture(allocated));
+    assert_eq!(h.calls.len(), count);
+    d.ready = false;
+    d.delete_textures(&[m], &mut h);
+    assert!(d.is_texture(m));
+    assert_eq!(texture::source_format(8, 1), Some((10, 4)));
+    assert_eq!(texture::source_format(9, 0), Some((12, 8)));
+    assert_eq!(texture::source_format(10, 0), Some((14, 8)));
 }
 
 #[test]
 fn stage_coordinates_matrices_environments_and_capability_gate() {
-    let (mut d,mut h)=fixture();let n=d.create_texture(1,2,2,1,0,&mut h).unwrap();d.bind_texture(0,n).unwrap();d.capability(5,true,&mut h).unwrap();
-    d.tex_stage_coord(0x32,&mut h);assert!(h.calls.iter().any(|c|c.call==Call::StageState&&c.args==[0,11,0x30002]));
-    let before=h.calls.len();d.tex_stage_coord(0x40,&mut h);assert_eq!(d.get_error(),2);assert_eq!(h.calls.len(),before);
-    d.tex_stage_matrix(None,4,3,&mut h);assert_eq!(h.calls.last().unwrap().args,[0,24,0]);
-    let mut m=IDENTITY;m[8]=2.;d.tex_stage_matrix(Some(m),3,2,&mut h);let transform=h.calls.last().unwrap();assert_eq!(transform.args,[16]);assert_eq!(f32::from_le_bytes(transform.data[32..36].try_into().unwrap()),-2.);
-    for (mode,expected) in [(0,(2,2)),(1,(4,2)),(2,(2,2)),(3,(1,1))] {
-        d.tex_env(mode).unwrap();h.calls.clear();d.draw_arrays(0,0,0,&mut h).unwrap();
-        assert!(h.calls.iter().any(|c|c.call==Call::StageState&&c.args==[0,1,expected.0]));assert!(h.calls.iter().any(|c|c.call==Call::StageState&&c.args==[0,4,expected.1]));
+    let (mut d, mut h) = fixture();
+    let n = d.create_texture(1, 2, 2, 1, 0, &mut h).unwrap();
+    d.bind_texture(0, n).unwrap();
+    d.capability(5, true, &mut h).unwrap();
+    d.tex_stage_coord(0x32, &mut h);
+    assert!(h
+        .calls
+        .iter()
+        .any(|c| c.call == Call::StageState && c.args == [0, 11, 0x30002]));
+    let before = h.calls.len();
+    d.tex_stage_coord(0x40, &mut h);
+    assert_eq!(d.get_error(), 2);
+    assert_eq!(h.calls.len(), before);
+    d.tex_stage_matrix(None, 4, 3, &mut h);
+    assert_eq!(h.calls.last().unwrap().args, [0, 24, 0]);
+    let mut m = IDENTITY;
+    m[8] = 2.;
+    d.tex_stage_matrix(Some(m), 3, 2, &mut h);
+    let transform = h.calls.last().unwrap();
+    assert_eq!(transform.args, [16]);
+    assert_eq!(f32::from_le_bytes(transform.data[32..36].try_into().unwrap()), -2.);
+    for (mode, expected) in [(0, (2, 2)), (1, (4, 2)), (2, (2, 2)), (3, (1, 1))] {
+        d.tex_env(mode).unwrap();
+        h.calls.clear();
+        d.draw_arrays(0, 0, 0, &mut h).unwrap();
+        assert!(h
+            .calls
+            .iter()
+            .any(|c| c.call == Call::StageState && c.args == [0, 1, expected.0]));
+        assert!(h
+            .calls
+            .iter()
+            .any(|c| c.call == Call::StageState && c.args == [0, 4, expected.1]));
     }
-    d.current.set_byte(0x29,0);d.combine_field(54,0,1).unwrap();assert_eq!(d.get_error(),2);d.combine_field(56,0,2).unwrap();assert_eq!(d.stages[0].sources[0][0],2);
-    d.tex_stage(8);assert_eq!(d.get_error(),2);assert_eq!(d.current_stage,0);
+    d.current.set_byte(0x29, 0);
+    d.combine_field(54, 0, 1).unwrap();
+    assert_eq!(d.get_error(), 2);
+    d.combine_field(56, 0, 2).unwrap();
+    assert_eq!(d.stages[0].sources[0][0], 2);
+    d.tex_stage(8);
+    assert_eq!(d.get_error(), 2);
+    assert_eq!(d.current_stage, 0);
 }
 
 #[test]
 fn lifecycle_initialization_info_noop_and_known_light_fields() {
-    let mut d=Driver::new(0x100,0x200);let mut h=Recorder::default();h.write(0x7000,b"Test").unwrap();d.init(&mut h).unwrap();
-    assert!(d.initialized);assert!(d.driver_info().starts_with(b"Maxis 3D GDriver DirectX 2.0\nTest\n1.2.3.4, GUID:"));assert!(d.driver_info().ends_with(b"Vendor: 0001, Device: 0002, Board: 0003, Chipset: 0004"));
-    assert!(h.refs.iter().any(|(_,op)|*op==Op::Release));let count=h.calls.len();d.error=6;d.init(&mut h).unwrap();assert_eq!(d.error,0);assert_eq!(h.calls.len(),count);
-    let light=D3DLight::default();assert_eq!(light.kind,1);assert_eq!(light.direction,[0.,0.,10.]);assert_eq!(light.theta.to_bits(),0x3f47ae14);assert_eq!(light.phi.to_bits(),0x3fc8f5c3);assert_eq!(light.range,None);assert_eq!(d.auxiliary_operation(),Err(Error::Unsupported("RD7")));
-    let mut untouched=0xfeed;d.pixel_store(0,123);d.get_integer(1,&mut untouched);assert_eq!(untouched,0xfeed);d.get_integer(7,&mut untouched);assert_eq!(untouched,123);
-    let mut mode=[0xbeef;13];d.mode_info(0,&mut mode);assert_eq!(mode,[0xbeef;13]);assert_eq!(d.get_error(),2);
+    let mut d = Driver::new(0x100, 0x200);
+    let mut h = Recorder::default();
+    h.write(0x7000, b"Test").unwrap();
+    d.init(&mut h).unwrap();
+    assert!(d.initialized);
+    assert!(d
+        .driver_info()
+        .starts_with(b"Maxis 3D GDriver DirectX 2.0\nTest\n1.2.3.4, GUID:"));
+    assert!(d
+        .driver_info()
+        .ends_with(b"Vendor: 0001, Device: 0002, Board: 0003, Chipset: 0004"));
+    assert!(h.refs.iter().any(|(_, op)| *op == Op::Release));
+    let count = h.calls.len();
+    d.error = 6;
+    d.init(&mut h).unwrap();
+    assert_eq!(d.error, 0);
+    assert_eq!(h.calls.len(), count);
+    let light = D3DLight::default();
+    assert_eq!(light.kind, 1);
+    assert_eq!(light.direction, [0., 0., 10.]);
+    assert_eq!(light.theta.to_bits(), 0x3f47ae14);
+    assert_eq!(light.phi.to_bits(), 0x3fc8f5c3);
+    assert_eq!(light.range, None);
+    assert_eq!(d.auxiliary_operation(), Err(Error::Unsupported("RD7")));
+    let mut untouched = 0xfeed;
+    d.pixel_store(0, 123);
+    d.get_integer(1, &mut untouched);
+    assert_eq!(untouched, 0xfeed);
+    d.get_integer(7, &mut untouched);
+    assert_eq!(untouched, 123);
+    let mut mode = [0xbeef; 13];
+    d.mode_info(0, &mut mode);
+    assert_eq!(mode, [0xbeef; 13]);
+    assert_eq!(d.get_error(), 2);
 }
 
 #[test]
 fn context_failure_does_not_release_borrowed_entry_or_stale_output() {
-    let mut h=Recorder::default();h.failures.push_back((Call::CreateDirectDraw,FAIL));
-    let (c,hr)=Context::create(Request{selector:u32::MAX,fullscreen:false,flip:0,window:1,width:800,height:600,back_buffers:2},&mut h).unwrap();
-    assert_eq!(hr,FAIL);assert_eq!(c.identity,0);assert!(h.refs.is_empty());assert_eq!(positions(&h,Call::UnloadLibrary).len(),1);
+    let mut h = Recorder::default();
+    h.failures.push_back((Call::CreateDirectDraw, FAIL));
+    let (c, hr) = Context::create(
+        Request {
+            selector: u32::MAX,
+            fullscreen: false,
+            flip: 0,
+            window: 1,
+            width: 800,
+            height: 600,
+            back_buffers: 2,
+        },
+        &mut h,
+    )
+    .unwrap();
+    assert_eq!(hr, FAIL);
+    assert_eq!(c.identity, 0);
+    assert!(h.refs.is_empty());
+    assert_eq!(positions(&h, Call::UnloadLibrary).len(), 1);
+}
+
+#[test]
+fn compressed_descriptor_preference_and_ordinary_fallback() {
+    let mut h = Recorder::default();
+    let formats: Vec<_> = [0, 2, 9, 11, 13]
+        .into_iter()
+        .map(|key| {
+            let mut words = [0; 8];
+            words[7] = key;
+            texture::Format { words }
+        })
+        .collect();
+    for (request, key) in [(5, 9), (6, 11), (7, 13)] {
+        assert_eq!(texture::select_format(request, &formats, &mut h).unwrap().words[7], key);
+    }
+    assert_eq!(texture::select_format(5, &formats[..2], &mut h).unwrap().words[7], 0);
+    assert_eq!(texture::select_format(6, &formats[..2], &mut h).unwrap().words[7], 2);
+    assert_eq!(texture::select_format(7, &formats[..2], &mut h).unwrap().words[7], 2);
+}
+
+#[test]
+fn null_setup_failure_keeps_native_hazard_and_cleans_window() {
+    let mut h = Recorder::default();
+    let mut d = Driver::new(0x100, 0x200);
+    d.count_modes(&mut h);
+    h.failures.push_back((Call::LoadLibrary, FAIL));
+    assert_eq!(
+        d.set_video_mode(0, 0, false, 0, &mut h),
+        Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite))
+    );
+    assert_eq!(d.error, 6);
+    assert_eq!(d.window, 0);
+}
+
+#[test]
+fn loss_placeholder_is_owned_and_released_on_restore() {
+    let (mut d, mut h) = fixture();
+    h.failures.push_back((Call::CooperativeLevel, FAIL));
+    d.flush(&mut h).unwrap();
+    let placeholder = d.device;
+    assert_ne!(placeholder, 0);
+    h.refs.clear();
+    d.flush(&mut h).unwrap();
+    assert_eq!(
+        h.refs
+            .iter()
+            .filter(|(token, op)| *token == placeholder && *op == Op::Release)
+            .count(),
+        1
+    );
+    let mut fresh = Driver::new(0x100, 0x200);
+    h.calls.clear();
+    fresh.flush(&mut h).unwrap();
+    assert!(h.calls.is_empty());
+}
+
+#[test]
+fn buffer_null_mapping_and_discard_survive_failed_lock() {
+    let (mut d, mut h) = fixture();
+    let b = &mut d.primitives.buffer;
+    h.failures.push_back((Call::LockVertexBuffer, 0));
+    assert!(b.reserve(1, false, 11, 12, &mut h).is_none());
+    assert!(!b.locked);
+    assert_eq!(b.mapped, 0);
+    assert_eq!(positions(&h, Call::UnlockVertexBuffer).len(), 1);
+    b.cursor = b.capacity;
+    h.failures.push_back((Call::LockVertexBuffer, FAIL));
+    assert!(b.reserve(1, true, 11, 12, &mut h).is_none());
+    assert!(b.reserve(1, false, 11, 12, &mut h).is_some());
+    assert_eq!(
+        h.calls
+            .iter()
+            .rev()
+            .find(|c| c.call == Call::LockVertexBuffer)
+            .unwrap()
+            .args,
+        [0x2021]
+    );
+    b.unlock(11, 12, &mut h);
+    h.failures.push_back((Call::RestoreAll, FAIL));
+    assert_eq!(b.recreate(16, 11, 12, &mut h), FAIL);
+    assert_eq!(b.token, 0);
+    assert_eq!(b.capacity, 16);
 }

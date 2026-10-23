@@ -6,9 +6,12 @@ contracts. The director continues to dispatch its foreign DX7 factory; no plugin
 C ABI, Windows API or registration is changed here. Caller adapters may associate
 the returned foreign identity with `Driver`.
 
-This implementation is under construction. Test fixtures supply explicit answers
-at open boundaries; they are not evidence for the native behavior. `Unsupported`
-identifies the relevant question instead of inventing a native HRESULT.
+Test fixtures supply explicit answers at open boundaries; they are not evidence
+for native behavior. `Unsupported` identifies the relevant question instead of
+inventing a native HRESULT. Open sections are listed below. The backend must
+provide its own answers to those boundaries before production mode setup can run.
+Matrix projection uses a portable 64-bit significand accumulator to preserve the
+specified x87 rounding; no host floating-point rounding mode is changed.
 
 ## Owner closure
 
@@ -22,23 +25,23 @@ identifies the relevant question instead of inventing a native HRESULT.
 | cGDriver | 4.4 scenes/loss | Driver::begin_scene/flush | dx7_03_09_11_loss_restore_metadata_and_defaults; open: RD9 stage defaults |
 | cGDriver | 4.5 teardown | Driver::destroy_viewport | dx7_18_failed_setup_writes_fourth_word_after_cleanup |
 | cGDriver | 5.1–5.3 states/clear | Driver::state/clear | defaults_clear_quantization_and_stencil_failures |
-| cGDriver | 5.4 capabilities | Driver::capability/is_enabled | dx7_17_sticky_hresult_channel (remaining branches need tests) |
+| cGDriver | 5.4 capabilities | Driver::capability/is_enabled | immediate_states_capabilities_fog_and_multipliers |
 | cGDriver | 5.5 colour | backend::quantize/color | defaults_clear_quantization_and_stencil_failures |
 | cGDriver | 6 modes | Mode, Driver::count_modes/mode_info | dx7_15_modes_and_descriptor_enrichment; open: RD3 bytes |
 | cGDriver | 7 defaults | Driver::default_state | defaults_clear_quantization_and_stencil_failures |
-| cGDriver | 8.1–8.2 drawing | Driver::interleaved_arrays/draw_arrays/draw_elements | matrices_viewport_formats_and_draw_patterns; more failure tests needed |
+| cGDriver | 8.1–8.2 drawing | Driver::interleaved_arrays/draw_arrays/draw_elements | primitive_copy_merge_immediate_overtake_and_failure_paths |
 | cPrimitiveManager | 8.3 batching | PrimitiveManager | dx7_05_deferred_binding_and_presentation_order; open: RD10 copier defaults |
-| cGDriver | 8.4 multipliers/fog | Driver::color_multiplier/alpha_multiplier/enable_vertex_colors/fog_float/fog_int | pending focused tests |
+| cGDriver | 8.4 multipliers/fog | Driver::color_multiplier/alpha_multiplier/enable_vertex_colors/fog_float/fog_int | immediate_states_capabilities_fog_and_multipliers |
 | cGDriver | 8.5 vertex formats | vertex module | matrices_viewport_formats_and_draw_patterns |
-| cGDriver | 8.6 matrices | Driver::load_matrix/load_identity | matrices_viewport_formats_and_draw_patterns; open: RD11 precision |
+| cGDriver | 8.6 matrices | Driver::load_matrix/load_identity, extended::projection | matrices_viewport_formats_and_draw_patterns, rational_x87_discriminator; open: RD11 exceptional FPU behavior |
 | cTextureManager | 9.1 names | TextureManager::new_name/free/priority | dx7_07_08_follow_parameters_and_lifo |
 | cTextureManager | 9.2 loss/lifetime | TextureManager::init/lose/init_device/shutdown | dx7_03_09_11_loss_restore_metadata_and_defaults; open: RD6 conversion |
 | cTextureManager | 9.3 surfaces | TextureManager::create | dx7_07_08_follow_parameters_and_lifo |
 | cTextureManager | 9.4 uploads | TextureManager::load | dx7_10_texture_upload_flush_boundary; open: RD6 arithmetic |
 | cGDriver | 9.5 texture slots | Driver texture methods | dx7_07_08_follow_parameters_and_lifo, dx7_10_texture_upload_flush_boundary |
-| cTextureManager | 9.6 selection | Device::unresolved | open: RD6 |
+| cTextureManager | 9.6 selection | texture::select_format | compressed_descriptor_preference_and_ordinary_fallback; open: RD6 ordinary ranking/conversion |
 | cGDriver | 10.1–10.2 stages | Stage, Driver stage methods | dx7_06_combiner_cache_and_min_filter_fallthrough, dx7_07_08_follow_parameters_and_lifo |
-| cGDriver | 10.3 apply | Stage::apply | dx7_06_combiner_cache_and_min_filter_fallthrough; more environment branches need tests |
+| cGDriver | 10.3 apply | Stage::apply | dx7_06_combiner_cache_and_min_filter_fallthrough, stage_coordinates_matrices_environments_and_capability_gate |
 | cGDriver | 11 viewport/blits | Driver::set_viewport/get_viewport/blit_unsupported | matrices_viewport_formats_and_draw_patterns |
 | cGDriver | 11.1 scene end | Driver::end_scene | dx7_05_deferred_binding_and_presentation_order |
 | cGDriver | 12.1 auxiliary interfaces/light | Driver::auxiliary_operation | open: RD7 |
