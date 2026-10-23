@@ -49,16 +49,71 @@ Both single and double quotes group a token. Brackets, parentheses and braces
 pair with `]`, `)` and `}` respectively. Outer quote/group delimiters are
 removed from the resulting argument. An unterminated quote reports error 5;
 an unterminated group reports error 6. These delimiter sets are established by
-initializers `0x00A74350`–`0x00A74410`. Mixed nesting and escape syntax remain
-SCR1; applications must not assume shell-style escaping.
+initializers `0x00A74350`–`0x00A74410`.
+
+*[compat]* The first `#` limits the entire input, including quoted/grouped
+text. There is no backslash escape. A quote closes at the next identical quote;
+the other quote character is ordinary content. Adjacent unquoted and quoted
+pieces concatenate into one argument (`a"b c"d` gives `ab cd`). A group is
+special when it begins an argument: it becomes one argument and its closer
+ends that argument even without following whitespace. Only occurrences of its
+own opener and closer affect nesting; quotes and other kinds of brackets
+inside it are literal. Thus `([)]` gives arguments `[` and `]`, whereas
+`(a(b)c)` gives `a(b)c`. Quotes inside a group do not protect a closing bracket.
+These are the literal CountArguments/SplitIntoArguments rules, not a balanced
+mixed-bracket grammar (`0x0067A320`, `0x0067B3B0`).
 
 ### 2.2 Numeric conversion
 
 *[compat]* Numeric conversion requires a complete expression: empty input,
 invalid terms and unconsumed trailing text are errors. Product-level operators
-`*`, `/`, `%` bind more tightly than `+` and `-`. The repeated arithmetic
-accumulators are stored in binary64 after each iteration. Operand grammar and
-the exact remainder operation remain SCR1.
+`*`, `/`, `%` bind more tightly than `+` and `-`; each tier associates left.
+The repeated arithmetic accumulators are stored in binary64 after each
+iteration. `%` is **a − floor(a / b) × b**, not integer remainder or fmod:
+its quotient is stored as binary64 before floor, and both operands are
+binary64 for the multiply/subtract (`0x0067BA0F`–`0x0067BA2F`; floor dispatch
+`0x009EFF60`). For example, `-5%3=1` and `5%-3=-1`.
+
+The next tighter tier is right-associative power `^`. Its operands are signed
+factors, so unary signs bind *more tightly* than power: `-2^2=4`, `2^3^2=512`,
+`2^-2=0.25`. Any sequence of unary `+` and `-`, with whitespace between them,
+is accepted. A factor is a number, a parenthesized full expression, `pi`, `e`,
+or a named function. Identifiers begin with a letter, continue with letters,
+digits or underscore and compare case-sensitively. Unknown identifiers throw;
+there is no implicit variable lookup or multiplication in this evaluator
+(`0x0067AC30`, `0x0067AC60`, `0x0067B360`, `0x0067B920`).
+
+| Name | Arguments / result |
+|---|---|
+| `pi`, `e` | Constants, without parentheses; pi is binary32 `0x40490FDB` promoted to double; e is exp(1) |
+| `sqrt`, `exp`, `log`, `abs`, `floor`, `ceil`, `sqr` | One parenthesized expression; log is natural logarithm; sqr multiplies its binary64 argument by itself |
+| `sin`, `cos`, `tan`, `asin`, `acos`, `atan` | One parenthesized expression; radians |
+| `sind`, `cosd`, `tand` | One expression in degrees, multiplied by binary32 `0x3C8EFA35` promoted to the evaluation precision |
+| `dasin`, `dacos`, `datan` | One expression; inverse-radian result multiplied by binary32 `0x42652EE1` |
+| `pow`, `atan2`, `datan2` | Two full expressions separated by comma inside parentheses; power(a,b), atan2(a,b), and degree atan2(a,b) respectively |
+
+Function arguments may contain whitespace and nested arithmetic. No optional
+arguments, aliases such as `dsin`, or extra commas are accepted. Ordinary
+function results are stored as binary64 before returning; `sqr` reloads its
+binary64 operand for the multiplication, and the three forward degree trig
+functions return their x87 result directly after loading a binary64 argument.
+Constants and widths are checked at `0x0067AD39`–`0x0067AD3F`,
+`0x0067AD7D`–`0x0067AD95`, `0x0067B000`–`0x0067B0A8`,
+`0x0067B0B3`–`0x0067B2A8`; data `0x00AAEBFC`, `0x00AAEC00`, `0x00B0D09C`.
+
+Decimal operands must start with a digit or `.`. Numeric value conversion is
+English-locale atof, but cursor advancement is a separate permissive scan:
+consume all digits and dots, then at most one `e`/`E`, its optional sign and
+all following digits. It does not require exponent digits or only one dot.
+Consequently `.` yields zero, `1.2.3` yields 1.2 and `1e+` yields 1; `1e+x`
+fails for trailing `x`. Leading-zero decimal is decimal. Only a literal
+lowercase `0x` selects unsigned 32-bit base-autodetect strtoul conversion;
+`0X10` does not select that branch and fails for trailing text. The hex result
+is converted as unsigned (high-bit values gain 4294967296 after signed load).
+No finite/domain check is added: arithmetic overflow, division by zero and
+invalid math can return infinities/NaNs under the normal masked floating-point
+environment. Bare `inf`/`nan` are unknown function names, not decimal literals
+(`0x00679D00`, `0x00679DA0`, `0x0067BB20`).
 
 `ParseInt` is not an ordinary truncate-to-integer conversion. It adds binary32
 12582912, stores the result as binary32, and subtracts `0x4B400000` from that
