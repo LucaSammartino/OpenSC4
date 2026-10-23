@@ -5,8 +5,9 @@
 ## Handoff
 - Goal: first pure-core MapView implementation; preserve QV1-QV4 and missing palette/ramp/grid/highlight/summary boundaries.
 - Base: detached `4706fd83`, reserved worktree reused; initial status clean.
-- Done: read map-view §§1-10, QV1-QV4, question policy, grid raw access and ui_windows boundaries. No prior attributable qbuild/fc4verify logs; baseline all launched once.
-- Next: commit preimplementation inventory/questions/discriminating fixtures, then implement bounded algorithms.
+- Done: preimplementation inventory/questions/fixtures committed `b59d16e7`; production source first pass implemented.
+- Baseline all: cargo 5262/0, clippy 0 diagnostics, CMake 215/215 edges; CTest 67/68, cargo_test compile error u32 & i32 in new premultiply closure. Tree changed during run; not a clean baseline. Initial failure retained in baseline evidence before next gate.
+- Next: fix typed closure, expand missing decision fixtures, focused validation, commit source then serial quick/fmt/final all with frozen source.
 - Scope: new map_view module/tests, additive lib.rs declaration, appended map-view questions, this report only.
 - No game/native probes, ABI/plugin/CAPI/default changes, subagents, branch/ref mutation, or forbidden paths.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-map-view4-r1-manifest.json`.

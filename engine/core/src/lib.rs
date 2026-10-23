@@ -149,3 +149,4 @@ pub mod snapshots;
 pub mod resource_editor;
 pub mod application;
 pub mod lotconfig_editor;
+pub mod map_view;

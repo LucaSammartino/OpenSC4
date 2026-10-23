@@ -53,3 +53,9 @@
   indices outside 0-255, which colours count as coloured cells, and what origin/extent/depth transformation
   maps the grid to marked cells? [refuse unsupported float indices; overlay helper plans only explicitly
   supplied coloured cells with complete raw geometry, without inferring inclusion, depth or transforms]
+
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV11 - §4.1: developer layers:** which raw grid does the documented default layer 1 select? Are layers 3
+  and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the
+  slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
+  preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
