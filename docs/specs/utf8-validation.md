@@ -14,12 +14,15 @@ Outline: §1 evidence and boundary; §2 inputs/results; §3 complete finite deci
 Primary evidence is the Windows GOG 1.1.641 executable, file version `1.1.641.0`, original filename
 `SimCity 4.exe`, SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
 The main-checkout working copy's hash matches `ghidra/export/windows/export-summary.txt`;
-the export identifies image base `0x00400000`. Instructions and instruction bytes, queried through
+the export identifies image base `0x00400000`. Read-only PE header inspection also establishes
+x86 machine `0x014C`, PE32 optional-header magic `0x010B` and that same image base.
+Instructions and instruction bytes, queried through
 `re_query.py`, establish the rules below. No original-program execution was performed.
 
 `UTF8IsStringValid` is a medium-confidence imported name (`auto:B4`, Mac navigation `00014baa`),
 not evidence of any Unicode standard. The independently inspected native body is the contiguous
-range **`0x0091016F..0x0091030E` inclusive**, 416 bytes, ending in a return; the next exported
+range **`0x0091016F..0x0091030E` inclusive**, 416 bytes and 145 exported instructions,
+ending in a return; the next exported
 function starts at `0x0091030F`. All branches in the body remain within this range. It is an owned
 byte walker with no calls or foreign primitive dependency. Exported direct-call records give one
 caller, `IsStringValid` at `0x00910948`; no exported data references target the entry.
@@ -254,6 +257,25 @@ Native executions: **0**. No portable implementation has been run against them. 
 of finite byte classes and table consistency do not convert these fixtures into native passes.
 
 ## 6. Coverage and limits
+
+The lead partition covers all 256 byte values: 128 one-byte values, 68 invalid leads, and
+30/16/8/4/2 leads of widths 2/3/4/5/6 respectively. The following checklist separates body
+coverage from execution evidence; **Supported** means statically established normal-domain
+behaviour, not a native-test pass.
+
+| Branch group | Status | Literal evidence / coverage |
+|---|---|---|
+| Entry empty vs nonempty | Supported | V01, S01 vs all positive-count cases |
+| One-byte lower/upper bounds, embedded zero | Supported | V02–V03, S03–S06 |
+| Invalid lower lead range `80..C1` | Supported | V04–V07, V39–V40 |
+| Widths 2–6, both lead edges and exceptional/ordinary split | Supported | V08–V32; special lead vs next lead in V11/V13, V16/V18, V24/V26, V29/V31 |
+| Five signed remaining-width guards, both outcomes | Supported | T01–T15 fail at every shorter count; V08/V11/V16/V24/V29 pass at exact width |
+| All 15 continuation checks, both outcomes | Supported | B01–B15 give 30 rejecting literals; accepted extrema give `80/BF` successes at every position |
+| Four extra first-continuation bounds, both outcomes | Supported | V10/V11, V15/V16, V23/V24, V28/V29; special-lead upper bounds V12/V17/V25/V30 |
+| Upper invalid leads `FE..FF` | Supported | V33–V34 |
+| Advance, repeat, exact-end success, invalid next lead | Supported | S17, S18 |
+| Failure exit and ordered read stopping | Supported | S08–S16; no error/output channel exists |
+| Full normal-domain body | Supported | §1–§3 cover the entire contiguous body, no callee or omitted normal branch |
 
 | Item | Status | Scope |
 |---|---|---|
