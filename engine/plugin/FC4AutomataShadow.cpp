@@ -37,6 +37,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "fc4.h"
@@ -45,6 +46,9 @@ namespace fc4 {
 namespace {
 
 bool g_enabled = false;
+bool g_ownersEnabled = false;
+uint64_t g_ownerLines = 0;
+uint64_t g_ownerCleanLines = 0;
 bool g_loggedNoRecord = false;
 cISC4City* g_city = nullptr;  // borrowed while the city is up
 
@@ -262,6 +266,100 @@ private:
     fc4_ostream s_{};
 };
 
+// Each successful whole-record comparison covers the inherited base record as
+// well. These are record checks, not independent movement/lifecycle simulations.
+struct OwnerCount {
+    size_t records = 0;
+    size_t bytes = 0;
+    uint32_t mismatches = 0;
+    void Add(size_t n, uint32_t bad) {
+        ++records;
+        bytes += n;
+        mismatches += bad;
+    }
+};
+
+struct OwnerScan {
+    OwnerCount manager, traffic, automaton, controller, construction;
+    std::unordered_set<const void*> seen;
+    uint32_t diagnostics = 0;
+
+    void References(const WriteCapture& parent) {
+        // Capture IDs are contiguous, 1-based (FC4WriteCapture.h). Objects are
+        // borrowed during this synchronous city message; never Release them.
+        for (uint32_t id = 1; parent.SerializableAt(id) != nullptr; ++id) {
+            cIGZSerializable* object = parent.SerializableAt(id);
+            if (!seen.insert(object).second) continue;
+            const uint32_t cls = parent.ClassOf(id);
+            const bool isConstruction = cls == 0xA97F909E;  // lot-records §9
+            fc4_automata_object* core = isConstruction ? nullptr : fc4_automata_object_create(cls);
+            if (!isConstruction && core == nullptr) {
+                // Other saved occupants are outside these owners. An unknown
+                // automaton/controller is a failure, never a silent coverage gap.
+                for (uint32_t iid : {0xA9B40F05u, 0x6A1857F8u}) {
+                    void* iface = nullptr;
+                    if (object->QueryInterface(iid, &iface) && iface != nullptr) {
+                        auto* acquired = reinterpret_cast<cIGZUnknown*>(iface);
+                        FC4_ACQUIRED(acquired, "automata owner record classification QI");
+                        FC4_RELEASE(acquired);
+                        (iid == 0xA9B40F05u ? automaton : controller).Add(0, 1);
+                        if (diagnostics++ < 8)
+                            Log("automataowners shadow: unsupported record class=0x%08X iid=0x%08X", cls, iid);
+                        break;
+                    }
+                }
+                continue;
+            }
+            OwnerCount& count = isConstruction ? construction :
+                (fc4_automata_object_is_controller(core) ? controller : automaton);
+            WriteCapture capture;
+            const bool captured = capture.Capture(object);
+            uint32_t bad = 1;
+            if (captured) {
+                CaptureIn input(capture);
+                RecordOut output;
+                const fc4_automata_ref_host host = RefHost(&capture);
+                if (isConstruction) {
+                    bad = !(fc4_automata_construction_roundtrip(input.Get(), output.Get(), &host) &&
+                            input.atEnd() && output.bytes == capture.Bytes());
+                } else {
+                    const bool read = fc4_automata_object_read(core, input.Get(), &host);
+                    bad = !(read && input.atEnd() && fc4_automata_object_write(core, output.Get()) &&
+                            output.bytes == capture.Bytes());
+                    // Object records keep host tokens, not owning references.
+                    // Failed reads release themselves; successful ones are ours.
+                    if (read) {
+                        std::vector<uint64_t> refs(fc4_automata_object_refs(core, nullptr, 0));
+                        fc4_automata_object_refs(core, refs.data(), refs.size());
+                        for (uint64_t token : refs) HostRelease(const_cast<WriteCapture*>(&capture), token);
+                    }
+                }
+                if (bad != 0 && diagnostics++ < 8) {
+                    size_t first = 0;
+                    const auto& original = capture.Bytes();
+                    while (first < original.size() && first < output.bytes.size() &&
+                           original[first] == output.bytes[first]) ++first;
+                    Log("automataowners shadow: record class=0x%08X bytes=%u/%u roundtrip FAILED "
+                        "(consumed=%u first=%u)", cls, static_cast<unsigned>(original.size()),
+                        static_cast<unsigned>(output.bytes.size()), input.atEnd() ? 1u : 0u,
+                        static_cast<unsigned>(first));
+                }
+                References(capture);
+            } else {
+                if (diagnostics++ < 8) Log("automataowners shadow: record class=0x%08X capture FAILED", cls);
+            }
+            count.Add(capture.Bytes().size(), bad);
+            if (core != nullptr) fc4_automata_object_destroy(core);
+        }
+    }
+
+    void Append(std::string& line, const char* name, const OwnerCount& count) const {
+        AppendF(line, " %s=%u/%u bytes=%u mismatches=%u;", name,
+                static_cast<unsigned>(count.records - count.mismatches), static_cast<unsigned>(count.records),
+                static_cast<unsigned>(count.bytes), count.mismatches);
+    }
+};
+
 // ---- one component: the original's record against the shadow core's --------
 
 // The three shapes the six components come in (§2, §3, §4-§5).
@@ -386,7 +484,7 @@ void FirstDifference(const std::vector<uint8_t>& a, const std::vector<uint8_t>& 
 
 // One component: the original's own Write against the shadow core's.
 // Returns the mismatch count (0 = the records are identical).
-uint32_t ComparePart(Part& p, std::string& out) {
+uint32_t ComparePart(Part& p, std::string& out, OwnerScan* owners) {
     cIGZUnknown* obj = UnknownOf(g_city, p.slot);
     if (obj == nullptr) {
         AppendF(out, " %s: no component", p.name);
@@ -438,6 +536,13 @@ uint32_t ComparePart(Part& p, std::string& out) {
     // The core goes before the capture: its references are dropped while the
     // objects the capture named are still reachable (HANDOFF §5.1b).
     DropCore(p);
+    if (owners != nullptr) {
+        if (p.kind == Kind::Manager) {
+            owners->manager.Add(original.size(), mismatches);
+            if (p.slot == 43 || p.slot == 44) owners->traffic.Add(original.size(), mismatches);
+        }
+        owners->References(cap);
+    }
     g_bytesCompared += original.size();
     return mismatches;
 }
@@ -445,11 +550,34 @@ uint32_t ComparePart(Part& p, std::string& out) {
 void RunCompare(const char* what, int32_t julian) {
     if (!g_enabled || g_city == nullptr) return;
     std::string line;
+    OwnerScan owners;
     uint32_t mismatches = 0;
-    for (size_t i = 0; i < kParts; ++i) mismatches += ComparePart(g_parts[i], line);
+    for (size_t i = 0; i < kParts; ++i) mismatches += ComparePart(g_parts[i], line, g_ownersEnabled ? &owners : nullptr);
     AppendF(line, "; mismatches=%u", mismatches);
     const std::string d = DateText(julian);
     Log("automata shadow %s %s:%s", d.c_str(), what, line.c_str());
+    if (g_ownersEnabled) {
+        // The occupant manager's saved references include constructions without
+        // controllers too (occupant-manager §13); no guessed native enumerator.
+        WriteCapture occupants;
+        if (!occupants.Capture(reinterpret_cast<cIGZUnknown*>(g_city->GetOccupantManager()))) {
+            owners.construction.Add(0, 1);
+        } else {
+            owners.References(occupants);
+        }
+        std::string detail;
+        owners.Append(detail, "cSC4AutomataManager", owners.manager);
+        owners.Append(detail, "cSC4TrafficAutomataManager", owners.traffic);
+        owners.Append(detail, "cSC4Automaton", owners.automaton);
+        owners.Append(detail, "cSC4AutomataController", owners.controller);
+        owners.Append(detail, "cSC4ConstructionOccupant", owners.construction);
+        const uint32_t bad = mismatches + owners.automaton.mismatches + owners.controller.mismatches +
+                             owners.construction.mismatches + (owners.manager.records != 4 ? 1u : 0u) +
+                             (owners.traffic.records != 2 ? 1u : 0u);
+        Log("automataowners shadow %s %s:%s mismatches=%u", d.c_str(), what, detail.c_str(), bad);
+        ++g_ownerLines;
+        if (bad == 0) ++g_ownerCleanLines;
+    }
     ++g_lines;
     if (mismatches == 0) {
         ++g_cleanLines;
@@ -464,6 +592,8 @@ void RunCompare(const char* what, int32_t julian) {
 void AutomataShadowStartup(bool automataReplaced) {
     const char* src = "ini";
     g_enabled = SettingInt("automata_shadow", "FC4_AUTOMATA_SHADOW", 0) != 0;
+    g_ownersEnabled = SettingInt("automata_owners_shadow", "FC4_AUTOMATA_OWNERS_SHADOW", 0) != 0;
+    g_enabled = g_enabled || g_ownersEnabled;
     if (g_enabled) Setting("automata_shadow", "FC4_AUTOMATA_SHADOW", &src);
     if (!g_enabled) return;
     if (automataReplaced) {
@@ -471,6 +601,7 @@ void AutomataShadowStartup(bool automataReplaced) {
             "automata components, and `automata` is enabled (ours)",
             src);
         g_enabled = false;
+        g_ownersEnabled = false;
         return;
     }
     Log("automata shadow: ON (automata_shadow from %s): the original's six component records (40 the script system, "
@@ -478,12 +609,16 @@ void AutomataShadowStartup(bool automataReplaced) {
         "shadow core (FreeCity4's automata layer) and written back, and the two byte sequences are compared at each "
         "city load and each month. Success is mismatches=0 on every line.",
         src);
+    if (g_ownersEnabled) Log("automataowners shadow: ON (automata_owners_shadow): complete inherited manager "
+        "records, reachable automaton/controller records and indexed construction records; same-input codec "
+        "comparison only, crane presence seeded from captured record; no lifecycle/movement claim");
 }
 
 void AutomataShadowStart() {}
 
 void AutomataShadowStop() {
     g_enabled = false;
+    g_ownersEnabled = false;
     g_city = nullptr;
 }
 
@@ -504,6 +639,10 @@ void AutomataShadowCityShutdown() {
         static_cast<unsigned long long>(g_lines), static_cast<unsigned long long>(g_cleanLines),
         static_cast<unsigned long long>(g_componentsCompared), static_cast<unsigned long long>(g_bytesCompared),
         static_cast<unsigned long long>(g_mismatches));
+    if (g_ownersEnabled) Log("automataowners shadow: city shutdown: %llu lines, %llu with mismatches=0",
+        static_cast<unsigned long long>(g_ownerLines), static_cast<unsigned long long>(g_ownerCleanLines));
+    g_ownerLines = 0;
+    g_ownerCleanLines = 0;
     for (size_t i = 0; i < kParts; ++i) DropCore(g_parts[i]);
     g_city = nullptr;
     g_lines = 0;

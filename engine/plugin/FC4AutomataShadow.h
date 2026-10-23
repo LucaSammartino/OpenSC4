@@ -18,6 +18,11 @@
 // their records reference. Opt-in, off by default:
 //
 //   automata_shadow = 1             (env FC4_AUTOMATA_SHADOW)
+//   automata_owners_shadow = 1      (env FC4_AUTOMATA_OWNERS_SHADOW)
+// The latter also compares referenced automaton/controller records recursively
+// and construction records from the occupant manager's saved references. Its
+// automataowners shadow lines report each inherited owner's record counts;
+// this validates record codecs, not movement or lifecycle behavior.
 //
 // It needs the ORIGINAL components (the default: `automata` is not enabled).
 // A shadow core (FreeCity4's automata layer, fc4_automata_*) follows them,
