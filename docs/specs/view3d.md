@@ -472,7 +472,7 @@ Measured sequence (all offsets below are **`cIGZWin`-relative**; add `0x0C` for 
 | 3 | `0x007F6223`–`0x007F625D` | compare `*(float*)(this + 0xF0)` against the tick; early-out to `0x007F638B` if not due |
 | 4 | `0x007F625F` | `0x0089058F` on the same timer object |
 | 5 | `0x007F6264`–`0x007F62AF` | convert the tick to a float, scale by `0x00A9F190`, clamp to `0x00A92D28`, then `lea edi, [this - 0xc]` and call **`cSC4View3DWin::UpdateCostIndicator`** (`0x007E8F30`) |
-| 6 | `0x007F62B4` | **[gate]** `*(byte*)(this + 0x324)` — a "fade in progress" flag |
+| 6 | `0x007F62B4` | **[gate]** `*(byte*)(this + 0x324)` — scrolling active |
 | 7 | `0x007F62BE`–`0x007F62DF` | `cSC4CameraControl::ScrollByViewportAngle` (`0x007CD330`) on `*(this + 0xE4)` with two floats derived from `*(this + 0x320)`, `*(this + 0x31C)` and `0x00ABCFB0`; `AL` is kept |
 | 8 | `0x007F62E6` | **[gate]** `*(byte*)(this + 0x32D) == 1` → decrement `*(float*)(this + 0x320)` by `*(float*)(this + 0x330)`; when it goes below `0x00A81054` call `0x007F6160` and clear `+0x324` |
 | 9 | `0x007F6326` | if step 7 returned true → `cSC4View3DWin::DoTemporarySimHiddenPause` (`0x007E5B40`) |
@@ -480,7 +480,7 @@ Measured sequence (all offsets below are **`cIGZWin`-relative**; add `0x0C` for 
 | 11 | `0x007F6355` | if `*(byte*)(this + 0xD9)` is clear, take `obj(this + 0xDC).slot9()` (`+0x24`); else use the float from step 5 |
 | 12 | `0x007F6372` | `obj(this + 0xE8).slot10()` = **`cSC43DRender::GetDrawContext`** → write the step-11 value to **`SC4DrawContext + 0x1C`** |
 | 13 | `0x007F6380` | `obj(this + 0xE8).slot21()` = **`cSC43DRender::Draw`** — **the draw pass** |
-| 14 | `0x007F638C`–`0x007F64BB` | the tail: `SC4GetPopupModalDialogsSafe` (`0x005F9000`), a child walk with `AddRef`/`Release`, `0x005F98C0`, `0x007F5F00`, `0x007F6010` × 2, and four `+0x24` slot calls |
+| 14 | `0x007F638C`–`0x007F6405` | drain at most one deferred message when modal dialogs are safe; repost only if enabled, release it, return true; see [view3d-window.md](view3d-window.md) §6n (VW10) |
 
 Step 13 is the **only** route from the window to the 3D draw pass.
 
@@ -497,7 +497,7 @@ offset `X + 0x0C`.
 | **`+0xF4`** | **`cSC43DRender*`** — the save record's second reference | slots 10 and 21 match `cSC43DRender::vftable` exactly (`GetDrawContext`, `Draw`) |
 | `+0xFC` | float: the paint period | `0x007F6229` |
 | `+0x100` | timer object (`0x00890198` tick, `0x0089058F`) | `0x007F621E`, `0x007F625F` |
-| `+0x14C` | object walked in the paint tail | `0x007F638C` |
+| `+0x14C` | deferred-message queue, at most one message drained per safe paint | `0x007F638C` |
 | `+0x15C` | byte: **paint enabled** — the whole of step 2–13 is skipped when clear | `0x007F6206` |
 | `+0x160` | timer object | `0x007F633B` |
 | `+0x178` | byte: enables the auto-resume test | `0x007F6331` |

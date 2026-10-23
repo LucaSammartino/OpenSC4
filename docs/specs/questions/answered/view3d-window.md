@@ -1,6 +1,27 @@
 # view3d-window: answered questions
 <!-- Answered entries moved from ../view3d-window.md. -->
 
+<!-- from: core-view3dwin5 (2026-10-23); moved by re-view3dwin-vw5 -->
+- **VW10 - view3d.md §5.1 step 14, §5/§6j:** which paint-tail operations, guards, callback contracts and returns?
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6n: the function ends at 0x007F6405;
+  the tail drains at most one safe deferred message, reposts only when enabled, and returns true.
+  No child walk or cursor/mission update; the old account crossed function boundaries. VW-T19.
+- **VW11 - §2, §6f and view3d.md §5.1:** paint period default/unit/comparison and inverted zoom limits?
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6f: 0.0f microseconds by default;
+  nonzero period is due strictly after equality. Zoom uses minimum-first alternatives, not two sequential
+  clamps; inverted limits are retained. VW-T20–VW-T21.
+- **VW13 - §6j:** cursor priority/ties, fade alpha/rounding/hidden clear and years at/below start year?
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6j supplement: descending unsigned priority,
+  newest-first equal priorities, existing IDs stay in place; fade uses trunc(remaining × float32 0.17),
+  white with retained alpha until next paint, including hidden clears. Nonpositive relative years pass through.
+  VW-T22–VW-T24.
+- **VW15 - §5 PreCityShutdown:** state/reference/subscription/painting effects of 0x007E9780?
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6a: clear deferred queue, remove all normal
+  controls including current, then persistent controls; no GUI/render teardown or paint/subscription changes. VW-T25.
+- **VW16 - §1.1 window slot 143:** GZOnCommand arguments, effects, return and relation to other dispatch routes?
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §1.1: two ignored 32-bit arguments;
+  returns false without effects or forwarding; distinct from the two message routes. VW-T25.
+
 <!-- from: the cSC4View3DWin window lane (re-view3dwin4, 2026-10-21) -->
 - **VW1 - §3 step 3:** what each of the thirteen cheats does in `ProcessCheatCode` (`0x007F3510`, 244 decomp lines).
   The Ghidra output types the cheat ID as a float, so branch targets must be read on the instructions. Known so

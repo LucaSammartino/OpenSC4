@@ -64,6 +64,11 @@ All other slots of the 151 are inherited `cGZWin` code.
 | 143 | `+0x23C` | `0x007E5BA0` | `GZOnCommand` |
 | 148 | `+0x250` | `0x007F1130` | deleting destructor thunk (`this-0xC` → `0x007F3E30`) |
 
+`GZOnCommand` (VW16) accepts two 32-bit arguments (command and caller data), ignores both and
+returns **false** with no effects. Its shared body is `0x0093877E` (`0x007E5BA0` is a jump to it;
+the return discards eight argument bytes). It neither invokes `ProcessCommand` nor forwards a message.
+The command notification and window-message routes in §§5–6 remain separate routes.
+
 ## 2. Construction (`0x007F0A70`) *[compat]*
 
 Order of effects:
@@ -306,6 +311,13 @@ runs the tutorial filter, then handles window message `3` (and `0x12`): a `0x287
 
 The window exists before any city; the city-scoped objects are built by the PreCityInit notification and torn down
 before the next city.
+
+**PreCityShutdown is narrower than city teardown (VW15).** `0x007E9780` first clears the deferred-message
+list at `+0x14C`, releasing its message references, then calls view slot 27 with `true`
+(`RemoveAllViewInputControls`, including the current control), then slot 30
+(`RemoveAllPersistentViewInputControls`). It does not call `RemoveGUI`, release the camera/renderer/model maker,
+remove notifications, clear paint-enabled `+0x15C`, or reset the pause timer. Those effects must not be added to
+this notification; window `Shutdown` supplies its separate teardown. The final operation is a tail call to slot 30.
 
 **`DoPreCityInit` (`0x007F41B0`)**, in order:
 
@@ -619,6 +631,19 @@ receive `this + 0x0C`. They extend ui-windows.md §3.2 and view3d.md §5.2, and 
 
 *Added 2026-10-21 (re-view3dwin).*
 
+**Paint timing and inverted zoom limits (VW11).** The constructor writes **0.0f** to `+0xFC`
+(`0x007F0AE1`); the period is in **microseconds**, like `GetElapsedTime` on `+0x100`.
+A zero period is always due. For a nonzero period, drawing is due only when the unsigned elapsed tick is
+**strictly greater** than the period; equality skips the draw. The timer restarts only on a due draw.
+The update duration is elapsed microseconds times the binary64 constant `1e-6`, capped at binary64 `0.5`,
+then narrowed to binary32 for owner updates (`0x007F623A`–`0x007F62AF`). The deferred-message tail still runs
+when disabled or not due (§6n). `SetZoom` uses signed comparisons: below minimum selects minimum; only
+otherwise does above maximum select maximum (`0x007E60EE`–`0x007E60FC`). Thus minimum 4, maximum 2 maps
+request 3 to 4 and request 4 to 2. Limits are never sorted. `SetZoomLimits` stores the supplied minimum,
+applies its existing preference cap to the stored maximum, and chooses a corrective request by the same
+minimum-first rule against the **supplied** maximum (`0x007E61A9`–`0x007E61C0`), passing it through `SetZoom`.
+It returns true even for inverted limits.
+
 **Scrolling.**
 - `RecalcScrollVelocity` (`0x007E6C60`): `kb` := either keyboard direction is non-zero; `f` := 1.2 to the power of
   the camera's zoom (camera `+0x108`). When the preference byte `+0xF09` (edge scrolling) is set, the edge
@@ -886,6 +911,24 @@ manager (`0x4A08C701`): an effect-disaster tool is set with them; with neither p
 
 ## 6k. The save record's body and the global effect triggers *[compat]*
 
+**Status ordering and fade details (VW13, §6j supplement).** Priorities are unsigned, greatest first;
+a new ID is inserted **before** entries of equal priority (`0x007F5D61`–`0x007F5D6A`). Updating an existing
+ID changes its strings/style in place, retaining both its old priority and position. The first entry drives
+the callout. `ClearCostIndicator(true)` unconditionally selects fading mode and white text, copies the last
+cursor position and resets the remaining time to binary32 1500 ms (`0x007EC900`), even when already hidden.
+It redraws without changing the existing surface alpha or explicitly showing a hidden BMP. On each due paint,
+remaining time loses binary64 `seconds * 1000`, is stored as binary32, and the still-live x87 value determines
+expiration and alpha (`0x007E8F62`–`0x007E8FE5`). At remaining time <= 0 the BMP is hidden and mode becomes 0.
+Otherwise alpha is truncation toward zero of remaining time times **binary32 0.17** (`0x00ABCB58`), giving
+255 at the start, 127 at 750 ms and 0 shortly before expiration. This does not preserve the active indicator's
+150 alpha; a normal indicator can brighten on its first fading paint. Its frozen Y position moves upward by
+truncation toward zero of `(1500 - remaining) * binary32 0.13333334` (`0x00ABCB5C`), subtracted from the
+saved Y before the final integer conversion; X remains fixed. At half-time it is about 100 pixels higher.
+`ClearCostIndicator(false)` immediately hides and resets the remaining time. The simulation date formatter
+subtracts the configured start year; only differences **above 10000** wrap to the range 1–10000
+(`0x007EA778`–`0x007EA7B0`). Zero and negative differences are passed to the locale formatter unchanged;
+they are not clamped to year 1.
+
 *Added 2026-10-21 (re-view3dwin).* The View3D record (ui-windows.md §3.3a; `0xA9C8647C`, `0xE9C8647E`, instance 1)
 is version **4**: references to the camera control, the renderer (its `+8` sub-object), the model maker (`+4`) and
 the simulator, then the trigger count and the (trigger, count) pairs in bucket order. `DoLoad` accepts versions below
@@ -927,7 +970,38 @@ clears `+0x408`. (This answers save-records.md Q4 for the View3D record.)
 5. `SetZoomLimits` compares the zoom with the unclamped maximum (§6f).
 6. The command parameters of the save and quit commands are read without a null test (§6g).
 
+## 6n. The paint completion contract *[compat]*
+
+**VW10.** `GZPaint` (`0x007F6200`–`0x007F6405`) always returns true. On a due enabled paint it updates
+the cost indicator first, then scrolling/deceleration, temporary-pause expiration, draw-context time and renderer
+Draw, in the order in [view3d.md](view3d.md) §5.1. Cursor-text positioning is driven by mouse/view changes,
+not this tail; mission updates are driven by their notifications. The tail (`0x007F638C`–`0x007F63FE`) is a
+**deferred-message queue**, not a child-window walk: if nonempty and modal dialogs are safe, take a temporary
+reference to the first message, unlink that node and release its queue reference. Recheck modal-dialog enabled;
+when enabled, repost this message through the message server (slot 4, message plus 0), otherwise discard it.
+Release the temporary reference. This processes **at most one** message per paint, even when callbacks add more.
+With an empty queue or unsafe modal state, do nothing. It runs even when painting is disabled or throttled.
+There are no calls here to `0x005F98C0`, `0x007F5F00`, `0x007F6010`, child callbacks, or mission/cursor refreshes;
+the former §5.1 description crossed the end of this function into neighboring functions.
+
 ## 7. Conformance tests
+
+### Owner closure vectors (VW10–VW16)
+
+- VW-T19: with paint disabled and two deferred messages A, B, unsafe modal state drains neither. Safe/enabled
+  paints drain and repost A with delivery argument 0, then B on the next paint; safe/disabled drains and drops
+  one per paint. Each paint returns true. A not-due paint has the same tail behavior (§6n).
+- VW-T20: period 1000 microseconds, elapsed 999/1000/1001: only 1001 restarts the timer and draws. Default
+  period 0 draws even at elapsed 0 when painting is enabled; 900000 microseconds gives update duration 0.5 s.
+- VW-T21: stored limits (4,2): `SetZoom(3)` requests renderer zoom 4; `SetZoom(4)` requests 2. Do not sort limits.
+- VW-T22: insert A(priority 2), B(9), C(9): order C,B,A. Update A with priority 100: it stays last with priority 2.
+- VW-T23: fade a red alpha-255 indicator, then update by 0.5 s: white alpha 170, remaining 1000 ms and Y about
+  66 pixels upward; another 0.25 s gives alpha 127. At total 1.5 s it hides. Clearing a hidden indicator with
+  fade still sets mode 2 and timer 1500, without a ShowWindow call.
+- VW-T24: date year minus start year -1, 0, 10000, 10001: pass years -1, 0, 10000, 1 to the locale formatter.
+- VW-T25: PreCityShutdown releases all queued messages, removes normal controls including current, then
+  persistent controls; renderer, GUI, paint flag and notification registrations remain. Slot 143 with any
+  two arguments returns false and produces no command callback.
 
 - VW-T1: QI on the five IIDs of §1 returns the documented sub-object offsets; any other IID returns false.
 - VW-T2: after `Shutdown`, no cheat ID of §3 is registered, and no view input control (normal or persistent) remains.
