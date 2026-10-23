@@ -121,7 +121,12 @@ impl TerrainProvider for Ground {
         self.counts
     }
     fn vertex_flags(&self, c: Cell) -> u32 {
-        self.changed_flags.lock().unwrap().get(&c).copied().map(u32::from)
+        self.changed_flags
+            .lock()
+            .unwrap()
+            .get(&c)
+            .copied()
+            .map(u32::from)
             .unwrap_or(self.flags[(c.z * (self.counts[0] + 1) + c.x) as usize])
     }
     fn vertex_position(&self, c: Cell) -> Point {
@@ -133,8 +138,12 @@ impl TerrainProvider for Ground {
     fn edit_counter(&self) -> u64 {
         self.counter.load(Ordering::SeqCst)
     }
-    fn vertex_height(&self, _: Cell) -> Result<f32, Error> { Ok(8.0) }
-    fn refresh_shore_flags(&self) -> Result<(), Error> { Ok(()) }
+    fn vertex_height(&self, _: Cell) -> Result<f32, Error> {
+        Ok(8.0)
+    }
+    fn refresh_shore_flags(&self) -> Result<(), Error> {
+        Ok(())
+    }
     fn set_vertex_flags(&self, c: Cell, flags: u16) -> Result<(), Error> {
         self.changed_flags.lock().unwrap().insert(c, flags);
         Ok(())
@@ -142,7 +151,9 @@ impl TerrainProvider for Ground {
     fn city_extent(&self) -> Result<Point, Error> {
         Ok(point(self.counts[0] as f32 * 16.0, self.counts[1] as f32 * 16.0))
     }
-    fn current_zoom(&self) -> Result<Zoom, Error> { Ok(zoom(0)) }
+    fn current_zoom(&self) -> Result<Zoom, Error> {
+        Ok(zoom(0))
+    }
 }
 struct Texture(u32);
 impl TextureBinding for Texture {
@@ -542,7 +553,10 @@ fn terrain_area_and_dirty_rectangle_boundaries() {
     assert!(!state.pending());
     assert_eq!(state.accumulated_area(), 0);
     let mut dirty = RebuildState::default();
-    let tuning = RippleTuning { edit_area_threshold: 0, ..tuning };
+    let tuning = RippleTuning {
+        edit_area_threshold: 0,
+        ..tuning
+    };
     dirty.terrain_edit(rect(0, 0, 1, 1), &tuning);
     dirty.terrain_edit(rect(19, 19, 20, 20), &tuning);
     assert!(!dirty.pending());

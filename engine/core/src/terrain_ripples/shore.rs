@@ -5,14 +5,14 @@
 use super::{Cell, Error, Point, TerrainProvider, WaterRipple};
 use std::collections::VecDeque;
 
-const DIRECTIONS: [(i32, i32); 8] = [
-    (-1, 0), (-1, -1), (0, -1), (1, -1),
-    (1, 0), (1, 1), (0, 1), (-1, 1),
-];
+const DIRECTIONS: [(i32, i32); 8] = [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)];
 
 fn neighbour(c: Cell, d: usize, counts: [u32; 2]) -> Option<Cell> {
     let (dx, dz) = DIRECTIONS[d];
-    let c = Cell { x: c.x.wrapping_add(dx as u32), z: c.z.wrapping_add(dz as u32) };
+    let c = Cell {
+        x: c.x.wrapping_add(dx as u32),
+        z: c.z.wrapping_add(dz as u32),
+    };
     (c.x <= counts[0] && c.z <= counts[1]).then_some(c)
 }
 
@@ -36,21 +36,35 @@ pub fn trace(terrain: &dyn TerrainProvider, seed: Cell) -> Result<Vec<u32>, Erro
                 }
             }
         }
-        let Some(mut excluded) = excluded else { continue };
+        let Some(mut excluded) = excluded else {
+            continue;
+        };
         'walk: loop {
             for k in 1..8 {
-                let d = if forward { (excluded + k) & 7 } else { (excluded + 8 - k) & 7 };
-                let Some(c) = neighbour(current, d, counts) else { continue };
+                let d = if forward {
+                    (excluded + k) & 7
+                } else {
+                    (excluded + 8 - k) & 7
+                };
+                let Some(c) = neighbour(current, d, counts) else {
+                    continue;
+                };
                 let flags = terrain.vertex_flags(c);
                 if WaterRipple::eligible_flags(flags) {
                     terrain.set_vertex_flags(c, flags as u16 | 1)?;
                     let index = c.z * stride + c.x;
-                    if forward { indices.push_back(index); } else { indices.push_front(index); }
+                    if forward {
+                        indices.push_back(index);
+                    } else {
+                        indices.push_front(index);
+                    }
                     current = c;
                     excluded = (d + 4) & 7;
                     continue 'walk;
                 }
-                if terrain.vertex_height(c)? > water { break 'walk; }
+                if terrain.vertex_height(c)? > water {
+                    break 'walk;
+                }
             }
             break;
         }
@@ -71,11 +85,16 @@ pub fn detect(terrain: &dyn TerrainProvider, minimum: u32) -> Result<Vec<Vec<Poi
             if WaterRipple::eligible_flags(terrain.vertex_flags(c)) {
                 let indices = trace(terrain, c)?;
                 if indices.len() as u32 > minimum {
-                    shores.push(indices.into_iter().map(|i| {
-                        // Valid indices are nonnegative signed32 in the specified domain.
-                        let i = i as i32;
-                        Point::new((i % stride as i32) as f32 * 16.0, (i / stride as i32) as f32 * 16.0)
-                    }).collect());
+                    shores.push(
+                        indices
+                            .into_iter()
+                            .map(|i| {
+                                // Valid indices are nonnegative signed32 in the specified domain.
+                                let i = i as i32;
+                                Point::new((i % stride as i32) as f32 * 16.0, (i / stride as i32) as f32 * 16.0)
+                            })
+                            .collect(),
+                    );
                 }
             }
         }

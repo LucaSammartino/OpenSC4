@@ -39,7 +39,8 @@ pub struct SplinePoint {
 }
 
 /// §1.3: uniform cubic B-spline. This evaluates a given four-point span;
-/// endpoint wrapping and the complete shore traversal remain WR5.
+/// No endpoint padding or wrapping; complete owner traversal lives in `mesh`.
+/// Exact intermediate x87 spill/evaluation order remains open (WR13).
 pub fn spline(points: [Point; 4], t: f32) -> Result<SplinePoint, Error> {
     if !points.iter().all(|p| p.finite()) || !(0.0..=1.0).contains(&t) {
         return Err(Error::InvalidGeometry);
@@ -124,8 +125,8 @@ pub struct RippleVertex {
     pub texture_advance: f32,
 }
 
-/// Geometric pairs only: no invented UV side coordinate, alpha-ramp formula,
-/// or material state (WR5/WR7). The public representation always has even length.
+/// Legacy diagnostic whole-pair geometry. The owner uses `mesh::StripWalk`,
+/// which retains partial pairs, UV-side coordinates and native alpha ramps.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StripGeometry {
     pairs: Vec<CandidatePair>,
@@ -193,8 +194,8 @@ impl StripGeometry {
     }
 }
 
-/// Owned geometry, texture reference and raw-unit animation, still awaiting the
-/// unpublished display-preparation and render-state contract (WR5/WR7).
+/// Legacy diagnostic bound strip; not the WaterRipple owner's display stream.
+/// Native display preparation and drawing use `mesh` and `render` instead.
 pub struct AnimatedStrip {
     geometry: StripGeometry,
     texture: Arc<dyn super::TextureBinding>,
@@ -225,8 +226,8 @@ pub enum PairDecision {
     EndAtLimit,
 }
 
-/// Literal local pair filter, not a complete shore traversal. On an End result
-/// the caller owns the decision whether to retry the candidate (unpublished, WR5).
+/// Legacy whole-pair diagnostic filter. This is not the owner algorithm:
+/// `mesh::StripWalk` consumes split candidates without retry and keeps partials.
 pub struct PairFilter {
     spacing_squared: f32,
     turn_cosine: f32,

@@ -25,3 +25,6 @@
 <!-- from: core-ripples5 (2026-10-23) -->
 - **WR13 - §1.3 spline arithmetic:** publish the actual intermediate spill/evaluation order for the four-point spline, derivative normalization and transcendental operations if bit-identical x87 output is required. The section identifies address ranges but gives only algebraic weights and warns that rearrangements need not match. [Core uses the literal published weights with binary32 Rust intermediates, sin and acos; exact x87 arithmetic remains unsupported rather than claimed by tolerance fixtures.]
 
+<!-- from: core-ripples5 round 2 (2026-10-23) -->
+- **WR14 - §1.5 delayed rebuild pending flag:** does the delayed tick clear pending before calling CreateRipples? The delayed sequence says clear/redetect/recreate, while CreateRipples always clears/redetects when pending; only the immediate message explicitly documents double detection. [Literal core sequence leaves pending set and therefore detects twice on delayed rebuild as well. Fixture edit_removes_all_contacts_rearms_clock_and_delayed_tick_animates_new_strips records this choice; no extra pending-clear is invented.]
+

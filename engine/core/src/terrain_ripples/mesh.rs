@@ -27,12 +27,46 @@ pub struct Parameters {
 impl Parameters {
     pub fn from_retained(t: &RetainedTuning, zoom: Zoom) -> Result<Self, Error> {
         let z = zoom.index();
-        let f = |a: usize| t.floats[a].get(z).copied().ok_or(Error::UnsupportedTuning(super::retained::Unsupported::PostTransformIndices));
-        let b = |a: usize| t.bytes[a].get(z).copied().ok_or(Error::UnsupportedTuning(super::retained::Unsupported::PostTransformIndices));
-        let p = Self { step: t.step[z], spacing_squared: f(0)?, advance: f(1)?, outer: f(2)?, inner: f(3)?, wobble: f(4)?, turn_radians: f(5)?, height: t.height, alpha: [b(1)?, b(0)?], fade: t.fade };
+        let f = |a: usize| {
+            t.floats[a].get(z).copied().ok_or(Error::UnsupportedTuning(
+                super::retained::Unsupported::PostTransformIndices,
+            ))
+        };
+        let b = |a: usize| {
+            t.bytes[a].get(z).copied().ok_or(Error::UnsupportedTuning(
+                super::retained::Unsupported::PostTransformIndices,
+            ))
+        };
+        let p = Self {
+            step: t.step[z],
+            spacing_squared: f(0)?,
+            advance: f(1)?,
+            outer: f(2)?,
+            inner: f(3)?,
+            wobble: f(4)?,
+            turn_radians: f(5)?,
+            height: t.height,
+            alpha: [b(1)?, b(0)?],
+            fade: t.fade,
+        };
         // Invalid/nonpositive tuning is outside the specified normal domain;
         // report it rather than substitute a sanitized/default value.
-        if ![p.step, p.spacing_squared, p.advance, p.outer, p.inner, p.wobble, p.turn_radians, p.height].iter().all(|v| v.is_finite()) || p.step <= 0.0 || p.spacing_squared <= 0.0 || p.fade == 0 {
+        if ![
+            p.step,
+            p.spacing_squared,
+            p.advance,
+            p.outer,
+            p.inner,
+            p.wobble,
+            p.turn_radians,
+            p.height,
+        ]
+        .iter()
+        .all(|v| v.is_finite())
+            || p.step <= 0.0
+            || p.spacing_squared <= 0.0
+            || p.fade == 0
+        {
             return Err(Error::InvalidTuning);
         }
         Ok(p)
@@ -40,11 +74,25 @@ impl Parameters {
     fn candidates(&self, points: [Point; 4], t: f32, phase: f32, water: f32) -> Result<[Vertex; 2], Error> {
         // Reuse existing spline/normal kernel; the diagnostic fixed-five record
         // is explicit input here, never an exemplar/default fallback.
-        let tuning = RippleTuning { outer_distance: [self.outer; 5], inner_distance: [self.inner; 5], wobble: [self.wobble; 5], height: self.height, ..RippleTuning::default() };
+        let tuning = RippleTuning {
+            outer_distance: [self.outer; 5],
+            inner_distance: [self.inner; 5],
+            wobble: [self.wobble; 5],
+            height: self.height,
+            ..RippleTuning::default()
+        };
         let pair = candidate_pair(spline(points, t)?, phase, water, &tuning, Zoom::new(0)?)?;
         Ok([
-            Vertex { position: [pair.outer.x, water, pair.outer.z], color: 0x00FF_FFFF | (u32::from(self.alpha[0]) << 24), uv: [0.0, 1.0] },
-            Vertex { position: [pair.inner.x, pair.height, pair.inner.z], color: 0x00FF_FFFF | (u32::from(self.alpha[1]) << 24), uv: [0.0, 0.0] },
+            Vertex {
+                position: [pair.outer.x, water, pair.outer.z],
+                color: 0x00FF_FFFF | (u32::from(self.alpha[0]) << 24),
+                uv: [0.0, 1.0],
+            },
+            Vertex {
+                position: [pair.inner.x, pair.height, pair.inner.z],
+                color: 0x00FF_FFFF | (u32::from(self.alpha[1]) << 24),
+                uv: [0.0, 0.0],
+            },
         ])
     }
 }
@@ -61,14 +109,25 @@ pub struct StripWalk {
 }
 impl Default for StripWalk {
     fn default() -> Self {
-        Self { strips: Vec::new(), current: None, new_start: true, outer_test: true, followups: 0, u: 0.0, positions: [[0.0; 3]; 2], directions: [[0.0; 2]; 2] }
+        Self {
+            strips: Vec::new(),
+            current: None,
+            new_start: true,
+            outer_test: true,
+            followups: 0,
+            u: 0.0,
+            positions: [[0.0; 3]; 2],
+            directions: [[0.0; 2]; 2],
+        }
     }
 }
 impl StripWalk {
     fn start(&mut self, acquire: &mut impl FnMut() -> bool) {
         // Failure nulls the current pointer, but does not erase its old strip.
         // It still follows the null-current append path, not an early return.
-        if !acquire() { self.current = None; }
+        if !acquire() {
+            self.current = None;
+        }
         if let Some(i) = self.current {
             if self.strips[i].len() < 8 {
                 self.strips[i].clear();
@@ -85,7 +144,12 @@ impl StripWalk {
     /// Public primitive candidate ledger for §6 vectors 9–10. No host-prepared
     /// mesh can be installed into WaterRipple through this diagnostic operation.
     pub fn candidate(&mut self, v: [Vertex; 2], extent: Point, p: &Parameters, acquire: &mut impl FnMut() -> bool) {
-        let inside = |v: Vertex| v.position[0] >= 0.2_f32 && v.position[0] < extent.x - 0.2_f32 && v.position[2] >= 0.2_f32 && v.position[2] < extent.z - 0.2_f32;
+        let inside = |v: Vertex| {
+            v.position[0] >= 0.2_f32
+                && v.position[0] < extent.x - 0.2_f32
+                && v.position[2] >= 0.2_f32
+                && v.position[2] < extent.z - 0.2_f32
+        };
         if !inside(v[1]) || !inside(v[0]) {
             self.start(acquire);
             self.new_start = true;
@@ -94,7 +158,8 @@ impl StripWalk {
         if self.new_start {
             self.start(acquire);
             self.u = 0.0;
-            self.push(v[0]); self.push(v[1]);
+            self.push(v[0]);
+            self.push(v[1]);
             self.positions = [v[0].position, v[1].position];
             self.directions = [[0.0; 2]; 2];
             self.followups = 0;
@@ -103,37 +168,56 @@ impl StripWalk {
             return;
         }
         for (side, vertex) in v.into_iter().enumerate() {
-            if side == 0 && !self.outer_test { continue; }
+            if side == 0 && !self.outer_test {
+                continue;
+            }
             let dx = vertex.position[0] - self.positions[side][0];
             let dz = vertex.position[2] - self.positions[side][2];
             let squared = dx * dx + dz * dz;
-            if squared < p.spacing_squared { return; }
+            if squared < p.spacing_squared {
+                return;
+            }
             let length = squared.sqrt();
             let direction = [dx / length, dz / length];
             if self.followups != 0 {
                 let dot = direction[0] * self.directions[side][0] + direction[1] * self.directions[side][1];
                 // Literal acos comparison, without dot clamping or cosine rewrite.
-                if dot.acos() > p.turn_radians { self.new_start = true; return; }
+                if dot.acos() > p.turn_radians {
+                    self.new_start = true;
+                    return;
+                }
             }
             self.push(vertex);
             self.positions[side] = vertex.position;
             self.directions[side] = direction;
-            if side == 0 { self.outer_test = false; }
-            else {
+            if side == 0 {
+                self.outer_test = false;
+            } else {
                 self.followups += 1;
                 self.u += p.advance;
                 self.outer_test = true;
-                if self.followups > 1000 { self.new_start = true; }
+                if self.followups > 1000 {
+                    self.new_start = true;
+                }
             }
         }
     }
     pub fn finish(mut self) -> Vec<Vec<Vertex>> {
-        if self.strips.last().is_some_and(|s| s.len() < 8) { self.strips.pop(); }
+        if self.strips.last().is_some_and(|s| s.len() < 8) {
+            self.strips.pop();
+        }
         self.strips
     }
 }
 
-pub fn traverse(points: &[Point], phase: &mut f32, water: f32, extent: Point, p: &Parameters, acquire: &mut impl FnMut() -> bool) -> Result<Vec<Vec<Vertex>>, Error> {
+pub fn traverse(
+    points: &[Point],
+    phase: &mut f32,
+    water: f32,
+    extent: Point,
+    p: &Parameters,
+    acquire: &mut impl FnMut() -> bool,
+) -> Result<Vec<Vec<Vertex>>, Error> {
     let mut walk = StripWalk::default();
     let mut span = 0;
     let mut t = 0.0_f32;
@@ -154,7 +238,9 @@ pub fn traverse(points: &[Point], phase: &mut f32, water: f32, extent: Point, p:
 /// Alpha arithmetic keeps binary32 constants in an exact f64 product before
 /// truncation (e.g. 100 * 0.9f32 / 6 truncates to 14, not 15).
 pub fn fade(vertices: &mut Vec<Vertex>, alpha: [u8; 2], configured: u32) -> Result<(), Error> {
-    if configured == 0 { return Err(Error::InvalidTuning); }
+    if configured == 0 {
+        return Err(Error::InvalidTuning);
+    }
     vertices.truncate(vertices.len() & !1);
     let ramp = (vertices.len() / 4).min(configured as usize);
     for side in 0..2 {
@@ -165,7 +251,9 @@ pub fn fade(vertices: &mut Vec<Vertex>, alpha: [u8; 2], configured: u32) -> Resu
         for pair in 0..ramp {
             let head = pair * 2 + side;
             let tail = vertices.len() - 2 - pair * 2 + side;
-            for index in [head, tail] { vertices[index].color = 0x00FF_FFFF | (u32::from(value) << 24); }
+            for index in [head, tail] {
+                vertices[index].color = 0x00FF_FFFF | (u32::from(value) << 24);
+            }
             value = value.wrapping_add(increment).min(full);
         }
     }
@@ -173,7 +261,9 @@ pub fn fade(vertices: &mut Vec<Vertex>, alpha: [u8; 2], configured: u32) -> Resu
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NativeRandom { pub state: u32 }
+pub struct NativeRandom {
+    pub state: u32,
+}
 impl NativeRandom {
     pub fn raw(&mut self) -> u32 {
         let q = u64::from(self.state) * 0x41C6_4E6D + 0x3039;
@@ -181,7 +271,11 @@ impl NativeRandom {
         (q >> 16) as u32
     }
     pub fn bounded(&mut self, bound: u32) -> u32 {
-        if bound == 0 { 0 } else { ((u64::from(self.raw()) * u64::from(bound)) >> 32) as u32 }
+        if bound == 0 {
+            0
+        } else {
+            ((u64::from(self.raw()) * u64::from(bound)) >> 32) as u32
+        }
     }
     pub fn range(&mut self, bounds: [u32; 2]) -> u32 {
         bounds[0].wrapping_add(self.bounded(bounds[1].wrapping_sub(bounds[0])))
@@ -189,10 +283,18 @@ impl NativeRandom {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Animation { pub frame: u32, pub clock: u32, pub period: u32 }
+pub struct Animation {
+    pub frame: u32,
+    pub clock: u32,
+    pub period: u32,
+}
 impl Animation {
     pub fn prepare(frames: u32, bounds: [u32; 2], random: &mut NativeRandom) -> Self {
-        Self { frame: random.bounded(frames), period: random.range(bounds), clock: 0 }
+        Self {
+            frame: random.bounded(frames),
+            period: random.range(bounds),
+            clock: 0,
+        }
     }
     pub fn tick(&mut self, elapsed: u32, frames: u32, bounds: [u32; 2], random: &mut NativeRandom) {
         self.clock = self.clock.wrapping_add(elapsed);
@@ -200,7 +302,9 @@ impl Animation {
             self.frame = self.frame.wrapping_add(1);
             self.period = random.range(bounds);
             self.clock = 0;
-            if self.frame >= frames { self.frame = 0; }
+            if self.frame >= frames {
+                self.frame = 0;
+            }
         }
     }
 }

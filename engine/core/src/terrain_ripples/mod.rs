@@ -3,21 +3,22 @@
 
 //! Shore ripple and selection kernels from `water-ripples.md` §§1–2,6.
 //!
-//! These are unbound pure-core owners, not complete native replacements. See
-//! [`OWNER_CHECKLIST`]. In particular no host may supply traced shores, ripple
-//! meshes, selection masks or owner draw results to bypass a missing contract.
-//! Missing algorithms return a named [`ContractGap`], rather than fabricated
-//! geometry. Raw tick units and flag/byte values are deliberately opaque (WR1–3).
+//! WaterRipple owns shore tracing, mesh generation, scheduling and drawing;
+//! renderer and terrain operations remain foreign primitives. See the module
+//! README's Owner closure table and [`OWNER_CHECKLIST`] for scope and open gaps.
+//! Selection still has unimplemented drawing contracts; no host may supply
+//! prepared owner output to bypass them. Raw tick units and flag/byte values
+//! are deliberately opaque (WR1–3).
 //! Resource lifetimes use `Arc`; getters never use interior mutability.
 
 mod geometry;
+pub mod lifecycle;
 pub mod mesh;
 pub mod render;
-pub mod shore;
-pub mod lifecycle;
 pub mod retained;
 mod ripple;
 mod selection;
+pub mod shore;
 pub mod storage;
 mod tuning;
 
@@ -41,20 +42,20 @@ pub const OWNER_CHECKLIST: &[(&str, bool, &str)] = &[
     (
         "cSTEWaterRipple: spline, normals, pair filters",
         true,
-        "§1.3; WR5 limits",
+        "§1.3; exact arithmetic WR13",
     ),
-    ("cSTEWaterRipple: ordered shore tracing", false, "WR4"),
+    ("cSTEWaterRipple: ordered shore tracing", true, "§1.2"),
     (
         "cSTEWaterRipple: full strip traversal and preparation",
-        false,
-        "WR5–WR6",
+        true,
+        "§1.3; exact arithmetic WR13",
     ),
     (
         "cSTEWaterRipple: animation and delayed rebuild state",
         true,
-        "§1.5; WR6/WR10 limits",
+        "§1.5; RNG seed WR12; delayed pending WR14",
     ),
-    ("cSTEWaterRipple: frustum, render state, draw", false, "WR7"),
+    ("cSTEWaterRipple: frustum, render state, draw", true, "§1.4"),
     (
         "cSTEWaterRipple: native lifecycle and all owner entry points",
         false,
