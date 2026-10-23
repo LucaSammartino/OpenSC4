@@ -75,6 +75,8 @@ pub const DECAL: [Registration; 11] = [
     direct("life", 0x00a9fbd8, 0x005985c0),
     direct("texture", 0x00a9fbc8, 0x005a1e80),
 ];
+// Literal §19.52 association. effects-parser §6.1 gives this same descriptor
+// a different root handler; do not silently reconcile conflicting specs (EF16).
 pub const EFFECT_GROUP: [Registration; 1] = [direct("instance", 0x00a9fa08, 0x00596980)];
 pub const EFFECT: [Registration; 19] = [
     direct("particleEffect", 0x00a9feac, 0x005a0120),
@@ -120,6 +122,7 @@ mod tests {
     struct Host {
         count: u32,
         registrations: Vec<(Descriptor, Registration)>,
+        allocations: Vec<u32>,
     }
     impl Registrar for Host {
         fn base_register(&mut self) {
@@ -127,6 +130,7 @@ mod tests {
         }
         fn allocate(&mut self, bytes: u32) -> Option<Descriptor> {
             assert!(bytes == 4 || bytes == 24);
+            self.allocations.push(bytes);
             self.count += 1;
             Some(Descriptor(self.count))
         }
@@ -247,6 +251,8 @@ mod tests {
         let mut h = Host::default();
         register(&EFFECT, &mut h).unwrap();
         assert_eq!(h.count, 19);
+        assert_eq!(&h.allocations[..17], &[4; 17]);
+        assert_eq!(&h.allocations[17..], &[24; 2]);
         assert_eq!(
             h.registrations
                 .iter()
@@ -271,6 +277,13 @@ mod tests {
         let mut h = Host::default();
         register(&EFFECT_GROUP, &mut h).unwrap();
         assert_eq!(h.count, 1);
-        assert_eq!(EFFECT_GROUP[0], crate::effects_parser::ROOT_COMMANDS[7]);
+        assert_eq!(
+            EFFECT_GROUP[0].descriptor,
+            crate::effects_parser::ROOT_COMMANDS[7].descriptor
+        );
+        // EC275's claim of equal handlers is unsettled: EF16 records the
+        // conflict with effects-parser §6.1. Both literal ledgers are retained.
+        assert_eq!(EFFECT_GROUP[0].hooks, Hooks::Direct(0x00596980));
+        assert_eq!(crate::effects_parser::ROOT_COMMANDS[7].hooks, Hooks::Direct(0x0059a730));
     }
 }

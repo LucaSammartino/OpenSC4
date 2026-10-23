@@ -7,6 +7,7 @@ use crate::effects::{EffectDescription, DIRECTORY_GROUP, DIRECTORY_TYPE};
 
 pub mod children;
 pub mod definitions;
+pub mod motion;
 pub mod particle;
 pub mod resources;
 use definitions::{DefinitionKind, Definitions, Description};
@@ -82,6 +83,10 @@ pub enum Call {
     Color(Vec<u8>),
     Enum(Vec<u8>, &'static [(&'static str, u32)]),
     CountArguments(Vec<u8>),
+    SplitArguments(Vec<u8>),
+    /// Individual transcendental primitive; qualification is EFP7.
+    Cos(f64),
+    Sin(f64),
     PropertyIndex(Identity, Category, Vec<u8>),
     SetProperty(Identity, Category, i32, Box<Reply>),
     EffectId(Identity, Vec<u8>, u32, u32),
@@ -118,6 +123,7 @@ pub enum Reply {
     Bool(bool),
     Vector2([f32; 2]),
     Vector3([f32; 3]),
+    Arguments(Vec<Vec<u8>>),
     Object(Option<Identity>),
     StatusObject(bool, Option<Identity>),
     /// A setter may mutate the shared temporary passed by address.

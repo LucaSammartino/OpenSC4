@@ -96,7 +96,7 @@ fn ec56_ec57_particle_retained_word_indeterminate_word_and_scratch_tail() {
     c.collection = Some(Identity(1));
     let reset = Description::reset(Particles, &c.definitions.get(Particles).description);
     let mut inherited = reset.clone();
-    inherited.lists.insert(0x1b8, vec![4, 7f32.to_bits()]);
+    inherited.tractors.push([0., 0., 0., 0., 0., 0., 4., 7.]);
     let mut h = Host::returning(vec![(
         Call::Inherit(Identity(1), Particles, bytes("Parent"), reset),
         Reply::Inherited(true, inherited.clone()),

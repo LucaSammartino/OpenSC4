@@ -5,8 +5,8 @@ owner decisions using foreign primitive replies, not a text lexer or native
 command interpreter. Renderer, sound, resource, conversion and generic command
 library services remain foreign. No plugin or C ABI integration is provided.
 
-Whole-family implementation is in progress against effects §19 (currently
-through §19.52/EC276). The initial registration inventory below is retained as
+Settled command owners are implemented through effects §19.52/EC276. The
+initial registration inventory below is retained as
 metadata coverage; its historical EF15 execution annotations are superseded by
 the settled-owner table below. EFP1–EFP6 are answered, not remaining spec gaps.
 Only EF15 residual unpublished families and EFP7 numeric qualification stay
@@ -65,10 +65,15 @@ their order, allocation size and block construction. All test items below are in
 
 This table records executable owner work from commands5b. It supersedes the
 old EFP1–EFP6 open annotations above for the newly implemented dependencies.
-Whole-family closure is still **in progress**: particle execution (§§19.18–26,
-19.39–51), decal children (§§19.35–38), and visual-effect/group dictionary
-integration (§19.52) remain implementation work, not spec gaps. Only EF15 residual
-families and EFP7 numeric qualification are genuinely open in the spec.
+Particle execution (§§19.18–26,19.39–51), decal children (§§19.35–38), and
+visual-effect/group dictionaries (§19.52) are covered below, except the
+contradictory instance handler association (EF16, EC275). Whole-family
+closure remains bounded by EF15 residual unpublished execution families and
+EFP7 numeric qualification. Float primitives carry independent f64 replies;
+these tests qualify the stated finite fixtures, not arbitrary x87 control
+states or a complete extended-precision emulator. Warp sine/cosine are separate
+primitive calls. Ordinary allocation and valid selected-index domains apply;
+an unchecked empty selection is Unsupported rather than an invented parser error.
 
 | Owner / spec section | Code item | Tests |
 |---|---|---|
@@ -124,6 +129,68 @@ families and EFP7 numeric qualification are genuinely open in the spec.
 | shake frequency descriptor 00A9FC58, effects §19.33 | Commands::shake_light_curve(Shake,0x14) | ec153_through_ec160_curves_color_aliases_and_unscaled_failure_prefix |
 | light strength descriptor 00A9FCA8, effects §19.33 | Commands::shake_light_curve(Light,0x0C) | ec153_through_ec160_curves_color_aliases_and_unscaled_failure_prefix |
 | light color descriptor 00A9FC88, effects §19.33 | Commands::light_color | ec153_through_ec160_curves_color_aliases_and_unscaled_failure_prefix |
+| zoom descriptor 00A9FB78, §19.18 | `Commands::particle_zoom_stretch(false)` | `particle::tests::ec72_through_ec78_raw_scalar_and_life` |
+| stretch descriptor 00A9FAC8, §19.18 | `Commands::particle_zoom_stretch(true)` | same EC72–78 test |
+| cParticleLifeCommand, §19.18 | `Commands::particle_life` | same EC72–78 test |
+| cParticleRateCommand, §19.19 | `Commands::particle_rate(0)`, `particle_rate_selected`, `particle_rate_options` | `particle::tests::ec79_through_ec86_rate_prefix_modes_and_options` |
+| cParticleInjectCommand, §19.19 | `Commands::particle_rate(2)` | same EC79–86 test |
+| cParticleMaintainCommand, §19.19 | `Commands::particle_rate(4)` | same EC79–86 test |
+| cParticleAlignmentCommand, §19.20 | `Commands::particle_align`, `particle::ALIGN` | `particle::tests::ec87_through_ec90_alignment_guard_and_aliases` |
+| cParticleCollisionCommand, §19.22 | `Commands::particle_collision`, `particle::bounded` | `particle::tests::ec91_through_ec104_collision_terrain_and_walk` |
+| cParticleTerrainRepelCommand, §19.22 | `Commands::particle_terrain` | same EC91–104 test |
+| cParticleRandomWalkCommand, §19.23 | `Commands::particle_walk` | same EC91–104 test |
+| cParticleColorCommand, §19.25 | `Commands::particle_appearance(Color)` | `particle::tests::ec105_through_ec119_appearance_precision_prefix_and_suffix` |
+| alpha descriptor 00A9FB58, §19.25 | `Commands::particle_appearance(Alpha)` | same EC105–119 test |
+| size descriptor 00A9FB48, §19.25 | `Commands::particle_appearance(Size)` | same EC105–119 test |
+| aspect descriptor 00A9FB38, §19.25 | `Commands::particle_appearance(Aspect)` | same EC105–119 test |
+| cParticleRotateCommand, §19.25 | `Commands::particle_appearance(Rotate)` | same EC105–119 test |
+| cDecalEffectCommand, §19.35 | `nested::DECAL`, `nested::register` | `nested::tests::ec161_ec272_through_ec276_decal_and_group_dictionaries` |
+| decal color descriptor 00A9FC28, §19.36 | `Commands::decal_appearance(Color)` | `resources::tests::ec162_through_ec175_decal_curves_and_life` |
+| decal alpha descriptor 00A9FC18, §19.36 | `Commands::decal_appearance(Alpha)` | same EC162–175 test |
+| cDecalSizeCommand, §19.36 | `Commands::decal_appearance(Size)` | same EC162–175 test |
+| decal aspect descriptor 00A9FBF8, §19.36 | `Commands::decal_appearance(Aspect)` | same EC162–175 test |
+| decal rotate descriptor 00A9FBE8, §19.36 | `Commands::decal_appearance(Rotate)` | same EC162–175 test |
+| cDecalLifeCommand, §19.37 | `Commands::decal_life` | same EC162–175 test |
+| cDecalTextureCommand, §19.37 | `Commands::decal_texture`, `decal_texture_options`, `texture_selected` | `resources::tests::ec176_through_ec183_decal_texture_flags_selection_and_failures` |
+| particle draw helper, §19.39 | `Commands::particle_draw`, `resources::PARTICLE_DRAW` | `resources::tests::ec184_through_ec201_particle_resources` |
+| cParticleTextureCommand, §19.39 | `Commands::particle_texture`, `texture_selected` | same EC184–201 test |
+| cParticleModelCommand, §19.40 | `Commands::particle_model`, `particle_model_options`, `particle_model_selected` | same EC184–201 test |
+| timedEffect descriptor 00A9FA18, §19.41 | `Commands::particle_timed`, `Description::timed_effects` | `resources::tests::ec202_through_ec208_timed_effect_insertion_and_unordered_times` |
+| cParticleWarpCommand, §19.43 | `Commands::particle_warp`, `Description::wiggles` | `motion::tests::ec209_through_ec219_warp_order_atomic_append_and_uv_boundary`; `ec220_through_ec223_warp_alpha_prefix_and_nan` |
+| cParticleSourceCommand, §19.45 | `Commands::particle_source` | `motion::tests::ec224_through_ec233_source_shapes_and_short_circuit`; `ec234_through_ec236_source_secondary_order_and_failure_prefix` |
+| cParticleEmitCommand, §19.47 | `Commands::particle_emit`, `particle_rate_options` | `motion::tests::ec237_through_ec242_emit_rates_and_velocity`; `ec243_through_ec249_emit_direction_shapes_and_overrides` |
+| cParticleForceCommand, §19.49 | `Commands::particle_force`, `force_list` | `motion::tests::ec250_through_ec258_force_acceleration_and_attraction_failure_prefix`; `ec259_through_ec264_force_automata_terrain_and_explosion` |
+| cParticleForceCommand, §19.50 | `Commands::tractor`, `particle_force`, `Description::tractors` | `motion::tests::ec265_through_ec271_force_tractor_geometry_time_and_compounding`; definition EC57 inherited tail fixture |
+| cEffectGroupIDCommand, §19.52 | `nested::EFFECT_GROUP` (same instance algorithm) | nested EC275 test; equal-handler identity open: EF16 |
+| cGroupEffectCommand, §19.52 | `nested::EFFECT`, `nested::register` | nested EC272–276 test |
+| cGroupParticlesCommand, §19.52 | `nested::EFFECT[0]` | nested EC272–276 registration test; execution open: EF15 |
+| cGroupDynamicParticleCommand, §19.52 | `nested::EFFECT[1]` | same registration test; execution open: EF15 |
+| cGroupDecalCommand, §19.52 | `nested::EFFECT[2]` | same registration test; execution open: EF15 |
+| cGroupShakeCommand, §19.52 | `nested::EFFECT[3]` | same registration test; execution open: EF15 |
+| cGroupFlashCommand, §19.52 | `nested::EFFECT[4]` | same registration test; execution open: EF15 |
+| cGroupTintCommand, §19.52 | `nested::EFFECT[5]` | same registration test; execution open: EF15 |
+| cGroupSoundCommand, §19.52 | `nested::EFFECT[6]` | same registration test; execution open: EF15 |
+| chainEffect descriptor 00A9FE3C, §19.52 | `nested::EFFECT[7]` | same registration test; execution open: EF15 |
+| cGroupBrushCommand, §19.52 | `nested::EFFECT[8]` | same registration test; execution open: EF15 |
+| cGroupScrubberCommand (four aliases), §19.52 | `nested::EFFECT[9..13]` | same registration test; execution open: EF15 |
+| cGroupAttractorCommand, §19.52 | `nested::EFFECT[13]` | same registration test; execution open: EF15 |
+| cGroupSequenceCommand, §19.52 | `nested::EFFECT[14]`, `Parser::sequence_effect` | nested registration test; effects-parser §6.2 execution tests above |
+| cGroupCameraCommand, §19.52 | `nested::EFFECT[15]` | same registration test; execution open: EF15 |
+| cGroupGroupCommand, §19.52 | `nested::EFFECT[16]` | same registration test; execution open: EF15 |
+| select block descriptor 00A9FDC0, §19.52 | `nested::EFFECT[17]` | same registration test; enter/exit execution open: EF15 |
+| particleSequence block descriptor 00A9FED4, §19.52 | `nested::EFFECT[18]` | same registration test; enter/exit execution open: EF15 |
+
+The conformance sections map to the test groups above without interpreting them
+as native golden runs: §19.3 EC1–15; §19.6 EC16–24; §19.8 EC25–30;
+§19.10 EC31–42; §19.12 EC43–50; §19.15 EC51–64; §19.16 EC65–68;
+§19.17 EC69–71; §19.21 EC72–90; §19.24 EC91–104; §19.26 EC105–119;
+§19.28 EC120–130; §19.30 EC131–140; §19.34 EC141–160;
+§19.38 EC161–183; §19.42 EC184–208; §19.44 EC209–223;
+§19.46 EC224–236; §19.48 EC237–249; §19.51 EC250–271;
+§19.52 EC272–276. Shared input contract §19.1 uses the reader, error and
+dispatch fixtures from effects-parser §§9–12 above. Typed timed-effect,
+wiggle and tractor lists clone on inheritance and clear on description reset;
+the generic integer lists are not used to encode their payloads.
 
 Root conformance groups implement the static EC1–EC50 expectations with
 individual primitive/service replies. They are portable tests, not game or

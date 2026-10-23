@@ -175,7 +175,7 @@ impl Commands {
         }
         self.particle_rate_options(tokens, locale, host)
     }
-    fn particle_rate_options(
+    pub(super) fn particle_rate_options(
         &mut self,
         tokens: &mut [ScriptToken],
         locale: &mut impl CharacterRules,

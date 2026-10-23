@@ -259,10 +259,9 @@ impl Commands {
         if kind == DefinitionKind::Particles {
             self.word_494 = definition
                 .description
-                .lists
-                .get(&0x1b8)
-                .and_then(|v| v.last())
-                .copied()
+                .tractors
+                .last()
+                .map(|v| v[7].to_bits())
                 .unwrap_or(0);
             self.scalar_498 = 1.;
         }
