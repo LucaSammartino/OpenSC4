@@ -469,6 +469,8 @@ cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControlDemolish	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4DemolishFilter	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
+cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	-	-	-
+cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
