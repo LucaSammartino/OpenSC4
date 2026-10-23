@@ -12,12 +12,16 @@ Usage: python qbuild.py --wt <worktree> <step>... [--errors N]
   all      test, clippy, verify
 Cargo runs with CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0 (the disk is shared).
 Exit 0 only if every step passed. Read more of a log with grep or Read offset/limit, never whole.
+The native steps (quick, verify) go through tools/build_queue.py while its worker runs (main checkout
+build-runs/build-queue-worker.alive is fresh): the Codex sandbox cannot run MSVC's CMake configure. Set
+FC4_NATIVE_DIRECT=1 to run them here instead.
 """
 import argparse
 import os
 import re
 import subprocess
 import sys
+import time
 
 
 def run(cmd, cwd, log, env=None):
@@ -90,7 +94,40 @@ def step_clippy(wt, logdir, cap):
     return rc == 0
 
 
+def build_queue_alive():
+    """True while tools/build_queue.py runs (it refreshes this file every few seconds)."""
+    main = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    alive = os.path.join(main, "build-runs", "build-queue-worker.alive")
+    return os.environ.get("FC4_NATIVE_DIRECT") != "1" and os.path.exists(alive) \
+        and time.time() - os.path.getmtime(alive) < 60
+
+
+def queued_fc4verify(wt, steps):
+    """Hand the native steps to the build queue (outside the Codex sandbox, where MSVC configure hangs) and wait."""
+    label = f"qbuild-{time.strftime('%Y%m%d-%H%M%S')}-{'-'.join(steps)}"
+    qdir = os.path.join(wt, "build-runs", "build-queue")
+    os.makedirs(qdir, exist_ok=True)
+    with open(os.path.join(qdir, label + ".req"), "w", encoding="utf-8") as f:
+        f.write(f"label = {label}\nsteps = {' '.join(steps)}\n")
+    verdict = os.path.join(wt, "build-runs", "build-results", label + ".verdict")
+    print(f"native steps queued to tools/build_queue.py as {label}; waiting (a game regress run delays it)")
+    sys.stdout.flush()
+    deadline = time.time() + 3 * 3600
+    while not os.path.exists(verdict):
+        if time.time() > deadline:
+            print(f"build queue: no verdict for {label} after 3 h")
+            return False
+        time.sleep(10)
+    time.sleep(1)
+    with open(verdict, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    print(text.rstrip())
+    return text.startswith("verdict: pass")
+
+
 def fc4verify(wt, steps):
+    if build_queue_alive():
+        return queued_fc4verify(wt, steps)
     tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fc4verify.py")
     p = subprocess.run([sys.executable, tool, "--wt", wt, *steps])
     return p.returncode == 0

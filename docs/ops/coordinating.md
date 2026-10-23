@@ -42,6 +42,9 @@ in it), so it is served from the prompt cache; keep it that way when editing. A 
 (`tools/game_queue.ps1 -Slots 6`, started detached from the main checkout; [running-the-game.md](running-the-game.md) "The game queue") and wait
 for verdicts in one blocking call, never a polling loop. A worktree lane cannot read files outside its worktree:
 paste what it needs into the task, or copy files into its gitignored `build-runs/`.
+Codex lanes cannot run the native build in their sandbox (MSVC configure hangs), so the coordinator also keeps
+`tools/build_queue.py --jobs 1` running detached from the main checkout; `qbuild.py quick|verify` hands the native steps to it
+while `build-runs/build-queue-worker.alive` is fresh, and it waits while a game run is in progress (`--status` shows the queue).
 
 ## Lane context (2026-10-20)
 
