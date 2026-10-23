@@ -1,5 +1,3 @@
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-font-renderer4\engine\core\src\font_renderer.rs:
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Portable small renderer (font-renderer.md sections 2-6), not a native object or ABI.
 //!

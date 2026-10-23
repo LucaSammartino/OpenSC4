@@ -1,5 +1,3 @@
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-font-renderer4\engine\core\tests\font_renderer_contract.rs:
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Independent literal ledgers from font-renderer.md section 6, written before production code.
 use fc4_core::font_renderer::{draw, lock, unlock, Event, Lifetime, Memory, Record, Rect, Refusal, Release, Target};
