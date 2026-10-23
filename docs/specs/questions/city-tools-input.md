@@ -73,3 +73,11 @@
   Debug enable's application-byte/keyboard source and the distinction between building-pick bookkeeping
   and subsequent cell writers are now §8.16.7. [partially answered 2026-10-23; traffic tips and writer bodies
   remain Unsupported, with no native owner callbacks]
+
+<!-- from: core-query-tool5b (2026-10-23) -->
+- **CT21 - §8.16.1/§8.12.4, funding cost refresh target:** §8.16.1 says the related-ID sequences are in addition
+  to a separate `ID + 2` cost update "in §8.12.4", and QCT5-3 requires that separate update. However §8.12.4
+  specifies only the helper's `ID + 0x100` money child, and §8.13 also specifies `ID + 0x100` on notification.
+  Is `ID + 2` a typo, or another update? If separate, specify which sliders, its amount, lookup parent and
+  initialization/notification/write-back timing. The core retains the explicit `ID + 0x100` helper and
+  notification behavior and marks the additional update Unsupported rather than inventing cost controls.

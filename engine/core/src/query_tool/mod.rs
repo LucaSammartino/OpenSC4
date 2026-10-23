@@ -6,11 +6,13 @@
 mod dialog;
 mod model;
 mod tips;
+mod values;
 
 pub use crate::view_input_controls::{ControlHost, Pixel, Vec3};
 pub use dialog::*;
 pub use model::*;
 pub use tips::{load_ratio, rating_level, Tip};
+pub use values::*;
 
 pub const MESSAGES: [u32; 6] = [
     0x0A45_6D95,
@@ -86,6 +88,7 @@ pub enum Open {
     MySimCt14,
     RouteCt15,
     FillerConflictCt18,
+    FundingCostCt21,
     BuildingValuesCt19,
     TrafficInfoCt20,
 }

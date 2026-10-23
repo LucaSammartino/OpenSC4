@@ -20,6 +20,15 @@ struct Fake {
     terrain_query: bool,
     water: bool,
     debug: bool,
+    keys: Vec<u32>,
+    developers: BTreeMap<u32, Developer>,
+    development: BTreeMap<u32, BuildingDevelopment>,
+    developer_types: BTreeMap<(u32, u32), u32>,
+    rating_inputs: BTreeMap<(u8, u8), f32>,
+    commute: u8,
+    resources: BTreeMap<ResourceKey, BTreeMap<u32, Property>>,
+    neighbors: Vec<(u8, u32)>,
+    meters: BTreeMap<Token, MeterWindow>,
     visible: bool,
     result: u32,
     scripts: Vec<Script>,
@@ -48,6 +57,9 @@ impl World for Fake {
     fn lot_at(&self, _: Cell) -> Option<Token> {
         self.lots.keys().next().copied()
     }
+    fn building_at(&self, cell: Cell) -> Option<Token> {
+        self.lot_at(cell).and_then(|l| self.lot(l).building)
+    }
     fn position_to_cell(&self, p: Vec3) -> Cell {
         Cell {
             x: p.x as i32,
@@ -75,8 +87,32 @@ impl World for Fake {
     fn money_value(&self, r: Read, s: Subject) -> i64 {
         self.read(r, s) as i64
     }
-    fn debug_query_enabled(&self) -> bool {
+    fn debug_functionality_enabled(&self) -> bool {
         self.debug
+    }
+    fn query_key_down(&self, key: u32) -> bool {
+        self.keys.contains(&key)
+    }
+    fn building_development(&self, building_type: u32) -> Option<BuildingDevelopment> {
+        self.development.get(&building_type).copied()
+    }
+    fn developer_type(&self, purpose: u32, wealth: u32) -> Option<u32> {
+        self.developer_types.get(&(purpose, wealth)).copied()
+    }
+    fn developer(&self, kind: u32, _: Cell) -> Option<Developer> {
+        self.developers.get(&kind).cloned()
+    }
+    fn rating_input(&self, rating: u8, part: u8, _: Cell) -> f32 {
+        self.rating_inputs.get(&(rating, part)).copied().unwrap_or_default()
+    }
+    fn commute_sample(&self, _: Cell) -> u8 {
+        self.commute
+    }
+    fn resource_properties(&self, key: ResourceKey) -> Option<BTreeMap<u32, Property>> {
+        self.resources.get(&key).cloned()
+    }
+    fn valid_neighbor_connection(&self, _: Cell, direction: u8, kind: u32) -> bool {
+        self.neighbors.contains(&(direction, kind))
     }
 }
 impl ControlHost for Fake {
@@ -102,6 +138,9 @@ impl Host for Fake {
             Effect::Show(_) => self.visible = true,
             Effect::Hide(_) => self.visible = false,
             Effect::PublishDialog(v) => self.active = *v,
+            Effect::MeterGeometry(w, geometry) => {
+                self.meters.insert(*w, *geometry);
+            }
             Effect::SliderProperties(w, i, c, r) => {
                 self.properties.insert(*w, (*i, *c, r.clone()));
             }
@@ -178,6 +217,9 @@ impl Host for Fake {
     }
     fn child_by_id(&self, _: Token, id: u32) -> Option<Token> {
         self.ids.iter().find(|(_, i)| **i == id).map(|(w, _)| *w)
+    }
+    fn meter_window(&self, window: Token) -> Option<MeterWindow> {
+        self.meters.get(&window).copied()
     }
 }
 fn tool(mode: Mode) -> QueryTool {
@@ -529,6 +571,7 @@ fn conformance_rating_and_live_funding_slider() {
 #[test]
 fn filler_table_all_slots_and_set_pass() {
     let mut f = world();
+    f.resources.insert(LOST_LUGGAGE_KEY, BTreeMap::new());
     let s = Subject::Occupant(1);
     for i in 0..127 {
         let expected = matches!(i,0..=4|6..=37|41..=71|73..=74|81..=92|94..=99|107..=109|115..=126);
@@ -736,6 +779,7 @@ fn terrain_zones_and_network_priority() {
     assert_eq!(t.title, "EA5524EB:AA5589FB");
     f.objects.get_mut(&1).unwrap().network_types = vec![4];
     f.debug = true;
+    f.keys = vec![0x10, 0x11, 0x12];
     f.reads.insert(Read::PipeDistressed, 2.0);
     f.reads.insert(Read::PipeCount, 10.0);
     q.network_tip(&f, 1, &mut t);
@@ -899,15 +943,36 @@ fn building_value_thresholds() {
     let s = Subject::Occupant(1);
     f.lots.get_mut(&10).unwrap().fallback_capacity = 35;
     assert_eq!(occupant_capacity(&f, 1), 35);
-    f.reads.insert(Read::RatingMinimum(1), 10.0);
-    f.reads.insert(Read::RatingMaximum(1), 20.0);
+    f.zone = 1;
+    let mut developer = Developer::default();
+    developer.thresholds.insert(1, (10, 20));
     for (value, id) in [(9.0, 0xAA5F_E249), (10.0, 0x0A5F_E260), (20.0, 0x4A5F_E266)] {
-        f.reads.insert(Read::RatingCurve(1, 0), value);
-        assert_eq!(subjective_level(&f, s, 1), id);
+        developer.curves.insert((1, 0), constant_curve(value));
+        f.developers.insert(0x1010, developer.clone());
+        assert_eq!(subjective_level(&f, s, 1), Some(id));
     }
-    assert_eq!(goofy_stat(&[(256.0, 256.0)], -1.0), Some(256));
-    assert_eq!(goofy_stat(&[(0.0, 0.0), (1.0, 1.0)], 0.5), None);
+    assert_eq!(goofy_stat(&constant_curve(256.0), -1.0), Some(256));
+    assert_eq!(
+        goofy_stat(
+            &ResponseCurve {
+                knots: vec![(0.0, 0.0), (1.0, 1.0)],
+                slopes: vec![1.0]
+            },
+            0.5
+        ),
+        Some(0)
+    );
 }
+
+fn constant_curve(value: f32) -> ResponseCurve {
+    ResponseCurve {
+        knots: vec![(256.0, value)],
+        slopes: vec![],
+    }
+}
+
+#[path = "supplement_tests.rs"]
+mod supplements;
 #[test]
 fn network_describe_format() {
     let mut f = Fake {
