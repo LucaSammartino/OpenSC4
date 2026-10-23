@@ -45,3 +45,12 @@ queued nodes. An old worker exit can clear the new worker pointer. Foreign worke
 its companion completion/stop/drain bodies are evidence only, not WWW inventory credit.
 No full Q9 answer is claimed: all residual support/adapters retain their exact O/P checklist rows.
 Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.
+
+<!-- from: core-ftp4 (2026-10-22) -->
+## Q10 — matched HTTP completion with no WWW target
+Section 4.7 says a matched job without a target skips delivery, and distinguishes
+resource cleanup on absent active matches. For a matched job whose target is null,
+does it still convert/cache/process cookies, select waiting jobs and clear the foreign
+resource, or skip some/all of that suffix? The portable core removes the matched live
+entry then returns Unsupported for this exceptional snapshot; it makes no suffix
+equivalence claim. This does not request a new RE round or reopen the parked owner.
