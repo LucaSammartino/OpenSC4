@@ -149,7 +149,7 @@ def main():
             if not reqs:
                 continue
             waiting = True
-            if r in busy or len(busy) >= a.jobs or game_running():
+            if r in busy or len(busy) >= (1 if game_running() else a.jobs):  # one build may overlap a game run
                 continue
             req = reqs[0]
             parsed, err = parse(req)
