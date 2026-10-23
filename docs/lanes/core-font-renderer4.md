@@ -13,7 +13,13 @@
 - Cargo PID 35040, creation 1792724575.1745214; exact argv/output in build-runs/renderer-r2-focused-ownership.json.
 - Engine tree before/after unchanged; no source corrections needed.
 - q.py transport attempt failed before launch (Bash CreateInstance E_ACCESSDENIED); ran quiet retained-output Python wrapper directly.
-- Next: one canonical qbuild all, retain operation identity and collect durable terminal.
+- Canonical all started 03:04:25Z, qbuild PID 32796 creation 1792724665.4978185; session 15723 remains owned/running.
+- Actual workspace Rust: 5366 passed, 0 failed, 24 summaries; clippy completed successfully.
+- Native log reached [4/4] final DLL link; CTest has not started as of 03:08:33Z.
+- Verifier PID 27096 creation 1792724799.5432737 waits on stats client PID 20916 creation 1792724861.330828.
+- Exact argv: C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json.
+- Full identities/log summary: build-runs/renderer-r2-all-diagnostic.json; terminal output empty so far.
+- Next: continue collecting session 15723 to durable terminal; no duplicate, RPC, kill, or restart.
 - Historical report below is retained pending measured round 2 results.
 
 ## Implementation and boundary
