@@ -22,3 +22,16 @@
   constructed verifier now establishes `Init` and `SetTractSize(8)` before capturing its first input record.
   This setup receives no comparison credit; unsized factory serialization remains unverified. This is a parked
   contract question, not a request for additional RE. SG1 replacement/out-of-range choices remain unchanged.
+
+<!-- from: glue-simgrid-lots-shadow5 (2026-10-23) -->
+- **SG3 - sections 1, 5, 6.2 and 6.4 (complete live-grid inventory for record shadows):** what is the
+  supported, complete enumeration contract for the original city's grids at PostCityInit and each month?
+  Please specify either the exhaustive owner/getter (or owner-record/reference) inventory, with element
+  type and borrowing/lifetime rules, or a public enumeration interface with its native signature and
+  ownership rules. Section 6.2 says owners construct grids directly and the map view constructs additional
+  uint16/int16 grids; section 5 defines records but not how to discover every live grid. Are map-view,
+  transient, newly created and owner-replaced grids included, or is the requested shadow explicitly scoped
+  to a defined set of persisted simulator grids? The existing plugin probe observes only references passing
+  through FreeCity4's IStreamAdapter::ReadRef, not every original owner's reads or direct constructions;
+  its observed set cannot establish completeness. [blocked: no new shadow or verified-coverage claim;
+  do not guess a class-store iterator or treat the probe's observed subset as the full inventory]
