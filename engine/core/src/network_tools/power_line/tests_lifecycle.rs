@@ -78,6 +78,70 @@ impl FailureText for Host {
 }
 
 #[test]
+fn construction_and_deleting_destructor_are_structural_not_preview_undo() {
+    use std::cell::Cell;
+    let mut tool = PowerLineTool::default();
+    assert!(!tool.initialized);
+    assert!(!tool.real);
+    assert_eq!((tool.wire_cells, tool.counted_poles), (0, 0));
+    assert_eq!((tool.params.cost_per_pole, tool.params.cost_per_wire), (0, 0.0));
+    tool.groups.push(vec![1, 2]);
+    tool.newly_created.push(Reference(1));
+    tool.reused.push(Reference(2));
+    tool.edits.push(SavedConnection::default());
+    tool.wire_vectors.push(vec![WireCell::default()]);
+    tool.poles.push(PoleInfo::default());
+    let order = Cell::new(0);
+    deleting_destructor(
+        &mut tool,
+        3,
+        || order.set(1),
+        || {
+            assert_eq!(order.get(), 1);
+            order.set(2);
+        },
+    );
+    assert_eq!(order.get(), 2);
+    assert!(tool.groups.is_empty() && tool.edits.is_empty() && tool.reused.is_empty());
+    assert!(tool.newly_created.is_empty() && tool.wire_vectors.is_empty() && tool.poles.is_empty());
+    deleting_destructor(&mut tool, 2, || order.set(3), || panic!("bit zero is clear"));
+    assert_eq!(order.get(), 3);
+}
+
+#[test]
+fn curve_resource_reads_reset_defaults_and_preserve_property_order() {
+    use std::cell::RefCell;
+    let ids = RefCell::new(Vec::new());
+    let loaded = CurveParams::load(
+        |id| {
+            ids.borrow_mut().push(id);
+            (id == 0x49A1_95C0).then_some(3.0)
+        },
+        |id| {
+            ids.borrow_mut().push(id);
+            Some(9)
+        },
+    );
+    assert_eq!(
+        *ids.borrow(),
+        [
+            0xE9A1_8D3F,
+            0x49A1_E8C4,
+            0x89A1_8FC4,
+            0xE9A1_E8D4,
+            0x49A1_95C0,
+            0x89A1_E8FB
+        ]
+    );
+    assert_eq!(loaded.sample_distance, 3.0);
+    assert_eq!(loaded.minimum_count, 9);
+    assert_eq!(loaded.maximum_displacement, 16.0);
+    let reset = CurveParams::load(|_| None, |_| None);
+    assert_eq!(reset.sample_distance, 8.0);
+    assert_eq!(reset.minimum_count, 5);
+}
+
+#[test]
 fn pl_l1_l2_l3_defaults_reinit_and_once_only_resource_failure() {
     let mut h = Host::default();
     let mut globals = Globals::default();

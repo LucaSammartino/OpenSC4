@@ -75,6 +75,11 @@ fn reserved_tiles_building_after_zoned_keeps_later_code() {
 }
 
 #[test]
+fn pl_r3_reserved_unknown_result_updates_previous_without_updating_last() {
+    assert_eq!(reserved(&[0, 4, 3], 0), (1, FAIL_ROAD));
+}
+
+#[test]
 fn cost_of_solution_shipped_values() {
     let p = PowerLineParams::load(
         |id| match id {
@@ -103,6 +108,11 @@ fn cost_of_solution_shipped_values() {
     assert_eq!(t.cost_of_solution(), 0);
     t.poles = poles(4);
     assert_eq!(t.cost_of_solution(), 24 + 60);
+    // network-geometry §18.18: exactly the public conformance vector.
+    t.wire_cells = 20;
+    t.poles = poles(3);
+    assert_eq!(t.cost_of_solution(), 85);
+    assert_eq!(t.counted_poles, 3);
     assert_eq!(PowerLineParams::default().v_3a4, 20);
 }
 

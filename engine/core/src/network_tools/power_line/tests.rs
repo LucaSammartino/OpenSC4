@@ -283,12 +283,41 @@ impl World for TestWorld {
     }
 }
 
-impl PowerLineHost for TestWorld {
-    fn attempt_neighbor_connections(&mut self, _: &mut ToolRun, _: &mut PowerLineTool) -> bool {
-        self.events.push(Event::Attempt);
-        self.attempt
+impl RegionalWorld for TestWorld {
+    fn regional_rules(&self) -> RegionalRules {
+        RegionalRules {
+            dimensions: (4, 4),
+            pen_direction: 4,
+            available: self.attempt,
+            ..RegionalRules::default()
+        }
     }
-    fn place_neighbor_connections(&mut self, _: &mut ToolRun, _: &mut PowerLineTool) {
+    fn draw_regional_line(
+        &mut self,
+        _: &mut ToolRun,
+        _: &mut Vec<(usize, usize)>,
+        _: &mut [(i32, i32); 2],
+        _: u32,
+        type_id: u32,
+    ) {
+        assert_eq!(type_id, 5);
+        self.events.push(Event::Attempt);
+    }
+    fn regional_border(&mut self, _: (i32, i32)) -> u32 {
+        0
+    }
+    fn regional_cell(&mut self, _: (i32, i32)) -> Option<RegionalCell> {
+        None
+    }
+    fn regional_existing(&mut self, kind: u32, _: (i32, i32)) -> u32 {
+        assert_eq!(kind, 4);
+        0
+    }
+    fn regional_remove(&mut self, _: u32, _: (i32, i32)) {
+        unreachable!()
+    }
+    fn regional_create(&mut self, kind: u32, _: (i32, i32), _: bool) {
+        assert_eq!(kind, 4);
         self.events.push(Event::Regional);
     }
 }
@@ -763,6 +792,32 @@ fn pl_zw1_zw2_zw3_zu3_endpoint_overlap_and_withheld_backward_split() {
             w.events.iter().filter(|e| **e == Event::Release(Reference(9))).count(),
             2
         ); // QI and occupant
+    }
+}
+
+#[test]
+fn pl_b1_zone_closure_requires_last_clear_index_strictly_above_zero() {
+    for last in [0, 4] {
+        let mut run = ToolRun::new(5, (10, 0), (20, 0));
+        run.cells = vec![(30, 0), (10, 0), (20, 0), (40, 0), (30, 0)];
+        run.dragged_count = 4;
+        run.valid_count = 4;
+        let mut tool = PowerLineTool {
+            anchors: vec![(10, 0), (20, 0)],
+            // Deliberately nonmonotonic ranges distinguish index zero from any later cell.
+            steps: vec![(1, 1), (2, 2), (last, last), (3, 3)],
+            ..PowerLineTool::default()
+        };
+        let mut w = TestWorld::default();
+        w.zones = [0, 0, 0, 1, 1, 1].into();
+        let mut failure = 0;
+        determine_pole_positions(&mut run, &mut tool, &mut w, &mut failure);
+        assert_eq!(tool.poles.len(), if last == 0 { 2 } else { 3 });
+        assert_eq!(tool.wire_cells, 1);
+        if last != 0 {
+            assert_eq!(tool.poles[2].cell_index, last);
+            assert_eq!(tool.poles[2].links, [(1, 2)]);
+        }
     }
 }
 
