@@ -70,3 +70,16 @@
   initialization/notification/write-back timing. The core retains the explicit `ID + 0x100` helper and
   notification behavior and marks the additional update Unsupported rather than inventing cost controls.
 
+<!-- from: core-place-lot5b (2026-10-23) -->
+- **CT25 - section 3.7 feedback visibility:** step 1 resets flag +0x95 false and no later step assigns true,
+  yet section 3.14 defines the second feedback argument as visibility and says a missing terrain pick suppresses
+  feedback while an invalid picked lot can remain visible. Where does a hit assign visibility true (or is +0x95
+  not this argument)? [literal section 3.7 retains false; the complete 3.14 renderer is exposed through the core
+  feedback method with independent validity and visibility, but mouse-driven visibility is not claimed exact]
+
+<!-- from: core-place-lot5b (2026-10-23) -->
+- **CT26 - section 3.7 versus quirk 4.5 validation gate:** section 3.7 says CanPlaceLot still runs for reason
+  text after a failed coverage/facing step, whereas quirk 4.5 gates that call by previous placeability when
+  automatic facing/configuration lookup fails. Which rule applies, and what are the retained cost/text/position
+  outputs when the gate is false? [follow the detailed 3.7 unconditional validation for now; no native callback]
+

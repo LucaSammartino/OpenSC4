@@ -46,6 +46,15 @@ pub struct PlaceLot {
     pub cursor_id: u32,
     pub control_id: u32,
     pub preview_effects: [Option<u64>; 2],
+    pub previews: Vec<Preview>,
+    pub ring: Option<u64>,
+    pub constraint_effects: [Vec<u64>; 2],
+    pub radius: f32,
+    pub radius_auxiliary: u32,
+    pub coverage_names: Option<[String; 2]>,
+    pub texture: Option<(u64, f32)>,
+    feedback_valid: bool,
+    building_preview: bool,
 }
 
 impl PlaceLot {
@@ -81,6 +90,15 @@ impl PlaceLot {
             cursor_id: 0,
             control_id: 0,
             preview_effects: [None; 2],
+            previews: Vec::new(),
+            ring: None,
+            constraint_effects: [Vec::new(), Vec::new()],
+            radius: 0.0,
+            radius_auxiliary: 0,
+            coverage_names: None,
+            texture: None,
+            feedback_valid: false,
+            building_preview: false,
         }
     }
 
@@ -146,7 +164,9 @@ impl PlaceLot {
         }
         self.build_preview(h);
         h.effect(Effect::GridInit);
-        h.effect(Effect::Unsupported(Open::FeedbackCt17)); // ring creation
+        if self.ring.is_none() {
+            self.ring = h.create_ring();
+        }
         if self.coverage_view != 0 {
             h.effect(Effect::RegisterView(self.coverage_view));
         }
@@ -159,20 +179,6 @@ impl PlaceLot {
         } else {
             h.configuration(self.configuration).map_or(0, |c| c.first_building)
         }
-    }
-
-    fn build_preview(&mut self, h: &mut impl Host) {
-        let building = self.resolved_building(h);
-        let info = h.building_info(building);
-        if info.groups.contains(&0x1401) {
-            self.coverage_view = 0xA;
-        } else if info.groups.contains(&0x1302) {
-            self.coverage_view = 0xF2;
-        }
-        // The published marker and view selection are known; model/prop
-        // construction and tint algorithms are explicitly open in CT17.
-        h.effect(Effect::PreviewMarker(building, 0x0292_44DB));
-        h.effect(Effect::Unsupported(Open::FeedbackCt17));
     }
 
     pub fn shutdown(&mut self, h: &mut impl Host) -> bool {
@@ -193,6 +199,10 @@ impl PlaceLot {
         h.effect(Effect::RecalculateCoverage);
         h.effect(Effect::GridShutdown);
         self.release_configuration_effects(h);
+        if let Some(ring) = self.ring.take() {
+            stop(h, ring);
+            h.effect(Effect::ReleaseCreatedEffect(ring));
+        }
         h.effect(Effect::Release(Service::Buildings));
         h.effect(Effect::Release(Service::Configurations));
         for m in MESSAGES {
@@ -238,23 +248,16 @@ impl PlaceLot {
         }
     }
 
-    fn release_configuration_effects(&mut self, h: &mut impl Host) {
-        self.stop_previews(h);
-        h.effect(Effect::Unsupported(Open::FeedbackCt17));
-    }
-
-    fn feedback(&self, h: &mut impl Host, valid: bool, flag: bool, point: Vec3) {
-        h.effect(Effect::FeedbackState(valid, flag, point, self.rotation));
-        h.effect(Effect::Unsupported(Open::FeedbackCt17));
-    }
-
     pub fn message(&mut self, h: &mut impl Host, message: u32) -> bool {
         match message {
             0x277A_9364 => {
                 let show = !h.terrain_grid_hidden();
                 h.effect(Effect::GridVisible(show));
             }
-            0x49D5_B83F => h.effect(Effect::Unsupported(Open::RingFinishedCt22)),
+            0x49D5_B83F => {
+                self.coverage_raised = false;
+                if self.view { h.effect(Effect::RecalculateCoverage); }
+            },
             0x99EF_1142 | 0x99EF_1143 if !self.coverage_raised => h.effect(Effect::RecalculateCoverage),
             0xA6B7_9602 | 0xC9F7_75BB => {
                 self.stop_previews(h);
@@ -287,6 +290,8 @@ impl PlaceLot {
         let old_flag = self.feedback_flag;
         let mut point = self.position;
         self.mouse = mouse;
+        // Literal 3.7 resets this and never publishes a hit-path true write.
+        // CT25 asks how a successful pick enables the 3.14 visible branch.
         self.feedback_flag = false;
         if let Some(hit) = h.pick_terrain(mouse) {
             point = hit;
@@ -294,8 +299,13 @@ impl PlaceLot {
             let coverage = if modifiers & 0x100 != 0 {
                 self.coverage(h, point, candidate)
             } else if self.toll_booth {
-                h.effect(Effect::Unsupported(Open::TollBoothCt16));
-                None
+                let picked = pick_toll(h, point);
+                if picked.coverage.valid {
+                    self.change_configuration(h, picked.configuration);
+                    candidate = picked.rotation;
+                    point = picked.coverage.point;
+                }
+                picked.coverage.valid.then_some(picked.coverage)
             } else {
                 let result = self.automatic_facing(h, point);
                 candidate = result.rotation;
@@ -309,6 +319,8 @@ impl PlaceLot {
                 point = c.point;
                 self.rotation = candidate;
             }
+            // Literal detailed 3.7 calls this even when facing fails. The
+            // previous-placeability gate in quirk 4.5 conflicts with it (CT26).
             let validation = self.can_place(h, point, candidate);
             self.cost = validation.cost;
             self.cursor_text = validation.text;
@@ -343,7 +355,7 @@ impl PlaceLot {
             // Literal section 3.7 compares the player rotation, not auto-facing.
             self.shown_rotation = i32::from(self.player_rotation);
         }
-        h.effect(Effect::Unsupported(Open::WindowManagerCt2));
+        if h.has_window_manager() { h.effect(Effect::FlushInputQueue); }
         true
     }
 
@@ -402,5 +414,9 @@ fn pick(h: &mut impl Host, values: &[u32], initial: u32) -> u32 {
 }
 
 mod placement;
+mod feedback;
+mod toll;
+pub use toll::{pick_toll, seek_compatible};
+use feedback::stop;
 #[cfg(test)]
 mod tests;

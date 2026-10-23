@@ -59,12 +59,51 @@ pub enum Service {
     Configurations,
     Buildings,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Open {
-    WindowManagerCt2,
-    TollBoothCt16,
-    FeedbackCt17,
-    RingFinishedCt22,
+#[derive(Clone, Debug, Default)]
+pub struct Entry {
+    pub kind: u32,
+    pub flags: u32,
+    pub identifiers: Vec<u32>,
+    pub position: Vec3,
+    pub rotation: u8,
+    pub maximum: Vec3,
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PreviewInfo {
+    pub police: bool,
+    pub fire: bool,
+    /// Successful reads, including zero-valued properties.
+    pub health: bool,
+    pub education: bool,
+    pub prop_preview: bool,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct Network {
+    pub flags: u32,
+    pub sides: u32,
+    pub connections: u8,
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TollPick {
+    pub configuration: u32,
+    pub rotation: u8,
+    pub coverage: Coverage,
+}
+#[derive(Clone, Debug)]
+pub struct Preview {
+    pub token: u64,
+    pub local: Vec3,
+    pub rotation: u8,
+    pub registered: bool,
+    pub shown_rotation: u8,
+    pub prop: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Attributes {
+    pub flag: u8,
+    pub highlight: u8,
+    pub rgb: [f32; 3],
+    pub alpha: f32,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Effect {
@@ -87,8 +126,24 @@ pub enum Effect {
     CursorText(u32, String),
     ClearCost(bool),
     ShowCost(u32),
-    PreviewMarker(u32, u32),
     FeedbackState(bool, bool, Vec3, u8),
+    FlushInputQueue,
+    GridPosition(Vec3),
+    OccupantFlag(u64, u32),
+    OccupantProperty(u64, u32, bool),
+    OccupantTransform(u64, Vec3, u8),
+    OccupantDraw(u64, u32, Attributes),
+    InsertPreview(u64),
+    RemovePreview(u64),
+    OrientationMessage(u64, u32, u32),
+    ReleaseCreatedPreview(u64),
+    AcquirePreview(u64),
+    ReleasePreview(u64),
+    EffectTransform(u64, Vec3, f64, f32),
+    EffectParameter(u64, u32, Vec<f32>),
+    EffectTexture(u64, u32, u64),
+    ReleaseTexture(u64),
+    StartEffect(u64, u32),
     StopEffect(u64, u32),
     ReleaseCreatedEffect(u64),
     Withdraw(i64),
@@ -97,7 +152,6 @@ pub enum Effect {
     InsertConnection(Connection, i32, i32),
     PlacementEffect(&'static str, Vec3),
     Ring(Vec3, [i32; 2], u32),
-    Unsupported(Open),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Connection {
@@ -122,6 +176,11 @@ pub struct Zone {
     pub kind: u32,
     pub commit: bool,
     pub skip_funds: bool,
+    pub check_slope: bool,
+    pub skip_size: bool,
+    pub check_lot_inside: bool,
+    /// All three optional output pointers are null.
+    pub outputs: [Option<u64>; 3],
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coverage {
@@ -156,6 +215,25 @@ pub struct Placement {
 pub trait Host: ControlHost {
     fn effect(&mut self, effect: Effect);
     fn has_view(&self) -> bool;
+    fn has_window_manager(&self) -> bool;
+    fn city_grid_hidden(&self) -> bool;
+    fn entries(&mut self, configuration: u32) -> Vec<Entry>;
+    fn first_building_entry(&mut self, configuration: u32) -> Option<Entry>;
+    /// Building-development hash-set iteration order, preserved by the adapter.
+    fn building_candidates(&mut self, identifiers: &[u32]) -> Vec<u32>;
+    fn has_profile(&mut self, exemplar: u32) -> bool;
+    fn create_preview_building(&mut self, exemplar: u32) -> Option<u64>;
+    /// None includes unavailable prop manager.
+    fn create_preview_prop(&mut self, exemplar: u32) -> Option<u64>;
+    fn preview_info(&mut self, token: u64) -> PreviewInfo;
+    fn coverage_radius(&mut self, token: u64, category: u32) -> Option<(f32, u32)>;
+    fn create_effect(&mut self, name: &str) -> Option<u64>;
+    fn create_ring(&mut self) -> Option<u64>;
+    /// Foreign renderer generates texture and extent; owner binds/scales it.
+    fn footprint_texture(&mut self, configuration: u32) -> Option<(u64, f32)>;
+    fn position_to_cell(&self, position: f32) -> i32;
+    fn cell_corner(&self, x: i32, z: i32) -> (f32, f32);
+    fn network(&mut self, x: i32, z: i32, mask: u32, option: bool) -> Option<Network>;
     fn on_top(&self) -> bool;
     fn translate_key(&mut self, key: u32, modifiers: u32, context: u32) -> Option<u32>;
     fn configuration(&mut self, id: u32) -> Option<Configuration>;
@@ -178,9 +256,7 @@ pub trait Host: ControlHost {
     /// Only Some when IsTutorial and a current task both exist.
     fn tutorial_rectangle(&self) -> Option<Rect>;
     fn total_funds(&self) -> i64;
-    /// checkSlope/skipSize are the foreign PlaceZone service's defaults: section 3.12
-    /// does not give explicit values (CT23). They are not guessed by this owner.
-    fn place_zone(&mut self, zone: Zone);
+    fn place_zone(&mut self, zone: Zone) -> bool;
     fn create_lot(&mut self, rect: Rect, rotation: u8, enabled: bool, water: bool, configuration: u32) -> Option<u64>;
     fn construct_default_lot(
         &mut self,
