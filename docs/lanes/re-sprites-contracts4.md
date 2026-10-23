@@ -1,8 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane) | blocked: coordinator STOP; native findings preserved, draft unreconciled; no runtime/coverage claims | Preserve worktree; no further RE rounds authorized; no merge queue. |
+| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 2) | in progress: bounded AS6/AS7 evidence and retained-proof reconciliation | Verify rotation and quad instructions; preserve explicit residuals. |
 
 ## Handoff
+
+- Goal: bounded AS6/AS7 publication and retained-proof reconciliation. AS2 excluded; AS1 provenance remains open.
+- Done: this milestone adds instruction-derived AS7 §§5–6 geometry/store/box/cache/draw/pick contracts and independent proposed UNEXECUTED R2-Q1/Q2/Q3 vectors.
+- Identity: bin/SimCity4.exe SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt, base 00400000.
+- Evidence: UpdateView 007FE400–007FEA84, Draw 007FEA90–007FED4C, Pick 007FD710–007FD7C6; GetViewVolume 007FF340–007FF3BE, queried export/bytes before supporting decomp.
+- Next: verify SetOrientation mask/composition 007FC4B0–007FCC69; supporting decomp _unnamed/region_007f0000.c:2350; prove noncommuting and sentinel fixtures, reconcile LookAt target/forward.
+- Before ready: reconcile §1.1 citation, defaults/lifetime/interface/inventory, clock duplicate prose, and partial questions. No game/native execution, ABI proposals or coverage credit.
+- Queue: task-specific prohibition overrides generic finish queue instruction; no queue file will be written.
+
+## Retained R1 report (historical, not readiness)
+
+- Round 2 resumed 2026-10-23 under run4-re-sprites-contracts4-r2-manifest.json; historical STOP below is superseded only by the copied host admission.
+- Authority: build-runs/coordinator-sprites-r2-host-proof.json records full admission exit 0, dependency ancestor exit 0, role RE, expected round 2, unparked; runtime guard remains mandatory.
+- Current next: export/asm proof for SetOrientation, LookAt and UpdateView; reconcile contradictions before any ready publication. Historical findings below remain evidence, not readiness claims.
 
 - Goal: AS1/AS3–AS9 only, cS3DModelInstanceAnimatedSprite; no engine reads/edits occurred.
 - STOP: guard denied further work: "User directed STOP RE: prioritize verified/replaced; preserve findings, commit handoff and return blocked. No further RE rounds authorized."

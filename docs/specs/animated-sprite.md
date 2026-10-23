@@ -343,22 +343,132 @@ UVs [(0,0.25),(0,0),(0.25,0),(0.25,0.25)]. Scale 2 gives [page 3,32,32,−6,8].
 
 ## 5. Drawing (`Draw`, `0x007FEA90`; `UpdateView`, `0x007FE400`) *[compat]*
 
-Nothing is drawn when highlighted, or at zoom 0 or 1. Otherwise:
+### 5.1 Quad construction and local box
 
-1. When the zoom or rotation differs from the cached one, or the frame is dirty: the view angles (yaw from the
-   instance's forward vector, pitch by arcsine) choose the frame (§4.1); after a view change `UpdateView` recomputes
-   the quad: the frame's width and height in pixels times the metres per pixel (the view utilities' `+0x150`, or from
-   the camera's view volume when there are none), laid along the camera's right and up axes (camera.md §1.3) from
-   the frame's offset, and the instance's box is widened to contain the four corners.
-2. The corners are moved to the instance's position (when it moved).
-3. Model transform; the shade from the lighting manager (`SetModelShade`), or self-lit with flag 4; the draw state;
-   with flag 2 (fading) the instance's alpha as transparency and alpha test "greater" at 0; the frame's texture; one
-   triangle fan of four vertices (`DrawPrims(2, 10, 4, …)`); shade and transparency are restored.
+This section describes finite inputs with nonzero denominators and valid loaded records. It does not promise
+safe behavior for unloaded records, null cameras, zero viewport width, or malformed camera transforms.
+`UpdateView` has no status return and no validation/failure branch for those inputs.
+
+Let the decoded metric record be `[page,W,H,ox,oy]` (§4.5). Let `C` be the camera's local transform, and
+`r=(C[+4],C[+0x10],C[+0x1C])`, `b=(C[+0x0C],C[+0x18],C[+0x24])`, `uy=C[+0x14]`.
+These are the right column, back column and up-column Y component of its row-major matrix. Camera
+translation and camera scale are not read here. `g` is custom magnification, stored to binary32 on return
+from the camera controller (`0x007FE407–007FE418`).
+
+If view utilities exist, `m` is their binary32 metres-per-pixel field +0x150. Otherwise get the camera's
+view-volume left and right endpoints and compute `m=(right-left)/unsigned(context.width)`, storing the result
+to binary32. The width conversion loads signed i32 and adds exactly 2^32 for negative values
+(`0x007FE41C–007FE470`). The endpoints include the camera's view shift: with raw horizontal endpoints L,R,
+camera viewport width V and horizontal shift D, they are `L+(R-L)/V*D`, `R+(R-L)/V*D`, each stored as
+binary32 by GetViewVolume (`0x007FF340–007FF388`). Use the returned endpoints; do not cancel the shift before
+their stores.
+
+In real arithmetic the construction is:
+
+- `d=H-oy`, `t=(m/uy)*g`, horizontal step `h=(r*m)*g`.
+- For d>=0, `a=(t*d)/b.y` and displacement `B=b*a`; for d<0, B=(0,0,0).
+- Upper left v0 = `(B.x-h.x*ox, B.y+t*oy-h.y*ox, B.z-h.z*ox)`.
+- Upper right v3 = `(B.x+h.x*(W-ox), B.y+t*oy+h.y*(W-ox), B.z+h.z*(W-ox))`.
+- Lower left v1 copies v0.x,z; its Y is `B.y-t*d-h.y*ox`.
+- Lower right v2 copies v3.x,z; its Y is `B.y-t*d+h.y*(W-ox)`.
+
+The corners at complete-object +0x13C,+0x148,+0x154,+0x160 are v0,v1,v2,v3 respectively.
+Their order is upper-left, lower-left, lower-right, upper-right; the triangle fan and Pick use that order.
+The vertical edges change world Y only. The construction does **not** use the camera-up column as a
+vertical quad span. Owner rotation affects frame selection; owner scale is not applied to these corners.
+Decoded resource scale has already affected W,H,ox,oy. Owner position is added later (§5.2).
+Evidence: displacement `0x007FE47B–007FE507`, horizontal step `0x007FE50B–007FE564`, upper corners
+`0x007FE641–007FE6C1`, `0x007FE7D8–007FE812`, lower corners `0x007FE92B–007FE987`.
+
+Numeric qualification: these equations specify dependency/sign/order, not a portable last-bit oracle.
+The routine inherits x87 precision/rounding control. In particular d and t are binary32 stores
+(`0x007FE49D`, `0x007FE4AC`); each horizontal component stores `r*m` before multiplying g and storing again
+(`0x007FE51E–007FE564`). B.y and B.z are stored as binary32 (`0x007FE4ED`, `0x007FE4FF`), while B.x remains
+in the x87 stack. Products h.y*ox, h.z*ox, and each h.component*(W-ox) store to binary32 before their sums;
+h.x*ox remains in the stack (`0x007FE652–007FE693`). Upper-left x,z have binary32 temporary stores as well
+as corner stores (`0x007FE699`, `0x007FE6AD`). The lower baseline `B.y-t*d` stores to binary32 before the
+two lower Y sums (`0x007FE943–007FE987`). Do not replace this with blanket binary32 or binary64 arithmetic.
+
+The box is **reset** every UpdateView: min=(1,1,1), max=(0,0,0), followed by inclusion of the origin;
+the inverted-X test therefore yields min=max=(0,0,0). Include v0 and then v3 componentwise. Next take
+the resulting maximum M and include the single point `(-M.x,M.y,-M.z)`. No lower corner is included.
+Thus the exact finite rule is the box of `{origin,v0,v3,(-M.x,M.y,-M.z)}`, with M taken before the last
+inclusion. It may shrink on the next UpdateView; it is not a cumulative four-corner world box.
+Equality comparisons retain the existing extrema; signed-zero payloads are not specified here.
+Evidence: reset/origin `0x007FE51E–007FE641`; upper-corner inclusion `0x007FE6C7–007FE92B`;
+reflected-maximum inclusion `0x007FE98D–007FEA82`. UpdateView itself does not clear either dirty byte.
+
+**R2-Q1, proposed UNEXECUTED independent literal vector.** Use raw camera matrix rows
+`(1/2,-1/2,1/2)`, `(0,1/2,1)`, `(-1/2,-1/2,1/2)`, m=2, g=1/2,
+metrics `[page=3,W=6,H=10,ox=2,oy=3]`. This deliberately supplied, nonsingular raw matrix is not normalized
+by UpdateView; it tests a rotated camera without irrational constants. All intermediate arithmetic here is
+exact in binary32: d=7, t=2, h=(1/2,0,-1/2), a=14, B=(7,14,7).
+
+| Corner | Local cached position | With owner position (10,20,30) |
+|---|---|---|
+| v0 | (6,20,8) | (16,40,38) |
+| v1 | (6,0,8) | (16,20,38) |
+| v2 | (9,0,5) | (19,20,35) |
+| v3 | (9,20,5) | (19,40,35) |
+
+Box progression: origin only [0,0]^3; after v0, min=(0,0,0), max=(6,20,8); after v3,
+max=(9,20,8); final min=(-9,0,-8), max=(9,20,8). Importing owner matrix
+rows `(0,0,1),(1,0,0),(0,1,0)` and owner scale 7 does not change these cached positions when the same
+metrics are selected. It can change which orientation record is selected before this calculation.
+
+**R2-Q2, proposed UNEXECUTED shrink/extremum vector.** Refresh Q1 with W=H=2, ox=oy=1/2,
+same camera/m/g: d=3/2, t=2, a=3, B=(3/2,3,3/2). Corners v0,v1,v2,v3 are
+`(5/4,4,7/4)`, `(5/4,0,7/4)`, `(9/4,0,3/4)`, `(9/4,4,3/4)`.
+After origin/v0/v3, max=(9/4,4,7/4); final box is min=(-9/4,0,-7/4), max=(9/4,4,7/4),
+independently of the previous larger box. The Y maximum is exactly shared by the upper corners; the reflected
+point keeps that maximum and supplies both negative horizontal extrema.
+
+### 5.2 Refresh, translation and draw state
+
+Draw returns 1 immediately for a nonzero **boolean highlight-pass argument** or signed context zoom<2.
+The stored highlight bit does not cause this early return (`0x007FEA90–007FEAAD`). There is no upper zoom
+range check: a context zoom outside the valid holder range must not be described as a safe successful draw.
+
+If view-dirty is already set it remains set. Otherwise compare full context zoom/rotation integers to the
+zero-extended cached bytes, setting view-dirty when either differs. If view-dirty or frame-dirty is set,
+copy the low bytes of context zoom/rotation, refresh orientation/metrics/UVs (§4.5), call UpdateView **only if
+view-dirty**, then clear frame-dirty (`0x007FEAB3–007FEB80`). A changed record or frame alone need not rebuild
+geometry. A changed camera matrix, custom magnification or mpp alone does not participate in invalidation.
+
+If view-dirty is set or the cached transform counter differs from the owner's byte counter, rewrite draw
+vertex positions as cached local corners plus owner position, componentwise with binary32 stores. Copy the
+owner counter to the cache and clear view-dirty (`0x007FEB81–007FEC62`). Equal counters (including wrap after
+256 changes) can leave old translated positions. Rotation/scale are not applied to the cached quad here.
+
+Then call, in order (`0x007FEC69–007FED3B`):
+
+1. Context `SetModelTransform()` with **no model argument** (draw-context §5: camera view transform).
+2. `SetModelShade(shared instance, owner RGB)` normally, or `SetSelfLitShade(owner RGB)` when flag 4 is set.
+3. `SetRenderState(owner packed state)`.
+4. If flag 2 is set: `SetTransparency(alpha)` then `SetAlphaFunc(4, binary32(alpha*double(0.5)))`.
+5. `SetTexture(binding.table[metrics.page],0)`; no page/binding validity check here.
+6. `DrawPrims(2,10,4,owner draw-vertex block)`, i.e. four interleaved position/colour/UV vertices, stride 24.
+7. `ResetShade()`, then `ResetTransparency()`; return 1.
+
+The routine does not branch on any of those calls' returns. There is no forced restoration of packed render
+state, texture, alpha function, or a previous model transform, and no unwind/restore promise if a callee faults.
+The two reset calls use the context's reset semantics, not a saved copy of arbitrary incoming state.
+
+**R2-Q3, proposed UNEXECUTED cache vector.** After Q1 is drawn with equal cached context zoom/rotation,
+frame-dirty=view-dirty=0 and equal transform counters, change only m from 2 to 4 and change the camera matrix.
+The next Draw retains the Q1 metric selection and all four translated positions. Its context draw calls still
+run. With the original camera restored, m=4, and view-dirty explicitly set, the next Draw refreshes: d=7,t=4,
+h=(1,0,-1), B=(14,28,14), corners `(12,40,16),(12,0,16),(18,0,10),(18,40,10)`;
+box min=(-18,0,-16), max=(18,40,16). Frame-dirty and view-dirty end zero and the counter cache is copied.
+If only frame-dirty is set, metrics/UVs refresh but UpdateView and translation are skipped when counters match.
 
 ## 6. Picking (`Pick`, `0x007FD710`)
 
-The quad's two triangles are tested with `SC4ViewUtilities::TrianglePick` (view-utilities.md §7); true on the first
-hit.
+Pick copies the four **translated draw vertices**, not the local corners, and tests triangles (0,1,2), then
+(2,3,0), using `SC4ViewUtilities::TrianglePick` (view-utilities §7). It returns true on the first hit, else the
+second helper's boolean. It never refreshes frame, quad or translation; calling Pick after a setter but before
+a refreshing Draw therefore tests stale geometry. It does not apply the model transform, inspect highlight,
+or reject zooms itself (`0x007FD710–007FD7C6`).
 
 ## 7. Users
 
@@ -368,7 +478,7 @@ picks them through the two thunks; animation ticks drive the clock.
 ## 8. Quirks
 
 1. Sprites vanish at the two farthest zooms (§5).
-2. A fading sprite passes the alpha test at any non-zero alpha (§5).
+2. Fade sets the alpha-test threshold to alpha times 0.5, with function code 4 (§5.2).
 3. The resource-key functions' names do not match what they build (§2).
 4. Without frame skipping a long tick advances one frame and leaves the clock at 1, so the next tick advances
    again (§4).
