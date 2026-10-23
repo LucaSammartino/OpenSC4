@@ -14,8 +14,9 @@
   re-watercraft-wc5b: §3.3 adds movement-gate short-circuit/state-query order,
   straight-integrator arguments/outputs and docking helper result/failure contracts.
   §5.1.4 specifies inherited animation dispatch and generic seek arithmetic.
-  Exact residual: remaining route/math (notably 00567ED0/00567FD0), land/tow,
-  tuning/debug signatures/failures, inherited initialization/teardown and
+  re-watercraft-wc5c: §3.4 completes angular/quantization signatures and
+  side effects, OnLand comparison/short circuit and EndTowing reference handling.
+  Exact residual: tuning/debug signatures/failures, inherited initialization/teardown and
   subsidiary animation/effect/model computations. No full-owner closure claim.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
@@ -32,7 +33,8 @@
   flag/state gates, two time arguments, unconditional normal true result and
   six-key wake request order/adapter forwarding. Residual: full AI selection,
   inherited player-drive, subsidiary slot-83/103 animation computations,
-  effect-controller and slot-104/107 updates, and far approach. Normal attitude
+  effect-controller and slot-104/107 updates. §5.3.2 (re-watercraft-wc5c)
+  supplies far-approach clamping, entry effects, call order and return contract. Normal attitude
   composition was already resolved in round 2; crash attitude remains WC5.
 
 <!-- from: core-watercraft4 (2026-10-22) -->

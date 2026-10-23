@@ -252,6 +252,32 @@ takes one writable transform and returns void; its complete arithmetic and
 positive-speed-only output contract are in §5.1.1. These contracts do not
 close the remaining owner/inherited audit in §10.2.
 
+### 3.4 Land, tow and angular helper contracts (WC3)
+
+| Entry | Arguments / result | Behavior and failure boundary |
+|---|---|---|
+| `0x00567DF0` OnLand | No arguments; bool in AL | Convert runtime position x/z (+0x2F4/+0x2FC), not occupant +0x40, to cells through city slot 95. Ask city slot 99 whether the cell is inside. Outside returns false without terrain calls. Inside, sample terrain slot 18 at the cell, round its height to float, then sample water height through slot 29; true only when terrain is strictly above water. Equality returns false. No boat fields change and there is no null-service recovery. |
+| `0x00567E80` EndTowing | No arguments; void | If +0x280 is nonnull, call that interface's slot 53 without arguments. Re-read +0x280 after the call; if still nonnull, clear the stored pointer before Release. Then clear/release +0x284 if nonnull. No release through an already cleared pointer; slot-53 reentrancy can change which reference is released. There is no synthesized success result, state push, or explicit timer/speed reset in this helper. |
+| `0x00567ED0` angular proximity | Three by-value floats `(x,y,z)`, callee pops 12 bytes; 32-bit boolean EAX | Compare an input vector with the inherited heading at +0x58, as specified below. The comparison changes that inherited heading by normalization even when false. |
+| `0x00567FD0` direction quantization | No arguments; 32-bit direction EAX | Return one of 0–7 using §5.4.1's heading quantization. Normalize a local copy of runtime heading +0x30C; do not write either stored heading, position or the travel-point list. There is no failure/sentinel result. |
+
+For angular proximity, normalize the input vector and inherited heading using
+their full 3D Euclidean lengths. The heading's length first passes through a
+float store; the scaled heading components are stored back as floats.
+Let `d` be the dot product of the normalized input and the newly stored
+heading. Clamp d to [-1,1], round it to float, and compute
+`theta=acos(d)*57.295780181884766` degrees. Return true only for theta strictly
+less than **2 degrees**. Equality is false. Do not replace this with a
+horizontal-angle test or compare with p[14]. The fixed 2-degree tolerance
+is at `0x00B0A154`; normalization numerator `0x00B0A18C` is 1. Neither
+normalization has a zero-length guard; no finite fallback direction or
+failure-state transition is supplied for degenerate inputs.
+
+Evidence: `0x00567DF0–0x00567E72`, `0x00567E80–0x00567EC9`,
+`0x00567ED0–0x00567FC0` (input normalization `0x00567ED0–0x00567F0B`,
+heading writes `0x00567F31–0x00567F4E`, dot/clamp/acos/strict comparison
+`0x00567F51–0x00567FBE`), `0x00567FD0–0x005681AD`.
+
 ## 4. States *[compat]*
 
 `DoStateTick` (`0x00573340`) and the enter and exit hooks extend automata.md §6.6:
@@ -638,6 +664,39 @@ For exactly antiparallel finite horizontal unit headings, theta is 180 and the z
 the positive rotation. A zero-length heading/direction has unguarded normalization and can propagate NaN
 components; theta's NaN-to-zero substitution is not a repair of the stored vector. Implementations must
 not invent a deterministic fallback direction and call it original behaviour.
+
+#### 5.3.2 Far docking and entry side effects (WC3/WC4)
+
+`DoDockingTick(float dt_ms)` returns a boolean (AL), not a motion-success
+status. It obtains the destination station twice: first to copy its berth
+position, then to copy its berth direction. Each temporary station record
+releases its string and retained lot reference before the next operation.
+The destination position/direction are therefore two successive observations,
+not a single retained station snapshot. Evidence: `0x00572770–0x005727FA`.
+
+The approach distance is the **3D** Euclidean distance from inherited occupant
+position +0x40 to that copied berth position, rounded to float before the
+land test. OnLand true requests state 72 with the ordinary default arguments
+`(72,0,-1,0,0,0,0)` but does not return early. Subsequently, inherited heading
++0x58 is flattened only when its y component is nonzero; in that case y is
+set to zero and all components are normalized and stored as floats. With
+y already zero there is no entry normalization. Zero horizontal length has
+no guarded fallback. These side effects precede the distance branch and
+also occur on a call that will report docking complete.
+
+Distance **strictly greater** than p[37] selects far approach; equality uses
+the final-approach rules in §5.3.1. For finite input dt and nonnegative p[35],
+the far-approach time is `t=min(max(dt,0),p[35])`, stored as a float. In order,
+request AI target selection/slew with t, integrate movement with a writable
+reference to that same local t, then detect collisions. Collision detection
+is unconditional even if AI selection returned early or t is zero. Return
+true unconditionally from this branch, irrespective of helper results or
+state changes, with no second distance or completion test. The movement
+helper may apply its own time handling as specified in §5.1.1. This is not
+permission to supply an opaque AI result: the remaining AI-selection gap is
+listed in §10.2. Evidence: `0x00572800–0x0057292B`; float distance storage
+`0x0057282C`, flattening `0x00572854–0x005728A7`, strict branch/time/call order
+`0x005728AA–0x00572929`.
 
 ### 5.4 Stations and routes
 
@@ -1281,10 +1340,10 @@ untraced helper bodies still prevent a whole-owner closure claim.
 |---|---|---|
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
 | Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
-| Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.3, 5.1.1, 5.2; full 00567ED0/00567FD0 contracts remain untraced |
+| Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.4, 5.1.1, 5.2, 5.4.1; angular proximity and direction-quantization signatures/results now included |
 | Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; full signatures/failures still WC3 |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
-| Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.3, 5.6, 6.3; land/tow reference/failure audit still WC3 |
+| Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
 | Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes and endpoints; rotation/contact still WC5 |
@@ -1295,12 +1354,12 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
 | Wake stop/start | 0056EFE0, 0056F1E0 | §5.1.4 gives signatures, six-key ordering, arguments, ignored results and adapter forwarding; controller/update internals remain WC4 |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
-| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final approach expanded, remaining WC4/WC7 |
+| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final and far approach expanded; full AI selection remains WC4 |
 | Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 124 individually named spec-side vectors. It does **not** certify
+This document supplies 132 individually named spec-side vectors. It does **not** certify
 complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
@@ -1309,8 +1368,8 @@ substitute an opaque provider result for missing owner computation.
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking helper signatures and inherited animation dispatch | Complete signatures/results/failure contracts for remaining route/math, land/tow, tuning and debug helpers and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
-| WC4 | Commands, routes/following/final docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations, and far-approach contracts. |
+| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow contracts and inherited animation dispatch | Complete tuning and debug signatures/results/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
+| WC4 | Commands, routes/following/final and far docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations. |
 | WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint and inanimate corner tables | Sink/heel axes/contact/transform composition. |
 
 These gaps are not answered by an inventory count or by the existing summary
@@ -1535,3 +1594,16 @@ runtime heading and removal arguments are exact.
 | WC4-I02 | Flag 2 set, flag 4 clear, state tick returns true | State tick receives a; no generic seeking; final event (0,0), return true. |
 | WC4-I03 | Flag 2 set, flag 4 clear, state tick false; P=(1,2,3), D=(-1,20,30) | Replace entire D with P, set flag 4, events (4,0) then (0,0); no position publication or measured-speed reset. |
 | WC4-I04 | Invoke wake stop; effect controller reports every key absent | All six stop requests still occur in listed order, each followed by slot 104. No start requests, field writes or early exit. |
+
+### 11.14 Land, tow, angular and far-docking vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-J01 | Runtime x/z convert to an outside cell; occupant position is inside | OnLand false after city slots 95,99; no terrain/water call and no state change. |
+| WC3-J02 | Inside cell, terrain=10; water=10, then water=9 | OnLand false at equality, true for 9. Terrain sampled at cell coordinates and stored as float before water comparison. |
+| WC3-J03 | +0x280=A, +0x284=C; A slot 53 reentrantly replaces +0x280 with B | Slot 53 invoked on A; helper then clears/releases B, followed by clearing/releasing C. It does not use a cached A for its explicit Release. |
+| WC3-J04 | Input=(2,0,0), inherited H=(3,0,0); separately H=(0,0,3) | Angular helper true then false; stored H becomes (1,0,0) then (0,0,1), including on false. No travel-point or runtime-heading writes. |
+| WC3-J05 | Runtime H=(3,0,0), inherited H=(0,0,7) | Quantization returns direction 3 with both stored headings unchanged; its normalization is local. |
+| WC4-J01 | p[35]=100, p[37]=90, occupant-to-berth distance=91, dt=150; land test false | AI receives 100, then movement receives reference to the same local time, then collision; return true. Repeat with dt=-5: AI receives zero and all three calls still occur. |
+| WC4-J02 | Occupant P=(0,0,0), berth=(0,91,0), p[37]=90; runtime P is at berth; inherited H=(2,0,0) | Far approach selected using occupant 3D distance; no entry normalization of the already horizontal heading. Subsequent AI/motion may change it. |
+| WC4-J03 | Entry OnLand true, distance exactly p[37], inherited H=(3,4,0) | Request state 72, then flatten H to (1,0,0), then continue final approach. No far-branch AI call; state push alone does not end the docking tick. |
