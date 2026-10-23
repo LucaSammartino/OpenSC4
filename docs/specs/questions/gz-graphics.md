@@ -43,3 +43,12 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   failure. Next evidence: standalone helpers in `_global.c`, especially
   `0x00930BE0`, `0x00930CF0`, `0x00985D40`, `0x009888E0`, `0x00988A80`;
   confirm numeric conversions in assembly before extending the spec.
+- **GZG6 — section 2.1 context destruction versus section 3.4 replacement:**
+  Does final context destruction call engine Shutdown before releasing it, or
+  only release the independently retained engine and target? Section 2.1 says
+  destruction releases both; section 3.4 explicitly requires Shutdown only on
+  replacement. The core follows that literal distinction: replacement invokes
+  Shutdown, destruction releases engine then target without adding a Shutdown.
+  This matters because the buffer engine's final Release does not unlock (§4.2).
+  Please settle the context-destructor call sequence; no native destructor
+  layout or implicit shutdown guarantee is assumed.

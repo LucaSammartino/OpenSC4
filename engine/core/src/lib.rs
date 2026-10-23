@@ -179,3 +179,4 @@ pub mod audio_ambience;
 pub mod query_tool;
 pub mod place_lot;
 pub mod sc_resources;
+pub mod gz_graphics;
