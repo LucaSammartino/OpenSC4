@@ -1,14 +1,5 @@
 # System-service pointer questions
 
-## SSP1 — Actual Draw destructor identity
-
-The label at `0x0082AE40` is a four-word arithmetic body with a stack argument,
-not a service pointer destructor (spec section 4.2). Which original native
-entry or inlined path actually implements destruction for the stored Draw
-wrapper constructed at `0x00449720`? No uniform destructor rule is proposed
-for that nominal pair until its identity is established. Do not expand the
-arithmetic owner or region callers to answer this utility attribution question.
-
 ## SSP2 — Persist clear-and-release source role
 
 Section 3.2 establishes the exact normal clear-before-release body at

@@ -193,6 +193,52 @@ counts, deletion decisions or service state. A lookup-owned reference is
 balanced by one wrapper Release only if that foreign lookup actually supplied
 such a reference. A malformed or borrowed-only output is not repaired.
 
+### 3.4 Draw construction followed by shared callable cleanup (SSP1)
+
+**[compat]** The actual callable cleanup for the Draw stack wrappers in the
+two paths below is D74 `0x004495C0`, despite that body's MessageServer2 label.
+This is a direct native call, not cleanup inlined into the caller, and not
+`0x0082AE40`. Both paths pass the same four-byte local's address in ECX to
+Draw construction `0x00449720` and then to cleanup. The caller does not pass
+the stored interface directly as the cleanup receiver. Inside `0x004495C0`,
+the null test is at `0x004495DF`; for nonnull P, ECX changes from W to P at
+`0x004495EB`, and P's virtual `+0x08` is called at `0x004495EF`. There is
+no further receiver adjustment, lookup, AddRef or wrapper clear. No stack
+argument is consumed, and no usable destructor return value is specified.
+The wrapper word remains P after normal cleanup; that is an observation of
+storage, not permission to reuse an ended object or dereference a dead P.
+
+| Caller path (discovery label) | Exact wrapper storage / construction | Normal use and branch | Cleanup identity |
+|---|---|---|---|
+| `cGZWin::SetAreaToDrawTo`, `0x0099CF6A` | W=`EBP-8`; address formed `0x0099D03E`, constructor call `0x0099D041` | `0x0099D046` tests the **stored word** through returned EAX=W; `0x0099D04C..0x0099D04F` writes its nonnull predicate as one byte to `0x00BAC05C` | W address re-formed at `0x0099D049`; direct call `0x0099D054` to `0x004495C0`, for either null or nonnull output |
+| `cGZWin::create_private_buffer`, `0x0099D0ED`, construction-taking branch | W=`EBP-4`; address formed `0x0099D115`, constructor call `0x0099D118` | Stored word tested `0x0099D120`; nonnull path uses P as ECX for foreign virtual `+0x14` at `0x0099D147`; null path bypasses that call | W address formed `0x0099D150`; direct call `0x0099D153` to `0x004495C0` |
+
+The first path's guard can bypass construction entirely (`0x0099D035` to
+`0x0099D059`); that bypass does not destroy an unconstructed local. On the
+construction-taking path, lookup status is still ignored: false/output P
+sets the predicate to one and releases P; true/output null sets it to zero
+and makes no reference call. The byte is written before cleanup. The later
+call to arithmetic body `0x0082AE40` at `0x0099D071` instead receives
+`owner+0x24` and a stack argument; it is separate from this already completed
+wrapper cleanup. No arithmetic behavior is specified here.
+
+In the second path, all the normal successors after construction converge
+on `0x0099D150` (including `0x0099D16C`, `0x0099D17A`,
+`0x0099D19D`, `0x0099D1A8`). Its earlier return at `0x0099D113`
+precedes construction and bypasses cleanup. The byte result of this owner
+operation is staged in BL, then copied to AL at `0x0099D158` **after** the
+cleanup call; it is not the destructor's EAX result. Its owner field at
+`owner+0x64` is separate from W: for example `0x0099D134..0x0099D137`
+releases and clears that field before P's virtual use. These owner effects
+must not be mistaken for a clear of the Draw wrapper. The foreign operations
+and owner algorithm are outside this contract.
+
+This establishes a shared, independently callable cleanup body for actual
+Draw wrapper lifetimes, without certifying the source template name, linker
+folding history, or exceptional cleanup. It does not assert that these two
+paths exhaust all Draw uses. Their new instruction ranges and the two utility
+bodies were compared to the matching PE; no mismatches were found.
+
 ## 4. Temporary lookup wrappers and identity exclusions
 
 ### 4.1 Lookup, release, then return a saved pointer
@@ -232,9 +278,9 @@ pointer-lifetime contract. It reads a stack argument (`0x0082AE40`), accesses
 four destination words through offsets `+0`, `+4`, `+8`, `+12`, performs
 arithmetic and writes them (`0x0082AE54..0x0082AE6B`), and returns with
 one four-byte argument consumed (`0x0082AE6F`). It has no pointer null test,
-framework acquisition or virtual reference call. The actual Draw destructor
-entry is not established by this label. No arithmetic-owner algorithm is
-claimed or researched here.
+framework acquisition or virtual reference call. The actual Draw stack-wrapper
+cleanup is instead directly linked to `0x004495C0` by the lifetimes in section
+3.4. No arithmetic-owner algorithm is claimed or researched here.
 
 The Persist-labeled clear-and-release body in section 3.2 has a genuine pointer
 algorithm, but not a certified source-level destructor identity. Its eight
@@ -336,6 +382,35 @@ not dereference it. This separates pointer return from retained ownership.
 For two live ordinary wrappers acquired separately from lookup with the same
 P, each has its own one-Release obligation. Their destruction order is the
 caller's input, not a LIFO rule inferred from the template.
+
+### 5.4 Draw cleanup identity ledger
+
+Each row is independently **PROPOSED / UNEXECUTED**. Use Draw constructor
+`0x00449720` with W=`0x0012F000` (initial field `0xDEADBEEF`) and the
+actual cleanup target `0x004495C0`. Present-framework lookup must receive
+service `0xEB2EA3CB`, interface `0x4B2EA3B3`, output W, and observe field
+zero. Constructor EAX is W in every row. There is no `Ref+` event.
+Ignore destructor EAX; the cleanup is `ret`, with no stack argument.
+
+| ID | Lookup stimulus / path | Required field and ordered effects |
+|---|---|---|
+| D01 | AL=0, output P | W becomes P; cleanup receives W, loads P into ECX, calls `Ref-(P)` while W=P; W remains P after cleanup |
+| D02 | AL=1, output Q | W becomes Q; same receiver adjustment W to Q; exactly `Ref-(Q)` observing W=Q; W remains Q |
+| D03 | AL=1, output null | W=null; cleanup receives W but makes no foreign call; W stays null |
+| D04 | AL=0, output untouched, or null framework | W=null; no reference call; null-framework case has no Lookup |
+| D05 | `0x0099D041` construction-taking path, AL=0/output P | W=P; byte at `0x00BAC05C` becomes 1 before cleanup at `0x0099D054`; `Ref-(P)` observes W=P and byte=1; byte remains 1 and W remains P |
+| D06 | same caller, AL=1/output null | W=null; byte becomes 0 before cleanup; no reference call; byte=0 and W=null afterward |
+| D07 | `0x0099D118` nonnull path, lookup AL=0/output P, separate owner field initially null; P's foreign `+0x14` returns AL=0 or AL=1 | foreign use receives P, not W; cleanup at `0x0099D153` then calls `Ref-(P)` with W=P; W remains P; owner returns AL=0 or AL=1 respectively, copied from BL after cleanup, independently of arbitrary Release EAX |
+
+In D07 the foreign call's output is directed to `owner+0x64`, not W;
+choose an output Q or null independently of its AL to distinguish the fields.
+Its value after that normally returning foreign call remains that supplied
+value through the wrapper cleanup. This is a stimulus to a raw primitive,
+not a claim about actual service success/failure outputs. D01/D02 distinguish
+the shared no-clear destructor from clear-and-release L02, which instead
+observes W=null during Release and returns full EAX=W. No row executes the
+arithmetic entry as a pointer destructor or infers reference acquisition from
+lookup's status. No repeated destruction of one lifetime is proposed.
 
 ## 6. Boundaries and unresolved identity
 
