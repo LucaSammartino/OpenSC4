@@ -8,7 +8,9 @@
 - Focused tests: 46 passed; corrected stale test expecting rotation rejection. Earlier 38/39 result retained in build-runs/q/20261023-115327-43972.log; passing result 20261023-115854-25372.log.
 - Milestone: implementation committed as 51d8d937; owner closure README now covers every numbered spec section and all eleven conformance vectors.
 - Final focused tests: 49 passed (build-runs/q/20261023-120817-14048.log). Scoped fmt passes for seven owned Rust files (absolute paths required by qbuild; earlier relative-path invocation rejected inputs, preserved).
-- Next: run qbuild all on stable source, collect that operation to terminal, record totals; finalize lane and queue.
+- Gate attempt 1: Rust workspace tests and clippy passed; native compilation failed C1083 writing object files (Permission denied via sccache). Wrapper stalled after Ninja stopped; interrupted same session to terminal exit 1. Evidence: build-runs/gate-1-{test,clippy,native-configure,native-permission-build}.log.
+- Diagnostic/input change: local ignored CMake project-before hook disables FC4_COMPILER_CACHE (qbuild otherwise forces ON). Source remains 34c79925. No shared cache process stopped.
+- Next: retry qbuild all with corrected cache input, collect to terminal, record totals; finalize lane and queue.
 - Questions: OV10 exceptional conversion/rotated FP precision, OV11 simultaneous wrap flags; existing OV1/OV7/OV8 foreign and exact precision residuals retained. QUESTIONS.md regeneration belongs to coordinator (engine lanes cannot run tools/).
 - Game: none requested; core-only trait protocol, no plugin/capi wiring or runtime equivalence claim.
 - Constraints: clean-room allowed sources only; all edits through apply_patch.
