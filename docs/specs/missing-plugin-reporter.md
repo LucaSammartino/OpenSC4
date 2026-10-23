@@ -8,7 +8,7 @@ Source identity, checked 2026-10-23: main-checkout `bin/SimCity4.exe`, PE machin
 
 ## Owner, interfaces and normal domain
 
-Use `R` for the complete reporter address and `F` for the filter pointer stored at `R+0x10`. The listener interface is `R+8`: `DoMessage` makes the explicit minus-eight adjustment. The PE listener table at `0x00A8ED24` contains QueryInterface adjustment thunk `0x0048C210`, AddRef adjustment thunk `0x007637A0`, Release adjustment thunk `0x007637B0`, and `DoMessage` at slot `+0x0C` (`0x00A8ED30`). Each of those three thunks subtracts eight before forwarding. The intrinsic owner QueryInterface body `0x0048C060–0x0048C09C` recognizes full-word IID `0x452294AA`, publishes `R+8`, invokes the complete object's AddRef slot and returns AL one; other IIDs forward to `cRZUnknown::QueryInterface`. No complete owner layout, construction, subscription or shutdown contract is claimed here.
+Use `R` for the complete reporter address and `F` for the filter pointer stored at `R+0x10`. The `cIGZMessageTarget2` listener interface is `R+8`: `DoMessage` makes the explicit minus-eight adjustment. The PE listener table at `0x00A8ED24` contains QueryInterface adjustment thunk `0x0048C210`, AddRef adjustment thunk `0x007637A0`, Release adjustment thunk `0x007637B0`, and `DoMessage` at slot `+0x0C` (`0x00A8ED30`). Each of those three thunks subtracts eight before forwarding. The intrinsic owner QueryInterface body `0x0048C060–0x0048C09C` recognizes full-word IID `0x452294AA`, publishes `R+8`, invokes the complete object's AddRef slot and returns AL one; other IIDs forward to `cRZUnknown::QueryInterface`. No complete owner layout, construction, subscription or shutdown contract is claimed here.
 
 | State/input | Width and use in these bodies |
 |---|---|
