@@ -81,6 +81,11 @@ A **controller** is attached to an occupant and makes automata near it: a *gener
 trees, construction vehicles at construction sites, dogs, crowds, strike pickets), an *attractor* pulls them in
 (police at a crime scene, dogs to a hydrant). Controllers are made from named *templates* that the scripts define.
 
+The dedicated [controller-manager owner supplement](automata-controller-manager.md)
+specifies initialized teardown, city close ordering, direct reference sites, conditional
+occupant removal, queue mutation and tick admission. Its publication boundary and body
+ledger distinguish proved owner rules from the remaining AT21 dependencies.
+
 ### 3.1 Record (Write `0x005174D0`, Read `0x0051B520`)
 
 | # | Field | Notes |

@@ -38,6 +38,23 @@ is shut down (controller slot 4) before that release; (c) whether the queue entr
 reference (§3.1 field 2) go at the same point. verify-automatarefs4 keeps them to the destructor (the literal
 reading of "the manager holds them") and declares that release the manager's own (FC4_RELEASE_AT_DESTRUCTION).
 
+**Partial source answer 2026-10-23 (re-controller-manager-owner4):** See
+[the dedicated owner supplement](../automata-controller-manager.md), §§2–9. Primary
+Shutdown `0051B3E0` unregisters tick/messages, Releases script then clock, drains queue
+occupant/automaton references, clears grid storage, then calls controller Shutdown
+immediately before each controller-list Release and finally Releases occupant keys.
+Final manager Release explicitly invokes Shutdown before storage destruction. The city
+does this at `0045B2F2`, before occupant-manager Shutdown at `0045B833`; this manager
+neither subscribes to nor handles PreCityShutdown as a cleanup trigger. Loaded/new
+state does not branch in Shutdown. These are direct native call-site effects, not a
+validation of the historical warning counts or destruction annotations.
+**Remain open:** the full transitive controller Shutdown/reference ledger (AT22),
+message/animation/debug registration services' internal retained-reference effects,
+and whether earlier city callbacks emit RemoveOccupant before this explicit service
+Shutdown. The supplement specifies the received RemoveOccupant path conditionally;
+it does not prove every upstream producer or callbacks that mutate the live containers.
+AT21 stays here rather than being archived as wholly answered by inference.
+
 <!-- from: glue-automata-managers4 (2026-10-22) -->
 - **AT22 - §§3.5, 7.1, 11; automata-support.md §2; automata-managers.md §1:** Please publish a complete
   inherited `cSC4AutomataController` lifecycle/interface contract: constructor/destructor defaults and
