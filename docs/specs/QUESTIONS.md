@@ -149,6 +149,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RS | residential |
 | RY | regional-city |
 | RZ | framework-rz-files |
+| RZS | rz-strings |
 | SCR | sc-resources |
 | SG | simgrid |
 | SL | strings-language |
@@ -320,6 +321,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
+| rz-strings | 5 | 0 | RZS6 | questions/rz-strings.md |
 | sc-resources | 5 | 1 | SCR7 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -358,4 +360,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **563** | **1357** | | |
+| **total** | **568** | **1357** | | |
