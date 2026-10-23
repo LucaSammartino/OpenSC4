@@ -59,7 +59,7 @@ pub struct PylonRecord {
 }
 
 impl PylonRecord {
-    /// The constructor values of the three enums are not published (NO44).
+    /// Explicit live-state seed, not the native constructor (see `Pylon::fresh`).
     pub fn new(states: [i32; 3]) -> Self {
         Self {
             base: OccupantBase::new(OCCUPANT_TYPE_PYLON),
@@ -179,7 +179,22 @@ pub struct PylonGlobals {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PylonUnsupported {
-    ModelTextureGeometryDrawBoundsTransformMessagesNO36,
+    ModelCompositionDrawMessagesNO36,
+    /// The spec explicitly supplies no resource contract outside state 0..=6.
+    TextureStateOutsideTable,
+}
+
+/// Foreign pick primitives. The host owns the ray and view, not the owner box.
+pub trait PylonPickHost {
+    fn viewport_units_to_world_units(&mut self, units: u32) -> f64;
+    fn view_pitch(&mut self) -> f64;
+    fn ray_box_distance(&mut self, bounds: [[f32; 3]; 2]) -> Option<f32>;
+}
+
+/// Resource primitives; a returned binding carries its acquired reference.
+pub trait PylonTextureHost: PylonHost {
+    fn request_texture_binding(&mut self, key: [u32; 3]) -> RefValue;
+    fn binding_texture_id(&mut self, binding: &RefValue) -> u32;
 }
 
 #[derive(Clone, Debug)]
@@ -187,6 +202,7 @@ pub struct Pylon {
     pub record: PylonRecord,
     pub initialized: bool,
     pub placement_flags: u8,
+    /// Cached local then world min/max boxes (+B4/+C0, +CC/+D8).
     pub auxiliary: [[f32; 6]; 2],
     pub packed_states: [u64; 2],
     pub texture_binding: RefValue,
@@ -196,6 +212,13 @@ pub struct Pylon {
 
 // RefValue has no Default: native construction initializes held pointers null.
 impl Pylon {
+    /// NO44: only UI and dispatch state are initialized. Supply the incoming
+    /// allocation's dispatch-type word explicitly rather than reading uninitialized memory.
+    pub fn fresh(retained_dispatch_type: i32) -> Self {
+        Self::new([1, 0, retained_dispatch_type])
+    }
+
+    /// Explicit live-state seed for loaded objects and tests.
     pub fn new(states: [i32; 3]) -> Self {
         Self {
             record: PylonRecord::new(states),
@@ -381,8 +404,82 @@ impl Pylon {
             *out = self.record.transform.translation;
         }
     }
+    pub fn bounds(&self) -> [[f32; 3]; 2] {
+        Self::box_pair(self.auxiliary[0])
+    }
+    pub fn world_bounds(&self) -> [[f32; 3]; 2] {
+        Self::box_pair(self.auxiliary[1])
+    }
+    fn box_pair(values: [f32; 6]) -> [[f32; 3]; 2] {
+        [[values[0], values[1], values[2]], [values[3], values[4], values[5]]]
+    }
+    pub fn get_bounding_box(&self, min: &mut [f32; 3], max: &mut [f32; 3]) {
+        [*min, *max] = self.world_bounds();
+    }
+    pub fn sort_value(&self) -> u32 {
+        self.texture
+    }
+    pub fn get_transform(&self, out: &mut Xform) {
+        let counter = out.counter.wrapping_add(1);
+        *out = self.record.transform;
+        out.counter = counter;
+    }
+    pub fn set_transform(&mut self, value: &Xform) {
+        let counter = self.record.transform.counter.wrapping_add(1);
+        self.record.transform = *value;
+        self.record.transform.counter = counter;
+    }
+    pub fn pick(&self, distance: &mut f32, host: &mut impl PylonPickHost) -> bool {
+        if self.record.states[0] == 0 {
+            return false;
+        }
+        let mut bounds = self.world_bounds();
+        let units = host.viewport_units_to_world_units(50);
+        let cosine = host.view_pitch().cos() as f32;
+        // Keep the conversion/division wide until the final binary32 store (§6.2.2).
+        bounds[0][1] = (f64::from(bounds[1][1]) - units / f64::from(cosine)) as f32;
+        if let Some(hit) = host.ray_box_distance(bounds) {
+            if hit < *distance {
+                *distance = hit;
+                return true;
+            }
+        }
+        false
+    }
+    pub fn rebuild_current_texture(&mut self, host: &mut impl PylonTextureHost) -> Result<bool, PylonUnsupported> {
+        if !matches!(self.texture_binding, RefValue::Null) {
+            clear_ref(&mut self.texture_binding, host);
+        } else if self.texture != 0 && host.texture_manager_exists() {
+            host.release_texture(self.texture);
+        }
+        let kind = self.dispatch_type();
+        if kind == 4 {
+            return Err(PylonUnsupported::ModelCompositionDrawMessagesNO36);
+        }
+        let instance = if matches!(kind, 0 | 1 | 5 | 6) {
+            let offsets = [0, 0x10, 0x20, 0x30, 0x40, 0x50, 0x20];
+            let index = usize::try_from(self.record.states[1])
+                .ok()
+                .filter(|&i| i < offsets.len())
+                .ok_or(PylonUnsupported::TextureStateOutsideTable)?;
+            let base = if matches!(kind, 0 | 6) {
+                0xEA3E_E100
+            } else {
+                0x1431_5E00
+            };
+            base + offsets[index]
+        } else {
+            0
+        };
+        self.texture_binding = host.request_texture_binding([0x7AB5_0E44, 0x1ABE_787D, instance]);
+        if !matches!(self.texture_binding, RefValue::Null) {
+            self.texture = host.binding_texture_id(&self.texture_binding);
+        }
+        // Deliberately retain the old raw ID if the replacement failed.
+        Ok(self.texture != 0)
+    }
     pub fn rebuild_model(&mut self) -> Result<(), PylonUnsupported> {
-        Err(PylonUnsupported::ModelTextureGeometryDrawBoundsTransformMessagesNO36)
+        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
     }
     pub fn set_position(
         &mut self,

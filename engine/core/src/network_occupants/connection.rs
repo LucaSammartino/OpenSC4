@@ -266,16 +266,101 @@ pub enum ConnectionUnsupported {
     GeometryBoundsDrawTransformMessagesUG5NO40,
 }
 
+pub trait ConnectionTextureHost: References {
+    /// Returns an acquired binding or null on resource failure.
+    fn request_texture_binding(&mut self, key: [u32; 3]) -> RefValue;
+}
+
+/// Shared texture-entry state. Entry keys and initial zoom are explicit inputs;
+/// this does not invent the descriptor-dependent geometry still open in NO40.
+#[derive(Clone, Debug)]
+pub struct ConnectionTextures {
+    pub zoom: u32,
+    pub entries: Vec<(u32, RefValue)>,
+}
+impl ConnectionTextures {
+    pub fn reload(&mut self, zoom: u32, host: &mut impl ConnectionTextureHost) {
+        self.zoom = zoom;
+        for (key, binding) in &mut self.entries {
+            clear_ref(binding, host);
+            *binding = host.request_texture_binding([0x7AB5_0E44, 0x1ABE_787D, key.wrapping_add(zoom)]);
+        }
+    }
+}
+
 /// Unpublished construction inputs must be supplied; creation fills specified state.
 #[derive(Clone, Debug)]
 pub struct UndergroundConnection {
     pub record: ConnectionRecord,
+    /// The subclass's static descriptor identity; descriptor geometry is NO40.
+    pub descriptor_kind: Option<ConnectionKind>,
     pub initialized: bool,
     pub surface: [Vertex; 4],
     pub matrices: [[f32; 16]; 2],
     pub bottom_y: f32,
 }
 impl UndergroundConnection {
+    /// §3.6.2: clear the floor even for an attached occupant; only an
+    /// unattached floor consumes ModelStateChanged's latch.
+    pub fn create_floor(&mut self) -> Result<(), ConnectionUnsupported> {
+        self.record.walls[4].clear();
+        if !matches!(self.record.attached, RefValue::Null) {
+            return Ok(());
+        }
+        self.record.walls[4].extend(self.surface.map(|mut v| {
+            v.color |= 0x00FF_FFFF;
+            v
+        }));
+        self.model_state_changed()
+    }
+    pub fn create_walls(&mut self) -> Result<(), ConnectionUnsupported> {
+        for wall in &mut self.record.walls[..4] {
+            wall.clear();
+        }
+        if !matches!(self.record.attached, RefValue::Null) {
+            return Ok(());
+        }
+        self.record.saved_68 = 0;
+        for (index, (a, b)) in [(1, 0), (0, 3), (3, 2), (2, 1)].into_iter().enumerate() {
+            Self::add_wall_quad(
+                &mut self.record.walls[index],
+                [self.surface[a], self.surface[b]],
+                [self.record.heights[a], self.record.heights[b]],
+            );
+            self.record.saved_68 += 1;
+        }
+        self.model_state_changed()
+    }
+    pub fn add_wall_quad(out: &mut Vec<Vertex>, surface: [Vertex; 2], heights: [f32; 2]) {
+        let [a, b] = surface;
+        let v = ((f64::from(heights[0]) - f64::from(a.pos[1])) * 0.0625) as f32;
+        out.extend([
+            Vertex {
+                pos: [a.pos[0], heights[0], a.pos[2]],
+                color: a.color | 0x00FF_FFFF,
+                u: 0.0,
+                v: 0.0,
+            },
+            Vertex {
+                color: a.color | 0x00FF_FFFF,
+                u: 0.0,
+                v,
+                ..a
+            },
+            Vertex {
+                color: b.color | 0x00FF_FFFF,
+                u: 1.0,
+                v,
+                ..b
+            },
+            Vertex {
+                pos: [b.pos[0], heights[1], b.pos[2]],
+                color: b.color | 0x00FF_FFFF,
+                u: 1.0,
+                v: 0.0,
+            },
+        ]);
+    }
     pub fn hidden_triangles(&self) -> [u32; 3] {
         [0, 1, 1]
     }
@@ -298,6 +383,8 @@ impl UndergroundConnection {
         host: &mut impl ConnectionHost,
     ) -> Result<(), ConnectionUnsupported> {
         self.record.base.occupant_type = kind.occupant_type();
+        self.record.saved_240 = kind.class_id();
+        self.descriptor_kind = Some(kind);
         statics.initialize(host);
         if self.initialized {
             return Ok(());
@@ -305,6 +392,10 @@ impl UndergroundConnection {
         host.occupant_init(&mut self.record.base);
         self.initialized = true;
         let r = &mut self.record;
+        if !r.loaded {
+            clear_ref(&mut r.attached, host);
+            clear_ref(&mut r.linked, host);
+        }
         r.cell = host.position_to_cell(r.position);
         let origin = host.cell_origin(r.cell);
         let extents = host.cell_extents().map(|v| v as i32 as f32);
