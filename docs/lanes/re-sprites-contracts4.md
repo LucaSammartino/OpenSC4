@@ -10,7 +10,9 @@
 - Done: complete canonical asm --bytes range read in 56-line pages; first milestone transcribes mask-1 A arithmetic/stores/snapshots/writes/state into §3.1.1 (this commit).
 - Done: 58d1593f complete mask-1 schedule. This milestone completes all partial A/B/D schedules and full-mask comparison, dispatch/reset/mutation table, late angle loads, and reconciles the LookAt contradiction.
 - Native jump table 007FCC6C confirmed directly: 007FC4F9, 007FC616, 007FC649, 007FC852, 007FC885, 007FC999, 007FCBA3. No foreign trig calls in any mask.
-- Next: independent conditional rational stage vectors covering all masks/flag4/counter255, cancellation and transient-sine/in-place distinctions; questions consistency and final bounded publication.
+- Done: 22e43e92 all finite branch schedules; this milestone adds independent R3-M/C/L/Z stage examples and 72 exact-rational/signed-zero checks (pass), not native goldens.
+- Done: native FileVersion 1.1.641.0; asm --bytes setter recheck supports AS8 DIFFERS archive with completing-comparison boundary; AS6/AS9 partial notes reconciled; questions index/check pass.
+- Next: final doc-link/diff/question checks and report commit, then own docs-ready merge queue with actual detached HEAD. No automatic fourth round.
 - Important: mask-1 uses hardware FCOS/FSIN, not foreign CRT calls; cosine spills B32, sine remains transient until later negative-sine spill.
 - Evidence: build-runs/evidence-run4/coordinator-sprites-final-{host-proof.json,eligibility.md}; own manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r3-manifest.json.
 - R1/R2 evidence below remains historical. No native/game/build/test/engine reads. AS1/2/3/7 residuals retained. Own final docs merge queue explicitly permitted; no shared queue/state writes.

@@ -330,6 +330,83 @@ Evidence: `0x007FCBD3–007FCC4D`. There are no B stores of e,f,j,k. This path n
 and never clears flag 4. It uses the common end exactly once. Full replacement is not a shortcut for
 any partial-mask schedule, even when the omitted rotations are geometrically identity.
 
+#### 3.1.4 Independent analytic distinguishers (proposed UNEXECUTED)
+
+The following are **conditional primitive-stage examples**, derived by signed permutations and exact
+rational arithmetic before any implementation comparison. Chosen C/S values are inputs to the analysis
+of the instruction schedule, **not** an injectable native API, actual angle-derived return observations or
+native owner-call goldens. Reachability of these pairs from one angle is not asserted. They do not use
+host sin/cos, execute the original or authorize a portable-output oracle. R2-R1–R3 remain the earlier
+geometric/tolerance vectors, with no new exact bits assigned to their trigonometric results.
+
+**R3-M, all masks and state transitions.** Start with row-major matrix
+`M=((2,3,5),(7,11,13),(17,19,23))`, counter 255, and flags `A3` (flag 4 clear) or `A7` (set).
+For mask m, form each omitted argument from word `C2C80000` and each present argument from word
+`3F800000`; input vector storage is disjoint. Conditional on every present stage's raw primitive results
+`C=+0,S=+1`, and RN at any PC=24/53/64, the integer arithmetic is exact. The expected matrices are:
+
+| Mask | Start A3 (use old M) | Start A7 (reset where required) |
+|---|---|---|
+| 0 | M | M |
+| 1 | ((2,5,−3),(7,13,−11),(17,23,−19)) | ((1,0,0),(0,0,−1),(0,1,0)) |
+| 2 | ((−5,3,2),(−13,11,7),(−23,19,17)) | ((0,0,1),(0,1,0),(−1,0,0)) |
+| 3 | ((3,5,2),(11,13,7),(19,23,17)) | ((0,0,1),(1,0,0),(0,1,0)) |
+| 4 | ((3,−2,5),(11,−7,13),(19,−17,23)) | ((0,−1,0),(1,0,0),(0,0,1)) |
+| 5 | ((5,−2,−3),(13,−7,−11),(23,−17,−19)) | ((0,−1,0),(0,0,−1),(1,0,0)) |
+| 6 | ((3,5,2),(11,13,7),(19,23,17)) | ((0,0,1),(1,0,0),(0,1,0)) |
+| 7 | ((0,−0,1),(0,−1,−0),(1,0,0)) | ((0,−0,1),(0,−1,−0),(1,0,0)) |
+
+All unmarked zero cells in this table are +0 under RN. For each row the flags/counter are those in
+§3.1.2: mask 0 keeps A3/A7 and 255; every other mask ends at A7 with the listed counter. Every return
+is 0. Preserve position words `(80000000,3F800001,BF800002)`, scale `41200000`, dirty bytes `5A,A5`,
+cached counter `77`, sprite flags `55` and all other unrelated bytes. Those sentinels check that a rotation
+reset affects only its nine matrix words/transform flag/counter. A zero-angle argument is present by
+its bits, regardless of any geometric identity; no sine-of-zero claim is needed for this dispatch rule.
+
+Derivation: an old row `(x,y,z)` becomes `(x,z,−y)` under A, `(−z,y,x)` under B and `(y,−x,z)` under D.
+Thus AB and BD both give `(y,z,x)` for these conditional quarter turns, while AD gives `(z,−x,−y)`.
+Mask 7 uses identity replacement and its own schedule, giving the two explicit negative zeros rather
+than a retained old matrix. Masks 3/5/6 must use the first stage's B-stored matrix.
+
+**R3-C, cancellation and row-specific spills.** Mask 1, flag 4 clear, u0=u1=`1+e`, v0=v1=`−(1+2e)`,
+where `e=2^−23`; take u2=2,v2=3 and column 0=(7,11,13). Conditional raw cosine `C=1+e` and sine
+`S=1` give exact stored c=`3F800001`. Each exact cosine product in rows 0/1 is
+`(1+e)^2=1+2e+e²`; the matching sine product is `−(1+2e)`. Under PC53/64 the row-0 cancellation
+retains e²=`2^−46` (binary32 word `28800000`), while row 1 has already stored that cosine product:
+
+| PC / RC | m01 (row 0, retained product) | m11 (row 1, stored product) |
+|---|---|---|
+| 53 or 64 / RN | `28800000` | `00000000` |
+| 53 or 64 / toward zero | `28800000` | `00000000` |
+| 53 or 64 / toward −infinity | `28800000` | `80000000` |
+| 53 or 64 / toward +infinity | `28800000` | `34000000` (e) |
+| 24 / RN or toward zero | `00000000` | `00000000` |
+| 24 / toward −infinity | `80000000` | `80000000` |
+| 24 / toward +infinity | `34000000` | `34000000` |
+
+The product needs at most 47 significant bits, so it is exact at PC53/64; at PC24 the e² term is below
+half an ulp. The B spill likewise loses it except when rounding upward. This detects either a premature
+row-0 store or omission of the row-1 store without invoking any native trig accuracy assumption.
+
+**R3-L, large/small transient and in-place sources.** Mask 1, flag 4 clear, RN, conditional raw
+`C=1,S=1−2^−25`, c=`3F800000`. Use old rows `(7,−2^24,2^24),(11,2,3),(13,5,17)`.
+The exact t0 is `2^24−1/2`. At PC53/64, m01 becomes −1/2 (`BF000000`); at PC24 the product
+rounds to `2^24`, then cancellation gives +0. Storing S to binary32 prematurely would produce +0 even
+at PC53/64. In **all three PCs**, the actual later negative-sine store has n=−1 (the midpoint rounds
+to the even endpoint), p0=`2^24`, h0=`2^24`, and m02=`2^25` (`4C000000`). If group 6 incorrectly
+reads the newly stored m01 instead of old u0, the result instead rounds to `2^24` under these conditions.
+As a companion, change only old u0 to `+2^24`: actual m02 is +0; keeping negative S transient instead of
+the required n store would yield +1/2 at PC53/64. These exact dyadic derivations distinguish both
+the early retained sine and its later B-stored negative, without requiring any pair to be angle-reachable.
+
+**R3-Z, conditional signed zero.** Mask 1, flag 4 clear, all old u/v words `80000000` (−0), and column
+0 words `(80000000,3F800000,40000000)`. Conditional `C=+1,S=+0`, RN at PC24/53/64 gives every new
+column-1 word `80000000`, every new column-2 word `00000000`; original column 0 is unchanged.
+With conditional `S=−0`, those two updated columns instead contain +0 and −0 respectively. Derivation:
+the first column combines (−0)×S with (−0)×1; the second combines (−0)×B(−S) with (−0)×1. Mixed
+zero signs add to +0 under RN; two negative zeros add to −0. This is expressly a raw-stage condition,
+not a native zero-angle exact-bit golden. Reset would replace the old negative zeros with identity first.
+
 `LookAt(target,up)` constructs back=normalize(position−target), right=normalize(up×back), trueUp=back×right;
 the matrix columns are right,trueUp,back. Thus local **−Z** points toward the first argument; it is a target
 point, not a direction or source. It preserves position/scale, ORs flag 4 and increments the byte counter by
@@ -421,7 +498,7 @@ additional owner or a reconciliation of the requested 60/10,482 inventory.
 
 | Entry | Export bytes | Evidence category |
 |---|---:|---|
-| SetOrientation `0x007FC4B0` | 1978 | owner body, algebra/masks traced; partial-path last-bit qualification remains |
+| SetOrientation `0x007FC4B0` | 1978 | owner body; R3 completes finite local store schedules, conditional on PC/RC and hardware trig; native numeric qualification remains |
 | LookAt `0x007FE250` | 318 | owner body, target/basis/counter traced |
 | UpdateView `0x007FE400` | 1669 | owner body, finite geometry/box traced |
 | Draw `0x007FEA90` | 701 | owner body, cache and outgoing calls traced |
@@ -509,6 +586,9 @@ copies its u16 current frame to the owner as above. Evidence: `0x007FAE90–007F
 ### 4.4 Fade, highlight and self-light contracts
 
 These setters preserve unrelated bits of the flags byte and do not dirty the frame cache.
+They also leave view dirty state untouched. Their returns and the unordered branch below assume the
+floating comparisons complete; unmasked traps/nonfinite whole-call mode qualification remain outside
+this normal-path contract. No arithmetic-mode closure is inferred from the branch outcomes (AS7).
 
 `SetFade(false, alpha)` always clears bit 2 and sets stored alpha to 1. With on=true: exactly −100 leaves
 both fields untouched; exactly −200 clears bit 2 and restores alpha 1; otherwise alpha at most the binary32
@@ -749,7 +829,8 @@ picks them through the two thunks; animation ticks drive the clock.
 ## 9. Open questions
 
 See [questions/animated-sprite.md](questions/animated-sprite.md). AS1 controller provenance and AS2 shipped
-usage remain open; AS3 inventory accounting and remaining AS4–AS9 qualifications are tracked there.
+usage remain open; AS3 inventory accounting and remaining AS4–AS7/AS9 qualifications are tracked there.
+AS8's completing-path setter answer is archived with its explicit floating-comparison boundary.
 The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, not the resource key type.
 
 ## 10. Conformance tests
@@ -762,3 +843,6 @@ The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, 
 5. **Geometry/cache:** proposed UNEXECUTED R2-Q1–Q5 specify raw inputs, intermediate values, corners, bounds
    and dirty transitions; R2-R1–R3 specify noncommuting orientation and sentinel behavior. No native,
    game or implementation execution is claimed for these vectors.
+6. **Finite orientation schedule:** conditional analytic stage examples R3-M/C/L/Z (§3.1.4) distinguish
+   all masks/flag-4 reset/counter wrap, retained versus B-stored products/sine, old-column dependencies and
+   signed zero. They do not assert native angle reachability or replace the proposed UNEXECUTED R2 vectors.
