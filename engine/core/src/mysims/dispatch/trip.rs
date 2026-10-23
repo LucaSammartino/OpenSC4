@@ -131,8 +131,7 @@ impl MySimDispatch {
             (old, st.search.flags)
         });
         if old != new {
-            self.host
-                .notify(sim, super::super::dispatch_note::TRIP_STATE_A, old, new);
+            self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_A, old, new);
         }
     }
 

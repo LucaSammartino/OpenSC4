@@ -40,6 +40,8 @@ pub struct MemoryDispatchHost {
     /// The neighbour cells of the map edges.
     pub neighbors: RefCell<Vec<(i32, i32)>>,
     pub notifications: RefCell<Vec<(i32, u32, u32, u32)>>,
+    /// Explicit absent owners; all other fixture IDs have an owner.
+    pub absent_owners: RefCell<Vec<i32>>,
     pub on_notify: RefCell<Option<OwnerCallback>>,
     pub wealth: Cell<u32>,
 }
@@ -384,6 +386,9 @@ impl DispatchFixture {
 }
 
 impl DispatchHost for MemoryDispatchHost {
+    fn has_owner(&self, sim: i32) -> bool {
+        !self.absent_owners.borrow().contains(&sim)
+    }
     fn home_rect(&self, sim: i32) -> Option<CellRect> {
         (sim == 1).then_some(CellRect::new(2, 2, 2, 2))
     }

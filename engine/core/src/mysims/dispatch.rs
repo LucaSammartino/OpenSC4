@@ -498,7 +498,9 @@ pub trait DispatchHost: PathfinderHost {
     fn region_city(&self, x: i32, z: i32) -> Option<u64>;
     /// `GetConnectionsOfTypeToCity(type, city, list)` → the list length.
     fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize;
-    /// Posts a `0x2BA06B99` notification at the MySim.
+    /// Whether the dispatch currently has a MySim owner (§3.3).
+    fn has_owner(&self, sim: i32) -> bool;
+    /// Synchronously delivers a `0x2BA06B99` notification to the MySim.
     fn notify(&self, sim: i32, sub_id: u32, data1: u32, data2: u32);
 }
 
@@ -587,6 +589,13 @@ pub struct MySimDispatch {
 }
 
 impl MySimDispatch {
+    /// Owner calls are synchronous and absent owners receive nothing (§3.3).
+    /// Call only after releasing dispatch state locks.
+    fn notify_owner(&self, sim: i32, sub_id: u32, old: u32, new: u32) {
+        if self.host.has_owner(sim) {
+            self.host.notify(sim, sub_id, old, new);
+        }
+    }
     pub fn new(host: Rc<dyn DispatchHost>, net: Rc<NetworkModel>, shared: SharedWorkCheck) -> Rc<MySimDispatch> {
         Rc::new(MySimDispatch {
             host,
@@ -661,10 +670,9 @@ impl MySimDispatch {
         };
         for n in notes {
             match n {
-                StateNote::Flags { old, new } => self.host.notify(sim, super::dispatch_note::TRIP_STATE_A, old, new),
+                StateNote::Flags { old, new } => self.notify_owner(sim, super::dispatch_note::TRIP_STATE_A, old, new),
                 StateNote::TripState { old, new } => {
-                    self.host
-                        .notify(sim, super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
+                    self.notify_owner(sim, super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
                 }
             }
         }
@@ -700,11 +708,10 @@ impl MySimDispatch {
         let new_flags = self.get_state(sim).search.flags;
         if old_flags != new_flags {
             self.edit(sim, |st| st.change_counter = st.change_counter.wrapping_add(1));
-            self.host
-                .notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
+            self.notify_owner(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
         }
         if fire {
-            self.host.notify(sim, super::dispatch_note::JOB_FOUND, 0, 0);
+            self.notify_owner(sim, super::dispatch_note::JOB_FOUND, 0, 0);
         }
         ok
     }
@@ -776,14 +783,13 @@ impl MySimDispatch {
     /// by [`Self::set_state`]; byCommute is not touched here (who clears it
     /// is the trip automaton's, not specified).
     pub fn report_arrival(&self, sim: i32, at_home: bool) {
-        self.host
-            .notify(sim, super::dispatch_note::ARRIVAL, u32::from(at_home), 0);
+        self.notify_owner(sim, super::dispatch_note::ARRIVAL, u32::from(at_home), 0);
     }
 
     /// Posts a MySim state transition (`0xEBA06BD4`, §3.3). This is the
     /// MySim's state, not the dispatch trip state, so nothing is written.
     pub fn report_sim_state(&self, sim: i32, state: u32) {
-        self.host.notify(sim, super::dispatch_note::STATE_1, state, 0);
+        self.notify_owner(sim, super::dispatch_note::STATE_1, state, 0);
     }
 }
 

@@ -124,6 +124,41 @@ fn ms17_02_order_counters_and_reentrant_owner() {
 }
 
 #[test]
+fn no_owner_suppresses_delivery_without_suppressing_state_changes() {
+    let f = D::new();
+    f.d.init(1);
+    f.w.absent_owners.borrow_mut().push(1);
+    f.d.set_state(1, 3);
+    f.d.report_flags(1, 0, 0);
+    f.d.set_default_destination(1, location(2, false));
+    f.w.lot(7, crate::grid::CellRect::new(4, 4, 4, 4));
+    assert!(f.d.change_job(1, Some(7)));
+    f.d.report_arrival(1, true);
+    f.d.report_sim_state(1, 5);
+    let st = f.d.get_state(1);
+    assert_eq!((st.search.state, st.search.flags, st.change_counter), (3, 0x80, 4));
+    assert_eq!(st.search.commute_destination.occupant, Some(7));
+    assert!(f.take().is_empty());
+
+    f.w.absent_owners.borrow_mut().clear();
+    f.d.report_arrival(1, false);
+    assert_eq!(f.take(), vec![(1, super::super::dispatch_note::ARRIVAL, 0, 0)]);
+}
+
+#[test]
+fn owner_is_rechecked_between_synchronous_notifications() {
+    let f = D::new();
+    let host = Rc::downgrade(&f.w);
+    *f.w.on_notify.borrow_mut() = Some(Rc::new(move |sim, _, _, _| {
+        host.upgrade().unwrap().absent_owners.borrow_mut().push(sim);
+    }));
+    f.d.set_state(1, 3);
+    assert_eq!(f.take(), vec![(1, 0x4BB2D020, 0, 2)]);
+    let st = f.d.get_state(1);
+    assert_eq!((st.search.state, st.change_counter), (3, 2));
+}
+
+#[test]
 fn ms17_03_clock_wait_and_strict_dwell() {
     let f = D::new();
     let s = Services::default();

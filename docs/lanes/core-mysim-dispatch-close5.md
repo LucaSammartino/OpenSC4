@@ -16,10 +16,11 @@
 - Focused final semantic checks: 24 dispatch tests plus the new autonomous-resolution test passed; 9 conformance integration tests passed.
 - Corrected one conformance test's embedded-NUL GZStr data; serializer unchanged. Evidence: build-runs/focused-results.md.
 - Milestone 9eb1b47d: all focused semantic checks and formatting passed (25 dispatch tests total, 9 conformance tests).
-- qbuild all started on 9eb1b47d; ongoing exec session 59061. Collect THIS session with write_stdin 60-second waits; do not duplicate.
-- Current gate: workspace cargo 5941 passed, 0 failed across 28 result lines; clippy passed. Native CMake compiler ABI probe still running (started 15:21 UTC+1; observed 15:27).
-- Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. CTest not reached yet.
-- Review found §3.3 no-owner delivery needs explicit DispatchHost::has_owner + centralized notify gate and test. Add only after current gate terminal; preserve first gate evidence, then rerun all after the source correction.
-- Next: collect session 59061, implement/test no-owner delivery gate, fmt, final qbuild all; then report/commit/queue.
+- Round 2: session 59061 is unavailable (Unknown process id); process inspection finds no original qbuild/CMake process for this worktree. Prior gate is incomplete, not PASS: Rust 5941 passed, clippy passed; native stopped at compiler ABI probe, CTest never reached.
+- Preserved evidence under build-runs/r1-{qbuild-test,qbuild-clippy,fc4verify-configure}.log before rerunning corrected source.
+- Implemented §3.3 explicit DispatchHost::has_owner and centralized notify_owner; every delivery path uses it, including flags, job, arrival and MySim state notifications.
+- Tests verify absent owners suppress calls without suppressing changes/counters, and recheck ownership between synchronous callbacks.
+- Round 2 focused check: 27 dispatch tests passed, 0 failed; fmt four changed Rust files passed, diff_lines=0.
+- Next: final qbuild all on corrected source, then report/commit/queue. No game request outstanding.
 - Formatting first qbuild fmt used relative paths (resolved from engine, failed file lookup); retry uses absolute paths.
 - Required final gate: qbuild.py all on stable source. No game request outstanding.
