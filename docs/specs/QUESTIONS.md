@@ -257,7 +257,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
-| lua-host | 0 | 5 | LH4 | questions/lua-host.md |
+| lua-host | 2 | 5 | LH6 | questions/lua-host.md |
 | map-view | 11 | 2 | QV14 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
@@ -307,7 +307,7 @@ generated index: the questions live one file per spec, so read only the file for
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
-| renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
+| renderer-driver | 6 | 2 | RD9 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
@@ -351,4 +351,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **537** | **1351** | | |
+| **total** | **541** | **1352** | | |
