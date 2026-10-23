@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-network-routines4: placement-demolition helper contract | Codex / `re-network-routines4` (RE docs lane; reserved detached worktree) | blocked: REA `target_unavailable`, no app open; target/version unverified; no contract published; ABI unchanged; no game runs or questions | 1. Coordinator must restore the configured REA target for SimCity 4 Deluxe GOG 1.1.641. 2. Resume only under explicit authorization for another bounded round. |
+| re-network-routines4: placement-demolition helper contract | Codex / `re-network-routines4` (RE docs lane; reserved detached worktree) | in progress: original round 2/3, export/instruction workflow authorized | Publish standalone typed contract and evidence; no engine or game actions. |
+
+## Handoff
+
+- Goal: document `0061F7C0` and its owned temporary filter in `docs/specs/network-routines.md`.
+- Round 2/3 uses the authorized primary export/instruction workflow. First-round exact NoApp result below remains historical and carries zero behavior credit.
+- Done: reused reserved detached worktree; export query confirms the existing 1004-byte owner entry.
+- Next: measure export identity against original metadata, page instructions, reconcile typed foreign calls, publish contract/questions.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-network-routines4-r2-manifest.json`.
+- No live REA query repeated; live target remains unverified. No game, engine or native execution authorized.
 
 ## Report
 
