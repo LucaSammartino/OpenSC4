@@ -131,7 +131,61 @@ conditional (`0x0056D0E0`). The +4 interface's Init and Shutdown entry points su
 pointer and use these same owner methods (`0x0056F7B0`, `0x0056DCF0`). The deleting destructor at
 `0x0056DD00` first runs destruction at `0x0056DD20`, conditionally frees object storage when bit 0 of its
 argument is set, and returns the original object pointer. Detailed destruction and allocation-failure
-contracts remain WC3; the deleting entry must not be mistaken for the complete destruction body.
+contracts are expanded below; the deleting entry must not be mistaken for the complete destruction body.
+
+### 3.1 Construction, destruction and forwarding contracts (WC3, partial)
+
+Construction (`0x0056D9A0`) takes already allocated object storage and returns that
+same pointer. It first constructs the automaton base with four zero arguments,
+then installs the watercraft interface tables. It initializes station A/B/current
+references and their route-storage pointers to null, both tow references to null,
+the neighbour occupant and route storage to null, previous/current positions and
+headings to the shared zero float, and all six effect references to null. The
+per-boat random source is constructed with seed argument `0xFFFFFFFF`; this is
+not evidence of a particular generator sequence. It sets inherited byte +0x33
+bit `0x10` and inherited type ID +0x28 to `0x897F7EC2`.
+
+Travel-point storage initially contains **eleven** zeroed 16-byte entries, with
+begin at the allocation, end and capacity-end at allocation+176. This is an
+initial populated vector, not eleven slots of empty capacity; later Init/picker
+operations can clear or replace it. Allocation requests 176 bytes. Null allocation
+is not converted to a false constructor result: after skipping the first entry's
+stores, later entries would access addresses derived from null. Do not describe
+this as successful empty-vector construction on allocation failure. Evidence:
+`0x0056DB16–0x0056DB71`. Other runtime timers/flags receive their initialization
+in Init (§3); the constructor does not establish every Init postcondition.
+
+Complete destruction (`0x0056DD20`) releases each nonnull effect in reverse
+offset order (+0xDC4 down to +0xDB0), frees neighbour route storage, releases the
+neighbour occupant, frees travel-point storage, releases tug then towed boat,
+frees the current route storage and releases the current station, then does the
+same for station B and station A, and finally destroys the automaton base
+(`0x00513E60`). Null references/storage are skipped. This body does **not** call
+watercraft Shutdown, stop effects or return held berths; those are Shutdown's
+separate lifecycle duties. Storage deallocation occurs only in the deleting
+destructor when its flags' low bit is set. Evidence: `0x0056DD00–0x0056DE3D`.
+
+The following are forwarding/interface methods, not additional simulation steps.
+Their boolean results are in the low byte; other register bits are not boolean
+data. Each adjustor preserves the target's arguments, result and failure behavior.
+
+| Entry | Inputs / result | Contract |
+|---|---|---|
+| `0x00566F30` QueryInterface | interface ID, output pointer; boolean | For `0x096E75F5`, write the complete object pointer, AddRef through owner slot 1, return true. All other IDs delegate unchanged to automaton QueryInterface (`0x00505D80`), including its output/failure rules. The output pointer must be valid. |
+| `0x0056DC60` GetGZCLSID | no arguments; u32 | Return `0x096E75F5`. |
+| `0x00566EE0` Write | output record; base result | Write u16 version 2, then call base Write and preserve its result. Failure of the version write is not checked before base serialization. No watercraft runtime fields follow the base payload. |
+| `0x00566F00` Read | input record; boolean | Read u16 version and accept exactly 2, then return base Read's result. A mismatching version returns false without calling base Read (§3). |
+| `0x0056DC70`, `0x0056DC80`, `0x0056DC90`, `0x0056DCD0`, `0x0056DCE0` | ID, output; boolean | QueryInterface from interface pointers +4, +8, +12, +32, +56 respectively; subtract the corresponding offset before forwarding. |
+| `0x0056DCA0` | deletion flags; object result | Subtract 12 then call the deleting destructor. |
+| `0x0056DCB0`, `0x0056DCC0` | record; target result | Subtract 4 then forward to Write or Read respectively. |
+| `0x0056DCF0`, `0x0056F7B0` | target arguments/result | Subtract 4 then forward to Shutdown or Init respectively (§3). |
+| `0x00566E00` sign helper | float value; floating result | Return -1 for a negative finite value, +1 for either signed zero or a positive value. This is not a signum returning zero at zero. |
+| `0x0056BD50` travel-point erase | vector receiver, pointer to an existing entry; entry pointer | Remove that 16-byte entry, shift later entries left, shorten end by 16, preserve capacity, return the original entry pointer (now the next entry, or end). No bounds validation or allocation-failure path. |
+
+Evidence for forwarding and Write result preservation: `0x00566EE0–0x00566F53`,
+`0x0056DC70–0x0056DCF7`; erase `0x0056BD50–0x0056BD7E`. These contracts expand
+the inventory but do not close WC3's remaining motion helpers or inherited-step
+contracts.
 
 ## 4. States *[compat]*
 
@@ -831,13 +885,13 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; full signatures/failures still WC3 |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§5.6, 6.3; reference/failure audit still WC3 |
-| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | summary §5.7; exact overlap/response still WC5 |
+| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.2 give boat selection/response, SAT and rollback; model-to-footprint and full shore path still WC5 |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | summary §5.2; full equations still WC4 |
-| Crash motion | 0056A440, 0056AF90, 00570270 | full ramps/axes/RNG still WC5 |
+| Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes and endpoints; rotation/contact still WC5 |
 | Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
 | Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–5; full failure audit WC3 |
-| Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3; construction/destruction body still WC3 |
-| Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | Init/Shutdown adjustors in §3; other targets still WC3 |
+| Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
+| Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
 | Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
 | Wake stop/start | 0056EFE0, 0056F1E0 | summary §5.1; WC4 |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; reader/errors/ownership still WC7 |
@@ -974,3 +1028,14 @@ they do not pass malformed buffers to a reader lacking bounds checks.
 | WC5-B08 | Exact threshold equality, v_A=0.2, p_A[29]=0.75, B movement gate true, no shore hit | Roll back A; B speed=0.2, A speed=0.15; return false. No heading-based sign adjustment. |
 | WC5-B09 | Same bump, B movement gate false | B speed unchanged; A still attenuates to 0.15. |
 | WC5-B10 | A and B both have v=0.2 and opposite headings | Relative-speed ratio is zero, hence bump for nonnegative threshold; do not use relative velocity magnitude. |
+
+### 11.8 Lifetime and forwarding vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-L01 | Successful constructor with valid base/storage services | Returned pointer is receiver; travel vector size=11, capacity=11, all entry bytes zero; six effects and tow references null; type ID=0x897F7EC2. |
+| WC3-L02 | QueryInterface for owner ID through +32 adjustor, valid output | Output is complete owner pointer, not the +32 pointer; one AddRef; true. |
+| WC3-L03 | Write: version writer reports failure, base writer reports success | Version 2 write is attempted; base writer is still called; returned result is base result. |
+| WC3-L04 | Complete destruction, all references nonnull | Effect releases descend from +0xDC4 to +0xDB0, then route/tow/station cleanup in §3.1 order, then base destruction; no owner Shutdown/berth-return calls. |
+| WC3-L05 | Three travel points [A,B,C], erase B | Vector [A,C], size reduced by 1, capacity unchanged; returned pointer addresses C. Erasing C next returns new end. |
+| WC3-L06 | Sign helper inputs -0.0, +0.0, -2, +2 | Results +1,+1,-1,+1. |
