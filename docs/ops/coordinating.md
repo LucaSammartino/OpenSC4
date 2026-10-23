@@ -25,6 +25,9 @@ returns a short result (state, tip, one-line gate/game/questions, at most 5 next
    the HANDOFF.
 1. `python tools/lanes.py slots --game-slots 6` must say `spawn ok`. The cap exists because ~25 lanes on 20 threads
    halved the regress speed (4.81 to 2.19 game days/s) and every agent then spent turns waiting.
+   Raised 2026-10-23 from 15 to 20 (`min(20, cpus, game_slots*2+8)`) once native builds moved to tools/build_queue.py:
+   with 15 unmerged lanes the regress held 3.3-3.9 days/s (shadows) and 16.8-20.2 (replace). If the shadows profile
+   drops under 3.0 days/s, lower it again.
 2. `python tools/lanes.py check <lane> --deps a,b --touches key1,key2 [--kind re]` must say `ok`: no STOP flag, the
    lane not parked, the work not assigned to an outside contributor ([docs/assignments.tsv](../assignments.tsv)), for RE lanes (`--kind re`, or any lane named `re-*`) a reachable REA server, dependencies landed on main
    (spawn in order core, then its DIFFERS/answers, then glue), no existing branch or lane file, no other active lane

@@ -405,7 +405,9 @@ def cmd_slots(ctx, a):
     stop = lg.read_stop(str(ctx.main))
     cpus = os.cpu_count() or 4
     gs, gsrc = game_slots(ctx, a.game_slots)
-    cap = min(16, cpus * 3 // 4, gs * 2 + 4)
+    # 2026-10-23 (run 5): 20 on this machine. Native builds go through tools/build_queue.py (two at a time, paused
+    # during game runs) and most lanes wait on the model, so the cap no longer scales with CPU; cpu busy still gates.
+    cap = min(20, cpus, gs * 2 + 8)
     free_gb = shutil.disk_usage(str(ctx.main)).free / 2 ** 30
     load = cpu_load()
     lanes = active_lanes(ctx)
