@@ -1,256 +1,187 @@
 use super::pylon::*;
-use super::xform::{Xform, XFORM_SCALE, XFORM_TRANSLATION};
-use crate::automata::OccupantBase;
-use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, RefResolver, RefValue, SaveRegistry};
+use crate::{automata::OccupantBase, stream::{ByteReader, ByteWriter, InStream, OutStream, RefValue, SaveRegistry}};
 use std::{cell::RefCell, rc::Rc};
 
-fn record() -> PylonRecord {
-    PylonRecord {
-        base: OccupantBase::new(0xA9B6_D7DE),
-        transform_5c: Xform {
-            mask: XFORM_TRANSLATION,
-            translation: [1.0, -2.0, 3.0],
-            ..Xform::default()
-        },
-        bytes_60_64_68: [0x12, 0x34, 0x56],
-        byte_198: 0x78,
-        field_140: 0x8765_4321,
-        source_6c: RefValue::Host {
-            token: 11,
-            class_id: 0xC9C0_5C6E,
-        },
-        transform_70: Xform {
-            mask: XFORM_SCALE,
-            scale: 2.5,
-            ..Xform::default()
-        },
-        byte_199: 0x9A,
-        field_19c: 0xDEAD_BEEF,
-        field_1a0: -0x0123_4567_89AB_CDEF,
-        reference_1b4: RefValue::Host {
-            token: 22,
-            class_id: 0x49B6_D69B,
-        },
+pub(super) fn reference(token: u64) -> RefValue { RefValue::Host { token, class_id: 0x1234 } }
+pub(super) fn token(value: &RefValue) -> u64 { match value { RefValue::Host { token,.. } => *token, RefValue::Null => 0, _ => panic!("unexpected core ref") } }
+pub(super) fn writer() -> ByteWriter { ByteWriter::with_registry(Rc::new(RefCell::new(SaveRegistry::new()))) }
+
+/// Independent stream adapter records requested IIDs and deliberately resolves
+/// references without imposing an owner-specific interface policy.
+pub(super) struct Reader<'a> { pub inner: ByteReader<'a>, pub iids: Vec<u32> }
+impl<'a> Reader<'a> { pub fn new(bytes: &'a [u8]) -> Self { Self { inner: ByteReader::new(bytes), iids: Vec::new() } } }
+impl InStream for Reader<'_> {
+    fn get_u8(&mut self)->Option<u8> { self.inner.get_u8() }
+    fn get_u16(&mut self)->Option<u16> { self.inner.get_u16() }
+    fn get_u32(&mut self)->Option<u32> { self.inner.get_u32() }
+    fn get_u64(&mut self)->Option<u64> { self.inner.get_u64() }
+    fn get_f32(&mut self)->Option<f32> { self.inner.get_f32() }
+    fn get_f64(&mut self)->Option<f64> { self.inner.get_f64() }
+    fn get_bytes(&mut self,n:usize)->Option<Vec<u8>> { self.inner.get_bytes(n) }
+    fn get_str(&mut self)->Option<Vec<u8>> { self.inner.get_str() }
+    fn get_ref(&mut self)->Option<RefValue> {
+        let id = self.get_u32()?;
+        if id == 0 { return Some(RefValue::Null); }
+        let class_id = self.get_u32()?;
+        Some(RefValue::Host { token: u64::from(id)*100, class_id })
     }
+    fn get_ref_as(&mut self,iid:u32)->Option<RefValue> { self.iids.push(iid); self.get_ref() }
+    fn skip(&mut self,n:usize)->bool { self.inner.skip(n) }
+    fn error(&self)->i32 { self.inner.error() }
+    fn set_error(&mut self) { self.inner.set_error(); }
 }
 
-struct Resolver(Vec<(u32, u32)>);
+pub(super) struct Host {
+    pub log: Vec<String>, pub renderer: bool, pub manager: bool,
+    pub insert_manager: bool, pub prepare: bool, pub insert_renderer: bool,
+    pub packs: Vec<RenderStateArgs>,
+}
+impl Default for Host {
+    fn default()->Self { Self { log: Vec::new(), renderer: true, manager: true, insert_manager: true, prepare: true, insert_renderer: true, packs: Vec::new() } }
+}
+impl References for Host {
+    fn add_ref(&mut self,v:&RefValue) { self.log.push(format!("add{}",token(v))); }
+    fn release(&mut self,v:&RefValue) { self.log.push(format!("release{}",token(v))); }
+}
+impl PylonHost for Host {
+    fn occupant_init(&mut self,_:&mut OccupantBase) { self.log.push("init".into()); }
+    fn occupant_shutdown(&mut self,_:&mut OccupantBase) { self.log.push("shutdown".into()); }
+    fn message(&mut self,id:u32,subscribe:bool) { self.log.push(format!("message{id:x}/{subscribe}")); }
+    fn animation(&mut self,class:u32,iid:u32,tick:u32,subscribe:bool) {
+        assert_eq!((class,iid,tick),(ANIMATION_TICK_MANAGER_CLASS,ANIMATION_TICK_MANAGER_IID,0x80));
+        self.log.push(format!("tick/{subscribe}"));
+    }
+    fn renderer_exists(&self)->bool { self.renderer }
+    fn renderer_probe(&mut self) { self.log.push("probe".into()); }
+    fn pack(&mut self,args:RenderStateArgs)->u64 { self.packs.push(args); self.packs.len() as u64 }
+    fn city_manager(&mut self)->bool { self.log.push("city".into()); self.manager }
+    fn manager_insert(&mut self)->bool { self.log.push("manager+".into()); self.insert_manager }
+    fn manager_remove(&mut self) { self.log.push("manager-".into()); }
+    fn prepare_instance(&mut self,arg:u32)->bool { assert_eq!(arg,4); self.log.push("prepare".into()); self.prepare }
+    fn renderer_insert(&mut self)->bool { self.log.push("renderer+".into()); self.insert_renderer }
+    fn renderer_remove(&mut self) { self.log.push("renderer-".into()); }
+    fn base_visibility(&mut self,visible:bool,arg:u32,_:&mut u8) { self.log.push(format!("visibility/{visible}/{arg}")); }
+    fn release_texture(&mut self,id:u32) { self.log.push(format!("texture{id}")); }
+    fn texture_manager_exists(&self)->bool { true }
+}
 
-impl RefResolver for Resolver {
-    fn resolve(&mut self, class: u32, id: u32) -> Option<RefValue> {
-        self.0.push((class, id));
-        Some(RefValue::Host {
-            token: u64::from(id),
-            class_id: class,
-        })
+#[test]
+fn pylon_record_bytes_one_transform_signed_enums_and_iids() {
+    let mut r = PylonRecord::new([-1,-128,127]);
+    r.call_number = 0x1234; r.source = reference(1); r.owner = reference(2);
+    r.bitmap = -7; r.text = b"hello".to_vec(); r.drag = 0x80;
+    r.transform.mask = 1; r.transform.translation = [4.0,5.0,6.0];
+    let mut w = writer(); assert!(r.write(&mut w)); let bytes = w.into_bytes();
+    let mut peek = ByteReader::new(&bytes); assert_eq!(peek.get_u16(),Some(5));
+    OccupantBase::read(&mut peek).unwrap(); let body = peek.position();
+    assert_eq!(&bytes[body..body+7], &[1,255,128,127,0,0x34,0x12]);
+    let mut back = PylonRecord::new([99;3]); let mut h = Host::default(); let mut input = Reader::new(&bytes);
+    assert!(back.read_into(&mut input,&mut h)); assert_eq!(input.inner.remaining(),0);
+    assert_eq!(input.iids, [0x26BB_767E,1]);
+    assert_eq!(back.states,[-1,-128,127]); assert_eq!(back.call_number,0x1234);
+    assert_eq!(back.transform.translation,[4.0,5.0,6.0]); assert_eq!(back.drag,1);
+    assert_eq!((back.bitmap,back.text),(-7,b"hello".to_vec()));
+    // Force failure in the reached body. Both old refs are still cleared;
+    // a base/version failure clears neither.
+    for end in [body+7,bytes.len()-1] {
+        let mut back = PylonRecord::new([0;3]); back.source=reference(8); back.owner=reference(9);
+        let mut h = Host::default();
+        assert!(!back.read_into(&mut Reader::new(&bytes[..end]),&mut h));
+        assert_eq!(h.log,["release8","release9"]);
+    }
+    for bytes in [&[2,0][..], &bytes[..3]] {
+        let mut back = PylonRecord::new([0;3]); back.source=reference(8);
+        let mut h = Host::default(); assert!(!back.read_into(&mut Reader::new(bytes),&mut h)); assert!(h.log.is_empty());
     }
 }
 
 #[test]
-fn v5_record_order_both_transforms_and_references() {
-    let source = record();
-    let mut out = ByteWriter::with_registry(Rc::new(RefCell::new(SaveRegistry::new())));
-    assert!(source.write(&mut out));
-    let bytes = out.into_bytes();
-    let mut reader = ByteReader::new(&bytes);
-    assert_eq!(reader.get_u16(), Some(5));
-    OccupantBase::read(&mut reader).unwrap();
-    let tail = reader.position();
-    // Independently inspect the written field boundaries, including two refs.
-    assert_eq!(&bytes[tail..tail + 1], &[1]);
-    assert_eq!(reader.get_u8(), Some(1));
-    assert_eq!(reader.get_f32(), Some(1.0));
-    assert_eq!(reader.get_f32(), Some(-2.0));
-    assert_eq!(reader.get_f32(), Some(3.0));
-    assert_eq!(reader.get_bytes(4).unwrap(), [0x12, 0x34, 0x56, 0x78]);
-    assert_eq!(reader.get_u32(), Some(0x8765_4321));
-    assert_eq!(reader.get_u32(), Some(1));
-    assert_eq!(reader.get_u32(), Some(0xC9C0_5C6E));
-    assert_eq!(reader.get_u8(), Some(2));
-    assert_eq!(reader.get_f32(), Some(2.5));
-    assert_eq!(reader.get_u8(), Some(0x9A));
-    assert_eq!(reader.get_u32(), Some(0xDEAD_BEEF));
-    assert_eq!(reader.get_i64(), Some(-0x0123_4567_89AB_CDEF));
-    assert_eq!(reader.get_u32(), Some(2));
-    assert_eq!(reader.get_u32(), Some(0x49B6_D69B));
-    assert_eq!(reader.remaining(), 0);
-    let mut resolver = Resolver(vec![]);
-    let mut input = ByteReader::with_resolver(&bytes, &mut resolver);
-    let mut back = record();
-    back.transform_5c = Xform::default();
-    back.transform_70 = Xform::default();
-    back.field_140 = 0;
-    back.field_1a0 = 0;
-    assert!(back.read_into(&mut input).is_some());
-    assert_eq!(input.remaining(), 0);
-    assert_eq!(back.transform_5c.translation, [1.0, -2.0, 3.0]);
-    assert_eq!(back.transform_70.scale, 2.5);
-    assert_eq!(back.field_140, source.field_140);
-    assert_eq!(back.field_1a0, source.field_1a0);
-    assert_eq!(resolver.0, [(0xC9C0_5C6E, 1), (0x49B6_D69B, 2)]);
-}
-
-fn fixture(version: u16) -> Vec<u8> {
-    let mut out = ByteWriter::new();
-    out.put_u16(version);
-    OccupantBase::new(0xA9B6_D7DE).write(&mut out);
-    let transform = |out: &mut ByteWriter, translation: [f32; 3], scale: f32| {
-        if version < 4 {
-            for value in super::xform::IDENTITY_MATRIX {
-                out.put_f32(value);
-            }
-            for value in translation {
-                out.put_f32(value);
-            }
-            out.put_f32(scale);
-            out.put_u32(0x1234_5678);
-        } else {
-            // Current transform, encoded independently of Xform::write.
-            out.put_u8(3);
-            for value in translation {
-                out.put_f32(value);
-            }
-            out.put_f32(scale);
-        }
-    };
-    transform(&mut out, [10.0, 20.0, 30.0], 4.0);
-    out.put_bytes(&[1, 2, 3, 4]);
-    out.put_u32(5);
-    out.put_u32(0); // source null
-    transform(&mut out, [-10.0, -20.0, -30.0], 6.0);
-    out.put_u8(7);
-    out.into_bytes()
-}
-
-#[test]
-fn legacy_v3_and_current_v4_preserve_absent_tail() {
-    for version in [3, 4] {
-        let bytes = fixture(version);
-        let mut input = ByteReader::new(&bytes);
-        let mut back = record();
-        assert!(back.read_into(&mut input).is_some());
-        assert_eq!(input.remaining(), 0);
-        assert_eq!(back.transform_5c.translation, [10.0, 20.0, 30.0]);
-        assert_eq!(back.transform_70.translation, [-10.0, -20.0, -30.0]);
-        assert_eq!(back.transform_5c.scale, 4.0);
-        assert_eq!(back.transform_70.scale, 6.0);
+fn pylon_v3_v4_future_and_tail_preservation() {
+    for version in [3u16,4,6] {
+        let mut w = ByteWriter::new(); w.put_u16(version); OccupantBase::new(0xA9B6_D7DE).write(&mut w);
+        w.put_bytes(&[0,255,128,127,0]); w.put_u16(11); w.put_u32(0);
         if version == 3 {
-            assert_eq!(back.transform_5c.counter, 0x78);
-            assert_eq!(back.transform_70.counter, 0x78);
-        }
-        assert_eq!(back.field_19c, 0xDEAD_BEEF);
-        assert_eq!(back.field_1a0, -0x0123_4567_89AB_CDEF);
-        assert!(back.source_6c.is_null());
-        assert!(matches!(back.reference_1b4, RefValue::Host { token: 22, .. }));
-    }
-    let bytes = [2, 0, 99, 99];
-    let mut input = ByteReader::new(&bytes);
-    assert!(record().read_into(&mut input).is_none());
-    assert_eq!(input.position(), 2);
-}
-
-#[derive(Default)]
-struct Host {
-    events: Vec<u32>,
-    initialized: bool,
-}
-
-impl PylonLifecycleHost for Host {
-    fn is_initialized(&mut self, _: &OccupantBase) -> bool {
-        self.events.push(1);
-        self.initialized
-    }
-    fn occupant_init(&mut self, _: &mut OccupantBase) {
-        self.events.push(2);
-        self.initialized = true;
-    }
-    fn subscribe_message(&mut self, message: u32) {
-        self.events.push(message);
-    }
-    fn subscribe_animation(&mut self, class: u32, iid: u32, tick: u32) {
-        assert_eq!((class, iid, tick), (0x86F9_FB4D, 0x86F9_FB4C, 0x80));
-        self.events.push(tick);
-    }
-    fn occupant_shutdown(&mut self, _: &mut OccupantBase) {
-        self.events.push(3);
-    }
-    fn city_handle(&mut self) -> u32 {
-        self.events.push(4);
-        123
-    }
-    fn remove_occupant(&mut self, handle: u32) {
-        assert_eq!(handle, 123);
-        self.events.push(5);
-    }
-    fn unsubscribe_message(&mut self, message: u32) {
-        self.events.push(message);
+            for v in super::xform::IDENTITY_MATRIX { w.put_f32(v); }
+            for v in [4.0,5.0,6.0,1.0] { w.put_f32(v); }
+            w.put_u32(0);
+        } else { w.put_u8(1); for v in [4.0,5.0,6.0] { w.put_f32(v); } }
+        w.put_u8(0x80);
+        if version >= 5 { w.put_u32(7); w.put_str(b"new"); w.put_u32(0); }
+        let bytes=w.into_bytes(); let mut r=PylonRecord::new([0;3]);
+        r.bitmap=9; r.text=b"kept".to_vec(); r.owner=reference(8); let mut h=Host::default();
+        assert!(r.read_into(&mut Reader::new(&bytes),&mut h));
+        assert_eq!(r.transform.translation,[4.0,5.0,6.0]); assert_eq!(r.drag,1);
+        if version<5 { assert_eq!(r.bitmap,9); assert_eq!(r.text,b"kept"); assert_eq!(token(&r.owner),8); assert!(h.log.is_empty()); }
+        else { assert_eq!(r.bitmap,7); assert_eq!(h.log,["release8"]); }
     }
 }
 
 #[test]
-fn lifecycle_order_inserted_and_uninserted() {
-    for inserted in [false, true] {
-        let mut pylon = Pylon::from_state(record(), 11, 22, u8::from(inserted), RefValue::Null);
-        let mut host = Host::default();
-        let mut globals = PylonGlobals::default();
-        pylon.init_published_lifecycle(&mut globals, &mut host);
-        assert!(globals.field_b23b78);
-        assert_eq!(host.events, [1, 2, 0xA6B7_9602, 0x06CD_B65B, 0x26D3_1EC1, 0x80]);
-        host.events.clear();
-        pylon.init_published_lifecycle(&mut globals, &mut host);
-        assert_eq!(host.events, [1]);
-        host.events.clear();
-        pylon.shutdown_published_lifecycle(&mut host);
-        let mut expected = vec![3];
-        if inserted {
-            expected.extend([4, 5]);
-        }
-        expected.extend(PYLON_MESSAGES);
-        assert_eq!(host.events, expected);
-        assert!(pylon.reference_78.is_null());
-        // Do not conflate the contradictory source offsets; NO37.
-        assert!(!pylon.record.source_6c.is_null());
+fn pylon_setters_references_and_shared_blink_conformance_40_41() {
+    let mut p=Pylon::new([2,1,2]); let mut q=Pylon::new([2,4,2]); let mut g=PylonGlobals::default();
+    p.record.dirty=false; p.record.blink=true; p.set_ui_state(2);
+    assert!(!p.record.dirty && p.record.blink); p.set_ui_state(300); assert!(p.record.dirty && !p.record.blink);
+    for index in 1..3 {
+        p.record.dirty=false; p.record.blink=true;
+        let equal=p.record.states[index]; p.set_state_for_test(index,equal);
+        assert!(!p.record.dirty && p.record.blink); p.set_state_for_test(index,-400);
+        assert_eq!(p.record.states[index],-400); assert!(p.record.dirty && !p.record.blink);
     }
+    p.record.dirty=false; p.set_bitmap_info(0,b""); assert!(p.record.dirty);
+    p.set_call_number(0xFFFF); assert_eq!(p.get_call_number(),0xFFFF); p.set_drag_state(7); assert_eq!(p.get_drag_state(),7);
+    let mut h=Host::default(); p.record.dirty=false; p.record.blink=true;
+    p.set_source_occupant(reference(1),&mut h); p.set_source_occupant(reference(2),&mut h);
+    p.set_source_occupant(reference(2),&mut h); p.set_source_occupant(RefValue::Null,&mut h);
+    p.set_owner(reference(1),&mut h); p.set_owner(reference(2),&mut h); p.set_owner(reference(2),&mut h); p.set_owner(RefValue::Null,&mut h);
+    assert_eq!(h.log,["add1","add2","release1","release2","add1","add2","release1","release2"]);
+    assert!(!p.record.dirty && p.record.blink);
+    p.record.blink=false; p.set_dispatch_state(1); p.record.dirty=false;
+    p.animation_tick(300,&mut g); q.animation_tick(250,&mut g);
+    assert_eq!(g.blink_accumulator,0); assert!(!p.record.blink && q.record.blink && q.record.dirty);
+    p.animation_tick(1200,&mut g); assert!(p.record.blink); assert_eq!(g.blink_accumulator,0);
+    p.set_dispatch_state(2); p.animation_tick(500,&mut g); assert_eq!(g.blink_accumulator,0);
+    p.set_dispatch_state(1); g.blink_accumulator=0xFFFF_FFF0; p.animation_tick(32,&mut g);
+    assert_eq!(g.blink_accumulator,16); assert!(!p.record.blink);
+}
+impl Pylon {
+    fn set_state_for_test(&mut self,index:usize,value:i32) { match index { 1=>self.set_dispatch_state(value),2=>self.set_dispatch_type(value),_=>unreachable!() } }
 }
 
 #[test]
-fn type_and_call_drag_state() {
-    let mut rec = record();
-    rec.base.occupant_type = 0x7475_8925;
-    let mut pylon = Pylon::from_state(rec, 11, 22, 0, RefValue::Null);
-    assert_eq!(pylon.record.base.occupant_type, 0xA9B6_D7DE);
-    assert_eq!(pylon.get_call_number(), 11);
-    assert_eq!(pylon.get_drag_state(), 22);
-    pylon.set_call_number(0xFFFF_FFFE);
-    pylon.set_drag_state(0xFFFF_FFFD);
-    assert_eq!(pylon.get_call_number(), 0xFFFF_FFFE);
-    assert_eq!(pylon.get_drag_state(), 0xFFFF_FFFD);
+fn pylon_lifecycle_packing_and_all_placement_edges() {
+    let mut p=Pylon::new([0;3]); let mut h=Host::default(); let mut g=PylonGlobals::default();
+    assert_eq!(p.auxiliary,[[1.0,1.0,1.0,0.0,0.0,0.0];2]);
+    assert!(p.init(&mut g,&mut h)); assert_eq!(h.packs,PYLON_RENDER_STATES); let count=h.log.len();
+    assert!(p.init(&mut g,&mut h)); assert_eq!(h.log.len(),count);
+    p.placement_flags=0x80; h.log.clear(); assert!(p.place_in_renderer(true,&mut h));
+    assert_eq!(h.log,["city","city","manager+","prepare","renderer+"]); assert_eq!(p.placement_flags,0x83);
+    h.log.clear(); assert!(p.place_in_manager(false,&mut h));
+    assert_eq!(h.log,["city","renderer-","manager-"]); assert_eq!(p.placement_flags,0x80);
+    h.insert_renderer=false; assert!(!p.place_in_renderer(true,&mut h)); assert_eq!(p.placement_flags,0x81);
+    p.placement_flags=0x83; h.renderer=false; assert!(!p.place_in_renderer(false,&mut h)); assert_eq!(p.placement_flags,0x83);
+    assert!(p.place_in_manager(false,&mut h)); assert_eq!(p.placement_flags,0x80);
+    h.manager=false; assert!(p.place_in_manager(false,&mut h)); assert!(p.place_in_renderer(false,&mut h));
+    assert!(!p.place_in_manager(true,&mut h)); h.renderer=true; assert!(!p.place_in_renderer(true,&mut h));
+    h.manager=true; h.insert_manager=false; assert!(!p.place_in_manager(true,&mut h));
+    h.insert_manager=true; h.prepare=false; assert!(!p.place_in_renderer(true,&mut h)); assert_eq!(p.placement_flags,0x81);
+    h.prepare=true; h.insert_renderer=true; assert!(p.place_in_renderer(true,&mut h));
+    assert!(p.place_in_renderer(false,&mut h)); assert_eq!(p.placement_flags,0x81);
+    p.record.source=reference(1); p.record.owner=reference(2); p.mysim_texture=reference(3); p.texture_binding=reference(4); p.texture=9;
+    h.log.clear(); assert!(p.shutdown(&mut h));
+    assert_eq!(&h.log[h.log.len()-4..],["release3","release4","release1","release2"]);
+    assert!(h.log.iter().any(|s|s=="tick/false")); let count=h.log.len(); assert!(p.shutdown(&mut h)); assert_eq!(h.log.len(),count);
+    p.initialized=true; p.texture=9; h.log.clear(); p.shutdown(&mut h); assert!(h.log.iter().any(|s|s=="texture9"));
 }
 
 #[test]
-fn truncated_records_fail_at_every_boundary() {
-    let mut rec = record();
-    rec.source_6c = RefValue::Null;
-    rec.reference_1b4 = RefValue::Null;
-    let mut out = ByteWriter::new();
-    assert!(rec.write(&mut out));
-    for end in 0..out.len() {
-        let mut back = record();
-        assert!(back.read_into(&mut ByteReader::new(&out.bytes()[..end])).is_none());
-    }
-}
-
-#[test]
-fn failed_reference_read_has_already_released_old_source() {
-    let bytes = fixture(4);
-    let mut reader = ByteReader::new(&bytes);
-    reader.get_u16().unwrap();
-    OccupantBase::read(&mut reader).unwrap();
-    // Current-form transform: mask 3, translation and scale; then 4 bytes/u32.
-    assert!(reader.skip(17 + 4 + 4));
-    let end = reader.position();
-    let mut back = record();
-    assert!(back.read_into(&mut ByteReader::new(&bytes[..end])).is_none());
-    assert!(back.source_6c.is_null());
-    assert!(!back.reference_1b4.is_null());
+fn pylon_position_visibility_and_explicit_model_gap_conformance_42() {
+    let mut p=Pylon::new([0;3]); let mut h=Host::default();
+    assert_eq!(p.set_position(None,&mut h),Ok(())); assert!(h.log.is_empty());
+    p.record.transform.counter=255; p.record.transform.mask=0x80;
+    assert_eq!(p.set_position(Some([4.0,5.0,6.0]),&mut h),Err(PylonUnsupported::ModelTextureGeometryDrawBoundsTransformMessagesNO36));
+    assert_eq!((p.record.transform.counter,p.record.transform.mask),(0,0x81));
+    assert_eq!(h.log,["city","city","city","manager+","city","city","prepare","renderer+"]);
+    let mut out=[0.0;3]; p.get_position(Some(&mut out)); p.get_position(None); assert_eq!(out,[4.0,5.0,6.0]);
+    h.log.clear(); p.set_visibility(false,7,&mut h); assert_eq!(h.log,["visibility/false/7","city","renderer-"]);
+    p.placement_flags=0; h.log.clear(); p.set_visibility(true,8,&mut h); assert_eq!(h.log,["visibility/true/8"]);
 }
