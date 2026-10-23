@@ -1708,8 +1708,10 @@ The collection's named/anonymous identity, replacement and retained-reference
 contract is in [§11.1](effects-parser.md#111-component-directory-service-used-by-commands).
 The parser's positively identified final-release/destructor chain is in
 [§11.2](effects-parser.md#112-native-parser-final-release).
-These dependencies answer EFP1, EFP4 and EFP5; EFP2, EFP3's complete outer
-recovery policy and EFP6 remain open. Descriptor registration alone does not
+The generic registrar, duplicate policy, descriptor ownership and block dispatch
+are in [§12](effects-parser.md#12-generic-registration-and-dispatch-dependency-compat).
+These dependencies answer EFP1, EFP3–EFP6 at their command-owner boundaries;
+EFP2 remains open. Descriptor registration alone does not
 prove a command's execution algorithm.
 
 ### 19.2 Two root command owners
@@ -1734,11 +1736,12 @@ command; absence throws `No ID specified!`. It converts token 1 through
 ParseUint and stores the full returned word in `P+49C` before entering the
 generic block. It does not enforce an upper argument count, create an effect
 description, or install a default ID. Its own nested registrar `005967D0`
-registers only `instance` with descriptor `00A9FA08`; this does not inherit the
-whole root command dictionary. The registered exit hook is `00648F10`.
+registers only `instance` with descriptor `00A9FA08`; generic dispatch can still
+fall back to outer-block and root dictionaries (§19.1). The registered exit hook
+is `00648F10`, a return-only hook.
 No restoration of the prior group-ID word is performed by the enter hook.
-The `instance` execution contract and full block dispatch are still open under
-EF15/EFP6. Evidence: `00596750–005967F8` and root registration §6.1.
+The `instance` execution contract is still open under EF15. Evidence:
+`00596750–005967F8` and root registration §6.1.
 
 ### 19.3 Command and dependency conformance vectors
 

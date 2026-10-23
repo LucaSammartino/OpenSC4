@@ -464,8 +464,8 @@ alphabetic test. It does not resume after switches, skip marked switches, mark
 positional tokens, or enforce an exact maximum. Insufficient initial positional
 values throw `Expecting at least %d arguments` (`0067A685–0067A7C5`).
 
-Unknown switches are checked separately after a dispatched command returns by
-the generic parser (`00679120`, helpers `00679E50` and `0067A040`): an unmarked
+Unknown switches are checked separately after a command found in a nested block
+returns by the generic parser (`00679120`, helpers `00679E50` and `0067A040`): an unmarked
 `-` followed by alphabetic text can cause `Unexpected switch: %s`. A marked
 `+word` does not count as an unhandled switch. There is no reader-level error for
 unused ordinary values. These rules do not make whole-command parsing atomic.
@@ -510,6 +510,15 @@ option processing and append; an option error occurs before append. Normal
 temporary cleanup after append is not an exception handler. The append and later
 option lookups are not executed on these throws. Likewise a command rejected
 outside an effects block throws before positional selection.
+
+The relevant owner frames (`005989D0`, `005A2810`, `005A3890`) install no local
+SEH cleanup/catch registration. In particular, the temporary record's ordinary
+string cleanup at `005A2935–005A2943` is only reached after successful append;
+it is not registered as an unwind action for a rejected option. No implicit
+block-exit hook is called by these frames when they throw. The generic `end`
+operation likewise removes the stack entry only after the end hook returns
+(§12). This answers EFP3 at the command-owner boundary; it does not certify a
+file-reader catch/recovery protocol.
 
 This defines the observable failure prefix, not permission to resume execution
 after the throw instruction. A caller may handle the C++ exception at a higher
@@ -594,3 +603,89 @@ acquire-before-release assignment protocol; the slots are not cleared first.
 | LT1 | count 3 then Release | count 2 returned; no destructor |
 | LT2 | count 1; P+490=C, A8=R, 94=U, 90=K, 8C=M; successful returning cleanup | C.`+14`, description/container cleanup, R.Release, U.Release, K.Release, M.Release, base destruction, allocation free, Release returns 0 |
 | LT3 | final-release state as LT2 but 94 and 90 both K | K receives two releases in those positions; no alias suppression |
+
+## 12. Generic registration and dispatch dependency *[compat]*
+
+This answers EFP6 independently of effects-command execution algorithms. The
+generic library is a foreign dependency of the effects owner, with concrete
+behavior below; it does not stand in for unexamined command handlers.
+
+### 12.1 Registration, duplicates and ownership
+
+Root registrar `00676DB0` maps a byte string to an index in an ordered descriptor
+vector. Every registration appends its supplied descriptor, including duplicate
+names. A duplicate overwrites the name-to-index association with the newly
+appended index, so the most recent registration wins lookup; old descriptors
+remain in the owned vector. It then invokes the new descriptor's `+08`
+registration hook. This is **not AddRef** (`00676DEB–00676E40`).
+
+Block registrar `00676B80` maintains a separate name-to-descriptor dictionary.
+A duplicate overwrites that dictionary pointer and invokes the new descriptor's
+`+08` hook; it does not delete or release the overwritten descriptor. Both
+registrars store the supplied name pointer rather than copying its bytes
+(`006766F0`); published effects registrations use persistent literal storage.
+The names' storage must remain live while registered.
+
+Dictionary lookup uses full byte-string equality, including case, not pointer
+identity or the exported comparator name. The hash helper `006762F0` compares
+the actual bytes (`00676330–00676364`); hash collisions do not alias unequal
+names. `particleEffect` and `ParticleEffect` are different keys. This differs
+from the case-folded **description** directory in §11.1.
+
+Descriptors are owned objects, with deleting destructor at vslot 0. Root cleanup
+calls that slot with argument 1 on every nonnull vector entry (`00679330`).
+Block destruction calls it on every currently stored nonnull nested descriptor
+(`00676770`), then destroys its dictionary. Registration hooks are ordinary
+initialization calls, with no reference-count acquire/release. Registering the
+same owned descriptor pointer twice is not a supported sharing protocol.
+The native registrars do not guard null descriptors before calling their hook;
+allocation failure is not a graceful parse-error contract.
+
+### 12.2 Lookup precedence and dispatch hooks
+
+For an ordinary command outside macro capture, variable substitution runs on
+each token before dispatch. The parser searches active blocks from innermost
+to outermost, using each nonempty nested dictionary. The first matching key
+wins. If none matches, it searches the root dictionary. Missing everywhere
+throws `Unknown command '%s'` (`00679170–0067931F`). A block's local registration
+list therefore does not prohibit root commands or outer-block commands from
+being selected inside it. The selected owner's own context validation still
+applies.
+
+The descriptor's `+04` wrapper receives tokens and the generic parser interface.
+It obtains the effects context through that interface's `+28` and forwards:
+simple wrapper `007E3BE0` calls descriptor `+0C` with tokens/context; block
+wrapper `007E3B10` calls descriptor `+14` with tokens/context. This distinction
+explains why the root table's block enter hooks are not direct `+0C` handlers.
+The block enter owner invokes its `+0C` generic StartBlock when it is ready to
+enter. `00676B30` pushes that descriptor on the active block stack; it does not
+create a per-entry descriptor or reference-count it.
+
+The generic root command `end` (literal `00AA0A5C`, handler `00676110`) throws
+`Not inside a block!` for an empty stack. Otherwise it invokes the top block's
+`+10` wrapper, which obtains context through `+28` and calls its `+18` end hook
+(`006773D0`). It pops the stack entry **after the hook returns**. A throwing hook
+therefore leaves the entry present; there is no automatic end callback during
+the command-owner unwind. The end handler does not validate surplus arguments.
+For effectGroup, `+18` is `00648F10`, a return-only hook, so closing that block
+does not restore P+49C.
+
+After a command selected from a nested dictionary returns, the generic parser
+checks for unhandled switches (§9) and may throw `Unexpected switch: %s`.
+The root-fallback dispatch path returns without that check
+(`00679260–006792F4`). This asymmetry applies even when the root command was
+found while blocks were active; do not impose a uniform post-handler rejection
+policy. Neither path provides rollback of a successfully executed handler.
+Macro capture/substitution algorithms are generic-library services outside the
+effects-command family; this dispatch contract requires their returning results.
+
+### 12.3 Dispatch conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| DR1 | root registers name `x` with A then B; vector initially empty | vector `[A,B]`, lookup `x` chooses index 1/B; both registration hooks called in order; cleanup destroys A then B |
+| DR2 | one block registers `x` with A then B | lookup selects B; B registration hook called; overwrite does not destroy A; block cleanup destroys currently stored B |
+| DR3 | distinct byte strings `x` and `X`; equal hash bucket allowed | exact spelling selects its corresponding descriptor; no case folding or pointer-identity requirement |
+| DR4 | outer and inner dictionaries both define `x`, root defines `y` | `x` dispatches inner; `y` falls back to root; missing key throws unknown-command error |
+| DR5 | top block A; end hook throws | A's end wrapper/hook called once; stack entry retained; no second implicit end hook; no pop |
+| DR6 | returning handler leaves `-unknown` unmarked | nested-selected handler: side effects then unexpected-switch exception; root-fallback handler: side effects and normal return from this dispatcher |

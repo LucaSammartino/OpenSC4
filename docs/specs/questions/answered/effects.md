@@ -229,3 +229,27 @@
   Held component P+490 releases first, then description/container cleanup;
   interfaces P+A8, P+94, P+90, P+8C release in that order, followed by base
   destruction and allocation free. Callback 0059EBE0 is distinct.
+
+- ~~**EFP3 — Error transport and lifetime outside normal domain**
+  In effects-parser.md §3, identify the actual error transport of 009EF84F and
+  cleanup/unwind behavior of the select/LOD/prob errors. Do not assume false-return,
+  transaction rollback or resumed parsing from the misleading export name.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** DIFFERS — effects-parser.md §10:
+  009EF84F raises a noncontinuable MSVC C++ exception through RaiseException,
+  code E06D7363, flags 1, three information words. Owner frames install no local
+  catch/unwind cleanup. Earlier token marking and description writes remain;
+  rejected-value conversion, append and normal temporary cleanup are not reached.
+  No implicit end hook or rollback is performed. File-reader recovery is a
+  separate foreign scope, with no continuation guarantee from these owner bodies.
+- ~~**EFP6 — Command-library dispatch policy**
+  In effects-parser.md §6, establish foreign root/nested registrar duplicate,
+  lookup/case, descriptor ownership and block-hook dispatch policy. Current proof
+  is the owner's ordered literal-to-descriptor registration, plus the concrete
+  sequenceEffect normal handler, not all root command semantics.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** DIFFERS — effects-parser.md §12:
+  exact byte/case lookup; last registration wins. Root duplicates append owned
+  descriptors; nested duplicates overwrite without destroying the old descriptor.
+  Registration invokes +08 initialization, not AddRef. Search is innermost block
+  outward, then root. Wrappers forward simple +0C, block enter +14 and exit +18;
+  StartBlock pushes, end invokes the exit before popping. Only nested-selected
+  commands get the post-handler unexpected-switch check. Six independent vectors.
