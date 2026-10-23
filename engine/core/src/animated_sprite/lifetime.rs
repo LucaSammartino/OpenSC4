@@ -72,7 +72,7 @@ impl<O> SpriteArena<O> {
 
     pub fn release(&mut self, handle: SpriteHandle) -> Result<u16, ReferenceError> {
         let entry = self.entries.get_mut(&handle).ok_or(ReferenceError::Missing)?;
-        let count = if entry.references > 1 { entry.references - 1 } else { 0 };
+        let count = entry.references.saturating_sub(1);
         if count == 0 {
             self.entries.remove(&handle);
         } else {

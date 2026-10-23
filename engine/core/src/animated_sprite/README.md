@@ -6,8 +6,9 @@ Renderer, resource acquisition and TrianglePick remain foreign interfaces.
 
 The owner is **WIP** while the spec's open numeric, provenance and inventory
 questions remain. Settled state and transaction contracts are implemented here.
-The safe exact-dyadic numeric path rejects a transient/store that depends on
-unqualified PC/RC rather than choosing host trig or an assumed numeric mode.
+The safe exact-dyadic numeric path rejects inexact transients/stores rather than
+choosing host trig. Its signed-zero rules are conditional nearest-even rules;
+whole-call PC/RC and native qualification remain open under AS6/AS7.
 Nonzero hardware trig is explicitly Unsupported under AS6. There is no unsafe
 code, original-owner callback, computed-quad provider or guessed native success.
 
