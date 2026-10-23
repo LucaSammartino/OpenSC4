@@ -1,6 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-city-input-tools4: portable Flora, Torch, CitySituations | Codex; `core-city-input-tools4` (reserved detached worktree) | WIP: Rust 5348/0 and Clippy pass; native174/174, exact native exit and CTest unverified after cache-stats stall | Hold; coordinator must resolve infrastructure and obtain complete native/CTest68 results before READY. No automatic extra round. |
+| core-city-input-tools4: portable Flora, Torch, CitySituations | Codex; `core-city-input-tools4` (reserved detached worktree) | in progress: finite R2 validation checkpoint; R1 all failed | Run exactly one serial all on the unchanged committed engine; collect actual native exit and full CTest68. |
+
+## Handoff
+
+- Goal: finish bounded production validation and honest delivery, no algorithm/owner expansion.
+- Done: inventory/fixtures d6ad7d1e; production 9ac71616; R1 report 19fd7e1c.
+- R1 all is collected FAIL/exit1, Rust5348/0/23 summaries, Clippy0, 19 owned tests pass.
+- R1 native174/174 is only a log count; native exit UNKNOWN, CTest unrun.
+- Own verifier29764 cancelled at02:52:29+01; stats-client29816 eventual exit cause UNKNOWN.
+- Read copied R1 result/report, module inventory/source boundaries, fixtures, coordinator lifetime proof.
+- Host admission proof03:26:16+01 names own path/tip/engine/role/dependency; runtime guards still apply.
+- Current source: clean19fd7e1c; engine1876418d76bfbfab03b1980068700566a4a430f9.
+- Six owned source SHA256s match retained R1 manifests; no source changes planned.
+- Copied coordinator03:07/03:26 evidence observes all three old PIDs absent and port4848 absent.
+- Own02:28:55UTC Get-Process read found none of old22964/29764/29816; no exit/cause inferred.
+- Local Python312 lacks psutil; no WMI/Bash workaround, process action, cache RPC or policy change.
+- R1 fixed/mixed/failed logs and quick archive copied byte-for-byte BEFORE canonical overwrite.
+- Archive: build-runs/r1-evidence-immutable/, 19 files plus SHA256 index.
+- Index SHA256:326418439191512d7073972328bd33a3d8ad63e2efcd83a3d1f93c3e664f050a.
+- Next: commit this checkpoint, record its exact source/tree, invoke one canonical qbuild all.
+- Keep tracked tree unchanged while check runs; retain async session identity and collect it.
+- If stalled, preserve read-only exact operation evidence/request coordinator review; never cancel/relaunch.
+- No game request outstanding. CT14-17/CT1/CT2 gaps and all ownership/wiring exclusions remain.
+- Budget: original round2/3, 150000 context/100 calls; at most one separately reviewed original round left.
+- R1 report below remains historical; this checkpoint supersedes its proposed hold pending this authorized check.
 
 ## Implementation and provenance
 
