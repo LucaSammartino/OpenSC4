@@ -68,8 +68,10 @@ generated index: the questions live one file per spec, so read only the file for
 | FS | graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
+| GDR | game-data-registry |
 | GF | graphics-formats |
 | GI | renderer-gdrivers-director-inventory |
+| GINT | grid-interpolation |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -77,6 +79,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GZ | framework-gz-services |
 | HD | html-document |
 | HG | foundations |
+| HU | html-ui-hooks |
 | HW | history |
 | IN | commercial-industrial |
 | LC | legacy-control |
@@ -137,6 +140,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RZ | framework-rz-files |
 | SG | simgrid |
 | SL | strings-language |
+| SM | rz-sparse-matrix |
 | SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
@@ -213,12 +217,15 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
+| game-data-registry | 4 | 0 | GDR5 | questions/game-data-registry.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
+| grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
+| html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
@@ -229,7 +236,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 8 | 0 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
-| lua-host | 0 | 4 | LH3 | questions/lua-host.md |
+| lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -279,6 +286,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
+| rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
@@ -310,4 +318,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **476** | **1241** | | |
+| **total** | **492** | **1242** | | |
