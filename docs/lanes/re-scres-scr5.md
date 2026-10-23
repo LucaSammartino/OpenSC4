@@ -7,9 +7,9 @@
 - Goal: close every open SCR question in sc-resources with behavior and vectors.
 - Worktree reused, intentionally detached; no branch/ref updates.
 - Read rules, lane format, questions and core-sc-resources5 open-boundary report.
-- Done: 4d687c7b drafts SCR1 grammar/delimiters; next milestone drafts SCR4 wire table and SCR5 BMP/dither; NOT yet docchecked or questions moved.
-- Next: review draft spec evidence and add conformance vectors; finish SCR2/SCR3/SCR7, move all answered entries, regenerate index, doccheck, report/enqueue.
-- Guard last read: 144534/150000; stop after committing this handoff. No queue entry.
+- Done: 4d687c7b drafts SCR1; 9128baba drafts SCR4 wire table/SCR5 BMP/dither; NOT yet docchecked or questions moved.
+- Next: finish SCR2/SCR3/SCR7 using facts below, add vectors, review drafts, move answers/index; run `python tools/doccheck.py check`, report/enqueue.
+- Guard OVER at151k; no queue. Initial doccheck invocation lacked subcommand (usage error); corrected check blocked, so no doccheck verdict.
 - All six question entries remain open intentionally until vectors and review are complete; do not report ready.
 - Evidence helpers (ignored): build-runs/sections.py excerpts functions by address; peek.py reads PE data (suffix :84w prints vtable slots).
 - Type map verified from constructors and Read dispatch: 1u8,2u16,3u32,4s32,5f32,6s64,7string,8key,9s8,10s16,11u64,12f64.
