@@ -58,6 +58,19 @@ pub trait TripServices {
     fn search_trip(&self, _sim: i32, _state: &DispatchState) -> TripSearch {
         TripSearch::UnsupportedMs18
     }
+    /// Occupant-manager order, with purpose and position read through foreign
+    /// interfaces. None means unavailable; Some(empty) means no stop exists.
+    fn transit_stops(&self, _rect: CellRect) -> Option<Vec<TransitStop>> {
+        None
+    }
+    fn boarding_automata(&self, _cell: (i32, i32)) -> Option<Vec<BoardingAutomaton>> {
+        None
+    }
+    /// Attempt a real next leg, optionally with a selected boarding automaton.
+    /// Returns its travel type (FF is failure); never a synthetic arrival.
+    fn dispatch_next_leg(&self, _sim: i32, _automaton: Option<u64>) -> Option<u32> {
+        None
+    }
     fn register_deferred_setup(&self, _sim: i32, _register: bool) {}
 }
 
@@ -110,8 +123,19 @@ impl DispatchLocation {
     /// Exact stored identity (§4.7.1, MS19), independent of validity,
     /// world position and timing. Neither occupant nor locality overrides cells.
     pub fn same_location(&self, other: &Self) -> bool {
-        (self.in_city, self.occupant, self.by_commute, self.cell, self.neighbor_city)
-            == (other.in_city, other.occupant, other.by_commute, other.cell, other.neighbor_city)
+        (
+            self.in_city,
+            self.occupant,
+            self.by_commute,
+            self.cell,
+            self.neighbor_city,
+        ) == (
+            other.in_city,
+            other.occupant,
+            other.by_commute,
+            other.cell,
+            other.neighbor_city,
+        )
     }
 }
 
@@ -187,15 +211,14 @@ impl MySimDispatch {
         });
     }
 
-    /// Final geometry/transport decisions are MS18. These are only the two
-    /// settled signed comparison boundaries, accepting a foreign distance.
-    pub fn within_proximity(&self, sim: i32, squared_distance: i32, final_marker: bool) -> bool {
+    /// §4.6.2 compares truncated *linear* distance to squared tuning.
+    pub fn within_proximity(&self, sim: i32, distance: i32, final_marker: bool) -> bool {
         let p = self.get_state(sim).tuning.proximity;
         let square = p.wrapping_mul(p);
         if final_marker {
-            squared_distance <= square
+            distance <= square
         } else {
-            squared_distance < square
+            distance < square
         }
     }
 
@@ -525,7 +548,9 @@ impl MySimDispatch {
         });
         for note in notes {
             match note {
-                StateNote::Flags { old, new } => self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_A, old, new),
+                StateNote::Flags { old, new } => {
+                    self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_A, old, new)
+                }
                 StateNote::TripState { old, new } => {
                     self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
                 }

@@ -5,7 +5,7 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! `cSC4MySimDispatch` (class `0xCBC14674`, read as IID `0xEB8B6F9A`), the
-//! per-MySim trip controller. Behavior source: mysims.md §§4.6.1, 4.7,
+//! per-MySim trip controller. Behavior source: mysims.md §§4.6.1–4.6.2, 4.7,
 //! 4.11, 6.2.1 and 7.2.1. Transport handoffs remain foreign (MS18).
 //!
 //! - `FindNewJob` → `SetCurrentCommuteDestination(default loc, notify)` →
@@ -38,8 +38,10 @@ use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 
 mod record;
 pub mod scripted;
+mod transport;
 mod trip;
 pub use record::DispatchRecordRefs;
+pub use transport::{BoardingAutomaton, TransitStop, TransportTail};
 pub use trip::{DispatchTuning, TripOutcome, TripSearch, TripServices};
 
 #[cfg(test)]
