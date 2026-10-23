@@ -7,8 +7,11 @@
 - Done: ba033b93 implemented section 1.5.1 fog and DC-V27 through DC-V35; borrowed colour/scalar driver inputs, cache semantics and nonreturn prefix tests.
 - Focused result: 37 draw_context tests passed; explicit owned-file fmt passed (3 files, zero diff).
 - Done: rechecked other owner rows against spec and implementation; expanded section/item labels to distinguish section 13.3 fog from numbered conformance item 3.
+- Audit commit: 0bc5604e; helper build-runs/audit-draw-context.py passes: 38 owner rows, 33 referenced tests exist, all 35 published vectors mapped.
+- Gate progress: build-runs/qbuild-test.log has 5,962 passes / 0 failures across 28 groups; qbuild-clippy.log finished clean.
 - Next: collect the running final-source qbuild all operation (session 38209); inspect PASS/FAIL lines and named logs, then report and queue.
 - Full gate was launched once after final Rust edits; only documentation changed afterward.
+- CMake configure pending since 16:08:24; fc4verify-configure.log still empty at 16:13; local CMakeScratch/TryCompile-kqoyyy shows native C compiler ABI check. No replacement check launched.
 - Residual boundaries only: DC1 foreign byte meanings, DC2 foreign flag meanings, DC3 native stack attribution; no new questions.
 - Diagnostics: relative fmt file arguments failed (absolute paths pass); q.py Bash unavailable (CreateFileMapping error), direct PowerShell cargo succeeded.
 - Scope: core only, no plugin/capi/ABI changes; Rust minimum 1.75.
