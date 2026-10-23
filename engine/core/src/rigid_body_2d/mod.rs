@@ -30,6 +30,8 @@ pub enum Unsupported {
     NegativeExtent,
     InexactUnstoredArithmetic,
     Binary32StoreRange,
+    /// RB7: transverse projection staging is unresolved when offsets round.
+    CandidateOffsetStage,
     InvalidStableList,
     /// RB1: allocation, copying, registration and destruction are unproved.
     RegistrationLifetime,
@@ -214,7 +216,14 @@ pub fn test_for_collision_observed(
             2 => (b.position, b.axis, bp, by),
             _ => (b.position, perp(b.axis), bw, bx),
         };
-        let r = wide(stored_pair(difference(q, reference)?)?);
+        let raw_r = difference(q, reference)?;
+        let r = wide(stored_pair(raw_r)?);
+        // §6.1 explicitly stores offsets before t, but does not explicitly
+        // stage h relative to those stores (RB7). Admit only exact stores so
+        // either reading gives the identical transverse gate; never guess.
+        if r != raw_r {
+            return Err(Unsupported::CandidateOffsetStage);
+        }
         if dot(r, transverse)?.abs() > extent {
             continue;
         }

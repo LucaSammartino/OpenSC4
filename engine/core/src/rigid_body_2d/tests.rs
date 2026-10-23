@@ -218,6 +218,23 @@ fn explicit_numeric_errors_and_no_false_contract() {
     assert_eq!(add_object(), Err(Unsupported::RegistrationLifetime));
 }
 
+#[test]
+fn unresolved_candidate_stage_is_unsupported_after_prior_writes() {
+    let a = body([-16_777_216.0, 0.0], [33_554_432.0, 2.0]);
+    let b = body([0.0, 0.0], [1.0, 1.0]);
+    let mut p = [91.0, 92.0];
+    let mut n = [81.0, 82.0];
+    let mut writes = Writes::default();
+    // Q1 offset 2^24-1 is exact; Q2 X offset 2^24+1 rounds on store.
+    assert_eq!(
+        test_for_collision_observed(&a, &b, &mut n, &mut p, &mut writes),
+        Err(Unsupported::CandidateOffsetStage)
+    );
+    assert_pair(p, [-1.0, 1.0]);
+    assert_pair(n, [1.0, 0.0]);
+    assert_eq!(writes.0.len(), 4);
+}
+
 #[derive(Default)]
 struct Calls(Vec<Event>);
 impl Foreign for Calls {
