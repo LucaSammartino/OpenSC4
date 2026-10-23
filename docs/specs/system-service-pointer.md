@@ -163,6 +163,40 @@ Evidence: load/test `0x00874DA6..0x00874DAA`, clear `0x00874DAC`, call
 foreign call. This body is a clear-and-release operation on its ordinary path;
 its auto-applied destructor name alone does not certify its source-level role.
 
+#### 3.2.1 Clear-and-return-address use in live receivers (SSP2)
+
+**[compat]** This body also serves as a callable **output-address preparation**
+operation. Its receiver is the address of a live pointer field, not that
+field's interface pointer. It takes no stack arguments; it returns the full
+32-bit receiver address in EAX even when the field started null. After any
+nonnull Release returns, the field is still null under the nonmutation
+assumption. The result is neither a boolean nor the released interface's
+reference count. The following native continuations immediately push that
+EAX value as a foreign output address, rather than end the owner's lifetime:
+
+| Caller discovery label / call site | W passed in ECX | Subsequent foreign call, receiver and literal arguments |
+|---|---|---|
+| WinIME `StartComposition`, `0x00995403` | `owner+0x54`, formed `0x009953D7`; ECX set `0x009953FE` | EAX=W pushed `0x0099540B`; virtual `+0x0C` at `0x00995416` on the separately saved `0x0090DDF1` result; logical arguments `0x2AC45170`, `0x2AC44A90`, W |
+| WinIME `StartCandidateList`, `0x009954E6` | `owner+0x60`, formed `0x009954BA`; ECX set `0x009954E1` | EAX=W pushed `0x009954EE`; virtual `+0x0C` at `0x009954F9` on the separately saved `0x0090DDF1` result; logical arguments `0x2AC45173`, `0x2AC44A93`, W |
+| HitChannel `CreateSnd`, `0x0093F371` | `owner+0x28`, restored/adjusted `0x0093F366..0x0093F36B` | EAX=W pushed `0x0093F379`; virtual `+0x00` at `0x0093F37F` on the separately saved interface from `owner+0x24`; logical arguments `0x09D002D2`, W |
+
+The first two paths check [W] for null before reaching the preparation
+(`0x009953DA..0x009953DD`, `0x009954BD..0x009954C0`); a nonnull field
+bypasses this sequence. In the specified nonreentrant domain, those paths
+therefore make no Release during preparation. The third path imposes no
+such test on its output field immediately before preparation: the tested
+interface at `owner+0x24` is a separate field. No general owner, allocation
+or foreign factory algorithm is specified by these call slices.
+
+These uses positively establish a clear/release-and-return-address role on
+live storage. They do not prove a source spelling such as destructor, reset,
+address conversion, or a folded specialization. In particular, the Persist
+discovery label supplies no Persist IID test to this body. SSP2 stays open
+only for that source attribution; the observable contract is established.
+The selected caller slices and body were byte-compared to the same PE with
+zero mismatches. No source-level object-lifetime reconstruction is required
+to use their normal raw-pointer contract.
+
 ### 3.3 Assignment (SndSys body)
 
 **[compat]** At `0x004F2020`, the incoming stack argument is a raw interface
@@ -283,11 +317,11 @@ cleanup is instead directly linked to `0x004495C0` by the lifetimes in section
 3.4. No arithmetic-owner algorithm is claimed or researched here.
 
 The Persist-labeled clear-and-release body in section 3.2 has a genuine pointer
-algorithm, but not a certified source-level destructor identity. Its eight
-exported direct callers include multiple interface consumers (for example
-WinIME proxy call sites `0x00995403` and `0x009954E6`), consistent with a
-type-independent helper. Caller bodies were not studied. No reset, assignment,
-source-template identity or linker-folding claim follows merely from that use.
+algorithm, but not a certified source-level destructor identity. Section 3.2.1
+follows three of its eight exported direct calls to establish returned-address
+use on live pointer fields. This is stronger evidence than heterogeneous
+caller names alone, but still does not identify source-template spelling or
+linker-folding history.
 
 Thus the 43 named entries divide into 19 C40, three C37, thirteen D74,
 three D52, two temporary lookup helpers, one clear-and-release body, one
@@ -411,6 +445,34 @@ the shared no-clear destructor from clear-and-release L02, which instead
 observes W=null during Release and returns full EAX=W. No row executes the
 arithmetic entry as a pointer destructor or infers reference acquisition from
 lookup's status. No repeated destruction of one lifetime is proposed.
+
+### 5.5 Clear-and-return-address use ledger
+
+These additional rows are **PROPOSED / UNEXECUTED** and independent of the
+Draw rows. Let W be a live four-byte output field. Call `0x00874DA3` with
+ECX=W and no stack argument. Only after its return make the specified opaque
+foreign call with output address EAX=W. Do not treat that return as an
+interface pointer. For the caller rows use the exact field and literal words
+in section 3.2.1. Foreign methods do not mutate W except for the explicit
+output write in the stimulus.
+
+| ID | Initial field / stimulus | Required ordered observations |
+|---|---|---|
+| R01 | [W]=P, preparation followed by a foreign write of Q | save P; clear [W]; `Ref-(P)` sees [W]=null; return full EAX=W regardless of Release EAX; foreign output receives W and sees null, then writes Q; final [W]=Q; no `Ref+` |
+| R02 | [W]=null, preparation followed by a foreign write of P | no reference calls; EAX=W; foreign output sees null and writes P; final [W]=P |
+| R03 | [W]=Q, preparation followed by no output write | clear [W]; `Ref-(Q)` sees null; EAX=W; subsequent foreign call sees null and leaves it null |
+| R04 | either WinIME caller's construction-taking sequence, [W]=null, foreign AL=0/output Q or AL=1/output null | preparation emits no reference call; passes the exact W as output; final field immediately after foreign return is Q or null respectively; the call's AL is separate from preparation's full EAX=W |
+| R05 | either WinIME caller's initial field P | the nonnull guard bypasses this preparation/output sequence; do not expect a Release from `0x00874DA3` on that path |
+
+R01-R03 specify the callable primitive and output sequence, not a promise
+that every caller accepts every starting state. R01 can also be proposed
+for the HitChannel slice, whose output field is not guarded for null there.
+The callback counts, any ownership acquired through the output, and the
+foreign result's meaning remain foreign inputs. Unlike assignment A02,
+preparation does not AddRef a replacement and does clear before Release;
+unlike Draw cleanup D01, it returns a usable field address and leaves no old
+pointer in the field. These distinctions do not depend on resolving SSP2's
+source-language name.
 
 ## 6. Boundaries and unresolved identity
 
