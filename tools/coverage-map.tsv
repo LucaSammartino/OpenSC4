@@ -142,7 +142,7 @@ cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
-cSC4MySimPool	mysims	simulation	mysims.md	-	-	-
+cSC4MySimPool	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimDispatch*	mysims	simulation	mysims.md	-	-	-
 cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
