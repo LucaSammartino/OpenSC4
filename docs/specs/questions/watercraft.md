@@ -11,6 +11,12 @@
   occupant extent and outside-city helper contracts; §5.7.3 supplies manager
   collision-search/shared footprint-builder signatures and failure behavior.
   Remaining signatures/inherited computations in §10.1 still prevent closure.
+  re-watercraft-wc5b: §3.3 adds movement-gate short-circuit/state-query order,
+  straight-integrator arguments/outputs and docking helper result/failure contracts.
+  §5.1.4 specifies inherited animation dispatch and generic seek arithmetic.
+  Exact residual: remaining route/math (notably 00567ED0/00567FD0), land/tow,
+  tuning/debug signatures/failures, inherited initialization/teardown and
+  subsidiary animation/effect/model computations. No full-owner closure claim.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
 - **WC4 - sections 5.1, 5.2, 5.3 and 6.1 movement:** please expand Engine_AIBoatMotion, Movement_PositionNew and its four helpers, inherited animation/player-drive steps, and effect/model updates into executable arithmetic, ordering and failure contracts. Missing details include interpolation, steering, speed selection, water height/tilt, collision footprint construction, route-coordinate encodings, whether final docking completion is tested before or after motion, whether wake heading change means vector-delta magnitude or angle, and whether final-approach/following dt is clamped. [no original owner computation accepted as provider input; final docking completion tested also after motion, final approach dt unclamped, wake change uses vector-delta magnitude; far-approach and full animation/drive ticks remain unsupported]
@@ -22,6 +28,12 @@
   correcting the bow cap/lift to p[18]; §5.1.3 gives target slew and dt use.
   Residual: complete AI target selection, inherited animation/player-drive
   computations, complete wake/effect/model updates and far approach.
+  re-watercraft-wc5b: §5.1.4 resolves the generic inherited seek arithmetic,
+  flag/state gates, two time arguments, unconditional normal true result and
+  six-key wake request order/adapter forwarding. Residual: full AI selection,
+  inherited player-drive, subsidiary slot-83/103 animation computations,
+  effect-controller and slot-104/107 updates, and far approach. Normal attitude
+  composition was already resolved in round 2; crash attitude remains WC5.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
 - **WC5 - section 5.7 and automata section 6.6 crash/bump:** what are the exact footprint-overlap, inanimate hit, bump response, size-class and crash-sequence equations (sink/heel axes, ramps, RNG draws and boundary rules)? Section 6.6 gives accumulator writes but no crash animation formula. Does crash entry notify (0xB,0) as watercraft section 4 states, or (0xB,duration) as automata section 6.6 states? How are equal-size losers and non-player boats sinking after a player win handled? [literal watercraft entry notification (0xB,0), question-marked; threshold classification/state-case dispatch only, no full collision/crash-motion claim]

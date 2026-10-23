@@ -13,3 +13,5 @@
 - Main evidence: `C:/Users/tlori/FreeCity4/tools/re_query.py`, `decomp/cSC4Watercraft.c`, `decomp/region_00560000.c` (read-only).
 - q.py Bash wrapper fails CreateFileMapping access denied; use native PowerShell with bounded output.
 - No engine files accessed, ABI changes, game requests or REA calls.
+- Milestone f252a4e3: helper and inherited-dispatch contracts committed. Follow-up reconciles stale inventory status and narrows open WC3/WC4 residuals; no question fully closed this round.
+- Answer investigation stopped for report reserve. Sink source read did not establish a complete instruction-verified transform; no new WC5 claim was published. Next source work: 0056A440/0056AF90 complete basis/contact audit, 00571880 AI, 00572770 far approach.

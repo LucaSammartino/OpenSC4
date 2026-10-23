@@ -533,8 +533,8 @@ requests all six keys `SMLWake`, `SMLWash`, `MEDWake`, `MEDWash`,
 `LargeWake`, `LargeWash`; they do not select just the boat's size class.
 Start `0x0056F1E0` calls primary slot 44 `(key,0,0)` for each; stop
 `0x0056EFE0` calls slot 45 `(key,0)` for each. Results are ignored, so one
-failed/absent key does not suppress later requests. They make no boat-field
-writes or refcount transfers. The inherited adapters forward to the embedded
+failed/absent key does not suppress later requests. The helper bodies do not
+directly change runtime position, heading, speed or timers. The inherited adapters forward to the embedded
 effect controller at +0x18C, slots 12/13 respectively; stop additionally calls
 primary slot 104 after each key. Thus six stop requests imply six such update
 calls, before the owner's later effect/model updates. Evidence:
@@ -1281,22 +1281,22 @@ untraced helper bodies still prevent a whole-owner closure claim.
 |---|---|---|
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
 | Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
-| Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | partial/untraced; WC3–WC5/WC7 |
+| Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.3, 5.1.1, 5.2; full 00567ED0/00567FD0 contracts remain untraced |
 | Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; full signatures/failures still WC3 |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
-| Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§5.6, 6.3; reference/failure audit still WC3 |
-| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.2 give boat selection/response, SAT and rollback; model-to-footprint and full shore path still WC5 |
-| Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §5.1.1 gives straight/curved equations and publication; full visual attitude still WC4 |
+| Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.3, 5.6, 6.3; land/tow reference/failure audit still WC3 |
+| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
+| Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
 | Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes and endpoints; rotation/contact still WC5 |
 | Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
-| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–5; full failure audit WC3 |
+| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.3, 5.4; docking helper signatures, distance and manager-null contracts specified; inherited teardown audit still WC3 |
 | Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
 | Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
 | Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
-| Wake stop/start | 0056EFE0, 0056F1E0 | summary §5.1; WC4 |
+| Wake stop/start | 0056EFE0, 0056F1E0 | §5.1.4 gives signatures, six-key ordering, arguments, ignored results and adapter forwarding; controller/update internals remain WC4 |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
 | AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final approach expanded, remaining WC4/WC7 |
-| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation and caller still WC2/WC4 |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
@@ -1309,8 +1309,8 @@ substitute an opaque provider result for missing owner computation.
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction and ten adjustors | Complete signatures/results/failure contracts for every remaining helper; reconcile the historical 79-entry brief and inherited-call coverage. |
-| WC4 | Commands, routes/following/final docking, straight/curved integration, visual basis and target slew | Full AI target selection, inherited animation/player-drive behavior, complete wake/effect/model behavior and far-approach contracts. |
+| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking helper signatures and inherited animation dispatch | Complete signatures/results/failure contracts for remaining route/math, land/tow, tuning and debug helpers and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
+| WC4 | Commands, routes/following/final docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations, and far-approach contracts. |
 | WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint and inanimate corner tables | Sink/heel axes/contact/transform composition. |
 
 These gaps are not answered by an inventory count or by the existing summary
