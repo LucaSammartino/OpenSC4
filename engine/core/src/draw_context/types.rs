@@ -169,6 +169,11 @@ pub enum Command {
     LoadMatrix(Matrix),
     AlphaMultiplier(f32),
     ColorMultiplier(Rgb),
+    FogInteger(u32, i32),
+    /// Snapshot of slot 30 selector 1; pointer-aware adapters override fog_color.
+    FogColor(Rgba),
+    /// Snapshot of slot 30 selector 3 or 4; adapters override fog_scalar.
+    FogScalar(u32, f32),
     InterleavedArrays {
         format: u32,
         stride: u32,
@@ -209,6 +214,18 @@ pub trait Driver {
     /// register. Err propagates and supplies no exception-cleanup guarantee.
     fn submit_returned(&mut self, command: Command) -> Result<NormalReturn, Error> {
         self.submit(command).map(|()| NormalReturn { register: 0 })
+    }
+
+    /// Slot 30 selector 1 receives the original caller's RGBA, including alpha.
+    /// The default command adapter records a value snapshot instead.
+    fn fog_color(&mut self, color: &Rgba) -> Result<NormalReturn, Error> {
+        self.submit_returned(Command::FogColor(*color))
+    }
+
+    /// Slot 30 receives a reference to the respective binary32 argument, not
+    /// an RGBA vector. Selectors 3 and 4 mean start and end respectively.
+    fn fog_scalar(&mut self, selector: u32, value: &f32) -> Result<NormalReturn, Error> {
+        self.submit_returned(Command::FogScalar(selector, *value))
     }
 }
 

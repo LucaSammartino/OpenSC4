@@ -26,8 +26,6 @@ use std::sync::Arc;
 pub enum ContractGap {
     /// DC3: renderer callback brackets do not establish owner Begin/End methods.
     BeginEnd,
-    /// DC9: the owner is attributed, but no fog operation contract is given.
-    Fog,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -257,10 +255,35 @@ impl<D: Driver> DrawContext<D> {
         &self.opaque_f4
     }
 
-    /// Literal boundary of section 1.5: attribution alone supplies neither an
-    /// argument signature nor fog query/cache/driver semantics. See DC9.
-    pub fn turn_on_fog(&mut self, _on: u8) -> Result<(), Error> {
-        Err(Error::Gap(ContractGap::Fog))
+    /// Section 1.5.1: independent requested-state caches, even while disabled.
+    /// Ordinary driver return registers are ignored; a nonreturning provider
+    /// boundary preserves only the completed prefix, as with other setters.
+    pub fn turn_on_fog(&mut self, on: u8, color: Option<&Rgba>, start: f32, end: f32) -> Result<(), Error> {
+        if on != self.fog_enabled {
+            self.emit(Command::Capability {
+                capability: 6,
+                enabled: on != 0,
+            })?;
+            if on != 0 {
+                self.emit(Command::FogInteger(0, 2))?;
+            }
+            self.fog_enabled = on;
+        }
+        if let Some(color) = color {
+            if color[..3] != self.fog_color[..3] {
+                self.driver.fog_color(color)?;
+                self.fog_color[..3].copy_from_slice(&color[..3]);
+            }
+        }
+        if start != f32::MAX && start != self.fog_scalars[0] {
+            self.driver.fog_scalar(3, &start)?;
+            self.fog_scalars[0] = start;
+        }
+        if end != f32::MAX && end != self.fog_scalars[1] {
+            self.driver.fog_scalar(4, &end)?;
+            self.fog_scalars[1] = end;
+        }
+        Ok(())
     }
     pub fn depth_offset(&self) -> i32 {
         self.depth_offset
