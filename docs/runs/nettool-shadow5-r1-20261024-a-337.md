@@ -1,8 +1,9 @@
-tag: nettool-shadow5-r1-20261024-a
-run: unknown
+tag: nettool-shadow5-r1-20261024-a-337
+run: 337
 date: 2026-10-24
 lane: glue-nettool-shadow5
 tip: 8902df3e1
+dll: 532555e1
 city: Konradshohe
 duration: 30.860 s, through 2032-01-02
 pacing: turbo

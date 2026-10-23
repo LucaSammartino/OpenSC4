@@ -144,3 +144,15 @@
   (known unwired adapter paths). [retain all differences, no exact owner credit;
   costs are sampled against post-commit terrain in subsequent source so that
   pre/post terrain phases are not mistaken for an engine cost difference]
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
+- **NT29 - cost/height replay observations:** corrected-source turbo run
+  nettool-shadow5-r1-20261024-b is clean to 2032-01-02. Both cost getters now
+  read the live post-commit terrain, yet road (4,4)-(14,4) costs original/core
+  110/113, and street (64,8)-(74,8) costs 55/61; a repeat of the first road
+  costs 110/110. The two diagonal road runs cost 170/102 and 90/54 (native
+  slot 23 has additional cells, NT28). Which retained height/terrain records
+  must the post-commit GetCostOfSolution sample, and is the extra-cell
+  projection also the cost-cell inventory? [retain earthwork/cell-cost
+  differences; no tolerance or compensating cost is applied; bridge and
+  powerline costs remain explicitly uncovered by the existing host]

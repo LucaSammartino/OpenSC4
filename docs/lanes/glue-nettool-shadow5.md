@@ -12,10 +12,11 @@
 - Stable-source qbuild all: cargo 6694 passed/0 failed/0 ignored; clippy 0 diagnostics.
 - Full qbuild all PASS: native queued qbuild-20261023-235233-build-ctest completed, build 220/220 (160.7s), CTest 69/69 (195.0s), combined 359.9s. Session 59009 terminal exit 0.
 - Script grammar inspection caught unsupported negative coordinates; clamping probe corrected to 4095 (legal grammar upper bound). C++ source unchanged.
-- Game nettool-shadow5-r1-20261024-a: clean through 2032-01-02, refs=0; 2/14 exact. Run record docs/runs/nettool-shadow5-r1-20261024-a.md.
+- Game nettool-shadow5-r1-20261024-a: clean through 2032-01-02, refs=0; 2/14 exact. Run record docs/runs/nettool-shadow5-r1-20261024-a-337.md.
 - Diagnostic: native cost getter sees post-commit terrain, cached replay cost saw pre-commit terrain; changed replay cost sampling to the same post-commit terrain phase.
 - NT28 filed for observed diagonal/avenue ordered cell and failure=1 differences; specialized adapter gaps retained.
 - Corrected source 5b266ce51: qbuild all PASS (cargo 6694/0; clippy 0 diagnostics; queued native qbuild-20261024-001410-build-ctest build 47/47, CTest 69/69, 78.9s). Session 27094 terminal exit 0.
-- Next: submit nettool-shadow5-r1-20261024-b (turbo), then nettool-shadow5-r1-20261024-c (normal) on corrected source.
+- Corrected turbo nettool-shadow5-r1-20261024-b: clean to 2032-01-02, refs=0, 5/14 exact, 37.938s; record docs/runs/nettool-shadow5-r1-20261024-b-338.md. NT29 records residual cost/height differences.
+- Next: submit nettool-shadow5-r1-20261024-c (normal), compare results, finish READY measured-only report with all differences numbered; no profile enablement or coverage credit.
 - Constraints: no tools/ reads or edits; profile update must be delegated to coordinator if exact.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r1-manifest.json.
