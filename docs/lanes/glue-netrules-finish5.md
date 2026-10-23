@@ -15,7 +15,9 @@
 - Konrad b TERMINAL headline clean/ref0 to 2032-02-01, but full log has 14 caught placement SEH plus later foreign shutdown exception; not accepted. Run343: netrules-finish5-konrad-2032-20261024b 75/75 mismatch-clean, 74/75 exact, evaluations=54/tables=24.
 - Own DLL PDB resolves DC1FF1/DC1551 to RegionToC / cFC4Demolition::DemolishRegion. No shadow source defect demonstrated; change inputs only, leave demolition native too.
 - Konrad c TERMINAL ended/ref0 at 2029-03-01, no SEH or foreign exceptions. Run344: netrules-finish5-konrad-2032-20261024c 40/40 mismatch-clean, 39/40 exact, evaluations=366. Funds=-101143, R population0: bankruptcy after real placements.
-- No game outstanding at this commit; session98166 collected to exit0. Next: request netrules-finish5-konrad-2032-20261024d, same 38 providers, but short peripheral network runs at x120..121 /124..125 within known 128x128 map, build-runs/netrules-finish-peripheral-actions.txt. End date unchanged; collect event waiter then inspect full log.
+- Konrad d TERMINAL clean to 2032-02-01, ref0/foreign0/SEH0/stalls0/rtc0/overruns0. Run345: netrules-finish5-konrad-2032-20261024d 75/75 mismatch-clean; 74/75 exact; evaluations84/tables24; incomplete0/unavailable0/resync0. Session20217 collected to exit0.
+- Peripheral two-cell placements preserve city: final funds56221, population15309/2494/7620; all19 script actions executed. Only non-exact sample is pre-readiness load (ready0/epoch0/evaluations0/tables0). Keep key out of shadows profile; no source change needed.
+- No game/build outstanding. Next: rewrite lane as full report, commit, guard status, then READY merge queue entry citing run345 (not failed controls). Main run IDs checked before allocation: max341; local runs342-345 unique.
 - Keep profile key out unless every shadow line exact. Existing load line exact=0 is a limitation, not a matched observation.
 - ABI inherited from prior lane adds fc4_network_rules_snapshot and fc4_network_rules_replay; report abi=true for this lane's merge queue.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-finish5-r1-manifest.json.
