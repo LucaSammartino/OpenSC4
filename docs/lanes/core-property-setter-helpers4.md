@@ -1,20 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-property-setter-helpers4: eleven portable property helpers | Codex / core-property-setter-helpers4 | blocked: coordinator STOP | Resume only when authorized; collect existing full-check result before further work |
+| core-property-setter-helpers4 (eleven portable property setter helpers, `property-setter-helpers.md` §§2–5) | `Codex`+`Claude` / `core-property-setter-helpers4` (engine lane) | ready: `fc4_core::property_setter_helpers` with shared acquisition and eleven typed paths; gate cargo 5732/0, clippy clean, ctest 68/68; ABI unchanged; no game runs; no questions filed | Coordinator: land via merge train. |
 
-## Handoff
-- Goal: first dedicated portable eleven-helper family, property-setter-helpers sections 2–5.
-- Worktree reserved, detached HEAD; no branch/ref changes permitted.
-- Read rules, lane format, and public contract; no forbidden sources accessed.
-- Done acd48d40: common E/Q/M/A acquisition, ordered opaque stores, eleven typed paths, separate residue mask and portable safety Result.
-- Independent fixtures implemented: S1–S12, 24 expanded array traces, eight empty distinctions, all eleven overloads through E/Q/M/A, install residue/retention matrix, wrapping live count, prefix-preserving refusal.
-- Focused cargo test: six passed, zero failed (latest 3602 filtered); owned-file qbuild fmt passed.
-- Earlier wrapper attempt failed with Bash E_ACCESSDENIED, preserved build-runs/q/20261023-090226-38612.log; native Cargo focused test succeeded. Formatting diagnostics corrected via apply_patch using engine/rustfmt.toml.
-- Done 2998f165: independent fixtures and formatted stable production/tests committed; source tree clean before full gate.
-- Full gate launched once on 2998f165 via canonical qbuild all; last collected result nonterminal, session 35784. Do not launch a duplicate. Logs: build-runs/qbuild-test.log and qbuild-clippy.log (Clippy stage reached); no full-pass/native/CTest claim.
-- Durable pre-gate identity: build-runs/gate-before.json; engine tree 31b6054f40db5da5a0dc4f0342d2484d55e0aa15. build-runs/snapshot-owned.py can obtain post-gate hashes after authorization resumes.
-- STOP detected by guard: coordinator stopped all lanes at 2026-10-23T09:16:47, user stopped goal. No new work or merge-queue file permitted. No post-gate snapshot collected; full-check terminal result uncollected because guard denies further commands.
-- Next: after explicit resumption, collect the already launched operation/result, inspect raw Rust summaries/Clippy/native return codes/complete CTest and compare owned hashes. Then finish report or address actual diagnostics within this owner.
-- Qualification: one shared acquisition algorithm with eleven typed paths; no independent-eleven-algorithm, whole-entry, native/default/coverage credit. Foreign storage/lifetime, exceptional float, alias/reentry/exception domains remain outside the normal contract. No questions filed.
-- No C ABI/plugin/game/coverage changes; no game request required or outstanding.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-property-setter-helpers4-r1-manifest.json.
+## Report
+- `engine/core/src/property_setter_helpers/` implements the spec's normal-call contract over a
+  `Primitives` trait of individual foreign calls with opaque 32-bit addresses: holder slot 9 lookup;
+  on a zero result the pool free-head pop (allocator fallback when the head is zero), the live-count
+  increment, block table/constructor/ID stores in spec order, and holder slot 15 install with its
+  return ignored; then property slot 5 GetVariant and the typed Variant call.
+- Eleven entry points: bool, u8, s32, u32, s64 (low/high), f32 (raw bits), string, and u8/u32/f32/s64
+  vectors (begin then end read after acquisition, count = (end − begin) arithmetic-shifted by the element
+  size, primitive called once even when empty). The result is the final call's raw `Residue` (EAX bits plus
+  a defined-bit mask), not a success flag.
+- `Refusal` is the portable boundary only: primitive/memory errors propagate with earlier stores kept
+  (no rollback), address overflow, and vector descriptors outside the spec's valid domain (negative,
+  misaligned, or over-`i32` extents, null begin with a nonempty extent).
+- Tests (6): spec S1–S12 scalar traces, the twelve array literals as 24 existing/new traces, the eight
+  empty-descriptor distinctions, every overload through existing/inherited/missing/allocator paths, the
+  install residue/retention matrix with wrapping count, and prefix-preserving refusal.
+- Gate: cargo 5732 passed / 0 failed (summed over all `test result:` lines), clippy -D warnings clean,
+  CMake build and ctest 68/68 passed; rustfmt clean on the module files.
+- Not done: Variant storage/conversion, pool allocator internals, x87 exceptional float behaviour,
+  aliasing/reentry/exception domains (all foreign per spec §5). Not wired into engine/capi or the plugin.
