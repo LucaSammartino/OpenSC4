@@ -8,7 +8,9 @@ use std::ops::Range;
 /// Raw foreign mesh access. Adapters can borrow formats::s3d data or a game
 /// interface. They do not enumerate triangles or choose flame points.
 pub trait Mesh {
-    /// First primitive's physical index range, not all primitives combined.
+    /// First primitive's reported range. Only its length is used: FF3 ignores
+    /// the first-index offset. `index` exposes the entire readable backing,
+    /// including complete triples extending past this reported count.
     fn first_primitive(&self) -> Option<Range<usize>>;
     fn index(&self, physical_index: usize) -> Option<usize>;
     fn vertex(&self, vertex_index: usize) -> Option<Vec3>;
@@ -35,6 +37,8 @@ pub struct ModelPoint {
 /// malformed mesh data, count overflow and initial-stage failures are unpublished.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementError {
+    /// Outside the qualified portable domain, never a native false/fallback.
+    Unsupported(Unsupported),
     MissingFirstPrimitive,
     MissingIndex,
     MissingVertex,
@@ -42,6 +46,17 @@ pub enum PlacementError {
     CountOverflow,
     AlreadyPopulated,
     UnpublishedInitialStage,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsupported {
+    UnsafeIndex,
+    UnsafeVertex,
+    Numeric,
+    DegenerateNormal,
+    SelectionOnePast,
+    HardwareTrig,
+    EffectTable,
 }
 
 struct Triangle {
@@ -106,12 +121,15 @@ pub fn get_points_on_model(
             let range = mesh.first_primitive().ok_or(PlacementError::MissingFirstPrimitive)?;
             // FF3: ceil(k/3), NOT chunks_exact: a partial final triple reads
             // trailing physical indices if they exist, otherwise an error.
-            for first in range.step_by(3) {
+            for first in (0..range.len()).step_by(3) {
                 let mut vertices = [[0.0; 3]; 3];
                 for (offset, vertex) in vertices.iter_mut().enumerate() {
-                    let physical = first.checked_add(offset).ok_or(PlacementError::MissingIndex)?;
-                    let index = mesh.index(physical).ok_or(PlacementError::MissingIndex)?;
-                    *vertex = mesh.vertex(index).ok_or(PlacementError::MissingVertex)?;
+                    let physical = first.checked_add(offset)
+                        .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
+                    let index = mesh.index(physical)
+                        .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
+                    *vertex = mesh.vertex(index)
+                        .ok_or(PlacementError::Unsupported(Unsupported::UnsafeVertex))?;
                 }
                 let triangle = Triangle::new(vertices, total, *transform);
                 total = triangle.cumulative_area;

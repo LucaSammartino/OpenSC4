@@ -11,7 +11,7 @@ mod model;
 mod occupant;
 
 pub use flame::{EffectFactory, Flame, FlameInitial, Stage, VisualEffect};
-pub use model::{get_points_on_model, Mesh, ModelInstance, ModelPoint, PlacementError};
+pub use model::{get_points_on_model, Mesh, ModelInstance, ModelPoint, PlacementError, Unsupported};
 pub use occupant::{FireFlames, OccupantInit, Placement, FIRE_OCCUPANT_GROUP, FLORA_TYPE};
 
 #[cfg(test)]

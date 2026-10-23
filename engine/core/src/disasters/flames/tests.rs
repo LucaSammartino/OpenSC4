@@ -360,8 +360,10 @@ fn biased_barycentrics_offset_then_scale_rotate_translate_vector() {
 #[test]
 fn only_first_primitive_and_ceil_partial_triples_are_used() {
     let mut mesh = TestMesh::triangle();
-    mesh.indices = vec![999, 999, 999, 0, 1, 2, 999, 999, 999];
-    mesh.first = Some(3..4); // ceil(1/3) reads physical indices 3,4,5.
+    // FF3 DIFFERS from the retained original assumption (see answered FF3):
+    // offset 3 is ignored; ceil(1/3) reads physical indices 0,1,2.
+    mesh.indices = vec![0, 1, 2, 999, 999, 999];
+    mesh.first = Some(3..4);
     let meshes: [&dyn Mesh; 1] = [&mesh];
     let instances = [ModelInstance::MeshContainer {
         transform: Xform::default(),
@@ -378,8 +380,8 @@ fn missing_mesh_data_is_explicit_error_not_a_false_box_fallback() {
     let mut mesh = TestMesh::triangle();
     for (first, indices, expected) in [
         (None, vec![0, 1, 2], PlacementError::MissingFirstPrimitive),
-        (Some(0..2), vec![0, 1], PlacementError::MissingIndex),
-        (Some(0..3), vec![0, 1, 999], PlacementError::MissingVertex),
+        (Some(0..2), vec![0, 1], PlacementError::Unsupported(Unsupported::UnsafeIndex)),
+        (Some(0..3), vec![0, 1, 999], PlacementError::Unsupported(Unsupported::UnsafeVertex)),
     ] {
         mesh.first = first;
         mesh.indices = indices;
@@ -390,6 +392,27 @@ fn missing_mesh_data_is_explicit_error_not_a_false_box_fallback() {
         }];
         assert_eq!(get_points_on_model(1, &instances, &SEEDS), Err(expected));
     }
+}
+
+#[test]
+fn physical_backing_not_primitive_count_limits_the_final_triple() {
+    // First triple twice-area 16, second 48. r=.5*64 selects second.
+    // A count of four still reads all SIX physical words; offset 100 is ignored.
+    let mesh = TestMesh {
+        vertices: vec![[0., 0., 0.], [4., 0., 0.], [0., 0., 4.],
+                       [100., 0., 0.], [112., 0., 0.], [100., 0., 4.]],
+        indices: vec![0, 1, 2, 3, 4, 5],
+        first: Some(100..104),
+    };
+    let meshes: [&dyn Mesh; 1] = [&mesh];
+    let instances = [ModelInstance::MeshContainer { transform: Xform::default(), meshes: &meshes }];
+    assert_eq!(get_points_on_model(1, &instances, &SEEDS).unwrap().unwrap()[0].position,
+               [103., -1., 1.]);
+    let short = TestMesh { indices: vec![0, 1, 2, 3, 4], ..mesh };
+    let meshes: [&dyn Mesh; 1] = [&short];
+    let instances = [ModelInstance::MeshContainer { transform: Xform::default(), meshes: &meshes }];
+    assert_eq!(get_points_on_model(0, &instances, &SEEDS),
+               Err(PlacementError::Unsupported(Unsupported::UnsafeIndex)));
 }
 
 #[test]
