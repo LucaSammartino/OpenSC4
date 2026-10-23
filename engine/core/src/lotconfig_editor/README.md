@@ -53,19 +53,19 @@ published residual, not permission to infer its behavior. Tests are in
 | Editor | §9 record convention | `bounds`, shared `LotConfigObject` | `unordered_containment_and_independent_mover_tests`; cross-spec naming open: LE6 |
 | Editor | §9.1 edits | `move_key`, `move_position`, `rotate`, `mirror` | `duplicate_candidates_front_selection_and_cleanup_containment`; remaining numeric cases open: LE3 |
 | Editor | §9.2 mover/verify/cleanup | `move_within`, `verify_bounds`, `cleanup` | `unordered_containment_and_independent_mover_tests`, `duplicate_candidates_front_selection_and_cleanup_containment`; verification unordered predicate open: LE3 |
-| Editor | §9.3 add/duplicate/delete | `duplicate`, `delete`, insertion kernels | `duplicate_third_and_untested_final_candidates`, `pointer_identity_and_deletion_do_not_normalize_state`; physical type 7 and bounds helpers open: LE3; deletion name open: LE5 |
+| Editor | §9.3 add/duplicate/delete | `add_object_at`, `duplicate`, `delete`, `delete_with_name` | `add_texture_appends_selects_old_first_and_preserves_reversed_default_bounds`, `duplicate_third_and_untested_final_candidates`, `selector_commit_cancel_confirmation_and_known_mouse_hit_branches`; physical type 7 and bounds helpers open: LE3; deletion name open: LE5 |
 | Editor | §9.4 containment/insertion | `contained`, `insert` | `unordered_containment_and_independent_mover_tests`; type-7 allocation open: LE3, shared constructor foreign |
 | Editor | §9.5 fences/foundation | `toggle_fence`, `toggle_fence_pixels`, `foundation`, `add_foundation` | `fence_order_wrap_and_first_foundation`, `fence_preserves_extended_product_low_byte_and_rejects_invalid_conversion`; invalid conversion open: LE3 |
 | Editor | §9.6 stores/unordered mover | `pixel_units`, `move_within` | `unordered_containment_and_independent_mover_tests`, fence conversion tests |
 | Editor | §10 vectors | geometry, save and lifecycle kernels | duplicate, cleanup, Save As and close tests; full Open continuation open: LE4–LE6 |
-| Editor | §11 key/edit mouse | `key_down`, `mouse_up` | `capture_keyboard_condition_equality_wrap_and_fence_mode`; hit assignment/drag conversion/cycling open: LE3/LE5 |
+| Editor | §11 key/edit mouse | `key_down`, `mouse_up`, `edit_mouse_down_hit` | `capture_keyboard_condition_equality_wrap_and_fence_mode`, `selector_commit_cancel_confirmation_and_known_mouse_hit_branches`; hit assignment/drag conversion/cycling open: LE3/LE5 |
 | Editor | §12 selectors | `selector_rows`, `selector_dialog` | `selector_duplicate_ids_preselection_current_text_append_and_cancel`; names/catalogue and sort interpretation open: LE4/LE5 |
 | Editor | §12.1 callback/sort/search | `dialog_callback` | `callback_sorts_raw_options_and_scrolls_only_prop_first_byte` |
 | Editor | §13 drawing subset | `draw_current`, `height_label` | `foundation_marker_lock_and_height_label_vectors`, `lew16_draw_failure_phase_order_release_and_trigger`; raster open: LE5 |
 | Editor | §14 vectors | compatibility, selectors, geometry, rendering kernels | compatibility/selector/duplicate/unordered tests and height-label vectors; provider/path details open: LE6 |
 | Editor | §15 vectors | fence/foundation/mover/style kernels | `fence_order_wrap_and_first_foundation`, fence conversion and unordered tests |
 | Editor | §16 dialogs | `text_dialog`, `DialogKind::resource` | name/path/slope tests |
-| Editor | §16.1 name/size/path | `name_dialog`, `size_dialog_request`, `size_dialog`, `network_path_dialog` | `name_missing_control_cancel_and_title_twice`, `path_growth_without_dirty_and_slope_limit_precedence`; SetLotSize body open: LE4 |
+| Editor | §16.1 name/size/path | `name_dialog`, `size_dialog_request`, `size_dialog`, `network_path_dialog` | `name_missing_control_cancel_and_title_twice`, `path_growth_without_dirty_and_slope_limit_precedence`, `size_request_missing_controls_wrap_and_cancel`; SetLotSize body open: LE4 |
 | Editor | §16.2 slope/fence | `slope_dialog`, `fence_menu` | path/slope and fence tests; preparation/help bodies open: LE5, literal placeholder wording open: LE6 |
 | Editor | §16.3 vectors | dialog kernels | name/path/slope and size-request tests |
 | Editor | §17 resources/style | `load_cursors`, `placement_mode`, `cycle_condition`, `drawing_style` | `capture_keyboard_condition_equality_wrap_and_fence_mode`; resource-construction fault has no safe success |

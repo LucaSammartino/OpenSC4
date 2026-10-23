@@ -1,20 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Portable, deliberately incomplete lot configuration editor.
+//! Portable lot configuration editor and chooser policy.
 //!
 //! Source: `docs/specs/lot-configuration-editor.md`, published round 3/3.
-//! No window lifecycle, rendering, foreign parser or unknown geometry is
-//! synthesized. See `coverage.md` for every inventory entry. Host calls are
+//! Published window lifecycle and render orchestration are implemented; foreign
+//! parsers and explicitly open geometry remain barriers. See `README.md` for
+//! owner closure and `coverage.md` for the historical inventory. Host calls are
 //! primitive widgets, effects and explicitly foreign services, never editor
 //! decisions. This module is not a drop-in implementation of the native window.
 mod dialogs;
+mod edit_contracts;
 mod geometry;
-mod workflows;
 mod windows;
+mod workflows;
 pub use crate::lot_config_manager::LotConfigObject;
 pub use dialogs::*;
+pub use edit_contracts::*;
 pub use geometry::*;
-pub use workflows::*;
 pub use windows::*;
+pub use workflows::*;
 
 pub type Result<T> = std::result::Result<T, Unsupported>;
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -163,7 +163,9 @@ impl Editor {
     /// numeric/scale body is explicitly open LE4. No dimensions are guessed.
     pub fn size_dialog_request(&mut self, h: &mut impl Host) -> Result<Option<[u32; 2]>> {
         let size = self.config()?.size;
-        let Some(w) = h.create_dialog(DialogKind::Size) else { return Ok(None) };
+        let Some(w) = h.create_dialog(DialogKind::Size) else {
+            return Ok(None);
+        };
         for (index, id) in [0x0926ECD9, 0xE926ED2E].into_iter().enumerate() {
             if h.has_control(w, id) {
                 seed(w, id, Value::Selection(u32::from(size[index]).wrapping_sub(1)), h);
@@ -177,17 +179,23 @@ impl Editor {
                 }
             }
             Some(dimensions)
-        } else { None };
+        } else {
+            None
+        };
         dispose(w, h);
         Ok(result)
     }
     pub fn size_dialog(&mut self, h: &mut impl Host) -> Result<bool> {
-        let Some([width, depth]) = self.size_dialog_request(h)? else { return Ok(false) };
+        let Some([width, depth]) = self.size_dialog_request(h)? else {
+            return Ok(false);
+        };
         self.set_lot_size(width, depth, true, h)?;
         Ok(true)
     }
     pub fn set_lot_size(&mut self, _width: u32, _depth: u32, _changed: bool, _h: &mut impl Host) -> Result<()> {
-        Err(Unsupported::Dependency("LE4 SetLotSize scale/rectangle/byte arithmetic"))
+        Err(Unsupported::Dependency(
+            "LE4 SetLotSize scale/rectangle/byte arithmetic",
+        ))
     }
     pub fn compatibility_dialog(&mut self, h: &mut impl Host) -> Result<bool> {
         self.config()?;

@@ -483,3 +483,117 @@ fn redraw_helper_remains_distinct_from_direct_draw_and_invalidate() {
     e.key_down(0x24, 0, false, &mut h).unwrap();
     assert_eq!(h.events, vec![Effect::Title, Effect::RedrawRequired]);
 }
+
+#[test]
+fn add_texture_appends_selects_old_first_and_preserves_reversed_default_bounds() {
+    let (mut e, mut h) = editor();
+    let a = e.insert(object(0, [0.0; 4]), false);
+    let b = e.insert(object(1, [0.0; 4]), false);
+    e.mode = 5;
+    e.pending_ids = vec![77];
+    let t = e.add_object_at([8.0, 8.0], 123, None, &mut h).unwrap().unwrap();
+    assert_eq!(
+        e.current
+            .as_ref()
+            .unwrap()
+            .objects
+            .iter()
+            .map(|r| r.id)
+            .collect::<Vec<_>>(),
+        vec![a, b, t]
+    );
+    assert_eq!(e.selected, Some(a));
+    let texture = e.record(t).unwrap();
+    assert_eq!(bounds(texture), [16.0, 16.0, 0.0, 0.0]);
+    assert_eq!(
+        (
+            texture.kind,
+            texture.flags,
+            texture.orientation,
+            texture.mirror,
+            texture.tag
+        ),
+        (2, 0, 0, 0, 123)
+    );
+    assert_eq!(texture.ids, vec![77]);
+    for mode in [1, 2, 3, 5] {
+        e.mode = mode;
+        e.pending_ids.clear();
+        assert_eq!(e.add_object_at([1.0; 2], 0, None, &mut h), Ok(None));
+    }
+    e.mode = 4;
+    assert!(e.add_object_at([1.0; 2], 0, None, &mut h).is_err());
+    for (mode, kind) in [(6, 5), (7, 6)] {
+        e.mode = mode;
+        let id = e.add_object_at([8.0; 2], 0, None, &mut h).unwrap().unwrap();
+        assert_eq!(e.record(id).unwrap().kind, kind);
+        assert_eq!(e.selected, Some(id));
+    }
+}
+
+#[test]
+fn selector_commit_cancel_confirmation_and_known_mouse_hit_branches() {
+    let (mut e, mut h) = editor();
+    let id = e.insert(object(1, [1.0; 4]), false);
+    let before = e.record(id).unwrap().clone();
+    e.selector_commit(id, None, &mut h).unwrap();
+    assert_eq!(e.record(id), Some(&before));
+    assert!(h.events.is_empty());
+    e.selector_commit(id, Some((vec![3, 3], [1.0, 2.0, 3.0, 4.0])), &mut h)
+        .unwrap();
+    assert_eq!(e.record(id).unwrap().ids, vec![3, 3]);
+    assert_eq!(h.events, vec![Effect::Title, Effect::RedrawRequired]);
+    h.prompt = 0x53018149;
+    assert_eq!(e.delete_with_name(id, "prop", &mut h), Ok(false));
+    assert!(e.record(id).is_some());
+    e.set_selection(Some(id), &mut h);
+    h.events.clear();
+    assert_eq!(e.edit_mouse_down_hit(0, None, [0; 2], &mut h), Ok(true));
+    assert_eq!(e.selected, None);
+    assert_eq!(h.events, vec![Effect::Draw, Effect::Invalidate]);
+    e.set_selection(Some(id), &mut h);
+    h.events.clear();
+    e.edit_mouse_down_hit(3, None, [0; 2], &mut h).unwrap();
+    assert_eq!(e.selected, None);
+    assert_eq!(h.events, vec![Effect::RedrawRequired]);
+    e.mode = 1;
+    h.events.clear();
+    e.edit_mouse_down_hit(2, None, [0; 2], &mut h).unwrap();
+    assert!(h.events.is_empty());
+}
+
+#[test]
+fn size_request_missing_controls_wrap_and_cancel() {
+    let (mut e, mut h) = editor();
+    h.modal = ACCEPT;
+    h.absent.push(0x0926ECD9);
+    h.integers.insert(0xE926ED2E, 3);
+    assert_eq!(e.size_dialog_request(&mut h), Ok(Some([1, 4])));
+    h.integers.insert(0xE926ED2E, -1);
+    assert_eq!(e.size_dialog_request(&mut h), Ok(Some([1, 0])));
+    h.modal = 0;
+    assert_eq!(e.size_dialog_request(&mut h), Ok(None));
+}
+
+#[test]
+fn remaining_finite_movement_style_and_pixel_store_vectors() {
+    for (mask, step) in [(0, 0.25), (1, 1.0), (2, 0.5), (3, 2.0), (4, 2.0), (7, 16.0)] {
+        let (mut e, mut h) = editor();
+        e.current.as_mut().unwrap().size = [10; 2];
+        let id = e.insert(object(1, [2.0, 2.0, 6.0, 6.0]), false);
+        e.move_key(id, 0x27, mask, false, &mut h).unwrap();
+        assert_eq!(e.record(id).unwrap().offset[0], 4.0 + step);
+    }
+    for (kind, rgb) in [
+        (0, [0, 0, 128]),
+        (1, [128, 0, 128]),
+        (2, [0, 128, 128]),
+        (3, [0, 72, 72]),
+        (4, [0, 128, 0]),
+        (255, [128; 3]),
+    ] {
+        assert_eq!(drawing_style(kind), (rgb, 0.5));
+    }
+    // 16,777,217 rounds to 16,777,216 before subtracting the origin.
+    assert_eq!(pixel_units([16_777_217, -2], 1.0, [16_777_216.0, 1.0]), [0.0, -3.0]);
+}
