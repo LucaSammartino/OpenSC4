@@ -95,4 +95,5 @@ OVV1/NOV1 retain lot flag/key semantic names and external cheat activation; raw
 bits are implemented without guessed names. Existing open questions cover all
 remaining spec qualifications; no new question is filed. The nine existing JSON
 fixtures remain, with the provisional `[choice OVV3]` strip vector corrected to
-OV 1.2's now-established normal direction and longitudinal/side UV order.
+OV 1.2's now-established normal direction and longitudinal/side UV order, and the
+old stable-priority fixture corrected to the same section's newest-first tie rule.

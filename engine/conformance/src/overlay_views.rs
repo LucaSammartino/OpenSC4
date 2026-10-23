@@ -95,8 +95,10 @@ fn run(name: &str, op: &Json) -> R<()> {
             if count > 4096 {
                 return Err("fixture count exceeds terrain".into());
             }
-            let mut view = MarkedCellView::default();
-            view.cells = (0..count).map(|n| Cell((n % 64) as i32, (n / 64) as i32)).collect();
+            let view = MarkedCellView {
+                cells: (0..count).map(|n| Cell((n % 64) as i32, (n / 64) as i32)).collect(),
+                ..MarkedCellView::default()
+            };
             let mut trace = Trace::default();
             core(view.draw_cells(None, &mut FlatTerrain, &mut Foreign, &mut trace))?;
             jarray(trace.0.iter().map(|d| ji(d.vertices.len() as u32)))
