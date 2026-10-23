@@ -14,8 +14,10 @@
   re-watercraft-wc5b: §3.3 adds movement-gate short-circuit/state-query order,
   straight-integrator arguments/outputs and docking helper result/failure contracts.
   §5.1.4 specifies inherited animation dispatch and generic seek arithmetic.
-  Exact residual: remaining route/math (notably 00567ED0/00567FD0), land/tow,
-  tuning/debug signatures/failures, inherited initialization/teardown and
+  re-watercraft-wc5c: §3.4 completes angular/quantization signatures and
+  side effects, OnLand comparison/short circuit and EndTowing reference handling.
+  §9 also supplies the debug borrowed-string lifetime, signature and failure contract.
+  Exact residual: tuning signature/failures, inherited initialization/teardown and
   subsidiary animation/effect/model computations. No full-owner closure claim.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
@@ -32,7 +34,8 @@
   flag/state gates, two time arguments, unconditional normal true result and
   six-key wake request order/adapter forwarding. Residual: full AI selection,
   inherited player-drive, subsidiary slot-83/103 animation computations,
-  effect-controller and slot-104/107 updates, and far approach. Normal attitude
+  effect-controller and slot-104/107 updates. §5.3.2 (re-watercraft-wc5c)
+  supplies far-approach clamping, entry effects, call order and return contract. Normal attitude
   composition was already resolved in round 2; crash attitude remains WC5.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
@@ -44,6 +47,8 @@
   model-to-footprint construction and sink/heel rotation/contact remain open.
   re-watercraft-wc5 round 2: §§5.7.3–5.7.4 resolve model footprint margins,
   transform projection/offset/multiplier, missing-model failure, corner scan
-  order and all 32 inanimate direction-byte cases. Exact residual: sink/heel
-  rotation axes, contact transform and publication equations; this question stays open.
+  order and all 32 inanimate direction-byte cases. re-watercraft-wc5c: §5.7.2
+  adds the sinking basis, independent roll/pitch signs, previous/current-heading
+  roles, heading feedback and publication contract. Exact residual: grounding/heel
+  rotation axes, contact transform and publication equations (0056AF90); this question stays open.
 
