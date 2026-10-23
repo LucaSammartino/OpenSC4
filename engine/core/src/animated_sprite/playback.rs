@@ -57,7 +57,6 @@ fn step(frame: &mut u16, start: u16, end: u32, direction: &mut i8, mode: u8) {
                 }
                 _ => {
                     *direction = 0;
-                    return;
                 }
             }
         } else {
@@ -73,7 +72,6 @@ fn step(frame: &mut u16, start: u16, end: u32, direction: &mut i8, mode: u8) {
                 }
                 _ => {
                     *direction = 0;
-                    return;
                 }
             }
         } else {
