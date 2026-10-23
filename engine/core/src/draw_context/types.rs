@@ -33,14 +33,6 @@ impl Transform {
         flags: 0,
     };
 
-    fn active_rotation(self) -> [[f32; 3]; 3] {
-        if self.flags & 4 == 0 {
-            Self::IDENTITY.rotation
-        } else {
-            self.rotation
-        }
-    }
-
     fn active_scale(self) -> f32 {
         if self.flags & 2 == 0 {
             1.0
@@ -49,38 +41,62 @@ impl Transform {
         }
     }
 
-    fn active_translation(self) -> [f32; 3] {
-        if self.flags & 1 == 0 {
-            [0.0; 3]
-        } else {
-            self.translation
+    /// Qualified DC8 composition, with whole-byte branches and distinct stores.
+    pub fn followed_by(self, model: Self) -> Result<Self, Error> {
+        use super::numeric::{add, mul, store};
+        if model.flags == 0 {
+            return Ok(self);
         }
-    }
-
-    pub fn followed_by(self, model: Self) -> Self {
-        let a = self.active_rotation();
-        let b = model.active_rotation();
+        if self.flags == 0 {
+            return Ok(model);
+        }
+        let a = self.rotation;
+        let b = model.rotation;
         let mut rotation = [[0.0; 3]; 3];
-        let mut translation = self.active_translation();
-        let mt = model.active_translation();
-        let s = self.active_scale();
+        let mut translation = self.translation;
+        let mt = model.translation;
+        let s = f64::from(self.scale);
+        // Literal grouping table from section 8.3, independently exercised by
+        // fixtures; never replace it with a generic matrix multiplication.
+        let orders = [
+            [[0, 2, 1], [2, 0, 1], [1, 0, 2]],
+            [[0, 2, 1], [1, 0, 2], [1, 2, 0]],
+            [[2, 1, 0], [0, 2, 1], [2, 0, 1]],
+        ];
         for row in 0..3 {
+            let p = [
+                mul(f64::from(a[row][0]), f64::from(mt[0]))?,
+                mul(f64::from(a[row][1]), f64::from(mt[1]))?,
+                mul(f64::from(a[row][2]), f64::from(mt[2]))?,
+            ];
+            let dot = add(add(p[1], p[2])?, p[0])?;
+            let scaled = if row < 2 {
+                f64::from(store(mul(dot, s)?)?)
+            } else {
+                mul(f64::from(store(dot)?), s)?
+            };
+            translation[row] = store(add(scaled, f64::from(self.translation[row]))?)?;
             for col in 0..3 {
-                rotation[row][col] = a[row][0] * b[0][col] + a[row][1] * b[1][col] + a[row][2] * b[2][col];
+                let p = [
+                    mul(f64::from(a[row][0]), f64::from(b[0][col]))?,
+                    mul(f64::from(a[row][1]), f64::from(b[1][col]))?,
+                    mul(f64::from(a[row][2]), f64::from(b[2][col]))?,
+                ];
+                let [x, y, z] = orders[row][col];
+                rotation[row][col] = store(add(add(p[x], p[y])?, p[z])?)?;
             }
-            translation[row] += s * (a[row][0] * mt[0] + a[row][1] * mt[1] + a[row][2] * mt[2]);
         }
-        Self {
+        Ok(Self {
             rotation,
             translation,
-            scale: s * model.active_scale(),
+            scale: store(mul(s, f64::from(model.scale))?)?,
             flags: self.flags | model.flags,
-        }
+        })
     }
 
     pub fn matrix(self) -> Matrix {
-        let r = self.active_rotation();
-        let t = self.active_translation();
+        let r = self.rotation;
+        let t = self.translation;
         let s = self.active_scale();
         let mut m = [0.0; 16];
         for row in 0..3 {
@@ -92,10 +108,27 @@ impl Transform {
         m[15] = 1.0;
         m
     }
+
+    pub(super) fn qualified_matrix(self) -> Result<Matrix, Error> {
+        use super::numeric::{mul, store};
+        let mut matrix = [0.0; 16];
+        for row in 0..3 {
+            for col in 0..3 {
+                matrix[col * 4 + row] = if self.flags & 2 != 0 {
+                    store(mul(f64::from(self.rotation[row][col]), f64::from(self.scale))?)?
+                } else {
+                    store(f64::from(self.rotation[row][col]))?
+                };
+            }
+            matrix[12 + row] = store(f64::from(self.translation[row]))?;
+        }
+        matrix[15] = 1.0;
+        Ok(matrix)
+    }
 }
 
-/// A resource token with shared ownership. The eventual adapter owns any actual
-/// game reference inside its resource registry; the core never releases a borrow.
+/// Borrowed opaque texture identity. Arc only manages the portable token's
+/// storage; cloning/dropping it does not model native AddRef/Release.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Texture {
     pub token: u64,
@@ -120,15 +153,15 @@ pub enum Command {
         destination: u8,
     },
     SelectStage(usize),
-    Texture(Option<TextureRef>),
+    Texture(Option<TextureRef>, usize),
     TexCoord(u32),
     TexParameter {
         parameter: u8,
-        value: u8,
+        value: i32,
     },
     TexMatrix(Option<Matrix>),
     TexEnv(u8),
-    Combiner(Vec<u8>),
+    Combiner(Vec<u8>, usize),
     TexColor(Rgba),
     MatrixMode(u8),
     LoadMatrix(Matrix),
@@ -168,6 +201,18 @@ pub struct DriverInfo {
 pub trait Driver {
     fn info(&mut self) -> Result<DriverInfo, Error>;
     fn submit(&mut self, command: Command) -> Result<(), Error>;
+
+    /// A normal foreign return, including a failure-valued register, is distinct
+    /// from an adapter/provider boundary error. The owner does not test this
+    /// register. Err propagates and supplies no exception-cleanup guarantee.
+    fn submit_returned(&mut self, command: Command) -> Result<NormalReturn, Error> {
+        self.submit(command).map(|()| NormalReturn { register: 0 })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NormalReturn {
+    pub register: u32,
 }
 
 pub trait Camera: Send + Sync {
@@ -178,6 +223,15 @@ pub trait Camera: Send + Sync {
 
 pub trait Lighting: Send + Sync {
     fn model_light(&self, instance: u64) -> Result<Rgb, Error>;
+
+    /// None is the explicitly checked false AL result, not a provider error.
+    fn checked_model_light(&self, instance: u64) -> Result<Option<Rgb>, Error> {
+        self.model_light(instance).map(Some)
+    }
+
+    fn default_light(&self) -> Result<Rgb, Error> {
+        Err(Error::MissingLighting)
+    }
 }
 
 pub trait View: Send + Sync {
@@ -281,60 +335,76 @@ pub trait Instance {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stage {
-    /// DC5: None means unbound only after an explicit assignment. Before that
-    /// the separate known flag prevents replaying an invented default binding.
+    /// Borrowed identity; constructor sentinel 0xFFFFFFFF is distinct from null.
     pub texture: Option<TextureRef>,
     pub texture_known: bool,
     pub coordinate_set: Option<u32>,
-    pub wrap: [Option<u8>; 2],
-    pub filter: [Option<u8>; 2],
+    pub wrap: [Option<i32>; 2],
+    pub filter: [Option<i32>; 2],
+    pub combiner: [u8; 12],
+    pub saved_matrix: Matrix,
     pub transform: Option<Matrix>,
     pub transform_known: bool,
 }
 
 impl Stage {
-    pub(super) fn unpublished_default() -> Self {
-        // DC5: numeric defaults of 0x007D3C60 are absent. None is unknown cache
-        // data, not a fabricated wrap/filter/coordinate value. First use sends it.
+    pub(super) fn default_record() -> Self {
+        // DC5 section 1.4. The three unspecified padding bytes have no portable
+        // representation. Texture is a borrowed opaque sentinel, not null.
         Self {
-            texture: None,
-            texture_known: false,
-            coordinate_set: None,
-            wrap: [None; 2],
-            filter: [None; 2],
+            texture: Some(Arc::new(Texture { token: 0xffff_ffff })),
+            texture_known: true,
+            coordinate_set: Some(0),
+            wrap: [Some(-1); 2],
+            filter: [Some(-1); 2],
+            combiner: [1, 0, 3, 1, 1, 0, 3, 1, 0, 0, 1, 0],
+            saved_matrix: [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.],
             transform: None,
-            transform_known: false,
+            transform_known: true,
         }
     }
 }
 
-/// Published fragments of the two owned 12-byte records. Missing bytes remain
-/// missing; they are never zero-filled or supplied by a same-owner provider.
+/// Complete public DC4 tables; Option is retained for portable API compatibility.
+pub const CONSTRUCTOR_COMBINER_BYTES: [Option<u8>; 12] = [
+    Some(1),
+    Some(0),
+    Some(3),
+    Some(1),
+    Some(1),
+    Some(0),
+    Some(3),
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
+];
 pub const DEFAULT_COMBINER_BYTES: [Option<u8>; 12] = [
     Some(2),
     Some(0),
     Some(1),
-    None,
+    Some(1),
     Some(0),
     Some(1),
-    None,
-    None,
-    None,
-    None,
-    None,
-    None,
+    Some(3),
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
 ];
 pub const HIGHLIGHT_COMBINER_BYTES: [Option<u8>; 12] = [
     Some(2),
     Some(2),
     Some(0),
-    None,
+    Some(1),
     Some(1),
     Some(2),
     Some(0),
-    None,
-    None,
-    None,
-    None,
-    None,
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
 ];

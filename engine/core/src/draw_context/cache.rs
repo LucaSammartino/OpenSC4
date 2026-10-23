@@ -117,12 +117,13 @@ impl<D: Driver> DrawContext<D> {
         };
         let bits = (f << 10) | (q << 21);
         let mask = (7 << 10) | (15 << 21);
-        if self.word & mask != bits {
+        let reconstructed = ((self.word >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889);
+        if (self.word >> 10) & 7 != f || (reference != -1.0 && reference != reconstructed) {
+            self.word = (self.word & !mask) | bits;
             self.emit(Command::AlphaFunc {
                 function: f as u8,
-                reference: if reference == -1.0 { q as f32 / 15.0 } else { reference },
+                reference: if reference == -1.0 { reconstructed } else { reference },
             })?;
-            self.word = (self.word & !mask) | bits;
         }
         Ok(())
     }
@@ -167,53 +168,85 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_render_state(&mut self, packed: PackedState) -> Result<(), Error> {
         self.ready()?;
+        let changed = (self.word ^ packed.value) & packed.mask;
         let target = packed.apply_to(self.word);
-        let changed = self.word ^ target;
-        // Section 5.2 specifies word-field order, not the dependency-expanding
-        // EnableTextureStateFlag order. Send the two texture bits separately.
+        // The complete requested cache advances BEFORE any foreign call. This
+        // deliberately does not use direct setters, which have different gates.
+        if changed != 0 {
+            self.word = target;
+            self.select(0)?;
+        }
         if changed & 1 != 0 {
-            self.enable_color_mask((target & 1) as i32)?;
+            self.emit(Command::ColorMask(target & 1 != 0))?;
         }
         if changed & 2 != 0 {
-            self.enable_depth_mask(((target >> 1) & 1) as i32)?;
+            self.emit(Command::DepthMask(target & 2 != 0))?;
         }
         if changed & 4 != 0 {
-            self.enable_depth_test(((target >> 2) & 1) as i32)?;
+            self.emit(Command::Capability {
+                capability: 1,
+                enabled: target & 4 != 0,
+            })?;
         }
         if changed & 8 != 0 {
-            self.enable_alpha_test(((target >> 3) & 1) as i32)?;
+            self.emit(Command::Capability {
+                capability: 0,
+                enabled: target & 8 != 0 && !self.properties.force_no_alpha_test,
+            })?;
         }
         if changed & 16 != 0 {
-            self.enable_blend(((target >> 4) & 1) as i32)?;
+            self.emit(Command::Capability {
+                capability: 4,
+                enabled: target & 16 != 0 && !self.properties.force_no_blend,
+            })?;
         }
         if changed & 32 != 0 {
-            self.texture_bit(0, target & (1 << 5) != 0)?;
+            self.emit(Command::Capability {
+                capability: 5,
+                enabled: target & 32 != 0,
+            })?;
         }
         if changed & 64 != 0 {
-            self.enable_cull_face(((target >> 6) & 1) as i32)?;
+            self.emit(Command::Capability {
+                capability: 3,
+                enabled: target & 64 != 0,
+            })?;
         }
         if changed & (7 << 7) != 0 {
-            self.set_depth_func(((target >> 7) & 7) as i32)?;
+            self.emit(Command::DepthFunc(((target >> 7) & 7) as u8))?;
         }
         if changed & ((7 << 10) | (15 << 21)) != 0 {
-            self.set_alpha_func(((target >> 10) & 7) as i32, ((target >> 21) & 15) as f32 / 15.0)?;
+            self.emit(Command::AlphaFunc {
+                function: ((target >> 10) & 7) as u8,
+                reference: ((target >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889),
+            })?;
         }
         if changed & (255 << 13) != 0 {
-            self.set_blend_func(((target >> 13) & 15) as i32, ((target >> 17) & 15) as i32)?;
+            self.emit(Command::BlendFunc {
+                source: ((target >> 13) & 15) as u8,
+                destination: ((target >> 17) & 15) as u8,
+            })?;
         }
         if changed & (7 << 25) != 0 {
-            self.set_tex_env_mode(((target >> 25) & 7) as i32, 0)?;
+            self.emit(Command::TexEnv(((target >> 25) & 7) as u8))?;
         }
-        if changed & (1 << 28) != 0 {
-            self.texture_bit(1, target & (1 << 28) != 0)?;
-        }
-        if changed & (7 << 29) != 0 {
-            self.set_tex_env_mode(((target >> 29) & 7) as i32, 1)?;
+        if changed & (15 << 28) != 0 && self.properties.use_second_stage {
+            self.select(1)?;
+            if changed & (1 << 28) != 0 {
+                self.emit(Command::Capability {
+                    capability: 5,
+                    enabled: target & (1 << 28) != 0,
+                })?;
+            }
+            if changed & (7 << 29) != 0 {
+                self.emit(Command::TexEnv(((target >> 29) & 7) as u8))?;
+            }
+            self.select(0)?;
         }
         self.set_tex_wrap(3, 3, 0)?;
         self.set_tex_filter(1, 7, 0)?;
-        self.clear_tex_transform(0)?;
-        self.clear_tex_transform(1)
+        self.clear_tex_transform(1)?;
+        self.clear_tex_transform(0)
     }
 
     pub fn set_default_render_state(&mut self) -> Result<(), Error> {
@@ -222,18 +255,16 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_default_render_state_unilaterally(&mut self) -> Result<(), Error> {
         self.ready()?;
-        // DC5: reset driver transforms/coordinates exactly as published, but do
-        // not pretend the unpublished remaining default-cache fields are known.
         for stage in 0..self.stages.len() {
-            if self.reaches_driver(stage) {
-                self.select(stage)?;
-                self.emit(Command::TexMatrix(None))?;
-                self.emit(Command::TexCoord(0))?;
-            }
-            self.stages[stage] = Stage::unpublished_default();
-            self.stages[stage].coordinate_set = Some(0);
-            self.stages[stage].transform_known = true;
+            self.select(stage)?;
+            self.emit(Command::TexMatrix(None))?;
+            self.emit(Command::TexCoord(0))?;
         }
+        // Reconstruct only after the entire ungated driver loop (DC6/DC7).
+        for stage in 0..self.stages.len() {
+            self.stages[stage] = Stage::default_record();
+        }
+        self.word = !self.default_state.value;
         self.set_render_state(self.default_state)
     }
 
@@ -242,7 +273,8 @@ impl<D: Driver> DrawContext<D> {
         if color >= self.highlights.len() {
             return Err(Error::InvalidValue);
         }
-        // DC4: no same-owner provider or fabricated bytes may complete this.
-        Err(Error::Gap(ContractGap::HighlightCombiner))
+        self.set_render_state(self.highlight_state)?;
+        self.set_tex_color(self.highlights[color])?;
+        self.set_tex_combiner(&HIGHLIGHT_COMBINER_BYTES.map(|byte| byte.unwrap()), 0)
     }
 }

@@ -1,0 +1,33 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| core-draw-context-contracts4: settled DC4–DC8 | Codex, `core-draw-context-contracts4` (reserved detached HEAD) | ready: qualified portable core; all PASS | Coordinator may land; retain numeric and DC3 limits below |
+
+## Changes and fixed DIFFERS
+
+- `72767f2f`, `4ce63ec0`, `50920043`: bounded changes to existing `engine/core/src/draw_context`; no foreign owner implementation or C ABI changes.
+- Complete constructor/Init/default/highlight/stage combiner tables; borrowed texture sentinel FFFFFFFF, coordinate 0, signed -1 wrap/filter, false transform flag and identity saved matrix. Three padding bytes remain unspecified. Constructor shade/highlights are white and compact records have identity payloads. An unloaded matrix is exposed as None.
+- Binding always dispatches without selection; equal coordinate/wrap/filter calls are quiet. Requested caches survive suppression and property changes. Transform selection can repeat; only stage 1 saves matrix words. Clear and unilateral reset have their published ungated paths. Reset reconstructs records after its complete driver loop, complements the default word, then replays.
+- Explicit-stage texture/combiner primitives; ungated combiner and above-stage-1 environment paths. Packed replay prewrites its word, follows published group order, and clears stage 1 before stage 0. Highlight and material mode 4 use complete owned records.
+- Typed NormalReturn distinguishes ignored normal return registers from propagating provider/nonreturn boundaries. Caches advance at their operation-specific points. Prefix mutations remain; model shade/alpha cleanup runs only at the normal loop end, without a first-failure accumulator.
+- Checked model-light AL fallback, lighting/default-shade persistence, byte lighting cache, override restoration and retained grey alpha. Full material matrix has zero z/homogeneous entries. Threshold uses the published binary64 constant with independent integer-rational rounding. Alpha uses bias/store/low-bit extraction and original-reference direct equality.
+- Whole-byte compact branches, thirteen-float copies, wrapping owner counters, nine rotation groupings, asymmetric translation spills and stored scale expansion. Separate raw-matrix algorithm preserves four-term grouping, explicit zero products, transpose, no compact scale, no MatrixMode, and normal-return failure/retry ordering.
+
+## Measured checks
+
+- ONE canonical `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-draw-context-contracts4 all`: **PASS**, actual terminal RC0, same operation collected to completion (session 12804).
+- Source HEAD `50920043e36fdb57a3641197421afefdfee29e10`; engine tree `d520828a279e112e429858dfc0008b52326cfed5`. Before/after HEAD, tree, status and every owned SHA256 identical. Durable command/cwd/PID/creation/source/log/RC: `build-runs/canonical-20261023-070325.json`; full wrapper log beside it. PID 12020, creation `2026-10-23T07:03:25.188017+00:00`.
+- Rust actual RC0: **5518 passed, 0 failed, 0 ignored**, aggregated over **all 26 summaries**, including zero-test/doc summaries. Per-summary passes: 540,3,1,31,27,40,7,2,1232,3421,21,13,19,147,0,2,1,3,1,1,1,5,0,0,0,0. Full `build-runs/qbuild-test.log`.
+- Clippy actual RC0, diagnostics 0, `-D warnings`: `build-runs/qbuild-clippy.log`.
+- Native verify actual PASS/RC0: configure succeeded, build **217/217 edges**; complete CTest **68/68 passed**, 0 failed. Logs: `build-runs/fc4verify-configure.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. CTest footer 125.74 seconds; full verify 1127.4 seconds. No inference from link completion was used.
+- Owned focused suite **30/30 passed** (23 prior tests retained and contrary assumptions corrected explicitly DIFFERS, plus seven new fixtures). `build-runs/focused-20261023-075042.log`, RC0; integration binaries each had zero matched tests in that focused run. Canonical all subsequently tested stable final source.
+- Failure history retained: focused `073119` RC101, 19/7; `073916` RC101 private-method visibility error; `074238` RC101, 27/1 old direct-alpha assumption. Full filenames use prefix `focused-20261023-` and suffix `.log`. Old source remains in Git. q.py Bash E_ACCESSDENIED: `build-runs/q/20261023-072447-16880.log`; focused cargo then ran directly.
+- Nine explicit owned Rust files checked/formatted using in-place apply_patch hunks, no shared-file formatting or rustfmt stdout source redirection. Final small formatter diagnostic was applied in place.
+
+## Qualification, residuals and operations
+
+- Caller must explicitly select `NumericControl::NearestEven64Gradual`; default is Unqualified. Arithmetic admits only exact dyadic intermediates fitting binary64's 53 significand bits, so admitted operations also agree with qualified x87-64. Wider intermediates/nonfinite arithmetic and unproved reciprocals return UnsupportedNumeric before that arithmetic. Material reciprocal support is powers of two only. This is not ambient control-word evidence or general x87 emulation. Public wider cancellation/nonfinite vectors DC-V18/V23/V24 remain outside qualification; tests assert rejection rather than fabricated goldens.
+- Safe Rust stage/value/address checks are portable unsupported-domain policy, not native guards. Arc manages only portable token storage, with no native AddRef/Release claim. Foreign lifetime, exceptions, reentry and overlapping records remain unqualified.
+- DC1 video bytes/DC2 semantic flag meanings remain opaque. DC3 stack helpers remain explicitly portable storage; no native Push/Pop or owner Begin/End invented. Only attributed normal shutdown is implemented; foreign renderer callback brackets remain outside this owner.
+- Native owner integration **0**, game runs **0**, no shadow verdict claimed. No plugin/default/coverage promotion, scene/driver/material/math/region owner changes, ABI exports or ABI-version changes. Questions filed: **none**; implementation restrictions are explicit portable qualifications, not spec ambiguities.
+- No ROOT operational actions, process kills, restarts, cache/compiler/validator RPC, ref reconstruction, branch switching or Git maintenance commands. A scoped query of gate PID 12020/direct children was denied by Windows; it was not admission evidence. Detached commits emitted a packed-refs.lock permission diagnostic but succeeded at their actual recorded HEADs. No manual ready override or duplicate full gate.
+- Next: coordinator may land this qualified portable implementation. Extending numeric/control or DC3 boundaries requires separately established authority and qualification; this report does not request another inherited round.
