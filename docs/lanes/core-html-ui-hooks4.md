@@ -11,7 +11,13 @@
 - HTML old client/parent were already absent; HTML exit and disappearance cause UNKNOWN.
 - No process/RPC/cache/daemon action taken. Old session 92092 is not a handle in this CLI.
 - Read copied R1 result, host proof (full other SC4 classes guard exit 0/dependency exit 0), process proof and journal.
-- Next: preserve old logs and capture scoped current liveness, then once-only current-source quick.
+- Preflight saved in build-runs/html-r2/preflight.json; no own checker/compiler hits, global AccessDenied retained.
+- Once-only current-source quick session 45516: core 3336/0; all eight HTML fixtures passed; native link 4/4 is not a gate verdict.
+- Still live: qbuild 36088 created 1792727089.2347448; fc4verify 34912 created 1792727089.2772796.
+- Read-only stats 15368 created 1792727255.100597; parent 34912; port 4466. No intervention by lane.
+- Finite coordinator request: build-runs/coordinator-request-core-html-ui-hooks4-r2.md; exact snapshot html-r2/quick-observation.json.
+- Next: collect SAME quick session to terminal after coordinator review; no overlapping checks or new baseline.
+- Then one canonical all only when quick is terminal; engine tree remains 2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-html-ui-hooks4-r2-manifest.json.
 
 ## Delivery and limits
