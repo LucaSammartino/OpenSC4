@@ -1,12 +1,41 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | in progress | Inspect documented read contracts and shadow templates. |
+| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | wip: SG3 discovery contract missing | Specify complete original-grid inventory or explicitly bound persisted-grid scope; resume both shadows. |
 
-## Handoff
-- Goal: default-off simgrid_shadow and lotrec_shadow, full comparisons at city load and monthly through 2032.
-- Done: reused reserved clean detached worktree; inspected simgrid sections 1-6, lot-records sections 1/3.1/3.2, SDK city/lot-manager interfaces, existing grid shadow/probe, WriteCapture, and zone-developer shadow.
-- Finding: existing simgrids_shadow verifies constructed/natural operations; simgrids_probe observes only FreeCity4 stream reads, not a complete original-grid inventory.
-- Question: SG3 appended to docs/specs/questions/simgrid.md; full live-grid discovery and its coverage boundary are unspecified.
-- Next: obtain SG3 inventory/enumeration contract or explicit persisted-grid scope, then implement the two requested record shadows.
-- Constraints: clean room; no tools/ access; no native signature guessing; missing contract means question and wip.
-- No builds or game requests started.
+## Report
+
+Implementation stopped at the task's missing-contract condition. No engine/plugin code, C ABI exports,
+configuration defaults, or coverage tables changed. Neither requested new shadow is implemented.
+
+The blocker is discovery, rather than the grid's documented value/record format. Simgrid sections 5 and 6
+provide a record layout and access rules once a grid is known. Section 6.2 says original owners construct
+grids directly and map view constructs additional grids. The spec does not define a complete live-grid
+enumeration interface or exhaustive owner/getter inventory, nor bound the requested comparisons to a
+particular persisted subset. A discovered subset cannot establish that the original city's grids were all
+compared each month.
+
+Existing implementation evidence:
+
+- `engine/plugin/FC4SimGridProbe.cpp`: `SimGridProbeNoteRead` records references from FreeCity4's stream
+  adapter; `SimGridProbeAtCityLoaded` consumes and releases that observed set.
+- `engine/plugin/FC4Streams.cpp`: only `IStreamAdapter::ReadRef` invokes that probe hook. This is not a hook
+  on original owners' reads or direct grid construction.
+- `engine/plugin/FC4SimGridsShadow.cpp`: existing default-off `simgrids_shadow` covers constructed fixtures
+  and tracked natural operations. It does not supply the requested complete live-grid inventory. The
+  requested `simgrid_shadow` key is a different spelling; no alias was introduced.
+
+Filed **SG3** in [questions/simgrid.md](../specs/questions/simgrid.md), requesting an exhaustive owner/getter
+or owner-record inventory, or a documented public enumerator with signature and reference rules, plus the
+scope of transient/map-view/replaced grids. Current choice: blocked, with no partial shadow credited as full
+coverage. Milestone commit: `375f8115`.
+
+Validation: documentation-only change; `git diff --check` checked before final commit. Cargo, clippy, CMake,
+CTest, qbuild all/verify, and game checks were not run because implementation stopped before source changes.
+No game labels outstanding, no run record, and no measured `<label> <clean>/<total>` line. Exactness through
+2032 and `ref_warnings=0` remain unmeasured. The generated QUESTIONS index needs coordinator regeneration;
+this engine lane did not access or run tools/ scripts.
+
+Next: answer SG3 or explicitly scope the comparison inventory, then resume implementation of default-off
+`simgrid_shadow` and `lotrec_shadow`, meaningful focused tests, final all/queued native verification, and a
+real-city run through 2032. Lot-record readback and full-walk implementation were not attempted after the
+grid contract blocker, as the task explicitly requires stopping on a missing spec contract.
