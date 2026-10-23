@@ -318,8 +318,8 @@ primitive list of (type, first vertex, vertex count), a light direction L, the c
 `AddVertex(p)` appends p with the colour k × (r, g, b) and alpha a, where k = 0.3 + 0.7 (L·n). Each channel
 uses a float-bit conversion, **not** an x87 integer conversion. Add the float32 constant 49152 (`0x00ABD444`),
 store as float32, reinterpret its bits as uint32, add `0xB8C00000` modulo 2³², then subtract bits 8–15 from
-bits 0–7 modulo 256. This agrees with the former nearest-even 256×value shortcut in its small ordinary range,
-but that shortcut is not the extreme-input contract. There is no clamp, `FIST`, or indefinite-i32 step.
+bits 0–7 modulo 256. The byte subtraction matters even in the ordinary range: channel 1 maps to 255,
+where nearest-even 256×value followed by a byte cast gives 0. There is no clamp, `FIST`, or indefinite-i32 step.
 For the isolated conversion stage, +infinity gives byte 0 under masked exceptions; a quiet NaN's payload
 can affect the byte. These are not whole-call infinity/NaN guarantees for lighting, allocation or append.
 The stored order is B, G, R, A.
@@ -361,6 +361,11 @@ corner maker `0x00800FA0` builds them from a box (min, max). One primitive of ty
 The primitive is then closed: its count := the vertex count − its first vertex. `DrawBoundingBox`
 (draw-context.md §9.3) builds its box this way with L = (0.25, 0.5, 1) (not unit length) and the caller's colour;
 the effect maps build their meshes with the same builder.
+
+This closure is inline in this body: if the primitive sequence is nonempty, zero-extend the current u16
+vertex count, subtract the last primitive's 32-bit first-vertex word, and store the **32-bit wrapping
+difference** as its count (`0080162B–164A`). It does not repair a u16 vertex-counter wrap into an expected
+24-vertex count, and proves no separately callable EndPrimitive method.
 
 ### 6.3 Random directions
 
@@ -549,6 +554,9 @@ All buffers are valid and distinct unless an explicitly permitted null output is
 | T2 | Same dimensions; nonnull surface acquired, upload false | false; mode 3 through upload, then restore saved mode, write size/rect, release surface, release font. Clear/border access failures gate their own operations only. |
 | U1 | Plain helper supplied source base B, bytePitch=32, bytesPerPixel=4, rect=(1,1,3,3), supported descriptor | Upload pointer B+36, dimensions 2×2, stride 8 pixels; upload-false trace still ends access before the foreign service-cleanup primitive. |
 | U2 | Compressed 4×4 surface, aligned bytePitch=16, every source alpha byte `AB`, successful access/allocation | One block: first eight bytes `AA` each, endpoints `0000,FFFF`, index bytes `55 55 55 55`. Upload-false trace frees temporary before unlock. |
+| N4 | PC24 nearest; a=(0,0,0), b=(4096,17/16,17/16), squared and ordinary 3D length | Each small square=289/256. Native association gives squared 16777218 (`4B800001`), root 4096 (`45800000`); x-first gives squared 16777220 (`4B800002`), root 4096+1/2048 (`45800001`). Roots independently rounded by integer square/midpoint comparisons, not host sqrt. |
+| M4 | Isolated channel=1, and separately red=1 with L·n=−1 (other valid builder fields/backing) | Magic-byte channel 1 is 255; with double-operand 0.7/0.3 lighting, red byte is 155 under the stated PC24/nearest stages. Both differ from a direct rounded 256×channel cast. |
+| M5 | AddBoxMesh begins with u16 vertex count=65535, valid corners, successful supplied array/list operations and sufficient backing | New primitive first=65535, final vertex count=23, inline primitive count=`FFFF0018` (4294901784), not 24; closure subtracts zero-extended wrapped vertex count from 32-bit first. |
 
 The C1 edge is deliberately degenerate: every finite side test is zero, with no crossing-scratch dependency.
 The B1/B2 selection rules belong to the overlap body only, not the builder's foreign bounds helper.
