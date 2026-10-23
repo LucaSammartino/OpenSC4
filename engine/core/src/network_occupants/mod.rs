@@ -15,7 +15,8 @@
 //! - [`model`]: §10, `cSC4NetworkOccupantModelInstance` (deform, passes, fallback).
 //!
 //! Not here: the underground connection occupants (§3.6), the pole object (§4.1–§4.4), the
-//! pylon (§6), the type-info tables and routines (§8, §9).
+//! pylon (§6), the type-info tables (§8), and routines other than the
+//! ordinary placement-demolition helper in [`placement_demolition`].
 
 pub mod identity;
 pub mod model;
@@ -44,3 +45,8 @@ pub use underground::{
     UndergroundRecord,
 };
 pub use xform::Xform;
+
+pub mod placement_demolition;
+
+#[cfg(test)]
+mod tests_placement_demolition;
