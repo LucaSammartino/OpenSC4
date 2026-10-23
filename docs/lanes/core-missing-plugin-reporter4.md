@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-missing-plugin-reporter4 (portable reporter) | `Codex` / `core-missing-plugin-reporter4` (engine lane) | in progress | Verify admission; implement and qualify portable own algorithm. |
+| core-missing-plugin-reporter4 (portable reporter) | `Codex` / `core-missing-plugin-reporter4` (engine lane) | blocked: coordinator STOP; focused 17/17, canonical cargo 5743/0 and clippy clean; CMake/full CTest pending | Collect existing canonical operation only after authorized resume; no merge queue. |
 
 ## Handoff
 - Goal: first portable implementation of published reporter message and post-init bodies only.
@@ -14,5 +14,10 @@
 - Focused qualification terminal: 17 passed, 0 failed (focused-attempt-3.log). T01–13 normal, T14/15 explicit unsupported prefixes; two additional cache/view tests.
 - Preserved focused failures: attempt 1 summary (15/2, expectations omitted empty cleanup entry read); attempt 2 full log (fixture E0283 compile error); both corrected.
 - Owned-file absolute qbuild fmt passes exit 0 with canonicalization warning retained. Formatting applied only by apply_patch from formatted temporary copies, using engine/rustfmt.toml.
-- Next: commit qualified source, run ONE serial canonical qbuild all, collect the actual same operation to terminal; then report and queue if qualified.
+- 2507f899: qualified final production/test source committed. ONE canonical qbuild all launched on that source; actual running exec session 36345, not yet terminal when stopped.
+- Canonical partial evidence: build-runs/qbuild-test.log totals 5743 passed / 0 failed; build-runs/qbuild-clippy.log finished clean. CMake/full CTest and overall exit remain UNKNOWN/PENDING.
+- Build evidence also exists under build-runs/fc4verify-configure.log/ and fc4verify-build.log/ (directories). Latest observed build-directory timestamp 09:13:00; no process inspection or restart performed.
+- STOP guard at 09:16:47: user stopped the goal. Further inspection/collection denied; preserve session 36345 for authorized same-operation collection. No duplicate gate, no game request, no merge-queue file.
+- Next after authorized resume: collect same session 36345 to actual terminal; inspect bounded logs, verify unchanged source identity against 2507f899, then report actual CTest totals. Do not assume disappearance means pass or rerun automatically.
+- Commits succeeded despite packed-refs.lock permission warnings; no shared refs/config were repaired. HEAD is detached by design; supervisor publishes commits.
 - No game requests or build operations outstanding; no baseline build launched.
