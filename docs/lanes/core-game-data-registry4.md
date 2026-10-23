@@ -17,5 +17,9 @@
 - q.py could not launch Bash (Access denied); failed transport log retained in build-runs/registry-focused.log.
 - A local quiet Python adapter executed the single focused cargo run; no duplicate cargo/test/CTest run.
 - Draft formatting check passed before installation; final formatting check and one stable-source all gate next.
+- Canonical all completed at7babaf67: exit0,Rust5388/0,clippy0,native build4/4,CTest68/68; no tree-change flag.
+- Gate engine tree4f8e2f98cbca6a1222d565f43cb5197fd4acb304; no active validator remains.
+- New files inherited engine/max_width120 after installation; repository formatting failed before gate, but command continued.
+- Next: apply held formatting-only patch to NEW files, fmt-check, commit; final tip must be WIP because engine source hash changes after the one permitted canonical gate.
 - Authority: docs/specs/game-data-registry.md; safe tokens model identity only.
 - No game requests; no native or whole-owner promotion intended.
