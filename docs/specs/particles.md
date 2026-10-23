@@ -14,9 +14,13 @@ Scope: the **particle component** of a visual effect (component type 0 in [effec
 class is built, the particle description record (on disk and in memory), the shared simulator base (start, stop,
 particle list, particle pool, finish), the start of a particle component and the order of its per-frame update.
 
-Out of scope here: the effects manager, the directory resource as a whole, the finish test and brush/game components
-([effects.md](effects.md) §3–§9); the dynamic-particle family (`cSC4DynamicParticle*`, root version 4); decals; the
-vertex-buffer drawing of particles (§10 gaps). The emitter self-stop is in effects.md §7.1 (with one correction, §8).
+The effects manager, directory resource as a whole, finish test and brush/game components belong to
+[effects.md](effects.md) §3–§9. The emitter self-stop is in effects.md §7.1 (with one correction, §8).
+The 2026-10-23 owner supplement (§13–§19, re-particles-pt5) adds component drawing boundaries,
+geometry sources, decals, dynamic-particle hosting, the 2D body helper and sequence-description IO.
+It uses the Windows export and local decompilation for navigation, with instruction checks for the
+numeric contracts explicitly settled below; no REA session or game execution was used.
+Detailed mesh generation, pixel results and collision/shock-wave numerics remain partial (PT8–PT11).
 
 ## 0. What this spec settles and what it leaves open
 
@@ -536,3 +540,555 @@ no simulation state depends on them except through the finish test, which depend
 ## 12. Open questions
 
 See [questions/particles.md](questions/particles.md): PT1, PT2 (narrowed), PT3 open; PT4 (§5), PT5, PT6, PT7 answered 2026-10-21 (§5.1, §6, §8.1).
+PT8–PT11 record the limits of the following supplement. Its vectors are proposed, unexecuted fixtures.
+
+## 13. Owner boundaries and component contracts *[compat]*
+
+### 13.1 Navigation and completeness
+
+The class requested as `cSC4RigidBody2DSimulator` in planning is named
+`cSC4RigidBodySimulator2D` in the Windows export. These refer to the same helper here.
+Do not infer another factory or interface from the spelling difference.
+
+| Owner | Contract in this document | Remaining limits |
+|---|---|---|
+| `cSC4ParticlesEffect` | §§1–9; construction, dispatch and draw boundary below | Vertex packing, exact render-state interpretation and remaining PT1 fields |
+| `cSC4GeometrySourcedParticlesEffect` | §14; inherited slots, source ownership, parameter dispatch, emission/physics boundary | Dicing, model draw and shock-wave arithmetic (PT8) |
+| `cSC4DynamicParticleSystem` | §16; message receiver, body/drawable ownership, sector reference counts and tick ordering | Occupant extraction and complete terrain response (PT10) |
+| `cSC4DecalEffect` | §15; component slots, handle lifecycle, timing and parameter channels | Full transform/projection record and renderer interpretation (PT9) |
+| `cSC4RigidBodySimulator2D` | §17; lifetime, integration and collision dispatch | Exact contact selection, impulses and joint breaking (PT11) |
+| `cSC4SequenceDescription` | §18; slots, construction, ordered elements and serialization boundary | Stream failures remain foreign IO behavior |
+| `cSC4ParticlesDescriptionBase` | §§2–3 and §18.2; defaults, copying and IO | Existing PT1/PT3 limits |
+| `cSC4CoverageRadiusEffectHelper` | §19 delegates to its existing detailed spec | Limits recorded in that spec |
+
+These objects do not all implement the effect-component interface. In particular the body helper
+is a concrete nonvirtual value member, the particle description base has no vtable, and the
+dynamic system is a draw/message service. Do not deliver component Start/Stop messages to them.
+Effect creation, component configuration, LOD re-entry, collection ownership, end messages and
+parser commands remain the contracts of [effects.md](effects.md), especially §§5, 7, 11.2,
+19.14 and 19.29. No disk format for a live particle, body, sector or renderer handle is established here.
+
+### 13.2 Ordinary particle component
+
+Construction (`005B2B50`) first constructs the simulator at main-object +4, installs the two
+vtables of §1, leaves the description reference null and initializes transform storage. A newly
+constructed component is not a running emitter; Init and SetDescription precede Start in the
+factory contract. Init (`005B2390`, simulator receiver) acquires terrain-related services, caches
+city extents and delegates to simulator initialization. Shutdown (`005B2440`) releases owned
+description/service references and delegates to simulator shutdown. Neither operation is a
+resource-directory reader. The constructor's static-initialized float defaults retain PT3's limits.
+
+The method inventory is §9, augmented by these nonvirtual helpers:
+
+| Entry | Responsibility |
+|---|---|
+| `005B2260` | Select packed render state for a draw mode; unrecognized modes leave it unchanged |
+| `005B2730` | Advance random-walk state |
+| `005B7030`, `005B71E0` | City-side emission volume and height-conditioned emission |
+| `005B7580`, `005B7C20`, `005B2240` | Initialize, allocate and return particles to the pool (§5) |
+| `005B6600`, `005B6C40` | Tractor force and attractor state |
+| `005B8020`, `005B8DC0`, `005B9790` | Building collision, terrain forces and extra physics |
+
+Component slot 4 is the shared no-op; slot 9 performs the draw-associated frame work.
+There is no independently established message-target interface on this component. Time enters
+through its effect host, rather than by forwarding the dynamic system's message to every emitter.
+Start/Stop and delayed completion are exactly §§4, 6–8; in particular an emitter's delayed stop
+does not immediately clear IsActive while particles remain.
+
+Slots 11–14 are host configuration/pre-draw hooks: ordinary slot 11 (`005B3820`) updates the
+emission box only for a description permitting that operation; slot 12 (`005B3870`) aims toward
+a supplied point and updates orientation/speed scaling; slot 13 (`005B2220`) is a small shared
+hook; slot 14 (`005B3B90`) refreshes cached camera/alignment basis when the context generation
+changes. Their complete numeric transforms remain PT1/PT8 limits, not generic transform setters.
+
+Drawing consumes the current live list and description curves. Slot 17 (`005B3DA0`) emits
+vertex-buffer primitives; slot 18 (`005B4B90`) draws model-based particles; slot 19 (`005B6390`)
+is the no-draw alternative. These are distinct virtual dispatch destinations: selecting no draw
+must not turn the component's simulation into the slot-4 no-op. Geometry-sourced replacements
+override the primitive/model draw entries (§14). The host supplies SC4DrawContext and owns its
+lifetime; neither a pixel buffer nor a serialized list is returned by these calls. The component
+owns its retained description/model/texture references, not the context. Exact blending constants,
+curve-to-colour rounding, VB lock failure and buffer capacities are not settled by this supplement.
+
+*[choice]* A portable core may produce abstract draw commands instead of native vertex buffers,
+provided the adapter preserves slot dispatch, resource ownership, simulation advancement and
+finish behavior. This is not a claim of pixel conformance. Allocation exceptions and missing native
+services have no newly established recovery policy; do not invent success from the absence of
+an error return. Pool and particle-creation failures already specified in §5 still apply.
+
+## 14. Geometry-sourced particle component *[compat]*
+
+### 14.1 Construction, state and slots
+
+Constructor `005A8ED0` calls the ordinary particle constructor, then installs main table
+`00AA0B88` and simulator table `00AA0B40`. It starts with empty auxiliary geometry/pool/texture
+arrays, a null retained source at main +254, clear build-state byte +258, an enabled byte +22C,
+zero at +278 and the literal binary32 value 10 at +268. Center coordinates +25C/+260/+264
+come from a static-initialized global; their runtime value is not established by the PE image.
+Instruction evidence: `005A8ED9–005A8F73`. Do not initialize the remaining wave fields by
+assuming the decompiler's structure has initialized every member.
+
+Main slots not listed below are inherited **at the same slot** from §9.1. The PE table contains
+21 entries (0–20); in particular slot 9 remains ordinary `005B8540`.
+
+| Slot | Entry | Override |
+|---:|---|---|
+| 5 | `005AAC90` | Float parameter extension |
+| 10 | `005AB190` | Geometry description setup |
+| 11 | `005AAFE0` | Set model / obtain geometry source |
+| 15 | `005AA5D0` | Geometry emission scheduling |
+| 17 | `005A6990` | Primitive rendering |
+| 18 | `005A77F0` | Alternate rendering |
+| 20 | `005A6520` | Geometry particle physics |
+
+The +4 simulator slots are §9.2, with deleting destructor `005A8FD0`, Init `005AC030`,
+Shutdown `005A6310` and DestroyParticle `005A6200`. Shutdown's receiver is the simulator
+subobject: its load at receiver +250 is the source reference at **main +254**, not a vector's
+capacity pointer. If initialized, it clears/releases that source, then calls ordinary Shutdown
+(`005A6313–005A6336`). An uninitialized call does no work. DestroyParticle accepts null;
+otherwise it pushes the returned record on the geometry pool's free list (`005A6200`), distinct
+from the ordinary pool. A portable allocator need not reproduce free-list addresses *[choice]*.
+
+### 14.2 Sources and parameter channels
+
+`SetGeometrySource(interface)` (`005AAE80`) retains a changed incoming source before releasing
+the previous one, rebuilds the texture-reference list, and enumerates the new source's groups.
+Only group entries with their enabled byte at +0B set contribute texture bindings (entry +10).
+Those bindings are independently retained. A null source clears the old source/list; it does
+not manufacture replacement geometry. Source enumeration uses slots 3 (group count),
+4 (geometry group) and 6 (group/material record) of the foreign source interface.
+
+`SetModel` (`005AAFE0`) asks the supplied model for interface ID `26A68448`, routes that interface
+through SetGeometrySource and releases temporary references. It also obtains model bounds for
+the source center. The exact bounds-to-center arithmetic remains PT8. A valid model pointer is
+a precondition; a null interface result is distinct from a null model pointer.
+
+`SetGeometrySource(resource ID)` (`005AB0F0`) does nothing for ID zero. Otherwise it asks the
+resource service for a key containing type `5AD0E817`, group `BADB57F1`, and the ID, with requested
+interface `9AD0E7E3`; success replaces the retained source from the returned resource and rebuilds
+the source list. A failed lookup does not first discard the existing source. Resource loading and
+source-interface behavior are foreign contracts, not new file parsers in this class.
+
+Float slot 5 uses the standard component parameter envelope (ID, value pointer, count). The
+following handlers do not validate count before reading; callers must supply the stated storage.
+They return true, including parameter 9 when there is no source to process. All other IDs delegate
+to the ordinary particle handler (`005AAC90–005AACF4`, instruction-checked).
+
+| ID | Values consumed | Effect |
+|---:|---|---|
+| 8 | three binary32 values | Copy center to main +25C/+260/+264 |
+| 9 | six binary32 values | Pass the two consecutive vectors to `005AA700` |
+| `101` hex | one binary32 value | Copy to main +278 |
+
+The export labels `005AA700` DiceAndAddTriangle, but its observed interface enumerates source
+geometry and works with two supplied vectors. The name alone does **not** specify a three-vertex
+triangle input. Treat exact projection/dicing semantics as PT8 rather than constructing an API
+from that label. Its no-source case returns without generating work.
+
+### 14.3 Description, emission, drawing and physics boundary
+
+SetDescription acts only for particle descriptions with flags B bit 0 set. It retains the new
+description, selects its draw mode, resets geometry build state and emission/force caches, and
+may resolve the description's resource ID when it is neither zero nor `FFFFFFFF`. That lookup
+can replace the source. The ordinary particle source-volume semantics are not a substitute for
+this operation (`005AB190`). Values and widths already settled for shared fields in §§6–8 apply;
+the geometry-specific threshold/dicing formula remains PT8.
+
+Emission slot 15 (`005AA5D0`) observes source availability, stop state, the start countdown and
+whether source geometry has already been built for this phase. Initial geometry construction
+selects one of two source-building paths. When no particles remain to sustain emission, it calls
+component Stop(0); this is the delayed simulator stop, not immediate destruction. The established
+finish consequence and call sites `005AA6D4/005AA6EB` are [effects.md](effects.md) §7.1.
+
+Primitive drawing (`005A6990`) groups generated primitives by source texture and binds each
+nonempty group's texture before drawing that group's primitive pool. Source texture ordering
+therefore matters; do not collapse all source materials into one texture. Slot 18 (`005A77F0`)
+is separate and is not an alias for the ordinary model renderer. Exact generated vertices,
+triangles/quads, UVs, fade and alternative rendering remain PT8.
+
+Physics slot 20 (`005A6520`) has two domains. A zero description field +1EC delegates to ordinary
+particle physics. A nonzero value selects a wave/front path: particles can remain dormant ahead
+of the front, then age, expire and receive forces once reached. It uses the source center and
+description +1F0/+1F4/+200 in addition to shared forces and drag. Do not apply the ordinary path
+unconditionally, or age every dormant source particle. The exponential expression and rounding
+have not been instruction-verified, so PT8 is required before implementing the nonzero domain.
+
+## 15. Decal component *[compat]*
+
+### 15.1 Inventory and lifetime
+
+Main table `00A9EE78` has ten component entries. There is no simulator subobject here.
+
+| Slot | Entry | Contract |
+|---:|---|---|
+| 0 | `00582090` | Start(mode) |
+| 1 | `00581FF0` | Stop(mode), argument ignored |
+| 2 | `008264B0` | IsStarted, byte at +08 |
+| 3 | `00582600` | SetTransforms, two pointer arguments |
+| 4 | `00648F10` | Shared no-op |
+| 5 | `00582F00` | Float parameters |
+| 6 | `00582040` | Pointer parameters |
+| 7 | `005F47F0` | Shared AddRef |
+| 8 | `005833A0` | Release / final teardown |
+| 9 | `00582920` | Update(seconds) |
+
+Constructor `00583190` installs this table, sets refcount +04 and started +08 to zero,
+constructs an embedded description at +0C, sets renderer handle +70 to `FFFFFFFF`, initializes
+two identity transforms and clears the retained texture +11C and renderer service +120.
+Instruction evidence for table/count/handle: `0058319A–005831B5`; trailing constructor stores
+are visible in the constructor body. Init `005DEC80` makes an identity transform; it is not a
+message subscription or independent update loop. Final Release tears down the decal and owned
+references; it does not expose the embedded description as an independently retained object.
+
+Start does nothing if already started. For nonzero mode, lifetime mode byte +15 equal to 2
+suppresses startup; mode 3 starts sampling the curves at their end. Otherwise initial sampling
+uses their beginning. It requires TerrainView and a decal-rendering service. Failure to obtain
+either leaves started false. A renderer creation result of `FFFFFFFF` also leaves started false;
+the service may remain retained for a later attempt. On success it configures the handle's
+projection, optional flag, opacity, colour and layer, records initial phase state and finally sets
+started true. The handle is a **32-bit integer**, not a float NaN; comparisons in
+`00582927–0058292D` and `00581FFA–00582000` are integer comparisons.
+
+Stop first clears started. For a valid handle it calls renderer vtable +3C to remove that handle,
+sets the handle to `FFFFFFFF`, clears the service reference and releases it. If already stopped
+it makes none of these calls. There is no delayed decal-particle drain: both stop modes have the
+same behavior (`00581FF0–00582035`). An invalid handle on a started object skips the renderer
+removal/release part; do not infer an unconditional release from Stop alone.
+
+### 15.2 State, description and parameters
+
+The embedded description contains flags at effect +0C, resource ID +10, layer +14, lifetime
+mode +15, and curve containers beginning +1C (rotation), +28 (size), +34 (opacity), +40
+(RGB colour), +4C (aspect). Runtime fields include X/Z center +E4/+E8, size scale +EC,
+angle +F0, random opacity/size/rotation factors +F4/+F8/+FC, mapping factors +100/+104,
+external opacity +108, external size +10C, explicit-placement byte +110, elapsed +114,
+inverse lifetime +118, texture +11C and decal service +120. These offsets describe native
+interoperability; core storage is a design choice.
+
+SetDescription (`00583480`) copies the description, computes inverse lifetime from its duration
+with a minimum denominator of binary32 `0.0001`, releases a previous texture override, restores
+external opacity and size to 1, and samples its per-instance variance factors. It resets placement
+to implicit. A whole-city flag can instead establish explicit placement using city dimensions.
+It does not first Stop an already-created handle. Do not treat description assignment as a
+transaction that destroys and recreates the renderer object. Runtime RNG output and variance
+sampling precision are not measured here (PT9).
+
+Float and pointer setters return a boolean; unknown IDs return false without the handled stores.
+Neither checks the advertised count before these reads (`00582F00–00582FD4`, `00582040`).
+
+| Channel / ID | Required input | State change |
+|---|---|---|
+| float 3 | one f32 | External opacity +108 = value[0] |
+| float `102` hex | two f32 | External size +10C = value[1]; value[0] is not used |
+| float 12 decimal | four f32 `(x0,z0,x1,z1)` | Explicit rectangular placement, below |
+| pointer 6 | address of a texture-binding pointer | Retain changed new binding, replace +11C, release old binding |
+
+For rectangle parameter 12, center becomes `((x0+x1)*8, (z0+z1)*8)`, size is
+`(x1-x0)*16`, angle becomes zero, aspect +104 is `(z1-z0)/(x1-x0)` and explicit-placement
+becomes true. Flag +0C bit 3 additionally stores `x1-x0` at +100. Instruction operands are
+binary32, with x87 intermediates and binary32 stores (`00582F39–00582FB8`); constants at
+`00A8E178/00A8D45C` are 8 and 16 in the PE. Reversed or zero-width rectangles are not rejected;
+no divide-by-zero recovery or sorting is inserted by this method.
+
+SetTransforms derives implicit X/Z placement, size and angle from the supplied transforms only
+while explicit-placement is false. When flag bit 6 is set and a handle exists, it can immediately
+send updated placement to the renderer. Thus setting an explicit rectangle freezes this implicit
+transform-driven placement until another operation resets the explicit-placement byte.
+Exact composition, angle units and projection record remain PT9.
+
+### 15.3 Time and renderer boundary
+
+Update ignores an invalid handle. Otherwise it adds dt to elapsed, stores the binary32 result,
+then multiplies by inverse lifetime to obtain normalized phase (`00582933–0058294F`). Mode 1
+wraps phase by subtracting its integer floor. For the other modes, phase **strictly greater than**
+1 causes mode 2 to call Stop(0); other modes clamp to 1. Equality to 1 does not stop mode 2.
+This is distinct from the particle age test. The floor shortcut's domain assumes ordinary finite
+nonnegative phase; huge/nonfinite/negative phases have not been specified as recoverable input.
+
+Curves are uniformly spaced in normalized phase; singleton curves remain constant. Scalar samples
+interpolate as `a + fraction*(b-a)`; RGB uses weighted adjacent vectors. Opacity sent through renderer
++44 is curve opacity times the stored random and external opacity factors. With flag bit 6 set,
+Update takes an opacity-only path; otherwise it also updates placement/shape and, for an animated
+colour curve, colour. Curve arrays must be nonempty; there is no checked empty-curve fallback.
+Instruction evidence for scalar interpolation is `00582410–0058247C`, RGB `00582548–005825C4`.
+Exact curve-index rounding outside the ordinary phase domain remains PT9.
+
+The renderer service owns drawing: this component submits handles and parameter records rather
+than writing pixels. Its observed foreign calls include creation alternatives +10/+18/+1C,
+get/set projection +38/+34, remove +3C, opacity +44, RGB +48, layer +4C and flag +50.
+Do not assign public interface names or enum meanings to those slots from their numbers alone.
+No local message switch, live-object disk writer, or renderer-failure rollback is established.
+
+## 16. Dynamic particle system *[compat]*
+
+### 16.1 Interfaces, construction and owned state
+
+This is a body/drawable host, not the individual `cSC4DynamicParticleEffect`. The latter's child
+effect-name rules remain in [effects.md](effects.md) §§12–13. Construction `00584A80` installs
+three tables: main `00A9EF80`, unknown/refcount at +4 `00A9EF68`, message target at +0C
+`00A9EF58`. It creates an empty particle list, an empty sector map and an embedded body simulator
+at +34. Sector world size is four terrain cells and its reciprocal is cached; do not confuse this
+with the body simulator's fixed 64-unit broad-phase grid. Count/bucket storage starts empty;
+native reserve request is 100. No particle is created by construction.
+
+The PE establishes these callable slots; unnamed entries retain descriptive roles rather than
+new guessed GZCOM signatures. Entries after the four shown slots are not assumed to belong to a table.
+
+| Table / receiver | Slots 0, 1, 2, 3 respectively |
+|---|---|
+| main | `0075FAE0`, `005BE3E0`, `005BCB30`, `00583C10` (draw Update) |
+| +4 unknown | `00761820`, `005BE420`, `005BCB60`, `00584730` |
+| +0C message | `00761840`, `00761850`, `00761860`, `00585A90` (DoMessage) |
+
+Nonvirtual inventory: LinkParticles `00583DA0`, AddParticle `00584250`, DeactivateSectors
+`00584740`, DeleteParticle `00584B30`, ActivateSectors `00584BB0`, DoAnimationTick `00585520`.
+Particle-list entries own a body handle, a retained drawable, a sector radius, last sector
+coordinates, an application identifier and a cached draw transform. Keep the body handle and
+list-entry handle distinct: DeleteParticle searches for the returned entry handle, not by body ID.
+
+AddParticle copies the body description into the embedded simulator, appends an entry, retains
+the drawable and seeds sector coordinates with sentinel bits `FF800001`. It returns the entry's
+payload address. Initial sector activation is deferred until tick processing observes a sector
+change. DeleteParticle ignores a handle absent from the list; a found entry deactivates its old
+sectors when initialized, marks/removes its body through RemoveObject, unlinks the entry and
+releases its drawable. Removing a body is not synonymous with deleting this host entry.
+
+LinkParticles searches application identifiers; missing endpoints cause no joint creation.
+When both exist it supplies body handles and local anchor points to the body helper's link operation
+`005BB3E0`. Duplicate IDs, dead endpoints and joint numeric parameters need PT11 before promising
+additional validation. Drawables are retained/released independently of body storage.
+
+### 16.2 Message and tick ordering
+
+DoMessage handles only ID **`86AD10EE`**. It calls message vtable +38 for the unsigned 32-bit
+microsecond count, adjusts its message-subobject receiver by −0C, calls DoAnimationTick and
+returns true. Other IDs return false without ticking (`00585A90–00585AC3`). The value is not
+a float bit pattern, despite the exported pseudocode's parameter type.
+
+Tick converts the unsigned count to seconds using binary32 `1e-6`, caps the stored seconds at
+binary32 0.1, then removes dead bodies. While time remains it advances the simulator with the
+smaller of remaining time and binary32 0.005, updates surviving host entries against terrain/city
+bounds and sectors, then subtracts that step. After all steps it refreshes drawable transforms
+from body orientation/terrain normal and body position. Evidence: unsigned conversion and cap
+`00585520–005855B3`, step selection/AdvanceTime `005855E0–00585606`. Constants are PE
+`00A86510=358637BD`, `00A9EEC0=3DCCCCCD`, `00A9EEC4=3BA3D70A`.
+There is no carry of time beyond the cap into the next message. Zero time still permits the
+dead-body sweep and final transform refresh; it performs no integration step.
+
+A body outside the city rectangle is removed from the simulator and its host body pointer is
+cleared. The host entry/drawable remains until DeleteParticle. A live body moving to another
+sector activates the new sector neighborhood **before** deactivating the old one. This keeps
+overlapping neighborhoods referenced throughout the move. Terrain response and source-occupant
+construction remain PT10; substituting free flight is not a specified equivalent.
+
+### 16.3 Sector and drawing contracts
+
+Activation/deactivation visit a square neighborhood around the center sector, clipped at the
+lower city edge. The keyed sector entries are reference-counted: an existing sector activation
+increments its count without collecting static geometry again. A first activation collects nearby
+static-building occupants and adds their bodies to the helper. Deactivation decrements the count;
+only transition to zero removes its collected bodies and erases the sector. It does not erase a
+shared sector on every particle move. The precise occupant filters/shapes and edge enumeration
+are PT10; no claim of complete static-building collision conformance is made here.
+
+Draw Update (`00583C10`) visits host entries with a nonnull body, samples terrain shading, applies
+the cached transform/shading to nonnull drawables and calls their draw entry (vtable +30) with
+the supplied SC4DrawContext and zero secondary argument. It resets context shading after the
+traversal and returns true, including an empty list. A null drawable is skipped. Draw does not
+integrate time or remove the null-body host entries. No persistence writer or local file IO is
+established on this service. Allocation/service exceptions have no proven boolean failure adapter.
+
+## 17. Rigid bodies in two dimensions *[compat]*
+
+### 17.1 Inventory, state and lifetime
+
+`cSC4RigidBodySimulator2D` has no installed vtable in constructor `005BB950`; methods are concrete
+calls. It starts with empty moving and infinite-mass object lists, a sector map and a joint list.
+The fixed broad-phase sector width at +24 is binary32 64 (`42800000`), reciprocal at +28 is
+1/64 (`3C800000`), verified at `005BB9CE–005BB9D5`. This is visual physics, not a city
+simulation coverage grid.
+
+| Entries | Responsibilities |
+|---|---|
+| `005BA010` | Select primary sector for a candidate pair |
+| `005BA080`, `005BA180` | Closest support/contact approach; relative velocity at point |
+| `005BA2F0`, `005BA890` | Oriented-rectangle contact test and collision response |
+| `005BAB40`, `005BAF30` | Infinite-mass candidates; collision and joint pass |
+| `005BAEA0`, `005BAF00` | Sweep object lists; sweep both lists |
+| `005BB6A0`, `005BBA40` | Remove/add body in sector map |
+| `005BB9E0`, `005BBC10` | RemoveObject; AddObject(description, infiniteMass) |
+| `005BBFD0`, `005BC270` | Integrate one list; integrate both and do collisions |
+
+AddObject stores a copy of the supplied physical description in the chosen list and returns its
+stable body payload address. Infinite-mass objects belong to the separate list; this distinction
+also affects collision response. RemoveObject first discards all joints referencing the body,
+removes sector membership if present, and clears live byte +76. It does not immediately free
+the list payload (`005BB9E0`). RemoveDeadObjects sweeps both lists to reclaim such entries;
+clients must clear their own cached handles before using reclaimed bodies. Null or arbitrary
+body addresses are not validated handles for RemoveObject.
+
+### 17.2 Supported integration domain
+
+Offsets here are from the returned **body payload**, not its list node. Position is planar
++00/+04, planar velocity +08/+0C, height +10, height velocity +14, angle +18, angular velocity
++1C, planar acceleration +40/+44, contact/friction enable byte +3C, cosine/sine caches +6C/+70
+and live byte +76. Width/extent fields and collision mass fields are not fully specified here.
+
+For each live body, integration first stores planar position plus dt times the **old** velocity,
+height plus dt times old height velocity, and angle plus dt times old angular velocity. It then
+updates trigonometric caches and adds dt times planar acceleration to planar velocity.
+These are binary32 stores after x87 arithmetic, not a single fused position/acceleration update
+(`005BBFF0–005BC097`). The height acceleration is applied by the dynamic host's terrain step,
+not these position stores. With friction byte clear, there is no friction subtraction.
+
+With friction byte set, the helper transforms planar velocity into the current body basis,
+subtracts dt times each corresponding friction field, clamps negative resulting basis components
+to zero and transforms back. It also subtracts angular friction and clamps negative angular
+velocity to zero. This is not a symmetric signed drag law. Exact rounding and angle wrapping
+are still PT11. It refreshes broad-phase extents and sector membership after integration.
+
+The public AdvanceTime(dt) (`005BC270–005BC296`) integrates the moving list, then the
+infinite-mass list, then calls DoCollisions. Consequently clients must not skip integration of
+the latter list merely because its collision mass is infinite; live status controls integration.
+The helper itself does not cap or subdivide dt; its dynamic-system caller supplies the substeps.
+
+### 17.3 Collision boundary and limits
+
+Broad phase can place a body in multiple sectors. IsPrimaryCollision accepts the pair only in
+the sector whose high 16 bits are the unsigned maximum of the two candidate keys' high halves
+and whose low 16 bits are the unsigned maximum of their low halves. It compares the combined
+key to the current sector (`005BA01E–005BA06D`). This avoids applying one pair's response once
+per shared sector. It is not the maximum of the two whole packed integers.
+
+The narrow phase is an oriented-rectangle test using both bodies' axes; a successful contact
+provides a normal and contact point to ResolveCollision. The collision pass considers moving
+pairs, infinite-mass objects and joints. Relative contact velocity includes each body's angular
+velocity about its center. Contact response can change both planar velocities and angular
+velocities, and near-coincident bodies have a separation path. These observations establish
+the required physical state/output boundary, not a complete numeric solver. Axis ties, touching
+edges, restitution, separation RNG, joint forces and break thresholds remain PT11.
+An implementer must not claim this section specifies a general rigid-body engine or silently use
+a generic library's contact choices as exact conformance. Body shapes/mass data and collision
+events need the follow-up numeric contract before replacing this domain completely.
+
+## 18. Description owners and IO *[compat]*
+
+### 18.1 Sequence description
+
+`cSC4SequenceDescription` is a description/factory, not a running sequence component.
+Constructor `005BDF10–005BDF42` installs main `00AA10B0`, refcount subobject table `00AA109C`
+at +4, initializes an empty element vector at +0C/+10/+14 and flags +18 to zero. Native size is
+28 bytes. It does not enqueue, play or look up named effects. The element definitions and parser
+validation are already [effects.md](effects.md) §§19.14, 19.29–19.30: ordered 20-byte native
+elements containing two binary32 endpoints and an owned name string. Empty name denotes wait.
+
+| Main slot | Entry | Role |
+|---:|---|---|
+| 0 | `0053CC20` | Shared description entry; no new behavior assigned here |
+| 1 | `005BDA60` | Allocate runtime component from this description |
+| 2 | `005BE2A0` | Read description from stream |
+| 3 | `005BD6E0` | Write description to stream |
+| 4 | `005BE3E0` | AddRef forwarded to +4 |
+| 5 | `005BE3F0` | Release forwarded to +4 |
+
+Refcount-table slots 0–2 are `005BDF50`, `005BE410`, `005BE420`; the shared refcount destructor
+entries that follow do not imply extra sequence-specific commands. Factory slot 1 requests
+168 bytes and returns null when allocation returns null, otherwise constructing a runtime
+component retaining this description (`005BDA61–005BDA81`). The runtime sequence state machine
+is separate from description IO; its timing is not derived from the description constructor.
+
+The writer emits version 1, then element count, then each duration pair and string in order,
+then flags. The reader consumes a version word, reads/resizes the element list, reads each
+duration pair and string in the same order, then stores flags masked with 7. It does not branch
+on version in this body. Evidence: `005BD6E0–005BD70D`, `005BD670–005BD6D5`,
+`005BE240–005BE29E`, `005BE2A0–005BE2DD`. The stream's primitive operations supply their
+existing word/dword/f32/string encodings; do not serialize vector pointers, capacity or refcount.
+The reader masks flags, whereas the writer passes its stored flags to the stream without that
+mask. Unknown flag bits therefore disappear on a read/write round trip through this reader.
+
+There is no local bounds validation, duration sorting, name resolution, or transactional rollback
+in these wrappers. Stream and allocation failures propagate according to the foreign primitives;
+this supplement does not assign a recoverable false return or a guaranteed unchanged description
+on failure. A stream-version acceptance test must not be invented merely from the emitted 1.
+
+### 18.2 Particle description base
+
+The full layout, constructor defaults and file readers remain §§2–3. This base is a 204-hex-byte
+value object without a vtable; the refcount belongs only to the derived particle description.
+Its two directly attributed entries are constructor `005B0FE0` and assignment `005B17F0`.
+Assignment copies scalar fields, deep-copies owned curve/event/tractor/wiggle vectors and the
+owned name string. It does not share mutable vector storage with the source or copy a derived
+description's refcount. Field widths retain §2's distinction between byte/word flags and floats;
+the decompiler's apparent numeric casts on 32-bit loads are not a new conversion requirement.
+No message, draw, Start/Stop, or live-particle persistence interface exists on this base.
+Text parsing belongs to [effects.md](effects.md); section-version-dependent binary reads remain
+§2. Existing PT1/PT3 uncertainty is preserved rather than assigned new defaults here.
+
+## 19. Coverage helper delegation and conformance fixtures
+
+### 19.1 Existing coverage-helper specification
+
+The complete supported contract of `cSC4CoverageRadiusEffectHelper` is maintained in
+[coverage-radius-effect-helper.md](coverage-radius-effect-helper.md): owner attribution,
+embedded construction/defaults, category mask selection, state/map ordering, capacity transfer,
+refresh dispatch, per-occupant effect calls, clear/shutdown/teardown and failure-domain limits.
+Its evidence ledger distinguishes named methods from shared container entries and aliases.
+Use that inventory rather than assigning it a new effect-component vtable.
+
+In particular it is an embedded helper, not a particle simulator; construction does not refresh
+coverage or register a separate message receiver. Category changes and refresh drive the effect
+manager through the effect interface described in [effects.md](effects.md). The existing helper
+spec's literal lifecycle and refresh traces are the conformance vectors for this owner; duplicating
+their values here would create two normative sources. Renderer resources and service-coverage
+grids remain outside the helper's local drawing/IO contract.
+
+### 19.2 Proposed conformance vectors (unexecuted)
+
+These are literal inputs/expected observations for a future engine lane. They are spec fixtures,
+not measured game runs or files added under engine/. A fake foreign interface should record calls,
+retains/releases and parameters. Use valid initialized dependencies unless the fixture says otherwise.
+Numerical comparisons below are for the supported finite domain; no pixel equivalence is asserted.
+
+| ID | Fixture | Expected result |
+|---|---|---|
+| PO01 | Geometry float parameter 8 with `(2,3,5)`, count sufficient | Return true; center becomes `(2,3,5)`; no source lookup |
+| PO02 | Geometry float parameter `101` hex with `7.5` | Return true; +278 contains binary32 7.5 |
+| PO03 | Geometry parameter 9 with six valid values and null source | Handler returns true; no source enumeration/draw |
+| PO04 | Geometry source resource ID 0, existing source S | No lookup; existing source preserved |
+| PO05 | Replace source S with distinct T, normal return | Retain T before releasing S; rebuilt texture references belong to T |
+| PO06 | Geometry shutdown through +4 receiver, initialized, source S | Clear/release main +254 reference, then ordinary shutdown; no release of main +250 as a capacity pointer |
+| PO07 | Construct decal | started false, count 0, handle `FFFFFFFF`, texture/service null |
+| PO08 | Start an already-started decal | No creation/configuration calls |
+| PO09 | Start(nonzero), lifetime mode 2, stopped | Remain stopped; no handle creation |
+| PO10 | Decal Start, TerrainView absent | Remain stopped; no valid handle |
+| PO11 | Renderer creation returns `FFFFFFFF` | Remain stopped; no valid-handle configuration |
+| PO12 | Stop either mode on started decal with handle 42 | Clear started; remove(42), handle becomes `FFFFFFFF`, clear/release service |
+| PO13 | Stop same decal again | No renderer calls or extra service release |
+| PO14 | Decal float ID `102` hex with `(9,2)` | Return true; size multiplier becomes 2, not 9 |
+| PO15 | Decal float ID 12, rectangle `(1,2,4,6)`, flag bit 3 set | Center `(40,64)`, size 48, angle 0, aspect 4/3 rounded to f32, +100=3, explicit placement true |
+| PO16 | Decal unknown parameter ID | Return false; handled state unchanged |
+| PO17 | Mode-2 decal, valid handle, inverse lifetime 1, elapsed 0, Update(1) | Still started at phase 1; subsequent positive dt stops it |
+| PO18 | Invalid decal handle, Update(1) | No elapsed or renderer update |
+| PO19 | Dynamic message ID other than `86AD10EE` | Return false; no tick and no payload +38 call |
+| PO20 | Dynamic message `86AD10EE`, payload 10000 microseconds | Return true; seconds input is 0.01; each integration step is positive and at most binary32 0.005 |
+| PO21 | Same state, payloads 100000 and 200000 microseconds | Both cap to identical seconds 0.1; no deferred excess time |
+| PO22 | Dynamic tick 0, entry with live body | Sweep dead bodies, no AdvanceTime step, final transform refresh still possible |
+| PO23 | Moving host entry changes sector A to B with overlap | Activate B before deactivate A; shared sectors survive with nonzero count |
+| PO24 | Two host entries reference one sector | Second activation adds reference without rebuilding static bodies; first deactivation does not remove them; final deactivation removes them |
+| PO25 | Dynamic draw, empty list | Return true; reset context shading; no drawable call |
+| PO26 | Dynamic draw, entry has body but null drawable | No drawable call; context shading reset still occurs |
+| PO27 | DeleteParticle with absent entry handle | No list/body/drawable changes |
+| PO28 | Body live, no friction/collision, `(x,z)=(1,2)`, velocity `(3,4)`, acceleration `(2,0)`, dt=0.5 | Position `(2.5,4)`, velocity `(4,4)`; position used old velocity |
+| PO29 | Body live byte clear | Per-list integration leaves its position/velocity untouched; later dead sweep may reclaim it |
+| PO30 | Primary-sector keys `00020005`, `00040003` | Primary key `00040005`; reject either original key as current sector |
+| PO31 | Public body AdvanceTime with two nonempty lists | Integrate moving list, integrate infinite-mass list, then collision pass |
+| PO32 | Construct sequence description | Empty element list, flags 0; no named effect created |
+| PO33 | Sequence read, wire flags `FFFFFFFF`, valid empty list/version word | Stored flags 7; no runtime component created |
+| PO34 | Sequence read with version 2 and otherwise valid primitive results | No version-rejection branch in wrapper; list and flags consumed normally |
+| PO35 | Sequence factory allocation returns null | Return null; runtime constructor not called |
+| PO36 | Copy particle description with two-point curve/name, mutate source afterward | Destination curve/name retain their copied values; derived refcount unchanged |
+
+PO01–06 test interface-level geometry contracts only; PO28 excludes contacts, wrapping and
+friction; PO33–34 assume the foreign stream successfully supplies the listed values. Full solver,
+mesh and renderer vectors must wait for PT8–PT11. Existing §§5–8 and the linked effects/helper
+specs retain their own fixtures and normative behavior.
