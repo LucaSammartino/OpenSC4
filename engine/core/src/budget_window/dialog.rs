@@ -33,29 +33,6 @@ pub struct OrdinanceRow {
     pub edited: u8,
 }
 
-/// What `initOrdinanceBudget` leaves in the dialog: the ordinances (count
-/// `+0xA0`) and the row map `+0x74` (button `300 + r` / `500 + r` → `k`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct OrdinanceInit {
-    pub rows: Vec<OrdinanceRow>,
-    pub row_map: Vec<u32>,
-    /// How many ordinances the helper counted into list A / list B by the
-    /// ordinance's own test (`0x0077C734`/`0x0077C73C`, BW12). The helper
-    /// only increments `+0x124` / `+0x128`; it never resets them.
-    pub added_a: u32,
-    pub added_b: u32,
-}
-
-/// What `initNeighborBudget` leaves in the dialog: the held deals (vector
-/// `+0x68`) and the list counts it wrote (it zeroes `+0x124` / `+0x128`
-/// itself, then counts rows and section headers; BW12).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct NeighborInit {
-    pub deals: Vec<DealRef>,
-    pub count_a: u32,
-    pub count_b: u32,
-}
-
 /// `IndividualRestoreInfo` (12 bytes: item, level0 f32, level1 f32, in
 /// percent; vector `+0x44`; §5.1, BW8).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,13 +47,6 @@ pub struct IndividualRestoreInfo {
 pub struct ScrollList {
     pub pos: u32,
     pub len: u32,
-}
-
-/// The two list positions handed to the mode refresh.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ScrollView {
-    pub a: u32,
-    pub b: u32,
 }
 
 /// The dialog mode, in the order `on_init` tests it (§4).
@@ -116,7 +86,11 @@ pub fn slider_fraction(position: i32) -> f32 {
 pub fn get_window_indiv_item<H: BudgetWindowHost + ?Sized>(host: &mut H, win: WinRef, id: u32) -> Option<ItemRef> {
     let child = host.find_child(win, id)?;
     let property = host.get_property(child, 0x4BFEE088)?;
-    let item = if host.property_type(property) == 0xF { host.property_object(property) } else { None };
+    let item = if host.property_type(property) == 0xF {
+        host.property_object(property)
+    } else {
+        None
+    };
     host.release_property(property);
     item
 }
@@ -323,12 +297,31 @@ impl SubBudgetWindow {
     }
     /// Every retained snapshot pointer, including BW17 records whose funding
     /// values are unresolved. Only resolved values appear in restore_records.
-    pub fn restore_occupants(&self) -> &[ItemRef] { &self.restore_occupants }
-    pub fn individual_viewport(&self) -> &[ItemRef] { &self.individual_visible }
-    pub fn active_deal_pairs(&self) -> &[(u32, u32)] { &self.active_deals }
-    pub fn neighbor_section_totals(&self) -> &[i64; 6] { &self.neighbor_totals }
-    pub fn neighbor_refresh_requests(&self) -> u64 { self.neighbor_refresh_requests }
-    pub fn ordinance_row_map(&self) -> &[u32] { &self.row_map }
+    pub fn restore_occupants(&self) -> &[ItemRef] {
+        &self.restore_occupants
+    }
+    pub fn individual_viewport(&self) -> &[ItemRef] {
+        &self.individual_visible
+    }
+    pub fn active_deal_pairs(&self) -> &[(u32, u32)] {
+        &self.active_deals
+    }
+    pub fn neighbor_section_totals(&self) -> &[i64; 6] {
+        &self.neighbor_totals
+    }
+    pub fn neighbor_refresh_requests(&self) -> u64 {
+        self.neighbor_refresh_requests
+    }
+    pub fn ordinance_row_map(&self) -> &[u32] {
+        &self.row_map
+    }
+    pub fn group_income_total(&self) -> Option<i64> {
+        self.group_total_a
+    }
+    #[cfg(test)]
+    pub(super) fn set_test_amount_scale(&mut self, scale: i64) {
+        self.amount_scale = Some(scale);
+    }
     pub fn ordinances(&self) -> &[OrdinanceRow] {
         &self.ordinances
     }
@@ -465,7 +458,9 @@ impl SubBudgetWindow {
         // BW13 deliberate safe divergence: skip this block on failure, retain
         // the hidden pause and continue the mode branch. Child insertions
         // into absent content are no-ops; sliders still belong to `win`.
-        let Some(c) = host.create_content_window() else { return };
+        let Some(c) = host.create_content_window() else {
+            return;
+        };
         // cRZAutoRefCount<cIGZWin>::operator=: the reference +0x10 holds.
         host.add_ref_win(c);
         self.content = Some(c);
@@ -484,7 +479,12 @@ impl SubBudgetWindow {
     /// `inclusive`: hide a down arrow when its count is `<= 9` (group and
     /// neighbour modes); otherwise when `< 9` (the ordinance helper). Up
     /// arrows are always hidden; a down arrow not hidden is left as created.
-    pub(super) fn create_scroll_arrows<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, inclusive: bool) {
+    pub(super) fn create_scroll_arrows<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        win: WinRef,
+        inclusive: bool,
+    ) {
         for (id, image) in [
             (BTN_LIST_A_UP, ARROW_UP_IMAGE),
             (BTN_LIST_A_DOWN, ARROW_DOWN_IMAGE),
@@ -557,11 +557,19 @@ impl SubBudgetWindow {
         if a == 0 && b == 0 {
             // BW10b: no slider rows, no arrows; +0x38 keeps its pairs.
             self.empty_body(host, win, None, 0x4A5CB4B6);
-            for dept in depts { self.release_dept(dept); }
+            for dept in depts {
+                self.release_dept(dept);
+            }
             return;
         }
         self.unsupported(Unsupported::Setup);
-        host.paint_body(win, BodyPaint::Lists { a: a.min(LIST_ROWS_VISIBLE), b: b.min(LIST_ROWS_VISIBLE) });
+        host.paint_body(
+            win,
+            BodyPaint::Lists {
+                a: a.min(LIST_ROWS_VISIBLE),
+                b: b.min(LIST_ROWS_VISIBLE),
+            },
+        );
         self.clear_sliders();
         // Separate A/B build loops, in department and line-item order, with
         // one shared nine-row cap per list. Only B rows own SliderInfo refs.
@@ -584,7 +592,9 @@ impl SubBudgetWindow {
         }
         // BW10c: unclamped counts, inclusive bound.
         self.create_scroll_arrows(host, win, true);
-        for dept in depts { self.release_dept(dept); }
+        for dept in depts {
+            self.release_dept(dept);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -845,7 +855,9 @@ impl SubBudgetWindow {
             SELECTOR_ORDINANCES => self.unsupported(Unsupported::OrdinanceRefresh),
             SELECTOR_NEIGHBORS => self.request_neighbor_refresh(),
             _ if list_b && self.department != 0 => self.enumerate_individual(host, win, false),
-            _ => { self.refresh_group(host, win); }
+            _ => {
+                self.refresh_group(host, win);
+            }
         }
     }
 

@@ -24,14 +24,37 @@ pub enum Unsupported {
 /// viewport membership belong to the core. No host callback computes a sheet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BodyPaint {
-    Empty { title: Option<u32>, body: u32 },
-    Lists { a: u32, b: u32 },
-    Ordinance { index: u32, check: u32, info: u32, edited: u8 },
-    NeighborHeader { kind: u32, income: bool, row: u32 },
-    NeighborDeal { deal: DealRef, income: bool, row: u32 },
+    Empty {
+        title: Option<u32>,
+        body: u32,
+    },
+    Lists {
+        a: u32,
+        b: u32,
+    },
+    Ordinance {
+        index: u32,
+        check: u32,
+        info: u32,
+        edited: u8,
+    },
+    NeighborHeader {
+        kind: u32,
+        income: bool,
+        row: u32,
+    },
+    NeighborDeal {
+        deal: DealRef,
+        income: bool,
+        row: u32,
+    },
     /// Reuse name at control, SC4MakeMoneyString at control+1 when the owner
     /// scale is known, and hide control+2 with SetFlag(1,false).
-    GroupHeader { control: u32, dept: DeptRef, amount: Option<i64> },
+    GroupHeader {
+        control: u32,
+        dept: DeptRef,
+        amount: Option<i64>,
+    },
 }
 
 /// External public interfaces needed by the harvested owner bodies. Returned
@@ -102,7 +125,13 @@ impl SubBudgetWindow {
         &self.unsupported
     }
 
-    pub(super) fn empty_body<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, title: Option<u32>, body: u32) {
+    pub(super) fn empty_body<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        win: WinRef,
+        title: Option<u32>,
+        body: u32,
+    ) {
         // Text selection is settled. Setup/factory ownership is not (BW17).
         self.unsupported(Unsupported::Setup);
         host.paint_body(win, BodyPaint::Empty { title, body });
@@ -121,7 +150,11 @@ impl SubBudgetWindow {
             list.len = list.len.wrapping_add(1);
             let original = host.is_ordinance_on(id);
             let edited = host.is_ordinance_on(id);
-            self.ordinances.push(OrdinanceRow { ordinance: id, original, edited });
+            self.ordinances.push(OrdinanceRow {
+                ordinance: id,
+                original,
+                edited,
+            });
         }
         if self.list_a.len == 0 && self.list_b.len == 0 {
             self.empty_body(host, win, Some(0x8A579F31), 0x0A5CB1A1);
@@ -129,7 +162,13 @@ impl SubBudgetWindow {
         }
         self.unsupported(Unsupported::Setup);
         self.unsupported(Unsupported::OrdinanceScale);
-        host.paint_body(win, BodyPaint::Lists { a: self.list_a.len.min(9), b: self.list_b.len.min(9) });
+        host.paint_body(
+            win,
+            BodyPaint::Lists {
+                a: self.list_a.len.min(9),
+                b: self.list_b.len.min(9),
+            },
+        );
         for income in [true, false] {
             let mut visible = 0;
             for (index, row) in self.ordinances.iter().enumerate() {
@@ -141,9 +180,15 @@ impl SubBudgetWindow {
                 if visible < 9 {
                     let ordinal = self.row_map.len() as u32;
                     self.row_map.push(index as u32);
-                    host.paint_body(win, BodyPaint::Ordinance {
-                        index: index as u32, check: 300 + ordinal, info: 500 + ordinal, edited: row.edited,
-                    });
+                    host.paint_body(
+                        win,
+                        BodyPaint::Ordinance {
+                            index: index as u32,
+                            check: 300 + ordinal,
+                            info: 500 + ordinal,
+                            edited: row.edited,
+                        },
+                    );
                     visible += 1;
                 }
             }
@@ -162,7 +207,11 @@ impl SubBudgetWindow {
             let income = host.is_income_ordinance(row.ordinance);
             if row.edited != 0 {
                 let product = amount.wrapping_mul(scale);
-                if income { a = a.wrapping_add(product); } else { b = b.wrapping_sub(product); }
+                if income {
+                    a = a.wrapping_add(product);
+                } else {
+                    b = b.wrapping_sub(product);
+                }
             }
         }
         (a, b)
@@ -181,9 +230,16 @@ impl SubBudgetWindow {
         }
         // BW17: no inferred temporary-list Release balance.
         self.unsupported(Unsupported::NeighborListReferences);
-        for (section, kind) in [0x4773FFE1, 0x4773FFE0, 0x4773FFE3, 0x4773FFE2, 0x4773FFE5, 0x4773FFE4].into_iter().enumerate() {
+        for (section, kind) in [0x4773FFE1, 0x4773FFE0, 0x4773FFE3, 0x4773FFE2, 0x4773FFE5, 0x4773FFE4]
+            .into_iter()
+            .enumerate()
+        {
             let deals = host.find_deals(kind);
-            let list = if section % 2 == 0 { &mut self.list_a } else { &mut self.list_b };
+            let list = if section % 2 == 0 {
+                &mut self.list_a
+            } else {
+                &mut self.list_b
+            };
             if !deals.is_empty() {
                 list.len = list.len.wrapping_add(1).wrapping_add(deals.len() as u32);
             }
@@ -194,7 +250,8 @@ impl SubBudgetWindow {
                 self.deal_types.push(kind);
                 host.release_deal(deal);
                 if host.deal_flags(deal) & 2 != 0 {
-                    self.neighbor_totals[section] = self.neighbor_totals[section].wrapping_add(host.deal_monthly_amount(deal));
+                    self.neighbor_totals[section] =
+                        self.neighbor_totals[section].wrapping_add(host.deal_monthly_amount(deal));
                     let a = host.deal_a(deal);
                     host.deal_snapshot_a(deal, a);
                     let i = host.deal_i(deal);
@@ -209,19 +266,34 @@ impl SubBudgetWindow {
         }
         self.unsupported(Unsupported::Setup);
         self.unsupported(Unsupported::NeighborOptions);
-        host.paint_body(win, BodyPaint::Lists { a: self.list_a.len.min(9), b: self.list_b.len.min(9) });
-        for (income, kinds) in [(true, [0x4773FFE1, 0x4773FFE3, 0x4773FFE5]), (false, [0x4773FFE0, 0x4773FFE2, 0x4773FFE4])] {
+        host.paint_body(
+            win,
+            BodyPaint::Lists {
+                a: self.list_a.len.min(9),
+                b: self.list_b.len.min(9),
+            },
+        );
+        for (income, kinds) in [
+            (true, [0x4773FFE1, 0x4773FFE3, 0x4773FFE5]),
+            (false, [0x4773FFE0, 0x4773FFE2, 0x4773FFE4]),
+        ] {
             let mut row = 0;
             for kind in kinds {
                 let mut first = true;
                 for (&deal, &deal_kind) in self.deals.iter().zip(&self.deal_types) {
-                    if deal_kind != kind { continue; }
+                    if deal_kind != kind {
+                        continue;
+                    }
                     if first {
                         first = false;
-                        if row < 9 { host.paint_body(win, BodyPaint::NeighborHeader { kind, income, row }); }
+                        if row < 9 {
+                            host.paint_body(win, BodyPaint::NeighborHeader { kind, income, row });
+                        }
                         row += 1;
                     }
-                    if row < 9 { host.paint_body(win, BodyPaint::NeighborDeal { deal, income, row }); }
+                    if row < 9 {
+                        host.paint_body(win, BodyPaint::NeighborDeal { deal, income, row });
+                    }
                     row += 1;
                 }
             }
@@ -241,15 +313,26 @@ impl SubBudgetWindow {
 
     pub(super) fn clear_deal_rows(&mut self) {
         if let Some(refs) = &self.references {
-            for row in self.deal_rows.drain(..) { refs.release_deal(row.deal); }
+            for row in self.deal_rows.drain(..) {
+                refs.release_deal(row.deal);
+            }
         }
     }
 
-    pub fn edit_deal_rows<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, control: u32) -> Result<(), ComboError> {
+    pub fn edit_deal_rows<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        win: WinRef,
+        control: u32,
+    ) -> Result<(), ComboError> {
         let mut result = Ok(());
         for row in self.deal_rows.clone() {
-            if row.control != control { continue; }
-            let Some(s) = host.combo_selection(win, control) else { continue };
+            if row.control != control {
+                continue;
+            }
+            let Some(s) = host.combo_selection(win, control) else {
+                continue;
+            };
             if s == 0 {
                 if host.deal_flags(row.deal) & 2 != 0 {
                     host.deal_cancel(row.deal);
@@ -258,8 +341,12 @@ impl SubBudgetWindow {
                 }
                 continue;
             }
-            if host.deal_test_mask(row.deal, 0x100) { continue; }
-            if host.deal_flags(row.deal) & 2 == 0 { let _ = host.deal_activate(row.deal); }
+            if host.deal_test_mask(row.deal, 0x100) {
+                continue;
+            }
+            if host.deal_flags(row.deal) & 2 == 0 {
+                let _ = host.deal_activate(row.deal);
+            }
             let m = host.deal_m(row.deal);
             let special = m != 0 && host.deal_i(row.deal).wrapping_mul(s) > host.deal_a(row.deal);
             let amount = if special {
@@ -267,12 +354,18 @@ impl SubBudgetWindow {
                 let m0 = host.deal_m(row.deal) as i32;
                 let a1 = host.deal_a(row.deal) as i32;
                 let i1 = host.deal_i(row.deal) as i32;
-                let Some(k) = a0.checked_div(m0).zip(a1.checked_div(i1)).map(|(x, y)| x.wrapping_sub(y).wrapping_add(s as i32)) else {
+                let Some(k) = a0
+                    .checked_div(m0)
+                    .zip(a1.checked_div(i1))
+                    .map(|(x, y)| x.wrapping_sub(y).wrapping_add(s as i32))
+                else {
                     result = Err(ComboError::InvalidDivision);
                     continue;
                 };
                 host.deal_m(row.deal).wrapping_mul(k as u32)
-            } else { host.deal_i(row.deal).wrapping_mul(s) };
+            } else {
+                host.deal_i(row.deal).wrapping_mul(s)
+            };
             host.deal_set_amount(row.deal, amount as i32);
             host.set_combo_text(win, control, 0x2A5794A0, false);
             if special {
@@ -295,12 +388,16 @@ impl SubBudgetWindow {
         self.list_b.len = occupants.len() as u32;
         self.individual_visible.clear();
         self.individual_total = Some(0);
-        if rebuild { self.clear_restore(); }
+        if rebuild {
+            self.clear_restore();
+        }
         let quota = self.list_b.len.min(9);
         for (ordinal, occupant) in occupants.into_iter().enumerate() {
             let queried = host.query_occupant(occupant);
             let resolved = !queried || self.service_kind == 0;
-            if !resolved { self.individual_total = None; }
+            if !resolved {
+                self.individual_total = None;
+            }
             // Retain every original list pointer, never the QI holder. Funding
             // bytes remain unresolved for successful known-service queries.
             if rebuild {
@@ -308,30 +405,49 @@ impl SubBudgetWindow {
                 refs.add_ref_item(occupant);
                 refs.add_ref_item(occupant);
                 self.restore_occupants.push(occupant);
-                if resolved { self.restore.push(IndividualRestoreInfo { occupant, level0: 0.0, level1: 0.0 }); }
+                if resolved {
+                    self.restore.push(IndividualRestoreInfo {
+                        occupant,
+                        level0: 0.0,
+                        level1: 0.0,
+                    });
+                }
                 refs.release_item(occupant);
             }
             if ordinal as u32 >= self.list_b.pos && self.individual_visible.len() < quota as usize {
                 self.individual_visible.push(occupant);
             }
-            if queried { host.release_occupant(occupant); }
-            self.references.as_ref().expect("init keeps reference service").release_item(occupant);
+            if queried {
+                host.release_occupant(occupant);
+            }
+            self.references
+                .as_ref()
+                .expect("init keeps reference service")
+                .release_item(occupant);
         }
         self.unsupported(Unsupported::IndividualServiceValues);
         self.unsupported(Unsupported::IndividualControls);
-        if self.list_b.len == 0 { self.empty_body(host, win, None, 0x4A5CB4B6); }
+        if self.list_b.len == 0 {
+            self.empty_body(host, win, None, 0x4A5CB4B6);
+        }
     }
 
     pub(super) fn clear_restore(&mut self) {
         if let Some(refs) = &self.references {
-            for item in self.restore_occupants.drain(..) { refs.release_item(item); }
+            for item in self.restore_occupants.drain(..) {
+                refs.release_item(item);
+            }
         }
         self.restore.clear();
     }
 
     /// Append the owner's already-derived snapshot, with the §5.2 copy
     /// reference sequence. Service derivation is BW17, not a host row provider.
-    pub fn retain_individual_restore<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, row: IndividualRestoreInfo) {
+    pub fn retain_individual_restore<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        row: IndividualRestoreInfo,
+    ) {
         self.references = Some(host.references());
         let refs = self.references.as_ref().expect("reference service retained");
         refs.add_ref_item(row.occupant);
@@ -345,10 +461,16 @@ impl SubBudgetWindow {
     /// Missing group records are an invalid provider input (BW19), not a
     /// successful empty-group result. B/item rendering stays Unsupported BW17.
     pub fn refresh_group<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef) -> Option<(u32, u32)> {
-        if self.refresh_busy { return None; }
+        if self.refresh_busy {
+            return None;
+        }
         self.refresh_busy = true;
         let groups = host.budget_group_ids();
-        let Some(&group) = groups.iter().find(|&&id| id == self.selector).or_else(|| groups.first()) else {
+        let Some(&group) = groups
+            .iter()
+            .find(|&&id| id == self.selector)
+            .or_else(|| groups.first())
+        else {
             self.refresh_busy = false;
             return None;
         };
@@ -361,13 +483,22 @@ impl SubBudgetWindow {
             for &dept in &depts {
                 let mut first = true;
                 for item in host.department_line_items(dept) {
-                    if item.kind != LINE_ITEM_INCOME { continue; }
+                    if item.kind != LINE_ITEM_INCOME {
+                        continue;
+                    }
                     if std::mem::replace(&mut first, false) && header_shown(host, self.selector, dept, true) {
                         if q >= self.list_a.pos && p < 9 {
                             let raw = host.department_total_income(dept);
                             if let Some(id) = control {
                                 let amount = self.amount_scale.map(|scale| raw.wrapping_mul(scale));
-                                host.paint_body(win, BodyPaint::GroupHeader { control: id, dept, amount });
+                                host.paint_body(
+                                    win,
+                                    BodyPaint::GroupHeader {
+                                        control: id,
+                                        dept,
+                                        amount,
+                                    },
+                                );
                                 control = Some(id.wrapping_add(3));
                             }
                             p = p.wrapping_add(1);
@@ -379,19 +510,25 @@ impl SubBudgetWindow {
                         }
                         q = q.wrapping_add(1);
                     }
-                    if item.id > 100 && item.income == 0 { continue; }
+                    if item.id > 100 && item.income == 0 {
+                        continue;
+                    }
                     if item.display_flags & 1 != 0 {
                         // BW17: after a drawable item, the next control ID
                         // depends on its unsettled rendering body. Stop reuse
                         // rather than guessing which later header ID to write.
-                        if q >= self.list_a.pos && p < 9 { control = None; }
+                        if q >= self.list_a.pos && p < 9 {
+                            control = None;
+                        }
                         p = p.wrapping_add(1);
                     }
                     q = q.wrapping_add(1);
                 }
             }
         }
-        for dept in depts { host.references().release_dept(dept); }
+        for dept in depts {
+            host.references().release_dept(dept);
+        }
         self.refresh_busy = false;
         self.unsupported(Unsupported::GroupRefreshRemainder);
         Some((q, p))

@@ -19,6 +19,12 @@ const WIN: WinRef = 77;
 const NESTED_WIN: WinRef = 78;
 const CONTENT: WinRef = 900;
 
+#[derive(Clone, Default)]
+struct OrdinanceInit {
+    rows: Vec<OrdinanceRow>,
+    row_map: Vec<u32>,
+}
+
 #[derive(Debug, Default)]
 struct RefLedger {
     depts: Mutex<HashMap<DeptRef, i32>>,
@@ -88,6 +94,8 @@ struct Rec {
     group: Vec<DeptRef>,
     items: HashMap<DeptRef, Vec<LineItem>>,
     total_income: HashMap<DeptRef, i64>,
+    total_income_reads: Vec<DeptRef>,
+    group_ids: Option<Vec<u32>>,
     ideal: HashMap<DeptRef, i64>,
     ord: OrdinanceInit,
     checks: HashMap<u32, u8>,
@@ -320,13 +328,18 @@ impl BudgetWindowHost for Rec {
         self.l("dirty".into());
     }
     fn department_budgets_in_group(&mut self, _: u32) -> Vec<DeptRef> {
-        for &dept in &self.group { if dept != 0 { self.refs.add_ref_dept(dept); } }
+        for &dept in &self.group {
+            if dept != 0 {
+                self.refs.add_ref_dept(dept);
+            }
+        }
         self.group.clone()
     }
     fn department_line_items(&mut self, d: DeptRef) -> Vec<LineItem> {
         self.items.get(&d).cloned().unwrap_or_default()
     }
     fn department_total_income(&mut self, d: DeptRef) -> i64 {
+        self.total_income_reads.push(d);
         self.total_income.get(&d).copied().unwrap_or(0)
     }
     fn department_ideal_monthly_funding(&mut self, d: DeptRef) -> i64 {
@@ -354,14 +367,23 @@ impl BudgetWindowHost for Rec {
     fn slider_value(&mut self, _: WinRef, _: u32) -> i32 {
         self.slider_pos
     }
-    fn find_child(&mut self, _: WinRef, id: u32) -> Option<WinRef> { self.by_id.contains_key(&id).then_some(u64::from(id)) }
-    fn get_property(&mut self, child: WinRef, key: u32) -> Option<u64> { assert_eq!(key, 0x4BFEE088); Some(child) }
-    fn property_type(&mut self, _: u64) -> u32 { self.property_kind.unwrap_or(0xF) }
+    fn find_child(&mut self, _: WinRef, id: u32) -> Option<WinRef> {
+        self.by_id.contains_key(&id).then_some(u64::from(id))
+    }
+    fn get_property(&mut self, child: WinRef, key: u32) -> Option<u64> {
+        assert_eq!(key, 0x4BFEE088);
+        Some(child)
+    }
+    fn property_type(&mut self, _: u64) -> u32 {
+        self.property_kind.unwrap_or(0xF)
+    }
     fn property_object(&mut self, property: u64) -> Option<ItemRef> {
         self.property_object_reads += 1;
         self.by_id.get(&(property as u32)).copied()
     }
-    fn release_property(&mut self, property: u64) { self.released_properties.push(property); }
+    fn release_property(&mut self, property: u64) {
+        self.released_properties.push(property);
+    }
     fn item_id(&mut self, i: ItemRef) -> u32 {
         self.item_dept[&i]
     }
@@ -995,7 +1017,13 @@ fn scroll_steps_arrows_and_refresh() {
     d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_LIST_A_UP));
     assert_eq!(
         h.log,
-        ["arrow 0x453 false", "occupants 0x28f55a9f", "empty", "arrow 0x451 false", "values"]
+        [
+            "arrow 0x453 false",
+            "occupants 0x28f55a9f",
+            "empty",
+            "arrow 0x451 false",
+            "values"
+        ]
     );
 }
 
@@ -1403,9 +1431,10 @@ fn saved_pairs_own_references_even_without_visible_rows() {
         let events = h.refs.events.lock().unwrap().clone();
         assert_eq!(
             events,
-            (1..=64).map(|d| ('+', d)).chain((1..=64)
-                .flat_map(|d| [('+', d), ('+', d), ('-', d)])
-            ).chain((1..=64).map(|d| ('-', d)))
+            (1..=64)
+                .map(|d| ('+', d))
+                .chain((1..=64).flat_map(|d| [('+', d), ('+', d), ('-', d)]))
+                .chain((1..=64).map(|d| ('-', d)))
                 .collect::<Vec<_>>()
         );
         if shutdown {
@@ -1448,10 +1477,15 @@ fn department_ownership_reinit_shutdown_and_drop() {
         assert_eq!(ids.len(), 9);
         // Pair references precede slider references. Each append has the
         // same temporary+copy+release sequence, irrespective of capacity.
-        let expected = [1, 2, 3].into_iter().map(|d| ('+', d)).chain([1, 2, 3]
+        let expected = [1, 2, 3]
             .into_iter()
-            .chain(rows)
-            .flat_map(|dept| [('+', dept), ('+', dept), ('-', dept)]))
+            .map(|d| ('+', d))
+            .chain(
+                [1, 2, 3]
+                    .into_iter()
+                    .chain(rows)
+                    .flat_map(|dept| [('+', dept), ('+', dept), ('-', dept)]),
+            )
             .chain([1, 2, 3].into_iter().map(|d| ('-', d)))
             .collect::<Vec<_>>();
         assert_eq!(*h.refs.events.lock().unwrap(), expected);

@@ -22,8 +22,8 @@ pub mod panel;
 mod tests;
 
 pub use dialog::{
-    end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, NeighborInit,
-    OrdinanceInit, OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
+    end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, OrdinanceRow,
+    ScrollList, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
 };
 pub use dialog::{individual_amount, BodyPaint, ComboError, DealRow, SubBudgetSources, Unsupported};
 pub use panel::{panel_command, BudgetPanel, CommandOutcome, PanelCommand};
