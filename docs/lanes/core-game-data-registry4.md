@@ -1,21 +1,55 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` | in progress: original round2/3; final-source qualification pending fresh process ownership check | Resolve current checker ownership, preserve evidence, then one serial canonical all |
+| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` (engine lane) | **WIP**, original round2/3: unchanged final engine2226d3b6; sole all pending optional stats27548, Rust5388/0 and clippy0 logged; current CTest not started; GDR1–5 retained; ABI unchanged | 1. Coordinator adjudicate own r2 request. 2. Collect same qbuild7056/fc4verify22544 to terminal and qualify final source before READY; no duplicate validator |
 
-## Handoff
+## Round2 final-source qualification
 
-- Goal: qualify unchanged formatted engine2226d3b64adf716a335de644960e15ce494e7d58, original round2/3.
-- Prior source/report HEAD4fe93763; no engine edits this round; existing report retained below.
-- Read copied eligibility/process/action proof in build-runs/evidence-run4/.
-- Fresh 05:18:46 inspection: no port4590 listener or own checker; no relevant command-line errors.
-- CIM denied and23 relevant cwd reads denied; command-line inspection separated ownership successfully.
-- Local collector build-runs/registry-r2-qualification.py; proof build-runs/registry-r2-final/.
-- Sole all started05:18:46.891365 at260d6f99, collector5928/qbuild7056, terminal session65673.
-- Prior21 evidence files archived with SHA256 before logs overwritten. Next: collect same session to terminal.
-- Correct report and final request to disclose ROOT optional stats35076 termination at04:52:15.453930–04:52:16.465343 exit15.
-- Original fc4verify33964/qbuild26456/daemon35116 remained alive; cache stats unavailable/cause UNKNOWN.
-- Earlier30532 already absent/no ROOT action remains separate; no restart or upgraded outcome.
-- Preserve GDR1–5, 37S5P6F/48/5807 and all old failure evidence; no tests/features/native/game expansion.
+This is the original family's second round (round1 consumed, round2 of3), not a
+reset or new algorithm owner. No engine source, tests, ABI, CAPI, plugin, defaults
+or shared state changed. Original report4fe93763 and committed/dirty work were
+preserved. Commits260d6f99 and60b55315 record process checking and the historical
+coordinator-action correction.
+
+Fresh inspection05:18:46 found no own checker or listener on4590. CIM was denied;
+psutil command lines were inspected independently of cwd access. No relevant
+command-line errors remained;23 relevant cwd reads were denied and retained in
+the raw inspection proof. Absence was not inferred from the old05:10:52 proof.
+
+ONE canonical `python MAIN/.claude/lane-bin/qbuild.py --wt WT all` began at
+2026-10-23T05:18:46.891365+01:00 on committed HEAD260d6f99, engine tree
+2226d3b64adf716a335de644960e15ce494e7d58. Before any log overwrite,21 prior
+R1 final/baseline/focused/failure evidence files were copied under
+`build-runs/registry-r2-final/prior-evidence/` with `archive-sha256.json`.
+Unmodified original raw journal and other failures remain available.
+
+The same live pipeline is collector5928 → qbuild7056 → fc4verify22544 → optional
+read-only stats27548. Exact creation/cwd/argv/parent and log-source evidence is in
+`build-runs/coordinator-request-core-game-data-registry4-r2.md` and timestamped
+`registry-r2-final/fresh-process-proof-*.json`. At05:24:05 stats27548 was still
+alive, created1792729312.4687445, running `sccache.EXE --show-stats --stats-format
+json` with parent22544 and this worktree cwd. Listener4590 belongs to daemon8408
+(created1792729246.0032012, parent26616, cargo/bin cwd); its only observed child
+was conhost23824. No daemon/compiler/validator kill, cache RPC, restart or
+duplicate validator was performed by this lane. The coordinator request is
+pending; cache-statistics cause UNKNOWN.
+
+Current logs measure23 Rust result lines,5388 passed/0 failed, clippy0 diagnostics.
+The actual terminal stream says `fc4verify build: PASS 4/4 edges (64.8 s)`;
+native overall return code and the full command's end/exit remain unavailable.
+The native log SHA256 is
+3d63fe3a18e0c541bb6b2e0e3c12287ddfacbf51cde8554d3f363609c3802219.
+CTest has NOT started: its04:54:55 log is the prior source's68/68, not a result
+for this source. Neither Ninja completion nor the old CTest result qualifies
+the current all. `pending-summary.json` records end/exit/nativeRC/CTest as null.
+
+The collector retains command, start, before HEAD/engine/file SHA256 in
+`registry-r2-final/qualification.json`; it will record actual end/exit, after
+HEAD/engine/file SHA256 and log hashes when that same command reaches terminal.
+`terminal.log` retains stdout; original terminal handle is session65673.
+Engine and all three file hashes match the final-formatted column below in the
+05:24:05 snapshot; later changes are report-only. No second all is justified by
+documentation changes. Until actual terminal current-source qualification this
+lane remains WIP. Collect this pipeline rather than restart it.
 
 ## Owned core
 
@@ -80,10 +114,10 @@ native replacement proof, whole-owner completion or coverage/default promotion.
   same preexisting first ordering difference in baseline e7b2ad83 (121 diff lines)
   and current lib (123); the only lib edit remains the required appended export.
   No mass sorting/reformatting of existing modules was performed.
-- **WIP, not READY:** the one permitted canonical gate measured the pre-format
+- **Round1 ended WIP:** its one permitted canonical gate measured the pre-format
   source. Final formatted engine tree2226d3b64adf716a335de644960e15ce494e7d58
-  differs. No duplicate focused/quick/all/cargo/CTest run was launched. Coordinator
-  validation of that final source is still required. The final report commit
+  differs. No duplicate focused/quick/all/cargo/CTest run was launched in round1.
+  Round2's sole final-source qualification is recorded above. The round1 report commit
   changes documentation only relative to9f4edebc, not relative to the gate source.
 - Historical stats provenance correction: ROOT terminated ONLY the optional
   read-only `--show-stats` client35076 (created1792727342.7140107), at
@@ -99,6 +133,10 @@ native replacement proof, whole-owner completion or coverage/default promotion.
   Historical PID/creation/argv/cwd/log metadata is preserved in
   build-runs/coordinator-request-core-game-data-registry4-{baseline,final}.md
   and coordinator-optional-stats-20261023-045212.json.
+- Two initial apply_patch verification failures remain retained, alongside the
+  pre-cargo q.py AccessDenied, initial formatting failure and continued pre-format
+  gate, and preexisting lib.rs ordering drift. No failed result was erased or
+  recast as a pass. Round2's CIM denial/cwd-access errors are retained separately.
 
 Source SHA256 (all gate-time files remained unchanged until gate exit):
 
@@ -190,6 +228,7 @@ numeric conversion, factory/native construction or Lua mirror is inferred.
 Filed GDR5 in docs/specs/questions/game-data-registry.md: anonymous replacement key
 collision with an existing raw leaf key. The portable model tags this unsupported
 rather than inventing overwrite/native-false semantics. GDR1–4 remain unsupported.
-Coordinator must validate final formatted engine tree before changing WIP to
-ready. The capped lane has ended without an automatic further gate or restart.
+Coordinator must obtain the sole round2 validator's actual final-source terminal
+result before changing WIP to ready; the optional stats request is pending.
+No automatic third/fourth round, new tests, native/game probes or owner expansion.
 A later authorized lane owns interoperability/wiring or further native evidence.
