@@ -1368,6 +1368,28 @@ constant 2 at `0x00B0A158`, caller `0x00569230–0x005694A5`.
 Ornt<%3.2f,%3.2f,%3.2f>`: whether it tows, two counts of the manager (`+0xA9C`, `+0xAC4`), queued, docking, turn,
 speed, cell, current position and current heading.
 
+**Call and lifetime contract (WC3).** No arguments; EAX returns a borrowed
+pointer to a shared string object, not a newly owned character buffer and
+not a boolean. All watercraft instances use the same lazily initialized
+string at `0x00B22AA4`. Each call formats into it again, so a retained pointer
+can show the most recent boat's text. Do not Release it or promise a stable
+per-boat snapshot. First use initializes the string and registers its exit
+cleanup. There is no explicit allocation-failure or absent-city/manager
+fallback in this method.
+
+Each call first obtains the manager through city slot 46, then converts
+runtime x/z to cell x/z through city slot 95. Both cell outputs begin as
+signed -1; the conversion result is ignored. Tow is 1 exactly when +0x280
+is nonnull; Q and D are the unsigned bytes +0x289 and +0x288, respectively.
+Turn/speed are +0x2E0/+0x2DC. Position/heading come from runtime
++0x2F4/+0x30C, not inherited occupant position/heading. The floats are
+promoted to doubles for formatting, with the widths/precision shown above.
+The function returns the shared string even when formatting reports failure;
+it does not convert the formatter's result into its own success status.
+Evidence: initialization `0x00570AED–0x00570B55`, city queries/output
+defaults `0x00570B58–0x00570B93`, formatting and borrowed return
+`0x00570B99–0x00570C40`.
+
 ## 10. Open questions
 
 See [questions/watercraft.md](questions/watercraft.md) for the remaining owner-closure questions.
@@ -1388,7 +1410,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
 | Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
 | Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.4, 5.1.1, 5.2, 5.4.1; angular proximity and direction-quantization signatures/results now included |
-| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; full signatures/failures still WC3 |
+| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; tuning signature/failure audit still WC3 |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
@@ -1402,11 +1424,11 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Wake stop/start | 0056EFE0, 0056F1E0 | §5.1.4 gives signatures, six-key ordering, arguments, ignored results and adapter forwarding; controller/update internals remain WC4 |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
 | AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final and far approach expanded; full AI selection remains WC4 |
-| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; debug borrowed-string lifetime/signature specified; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 136 individually named spec-side vectors. It does **not** certify
+This document supplies 138 individually named spec-side vectors. It does **not** certify
 complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
@@ -1415,7 +1437,7 @@ substitute an opaque provider result for missing owner computation.
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow contracts and inherited animation dispatch | Complete tuning and debug signatures/results/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
+| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow and debug lifetime contracts and inherited animation dispatch | Complete tuning signature/result/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
 | WC4 | Commands, routes/following/final and far docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations. |
 | WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint, inanimate corner tables and sinking basis/heading feedback | Grounding/heel axes/contact/transform composition (0056AF90). |
 
@@ -1667,3 +1689,10 @@ below the translation threshold unless specified otherwise.
 | WC5-K02 | Same as K01, +0x2C8=2 | F=(0,-0.5,sqrt(3)/2); nonzero value 2 selects the same pitch sign as 1. Derive R/U from the unchanged roll reference B=(0.5,sqrt(3)/2,0). |
 | WC5-K03 | Same as K01, +0x2C9=1 | F unchanged from K01; roll reference B=(-0.5,sqrt(3)/2,0). R=normalize(B cross F), U=F cross R; roll sign changes the basis but not the F result for H1=(0,0,1). |
 | WC5-K04 | H0=(1,0,0), H1=(1,0,0), theta=0, incoming rotation arbitrary, scale=2 | Basis columns R=(0,0,-1), U=(0,1,0), F=(1,0,0). New runtime heading=(0,0,-1), not F; previous heading stays (1,0,0). Scale remains 2 and incoming rotation is replaced. |
+
+### 11.16 Debug lifetime vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-L01 | Call debug text on boat A, retain the borrowed pointer, then call on boat B with different runtime data | Same returned string-object address; borrowed pointer now refers to B's formatted text. Neither boat gains a retained per-instance debug string. |
+| WC3-L02 | Q=2, D=3; runtime P=(1,2,3), H=(0,0,1); city conversion leaves outputs untouched | Text contains `(Q,D): (2,3)`, `Cell( -1, -1)`, `Pos(1.00,2.00,3.00)`, `Ornt<0.00,0.00,1.00>`. Uses initialized -1 cells; no failure boolean or early return. |

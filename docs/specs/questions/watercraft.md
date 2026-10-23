@@ -16,7 +16,8 @@
   §5.1.4 specifies inherited animation dispatch and generic seek arithmetic.
   re-watercraft-wc5c: §3.4 completes angular/quantization signatures and
   side effects, OnLand comparison/short circuit and EndTowing reference handling.
-  Exact residual: tuning/debug signatures/failures, inherited initialization/teardown and
+  §9 also supplies the debug borrowed-string lifetime, signature and failure contract.
+  Exact residual: tuning signature/failures, inherited initialization/teardown and
   subsidiary animation/effect/model computations. No full-owner closure claim.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
