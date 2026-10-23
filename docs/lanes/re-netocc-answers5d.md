@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netocc-answers5d: network and underground owner answers | Codex / `re-netocc-answers5d` (RE, detached HEAD) | wip: NO41 answered; pylon Draw/messages and pole bounds specified; 5 new prose vectors; doccheck passed; ABI unchanged | Finish NO33 NO36 NO40 NO43 UG5; no owner closure claimed |
+| re-netocc-answers5d: network and underground owner answers | Codex / `re-netocc-answers5d` (RE, detached HEAD) | in progress: NO36 and prior NO41 answered; 4 new pylon vectors; doccheck passed; ABI unchanged | Assess remaining NO33 NO40 NO43 UG5 within research allowance; enqueue verified answers READY |
 
 ## Report
 
@@ -28,9 +28,12 @@ Git commits succeeded despite an incidental packed-refs.lock permission message;
 
 ## Handoff
 - Goal: answer NO33, NO36, NO40, NO41, NO43 and UG5 without engine reads or edits.
+- Round 2 milestone: NO36 completed in §6.2.4/tests 56–59, archived and index regenerated; doccheck and diff check pass.
+- Round 2 evidence: pylon 005F12D0/005F1D00/005F20A0 instruction bytes; PE constants via ignored build-runs/evidence_constants.py.
+- Correction: pylon +150 is the call-number texture ID; MySim uploads main +148.
 - Done: NO41 answered (2869269f9); pylon Draw/messages (cb51c38e8); pole bounds (9162e3b21), tests 54–55.
-- Next: finish NO36 model/MySim/number-label composition first, then NO40/UG5 connection and base geometry.
-- Still open: NO33/NO43 pole model/resource/transform/Pick/wire/Draw and diagonal-floor numeric order.
+- Round 2 resumed 2026-10-24 at detached c686f8eae; next: finish NO36 model/MySim/number-label composition, then NO40/UG5 geometry; finish READY for verified answers even if other questions remain open.
+- Still open: NO33/NO43 pole model/resource/transform/Pick/wire/Draw and diagonal-floor numeric order; NO40/UG5 underground geometry.
 - Pylon source: main decomp/cSC4PylonOccupant.c lines 762–978 (MySim/replacement), 1217–1363 (label), 1385–1575 (model).
 - Underground source: decomp/cSC4UndergroundOccupant.c 1076–1837; connection source 1132–2168.
 - Pole source: decomp/cSC4PowerPoleOccupant.c 495–832 (Pick/model), 1003–1166 (wire draw), 1632–1784 (Draw).
@@ -38,4 +41,4 @@ Git commits succeeded despite an incidental packed-refs.lock permission message;
 - Decompiler stack variables in label/MySim/model-load paths are unreliable; verify from asm before publishing.
 - Constraint: owner closure table is inside engine and forbidden by task; use core lane report and question text as closure requirements.
 - Sources: main checkout export/decomp only; no REA binary open. No ABI or game runs expected.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-netocc-answers5d-r1-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-netocc-answers5d-r2-manifest.json.

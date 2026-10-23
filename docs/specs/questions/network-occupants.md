@@ -97,28 +97,6 @@ implementer of the class tables and records.
   rectangle, sampled-list eligibility, unsigned extrema comparisons, signed output conversion and
   wrapping maximum-cell increment. Remaining model/Pick/wire/Draw contracts still prevent closure.
 
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
-  named matrices; SetUIState, SetBitmapInfo, dispatch type/state, SetSourceOccupant and SetPylonOwner
-  side effects; bounds/transform/position/pick; DoAnimationTick, SetVisibility, DoMessage, Draw and sort;
-  BuildMySimTexture, RebuildCurrentTexture, BuildCallNumberTexture and RebuildModel algorithms. Also
-  supply both PackRenderState descriptions and the renderer slot-0x28 result interpretation. The spec
-  names these members without behavior. The core implements only explicit lifecycle subscriptions,
-  call/drag storage and the record, with no host callbacks standing in for these owner methods.
-  [missing; sections 6.1-6.2 remain open]
-  **Progress 2026-10-23 (re-netocc-answers5):** §6.2.1 and tests 40–42 now specify changed/equal enum
-  setters, unconditional bitmap dirtying, source/owner ref ordering, the shared u32 blink timer,
-  position/reinsertion and visibility. Existing §6.2/test 20 already supplies both packing tuples and
-  the discarded renderer +28 result. Texture/model composition, Draw/Pick, transform/bounds/sort and
-  message decisions remain open; these partial rules do not close NO36.
-  **Progress 2026-10-23 (re-netocc-poles5):** §6.2.2/tests 46–48 now settle cached local/world
-  bounds, transform counter/mask copies, texture-ID sorting, pick eligibility/height/strict distance,
-  ordinary texture resource tables and stale-ID behavior on replacement failure. Full model construction,
-  MySim/label composition, Draw and message owner algorithms remain open. NO44 is answered separately.
-  **Progress 2026-10-23 (re-netocc-answers5d):** §6.2.3/tests 52–53 settle Draw's pass-specific dirty
-  consumption, main/label submissions, dispatch-state label gate and all message decisions. Model and
-  MySim/number-label composition remain open; no full owner closure is claimed.
-
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
   serves, and what the small interface at `+0x20` (vtable `0x00AA7F60`, slots `0x005E06A0`, `0x005E06B0`,
