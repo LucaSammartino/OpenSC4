@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 337 (Dormant tutorial/citydetail/variant/feature shadow keys and the traffic sentinel fix landed; landvalue dropped one line (run 5).); 336 (Advisors shadow exact in the house regress and credited; particles, strings, network rules and GZ framework contracts landed (run 5).); 335 (advisors round 2, clean 2032 run, strict shadow 1/73 with all differences explained by AD18); 334 (Advisors shadow and Lua host owners landed; web/network and grid/RNG contracts merged; traffic flake recurred (run 5).); 333 (Seven lanes landed after bisecting out the netocc shadow; effects parser commands claimed; resumes no longer blocked by the unmerged cap (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 341 (Tutorial and city-detail shadows exact in the house regress and credited; GZ framework core owners claimed implemented (run 5).); 337 (Dormant tutorial/citydetail/variant/feature shadow keys and the traffic sentinel fix landed; landvalue dropped one line (run 5).); 336 (Advisors shadow exact in the house regress and credited; particles, strings, network rules and GZ framework contracts landed (run 5).); 335 (advisors round 2, clean 2032 run, strict shadow 1/73 with all differences explained by AD18); 334 (Advisors shadow and Lua host owners landed; web/network and grid/RNG contracts merged; traffic flake recurred (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
