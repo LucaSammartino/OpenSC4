@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-network-transport4: portable socket/stream owner | Codex / `core-network-transport4` (engine lane) | blocked: quick wrapper has no terminal result | Coordinator must resolve live quick session 22211; then ONE canonical all on committed source; no queue filed |
+| core-network-transport4: portable socket/stream owner | Codex / `core-network-transport4` (engine lane) | in progress: original round 2/3, first full qualification | Run ONE canonical all after observed drain; collect actual terminal; no queue yet |
 
 ## Handoff
 - Goal: first portable raw-operation socket/stream owner, no native adapter or NameLookup.
@@ -11,9 +11,13 @@
 - Literal fixture expectations authored before production. 38 portable tests passed; quick core 3440/0, integration 21/0 + 13/0 + 19/0; native build still awaiting actual wrapper terminal (session 22211).
 - Formatting: owned-file in-place rustfmt + qbuild fmt passed using absolute paths. q.py Bash startup denied; no shell/config workaround used.
 - Production and fixtures committed in `58dcdb7d`; engine tree `031bb4830a3a8ecc148148bc6a1d10068a503aa4`.
-- BLOCKER: quick session 22211 is still live, no terminal/exit code after repeated same-session waits. Do not cancel/duplicate/restart it from this lane.
+- Historical quick session 22211 has UNKNOWN terminal/exit, not current liveness. No Clippy/CTest/all proof exists from it.
 - `build-runs/fc4verify-build.log` last write 2026-10-23 06:45:25 local: [216/217] DLL link and [217/217] test-executable link. These are NOT native RC/PASS evidence.
-- Next: coordinator resolves runner stall externally; obtain actual quick exit, then ONE canonical qbuild all (not yet started; no overlap). Capture every Rust summary, clippy RC, native RC, full CTest and terminal.
+- Root watcher9 terminated ONLY optional statistics PID8008/creation1792734327.1859694, exit15 at 06:53:23.406467 BST; verifier29196 and daemon18884 remained alive then. Journal: `build-runs/coordinator-optional-stats-20261023-065321.json`. R1 omitted this intervention; no validator/compiler/cache restart is established.
+- Copied HOST census 07:05:30 BST: own_matches/errors/services empty, own port4617, known DLL/PDB/native log write probes clear. Later historical process disappearance has UNKNOWN cause/exit.
+- R2 prepare at 06:11:41 UTC: exact historical PIDs21424/38576/29196/8008/18884 all ABSENT; clean HEAD0ae33913, engine031bb483, all three owned hashes match prior source. No stale session wait or new broad host census.
+- Prior raw evidence copied before overwrite to `build-runs/transport-r2-all/historical-r1/`; `preflight.json` records current identities/hashes. Recorder `build-runs/transport-r2-qualify.py` launches the normal qbuild wrapper once, saves actual child PID/creation/cwd/argv and raw output/terminal RC.
+- Next: FIRST ONE canonical qbuild all on unchanged committed engine; collect same exec session through terminal. Capture every Rust summary, clippy RC, native RC, full CTest and terminal. No additional focused/baseline/quick or native-original/game/network execution.
 - Evidence: `build-runs/transport-evidence.json`, `build-runs/transport-audit.py`, `build-runs/fc4verify-{quick-test,quick-deps,configure,build}.log`; host process/port/creation not inspected (task forbids process/cache RPC operations).
 - Unsupported: nonzero connect scheduling, native address adapters, notifications/options/factories/NameLookup. Q11–14 and old web questions remain open; no new question needed for prescribed portable choices.
 - No game requests; no ABI/plugin/CAPI changes permitted.
