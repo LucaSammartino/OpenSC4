@@ -69,6 +69,14 @@ struct Provider {
     drops: Arc<Mutex<Vec<u32>>>,
     loads: Mutex<Vec<ResourceKey>>,
     id_args: Mutex<Vec<(u8, bool)>>,
+    lights: Mutex<Vec<LightingRequest>>,
+}
+impl ProcessorLighting for Provider {
+    fn light_model(&self, _meshes: &mut [Mesh], request: LightingRequest) {
+        // Resource fixtures test geometry only. Dispatch and actual processor
+        // mutations are verified separately by RecordingProcessor below.
+        self.lights.lock().unwrap().push(request);
+    }
 }
 impl ModelProvider for Provider {
     fn model_instance_id(&self, rotation: u8, alternate: bool) -> u32 {
@@ -112,6 +120,7 @@ fn provider(vertices: Vec<Vertex>) -> Provider {
         drops: Arc::new(Mutex::new(Vec::new())),
         loads: Mutex::new(Vec::new()),
         id_args: Mutex::new(Vec::new()),
+        lights: Mutex::new(Vec::new()),
     }
 }
 
@@ -159,6 +168,120 @@ fn model(q: &DrawQuery, i: usize) -> &Arc<NetworkModelInstance> {
     match &q.instances[i] {
         PieceRender::Model(m) => m,
         _ => panic!("expected heap model"),
+    }
+}
+
+struct RecordingProcessor {
+    source: Arc<Vec<Vertex>>,
+    calls: Mutex<Vec<(LightingRequest, usize)>>,
+}
+
+impl ProcessorLighting for RecordingProcessor {
+    fn light_model(&self, meshes: &mut [Mesh], request: LightingRequest) {
+        // LightModel sees the winding already changed and the source retained.
+        let expected = if request.flip { vec![2, 1, 0] } else { vec![0, 1, 2] };
+        assert_eq!(meshes[0].indices.as_ref().unwrap(), &expected);
+        assert!(!Arc::ptr_eq(&meshes[0].vertices, &self.source));
+        self.calls
+            .lock()
+            .unwrap()
+            .push((request, Arc::strong_count(&self.source)));
+        for mesh in meshes {
+            for vertex in Arc::make_mut(&mut mesh.vertices) {
+                vertex.color = 0xFE12_3456;
+            }
+        }
+    }
+}
+
+#[test]
+fn owner_lights_after_winding_before_release_and_keeps_processor_output() {
+    for flip in [false, true] {
+        let mut p = provider(vec![vertex(0.0, 0.0, 0.0); 3]);
+        p.mesh.indices = Some(vec![0, 1, 2]);
+        let processor = RecordingProcessor {
+            source: Arc::clone(&p.mesh.vertices),
+            calls: Mutex::new(Vec::new()),
+        };
+        let mut m = instance(&p);
+        assert!(m.bind(CONSTANTS));
+        m.transform = ModelTransform::new(0.3, [2.0, 4.0, 6.0], flip);
+        m.flip_and_light(flip, &processor);
+        let calls = processor.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        let (request, retained) = calls[0];
+        assert_eq!(request.flip, flip);
+        assert_eq!(request.transform.translation, m.transform.translation);
+        assert_eq!(request.transform.mask, m.transform.mask);
+        assert_eq!(
+            request.transform.rotation,
+            m.transform.rotation.map(|v| if flip { -v } else { v })
+        );
+        assert_eq!(retained, Arc::strong_count(&processor.source) + 1);
+        assert_eq!(m.retained_source_arrays(), 0);
+        assert!(m.meshes[0].vertices.iter().all(|v| v.color == 0xFE12_3456));
+        assert!(processor.source.iter().all(|v| v.color == 0x1234_5678));
+    }
+}
+
+#[test]
+fn draw_dispatches_processor_for_main_and_second_and_honours_skip() {
+    let p = provider(vec![vertex(0.0, 0.0, 0.0); 3]);
+    let mut piece = piece();
+    let mut state = state();
+    state.second_id = 9;
+    state.orientation_byte = 0x80;
+    let query = piece.get_model_instances(&p, &state, CONSTANTS);
+    assert_eq!(query.instances.len(), 3);
+    assert_eq!(p.lights.lock().unwrap().len(), 2);
+    assert!(p.lights.lock().unwrap().iter().all(|r| r.flip));
+    state.option_6a845768 = true;
+    let query = piece.get_model_instances(&p, &state, CONSTANTS);
+    assert_eq!(query.instances.len(), 3);
+    assert_eq!(p.lights.lock().unwrap().len(), 2);
+    assert!(model(&query, 1).lighting.is_none());
+    assert!(model(&query, 2).lighting.is_none());
+}
+
+#[test]
+fn mode_zero_only_rejects_the_unspecified_cut() {
+    let p = provider(vec![vertex(0.0, 0.0, 0.0); 3]);
+    let mut m = instance(&p);
+    let original = m.meshes.clone();
+    let bounds = m.bounds;
+    assert_eq!(m.clip(None, 0), Ok(false));
+    assert_eq!(m.clip(Some(slab(-1.0, 1.0)), 0), Ok(false));
+    let box_outside_x = Bounds {
+        min: [1.0, -1.0, -1.0],
+        max: [2.0, 1.0, 1.0],
+    };
+    assert_eq!(m.clip(Some(box_outside_x), 0), Err(UnspecifiedClipMode));
+    assert_eq!(m.meshes, original);
+    assert_eq!(m.bounds, bounds);
+}
+
+#[test]
+fn model_conformance_24_returns_separate_instance_with_corner_heights() {
+    let p = provider(vec![
+        vertex(-8.0, 0.0, -8.0),
+        vertex(-8.0, 0.0, 8.0),
+        vertex(8.0, 0.0, 8.0),
+        vertex(8.0, 0.0, -8.0),
+    ]);
+    let mut piece = piece();
+    let mut state = state();
+    state.position[1] = 2.0;
+    state.corners = [0.0, 4.0, 8.0, 0.0];
+    for diagonal in [false, true] {
+        state.network_flags = if diagonal { 0x1000000 } else { 0 };
+        let query = piece.get_model_instances(&p, &state, CONSTANTS);
+        assert_eq!(query.instances.len(), 2);
+        assert!(matches!(&query.instances[0], PieceRender::Embedded(_)));
+        let instance = model(&query, 1);
+        for (v, corner) in instance.meshes[0].vertices.iter().zip(state.corners) {
+            assert_eq!(v.pos[1] + instance.transform.translation[1], corner);
+        }
+        assert!(p.mesh.vertices.iter().all(|v| v.pos[1] == 0.0));
     }
 }
 
@@ -241,7 +364,7 @@ fn bind_private_copy_colour_bounds_source_lifetime_and_rejection() {
     assert_eq!(m.meshes[0].vertices[0].u, p.mesh.vertices[0].u);
     assert_eq!(m.bounds, bounds);
     assert_eq!(m.retained_source_arrays(), 1);
-    m.flip_and_light(false);
+    m.flip_and_light(false, &p);
     assert_eq!(m.retained_source_arrays(), 0);
     let mut m = instance(&p);
     m.meshes[0].format = 99;
@@ -275,7 +398,7 @@ fn flip_changes_transform_row_and_winding_not_positions_or_uvs() {
             if i < 3 { -normal.rotation[i] } else { normal.rotation[i] }
         );
     }
-    m.flip_and_light(true);
+    m.flip_and_light(true, &p);
     assert_eq!(m.meshes[0].indices.as_deref(), Some(&[8, 7, 6, 5, 4, 3, 2, 1, 0][..]));
     assert_eq!(m.meshes[0].ranges[0].start, 6);
     assert_eq!(m.meshes[0].ranges[1].start, 0);
@@ -296,7 +419,7 @@ fn flip_changes_transform_row_and_winding_not_positions_or_uvs() {
         },
     ];
     let mut m = instance(&p);
-    m.flip_and_light(true);
+    m.flip_and_light(true, &p);
     assert_eq!(m.meshes[0].indices.as_deref(), Some(&[7, 6, 5, 4, 3, 2][..]));
     assert_eq!(m.meshes[0].ranges.iter().map(|r| r.start).collect::<Vec<_>>(), [3, 0]);
 }
