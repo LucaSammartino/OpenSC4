@@ -160,8 +160,8 @@ cell conversion, truncation-toward-zero, nearest-vertex rule or fixed radius is
 present. Negative coordinates follow floor in the stated finite floor domain.
 
 The floor dispatcher at `0x009EFF60–0x009F0080` selects an SSE2 path only when
-its dispatch word at `0x00BB9D38` is nonzero and the tested MXCSR/x87 mask bits
-qualify (`0x009EFF60–0x009EFF98`). Its finite SSE2 path removes fractional bits
+its dispatch word at `0x00BB9D38` is nonzero, `MXCSR & 0x1F80 = 0x1F80`, and
+`x87 CW & 0x007F = 0x007F` (`0x009EFF60–0x009EFF98`). Its finite SSE2 path removes fractional bits
 and adjusts negative nonintegers downward. Otherwise it delegates to
 `lib::__floor_default` at `0x009FB0FA`. The helper does not choose this branch.
 The primitive's exceptional-input/error machinery and ambient startup control
@@ -293,8 +293,8 @@ fields are the expected observations; uninitialized padding is excluded.
 
 ### 5.1 Numeric environment and geometry literals
 
-For these conditional traces use x87 PC=64-bit significand, RC=nearest-even,
-masked exceptions, qualifying MXCSR mask bits and a nonzero floor-dispatch
+For these conditional traces use x87 CW=`0x037F` (PC=64-bit significand,
+RC=nearest-even, masked exceptions), MXCSR=`0x1F80` and a nonzero floor-dispatch
 word, so that the inspected finite SSE2 floor path is selected. Scalar replies
 are the exact finite ST(0) dyadics listed; no primitive changes the control
 environment. No claim is made that every original thread starts in that state
