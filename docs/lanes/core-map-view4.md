@@ -1,21 +1,113 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-map-view4 (bounded portable MapView owner) | `Codex` / `core-map-view4` (engine lane, detached HEAD) | in progress | (1) inventory published methods and fixtures; (2) implement coherent bounded algorithms; (3) required gates |
+| core-map-view4 (bounded portable MapView owner) | `Codex` / `core-map-view4` (engine lane, detached HEAD) | ready for bounded source integration: cargo 5286/0, clippy 0 diagnostics, CMake 4/4, full CTest 68/68; 24 MapView fixtures; new-file fmt 7/7, inherited lib.rs formatting differences retained; QV5-QV11 appended; ABI unchanged; game/shadow n/a | (1) coordinator combined integration gate; (2) obtain missing contracts before extending partial owner bodies |
 
-## Handoff
-- Goal: first pure-core MapView implementation; preserve QV1-QV4 and missing palette/ramp/grid/highlight/summary boundaries.
-- Base: detached `4706fd83`, reserved worktree reused; initial status clean.
-- Done: preimplementation inventory/questions/fixtures `b59d16e7`; bounded production source and 24 fixtures committed `f1c71dd6`.
-- Baseline all: cargo 5262/0, clippy 0 diagnostics, CMake 215/215 edges; CTest 67/68, cargo_test compile error u32 & i32 in new premultiply closure. Tree changed during run; not a clean baseline. Initial failure retained in baseline evidence before next gate.
-- Focused native-shell command via q.py direct argv passed 24/24 (3220 filtered); log `build-runs/focused-map-view.log`. A single-string Bash attempt failed E_ACCESSDENIED; retained q log.
-- Quick once: i686 core 3244/0, dependents compile-only, CMake 4/4. Wrapper remained outstanding long after logs completed, interrupted with Ctrl-C (exit 1, no summary); no duplicate quick. Logs archived under build-runs/quick/.
-- Formatting: new seven files now follow engine/rustfmt.toml max_width=120; scoped qbuild fmt exit0, files7. Full eight-file fmt has inherited lib.rs/module-child differences; base/current root-only style comparison both fail, current lib.rs exactly one additive final declaration. No broad reformat.
-- Next: commit formatting-only source; run final all with source frozen; audit sums/artifacts, final report/queue. Focused 24/24 and quick 3244/0 predate whitespace-only correction; final all must cover corrected source.
-- Scope: new map_view module/tests, additive lib.rs declaration, appended map-view questions, this report only.
-- No game/native probes, ABI/plugin/CAPI/default changes, subagents, branch/ref mutation, or forbidden paths.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-map-view4-r1-manifest.json`.
-- All initial gate logs archived by apply_patch moves in `build-runs/baseline/`. Audit helper `build-runs/audit-map-view-gate.py` reads totals, source hashes and DLL/staticlib flags; extend for fc4verify-quick-test.log if needed.
-- Owner accounting: 87 functions / 31396 bytes is context only; named operations and unknown body sizes will be recorded independently.
+## Delivery report (2026-10-23)
+
+Added the production pure-core `engine/core/src/map_view` module and one final module declaration in
+`engine/core/src/lib.rs`. No existing simulator, grid, UI, CAPI, plugin, default, map or coverage owner changed.
+This delivery implements bounded algorithms and partial prefixes, with explicit Unsupported boundaries.
+It does not complete SetDataView, Update, UpdateHighlights or the native owner. The owner total
+**87 functions / 31396 bytes**, and the brief's **26 named functions**, remain attribution context only.
+Per-body byte sizes and implemented-body byte credit are unknown; no whole-owner credit is claimed.
+
+### Supported algorithms and exact domains
+
+- `MapView` owns active/current/requested/source/config/resource/dirty/last-redraw/notification/subscription,
+  highlight-observation and overlay-registration state. Getters use shared references, with a Send + Sync
+  fixture and no RefCell. Portable construction accepts explicit clock/notification baselines and starts
+  with unknown current view; native constructor defaults remain unpublished (QV9).
+- `init` emits the published ordered generic init/subscription/marked-cell intents with an explicit native
+  allocation boundary. Activation/deactivation own registration intents and the active flag. Hook/unhook
+  own the exact source-message table, register-then-subscribe order and source76 priority 0xC0 (others 0).
+  Repeated Init/Hook semantics are refused rather than invented.
+- `set_data_view` preserves everything on inactive/current-view no-ops. The active changed-view prefix drops
+  update subscriptions before raw exemplar lookup; missing resource is represented separately. It decodes
+  and stores supported fields, then **stops at owner ramp generation**. Current view is never committed by
+  this prefix. None stops at default-filter construction (QV1), retaining later source/config/highlight
+  state instead of fabricating filter/reset calls. No custom view is created or released by this module.
+- Exemplar inputs are typed raw resource properties. Supported decoding includes checked resource-key
+  arithmetic, source, raw ramp pairs, scale range `1 < s < 2^24` else 256, default layer 1, required typed
+  interpolation/highlight fields and block-property presence (including argument zero). Independent raw
+  helpers retain nonzero occupant types, map terrain modes 0/1/2 to 1/3/2, read typed bools, and keep at most
+  eight travel entries already in byte range. Missing/malformed consumed fields, duplicates, invalid modes,
+  oversized/high-bit travel lists and key overflow are Unsupported. Remaining fields stay raw; no host can
+  provide a normalized MapView configuration, filter, palette or complete owner decision.
+- Source selection covers all published simulator slots/arguments/value types and own-cell source29.
+  Sources 11, 13-23 and 31-63 select DrawNothing; this is no bitmap-clear acknowledgement (QV9). All twelve
+  source64-75 developer types are distinguished: layer2 slot14/u16, layers3/4 slot13/i16, debug flag forcing
+  layer6's slot11-entry-times12 request. Layer1/unknown layers, layer5 construction and layer6 grid layout
+  remain unsupported. Layer selection does not build a developer grid or provide its conversion.
+- Source notifications and changed-value 0xA6B79602 own dirty decisions. Every delivered tick collects raw
+  highlights, even while clean/throttled. Known dirty redraws become due at elapsed >=1000 ms, or >=250 ms
+  with source76 always dirty. Unresolved highlight comparison cannot prove a clean map. Partial Update
+  intents retain dirty and last-redraw time; no public redraw-acknowledgement callback bypasses the boundary.
+  Times earlier than the supplied last-redraw baseline are refused; clock wrap/commit behavior remains QV9.
+- Palette helpers implement full-domain u8 identity and i8 +128, finite floats whose truncated result is
+  0-255 (including -0.75 -> 0 and 255.99 -> 255), direct lookup/emission from an explicitly supplied raw
+  256-entry palette, and rounded per-channel alpha multiplication. Nonfinite/out-of-range truncated floats
+  are refused before output writes. Both entire 16-bit conversion domains are Unsupported (QV5).
+  `emit_grid` reuses unchanged `TractGrid` raw reads in its documented x-outer/z-inner order. Supplied
+  palettes/grids exercise helpers only; they never construct the owner's palette or complete Update.
+- Highlight helpers select the documented raw collection/coverage slots for kinds1-4 and6-9, collect
+  matching individual building records, select residential/fire-half/police-half radii for1-4, retain
+  unspecified radius for6-8 and explicit none for9. Candidate enumeration retains input order only as an
+  observation. **Native comparison/order/equality, dirty changes and complete UpdateHighlights remain
+  Unsupported**, including repeated identical observations. Kind0 and crime hotspot kind5 are unsupported.
+- Overlay helper state emits renderer slot32/layer5/priority1000 registration once and one verbatim mark
+  per explicitly supplied coloured cell with complete finite raw origin/extent/altitude/colour. Invalid
+  geometry is refused before registration. It does not infer cell inclusion, alpha thresholds, geometry,
+  depth transforms, manager behavior or damaged-road effects, and is not a complete Update.
+
+### Bodies still unimplemented
+
+Owner ramp generation, coarse-grid interpolation, BlockMapByLot, developer layer5/debug-grid construction,
+crime/traffic markers, source76 traffic collection/rendering, native allocation/failure handling, default
+filter/reset calls, custom-view lifecycle, child-flag application and current-view completion remain open.
+Buttons/exclusion/groups/remembered values, tutorial commands, panels, ResetDataView, 3D filter options,
+legend UI and crime-hotspot effects retain their summary/QV boundaries. There is no opaque host callback
+returning SetDataView, Update, GetHighlights, comparison results or completed owner stages.
+
+### Validation and retained failures
+
+| Check | Measured result and evidence |
+|---|---|
+| Preimplementation | Inventory, questions and independent literal fixtures committed before production code in `b59d16e7`. Production algorithms/24 fixtures in `f1c71dd6`; report checkpoint `6dd6c14b`; engine-style formatting in `5af24714`. |
+| Initial all | Cargo 5262 passed/0 failed, clippy 0 diagnostics, CMake 215/215; CTest 67/68. Source was changed before CTest finished, causing E0277 in the new alpha closure and a tree-changed warning. **Not a clean baseline.** Fixed before substantive source commit; full failure logs retained at `build-runs/baseline/`. |
+| Focused | 24/24 MapView tests, 3220 filtered, via q.py direct argv/native shell; `build-runs/focused-map-view.log`. Earlier single-string Bash launch failed E_ACCESSDENIED before testing, retained under `build-runs/q/`. |
+| Quick, once | Raw i686 core results 3244 passed/0 failed/0 ignored (including 24 MapView), dependents compile-only, CMake 4/4. Wrapper remained outstanding after completed logs and was interrupted (exit1, no final PASS); retained at `build-runs/quick/`. It was not repeated. |
+| Formatting | Final scoped qbuild fmt passes all seven new files. Initial wrong-relative-path failure and 100-column mismatch retained in `build-runs/format-observations.txt`. Eight-file fmt attempt reported 1630 diff lines before correcting new-file width; inherited lib.rs/module-child formatting was retained. Read-only `audit-lib-format.py` proves base/current root differ from engine style and current lib.rs is exactly base plus one final module declaration. No broad reformat. |
+| **Final all** | **qbuild PASS, exit0** against frozen committed source `5af24714`: summed Cargo **5286 passed/0 failed/0 ignored** over 22 result rows, MapView **24/24**, clippy **0 diagnostics**, CMake **4/4 edges (67.3 s)**, full CTest **68/68** (listed68, actual122.56 s; wrapper122.7 s), fc4verify PASS847.6 s without a tree-changed warning. Current `build-runs/qbuild-*.log`, `fc4verify-*.log`; compact final audit `build-runs/q/20261023-023427-26416.log`. |
+
+Discriminating tests include full eight-bit domains with distinct palette entries, signed -128/0/127 and
+unsigned0/255 emission, float truncation/refusals, the independent arithmetic exposing QV5, typed resource
+defaults/ranges/refusals, active/current/none preservation, all empty ranges and simulator/developer cases,
+source-message changes, every-tick polling and 999/1000/249/250 thresholds with retained dirty state,
+raw radii/unsupported repeated-highlight comparison, and once-only overlay registration/atomic refusal.
+
+### Source, build flags and artifacts
+
+The final audit confirmed the same frozen lib.rs/new-module combined SHA256
+`ba2d859f871fb8552258cd36e58c5bc151fb2d605d47a2a32bfdf4f97cafcafb` before and after the final gate.
+The release core fingerprint is i686-pc-windows-msvc with `-C target-feature=+crt-static`; generated C++
+Ninja rules use sccache and `-MT`, CMake cache is Debug/Ninja with FC4_COMPILER_CACHE=ON.
+The build reports `engine/tests/abi_entries.inc` unchanged (185 interfaces); it was not edited.
+
+- `engine/build-x86/FreeCity4.dll`: 18185728 bytes, SHA256 `dae8b8916b2a586bc42c5699c5a2409ddf38eb027a71629da61784013873d3eb`.
+- `engine/build-x86/cargo/i686-pc-windows-msvc/release/fc4_capi.lib`: 79184404 bytes, SHA256 `57b40c8df01e895e08cc834d155c55684835153ed7f6a53438275a4b3eb9791c`.
+
+Report-only commits after the frozen-source final gate do not require repeating it. No game/native probe,
+game request, live service or shadow run was made, as this brief forbids them. No native compatibility,
+ref-warning count, replacement/default promotion or full-owner result is claimed. C ABI exports unchanged.
+
+### Questions and next steps
+
+Appended **QV5-QV11** to `docs/specs/questions/map-view.md`, preserving QV1-QV4 and leaving the generated index
+untouched: contradictory16-bit arithmetic/default factors; missing/malformed raw fields/failures; highlight
+comparison/radius semantics; ramp/resampling rules; initial/reset/clock/empty-source state; float/overlay
+geometry limits; developer default/debug layout. These contracts are required before extending the listed
+unsupported bodies. The coordinator's combined integration gate remains required before landing with other
+lanes. This lane is ready for review/integration of the explicitly bounded tested production source only.
 
 ## Preimplementation owner-method inventory (2026-10-23, before production source)
 
