@@ -71,7 +71,7 @@ recording. There is no duplicate classifier/walker generating expected decisions
 | Save first raw continuation without early lower-bound decision | C §3/§5.4: low but structural first continuation does not skip later checks | `if position == 1 { first = byte; }` only caches; `width >= 3` block is after complete continuation loop | S12 [0,1,2,0] versus S13 [0,1,2]; S14 [0,1,2,3,0], S15 [0,1,2,3,4,0], S16 [0,1,2,3,4,5,0] in `public_stopping_and_lower_bound_read_order`. |
 | Actual lead re-read and four deferred minima | C §3 and §5.4 ordered traces: re-read lead, no re-read of first continuation; E0/A0, F0/90, F8/88, FC/84 only | `match read(current)` inside `if width >= 3`; constants a0/90/88/84, `_ => 0x80`; `if first < minimum { return false; }` | S12/S14/S15/S16 prove each re-read and deferred failure; S13 proves earlier bad continuation prevents it. V10–V18, V23–V34 and V41–V44 distinguish minima, accepted boundary, non-special next lead and overlong rejection. Successful re-read for every non-special lead is established statically, not by a dedicated trace fixture. |
 | Exact success advance and full span, including next invalid lead | C §3: advance width, stop without advance on reject; succeed only at end | `current += width` is after all rejects; loop then `true`; every reject returns before the update | S17 widths 1,2,3,4,5,6,1 =22 returns true; S18 consumes 2 then rejects BF, trace [0,1,2]; S08/S09 [0,1] protect no suffix scan. V03 multi-ASCII; S06 continuation then zero. Internal consumed offset is not an output. |
-| No additional effects or decoder restrictions | C §2/§4: AL Boolean; no writes, allocation, calls to foreign validator, normalization or scalar upper bound | Public returns `Result<bool, UnsupportedCount>`; walker only reads callback, mutates locals and returns bool; no unsafe, allocator, shared state or foreign routine | V19/V20 modern-boundary contrast, V21/V22 F5/F7, V24–V32 five/six-byte, V35–V38 surrogate/noncharacter cases. Source inspection, not fixture count, establishes absence of writes/host substitution. |
+| No additional effects or decoder restrictions | C §2/§4: AL Boolean; no writes, allocation, calls to foreign validator, normalization or scalar upper bound | Public returns `Result<bool, UnsupportedCount>`; walker only reads callback, mutates locals and returns bool; no unsafe, allocator, shared state or foreign routine | V19/V20 modern-boundary contrast, V21/V22 F5/F7, V24–V32 five/six-byte, V35–V38 surrogate-neighbor cases. Source inspection, not fixture count, establishes absence of writes/host substitution. |
 
 ## Universal argument beyond fixtures
 
@@ -109,9 +109,14 @@ Native negative/high-bit counts, wrapping ends and pointer validity are not spec
 normal contract. This is a pre-existing public domain, not one invented to hide an unimplemented
 known valid branch. Null-zero deserves a separate boundary: C says no null validation and puts
 null use outside supported contract, even for zero; the portable empty slice establishes the
-normal readable-backing empty case only. No null rejection, native fault behavior or native
-null-zero equivalence is claimed. A later public extension admitting null-zero or any other
-valid normal branch requires renewed whole-function review, not silent reclassification.
+normal readable-backing empty case. Separately, the documented native end=pointer+count and
+final equality imply that at count zero end=start even at address zero, with no byte read:
+that pointer-independent AL=true/no-read branch is represented by an empty slice's true/no-read
+behavior, rather than treated as a fabricated false or hidden missing branch. This is a public
+entry/exit arithmetic inference, not a native null call or certification of a raw-pointer API.
+The contract still excludes null-pointer use as an API domain; no null validation or native
+fault behavior is invented. Any extension of the public input interface requires renewed
+whole-function review, not silent reclassification.
 UAF, unreadable/invalid pointers and concurrent mutation cannot be represented by a valid shared
 slice. The actual lead re-read is nevertheless implemented; mutation between reads is not proven
 or emulated. bool represents AL, never the pointer-derived upper EAX. No native fixtures ran.
@@ -142,3 +147,62 @@ The first analysis attempt passed literals/rawlogs/UTF8 source matches then fail
 raw Git-vs-worktree check on lib.rs. Investigating established CRLF checkout hashes plus actual
 additive module changes. The corrected analysis distinguishes these facts; it does not overwrite
 the failed observation with a fabricated all-engine stability claim.
+
+## Falsification and remaining proof limits
+
+This is a static challenge of the proposed correspondence, not mutation execution or a new test
+round. Candidate mistakes were checked against independent contract consequences:
+
+| Candidate defect | Discriminating evidence |
+|---|---|
+| Modern RFC decoder rejects historical forms or surrogate encodings | V20–V22, V24–V32 and V36/V37 explicitly expect true; inspected P has no scalar-limit branch. |
+| Treat zero as end marker or ignore a failing tail | S03/S04, S17/S18 distinguish full-span consumption; `current += width` and invariant explain arbitrary concatenations. |
+| Guard just one remaining byte or read accessible backing past count | T01–T15 and S07 must read only the lead; actual P checks total width before loop. |
+| Continue after first malformed continuation | B paired traces and S10/S11 include both valid/invalid suffixes, same early prefix reads; P immediately returns. |
+| Test E0/F0/F8/FC lower bound too early, or omit actual lead re-read | S12–S16 give exact deferred traces; S13 specifically forbids the re-read after bad position 2. |
+| Wrong bound such as E0/9F or F8/87, or impose bound on all leads of width | V10/V11, V15/V16, V23/V24, V28/V29 and V13/V18/V26/V31 separate each boundary and special/default branch. |
+| Advance one byte for multibyte success, overshoot, or silently skip a next lead | S17 mixed widths and S18 trailing BF reject; invariant establishes all widths/interior positions universally. |
+| Map count overflow to native false or accept all usize lengths | `check_count` synthetic boundaries separate Err from Ok(false); public function calls it before walker. |
+
+These are discriminators and dataflow reasoning, not assertions that every possible source
+mutation is caught by finite tests. Successful width>=3 default-lead re-read is not separately
+traced in A, maximal supported buffer is not allocated, and all interior bytes/long concatenations
+are not enumerated. The universal argument supplies these obligations using the actual match,
+loop range, guard, update and lack of other state. No generated expected result or production
+execution was used in this audit. C §3's completeness and its representation boundary are
+public evidence relied upon, not independently re-derived native facts by this worker.
+
+The draft JSON's `normal_domain_complete=true` records the worker's whole **published-policy**
+conclusion above. `owner=null` is an intentional unresolved exact-Attribution binding, not a
+fabricated owner string, and `review.approved=false` keeps the draft inadmissible. The supplied
+public entry name/address/416-byte body does not certify the resolver's current owner, exclusions,
+folded-name ambiguity or current export/artifact digest tuple. ROOT must bind those separately
+before any proposed ledger claim. No contract/implementation/test branch is declared outside
+normal solely to fit Rust. If independent review finds a valid missing branch or a defective
+public normal-domain premise, the entire entry must remain withheld and completeness become
+false; no fraction of the 416 bytes may be admitted.
+
+## Normalized dependency manifest
+
+All digests below use unchanged `coverage.py.text_sha256` semantics. These UTF-8 files need
+only CRLF-to-LF replacement; no whitespace or other text rewrite. The lane report separately
+hashes all three finished draft proof files, including the qualification JSON itself.
+
+| Bound dependency | Normalized SHA-256 |
+|---|---|
+| docs/specs/utf8-validation.md (entire contract, including §2/§3/§5) | 590d1b7f02ae5a5768c733c001760c72f8276983efec71d7b74b9a89c2008ab0 |
+| docs/specs/strings-language.md (standalone separation) | 7d588e5a05a837ec47f3165b0f9f73a861dd0f4a8d618885bf43c37511e5c82b |
+| docs/specs/foundations.md (tag definitions only) | 4f265ca6dace78239316c038961aa4f63fb8d50318ccc21624fe7d5ac930e03a |
+| docs/COVERAGE.md (strict admission protocol) | 0b8815f9c6e45ff5c870b190a90b3720763c5fdf9b52e8dce01d01c019bc2a97 |
+| engine/core/src/utf8_validation.rs (`MAX_COUNT`:11, `utf8_is_string_valid`:23, `check_count`:28, `walk`:39) | 2cb015fce52537a91a0baaa6640430b55c6a0ed2d1d6be3bb7beee5c7957ae19 |
+| engine/core/src/utf8_validation/tests.rs (`case!`:13, `CASES`:23; test/assertion symbols:142,154,168,178,205,229) | 58cdcc027c6b6db5bff6f013df82cb2cb614261e712093f330b305101e05f714 |
+| engine/core/src/lib.rs (current module integration) | b6b45d9aa518358a3192dd684ffd00241c191d78e7ac20c7757433b61bcada99 |
+| engine/core/Cargo.toml | 0e1083efd788603ca79452109ee662715660c0d42ba18bddaa441175bfd72343 |
+| engine/Cargo.toml | 79103248f6c407f6deb3183f515b7aecc9aa9ccdc696576e4011abaf7b9e1e43 |
+| engine/Cargo.lock (Git equality only, absent raw snapshots) | 840cf5fb3d86f24cfe24bc111a89b04af598ab5c9fa8fe0ceb2279146f3240d5 |
+| engine/.cargo/config.toml | 67de482f508bbc47907ba7ed8e24c9d7961002ba10ff8b2b77f845911f9b1817 |
+
+No foreign implementation dependency exists in the authoritative walker. Cargo integration hashes
+are recorded for provenance and limits, not a claim to have audited unrelated workspace modules.
+The retained validation binds raw logs/receipt custody and source stability separately from this
+normalized text manifest. Changing any cited dependency or proof requires renewed review.

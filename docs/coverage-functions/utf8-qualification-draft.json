@@ -1,0 +1,80 @@
+{
+  "address": "0091016F",
+  "owner": null,
+  "stages": ["specified", "implemented"],
+  "review": {
+    "by": "Codex, tools-coverage-utf8-qualification4; independent public artifact worker review, 2026-10-23",
+    "citation": "docs/coverage-functions/utf8-review.md#status-and-reviewer",
+    "approved": false
+  },
+  "normal_domain_complete": true,
+  "decisions": [
+    {
+      "contract": "docs/specs/utf8-validation.md section 2: readable byte buffer of count 0 through 0x7FFFFFFF, nonwrapping 32-bit pointer-plus-count; byte count, no sentinel-length mode.",
+      "production": "engine/core/src/utf8_validation.rs: MAX_COUNT = 0x7fff_ffff; check_count(count) rejects count > MAX_COUNT; utf8_is_string_valid calls check_count(bytes.len())? before walk(bytes.len(), |offset| bytes[offset]).",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: count_domain_is_distinct_from_false_without_allocating_gigabytes asserts check_count(0), check_count(MAX_COUNT) are Ok(()), MAX_COUNT + 1 and usize::MAX are Err(UnsupportedCount), and [0xff] is Ok(false). Synthetic predicate checks, not giant-buffer execution."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 2, 3, 5.4: Empty input succeeds; count zero accepted without reading; NUL inside span consumed as ordinary one-byte value; bytes beyond count irrelevant.",
+      "production": "engine/core/src/utf8_validation.rs: walk sets current = 0, while current < count; utf8_is_string_valid reads bytes[offset] in exactly the supplied slice, 0x00..=0x7f => 1.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases checks V01-V03 and S01-S07 using &case.backing[..case.count]; no_reads_on_empty_and_no_continuation_reads_on_all_15_truncations requires V01/S01 [] and S07 [0]; public_stopping_and_lower_bound_read_order checks S02-S06 exact read lists."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md section 3: eight inclusive unsigned lead rows 00..7F, 80..C1, C2..DF, E0..EF, F0..F7, F8..FB, FC..FD, FE..FF.",
+      "production": "engine/core/src/utf8_validation.rs: walk match lead selects widths 1,2,3,4,5,6 and immediately returns false for 0x80..=0xc1 | 0xfe..=0xff; read returns u8.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases, CASES V02-V44 cover lead edges, stray continuations, C0/C1, FE/FF, extrema and historical/non-scalar contrasts. Exhaustiveness for interior leads comes from disjoint complete match ranges and the independent static argument in utf8-review.md."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 3, 5.2: remaining count must first be at least total width; if shorter fail before reading any continuation.",
+      "production": "engine/core/src/utf8_validation.rs: if count - current < width { return false; } precedes for position in 1..width.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: no_reads_on_empty_and_no_continuation_reads_on_all_15_truncations uses assert_reads(case.id, &[0]) for all T rows and S07; CASES T01-T15 encode all fifteen shorter widths, and public_107_literal_cases checks false."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 3, 5.3: inspect continuations in ascending position order, reject first byte outside 80..BF; no later continuation or lower-bound condition examined.",
+      "production": "engine/core/src/utf8_validation.rs: for position in 1..width reads current + position; !(0x80..=0xbf).contains(&byte) immediately returns false.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: all_30_bad_continuations_stop_at_first_bad_position has literal B01/7F through B15/C0 pairs and read lists [0,1] through [0,1,2,3,4,5]; assert_reads checks result and reads, and asserts offset < case.count. S10/S11 have same early rejection with different unread suffixes."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 3, 5.4: extra condition only after all continuations pass; low E0 first continuation 80 is structurally valid and does not skip checking position 2.",
+      "production": "engine/core/src/utf8_validation.rs: if position == 1 { first = byte; } only caches; exceptional minimum block appears after continuation loop, under if width >= 3.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_stopping_and_lower_bound_read_order asserts S12 [0,1,2,0], S13 [0,1,2], S14 [0,1,2,3,0], S15 [0,1,2,3,4,0], S16 [0,1,2,3,4,5,0]."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md section 3 plus section 5.4 ordered traces: re-read lead for additional condition; E0 requires A0, F0 requires 90, F8 requires 88, FC requires 84 at first continuation.",
+      "production": "engine/core/src/utf8_validation.rs: match read(current) selects 0xe0 => 0xa0, 0xf0 => 0x90, 0xf8 => 0x88, 0xfc => 0x84, _ => 0x80; if first < minimum { return false; } uses cached first without another continuation read.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases contrasts V10/V11, V15/V16, V23/V24, V28/V29 and default leads V13/V18/V26/V31; S12/S14/S15/S16 literal traces require actual lead re-read after all continuations; S13 forbids re-read on earlier continuation failure. Successful default-lead re-read for arbitrary lead values is a static obligation, not an exhaustive trace-fixture claim."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md section 3: advance current and reduce remaining by exactly width on success; on rejection stop immediately without advancing past lead or inspecting later bytes.",
+      "production": "engine/core/src/utf8_validation.rs: current += width is after every rejecting return; no rejecting branch updates current or loops again.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases includes S17 accepted widths 1,2,3,4,5,6,1 total 22 and S18 false after next stray continuation; public_stopping_and_lower_bound_read_order checks S08/S09 [0,1], S10/S11 [0,1], S18 [0,1,2]."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 2, 3: Boolean AL 1 exactly at calculated end; success requires entire counted span; every supported iteration consumes at least one byte and no more than remaining count.",
+      "production": "engine/core/src/utf8_validation.rs: while current < count, guarded exact current += width, final true. Invariant current <= count <= MAX_COUNT and strict decrease of count-current establish equality at exit, termination and no overflow/out-of-span reads.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases checks empty V01, mixed S17 and leftover S18, while assert_reads checks in-span offsets. Universal induction in docs/coverage-functions/utf8-review.md supplies all lengths/interior-byte obligations beyond finite fixtures."
+    },
+    {
+      "contract": "docs/specs/utf8-validation.md sections 2, 4: no output writes or calls, no noncharacter/scalar/code-point upper-bound/normalization test; accepts five/six-byte forms, surrogates and above-modern-maximum values.",
+      "production": "engine/core/src/utf8_validation.rs: utf8_is_string_valid returns Result<bool, UnsupportedCount>; walk only reads raw bytes and modifies local traversal state, uses no foreign validator, writes, allocation, unsafe access or scalar decoder.",
+      "assertion": "engine/core/src/utf8_validation/tests.rs: public_107_literal_cases V14, V19-V22, V24-V32, V35-V38 cover noncharacter, modern-boundary, historical-width and surrogate-neighbor acceptances. No-writes/foreign-dependency claim is source dataflow analysis, not inferred from test count."
+    }
+  ],
+  "limitations": [
+    "DRAFT WITHHELD. owner=null is deliberately unbound: public address/name/416-byte attribution alone does not establish exact current resolver Attribution owner, exclusions/folds or artifact tuple. This is not a schema-valid ledger admission. ROOT must bind attribution and independently review artifacts; approved remains false.",
+    "normal_domain_complete=true is the independent worker's conclusion for the entire pre-existing public sections 2-3 normal readable nonwrapping count 0..7FFFFFFF policy, not native whole-owner completeness or unconditional admission. Any known valid missing branch or deficient contract/provenance must withhold the entire function, not a fraction of 416 bytes.",
+    "Portable bool corresponds to native AL, not upper EAX; no native cdecl entry or raw pointer API is exposed. Zero-count success/no-read is represented by empty slice. Public contract excludes null-pointer use as an API domain; no null validation, fault behavior, raw native invocation or runtime null-zero parity is certified.",
+    "Native signedness beyond supported residual counts, high-bit/negative count interpretations, wraparound, inaccessible pointers, UAF and concurrent mutation are outside the published normal policy. The actual lead re-read is preserved; no mutation oracle is used and no extra low-half address restriction is imposed.",
+    "107 cases are not exhaustive byte-array execution. Count MAX_COUNT admission is synthetic; arbitrary lengths, interior byte values, successful default-lead re-reads and long concatenations are justified by explicit source/dataflow induction in utf8-review.md, not invented fixture traces.",
+    "R2 retained logs establish only the historical completed gate and source-qualified unchanged UTF8 production/assertions. Forty engine files including seven additive lib.rs module declarations changed since that gate. Cargo.lock matches old Git normalized text but has no raw start/end source-map entry. No whole-current-engine gate is claimed.",
+    "Raw receipt custody is the coordinator-supplied retained archive, not new host attestation. R1 canonical terminal remains UNKNOWN despite later 68/68 CTest; WMI/Bash denials and unknown cache/exit cause remain distinct. Native fixture executions remain zero; no native verified/replaced credit."
+  ],
+  "validation": {
+    "command": "\"C:\\Program Files\\Python312\\python.exe\" C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:\\Users\\tlori\\FreeCity4\\.claude\\worktrees\\core-utf8-validation4 all",
+    "result": "PASS",
+    "production_sha256": "2cb015fce52537a91a0baaa6640430b55c6a0ed2d1d6be3bb7beee5c7957ae19",
+    "assertions_sha256": "58cdcc027c6b6db5bff6f013df82cb2cb614261e712093f330b305101e05f714",
+    "log_sha256": "a0e787eb6e0d1e241bdd479504e40256b5d3a3f8488e432e7ac95dd518372a3c",
+    "provenance": "docs/coverage-functions/utf8-validation.txt retains ACTUAL R2 argv, start 2026-10-23T06:15:24.826424+00:00, end 2026-10-23T06:17:18.666454+00:00, qbuild RC0 and raw PASS/five UTF8 ok lines/26 Rust summaries 5504/0/0/clippy0/native build2of2/CTest68. Seven raw log byte counts and digests matched terminal.json; raw source-map digest c3e22cff564280e4bbc4f3606c63a20c4b84d48fe3e012848501b79654b6a7dd matched both equal 1327-file maps. Git head 00ba5deee290d3725c1d1144ca7fa1d9470bf6a1 resolves engine 93ec65884a6ec407ea6fb403583eeece2d3d37e1; exact UTF8 blobs equal actual gated source hashes and normalized current files. Retained transcript raw SHA256 b87653eb32754ad4290df60788e09355eea4bd91539f0e3c9992c70aabfe529b; terminal raw SHA256 925a79a31e582d120d82db3596ea1dab49d19b54b1f19ce88b56210df4175038. The log digest here is the normalized public retained validation text, not the raw transcript digest. No gate was rerun by this worker; current integration and R1 limitations remain explicit."
+  }
+}
