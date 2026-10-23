@@ -49,6 +49,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CRH | coverage-radius-effect-helper |
 | CS | city-situation |
 | CT | city-tools, city-tools-input |
+| CY | region-city-dialogs |
 | DC | draw-context |
 | DG | building-development |
 | DM | demolition |
@@ -99,6 +100,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LU | language-utility |
 | LV | landvalue |
 | MI | model-instances |
+| MM | model-maker |
 | MPR | missing-plugin-reporter |
 | MS | mysims |
 | MW | mysim-windows |
@@ -191,7 +193,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animated-sprite | 8 | 1 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
-| application | 7 | 2 | AP10 | questions/application.md |
+| application | 9 | 2 | AP12 | questions/application.md |
 | audio-ambience | 3 | 10 | AA14 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
@@ -199,14 +201,14 @@ generated index: the questions live one file per spec, so read only the file for
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 2 | 14 | BW18 | questions/budget-window.md |
+| budget-window | 3 | 14 | BW19 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
-| camera | 6 | 4 | CA11 | questions/camera.md |
+| camera | 2 | 8 | CA11 | questions/camera.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 7 | 0 | CT18 | questions/city-tools.md |
-| city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
+| city-tools-input | 11 | 6 | CT18 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
@@ -258,6 +260,7 @@ generated index: the questions live one file per spec, so read only the file for
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
+| model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 1 | 17 | MS19 | questions/mysims.md |
@@ -274,8 +277,8 @@ generated index: the questions live one file per spec, so read only the file for
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
-| occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 11 | 7 | OP18 | questions/occupants-props.md |
+| occupant-manager | 1 | 6 | OM11 | questions/occupant-manager.md |
+| occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 5 | 6 | OV12 | questions/overlay-manager.md |
@@ -296,8 +299,9 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
-| region-model | 11 | 1 | RM13 | questions/region-model.md |
-| region-screen | 3 | 0 | QR4 | questions/region-screen.md |
+| region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
+| region-model | 13 | 1 | RM15 | questions/region-model.md |
+| region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | regional-city | 6 | 0 | RY7 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
@@ -321,7 +325,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
+| terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
@@ -337,13 +341,13 @@ generated index: the questions live one file per spec, so read only the file for
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
-| view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
+| view3d-window | 3 | 5 | VW9 | questions/view3d-window.md |
 | water-ripples | 5 | 6 | WR12 | questions/water-ripples.md |
-| watercraft | 5 | 3 | WC9 | questions/watercraft.md |
+| watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **529** | **1284** | | |
+| **total** | **535** | **1308** | | |
