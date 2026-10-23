@@ -10,15 +10,17 @@ WC3–WC5 stay open with explicit residuals. WC6–WC8 were not re-audited.
 
 - `67a4f8bf`: external idle-mode writer and spawn RNG/group semantics, model
   footprint construction/failures, all 32 inanimate corner-direction cases.
-- Current milestone: animation-false caller removal request, remaining tuning
+- `baa7898b`: animation-false caller removal request, remaining tuning
   uses/unused entry 34, AI target slew, full normal visual-basis composition.
 - Corrected the earlier spec's normal bow cap and lift from p[24] to p[18],
   including existing vectors. Instructions verify +0x38C for cap and lift.
 - 26 new named vectors (116 total); prose vectors for an engine lane to encode.
-- Final geometry milestone: §3.2 specifies endpoint outputs, maximum occupant
+- `91e4244f`: §3.2 specifies endpoint outputs, maximum occupant
   extent and outside-city order/results; it preserves the broader WC3 residual.
 - `python tools/doccheck.py check`: passed. `python tools/questions.py index`
   and `check`: passed. `git diff --check`: passed before this report update.
+- Final validation `python build-runs/validate-wc5-r2.py`: 116 unique vectors,
+  exactly WC3/WC4/WC5 open, Handoff 19 lines; committed worktree clean.
 - No cargo/clippy/ctest/game runs: spec-only work. No engine files read or
   changed; no C ABI exports or ABI rows changed. No REA invocation/failure.
 - Evidence came from read-only export queries, local decomp and PE constants;
@@ -30,6 +32,7 @@ WC3–WC5 stay open with explicit residuals. WC6–WC8 were not re-audited.
 ## Handoff
 
 - Goal: resolve remaining WC1–WC5 using export and original instructions; spec text only.
+- Done commits: 67a4f8bf (WC1/footprints/corners), baa7898b (WC2/normal attitude), 91e4244f (geometry helper contracts). Final doccheck/questions/diff checks pass; validator confirms 116 unique vectors and WC3–WC5 open. Round context reserve exhausted; resume from the next step below.
 - Final round-2 checkpoint: §3.2 and WC3-G01–G03 add four helper contracts; 116 total named vectors. Outside-city corner order differs from inanimate: (min,min),(max,min),(min,max),(max,max). Continue remaining audit; no merge queue until final completion.
 - Round 2 milestone: WC1 answered; manager spawn writer 0057272C, mode draw >0.5 and groups 4417/4418. Added model-footprint §5.7.3, inanimate corner tables §5.7.4; corrected normal bow cap/lift to p[18]. Added 15 vectors; questions index/check and diff check pass.
 - Worktree reused with detached HEAD as instructed; do not change refs.
