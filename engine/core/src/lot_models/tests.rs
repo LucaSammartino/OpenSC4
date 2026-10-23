@@ -1127,23 +1127,24 @@ fn portable_domains_do_not_silently_wrap_or_default() {
         CellCornerLayout::new([[0.0, 0.0]; 4], [[0.0, 0.0]; 4], CornerStep::Forward),
         Err(ContractError::InvalidInput)
     );
-    assert_eq!(
-        FoundationModel::<Binding>::new(
-            Footprint {
-                min: [0.0; 2],
-                max: [1.0; 2]
-            },
-            0.0,
-            1.0,
-            0.0,
-            FoundationTextureKeys {
-                sides: [None; 5],
-                tops: [None; 5]
-            }
-        )
-        .err(),
-        Some(ContractError::InvalidInput)
-    );
+    assert!(FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.0; 2],
+            max: [1.0; 2]
+        },
+        0.0,
+        1.0,
+        0.0,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5]
+        }
+    )
+    .unwrap()
+    .shape()
+    .top
+    .repeats[0]
+        .is_infinite());
 }
 
 #[test]
@@ -1222,24 +1223,60 @@ fn nonfinite_derived_foundation_dimensions_are_outside_portable_domain() {
         .err(),
         Some(ContractError::InvalidInput)
     );
-    assert_eq!(
-        FoundationModel::<Binding>::new(
-            Footprint {
-                min: [0.0, 0.0],
-                max: [16.0, 16.0]
-            },
-            0.0,
-            1.0,
-            f32::from_bits(1),
-            keys()
-        )
-        .err(),
-        Some(ContractError::InvalidInput)
-    );
+    assert!(FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.0, 0.0],
+            max: [16.0, 16.0]
+        },
+        0.0,
+        1.0,
+        f32::from_bits(1),
+        keys()
+    )
+    .unwrap()
+    .shape()
+    .top
+    .repeats[0]
+        .is_infinite());
 }
 
 struct FoundationSamples {
     calls: Vec<String>,
+}
+
+#[test]
+fn foundation_unchecked_scale_and_signed_existing_count() {
+    let mut model = foundation(80.);
+    let mut light = Light::default();
+    let change = model
+        .adjust_height_to_terrain(&border(40., None), false, &mut light)
+        .unwrap();
+    // C=trunc(-24/16)=-1, N=1: a negative existing count is still compared.
+    assert_eq!(change.base, 24.);
+    model.set_top_scale(0., &mut light).unwrap();
+    assert!(model.shape().top.repeats.into_iter().all(f32::is_infinite));
+    model.set_top_scale(-16., &mut light).unwrap();
+    assert_eq!(model.shape().top.repeats, [-2., -3.]);
+    assert!(light.normals.is_empty());
+}
+
+#[test]
+fn foundation_raw_draw_recolours_only_on_rotation_and_skips_highlight() {
+    let mut model = foundation(8.);
+    let mut factory = Factory::replying(&[Some((30, false)), Some((31, false))]);
+    let mut light = RawLight::default();
+    assert!(model
+        .draw_lit(true, zoom(0), Edge::North, &mut factory, &mut light)
+        .is_empty());
+    assert!(light.calls.is_empty());
+    let draws = model.draw_lit(false, zoom(0), Edge::North, &mut factory, &mut light);
+    assert_eq!(draws.len(), 3);
+    assert_eq!(draws[2].face.vertices[0].colour, [3, 2, 1, 255]);
+    assert_eq!(light.calls.len(), 5);
+    model.draw_lit(false, zoom(0), Edge::North, &mut factory, &mut light);
+    assert_eq!(light.calls.len(), 5);
+    model.draw_lit(false, zoom(0), Edge::East, &mut factory, &mut light);
+    assert_eq!(light.calls.len(), 10);
 }
 impl FoundationTerrain for FoundationSamples {
     fn width(&mut self) -> i32 {

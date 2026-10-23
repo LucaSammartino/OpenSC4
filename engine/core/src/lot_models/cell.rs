@@ -7,6 +7,10 @@ pub const CELL_TEXTURE_GROUP: u32 = 0x0986_135E;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Orientation(u8);
 impl Orientation {
+    /// Raw record bytes >3 retain UVs rather than selecting a table (§4.1).
+    pub fn from_byte(value: u8) -> Self {
+        Self(value)
+    }
     pub fn new(value: u8) -> Result<Self, ContractError> {
         if value < 4 {
             Ok(Self(value))
@@ -44,13 +48,28 @@ impl CellCornerLayout {
     }
 
     pub fn native_texture_corners(orientation: Orientation, mirror: bool) -> [Vec2; 4] {
+        // Unknown initial UV bytes remain LM2. This standalone helper starts
+        // with explicit zero storage; the owner retains its actual prior UVs.
+        let mut corners = [[0.; 2]; 4];
+        Self::update_native_corners(&mut corners, orientation, mirror);
+        corners
+    }
+
+    pub fn update_native_corners(corners: &mut [Vec2; 4], orientation: Orientation, mirror: bool) {
         let tables = [
             [[0., 0.], [1., 0.], [0., 1.], [1., 1.]],
             [[0., 1.], [0., 0.], [1., 1.], [1., 0.]],
             [[1., 1.], [0., 1.], [1., 0.], [0., 0.]],
             [[1., 0.], [1., 1.], [0., 0.], [0., 1.]],
         ];
-        tables[orientation.value()].map(|[u, v]| [if mirror { 1. - u } else { u }, v])
+        if let Some(table) = tables.get(orientation.value()) {
+            *corners = *table;
+        }
+        if mirror {
+            for [u, _] in corners {
+                *u = 1. - *u;
+            }
+        }
     }
     pub fn new(positions: [Vec2; 4], texture_corners: [Vec2; 4], step: CornerStep) -> Result<Self, ContractError> {
         let is_square = |corners: &[Vec2; 4]| {
@@ -237,6 +256,25 @@ impl CellPackedState {
     }
 }
 
+/// Shared Init outputs; absence of the render service leaves them untouched.
+/// Pre-Init native image state is unpublished (LM2), represented by None.
+#[derive(Default)]
+pub struct CellRenderInitialization {
+    pub states: Option<[CellPackedState; 3]>,
+    pub combiner: Option<[u8; 12]>,
+}
+
+impl CellRenderInitialization {
+    pub fn init(&mut self, render_service_present: bool) -> bool {
+        if !render_service_present {
+            return false;
+        }
+        self.states = Some([CellPackedState::OPAQUE, CellPackedState::ALPHA, CellPackedState::TINTED]);
+        self.combiner = Some([0, 0, 2, 0x21, 1, 0, 3, 1, 0, 0, 0, 0]);
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CellRgbOperation {
     SelectArg1,
@@ -325,8 +363,32 @@ pub struct CellTextureModel<T> {
     layout: CellCornerLayout,
     placement: Option<CellPlacement>,
     texture: Option<T>,
+    texture_alpha: bool,
     zoom: Option<Zoom>,
     rotation: Option<Edge>,
+    corners: [Vec2; 4],
+    basic: BasicModel,
+}
+
+impl<T> Drop for CellTextureModel<T> {
+    fn drop(&mut self) {
+        drop(self.texture.take());
+    }
+}
+
+impl<T: Texture> LotModelLifetime for CellTextureModel<T> {
+    fn basic(&self) -> &BasicModel {
+        &self.basic
+    }
+    fn basic_mut(&mut self) -> &mut BasicModel {
+        &mut self.basic
+    }
+    fn owner_interface(&self) -> ModelInterface {
+        ModelInterface::Cell
+    }
+    fn destroy_resources(&mut self) {
+        drop(self.texture.take());
+    }
 }
 
 impl<T: Texture> CellTextureModel<T> {
@@ -357,7 +419,7 @@ impl<T: Texture> CellTextureModel<T> {
         let Some(texture) = self.texture.as_ref() else {
             return Ok(1);
         };
-        let mode = cell_mode(self.record.mode, self.record.alpha, texture.has_alpha());
+        let mode = cell_mode(self.record.mode, self.record.alpha, self.texture_alpha);
         if mode != CellMode::Opaque && !context.translucent_pass {
             return Ok(2);
         }
@@ -436,8 +498,11 @@ impl<T: Texture> CellTextureModel<T> {
             layout: CellCornerLayout::native(),
             placement: None,
             texture: None,
+            texture_alpha: false,
             zoom: None,
             rotation: None,
+            corners: CellCornerLayout::native_texture_corners(record.orientation, record.mirror),
+            basic: BasicModel::default(),
         }
     }
 
@@ -450,11 +515,14 @@ impl<T: Texture> CellTextureModel<T> {
     pub fn texture(&self) -> Option<&T> {
         self.texture.as_ref()
     }
+    pub fn texture_has_alpha(&self) -> bool {
+        self.texture_alpha
+    }
     pub fn zoom(&self) -> Option<Zoom> {
         self.zoom
     }
     pub fn corners(&self) -> [Vec2; 4] {
-        CellCornerLayout::native_texture_corners(self.record.orientation, self.record.mirror)
+        self.corners
     }
 
     pub fn place<S: CellPlacementSource, L: Lighting>(
@@ -554,6 +622,7 @@ impl<T: Texture> CellTextureModel<T> {
         self.zoom = Some(zoom);
         if self.record.texture_key == 0 {
             self.texture = None;
+            self.texture_alpha = false;
             return Ok(());
         }
         let instance = self.record.texture_key.wrapping_add(zoom.value());
@@ -562,7 +631,18 @@ impl<T: Texture> CellTextureModel<T> {
             group: CELL_TEXTURE_GROUP,
             instance,
         };
-        self.texture = load_with_fallback(factory, Some(key(instance)), key(self.record.texture_key));
+        let replacement = load_with_fallback(factory, Some(key(instance)), key(self.record.texture_key));
+        self.texture_alpha = replacement.as_ref().is_some_and(Texture::has_alpha);
+        if self
+            .texture
+            .as_ref()
+            .zip(replacement.as_ref())
+            .is_some_and(|(old, new)| old.same_binding(new))
+        {
+            drop(replacement); // Same pointer: release the extra acquisition.
+        } else {
+            self.texture = replacement;
+        }
         self.zoom = Some(zoom);
         Ok(())
     }
@@ -579,6 +659,7 @@ impl<T: Texture> CellTextureModel<T> {
     ) -> Result<(), ContractError> {
         self.record = record;
         self.load_texture(zoom, factory)?;
+        CellCornerLayout::update_native_corners(&mut self.corners, record.orientation, record.mirror);
         let corners = self.corners();
         if let Some(p) = self.placement.as_mut() {
             for (v, uv) in p.vertices.iter_mut().zip(corners) {
@@ -602,7 +683,7 @@ impl<T: Texture> CellTextureModel<T> {
         let Some(texture) = self.texture.as_ref() else {
             return Ok(None);
         };
-        let mode = cell_mode(self.record.mode, self.record.alpha, texture.has_alpha());
+        let mode = cell_mode(self.record.mode, self.record.alpha, self.texture_alpha);
         if self.record.mode != 255 && self.record.mode > 3 {
             return Err(ContractError::InvalidInput);
         }

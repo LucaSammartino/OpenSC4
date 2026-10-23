@@ -425,6 +425,30 @@ pub struct RetainingWallModel<T> {
     zoom: Option<Zoom>,
     rotation: Option<Edge>,
     recolour_pending: bool,
+    basic: BasicModel,
+}
+
+impl<T> Drop for RetainingWallModel<T> {
+    fn drop(&mut self) {
+        drop(self.texture.take());
+        drop(std::mem::take(&mut self.shape.records));
+    }
+}
+
+impl<T: Texture> LotModelLifetime for RetainingWallModel<T> {
+    fn basic(&self) -> &BasicModel {
+        &self.basic
+    }
+    fn basic_mut(&mut self) -> &mut BasicModel {
+        &mut self.basic
+    }
+    fn owner_interface(&self) -> ModelInterface {
+        ModelInterface::Wall
+    }
+    fn destroy_resources(&mut self) {
+        drop(self.texture.take());
+        drop(std::mem::take(&mut self.shape.records));
+    }
 }
 
 impl<T: Texture> RetainingWallModel<T> {
@@ -446,6 +470,7 @@ impl<T: Texture> RetainingWallModel<T> {
             zoom: None,
             rotation: None,
             recolour_pending: false,
+            basic: BasicModel::default(),
         })
     }
 
