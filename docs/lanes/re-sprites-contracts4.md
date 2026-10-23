@@ -8,7 +8,9 @@
 - Done: checked new own round-3 RE manifest/path/base; copied final host admission has full guard/dependency exit 0, expected round 3, rounds 2/limit 3, parked false.
 - Identity: native SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt; Windows 1.1.641 target.
 - Done: complete canonical asm --bytes range read in 56-line pages; first milestone transcribes mask-1 A arithmetic/stores/snapshots/writes/state into §3.1.1 (this commit).
-- Next: transcribe shared A/B/D stages and full-mask schedule, finite dispatch/state table and independent rational stage distinguishers; reconcile later LookAt contradiction.
+- Done: 58d1593f complete mask-1 schedule. This milestone completes all partial A/B/D schedules and full-mask comparison, dispatch/reset/mutation table, late angle loads, and reconciles the LookAt contradiction.
+- Native jump table 007FCC6C confirmed directly: 007FC4F9, 007FC616, 007FC649, 007FC852, 007FC885, 007FC999, 007FCBA3. No foreign trig calls in any mask.
+- Next: independent conditional rational stage vectors covering all masks/flag4/counter255, cancellation and transient-sine/in-place distinctions; questions consistency and final bounded publication.
 - Important: mask-1 uses hardware FCOS/FSIN, not foreign CRT calls; cosine spills B32, sine remains transient until later negative-sine spill.
 - Evidence: build-runs/evidence-run4/coordinator-sprites-final-{host-proof.json,eligibility.md}; own manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r3-manifest.json.
 - R1/R2 evidence below remains historical. No native/game/build/test/engine reads. AS1/2/3/7 residuals retained. Own final docs merge queue explicitly permitted; no shared queue/state writes.

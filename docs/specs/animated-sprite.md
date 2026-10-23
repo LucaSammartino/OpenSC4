@@ -1,7 +1,7 @@
 # Spec: animated sprite model instances (`cS3DModelInstanceAnimatedSprite`)
 
 Status: **behaviour spec**, clean-room input. This document describes *behaviour*, not code. It was written by the
-analysis team from the Windows 1.1.641 executable. The round-2 instruction source has SHA256
+analysis team from the Windows 1.1.641 executable. The round-2/3 instruction source has SHA256
 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, matching the canonical Windows export
 (image base `0x00400000`). This is a bounded contract publication; AS1/AS3 and the qualifications tracked in
 the questions file remain open. Implementers must work
@@ -170,7 +170,7 @@ in argument order (A, then B, then D), skipping −100 arguments. Each applied r
 increments the byte counter. Translation and scale are untouched; frame/view dirty bytes are untouched.
 Every path returns 0. In particular −100 does **not** preserve a previous Euler component, and passing zero
 counts as applying a rotation. Evidence: mask dispatch `0x007FC4B0–007FC4F2`; A `0x007FC4F9–007FC611`;
-A/B `0x007FC649–007FC84D`; A/D `0x007FC882–007FC994`; B/D `0x007FC999–007FCAA7`;
+A/B `0x007FC649–007FC84D`; A/D `0x007FC885–007FC994`; B/D `0x007FC999–007FCAA7`;
 D `0x007FCAAD–007FCB9E`; full mask `0x007FCBA3–007FCC67` (single-axis B/D share tails).
 
 For full mask, put ca=cos(a), sa=sin(a), cp=cos(p), sp=sin(p), cr=cos(r), sr=sin(r). The rows are
@@ -206,7 +206,7 @@ outside this normal-domain schedule; no CRT implementation is substituted. Evide
 `0x007FC675–007FC694`, `0x007FC770–007FC789`, `0x007FC8B1–007FC8D0`,
 `0x007FC9C5–007FC9DE`, `0x007FCAAD–007FCACD`.
 
-Matrix rows occupy offsets `(3C,40,44)`, `(48,4C,50)`, `(54,58,5C)` from the instance-interface pointer.
+Matrix rows occupy offsets `(3C,40,44)`, `(48,4C,50)`, `(54,58,5C)` from this method's incoming this pointer.
 For a stage use snapshots `u=(u0,u1,u2)` and `v=(v0,v1,v2)` of its two affected **columns**, after any
 identity reset and after preceding stages. They are old binary32 values, not newly assigned cells.
 Mask 1 uses columns 1 and 2. The following numbered arithmetic groups execute in order; within each
@@ -231,6 +231,104 @@ the flag-4-dependent identity reset described above (`0x007FC4F9–007FC522`), t
 common end: OR transform flag 4, increment the byte counter once and return 0 (`0x007FCC50–007FCC69`).
 With initial counter 255, final counter is 0 without reset or 1 with reset. All unrelated flag bits,
 translation, scale and both frame/view dirty bytes are preserved. No foreign callback occurs on this path.
+
+#### 3.1.2 Remaining partial stages and finite control flow
+
+**A followed by B or D.** The A stages in masks 3 and 5 have the same eight arithmetic groups and B
+boundaries as mask 1. In groups 1,2,5,6 respectively, the row-1/2 products are written
+`P(s,v1),P(s,v2)`; `P(c,u1),P(c,u2)`; `P(c,v1),P(c,v2)`; `P(n,u1),P(n,u2)`.
+These reverse the multiplicand order of the mask-1 table, with no change of finite product, operation
+sequence or rounding boundary. Group 4 is unchanged. In group 8 mask 3 copies w2 to m22 **before** storing
+B(w0),B(w1); mask 5 stores B(w0),B(w1) and then copies w2. Neither uses the newly written column 1 as
+column-2 input. Evidence: mask-3 A `0x007FC675–007FC762`; mask-5 A `0x007FC8B1–007FC994`,
+whose final stores share `0x007FCA95–007FCA9F`.
+
+**B stage.** Snapshot columns 0 and 2 into u,v. Column 1 is untouched. Compute `c=B(C), s=S` by
+FCOS/FSIN of argument 1, then execute these groups. Sine is **never** stored alone in the B stage.
+
+| Group | B arithmetic, shared by masks 2/3; separately emitted with the same boundaries in mask 6 |
+|---|---|
+| 1 | `t0=P(v0,s)`; `t1=B(P(s,v1))`; `t2=B(P(s,v2))` |
+| 2 | `q0=P(u0,c)`; `q1=B(P(c,u1))`; `q2=B(P(c,u2))` |
+| 3 | `r0=V(q0,t0)`; `r1=V(q1,t1)`; `r2=B(V(q2,t2))` |
+| 4 | Masks 2/3: store B(r0) to m00, B(r1) to m10, then copy r2 to m20; mask 6: copy r2 first, then those two stores |
+| 5 | `p0=B(P(v0,c))`; `p1=B(P(c,v1))`; `p2=B(P(c,v2))` |
+| 6 | `h0=B(P(u0,s))`; `h1=B(P(s,u1))`; `h2=P(s,u2)` |
+| 7 | `w0=U(h0,p0)`; `w1=U(h1,p1)`; `w2=B(U(h2,p2))` |
+| 8 | Store B(w0) to m02, B(w1) to m12, then copy w2 to m22 |
+
+The row-0 products for the first updated column remain transient; for the second updated column it is
+the **row-2 sine product** h2 that stays transient. Do not apply the A-stage spill pattern to B.
+u0,u1,v0,v1 remain on the x87 stack across group 4; u2,v2 are saved raw words. Sources therefore survive
+in-place column-0 replacement. The groups are proved at `0x007FC770–007FC84A` (masks 2/3) and
+`0x007FC9C5–007FCA9F` (mask 6).
+
+**D stage.** Snapshot columns 0 and 1 into u,v; column 2 is untouched. Compute `c=B(C), s=S` from
+argument 2. Use the A-stage eight arithmetic groups with the mask-3/5 multiplicand ordering above,
+including the later `n=B(N(s))`. Group 4 instead stores B(r0) to m00, B(r1) to m10, then copies r2 to m20.
+Group 8 stores B(w0) to m01, B(w1) to m11, then copies w2 to m21. The surviving old sources are
+u0,v0,v1 as x87 values and u1,u2,v2 as raw words. This one D body serves masks 4/5/6,
+`0x007FCAAD–007FCB9B`. In particular a B/D call sees the **stored** B results, not retained B-stage products.
+
+The complete finite dispatch is below. Reset R means write identity in this order:
+`m10=+0, m20=+0, m00=1, m01=+0, m21=+0, m11=1, m02=+0, m12=+0, m22=1`, then clear only
+transform flag 4, then increment counter +0x38 modulo 256. Every completed partial rotation ORs flag 4
+and increments the counter once, in that order. At the final common end these two values are read,
+then the new flag byte and counter byte are written (`0x007FCC50–007FCC5D`). A composite's first-stage
+flag/counter writes occur **before** the next angle load. No extra increment is added after its final rotation.
+
+| Mask (present arguments) | Dispatch entry | Initial flag 4 clear | Initial flag 4 set | Counter from 255: clear / set |
+|---|---|---|---|---|
+| 0 (none) | direct exit `007FCC60` | no writes | no writes | 255 / 255 |
+| 1 (a) | `007FC4F9` | A(old) | R; A(identity) | 0 / 1 |
+| 2 (p) | `007FC616` | B(old) | R; B(identity) | 0 / 1 |
+| 3 (a,p) | `007FC649` | A(old); B(stored A) | R; A(identity); B(stored A) | 1 / 2 |
+| 4 (r) | `007FC852` | D(old) | R; D(identity) | 0 / 1 |
+| 5 (a,r) | `007FC885` | A(old); D(stored A) | R; A(identity); D(stored A) | 1 / 2 |
+| 6 (p,r) | `007FC999` | B(old); D(stored B) | R; B(identity); D(stored B) | 1 / 2 |
+| 7 (a,p,r) | `007FCBA3` | full replacement | full replacement, no R | 0 / 0 |
+
+The dispatch table is at `0x007FCC6C`, selected by mask minus one (`0x007FC4E8–007FC4F2`). Reset sites
+are `0x007FC4FE–007FC522`, `0x007FC61F–007FC644` with tail `0x007FC76A–007FC76D`,
+`0x007FC64E–007FC672`, `0x007FC85B–007FC880` with tail `0x007FCAA7–007FCAAA`,
+`0x007FC88A–007FC8AE`, and `0x007FC99E–007FC9C2`. Composite first-stage ends are
+`0x007FC765–007FC76D` and `0x007FCAA2–007FCAAA`.
+
+Masks 1–7 finally preserve every flag except setting transform flag 4; sprite flags at +0x20 are a
+different byte. Position (+0x60..68), scale (+0x6C), frame dirty (+0x9C), view dirty (+0x9D) and cached
+counter (+0x9E) are **untouched**, including on reset. Mask 0, with all three argument words exactly
+`C2C80000`, preserves the entire instance bit for bit: no identity reset, trig, matrix, flag or counter write.
+All eight masks return integer 0. No status is inferred from the number of rotations.
+
+Argument bits for dispatch are sampled at entry, but the angles are loaded at their respective stage
+starts, after reset and any preceding matrix writes. The function does not promise an entry-time angle
+snapshot if the input vector aliases the matrix. The snapshots above are of each stage's **matrix**
+sources; analytic vectors below use disjoint input storage.
+
+#### 3.1.3 Full-mask comparison schedule
+
+Mask 7 loads argument 1, copies argument 2's raw word, then loads argument 0, all before matrix writes.
+FCOS(a), FSIN(a), FCOS(p), FSIN(p), FCOS(r), FSIN(r) execute in that order. The first three results are
+stored as `ca=B(Ca), sa=B(Sa), cp=B(Cp)`; `sp=Sp, cr=Cr, sr=Sr` stay transient. No foreign parameter
+conversion or return boundary occurs (`0x007FCBA3–007FCBD1`). First compute `e=P(sp,ca)`, then
+`f=P(sp,sa)`, both transient. The following rows execute top to bottom; operations within a row execute
+left to right, and each final result is a binary32 matrix store:
+
+| Destination | Ordered calculation before its B store |
+|---|---|
+| m00 | `P(cr,cp)` |
+| m01 | `N(P(sr,cp))` |
+| m02 | `sp` (the store does not replace the transient in e/f) |
+| m10 | `j=P(f,cr)`; `k=P(sr,ca)`; `U(j,k)` |
+| m11 | `j=P(cr,ca)`; `k=P(f,sr)`; `V(j,k)` |
+| m12 | `N(P(cp,sa))` |
+| m20 | `j=P(sr,sa)`; `k=P(e,cr)`; `V(j,k)` |
+| m21 | `j=P(e,sr)`; `k=P(cr,sa)`; `U(j,k)` |
+| m22 | `P(cp,ca)` |
+
+Evidence: `0x007FCBD3–007FCC4D`. There are no B stores of e,f,j,k. This path never reads the old matrix
+and never clears flag 4. It uses the common end exactly once. Full replacement is not a shortcut for
+any partial-mask schedule, even when the omitted rotations are geometrically identity.
 
 `LookAt(target,up)` constructs back=normalize(position−target), right=normalize(up×back), trueUp=back×right;
 the matrix columns are right,trueUp,back. Thus local **−Z** points toward the first argument; it is a target
@@ -273,8 +371,9 @@ any transform produces counter 0, independently of its source counter.
 It obtains local +X by normalizing up × +Z and +Y by +Z × +X. Position and scale stay unchanged; it ORs flag 4,
 adds 2 to the counter modulo 256 and returns 2. It does not check zero distance/parallel up before division.
 Evidence: `0x007FE250–007FE38D`. Example: position (0,0,0), target (0,0,−1), up (0,1,0) gives identity.
-The noncommuting Euler-angle composition and −100 component rule remain unresolved (AS6); the earlier
-description of omitted angles is not a rule for preserving existing components.
+The noncommuting geometric order and bitwise −100 omission/reset rule are proved above, including the
+finite partial-mask store schedules in §§3.1.1–3.1.3. AS6 remains partial for whole-call PC/RC provenance,
+native numeric qualification and the AS1 controller boundary; those gaps do not reopen the geometric rule.
 
 ### 3.2 Shared instance surface and overrides
 
