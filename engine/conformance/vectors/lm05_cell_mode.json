@@ -2,11 +2,12 @@
   "format": 1,
   "name": "lm05_cell_mode",
   "spec": ["lot-models.md §4", "lot-models.md §8.5"],
-  "description": "Alpha 128 with no mode selects alpha; discriminate opaque, texture-alpha and explicit-mode priority.",
+  "description": "Alpha 128 with mode 255 (no mode) selects alpha; discriminate opaque, texture-alpha and explicit-mode priority, including explicit mode 0 as tinted.",
   "steps": [
-    {"op": "lm_cell_mode", "mode": 0, "alpha": 128, "texture_alpha": false, "expect_mode": "alpha"},
-    {"op": "lm_cell_mode", "mode": 0, "alpha": 255, "texture_alpha": false, "expect_mode": "opaque"},
-    {"op": "lm_cell_mode", "mode": 0, "alpha": 255, "texture_alpha": true, "expect_mode": "alpha"},
+    {"op": "lm_cell_mode", "mode": 255, "alpha": 128, "texture_alpha": false, "expect_mode": "alpha"},
+    {"op": "lm_cell_mode", "mode": 255, "alpha": 255, "texture_alpha": false, "expect_mode": "opaque"},
+    {"op": "lm_cell_mode", "mode": 255, "alpha": 255, "texture_alpha": true, "expect_mode": "alpha"},
+    {"op": "lm_cell_mode", "mode": 0, "alpha": 255, "texture_alpha": false, "expect_mode": "tinted"},
     {"op": "lm_cell_mode", "mode": 3, "alpha": 255, "texture_alpha": false, "expect_mode": "tinted"}
   ]
 }
