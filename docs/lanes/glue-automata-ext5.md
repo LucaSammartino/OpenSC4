@@ -14,7 +14,8 @@
 - Native request qbuild-20261023-233932-build-ctest PASS: build 220/220 edges; CTest 69/69; tree-change note is documentation-only commit 53b9bcb86 during wait, engine source unchanged.
 - Game a completed clean to 2032-01-05, ref_warnings=0; automata 72/72; automataowners 0/72 monthly, 0/73 incl load (docs/runs/automata-ext5-r1-2032-20261023-a.md).
 - Diagnostic: shared WriteCapture::WriteVariant was a false-return stub, stopping every automaton/construction capture in its holder; ini key missing known-key registration. Both corrected from foundations §§9.1–9.2,17.1; capture uses native getters and independently encodes disk tags/payload.
-- Next: rerun full qbuild all on corrected stable source, collect native request, then distinct unique-label game to 2032. No game request outstanding. ABI exports changed; version unchanged.
+- Corrected-source gate 7207ed6dc: Rust 6673/6673, clippy clean, native build 48/48; CTest 68/69 failed ret_channel_check for consuming GetValUnknownAs's uncertain EAX channel. Preserved full failure in build-runs/fc4verify-ctest-7207ed6dc-failed.log; changed caller to consume documented out-pointer only.
+- Next: rerun full all on corrected stable source, then distinct game to 2032. No game request outstanding. ABI exports changed; version unchanged.
 - q.py cannot start Git Bash in sandbox (CreateFileMapping denied); direct native cargo works. fmt needs absolute filenames.
 - No guessed native signatures. Unknown referenced automaton/controller classes fail rather than being silently skipped.
 - Manager fields: version/max count/active/time-of-day flag/automaton refs/source-building counts, embedded in each concrete record.

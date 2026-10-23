@@ -127,8 +127,10 @@ bool WriteCapture::WriteVariant(cIGZVariant const& v) {
     if (type == 0x10) {
         SetUint32(0xA9BEE9AC);
         void* serial = nullptr;
-        if (!const_cast<cFC4IGZVariant*>(value)->GetValUnknownAs(GZIID_cIGZSerializable, &serial) ||
-            serial == nullptr) return WriteGZSerializable(nullptr);
+        // Use the documented output pointer, not the uncertain EAX return
+        // channel of this getter (docs/abi; ret_channel_check).
+        const_cast<cFC4IGZVariant*>(value)->GetValUnknownAs(GZIID_cIGZSerializable, &serial);
+        if (serial == nullptr) return WriteGZSerializable(nullptr);
         auto* object = static_cast<cIGZSerializable*>(serial);
         FC4_ACQUIRED(object, "variant GetValUnknownAs");
         const bool ok = WriteGZSerializable(object);
