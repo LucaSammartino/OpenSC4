@@ -1056,6 +1056,55 @@ clears `+0x408`. (This answers save-records.md Q4 for the View3D record.)
 
 ## 6l. Helpers reached only from the city view *[summary]*
 
+**VW12: trigger representation and SizeOf parsing (§§3.1, 6k supplement).** Trigger keys and counts are
+unsigned 32-bit words. Increment wraps modulo 2³² without sending a new assertion; a present zero-count key
+still reports present and retracting it erases it and sends the off message. Retracting an absent key does
+nothing (`0x007ECCE0`, `0x007EB8A0`). Save traversal (`0x007EA64A`–`0x007EA6A9`) starts at the first nonempty
+bucket, visits each linked node from head to tail, then searches higher bucket indices. Bucket index is the
+unsigned key modulo the **current bucket count**, not sorted key or insertion order. The constructor requests
+100 buckets; the prime table at `0x00A829B0` rounds that up to **193** (53,97,193,389,…).
+The serialized pair count is the number of present keys, even when a wrapped count is zero.
+`RZAtofA` (`0x0090FC5B`) delegates to the bundled CRT `strtod`, discarding the end pointer. It uses the runtime
+locale's decimal-point byte (`0x00B19C60`), rather than requiring a literal dot. Its numeric recognizer
+`0x00A0342B` accepts decimal digits, sign, decimal separator and decimal exponent (including D/d); it has
+no hexadecimal-float, NaN or Inf recognition. Thus in the C locale `0x1p4`, `nan` and `inf` parse as zero
+and SizeOf supplies its lower clamp 0.9; `5junk` supplies 5.0. With comma as the locale decimal separator,
+`1,5` supplies 1.5 while `1.5` supplies 1.0. Do not use the host's modern hex/NaN/Inf grammar.
+
+**VW17: remaining menu identities (§6i supplement).** Script-menu arguments below are script instance,
+menu kind, alignment target (the originating window) and **button ID as caller data**. They are not caller
+data zero. All use the existing script group `0x96A006B0`; script-menu backgrounds come from the script,
+not a synthesized catalog background.
+
+| Button | Literal action |
+|---|---|
+| `0x36`, `0x8A32DDDB` | secondary script `0xAAA44448`, kind `0xCA35CBED`; caller data is the respective button ID |
+| `0x49E95D2B` | secondary script `0xE9923283`, kind `0x49923239` |
+| `0x8991EE08` | secondary script `0x09923283`, kind `0x49923239` |
+| `0x2B79E398`, `0xEA6E379D` | route to transport: catalog `0x07BDDF1C`, background `0x14215ED2`, network filter 0, empty group sets and **null remembered-state pointer** |
+| `0xABB27B91` | routes to vehicle handler but matches none of its actions: no menu/tool effect |
+| `0x09DE87AE`, `0xE9DE87A7` | route to disaster handler but match none of its actions: no menu/tool effect |
+
+The last three still reach HandleButtonActivated's common tutorial follow-up. The transport cases still use
+their button ID as tertiary kind; invoking that same kind closes it. These are intentional literal quirks,
+not missing resource identities (`0x007F4690`, `0x007F3C10`, `0x007EF610`, `0x007E7130`). Utilities use catalog
+`0xC8DBCCBA`; zoning uses `0x2A3858E4`. Landscape/flora catalog identity is `0x6A01FC2A`; landscape background
+`0x14215ED0`, zoning `0x14215ED1`, utilities `0x14215ED3`. Flora uses the same landscape background.
+Landscape remembered pairs are:
+
+| Pair base | Button | Group | Initial item |
+|---|---|---|---|
+| `+0x2A0` | `0xC99231DA` | `0x6A33D682` | 0 |
+| `+0x2A8` | `0x152231F3` | `0xEA33D694` | `0x6A33E1BA` |
+| `+0x2B0` | `0x6A3D638C` | `0x8A3F131B` | `0x2A33E1A3` |
+| `+0x2B8` | `0x29923215` | `0x8A3143B7` | `0xEA353064` |
+| `+0x2C0` | no owner menu consumes it | — | `0x2A312F97` |
+| `+0x2C8` | flora `0x4A22EA06` | `0x8A2602BB` | `0x0A5242DF` |
+
+The second word of each pair starts at zero; helpers receive a pointer to that second word. Flora kind is
+`0xEA5AD08D`; the other landscape kind is `0x4A2B2462`. Do not invent a fifth live landscape catalog for the
+unused `+0x2C0` pair. Bus-stop/pipe IDs are in the full registry (§6g supplement).
+
 *Added 2026-10-21 (re-view3dwin).*
 
 - The coverage helper at `+0x3E4` (`0x007D26F0` constructor, a set of 100 buckets; `0x007D1DB0` clear; `0x007D1CF0`
@@ -1163,6 +1212,22 @@ the former §5.1 description crossed the end of this function into neighboring f
 ## 7. Conformance tests
 
 ### Owner closure vectors (VW10–VW16)
+
+- VW-T26: ordinary construction/AddGUI leaves dormant `+0x184`, `+0x188`, `+0x2EC`, `+0x2F0`, `+0x410`
+  null. Mayor/MySim extras toggle flag 0x800 on, send to back, then off. A failed extra lookup skips only it.
+- VW-T27: failed camera factory uses the concrete fallback and continues; failed graphic-system QI skips
+  renderer wiring but reaches AddGUI. Required fallback allocation failure is fatal. RemoveGUI does not
+  destroy overlay 0x6A5E44B6; subsequent base shutdown does.
+- VW-T28: capture the Init registry: 104 records exactly in the table order, every third word zero,
+  including unhandled records. Bus-stop/pipe buttons execute 0x6A935DC9/0x6A935DEE with zero parameters.
+- VW-T29: post erosion data1 0 versus 1: only 0 runs repeated water erosion, both run the configured
+  terrain erosion pass and whole-map refresh. Data1 2 refreshes without erosion.
+- VW-T30: a present trigger count 0xFFFFFFFF asserted once becomes zero without another on message;
+  retract then removes it and sends off. A second retract sends nothing. Distinct buckets save by increasing
+  key modulo 193, not key order (e.g. keys 193 then 1 save in that order).
+- VW-T31: C-locale SizeOf `nan`, `inf`, `0x1p4`, `5junk` supplies 0.9, 0.9, 0.9, 5.0 respectively.
+- VW-T32: buttons 0x36 and 0x8A32DDDB use the same script/kind but preserve their distinct caller-data IDs;
+  0xABB27B91 has no vehicle action; 0x2B79E398 opens the generic transport catalog with null memory.
 
 - VW-T19: with paint disabled and two deferred messages A, B, unsafe modal state drains neither. Safe/enabled
   paints drain and repost A with delivery argument 0, then B on the next paint; safe/disabled drains and drops
