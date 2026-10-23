@@ -8,6 +8,10 @@
 - Prior milestone 2b25736f: path key codec fix; be4072e6: full gate PASS.
 - NO45 resolved by coordinator: normalize only flags E000, triangle alpha FF, transform mask 7 to 5 at scale 1.
 - Next: private record comparison transport, default-off plugin capture at load/month, focused tests.
+- Implemented private numeric-token record comparator and default-off plugin load/month hooks.
+- Focused normalization/truncation tests: 2 passed; NO13 power-line record test: 1 passed.
+- NO13 fixes v2 power-line layout (position, cells, boolean, two refs), rejects other versions.
+- Formatting applied via apply_patch generated from rustfmt check hunks, no source stdout redirection.
 - No game requests outstanding. Manifest: main build-runs/run4-glue-netocc-shadow5-r2-manifest.json.
 
 ## Changes

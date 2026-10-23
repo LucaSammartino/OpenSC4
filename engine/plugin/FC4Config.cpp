@@ -353,6 +353,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // verify-dbpf-native4: read-only public packed-file comparison.
                                   "dbpf_native", "dbpf_native_fixtures", "dbpf_native_file",
                                   "prop_occupant_verify",
+                                  "netocc_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

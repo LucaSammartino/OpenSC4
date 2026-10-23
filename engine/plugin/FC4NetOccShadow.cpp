@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "FC4NetOccShadow.h"
+#include "FC4Config.h"
+#include "FC4Log.h"
+#include "FC4RefAudit.h"
+#include "FC4WriteCapture.h"
+#include "cISC4City.h"
+#include "cISC4Occupant.h"
+#include "cISC4OccupantManager.h"
+#include "cISCPropertyHolder.h"
+#include "cISCProperty.h"
+#include "cIGZVariant.h"
+#include "cIGZSerializable.h"
+#include "fc4.h"
+#include <cinttypes>
+
+// Private static-link verification transport, absent from the DLL export table.
+struct NetOccResult {
+    uint32_t status, fixups, first, expectedLen, actualLen, expected, actual;
+};
+extern "C" bool fc4_netocc_shadow_compare(uint32_t, uint32_t, const uint8_t*, size_t, NetOccResult*);
+
+namespace fc4 {
+namespace {
+cISC4City* g_city = nullptr; // borrowed only while the city is up
+bool g_enabled = false;
+uint64_t g_lines = 0, g_clean = 0;
+const uint32_t kClasses[] = {0xC9C05C6E, 0x49C1A034, 0x49CC1BCD, 0x8A4BD52B,
+    0x4A10AFC2, 0x49C05B9F, 0xCA16374F, 0x8A139184, 0xEA0A5ACF, 0xCA15ED6B,
+    0x09C05C6A, 0xC9C05C5D, 0x49B6D69B};
+
+uint32_t ModelInstance(cIGZSerializable* object) {
+    cISC4Occupant* occupant = nullptr;
+    if (!object->QueryInterface(GZIID_cISC4Occupant, reinterpret_cast<void**>(&occupant)) || !occupant) return 0;
+    FC4_ACQUIRED(occupant, "netocc shadow occupant QI");
+    auto* holder = occupant->AsPropertyHolder(); // borrowed
+    auto* property = holder ? holder->GetProperty(0x27812821) : nullptr; // borrowed
+    const auto* value = property ? property->GetPropertyValue() : nullptr;
+    uint32_t instance = 0;
+    if (value && value->GetType() == cIGZVariant::Uint32Array && value->GetCount() >= 3) {
+        const uint32_t* words = value->RefUint32();
+        if (words) instance = words[2];
+    }
+    FC4_RELEASE(occupant);
+    return instance;
+}
+
+void Compare(const char* event, int32_t julian) {
+    if (!g_enabled || !g_city) return;
+    uint32_t records = 0, mismatches = 0, fixups = 0;
+    uint64_t bytes = 0;
+    uint32_t kinds[13]{};
+    // Occupant-manager §13 writes every indexed occupant reference. Reuse its
+    // capture's deduplicated object table; no private layout or guessed iterator.
+    WriteCapture manager;
+    if (!manager.Capture(g_city->GetOccupantManager())) {
+        ++mismatches;
+    } else {
+        for (uint32_t id = 1; manager.Object(id) != nullptr; ++id) {
+            const uint32_t cls = manager.ClassOf(id);
+            size_t kind = 0;
+            while (kind < 13 && kClasses[kind] != cls) ++kind;
+            if (kind == 13) continue;
+            ++records;
+            ++kinds[kind];
+            WriteCapture record;
+            auto* object = manager.SerializableAt(id); // borrowed during capture
+            NetOccResult result{};
+            const bool captured = record.Capture(object);
+            const auto& b = record.Bytes();
+            const uint32_t model = cls == 0x09C05C6A ? ModelInstance(object) : 0;
+            const bool compared = captured && fc4_netocc_shadow_compare(cls, model, b.data(), b.size(), &result);
+            fixups += result.fixups;
+            bytes += b.size();
+            if (!compared || result.status != 0) {
+                ++mismatches;
+                if (mismatches <= 8) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u model=%08X",
+                    cls, id, captured ? 1u : 0u, compared ? result.status : 4u, result.first,
+                    result.expected, result.actual, result.expectedLen, result.actualLen, model);
+            }
+        }
+    }
+    // An empty sample must never be credited as an exact shadow.
+    if (records == 0) ++mismatches;
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("netocc shadow %s %04d-%02d-%02d: mismatches=%u fixups=%u records=%u bytes=%" PRIu64
+        " network=%u prebuilt=%u bridge=%u tunnel=%u underground=%u pipe=%u subway=%u connection=%u pipe_connection=%u subway_connection=%u pole=%u line=%u pylon=%u",
+        event, date.year, date.month, date.day_of_month, mismatches, fixups, records, bytes,
+        kinds[0], kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], kinds[6], kinds[7], kinds[8], kinds[9], kinds[10], kinds[11], kinds[12]);
+    ++g_lines;
+    if (mismatches == 0) ++g_clean;
+}
+}
+void NetOccShadowCityLoaded(cISC4City* city, int32_t julian) {
+    g_enabled = SettingInt("netocc_shadow", "FC4_NETOCC_SHADOW", 0) != 0;
+    g_city = city;
+    g_lines = g_clean = 0;
+    Compare("load", julian);
+}
+void NetOccShadowMonth(int32_t julian) { Compare("month", julian); }
+void NetOccShadowCityShutdown() {
+    if (g_enabled) Log("netocc shadow summary: clean=%" PRIu64 "/%" PRIu64, g_clean, g_lines);
+    g_city = nullptr;
+    g_enabled = false;
+}
+}

@@ -46,6 +46,7 @@
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4NetOccShadow.h"
 #include "FC4SimGridProbe.h"    // the glue-simgrids4 lane
 #include "FC4CommandsVerify.h"  // verify-command-system4: opt-in public native comparison
 #include "FC4SimGridsShadow.h"
@@ -623,6 +624,7 @@ public:
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
                 AutomataShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // automata_shadow
+                fc4::NetOccShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
@@ -683,6 +685,7 @@ public:
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
                 AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
+                fc4::NetOccShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
@@ -726,6 +729,7 @@ public:
                 }
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
                 AutomataShadowMonth(julian);                    // automata_shadow = 1 only
+                fc4::NetOccShadowMonth(julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
