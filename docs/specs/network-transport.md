@@ -23,8 +23,9 @@ return, writes to its passed buffers, and (when requested) a raw 32-bit last err
 the final owner boolean, state transition or a completed transfer loop. No textbook retries are implied.
 Timers and generic runtime facilities remain separate dependencies.
 
-All selected instance methods use 32-bit x86 `this` in ECX. Boolean results are AL only;
-upper EAX bits are unspecified. Stack arguments are 32-bit slots, including pointers.
+All selected instance methods use 32-bit x86 `this` in ECX. Boolean promises use AL;
+upper EAX bits are unspecified unless a full-EAX result is explicitly stated below.
+Stack arguments are 32-bit slots, including pointers.
 `T(e)` denotes the pure error translation helper at `0081fed0` (mapping in section 5).
 Owner error fields are translated error E at +44 and raw error R at +48,
 both 32 bits. Recording an error means obtaining raw last error, then translating, then storing E/R.

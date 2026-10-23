@@ -123,6 +123,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
+| Q | network-transport |
 | QR | region-screen |
 | QV | map-view |
 | RC | resource-catalog |
@@ -251,7 +252,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
-| network-transport | 0 | 0 | - | questions/network-transport.md |
+| network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -321,4 +322,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **482** | **1257** | | |
+| **total** | **486** | **1257** | | |
