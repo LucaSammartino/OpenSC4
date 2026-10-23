@@ -15,6 +15,158 @@ fn group() -> Arc<Group> {
     })
 }
 
+#[derive(Default)]
+struct CommandEffects {
+    fire_succeeds: bool,
+    calls: Vec<String>,
+}
+
+impl PlayerEffects for CommandEffects {
+    fn play_fire(&mut self, name: &'static str) -> bool {
+        self.calls.push(name.into());
+        self.fire_succeeds
+    }
+
+    fn waterski(&mut self, running: bool) {
+        self.calls.push(format!("skier:{running}"));
+    }
+}
+
+#[test]
+fn commands_brake_before_reversing_and_do_not_overshoot_targets() {
+    let mut b = boat();
+    let mut effects = CommandEffects::default();
+    let mut command = DriveCommand {
+        throttle: 1.0,
+        ..DriveCommand::default()
+    };
+    assert_eq!(
+        b.translate_drive_commands(1000.0, &mut command, &mut effects),
+        Some(Gear::Forward)
+    );
+    assert_eq!(b.speed, 0.3);
+    command.throttle = -1.0;
+    command.reverse = 150.0;
+    b.translate_drive_commands(10_000.0, &mut command, &mut effects);
+    assert_eq!(b.speed, 0.0); // leftover braking time is not reverse acceleration
+    b.translate_drive_commands(10_000.0, &mut command, &mut effects);
+    assert_eq!(b.speed, -0.1);
+    command.reverse = -1.0;
+    b.translate_drive_commands(10_000.0, &mut command, &mut effects);
+    assert_eq!(b.speed, 0.0);
+}
+
+#[test]
+fn command_steering_countersteers_returns_and_clamps() {
+    let mut b = boat();
+    let mut effects = CommandEffects::default();
+    let mut command = DriveCommand {
+        right: true,
+        ..DriveCommand::default()
+    };
+    b.translate_drive_commands(1000.0, &mut command, &mut effects);
+    assert!((b.turn - 0.1).abs() < 1e-6);
+    command.right = false;
+    command.left = true;
+    b.translate_drive_commands(1000.0, &mut command, &mut effects);
+    assert!((b.turn + 0.4).abs() < 1e-6);
+    b.translate_drive_commands(100_000.0, &mut command, &mut effects);
+    assert_eq!(b.turn, -2.0);
+    command.right = true; // simultaneous left/right is neutral return (WC8)
+    b.translate_drive_commands(1000.0, &mut command, &mut effects);
+    assert!((b.turn + 1.9999).abs() < 1e-6);
+    b.translate_drive_commands(1e9, &mut command, &mut effects);
+    assert_eq!(b.turn, 0.0);
+    assert_eq!(b.rudder_angle(), 0.0);
+}
+
+#[test]
+fn commands_require_aems_and_fire_consumes_only_successful_shots() {
+    let mut b = boat();
+    let mut effects = CommandEffects::default();
+    let mut command = DriveCommand {
+        throttle: 1.0,
+        fire: true,
+        ..DriveCommand::default()
+    };
+    b.group = Arc::new(Group {
+        aems_value: None,
+        ..(*group()).clone()
+    });
+    assert_eq!(b.translate_drive_commands(100.0, &mut command, &mut effects), None);
+    assert_eq!(b.speed, 0.0);
+    assert!(command.fire);
+    assert!(effects.calls.is_empty());
+    b.group = group();
+    b.translate_drive_commands(0.0, &mut command, &mut effects);
+    assert!(command.fire);
+    assert_eq!(b.player.shots, 0);
+    effects.fire_succeeds = true;
+    b.translate_drive_commands(0.0, &mut command, &mut effects);
+    assert!(!command.fire);
+    assert_eq!(b.player.shots, 1);
+    assert_eq!(effects.calls, ["whalefire", "whalefire"]);
+}
+
+#[test]
+fn skier_toggle_and_stop_and_command_translation_order() {
+    let mut f = fleet();
+    f.get_mut(1).unwrap().group = Arc::new(Group {
+        id: 0x4409,
+        ..(*group()).clone()
+    });
+    let mut effects = CommandEffects::default();
+    let mut command = DriveCommand {
+        throttle: 1.0,
+        skier_toggle: true,
+        ..DriveCommand::default()
+    };
+    f.player_commands(1, 100.0, &mut command, &mut effects, &mut None)
+        .unwrap();
+    assert_eq!(effects.calls, ["skier:true"]);
+    assert_eq!(
+        f.get(1).unwrap().events,
+        [Event::ResetSpeedTween, Event::BaseCommandTranslation]
+    );
+    command.skier_toggle = false;
+    command.throttle = -1.0;
+    f.player_commands(1, 10_000.0, &mut command, &mut effects, &mut None)
+        .unwrap();
+    assert_eq!(effects.calls, ["skier:true", "skier:false"]);
+    assert!(!f.get(1).unwrap().player.skier_running);
+    f.get_mut(1).unwrap().events.clear();
+    f.player_commands(1, 100.0, &mut command, &mut effects, &mut None)
+        .unwrap();
+    assert_eq!(f.get(1).unwrap().events, [Event::BaseCommandTranslation]);
+}
+
+#[test]
+fn geometry_dispatch_pops_completed_docking_and_undocking() {
+    let mut f = fleet();
+    f.get_mut(1)
+        .unwrap()
+        .set_station_information([station(1, 0.0), station(2, 10.0)], true);
+    f.get_mut(1).unwrap().position = [9.5, 0.0, 0.0];
+    f.get_mut(1).unwrap().dock_requests = [true; 2];
+    f.push_state(1, State::new(state::DOCK), &mut None).unwrap();
+    let rectangle = [Cell { x: 9, z: 0 }; 4];
+    f.state_tick_with_geometry(1, 0.0, rectangle, &Water, &mut None)
+        .unwrap();
+    assert_eq!(f.get(1).unwrap().top_state(), None);
+    assert!(!f.get(1).unwrap().docking);
+    f.get_mut(1).unwrap().neighbor = Some(NeighborRoute {
+        occupant: Arc::new(Resource(4)),
+        position: [0.0; 3],
+        cells: Arc::from([]),
+        next: 0,
+    });
+    f.get_mut(1).unwrap().position = [10.0, 0.0, 0.0];
+    f.push_state(1, State::new(state::UNDOCK), &mut None).unwrap();
+    f.state_tick_with_geometry(1, 1.0, rectangle, &Water, &mut None)
+        .unwrap();
+    assert_eq!(f.get(1).unwrap().top_state(), None);
+}
+
 fn boat() -> Watercraft {
     let mut boat = Watercraft::new(
         WatercraftRecord {
