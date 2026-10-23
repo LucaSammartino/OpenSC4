@@ -53,6 +53,10 @@ the explicitly incomplete native inventory cannot claim binary replacement safet
   callback holds the router lock. The construction thread is the fixture owner.
   Reentrant records carry their inherited depth; depth four is dropped. The exact
   native recursive drain sequence remains GZF7.
+  Non-sentinel name/value conversions return Unsupported(GZF7), since the missing
+  table prevents distinguishing native invalid input from an unrecovered valid
+  level. Null/empty names still return -1 and both sentinel pairs are implemented.
+  Script inputs containing an embedded NUL return Unsupported(GZF9) before callbacks.
 * The default command dispatcher exposes an additive shared-execution entry so
   callbacks can reenter without borrowing the dispatcher mutably. Existing API
   callers retain the original mutable entry. Generator links are weak to avoid

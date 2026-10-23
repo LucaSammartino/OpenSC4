@@ -105,6 +105,9 @@ impl Script {
         if self.active {
             return Ok(false);
         }
+        if input.contains(&0) {
+            return Err(Unsupported("GZF9"));
+        }
         self.active = true;
         self.error = false;
         self.cursor = 0;

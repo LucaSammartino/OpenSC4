@@ -206,41 +206,39 @@ impl Log {
         true
     }
 }
-pub fn filter_level_from_string(value: Option<&str>) -> i32 {
+pub fn filter_level_from_string(value: Option<&str>) -> Result<i32> {
     parse(value, false)
 }
-pub fn log_level_from_string(value: Option<&str>) -> i32 {
+pub fn log_level_from_string(value: Option<&str>) -> Result<i32> {
     parse(value, true)
 }
-fn parse(value: Option<&str>, log: bool) -> i32 {
-    let Some(value) = value else { return -1 };
+fn parse(value: Option<&str>, log: bool) -> Result<i32> {
+    let Some(value) = value.filter(|v| !v.is_empty()) else {
+        return Ok(-1);
+    };
     if value.eq_ignore_ascii_case("all") {
-        if log {
-            MAX_LEVEL
-        } else {
-            0
-        }
+        Ok(if log { MAX_LEVEL } else { 0 })
     } else if value.eq_ignore_ascii_case("none") {
-        if log {
-            0
-        } else {
-            MAX_LEVEL
-        }
+        Ok(if log { 0 } else { MAX_LEVEL })
     } else {
-        -1
-    } // Named and numeric level tables remain GZF7.
-}
-pub fn string_from_filter_level(value: i32) -> &'static str {
-    match value {
-        0 => "all",
-        MAX_LEVEL => "none",
-        _ => "invalid filter level",
+        // Until the complete table is specified we cannot distinguish an
+        // unknown name (native -1) from a valid, unrecovered named level.
+        Err(Unsupported("GZF7"))
     }
 }
-pub fn string_from_log_level(value: i32) -> &'static str {
+pub fn string_from_filter_level(value: i32) -> Result<&'static str> {
     match value {
-        0 => "none",
-        MAX_LEVEL => "all",
-        _ => "invalid filter level",
+        0 => Ok("all"),
+        MAX_LEVEL => Ok("none"),
+        -1 => Ok("invalid filter level"),
+        _ => Err(Unsupported("GZF7")),
+    }
+}
+pub fn string_from_log_level(value: i32) -> Result<&'static str> {
+    match value {
+        0 => Ok("none"),
+        MAX_LEVEL => Ok("all"),
+        -1 => Ok("invalid filter level"),
+        _ => Err(Unsupported("GZF7")),
     }
 }

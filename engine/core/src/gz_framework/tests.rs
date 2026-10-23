@@ -176,8 +176,9 @@ impl script::Host for Spy {
     fn translate(&mut self, v: Token, text: &[u8]) -> Option<Variant> {
         self.vocab.get(&(v, text.to_vec())).cloned()
     }
-    fn numeric(&mut self, _: &[u8]) -> Option<Variant> {
-        None
+    fn numeric(&mut self, text: &[u8]) -> Option<Variant> {
+        self.events.push(format!("numeric:{}", String::from_utf8_lossy(text)));
+        (text == b"Bad").then_some(Variant::Scalar(Elem::U32(7)))
     }
     fn unassigned_parameter(&mut self) -> Result<Variant> {
         Err(Unsupported("GZF9"))
@@ -502,17 +503,17 @@ fn gzc26_log_level_sentinels() {
     use logging::*;
     assert_eq!(
         (string_from_filter_level(0), string_from_filter_level(MAX_LEVEL)),
-        ("all", "none")
+        (Ok("all"), Ok("none"))
     );
     assert_eq!(
         (string_from_log_level(0), string_from_log_level(MAX_LEVEL)),
-        ("none", "all")
+        (Ok("none"), Ok("all"))
     );
-    assert_eq!(filter_level_from_string(Some("ALL")), 0);
-    assert_eq!(log_level_from_string(Some("aLl")), MAX_LEVEL);
-    assert_eq!(log_level_from_string(None), -1);
-    assert_eq!(filter_level_from_string(Some("")), -1);
-    assert_eq!(string_from_log_level(-1), "invalid filter level");
+    assert_eq!(filter_level_from_string(Some("ALL")), Ok(0));
+    assert_eq!(log_level_from_string(Some("aLl")), Ok(MAX_LEVEL));
+    assert_eq!(log_level_from_string(None), Ok(-1));
+    assert_eq!(filter_level_from_string(Some("")), Ok(-1));
+    assert_eq!(string_from_log_level(-1), Ok("invalid filter level"));
 }
 #[test]
 fn gzc27_log_filter_decline() {
@@ -608,6 +609,7 @@ fn gzc34_non_uint_translation_is_not_a_command() {
     h.vocab.insert((1, b"Bad".to_vec()), Variant::Scalar(Elem::I32(7)));
     assert_eq!(s.execute(&mut h, b"<Bad>"), Ok(true));
     assert!(!h.events.iter().any(|e| e.starts_with("command:")));
+    assert!(!h.events.iter().any(|e| e == "numeric:Bad"));
 }
 #[test]
 fn gzc35_36_quoted_value_and_reentry_callbacks() {
@@ -772,4 +774,26 @@ fn script_setters_release_before_reacquisition() {
     assert_eq!(s.context(), Some(50));
     s.dispose(&mut h);
     assert!(h.counts.values().all(|&v| v == 0));
+}
+
+#[test]
+fn unsettled_level_tables_are_not_invalid_level_defaults() {
+    assert_eq!(
+        logging::filter_level_from_string(Some("not-yet-specified")),
+        Err(Unsupported("GZF7"))
+    );
+    assert_eq!(logging::log_level_from_string(Some("123")), Err(Unsupported("GZF7")));
+    assert_eq!(logging::string_from_filter_level(123), Err(Unsupported("GZF7")));
+    assert_eq!(logging::string_from_log_level(123), Err(Unsupported("GZF7")));
+}
+#[test]
+fn embedded_nul_is_open_and_malformed_quote_resets_active() {
+    let (mut s, mut h) = script_fixture();
+    let before = h.events.len();
+    assert_eq!(s.execute(&mut h, b"before\0after"), Err(Unsupported("GZF9")));
+    assert_eq!(h.events.len(), before);
+    assert!(!s.active());
+    assert_eq!(s.execute(&mut h, b"<C P=\"unterminated"), Err(Unsupported("GZF9")));
+    assert!(!s.active());
+    assert_eq!(s.execute(&mut h, b"after"), Ok(true));
 }
