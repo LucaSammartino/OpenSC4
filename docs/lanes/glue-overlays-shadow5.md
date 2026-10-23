@@ -11,7 +11,8 @@
 - Done: qbuild all terminal PASS: Rust 6696/6696, clippy 0; queued native build 221/221 edges and CTest 69/69 (294.7 s).
 - Done: first game clean through 2032-01-13, ref_warnings=0; 72/73 lines exact, load found zero managers, months all exact.
 - Done: deferred load probe to first tick with all four managers (terrain.md §15.5.6 null-before-init contract).
-- Next: repeat all on changed C++ source, then new unique game label overlays-shadow5-r1-2032b.
+- Done: timing fix and first run record committed as 58f2d0907; repeated Rust 6696/6696 and clippy clean.
+- Next: collect qbuild all session 84020, native request qbuild-20261024-004704-build-ctest; then game label overlays-shadow5-r1-2032b.
 - Constraints: clean-room; no native signatures inferred; no tools/ access.
 - Gate: absolute-path fmt passed; relative-path fmt failed (resolved); q.py Bash failed Win32 error 5.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
