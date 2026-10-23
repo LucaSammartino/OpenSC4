@@ -37,6 +37,9 @@ enum Op {
     Alert(Option<u32>),
     Speed(u32, bool, bool),
     Mission(String, bool),
+    Panel(u32, bool),
+    Tab(u32, bool),
+    Close(bool),
 }
 
 struct Host {
@@ -55,6 +58,8 @@ struct Host {
     terrain: Option<[f32; 3]>,
     recorder_exists: bool,
     filter_allocation: bool,
+    tabs: std::collections::BTreeMap<u32, bool>,
+    established: bool,
 }
 
 impl Default for Host {
@@ -75,6 +80,8 @@ impl Default for Host {
             terrain: Some([10.0, 20.0, 30.0]),
             recorder_exists: false,
             filter_allocation: true,
+            tabs: std::collections::BTreeMap::new(),
+            established: true,
         }
     }
 }
@@ -154,9 +161,11 @@ impl InputHost for Host {
             taken: match call {
                 ControlCall::Init => self.init_fail != Some(id),
                 ControlCall::Event(_) => self.takers.contains(&id),
+                ControlCall::CanStack => true,
                 _ => false,
             },
             cursor: (call == ControlCall::Cursor).then_some(id + 100),
+            tool_id: (call == ControlCall::ToolId).then_some(0xC7AF_928E),
         }
     }
     fn control_changed(&mut self, old: Option<u32>, new: Option<u32>) {
@@ -845,4 +854,104 @@ fn mission_warning_thresholds_and_speed_paused_picture_half() {
             Op::Speed(0x8998_BBDF, false, true)
         ]
     );
+}
+
+impl CommandHost for Host {
+    fn city_established(&self) -> bool {
+        self.established
+    }
+    fn edge_scrolling_preference(&self) -> bool {
+        true
+    }
+    fn simulator_paused(&self) -> bool {
+        false
+    }
+    fn pause_simulator(&mut self) {}
+    fn resume_simulator(&mut self) {}
+    fn set_sim_speed(&mut self, _: u32) {}
+    fn refresh_speed_buttons(&mut self) {}
+    fn close_secondary(&mut self) {
+        self.ops.push(Op::Close(false));
+    }
+    fn close_tertiary(&mut self) {
+        self.ops.push(Op::Close(true));
+    }
+    fn tab_toggled(&self, id: u32) -> bool {
+        self.tabs.get(&id).copied().unwrap_or(false)
+    }
+    fn toggle_tab(&mut self, id: u32, on: bool) {
+        self.tabs.insert(id, on);
+        self.ops.push(Op::Tab(id, on));
+    }
+    fn panel_buttons(&mut self, id: u32, on: bool) {
+        self.ops.push(Op::Panel(id, on));
+    }
+    fn mayor_subpanel(&mut self, _: u32, _: bool) {}
+    fn mysim_visible(&mut self, _: bool) {}
+    fn advisor_visible(&mut self, _: bool) {}
+    fn news_ticker_visible(&mut self, _: bool) {}
+    fn control_panel_visible(&mut self, _: bool) {}
+    fn restore_button_visible(&mut self, _: bool) {}
+    fn auxiliary_ui_visible(&mut self, _: bool) {}
+    fn rotation_ui_visible(&mut self, _: bool) {}
+    fn create_query_tool(&mut self, _: QueryTool) -> Option<u32> {
+        Some(7)
+    }
+}
+
+#[test]
+fn vw_t14_god_panel_override_and_toggle_close() {
+    for (mods, established, expected) in [(0, true, 4), (7, true, 0), (0, false, 0)] {
+        let mut v = view();
+        let mut h = Host {
+            established,
+            ..Host::default()
+        };
+        v.owner.modifiers = mods;
+        assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5C34));
+        assert_eq!(v.owner_state().panels.current, Some(expected));
+        assert!(h.ops.contains(&Op::Panel(expected, true)));
+        assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5C34));
+        assert_eq!(v.owner_state().panels.current, None);
+        assert!(h.ops.contains(&Op::Panel(expected, false)));
+    }
+}
+
+#[test]
+fn vw_t15_query_tool_twice_is_one_tool_and_cancel_closes_both_menus() {
+    let mut v = view();
+    let mut h = Host::default();
+    assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF3));
+    assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF3));
+    assert_eq!(v.owner.stack, [7]);
+    assert_eq!(
+        h.ops
+            .iter()
+            .filter(|op| **op == Op::Control(7, ControlCall::Init))
+            .count(),
+        1
+    );
+    h.ops.clear();
+    assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF1));
+    assert!(v.owner.stack.is_empty());
+    assert_eq!(&h.ops[h.ops.len() - 2..], &[Op::Close(true), Op::Close(false)]);
+    h.established = false;
+    v.process_motion_panel_command(&mut h, 0x6A93_5CF3);
+    assert!(v.owner.stack.is_empty());
+}
+
+#[test]
+fn rotate_cw_is_left_and_stop_command_stops_any_axis() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.process_motion_panel_command(&mut h, 0x6A93_5CC9);
+    v.process_motion_panel_command(&mut h, 0x6A93_5CCC);
+    assert!(h.ops.contains(&Op::View(ViewChange::RotateLeft)));
+    assert!(h.ops.contains(&Op::View(ViewChange::RotateRight)));
+    v.process_motion_panel_command(&mut h, 0x6A93_5CD8);
+    v.process_motion_panel_command(&mut h, 0x6A93_5CDD);
+    assert_eq!(v.owner_state().motion.keyboard, [-1, 0]);
+    v.process_motion_panel_command(&mut h, 0x2A94_8272);
+    assert_eq!(v.owner_state().motion.keyboard, [0, 0]);
+    assert!(v.owner_state().motion.stopping);
 }

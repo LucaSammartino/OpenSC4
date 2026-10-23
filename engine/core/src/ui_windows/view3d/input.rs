@@ -29,6 +29,8 @@ pub enum ControlCall {
     Cursor,
     SelfScrolling,
     Capturing,
+    CanStack,
+    ToolId,
     Event(InputEvent),
     SetMouseScroll(i32, i32),
 }
@@ -37,6 +39,7 @@ pub enum ControlCall {
 pub struct ControlReply {
     pub taken: bool,
     pub cursor: Option<u32>,
+    pub tool_id: Option<u32>,
 }
 
 /// Foreign controls, tutorial, renderer picking and window capture. Tokens are

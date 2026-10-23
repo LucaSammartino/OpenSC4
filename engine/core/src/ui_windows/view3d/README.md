@@ -14,7 +14,7 @@ qualified with a module. `pending` means implementation work remains.
 | Spec section | Code item | Coverage / remaining work |
 |---|---|---|
 | view3d-window §1, §1.1 identity/interfaces | `View3DWin::query_interface`, `slots`, `VIEW3D_LAYOUT` | `vw_t1_qi_exact_interfaces_and_shared_count`; window override dispatch pending |
-| §2 construction | `OwnerState::default`, `Motion::default`, `View3DWin::new` | motion defaults exercised by VW-T12/T13; panel/catalog defaults and scripting create hook pending |
+| §2 construction | `OwnerState::default`, `Motion::default`, `View3DWin::new`, `ViewState`, `PanelState` | motion defaults exercised by VW-T12/T13, panel defaults by VW-T14; remembered catalog defaults and scripting create hook pending |
 | §3 Init, §3.1 cheats | `process_cheat`, `CheatHost`, `recorder` | VW-T5/T6 and render/recorder/control-allocation tests; Init registration/failures pending; camera SizeOf old-value guard belongs to foreign camera |
 | §4 Shutdown | control removal primitives | full shutdown pending; open: VW8 for unidentified helpers |
 | §5, §5.1, §5.2 notifications | pending | command priority, subscriptions, deferred-message queue and refresh routes pending |
@@ -25,14 +25,14 @@ qualified with a module. `pending` means implementation work remains.
 | §6d fields | `OwnerState`, `Motion`, existing layout constants | input/motion fields implemented; other owner state pending; open: VW8 |
 | §6e input stack | `set_current_control`, `remove_current_control`, persistent methods | `control_modes_init_failure_and_persistent_lifetime`, `remove_control_sets_default_cursor_and_releases_capture`; catalog legacy token path still needs lifecycle integration |
 | §6f scrolling/zoom/views | `Motion`, zoom, filter/level/contour methods, `paint` | VW-T11/12/13, filter reference/message order, contour pairing, edge recalculation, hidden pause and paint tests; terrain selection/picking and tuning pending |
-| §6g commands | `keyboard_scroll`, view-change primitives | command ID dispatch pending; open: VW9 for incomplete registration/ID inventory |
-| §6h panels | pending | panel/tab state, establishment and obliteration pending |
+| §6g commands | `process_motion_panel_command`, `query_tool_command` | VW-T11/12/13/14/15 and CW/CCW quirk; remaining zoning/network/lot/dispatch/save/quit/options/animation commands pending; open: VW9 for incomplete registration/ID inventory |
+| §6h panels | `PanelState`, panel/minimize methods | VW-T14; tab/filter establishment path, established/obliterated callbacks, budget failure and GUI object integration pending; mayor visibility bookkeeping needs audit |
 | §6i buttons/catalogs | existing `catalog` module | existing catalog tests cover script toggle/create/close; new button/catalog-kind routing pending; open: VW7 for external message meaning |
 | §6j displays | `DisplayState`, `StatusHost`, status methods | VW-T17/T18, rating/alert/mission/speed tests; date/funds/population/name widgets, ambient light and full callback integration pending; cursor ordering/fade exactness open: VW13 |
 | §6k save/triggers | `do_save`, `do_load`, trigger methods | VW-T16 four class references and logical trigger pairs; versions 0–4 accepted, not-loaded cleared; opaque reference identity/resolution adapter pending; byte bucket ordering open: VW12 |
 | §6l helpers | pending | owner-called helper interfaces remain foreign |
 | §6m quirks | `keyboard_scroll`, `recalc_scroll_velocity`, `set_zoom_limits` | VW-T11/12/13; command-result/rotation/save-parameter quirks pending |
-| §7 conformance | `owner_tests` | VW-T1, T5–T13, T16–T18 implemented; T2–T4 and T14–T15 pending |
+| §7 conformance | `owner_tests` | VW-T1, T5–T18 implemented; T2–T4 pending |
 | §8 open questions | questions file | VW6–VW13 |
 | ui-windows §2 window model | existing `win` / `message` modules | existing window-model tests; no new foreign window implementation |
 | ui-windows §3.1–§3.3 owner identity/layout/slots | `View3DWin`, `slots` | existing layout/slot tests and VW-T1 |
@@ -43,7 +43,7 @@ qualified with a module. `pending` means implementation work remains.
 | view3d §5.1 paint | `paint` | gate, timer, dt clamp, scrolling, draw-time order tests; post-draw tail details open: VW10 |
 | view3d §5.2 fields | `Motion` | paint/hidden-pause tests |
 | view3d §5.3 save | `do_save`, `do_load` | four-reference logical model; foreign serialization/resolution adapter pending |
-| view3d §10 quirks, §11 conformance (window-owned portions) | `paint` | draw entry implemented; full spec conformance audit pending |
+| view3d §10 quirks, §11 conformance (window-owned portions) | `paint`, `do_save` | tests 13–15, 20, 25 covered by paint/hidden-pause/reference tests; effects sweep test 19 requires foreign renderer integration |
 
 The legacy `set_input_control` and `remove_all_view_input_controls` APIs import
 or extract token state for the older catalog model. Real lifecycle adapters must

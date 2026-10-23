@@ -44,10 +44,12 @@ use super::slots::{
 };
 use super::win::{WinStore, WinToken};
 
+mod commands;
 mod input;
 mod motion;
 mod state;
 mod status;
+pub use commands::{CommandHost, PanelState, QueryTool};
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
 pub use motion::{Motion, MotionHost, ViewChange};
 pub use state::{CheatHost, CheatTool, FilterInfo, StateHost, ViewState};
@@ -66,6 +68,7 @@ pub struct OwnerState {
     pub motion: Motion,
     pub view: ViewState,
     pub display: DisplayState,
+    pub panels: PanelState,
     stack: Vec<u32>,
     persistent: Vec<u32>,
 }
