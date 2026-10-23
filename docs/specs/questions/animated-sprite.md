@@ -6,6 +6,11 @@
   entry: which bytes are the page, the frame's pixel position and size, the two flip bits and the offsets, and
   what the animation table at `+0x34` (sequences with a first frame and a length) comes from. [the use as read]
 
+  **PARTIAL 2026-10-23 (re-animsprite-as5b):** §4.3 now reconciles stream/block/holder/controller
+  offsets against ReadTable and SetZoomResource: block +0x1C is the entry count, holder +0x1C copies
+  block +0, entries begin at block +0x20. Neither reader nor reviewed creation/load routes installs
+  controller +0x34. Allocation/installation provenance remains unproved; do not synthesize it from n.
+
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS3 - §1, §3; owner inventory and lifetime:** the task identifies 60 owner functions/10482 bytes, but
   the spec publishes only slots 0–22 and a few named helpers. Please publish the full public owner-method
@@ -14,6 +19,11 @@
   IIDs/slot 0 behavior, refcount overflow/underflow rules, and SetPosition/SetTransform change-counter rules.
   [WIP only: explicit snapshots and explicit initial u16 count; checked overflow, basic IIDs 1/0x26A68449;
   no invented complete owner constructor, sprite QueryInterface, transform setter or missing method body]
+
+  **PARTIAL 2026-10-23 (re-animsprite-as5b):** the 23/19-slot vtables in §3 were independently
+  reread from the PE and agree with the published surfaces. Broad adjacent export intervals give
+  72 functions/11,081 bytes but include other animated-model methods and allocator/free helpers;
+  they do not reconcile the asserted 60/10,482 owner inventory. No complete-owner count is claimed.
 
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS6 - §3.1, §4.1 orientation and frame selection:** what axis/sign/order is used for noncommuting
@@ -39,6 +49,11 @@
   are proved; no contradiction remains in the later LookAt paragraph. Whole-call PC/RC provenance,
   native angle-result qualification/nonfinite outcomes and AS1 controller provenance remain open.
 
+  **PARTIAL 2026-10-23 (re-animsprite-as5b):** §§3.1.5/4.1.1 answer the AS10 spill/primitive
+  boundaries and show asin's temporary CW preserves PC while forcing nearest RC. Startup requests
+  PC53 but does not prove owner-entry PC/RC, foreign-call preservation or native trig goldens.
+  This runtime qualification and AS1 provenance remain open; AS10 is archived separately.
+
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS7 - §5–6 quad, cache, draw and pick:** publish corner order/winding and offset origin/sign; the
   coordinate space of cached corners, bounding box, model transform and Pick triangles; whether model rotation
@@ -55,6 +70,11 @@
   proposed UNEXECUTED vectors. This question remains open for malformed/nonfinite input outcomes beyond
   explicitly described branch behavior and whole-call numeric-mode provenance; no native execution,
   foreign computed-quad provider, complete owner or default implementation promotion is claimed.
+
+  **PARTIAL 2026-10-23 (re-animsprite-as5b):** §§4.1.1/6 now qualify ambient-mode/foreign-call
+  boundaries and Pick's binary32 x87 X/Y versus integer Z copies. No renderer CW capture,
+  malformed/nonfinite primitive execution, trap classification or numeric golden was obtained.
+  Finite raw-input formulas remain valid within their stated conditions; this question stays open.
 
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS9 - public base overrides/sort:** model-instances §1 marks GetWorldBounds and GetSortValue as derived,

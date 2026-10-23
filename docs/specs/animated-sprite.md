@@ -619,6 +619,38 @@ u16 selected sequence at +0, u16 sequence count at +2, u16 selected length at +4
 u16 absolute current frame at +12, mode byte at +14 and signed direction byte at +15. Starts include a terminal
 entry, since selecting i calculates the low 16 bits of starts[i+1] − starts[i].
 
+**Reader/provenance reconciliation (AS1).** The serialized `09ADCD75` resource,
+its borrowed block, the per-zoom holder, and this controller are four distinct
+objects. `ReadTable` reads a four-byte type tag, allocates the remaining stream
+bytes as one block, and checks size=32+8n with n at **block +0x1C**. It does
+not turn that word into a sequence pointer or install an owner controller
+(`0x00808920–0080899B`; model-instances §6.2).
+
+| Location | Meaning |
+|---|---|
+| Stream +0 | Tag `09ADCD75` |
+| Stream +4 = borrowed block +0 | Start of the 32-byte angular header consumed by §4.1 |
+| Stream +0x20 = block +0x1C | u32 number n of eight-byte orientation entries |
+| Stream +0x24 = block +0x20 | First orientation entry |
+| Per-zoom holder +4 | Borrowed block +0x20, set by SetZoomResource |
+| Per-zoom holder +0x1C | Copy of block **+0**, the yaw divisor; not block +0x1C |
+| Complete sprite +0x34 | Optional mutable sequence-controller pointer, independently null at construction |
+
+SetZoomResource establishes the holder's entry pointer and copies the first
+block word into holder +0x1C (`0x007FC363–007FC38F`). Equal-looking offsets
+in the holder and file block must not be conflated. The shipped n=1/4/8 tables
+in §7.1 satisfy the reader's entry-count relation, not a sequence-start layout.
+The eight-byte frame-entry consumption remains §4.1.
+
+The reviewed owner constructor writes controller null at `0x007FDD20`;
+Load/LoadFromResource and both creation routes in §2 do not install a controller.
+No controller allocation, installation API or shipped sequence-start producer
+has been established. This is an **unresolved producer boundary**, not permission
+to synthesize starts from the angular header/count or to treat a supplied
+controller snapshot as evidence of a native allocation path. AS1 remains open
+for that provenance; the consumer layout and parser-offset reconciliation are
+published independently.
+
 `SetAnimation(i)` returns 0 if absent or signed i is at least the count. It does not reject negative i before
 indexing: such calls are outside a safe decoded-record contract. An accepted call changes selection/length
 but **does not reset** controller current frame, direction or clock. It copies the low byte of current frame
@@ -899,6 +931,18 @@ The lower corner Y=−3 is outside this box. This deliberately raw camera fixtur
 algorithm without assuming an orthonormal camera or silently widening it to all four corners.
 
 ## 6. Picking (`Pick`, `0x007FD710`)
+
+**Numeric copy qualification (AS7).** Preparing the four cached positions for
+TrianglePick loads/stores X and Y through x87 binary32 operations, while Z is
+copied as an integer word (`0x007FD760–007FD77D`). Finite representable X/Y
+values retain their values; this does not establish preservation of signaling
+NaN payloads or exception state. There is no local CW normalization. TrianglePick
+is a separate primitive; neither the stale-cache contract nor these copy widths
+qualify its nonfinite outcomes or prove a renderer-entry PC/RC. Draw/UpdateView
+also call foreign camera/context operations, so an entry CW alone is insufficient
+unless those primitives preserve the required environment. The regular finite
+quad and cache rules below/above remain specified; AS6/AS7's whole-call numeric
+qualification remains open.
 
 Pick copies the four **translated draw vertices**, not the local corners, and tests triangles (0,1,2), then
 (2,3,0), using `SC4ViewUtilities::TrianglePick` (view-utilities §7). It returns true on the first hit, else the
