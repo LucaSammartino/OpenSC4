@@ -25,6 +25,8 @@ read from a text file, `Sys\Ingred.ini`, under the game's data directory. This s
 Out of scope: the DBPF and exemplar binary formats (data-formats.md, owned by the formats lanes), the resource
 catalog browser `cSCResourceCatalogView` / `cSCResCatBaseView` / `cSCResCatalogPickerView` and the key picker
 `cSCResKeyInputView` beyond their class IDs (§8), and the widget toolkit (ui-windows.md).
+The catalog owners now have a separate, partial native contract in [resource-catalog.md](resource-catalog.md);
+the identity-only attribution below is not whole-owner behavior credit.
 
 Subsystem size (tools/coverage.py --owners, 2026-10-21): 68985 bytes. The family specified here
 (`cSCPropertyView` 17843 + free functions 5164 + entry views and dialog about 29700) is the largest coherent part.
@@ -556,10 +558,11 @@ column-0 property ID source (+0xEC vs +0xF4, §12).
 | typed text editors (8 classes) | ~3700 | layout and Init specified, SINT64 read-back specified (§8.1) |
 | cSCUint32SpinnerEntryView, cSC16ColumnGridEntryView, cSCColorSequenceEntryView, cSCResKeyTableEntryView | named Init/GetValue/handlers | specified round 3 (§11.1-11.3, §12) incl. unnamed SetValue/GetValue/DoMessage slots |
 | cSCHappinessCurveEntryView, cSCGeneralResponseCurveEntryView | ~8000 | identity only |
-| cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only |
+| cSCResourceCatalogView, cSCResCatBaseView, cSCResCatalogPickerView, cSCResKeyInputView | 16686 | identity only in this spec; separate partial contracts and body attribution in [resource-catalog.md](resource-catalog.md), no byte-total completion credit |
 
 Proposed coverage-map entries (exact owners, no wildcard credit): `spec` = `resource-exemplar-editor.md` for
 `cSCPropertyView`, the three free functions, `cSCEditValueDlg`, `cSCUint32ComboBoxEntryView` and
 `cSCUint8ComboBoxEntryView`, plus (round 3) `cSCUint32SpinnerEntryView`, `cSC16ColumnGridEntryView`,
 `cSCColorSequenceEntryView`, `cSCResKeyTableEntryView`. Leave the `cSC*EntryView` and `cSC*View` wildcards at `-`: the two curve editors
-and the catalog views are identity only.
+and the catalog views are identity only within this spec. The separate catalog publication does not promote
+these wildcards or the historical 16686-byte attribution to whole-owner coverage.
