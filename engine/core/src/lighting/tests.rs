@@ -153,6 +153,37 @@ fn conformance_3_day_night_fractions() {
 }
 
 #[test]
+fn tint_reset_recomputes_light_and_redraws_only_above_announced_threshold() {
+    let mut m = manager();
+    city(&mut m, 2);
+    let mut events = Vec::new();
+    m.set_time_of_day(12.0, 1, false, &mut events).unwrap();
+    let fractions = m.fractions();
+    events.clear();
+    m.set_lighting_tint([0.0; 3], 0.5, false, &mut events).unwrap();
+    assert_eq!(m.get_global_light(), [0.5; 3]);
+    assert_eq!(m.day_light(), WHITE);
+    assert_eq!(m.fractions(), fractions);
+    assert!(!m.is_night());
+    assert_eq!(events, [Event::Fractions { day: 1.0, night: 0.0 }, Event::Redraw]);
+    events.clear();
+    m.reset_lighting_tint(false, &mut events).unwrap();
+    assert_eq!(m.get_global_light(), WHITE);
+    assert_eq!(m.fade_color, Parameters::shipped().fade_color);
+    assert_eq!(events, [Event::Fractions { day: 1.0, night: 0.0 }, Event::Redraw]);
+    events.clear();
+    m.reset_lighting_tint(false, &mut events).unwrap();
+    assert!(events.is_empty());
+    // A tint below the change threshold is stored even without notification.
+    m.set_lighting_tint([0.0; 3], 0.000001, false, &mut events).unwrap();
+    assert!(m.get_global_light()[0] < 1.0);
+    assert!(events.is_empty());
+    m.reset_lighting_tint(false, &mut events).unwrap();
+    assert_eq!(m.get_global_light(), WHITE);
+    assert!(events.is_empty());
+}
+
+#[test]
 fn conformance_4_lambert_and_rotations() {
     let mut m = manager();
     m.statics.update(|p| p.use_maps = false);

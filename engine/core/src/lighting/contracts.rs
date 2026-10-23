@@ -11,6 +11,64 @@ impl Resources for EmptyResources {
         None
     }
 }
+
+#[test]
+fn vector11_minimum_scans_vector_end_not_capacity_or_active_width() {
+    let mut pixels = Vec::with_capacity(3);
+    pixels.extend([0xffff_ffff, 0x0000_0000, 0xffff_ffff]);
+    pixels.pop(); // White spare storage is outside the vector's end.
+    let image = ImageArgb8::new(1, 1, 2, pixels).unwrap();
+    assert_eq!(image.find_min_red_component_value(), 0.0);
+    assert_eq!(
+        ImageArgb8::new(0, 0, 0, Vec::with_capacity(3))
+            .unwrap()
+            .find_min_red_component_value(),
+        1.0
+    );
+}
+
+#[test]
+fn vector14_missing_maps_load_once_and_shutdown_is_explicit() {
+    struct MissingImages(Vec<(u32, u32)>);
+    impl Resources for MissingImages {
+        fn image(&mut self, group: u32, instance: u32) -> Option<Box<dyn TexturePixels>> {
+            self.0.push((group, instance));
+            None
+        }
+    }
+    let mut resources = MissingImages(Vec::new());
+    let mut events = Vec::new();
+    let mut m = LightingManager::new(LightingStatics::new(Parameters::initial()), RegisterPrecision::Bits64);
+    assert_eq!(m.init(0, None, &mut resources, &mut events), Ok(true));
+    assert!(m.maps.iter().all(Option::is_none));
+    assert_eq!(
+        resources.0,
+        [0x0917660c, 0x0917660d, 0x0917660e, 0x0917660f].map(|id| (0xa9179251, id))
+    );
+    assert_eq!(events, SUBSCRIPTIONS.map(Event::Subscribe));
+    events.clear();
+    assert_eq!(m.init(2, None, &mut resources, &mut events), Ok(false));
+    assert_eq!(resources.0.len(), 4);
+    assert!(events.is_empty());
+    assert!(m.shutdown(&mut events));
+    assert_eq!(events, SUBSCRIPTIONS.map(Event::Unsubscribe));
+    events.clear();
+    assert!(!m.shutdown(&mut events));
+    assert!(events.is_empty());
+}
+
+#[test]
+fn vector18_vertical_fallback_is_fixed_even_for_downward_and_zero_direction() {
+    for precision in [RegisterPrecision::Bits53, RegisterPrecision::Bits64] {
+        // The helper receives the negation of the manager's direction.
+        for (shadow, direction) in [([0.0, 1.0, 0.0], [0.0, -1.0, 0.0]), ([0.0; 3], [0.0; 3])] {
+            assert_eq!(
+                super::projection::direction_basis(shadow, transform(0), precision),
+                [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], direction]
+            );
+        }
+    }
+}
 #[test]
 fn constructor_zero_map_rotation_and_shutdown_retained_matrix() {
     let statics = LightingStatics::new(Parameters::initial());
