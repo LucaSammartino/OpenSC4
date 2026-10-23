@@ -150,7 +150,17 @@ impl<O> AnimatedSprite<O> {
     }
 
     pub fn set_play_mode(&mut self, mode: u8) {
-        self.state.playback.play_mode = mode;
+        self.set_play_mode_raw(u32::from(mode));
+    }
+
+    /// §4.2 stores only the low byte; no defined native return status.
+    pub fn set_play_mode_raw(&mut self, mode: u32) {
+        self.state.playback.play_mode = mode as u8;
+    }
+
+    /// §3's unnamed slot 17 returns zero without changing instance state.
+    pub fn reserved_status(&self) -> u32 {
+        0
     }
 
     /// Â§4.2 stores every bit, including sentinels and nonfinite inputs.

@@ -121,6 +121,332 @@ fn load_transaction_repeated_prefix_binding_and_counted_lifetimes() {
 }
 
 #[test]
+fn load_all_failure_prefixes_preserve_unvisited_state_and_release_temporaries() {
+    for fail in 0..=5 {
+        let mut sprite = AnimatedSprite::<()>::default();
+        let mut old = resources();
+        assert_eq!(sprite.load(key(10), &mut old), Ok(true));
+        let binding = sprite.loaded.binding.clone().unwrap();
+        sprite.select_frame(3).unwrap();
+        sprite.state.playback.position = 0.5;
+        sprite.frame_dirty = false;
+        let before = sprite.state;
+        let mut r = resources();
+        r.fail = fail;
+        r.service = false;
+        let mut h = header();
+        h.frame_count = 300;
+        h.scales = [11., 12., 13., 14., 15.];
+        assert_eq!(sprite.load_from_resource(Some(&h), &mut r), Ok(false));
+        assert_eq!(r.calls, (0..(fail + 1).min(5) as u32).collect::<Vec<_>>());
+        assert_eq!(sprite.frame_count(), 300);
+        assert_eq!(sprite.state, before);
+        assert!(!sprite.frame_dirty);
+        assert!(sprite.controller().is_none());
+        assert!(Arc::ptr_eq(sprite.loaded.binding.as_ref().unwrap(), &binding));
+        for i in 0..5 {
+            let slot = &sprite.loaded.zooms[i];
+            assert_eq!(
+                slot.scale,
+                Some(if i <= fail { h.scales[i] } else { header().scales[i] })
+            );
+            assert!(slot.metrics.is_some());
+            if i < fail {
+                assert!(slot.resource.is_none());
+                assert_eq!(Arc::strong_count(&old.tables[i]), 1);
+            } else {
+                assert!(Arc::ptr_eq(slot.resource.as_ref().unwrap(), &old.tables[i]));
+            }
+            assert_eq!(Arc::strong_count(&r.tables[i]), 1);
+        }
+    }
+}
+
+#[test]
+fn load_header_failure_null_and_sprite_factory_lifetimes() {
+    struct Headers {
+        inner: Resources,
+        header: Arc<ModelHeader>,
+        fail: bool,
+        requests: usize,
+    }
+    impl OwnerResourceServices for Headers {
+        fn header(&mut self, key: ResourceKey, iid: u32, options: [u32; 2]) -> Option<Arc<ModelHeader>> {
+            assert_eq!(
+                key,
+                ResourceKey {
+                    resource_type: SPRITE_ANIMATION_TYPE,
+                    ..super::closure_tests::key(10)
+                }
+            );
+            assert_eq!((iid, options), (MODEL_HEADER_IID, [0, 0]));
+            self.requests += 1;
+            if self.fail {
+                None
+            } else {
+                Some(self.header.clone())
+            }
+        }
+        fn zoom(&mut self, key: ResourceKey, iid: u32, options: [u32; 2]) -> Option<Arc<RawSpriteHolder>> {
+            self.inner.zoom(key, iid, options)
+        }
+        fn texture_service(&mut self, service: u32, iid: u32) -> Option<Arc<dyn SpriteTextureService>> {
+            self.inner.texture_service(service, iid)
+        }
+    }
+    let sprite_key = ResourceKey {
+        resource_type: SPRITE_ANIMATION_TYPE,
+        ..key(10)
+    };
+    let mut services = Headers {
+        inner: resources(),
+        header: Arc::new(header()),
+        fail: true,
+        requests: 0,
+    };
+    let mut sprite = AnimatedSprite::<()>::default();
+    let before = sprite.state;
+    assert_eq!(sprite.load(sprite_key, &mut services), Ok(false));
+    assert_eq!(sprite.load_from_resource(None, &mut services), Ok(false));
+    assert_eq!(services.requests, 1);
+    assert!(services.inner.calls.is_empty());
+    assert_eq!(sprite.state, before);
+    services.fail = false;
+    let created = create_sprite_from_key(sprite_key, &mut services).unwrap().unwrap();
+    assert_eq!(Arc::strong_count(&services.header), 1);
+    assert_eq!(created.frame_count(), 4);
+    assert_eq!(Arc::strong_count(&services.inner.tables[0]), 2);
+    drop(created);
+    assert_eq!(Arc::strong_count(&services.inner.tables[0]), 1);
+    services.inner.calls.clear();
+    services.inner.fail = 0;
+    assert!(create_sprite_from_key(sprite_key, &mut services).unwrap().is_none());
+    assert_eq!(Arc::strong_count(&services.header), 1);
+    assert_eq!(services.inner.calls, [0]);
+}
+
+#[test]
+fn foreign_creation_preserves_caller_output_and_releases_acquisition_once() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    // The model has no Clone/AddRef/QI operation available to the wrapper.
+    struct Model(u32);
+    struct Resource {
+        calls: Rc<Cell<u32>>,
+        releases: Rc<Cell<u32>>,
+        result: bool,
+        write: bool,
+        output_address: usize,
+    }
+    impl ForeignAnimatedResource<Model> for Resource {
+        fn create_model(&self, argument: u32, output: &mut Model) -> bool {
+            assert_eq!(argument, 0);
+            assert_eq!(output as *mut Model as usize, self.output_address);
+            self.calls.set(self.calls.get() + 1);
+            if self.write {
+                *output = Model(42);
+            }
+            self.result
+        }
+    }
+    impl Drop for Resource {
+        fn drop(&mut self) {
+            self.releases.set(self.releases.get() + 1);
+        }
+    }
+    struct Services {
+        resource: Option<Resource>,
+        key: ResourceKey,
+        requests: u32,
+    }
+    impl ForeignAnimatedResources for Services {
+        type ModelOutput = Model;
+        type Resource = Resource;
+        fn animated_resource(&mut self, key: ResourceKey, iid: u32, options: [u32; 2]) -> Option<Resource> {
+            assert_eq!((key, iid, options), (self.key, 0x9ad0e7e3, [0, 0]));
+            self.requests += 1;
+            self.resource.take()
+        }
+    }
+    for (acquire, result, write) in [
+        (false, false, false),
+        (true, true, true),
+        (true, false, false),
+        (true, false, true),
+    ] {
+        let mut output = Model(17);
+        let calls = Rc::new(Cell::new(0));
+        let releases = Rc::new(Cell::new(0));
+        let key = ResourceKey {
+            resource_type: FOREIGN_MODEL_TYPE,
+            group: 123,
+            instance: 456,
+        };
+        assert_eq!(creation_route(key), CreationRoute::ForeignResource);
+        let mut services = Services {
+            resource: acquire.then(|| Resource {
+                calls: calls.clone(),
+                releases: releases.clone(),
+                result,
+                write,
+                output_address: &mut output as *mut Model as usize,
+            }),
+            key,
+            requests: 0,
+        };
+        assert_eq!(create_foreign_from_key(key, &mut services, &mut output), result);
+        assert_eq!(output.0, if acquire && write { 42 } else { 17 });
+        assert_eq!(
+            (services.requests, calls.get(), releases.get()),
+            (1, u32::from(acquire), u32::from(acquire))
+        );
+    }
+}
+
+#[test]
+fn literal_playback_signed_counts_byte_endpoints_and_as5_clock_cases() {
+    let base = Playback {
+        frame: 0,
+        position: 0.,
+        rate: 1.,
+        direction: 1,
+        play_mode: 3,
+        frame_skipping: true,
+    };
+    for count in [0, 1, 0x80000000, u32::MAX] {
+        let mut p = base;
+        assert_eq!(p.advance_unsequenced(count), Ok(false));
+        assert_eq!(p, base);
+        let result = p.tick_unsequenced(2.5, count).unwrap();
+        assert_eq!((result.status(), result.advances, result.frame_changed), (2, 2, false));
+        assert_eq!((p.frame, p.position), (0, 0.5));
+    }
+    for count in [300, 65537, i32::MAX as u32] {
+        let mut p = Playback { frame: 255, ..base };
+        assert_eq!(p.advance_unsequenced(count), Ok(true));
+        assert_eq!((p.frame, p.direction), (0, 1));
+        // Even count 65537's endpoint does not alias the stored frame zero.
+        p.advance_unsequenced(count).unwrap();
+        assert_eq!(p.frame, 1);
+        p.frame = 0;
+        p.direction = -1;
+        p.advance_unsequenced(count).unwrap();
+        assert_eq!(p.frame, u32::from((count - 1) as u8));
+    }
+    let mut reverse = Playback {
+        direction: -1,
+        play_mode: 2,
+        ..base
+    };
+    assert_eq!(reverse.tick_unsequenced(1.25, 4).unwrap().status(), 2);
+    assert_eq!((reverse.frame, reverse.direction, reverse.position), (1, 1, -2.25));
+    let mut stop = Playback {
+        frame: 3,
+        play_mode: 0,
+        ..base
+    };
+    assert_eq!(stop.tick_unsequenced(2.5, 4).unwrap().status(), 2);
+    assert_eq!((stop.frame, stop.direction, stop.position), (3, 0, 0.));
+    for mut p in [
+        Playback {
+            direction: 0,
+            position: 2.,
+            ..base
+        },
+        Playback { rate: -1., ..base },
+    ] {
+        let before = p;
+        assert_eq!(p.tick_unsequenced(2., 4), Err(PlaybackError::ClockCannotProgress));
+        assert_eq!(p, before);
+    }
+    for rate in [-100., -200.] {
+        let mut s = AnimatedSprite::<()>::default();
+        assert_eq!(s.set_rate(rate), 2);
+        assert_eq!(s.state.playback.rate, rate);
+        assert_eq!(s.tick(0.), Ok(0));
+        assert_eq!((s.state.playback.rate, s.state.playback.position), (-200., 0.));
+    }
+}
+
+#[test]
+fn controller_tick_keeps_owner_direction_and_rolls_back_safe_diagnostics() {
+    let mut s = AnimatedSprite::<()>::default();
+    s.install_controller_snapshot(Some(SequenceController {
+        selected: 0,
+        count: 1,
+        length: 3,
+        starts: vec![10, 13],
+        current: 12,
+        mode: 2,
+        direction: 1,
+    }));
+    s.set_animation(0).unwrap();
+    s.set_rate(1.);
+    s.state.playback.frame_skipping = true;
+    assert_eq!(s.tick(2.5), Ok(2));
+    assert_eq!(
+        (s.frame(), s.state.playback.position, s.state.playback.direction),
+        (10, 0.5, 1)
+    );
+    assert_eq!(s.controller().unwrap().direction, -1);
+    s.state.playback.direction = 0;
+    s.state.playback.position = 2.;
+    let before = s.state;
+    let controller = s.controller().cloned();
+    s.frame_dirty = false;
+    assert_eq!(s.tick(0.), Err(PlaybackError::ClockCannotProgress));
+    assert_eq!(s.state, before);
+    assert_eq!(s.controller(), controller.as_ref());
+    assert!(!s.frame_dirty);
+    // A stopped controller leaves the owner's clock and direction alone.
+    s.state.playback.direction = 1;
+    s.state.playback.position = 0.;
+    let c = s.sequence.as_mut().unwrap();
+    c.current = 12;
+    c.direction = 1;
+    c.mode = 0;
+    assert_eq!(s.tick(1.25), Ok(2));
+    assert_eq!(
+        (s.frame(), s.state.playback.position, s.state.playback.direction),
+        (12, 0.25, 1)
+    );
+    assert_eq!(s.controller().unwrap().direction, 0);
+    // A full u16 controller frame can equal the owner's byte after narrowing,
+    // but still requires dirtying, including with a one-frame controller.
+    let c = s.sequence.as_mut().unwrap();
+    c.current = 268;
+    c.length = 1;
+    s.frame_dirty = false;
+    assert_eq!(s.tick(1.), Ok(2));
+    assert_eq!(s.frame(), 12);
+    assert!(s.frame_dirty);
+}
+
+#[test]
+fn sprite_reserved_slot_and_raw_play_mode_leave_unrelated_state() {
+    let mut s = AnimatedSprite::<()>::default();
+    s.install_controller_snapshot(Some(SequenceController {
+        selected: 0,
+        count: 1,
+        length: 1,
+        starts: vec![0, 1],
+        current: 0,
+        mode: 3,
+        direction: -1,
+    }));
+    let before = s.state;
+    let controller = s.controller().cloned();
+    assert_eq!(s.reserved_status(), 0);
+    assert_eq!(s.state, before);
+    s.set_play_mode_raw(0x123402);
+    let mut expected = before;
+    expected.playback.play_mode = 2;
+    assert_eq!(s.state, expected);
+    assert_eq!(s.controller(), controller.as_ref());
+}
+
+#[test]
 fn shared_draw_record_aliases_material_fields_and_preserves_opaque_bytes() {
     let mut sprite = AnimatedSprite::<()>::default();
     for offset in [4, 8, 12, 16] {
