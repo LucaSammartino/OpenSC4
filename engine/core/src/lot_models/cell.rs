@@ -25,8 +25,8 @@ pub enum CornerStep {
     Backward,
 }
 
-/// Explicit corner data and positive-step direction: the native cycle and
-/// strip order are not published (LM6). No layout/default is supplied by core.
+/// Legacy explicit corner helper. The cell owner always uses the settled LM6
+/// native strip and orientation table, independent of this compatibility helper.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CellCornerLayout {
     positions: [Vec2; 4],
@@ -35,6 +35,23 @@ pub struct CellCornerLayout {
 }
 
 impl CellCornerLayout {
+    pub fn native() -> Self {
+        Self {
+            positions: [[0., 0.], [1., 0.], [0., 1.], [1., 1.]],
+            texture_corners: [[0., 0.], [1., 0.], [0., 1.], [1., 1.]],
+            step: CornerStep::Forward,
+        }
+    }
+
+    pub fn native_texture_corners(orientation: Orientation, mirror: bool) -> [Vec2; 4] {
+        let tables = [
+            [[0., 0.], [1., 0.], [0., 1.], [1., 1.]],
+            [[0., 1.], [0., 0.], [1., 1.], [1., 0.]],
+            [[1., 1.], [0., 1.], [1., 0.], [0., 0.]],
+            [[1., 0.], [1., 1.], [0., 0.], [0., 1.]],
+        ];
+        tables[orientation.value()].map(|[u, v]| [if mirror { 1. - u } else { u }, v])
+    }
     pub fn new(positions: [Vec2; 4], texture_corners: [Vec2; 4], step: CornerStep) -> Result<Self, ContractError> {
         let is_square = |corners: &[Vec2; 4]| {
             [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
@@ -88,8 +105,11 @@ pub struct LotSample {
 /// Primitive lot/terrain queries; no cell-model output may be supplied here.
 pub trait CellPlacementSource {
     fn lot_at(&mut self, cell: [i32; 2]) -> Option<LotSample>;
-    /// Heights follow the explicit CellCornerLayout positions.
+    /// Individual terrain slot17 outputs in LM6 order: (0,0),(1,0),(0,1),(1,1).
     fn terrain_corners(&mut self, cell: [i32; 2]) -> [f32; 4];
+    fn bypass_flat(&mut self) -> bool {
+        false
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -98,6 +118,7 @@ pub struct CellPlacement {
     pub positions: [Vec3; 4],
     pub colours: Option<[Vec3; 4]>,
     pub bounds: Bounds,
+    pub vertices: [WallVertex; 4],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,7 +129,7 @@ pub enum CellMode {
 }
 
 pub fn cell_mode(record_mode: u8, record_alpha: u8, texture_has_alpha: bool) -> CellMode {
-    if record_mode != 0 {
+    if record_mode != 255 {
         CellMode::Tinted
     } else if texture_has_alpha || record_alpha != 255 {
         CellMode::Alpha
@@ -123,22 +144,28 @@ pub struct EnvironmentColour {
     pub alpha: f32,
 }
 
-/// Effective inputs to the combiner, not an invented implementation of its
-/// unpublished per-mode instruction record (LM1, LM7).
+/// Owned LM7 bytes and environment colour. Modes 0–3 have published driver
+/// meanings; upstream authors and other raw mode meanings remain LM1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CombinerRequest {
     pub mode: u8,
     pub environment: EnvironmentColour,
+    pub bytes: [u8; 12],
 }
 
 pub fn tinted_combiner(record: &CellRecord, global_light: Vec3, no_add_signed: bool) -> CombinerRequest {
     let substitute = record.mode == 3 && no_add_signed;
-    let alpha = f32::from(record.alpha) / 255.0;
+    let k = f64::from(f32::from_bits(0x3b80_8081));
+    let alpha = if substitute { record.alpha >> 1 } else { record.alpha };
+    let mode = if substitute { 1 } else { record.mode };
     CombinerRequest {
-        mode: if substitute { 1 } else { record.mode },
+        mode,
+        bytes: [mode, 0, 2, 0x21, 1, 0, 3, 1, 0, 0, 0, 0],
         environment: EnvironmentColour {
-            rgb: std::array::from_fn(|i| f32::from(record.rgb[i]) * global_light[i] / 255.0),
-            alpha: if substitute { alpha * 0.5 } else { alpha },
+            rgb: record
+                .rgb
+                .map(|v| (f64::from(v) * f64::from(global_light[0]) * k) as f32),
+            alpha: (f64::from(alpha) * k) as f32,
         },
     }
 }
@@ -149,8 +176,7 @@ pub enum TextureFilter {
 }
 
 pub enum CellGeometryDraw<'a> {
-    /// Four vertices in the caller's explicit layout order. This does not certify
-    /// that layout as the native strip cycle (LM6).
+    /// Four records in the settled LM6 native strip order.
     FlatStrip {
         placement: &'a CellPlacement,
         corners: [Vec2; 4],
@@ -188,22 +214,230 @@ pub struct CellDrawContext {
     pub no_add_signed: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellPackedState {
+    pub value: u32,
+    pub mask: u32,
+}
+impl CellPackedState {
+    pub const OPAQUE: Self = Self {
+        value: 0x0200_01a7,
+        mask: 0x1e00_03ff,
+    };
+    pub const ALPHA: Self = Self {
+        value: 0x020a_91bf,
+        mask: 0x1fff_ffff,
+    };
+    pub const TINTED: Self = Self {
+        value: 0x000a_80b5,
+        mask: 0x101f_e3ff,
+    };
+    pub fn apply(self, old: u32) -> u32 {
+        (old & !self.mask) | self.value
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CellRgbOperation {
+    SelectArg1,
+    Modulate,
+    Add,
+    AddSigned,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellDecodedCombiner {
+    pub rgb_operation: CellRgbOperation,
+    pub alpha_operation: u8,
+    pub rgb_sources: [u8; 3],
+    pub rgb_operands: [u8; 3],
+    pub alpha_sources: [u8; 3],
+    pub alpha_operands: [u8; 3],
+    pub scales: [u8; 2],
+}
+
+impl CombinerRequest {
+    pub fn decode(&self) -> Result<CellDecodedCombiner, ContractError> {
+        if self.bytes[1..] != [0, 2, 0x21, 1, 0, 3, 1, 0, 0, 0, 0] {
+            return Err(ContractError::InvalidInput);
+        }
+        let rgb_operation = match self.bytes[0] {
+            0 => CellRgbOperation::SelectArg1,
+            1 => CellRgbOperation::Modulate,
+            2 => CellRgbOperation::Add,
+            3 => CellRgbOperation::AddSigned,
+            _ => return Err(ContractError::InvalidInput),
+        };
+        Ok(CellDecodedCombiner {
+            rgb_operation,
+            alpha_operation: 1,
+            rgb_sources: [0, 2, 1],
+            rgb_operands: [2, 2, 4],
+            alpha_sources: [0, 3, 1],
+            alpha_operands: [4, 4, 4],
+            scales: [0, 0],
+        })
+    }
+}
+
+/// Typed requests consumed by a foreign context. Applying state includes that
+/// context's unconditional wrap/filter/transform-reset requests, as documented
+/// in §4.3; no duplicated context/device algorithm lives in this owner.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CellCommand {
+    ModelTransform,
+    ResetShade,
+    Texture {
+        word: u32,
+        stage: u8,
+    },
+    State(CellPackedState),
+    Wrap(u8, u8, u8),
+    Filter(u8, u8, u8),
+    TexColour(EnvironmentColour),
+    Combiner {
+        bytes: [u8; 12],
+        decoded: CellDecodedCombiner,
+        stage: u8,
+    },
+    Flat {
+        primitive: u8,
+        format: u8,
+        vertices: [WallVertex; 4],
+    },
+    Terrain {
+        cell: [u8; 2],
+        corners: [Vec2; 4],
+        alpha: f32,
+        forced: bool,
+    },
+}
+
+pub trait CellCommands {
+    /// Error denotes an unsupported foreign boundary, not native false/rollback.
+    fn request(&mut self, command: CellCommand) -> Result<(), ContractError>;
+    fn global_light(&mut self) -> Vec3;
+    fn no_add_signed(&mut self) -> bool;
+}
+
 pub struct CellTextureModel<T> {
     record: CellRecord,
     layout: CellCornerLayout,
     placement: Option<CellPlacement>,
     texture: Option<T>,
     zoom: Option<Zoom>,
+    rotation: Option<Edge>,
 }
 
 impl<T: Texture> CellTextureModel<T> {
-    pub fn new(record: CellRecord, layout: CellCornerLayout) -> Self {
+    /// Fully initialized owner-request domain only; missing render-service Init
+    /// and pre-init image state remain unsupported (LM2/LM7).
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_owned<F: TextureFactory<Binding = T>, S: CellPlacementSource, L: WallLighting, C: CellCommands>(
+        &mut self,
+        context: CellDrawContext,
+        rotation: Edge,
+        source: &mut S,
+        light: &mut L,
+        factory: &mut F,
+        commands: &mut C,
+    ) -> Result<u8, ContractError> {
+        if context.highlighted {
+            return Ok(1);
+        }
+        if self.zoom != Some(context.zoom) {
+            self.update_vertices(self.zoom.is_none(), true, source, light)?;
+            self.zoom = Some(context.zoom);
+            self.load_texture(context.zoom, factory)?;
+        }
+        if self.rotation != Some(rotation) {
+            self.update_vertices(false, true, source, light)?;
+            self.rotation = Some(rotation);
+        }
+        let Some(texture) = self.texture.as_ref() else {
+            return Ok(1);
+        };
+        let mode = cell_mode(self.record.mode, self.record.alpha, texture.has_alpha());
+        if mode != CellMode::Opaque && !context.translucent_pass {
+            return Ok(2);
+        }
+        if self.record.mode != 255 && self.record.mode > 3 {
+            return Err(ContractError::InvalidInput);
+        }
+        let count = texture.element_count();
+        if count == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+        let index = if context.zoom.index() < count {
+            context.zoom.index()
+        } else {
+            0
+        };
+        let word = texture.element_word(index).ok_or(ContractError::InvalidInput)?;
+        commands.request(CellCommand::ModelTransform)?;
+        commands.request(CellCommand::ResetShade)?;
+        commands.request(CellCommand::Texture { word, stage: 0 })?;
+        commands.request(CellCommand::State(match mode {
+            CellMode::Opaque => CellPackedState::OPAQUE,
+            CellMode::Alpha => CellPackedState::ALPHA,
+            CellMode::Tinted => CellPackedState::TINTED,
+        }))?;
+        commands.request(CellCommand::Wrap(2, 2, 0))?;
+        if mode == CellMode::Tinted {
+            commands.request(CellCommand::Filter(1, 1, 0))?;
+            let global = commands.global_light();
+            if !global.into_iter().all(f32::is_finite) {
+                return Err(ContractError::InvalidInput);
+            }
+            let no_add = self.record.mode == 3 && commands.no_add_signed();
+            let combiner = tinted_combiner(&self.record, global, no_add);
+            if !combiner
+                .environment
+                .rgb
+                .into_iter()
+                .chain([combiner.environment.alpha])
+                .all(f32::is_finite)
+            {
+                return Err(ContractError::InvalidInput);
+            }
+            commands.request(CellCommand::TexColour(combiner.environment))?;
+            commands.request(CellCommand::Combiner {
+                bytes: combiner.bytes,
+                decoded: combiner.decode()?,
+                stage: 0,
+            })?;
+        }
+        let placement = self.placement.as_ref().ok_or(ContractError::InvalidInput)?;
+        if placement.flat {
+            commands.request(CellCommand::Flat {
+                primitive: 1,
+                format: 10,
+                vertices: placement.vertices,
+            })?;
+        } else {
+            commands.request(CellCommand::Terrain {
+                cell: self.record.cell.map(|v| v as u8),
+                corners: self.corners(),
+                alpha: (f64::from(self.record.alpha) * f64::from(f32::from_bits(0x3b80_8081))) as f32,
+                forced: context.terrain_mode == 8,
+            })?;
+        }
+        Ok(1)
+    }
+    /// Compatibility signature. The owner now determines the native strip;
+    /// caller-supplied historical layouts no longer determine placement or UVs.
+    pub fn new(record: CellRecord, _layout: CellCornerLayout) -> Self {
+        Self::from_record(record)
+    }
+
+    pub fn from_record(record: CellRecord) -> Self {
         Self {
             record,
-            layout,
+            layout: CellCornerLayout::native(),
             placement: None,
             texture: None,
             zoom: None,
+            rotation: None,
         }
     }
 
@@ -220,7 +454,7 @@ impl<T: Texture> CellTextureModel<T> {
         self.zoom
     }
     pub fn corners(&self) -> [Vec2; 4] {
-        self.layout.texture_corners(self.record.orientation, self.record.mirror)
+        CellCornerLayout::native_texture_corners(self.record.orientation, self.record.mirror)
     }
 
     pub fn place<S: CellPlacementSource, L: Lighting>(
@@ -228,8 +462,19 @@ impl<T: Texture> CellTextureModel<T> {
         source: &mut S,
         lighting: &mut L,
     ) -> Result<(), ContractError> {
+        self.place_geometry(source)?;
+        if let Some(p) = self.placement.as_mut().filter(|p| p.flat) {
+            p.colours = Some(p.positions.map(|v| lighting.at_corner(v, [0., 1., 0.])));
+        }
+        Ok(())
+    }
+
+    fn place_geometry<S: CellPlacementSource>(&mut self, source: &mut S) -> Result<(), ContractError> {
+        if self.record.cell.into_iter().any(|v| !(0..=255).contains(&v)) {
+            return Err(ContractError::InvalidInput);
+        }
         let lot = source.lot_at(self.record.cell);
-        let flat = lot.is_some_and(|sample| sample.flags & 1 != 0);
+        let flat = lot.is_some_and(|sample| sample.flags & 1 != 0) && !source.bypass_flat();
         let heights = if flat {
             [lot.expect("flat implies a lot sample").altitude; 4]
         } else {
@@ -248,22 +493,56 @@ impl<T: Texture> CellTextureModel<T> {
                 z + self.layout.positions[i][1] * CELL_METRES,
             ]
         });
-        let colours = if flat {
-            Some(positions.map(|p| lighting.at_corner(p, [0.0, 1.0, 0.0])))
-        } else {
-            None
-        };
+        let colours = self.placement.as_ref().and_then(|p| p.colours);
+        let bytes = self
+            .placement
+            .as_ref()
+            .map(|p| p.vertices.map(|v| v.colour))
+            .unwrap_or([[0; 4]; 4]);
         let low = heights.into_iter().fold(f32::INFINITY, f32::min);
         let high = heights.into_iter().fold(f32::NEG_INFINITY, f32::max);
+        let min = [x + 0.1, low - 2.0, z + 0.1];
+        let mut max = [x + CELL_METRES - 0.1, high + 2.0, z + CELL_METRES - 0.1];
+        for i in 0..3 {
+            if max[i] <= min[i] {
+                max[i] = (f64::from(min[i]) + f64::from(f32::from_bits(0x3dcc_cccd))) as f32;
+            }
+        }
+        if !min.into_iter().chain(max).all(f32::is_finite) {
+            return Err(ContractError::InvalidInput);
+        }
         self.placement = Some(CellPlacement {
             flat,
             positions,
             colours,
-            bounds: Bounds {
-                min: [x + 0.1, low - 2.0, z + 0.1],
-                max: [x + CELL_METRES - 0.1, high + 2.0, z + CELL_METRES - 0.1],
-            },
+            vertices: std::array::from_fn(|i| WallVertex {
+                position: positions[i],
+                colour: bytes[i],
+                uv: self.corners()[i],
+            }),
+            bounds: Bounds { min, max },
         });
+        Ok(())
+    }
+
+    pub fn update_vertices<S: CellPlacementSource, L: WallLighting>(
+        &mut self,
+        geometry: bool,
+        colours: bool,
+        source: &mut S,
+        light: &mut L,
+    ) -> Result<(), ContractError> {
+        if geometry {
+            self.place_geometry(source)?;
+        }
+        if colours {
+            if let Some(p) = self.placement.as_mut().filter(|p| p.flat) {
+                for v in &mut p.vertices {
+                    let c = light.components(v.position, [0., 1., 0.]);
+                    v.colour = [c[2] as u8, c[1] as u8, c[0] as u8, self.record.alpha];
+                }
+            }
+        }
         Ok(())
     }
 
@@ -272,12 +551,12 @@ impl<T: Texture> CellTextureModel<T> {
         zoom: Zoom,
         factory: &mut F,
     ) -> Result<(), ContractError> {
-        // No wrap/saturate guess for an unpublished key overflow case (LM5).
-        let instance = self
-            .record
-            .texture_key
-            .checked_add(zoom.value())
-            .ok_or(ContractError::TextureKeyOverflow)?;
+        self.zoom = Some(zoom);
+        if self.record.texture_key == 0 {
+            self.texture = None;
+            return Ok(());
+        }
+        let instance = self.record.texture_key.wrapping_add(zoom.value());
         let key = |instance| TextureKey::Cell {
             type_id: CELL_TEXTURE_TYPE,
             group: CELL_TEXTURE_GROUP,
@@ -285,6 +564,27 @@ impl<T: Texture> CellTextureModel<T> {
         };
         self.texture = load_with_fallback(factory, Some(key(instance)), key(self.record.texture_key));
         self.zoom = Some(zoom);
+        Ok(())
+    }
+
+    pub fn sort_value(&self) -> u32 {
+        self.texture.as_ref().map_or(self.record.texture_key, Texture::id)
+    }
+
+    pub fn set_texture<F: TextureFactory<Binding = T>>(
+        &mut self,
+        record: CellRecord,
+        zoom: Zoom,
+        factory: &mut F,
+    ) -> Result<(), ContractError> {
+        self.record = record;
+        self.load_texture(zoom, factory)?;
+        let corners = self.corners();
+        if let Some(p) = self.placement.as_mut() {
+            for (v, uv) in p.vertices.iter_mut().zip(corners) {
+                v.uv = uv;
+            }
+        }
         Ok(())
     }
 
@@ -303,6 +603,9 @@ impl<T: Texture> CellTextureModel<T> {
             return Ok(None);
         };
         let mode = cell_mode(self.record.mode, self.record.alpha, texture.has_alpha());
+        if self.record.mode != 255 && self.record.mode > 3 {
+            return Err(ContractError::InvalidInput);
+        }
         if mode != CellMode::Opaque && !context.translucent_pass {
             return Ok(None);
         }

@@ -107,8 +107,8 @@ fn foundation(top: f32, base: f32) -> R<FoundationModel<Binding>> {
         top,
         16.0,
         FoundationTextureKeys {
-            sides: [None; 5],
-            tops: [None; 5],
+            sides: std::array::from_fn(|i| Some(0x69f20000 + i as u32)),
+            tops: std::array::from_fn(|i| Some(0x0912220f + i as u32)),
         },
     )
     .map_err(|e| format!("foundation: {e:?}"))
@@ -171,8 +171,15 @@ fn execute(name: &str, op: &Json) -> R<()> {
                     terrain_height: 0.0,
                 },
             ];
-            let mut wall = RetainingWallModel::init(Edge::North, 1.0, &samples, 1.0, [None; 5], true)
-                .map_err(|e| format!("wall: {e:?}"))?;
+            let mut wall = RetainingWallModel::init(
+                Edge::North,
+                1.0,
+                &samples,
+                1.0,
+                std::array::from_fn(|i| Some(0x695c00c6 + i as u32)),
+                true,
+            )
+            .map_err(|e| format!("wall: {e:?}"))?;
             let mut factory = Factory::default();
             wall.load_texture(level(op)?, &mut factory);
             equal(
@@ -203,17 +210,10 @@ fn execute(name: &str, op: &Json) -> R<()> {
             )
         }
         "lm_cell_corners" => {
-            let step = match field(op, "step")?.as_str() {
-                Some("forward") => CornerStep::Forward,
-                Some("backward") => CornerStep::Backward,
-                _ => return Err("step: unknown direction".into()),
-            };
-            let layout = CellCornerLayout::new(corners(field(op, "positions")?)?, corners(field(op, "uv")?)?, step)
-                .map_err(|e| format!("layout: {e:?}"))?;
             let orientation = Orientation::new(byte(op, "orientation")?).map_err(|e| format!("orientation: {e:?}"))?;
             equal(
                 "texture corners",
-                layout.texture_corners(orientation, boolean(op, "mirror")?),
+                CellCornerLayout::native_texture_corners(orientation, boolean(op, "mirror")?),
                 corners(field(op, "expect_corners")?)?,
             )
         }

@@ -2,11 +2,11 @@
   "format": 1,
   "name": "lm01_foundation_steps",
   "spec": ["lot-models.md §2", "lot-models.md §8.1"],
-  "description": "Published top 40 / ground 21 example and independently specified water/exact-step boundaries. Fixture footprint 16 x 16, top scale 16. f32 arithmetic is provisional per LM3/LM8.",
+  "description": "DIFFERS from original ceil fixture: settled LM3 trunc((depth+16)/16), including existing count. Water25 retains base40 because both counts are one; exact depth16 requires two. Analytical PC53 nearest-even finite domain, not native executions.",
   "steps": [
     {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 21, "water": null, "force": false, "expect_base": 8, "expect_rebuilt": true},
-    {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 21, "water": 25, "force": false, "expect_base": 24, "expect_rebuilt": true},
-    {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 24, "water": null, "force": false, "expect_base": 24, "expect_rebuilt": true},
+    {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 21, "water": 25, "force": false, "expect_base": 40, "expect_rebuilt": false},
+    {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 24, "water": null, "force": false, "expect_base": 8, "expect_rebuilt": true},
     {"op": "lm_foundation_steps", "top": 40, "base": 40, "ground": 23.999998092651367, "water": null, "force": false, "expect_base": 8, "expect_rebuilt": true},
     {"op": "lm_foundation_steps", "top": 40, "base": 8, "ground": 40, "water": null, "force": false, "expect_base": 8, "expect_rebuilt": false},
     {"op": "lm_foundation_steps", "top": 40, "base": 8, "ground": 40, "water": null, "force": true, "expect_base": 8, "expect_rebuilt": true}

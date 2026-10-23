@@ -33,13 +33,13 @@ fn lot_model_vectors_reject_discriminating_wrong_expectations() {
         ),
         (
             include_str!("../vectors/lm06_cell_orientation.json"),
-            "\"expect_corners\": [[1,0],[1,1],[0,1],[0,0]]",
-            "\"expect_corners\": [[0,0],[1,0],[1,1],[0,1]]",
+            "\"expect_corners\": [[0,1],[0,0],[1,1],[1,0]]",
+            "\"expect_corners\": [[0,0],[1,0],[0,1],[1,1]]",
         ),
     ];
     for (original, from, to) in cases {
         assert!(original.contains(from));
-        assert!(run_vector_text(original).is_ok());
+        assert!(run_vector_text(original).is_ok(), "{:#?}", run_vector_text(original));
         assert!(
             run_vector_text(&original.replacen(from, to, 1)).is_err(),
             "accepted wrong expectation: {from}"
