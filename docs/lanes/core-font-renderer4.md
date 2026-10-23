@@ -1,10 +1,10 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane, detached HEAD) | In progress: round 2 validation; previous failures and unknown quick2 terminal retained | Execute focused final-source test, then one canonical all; retain FR1-FR3 boundaries. |
+| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane, detached HEAD) | Ready: focused 13/13; canonical all exit 0, Rust 5366/0, clippy clean, native 4/4, CTest 68/68; ABI unchanged | Land bounded portable renderer with FR1-FR3 retained; no game/native/whole-owner credit. |
 
-## Handoff
+## Round 2 measured validation
 
-- Goal: validate existing committed bounded renderer, with no ownership expansion.
+- Validated the existing committed bounded renderer; no production or test source changes were needed in round 2.
 - Starting tip b953d8cc; engine tree f2b8a4e36c91919e12b2e1c955e9147e2381ea72.
 - Own manifest checked: core-font-renderer4, engine, correct worktree, round 2.
 - Copied coordinator review proves old quick2/checker/stats absent at 03:55; no old terminal inferred.
@@ -13,17 +13,19 @@
 - Cargo PID 35040, creation 1792724575.1745214; exact argv/output in build-runs/renderer-r2-focused-ownership.json.
 - Engine tree before/after unchanged; no source corrections needed.
 - q.py transport attempt failed before launch (Bash CreateInstance E_ACCESSDENIED); ran quiet retained-output Python wrapper directly.
-- Canonical all started 03:04:25Z, qbuild PID 32796 creation 1792724665.4978185; session 15723 remains owned/running.
-- Actual workspace Rust: 5366 passed, 0 failed, 24 summaries; clippy completed successfully.
-- Native log reached [4/4] final DLL link; CTest has not started as of 03:08:33Z.
-- Verifier PID 27096 creation 1792724799.5432737 waits on stats client PID 20916 creation 1792724861.330828.
+- Single canonical all started 03:04:25Z, qbuild PID 32796 creation 1792724665.4978185; session 15723 collected through durable exit **0**, completed 03:25:21.724447Z.
+- Actual workspace Rust: **5366 passed, 0 failed, 0 ignored**, summed over **24** result summaries; clippy exit **0**, **0 diagnostics**.
+- Native build: **PASS 4/4 edges** (57.9s). CTest: **PASS 68/68**, **0 failures** (wrapper 160.2s; CTest real time 157.53s). fc4verify PASS, 1122.0s; qbuild PASS.
+- Verifier PID 27096 creation 1792724799.5432737 temporarily waited on stats client PID 20916 creation 1792724861.330828.
 - Exact argv: C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json.
-- Full identities/log summary: build-runs/renderer-r2-all-diagnostic.json; terminal output empty so far.
+- Exact launch argv, PID/creation, output path, completion and before/after engine hashes: `build-runs/renderer-r2-all-ownership.json`. Durable terminal summary: `build-runs/renderer-r2-all-terminal.log`; full stage logs `qbuild-{test,clippy}.log`, `fc4verify-{build,ctest}.log`.
 - At 03:12:05Z stats client still has one thread, CPU user/system=0, established TCP 127.0.0.1:58965 -> 127.0.0.1:4644.
 - Coordinator observation file points to current round2 diagnosis; historical round1 identities retained separately.
 - Diagnostic helper initially used unavailable psutil net_connections; corrected to supported connections API and succeeded.
-- Next: continue collecting session 15723 to durable terminal; no duplicate, RPC, kill, or restart.
-- Historical report below is retained pending measured round 2 results.
+- The original operation eventually completed; no duplicate checker, RPC, process kill, or restart was issued. No cause for the telemetry delay is inferred.
+- Before/after engine tree is exactly `f2b8a4e36c91919e12b2e1c955e9147e2381ea72`; working engine diff is empty. fc4verify reported `[the tree changed during the run]`: only `docs/lanes/core-font-renderer4.md` changed between b3505455 and dfe9bf14, for mandatory committed checkpoints. No engine changes occurred during validation.
+- Post-terminal exact identity check confirms qbuild PID absent. Historical quick1 failure / quick2 failure and unknown terminal remain below; they are not rewritten as passes.
+- Git commits succeeded but also printed packed-refs.lock permission errors in this detached restricted worktree; no shared ref/config action was attempted.
 
 ## Implementation and boundary
 
@@ -35,11 +37,11 @@ FR1 ignored-slot semantic names remain withheld. FR2 explicitly marks inadequate
 
 ## Independent tests
 
-Eleven literal expected-ledger tests were written before production code (540d522c). Two further independent distinguishers extend them (86e19dca). Final source contains **13 test functions**, specifying **94 batch-call scenarios, 8 lock/unlock calls and 11 lifetime calls**. These are source-case counts, not a claim that the final revision has executed.
+Eleven literal expected-ledger tests were written before production code (540d522c). Two further independent distinguishers extend them (86e19dca). Final source contains **13 test functions**, specifying **94 batch-call scenarios, 8 lock/unlock calls and 11 lifetime calls**. Scenario counts describe the source ledger; all **13 functions actually passed** in the round 2 focused run and the canonical workspace run.
 
 Cases cover source offsets 27..55 / target rows 40,76,112; 5x3 extent despite source dimensions 1x1; zero count/control skip; empty/reversed/edge/depth query order; fresh origins; 16/24/32 depths and odd pitch; thresholds 127/128; valid 256-entry palettes and indices 128/255; initial palette[0] read; q=0, coverage 31/32/255 and forced alpha/high/green bits; FEEE/7BDE/F79E; asymmetric dyadic floor; 88888888/80808080/FEFEFEFE and actual a=0 dword read/store; raw callback failure/AL forwarding; safe lifetime; separate missing backing/address overflow/no rollback and unsigned count semantics. Expected values are literal ledgers/hand arithmetic, never calls to production as oracle.
 
-## Validation evidence and unresolved check
+## Round 1 historical validation (retained)
 
 - Baseline HEAD: `0e9917bdbca4bf1e2e798dffcc1c50e42eab02d0`; baseline engine tree `cd1be4a6afbbc6fa1afccadf717cd93bdbed9ffa`; final committed engine tree `f2b8a4e36c91919e12b2e1c955e9147e2381ea72`. Final engine diff: new 376-line module, new 621-line tests, one additive lib export. Manifest lane/path/engine/round 1 verified. No inherited own checker per admission.
 - Quick1, session 19899: durable terminal **exit 1**, 41.2 seconds. Accidental formatter filename headers prevented compilation (0 Rust test result lines); dependent compile and native build also failed. Corrected in 9acbe5d8. Historical logs retained as `build-runs/quick1-failed-{test,deps,build}.log`.
@@ -52,4 +54,4 @@ Cases cover source offsets 27..55 / target rows 40,76,112; 5x3 extent despite so
 
 ## Next steps
 
-Coordinator must first observe the exact recorded quick2 identities and collect a durable terminal or diagnose the unsupported completion path. Then validate final committed source with focused quick, followed by ONE canonical committed-source all with before/after engine hashes and actual Rust/clippy/native/ctest terminal evidence. Do not overlap checks or treat old stage success as final gate success. This first logical round remains WIP and requests no worker self-restart or additional round.
+Ready for coordinator landing of the bounded portable renderer. Review FR1-FR3 boundaries; no owner expansion, native eligibility, game/shadow equivalence, holder/span work, default switch, ABI/CAPI/plugin/CMake change or additional worker round is requested. No game request was made (this round's manifest has game=false). New questions: none; existing FR1-FR3 stay in `docs/specs/questions/font-renderer.md`.
