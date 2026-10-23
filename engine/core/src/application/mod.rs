@@ -22,6 +22,8 @@ pub mod ui;
 mod ui_tests;
 pub mod video;
 
+pub mod directors;
+
 use crate::commands::parse_delimited_text;
 use crate::gz_messages::Token;
 

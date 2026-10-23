@@ -158,6 +158,7 @@ pub struct Registry {
     typed: Vec<Target>,
     messages: Vec<Target>,
     count: u32,
+    running: bool,
     shutdown: bool,
     destroyed: bool,
 }
@@ -196,12 +197,27 @@ impl Registry {
             typed: Vec::new(),
             messages: Vec::new(),
             count: 0,
+            running: false,
             shutdown: false,
             destroyed: false,
         }
     }
     pub fn identity(&self) -> ServiceIdentity {
         self.identity
+    }
+    pub fn service_id(&self) -> u32 {
+        SERVICE_ID
+    }
+    pub fn service_priority(&self) -> i32 {
+        SERVICE_PRIORITY
+    }
+    pub fn tick_priority(&self) -> i32 {
+        SERVICE_PRIORITY
+    }
+    /// Constructor state only; registry Init/Shutdown do not change this byte.
+    pub fn running(&self) -> Domain<bool> {
+        self.alive()?;
+        Ok(self.running)
     }
     fn alive(&self) -> Domain<()> {
         if self.destroyed {
@@ -649,6 +665,13 @@ impl Registry {
         };
         self.add_ref()?;
         Ok(Some(face))
+    }
+    /// Required-output QI wrapper: unlike director QI, failure clears output.
+    /// The result-only API above remains useful to callers without native slots.
+    pub fn query_interface_out(&mut self, iid: u32, out: &mut Option<Face>) -> Domain<bool> {
+        *out = None;
+        *out = self.query_interface(iid)?;
+        Ok(out.is_some())
     }
     pub fn ref_count(&self) -> Domain<u32> {
         self.alive()?;
