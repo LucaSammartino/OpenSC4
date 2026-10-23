@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | WIP: source 8ffe72d2; baseline Rust 5372/0, clippy complete, native stats stall before ctest; new-file fmt passed; current-source runtime tests unrun; ABI unchanged | 1. Resolve exact stats-client stall. 2. Collect baseline session 92092. 3. Focused quick then stable-source all and full otherSC4classes enginecheck. |
+| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | in progress: R2 current-source validation; preserved R1 source 8ffe72d2 and engine 2abc42af; ABI unchanged | 1. Qualify absent old operation. 2. Focused quick once. 3. One stable-source all; report actual results. |
+
+## Handoff
+
+- Goal: qualify existing standalone owner source; no scope or algorithm expansion.
+- R1 source/report retained below verbatim; report commit d65c01e7, source 8ffe72d2.
+- First observation: old PIDs 35852/8132/34624/3324 absent; daemon 8644 and conhost 20024 present.
+- Copied root journal: ONLY Grid 29472 and Catalog 37168 interrupted (exit 15).
+- HTML old client/parent were already absent; HTML exit and disappearance cause UNKNOWN.
+- No process/RPC/cache/daemon action taken. Old session 92092 is not a handle in this CLI.
+- Read copied R1 result, host proof (full other SC4 classes guard exit 0/dependency exit 0), process proof and journal.
+- Next: preserve old logs and capture scoped current liveness, then once-only current-source quick.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-html-ui-hooks4-r2-manifest.json.
 
 ## Delivery and limits
 
