@@ -2,7 +2,7 @@
 <!-- Native evidence boundaries from the first owner research round. -->
 
 <!-- from: re-game-data-registry4 (2026-10-23) -->
-- **GDR1 - section 2, factory and root key:** Is there a registered class-factory route for CLSID `0xEBE0E860` beyond the app direct constructor, and how is the constructor-local initial reference of the allocated root unknown balanced? The node constructor AddRefs it; the inspected registry constructor has no corresponding Release. [unknown; direct app construction, QI identities and ordinary node retain/release are specified; no substitution/factory recipe]
+- **GDR1 - section 2, factory:** Is there a registered class-factory route for CLSID `0xEBE0E860` beyond the app direct constructor? [unknown; direct app construction, QI identities, zero-initialized base/root-key counts and node retain/release are specified; no substitution/factory recipe]
 
 <!-- from: re-game-data-registry4 (2026-10-23) -->
 - **GDR2 - sections 2 and 3.1, exceptional inputs:** What are the allocator/exception and null-name contracts at registry construction/creation, including partial allocations? The bodies contain null-allocation branches followed by dereferences and no ordinary transactional cleanup guarantee. [unknown; do not promise null-return rollback or accept null node parent/key]

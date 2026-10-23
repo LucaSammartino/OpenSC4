@@ -81,12 +81,14 @@ The constructor creates two empty ordered key indexes (+0x24 node, +0x30 leaf)
 and two empty target lists (+0x3C typed, +0x40 message). It allocates an 8-byte
 unknown object as the root key, constructs a 0x30-byte node named `__root__`
 with null parent and flags zero, stores it at +0x20 and indexes it by that key
-(`00474992`–`00474A1F`). The node constructor retains the root key as it does
-other node keys; any balancing of the constructor-local initial key reference
-is not established here.
+(`00474992`–`00474A1F`). The unknown constructor starts its 32-bit reference
+count at zero (`0090DA1E`); the node constructor’s AddRef makes the root key
+count 1. There is no extra constructor-local retained reference to balance.
+Root destruction releases that one reference. The registry’s own base counter
+also starts at zero through this unknown constructor.
 
-The framework-init hook `00473A80` registers its service face with framework
-slot +0x24 and returns true. Shutdown `004746A0` receives the +4 face: first
+The framework-init hook `00473A80` (service-face slot 8) registers its service face with framework
+slot +0x24 and returns true. Shutdown `004746A0` (service-face slot 9) receives the +4 face: first
 framework slot +0x28, then broadcast `(type=1, entry=null)`, clear both key
 indexes, recursively destroy all root children, clear both subscription lists,
 and return true. It preserves the root record and its name/object/child-list
@@ -288,6 +290,8 @@ that do not mutate the registry unless stated.
 | G10 target refs | new typed target T, duplicate T, remove T, remove T | net list ownership +1, +0, -1, +0; results true,false,true,false; duplicate/remove send no replay |
 | G11 delivery | message M subscribed, then typed T; create leaf Z | each target gets its own registration replay; creation delivers `(registry,3,Z)` to T; no ordinary event to M |
 | G12 shutdown | populated registry, call shutdown | typed event `(registry,1,null)` before index clearing; both indexes empty; root survives; child keys released and subscriptions released; root lookup by key now misses |
+| G13 node references | object K starts with count 4; create node N; duplicate K; remove K | counts 5,5,4; duplicate performs no new node ownership; removed node handle fails membership |
+| G14 service views | allocation R, QI for registry/system-service/unknown IIDs | returned faces R, R+4, R+8; each increments shared counter at R+0x0C; unsupported IID false and output null |
 
 No vector licenses unsafe pointers, allocation failures, reentrant deletion, or
 name-based paths; those need separate evidence.
@@ -348,7 +352,7 @@ Bytes are export body sizes, excluding gaps.
 | `00474690` | 8 | S | +8 deleting adjustment, §2 |
 | `004746A0` | 213 | S | shutdown hook, §2 |
 | `00474780` | 356 | S | subtree removal, §4 |
-| `004748F0` | 316 | P | service/root construction; root-key initial reference unresolved |
+| `004748F0` | 316 | P | service/root construction; allocator/partial-failure behavior unresolved |
 | `00474A30` | 30 | S | deleting wrapper, §2 |
 | `00474A50` | 212 | S | node creation, §3.1 |
 | `00474B30` | 288 | S | exchange creation, §3.1 |
