@@ -72,7 +72,11 @@ class order is a portable choice; exact native hash order remains open ADIR1.
 | ResMan | §8 vectors AD-V1–12,18–19,22,25–27 | above methods | `ad_v*` tests |
 | Game | §8 vectors AD-V1–12,20–21,25–27 | above methods | `ad_v*` tests |
 | Registry | §8 vectors AD-V23–24 | existing registry plus QI wrapper | `registry::ad_v23_registry_qi_clears_sentinel_unlike_director`, `registry::g12_shutdown_preserves_root_record_but_not_membership` |
-| Tools / ResourceLib / ResMan / Game / Registry | §9 open boundaries | explicit boundaries above | ADIR1–3 and linked owner questions remain open; no new gaps inferred |
+| Tools | §9 open boundaries | `enum_classes`; foreign decoder services | open: ADIR1; linked decoder questions retained |
+| ResourceLib | §9 open boundaries | `enum_classes`, `Singleton::construction_failed`; foreign factory interfaces | open: ADIR1, ADIR2, ADIR3 |
+| ResMan | §9 open boundaries | `enum_classes`, `Singleton::construction_failed`; foreign factory interfaces | open: ADIR1, ADIR2, ADIR3 |
+| Game | §9 open boundaries | `enum_classes`, `Singleton::construction_failed`; foreign factory interfaces | open: ADIR1, ADIR2, ADIR3 |
+| Registry | §9 linked-owner boundaries | existing `Registry::Unsupported` | open: GDR1–GDR5; no new gaps inferred |
 
 No real-game replacement or shadow is claimed: this is a core-only model with
 foreign interfaces and literal conformance fixtures. The source tests include
