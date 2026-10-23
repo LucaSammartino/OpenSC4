@@ -59,6 +59,8 @@ impl ConstructionStatics {
             cranes,
             ground: props(&GROUND_TYPES),
             roof: props(&ROOF_TYPES),
+            girder_plank: None,
+            crane_post_half: None,
         }
     }
 }
@@ -108,7 +110,9 @@ pub fn remove_rectangle(a: &mut Bounds, r: Bounds) {
     ];
     let mut best = 0.0;
     let mut result = ([0.0; 3], [0.0; 3]);
-    for c in candidates {
+    for mut c in candidates {
+        c.0[1] = a.0[1];
+        c.1[1] = a.1[1];
         let product = (c.1[0] - c.0[0]) * (c.1[2] - c.0[2]);
         if product > best {
             best = product;
@@ -181,7 +185,7 @@ pub fn outer_crane(areas: &mut [Bounds; 8], local_height: f32, st: &mut Construc
     None
 }
 
-/// The settled part of inner placement. Exact pose is explicitly open (§6.7.15).
+/// Inner side draw and strict model fit (§6.7.15).
 pub fn inner_crane_choice(b: Bounds, sizes: &[CraneSize; 3], rng: &mut RzRandom) -> (usize, Option<u8>) {
     let raw = rng.next_raw();
     let x_long = b.1[0] - b.0[0] >= b.1[2] - b.0[2];
@@ -196,25 +200,75 @@ pub fn inner_crane_choice(b: Bounds, sizes: &[CraneSize; 3], rng: &mut RzRandom)
     )
 }
 
-/// Crane rotation, independent of the unspecified model mesh (§6.7.12).
+/// Absolute model rotation (§6.7.15); equality and negative angles retained.
 pub fn crane_model_angle(angle: f32) -> f32 {
     let mut a = angle + std::f32::consts::PI;
-    if a >= std::f32::consts::TAU {
+    while a > std::f32::consts::TAU {
         a -= std::f32::consts::TAU;
     }
     a
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Unsupported {
-    /// §6.7.15, LD35.
-    ModelGeometry,
-    ScaffoldHeight,
-    InnerCranePose,
-    Draw,
-    RotationChange,
-    /// §6.7.6 lacks interpolation endpoints/day duration, LD36.
-    PhaseInterpolation,
+pub fn inner_crane_pose(b: Bounds, size: CraneSize, side: usize) -> ([f32; 3], f32, f32) {
+    use std::f32::consts::{FRAC_PI_2, PI, TAU};
+    let offset = (f64::from(size.back) + f64::from(size.reach)) * 0.5 - f64::from(size.back);
+    let mut p = [
+        ((f64::from(b.0[0]) + f64::from(b.1[0])) * 0.5) as f32,
+        0.,
+        ((f64::from(b.0[2]) + f64::from(b.1[2])) * 0.5) as f32,
+    ];
+    let axis = if side == 0 || side == 2 { 0 } else { 2 };
+    p[axis] = ((f64::from(b.0[axis]) + f64::from(b.1[axis])) * 0.5
+        + if side == 0 || side == 3 { -offset } else { offset }) as f32;
+    let q = ((f64::from(b.1[2 - axis]) - f64::from(b.0[2 - axis])) * 0.5) as f32;
+    let (lo, hi) = if q >= size.reach {
+        match side {
+            0 => (3. * FRAC_PI_2, 5. * FRAC_PI_2),
+            2 => (FRAC_PI_2, 3. * FRAC_PI_2),
+            1 => (0., PI),
+            _ => (PI, TAU),
+        }
+    } else {
+        let c = f64::from(match side {
+            0 => TAU,
+            2 => PI,
+            1 => FRAC_PI_2,
+            _ => 3. * FRAC_PI_2,
+        });
+        let a = (f64::from(q) / f64::from(size.reach)).asin();
+        ((c - a) as f32, (c + a) as f32)
+    };
+    (p, lo, hi)
+}
+
+/// Centre anchor and terrain fallback (§6.7.15). Corner heights use ordered comparisons.
+pub fn prop_anchor(
+    b: Bounds,
+    footprint: [f32; 2],
+    offsets: [f64; 2],
+    building: Option<[f32; 3]>,
+    mut altitude: impl FnMut(f32, f32) -> f32,
+) -> ([f32; 3], Bounds) {
+    let [fx, fz] = footprint;
+    let [x, z] = offsets;
+    let hx = (f64::from(fx) * 0.5) as f32;
+    let hz = (f64::from(fz) * 0.5) as f32;
+    let cx = (f64::from(b.0[0]) + x + f64::from(hx)) as f32;
+    let cz = (f64::from(b.0[2]) + z + f64::from(hz)) as f32;
+    let cut = ([cx - hx, b.0[1], cz - hz], [cx + hx, b.1[1], cz + hz]);
+    let y = if let Some(p) = building {
+        p[1]
+    } else {
+        let mut y = altitude(cut.0[0], cut.0[2]);
+        for (x, z) in [(cut.1[0], cut.0[2]), (cut.0[0], cut.1[2]), (cut.1[0], cut.1[2])] {
+            let next = altitude(x, z);
+            if next > y {
+                y = next;
+            }
+        }
+        y
+    };
+    ([cx, y, cz], cut)
 }
 
 impl ConstructionOccupant {
@@ -230,15 +284,18 @@ impl ConstructionOccupant {
             None
         };
         if let Some(fit) = fit {
-            self.rec.has_crane = host.create_crane(fit.position[0], fit.position[2], fit.crane_type);
-            self.rec.crane_position = fit.position;
             self.rec.scalars.crane_type = fit.crane_type;
             self.rec.scalars.swing_min = fit.swing_min;
             self.rec.scalars.swing_max = fit.swing_max;
+            self.create_crane(host, st, fit.position[0], fit.position[2], fit.crane_type);
         } else if policy == 2 || policy == 3 {
-            let (_, size) = inner_crane_choice(b, &st.cranes, &mut st.rng);
-            if size.is_some() {
-                self.unsupported.push(Unsupported::InnerCranePose);
+            let (side, size) = inner_crane_choice(b, &st.cranes, &mut st.rng);
+            if let Some(kind) = size {
+                let (p, lo, hi) = inner_crane_pose(b, st.cranes[usize::from(kind)], side);
+                self.rec.scalars.crane_type = kind;
+                self.rec.scalars.swing_min = lo;
+                self.rec.scalars.swing_max = hi;
+                self.create_crane(host, st, p[0], p[2], kind);
             }
         }
     }
@@ -247,7 +304,7 @@ impl ConstructionOccupant {
         &mut self,
         host: &mut dyn ConstructionHost,
         st: &mut ConstructionStatics,
-        b: Bounds,
+        b: &mut Bounds,
         p: PropSize,
         roof: bool,
     ) {
@@ -263,10 +320,18 @@ impl ConstructionOccupant {
             [0, 2][st.rng.uniform_u32(2) as usize]
         };
         let (fx, fz) = if orientation % 2 == 0 { (p.x, p.z) } else { (p.z, p.x) };
-        let x = st.rng.range_f64(0.0, f64::from(w - fx)) as f32;
-        let z = st.rng.range_f64(0.0, f64::from(d - fz)) as f32;
-        // Literal area minimum for the unspecified placement y/anchor (LD37).
-        host.place_prop(&prop, [b.0[0] + x, b.0[1], b.0[2] + z], orientation);
+        let x = st.rng.range_f64(0.0, f64::from(w - fx));
+        let z = st.rng.range_f64(0.0, f64::from(d - fz));
+        let (position, footprint) = prop_anchor(
+            *b,
+            [fx, fz],
+            [x, z],
+            host.lot_developer_building_position(&self.rec.lot),
+            |x, z| host.altitude(x, z),
+        );
+        host.place_prop(&prop, position, orientation);
+        host.associate_prop(&prop, &self.rec.lot, roof, (!roof).then_some(0x10));
+        remove_rectangle(b, footprint);
         if roof {
             self.rec.roof_props.push(prop);
         } else {
@@ -290,7 +355,9 @@ impl ConstructionOccupant {
                 }
                 st.crt.random_shuffle(&mut st.ground);
                 if let Some(p) = st.ground.iter().copied().find(|p| p.x < w && p.z < d) {
-                    self.place_prop(host, st, b, p, false);
+                    let mut remaining = b;
+                    self.place_prop(host, st, &mut remaining, p, false);
+                    self.areas[a] = remaining;
                     count -= 1;
                     attempted = true;
                     break;
@@ -303,7 +370,7 @@ impl ConstructionOccupant {
     }
 
     pub(super) fn roof_props(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics) {
-        let b = self.rec.local_bounds;
+        let mut b = self.rec.local_bounds;
         let product = (b.1[0] - b.0[0]) * (b.1[2] - b.0[2]);
         let mut count = st.rng.range_i32(0, 1) + i32::from(product > 256.0) + 2 * i32::from(product > 1024.0);
         while count > 0 {
@@ -316,7 +383,7 @@ impl ConstructionOccupant {
             else {
                 break;
             };
-            self.place_prop(host, st, b, p, true);
+            self.place_prop(host, st, &mut b, p, true);
             count -= 1;
         }
     }
@@ -335,14 +402,15 @@ impl ConstructionOccupant {
             let hi = (b.1[axis] - 0.5) - 1.0;
             p[axis] = st.rng.range_f64(f64::from(lo), f64::from(hi)) as f32;
         }
+        p[1] = host.altitude(p[0], p[2]);
         if let Some(automaton) = host.create_automaton(type_id, p, roof) {
             let x = st.rng.range_f64(-1.0, 1.0) as f32;
             let z = st.rng.range_f64(-1.0, 1.0) as f32;
-            host.worker_direction(&automaton, [x, z]);
-            // Literal creation flag in first byte; second byte constructor false (LD37).
+            let [dx, dz] = normalized_direction(x, z);
+            host.worker_direction(&automaton, [dx, 0., dz]);
             self.rec.crew.push(CrewEntry {
-                first: roof,
-                second: false,
+                first: false,
+                second: roof,
                 automaton,
             });
         }

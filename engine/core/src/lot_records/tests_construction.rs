@@ -503,13 +503,13 @@ impl ConstructionHost for Host {
     fn place_prop(&mut self, _: &RefValue, _: [f32; 3], _: u8) {
         self.say("prop placed".into());
     }
-    fn render_detail(&mut self) -> u32 {
+    fn render_detail(&mut self) -> i32 {
         0
     }
     fn create_automaton(&mut self, _: u32, _: [f32; 3], _: bool) -> Option<RefValue> {
         None
     }
-    fn worker_direction(&mut self, _: &RefValue, _: [f32; 2]) {}
+    fn worker_direction(&mut self, _: &RefValue, _: [f32; 3]) {}
     fn occupant_base_shutdown(&mut self) {
         self.say("base shutdown".into());
     }
@@ -528,20 +528,39 @@ impl ConstructionHost for Host {
     fn remove_automaton(&mut self, _: &RefValue) {
         self.say("worker-".into());
     }
-    fn prepare_render_state(&mut self) {}
+    fn prepare_render_state(&mut self, _: [[TextureBinding; 5]; 6], _: [f32; 14]) {}
     fn visibility_result(&mut self) -> bool {
         true
     }
     fn model_message_keys(&mut self) -> (u32, u32) {
         (1, 2)
     }
-    fn create_dust_clouds(&mut self) {
-        self.say("dust".into());
+    fn create_effect(&mut self, _: &RefValue, r: EffectRequest) -> Option<RefValue> {
+        if r.name.ends_with("dust") {
+            self.say("dust".into());
+            Some(host_ref(39, IID_EFFECT_PROP))
+        } else {
+            self.say("sparks 1".into());
+            Some(host_ref(40, IID_EFFECT_PROP))
+        }
     }
-    fn create_sparks(&mut self, n: usize) -> Vec<RefValue> {
-        self.say(format!("sparks {n}"));
-        (0..n as u64).map(|i| host_ref(40 + i, IID_EFFECT_PROP)).collect()
+    fn effect_slot8(&mut self, _: &RefValue, _: bool) {}
+    fn building_position(&mut self, _: &RefValue) -> [f32; 3] {
+        [0., 100., 0.]
     }
+    fn lot_developer_building_position(&mut self, _: &RefValue) -> Option<[f32; 3]> {
+        Some([0., 100., 0.])
+    }
+    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, _: bool, _: Option<u32>) {}
+    fn prop_position(&mut self, _: &RefValue) -> [f32; 3] {
+        [0.; 3]
+    }
+    fn move_roof_prop(&mut self, _: &RefValue, _: [f32; 3], _: u32, _: u32, _: u32) {}
+    fn automaton_position(&mut self, _: &RefValue) -> [f32; 3] {
+        [0.; 3]
+    }
+    fn move_automaton(&mut self, _: &RefValue, _: [f32; 3]) {}
+    fn translate_crane(&mut self, _: [f32; 3]) {}
     fn spark_slot8(&mut self, i: usize, v: u32) {
         self.say(format!("spark {i} slot8 {v}"));
     }
@@ -570,7 +589,9 @@ impl ConstructionHost for Host {
     fn pose_crane(&mut self, a: f32) {
         self.say(format!("pose {a}"));
     }
-    fn create_crane(&mut self, x: f32, z: f32, t: u8) -> bool {
+    fn create_crane(&mut self, r: CraneRequest) -> bool {
+        let [x, _, z] = r.position;
+        let t = CRANE_MODELS.iter().position(|&id| id == r.resource[2]).unwrap();
         self.say(format!("create crane {x} {z} {t}"));
         true
     }
@@ -588,6 +609,8 @@ fn statics() -> ConstructionStatics {
         cranes: [CraneSize::default(); 3],
         ground: vec![],
         roof: vec![],
+        girder_plank: None,
+        crane_post_half: None,
     }
 }
 
