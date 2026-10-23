@@ -142,6 +142,136 @@ changes the airplane state (`SetAirplaneState`, which starts and stops the engin
 the goals and the physics; in U-Drive-It, `TranslatePlayerDriveCommands` turns the player's commands
 into control inputs and drops `jetbomb` bombs.
 
+#### 3.4.1 Physics time and translational integration *[compat]*
+
+This subsection specifies the numerical **candidate motion**, before terrain, runway,
+collision and attitude corrections. It does not supply those corrections or close AF2.
+`UpdatePhysics` takes a binary32 time step in **seconds**. The animation caller converts
+the incoming milliseconds by binary32 `0x3A83126F` (approximately 0.001), applies
+the selected AI time multiplier for non-player aircraft, then caps the result at
+binary32 `0x3E4CCCCD` (approximately 0.2 seconds). Player-drive ticking converts and
+caps the same way, without that AI multiplier. These callers have no lower clamp or
+subdivision into several shorter steps. The original millisecond argument still goes
+to the animation/control callbacks; the converted step goes to AI pursuit and physics
+(`0x00504981–0x005049DA`, `0x00504A6A–0x00504A7E`,
+`0x00504B01–0x00504B42`). The animation pseudocode's apparent reuse of the millisecond
+argument for physics is incorrect: the instructions reload the converted local.
+
+At the start of the physics step, limit the **whole 3D velocity**, before calculating
+forces. Let `s0 = length(v)` be the x87 square-root result and `s` its saved binary32
+value. For finite inputs:
+
+| Condition, tested in this order | Velocity supplied to the force model |
+|---|---|
+| `s0 < epsilon` and `s0 > 0` | `v / s0`, hence speed **1**, not zero |
+| `s0 < epsilon` and `s0 = 0` | unchanged zero vector |
+| Otherwise, `s > MaxSpeed` and `s0 > 0` | `v × (MaxSpeed / s0)` |
+| Otherwise | unchanged |
+
+Here `epsilon` has binary32 bits `0x38D1B717` (approximately 0.0001).
+The tiny-speed branch takes priority over `MaxSpeed`, even when that maximum is
+less than 1. The maximum-speed comparison is strict: equality leaves velocity
+unchanged (`0x00503CBB–0x00503D9E`). There is no second speed limit immediately after
+acceleration, so the candidate new velocity can exceed the maximum within this step.
+The table covers finite inputs; it does not establish a sanitization policy for NaNs.
+
+Let `v0` be that limited velocity, `F` the calculated force, `m` the loaded mass,
+`p0` the old position and `h` the seconds step. The candidate motion is:
+
+- `a = F / m`;
+- `v1 = v0 + a × h`;
+- `p1 = p0 + (v0 + v1) × (h × 0.5)`.
+
+The displacement therefore uses the mean of old and new velocity, rather than only
+`v1`. The force is evaluated once for this candidate. Mass is used as loaded: this
+step does not replace a negative or otherwise invalid mass with a safe default.
+After the environment-dependent corrections, position and velocity are committed,
+collision detection runs, position is clipped to the world, and the attitude update
+runs, in that order (`0x00503D9E–0x00503E80`, `0x0050431D–0x00504400`). For ground
+phases 0/1, the subsequent velocity is projected onto the updated orientation:
+`v := orient × dot(v, orient)` (`0x00504418–0x00504447`). These later operations can
+change the candidate values; a conformance fixture must expose the candidate stage
+separately if it tests only the integration above.
+
+#### 3.4.2 Force magnitudes *[compat, partial AF2]*
+
+The verified scalar part of `CalculateForces` (`0x004FE850`) is given here so that
+an implementation need not invent a conventional aerodynamic formula. The complete
+attitude-to-lift-direction construction and angular/control update remain open under
+AF2; this subsection alone is not a complete force-owner replacement.
+
+Inputs are velocity `v`, the supplied orientation `d`, normalized throttle `t` and
+flaps command `f`, plus the loaded parameters in §3.1. The force routine itself does
+not clamp either command to a control range. Let `s = length(v)` and let `u` be the
+normalized velocity, using `d` instead when `s < epsilon`. Only this direction
+substitution uses the fallback: speed and dynamic pressure still use the actual `v`.
+The substituted direction is normalized too; there is no additional zero-vector
+fallback (`0x004FE8A2–0x004FE92F`).
+
+The angle used for the coefficient curve is **not** the angle between the two full
+3D vectors. With `u_y` and `d_y` their vertical components, it is
+
+`alpha = clamp(acos(clamp(sqrt(1 − d_y²) × u_y + sqrt(1 − u_y²) × d_y, −1, 1)), 0, A)`.
+
+`A` has binary32 bits `0x3FC90FDB` (approximately π/2). The square-root operands
+are not individually clamped. The inner result is stored as binary32 before the
+inverse cosine; the angle result is bounded afterwards
+(`0x004FF119–0x004FF1B4`). The export labels the called helper at `0x009F0090`
+`TransformDirection`, but its math body is inverse cosine: it evaluates
+`atan2(sqrt((1+x)×(1−x)), x)` (`0x009F00C8–0x009F00D6`). Do not infer a vector
+transform or substitute an ordinary angle-of-attack calculation from that name.
+In particular, for horizontal `d` and horizontal velocity, this expression gives
+`alpha = A`, regardless of their horizontal headings.
+
+Write `sigma = StallAngle`, and `C0`, `Cs`, `C90` for
+`LiftFactorLevelFlight`, `LiftFactorMaxClimb`, `LiftFactorFullStall`.
+The lift coefficient is piecewise linear:
+
+| Angle | Coefficient `C` |
+|---|---|
+| `alpha <= sigma` | `C0 + ((Cs − C0) / sigma) × alpha` |
+| `alpha > sigma` | `Cs + ((alpha − sigma) × (C90 − Cs)) / (A − sigma)` |
+
+There is no denominator guard for a loaded zero or out-of-range stall angle in
+this calculation (`0x004FF1EE–0x004FF243`). Define the pressure-like scale,
+lift magnitude and drag normalization in this operation order:
+
+- `Q = ((((FlapsMax × f) + 1) × s) × s) × AirResistanceFactor × 0.5`;
+- `L = C × Q`;
+- `K = ThrottleMax / ((((MaxSpeed × MaxSpeed) × AirResistanceFactor) × 0.5) × k)`.
+
+Here `k` has binary32 bits `0x3DCCCCCD` (approximately 0.1). `L` is stored as
+binary32 before scaling the lift direction (`0x004FF28A–0x004FF2AE`). `K` is stored as
+binary32 before being used by the drag calculation (`0x004FE85A–0x004FE8A0`);
+`Q` is formed at `0x004FF1CB–0x004FF1EE`. Flaps scale both lift and aerodynamic
+drag through `Q`; they do not add a separate constant force.
+
+Let `Fy_lift` be the binary32 vertical component after applying magnitude `L` to the
+attitude-derived lift direction. Let `W` be the magnitude of the stored binary32
+gravity force, `binary32(m × g)`. The extra rolling resistance is zero except in
+phases **0/1** when `Fy_lift < W`. In that case its magnitude is
+
+`R = (1 − (1 / W) × Fy_lift) × m × s × k`.
+
+Gravity uses binary32 `g = 0x411CCCCD` (approximately 9.8), with downward force
+`−m × g`. The vertical lift component, not the total magnitude `L`, reduces rolling
+resistance. Equality with weight produces no extra resistance
+(`0x004FF1B4–0x004FF1C7`, `0x004FF328–0x004FF367`).
+
+The drag magnitude opposing `u` is
+`D = R + (alpha × alpha + k) × Q × K`. Thrust magnitude is `T = t × ThrottleMax`,
+along the supplied `d`. Only in phases 0/1, if **both** `t < 0` and `dot(v,d) < 0`,
+replace `T` with zero. Thus reverse throttle brakes forward motion, but cannot
+continue accelerating an already backward-moving plane on the ground. Zero dot
+product does not suppress it; airborne phases do not apply this gate
+(`0x004FF2B2–0x004FF2F6`). The returned force is the sum of lift, thrust,
+gravity and `−D × u` (`0x004FF317–0x004FF3E2`).
+
+These equations describe operation ordering, not a requirement to round every
+arithmetic operation to binary32. The original uses x87 intermediate arithmetic
+and binary32 stores. Compare floating conformance results with an explicit tolerance;
+do not replace the cited encoded constants with the rounded decimal text.
+
 ## 4. The helicopter *[compat]*
 
 ### 4.1 Drive-parameter record (AF1)
@@ -237,3 +367,33 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
 7. Helicopter record with all fields zero preserves every preset field. Giving
    only `BankMax = 1` changes that maximum to binary32 `440F3D4D` while preserving
    `PitchMax`; an ancestor with `PitchMax = 2` is not merged into the present record.
+8. Isolate the pre-force velocity limiter (§3.4.1). With `MaxSpeed = 150`,
+   `(0,0,0)` stays zero, `(0.00001,0,0)` becomes approximately `(1,0,0)`,
+   `(90,120,0)` stays unchanged, and `(120,160,0)` becomes approximately
+   `(90,120,0)`. With `MaxSpeed = 0.5`, the tiny nonzero vector still becomes
+   speed 1: it does not also pass through the maximum-speed branch.
+9. Isolate candidate integration from surface and attitude corrections. For
+   `p0=(1,2,3)`, `v0=(10,0,0)`, `m=100`, `F=(200,0,0)`, `h=0.1`, expect
+   `v1≈(10.2,0,0)` and `p1≈(2.01,2,3)`, with component tolerance `0.00001`.
+   At `v0=(150,0,0)` and the same force/step, candidate `v1.x≈150.2`:
+   there is no post-acceleration speed cap at this stage.
+10. Player-drive time conversion: input 100 ms gives approximately 0.1 s;
+    1000 ms gives the encoded 0.2-s cap and only one physics step. Input 0 ms
+    gives 0 s. A negative finite input is not raised to zero by this caller.
+11. Isolate the scalar lift curve (§3.4.2), with `sigma=A/3`, `C0=0.08`,
+    `Cs=0.68`, `C90=0`. Angles `0`, `sigma/2`, `sigma`, `(sigma+A)/2`, `A`
+    yield coefficients approximately `0.08`, `0.38`, `0.68`, `0.34`, `0`.
+    Tolerance `0.000001`. Horizontal velocity and horizontal orientation
+    produce angle `A` through the specified inverse cosine, not angle zero.
+    For the separate boundary case `sigma=A`, `alpha=A`, the coefficient is
+    approximately `Cs`: equality uses the lower segment, avoiding the upper
+    segment's zero denominator.
+12. Scalar pressure and ground resistance: `s=10`, resistance factor 1,
+    `FlapsMax=0.4`, command `f=0` gives `Q=50`; `f=1` gives approximately 70.
+    With mass 100 and vertical lift zero, phases 0/1 give `R≈100`; phase 2
+    gives zero. Vertical lift equal to weight gives zero rolling resistance;
+    half weight gives `R≈50` in phase 1. Tolerance `0.0001`.
+13. Thrust gate: with `ThrottleMax=10000`, `d=(0,0,1)`, `t=−0.5`, compare
+    `v=(0,0,10)`, zero velocity, and `v=(0,0,−10)`. Phase 1 produces thrust
+    magnitudes `−5000`, `−5000`, `0` respectively; phase 2 produces `−5000`
+    in all three cases. Test the thrust component separately from total force.
