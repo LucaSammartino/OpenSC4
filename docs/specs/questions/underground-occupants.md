@@ -16,3 +16,8 @@
   serializable refs and separates raw record fields from runtime references. Shutdown, subscriptions and
   hidden triangles follow the explicit contract. No original-owner result callbacks stand in for geometry.
   [missing/ambiguous; network section 3.6 and underground UG1/section 8 remain open; no owner closure]
+  **Progress 2026-10-23 (re-netocc-answers5):** network §3.6.1 and underground §4/tests 9–13 specify exact
+  record-version/ref adjustment rules, creation surface inputs and ordered eight-neighbor decisions,
+  callback latch preservation, three packing tuples, linked-reference changes, model-state notification,
+  model enumeration and position copies. Remaining: complete descriptor-dependent geometry, Draw,
+  transform/view-dependent behavior, bounds and message decisions. Kept open for those owner requirements.

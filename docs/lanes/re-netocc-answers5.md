@@ -41,6 +41,7 @@ NO14 and NO29–NO32 were not reached. Work was bounded to finish and land verif
 answers within the measured lane budget rather than declaring these wider questions answered.
 
 ## Handoff
+- Round-3 milestone: UG5 partial rules added to network §3.6.1, underground §4 and tests 9–13. Exact-version/ref/helper, creation quad/neighbors, static cleanup/packing, enumeration and ref/state-change behavior verified against bytes; UG5 remains open for full geometry/view/message/bounds.
 - Round 3 resumed 2026-10-23 at detached HEAD 05313cf6; new manifest run4-re-netocc-answers5-r3-manifest.json.
 - Harvest validation repeated: doccheck check and questions check PASS. Clean-room review uses CONTRIBUTING.md: state, formats, constants and prose algorithms only; no listings or decompiler-local structure.
 - Goal: harvest PR10, then answer NO33/NO36/UG5 with prose conformance vectors; those three broad questions remain OPEN, with no round-2 vectors yet added.

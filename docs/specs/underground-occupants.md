@@ -179,6 +179,20 @@ The pipe's algorithm (§2.5) on the subway's tables: points `0x00B0C960`, `a` at
 They have no record of their own: the base's is written (save-records.md §3.2 counts four pipe-connection saves and
 one subway-connection save in the corpus).
 
+*[compat; UG5 partial, 2026-10-23]* The shared base contract is network-occupants.md §3.6 and §3.6.1.
+In particular connection Read accepts **only u16 version 2**, before invoking the occupant base. The seven
+wall lists each use that spec's §3.4 u32-count/24-byte-vertex helper. Both references request occupant IID
+`0x26BB767E`; serializable-view +C4/+C8 are live primary +C8/+CC, and only the attached nonnull result is
+adjusted by −4. The creation path searches the own cell before all eight neighbors, releases neighbor hits,
+requests network changes only for fresh objects and reacquires the own-cell occupant afterward. This is
+not permission to retain a neighbor as the attached occupant.
+
+The static resource callback Releases/nulls its manager but leaves the latch set. The three packed-state
+tuples and renderer +28's discarded result are in §3.6.1. Main slot 40 is SetLinkedOccupant, not a
+view-dependent-model predicate; main slot 41 reloads zoom-dependent textures, not model enumeration.
+Main slot 36 enumerates one adjusted model-instance pointer with one AddRef. SetPosition copies position
+only. Geometry/drawing, remaining message/view/transform decisions and descriptor interpretation remain UG5.
+
 ## 5. Vtables and thunks
 
 Each occupant has a main vtable, three sub-object vtables at `+4` (the occupant interface), `+8` (serialisation) and
@@ -230,6 +244,10 @@ occupants' vtables.
 - **UG3:** subway pieces `0x300` and `0x4B00` (the ones whose floor comes from the second vertex list), and what the
   zipper piece type answer selects.
 - ~~**UG4:**~~ answered 2026-10-21 (re-ugbase): they are the connections' occupant types (network-occupants.md §3.6).
+- **UG5:** connection owner closure remains partial; §4 and network-occupants.md §3.6.1 now specify record
+  validation/refs, creation inputs and neighbor decisions, static cleanup, packed states, model enumeration,
+  position copying and linked-reference/model-state changes. Full geometry, drawing and view/message behavior
+  still require a trace.
 
 ## 9. Conformance tests
 
@@ -251,3 +269,26 @@ occupants' vtables.
    `0x4A10AFC2` for a pipe occupant; both connections' `GetSortValue` give their class IDs.
 8. **Static set-up:** with the shipped tables the pipe ratios are 0.648375, 0.5615625, 0.4384375, 0.351625 and the
    subway ratios 0.8709375, 0.6539375, 0.3460625, 0.1290625.
+9. **Connection record/ref views:** u16 1 and 3 reject before any occupant-base read; u16 2 reaches the base.
+   Give the seven lists counts `(0,1,2,0,1,0,3)` with distinct vertices: exactly seven counts and seven
+   groups in that order round-trip through the §3.4 helper. Resolve attached ref to address A and linked ref
+   to L under IID `0x26BB767E`: live +C8 becomes A−4, live +CC becomes L; null A becomes zero. On successful
+   row completion saved +17C=false nevertheless becomes true and +244 becomes true.
+10. **Connection creation searches:** with own cell `(10,20)` missing and every neighbor missing, query in
+    order `(9,20),(10,19),(11,20),(10,21),(9,19),(11,19),(11,21),(9,21)` and then query `(10,20)` again.
+    At every missing occupant try a connection. Let `(11,20)` contain an occupant and `(9,21)` only a
+    connection: release both results and, for a fresh object, make two network requests with matching own/
+    neighbor cells and tail `(0,0,1,−1)`. A loaded object makes the same queries/releases but no network
+    requests. An initial own-cell hit refreshes once without any neighbor queries.
+11. **Connection surface inputs:** city cell origin `(32,64)`, extents `(16,16)`, S=16 and heights
+    `(20,21,22,23)` produce positions `(32,4,64),(32,5,80),(48,6,80),(48,7,64)` and UVs
+    `(0,0),(0,1),(1,1),(1,0)`. Position y=12 gives +170=12 and +174=−4. Both matrices reset to identity.
+12. **Connection notification and refs:** +17C=false and invisible gives one bounds calculation and no
+    renderer call; a repeat gives neither. Reset false and make visible: one bounds calculation then
+    renderer +7C(instance,3). Changing linked A→B traces Release(A), store B, AddRef(B); B→B does nothing;
+    B→null traces Release(B), store null, manager +54(this,1,0); null→null does nothing.
+13. **Connection statics and enumeration:** a null renderer preserves all three prefilled packed states;
+    with a renderer returning either value from +28, the three §3.6.1 tuples are identical. Callback twice
+    Releases the static manager only once, returns true twice and preserves the latch. Enumeration writes
+    count 1 and one adjusted instance pointer with one AddRef, never consuming a save stream. SetPosition
+    changes only the three position words, leaving cell, geometry and renderer trace unchanged.

@@ -953,6 +953,7 @@ themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x
 | `+0x150`, `+0x154` | 2 × s32 | the cell |
 | `+0x160`…`+0x16C` | 4 × f32 | four heights |
 | `+0x170` | f32 | saved (NO41) |
+| `+0x174` | f32 | creation-time position y minus the cell size; not a separate record field |
 | `+0x178` | s32 | saved (NO41) |
 | `+0x17C` | bool | the model state has been taken into account |
 | `+0x180`, `+0x18C` | 2 × 3 × f32 | the box (slot 42) |
@@ -981,6 +982,15 @@ themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x
 after the rows it sets `+0x17C` and `+0x244` to true, so the saved row 8 is never used *[quirk]*. Both return true
 exactly when the stream has no error. Both classes appear in saves by class ID (save-records.md §3.2: subway
 connection `0xCA15ED6B` in 1 save, pipe connection `0xEA0A5ACF` in 4).
+
+*[compat; UG5 record clarification, 2026-10-23]* The seven list writes all use the §3.4 wall helper
+(`0x0065B070`, calls at `0x00654C81–0x00654CC0`); all seven reads use `0x006574A0`
+(`0x006575D9–0x00657618`). Each is a u32 count followed by that many 24-byte vertices in the helper's
+field order, not a byte-counted opaque mesh. Record methods receive **primary+4**. Thus the attached
+ref's instruction displacement +C4 is live +C8, and the linked ref's displacement +C8 is live +CC.
+Both reads request IID `0x26BB767E`; only the attached nonnull result is adjusted by −4 before storage
+(`0x00657693–0x006576D4`). A null attached result stays null. These are the same live references released
+by Shutdown, not two additional raw reference fields. The exact-version comparison is at `0x006575A7`.
 
 **Behaviour.**
 - `Init()` (main slot 3, `0x00654670`): once (latch `0x00B46838`), hold the resource manager (`0x00B43CA8`, at
@@ -1012,8 +1022,75 @@ connection `0xCA15ED6B` in 1 save, pipe connection `0xEA0A5ACF` in 4).
 - `Draw` (`0x00656E90`): builds the geometry when needed (`CreateGeometry`: `CreatePieceModel` `0x00655850`,
   `CreateWalls` `0x00655F10`, `CreateFloor` `0x00656010`, from the zoom and rotation; `AddWallQuad` `0x006555E0`),
   then draws the lists with two packed states (`0x00B46864`, `0x00B46854`) (NO40).
-- Other bodies: `GetTransform`/`SetTransform` `0x00648360`/`0x006540F0`; `GetModelInstances` (slot 36) the
-  underground's `0x00659D70`.
+- Position accessors `0x006540C0` / `0x006540F0` copy the three words at +230 to/from the caller's vector;
+  SetPosition alone does not rebuild geometry, update the cell or notify the renderer. `0x00648360` is the
+  pipe connection's QueryOccupantInterface, **not GetTransform** (underground-occupants.md §4).
+- `GetModelInstances` (main slot 36, `0x00659D70`) writes count 1 and the model-instance virtual-base pointer
+  selected through +3C's adjustment table, and AddRefs the primary object. The first two and fourth arguments
+  are unused; it is not a stream reader. It assumes a live object. `0x00655520` (main slot 41) instead reloads
+  the shared texture bindings for the draw context's zoom: record that zoom, release/null each old binding,
+  then request key `(0x7AB50E44, 0x1ABE787D, entry-key + zoom)` into the binding's slot.
+
+#### 3.6.1 Creation and owner-state details *[compat; UG5 partial]*
+
+The creation Init stores the supplied class ID at +240 and the descriptor pointer at +23C. On an already
+initialized object it returns true without rebuilding. Before a fresh initialization it releases/nulls both
+occupant refs unless +244 says this is a loaded object; the attached ref is nevertheless released/nullified
+again before the own-cell search. A preserved linked ref is not cleared by that search. The creation path's
+actual entry is `0x00654710`; its export splits off the first 13 bytes from the body at `0x0065471D`.
+
+It obtains the position, converts x/z to cell coordinates through the city, saves position y as +170 and
+f32(position y − cell size) as +174, and obtains four cell-corner heights. Let the city's CellToPosition
+result be `(x0,z0)`, its x/z cell extents truncated to integers be `(sx,sz)`, the cell size be S, and those
+four heights be h0…h3. The four surface vertices beginning at +1D0 have positions/UVs:
+
+| Corner | Position | UV |
+|---|---|---|
+| 0 | `(x0, f32(h0−S), z0)` | `(0,0)` |
+| 1 | `(x0, f32(h1−S), f32(z0+sz))` | `(0,1)` |
+| 2 | `(f32(x0+sx), f32(h2−S), f32(z0+sz))` | `(1,1)` |
+| 3 | `(f32(x0+sx), f32(h3−S), z0)` | `(1,0)` |
+
+It also resets the two 4×4 matrices at +D0 and +110 to identity, sets +178=1 and +17C=true and sets up the
+packed states. Numeric sources: `0x006547DE–0x006549F3` (f32 height stores, integer cell extents).
+These are creation inputs/surface vertices, not a complete description of CreatePieceModel/CreateGeometry.
+
+The own-cell search requests the class returned by main slot 38. An own-cell hit is retained and refreshed
+through main slot 43; no neighbor search occurs. Otherwise the eight neighbor offsets are visited in this
+exact order: `(-1,0), (0,-1), (1,0), (0,1), (-1,-1), (1,-1), (1,1), (-1,1)`.
+For each cell an underground-occupant search comes first, then, only on failure, a connection search.
+The first successful search suffices for that cell. Neighbor results are released immediately, never kept
+as the attached occupant. On a hit, a fresh object (+244=false) obtains the network interface selected by
+main slot 39, AddRefs it, begins a change (+0C), requests a connection (+1C) with arguments
+`(ownX,ownZ,neighborX,neighborZ,0,0,1,−1)`, ends the change (+10) and Releases it. A loaded object still
+performs the neighbor queries/releases but does not request these connections. After all eight cells it
+reacquires its own-cell occupant, refreshes it if present, computes the bounding box and subscribes the four
+messages. A neighbor miss does not terminate the loop. Sources: `0x00654A20–0x00654C43`; offset table
+`0x00654A54–0x00654A98`, loaded gate `0x00654B30`.
+
+ModelStateChanged consumes a false +17C exactly once: set true, calculate bounds into +180/+18C, then, if
+occupant visibility bit 1 at +2F is set, notify renderer +7C with the adjusted model instance and argument 3.
+An already-true flag produces no bound calculation/notification (`0x006542F0–0x0065433B`). SetLinkedOccupant
+compares pointers first; an equal pointer, including null→null, does nothing. For a changed pointer it
+Releases the old, stores the new, then AddRefs a nonnull new pointer. A changed pointer to null instead
+removes this connection through occupant manager +54 with `(this,1,0)` (`0x00654620–0x00654665`).
+
+The static shutdown callback Releases/nulls the held resource manager and returns true even if already
+null. It **does not clear the one-time latch** (`0x00653DA0–0x00653DBB`), so calling the callback then Init
+does not reacquire that static resource through this latch.
+
+SetupPackedRenderState does nothing when the renderer is null. Otherwise it calls renderer +28 and
+discards its result, then packs these three tuples in argument order to `PackRenderState`
+(`0x00654260–0x006542EE`; float argument is exactly −1.0):
+
+| State address | Positional arguments |
+|---|---|
+| `0x00B46854` | `(1,1,1,0,0,1,0,3,−1,−1,−1,−1.0,1,−1)` |
+| `0x00B4685C` | `(1,1,1,0,1,1,0,3,4,5,−1,−1.0,1,−1)` |
+| `0x00B46864` | `(1,1,1,0,1,0,0,3,4,5,−1,−1.0,1,−1)` |
+
+UG5 remains open for the descriptor-dependent geometry, complete Draw/view/transform and message decisions;
+NO40/NO41 also remain open. Neither a successful lookup nor these packing tuples is an owner-closure claim.
 
 The subclasses differ in exactly three slots plus the type: the **pipe connection** ctor `0x006483E0` = the
 underground-connection ctor + its own vtables (`0x00AA9578` primary etc.), `Init` `0x00648050`; the **subway
@@ -1529,7 +1606,7 @@ through an occupant back-pointer. There is **no `cSC4NetworkLotOccupant` class**
 |---|---|---|---|
 | network occupant (base) | `+0x138` | a path-info-like object | write via `0x6999A8FB`, read `0xA9667793` |
 | tunnel | `+0x1D0` | the paired tunnel portal occupant | `0xE4FDA3D4` on write, `0x8A4BD52B` on read |
-| pipe connection | `+0xC4/+0xC8` | two serializables (null allowed) | as written |
+| pipe/subway connection | live `+0xC8/+0xCC` | attached underground occupant / linked occupant (null allowed) | both `0x26BB767E`; attached result adjusted −4 (§3.6) |
 | power pole | per connection | the pole ref (+ wire entries) | `0x09C05C6A`, `0xC9C05C5D` |
 | power line | `+0x44/+0x48/+0x4C` | up to three poles | `0xA8C86142` |
 | pylon | `+0x6C`, `+0x1B4` | the source occupant, another ref | as written |
