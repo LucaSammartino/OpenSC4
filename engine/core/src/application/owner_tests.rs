@@ -96,6 +96,15 @@ impl CityHost for Foreign {
     }
 }
 impl CompatibilityHost for Foreign {
+    fn library_path(&mut self, library: &[u8]) -> Vec<u8> {
+        library.to_vec()
+    }
+    fn library_exists(&mut self, _: &[u8]) -> bool {
+        true
+    }
+    fn gzcom_available(&mut self) -> bool {
+        true
+    }
     fn read_preferences_record(&mut self, _: &[u8], key: [u32; 3]) -> Option<(u32, Vec<u8>)> {
         assert_eq!(key, PREFERENCES_KEY);
         self.record.take()
@@ -741,7 +750,10 @@ fn published_getters_preserve_identity_and_report_unpublished_slots() {
         app.app_interface_getter(48, None, &mut h),
         Ok(AppValue::Embedded(Embedded::GlyphTextureManager))
     );
-    assert_eq!(app.app_interface_getter(56, None, &mut h), Err(56));
+    assert_eq!(
+        app.app_interface_getter(56, None, &mut h),
+        Ok(AppValue::String(Vec::new()))
+    );
     assert_eq!(app.app_interface_getter(19, None, &mut h), Err(19));
     assert_eq!(
         app.app_interface_getter(59, None, &mut h),
@@ -751,6 +763,80 @@ fn published_getters_preserve_identity_and_report_unpublished_slots() {
     h.token(Q::Region(3), 4);
     assert_eq!(app.app_interface_getter(35, None, &mut h), Ok(AppValue::Token(Some(4))));
     assert!(!h.effects.iter().any(|e| matches!(e, E::Release(_))));
+}
+
+#[test]
+fn settled_directory_and_path_slots_use_distinct_sources_and_literal_concatenation() {
+    let mut app = app();
+    let mut h = Foreign::default();
+    app.app_name = b"SimCity 4".to_vec();
+    app.directories.data_7c = b"D".to_vec();
+    app.directories.cd_data_90 = b"CD".to_vec();
+    app.directories.plugin_a4 = b"P".to_vec();
+    app.directories.cd_plugin_b8 = b"CP".to_vec();
+    app.directories.sku_cc = b"SKU".to_vec();
+    app.directories.user_data_e0 = b"UD".to_vec();
+    app.directories.slot_e4_108 = b"108".to_vec();
+    app.directories.user_base_11c = b"BASE".to_vec();
+    for (slot, value) in [
+        (51, b"D".as_slice()),
+        (52, b"CD"),
+        (53, b"P\\English\\"),
+        (54, b"CP\\English\\"),
+        (55, b"SKU"),
+        (56, b"UD"),
+        (57, b"108"),
+        (58, b"BASE"),
+    ] {
+        assert_eq!(
+            app.app_interface_getter(slot, None, &mut h),
+            Ok(AppValue::String(value.to_vec()))
+        );
+    }
+    h.flag(Q::Exists(b"DSimCity 4.ini".to_vec()), true);
+    assert_eq!(
+        app.app_interface_getter(29, None, &mut h),
+        Ok(AppValue::String(b"DSimCity 4.ini".to_vec()))
+    );
+    assert_eq!(
+        app.app_interface_getter(29, None, &mut h),
+        Ok(AppValue::String(b"BASESimCity 4.ini".to_vec()))
+    );
+    assert_eq!(
+        app.app_interface_getter(31, None, &mut h),
+        Ok(AppValue::String(b"BASESimCity 4.cfg".to_vec()))
+    );
+    app.mode = 3;
+    app.handles.stored_4c = 7;
+    app.field_314 = Some(8);
+    app.city_state.region_owner = Some(9);
+    app.city_state.city = Some(10);
+    for (slot, value) in [
+        (25, AppValue::Word(3)),
+        (26, AppValue::Word(7)),
+        (32, AppValue::Token(Some(8))),
+        (33, AppValue::Token(None)),
+        (34, AppValue::Token(Some(9))),
+        (37, AppValue::Token(Some(10))),
+    ] {
+        assert_eq!(app.app_interface_getter(slot, None, &mut h), Ok(value));
+    }
+    assert!(h.effects.is_empty());
+}
+
+#[test]
+fn admin_enabled_uses_only_exact_zero_or_case_insensitive_false_and_bypass() {
+    let app = app();
+    let mut h = Foreign::default();
+    for value in [b"FALSE".as_slice(), b"False", b"false", b"0"] {
+        h.enabled = Some(value.to_vec());
+        assert!(!app.add_dynamic_library(b"x.dll", false, &mut h));
+        assert!(app.add_dynamic_library_with_bypass(b"x.dll", true, true, &mut h));
+    }
+    for value in [b"00".as_slice(), b"no", b" false", b"false "] {
+        h.enabled = Some(value.to_vec());
+        assert!(app.add_dynamic_library(b"x.dll", false, &mut h));
+    }
 }
 
 #[test]

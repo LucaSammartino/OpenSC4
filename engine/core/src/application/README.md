@@ -52,7 +52,7 @@ untraced/summary-only material and the questions in application.md's question fi
 | 1 Object layout | `compatibility::FACES`, `Application`, `CityState` | `restart_waits_only_when_needed_and_times_out_at_thirty_units`; open: AP4 face identity |
 | 1.1 Primary table | message/pause/command/new/quit methods | `tests::cheats_respect_arity_exact_gp_values_and_force_idle_value`; open: AP4 slots 4/5, §12 empty/untraced setup bodies |
 | 1.2 Fields | app state, timers, preferences image, city state, handles | `tests::idle_gate_and_focus_tail_preserve_strict_comparisons`; open: AP6 native constructor defaults |
-| 2 cISC4App | `app_interface_getter`, `app_file_name`, request/save/load APIs | `published_getters_preserve_identity_and_report_unpublished_slots`; open: AP3/AP14/AP15 unknown slots and path mapping |
+| 2 cISC4App | `app_interface_getter`, `app_interface_getter_language`, `app_file_name`, video/request/save/load APIs | getter regression and `settled_directory_and_path_slots_use_distinct_sources_and_literal_concatenation`; open: AP3 semantic aliases only |
 | 3 Startup order | `app_start`, `begin_pre_framework_init`, `begin_post_framework_init`, `wait_for_instance` | `entry_and_resource_summary_keep_order_and_reject_missing_ini_directory`, `restart_waits_only_when_needed_and_times_out_at_thirty_units`, existing startup/watcher/Lua tests; open: AP6 version/user-data/OS/date/log/language/alpha/script details |
 | 3.1 Init | `begin_init`, `apply_driver_description`, `run_owned`, v2 subscriptions | `tests::successful_init_exact_order_includes_every_unresolved_owner_call`, `owned_runner_executes_preference_failure_autosave_plugins_and_close`, `driver_description_correction_and_subscriptions_are_exact`; open: AP5 config target, AP6 unpublished helper calls, AP13 setup |
 | 4 Services | `SERVICES`, director/service steps | `tests::all_services_register_in_published_order_and_wrap_two_gz_bases`; open: AP10 unnamed identities/bodies (foreign) |
@@ -69,7 +69,7 @@ untraced/summary-only material and the questions in application.md's question fi
 | 7.1 OnIdle | timers, idle message, preference autosave, periodic call, paused tail | `owned_runner_executes_preference_failure_autosave_plugins_and_close`, existing equality/branch/tail tests |
 | 7.2 Focus | idempotent pause and exact four flags | `tests::focus_toggle_does_not_invent_unpause_and_repeated_activation_is_idempotent` |
 | 8 Command line/resolution | existing parser, resolution helpers, exception-filter ownership | command/driver/alias/resolution tests; open: AP8 resolution/UserDir acceptance and numeric edge semantics, AP11 opaque meanings |
-| 9 Directories | `Directories`, lazy caches, getter dispatch | `tests::lazy_paths_keep_cache_after_base_change_and_scripts_use_plugin_base`, getter test; open: AP3/AP7/AP15 aliases/append details/slot 56 |
+| 9 Directories | `Directories`, lazy caches, distinct slots 51–58, signed language directory dispatch | lazy-cache and settled-directory tests; open: AP3/AP7 aliases/append details |
 | 10 Implementation notes | synchronous lifecycle sends, distinct failure paths | registry/driver failure tests and owned runner preference test |
 | 11 City lifecycle | `city` module | request, load, save and close tests below |
 | 11.1 RequestNewCity | `request_new_city` | `requests_new_load_and_region_follow_their_distinct_no_city_paths` |
@@ -92,9 +92,9 @@ untraced/summary-only material and the questions in application.md's question fi
 | 13 Preferences | raw image plus typed app fields | preference round-trip/quirk test |
 | 13.1 File | `read_preferences`, `save_preferences`, record key/version constants | `preferences_preserve_unmodeled_bytes_and_clear_live_language_and_ime` |
 | 13.2 Fields | `Preferences`, `PreferencesImage`, command-line effects | preference and command tests; open: AP11 field meanings, native defaults AP6 |
-| 13.3 Reapply/video | `erase_one_shot_x`, explicit `PreferencesChanged` boundary, video setting counts | driver/subscription test covers one-shot erase; open: AP14 ordering and twelve/fourteen video mappings, explicitly incomplete in §12 |
+| 13.3 Reapply/video | `preference_application::{do_preferences_changed,CheatRequests,simulator_speed}`, `video` | `settled_tests` covers ordering, language fallback failure, mode/driver, speed wrap, copied-cheat repetition/nonprogress, byte mappings and unknown-value preservation; runner integration pending |
 | 14 Plugins/resources/files | `compatibility` methods | plugin/resource summary tests |
-| 14.1 Code plugins | `add_code_plugins`, `add_dynamic_library`, owned watcher continuation | plugin disable-filter and owned runner tests; open: AP12 exact false/name semantics |
+| 14.1 Code plugins | `add_code_plugins`, `add_dynamic_library_with_bypass`, owned watcher continuation | `admin_enabled_uses_only_exact_zero_or_case_insensitive_false_and_bypass`, plugin and owned runner tests |
 | 14.2 Resources | `registry_entry`, `load_registry_summary`, `setup_resources_summary` | registry substitution and resource enumeration tests; open: AP13 full callback/font/control/cursor/factory details |
 | 14.3 Files | INI existing-directory overrides; terrain INI effects; SavedCity stub | resource/terrain/request tests; open: AP13 path resolution, AP14 conflicting SavedCity summary |
 | 15 Pumps | `pump_messages` | `pumps_obey_absence_max_and_strict_minimum_time_bounds` |

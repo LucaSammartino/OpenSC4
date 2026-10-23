@@ -8,14 +8,12 @@ pub const PREFERENCES_VERSION: u32 = 0x15;
 pub const VIDEO_SETTINGS_WRITTEN: usize = 12;
 pub const VIDEO_SETTINGS_READ: usize = 14;
 
-/// The one independently specified mutation in §13.3. The missing language,
-/// driver, rules and video mappings remain AP14 rather than host callbacks
-/// pretending to implement an app-owned preference-application algorithm.
+/// Erasure is independent of named-switch lookup: even `axjunk` qualifies.
 pub fn erase_one_shot_x(line: &mut crate::cmdline::CmdLine) -> bool {
-    let index = line.args().iter().position(|arg| {
-        let one = crate::cmdline::CmdLine::from_parts(b"", [arg.as_slice()]);
-        one.is_switch_present(b"x")
-    });
+    let index = line
+        .args()
+        .iter()
+        .position(|arg| arg.iter().position(|b| *b == b'x') == Some(1));
     index.is_some_and(|index| line.erase_argument(index as i32).is_ok())
 }
 
@@ -42,7 +40,7 @@ impl PreferencesImage {
             (0x498, p.rdd),
             (0x4A4, p.pause_on_focus_loss),
             (0x4EF, p.ime),
-            (0xF17, p.fullscreen),
+            (0xF17, !p.fullscreen),
         ] {
             // Raw-block persistence preserves noncanonical true bytes unless
             // the modeled boolean actually changes.
@@ -71,7 +69,7 @@ impl PreferencesImage {
         p.rdd = self.0[0x498] != 0;
         p.pause_on_focus_loss = self.0[0x4A4] != 0;
         p.ime = self.0[0x4EF] != 0;
-        p.fullscreen = self.0[0xF17] != 0;
+        p.fullscreen = self.0[0xF17] == 0;
         p.driver_f13 = self.0[0xF13];
         p.driver_f0c = self.0[0xF0C];
         p.radio = self.word(0x10);
@@ -93,6 +91,9 @@ pub trait CompatibilityHost {
     fn dll_files(&mut self, directory: &[u8]) -> Vec<Vec<u8>>;
     fn library_admin_enabled(&mut self, library: &[u8], by_name: bool) -> Option<Vec<u8>>;
     fn add_library(&mut self, library: &[u8], by_name: bool) -> bool;
+    fn library_path(&mut self, library: &[u8]) -> Vec<u8>;
+    fn library_exists(&mut self, library: &[u8]) -> bool;
+    fn gzcom_available(&mut self) -> bool;
 }
 
 impl Application {
@@ -124,12 +125,33 @@ impl Application {
         host.write_preferences_record(&path, PREFERENCES_KEY, PREFERENCES_VERSION, &self.preferences_image.0)
     }
     pub fn add_dynamic_library(&self, library: &[u8], by_name: bool, host: &mut impl CompatibilityHost) -> bool {
-        let enabled = host.library_admin_enabled(library, by_name);
-        // AP12: no case folding is specified for cRZString::IsEqual here.
-        if enabled.as_deref().is_some_and(|v| v == b"false" || v == b"0") {
+        self.add_dynamic_library_with_bypass(library, by_name, false, host)
+    }
+
+    pub fn add_dynamic_library_with_bypass(
+        &self,
+        library: &[u8],
+        by_name: bool,
+        bypass: bool,
+        host: &mut impl CompatibilityHost,
+    ) -> bool {
+        let path = if by_name {
+            host.library_path(library)
+        } else {
+            library.to_vec()
+        };
+        if !host.gzcom_available() || !host.library_exists(&path) {
             return false;
         }
-        host.add_library(library, by_name)
+        if !bypass
+            && host
+                .library_admin_enabled(&path, false)
+                .as_deref()
+                .is_some_and(|v| v.eq_ignore_ascii_case(b"false") || v == b"0")
+        {
+            return false;
+        }
+        host.add_library(&path, false)
     }
     pub fn add_code_plugins(&self, directory: &[u8], host: &mut impl CompatibilityHost) {
         for library in host.dll_files(directory) {
@@ -243,6 +265,7 @@ pub struct AppHandles {
     pub unnamed_660: Option<u64>,
     pub lua_interpreter: Option<u64>,
     pub flag_668: u8,
+    pub stored_4c: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -255,6 +278,7 @@ pub enum Embedded {
 pub enum AppValue<'a> {
     Bool(bool),
     Byte(u8),
+    Word(u32),
     Token(Option<u64>),
     String(Vec<u8>),
     Preferences(&'a Preferences),
@@ -273,15 +297,43 @@ impl Application {
         language: Option<&[u8]>,
         host: &mut impl super::city::CityHost,
     ) -> Result<AppValue<'_>, u32> {
+        self.app_interface_getter_language(slot, 0, language, host)
+    }
+
+    pub fn app_interface_getter_language(
+        &mut self,
+        slot: u32,
+        language_index: i32,
+        language: Option<&[u8]>,
+        host: &mut impl super::city::CityHost,
+    ) -> Result<AppValue<'_>, u32> {
         let value = match slot {
             21 => AppValue::Bool(self.debug_enabled),
             23 => AppValue::Bool(self.popup_dialogs_enabled),
+            25 => AppValue::Word(self.mode),
+            26 => AppValue::Word(self.handles.stored_4c),
             27 => AppValue::String(self.app_name.clone()),
             28 | 30 => {
                 let mut name = Vec::new();
                 self.app_file_name(if slot == 28 { b".ini" } else { b".cfg" }, &mut name);
                 AppValue::String(name)
             }
+            29 | 31 => {
+                let mut name = Vec::new();
+                self.app_file_name(if slot == 29 { b".ini" } else { b".cfg" }, &mut name);
+                let candidate = [self.directories.data_7c.as_slice(), &name].concat();
+                AppValue::String(
+                    if slot == 29 && host.query(super::city::Query::Exists(candidate.clone())).flag {
+                        candidate
+                    } else {
+                        [self.directories.user_base_11c.as_slice(), &name].concat()
+                    },
+                )
+            }
+            32 => AppValue::Token(self.field_314),
+            33 => AppValue::Token(self.helper(super::Helper::CheatManager)),
+            34 => AppValue::Token(self.city_state.region_owner),
+            37 => AppValue::Token(self.city_state.city),
             35 => AppValue::Token(
                 self.city_state
                     .region_owner
@@ -302,10 +354,10 @@ impl Application {
             50 => AppValue::Byte(self.handles.flag_668),
             51 => AppValue::String(self.directories.data_7c.clone()),
             52 => AppValue::String(self.directories.cd_data_90.clone()),
-            53 => AppValue::String(self.directories.plugin_directory(0, language)),
-            54 => AppValue::String(self.directories.sku_cc.clone()),
-            // AP15: sequential plain-getter mapping; slot 56 is not described.
-            55 => AppValue::String(self.directories.user_data_e0.clone()),
+            53 => AppValue::String(self.directories.plugin_directory(language_index, language)),
+            54 => AppValue::String(self.directories.language_directory(true, language_index, language)),
+            55 => AppValue::String(self.directories.sku_cc.clone()),
+            56 => AppValue::String(self.directories.user_data_e0.clone()),
             // Preserve AP3's offset names rather than adopting wrong export aliases.
             57 => AppValue::String(self.directories.slot_e4_108.clone()),
             58 => AppValue::String(self.directories.user_base_11c.clone()),

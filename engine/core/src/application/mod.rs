@@ -10,6 +10,10 @@ pub mod command_line;
 pub mod compatibility;
 pub mod directories;
 mod lifecycle;
+pub mod preference_application;
+#[cfg(test)]
+mod settled_tests;
+pub mod video;
 
 use crate::commands::parse_delimited_text;
 use crate::gz_messages::Token;
