@@ -1,23 +1,93 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-app5b (application owner AP12–AP15) | Codex / core-app5b (detached HEAD) | in progress | Implement settled owner contracts and conformance vectors; full gate |
+| core-app5b (application owner AP12–AP15) | Codex / core-app5b (detached HEAD) | wip: implementation complete; cargo 6102/6102 and clippy PASS; CMake blocked by Ninja subprocess launch hang | Restore build-launch environment, rerun full gate; resolve AP16 and regenerate question index |
 
-## Handoff
-- Goal: close application owner rows settled by AP12–AP15, preserving AP3–AP11 boundaries.
-- Done: b5442908 initial handoff; 44993a41 plugin/getter/video/preference milestone. Added resource registry/scans/factories and font/control/style/cursor/caption owner implementations with tests.
-- Focused evidence: build-runs/focused-second.log, 54 application tests passed (before final formatting and signed-language getter wrapper). First compile failed only on test Preferences::default; corrected to existing fixture. q wrapper Git Bash failed before cargo; build-runs/focused.py logs native Cargo.
-- Focused milestones: build-runs/focused-resources.log 57 passed; build-runs/focused-ui.log 64 passed, zero failures. Full gate not yet run.
-- Done since resource/UI milestone: app-owned save sanitation/collision/ID reuse; destructive obliteration failures, ignored read init, independent view checks; terrain slot-29 path, preference/resource/INI runner integration; removed old resource-summary algorithms; completed Owner closure and section-16 test map.
-- Latest focused run: build-runs/focused-integration.log 68 passed (before final terrain/plugin-precondition/raw-pause tests). Failed focused-naming.log retained: one stale injected-filename fixture, corrected.
-- Explicit qbuild fmt: 13 owned Rust files PASS (core/src paths are relative to engine; initial engine/core paths produced only file-not-found errors). Later two files reformatted through apply_patch.
-- Full stable-source qbuild all launched ONCE: exec session 94508, STILL RUNNING at this handoff update after repeated 30-second collection waits. Workspace tests: 6102 passed / 0 failed over all 30 result lines in build-runs/qbuild-test.log. Clippy log reports collapsible_if resources.rs:166 and type_complexity resource_tests.rs:7. No CMake/CTest verdict yet. Do not launch a duplicate; collect this exact session to terminal first.
-- Continuation r2: collection of session 94508 returned Unknown process id; its final available Clippy log records compilation failure. Preserved test/Clippy logs under build-runs/gate-r1-clippy-failed/. Fixed collapsible_if and introduced a test registry-entry alias for type_complexity; explicit fmt of both files PASS.
-- Corrected-source full qbuild all is running as exec session 32931. Workspace tests and Clippy completed successfully; CMake configure in progress (build-runs/fc4verify-configure.log). Source unchanged since f6e89878; README now lists AP16 explicitly in Init/Open rows. Keep collecting this operation to terminal.
-- Next: collect session 32931 through full CTest. Complete final report/queue after PASS.
-- New question AP16 appended to docs/specs/questions/application.md: Init use of SetupResources result is unstated; literal call-and-continue chosen. Coordinator regenerates question index (lane may not edit it/run tools).
-- resources.rs owns registry/group/scan/factory policy and segment cleanup. ui.rs owns font/control/style/picture/cursor/caption tables. Foreign traits expose primitives; invalid native inputs have typed results.
-- Formatting: build-runs/format-patch.py generates stdin-rustfmt diff, applied only through apply_patch; explicit qbuild fmt still pending.
-- Preference fullscreen bool retains its semantic meaning; raw +F17 is windowed and now serializes inversely. CheatRequests::step exposes native nonprogress without an infinite blocking call.
-- No recoverable full gate session remains; no game requests. Core-only change, no plugin/capi/ABI changes; game validation n/a.
-- Last implementation milestone: 0652732a. Source has not changed during the full gate; subsequent changes are documentation only. No merge-queue entry exists and this lane is not ready.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-app5b-r2-manifest.json.
+## Report
+
+Implemented the cSC4App owner contracts settled by AP12–AP15 in the existing
+`engine/core/src/application` module. The module README maps every spec section
+to code/tests or an explicit open question and maps §16 conformance vectors to
+executable tests. This lane is WIP solely pending successful CMake/full CTest
+verification; no complete native application boot is claimed.
+
+### Changes
+
+- `44993a41`: exact Admin Enabled comparison and plugin dispatch/preconditions;
+  settled interface/path getters; ordered video mappings with byte/unknown-value
+  preservation; preference pause/language/window/driver/speed/cheat policies.
+- `8d5e3f11`: Resources.ini hexadecimal parsing, first-semicolon split, malformed
+  entries and nested condition groups; all eight source passes, enumeration
+  ordering/filters, failure cleanup and fifteen factory registrations; published
+  font/default/style/control-colour/picture/cursor/caption tables and ordering.
+- `0652732a`: save filename sanitation, encoding, cap, collisions and existing-city
+  ID reuse; obliteration's destructive writer failure, ignored read-init failure
+  and independent view restoration; terrain slot-29 path; resource/preference/INI
+  integration into the owned runner; closure/conformance documentation.
+- `f6e89878`: corrected two diagnosed Clippy warnings without behavior changes.
+  `33c3b337` documents the corrected Rust gate milestone and AP16 table entries.
+
+Foreign framework/window/renderer/simulator/filesystem primitives remain traits.
+No plugin or capi wiring, C ABI exports, ABI version or generated ABI entries
+changed. Saved preference bytes outside modeled fields remain preserved.
+`CheatRequests::step` exposes the specified uppercase-X nonprogress defect without
+an infinite blocking core call. Native-invalid cases return typed results.
+
+### Measured verification
+
+- Focused milestones: 54, 57, 64 and 68 application tests passed in the retained
+  `build-runs/focused-{second,resources,ui,integration}.log` files. Earlier
+  compile/fixture failures remain in their distinct original evidence files.
+- Explicit owned-file formatting checks passed; the two Clippy-fix files also
+  passed `qbuild fmt` with zero diff lines.
+- First full-gate evidence is preserved in `build-runs/gate-r1-clippy-failed/`:
+  6102 workspace tests passed; Clippy found collapsible_if/type_complexity.
+  The inherited exec session 94508 was no longer registered on continuation.
+- Corrected full `qbuild all`, session 32931, reached terminal **FAIL**:
+  **6102 passed / 0 failed / 0 ignored**, summed across all 30 workspace test
+  result lines; this includes **70 application tests**. Clippy: **0 diagnostics**.
+- CMake configure stalled at `Detecting C compiler ABI info` for 842 seconds.
+  Its Ninja compiler-probe child had no child compiler process. Ninja --version
+  and a dry run of the exact target succeeded; a separate no-op Ninja target
+  (`cmd.exe /C exit 0`) timed out after 15 seconds. Only this lane's stalled
+  CMake process and its remaining Ninja child were stopped. The original gate
+  then reported configure FAIL (841.5 seconds) and **CTest skipped**.
+- Logs: `build-runs/qbuild-{test,clippy}.log`,
+  `build-runs/fc4verify-configure.log`, and
+  `build-runs/gate-r2-infrastructure-evidence.md`. Reproducer:
+  `build-runs/probe-ninja.py` plus `build-runs/ninja-probe.ninja`.
+- The verifier also noted tree changes during the run: these were documentation
+  commits only. Rust source stayed at f6e89878 throughout. This is not a passing
+  full gate, and no duplicate full check was launched while one was outstanding.
+
+Game runs/shadow: n/a, no game requests or outstanding sessions. This change
+only implements portable core policies and has no native integration to exercise.
+
+### Questions and open sections
+
+New **AP16**, appended to `docs/specs/questions/application.md`: §3.1 step 8
+does not state whether Init consumes SetupResources' §14.2 count>=3 result.
+The code comments and README record literal call-and-continue; the direct
+resource API returns the specified boolean. The coordinator must regenerate the
+question index; this engine lane cannot edit that generated spec file or run
+the index generator under the clean-room rules.
+
+Existing **AP3–AP11** remain open: §1/11.15 face identity (AP4); §2/9 aliases
+(AP3), §9 append details (AP7); §3–5/12 startup/defaults/failure/destruction
+details (AP6), §3.1/5.2 config/service meaning (AP5); §4.2 unnamed foreign
+services (AP10); §6.1 GP/focus semantics (AP9); §8 parsing/acceptance edges
+(AP8); §8/13.2 opaque preference meanings (AP11). Their already implemented
+literal portions and remaining boundaries are listed individually in the module
+README. No settled AP12–AP15 behavior remains merely Unsupported.
+
+### Next steps
+
+1. Restore Ninja subprocess launching in the build environment; the no-op
+   reproducer isolates the obstruction from application source/compiler cache.
+2. Run `python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-app5b all`
+   on this committed source, collect the same operation to terminal, and require
+   CMake/full CTest PASS before marking ready. Keep documentation unchanged during
+   the gate to avoid the verifier's tree-change marker.
+3. Regenerate the questions index and resolve AP16; AP3–AP11 need specification
+   work before a complete native-owner claim.
+
+Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-app5b-r2-manifest.json`.
