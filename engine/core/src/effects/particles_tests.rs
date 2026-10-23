@@ -328,14 +328,14 @@ fn plain_preserves_dispatch_state_and_safe_underflow_choices() {
     p.loops = 4;
     p.carry = 0.375;
     p.countdown = -0.125;
-    p.emit_plain(0.5, &mut r);
+    p.emit_plain(0.5, &mut r).unwrap();
     assert_eq!(p.phase(), 7.5); // No phase wrap, even beyond a full loop.
     assert_eq!((p.loops_emitted(), p.carry(), p.countdown()), (4, 0.375, -0.125));
     assert!(!p.delayed_stop_requested());
     let state = r.mul_state();
     for curve in [vec![1.0], vec![-2.3], vec![]] {
         p.desc.curve = curve;
-        p.emit_plain(0.5, &mut r);
+        p.emit_plain(0.5, &mut r).unwrap();
         assert_eq!((p.live_count(), p.particles_created()), (3, 3));
         assert_eq!(r.mul_state(), state);
     }
@@ -403,7 +403,7 @@ fn slot20_accumulates_float_age_and_rejects_exact_life_boundary() {
     let mut p = ParticleSimulator::new(inject(1.0, 1.0));
     let mut r = rng();
     p.start(0, &mut r);
-    p.create(Some(0.0), &mut r);
+    p.create(Some(0.0), &mut r).unwrap();
     p.stop(0);
     for _ in 0..9 {
         p.update(0.1, &mut r);
@@ -411,9 +411,9 @@ fn slot20_accumulates_float_age_and_rejects_exact_life_boundary() {
     }
     p.update(0.1, &mut r);
     assert!(!p.is_active());
-    p.create(Some(1.0), &mut r);
+    p.create(Some(1.0), &mut r).unwrap();
     assert_eq!(p.live_count(), 0);
-    p.create(Some(f32::NAN), &mut r);
+    p.create(Some(f32::NAN), &mut r).unwrap();
     assert_eq!(p.live_count(), 0);
 }
 

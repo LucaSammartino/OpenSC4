@@ -39,6 +39,7 @@ pub mod dilation;
 pub mod directory;
 pub mod game;
 mod manager;
+pub mod particle_owners;
 pub mod particles;
 pub mod shipped;
 

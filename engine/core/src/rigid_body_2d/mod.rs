@@ -18,6 +18,7 @@
 //! Rust borrows enforce nonaliasing; raw foreign pointers are not dereferenced.
 
 mod numeric;
+pub mod simulator;
 pub mod storage;
 
 use numeric::{add, dot, mul, store, sub, valid};
