@@ -478,9 +478,15 @@ fn recovery_home_fallback_and_no_selection() {
     f.d.edit(1, |st| st.current = location(2, false));
     f.d.animation_message(1, &s);
     let st = f.d.get_state(1);
-    assert_eq!((st.search.state, st.destination.cell.0, st.destination.deadline()), (2, 1, 105));
+    assert_eq!(
+        (st.search.state, st.destination.cell.0, st.destination.deadline()),
+        (2, 1, 105)
+    );
     // No home and no destinations recovers; recovery retains a pending queue.
-    f.d.edit(1, |st| { st.search.state = 3; st.search.flags = 0; });
+    f.d.edit(1, |st| {
+        st.search.state = 3;
+        st.search.flags = 0;
+    });
     f.d.animation_message(1, &s);
     assert_eq!(f.d.get_state(1).search.state, -1);
     f.d.add_destination_location(1, location(3, false), 0);
@@ -492,7 +498,10 @@ fn recovery_home_fallback_and_no_selection() {
 fn goto_cancellation_rejection_and_player_guards() {
     let f = D::new();
     let s = Services::default();
-    f.d.edit(1, |st| { st.search.state = 2; st.current = location(1, true); });
+    f.d.edit(1, |st| {
+        st.search.state = 2;
+        st.current = location(1, true);
+    });
     assert!(!f.d.can_u_drive_it(1, &s));
     assert_eq!(f.d.go_to(1, location(2, false), &s), TripOutcome::UnsupportedMs18);
     s.cancel.set(Some(false));
@@ -502,12 +511,20 @@ fn goto_cancellation_rejection_and_player_guards() {
     assert!(f.d.check_flags(1, 0x4040));
     assert_eq!(f.d.get_state(1).current.cell.0, 1);
     f.d.edit(1, |st| {
-        st.search.route.push_back(RouteData { x: 1, z: 1, travel_type: 1 });
+        st.search.route.push_back(RouteData {
+            x: 1,
+            z: 1,
+            travel_type: 1,
+        });
         st.path_indices = (0, 1);
         st.search.flags = 0;
     });
     assert_eq!(f.d.go_to(1, location(4, false), &s), TripOutcome::Accepted);
-    f.d.edit(1, |st| { st.travel_type = 1; st.automata_occupant = Some(42); st.search.flags = 0x20000; });
+    f.d.edit(1, |st| {
+        st.travel_type = 1;
+        st.automata_occupant = Some(42);
+        st.search.flags = 0x20000;
+    });
     assert!(f.d.can_u_drive_it(1, &s));
     let destination = f.d.get_state(1).destination;
     assert_eq!(f.d.held_automaton_player_update(1, &s), TripOutcome::Accepted);
@@ -517,4 +534,47 @@ fn goto_cancellation_rejection_and_player_guards() {
     f.d.edit(1, |st| st.travel_type = 0);
     assert!(!f.d.can_u_drive_it(1, &s));
     assert_eq!(f.d.enter_u_drive_it(1, &s), TripOutcome::Rejected);
+}
+
+#[test]
+fn unresolved_commute_resolution_notifies_before_departure() {
+    let f = D::new();
+    let s = Services::default();
+    f.d.init(1);
+    f.w.lot(1, CellRect::new(2, 2, 2, 2));
+    f.w.lot(2, CellRect::new(4, 4, 4, 4));
+    f.w.dest.borrow_mut().insert((4, 4), 1);
+    f.w.free.set([1, 0, 0, 0]);
+    f.w.caps.borrow_mut().insert(2 + 0x1_0000, ([1, 0, 0, 0], [0; 4]));
+    f.d.set_default_destination(1, DispatchLocation::by_occupant(Some((1, (40.0, 40.0)))));
+    f.d.edit(1, |st| {
+        st.search.state = 3;
+        st.current = DispatchLocation {
+            by_commute: true,
+            ..DispatchLocation::default()
+        };
+    });
+    f.take();
+    f.d.animation_message(1, &s);
+    let st = f.d.get_state(1);
+    assert_eq!(st.search.commute_destination.occupant, Some(2));
+    assert_eq!(st.current.occupant, Some(2));
+    assert_eq!(st.destination.occupant, Some(1));
+    assert_eq!(st.search.state, 2);
+    let notes = f.take();
+    assert_eq!(notes[0].1, 0xEBA06BF4);
+    assert_eq!(notes[1].1, 0x4BB2CFC0);
+    // A selected placeholder also resolves through the persistent query service.
+    f.d.edit(1, |st| {
+        st.search.state = 3;
+        st.current = st.search.home;
+        st.minutes = 100;
+        st.queue.push_back(DispatchLocation {
+            by_commute: true,
+            ..DispatchLocation::default()
+        });
+    });
+    f.d.animation_message(1, &s);
+    assert_eq!(f.d.get_state(1).destination.occupant, Some(2));
+    assert_eq!(f.take()[0].1, 0xEBA06BF4);
 }

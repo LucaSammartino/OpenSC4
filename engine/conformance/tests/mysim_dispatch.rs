@@ -323,22 +323,41 @@ fn ms17_08_player_and_rng() {
 fn dispatch_record_preserves_all_opaque_words_and_foreign_references() {
     let f = DispatchFixture::new();
     let mut st = DispatchState {
-        auxiliary_flag: true, opaque_28: 0xF1234567, path_indices: (123, 456),
-        change_counter: 42, previous_change_counter: 41, tracking_value: u32::MAX,
-        minutes: -123, travel_type: 0xABCDEF01, wait_timestamp: -456,
-        neighbor_retries: 27, auxiliary_occupant: Some(500), auxiliary_value: 512,
-        auxiliary_string: vec![0, 255, 65], automata_occupant: Some(501), owner: Some(502),
-        simulation_service: Some(503), route_marker: -77, current: loc(1, true), destination: loc(2, true),
+        auxiliary_flag: true,
+        opaque_28: 0xF1234567,
+        path_indices: (123, 456),
+        change_counter: 42,
+        previous_change_counter: 41,
+        tracking_value: u32::MAX,
+        minutes: -123,
+        travel_type: 0xABCDEF01,
+        wait_timestamp: -456,
+        neighbor_retries: 27,
+        auxiliary_occupant: Some(500),
+        auxiliary_value: 512,
+        auxiliary_string: vec![255, 65],
+        automata_occupant: Some(501),
+        owner: Some(502),
+        simulation_service: Some(503),
+        route_marker: -77,
+        current: loc(1, true),
+        destination: loc(2, true),
         ..DispatchState::default()
     };
-    st.search.home = loc(3, true); st.search.commute_destination = loc(4, true);
-    st.search.state = 2; st.search.prev_state = -3; st.search.flags = 0x12345678;
-    st.current.set_duration(-10); st.current.set_deadline(-20);
-    st.search.home.in_city = false; st.search.home.neighbor_city = (-8, 19);
+    st.search.home = loc(3, true);
+    st.search.commute_destination = loc(4, true);
+    st.search.state = 2;
+    st.search.prev_state = -3;
+    st.search.flags = 0x12345678;
+    st.current.set_duration(-10);
+    st.current.set_deadline(-20);
+    st.search.home.in_city = false;
+    st.search.home.neighbor_city = (-8, 19);
     st.queue.push_back(st.current);
     restore(&f, &st);
     let mut restored = f.d.get_state(1);
-    restored.read_pending = false; restored.read_succeeded = false;
+    restored.read_pending = false;
+    restored.read_succeeded = false;
     assert_eq!(restored, st);
     // Non-null references without a registry fail the stream, not a fake null write.
     assert!(!st.write(&mut ByteWriter::new(), &Refs));
