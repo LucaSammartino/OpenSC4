@@ -13,6 +13,9 @@ parts of NR1 and NR2 answered (§10.9, §11.1); NR6 and NR7 filed (§14).
 
 Amended 2026-10-21 (re-netrules-boundary4): NR13 answered, the solver family's interoperability boundary (§2.4).
 
+Amended 2026-10-23 (re-netrules-nr16): NR16 answered: native record-only observation contracts (§2.5), with
+conformance vectors 36–44 (§15). These are instruction-derived contracts, not a live shadow verification.
+
 Tags:
 
 - *[compat]*: observable; a replacement must match it.
@@ -216,7 +219,7 @@ only supported places where a replacement can take over their behaviour are the 
 | Owner | Kind | Calling convention and shape | Created / destroyed |
 |---|---|---|---|
 | `cSC4TileEvaluator` | plain C++ object, 0x10 bytes | `+0x00` vtable `0x00AA8338`; `+0x04` the rule tree's header node (0x34 bytes from the global allocator `0x0090CF54`); `+0x08` the rule count; `+0x0C` not written by the constructor. The vtable has **one** slot, the scalar deleting destructor `0x00622AE0` (flag bit 0 = free); the dword before it (`0x00010203`) is not an RTTI locator, so there is no RTTI, no QueryInterface, no reference count. | Only `cSC4NetworkTypeInfo::LoadEvaluator` (`0x0063D360`, thiscall on the type record, pops 12) allocates it (`GlobalHeapAlloc(0x10)`, `0x0063D367`), runs the constructor `0x00622A90` (its only caller, `0x0063D375`), calls `AddRulesFromResource(key*, 0)` (`0x00623020`, thiscall, pops 8) and appends it to the record's vector `+0x24`, even on failure (§2.3). `cSC4NetworkTypeInfo::Clear` (`0x006421D0`) pops the vector from the back, calling slot 0 with 1. The vtable address is stored only by the constructor and destructor (`0x00622A95`, `0x00622AE9`; no other reference in the image). |
-| `cSC4TileRule` | plain struct, 7 dwords, no vtable | the centre key and two 3-dword vectors (conditions, outputs); `Read(tokenizer*)` `0x00622870` is thiscall, pops 4 | built on `AddRulesFromResource`'s stack (zeroed at `0x0062308F`–`0x006230A7`), read, copied into the evaluator's tree; its only caller is `0x006230AB` |
+| `cSC4TileRule` | plain struct, 0x20 bytes, no vtable | centre key, two 3-dword vectors (conditions, outputs), transform eligibility byte at +0x1C and padding (§2.5.2); `Read(tokenizer*)` `0x00622870` is thiscall, pops 4 | built on `AddRulesFromResource`'s stack (vectors zeroed at `0x0062308F`–`0x006230A7`), read, copied into the evaluator's tree; its only caller is `0x006230AB` |
 | `cSC4TileInfo` | not an object: free functions over static tables | `ConvertMetaToRelativePos` `0x00620D80` is cdecl (plain `RET`) and reads the byte tables `0x00B0B3D8`/`0x00B0B3F4`; `GetRotationalEquivalent` `0x00621F30` and `…OfMetaPos` `0x00621680` pop 8 | no lifecycle |
 | `nSC4Networks::cIntRule` | plain value class in the process-global hash map `0x00B452B0` (bucket vector `0x00B452B4`/`0x00B452B8`) | `Test` `0x00609A00` and `DoAutoComplete` `0x006097E0` thiscall, pop 12 | filled by `ReloadRules` (§2.1 step 4), destroyed by the CRT exit handler `0x00A7C170` |
 
@@ -299,6 +302,8 @@ Evidence: `0x00622088`–`0x006220BC`, `0x00622177`–`0x00622188`, native consu
 
 #### 2.5.2 Evaluator tree and rule records
 
+The type-record vector at +0x24 has begin/end/storageEnd at +0x24/+0x28/+0x2C and contains 4-byte evaluator
+pointers in load order (§2.3). Do not traverse beyond end or past its first null evaluator pointer.
 The evaluator’s +4 is header H and +8 is node count. H is an allocated 0x34-byte sentinel; it is not a rule.
 The ordinary nodes have this layout:
 
@@ -317,8 +322,7 @@ point to H. Root’s parent is H; missing ordinary children are null, not H. Enu
 using the child and parent links; never parse the sentinel’s payload. Keys compare **unsigned**. Evaluate considers
 the half-open interval from lower_bound(centre) to upper_bound(centre), in that same in-order traversal. Tree shape,
 colour and allocation addresses are not semantic output. The rule record at node+0x14 is **0x20 bytes** including
-its final eligibility byte and padding; the earlier “7 dwords” description in §2.4.1 describes only its key and two
-vectors and omits this tail.
+its final eligibility byte and padding. Its key and two vectors occupy the first 7 dwords.
 
 Each condition is 12 bytes: metaposition u8 at +0, padding +1..+3, expected edge word u32 at +4, mask u32 at +8.
 Conditions and outputs retain vector order. All three vector pointers can be null for an empty vector; an empty
@@ -351,7 +355,8 @@ counted interface and not `cSC4TileNeighborhoodCompact` (the latter is only one 
 The constructor-like initializer `0x00627080` is thiscall with x, z, tool-base pointer, type, override-bool (five
 4-byte slots, ret 20), returns this in EAX, installs that vtable and starts an empty cache. Ordinary solving passes
 override=false; separation preview passes true. Centre key is obtained from the tool’s cell info (edge array
-at cell-info +0x18 + 4×type), or zero for no info. See `0x00627096`–`0x006270F1`, `0x00634150`, `0x0063400D`.
+at cell-info +0x18 + 4×type), or zero for no info. See `0x00627096`–`0x006270F1`, `0x00634150`,
+`0x00633FFD`–`0x00634009`.
 
 The two neighbourhood virtual entries are slot 0 at `0x00623F40`, valid(m): thiscall, one metaposition in a
 4-byte slot (low byte meaningful), ret 4, boolean 0/1 in EAX; and slot 1 at `0x00623EE0`, read-edges(m,outWord):
@@ -1707,3 +1712,45 @@ and the evaluator; the others drive the named function directly.
     in this pass, the old piece/orientation retained, height/edge/flag updates still performed and one local Release.
     A setter unconditionally applied to found occupants fails this vector. With both control bytes zero there is
     no underground second pass.
+36. **Native success channel** (§2.5.1; synthetic native-layout vector). An evaluator has one passing rule whose
+    output descriptor has begin=end=storageEnd=null. Initialize the caller’s result slot to a non-null canary.
+    Evaluate must give AL=1 and a pointer to that descriptor, although the descriptor contains no outputs. With a
+    centre key absent from the evaluator, the same call gives AL=0 and a null result slot. High EAX bits and vector
+    capacity are excluded from comparison. A shadow returning “no match” for both calls fails.
+37. **Output copy boundaries** (§2.5.1–§2.5.2). A matched vector contains two 8-byte records: `(id=0x2600,m=0,
+    orientation=0x81)` and `(id=0x200,m=1,orientation=0x03)`, with distinct nonzero padding and unused capacity
+    holding a third canary record. The semantic copy has exactly those two records, in that order; changing padding
+    or the unused record does not change equality. The observer must not free the descriptor or elements.
+38. **Tree header and unsigned order** (§2.5.2). An empty tree has count=0, H.parent=null and H.left=H.right=H;
+    enumeration produces no rule. A tree containing keys `0xFFFFFFFF`, `0`, `0x80000000` enumerates keys `0`,
+    `0x80000000`, `0xFFFFFFFF`, regardless of allocation order or balanced shape. H’s uninitialized payload is never
+    inspected. Three distinct nodes and three rules are copied; no header rule is invented.
+39. **Equal-key precedence** (§2.5.2, §5.2). Insert three rules with key K using the native bulk-insertion order:
+    A fails a condition, B passes with no outputs, C passes with one output id `0x2600`. Native in-order traversal
+    retains A,B,C, and Evaluate returns success with B’s empty descriptor. Swapping B and C changes the selected
+    result to C. A snapshot keyed only by K, or an unstable sort of equal keys, fails this vector.
+40. **Cache and validity differ** (§2.5.3). Begin with an empty neighbourhood cache. Two condition queries for the
+    same metaposition whose slot-1 result is zero produce one slot-1 call, one cached entry and two zero words;
+    zero is a cached value, not “missing”. Two output checks at that position produce two slot-0 calls. For another
+    network’s bit present at cell-info +8, the normal invalid mask rejects; override=true gives mask zero and
+    accepts. A missing cell gives edges zero and valid=true.
+41. **Record-only capture completeness** (§2.5.5). Original evaluation reads condition m=2, which fails, then
+    selects a later rule with no conditions and no outputs. The capture includes that completed edge request and
+    successful empty result; it includes no validity request. If replacement replay needs edges at m=7 and those
+    edges were neither in the initial neighbourhood cache nor actually queried by the original, report incomplete
+    input, not exact, no-match, or a fabricated zero. The observer makes no new GetCellInfo call and invokes native
+    Evaluate only once.
+42. **Loading epoch** (§2.5.5). Start with flag=0. During original Init, flag becomes 1 before ReloadRules entry;
+    this does not mark the snapshot ready. Reload entry invalidates the previous snapshot; its normal return marks
+    the new epoch complete, even with missing resources and empty trees. Static cleanup clears the flag and makes
+    the snapshot unavailable; the next initialization completes another epoch. City-load notification without an
+    original tool Init or observed reload completion does not satisfy readiness.
+43. **Intersection collisions and lookup** (§2.5.4). A synthetic map has three buckets and nodes for ids 1 and 4
+    in bucket 1, in chain order 4→1→null. Structural enumeration copies 4 then 1; a comparison normalized by id
+    copies two distinct values, and lookup(1) finds the second node. Looking up 7 for observation yields absent
+    without inserting anything. An empty zero-bucket map is empty without division. Ring traversal remains governed
+    by the values’ ring ids, not that bucket chain.
+44. **Build and lifetime rejection** (§2.5.5). A matching version string with a failing executable fingerprint,
+    changed observation-site bytes, or a conflicting detour yields no native-address observation and no exactness
+    credit. In a matching epoch, copy a result’s two semantic records before returning; after reload, only that copy
+    may be compared or queued to another thread. Retaining a node, descriptor or neighbourhood pointer fails.
