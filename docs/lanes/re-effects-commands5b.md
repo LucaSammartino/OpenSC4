@@ -36,7 +36,9 @@ were changed. Partial work is not enqueued as ready. Resume from the Handoff.
 - Done 3a52f242: §§19.25–19.26 publish color/alpha/size/aspect/rotate, normalization and vector/scalar variation; EC105–EC119 static vectors; doccheck/questions passed.
 - Done 85f89542: §§19.27–19.28 verify four dynamicParticle registrations and all four child contracts; EC120–EC130; doccheck/questions passed.
 - Round 2 resumed at 21b0abd6; §§19.29–19.30 publish sequence dictionary, wait/play and EC131–EC140; doccheck/questions passed.
-- Next exact step: query remaining nested registrars (decal 00595DF0, light 00596050, game 005960F0), then publish their child contracts and remaining particle handlers.
+- Done round 2 1afa225d: sequence wait/play contracts, ten static rows EC131–EC140; checks passed.
+- Done round 2: §§19.31–19.34 publish shake/light dictionaries and all eight child handlers; EC141–EC160; doccheck/questions passed. Light length writes/clamps SHAKE fade P+3DC against SHAKE length P+3D8 (asm verified).
+- Next exact step: query decal registrar 00595DF0; publish its seven unique child-handler contracts; then remaining particle and group/select/game nested contracts.
 - Sequence registration verified but not yet published: 00596190 installs wait/B0A400/A9FCC8 then play/B0A3FC/A9FCB8; four-byte objects, wrapper 007E3BE0, handlers at +0C. Class names unresolved in export.
 - Remaining particle execution: source, emit, force, warp, texture, model, timedEffect; all other particle table rows have section contracts.
 - Appearance: size multiplies x87 return by binary32 50 before rounding; 255 suffix scales lists only after vary succeeds; NaN varies accepted by instruction predicates.

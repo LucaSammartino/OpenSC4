@@ -3050,3 +3050,143 @@ an existing element E. Unless specified, conversions succeed.
 | EC138 | play name assigned; minimum satisfied; first duration returns NaN, second returns infinity | append name and returned binary32 nonfinite values; no owner range exception |
 | EC139 | live name empty but nonnull S; wait selects 1; unknown switch remains | append `(1,1,empty)` before generic leftover-switch error |
 | EC140 | sequence description pointer null, valid wait values | no owner name/null validation error; append requires nonnull pointer, outside recoverable command domain |
+
+### 19.31 Shake and light child dictionaries *[compat]*
+
+Shake registrar `00595FB0–00596084` and light registrar `00596090–0059618B`
+install the following entries in the listed order. Every entry allocates a
+fresh four-byte ordinary command, wrapper `007E3BE0` at +04 and the direct
+handler at +0C. Repeated descriptors are aliases, not shared object instances.
+Only the one child class explicitly named below is resolved by the export;
+the other child class names remain unknown, without inference from literals.
+
+| Block | Literal / pointer cell | Descriptor | Direct handler / verified child class |
+|---|---|---|---|
+| shake | `length` / `00B0A3C8` | `00A9FC78` | `005986A0`, `cShakeLengthCommand` |
+| shake | `amplitude` / `00B0A3CC` | `00A9FC68` | `0059A060`, unnamed |
+| shake | `frequency` / `00B0A3D0` | `00A9FC58` | `0059A120`, unnamed |
+| shake | `shakeAspect` / `00B0A3D4` | `00A9FC48` | `00598760`, unnamed |
+| shake | `table` / `00B0A3D8` | `00A9FC38` | `005987D0`, unnamed |
+| light | `strength` / `00B0A3E4` | `00A9FCA8` | `0059A1E0`, unnamed |
+| light | `length` / `00B0A3E0` | `00A9FC98` | `00598840`, unnamed |
+| light | `color` / `00B0A3E8` | `00A9FC88` | `0059D060`, unnamed |
+| light | `color255` / `00B0A3F0` | `00A9FC88` | `0059D060`, unnamed |
+| light | `colour` / `00B0A3EC` | `00A9FC88` | `0059D060`, unnamed |
+| light | `colour255` / `00B0A3F4` | `00A9FC88` | `0059D060`, unnamed |
+
+### 19.32 Shake scalar commands and the light length side effect *[compat]*
+
+These handlers have **no** live-name/block-type guard, including light length.
+Coordinates below are parser-relative P, with shake description `P+3D8`
+and light description `P+414` (§19.13). They do not create runtime objects.
+
+**Shake `length`** requires at least two raw records (including the command
+record), throwing `Not enough arguments` before writes otherwise. It does
+not use nonswitch selection: raw record 1 goes to ParseFloat and is stored
+as binary32 shake length `P+3D8`. Next it queries `fade` (minimum one
+argument); if present, ParseFloat of its first selected argument is stored
+at shake fade `P+3DC`. If absent, the previous fade is retained until the
+following clamp. After a successful/absent fade, if stored fade is **ordered
+greater than** stored shake length, fade is replaced by length's exact
+binary32 bits. Equality and unordered comparisons leave fade unchanged.
+Thus negative values are allowed, and this clamp does not impose a zero
+lower bound. Extra raw/selected values are ignored. Bad length conversion
+leaves both fields unchanged; bad fade conversion or missing fade argument
+leaves the new length and old fade, without the final clamp.
+
+**Shake `shakeAspect`** has the same raw count minimum/error, converts raw
+record 1 with ParseFloat and stores binary32 `P+3F8`. There is no range,
+finite-value or sign check and no switch query. Extra records are ignored.
+**Shake `table`** also has that raw minimum/error and passes raw record 1
+to foreign ParseEnum with table `00B0A4F0` and third argument zero. The
+table is exactly `random→0`, `sineY→1`, then a null terminator. Its returned
+32-bit value is stored at `P+3FC` without additional validation. Matching,
+numeric fallback and error text belong to ParseEnum, not this owner. Either
+handler leaves its old destination if its conversion throws. Unlike
+nonswitch selection, these raw-record accesses do not consume other switches.
+
+**Light `length`** selects at least one nonswitch operand, ignores the finder
+return, and stores its first ParseFloat as binary32 **light** length `P+42C`.
+Further selected operands are ignored. It then queries `fade` with minimum
+one, but stores a present first ParseFloat at **shake fade `P+3DC`**, not a
+light field. It performs exactly the ordered fade-versus-**shake length
+`P+3D8`** clamp described above, even when fade is absent. This cross-description
+write is required behavior: light duration does not bound the fade.
+Bad fade lookup/conversion leaves the new light length and old shake fade
+without clamping. The live names of both definitions are irrelevant.
+
+No scalar handler supplies extra defaults beyond retained fields and the
+clamp just stated. Unqueried switches reach the generic post-check after
+completed writes. Evidence, verified against instruction bytes: shake length
+`005986C1–00598751`, binary32 stores `005986F5/00598729`, ordered clamp
+`00598732–0059874B` (x87 status mask `41`); aspect `00598760–005987C2`,
+store `005987B6`; table `005987D0–00598839`; light length
+`0059884E–005988C9`, light store `0059886E`, **shake** store `005988A1`,
+comparison/copy `005988AA–005988C3`.
+
+### 19.33 Shake/light curves and light color aliases *[compat]*
+
+These four handlers select at least one nonswitch operand, ignore the finder
+return, and replace a list after successful minimum selection. None checks
+the live name or generic block type. Selection failure leaves the old list;
+then clearing precedes the first conversion, and values append one at a time.
+A later conversion exception therefore leaves only the converted prefix.
+Order and duplicates are preserved. No range, finite-value or sign check,
+interpolation, resource call or switch query occurs.
+
+| Block / literal | Handler | List coordinate | Conversion and units |
+|---|---|---|---|
+| shake amplitude | `0059A060` | `P+3E0` (shake +08) | each ParseFloat rounded to binary32, no scaling |
+| shake frequency | `0059A120` | `P+3EC` (shake +14) | each ParseFloat rounded to binary32, no frequency/unit conversion |
+| light strength | `0059A1E0` | `P+420` (light +0C) | each ParseFloat rounded to binary32, no scaling |
+| light color aliases | `0059D060` | `P+414` (light +00) | each ParseColor result copied as three binary32 words |
+
+Light color's four aliases are differentiated only by the final three bytes
+of raw command record 0. After **all** selected colors append, a `255` suffix
+scales every stored component with binary32 constant bits `3B808081`, using
+the same x87 multiplication and binary32 rounding helper `0059BFF0` as
+§19.25. There is no clamp and no variation option. A non-255 alias stores
+ParseColor's values unchanged. Failed color conversion leaves an **unscaled**
+prefix even for a 255 alias. A direct fixture whose command name has fewer
+than three bytes reaches the foreign substring range failure after replacing
+the list. Generic leftover-switch errors follow completed list replacement
+and suffix normalization. Missing `vary` is not defaulted or consumed;
+unlike particle color, this handler has no variation fields to update.
+Light exit may later supply fallback values only if its lists are empty
+(§19.14); these handlers do not add fallbacks themselves.
+
+Evidence: amplitude `0059A06F–0059A10D`, frequency
+`0059A12F–0059A1CD`, strength `0059A1EF–0059A28D`; their clear and
+binary32-store instructions are `0059A091/0059A0C1`,
+`0059A151/0059A181`, `0059A211/0059A241`. Color
+selection/clear/append `0059D073–0059D115`, suffix and multiplication
+dispatch `0059D117–0059D1BD`; scale helper per §19.25. Descriptor and
+literal pointer cells in §19.31 were read directly as PE words.
+
+### 19.34 Shake/light child conformance vectors (unexecuted)
+
+Static predictions with stipulated successful reader replies except the
+failure explicitly named. No native/game oracle or execution is claimed.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC141 | empty dictionaries; register shake then light separately | shake exactly five entries and light exactly six, in §19.31 order; fresh alias objects, common color descriptor |
+| EC142 | shake length raw 3; old fade 4; no fade option | length=3, fade=3 |
+| EC143 | shake length raw -2; fade returns -1 | length=-2, fade=-2, no lower bound |
+| EC144 | shake length raw 9; fade conversion throws; old fade 4 | length=9 survives; fade=4; no clamp |
+| EC145 | shake length raw 3; fade returns NaN | length=3, fade NaN, no ordered clamp |
+| EC146 | shake length raw NaN; fade returns 4 | length NaN, fade=4 |
+| EC147 | shake length, shakeAspect or table with command record alone | `Not enough arguments` before conversion/write |
+| EC148 | shakeAspect raw record 1 returns -5, extra records and switches | P+3F8=-5; extra operands ignored; switches not queried |
+| EC149 | table ParseEnum returns 1 from sineY, then stipulated conversion failure on next command | first sets P+3FC=1, next retains 1; table random=0,sineY=1 and third argument zero |
+| EC150 | light length selects 100; shake length=5,fade=1; fade returns 9 | light length=100; shake length=5,fade=5 |
+| EC151 | light length selects 2; shake length=5,fade=9; no fade switch | light length=2; shake fade=5 |
+| EC152 | light length selects 2; shake fade=1; fade conversion throws | light length=2 survives; shake fade=1 retained |
+| EC153 | amplitude old list [1]; selects 2,-3,2 | replacement [2,-3,2], no normalization or name guard |
+| EC154 | frequency old list [60]; selects 30,bad; second conversion throws | replacement prefix [30] survives |
+| EC155 | strength minimum selection throws; old list [7] | old [7] unchanged; no clear or conversion |
+| EC156 | strength selects -1,NaN | replacement [-1,NaN], no owner validation |
+| EC157 | color255 ParseColor returns (255,128,-255) | list [(1,bits 3F008081,-1)], no clamp |
+| EC158 | colour with same ParseColor reply as EC157 | list [(255,128,-255)], no scaling |
+| EC159 | colour255 selects two colors, second ParseColor throws | first appended color survives unscaled |
+| EC160 | color255 returns (255,0,0); unknown vary switch remains | normalized [(1,0,0)] before generic leftover-switch error; no variation lookup |
