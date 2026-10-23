@@ -9,8 +9,9 @@ Settled command owners are implemented through effects §19.52/EC276. The
 initial registration inventory below is retained as
 metadata coverage; its historical EF15 execution annotations are superseded by
 the settled-owner table below. EFP1–EFP6 are answered, not remaining spec gaps.
-Only EF15 residual unpublished families and EFP7 numeric qualification stay
-open in the specification. Known class names are used only where published.
+Only EF15 residual unpublished families, EFP7 numeric qualification and the
+EF16 instance-handler identity conflict stay open in the specification. Known
+class names are used only where published.
 
 ## Owner closure
 
