@@ -224,14 +224,16 @@ fn collision_flags_wait_and_default_speed() {
 #[test]
 fn vehicle_path_anchors_and_measures_but_traffic_does_not() {
     let mut v = moving();
-    let mut w = World::default();
-    w.advance = Some(PathAdvance {
-        position: [3.0, 0.0, 4.0],
-        facing: [1.0, 0.0, 0.0],
-        remaining: 15.0,
-        at_end: true,
-        stopped: true,
-    });
+    let mut w = World {
+        advance: Some(PathAdvance {
+            position: [3.0, 0.0, 4.0],
+            facing: [1.0, 0.0, 0.0],
+            remaining: 15.0,
+            at_end: true,
+            stopped: true,
+        }),
+        ..World::default()
+    };
     v.path_tick(
         100.0,
         Movement {
@@ -255,8 +257,10 @@ fn vehicle_path_anchors_and_measures_but_traffic_does_not() {
 #[test]
 fn movement_failures_remove_only_once_and_special_route_survives_reverse() {
     let mut v = moving();
-    let mut w = World::default();
-    w.allow = false;
+    let mut w = World {
+        allow: false,
+        ..World::default()
+    };
     v.traffic_owner().straight_tick(1.0, 1.0, &mut w);
     v.traffic_owner().remove(&mut w);
     assert_eq!(w.calls.iter().filter(|c| c.as_str() == "remove").count(), 1);
@@ -326,8 +330,10 @@ fn plummet_tumble_then_land_removes_without_pop() {
 #[test]
 fn splash_survives_until_timer_then_releases_exactly_once() {
     let mut v = moving();
-    let mut w = World::default();
-    w.water = 3.0;
+    let mut w = World {
+        water: 3.0,
+        ..World::default()
+    };
     let mut state = State::new(14);
     state.extra = StateExtra::T0E {
         descent: -0.01,

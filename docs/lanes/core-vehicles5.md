@@ -13,6 +13,10 @@ Focused attempt 1: 13 passed, 1 failed (occupant Read sets status=2); corrected 
 Conformance: vehicles §11.4 PASS 1/1 (vehicles-conformance-1.log).
 Formatting: qbuild fmt PASS for six owned files; applied through apply_patch using rustfmt stdin,
 UTF-8, repository width 120, no filename headers.
-Next: run mandatory qbuild all on stable formatted source and collect its terminal result.
+Gate 1 (source 7954b9ed): workspace 6244/0; clippy failed 3 test-fixture initializer lints.
+Failed clippy preserved at build-runs/vehicles-all-1-clippy.log; all three fixtures corrected.
+Gate 1 still running session 27131, native queue label qbuild-20261023-194941-build-ctest;
+do not duplicate it. Latest collection: waiting for native steps (game regress delays queue).
+Next: collect session 27131 to terminal, then qbuild all once on corrected source.
 Closure incomplete; do not claim ready: module README gives exact open sections.
 Facts: no game requests outstanding; manifest is main build-runs/run4-core-vehicles5-r1-manifest.json.
