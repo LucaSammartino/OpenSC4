@@ -33,6 +33,9 @@ Detailed mesh generation, pixel results and collision/shock-wave numerics remain
 | `cSC4ParticlesDescriptionBase::cTractorPoint`, `::cWiggle` | **partial** (element shape only) | §2 |
 | `cSC4ParticlesEffect` | **partial**: specified identity, factory, `Start` (complete), `SetDescription` (the fields §5.1 and `Start` read), `InitEffectsParticle` (complete), `Stop`, update order, emitter dispatch, pool, slots; open: physics, forces, height-based emission, the three emitters' rate integration, rendering (§10) | §1, §5.1, §6, §7, §8, §9, §10 |
 
+The owner/completeness matrix for the 2026-10-23 supplement is §13.1. In particular this document
+is still partial; its new interface and noncontact vectors do not settle mesh or collision output.
+
 ## 1. Identity *[compat]*
 
 Three classes implement the particle component. All share the simulator base sub-object at `+4`.
@@ -891,8 +894,9 @@ only transition to zero removes its collected bodies and erases the sector. It d
 shared sector on every particle move. The precise occupant filters/shapes and edge enumeration
 are PT10; no claim of complete static-building collision conformance is made here.
 
-Draw Update (`00583C10`) visits host entries with a nonnull body, samples terrain shading, applies
-the cached transform/shading to nonnull drawables and calls their draw entry (vtable +30) with
+Draw Update (`00583C10`) visits host entries with a nonnull body, queries terrain at its position,
+obtains and modifies the drawable's draw-state record, applies the cached transform to nonnull
+drawables and calls their draw entry (vtable +30) with
 the supplied SC4DrawContext and zero secondary argument. It resets context shading after the
 traversal and returns true, including an empty list. A null drawable is skipped. Draw does not
 integrate time or remove the null-body host entries. No persistence writer or local file IO is
