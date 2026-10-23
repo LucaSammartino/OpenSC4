@@ -756,9 +756,10 @@ sum at `00598C70`; Z's first sum at `00598D2D`, negative-sine store at
 establish the asymmetries above.
 
 This is an instruction/store contract parameterized by x87 control state,
-not a certification of the process's PC/RC setting, transcendental accuracy
-on every CPU, or nonfinite/overflow handling. Those qualifications remain
-§14; an implementation may expose Unsupported outside its qualified numeric
+not a certification of the process's PC/RC setting or transcendental accuracy
+on every CPU. Section 14 qualifies scale/probability only; arbitrary rotation
+nonfinite/transcendental results still require the arithmetic service's domain
+contract. An implementation may expose Unsupported outside its qualified numeric
 domain, retaining the already-established mutation prefix. EFP2's operation
 order no longer requires excluding every rotation option.
 

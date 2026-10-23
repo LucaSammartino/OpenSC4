@@ -7,5 +7,4 @@
 <!-- re-effects-contracts4 (2026-10-21) answered EF11, EF12 and EF13; they moved to answered/effects.md. No open questions remain. -->
 
 <!-- re-effects14-4 (2026-10-21) answered EF14; it moved to answered/effects.md. No open questions remain. -->
-
-
+No open questions. EF15 and EF16 are archived in answered/effects.md.

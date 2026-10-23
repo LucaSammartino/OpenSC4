@@ -1713,7 +1713,8 @@ The generic registrar, duplicate policy, descriptor ownership and block dispatch
 are in [§12](effects-parser.md#12-generic-registration-and-dispatch-dependency-compat).
 These dependencies and effects-parser.md §13 answer EFP1–EFP6 at their
 command-owner boundaries. Section 13 specifies all five rotation keys and
-their x87/binary32 intermediate stores; broader numeric qualification is EFP7.
+their x87/binary32 intermediate stores; §14 supplies EFP7's scale/probability
+numeric qualification.
 Descriptor registration alone does not
 prove a command's execution algorithm.
 
@@ -2087,8 +2088,8 @@ default constructor `0058A930–0058A979` and assignment `0058B4A0–0058B4FD`,
 ordered flag/message writes `005A0E23–005A0F87`, pending-record lookup and
 rename/mark `005A0F87–005A1003` (finder `005A12E0` uses comparator
 `004B5CA0`), inline validation and generic-block entry `005A1005–005A10A6`,
-exit publication/clear `0059EB50–0059EBDA`. Nested dictionary execution remains
-EF15; entry/exit publication does not establish its child command algorithms.
+exit publication/clear `0059EB50–0059EBDA`. Nested dictionary execution is
+specified separately in §§19.52–19.56.
 
 ### 19.10 Effect-block conformance vectors (unexecuted)
 
@@ -2208,7 +2209,7 @@ names. They build named definitions in the collection at `P+90`; they do not
 append references to the current `effect` description. They have no owner
 guard against an already nonempty definition name and do not save an outer
 definition for restoration. Dispatch and generic block-stack rules remain
-effects-parser §12. Child algorithms remain separately required by EF15.
+effects-parser §12. Child algorithms are specified in §§19.17–19.51.
 
 | Literal / owner | Descriptor | Entry / exit | Live name / description | Collection inherit / publish slots |
 |---|---|---|---|---|
@@ -2481,8 +2482,8 @@ inspection of its input, not to extra descriptor state.
 Evidence: allocation/registration instructions `005958F0–00595D19`; literal
 pointer cells `00B0A314–00B0A37C`; direct-handler words at the listed descriptors
 +0C; constructor stores `00595D22`, `00595D32`. Wrapper behavior is specified
-in effects-parser §12. This table does not close EF15's other dictionaries or
-remaining child algorithms.
+in effects-parser §12. The remaining child algorithms and other dictionaries
+are specified in §§19.18–19.56.
 
 | ID | Fixture | Required result (unexecuted) |
 |---|---|---|
@@ -4233,8 +4234,11 @@ if name is absent throw `need at least -name for an anonymous brush effect`.
 Set +0C from the map. Options in order: `rate` (1) stores binary32 +10;
 `apply` (1) overwrites the same rate and sets apply byte 1; `length` (1)
 stores +14; `zoom` (1) ParseInt must be 1..5 inclusive and stores value−1
-at +1C; `strength` (1), then `width` (1) use §19.1's ParseFloatRange
-pair service (single value repeated, two values preserved, no endpoint sort);
+at +1C; `strength` (1), then `width` (1) use ParseFloatRange
+(`005965B0–00596622`): convert the first token and store binary32 before
+attempting a second conversion. With at least two indices, convert the second
+and return the two binary32 endpoints in their input order; with one index,
+repeat the first stored binary32 value. Ignore later indices; do not sort;
 `level` (1) stores +30. Helper boolean is false. Float stores do not clamp.
 Evidence: `005812F0–00581345`, `005A2CF0–005A30A4`.
 
@@ -4283,7 +4287,8 @@ check. No map lookup or case folding. Helper boolean true. Evidence:
 `00580F10–00580F5C`, `005A3710–005A3889`.
 
 **CameraEffect** (`005A3930`): fresh flags +0C=0, bytes +10/+11=0,
-attach radius float +14=0. Options: `target` (0) OR flags 4; `attachRadius`
+attach radius float +14=0. Options: `slave` (0) OR flags 8; `target` (0)
+OR flags 4; `attachRadius`
 (1) float store +14; `zoom` (1) ParseInt 1..5, store value−1 in byte +10
 and OR flags 1; `rotation` (1) ParseInt 0..3, store value in **the same
 byte +10**, then OR flags 2. Byte +11 remains zero: do not repair the
@@ -4355,6 +4360,7 @@ the literal or folded export name.
 | EC302 | empty select after an older component of weight 9 | old last weight becomes 8; empty whole vector stays empty |
 | EC303 | outer select then inner select; inner closes then outer closes | inner ID/start overwrite outer; both exits clear ID; both use inner saved start, each makes its own tail adjustment |
 | EC304 | nested particleSequence, inner exits, then particleEffect | particleSequence byte 0; new particle record flags bit 2 clear |
+| EC305 | camera slave and target, no numeric options | flags 12, bytes +10/+11 zero; helper boolean true |
 
 EF15 closure inventory: root owners/descriptors map to §§19.2–19.16 and
 effects-parser §6.1; particle child descriptors to §§19.17–19.28,

@@ -26,7 +26,12 @@
   and the numeric qualification of effects-parser §14 remain explicit.
 
 - **EF16 — §19.52 / EC275 conflicts with effects-parser §6.1 for instance:**
-  Which root/nested handler belongs to descriptor `00A9FA08`?
+  effects §19.52 assigns descriptor `00A9FA08` direct handler `00596980` and
+  EC275 says this is the same handler as root instance. The root inventory in
+  effects-parser §6.1 instead assigns that descriptor `0059A730`. Which is the
+  correct root and nested association? [Retain both literal registration
+  ledgers, use the settled §19.4 effect-ID algorithm for instance, and leave
+  only the claimed equal-handler part of EC275 open; no inferred correction.]
   **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — §19.52's address
   was wrong: both registrations use descriptor `00A9FA08`, whose +0C word
   is `0059A730`. `00596980` is inside effectsResource's exit hook.
