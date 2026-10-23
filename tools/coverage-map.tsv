@@ -297,7 +297,7 @@ fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
 # host, not what each one does
 fn:LUAExtension_*	Lua host	framework	-	-	-	-
 # ---- audio
-cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	-	-	-
+cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-	-
 cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
 cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
