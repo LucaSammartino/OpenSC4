@@ -44,7 +44,7 @@ pub(super) fn run(h: Handle, t: Handle, p: Properties<'_>, first: bool, f: &mut 
         (0x1324, 1, 0xcc, 0xd0, 0xd4),
         (0x132c, 2, 0xe4, 0xe8, 0xec),
     ] {
-        font_word(h, t, p, key, index, font_slot, f);
+        font_word(h, t, p, key, index, font_slot, f)?;
         for which in 0..6 {
             if let Some(c) = colour(p, key + 1 + which)? {
                 let c = f.colour(c);

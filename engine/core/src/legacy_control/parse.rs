@@ -35,6 +35,7 @@ pub(super) fn scan(text: &str, pattern: &str) -> Result<Vec<u32>> {
         if k == p.len() {
             return Err(Unsupported::Malformed("scan pattern"));
         }
+        let unsigned = matches!(p[k], b'x' | b'u');
         let radix = if p[k] == b'x' { 16 } else { 10 };
         k += 1;
         while t < b.len() && b[t].is_ascii_whitespace() {
@@ -72,7 +73,7 @@ pub(super) fn scan(text: &str, pattern: &str) -> Result<Vec<u32>> {
         if t == digits {
             break;
         }
-        let limit = if radix == 10 {
+        let limit = if !unsigned {
             if negative {
                 0x8000_0000
             } else {

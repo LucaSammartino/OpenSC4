@@ -4,6 +4,8 @@ use super::*;
 use crate::variant::{Elem, Variant};
 use std::collections::{BTreeMap, VecDeque};
 
+mod conformance;
+
 #[derive(Debug, Clone, PartialEq)]
 enum Event {
     Create(u32, u32),
@@ -27,6 +29,7 @@ enum Event {
     ManagerSlot3,
     NewString,
     Append(Handle, String),
+    NewProcedure,
 }
 
 #[derive(Default)]
@@ -42,6 +45,10 @@ struct Fake {
     strings: BTreeMap<(u32, u32), String>,
 }
 impl Foreign for Fake {
+    fn new_default_procedure(&mut self) -> Option<Handle> {
+        self.events.push(Event::NewProcedure);
+        Some(900)
+    }
     fn create(&mut self, c: u32, i: u32) -> Option<Handle> {
         self.events.push(Event::Create(c, i));
         self.creates.pop_front().flatten()
@@ -416,24 +423,25 @@ fn exact_two_pass_slider_common_init_parent_front_order() {
 }
 
 #[test]
-fn unknown_interpreter_stops_at_precise_prefix() {
+fn text_build_reaches_common_and_attach() {
     let (mut c, g, mut f) = initialized();
     f.creates.push_back(Some(10));
     f.queries.insert((10, 0x212cdc1f), 11);
     assert_eq!(
         c.set_parameters(Properties(&[u(0xffffffff, 0x592)]), &g, &mut f),
-        Err(Unsupported::Interpreter(0x212cdc1f))
+        Ok(false)
     );
     assert_eq!(
-        f.events,
-        vec![
+        &f.events[..4],
+        &[
             Event::Create(0x592, 0x22ba0121),
             win(10, Write::Param(0xe85eebde, n(0x592))),
             win(10, Write::Param(0x08d6e462, n(0x212cdc1f))),
             Event::Query(10, 0x212cdc1f),
-            Event::Release(11)
         ]
     );
+    assert!(f.events.contains(&win(10, Write::Init)));
+    assert!(f.events.contains(&win(10, Write::Front)));
     assert!(c.owns_control());
     assert_eq!(c.control(), Some(10));
 }
