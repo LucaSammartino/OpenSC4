@@ -14,7 +14,9 @@
 - This milestone: Grid data/text/window/extra queries, row/column room/delete/copy and default/per-cell formats; ClearCell always true; expanded closure tables.
 - Focused widget session 54708 terminal PASS: 45 passed, 4138 filtered. No operation outstanding. Later two-byte-helper/default API refinements await final gate.
 - Focused clippy literal diagnostic fixed; qbuild fmt PASS 10 files/0 diffs. Failed compiler/clippy/fmt-input evidence in build-runs/textedit-focused-initial-failure.md.
-- NEXT EXACT: python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-widgets5 all (one final stable-source gate, includes native verify).
+- 68d5aa6eb final implementation gate RUNNING: qbuild all session 92476. Rust PASS 6414/0 failed/0 ignored, clippy PASS 0 diagnostics.
+- NEXT EXACT: collect SAME session 92476; native label qbuild-20261023-233517-build-ctest remains queued in build-runs/build-queue, no verdict yet. Never duplicate it.
+- Final logs build-runs/qbuild-test.log and qbuild-clippy.log; fmt PASS 10 files/0 diffs. No implementation edits after gate started.
 - Grid recalc/bar/input/paint incomplete; WG5/WG6 provisional. ClearCell corrected; data-stage methods still omit native recalc hook.
 - Browser automatic refresh records work; FBQ1/2/4/5/6 open. List/Tree WC1-WC6 open; README tracks remaining rows.
 - No game requests or plugin/capi/ABI changes. Final all/verify gate, report commit and READY merge-queue entry mandatory.
