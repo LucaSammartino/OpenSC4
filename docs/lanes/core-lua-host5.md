@@ -8,7 +8,9 @@
 - Done: 14/14 lua_vm integration tests pass; explicit five-file qbuild fmt clean; per-owner/spec-section README matrix added.
 - Gate 1 (b415d6fc): terminal FAIL; workspace 6094/0; clippy one fixture initialization warning (fixed); configure timed out after 900s at C compiler ABI, CTest skipped.
 - Evidence preserved in build-runs/gate-first/; original configure log still present because its open handle prevents deletion.
-- Next: diagnose compiler ABI configure timeout, rerun full gate on corrected stable fixture; report wip because LH4/LH5 block closure.
+- Gate 2: qbuild all running on 0e2d7d20, unified exec session 4344; collect this SAME operation to terminal result.
+- Configure diagnostic: first probe build.ninja used /Zi and /debug; local ignored engine/build-x86/CMakeCache.txt now seeds CMAKE_TRY_COMPILE_CONFIGURATION=Release (normal compile/link probe, no compiler bypass).
+- Next: collect gate 2, then final report and wip queue; LH4/LH5 block owner closure.
 - Boundaries: LH4 §§1/3/6 thread IDs/lifecycle/native refcounts; LH5 §§1/6.3.2 generator setup/commands; default reporter exact text already open §15 Q8.
 - Diagnostic: q.py cannot start Git Bash (CreateFileMapping error 5); use direct PowerShell cargo, preserve build-runs/q/20261023-175822-21212.log.
 - No game requests; no ABI or plugin changes authorized.
