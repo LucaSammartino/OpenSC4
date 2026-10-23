@@ -43,8 +43,7 @@ pub trait Primitives {
     fn write_word(&mut self, address: u32, value: u32) -> Normal<()>;
     fn allocate_block(&mut self, receiver: u32) -> Normal<u32>;
     fn construct_variant(&mut self, receiver: u32) -> Normal<()>;
-    fn install(&mut self, holder: u32, slot: u32, property: u32, zero: u32)
-        -> Normal<Residue>;
+    fn install(&mut self, holder: u32, slot: u32, property: u32, zero: u32) -> Normal<Residue>;
     fn get_variant(&mut self, property: u32, slot: u32) -> Normal<u32>;
     fn set_bool(&mut self, variant: u32, slot: u32, word: u32) -> Normal<Residue>;
     fn set_u8(&mut self, variant: u32, slot: u32, word: u32) -> Normal<Residue>;
@@ -100,12 +99,27 @@ macro_rules! word_helper {
     };
 }
 
-word_helper!(set_bool, set_bool, 11, "Forward the whole bool stack word; no normalization.");
+word_helper!(
+    set_bool,
+    set_bool,
+    11,
+    "Forward the whole bool stack word; no normalization."
+);
 word_helper!(set_u8, set_u8, 14, "Forward the whole u8 stack word; no narrowing.");
 word_helper!(set_s32, set_s32, 29, "Forward the signed 32-bit raw word.");
 word_helper!(set_u32, set_u32, 26, "Forward the unsigned 32-bit raw word.");
-word_helper!(set_f32, set_f32, 38, "Forward raw scalar f32 bits; no helper floating arithmetic.");
-word_helper!(set_string, set_string, 56, "Forward a valid independent string interface unchanged.");
+word_helper!(
+    set_f32,
+    set_f32,
+    38,
+    "Forward raw scalar f32 bits; no helper floating arithmetic."
+);
+word_helper!(
+    set_string,
+    set_string,
+    56,
+    "Forward a valid independent string interface unchanged."
+);
 
 /// Forward the original low/high pair; the residue is not a 64-bit return.
 pub fn set_s64(p: &mut impl Primitives, holder: u32, id: u32, low: u32, high: u32) -> Normal<Residue> {
