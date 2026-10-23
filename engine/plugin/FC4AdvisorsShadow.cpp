@@ -5,6 +5,7 @@
 #include "FC4AdvisorsShadow.h"
 #include "FC4Config.h"
 #include "FC4CoreShadow.h"
+#include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -12,6 +13,7 @@
 #include "cFC4AdvisorObjects.h"
 #include "cIGZSerializable.h"
 #include "cISC4City.h"
+#include "cISC4Simulator.h"
 #include "fc4.h"
 
 #include <cstdio>
@@ -177,6 +179,7 @@ private:
 
 struct Result {
     uint32_t mismatches = 0, records = 0, identities = 0;
+    uint32_t loadTransitions = 0;
     size_t bytes = 0;
 };
 
@@ -232,6 +235,23 @@ Result RoundTrip(cIGZUnknown* original) {
         const bool exact = written && found->second->UnknownRefs() == 0 && found->second->Bytes() == n.capture.Bytes();
         if (!exact) {
             ++mismatches;
+            // AD18: classify the required Read transition separately. Never
+            // mask/restore the dirty bit or credit it as strict equality.
+            bool loadTransition = false;
+            if (written && found->second->UnknownRefs() == 0 && fc4_adv_obj_kind(n.core) == FC4_ADV_OBJ_ADVICE) {
+                const auto& a = n.capture.Bytes();
+                const auto& b = found->second->Bytes();
+                const size_t prefix = n.original->GetGZCLSID() == 0x6A3848DB ? 2 : 0;
+                const size_t flag = prefix + 10;
+                if (a.size() == b.size() && a.size() > flag && a[prefix] == 4 && a[prefix + 1] == 0 && (a[flag] & 0x10) == 0) {
+                    loadTransition = true;
+                    for (size_t i = 0; i < a.size(); ++i) {
+                        const uint8_t expected = i == flag ? static_cast<uint8_t>(a[i] | 0x10) : a[i];
+                        if (b[i] != expected) { loadTransition = false; break; }
+                    }
+                }
+            }
+            if (loadTransition) ++result.loadTransitions;
             size_t first = 0;
             if (written) {
                 const auto& a = n.capture.Bytes();
@@ -241,9 +261,9 @@ Result RoundTrip(cIGZUnknown* original) {
             // Diagnostic uses a separate prefix: only the dated aggregate is
             // a shadow line, and it counts every failed record.
             if (mismatches <= 3) {
-                Log("advisors record diff: class=0x%08X captured=%d read=%d write=%d bytes=%u first=%u",
+                Log("advisors record diff: class=0x%08X captured=%d read=%d write=%d bytes=%u first=%u load_transition=%d",
                     n.original->GetGZCLSID(), n.captured, n.read, written,
-                    static_cast<unsigned>(n.capture.Bytes().size()), static_cast<unsigned>(first));
+                    static_cast<unsigned>(n.capture.Bytes().size()), static_cast<unsigned>(first), loadTransition);
             }
         }
     }
@@ -257,6 +277,8 @@ void Compare(const char* event, int32_t julian) {
     fc4_date_from_julian(julian, &date);
     Log("advisors shadow %04d-%02d-%02d %s: records=%u bytes=%u MySim_identities=%u; mismatches=%u",
         date.year, date.month, date.day_of_month, event, result.records, static_cast<unsigned>(result.bytes), result.identities, result.mismatches);
+    Log("advisors record classification: load_transitions=%u other_differences=%u; strict mismatches retained",
+        result.loadTransitions, result.mismatches - result.loadTransitions);
     ++g_lines;
     if (result.mismatches == 0) ++g_clean;
 }
@@ -270,6 +292,10 @@ uint32_t AdvisorsShadowTest(cIGZUnknown* original) { return RoundTrip(original).
 void AdvisorsShadowCityLoaded(cISC4City* city, int32_t julian) {
     g_city = city;
     g_lines = g_clean = 0;
+    if (g_enabled && city != nullptr) {
+        auto* sim = AsGame(city->GetSimulator());  // borrowed
+        if (sim != nullptr) julian = sim->GetSimDateNumber();
+    }
     Compare("load", julian);
 }
 void AdvisorsShadowMonth(int32_t julian) { Compare("month", julian); }

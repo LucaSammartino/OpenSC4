@@ -688,6 +688,41 @@ fn mysim_record_round_trip() {
 }
 
 #[test]
+fn city_situation_record_adapter_and_strict_read_transition() {
+    let f = Fixture::new();
+    unsafe {
+        for class in [clsid::ADVICE, clsid::CITY_SITUATION_ADVICE] {
+            for flags in [0x0000_0002u32, 0x8000_0000, 0x0000_0012, 0x8000_0010] {
+                let original = fc4_advisors_create_object(f.p, class);
+                assert!(!original.is_null());
+                assert_eq!(fc4_adv_obj_class(original), class);
+                assert_eq!(fc4_adv_obj_kind(original), FC4_ADV_OBJ_ADVICE);
+                let mut record = Out::default();
+                assert!(fc4_adv_obj_write(original, &ostream(&mut record)));
+                fc4_adv_obj_destroy(original);
+                record.bytes[10..14].copy_from_slice(&flags.to_le_bytes());
+
+                let loaded = fc4_advisors_create_object(f.p, class);
+                let mut input = In::new(&record.bytes);
+                assert!(fc4_adv_obj_read(loaded, &istream(&mut input)));
+                assert_eq!(fc4_adv_obj_class(loaded), class);
+                let mut output = Out::default();
+                assert!(fc4_adv_obj_write(loaded, &ostream(&mut output)));
+                let strict = output.bytes == record.bytes;
+                assert_eq!(strict, flags & 0x10 != 0, "AD18 strict equality");
+                let mut expected_transition = record.bytes.clone();
+                expected_transition[10..14].copy_from_slice(&(flags | 0x10).to_le_bytes());
+                assert_eq!(
+                    output.bytes, expected_transition,
+                    "AD17 base framing; AD18 transition only"
+                );
+                fc4_adv_obj_destroy(loaded);
+            }
+        }
+    }
+}
+
+#[test]
 fn subject_round_trip_and_core_handles() {
     let f = Fixture::new();
     unsafe {
