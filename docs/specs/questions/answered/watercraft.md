@@ -20,3 +20,8 @@
 - ~~**WC1 - §1, §5.1:** who sets the byte `+0x2CC` (count the idle budget in every animation tick); no watercraft function writes it except `Init`, which clears it. [as read]~~
 
   **ANSWERED 2026-10-23 (re-watercraft-wc5):** MATCHES — §5.1.2 identifies the external writer as manager PopulateVisibleArea, after successful placement. Its per-attempt mode selects group 0x4417 versus 0x4418, then is stored at +0x2CC; true accumulates second-frame time while moving and bypasses normal AI/lifetime work. RNG admission, strict mode threshold, missing-RNG behavior and idle equality boundaries are specified. Vectors WC1-I01–I05 cover activation and consumption.
+
+<!-- from: re-boatsped (2026-10-21) -->
+- ~~**WC2 - §5.1:** what the caller of the boat's animation tick does when it returns false (a boat still for more than 5 s outside states 7, 16, 75–78), and the meaning of drive-parameter entries 4, 11–14, 18, 22–24, 26, 30, 31 and 34. [as read]~~
+
+  **ANSWERED 2026-10-23 (re-watercraft-wc5):** DIFFERS — §§2, 5.1.1 and 5.1.3 supply all listed uses. The caller invokes manager RemoveAutomaton(boat,false). Entry 18, not 24, caps normal bow pitch and supplies half its value as model lift. Entries 13/14 slew AI speed/turn per ms, 26 is a strict terrain-height contact tolerance, 30/31 are command-curve endpoints, and 34 is loaded but has no observed owner-side read. Entries 22–24 belong to crash attitude/retention. Vectors WC2-P01–P04 and corrected WC4-M07 cover the caller and newly identified uses; existing command/crash vectors cover the rest.
