@@ -68,6 +68,22 @@ AT21 stays here rather than being archived as wholly answered by inference.
   concrete route. AT21 separately covers the controller manager's final releases. [blocked; keep record
   support only, no invented base CLSID or complete-owner claim]
 
+**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4):**
+[The inherited base lifecycle contract](../automata-controller-lifecycle.md) settles the layout question:
+the serializable interface is S = C + 4, so saved position S+0x10 is live C+0x14, saved flags S+0x3C are the
+flags word C+0x40 and the list sentinel is C+0x44. It specifies construction defaults, QI/AddRef/Release,
+template and occupant assignment, Init, Activate and the flag accessors, the sound/effect/view helpers,
+Shutdown versus direct destruction, animation tick and expiry, position and bounds, the grid bytes,
+controlled-automata removal, the lot-facing point and within-radius test, the state callbacks and behavior
+selection, the secondary Read, and the attractor/generator override map. The director registers only the
+two concrete factories; `4A18672B` is a serialization identity, not a base factory. Its conformance fixtures
+are proposed and have not been run.
+**Remain open:** the runtime value of global `00B227CC` (constructor position); slot 24/36 meanings and the
+untyped extra arguments of state tick and DoAnimationTick; CreateTemplateInstance `0051BDF0`; whether
+SC4ReadGZSerializable retains returned references; the secondary Write body; allocation-failure, exception,
+reentrancy and non-finite numeric behaviour; the runtime x87 precision setting; the derived controllers' own
+contracts. AT22 stays open.
+
 <!-- from: glue-automata-managers4 (2026-10-22) -->
 - **AT23 - §§6.1, 7.2, 11, 15; automata-managers.md §§1, 2.2:** Please publish the complete inherited
   `cSC4Automaton` construction/Init/Shutdown/destruction contract and its occupant/model/callback ownership,
