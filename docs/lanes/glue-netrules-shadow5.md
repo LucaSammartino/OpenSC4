@@ -15,7 +15,8 @@
 - Native verify qbuild-20261023-233355-build-ctest TERMINAL FAIL: MSVC C2488 on naked forward declarations at 223/286; ctest skipped. Removed naked only from forward declarations.
 - Failed native evidence preserved under build-runs/netrules-native-failed-1; request had a long queue delay (file presence did not establish whether it had started).
 - Full qbuild all PASS on ef0469c1a source: 6649 tests, 0 failed; clippy 0 diagnostics; native 47/47 edges; CTest 70/70. Native label qbuild-20261024-000818-build-ctest TERMINAL PASS.
-- Next: submit unique game request below; inspect exactness and return full report/READY queue.
+- First game a TERMINAL ended 2028-08-01, ref_warnings=0, 33/33 mismatch-clean lines; simulator-only fixture ended early. Retry b uses simulator,budget, same script and end date.
+- Next: collect b verdict at build-runs/game-results/netrules-r3-2032-20261024b.verdict; write run records and final report/READY queue. No native operation outstanding.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
