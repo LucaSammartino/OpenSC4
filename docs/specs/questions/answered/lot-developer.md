@@ -1,4 +1,20 @@
 # lot-developer: answered questions (archive)
+
+<!-- from: core-construction5 (2026-10-23) -->
+- **LD35 — §6.7.15:** please specify the explicitly open scaffold mesh, SetScaffoldHeight, CreateCrane model geometry, Draw, DoRotationChange, and inner crane exact position/swing. [Unsupported for these visual operations; inner side/size draws and all outer fit rules implemented]
+  **ANSWERED 2026-10-23 (re-construction-ld5):** DIFFERS — lot-developer §6.7.15 specifies topology, height propagation, relighting, render order, crane model/post geometry and exact inner position/swing. §6.7.16 supplies conformance vectors; no visual Unsupported boundary remains in these named operations.
+
+<!-- from: core-construction5 (2026-10-23) -->
+- **LD36 — §6.7.6:** what are the scaffold/completion interpolation endpoints and the milliseconds-per-day divisor, including state 0 and removal state 3? [accumulate saved ms and animate cranes; phase interpolation Unsupported pending endpoints]
+  **ANSWERED 2026-10-23 (re-construction-ld5):** DIFFERS — §6.7.15 specifies all four phase formulas, nominal 500 ms/day, quantized N·segH span, zero-duration behavior, and verifies that completion divides by E. State 3 does not animate the crane.
+
+<!-- from: core-construction5 (2026-10-23) -->
+- **LD37 — §6.7.7 steps 3–4:** which y/anchor does CreateAndPlaceProp use, which initial values/roles do the two saved crew booleans have, and is RandomDirection2 normalized? [literal area minimum y, first crew byte = roof flag, second false; pass the two drawn direction components to the foreign automata service]
+  **ANSWERED 2026-10-23 (re-construction-ld5):** DIFFERS — §6.7.15 uses footprint centre x/z and building position.y or maximum corner terrain altitude; crew bytes start false,roofFlag, with the second selecting scaffold following. RandomDirection2 returns normalized components.
+
+<!-- from: core-construction5 (2026-10-23) -->
+- **LD38 — §6.7.1/.7/.14:** what are the 6×5 sim-grid IDs and render-state fields; dust/scaffold effect creation parameters; crane saved y; and whether RemoveRectangle clips its four candidate parts to the input area when the cut crosses its boundary? [foreign render preparation/effect creation; crane y zero because CreateCrane accepts x/z; literal four full-extent candidates without clipping]
+  **ANSWERED 2026-10-23 (re-construction-ld5):** DIFFERS — §6.7.15 identifies texture bindings rather than sim grids, gives all 30 IDs/render fields and dust/spark creation arguments. MATCHES for initial successful crane y=0 and unclipped cut candidates; subsequent height updates save crane y=h+heightAboveScaffold. Crew render gate is kEffectPriorityLevel.
 <!-- Archive for [lot-developer.md](../../lot-developer.md). Lanes do not read this file. Open questions are in ../lot-developer.md. -->
 
 <!-- from: From lot creation, the plop test, the lot developer and the graphics formats (2026-10-15) -->

@@ -1075,8 +1075,8 @@ manager; visual).
 
 `DoAnimationTick(ms)` (`0x005CE110`) accumulates `msAcc`, interpolates the scaffold height (states 0, 1, 3) and the
 building completion (state 2) between phase boundaries, and runs `AnimateCrane` in states 0–2 when a crane exists. It
-changes no simulation state. *[quirk, visual: the state-2 interpolation uses the elapsed fraction of one day instead of
-dividing by `E`]* *[inferred]*.
+changes no simulation state. Exact endpoints, the 500 ms/day multiplier and division by `E` are
+specified in §6.7.15 (LD36); that instruction-verified contract supersedes the former decompiler inference.
 
 `AnimateCrane` (`0x005CD570`): `acc += ms`; when `acc ≥ duration`, `acc := 0` and the crane advances: state 0 → 1
 with `duration := 1000 + Uniform(1000)`; 1 → 2 without draw; 2 → 0 with `mid := r24(r24(r24(max − min) · 0.5) + min)`,
@@ -1127,8 +1127,8 @@ each reset refills the table with 0..n − 1 and shuffles it with `random_shuffl
    orientation `[0, 2, 1, 3][Uniform(4)]` (table `0x00AA2088`) when `width > dimB` and `depth > dimA`, else
    `[0, 2][Uniform(2)]`; footprint `(dimA, dimB)` for orientations 0 / 2, swapped for 1 / 3; offset x :=
    `RDRU(0, width − fx)`, then z := `RDRU(0, depth − fz)`. 3 draws.
-4. **`CreateConstructionCrew`** (`0x005CFA60`), only when the render setting at `0x00B43CC4` → +0x18 → +0x134 is
-   > 2 *[inferred: automata detail level]*:
+4. **`CreateConstructionCrew`** (`0x005CFA60`), only when render-properties integer 7,
+   `kEffectPriorityLevel`, at `0x00B43CC4` → +0x18 → +0x134 is ≥ 3 (signed):
    - ground crew: `k := SintRange(2, 4)` (1 `NextRaw`, 2..3); per member: reset the area iterator (7 `rand()`); the
      first area with width > 2 and depth > 2 gets `Uniform(3)` → type `[0x0210B000, 0x0210C000, 0x0210A000]`
      (`0x00AA1E68`) and `CreateAutomata(area, 0, type)`; stop when no area qualifies;
@@ -1266,11 +1266,248 @@ effect, and the current effect, from the prop manager (slot 29 `RemoveProp`) and
 released without a null test *[quirk]*); remove every crew automaton from the automata manager (city slot 44, its slot
 8 with 0) and release it. So the completion's tail call (§6.7.5) removes everything the occupant placed.
 
-#### 6.7.15 Open
+#### 6.7.15 Construction visual contract (LD35–LD38) *[compat]*
 
-The model geometry of `RebuildModel`, `SetScaffoldHeight` (`0x005CC020`), `CreateCrane`, `Draw` (`0x005CC410`) and
-`DoRotationChange` (`0x005CB7C0`), the inner crane's exact placement, and the name of the render setting of §6.7.7
-step 4 are not specified. None of them changes the completion day.
+This section supplies the former open visual details and corrects the earlier interpolation inference.
+None of these operations changes the completion day.
+
+**Interpolation (LD36).** `DoAnimationTick` takes unsigned integer milliseconds, not a float.
+It adds them to the saved 32-bit `msAcc` with wrapping, including in state 4, then computes elapsed
+construction days `d = r24(unsigned(msAcc) · f32(0x3B03126F))`. The multiplier at `0x00B0A804`
+is `0.0020000000949949026`, nominally **1/500 ms**; it is independent of simulation speed and date.
+Let `u(X) = min(1, r24(d / unsigned(X)))` and `k = unsigned(counter−1)`:
+
+| State | Visual value supplied |
+|---|---|
+| 0 | scaffold `ground + (startY−ground) · f`, where `f=1` if `d≥A`, otherwise `d/A` |
+| 1 | scaffold `startY + k·segH + segH·u(B)` |
+| 2 | building completion `k·(1/N) + u(E)·(1/N)` |
+| 3 | scaffold `ground + ((startY−ground)+span)·(1−u(C))` |
+| other | no height or completion update |
+
+The final supplied value is float32. Within these expressions, products and sums remain in x87
+precision until the result store; the state-1 base and state-2 reciprocal are not separately
+rounded. Only `d` and the displayed `d/X` ratios for states 1–3 have intermediate float32 stores;
+state 0 keeps its ratio in x87 precision. There is no lower clamp. For states 1–3 the native
+upper-minimum selects an unordered ratio, so `0/0` propagates NaN; positive elapsed time over a
+zero denominator clamps to 1. State 0 instead chooses its endpoint for `A=0,d=0`.
+
+The saved `span` at `+0x158` is **r24(N·segH)** after RebuildModel, replacing the initial
+`topY−startY` (`0x005CAF76…0x005CAF9C`). State 1 therefore ends at `startY+counter·segH`;
+state 2 runs from `(counter−1)/N` to `counter/N`; state 3 starts at `startY+span` and ends at
+ground. That removal start can exceed the building top. The initial SetLot height `ground+0.001`
+becomes ground on a zero tick with `A>0`, or startY with `A=0`. **State 2 does divide by E**:
+the contrary inference in the previous §6.7.6 text was a decompiler stack-recovery error. Only
+states 0–2 animate the crane, after the visual update. Evidence: unsigned accumulator and multiplier
+`0x005CE116…0x005CE14A`; states 0/1 `0x005CE15B…0x005CE228`; state 2 including the ratio
+store `0x005CE232…0x005CE2B9`; removal and crane exclusion `0x005CE2D8…0x005CE344`.
+
+**Scaffold mesh (LD35).** Let its horizontal bounds be `[x0,x1]×[z0,z1]`, and number the corners
+`0=(x0,z0)`, `1=(x1,z0)`, `2=(x0,z1)`, `3=(x1,z1)`. The four vertical quads have the following
+horizontal corner order; their vertical order is bottom, top, top, bottom. Initially bottom is
+ground and top is topY. Vertices are world positions, with no additional lot-orientation rotation.
+
+| Quad | Corner indices |
+|---|---|
+| 0 | 0, 0, 1, 1 |
+| 1 | 2, 2, 3, 3 |
+| 2 | 3, 3, 1, 1 |
+| 3 | 0, 0, 2, 2 |
+
+With `p=plankWidth`, the four horizontal plank rectangles are, in order,
+`[x0,x1]×[z0,z0+p]`, `[x1−p,x1]×[z0+p,z1−p]`,
+`[x0,x1]×[z1−p,z1]`, `[x0,x0+p]×[z0+p,z1−p]`. Each rectangle's vertex order is
+`(xmin,zmax), (xmin,zmin), (xmax,zmin), (xmax,zmax)`, all at topY, with stored texture
+coordinates `r24(x·plankTextureScale), r24(z·plankTextureScale)`. The inner girder quad uses
+that same vertex order on `[x0+p,x1−p]×[z0+p,z1−p]` at topY. Rectangles are not clipped
+for small buildings. The inner-girder plank offsets are cached at the first rebuild; later tunable
+changes do not refresh those offsets.
+
+Each of the four posts is a square centred on a scaffold corner, width `postWidth`, base ground,
+initial top `r24(topY+postWidth)`. Each has four sides in the vertical-quad order above and a top
+in the horizontal order above; no bottom. Scaffold/plank/girder vertices have position and two
+texture coordinates (20-byte stride); scaffold side buffers are initially zeroed. Posts have position
+and BGRA colour (16-byte stride), with alpha 255; rebuild marks lighting dirty. The world bounds
+extend the scaffold by postWidth on each horizontal edge and retain `[ground,topY]` vertically.
+Evidence: side vertices `0x005CAFA2…0x005CB084`; planks `0x005CB090…0x005CB373`;
+girder `0x005CB379…0x005CB490`; posts `0x005CB493…0x005CB6EF`; bounds
+`0x005CB6F5…0x005CB7A8`. Corner/winding table: `0x00AA1FA8`.
+
+**Height updates (LD35).** `SetScaffoldHeight(h)` does not clamp h or rebuild the saved bounds.
+It moves the upper two vertices of each scaffold side to h, all plank and inner-girder vertices to h,
+and the twelve upper/top vertices of each post to `r24(h+postWidth)`; all post bases stay at ground.
+If a crane instance exists, its saved y and model translation y become
+`r24(h+sfCraneHeightAboveScaffold)`, preserving x, z and orientation. The crane post's upper
+vertices use that same elevated height; its bases remain at ground.
+Every roof-prop occupant gets position.y=h, is notified through occupant-manager slot 24 with
+argument 0, and has property `0x99EF1146` removed (occupant slot 15, argument 0).
+Every crew member whose **second** saved boolean is true gets position.y=h through automata
+slots 7/8; its horizontal coordinates remain unchanged. Evidence: mesh updates
+`0x005CC020…0x005CC1EB`, crane `0x005CC1ED…0x005CC30D`, props/crew
+`0x005CC310…0x005CC3D8`.
+
+**Inner crane (LD35).** Use the building occupant's world bounding box, without the scaffold gap.
+For x extent ≥ z extent, the side is 0 or 2; otherwise 1 or 3, with the draw rule in §6.7.7.
+Choose the first positive-width model whose `back+reach` is strictly smaller than the long extent.
+Let `offset=(back+reach)·0.5−back`, and let `(mx,mz)` be the box centre. The post positions are:
+
+| Side | x | z | Swing centre c |
+|---|---|---|---|
+| 0 | mx−offset | mz | 2π |
+| 2 | mx+offset | mz | π |
+| 1 | mx | mz+offset | π/2 |
+| 3 | mx | mz−offset | 3π/2 |
+
+Let `q` be half the short extent and `R=reach`. When q≥R, use these float32 endpoint constants
+directly: side 0 `[3π/2,5π/2]`, 2 `[π/2,3π/2]`, 1 `[0,π]`, 3 `[π,2π]`.
+Otherwise take `a=asin(q/R)` in x87 precision and store `c−a,c+a` to float32; the quotient uses
+the float32-stored q. The centre constants are float32 π multiples, not double π. Centre/offset
+arithmetic is retained in x87 precision until each position store. This differs from the outer
+crane's side-to-angle mapping. No footprint is cut out for an inner crane.
+Evidence: long-axis selection `0x005CDDC1…0x005CDE28`; fit `0x005CDE30…0x005CDE70`;
+x-long placement/swing `0x005CDE7D…0x005CDF68`; z-long `0x005CDF6D…0x005CE051`.
+
+**Crane model and post (LD35/LD38).** CreateCrane loads the type-indexed model resource listed
+in §6.7.12, requests instance 0, and associates a successful instance with this construction occupant.
+Only successful instance creation writes the saved crane position `(inputX,0,inputZ)`.
+Its initial translation is that position, and its existing model orientation is rotated about Y by
+`maxAngle − minAngle·0.5 + minAngle` — **not** `(maxAngle−minAngle)·0.5+minAngle`
+(`0x005CC904…0x005CC936`). SetLot subsequently poses it at minAngle. The model resource is
+released after the attempt. The square post mesh is rebuilt even if the resource/instance fails.
+Its width is sfCranePostWidth, cached as a half-width on the first CreateCrane call. Its four side
+quads follow the scaffold corner/winding table on the square centred on inputX,inputZ, initially
+from ground to `r24(ground+double(0.1))`. There is no top/bottom quad. All sixteen vertices
+initially have BGRA `(128,128,128,255)`. A height update replaces the upper y as described above.
+Evidence: resource/instance `0x005CC820…0x005CC898`, initial transform and owner
+`0x005CC8EA…0x005CCA47`, cached post geometry `0x005CCA4A…0x005CCD68`.
+
+`SetCraneAngle(a)` sets the absolute Y rotation to a+π, subtracting float32 2π repeatedly while
+the result is strictly greater than 2π (equality is retained; negative angles are not wrapped up).
+It preserves translation. Its interpolated swing input remains §6.7.12's smoothstep.
+Evidence: `0x005CBE10…0x005CBE4A` and transform update through `0x005CC019`.
+
+**Lighting and Draw (LD35).** DoRotationChange clears the lighting-dirty byte at +0x100.
+If either post mesh exists, it asks the lighting service (`0x00B43DDC`, slot 20) for RGB on
+normals `(0,0,−1)`, `(0,0,1)`, `(1,0,0)`, `(−1,0,0)`, `(0,1,0)`; each channel is shifted
+right one, then written as BGR with the vertex alpha retained. Every scaffold post uses these five
+face colours in order; the crane's four faces use colour indices **0,2,1,3** (table `0x00AA1FE8`).
+This is relighting, not a rotation of vertex positions (`0x005CB7C0…0x005CB9E5`).
+
+Draw returns true. A true second argument skips all drawing. Otherwise it relights when dirty,
+sets the view model transform, the packed state below, and this occupant's model shade. The
+four scaffold sides are drawn in these orders for view rotation 0,1,2,3 respectively:
+`[0,3,1,2]`, `[2,0,3,1]`, `[1,2,0,3]`, `[3,1,2,0]` (table `0x00AA2048`).
+Texture **rows are draw-order positions**, not the selected side numbers. Each row uses the draw
+context's zoom column. Per draw position, blending is `[false,false,true,false]` (bytes at
+`0x00AA2040`), depth offsets `[1,1,−1,−1]` (`0x00AA2030`), and wrapping is `(3,3)`.
+Side and inner-girder textures use a 4×4 transform with diagonal `(s,−s,s,1)` and translation
+`(−s·vx,s·vy,−s·vz)`, where v is that mesh's first vertex projected to view coordinates.
+The scales are scaffoldTextureScale and girderTextureScale respectively, and each transform entry
+is stored to float32. The girder is drawn after the sides using texture row 5, blending true,
+depth offset −1. Texture transform is then cleared; the sixteen plank vertices use row 4,
+blending false, depth offset −1. All these draws use primitive 6, vertex format 2.
+
+The eighty scaffold-post vertices are drawn next with texturing disabled, primitive 6, format 1,
+then texturing is restored. The sixteen crane-post vertices are drawn the same way only in states
+0–2. Draw resets shade, default render state and depth offset 0, then draws the crane model with
+second argument false only in states 0–2. Thus state 3 retains scaffold/planks/posts but omits
+both the crane model and its post. Null individual mesh pointers skip their draw.
+Evidence: `0x005CC410…0x005CC634`, girder/planks `0x005CC63A…0x005CC75F`, posts and
+restoration/crane `0x005CC764…0x005CC819`.
+
+**Texture IDs and initial render state (LD38).** The six-by-five entries misleadingly named
+`cISC4SimGrid<float>*` in older notes are **texture bindings**, not simulation grids. They are
+created through texture-binding factory class/interface `0x1AC0E11A`/`0xFAC0E219`, slot 6,
+with resource type `0x7AB50E44`, group `0x1ABE787D`. For columns j=0…4 the instance is base+j:
+
+| Row | Instance base | Used for |
+|---|---|---|
+| 0 | `0x696F3000` | first side draw |
+| 1 | `0x696F2000` | second side draw |
+| 2 | `0x696F1000` | third side draw |
+| 3 | `0x696F2000` | fourth side draw |
+| 4 | `0x696F4000` | planks |
+| 5 | `0x696F5000` | inner girder |
+
+Init's packed state at +0xF8 enables colour write, depth write, depth test, blending and stage-0
+texturing; disables alpha test, culling and stage-1 texturing; sets depth function 3, source/destination
+blend 4/5 and stage-0 mode 1. Alpha function, alpha reference and stage-1 mode are left unchanged
+(−1 sentinels). These field meanings are draw-context §5.1's contract; Init's argument tuple is
+`(1,1,1,0,1,1,0,3,4,5,−1,−1.0,1,−1)`. Evidence: Init `0x005D1300`, ID table `0x00AA1E30`.
+The crew gate in §6.7.7 is render-properties integer **7, kEffectPriorityLevel**, not automata
+detail: value address = integer-table begin + `7·0x28+0x1C = 0x134`, tested signed ≥3
+at `0x005CFA63…0x005CFA76`.
+
+**Effects (LD38).** CreateDustClouds creates one visual-effect prop, AddRefs and initializes its
+occupant, positions it at the building occupant's position, and chooses its effect name from the
+maximum **horizontal scaffold extent**: <10 `small_dust`, [10,20) `medium_dust`, ≥20 `large_dust`.
+It associates the effect occupant with the lot (prop manager slot 25), enables it with effect slot
+7(true), and retains it as the current effect at +0x13C. No random draw, custom scale, lifetime,
+direction or area is supplied. Entering removal state 3 calls its effect slot 8(true), not another
+creation. CreateSparks similarly creates initialized visual-effect occupants at the building position,
+names them `welding_sparks`, calls effect slot 8(true), associates them with the lot, and retains
+them in the spark vector; counts and later scatter/enable calls are §6.7.7's. There is no additional
+effect named scaffold: its dust/removal effect is this current dust prop, while scaffold geometry is
+the mesh above. Evidence: `0x005CBC10…0x005CBD12`, `0x005CEC20…0x005CED6E`,
+state-3 effect action in `0x005D0680`.
+
+**Prop anchors and crew booleans (LD37).** After the orientation selects footprint sizes fx,fz,
+CreateAndPlaceProp places its centre at `min.x+drawnX+fx/2`, `min.z+drawnZ+fz/2`.
+Half-sizes are float32 stores after multiplication by double 0.5; the drawn offset, minimum and
+half-size are added before the position float32 store (`0x005CCFE9…0x005CD062`). Its y is the
+lot's building occupant's **position.y**, when the lot developer returns that building for this lot;
+otherwise y is the maximum terrain altitude at the four chosen footprint corners (first sample
+initializes, later strictly greater samples replace). The area's minimum y is not an anchor.
+Position is set before rotation. For a ground prop the roof argument is false and occupant flag
+0x10 is cleared. The prop is associated with the lot, then its footprint is removed from the input
+area (`0x005CD066…0x005CD1F1`).
+
+Crew record booleans start as **false, roofFlag**, in serialization order. The first is retained
+through save/load but is not tested by this class's height updates; the second selects scaffold-following
+crew (`0x005CE71E…0x005CE748`, `0x005CC3A2`). Initial crew y is terrain altitude at the centre
+of its reserved 1×1 rectangle, including roof crew; SetScaffoldHeight subsequently raises roof crew.
+RandomDirection2 **normalizes** the two drawn components using reciprocal square-root length,
+returning float32 components. CreateAutomata sends `(component0,0,component1)` to automata slot 14.
+Its rejection condition requires squared length both >1 and below a tiny lower threshold, so finite
+draws never repeat; a zero drawn length has no fallback direction. Evidence:
+`0x0080B6CF…0x0080B727`, `0x005CE634…0x005CE677`, `0x005CE6C9…0x005CE714`.
+
+**RemoveRectangle (LD38).** For input `[xa,xb]×[za,zb]` and cut `[rx0,rx1]×[rz0,rz1]`,
+the candidate rectangles, in tie priority order, are `[xa,xb]×[za,rz0]`,
+`[rx1,xb]×[za,zb]`, `[xa,xb]×[rz1,zb]`, `[xa,rx0]×[za,zb]`.
+There is **no clipping or intersection precheck**. Candidate scores are signed extent products,
+not absolute areas and not a geometric difference union. The first score strictly greater than zero
+and subsequent strictly greater scores select the retained candidate; equal scores keep the earlier
+one. No positive score makes the area empty. Candidate y bounds retain the area's y bounds.
+A crossing or disjoint cut can therefore enlarge the result beyond the original area. Evidence:
+`0x005CCD70…0x005CCE31` (candidates), `0x005CCE35…0x005CCF13` (selection).
+
+#### 6.7.16 Conformance vectors for LD35–LD38
+
+These vectors belong to the construction owner; render/effect services may be recording doubles.
+No frame-time RNG trace is needed for the deterministic cases.
+
+| Case | Inputs | Expected |
+|---|---|---|
+| Phase endpoints | ground 10, startY 12, segH 4, N 3, span 12, counter 2; A=B=C=1, E=2 | At msAcc 0/250/500: state 0 height 10/11/12; state 1 height 16/18/20; state 3 height 24/17/10 |
+| Completion divisor | same, state 2 | msAcc 250 gives completion 5/12; 500 gives 1/2; 1000 gives 2/3, each rounded float32; exposes a missing division by E |
+| Zero phase | state 0, A=0, msAcc=0 | startY; state 1 with B=0 at zero elapsed propagates NaN rather than a fabricated endpoint |
+| Quantized removal | startY 0.1, topY 8, segH 4 | N=2, span=8; removal starts at r24(startY+8), not topY |
+| Height propagation | h=20, postWidth 1, crane extra 3 | side tops/planks/girder/roof props/roof crew y=20; post tops 21; crane model and crane-post tops 23; saved/world bounds and all bases unchanged |
+| Scaffold topology | x0=0,x1=10,z0=0,z1=8,p=2, ground=1,topY=9 | four side quads, four plank quads, inner girder on [2,8]×[2,6], four posts × five quads; no bottom faces |
+| Inner x-long | box x [0,40], z [0,20], back 4, reach 12, positive width | offset 4; side 0 position (16,10), side 2 (24,10); half-swing asin(10/12), centred at 2π or π |
+| Inner z-long | box x [0,30], z [0,40], back 4, reach 12 | side 1 (15,24), side 3 (15,16); full ranges [0,π] or [π,2π] because half-short 15≥12 |
+| Fit equality | long extent=back+reach | reject this model; the side draw has already happened |
+| Crane lifetime | successful CreateCrane(x,z), then SetScaffoldHeight(20), extra=3 | saved y first 0, then 23; resource failure still rebuilds the post mesh |
+| Draw order | rotation 1, zoom column 2 | side order 2,0,3,1; texture instances 0x696F3002,0x696F2002,0x696F1002,0x696F2002; blend false,false,true,false |
+| Removal draw | all buffers present, state 3 | sides, girder, planks and 80 scaffold-post vertices drawn; no crane-post/model draw; shade/default/depth restored |
+| Relighting | lighting returns RGB (201,100,51) for every normal | all relevant vertices get BGR (25,50,100), alpha retained; positions unchanged |
+| Dust thresholds | maximum scaffold x/z extent 9.99,10,19.99,20 | small_dust,medium_dust,medium_dust,large_dust; building position retained |
+| Prop anchor | area min (10,−100,20), footprint 4×2, drawn offsets 3,5; building position.y=7 | prop centre (15,7,26); area minimum y ignored; without building and corner altitudes 2,8,5,3, y=8 |
+| Crew flags/direction | ground and roof crew; direction draws 0.3,0.4 | saved pairs (false,false),(false,true); direction approximately (0.6,0,0.8), not (0.3,0,0.4); only roof crew follows scaffold |
+| Crew render gate | kEffectPriorityLevel=2,3 | 2: no crew or crew random draws; 3: execute crew placement |
+| Crossing cut | area [0,10]×[0,10], cut [−5,−4]×[2,8] | right candidate [−4,10]×[0,10], score 140, wins; no clipping to x=0 |
+| Cut tie | area [0,10]×[0,10], cut [4,6]×[4,6] | all scores 40; keep first [0,10]×[0,4] |
 
 ---
 
