@@ -55,6 +55,11 @@ global inspection as a worker prerequisite when its sandbox cannot perform it. R
 round and scope guards still apply. Unknown ownership or unresolved host inspection errors remain
 unresolved; do not infer drainage or terminal success from process disappearance.
 
+Keep the coordinator state lock short: perform finite process/file-handle inspection outside it,
+then revalidate the relevant state and identities under the lock before reserving or launching.
+Never hold dispatch behind an unbounded global file-handle census. If an audit times out, record
+UNKNOWN and stop only its exact owned inspector; no reservation or cleanup is authorized by timeout.
+
 Format explicit owned source files in place. Never redirect multi-file `rustfmt --emit stdout` output
 into a source file: filename headers have caused actual Rust compiler errors. Preserve the failed
 source and error evidence, then qualify the corrected final source with the normal stable gate.
