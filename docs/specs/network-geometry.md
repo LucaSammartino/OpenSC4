@@ -187,13 +187,17 @@ Type `t`'s record is at `0x00B452C8 + t × 0x114`.
 | `+0x3C` | hash map piece id → **support structure info** (§10.2, NG6) |
 | `+0x50` | the **placement parameters** (§2.4) |
 | `+0x100` | `r24(tan(p+0x00) × 16)`: the straight **slope** rise per cell |
-| `+0x104` | `r24(+0x100 × 0.70710677)`: the diagonal slope rise |
+| `+0x104` | Binary32 store of the still resident x87 straight-slope intermediate × binary32 0.70710677: the diagonal slope rise |
 | `+0x108` | `r24(tan(p+0x08) × 16)`: the straight **smoothness** limit |
-| `+0x10C` | `r24(+0x108 × 0.70710677)`: the diagonal smoothness limit |
+| `+0x10C` | Binary32 store of the still resident x87 straight-smoothness intermediate × binary32 0.70710677: the diagonal smoothness limit |
 | `+0x110` | `r24(tan(p+0x04) × 16)`; written only by `0x0063D460` and **never read** (NG6) |
 
-The four products are computed by `0x0063D460` right after the parameters are read, with the x87 `fptan` and the
-float constants 16.0 (`0x00A8D45C`) and 0.70710677 (`0x00AA8C50`) *[compat]*.
+These five fields are computed by `0x0063D460` after calling the parameter loader, even if it reports failure,
+with x87 `fptan` and binary32 constants 16.0 (`0x00A8D45C`) and 0.70710677 (`0x00AA8C50`). The straight
+store does not pop/reload its intermediate before diagonal multiplication (`0x0063D47F–0x0063D48B`,
+`0x0063D49E–0x0063D4AA`). Do not infer mandatory intermediate rounding from the stored straight field.
+Constructor values, Clear/reload preservation, property fallback corrections and precision bounds are in
+[network-type-info.md §§2–5](network-type-info.md) *[compat]*.
 
 ### 2.4 The placement parameters
 
