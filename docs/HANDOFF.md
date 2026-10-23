@@ -7,6 +7,23 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-23, run4 open-ended)
 
+**Train122 running:** exact integrationbdfe562dd9bca524595e62d4923005f12bf3fd2a contains
+SysPtr1482c9b3/MyStreet24d25b18/PropertySetter38a19379/NetworkUI57734a13/AutoPause8dce076c/
+MissingPlugin952a0fa4/Geometry4aab2002, all independently reviewed. Actual merge terminal0;
+run299 reserved after full126-worktree collision scan. First pipeline launcher raced the
+unfinished merge and stopped at its current-batch assertion before any gate; preserve
+train122-pipeline-launch.err, no validation occurred. After actual merge collection,
+one pipeline24640 started08:25:19; gate/regression pending. No automatic landing:
+review every actual shadow delta under the published train121 acceptance requirement.
+Core AT22 arrived READY after this cut, for next123 after independent acceptance.
+
+**Capacity08:26:** actual8/9 heartbeat, refiller30188 verified/owner-locked, no provider
+pause or STOP. FireFINAL and UTF8 qualification are actually launched (rounds568).
+NetworkRoutines distinct newly specified helper implementation is under immediate review
+for the ninth slot; Curve meaningful R2 and post122 implementations are being screened.
+Maintain at least three independent launchable reviewed replacements even when nine run;
+current lack of spares is active refill work, never a reason to wait for the absent user.
+
 **Train121 acceptance correction:** LandValue actually worsened72/72 to71/72;
 `regress-train121.out` explicitly reports1worse despite clean-process PASS. Root missed
 that delta before landing. The unchanged resolver correctly withdrew27functions/6711B,

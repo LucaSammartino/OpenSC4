@@ -19,6 +19,20 @@ Keep doing this until nine workers run and launchable replacements cover open sl
 train acceptance in parallel so completed dependencies promptly release more work. Broaden selection to
 distinct owners and research missing contracts; repeatedly reviewing the same blocked shortlist is not refill.
 
+Prepare at least three independently launchable, reviewed replacements while all nine workers are busy.
+An empty backlog at nine is a refill task: completion waves otherwise recreate vacancies before a new brief
+can pass review. On every wake, check both actual worker identities and replacement eligibility. A provider
+failure consumes its actual round; preserve partial work and recover only with the documented real probe.
+Do not report a historical nine-worker snapshot as current capacity.
+
+Scheduling dependencies need actual published work on main. A newly created active branch may still point
+at its original main ancestor, so `merge-base --is-ancestor` alone can falsely call its dependent launchable.
+For such a prerequisite, the coordinator must hold the existing pending record as `blocked` under the normal
+coordinator lock, retaining its spec, reason and history. Release only after checking the real published tip,
+actual landing, fresh full admission and ordinary queue submission. Do not invent a ref or weaken the guard.
+The train121/122 AutoPause-to-Clip hold is retained in
+`build-runs/coordinator-clip-scheduling-hold-02a46c634f.json`.
+
 Treat a failed check or service error as work to resolve: inspect its actual evidence, repair the underlying
 operational or tooling fault, and repeat the normal check only after its cause changes. Preserve honest scope,
 clean-room roles, assignments, logical-family round budgets and STOP. Never satisfy capacity by disabling a
