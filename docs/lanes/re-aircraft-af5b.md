@@ -12,6 +12,7 @@
 - UpdatePhysics pseudocode is missing; candidate integration and ordering checked in export instructions.
 - Verified caller reloads converted seconds; pseudocode misleadingly reused millisecond parameter.
 - Force helper 009F0090 is inverse cosine, despite TransformDirection export label.
+- Boundary review: lift-curve equality uses lower segment; initial speed saves f32 but tiny test uses x87 result.
 - Remaining AF2: lift-frame/attitude update 004FE050, surface/runway/collision corrections, rotor model.
 - No engine files read or edited: owner's lane report supplies unsupported scope.
 - Main RE sources: C:/Users/tlori/FreeCity4/decomp/cSC4Airplane.c and cSC4Helicopter.c.

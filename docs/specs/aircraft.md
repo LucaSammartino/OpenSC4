@@ -158,13 +158,14 @@ to the animation/control callbacks; the converted step goes to AI pursuit and ph
 argument for physics is incorrect: the instructions reload the converted local.
 
 At the start of the physics step, limit the **whole 3D velocity**, before calculating
-forces. For finite speed `s = length(v)`:
+forces. Let `s0 = length(v)` be the x87 square-root result and `s` its saved binary32
+value. For finite inputs:
 
 | Condition, tested in this order | Velocity supplied to the force model |
 |---|---|
-| `s < epsilon` and `s > 0` | `v / s`, hence speed **1**, not zero |
-| `s < epsilon` and `s = 0` | unchanged zero vector |
-| Otherwise, `s > MaxSpeed` and `s > 0` | `v × (MaxSpeed / s)` |
+| `s0 < epsilon` and `s0 > 0` | `v / s0`, hence speed **1**, not zero |
+| `s0 < epsilon` and `s0 = 0` | unchanged zero vector |
+| Otherwise, `s > MaxSpeed` and `s0 > 0` | `v × (MaxSpeed / s0)` |
 | Otherwise | unchanged |
 
 Here `epsilon` has binary32 bits `0x38D1B717` (approximately 0.0001).
@@ -228,8 +229,8 @@ The lift coefficient is piecewise linear:
 
 | Angle | Coefficient `C` |
 |---|---|
-| `alpha < sigma` | `C0 + ((Cs − C0) / sigma) × alpha` |
-| `alpha >= sigma` | `Cs + ((alpha − sigma) × (C90 − Cs)) / (A − sigma)` |
+| `alpha <= sigma` | `C0 + ((Cs − C0) / sigma) × alpha` |
+| `alpha > sigma` | `Cs + ((alpha − sigma) × (C90 − Cs)) / (A − sigma)` |
 
 There is no denominator guard for a loaded zero or out-of-range stall angle in
 this calculation (`0x004FF1EE–0x004FF243`). Define the pressure-like scale,
@@ -239,16 +240,18 @@ lift magnitude and drag normalization in this operation order:
 - `L = C × Q`;
 - `K = ThrottleMax / ((((MaxSpeed × MaxSpeed) × AirResistanceFactor) × 0.5) × k)`.
 
-Here `k` has binary32 bits `0x3DCCCCCD` (approximately 0.1). `K` is stored as
+Here `k` has binary32 bits `0x3DCCCCCD` (approximately 0.1). `L` is stored as
+binary32 before scaling the lift direction (`0x004FF28A–0x004FF2AE`). `K` is stored as
 binary32 before being used by the drag calculation (`0x004FE85A–0x004FE8A0`);
 `Q` is formed at `0x004FF1CB–0x004FF1EE`. Flaps scale both lift and aerodynamic
 drag through `Q`; they do not add a separate constant force.
 
-Let `Fy_lift` be the vertical component after applying magnitude `L` to the
-attitude-derived lift direction. The extra rolling resistance is zero except in
-phases **0/1** when `Fy_lift < m × g`. In that case its magnitude is
+Let `Fy_lift` be the binary32 vertical component after applying magnitude `L` to the
+attitude-derived lift direction. Let `W` be the magnitude of the stored binary32
+gravity force, `binary32(m × g)`. The extra rolling resistance is zero except in
+phases **0/1** when `Fy_lift < W`. In that case its magnitude is
 
-`R = (1 − Fy_lift / (m × g)) × m × s × k`.
+`R = (1 − (1 / W) × Fy_lift) × m × s × k`.
 
 Gravity uses binary32 `g = 0x411CCCCD` (approximately 9.8), with downward force
 `−m × g`. The vertical lift component, not the total magnitude `L`, reduces rolling
@@ -382,6 +385,9 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
     yield coefficients approximately `0.08`, `0.38`, `0.68`, `0.34`, `0`.
     Tolerance `0.000001`. Horizontal velocity and horizontal orientation
     produce angle `A` through the specified inverse cosine, not angle zero.
+    For the separate boundary case `sigma=A`, `alpha=A`, the coefficient is
+    approximately `Cs`: equality uses the lower segment, avoiding the upper
+    segment's zero denominator.
 12. Scalar pressure and ground resistance: `s=10`, resistance factor 1,
     `FlapsMax=0.4`, command `f=0` gives `Q=50`; `f=1` gives approximately 70.
     With mass 100 and vertical lift zero, phases 0/1 give `R≈100`; phase 2
