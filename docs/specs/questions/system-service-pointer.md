@@ -1,6 +1,6 @@
 # System-service pointer questions
 
-## SSP2 — Persist clear-and-release source role
+**SSP2 — Persist clear-and-release source role**
 
 Section 3.2 establishes the exact normal clear-before-release body at
 `0x00874DA3`. Is its source-level role a destructor, reset, or folded/shared
@@ -17,7 +17,7 @@ paths first guard for a null field; do not invent a nonnull Release on those
 normal paths. This narrows the unknown to source-language attribution. Keep
 SSP2 OPEN: no source spelling, source template or folding history is proved.
 
-## SSP3 — Exceptional and reentrant domain
+**SSP3 — Exceptional and reentrant domain**
 
 If compatibility outside normally returning nonreentrant calls becomes required,
 what original utility-owned behavior is observable when a reference primitive

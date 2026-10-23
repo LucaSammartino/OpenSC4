@@ -1,6 +1,6 @@
 # Answered system-service pointer questions
 
-## SSP1 — Actual Draw destructor identity
+**SSP1 — Actual Draw destructor identity**
 
 The label at `0x0082AE40` is a four-word arithmetic body with a stack argument,
 not a service pointer destructor (spec section 4.2). Which original native
