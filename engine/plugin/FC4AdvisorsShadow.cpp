@@ -179,7 +179,7 @@ private:
 
 struct Result {
     uint32_t mismatches = 0, records = 0, identities = 0;
-    uint32_t loadTransitions = 0;
+    uint32_t fixups = 0;
     size_t bytes = 0;
 };
 
@@ -234,9 +234,9 @@ Result RoundTrip(cIGZUnknown* original) {
         }
         const bool exact = written && found->second->UnknownRefs() == 0 && found->second->Bytes() == n.capture.Bytes();
         if (!exact) {
-            ++mismatches;
-            // AD18: classify the required Read transition separately. Never
-            // mask/restore the dirty bit or credit it as strict equality.
+            // AD19 coordinator harness decision: normalize only the expected
+            // AD18 Read fixup. Check every other byte and reference exactly;
+            // never restore captured flags into core output or the original.
             bool loadTransition = false;
             if (written && found->second->UnknownRefs() == 0 && fc4_adv_obj_kind(n.core) == FC4_ADV_OBJ_ADVICE) {
                 const auto& a = n.capture.Bytes();
@@ -251,7 +251,11 @@ Result RoundTrip(cIGZUnknown* original) {
                     }
                 }
             }
-            if (loadTransition) ++result.loadTransitions;
+            if (loadTransition) {
+                ++result.fixups;
+                continue;
+            }
+            ++mismatches;
             size_t first = 0;
             if (written) {
                 const auto& a = n.capture.Bytes();
@@ -275,10 +279,8 @@ void Compare(const char* event, int32_t julian) {
     const Result result = RoundTrip(reinterpret_cast<cIGZUnknown*>(g_city->GetAdvisorSystem()));  // borrowed
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("advisors shadow %04d-%02d-%02d %s: records=%u bytes=%u MySim_identities=%u; mismatches=%u",
-        date.year, date.month, date.day_of_month, event, result.records, static_cast<unsigned>(result.bytes), result.identities, result.mismatches);
-    Log("advisors record classification: load_transitions=%u other_differences=%u; strict mismatches retained",
-        result.loadTransitions, result.mismatches - result.loadTransitions);
+    Log("advisors shadow %04d-%02d-%02d %s: records=%u bytes=%u MySim_identities=%u fixups=%u; mismatches=%u",
+        date.year, date.month, date.day_of_month, event, result.records, static_cast<unsigned>(result.bytes), result.identities, result.fixups, result.mismatches);
     ++g_lines;
     if (result.mismatches == 0) ++g_clean;
 }

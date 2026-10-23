@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-advisors-shadow5b: advisor shadow round 2 | Codex / glue-advisors-shadow5b | wip: cargo 6536/0, clippy clean, CTest 69/69; clean 2032 game, strict advisors 1/73 | Resolve AD19 live-import contract; AD18 accounts for every remaining difference. |
+| glue-advisors-shadow5b: advisor shadow AD19 | Codex / glue-advisors-shadow5b | in progress | Apply coordinator AD19 comparison rule, gate, then run through 2032. |
+
+## Handoff
+
+- Goal: exact record-only advisor shadow through 2032 under coordinator AD19 harness decision; no replacement factories.
+- Prior tip 30c2cf74: AD17 adapter and date fixed; cargo 6536/0, clippy clean, CTest 69/69.
+- Prior turbo strict 1/73 and normal strict 1/4: all differences precisely AD18; details below.
+- Coordinator permits expected-record normalization of exactly documented Read fixups, counting fixups=N; never restore native flags.
+- Next: archive AD19, update comparator/native fixture, qbuild all (includes queued verify), unique-label 2032 game.
+- No request outstanding. Worktree intentionally detached; do not switch refs.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r2-manifest.json.
+- tools/ is forbidden: coordinator must append advisors_shadow to regress profile after exact run.
 
 ## Report (2026-10-23)
 

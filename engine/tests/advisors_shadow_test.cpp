@@ -16,6 +16,7 @@ struct Record : cIGZSerializable {
     Record* child = nullptr;
     cIGZSerializable* advice[2] = {};
     uint32_t flags = 0x12;
+    bool extraByte = false;
     Record(uint32_t c, uint32_t i, uint16_t v) : cls(c), iid(i), version(v) {}
     bool QueryInterface(uint32_t id, void** out) override {
         if (out == nullptr) return false;
@@ -80,6 +81,7 @@ struct Record : cIGZSerializable {
             out.SetUint32(42);
             segment.WriteGZSerializable(child);
         }
+        if (extraByte) out.SetUint8(0xA5);
         return out.GetError() == 0;
     }
 };
@@ -159,9 +161,20 @@ int main(int argc, char** argv) {
     advisor.advice[1] = &second;
     check("AD17 city advice base records and shared subject", 0, &root);
     first.flags = 2;
-    check("AD18 clean city advice stays a strict mismatch", 1, &root);
+    check("AD19 clean city advice expected Read fixup", 0, &root);
+    if (first.flags != 2) ++failures;  // native captured flags stay clean
     first.cls = 0x8A09F5F4;
-    check("AD18 clean plain advice stays a strict mismatch", 1, &root);
+    check("AD19 clean plain advice expected Read fixup", 0, &root);
+    if (first.flags != 2) ++failures;
+    first.flags = 0x80000000;
+    check("AD19 high flag bits preserved with Read fixup", 0, &root);
+    if (first.flags != 0x80000000) ++failures;
+    first.extraByte = true;
+    check("AD19 never ignores other bytes with a clean flag", 1, &root);
+    first.extraByte = false;
+    first.version = 3;
+    check("AD19 never normalizes a rejected advice version", 1, &root);
+    first.version = 4;
     first.flags = 0x12;
     check("AD18 already dirty advice exact", 0, &root);
     root.version = 2;
