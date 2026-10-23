@@ -95,15 +95,43 @@ not traced *[summary]*.
 
 `Init` (`0x0056DE40`), once: the automaton's `Init`, the drive parameters, and six effects from the city's effect
 manager, in this order: `SMLmushroomcloud`, `boat_grounding`, `boat_splash`, `tugropethrow`, `tugropeconnection`,
-`waterski` (`+0xDB0`–`+0xDC4`). It sets four flags, among them `0x2000`, `0x20000` and 4, registers the boat for
+`waterski` (`+0xDB0`–`+0xDC4`). It sets flags `0x8000`, `0x2000`, `0x20000` and 4, registers the boat for
 message `0xAC400A31` (§7), clears the tow, the stations, the travel points and the timers, copies the position and the
 orientation into the current and previous position and heading (normalising the headings), and enables the active
 sound (slot 77, `EnableActiveSound(true)`).
+
+**Initialization and record failure boundaries (WC3, partial).** Init first tests the inherited initialized
+predicate on the +4 interface. When already initialized it returns true without redoing watercraft setup.
+Otherwise it calls base Init but does **not** inspect the result before loading tuning or acquiring effects
+(`0x0056DE49–0x0056DE64`). Each effect creation uses an output reference; any previous reference is cleared
+and released first. The factory's return status is not inspected and there is no rollback or false return
+for an absent effect. The normal endpoint returns true (`0x0056E330`). This is not a promise that missing city
+or effect-manager services are safe: the city and effect manager are dereferenced without a null guard in
+this path. Those services are required. Null effects are tolerated by the ordinary command/effect guards;
+individual crash paths still require separate auditing under WC5.
+
+The four flag writes are in the order above (`0x0056E02D–0x0056E05F`). Resetting the timers **includes** the
+lifetime limit +0x2B4, lifetime elapsed +0x2B8, still time +0x2D0, backwards time +0x2D4, crash time +0x2C0,
+and idle time +0x2BC (`0x0056E141–0x0056E171`, `0x0056E2A0`). It also zeros speed, turn, +0x2E4 and +0x2C4.
+Both stored headings are divided by their Euclidean lengths; zero-length headings have no finite-vector
+fallback in this initialization.
+
+Read consumes a u16 version and accepts **only 2**. Other versions return false without invoking base Read.
+For version 2, return exactly the base Read result. There is no separate check of the version-read status
+before the comparison, and no boat-local serialized payload after the base record (`0x00566F0A–0x00566F2F`).
+Write sends u16 2 then delegates to base Write; it does not short-circuit on the version-write status.
 
 `Shutdown` (`0x0056D0E0`), once: a towed boat is sent to `SLOW_REMOVE` (73) and released; the tug is released; a
 dock request at A or B gives back its waiting spot and berth (`cSC4WatercraftManager::DoneDocking`); the message
 registration is removed; the stations, the route occupant and the six effects are released (each effect is stopped
 first); then the automaton's `Shutdown`.
+
+The inherited Shutdown call occurs even if the initialized predicate was false: only watercraft cleanup is
+conditional (`0x0056D0E0`). The +4 interface's Init and Shutdown entry points subtract 4 from their object
+pointer and use these same owner methods (`0x0056F7B0`, `0x0056DCF0`). The deleting destructor at
+`0x0056DD00` first runs destruction at `0x0056DD20`, conditionally frees object storage when bit 0 of its
+argument is set, and returns the original object pointer. Detailed destruction and allocation-failure
+contracts remain WC3; the deleting entry must not be mistaken for the complete destruction body.
 
 ## 4. States *[compat]*
 
@@ -166,12 +194,28 @@ direction of its heading when the list is empty. A start outside the city ends t
   the start of a crossing); each pick appends the next route cell and counts it.
 - **Wandering.** The boat's radius in cells is 3 in group `0x4414`, 2 in group `0x4413`, else 1. From the last
   point it tries the eight directions in the order straight on, +1, −1, +2, −2, +3, −3, +4 (`Assist_PickNewDir`,
-  `0x00566F60`, directions modulo 8), never the direction straight back and never one already tried from that point.
+  `0x00566F60`, using signed remainder by 8 as detailed below), never the direction straight back and never one already tried from that point.
   The neighbour cell in that direction (`0x00567000`) must be navigable for that radius (surface water slot 8,
   `IsNavigable(x, z, r, 0)`, terrain.md §10.4) and the boat must not overlap another boat there (§5.7); the first
-  that passes is appended. When none does, the boat backs up: with 6 or more points it drops 5, with 4–5 it
+  that passes is appended. On the first eligible candidate failure in a search round, the boat backs up: with 6 or more points it drops 5, with 4–5 it
   drops 3, else it clears the list; the direction is marked tried in the new last point and the search goes on.
   At most 15 rounds are made.
+
+**Direction and backtracking details (WC7, partial).** Cell increments are
+`0=(-1,-1), 1=(0,-1), 2=(1,-1), 3=(1,0), 4=(1,1), 5=(0,1), 6=(-1,1), 7=(-1,0)`
+in (cell x, cell z). The step helper leaves both coordinates unchanged for an out-of-range direction
+(`0x00567000–0x0056705D`, jump table `0x00567060`). Direction choice uses signed 32-bit remainder
+with truncation toward zero, **not** a nonnegative mathematical modulo. For example, heading direction 2
+produces candidate values `2,3,1,4,0,5,-1,6`; the last is skipped as the reverse direction. The -1 candidate
+does not step to a different cell. Its low-byte tried-mask bit is zero (shift count 31), so it cannot be
+recorded as a normal direction bit. Do not silently wrap it to 7. Evidence: `0x00566FBD–0x00566FCC`.
+
+The first failure of an eligible navigability/overlap test in each outer search round does the backtrack
+described above immediately; it does not wait for all eight candidates. After that one backtrack, later
+failures in the same round advance to the next candidate. At a nonempty survivor list, the byte tried mask
+is ORed with `low8(1 << (survivor.direction & 31))`: the direction comes from the **new last point**,
+not the rejected direction or the popped point. Evidence: `0x005709C4–0x00570A19`,
+`0x00570A19–0x00570A9D`. The remaining compressed-reader and heading-quantization contract is still WC7.
 
 `Engine_AIBoatMotion` (`0x00571880`, 2.8 KB) picks cells when needed, steers the heading toward the next point and
 sets the speed; `Movement_PositionNew` (`0x0056C430`, with `0x00569940`, `0x00569E70`, `0x0056A440` and
@@ -199,6 +243,43 @@ Nearer, it turns toward the berth direction by at most dt × entry 38 degrees (s
 moves toward the berth position by at most dt × entry 39. **Docked** when the angle is below 1° and the distance
 below 1: the tick returns false and the state pops.
 
+#### 5.3.1 Final approach arithmetic and completion boundary (WC4/WC7, partial)
+
+Request distance uses the destination station lot's reported world position, **not** its berth point; the
+comparison is strict `< p[36]`. An occupied berth while already queued returns without popping state 75,
+requesting another waiting spot, or removing the boat (`0x005704D0`). Acquiring a destination berth does not
+itself change the current-crossing record or its held-berth byte +0x274. The initial station-request flags
+and route-switch ownership remain WC7.
+
+For docking let P be the live position, B the destination berth position, H the live heading, and D the
+destination berth direction. Initial range `d=length(P-B)` uses all three coordinates. OnLand pushes 72
+but **does not return**: docking continues and its boolean follows the normal motion/completion rules.
+If H.y != 0, first set H.y=0 and normalize H. For d > p[37] use the AI motion, position, collision order
+with `clamp(dt,0,p[35])` and return true. Equality uses final approach.
+
+In final approach normalize H and D using their full Euclidean lengths. Let
+`theta=acos(dot(H,D))*57.29578` in degrees; there is no dot-product clamp before acos. If the f32
+representation of theta is NaN, substitute zero. Before moving, if theta < 1 and d < 1, return false.
+Equality at either threshold still produces a motion tick. Otherwise set
+`a=min(theta,dt*p[38])` for theta >= 0 (zero otherwise),
+`m=min(d,dt*p[39])` for d >= 0 (zero otherwise). Neither dt nor the caps are clamped to nonnegative
+values in final approach; a negative dt can give negative steps.
+
+For d != 0, `P := P + (B-P)*(m/d)`; d=0 skips translation. Set
+`sign=+1` if `D.x*H.z-D.z*H.x >= 0`, else -1, and `phi=sign*a*0.017453292`.
+Rotate about Y: `H.x := cos(phi)*oldH.x + sin(phi)*oldH.z`,
+`H.z := -sin(phi)*oldH.x + cos(phi)*oldH.z`; H.y is unchanged. Publish P/H through MoveTo,
+copy stored current position/heading to their previous fields, then copy the live values to current.
+Return **true** after this update; there is no post-motion completion test. A boat reaching the berth
+in this call completes on the next docking call. Evidence: `0x005729CF–0x00572A87`,
+`0x00572A8A–0x00572B76`, `0x00572C62–0x00572CED`. The acos helper is the x87 wrapper at
+`0x009F0090`, with acos arithmetic at `0x009F00C8–0x009F00D6`.
+
+For exactly antiparallel finite horizontal unit headings, theta is 180 and the zero cross product selects
+the positive rotation. A zero-length heading/direction has unguarded normalization and can propagate NaN
+components; theta's NaN-to-zero substitution is not a repair of the stored vector. Implementations must
+not invent a deterministic fallback direction and call it original behaviour.
+
 ### 5.4 Stations and routes
 
 `Ferry_SetStationInformation` (`0x0056F670`) stores both stations; when asked to start, it begins the crossing from
@@ -217,6 +298,16 @@ neighbour route, `+0x340`, the lot passed is the one at the route occupant's pos
 route occupant's position, horizontally, toward the point 2 × radius from it, by at most the frame time × entry 39
 per tick (at least 1 unit to move at all). On land → `PushState(72)`. The tick returns false (the state pops) once
 the boat is 2 × radius away.
+
+The undocking boolean is false when movement is impossible, navigability fails, or the route occupant is
+missing. It is also false when the **pre-motion** 3D distance to the occupant's water-level position is
+at least twice this boat's radius, or when the horizontal distance to the outward target is below 1.
+After a qualifying motion attempt it returns true, even when that attempt reaches its target
+(`0x0056BF10–0x0056BF71`, `0x0056C073–0x0056C089`). Pushing 72 for OnLand does not itself choose
+the boolean. The outward direction is `(P.x-O.x,0,P.z-O.z)` divided by its horizontal length;
+there is no coincident-position guard. The target is O plus twice this boat's radius along that direction.
+For a finite nonzero target displacement, movement length is `min(horizontalDistance,dt*p[39])`,
+without the general movement dt cap; after translation reset height to terrain slot 29's water level.
 
 ### 5.6 Can it move?
 
@@ -383,6 +474,37 @@ speed, cell, current position and current heading.
 See [questions/watercraft.md](questions/watercraft.md) for the remaining owner-closure questions.
 WC8's proposed command choices are corrected in §6.2.1–§6.2.2.
 
+### 10.1 Owner-closure evidence status (2026-10-23)
+
+WC3 is not closed by counting names. Re-running only the attribution phase of `tools/coverage.py` with the
+current main-checkout export, names, ABI tables and coverage metadata yields **75 functions / 38,073 bytes**
+for this owner; the question's earlier **79 / 38,556** is not the current attribution result. Neither count
+means every item has a complete behaviour contract. The current inventory below records every attributed
+entry once, grouped for audit; numeric addresses here are interface/evidence facts, not source listings.
+Names in parentheses describe helper roles, not new public ABI names. Sections labelled partial and all
+untraced helper bodies still prevent a whole-owner closure claim.
+
+| Area | Attributed entry addresses | Contract status |
+|---|---|---|
+| Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
+| Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
+| Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | partial/untraced; WC3–WC5/WC7 |
+| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; full signatures/failures still WC3 |
+| Command curves | 00567080, 005671D0 | §6.2.1 |
+| Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§5.6, 6.3; reference/failure audit still WC3 |
+| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | summary §5.7; exact overlap/response still WC5 |
+| Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | summary §5.2; full equations still WC4 |
+| Crash motion | 0056A440, 0056AF90, 00570270 | full ramps/axes/RNG still WC5 |
+| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
+| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–5; full failure audit WC3 |
+| Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3; construction/destruction body still WC3 |
+| Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | Init/Shutdown adjustors in §3; other targets still WC3 |
+| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
+| Wake stop/start | 0056EFE0, 0056F1E0 | summary §5.1; WC4 |
+| Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; reader/errors/ownership still WC7 |
+| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final approach expanded, remaining WC4/WC7 |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation and caller still WC2/WC4 |
+
 ## 11. Conformance tests
 
 1. A boat group without drive parameters gets entry 21 = 8000 and entry 36 = 300; one that gives entry 9 = 3 and
@@ -392,7 +514,8 @@ WC8's proposed command choices are corrected in §6.2.1–§6.2.2.
 3. A docking boat 0.5 units from the berth, turned 0.5° from the berth direction, finishes docking (the state pops).
 4. With entry 7 = 0.3 and entry 27 = 0.5, a player boat meeting an AI boat at a relative speed of 0.12
    (0.4 of entry 7) bumps; at 0.18 (0.6 of entry 7) a crash happens.
-5. The wandering pick from a point in direction 2 tries 2, 3, 1, 4, 0, 5, 7 and never 6.
+5. The wandering direction helper from direction 2 produces 2, 3, 1, 4, 0, 5, -1, 6; the picker
+   skips reverse direction 6. A -1 cell step leaves the cell unchanged (§5.2).
 
 ### 11.1 Command conformance vectors (WC8)
 
@@ -416,3 +539,24 @@ flags, channels assigned from parameters, and unchanged values.
 | WC8-11 | Group 0x4409, stopped skier, toggle=1, v=0 | Effect stays stopped; owner does not clear toggle. Next call with toggle=1 and v>0 can start it. |
 | WC8-12 | Group 0x4409, running skier, toggle=0, v=0 | Stop effect with argument true; no toggle-byte write. |
 | WC8-13 | Group missing, arbitrary channels and v | Return false without selecting a gear or changing speed/steering. Same for missing AEMS after parent fallback. |
+
+### 11.2 Initialization and docking boundary vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-I01 | Already initialized; nonzero existing timers/effects | Init returns true without watercraft reset or effect acquisition. |
+| WC3-I02 | First Init, valid city/effect manager; effect factory reports failure with null output | Continue subsequent acquisitions and setup, set flags 0x8000/0x2000/0x20000/4, return true; no rollback. |
+| WC3-I03 | First Init with lifetime limit 1000, lifetime elapsed 500 | Both become zero, as do idle/crash/still/backwards accumulators. |
+| WC3-R01 | Version 1 or 3, otherwise valid stream | Read returns false and does not call base Read. Version 2 calls base Read and propagates its success or failure. |
+| WC7-D01 | Final approach, aligned heading, distance exactly 1, dt=1 and default p[39] | Translate to berth and return true. Next call at distance 0 returns false. |
+| WC7-D02 | Final approach, heading difference exactly 1 degree, distance 0, dt=1 | Rotate to alignment and return true; next call returns false. |
+| WC7-D03 | Final approach, distance 0.5, angle 0.5 degree | Return false before MoveTo or previous/current snapshot updates. |
+| WC7-D04 | OnLand true, final approach, distance 2, aligned, dt=1 | Push 72, continue translation by 1, return true. OnLand alone does not force false. |
+| WC7-D05 | Dock range exactly p[37], aligned heading, dt=200, distance=90, defaults | Final approach uses unclamped dt and reaches berth, returning true. It does not use the 100-ms general motion cap. |
+| WC7-D06 | Queued, destination within request radius, berth occupied | Retain state 75, no replacement queue request or remove state. |
+| WC7-D07 | Destination station position exactly p[36] away | No berth or waiting-spot request; comparison is strict. |
+| WC7-U01 | Undocking: movement impossible, or unnavigable point, or null route occupant | Return false (the state dispatcher can pop 78). |
+| WC7-U02 | Undocking: distance already exactly twice own radius | Return false without outward translation. |
+| WC7-U03 | Undocking: target displacement 0.5 with remaining outward radius gap | Return false; target displacement must be at least 1 to attempt motion. |
+| WC7-R01 | Direction helper base 0, alternatives 0 through 7 | Values 0,1,-1,2,-2,3,-3,4; negative results are not wrapped into 0–7. |
+| WC7-R02 | Backtrack from six travel points, survivor direction 3 and tried mask 0x01 | Drop five points; survivor mask becomes 0x09, regardless of rejected candidate direction. |
