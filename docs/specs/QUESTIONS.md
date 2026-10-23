@@ -204,7 +204,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
-| geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
+| geometry-utilities | 5 | 1 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
@@ -296,4 +296,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **391** | **1214** | | |
+| **total** | **390** | **1215** | | |

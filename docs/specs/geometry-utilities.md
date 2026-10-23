@@ -313,14 +313,16 @@ primitive list of (type, first vertex, vertex count), a light direction L, the c
 | `0x00800F60` | `SetColour(r, g, b, a)` | |
 | `0x00801200` | `BeginPrimitive(type)` | makes the arrays when missing; appends (type, current vertex count, 0); changed |
 | `0x00801380` | `AddVertex(p)` | below |
-| `0x00801140` | `Mesh()` | when changed, the vertex array's bounds are recomputed (`0x00801040`: the minimum and maximum over the vertices, starting from the first vertex when the box is empty) and the flag cleared; the builder is the mesh |
+| `0x00801140` | `Mesh()` | when changed and vertex handle nonnull, calls the foreign vertex-array bounds updater (`0x00801040`) then clears changed; returns the builder as mesh; the helper's empty/tie/NaN policy remains open |
 
 `AddVertex(p)` appends p with the colour k × (r, g, b) and alpha a, where k = 0.3 + 0.7 (L·n). Each channel
 uses a float-bit conversion, **not** an x87 integer conversion. Add the float32 constant 49152 (`0x00ABD444`),
 store as float32, reinterpret its bits as uint32, add `0xB8C00000` modulo 2³², then subtract bits 8–15 from
 bits 0–7 modulo 256. This agrees with the former nearest-even 256×value shortcut in its small ordinary range,
 but that shortcut is not the extreme-input contract. There is no clamp, `FIST`, or indefinite-i32 step.
-For example, +infinity gives byte 0; a quiet NaN's payload can affect the byte. The stored order is B, G, R, A.
+For the isolated conversion stage, +infinity gives byte 0 under masked exceptions; a quiet NaN's payload
+can affect the byte. These are not whole-call infinity/NaN guarantees for lighting, allocation or append.
+The stored order is B, G, R, A.
 Lighting evaluates `(L.z*n.z + L.y*n.y) + L.x*n.x`, multiplies by the **float64** constant 0.7
 (`0x00ABD458`), then adds **float64** 0.3 (`0x00ABD450`). G and B products are stored as float32 before the
 49152 addition; R stays on the x87 stack until that addition; alpha is loaded from its float32 field
@@ -369,6 +371,23 @@ the effect maps build their meshes with the same builder.
 - `RandomDirection3(v, random)` (`0x0080B730`): x, y, z are drawn the same way until x² + y² + z² ≤ 1 and ≥ 0.0001
   (a real rejection loop), then normalised.
 
+Both routines pass **double** −1 and +1 to the foreign random-range primitive. Treat its returned resident
+values as supplied inputs; this section does not replace the generator's algorithm or promise host-RNG bits.
+Random2 stores x as binary32 and keeps y resident. Its rejection test uses yResident²+xStored²; the apparent
+redraw path requires simultaneously sum>1 and sum<0.0001, and is unreachable for finite ordered sums.
+Normalization recomputes yResident²+xStored², square-roots it and forms a resident reciprocal using binary32
+1. x is multiplied and float-stored/reloaded; y multiplies the resident reciprocal and is stored at output
+(`0080B6A9–B727`). No zero-vector sanitization is present.
+
+Random3 stores x/y/z as binary32 but retains the last returned z resident. Rejection sum is
+(zResident*zStored + yStored²) + xStored²; ordered >1 or ordered <**double** 0.0001 redraws all three.
+Equality at either threshold accepts. Unordered comparisons also take acceptance, under §1's exception
+qualification (`0080B759–B7D8`). Accepted normalization **recomputes** (zStored²+xStored²)+yStored², then
+sqrt and reciprocal. The reciprocal is float-stored **without discarding the resident version**: x uses
+the resident reciprocal, y/z the stored reciprocal. All output coordinates are float-stored
+(`0080B7DE–B825`). Thus the rejection and normalization sums are not interchangeable, even with the same
+random values. Constant evidence: bounds `00A80AB0/00A80AD0`, threshold `00A84E60`, unity `00B0EC64`.
+
 ### 6.4 Text textures (`CreateTextureFromText`, `0x0080AB90`)
 
 `CreateTextureFromText(text, texture, font, size, rect, compressed)` renders a string into a new texture; the glyph
@@ -383,7 +402,7 @@ texture manager uses it for its glyph and string textures (glyph-textures.md §1
    and the text drawn on it in white (`0xFFFFFFFF`, font slot 51). The 1-pixel border (rows 0 and H − 1, columns 0
    and W − 1) is then drawn over in colour 0, so filtering never picks up text at the edges.
 4. The surface becomes a texture through the texture binding factory's slot 4 (texture-bindings.md §1.5; the
-   factory is the global `0x00B43CD4`):
+   compressed helper uses global `0x00B43CD4`; plain helper queries the framework service):
    - **compressed** (`0x0080A910`): only for a 32-bit surface with W and H multiples of 4 (else false); a DXT3
      image (format 9; graphics-formats.md §2.6) whose colour is white in every block (colours 0 and `0xFFFF`,
      every index 1) and whose alpha is the top 4 bits of each pixel's alpha;
@@ -417,6 +436,43 @@ differences/additions also wrap; halving uses signed truncation toward zero. The
 signed integer results through x87 integer loads to float32, writing x₀, y₀ first at offsets 8,12 and the
 far coordinates at 0,4 (`0x0080AE0A`–`0x0080AE3A`). No normalized UV division occurs here.
 
+#### 6.4.2 Raw surface-upload boundaries
+
+These are contracts of the named nS3D helpers, **not** implementations of the foreign font, surface,
+graphics-system, texture factory or driver calls. Their call results/data are supplied primitives.
+
+`GetTextureFormatForPixelCode(pixelCode, auxiliary, formatOut, typeOut)` has two input words; the auxiliary
+word is unused. It treats pixelCode as unsigned: 0/2/3/5 → (format 3,type 14), 4/6 → (3,10), 7 → (3,13),
+8/9 → (3,1). Code 1 or any value >9 (including a negative signed representation) returns false and writes
+neither output. Both outputs are required for a supported code (`0080A720–A795`; dispatch tables
+`0080A798–A7B5`). No format conversion occurs here.
+
+`CreateTextureFromSurface(surface, texture, optionalRect)` first queries a framework factory service.
+A null texture, null surface or false access request 0x8040 returns false without upload. After access succeeds,
+read base address, width/height, byte pitch and bytes-per-pixel from the surface. Compute the upload row stride
+as **signed bytePitch / bytesPerPixel**, truncating toward zero. With an integer rect (left,top,right,bottom),
+upload dimensions are right−left, bottom−top, and source pointer is base+left*bytesPerPixel+top*bytePitch;
+without it use full dimensions/base. Arithmetic uses 32-bit words without range checks. It calls the format
+helper using the surface's descriptor, **ignores that helper's boolean**, calls the factory's upload, retains
+the upload boolean, ends access 0x8040, then calls the foreign local-service cleanup primitive. No surface/texture
+release is issued by this helper (`0080A7CE–A814`, `0080A84C–A907`). The normal supported domain requires a
+valid acquired factory, nonzero bytes-per-pixel, representable offsets/stride, a supported format descriptor,
+and accessible requested rows. Unsupported descriptors can leave upload fields unset: no deterministic
+upload descriptor/result is specified for that path. A false upload still ends access before returning false.
+
+`CreateCompressedTextureFromSurface(surface, texture)` requires a readable surface (no initial null check),
+pixel code 9, and width/height whose low two bits are zero, then successful access 0x8040. Each failed check
+returns false without upload; no end-access is called after a failed access request (`0080A918–A96B`).
+For positive, representable, properly backed dimensions and successful temporary allocation, it creates
+16 bytes per 4×4 block: row-major 4-bit alpha values from the high nibble of each source pixel's alpha,
+followed by colour endpoints 0 and FFFF and sixteen colour indices 1. Blocks run left-to-right then top-to-bottom.
+Source row stepping uses `(bytePitch unsigned>>2)*4`; for ordinary aligned positive pitches this is bytePitch.
+The upload has full surface dimensions, format 9, type 0, row-stride field equal to width and unit auxiliary
+dimensions. The upload's boolean is saved; temporary memory is freed **before** ending access 0x8040, then
+that boolean is returned (`0080A97F–AAE6`, `0080AAEC–AB87`). The allocation result, global factory and texture
+are not null-checked. Zero/negative/overflowed dimensions or allocation failure are not a validated safe
+domain, despite the limited early checks. No device-side behavior is inferred from this descriptor.
+
 ## 7. Users
 
 Picking and the view (view-utilities), the flora placer (`BoundingBoxesIntersect`), the lot developer and the
@@ -436,10 +492,17 @@ texture manager (text textures).
 
 ## 9. Open questions
 
-See [questions/geometry-utilities.md](questions/geometry-utilities.md) GU1: whether any caller of
-`RaysIntersect2D` passes no output (§4.4).
+See [questions/geometry-utilities.md](questions/geometry-utilities.md). GU1 retains the null-output caller
+survey; GU2 retains ambient/exception/trig domains beyond the explicit operation sequences; GU3/GU5 retain
+foreign bounds/container and missing lifecycle behavior; GU6 retains any ownership attribution beyond the
+enumerated bodies. GU4's text epilogue is specified in §§6.4.1–6.4.2. A local helper call is not proof of the
+callee's entire algorithm, resource semantics or error behavior.
 
 ## 10. Conformance tests
+
+All examples in this section are **PROPOSED / UNEXECUTED**. They are specification-derived expectations,
+not observations of native or portable execution. Arithmetic-sensitive legacy examples below assume PC24,
+nearest-even RC and masked exceptions; §10.1 states any different mode explicitly.
 
 1. **Normal:** `GetNormalToTriangle((1,0,0), (0,0,0), (0,0,1))` = (0, 1, 0).
 2. **Box ray:** o = (−5, 0.5, 0.5), d = (1, 0, 0), box (0,0,0)–(1,1,1): hit (0, 0.5, 0.5).
@@ -479,6 +542,74 @@ All buffers are valid and distinct unless an explicitly permitted null output is
 | H3 | Triangle d=(quiet NaN,−1,0); o=(0,1,0), a=(0,0,0), b=(1,0,0), c=(0,0,1) | NaN determinant/u/v comparisons pass their unordered paths: true, writes unordered coordinates with hit. No exact NaN payload promised. |
 | H4 | Segments a1=(0,0),a2=(1,0), b1=(quiet NaN,−1),b2=(0,1), finite sentinel hit | Unordered k passes the local tolerance gate, but NaN ua fails lower bound: false, hit untouched. |
 | V1 | ScaleVector2D v=(quiet NaN,1), requested length=2 | Unordered magnitude leaves both original component words untouched, including the supplied NaN bits. |
+| N3 | **PC64**, nearest-even; plane n=(1,−1,0),w=0; o=(1,0,0),d=(float bits `3C23D70A`,2⁻³³,0) | kResident=ε−2⁻³³, stored k=`3C23D70A`=ε. Resident comparison takes parallel branch, s=1 gives false and zero hit. Comparing the stored k instead would incorrectly return true. Exact rational difference is 1/8589934592. |
+| M2 | Valid builder/vertex backing for all 65536 slots, current u16 vertex count=65535; dirty=false after Mesh; primitive count sentinel 17 | AddVertex appends at slot 65535, wraps counter to 0, leaves dirty=false and primitive count 17. Next AddVertex uses slot 0; no implicit primitive closure. Mesh alone does not call bounds updater in this state. |
+| M3 | Reset a populated builder with dirty=false; separately repeat with dirty=true | Both handles retained, vertex count=0 and zero-length resize requests issued; dirty respectively false/true and no bounds write by Reset. Repeated BeginPrimitive appends another zero-count entry and dirties without closing the previous entry. |
+| T1 | Supplied font reports width=30,height=12, saved mode=7; GS absent; size/rect sentinel outputs | false; trace: AddRef font, save/set mode 3, measure, fail GS, restore mode 7, size=(32,16), rect=(32,13,2,1), release font. No surface/upload call; outputs are not preserved sentinels. |
+| T2 | Same dimensions; nonnull surface acquired, upload false | false; mode 3 through upload, then restore saved mode, write size/rect, release surface, release font. Clear/border access failures gate their own operations only. |
+| U1 | Plain helper supplied source base B, bytePitch=32, bytesPerPixel=4, rect=(1,1,3,3), supported descriptor | Upload pointer B+36, dimensions 2×2, stride 8 pixels; upload-false trace still ends access before the foreign service-cleanup primitive. |
+| U2 | Compressed 4×4 surface, aligned bytePitch=16, every source alpha byte `AB`, successful access/allocation | One block: first eight bytes `AA` each, endpoints `0000,FFFF`, index bytes `55 55 55 55`. Upload-false trace frees temporary before unlock. |
 
 The C1 edge is deliberately degenerate: every finite side test is zero, with no crossing-scratch dependency.
 The B1/B2 selection rules belong to the overlap body only, not the builder's foreign bounds helper.
+
+## 11. Exact owner-body ledger and proof limits
+
+This is the **37-entry / 7509-byte export attribution**, not full-owner/runtime/default coverage. Source
+identity for the 2026-10-23 instruction re-read: Windows image base `00400000`, executable SHA256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, matching export-summary. Sizes are
+exported decoded bytes (not a promise that every address in the span is an instruction). The bodies with
+gaps list those ranges. Behavioral argument shapes below come from entry argument loads and their uses,
+named-owner export entries, and direct call sites; these are not new ABI declarations.
+
+**N** = local numeric/branch/store contract established in the cited section, conditional on §1 controls and
+valid memory. **D** = local delegation/mutation sequence established, with named foreign primitives supplied.
+**P** = positive local contract published but listed external/lifecycle residual remains. These statuses do
+not count foreign callees as additional owner bodies. Every row's source is the instruction body at that VA.
+
+| # | Owner / body; behavioral inputs → channel | Bytes; inclusive source range | Published status / section |
+|---|---|---|---|
+| 01 | Geometry: RayIntersectsBoundingBox(o,d,min,max,optional hit) → bool | 596; `005D6580–67D3` | N §4.1 |
+| 02 | Geometry: PointInRectangle2D(p,min,max) → bool | 72; `005D68B0–68F7` | N §4.6 |
+| 03 | Geometry: BoundingBoxesIntersect(aMin,aMax,bMin,bMax,outMin,outMax) → bool | 285; `005D6D80–6E9C` | N §4.6; outputs gated as a pair |
+| 04 | Geometry: GetNormalToTriangle(a,b,c,required normal) → normal | 112; `005D6EA0–6F0F` | N §3 |
+| 05 | Geometry: PointAndVectorToPlaneEquation(p,n,required plane) → plane | 54; `005D6F50–6F85` | N §3 |
+| 06 | Geometry: LengthOfLineSquared(a,b) → resident float | 47; `005D6F90–6FBE` | N §2.3 |
+| 07 | Geometry: LengthOfLineSquared2D(a,b) → resident float | 33; `005D6FC0–6FE0` | N §2.3 |
+| 08 | Geometry: RayIntersectsTriangle(o,d,a,b,c,optional hit) → bool | 503; `005D6FF0–71E6` | N §4.2 |
+| 09 | Geometry: PointDistanceToRay(p,o,d) → resident float | 159; `005D71F0–728E` | N §2.1 |
+| 10 | Geometry: PointDistanceToRectangle(p,min,max) → resident float | 199; `005D7290–7356` | N §2.2 |
+| 11 | Geometry: RayIntersectsPlane(o,d,plane,optional hit) → bool | 183; `005D7360–7416` | N §4.3 |
+| 12 | Geometry: RaysIntersect2D(p1,d1,p2,d2,optional hit) → bool | 173; `005D7420–74CC` | N §4.4; null selects another algorithm |
+| 13 | Geometry: LinesIntersect2D(a1,a2,b1,b2,optional hit) → bool | 251; `005D74D0–75CA` | N §4.5 |
+| 14 | Geometry: TwiceTriangleArea(p,a,b) → resident float | 132; `005D75D0–7653` | N §2.3 |
+| 15 | Geometry: LengthOfLine(a,b) → resident float | 49; `005D7660–7690` | N §2.3 |
+| 16 | Geometry: LengthOfLine2D(a,b) → resident float | 35; `005D76A0–76C2` | N §2.3 |
+| 17 | Geometry: ScaleVector2D(required v,float length) → v | 58; `005D76D0–7709` | N §5 |
+| 18 | Geometry: RotatePoint2D(c,p,float angle,required out) → out | 91; `005D77A0–77FA` | N §5; trig results parameterized |
+| 19 | Geometry: ClipPolygonToEdge2D(e0,e1,poly,signed n,out,signed max,required count) → out/count | 454; `005D7800–787C`, `005D7880–79C8` | N §5.1; uninitialized-crossing coordinates excluded |
+| 20 | Geometry: ClipPolygonToPolygon2D(poly,signed n,clip,signed m,out,signed max,required count) → out/count | 362; `005D79D0–7B39` | N §5.2; valid backing required |
+| 21 | Builder: SetNormal(normal[3]) → fields | 26; `00800F10–0F29` | D §6.1 |
+| 22 | Builder: SetColour(rgb[3]) → RGB/alpha | 35; `00800F30–0F52` | D §6.1 |
+| 23 | Builder: SetColour(rgba[4]) → RGBA | 32; `00800F60–0F7F` | D §6.1 |
+| 24 | Builder: SetLightDirection(light[3]) → fields | 26; `00800F80–0F99` | D §6.1 |
+| 25 | nS3D: GetBoxCorners(box[min,max],corners[8]) → corners | 148; `00800FA0–1033` | D §6.2; finite component selection/copies |
+| 26 | Builder: Mesh() → builder as mesh | 29; `00801140–115C` | P §6.1; foreign bounds updater |
+| 27 | Builder: BeginPrimitive(type word) → builder/list | 232; `00801200–12E7` | P §6.1; allocation/container failure not generalized |
+| 28 | Builder: constructor(this) → initialized fields | 136; `008012F0–1377` | P §6.1; no destructor inferred |
+| 29 | Builder: AddVertex(point[3]) → array/u16 counter | 321; `00801380–14C0` | P §6.1; valid array/append primitive supplied |
+| 30 | nS3D: AddBoxMesh(builder,corners[8]) → builder/list | 386; `008014D0–1651` | D §6.2; six faces and inline closure |
+| 31 | Builder: Reset() → zero-count/resize requests | 78; `00801660–16AD` | P §6.1; foreign backing retention/empty bounds not proved |
+| 32 | nS3D: GetTextureFormatForPixelCode(code,aux,formatOut,typeOut) → bool/outputs | 118; `0080A720–A795` | N §6.4.2 |
+| 33 | nS3D: CreateTextureFromSurface(surface,texture,optional integer rect) → bool | 328; `0080A7C0–A907` | D §6.4.2; supported descriptor domain |
+| 34 | nS3D: CreateCompressedTextureFromSurface(surface,texture) → bool | 623; `0080A910–A9F6`, `0080AA00–AA28`, `0080AA30–AB8E` | D §6.4.2; positive aligned normal domain |
+| 35 | nS3D: CreateTextureFromText(text,texture,font,optional size,optional rect,compressed flag) → bool/outputs | 717; `0080AB90–AE5C` | D §§6.4–6.4.2; supplied font/surface/service calls |
+| 36 | nS3D: RandomDirection2(required v,random object) → v | 174; `0080B680–B72D` | N §6.3; random primitive returns supplied |
+| 37 | nS3D: RandomDirection3(required v,random object) → v | 252; `0080B730–B82B` | N §6.3; random primitive returns supplied |
+
+Geometry means `SC4GeometryUtilities` (20 / 3848 bytes); Builder means `cS3DMeshBuilder` (9 / 915);
+nS3D has 8 / 2746. No exported general EndPrimitive, builder destructor, transform or sort is in this set.
+Missing/folded lifecycle attribution remains a question, not a fabricated method. In particular, shared
+container resize/allocator functions and `cS3DVertexArray::UpdateBounds` are foreign dependencies, not new
+credited owner bodies. Draw-context, ModelInstances, ModelMaker, renderer/driver, font/glyph and generic
+trig/RNG algorithms are outside this ledger. These utility contracts imply no region-management behavior.
