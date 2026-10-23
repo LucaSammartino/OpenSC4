@@ -190,7 +190,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 2 | 56 | EX54 | questions/data-formats.md |
+| data-formats | 4 | 56 | EX56 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -198,7 +198,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dispatch | 1 | 12 | DP14 | questions/dispatch.md |
 | draw-context | 3 | 5 | DC9 | questions/draw-context.md |
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
-| drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
+| drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -216,7 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landfill | 3 | 36 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
-| legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
+| legacy-control | 5 | 4 | LC11 | questions/legacy-control.md |
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
@@ -248,7 +248,7 @@ generated index: the questions live one file per spec, so read only the file for
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
-| persistence | 3 | 1 | PR5 | questions/persistence.md |
+| persistence | 8 | 1 | PR14 | questions/persistence.md |
 | persistence-manager | 3 | 1 | PR9 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
@@ -302,4 +302,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **440** | **1239** | | |
+| **total** | **455** | **1239** | | |
