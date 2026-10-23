@@ -46,8 +46,8 @@
 //! - **Ordered maps** [choice]: the original's hash maps (`lots`, `potholes`,
 //!   `configs`) iterate in bucket order. FreeCity4 keeps insertion order (an
 //!   overwritten key keeps its place), so `Read` followed by `Write` gives the
-//!   same bytes (§4.2). `ProcessUpdateList` takes keys in ascending order
-//!   (the spec's *[choice]*, §8.5).
+//!   same bytes (§4.2). `ProcessUpdateList` uses the original's SGI hash-set
+//!   order (§8.5, NM13).
 //! - **QueueRemovals order**: the host's per-occupant creation number
 //!   ([`NetworkManagerHost::creation_number`]) instead of the pointer value
 //!   (the spec's *[choice]*, §7.3).
@@ -315,9 +315,15 @@ impl NetworkLotMessage {
 /// `0x00B44870` (§17).
 pub trait NetworkLotRandom {
     fn uniform_u32(&mut self, n: u32) -> u32;
+    fn raw_state(&self) -> Option<([u32; 624], usize)> {
+        None
+    }
 }
 
 impl NetworkLotRandom for crate::rng::RzRandomSuper {
+    fn raw_state(&self) -> Option<([u32; 624], usize)> {
+        Some(crate::rng::RzRandomSuper::raw_state(self))
+    }
     fn uniform_u32(&mut self, n: u32) -> u32 {
         crate::rng::RzRandomSuper::uniform_u32(self, n)
     }

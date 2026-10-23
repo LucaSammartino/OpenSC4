@@ -339,6 +339,15 @@ impl std::fmt::Debug for RzRandomSuper {
 }
 
 impl RzRandomSuper {
+    /// Restore raw MT words and the next-word index (network-manager §17.3).
+    pub fn from_state(state: [u32; MT_N], index: usize) -> Option<Self> {
+        (index <= MT_N).then_some(Self { state, index })
+    }
+
+    pub fn raw_state(&self) -> ([u32; MT_N], usize) {
+        (self.state, self.index)
+    }
+
     pub fn new(seed: u32, seeds: &dyn SeedSource) -> Self {
         let mut r = RzRandomSuper {
             state: [0; MT_N],

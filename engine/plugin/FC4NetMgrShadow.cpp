@@ -24,6 +24,7 @@
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Seed.h"
+#include "compat/FC4Compat.h"
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
 
@@ -40,6 +41,8 @@
 #include "cIGZPersistResourceManager.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4LotConfigurationManager.h"
+#include "cSC4LotConfigurationObject.h"
 #include "cISC4NetworkLot.h"
 #include "cISC4NetworkLotManager.h"
 #include "cISC4NetworkManager.h"
@@ -56,6 +59,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -111,11 +115,58 @@ fc4_netmgr* g_mgr = nullptr;
 fc4_netlot* g_lot = nullptr;
 cISC4City* g_city = nullptr;
 bool g_inMessage = false;
+bool g_randomReady = false;
 
 // The network lot configurations of the exemplars (§3.2 step 4), read once
 // per process (the exemplars do not change), in the key list's order.
 bool g_configsRead = false;
 std::vector<fc4_props*> g_configs;
+struct ConfigObjects {
+    std::vector<fc4_netlot_object> core;
+    // Each SDK record owns its SC4Vector payload: never copy a record by value.
+    std::vector<std::unique_ptr<cSC4LotConfigurationObject>> native;
+};
+std::vector<ConfigObjects> g_configObjects;
+
+void ReadConfigObject(void* ctx, const fc4_lotdev_cfg_object* o) {
+    auto& objects = *static_cast<ConfigObjects*>(ctx);
+    fc4_netlot_object core{};
+    core.kind = static_cast<uint8_t>(o->object_type);
+    core.flags = o->flags;
+    core.orientation = o->orientation;
+    std::copy(o->offset, o->offset + 3, core.offset);
+    core.field_24 = o->tag;
+    objects.core.push_back(core);
+
+    auto r = std::make_unique<cSC4LotConfigurationObject>();
+    r->type = static_cast<cSC4LotConfigurationObject::Type>(o->object_type);
+    r->flags = o->flags;
+    r->rotation = static_cast<cSC4LotConfigurationObject::Rotation>(o->orientation);
+    r->mirrored = o->byte3 != 0;
+    r->x = o->offset[0];
+    r->y = o->offset[1];
+    r->z = o->offset[2];
+    r->rectMaxX = o->footprint_max[0];
+    r->rectMaxZ = o->footprint_max[1];
+    r->rectMinX = o->footprint_min[0];
+    r->rectMinZ = o->footprint_min[1];
+    r->foundationIID = o->foundation;
+    r->objectID = o->tag;
+    for (uint32_t i = 0; i < o->n_ids; ++i) r->data.push_back(o->ids[i]);
+    objects.native.push_back(std::move(r));
+}
+
+void ObjectIds(void*, uint64_t config, uint32_t index, fc4_u32_callback cb, void* ctx) {
+    if (!cb || !g_city || config == 0 || config > g_configObjects.size()) return;
+    auto& objects = g_configObjects[static_cast<size_t>(config - 1)].native;
+    if (index >= objects.size()) return;
+    // Borrowed city interface; §8.6 requires the game's family expansion.
+    if (auto* manager = g_city->GetLotConfigurationManager()) {
+        SC4Vector<uint32_t> ids;
+        manager->GetObjectIDArray(objects[index].get(), ids);
+        for (const uint32_t id : ids) cb(ctx, id);
+    }
+}
 uint32_t g_exemplarKeys = 0;
 
 // Counters since the last line.
@@ -129,17 +180,6 @@ struct Counters {
 };
 Counters g_n;
 uint32_t g_lines = 0, g_exactLines = 0, g_draws = 0, g_resyncs = 0;
-// NM10 (open question, network-manager.md §6.2 0xE8BDA2E7): in game the
-// original never changes the road style of the first row's inner cells of a
-// lot state message's grown rect (x0 < x < x1, z = z0), where the spec walks
-// the whole border (and, rarely, restyles such a cell later, during another
-// message, as if its key had stayed pending). The cells our lot core updated
-// there since the city loaded; a style or lot difference at one of them is
-// counted under NM10, not as a mismatch, until the question is answered.
-std::set<std::pair<int32_t, int32_t>> g_nm10Cells;
-uint32_t g_nm10Lines = 0, g_nm10Total = 0;
-uint32_t g_nm10Pending = 0;  // tick-time NM10 differences since the last line
-std::string g_nm10PendingDiffs;
 std::string g_pendingDiffs;  // tick-time differences, reported on the next line
 uint32_t g_pendingMismatches = 0;
 size_t g_pendingListed = 0;
@@ -270,20 +310,6 @@ struct Diff {
     }
 };
 
-bool Nm10Cell(int32_t x, int32_t z) { return g_nm10Cells.count(std::make_pair(x, z)) != 0; }
-
-// A tick-time difference at an NM10 cell (counted, listed, not a mismatch).
-void PendingNm10(const char* fmt, ...) {
-    if (g_nm10Pending++ >= kMaxListed) return;
-    char b[200];
-    va_list ap;
-    va_start(ap, fmt);
-    _vsnprintf_s(b, sizeof(b), _TRUNCATE, fmt, ap);
-    va_end(ap);
-    if (!g_nm10PendingDiffs.empty()) g_nm10PendingDiffs += ", ";
-    g_nm10PendingDiffs += b;
-}
-
 void PendingDiff(const char* fmt, ...) {
     ++g_pendingMismatches;
     if (g_pendingListed++ >= kMaxListed) return;
@@ -365,7 +391,12 @@ void ReadConfigurations() {
         const cISCPropertyHolder* h = ex->AsISCPropertyHolder();
         std::vector<uint32_t> t;
         if (h != nullptr && props::GetU32s(h, kPropExemplarType, t) && !t.empty() && t[0] == kNetworkLotExemplarType) {
-            if (fc4_props* p = props::ToCoreAll(h, ex)) g_configs.push_back(p);
+            if (fc4_props* p = props::ToCoreAll(h, ex)) {
+                g_configs.push_back(p);
+                g_configObjects.emplace_back();
+                // prop-lotconfig §B3.3: network configurations always use detail 3.
+                fc4_lot_config_object_array(p, 3, nullptr, &ReadConfigObject, &g_configObjects.back());
+            }
         }
         FC4_RELEASE(ex);
     }
@@ -538,9 +569,7 @@ void SettleStep(void*) {
         if (w.second.flags && !flags) bad = true;
         uint32_t cx = 0, cz = 0;
         if (bad) o->GetOccupiedCell(cx, cz);
-        if (bad && Nm10Cell(static_cast<int32_t>(cx), static_cast<int32_t>(cz))) {
-            PendingNm10("style at %u,%u: variation %u/%d (orig/ours)", cx, cz, got, w.second.variation);
-        } else if (bad) {
+        if (bad) {
             ++g_n.styleMismatches;
             // Now (after both): the original's and our zone / wealth for the
             // cell (slots 9, 10) and the variation they give (§8.7 step 7).
@@ -602,6 +631,7 @@ void MakeHosts(cISC4City* city) {
     g_mhost.tool_update_underground_heights = &ToolUpdateUnderground;
     g_mhost.occupants_in_rect = &OccupantsInRect;
     g_lhost = MakeNetLotReadOnlyHost(&g_ctx);
+    g_lhost.object_ids = &ObjectIds;
     g_lhost.set_network_flag = &SetNetworkFlag;
     g_lhost.set_under_texture = &SetUnderTexture;
     g_lhost.set_variation = &SetVariation;
@@ -637,10 +667,16 @@ bool StartLot(cISC4NetworkLotManager* orig) {
     }
     g_lot = fc4_netlot_create(&g_lhost, TokenOf(orig), SessionSeed());
     if (g_lot == nullptr) return false;
-    for (fc4_props* p : g_configs) fc4_netlot_add_configuration_props(g_lot, 0, p, nullptr, 0);
+    for (size_t i = 0; i < g_configs.size(); ++i) {
+        const auto& objects = g_configObjects[i].core;
+        fc4_netlot_add_configuration_props(g_lot, i + 1, g_configs[i], objects.data(),
+                                           static_cast<uint32_t>(objects.size()));
+    }
     CaptureIStream in(g_origLot);
     const bool ok = fc4_netlot_read(g_lot, in.Get());
     fc4_netlot_init(g_lot);
+    uint32_t input[625] = {};
+    g_randomReady = compat::CaptureNetworkLotRandom(input) && fc4_netlot_set_random_state(g_lot, input);
     NetMgrReleaseHeld(&g_ctx);
     if (!ok) {
         fc4_netlot_shutdown(g_lot);
@@ -789,7 +825,6 @@ void RunStep(void* p) {
         return;
     }
     Diff d;
-    Diff nm10;  // differences at NM10 cells
     bool answered = false;
     const bool origMgrOk = g_origMgr.Capture(reinterpret_cast<cIGZUnknown*>(nm), &answered);
     const bool origLotOk = g_origLot.Capture(reinterpret_cast<cIGZUnknown*>(nlm), &answered);
@@ -881,7 +916,7 @@ void RunStep(void* p) {
                 ++wealthDiffs;
                 d.Add("wealth for network at %d,%d: %d/%d", x, z, wo, wu);
             }
-            Diff& dl = Nm10Cell(x, z) ? nm10 : d;
+            Diff& dl = d;
             if (o == ol.lots.end()) {
                 const LotDetail ld = DetailOf(u->second.first, u->second.second, x, z, zu, wu);
                 dl.Add("lot at %d,%d: ours only (config 0x%08X; %s zone/wealth orig %d/%d ours %d/%d)", x, z,
@@ -908,13 +943,10 @@ void RunStep(void* p) {
             const bool co = fc4_netlot_is_lot_compatible(g_lot, o->second.second, x, z, zu, wu, rot, flip);
             const bool cu = fc4_netlot_is_lot_compatible(g_lot, u->second.second, x, z, zu, wu, rot, flip);
             NetMgrReleaseHeld(&g_ctx);
-            if (co && cu) {
-                ++draws;  // two compatible configurations: the clock-seeded draw
-            } else {
-                ++cfgBad;
-                dl.Add("lot at %d,%d: config 0x%08X/0x%08X compatible now %d/%d", x, z, o->second.second,
-                       u->second.second, co ? 1 : 0, cu ? 1 : 0);
-            }
+            if (co && cu) ++draws;
+            ++cfgBad;
+            dl.Add("lot at %d,%d: config 0x%08X/0x%08X compatible now %d/%d", x, z, o->second.second,
+                   u->second.second, co ? 1 : 0, cu ? 1 : 0);
         }
         std::set<uint16_t> pk;
         for (const auto& e : ol.potholes) pk.insert(e.first);
@@ -940,19 +972,12 @@ void RunStep(void* p) {
         d.listed += g_pendingDiffs;
     }
 
-    // A core whose record differs restarts from the original's (a draw too:
-    // later choices depend on the configuration kept).
+    // Differences remain observable for the rest of the city; never resync
+    // a record or exempt clock-seeded choices (§17.3).
     const bool lotDiffers = !(ol.lots.size() == ul.lots.size() && cfgSame == ol.lots.size() &&
                               ol.potholes.size() == ul.potholes.size()) ||
                             zoneDiffs != 0 || wealthDiffs != 0;
-    std::string resync;
-    if (!mgrSame && !r.start) {
-        resync += StartMgr(nm) ? " mgr" : " mgr(refused)";
-    }
-    if (lotDiffers && !r.start) {
-        resync += StartLot(nlm) ? " lot" : " lot(refused)";
-    }
-    if (!resync.empty()) ++g_resyncs;
+    if (!g_randomReady) d.Add("network lot random input capture refused");
     g_draws += draws;
 
     fc4_netmgr_state ms{};
@@ -970,7 +995,7 @@ void RunStep(void* p) {
             static_cast<unsigned>(ul.lots.size()), static_cast<unsigned>(ol.potholes.size()),
             static_cast<unsigned>(ul.potholes.size()),
             lotBytes ? "equal" : (lotDiffers ? "DIFFERS" : "same entries (order differs)"));
-    AppendF(s, "; lot cells=%u zone diffs=%u wealth diffs=%u configs same=%u draws=%u (not compared: clock-seeded) "
+    AppendF(s, "; lot cells=%u zone diffs=%u wealth diffs=%u configs same=%u draws=%u (compared: captured input) "
                "incompatible=%u; configs loaded=%u",
             cells, zoneDiffs, wealthDiffs, cfgSame, draws, cfgBad, ls.configs);
     AppendF(s, "; messages=%u (mgr %u, lot %u); terrain msgs=%u tool calls=%u destroyed=%u confirmed=%u kept-by-orig=%u "
@@ -996,20 +1021,7 @@ void RunStep(void* p) {
         g_pmFirst.clear();
         g_pmListed = 0;
     }
-    const uint32_t nm10Count = nm10.mismatches + g_nm10Pending;
-    AppendF(s, "; NM10 (lot state border's first row, open)=%u", nm10Count);
-    if (!resync.empty()) AppendF(s, "; resynced:%s", resync.c_str());
     if (!d.listed.empty()) s += "; differences: " + d.listed;
-    if (nm10Count != 0) {
-        std::string l = nm10.listed;
-        if (!l.empty() && !g_nm10PendingDiffs.empty()) l += ", ";
-        l += g_nm10PendingDiffs;
-        s += "; NM10 differences: " + l;
-        ++g_nm10Lines;
-        g_nm10Total += nm10Count;
-    }
-    g_nm10Pending = 0;
-    g_nm10PendingDiffs.clear();
     r.mismatches = d.mismatches;
     r.done = true;
     g_n = Counters{};
@@ -1118,8 +1130,24 @@ bool MessageCells(const Msg& m, fc4_cell_rect* r) {
 
 constexpr int32_t kMaxSnapCells = 4096;
 
+void CheckReplayInput(const char* phase) {
+    uint32_t original[625] = {}, ours[625] = {}, buckets = 0;
+    if (!compat::CaptureNetworkLotRandom(original) || !fc4_netlot_get_random_state(g_lot, ours)) {
+        PendingDiff("random capture refused (%s)", phase);
+    } else if (std::memcmp(original, ours, sizeof(original)) != 0) {
+        PendingDiff("random state differs (%s): next word %u/%u", phase, original[624], ours[624]);
+    }
+    const auto* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr;
+    if (!compat::CaptureNetworkLotPending(nlm, &buckets)) {
+        PendingDiff("pending capture refused (%s)", phase);
+    } else if (buckets != fc4_netlot_pending_buckets(g_lot)) {
+        PendingDiff("pending buckets differ (%s): %u/%u", phase, buckets, fc4_netlot_pending_buckets(g_lot));
+    }
+}
+
 void TakeSnapshot(void* p) {
     const Msg& m = *static_cast<const Msg*>(p);
+    CheckReplayInput("before message");
     g_snap.clear();
     g_snapValid = false;
     fc4_cell_rect r{};
@@ -1129,7 +1157,9 @@ void TakeSnapshot(void* p) {
     g_lhost.city_size(g_lhost.user, &cx, &cz);
     g_snapWide = m.type == kMsgLotStateChanged && g_wideLeft > 0;
     if (g_snapWide) --g_wideLeft;
-    const fc4_cell_rect area = g_snapWide ? fc4_cell_rect{0, 0, cx - 1, cz - 1} : r;
+    // §6.3 visits row zero and columns north of the nominal border.
+    const fc4_cell_rect area = g_snapWide ? fc4_cell_rect{0, 0, cx - 1, cz - 1} :
+        (m.type == kMsgLotStateChanged ? fc4_cell_rect{0, 0, r.x2, r.z2} : r);
     for (int32_t z = area.z1; z <= area.z2; ++z) {
         for (int32_t x = area.x1; x <= area.x2; ++x) {
             if (x < 0 || z < 0 || x >= cx || z >= cz) continue;
@@ -1279,12 +1309,9 @@ void CallMessage(void* p) {
             for (const auto& c : g_snap) afterOrig[c.first] = NetOf(c.first)->GetVariation() & 0xFFu;
         }
         g_msgWrites.clear();
-        fc4_cell_rect nr{};
-        if (m.type == kMsgLotStateChanged && MessageCells(m, &nr)) {
-            for (int32_t x = nr.x1 + 1; x < nr.x2; ++x) g_nm10Cells.insert(std::make_pair(x, nr.z1));
-        }
         fc4_netlot_do_message(g_lot, m.type, m.d[0], m.d[1], m.d[2], m.void1, m.unknown, m.hasRect ? &m.rect : nullptr);
         NetMgrReleaseHeld(&g_ctx);
+        if (g_late) CheckReplayInput("after message");
         if (compare) CompareMessageStyle(m, afterOrig);
         g_snapValid = false;
         g_snap.clear();
@@ -1421,8 +1448,8 @@ void NetMgrShadowStartup() {
         "original); the terrain rule's destructions and the road style writes are recorded and "
         "checked against the game at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
         "component 53 and 11 records (our Write against the original's), the zone and wealth for network at every lot "
-        "cell (slots 9, 10) and the compatibility of differing configurations are compared. Not compared: the lot "
-        "configuration draws (clock-seeded generator, network-manager.md §17), the under-texture (no getter), the "
+        "cell (slots 9, 10) and configurations are compared exactly, using captured random input with pre/post checks "
+        "(network-manager.md §17). No record resync or NM10 exemptions. Not compared: the under-texture (no getter), the "
         "presentation (lighting, view rotation, retrofit, water display), props, flora and pothole effects",
         src);
 }
@@ -1496,10 +1523,9 @@ void NetMgrShadowCityShutdown() {
     LateSubscribe(false);
     Settle();
     if (g_city != nullptr || g_mgr != nullptr || g_lot != nullptr) {
-        Log("netmgr shadow: city shutdown: %u lines, %u with mismatches=0 (exact %u/%u); %u configuration draws not "
-            "compared; %u resyncs; NM10 (open question: the lot state message's border, first row) differences %u on %u "
-            "lines",
-            g_lines, g_exactLines, g_exactLines, g_lines, g_draws, g_resyncs, g_nm10Total, g_nm10Lines);
+        Log("netmgr shadow: city shutdown: %u lines, %u with mismatches=0 (exact %u/%u); %u configuration differences; "
+            "%u resyncs; NM10/NM11 compared (origin walk)",
+            g_lines, g_exactLines, g_exactLines, g_lines, g_draws, g_resyncs);
         if (g_late) {
             std::string t;
             for (int i = 0; i < kPlaces; ++i) {
@@ -1519,12 +1545,15 @@ void NetMgrShadowCityShutdown() {
     g_wideNotes.clear();
     g_wideListed = 0;
     DropCores();
+    // Release SDK vector payloads while the city's allocator service is alive.
+    g_configObjects.clear();
+    for (fc4_props* p : g_configs) fc4_props_destroy(p);
+    g_configs.clear();
+    g_configsRead = false;
     g_city = nullptr;
     g_ctx.city = nullptr;
     g_lines = g_exactLines = g_draws = g_resyncs = 0;
-    g_nm10Lines = g_nm10Total = g_nm10Pending = 0;
-    g_nm10PendingDiffs.clear();
-    g_nm10Cells.clear();
+    g_randomReady = false;
     g_n = Counters{};
     g_pendingDiffs.clear();
     g_pendingMismatches = 0;

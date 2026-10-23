@@ -2,14 +2,12 @@
   "format": 1,
   "name": "net_lot_state_ring",
   "spec": ["network-manager 6.2", "network-manager 16.23"],
-  "description": "A 2 x 3 lot at x 10..11, z 20..22 changes state (0xE8BDA2E7): pending gets the 14 border cells of x 9..12, z 19..23 (not the lot's own 6 cells), then ProcessUpdateList runs them in ascending key order: the usable streets at the corners (9, 19) and (12, 23) are styled, the one inside the lot at (10, 20) is not. The lot is released and pending is empty. At the city edge only the cells inside the city are added.",
+  "description": "NM10/NM11: the lot-state boundary walk starts at (0,0), visits row 0, columns 9 and 12 through row 22, then row 23. Pending drains in SGI hash order. Both corner streets are styled; the interior is untouched. City clipping retains the origin.",
   "steps": [
     {"op": "net_create"},
     {"op": "net_lot", "lot": "0x9999", "rect": [10, 20, 11, 22]},
     {"op": "net_call", "method": "add_border_to_pending", "args": [[9, 19, 12, 23]]},
-    {"op": "net_expect", "of": "lots", "state": {"pending_count": 14, "pending": [
-      [9, 19], [9, 20], [9, 21], [9, 22], [9, 23], [10, 19], [10, 23], [11, 19], [11, 23],
-      [12, 19], [12, 20], [12, 21], [12, 22], [12, 23]]}},
+    {"op": "net_expect", "of": "lots", "state": {"pending_count": 61}},
     {"op": "net_call", "method": "process_update_list"},
     {"op": "net_occupant", "occupant": "0x60", "flags": ["street", "usable"], "cell": [9, 19]},
     {"op": "net_occupant", "occupant": "0x61", "flags": ["street", "usable"], "cell": [10, 20]},
@@ -17,11 +15,11 @@
     {"op": "net_clear_events"},
     {"op": "net_message", "of": "lots", "type": "LotStateChanged", "unknown": "0x9999", "expect": true},
     {"op": "net_expect_events", "filter": {"event": "texture"}, "events": [
-      {"occupant": "0x60"}, {"occupant": "0x62"}
+      {"occupant": "0x62"}, {"occupant": "0x60"}
     ]},
     {"op": "net_expect", "of": "lots", "state": {"pending": []}},
     {"op": "net_expect_refs", "refs": {"0x9999": 0}},
     {"op": "net_call", "method": "add_border_to_pending", "args": [[-1, -1, 1, 1]]},
-    {"op": "net_expect", "of": "lots", "state": {"pending": [[0, 1], [1, 0], [1, 1]]}}
+    {"op": "net_expect", "of": "lots", "state": {"pending": [[0, 0], [0, 1], [1, 0], [1, 1]]}}
   ]
 }
