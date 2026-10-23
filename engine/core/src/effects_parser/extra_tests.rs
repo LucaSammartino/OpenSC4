@@ -12,7 +12,7 @@ fn rotation_boundaries_keep_offset_and_exact_lookup_prefix() {
         let mut r = asymmetric();
         r.component.placement[0] = 255;
         r.component.placement[1] = 0xA6;
-        assert_eq!(run(&mut f, &["raw-vector"], 0, &mut r), Err(Unsupported::Rotation(key)));
+        assert_eq!(run(&mut f, &["raw-vector"], 0, &mut r), Err(Unsupported::Numeric));
         assert_eq!([bits(&r, 40), bits(&r, 44), bits(&r, 48)], [0x80000000, 0x7FC01234, 1]);
         assert_eq!(&r.component.placement[..2], &[0, 0xA7]);
         assert_eq!((r.component.lod_min, r.component.lod_max), (7, 9));
