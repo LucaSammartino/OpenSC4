@@ -880,7 +880,7 @@ Framework widgets, needed to describe the toolkit but not game UI: `cGZWinBMP` (
 | `cSC4WinCatalogView` | `00ab6d88` | 14 | 2 064 | Lot/prop catalog view |
 | `cSC4ToolTipManager` | `00abcb60` | 7 | 1 658 | Tooltips |
 | `cSC4WinAlertBorder` / `cSC4WinRCI` | `00ab5b48` / `00ab8628` | 3 / 5 | 304 / 945 | Alert border flash; RCI demand bar |
-| `cSC4MissingPluginPacksDialog` | `—` | 1 | 435 | Missing-content warning (`DoDialog`, from `cSC4MissingPluginDataReporter::DoPostCityInit` `0x0048C84B`) |
+| `cSC4MissingPluginPacksDialog` | `—` | 1 | 435 | Missing-content warning (`DoDialog`, from `cSC4MissingPluginDataReporter::DoPostCityInit` `0x0048C84B`); [reporter caller contract](missing-plugin-reporter.md), dialog internals remain outside that contract |
 
 Region dialogs and the remaining winprocs (`cSC4NewRegionDialog`, `cSC4DeleteCityDialog`, `cSC4DeleteRegionDialog`,
 `cSC4ImportCityDialog`, `cSC4LoadRegionDialog`, `cSC4PickSimWinProc`, `cSC4QueryDialogWinProc`
