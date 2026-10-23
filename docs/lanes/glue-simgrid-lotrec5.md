@@ -12,5 +12,6 @@
 - Final all terminal PASS on stable implementation 545141775 / HEAD c25e998bc: cargo 6702 passed, 0 failed, clippy diagnostics=0; native qbuild-20261024-003021-build-ctest build 86/86 (4.7 s), CTest 70/70 (84.0 s), total 90.9 s.
 - Game r1 lotrec5-2032-r1-20261024 terminal clean to 2032-01-01; ref_warnings=0; simgrid 73/73, lotrec 73/73, every observation mismatches=0. Final roles 86/86, lots 656/656; run record docs/runs/lotrec5-2032-r1-20261024.md.
 - Native config diagnostic: both working keys missing KnownKey allowlist emitted six warnings. Registered them additively; repeat all and game r2 on corrected source. Preserve r1 evidence.
-- Next: collect repeated all, then unique lotrec5-2032-r2-20261024 request; wait event-driven via build-runs/wait-verdict.ps1 (no qwait).
+- Repeated final all on f062d2f96 terminal PASS: cargo 6702 passed, 0 failed; clippy diagnostics=0; native qbuild-20261024-004339-build-ctest build 86/86 (4.3 s), CTest 70/70 (82.3 s), total 88.5 s.
+- Next: unique lotrec5-2032-r2-20261024 request (same settings as r1); wait event-driven via build-runs/wait-verdict.ps1 (no qwait), exec session assigned when submitted; no prior game outstanding.
 - No public ABI changes; both shadows default off. q.py Bash helper failed CreateFileMapping; direct PowerShell cargo succeeded. Do not read/edit tools/regress.ps1; coordinator must add exact keys to profile after review.
