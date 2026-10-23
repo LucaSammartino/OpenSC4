@@ -119,7 +119,7 @@ struct Host {
     positions: Vec<(u64, [f32; 3])>,
     moved_props: Vec<(u64, [f32; 3])>,
     moved_workers: Vec<(u64, [f32; 3])>,
-    directions: Vec<[f32; 2]>,
+    directions: Vec<[f32; 3]>,
     bindings: Option<[[TextureBinding; 5]; 6]>,
 }
 fn token(r: &RefValue) -> u64 {
@@ -213,8 +213,9 @@ impl ConstructionHost for Host {
         self.positions.push((id, p));
         Some(reference(id))
     }
-    fn worker_direction(&mut self, _: &RefValue, d: [f32; 2]) {
+    fn worker_direction(&mut self, _: &RefValue, d: [f32; 3]) {
         assert!(d.iter().all(|v| (-1.0..=1.0).contains(v)));
+        assert_eq!(d[1], 0.);
         self.directions.push(d);
     }
     fn create_effect(&mut self, lot: &RefValue, r: EffectRequest) -> Option<RefValue> {
@@ -234,7 +235,8 @@ impl ConstructionHost for Host {
     fn lot_developer_building_position(&mut self, _: &RefValue) -> Option<[f32; 3]> {
         Some([0., 100., 0.])
     }
-    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, roof: bool) {
+    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, roof: bool, clear_flag: Option<u32>) {
+        assert_eq!(clear_flag, if roof { None } else { Some(0x10) });
         self.events.push(format!("associate {roof}"));
     }
     fn prop_position(&mut self, prop: &RefValue) -> [f32; 3] {

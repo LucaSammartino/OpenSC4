@@ -751,7 +751,8 @@ pub trait ConstructionHost {
     /// Signed render integer 7, kEffectPriorityLevel.
     fn render_detail(&mut self) -> i32;
     fn create_automaton(&mut self, type_id: u32, position: [f32; 3], roof: bool) -> Option<RefValue>;
-    fn worker_direction(&mut self, automaton: &RefValue, direction: [f32; 2]);
+    /// Automata slot 14, including the owner-supplied zero Y component.
+    fn worker_direction(&mut self, automaton: &RefValue, direction: [f32; 3]);
     /// Creates/AddRefs/initializes one effect occupant, sets position/name,
     /// calls request.slot(request.enabled), associates with lot, returns owned ref.
     fn create_effect(&mut self, lot: &RefValue, request: EffectRequest) -> Option<RefValue>;
@@ -760,7 +761,7 @@ pub trait ConstructionHost {
     /// Lot-developer building lookup for prop anchors, not the cached building.
     fn lot_developer_building_position(&mut self, lot: &RefValue) -> Option<[f32; 3]>;
     /// Associate the prop with the lot; ground props clear occupant flag 0x10.
-    fn associate_prop(&mut self, prop: &RefValue, lot: &RefValue, roof: bool);
+    fn associate_prop(&mut self, prop: &RefValue, lot: &RefValue, roof: bool, clear_flag: Option<u32>);
     fn prop_position(&mut self, prop: &RefValue) -> [f32; 3];
     /// Set position, notify occupant manager with argument, remove property with argument.
     fn move_roof_prop(

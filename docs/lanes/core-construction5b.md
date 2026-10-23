@@ -6,11 +6,14 @@
 - Goal: close construction occupant owner against updated lot developer §6.7 and lot records.
 - Done: implemented LD35–LD38 mesh/height, crane pose/model request, relighting/draw,
   phase interpolation, texture/effect requests, prop anchors/cuts and crew fixes.
-- Focused conformance: 16/16 pass, `build-runs/focused-20261023-172917.log`.
+- Milestone: `8f9f0116` implements LD35–LD38 owner behavior and closure table.
+- Focused conformance: 18/18 pass, `build-runs/focused-20261023-173253.log`.
+- Edge review: retain double prop offsets until position store; explicit 3D worker
+  direction and ground flag; verify every view order, per-face colour and cached offsets.
 - Existing construction core tests: 22/22 passed during implementation.
 - Preserved earlier diagnostics: q.py Bash access failure; focused compile failure
   (RNG comparison), then 15/16 assertion failure; both corrected-source results distinct.
 - Question: LD39, absent texture-scale defaults; supplied scales implemented.
-- Next: finish edge-vector review, run final fmt and full qbuild all once, record gate.
+- Next: run final fmt and full qbuild all once, record gate.
 - Scope: core only; no plugin, C ABI or game integration changes.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-construction5b-r1-manifest.json`.

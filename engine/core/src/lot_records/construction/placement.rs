@@ -245,7 +245,7 @@ pub fn inner_crane_pose(b: Bounds, size: CraneSize, side: usize) -> ([f32; 3], f
 pub fn prop_anchor(
     b: Bounds,
     footprint: [f32; 2],
-    offsets: [f32; 2],
+    offsets: [f64; 2],
     building: Option<[f32; 3]>,
     mut altitude: impl FnMut(f32, f32) -> f32,
 ) -> ([f32; 3], Bounds) {
@@ -253,8 +253,8 @@ pub fn prop_anchor(
     let [x, z] = offsets;
     let hx = (f64::from(fx) * 0.5) as f32;
     let hz = (f64::from(fz) * 0.5) as f32;
-    let cx = (f64::from(b.0[0]) + f64::from(x) + f64::from(hx)) as f32;
-    let cz = (f64::from(b.0[2]) + f64::from(z) + f64::from(hz)) as f32;
+    let cx = (f64::from(b.0[0]) + x + f64::from(hx)) as f32;
+    let cz = (f64::from(b.0[2]) + z + f64::from(hz)) as f32;
     let cut = ([cx - hx, b.0[1], cz - hz], [cx + hx, b.1[1], cz + hz]);
     let y = if let Some(p) = building {
         p[1]
@@ -320,8 +320,8 @@ impl ConstructionOccupant {
             [0, 2][st.rng.uniform_u32(2) as usize]
         };
         let (fx, fz) = if orientation % 2 == 0 { (p.x, p.z) } else { (p.z, p.x) };
-        let x = st.rng.range_f64(0.0, f64::from(w - fx)) as f32;
-        let z = st.rng.range_f64(0.0, f64::from(d - fz)) as f32;
+        let x = st.rng.range_f64(0.0, f64::from(w - fx));
+        let z = st.rng.range_f64(0.0, f64::from(d - fz));
         let (position, footprint) = prop_anchor(
             *b,
             [fx, fz],
@@ -330,7 +330,7 @@ impl ConstructionOccupant {
             |x, z| host.altitude(x, z),
         );
         host.place_prop(&prop, position, orientation);
-        host.associate_prop(&prop, &self.rec.lot, roof);
+        host.associate_prop(&prop, &self.rec.lot, roof, (!roof).then_some(0x10));
         remove_rectangle(b, footprint);
         if roof {
             self.rec.roof_props.push(prop);
@@ -406,7 +406,8 @@ impl ConstructionOccupant {
         if let Some(automaton) = host.create_automaton(type_id, p, roof) {
             let x = st.rng.range_f64(-1.0, 1.0) as f32;
             let z = st.rng.range_f64(-1.0, 1.0) as f32;
-            host.worker_direction(&automaton, normalized_direction(x, z));
+            let [dx, dz] = normalized_direction(x, z);
+            host.worker_direction(&automaton, [dx, 0., dz]);
             self.rec.crew.push(CrewEntry {
                 first: false,
                 second: roof,

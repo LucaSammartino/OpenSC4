@@ -291,13 +291,15 @@ impl ConstructionOccupant {
         if let Some(v) = &self.meshes.posts {
             renderer.coloured(v, 6, 1);
         }
+        renderer.command(RenderCommand::Texturing(true));
         let crane = (0..=2).contains(&self.rec.scalars.state);
         if crane {
             if let Some(v) = &self.meshes.crane_post {
+                renderer.command(RenderCommand::Texturing(false));
                 renderer.coloured(v, 6, 1);
+                renderer.command(RenderCommand::Texturing(true));
             }
         }
-        renderer.command(RenderCommand::Texturing(true));
         renderer.command(RenderCommand::ResetShade);
         renderer.command(RenderCommand::DefaultState);
         renderer.command(RenderCommand::DepthOffset(0));

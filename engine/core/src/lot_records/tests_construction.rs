@@ -509,7 +509,7 @@ impl ConstructionHost for Host {
     fn create_automaton(&mut self, _: u32, _: [f32; 3], _: bool) -> Option<RefValue> {
         None
     }
-    fn worker_direction(&mut self, _: &RefValue, _: [f32; 2]) {}
+    fn worker_direction(&mut self, _: &RefValue, _: [f32; 3]) {}
     fn occupant_base_shutdown(&mut self) {
         self.say("base shutdown".into());
     }
@@ -551,7 +551,7 @@ impl ConstructionHost for Host {
     fn lot_developer_building_position(&mut self, _: &RefValue) -> Option<[f32; 3]> {
         Some([0., 100., 0.])
     }
-    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, _: bool) {}
+    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, _: bool, _: Option<u32>) {}
     fn prop_position(&mut self, _: &RefValue) -> [f32; 3] {
         [0.; 3]
     }

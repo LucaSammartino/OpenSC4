@@ -53,7 +53,7 @@ is the single remaining spec question (LD39); supplied scales are covered.
 | lot-developer §6.7.13 prop tables / construction | `ConstructionStatics::load`, `GROUND_TYPES/ROOF_TYPES` | conformance: static tables test |
 | lot-developer §6.7.14 cleanup / construction | `shutdown`, roof-prop drain at removal | conformance: `test47_completion_removes_every_manager_entry_once`; core: `live_refs_released_by_set_lot_read_and_shutdown` |
 | lot-developer §6.7.15 visual contract / construction | `ConstructionMeshes`, `set_scaffold_height`, `create_crane`, `draw`, `do_rotation_change`, `phase_value`, `prop_anchor`, `normalized_direction`, effect/binding requests | conformance: all `ld35_*`, `ld36_*`, `ld37_*`, `ld38_*` tests; no Unsupported operations |
-| lot-developer §6.7.16 visual conformance vectors / construction | `construction_owner/visual_vectors.rs` | conformance: all 19 vector cases grouped in seven `ld35_*`–`ld38_*` tests |
+| lot-developer §6.7.16 visual conformance vectors / construction | `construction_owner/visual_vectors.rs` | conformance: all 19 vector cases grouped in nine `ld35_*`–`ld38_*` tests, including extra precision, face-colour, view-order and missing-input checks |
 | lot-developer §10/§12 corrections / construction | isolated file RNG, table iterators and explicit seed | core: `test24_spark_scatter`; conformance: static tables/test45 |
 | lot-developer §14 dependencies / construction | `ConstructionHost/ConstructionSource` | conformance: test47 |
 | lot-developer §16 tests 20,21,23–25 / construction | geometry/timing/schedule/texture/sparks/crane functions | core tests of matching numbers; conformance: construction owner tests |

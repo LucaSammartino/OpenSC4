@@ -226,6 +226,7 @@ fn ld35_crane_lifetime_resource_failure_and_cached_offsets() {
 #[derive(Default)]
 struct Renderer {
     rotation: usize,
+    varied_lighting: bool,
     commands: Vec<RenderCommand>,
     textured: Vec<Vec<TextureVertex>>,
     coloured: Vec<Vec<ColourVertex>>,
@@ -243,7 +244,11 @@ impl ConstructionRenderer for Renderer {
     }
     fn lighting_rgb(&mut self, n: [f32; 3]) -> [u8; 3] {
         self.normals.push(n);
-        [201, 100, 51]
+        if self.varied_lighting {
+            [20 * self.normals.len() as u8, 100, 50]
+        } else {
+            [201, 100, 51]
+        }
     }
     fn command(&mut self, c: RenderCommand) {
         self.commands.push(c);
@@ -369,10 +374,13 @@ fn ld37_prop_anchor_crew_flags_normalization_and_render_gate() {
     for detail in [-1, 2, 3] {
         let (mut c, mut st, mut h) = visual_owner();
         h.detail = detail;
+        let mut expected_rng = st.rng.clone();
+        expected_rng.range_i32(0, 1); // empty roof table still draws its count
         c.set_lot(&mut h, &mut st, reference(1));
         if detail < 3 {
             assert!(c.rec.crew.is_empty());
             assert!(h.directions.is_empty());
+            assert_eq!(st.rng.next_raw(), expected_rng.next_raw());
         } else {
             assert!(c.rec.crew.iter().any(|e| !e.first && e.second));
             assert!(c.rec.crew.iter().any(|e| !e.first && !e.second));
@@ -385,7 +393,7 @@ fn ld37_prop_anchor_crew_flags_normalization_and_render_gate() {
             assert!(h
                 .directions
                 .iter()
-                .all(|d| (d[0] * d[0] + d[1] * d[1] - 1.).abs() < 2e-7));
+                .all(|d| (d[0] * d[0] + d[2] * d[2] - 1.).abs() < 2e-7));
             let roof = c.rec.crew.iter().filter(|e| e.second).count();
             assert_eq!(h.moved_workers.len(), roof);
         }
@@ -447,4 +455,80 @@ fn ld38_bindings_effect_parameters_and_unclipped_cuts() {
     let mut b = bounds(0., 0., 10., 10.);
     remove_rectangle(&mut b, bounds(4., 4., 6., 6.));
     assert_eq!(b, bounds(0., 0., 10., 4.));
+}
+
+#[test]
+fn ld35_all_view_orders_face_colours_and_alpha() {
+    let (mut c, st, _) = visual_owner();
+    c.meshes.crane_post(2., 3., 1., 1.);
+    c.meshes.posts.as_mut().unwrap()[0].bgra[3] = 77;
+    let mut r = Renderer {
+        varied_lighting: true,
+        ..Renderer::default()
+    };
+    c.do_rotation_change(&mut r);
+    assert_eq!(c.meshes.posts.unwrap()[0].bgra, [25, 50, 10, 77]);
+    for face in 0..5 {
+        assert_eq!(c.meshes.posts.unwrap()[face * 4].bgra[2], 10 * (face + 1) as u8);
+    }
+    for (face, red) in [10, 30, 20, 40].into_iter().enumerate() {
+        assert_eq!(c.meshes.crane_post.unwrap()[face * 4].bgra, [25, 50, red, 255]);
+    }
+    for (rotation, order) in [[0, 3, 1, 2], [2, 0, 3, 1], [1, 2, 0, 3], [3, 1, 2, 0]]
+        .into_iter()
+        .enumerate()
+    {
+        let mut r = Renderer {
+            rotation,
+            ..Renderer::default()
+        };
+        c.draw(&mut r, &st.tuning, false);
+        for (draw, side) in order.into_iter().enumerate() {
+            assert_eq!(r.textured[draw], c.meshes.sides[side].unwrap());
+        }
+        let offsets: Vec<_> = r
+            .commands
+            .iter()
+            .filter_map(|c| match c {
+                RenderCommand::DepthOffset(n) => Some(*n),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(offsets, vec![1, 1, -1, -1, -1, -1, 0]);
+    }
+}
+
+#[test]
+fn ld36_live_quantized_removal_and_ld37_unrounded_anchor() {
+    let (mut c, mut st, mut h) = visual_owner();
+    c.set_lot(&mut h, &mut st, reference(1));
+    let g = c.geometry.unwrap();
+    assert_eq!(
+        c.rec.scalars.span,
+        (f64::from(g.segments) * f64::from(st.tuning.segment_height)) as f32
+    );
+    c.rec.scalars.state = 3;
+    c.rec.scalars.ms_acc = 0;
+    c.animation_tick(&mut h, &mut st, 0);
+    assert_eq!(
+        c.scaffold_height,
+        (f64::from(g.start_y) + f64::from(c.rec.scalars.span)) as f32
+    );
+    assert!(c.scaffold_height > g.top_y);
+    // Rounding the RDRU result before adding the minimum/half-size loses this bit.
+    let offset = 2_f64.powi(-24) + 2_f64.powi(-50);
+    let p = prop_anchor(
+        bounds(1., 0., 10., 10.),
+        [1., 1.],
+        [offset, 0.],
+        Some([0.; 3]),
+        |_, _| panic!(),
+    )
+    .0;
+    assert_eq!(p[0].to_bits(), 1.5_f32.to_bits() + 1);
+    let t = ConstructionTuning::default();
+    assert!(t.plank_texture_scale.is_none());
+    let mut meshes = ConstructionMeshes::default();
+    meshes.rebuild(visual_geometry(), &t, t.plank_width);
+    assert!(meshes.planks.unwrap()[0].uv[0].is_nan()); // LD39, no invented default
 }
