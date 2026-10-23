@@ -427,6 +427,33 @@ is above the level of terrain slot 29 *[inferred: the sea level]*.
    (player) or entry 16 (AI), as |speed| / entry 7, plays AEMS event 7 for the player and runs `Crash_DetermineCase`
    (automata.md §6.6); slower hits bump.
 
+#### 5.7.1 Crash dispatch and effect prerequisites (WC5, partial)
+
+Crash entry sends event (0xB,0), independently of any duration in the state record.
+The owner first calls base HandleEnterState and returns its result; the watercraft
+entry effects still run even if that result is false (`0x0056E340–0x0056E54D`).
+
+DoStateTick adds dt to crash elapsed before calling DoCrashSequenceTick. Inside that
+call, first test outside-city footprint; outside pushes 72 and skips crash animation.
+Otherwise, for either top state 70 or 71, add dt **again** to crash elapsed, stop wakes,
+and retarget the speed tween to zero if necessary (sample start, target/elapsed/duration
+zero). Thus an ordinary in-city crash state tick advances the accumulator by twice dt.
+Calling DoCrashSequenceTick directly advances it only once. The idle-timeout fallthrough
+can call it after pushing 73, in which case the second addition does not occur because
+the top state is neither 70 nor 71. Evidence: `0x005733A2–0x005733BD`,
+`0x00570270–0x0057036D`, `0x0057040D–0x00570451`.
+
+State 71 places/starts the mushroom effect at the complete boat transform when +0x2B2
+is set, then places/starts splash if present, then calls sinking motion helper 0x0056A440.
+State 70 places/starts grounding, then calls heel motion helper 0x0056AF90 with dt.
+Stopped effects receive transform then start(false); already running effects receive
+transform only. Splash is optional. Grounding is required in state 70; mushroom is
+required when its +0x2B2 gate is set: the null tests in those paths lead to a refresh
+that dereferences the missing effect, rather than safely skipping it. Missing effects
+do not turn this into a false-return recovery path. Evidence: `0x0057036D–0x005704BD`.
+The sinking/heel equations, random draws and collision response still require WC5;
+this dispatch contract alone does not specify those motion helpers.
+
 ## 6. U-Drive-It *[compat]*
 
 ### 6.1 The drive tick (`DoPlayerDriveTick`, `0x0056D310`)
@@ -795,3 +822,12 @@ they do not pass malformed buffers to a reader lacking bounds checks.
 | WC7-T03 | Follower radius=5, L=25, aligned finite headings, dt=0 | g=10, translate exactly 10 along endpoint-gap direction; no turn. Tug radius only affects its back point. |
 | WC7-T04 | Same with L=15, heading wrong by 90 degrees, dt=1000 | No translation or turn, because g=0; height is still set to water level and tick returns true. |
 | WC7-T05 | No tug | Following returns false, without setting height. Exiting state 77 releases references but preserves being-towed byte. |
+
+### 11.5 Crash dispatch boundary vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC5-C01 | Enter state 70 or 71, state duration=8000 | Watercraft entry notification is (0xB,0); elapsed becomes zero. Base entry result is returned without suppressing owner effects. |
+| WC5-C02 | In-city state 71, crash elapsed=100, state tick dt=10 | Elapsed presented to sinking helper is 120; direct crash-sequence call with those initial values presents 110. |
+| WC5-C03 | Outside city, state 70, elapsed=100, state tick dt=10 | Dispatcher advances to 110; crash sequence pushes 72 without another increment or heel animation. |
+| WC5-C04 | State 71, +0x2B2=0, splash absent | No mushroom/splash call; sinking helper still runs. Do not generalize this tolerance to missing grounding in state 70. |
