@@ -22,7 +22,7 @@ PE data reads for the neighbourhood vtable. Numeric widths, offsets, return chan
 spans were checked against instructions; citations are in the spec. Examined working executable SHA-256:
 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
 REA was not used; no session failure or fallback occurred. No original code or assembly listings were copied into
-the spec. No engine, plugin, capi, shared ABI or coverage files were read or edited.
+the spec. No engine, plugin, capi or coverage files were read or edited; shared ABI files were read only.
 
 NR16 was present only in the reserved glue-netrules-shadow5 worktree (its question commit `4965eb6a`), not in this
 base or main. That lane’s report had no Owner closure table; the explicit NR16 request supplied the closure scope.
