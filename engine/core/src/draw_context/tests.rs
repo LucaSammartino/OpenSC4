@@ -47,8 +47,18 @@ struct Device {
     fail_at: Option<usize>,
     stage_count: usize,
     normal_failure: bool,
+    fog_color_pointers: Vec<usize>,
+    fog_scalar_pointers: Vec<(u32, usize)>,
 }
 impl Driver for Device {
+    fn fog_color(&mut self, color: &Rgba) -> Result<NormalReturn, Error> {
+        self.fog_color_pointers.push(color.as_ptr() as usize);
+        self.submit_returned(Command::FogColor(*color))
+    }
+    fn fog_scalar(&mut self, selector: u32, value: &f32) -> Result<NormalReturn, Error> {
+        self.fog_scalar_pointers.push((selector, value as *const f32 as usize));
+        self.submit_returned(Command::FogScalar(selector, *value))
+    }
     fn submit_returned(&mut self, command: Command) -> Result<NormalReturn, Error> {
         self.submit(command)?;
         Ok(NormalReturn {
@@ -1518,11 +1528,11 @@ fn closure_texture_reciprocals_and_x87_controls() {
 }
 
 #[test]
-fn closure_fog_constructor_gap_and_indexed_highlight_write() {
+fn closure_fog_constructor_and_indexed_highlight_write() {
     let mut c = DrawContext::new(Device::default(), props());
     assert_eq!(c.fog_cache(), (0, [f32::MAX; 4], [f32::MAX; 2]));
     assert_eq!(c.opaque_f4(), &[0; 0x38]);
-    assert_eq!(c.turn_on_fog(1), Err(Error::Gap(ContractGap::Fog)));
+    c.turn_on_fog(0, None, f32::MAX, f32::MAX).unwrap();
     assert!(c.driver.commands.is_empty());
     c.init().unwrap();
     c.set_highlight_color(2, [0.25, 0.5, 0.75, 1.]).unwrap();
@@ -1530,6 +1540,154 @@ fn closure_fog_constructor_gap_and_indexed_highlight_write() {
     assert!(c.driver.commands.contains(&Command::TexColor([0.25, 0.5, 0.75, 1.])));
     assert_eq!(c.highlights[1], [0., 1., 0., 1.]);
     assert_eq!(c.set_highlight_color(11, [0.; 4]), Err(Error::InvalidValue));
+}
+
+#[test]
+fn fog_dc_v27_through_v32_and_v35_order_cache_and_normal_failures() {
+    let color = [0.25, 0.5, 0.75, 1.];
+    let expected = [
+        Command::Capability {
+            capability: 6,
+            enabled: true,
+        },
+        Command::FogInteger(0, 2),
+        Command::FogColor(color),
+        Command::FogScalar(3, 10.),
+        Command::FogScalar(4, 20.),
+    ];
+    // DC-V31 must match DC-V28 even when every normal return is failure-valued.
+    for normal_failure in [false, true] {
+        let mut c = DrawContext::new(
+            Device {
+                normal_failure,
+                ..Device::default()
+            },
+            props(),
+        );
+        c.turn_on_fog(0, None, f32::MAX, f32::MAX).unwrap(); // V27
+        c.turn_on_fog(0, Some(&[f32::MAX, f32::MAX, f32::MAX, 0.]), f32::MAX, f32::MAX)
+            .unwrap(); // V32
+        assert!(c.driver.commands.is_empty());
+        assert_eq!(c.fog_cache(), (0, [f32::MAX; 4], [f32::MAX; 2]));
+
+        c.turn_on_fog(1, Some(&color), 10., 20.).unwrap();
+        assert_eq!(c.driver.commands, expected);
+        assert_eq!(c.fog_cache(), (1, [0.25, 0.5, 0.75, f32::MAX], [10., 20.]));
+        assert_eq!(c.driver.fog_color_pointers, [color.as_ptr() as usize]);
+        assert_eq!(c.driver.fog_scalar_pointers.len(), 2);
+        assert_eq!(c.driver.fog_scalar_pointers[0].0, 3);
+        assert_eq!(c.driver.fog_scalar_pointers[1].0, 4);
+        assert_ne!(c.driver.fog_scalar_pointers[0].1, c.driver.fog_scalar_pointers[1].1);
+        assert_eq!(c.driver.reads, 0); // No Init, properties or manager queries.
+        c.driver.commands.clear();
+        c.turn_on_fog(1, Some(&color), 10., 20.).unwrap();
+        c.turn_on_fog(1, Some(&[0.25, 0.5, 0.75, 0.]), f32::MAX, f32::MAX)
+            .unwrap();
+        assert!(c.driver.commands.is_empty());
+        c.turn_on_fog(0, None, f32::MAX, f32::MAX).unwrap();
+        c.turn_on_fog(1, Some(&color), 10., 20.).unwrap();
+        assert_eq!(
+            c.driver.commands,
+            [
+                Command::Capability {
+                    capability: 6,
+                    enabled: false
+                },
+                expected[0].clone(),
+                expected[1].clone(),
+            ]
+        );
+        c.driver.commands.clear();
+        c.turn_on_fog(2, None, f32::MAX, f32::MAX).unwrap(); // V35
+        c.turn_on_fog(2, None, f32::MAX, f32::MAX).unwrap();
+        assert_eq!(c.driver.commands, expected[..2]);
+        assert_eq!(c.fog_cache().0, 2);
+        assert_eq!(c.fog_cache().1[3], f32::MAX);
+        assert_eq!(c.fog_cache().2, [10., 20.]);
+    }
+
+    // DC-V30: independently update parameters with fog disabled, without sorting.
+    let mut c = DrawContext::new(Device::default(), props());
+    let color = [1., 0., 0., 0.5];
+    c.turn_on_fog(0, Some(&color), 20., 10.).unwrap();
+    assert_eq!(
+        c.driver.commands,
+        [
+            Command::FogColor(color),
+            Command::FogScalar(3, 20.),
+            Command::FogScalar(4, 10.)
+        ]
+    );
+    assert_eq!(c.fog_cache(), (0, [1., 0., 0., f32::MAX], [20., 10.]));
+}
+
+#[test]
+fn fog_dc_v33_v34_float_comparisons_preserve_payloads() {
+    let mut c = DrawContext::new(Device::default(), props());
+    c.turn_on_fog(0, Some(&[0.; 4]), 0., 0.).unwrap();
+    c.driver.commands.clear();
+    c.turn_on_fog(0, Some(&[-0., -0., -0., 1.]), -0., -0.).unwrap();
+    assert!(c.driver.commands.is_empty());
+    assert_eq!(c.fog_cache().1.map(f32::to_bits), [0, 0, 0, f32::MAX.to_bits()]);
+    assert_eq!(c.fog_cache().2.map(f32::to_bits), [0, 0]);
+
+    // Equality also preserves negative zeros when those were submitted first.
+    let mut c = DrawContext::new(Device::default(), props());
+    c.turn_on_fog(0, Some(&[-0.; 4]), -0., -0.).unwrap();
+    c.driver.commands.clear();
+    c.turn_on_fog(0, Some(&[0.; 4]), 0., 0.).unwrap();
+    assert!(c.driver.commands.is_empty());
+    assert_eq!(c.fog_cache().1[0].to_bits(), (-0.0f32).to_bits());
+    assert_eq!(c.fog_cache().2.map(f32::to_bits), [(-0.0f32).to_bits(); 2]);
+
+    let nan = f32::from_bits(0x7fc1_2345);
+    let mut c = DrawContext::new(Device::default(), props());
+    for _ in 0..2 {
+        c.turn_on_fog(0, Some(&[nan, 0., 0., 1.]), nan, nan).unwrap();
+        let commands = std::mem::take(&mut c.driver.commands);
+        assert!(
+            matches!(commands.as_slice(), [Command::FogColor(v), Command::FogScalar(3, s), Command::FogScalar(4, e)]
+            if v[0].to_bits() == nan.to_bits() && s.to_bits() == nan.to_bits() && e.to_bits() == nan.to_bits())
+        );
+        assert_eq!(c.fog_cache().1[0].to_bits(), nan.to_bits());
+        assert_eq!(c.fog_cache().2.map(f32::to_bits), [nan.to_bits(); 2]);
+        assert_eq!(c.fog_cache().1[3], f32::MAX);
+    }
+    // A NaN in the old cache also compares unequal to a finite new request.
+    c.turn_on_fog(0, Some(&[0.; 4]), 0., 0.).unwrap();
+    assert_eq!(c.driver.commands.len(), 3);
+}
+
+#[test]
+fn fog_nonreturning_boundary_preserves_completed_prefix_and_retries() {
+    let color = [0.25, 0.5, 0.75, 1.];
+    for fail_at in 0..5 {
+        let mut c = DrawContext::new(
+            Device {
+                fail_at: Some(fail_at),
+                ..Device::default()
+            },
+            props(),
+        );
+        assert_eq!(c.turn_on_fog(1, Some(&color), 10., 20.), Err(Error::Provider(99)));
+        assert_eq!(
+            c.fog_cache(),
+            (
+                u8::from(fail_at >= 2),
+                if fail_at >= 3 {
+                    [0.25, 0.5, 0.75, f32::MAX]
+                } else {
+                    [f32::MAX; 4]
+                },
+                [if fail_at >= 4 { 10. } else { f32::MAX }, f32::MAX],
+            )
+        );
+        c.driver.fail_at = None;
+        c.driver.commands.clear();
+        c.turn_on_fog(1, Some(&color), 10., 20.).unwrap();
+        assert_eq!(c.driver.commands.len(), if fail_at < 2 { 5 } else { 5 - fail_at });
+        assert_eq!(c.fog_cache(), (1, [0.25, 0.5, 0.75, f32::MAX], [10., 20.]));
+    }
 }
 
 #[test]

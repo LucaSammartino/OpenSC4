@@ -36,9 +36,10 @@ operation is mapped below, including the attributed body inventory in 1.5.
 | SC4DrawContext | 0, 1 | `DrawContext`, `ViewState`, provider snapshots | `constructor_init_once_and_dc1_bytes` |
 | SC4DrawContext | 1.1 Init | `init`, `HIGHLIGHT_COLORS` | `constructor_init_once_and_dc1_bytes`; `init_failure_is_retryable_and_does_not_publish_state`; open: DC1 (foreign byte meanings only) |
 | SC4DrawContext | 1.2 combiner records | constructor/default/highlight combiner constants | `settled_complete_constructor_init_and_stage_records` |
-| SC4DrawContext | 1.3 lifecycle | `new`, `init`, `shutdown`, owned storage | `settled_returned_load_failures_retry_and_lifecycle`; `closure_fog_constructor_gap_and_indexed_highlight_write` |
+| SC4DrawContext | 1.3 lifecycle | `new`, `init`, `shutdown`, owned storage | `settled_returned_load_failures_retry_and_lifecycle`; `closure_fog_constructor_and_indexed_highlight_write` |
 | SC4DrawContext | 1.4 stage defaults | `Stage::default_record`, `model_view_matrix` | `settled_complete_constructor_init_and_stage_records`; `settled_returned_load_failures_retry_and_lifecycle` |
-| SC4DrawContext | 1.5 body inventory | state/texture/transform/draw methods below; `set_highlight_color` | `closure_fog_constructor_gap_and_indexed_highlight_write`; open: DC9 (fog operation); open: DC3 (native stack mutation attribution) |
+| SC4DrawContext | 1.5 body inventory | state/texture/transform/draw methods below; `set_highlight_color`, `turn_on_fog` | `closure_fog_constructor_and_indexed_highlight_write`; fog tests below; open: DC3 (native stack mutation attribution) |
+| SC4DrawContext | 1.5.1 fog (DC9) | `turn_on_fog`; borrowed `Driver::fog_color`, `Driver::fog_scalar` | `fog_dc_v27_through_v32_and_v35_order_cache_and_normal_failures`; `fog_dc_v33_v34_float_comparisons_preserve_payloads`; `fog_nonreturning_boundary_preserves_completed_prefix_and_retries` |
 | SC4DrawContext | 2 word | `state_word`, `cache.rs` | `packed_dispatch_order_and_mandatory_resets`; `packed_masks_and_published_default_value` |
 | SC4DrawContext | 3 setters | `enable_*`, `set_depth_func`, `set_alpha_func`, `set_blend_func`, transparency forwards, invalidation | `cache_and_force_switches_and_keep_sentinels`; `texture_dependencies_suppressed_stage_and_higher_stage_behavior`; `transforms_compose_numerically_and_restore_plain_view` |
 | SC4DrawContext | 4 overrides | property snapshots, filter/wrap policy, model branches | `texture_overrides_and_transform_clear_cache`; `model_culling_highlight_skip_and_draw_pass_order`; `debug_boxes_precede_culling_and_do_not_draw_model` |
@@ -58,8 +59,8 @@ operation is mapped below, including the attributed body inventory in 1.5.
 | SC4DrawContext | 9.2 model | `render_model_instance` | `model_culling_highlight_skip_and_draw_pass_order`; `debug_boxes_precede_culling_and_do_not_draw_model`; `model_failure_preserves_prefix_without_exception_cleanup` |
 | SC4DrawContext | 9.3 box | `draw_bounding_box`, `bounding_box_vertices` | `bounding_box_geometry_face_order_wrapping_and_draw_state` |
 | SC4DrawContext | 10 users, 11 quirks | public methods above; no additional caller implementation assigned | material fade, model culling and second-pass tests above |
-| SC4DrawContext | 12 open questions | opaque driver bytes/flags; core stack storage helpers; fog gap | open: DC1/DC2/DC3/DC9; Begin/End owner requirement was withdrawn in 1.3; legacy methods explicitly reject it |
-| SC4DrawContext | 13, 13.1, 13.2 conformance | all methods above | complete vector mapping below |
+| SC4DrawContext | 12 open questions | opaque driver bytes/flags; core stack storage helpers | open: DC1/DC2/DC3; Begin/End owner requirement was withdrawn in 1.3; legacy methods explicitly reject it |
+| SC4DrawContext | 13, 13.1, 13.2, 13.3 conformance | all methods above | complete vector mapping below |
 | cSC4PackedRenderState | 2 field layout; 5.1 packing | `PackInput`, `PackedState::pack_with_control`, `apply_to` | `packed_masks_and_published_default_value`; `closure_texture_reciprocals_and_x87_controls` |
 | cSC4PackedRenderState | 8.2 alpha arithmetic; 13 conformance | `quantize_with_control`, `Arithmetic` | `alpha_is_unrounded_on_input_and_quantized_on_replay`; `settled_numeric_qualification_and_original_alpha_reference` |
 
@@ -88,6 +89,8 @@ they are not claims of attributed native methods (DC3).
 | DC-V14, DC-V25, DC-V26 | `settled_returned_load_failures_retry_and_lifecycle` |
 | DC-V15, DC-V16, DC-V19, DC-V21, DC-V22 | `settled_compact_whole_flags_counters_spills_and_raw_scale` |
 | DC-V17, DC-V18, DC-V20, DC-V23, DC-V24 | `closure_dc_v17_v18_v20_v23_v24` |
+| DC-V27–DC-V32, DC-V35 | `fog_dc_v27_through_v32_and_v35_order_cache_and_normal_failures` |
+| DC-V33, DC-V34 | `fog_dc_v33_v34_float_comparisons_preserve_payloads` |
 
 These are core conformance results, not measurements of the game. Tests also
 cover general texture reciprocals, zero scale, unbounded alpha packing, all
