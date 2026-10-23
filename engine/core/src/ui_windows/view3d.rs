@@ -37,12 +37,70 @@
 //! with a catalog popup open loads with it closed, by design.
 
 use super::slots::{
-    as_igzwin, RetChannel, SlotInfo, CLASS_MODEL_MAKER, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER,
-    VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND,
-    VIEW3D_OFF_TERTIARY_WIN, VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE,
-    VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
+    as_igzwin, RetChannel, SlotInfo, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER,
+    VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN,
+    VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN, VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN,
+    VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE, VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
 };
 use super::win::{WinStore, WinToken};
+
+mod actions;
+mod city;
+mod commands;
+mod dialogs;
+mod gui;
+mod helpers;
+mod input;
+mod lifecycle;
+mod menus;
+mod messages;
+mod motion;
+mod references;
+mod state;
+mod status;
+pub use actions::{ActionCall, ActionHost, DisasterProperties, ToolSpec};
+pub use city::{CityCall, CityHost, CityObject, TunableValues};
+pub use commands::{CommandHost, PanelState, QueryTool};
+pub use dialogs::{DialogCall, DialogHost, EstablishData};
+pub use gui::{GuiCall, GuiHost, GuiState, HelperKind};
+pub use helpers::{BackgroundPicture, HelperHost};
+pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
+pub use lifecycle::{
+    Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS,
+};
+pub use menus::{CatalogItem, CatalogQuery, OwnedPopup, PopupCall, PopupHost, PopupLayout};
+pub use messages::{MessageCall, MessageHost, Notification, Refresh, WindowMessage};
+pub use motion::{Motion, MotionHost, ViewChange};
+pub use references::{ObjectRecord, ReferenceHost};
+pub use state::{CheatHost, CheatTool, FilterInfo, StateHost, ViewState};
+pub use status::{
+    CostDisplay, CostMode, CursorText, DisplayState, StatusHost, StatusSnapshot, WidgetCall,
+    WidgetHost,
+};
+
+#[cfg(test)]
+mod owner_tests;
+
+/// State owned by the city window, independent of foreign window and camera objects.
+#[derive(Debug, Default)]
+pub struct OwnerState {
+    pub modifiers: u32,
+    pub mouse_inside: bool,
+    pub right_press: (i32, i32),
+    pub dragged: bool,
+    pub motion: Motion,
+    pub view: ViewState,
+    pub display: DisplayState,
+    pub panels: PanelState,
+    pub lifecycle: Lifecycle,
+    pub deferred: Vec<Notification>,
+    pub gui: GuiState,
+    /// §6d: 0 none, 1 Background2D, 2 Background3D.
+    pub background_mode: u32,
+    pub popups: [Option<OwnedPopup>; 2],
+    stack: Vec<u32>,
+    persistent: Vec<u32>,
+}
 
 /// The two dwords `CloseTertiaryMenu` writes through `view+0x0208` (§4.1).
 ///
@@ -86,13 +144,8 @@ impl SaveRef {
     }
 }
 
-/// The View3D save record (§3.3a): the only thing the window layer persists.
-///
-/// The first two things written are **references**, not values: `this+0x00F0`
-/// and `this+0x00F4` (the latter written as `obj + 8` when non-null, else null).
-/// Those are the camera control / renderer / model maker / simulator
-/// references INVENTORY-M6 §4.4 and save-records.md describe. The lists that
-/// follow them are save-records §2 / Q4 and are **not** specified here.
+/// Legacy header/two-reference projection used by existing callers. The full
+/// core-owned logical body is [`View3DRecord`]; this projection stays compatible.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct View3DSave {
     /// The record header's group.
@@ -108,6 +161,17 @@ pub struct View3DSave {
     pub ref_f0: SaveRef,
     /// `this+0x00F4`, written as `obj + 8` when non-null else null.
     pub ref_f4: SaveRef,
+}
+
+/// Four-reference version-4 logical record (view3d-window §6k), without UI
+/// state. Original serialized bucket traversal remains open as VW12.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct View3DRecord {
+    pub header: View3DSave,
+    pub model_maker: SaveRef,
+    pub simulator: SaveRef,
+    /// Logical trigger pairs. Exact serialized bucket order is open (VW12).
+    pub triggers: Vec<(u32, u32)>,
 }
 
 impl View3DSave {
@@ -161,9 +225,7 @@ pub struct View3DWin {
     view_manager: Option<u64>,
     /// The current view input control (slot 24), the "tool". `Invoke*` drops
     /// it first (§4.3, quirk 3).
-    input_control: Option<u32>,
-    /// How many persistent view input controls are attached (slots 28-30).
-    persistent_controls: u32,
+    owner: OwnerState,
     /// `AddRef`/`Release` count (slots 1/2).
     refs: i32,
     /// `+0x0008` message-filter sub-object. Inline, so the catalog path passes
@@ -183,8 +245,7 @@ impl View3DWin {
             tertiary_kind: 0,
             catalog_state: None,
             view_manager: None,
-            input_control: None,
-            persistent_controls: 0,
+            owner: OwnerState::default(),
             refs: 1,
             msg_filter_offset: VIEW3D_OFF_MSG_FILTER,
         }
@@ -270,27 +331,44 @@ impl View3DWin {
 
     /// `GetCurrentViewInputControl` (slot 24): the current tool, or none.
     pub fn input_control(&self) -> Option<u32> {
-        self.input_control
+        self.owner.stack.last().copied()
     }
 
     /// `SetCurrentViewInputControl` (slot 25). Passing 0 clears the tool.
     pub fn set_input_control(&mut self, control: u32) {
-        self.input_control = (control != 0).then_some(control);
+        self.owner.stack.clear();
+        self.owner.stack.extend((control != 0).then_some(control));
     }
 
     /// `RemoveAllViewInputControls(force)` (slot 27).
     ///
-    /// `[inferred]` the argument is a "force"/"silent" flag; slot 27's body
-    /// was not read (§4.3).
+    /// Token-only catalog compatibility entry. Adapters must perform the
+    /// lifecycle operations using `remove_all_controls` instead (§6e).
     pub fn remove_all_view_input_controls(&mut self, force: u32) -> Vec<u32> {
-        let dropped = self.input_control.take().into_iter().collect::<Vec<u32>>();
-        self.persistent_controls = 0;
+        let dropped = self.owner.stack.drain(..).rev().collect();
         let _ = force;
         dropped
     }
 
     pub fn persistent_controls(&self) -> u32 {
-        self.persistent_controls
+        self.owner.persistent.len() as u32
+    }
+
+    pub fn owner_state(&self) -> &OwnerState {
+        &self.owner
+    }
+
+    /// The five supported interfaces share the window's reference count (§1).
+    pub fn query_interface(&mut self, iid: u32) -> Option<u32> {
+        let offset = match iid {
+            1 | 0xFA47_B3F9 => 0,
+            0x4522_94AA => 4,
+            0xC6AE_7085 => 8,
+            0x22BA_0121 => 12,
+            _ => return None,
+        };
+        self.add_ref();
+        Some(self.this.wrapping_add(offset))
     }
 
     pub fn add_ref(&mut self) -> u32 {
@@ -378,12 +456,35 @@ impl View3DWin {
             version,
             // `this+0x00F0` and `this+0x00F4` (the latter as `obj + 8` when
             // non-null, else null).
-            ref_f0: SaveRef::of(CLASS_MODEL_MAKER),
-            ref_f4: SaveRef::null(),
+            ref_f0: self.owner.view.references[0],
+            ref_f4: self.owner.view.references[1],
         }
     }
 
-    /// `DoLoad` (`0x007E_BFB0`): resolve the references by class id and leave
+    pub fn save_record(&self) -> View3DRecord {
+        View3DRecord {
+            header: self.do_save(),
+            model_maker: self.owner.view.references[2],
+            simulator: self.owner.view.references[3],
+            triggers: self
+                .owner
+                .view
+                .triggers
+                .iter()
+                .map(|(&t, &count)| (t, count))
+                .collect(),
+        }
+    }
+
+    pub fn load_record(&mut self, record: &View3DRecord) -> Result<(), String> {
+        self.do_load(&record.header)?;
+        self.owner.view.references[2] = record.model_maker;
+        self.owner.view.references[3] = record.simulator;
+        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        Ok(())
+    }
+
+    /// `DoLoad` (`0x007E_BFB0`): retain the references by class id and leave
     /// every UI field clear.
     ///
     /// Quirk 13 / conformance test 25: a catalog popup open at save time is
@@ -391,10 +492,19 @@ impl View3DWin {
     /// `+0x0208`, so a load that leaves them set would be inventing state.
     pub fn do_load(&mut self, record: &View3DSave) -> Result<(), String> {
         let want = View3DSave::header();
-        if (record.group, record.type_id, record.instance, record.version) != want {
+        if (record.group, record.type_id, record.instance) != (want.0, want.1, want.2)
+            || record.version >= 5
+        {
             return Err(format!(
                 "View3D record identity {:#010x}/{:#010x}/{}/{} is not {:#010x}/{:#010x}/{}/{}",
-                record.group, record.type_id, record.instance, record.version, want.0, want.1, want.2, want.3
+                record.group,
+                record.type_id,
+                record.instance,
+                record.version,
+                want.0,
+                want.1,
+                want.2,
+                want.3
             ));
         }
         // The whole UI side is cleared: no dialog state, no catalog menus, no
@@ -404,13 +514,15 @@ impl View3DWin {
         self.tertiary_win = None;
         self.tertiary_kind = 0;
         self.catalog_state = None;
-        self.input_control = None;
-        self.persistent_controls = 0;
-        // The references are resolved by class id; a replacement that does not
-        // implement those classes must give an exact opaque round trip
-        // (save-records). We keep the class ids.
-        let _ = record.ref_f0;
-        let _ = record.ref_f4;
+        self.owner.stack.clear();
+        self.owner.persistent.clear();
+        self.owner.display = DisplayState::default();
+        self.owner.panels = PanelState::default();
+        // The legacy projection supplies two references. Full core callers use
+        // load_record; foreign reference resolution/serialization is not here.
+        self.owner.view.references[0] = record.ref_f0;
+        self.owner.view.references[1] = record.ref_f4;
+        self.owner.view.not_loaded = false;
         Ok(())
     }
 }
@@ -487,10 +599,16 @@ mod tests {
         let mut v = View3DWin::new(0x2000, 7);
         v.set_secondary(Some(11), 0x09DE_8798);
         v.set_tertiary(Some(12), 0xAB95_4023);
-        v.set_catalog_state(Some(CatalogState { field0: 1, field1: 2 }));
+        v.set_catalog_state(Some(CatalogState {
+            field0: 1,
+            field1: 2,
+        }));
         let rec = v.do_save();
         assert!(!rec.carries_ui_state());
-        assert_eq!(View3DSave::header(), (VIEW3D_SAVE_GROUP, VIEW3D_SAVE_TYPE, 1, 4));
+        assert_eq!(
+            View3DSave::header(),
+            (VIEW3D_SAVE_GROUP, VIEW3D_SAVE_TYPE, 1, 4)
+        );
 
         // A load drops the UI side entirely.
         v.do_load(&rec).unwrap();
