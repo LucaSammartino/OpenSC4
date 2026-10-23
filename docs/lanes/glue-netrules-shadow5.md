@@ -14,13 +14,14 @@
 - Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
 - Native verify qbuild-20261023-233355-build-ctest TERMINAL FAIL: MSVC C2488 on naked forward declarations at 223/286; ctest skipped. Removed naked only from forward declarations.
 - Failed native evidence preserved under build-runs/netrules-native-failed-1; request had a long queue delay (file presence did not establish whether it had started).
-- Next: stable-source qbuild all on corrected source, then unique game request to 2032. No operation outstanding before full gate launch.
+- Full qbuild all PASS on ef0469c1a source: 6649 tests, 0 failed; clippy 0 diagnostics; native 47/47 edges; CTest 70/70. Native label qbuild-20261024-000818-build-ctest TERMINAL PASS.
+- Next: submit unique game request below; inspect exactness and return full report/READY queue.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
 - Workspace test/clippy gate PASS: 6649 passed, 0 failed, 0 ignored; clippy 0 diagnostics (qbuild-test.log, qbuild-clippy.log).
-- No game request yet; no round 3 question filed. Native verify above remains outstanding.
-- Game draft: build-runs/game-queue/netrules-r3-2032-a.draft (not enqueued). Label netrules-r3-2032-20261023a, simulator only, turbo through 2032-02-01.
+- No round 3 question filed. No native operation remains outstanding.
+- Game label netrules-r3-2032-20261023a, simulator only, turbo through 2032-02-01; scripted original-tool placements for 12 evaluator-bearing types and five later annual actions (build-runs/netrules-r3-actions.txt).
 - Single event-based game waiter prepared at build-runs/await-netrules-game.py; invoke after request submission (no qwait).
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-shadow5-r3-manifest.json.
 
