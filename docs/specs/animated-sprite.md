@@ -871,3 +871,11 @@ The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, 
 6. **Finite orientation schedule:** conditional analytic stage examples R3-M/C/L/Z (§3.1.4) distinguish
    all masks/flag-4 reset/counter wrap, retained versus B-stored products/sine, old-column dependencies and
    signed zero. They do not assert native angle reachability or replace the proposed UNEXECUTED R2 vectors.
+7. **Literal playback boundaries:** §4.2's AS5 proposed UNEXECUTED cases cover count 0/1/high-bit,
+   byte wrap at count 300, reverse ping-pong, stopping, literal −100→−200 and non-progress. A finite test
+   harness must classify the stated nontermination cases without waiting for a native success/error return.
+8. **Foreign creation, proposed UNEXECUTED:** initialize caller output to sentinel S. Failed resource
+   acquisition returns false, leaves S, and performs no slot-4 call or release. Successful acquisition of R
+   followed by slot 4 writing M/returning true returns true/M and releases R once. If slot 4 returns false
+   without writing output, return false/S and still release R once. In each acquisition assert unchanged
+   key, IID `0x9AD0E7E3`, options 0/0; in each slot-4 call assert `(0, caller-output)` and no model AddRef/QI.

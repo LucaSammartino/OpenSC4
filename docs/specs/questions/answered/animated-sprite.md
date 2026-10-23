@@ -1,6 +1,12 @@
 # Answered questions: animated sprite
 
-- **AS4 - §2 loading:** resource type/IID, zoom order, ownership and failed/repeated load effects.
+<!-- from: core-animated-sprites4 (2026-10-22) -->
+- **AS4 - §2 loading:** AS1 remains open; model-instances §6 identifies a 0x09ADCD75 table queried via
+  IID 0x69B6F01C, whereas §2 calls that IID a resource type. Confirm the exact Load/LoadFromResource inputs,
+  key type/group rewriting, zoom iteration order, reference ownership, missing-first/missing-later zoom return
+  values, rollback versus retained prefix, repeated-load replacement, and which fields initialize/reset.
+  [typed foreign decoded records; acquire in array order with IID 0x69B6F01C, stop at first absent zoom;
+  expose prefix/stopping reason, do not call a prefix a successful native Load or implement resource readers]
 
   **ANSWERED 2026-10-23 (re-animsprite-as5):** DIFFERS — §2.1 distinguishes type `0x09ADCD75` from
   IID `0x69B6F01C`; all five ordered acquisitions plus a non-null texture binding are required for true.
@@ -10,8 +16,16 @@
   transaction was rechecked against instructions at `007FD120–007FD2E9` and `007FC320–007FC43F`.
   Numeric/malformed-record qualification is separately tracked by AS6/AS7.
 
-- **AS5 - §§3–4 clock and sequence stepping:** sentinels, sequence boundaries, reverse/empty/single-frame,
-  return values and skip-loop progress.
+<!-- from: core-animated-sprites4 (2026-10-22) -->
+- **AS5 - §3 slots 9–16, §4 clock and sequence stepping:** please specify animation-table layout/step rules,
+  SetAnimation invalid-index and state-reset behavior, SetRate(-100/-200) resolution and raw resource rate
+  field (no inferred time conversions), SetPlayMode side effects, AdvanceFrame at reverse frame 0 in every
+  mode, and single/empty-frame cases. Does clock subtraction use direction before or after reversal? What
+  are native Tick/AdvanceFrame returns when the frame does not change or playback stops? How is the literal
+  skip loop made to terminate for a single frame, negative rate/elapsed or zero direction with |position|>=1?
+  [only explicitly named unsequenced operations; raw elapsed*rate*direction, literal advance-then-subtract,
+  no-skip long-tick position=1; unresolved sentinels/reverse boundary/non-progress return errors transactionally;
+  no native success return invented and no sequence-table stepping delegated to a foreign owner]
 
   **ANSWERED 2026-10-23 (re-animsprite-as5):** DIFFERS — §§4.2–4.3 publish byte/u16 stepping and
   conditional signed remainder, literal rate storage (Tick replaces −100 by −200), no resource rate,
@@ -21,7 +35,11 @@
   `007FB310–007FB33C`, `007FCEA0–007FD0B7`, controller helper `007FAE90–007FAF34`.
   General arithmetic qualification and controller installation remain AS6 and AS1 respectively.
 
-- **AS11 - §2 foreign factory route:** IID, options, output and reference transfer for type `0x5AD0E817`.
+<!-- from: core-animsprite5 (2026-10-23) -->
+- **AS11 - §2 foreign factory route:** for GetSpriteAnimFromResourceKey (type 0x5AD0E817), what IID,
+  resource-manager options, output interface and reference-transfer rules accompany the published
+  resource-manager fetch? [routing is preserved; no guessed successful foreign factory. The sprite
+  construction/load route for type 0x29A5D1EC is implemented separately.]
 
   **ANSWERED 2026-10-23 (re-animsprite-as5):** DIFFERS — §2 requests IID `0x9AD0E7E3` with zero/zero
   options and a null-initialized temporary. On success resource slot 4 receives `(0, caller-output)`;
