@@ -3,23 +3,15 @@
 
 ## From glue-traffic-flake5 Round 2 (2026-10-23)
 
-- **TS68 - §3.4 / §4.4, split-search continuation at a work-slice return:** What is the lifetime of
-  `continueSearch`? When FullTrips splits a routed trip and the deadline ends the call before its inserted
-  status-0 remainder is searched, does the next invocation retain true or start false? Specify invocation,
-  source, phase, day and network-change boundaries, including suspension of the remainder's search.
-  The filing lane retains the bool across slices/deliveries and sets pathfinder flag 4 for the remainder.
+<!-- from: glue-traffic-flake5 Round 2 (2026-10-23) -->
+- **TS68 - §3.4 / §4.4, split-search continuation at a work-slice return:** What is the lifetime of `continueSearch`? In particular, when FullTrips splits a routed trip and the deadline ends the call before its inserted status-0 remainder is searched, does the next invocation (which §3.4 says walks the held source's list again from its head) retain `continueSearch = true`, or start with it false? Please specify its storage/reset boundaries (invocation, source, phase, day, and network change) and the case where the remainder's search itself suspends. [Current implementation stores the bool in State, retaining it across slices/deliveries, and sets pathfinder flag 4 when searching the remainder. The spec defines setting it on split/success/failure, but does not explicitly define the call-return boundary. Do not change that behavior on the strength of this question alone.]
   **ANSWERED 2026-10-23 (re-traffic-ts68):** MATCHES — continuation is stored at simulator `+0x881`,
   retained across unfinished calls and daily deliveries, cleared on taking a source, unsplit completion,
   failure or DoConnectionsChanged. Phase entry arms taking a new source rather than clearing the byte
   directly. Suspension retains the byte and the separate search state; resumption skips SetupTrip and
   continues the suspended leg. Written into §4.4 with address evidence and §11 test 18 (TS68-a–e).
 
-  Filing evidence: sentinel correction `4883e8c4` yielded turbo `traffic-flake5-4883-turbo1` 72/72 but
-  normal `traffic-flake5-4883-normal1` 70/73, with a 2028-03-28 FullTrips 18 → 2 difference in trip
-  destinations/counts, route bytes, densities and volume grids while holder properties agreed.
-  Diagnostic commit `8c36e30a` records pre-delivery continuation/cursor context; native verification was
-  incomplete at filing. This question was a candidate timing contract, not a proven mismatch diagnosis;
-  the answer confirms the reported continuation choice without attributing that failure to it.
+  Motivation/evidence: after the separate iterator-sentinel correction, `traffic-flake5-4883-turbo1 72/72` is exact to 2032, while normal run `traffic-flake5-4883-normal1 70/73` has a 2028-03-28 FullTrips 18 -> 2 difference: lot (31,89) trip 0 is routed with orig count 3/destination (28,55), ours count 55/destination (12,57); both lists have 18 entries. Edge densities, a second lot's route bytes, and volume grids also differ, while holder properties agree. This is a candidate timing-sensitive contract to investigate, **not a proven diagnosis**. Restarting a pathfinder versus continuing its old open set can change routes, so §3.4's deterministic budget choice alone is insufficient grounds for guessing this boundary. Diagnostic commit 8c36e30a records the pre-delivery cursor/continuation context on subsequent failures; its native build was still queued at filing. No mismatch is masked or excluded.
 
 ## From the traffic simulator core (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
