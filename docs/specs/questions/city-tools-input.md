@@ -81,3 +81,14 @@
   Is `ID + 2` a typo, or another update? If separate, specify which sliders, its amount, lookup parent and
   initialization/notification/write-back timing. The core retains the explicit `ID + 0x100` helper and
   notification behavior and marks the additional update Unsupported rather than inventing cost controls.
+
+<!-- from: core-place-lot5 (2026-10-23) -->
+- **CT22 - §3.4 ring-finished message:** specify the body of `DoPlopRingEffectFinished`.
+  The spec names the helper but gives no state transitions or effects. [Unsupported;
+  other message branches implemented; no native owner callback]
+
+<!-- from: core-place-lot5 (2026-10-23) -->
+- **CT23 - §3.12 clearing/zoning calls:** what are the explicit checkSlope and skipSize
+  values for the two PlaceZone calls, and do failures from demolition/dezoning/zoning
+  abort placement? [literal published sequence: run both calls, preserve the foreign
+  service's default checkSlope/skipSize, no unspecified early returns]
