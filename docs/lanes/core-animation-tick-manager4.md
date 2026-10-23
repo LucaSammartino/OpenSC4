@@ -7,5 +7,8 @@
 - Worktree reused at detached HEAD; no inherited lane changes.
 - Read canonical spec sections 2–6 and 8–9; TK1–3 remain open. Initial capacity 193 is published; growth policy is not.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-animation-tick-manager4-r1-manifest.json; role engine, round 1, own path and lane verified.
-- Next: baseline qbuild all, independent V1–20 ledger, core implementation, focused tests, stable committed-source final all.
+- Baseline all launched as session62996; qbuild-test and native build logs exist; terminal collection pending (no overlapping checker).
+- Implemented owned normal paths in new module; independent V1–20 ledger written before any production outputs.
+- TK4 filed: fixed193 portable table, no inferred native growth order. Public SC4HashSet header does not identify owner-specific growth rules.
+- Next: independent integration tests, format check, collect baseline, focused quick, stable committed-source final all.
 - No game requests: portable core only, no C ABI/plugin wiring.

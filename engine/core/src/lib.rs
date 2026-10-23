@@ -153,3 +153,4 @@ pub mod lotconfig_editor;
 pub mod player_drive;
 pub mod legacy_control;
 pub mod map_view;
+pub mod animation_tick_manager;
