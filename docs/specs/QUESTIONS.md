@@ -87,6 +87,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GZG | gz-graphics |
 | HD | html-document |
 | HG | foundations |
+| HM | hit-music |
 | HU | html-ui-hooks |
 | HW | history |
 | IN | commercial-industrial |
@@ -253,6 +254,7 @@ generated index: the questions live one file per spec, so read only the file for
 | gz-framework-core | 9 | 0 | GZF10 | questions/gz-framework-core.md |
 | gz-graphics | 5 | 0 | GZG6 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
+| hit-music | 8 | 0 | HM9 | questions/hit-music.md |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
@@ -364,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1359** | | |
+| **total** | **607** | **1359** | | |

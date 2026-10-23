@@ -326,7 +326,7 @@ cHitMan	audio	audio	sound-system.md	-	-	-
 cHitChannel	audio	audio	sound-system.md	-	-	-
 cHitIniFile	audio	audio	sound-system.md	-	-	-
 cHitPropertySetTrackResource	audio	audio	sound-system.md	-	-	-
-cHit*	audio	audio	-	-	-	-
+cHit*	audio	audio	hit-music.md	-	-	-
 cFreshPlayer	audio	audio	sound-system.md	-	-	-
 cFreshCellPlayer	audio	audio	sound-system.md	-	-	-
 cFreshnessCOMDirector	audio	audio	sound-system.md	-	-	-

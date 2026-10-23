@@ -137,7 +137,7 @@ marked.
 |---|---|---|
 | framework sound system | `cGZSndSys` (`0xE41CE9FD`), `cGZSndMgr` (`0x7AF85B98`), WAV and "UTalk" data sources | §3.2, §8.3 |
 | EA sound library (SNDSYS / AEMS) | the unnamed range `0x00864000`–`0x00879000`, `cSC4AudioAEMSEventSystem` | §10.2 |
-| Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | §11 (boundary only) |
+| Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | [hit-music.md](hit-music.md) |
 | freshness (adaptive score) | `cFreshPlayer`, `cFreshScore`, `cFreshCell` | §11 (boundary only) |
 | radio | `cRZRadio` (`0x5CFBDBBF`), `cRZDiskRadioStation` (`0x5CFBDBD5`) | §11 (boundary only) |
 | SC4 audio managers | `cSC4AudioSoundManager` and the other §1.2 classes | **§5–§9** |
