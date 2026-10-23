@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rz-sparsematrix4: first portable sparse matrix | Codex; core-rz-sparsematrix4 | in progress: original R2, evidence archived; 21 tests still unexecuted | Qualify literal vectors, run focused quick, commit stable source and run canonical all |
+| core-rz-sparsematrix4: first portable sparse matrix | Codex; core-rz-sparsematrix4 | in progress: literal review complete; 21/21 new tests passed, quick native still active | Collect same quick handle; then one canonical all on stable committed engine |
 
 ## Handoff
 
@@ -10,7 +10,10 @@
 - Old gate predates implementation: Rust 5372/0, clippy clean, native terminal UNKNOWN, CTest unrun/unknown; no new-source pass.
 - Copied coordinator 04:37:56 proof: old PIDs absent, own 4713 listener/reference hits absent; system AccessDenied entries remain unknown. Cause unknown; root did not terminate old clients. Do not recollect absent session 83439 or rerun baseline.
 - R2 q.py read-only diagnostic failed Bash E_ACCESSDENIED; use PowerShell/Python, no repeat Bash diagnosis.
-- Next exact step: read published mutation/range/iterator/vector sections and existing new module/tests; qualify independent SM-V1–13 expectations before one qbuild quick.
+- Literal qualification completed before execution: build-runs/r2-test-qualification.md maps SM-V1–13 to independent tables/traces across all 21 tests. No expectation or production changes needed.
+- First actual new-source result: fc4verify-quick-test.log 3349 passed/0 failed/0 ignored, 21 sparse tests explicitly ok; dependencies compile complete. qbuild quick handle 49758 still running native build; collect same handle, no duplicate quick/all.
+- Measurement at 03:46:32 UTC: build-runs/r2-quick-progress-measurement.json; own listener 4713 PID 28648; own qbuild/fc4verify/native chain retained there. Not a terminal native result. Old qbuild-test/clippy logs still baseline, not new-source evidence.
+- Next exact step: collect same quick handle and measure terminal; stable engine remains f4bb6e0d. Then one canonical all on committed source, preserving before/after hashes and actual terminal evidence.
 - No game request; standalone core, ABI unchanged. SM1–5 remain unresolved and excluded.
 
 ## Report
