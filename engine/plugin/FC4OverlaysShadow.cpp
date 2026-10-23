@@ -16,6 +16,7 @@ extern "C" uint32_t fc4_overlays_verify_contract(uint32_t* out, uint32_t count);
 namespace fc4 {
 namespace {
 bool g_enabled = false;
+bool g_loadPending = false;
 uint32_t g_lines = 0, g_clean = 0;
 uint64_t g_fields = 0, g_differences = 0;
 
@@ -91,14 +92,35 @@ void OverlaysShadowCityLoaded(cISC4City* city) {
     g_enabled = SettingInt("overlays_shadow", "FC4_OVERLAYS_SHADOW", 0) != 0;
     g_lines = g_clean = 0;
     g_fields = g_differences = 0;
+    // terrain.md §15.5.6: GetView can be null before view initialization.
+    // Measured PostCityInit ordering exposes that state; defer the load probe
+    // until the first framework tick with all four managers, outside city Init.
+    g_loadPending = g_enabled;
+    (void)city;
+}
+void OverlaysShadowOnTick(cISC4City* city) {
+    if (!g_enabled || !g_loadPending) return;
+    auto* terrain = city ? city->GetTerrain() : nullptr;
+    auto* view = terrain ? terrain->GetView() : nullptr;
+    if (!view) return;
+    for (uint32_t type = 0; type < 4; ++type) {
+        if (!view->GetOverlayManager(static_cast<cISTETerrainView::tOverlayManagerType>(type))) return;
+    }
+    g_loadPending = false;
     Sample(city, "load", 0);
 }
-void OverlaysShadowMonth(cISC4City* city, int32_t julian) { Sample(city, "month", julian); }
+void OverlaysShadowMonth(cISC4City* city, int32_t julian) {
+    OverlaysShadowOnTick(city);
+    Sample(city, "month", julian);
+}
 void OverlaysShadowCityShutdown() {
     if (g_enabled) {
+        // A city that never exposes its managers must not yield a vacuous pass.
+        if (g_loadPending) Sample(nullptr, "load-unavailable", 0);
         Log("overlays contract shadow: %u/%u lines exact mismatches=%llu fields=%llu scope=sentinels records=blocked(OV12)",
             g_clean, g_lines, static_cast<unsigned long long>(g_differences), static_cast<unsigned long long>(g_fields));
     }
     g_enabled = false;
+    g_loadPending = false;
 }
 }

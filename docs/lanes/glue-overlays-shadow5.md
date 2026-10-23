@@ -9,9 +9,12 @@
 - OV12 filed: exact arena enumeration/replay inputs absent; live records/cells/textures remain blocked.
 - Done: implementation bd552f9e9; focused cargo test 1/1; full workspace cargo 6696/6696, clippy 0 diagnostics.
 - Done: qbuild all terminal PASS: Rust 6696/6696, clippy 0; queued native build 221/221 edges and CTest 69/69 (294.7 s).
-- Next: collect event-driven wait session 37371 for overlays-shadow5-r1-2032a.verdict, then inspect bounded shadow log excerpts.
+- Done: first game clean through 2032-01-13, ref_warnings=0; 72/73 lines exact, load found zero managers, months all exact.
+- Done: deferred load probe to first tick with all four managers (terrain.md §15.5.6 null-before-init contract).
+- Next: repeat all on changed C++ source, then new unique game label overlays-shadow5-r1-2032b.
 - Constraints: clean-room; no native signatures inferred; no tools/ access.
 - Gate: absolute-path fmt passed; relative-path fmt failed (resolved); q.py Bash failed Win32 error 5.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
-- Game: overlays-shadow5-r1-2032a outstanding (Konradshohe, turbo, end_date 2032-01-01, overlays_shadow=1).
-- Wait script: build-runs/wait-verdict.ps1 uses file events, not polling or qwait. No full-overlay coverage claim.
+- Game: no requests outstanding; first verdict preserved in docs/runs/overlays-shadow5-r1-2032a-341.md.
+- Waiter missed file event, stopped after reading completed verdict (no rerun for waiter); use absolute path next time.
+- Full-overlay verification remains blocked by OV12, not claimed by sentinel measurements.
