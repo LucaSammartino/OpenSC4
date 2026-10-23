@@ -57,44 +57,45 @@ impl Source {
         self.reads.fetch_add(1, Ordering::SeqCst);
     }
 }
-impl TuningSource for Source {
-    fn boolean(&self, key: [u32; 3], property: u32) -> Option<bool> {
-        self.read(key);
-        assert_eq!(property, 0x491C_9C00);
-        if self.missing {
-            None
-        } else {
-            Some(true)
-        }
+impl retained::RawTuningSource for Source {
+    fn acquire(&self, key: [u32; 3]) -> bool {
+        assert_eq!(key, RIPPLE_EXEMPLAR);
+        !self.missing
     }
-    fn integer(&self, key: [u32; 3], property: u32) -> Option<u32> {
-        self.read(key);
-        Some(match property {
-            0x491C_9C01 => 50,
-            0x491C_9C07 => 175000,
-            0x491C_9C0C => 12,
-            0x491C_9C0D => 6,
-            _ => panic!("unexpected property"),
+    fn release(&self) {}
+    fn property(&self, property: u32) -> Option<retained::Property<'_>> {
+        use crate::variant::Elem;
+        self.read(RIPPLE_EXEMPLAR);
+        let scalar = match property & 255 {
+            0 => Some(Elem::Bool(true)),
+            1 => Some(Elem::U32(50)),
+            3 => Some(Elem::F32(0.3)),
+            7 => Some(Elem::U32(175000)),
+            12 => Some(Elem::U32(12)),
+            13 => Some(Elem::U32(6)),
+            _ => None,
+        };
+        const SIXTEEN: &[u8] = &[
+            0, 0, 128, 65, 0, 0, 128, 65, 0, 0, 128, 65, 0, 0, 128, 65, 0, 0, 128, 65,
+        ];
+        Some(retained::Property {
+            tag: scalar.map_or(0x800A, |v| v.mem_type()),
+            scalar,
+            backing: SIXTEEN,
+            count: 5,
         })
     }
-    fn scalar(&self, key: [u32; 3], property: u32) -> Option<f32> {
-        self.read(key);
-        assert_eq!(property, 0x491C_9C03);
-        Some(0.3)
+}
+
+fn arithmetic() -> retained::ReadArithmetic {
+    // Literal parameter for the unpublished stored factor; WR11, no native claim.
+    retained::ReadArithmetic {
+        mode: retained::NumericMode::Published24,
+        degree_factor: 0.5,
     }
-    fn per_zoom(&self, key: [u32; 3], property: u32) -> Option<[f32; 5]> {
-        self.read(key);
-        Some(match property {
-            0x491C_9C02 => [16.0; 5],
-            0x491C_9C04 => [0.15, 0.3, 0.3, 0.6, 0.75],
-            0x491C_9C05 => [45.0, 40.0, 35.0, 30.0, 26.0],
-            0x491C_9C06 => [1.0; 5],
-            0x491C_9C08 | 0x491C_9C09 => [100.0, 150.0, 200.0, 255.0, 255.0],
-            0x491C_9C0A => [0.2; 5],
-            0x491C_9C0B => [60.0; 5],
-            _ => panic!("unexpected property"),
-        })
-    }
+}
+fn process() -> Arc<std::sync::Mutex<retained::RippleProcess>> {
+    Arc::new(std::sync::Mutex::new(retained::RippleProcess::default()))
 }
 
 struct Ground {
@@ -452,14 +453,18 @@ fn bound_strip_owns_exactly_one_texture_reference_until_drop() {
 #[test]
 fn tuning_property_routes_and_raw_thresholds() {
     let source = Source::default();
-    let t = RippleTuning::read(&source).unwrap();
-    assert_eq!(t, RippleTuning::default());
-    assert_eq!(t.frame_period, 175000);
-    assert_eq!(t.edit_count_threshold(), 250);
-    close(t.spline_step(zoom(4)), 0.25);
+    let mut p = retained::RippleProcess::default();
+    p.eligible_init(&source, arithmetic()).unwrap();
+    assert_eq!(p.tuning.period, 175000);
+    assert_eq!(p.tuning.minimum, 50);
+    assert_eq!(p.tuning.period_bounds, [122499, 227499]);
+    close(p.tuning.step[4], 0.25);
     assert_eq!(source.reads.load(Ordering::SeqCst), 14);
     assert_eq!(Zoom::new(5), Err(Error::InvalidTuning));
 }
+
+#[path = "tests_wr8.rs"]
+mod wr8;
 #[test]
 fn tuning_rejects_nonfinite_and_zero_spacing() {
     let mut t = RippleTuning::default();
@@ -485,8 +490,14 @@ fn actual_seed_blocks_detection_without_host_trace_delegation() {
     let mut g = Ground::new([2, 1]);
     g.flags = vec![0, 0x10, 0x11, 0x90, 0x01, 0];
     let mut w = WaterRipple::default();
-    w.init(Arc::new(g), Arc::new(Factory::default()), &Source::default())
-        .unwrap();
+    w.init(
+        Arc::new(g),
+        Arc::new(Factory::default()),
+        &Source::default(),
+        process(),
+        arithmetic(),
+    )
+    .unwrap();
     assert_eq!(w.shore_seeds().unwrap(), vec![cell(1, 0), cell(0, 1)]);
     assert_eq!(w.update(zoom(4), false), Err(Error::Gap(ContractGap::ShoreTraceWr4)));
 }
@@ -537,7 +548,9 @@ fn rebuild_message_refreshes_counter_and_cleanup_releases_resources() {
     let factory = Arc::new(Factory::default());
     let source = Source::default();
     let mut w = WaterRipple::default();
-    w.init(ground.clone(), factory.clone(), &source).unwrap();
+    let shared = process();
+    w.init(ground.clone(), factory.clone(), &source, shared.clone(), arithmetic())
+        .unwrap();
     assert_eq!(w.update(zoom(0), true), Ok(RippleUpdate::Empty));
     ground.counter.store(251, Ordering::SeqCst);
     w.do_message(RippleMessage::AnimationTick(1)).unwrap();
@@ -551,11 +564,11 @@ fn rebuild_message_refreshes_counter_and_cleanup_releases_resources() {
     w.shutdown();
     assert_eq!(Arc::strong_count(&ground), 1);
     assert_eq!(Arc::strong_count(&factory), 1);
-    w.init(ground, factory, &source).unwrap();
+    w.init(ground, factory, &source, shared, arithmetic()).unwrap();
     assert_eq!(source.reads.load(Ordering::SeqCst), 14);
 }
 #[test]
-fn failed_init_is_atomic_and_safe_before_init() {
+fn missing_exemplar_init_continues_and_safe_before_init() {
     let mut w = WaterRipple::default();
     assert_eq!(w.update(zoom(0), true), Err(Error::NotInitialized));
     let source = Source {
@@ -564,10 +577,11 @@ fn failed_init_is_atomic_and_safe_before_init() {
     };
     let g = Arc::new(Ground::new([1, 1]));
     let f = Arc::new(Factory::default());
-    assert_eq!(w.init(g.clone(), f.clone(), &source), Err(Error::InvalidTuning));
-    assert!(!w.is_initialized());
-    assert_eq!(Arc::strong_count(&g), 1);
-    assert_eq!(Arc::strong_count(&f), 1);
+    // DIFFERS: §2.4 missing whole exemplar does not fail/roll back Init.
+    assert_eq!(w.init(g.clone(), f.clone(), &source, process(), arithmetic()), Ok(true));
+    assert!(w.is_initialized());
+    assert_eq!(Arc::strong_count(&g), 2);
+    assert_eq!(Arc::strong_count(&f), 2);
     w.shutdown();
     w.shutdown();
 }
