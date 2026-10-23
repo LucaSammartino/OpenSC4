@@ -23,4 +23,4 @@
 - New questions RD9–RD11 appended to renderer-driver.md questions; existing RD6/RD7/RD8 explicit boundaries.
 - No game requests outstanding. No plugin/capi integration, so game checks are not applicable to this core-only draft.
 - Round 2 source milestone 3c769fe7: Enable fix and 31-test focused pass. README now maps every applicable subsection per owner; remaining boundaries are explicitly scoped. Added final matrix/no-op/blit, alias/refcount and light-field coverage; 32 tests await final all gate, two-file fmt passed.
-- Next: run final stable-source qbuild all once, collect its terminal result, then commit report and write ready queue with full HEAD. No requests outstanding; no merge-queue entry yet; ABI false.
+- Owner closure milestone 99246501; final stable-source qbuild all RUNNING in exec session 92089. Collect this same operation with write_stdin 60s; never duplicate it. Then commit full report and write ready queue with full HEAD. No game requests or merge-queue entry; ABI false.
