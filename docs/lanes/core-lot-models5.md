@@ -11,6 +11,7 @@
 - Diagnostic after that Rust gate: §3 zero wall draw flag incorrectly bypassed facing; lattice helper rejected settled signed/large finite coordinates; foundation rejected explicitly specified reversed border bounds. Corrected with regression tests and signed-shift/16 m representability checks. The first all gate Rust evidence is pre-correction and must not be reported as final.
 - Done: corrected-source focused Cargo session 24559 passed 54/54 tests (includes signed lattice/reversed border and corrected zero wall flag). The first all session 8909 still waits for queued native completion.
 - Final audit: §4.2 loader boolean was missing (two failures returned unit success). Added true/false result and assertions for disabled key, fallback success and two failures. Draw deliberately ignores this boolean. This last change needs final gate coverage.
+- Final arithmetic correction: §2.2 signed32(N<<4) is now an explicit wrapping low-word shift after valid signed conversion; added literal N=134217729 case, expected base word 4F000000. Final module has 55 tests; requires final full gate.
 - Next: collect initial all session 8909, then run all once on corrected stable source; explicitly run requested qbuild verify, final fmt and report. No duplicate operation has been started.
 - Native verification must use qbuild's coordinator queue, never fc4verify directly. qbuild all already queues build+ctest through that path.
 - No game requests outstanding. Manifest: main build-runs/run4-core-lot-models5-r1-manifest.json.

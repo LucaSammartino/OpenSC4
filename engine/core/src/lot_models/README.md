@@ -42,6 +42,9 @@ supplies the proven sentinel and default top scale. No ABI changed.
 Foundation `adjust_from_terrain` owns enumeration and `draw_lit`/`recolour` write BGRA
 from integer light. Legacy `setup_vertices`/`draw` retain semantic floating
 colour metadata; that compatibility metadata is not native packed-colour proof.
+Foundation depth uses the specified signed low word of `N << 4`, including
+wraparound after a valid signed count conversion, rather than an unbounded
+depth multiplication (`foundation_step_depth_uses_signed_low_word_shift`).
 
 Wall `rebuild`/`setup_from_bounds` own traversal. `triangles()` returns the
 full stored list including tails; `draw_lit` recolours it. Legacy `draw`

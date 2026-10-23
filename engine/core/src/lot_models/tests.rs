@@ -1266,6 +1266,31 @@ fn foundation_unchecked_scale_and_signed_existing_count() {
 }
 
 #[test]
+fn foundation_step_depth_uses_signed_low_word_shift() {
+    let mut model = FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.; 2],
+            max: [16.; 2],
+        },
+        0.,
+        0.,
+        16.,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5],
+        },
+    )
+    .unwrap();
+    // N=134217729 converts validly to i32. Its shifted low word is 80000010,
+    // interpreted as -2147483632 before subtracting from top and storing f32.
+    let result = model
+        .adjust_height_to_terrain(&border(-2_147_483_648., None), false, &mut Light::default())
+        .unwrap();
+    assert!(result.base_changed && result.rebuilt);
+    assert_eq!(result.base.to_bits(), 0x4f00_0000);
+}
+
+#[test]
 fn literal_signed_lattice_and_reversed_foundation_border() {
     // At -16 and -32 the biased words are 4B3FFFFF and 4B3FFFFE;
     // upper(-16) stores 4B3FFFFE then adds one after subtraction.

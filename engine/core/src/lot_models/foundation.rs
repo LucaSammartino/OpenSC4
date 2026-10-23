@@ -399,10 +399,13 @@ impl<T: Texture> FoundationModel<T> {
         // Finite, nearest-even PC53 subset; no universal x87 control claim.
         let existing = ((f64::from(self.top) - f64::from(self.base) + 16.0) * 0.0625).trunc();
         let required = ((f64::from(drop) + 16.0) * 0.0625).trunc();
-        if !(0.0..=134_217_727.0).contains(&required) || !(-2_147_483_648.0..=2_147_483_647.0).contains(&existing) {
+        if !(0.0..=2_147_483_647.0).contains(&required) || !(-2_147_483_648.0..=2_147_483_647.0).contains(&existing) {
             return Err(ContractError::InvalidInput);
         }
-        let candidate = (f64::from(self.top) - required * 16.0) as f32;
+        // §2.2 specifies signed32(N << 4), not an unbounded depth multiply.
+        // Conversion itself is restricted to the published valid i32 domain.
+        let depth = (required as i32).wrapping_shl(4);
+        let candidate = (f64::from(self.top) - f64::from(depth)) as f32;
         if !candidate.is_finite() || !(self.top - candidate).is_finite() {
             return Err(ContractError::InvalidInput);
         }
