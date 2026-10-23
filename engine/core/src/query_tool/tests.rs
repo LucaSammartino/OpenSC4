@@ -30,6 +30,9 @@ struct Fake {
     fail_dialog: bool,
 }
 impl World for Fake {
+    fn city_size(&self) -> i32 {
+        64
+    }
     fn occupant(&self, id: Token) -> Occupant {
         self.objects.get(&id).cloned().unwrap_or_default()
     }
@@ -929,4 +932,8 @@ fn network_describe_format() {
     assert!(out.text.contains("Piece Id: 00001234, Rotation:2, Flipped:1"));
     assert!(out.text.contains("cap(100) vol(30) cong(0.300000)"));
     assert!(out.open.contains(&Open::DebugWritersCt14));
+    f.objects.get_mut(&1).unwrap().cell = Cell { x: 5, z: 5 };
+    f.events.clear();
+    assert_eq!(tool(Mode::Query).do_neighbor_dialog(&mut f, 1), Ok(false));
+    assert!(f.events.is_empty());
 }

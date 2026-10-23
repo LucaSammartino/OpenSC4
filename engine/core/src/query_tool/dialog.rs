@@ -194,6 +194,9 @@ fn per_unit(a: f64, b: f64) -> f64 {
 pub fn fill_control(host: &mut impl Host, w: Token, id: u32, get: bool, subject: Subject) -> bool {
     let zone = matches!(subject, Subject::Cell(_));
     let i = id & 0xFFF;
+    if id & 0x1000 == 0 {
+        return false;
+    }
     if zone {
         if !matches!(i, 17..=21 | 38..=40 | 120 | 123..=126) {
             return false;
@@ -672,6 +675,17 @@ pub fn dialog_notification(host: &mut impl Host, dialog: Token, s: Subject, n: N
 }
 
 impl QueryTool {
+    pub fn do_neighbor_dialog(&self, host: &mut impl Host, id: Token) -> Result<bool, Open> {
+        let c = host.occupant(id).cell;
+        let last = host.city_size() - 1;
+        if c.x != 0 && c.z != 0 && c.x != last && c.z != last {
+            return Ok(false);
+        }
+        // CT14: kind-code mapping and looked-up windows are explicitly a
+        // summary. Preserve the published city-edge gate before stopping.
+        host.effect(Effect::Unsettled(Open::NeighborDialogCt14));
+        Err(Open::NeighborDialogCt14)
+    }
     pub fn do_query_dialog(&self, host: &mut impl Host, o: Token) -> bool {
         let Some(script) = host.occupant(o).u32_property(0x2A49_9F85) else {
             return false;
@@ -727,11 +741,13 @@ impl QueryTool {
             let o = host.occupant(id);
             self.play_occupant_sound(host, id);
             if o.network_interface {
-                host.effect(Effect::Unsettled(Open::NeighborDialogCt14));
-                out.open.push(Open::NeighborDialogCt14);
+                if let Err(open) = self.do_neighbor_dialog(host, id) {
+                    out.open.push(open);
+                }
             } else if o.pole_interface {
-                host.effect(Effect::Unsettled(Open::NeighborDialogCt14));
-                out.open.push(Open::NeighborDialogCt14);
+                if let Err(open) = self.do_neighbor_dialog(host, id) {
+                    out.open.push(open);
+                }
                 shown = true;
             }
             if !shown {

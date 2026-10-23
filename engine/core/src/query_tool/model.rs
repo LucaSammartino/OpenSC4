@@ -296,6 +296,7 @@ pub trait World {
     /// Native int64 values must not pass through a floating-point conversion.
     fn money_value(&self, read: Read, subject: Subject) -> i64;
     fn debug_query_enabled(&self) -> bool;
+    fn city_size(&self) -> i32;
 }
 pub trait Host: World + ControlHost {
     fn effect(&mut self, effect: Effect);
