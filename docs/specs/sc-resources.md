@@ -299,8 +299,28 @@ message callback or drawing method.
 The token descriptor is eight bytes: uint32 ID, uint16 type, uint16 count.
 Descriptors match only if ID, type and count all match, with the latter two
 compared as uint16 (`0x0097EF5B`–`0x0097EF83`, instruction verified).
-The complete type-number mapping remains SCR4.
-Do not substitute the vtable slot index for the wire type number.
+Do not substitute the vtable slot index for the wire type number. The wire
+numbers select the following payloads (CreateField `0x009805F8`, constructors
+`0x0097F9DF`–`0x00980293`, field Read adapter dispatches):
+
+| Wire type | Payload | Bytes per binary element |
+|---|---|---|
+| 1 | uint8 | 1 |
+| 2 | uint16 | 2 |
+| 3 | uint32 | 4 |
+| 4 | sint32 | 4 |
+| 5 | float32 | 4 |
+| 6 | sint64 | 8 |
+| 7 | string | uint32 byte length followed by bytes |
+| 8 | resource key | 12 |
+| 9 | sint8 | 1 |
+| 10 | sint16 | 2 |
+| 11 | uint64 | 8 |
+| 12 | float64 | 8 |
+
+In particular type 6 is signed integer, not double. Field readers for types
+5/6/11/12 call adapter byte offsets `0x14/0x18/0x1C/0x10` respectively
+(`0x0097FE36`, `0x0097FD60`, `0x0098022B`, `0x009802BF`).
 
 A missing field makes a typed getter fail without calling the typed field
 reader. Setters find or create the field and delegate the typed values and
@@ -314,6 +334,23 @@ Wire type 3 is uint32. An existing matching descriptor is not a new creation;
 a different descriptor at the same ID causes the old map entry to be erased
 before replacement (`0x009805F8`). This is a descriptor operation, not a
 coercion between the requested typed getter and the stored type.
+
+`SetTokenString` changes the existing field's definition name, stored at field
++0xC; it does not set a string payload or create a field (`0x00980F3A`). Names
+are emitted by the text definition writer but are not part of a binary
+descriptor and do not participate in descriptor matching.
+
+The binary adapter table is `0x00AD9978`. It writes descriptor ID/type/count
+through the serial record's uint32/uint16/uint16 methods and payload elements
+through the corresponding typed methods, in count order, without text names
+or comma delimiters. Serial byte order and string/key representation are the
+contracts in persistence section 3. Fixed-width reads add the width to their
+counter *before* requiring counter < total size, then delegate; equality
+fails without a serial read. A descriptor adds eight once before its three
+reads; a key adds twelve once. A string instead delegates its length-prefixed
+read first, adds returned byte length plus four, and fails only if counter >
+total. These distinct boundary rules must not be normalized (`0x0097EBA0`,
+`0x0097EBE6`–`0x0097ECD5`, `0x0097ECDE`, `0x0097ED17`, `0x0097ED30`).
 
 The terminator `TK_TKR_End` has descriptor `{ID=1,type=3,count=1}` and a uint32
 zero payload. A reader stops on ID 1 before consuming that payload. In write
@@ -350,6 +387,15 @@ argument promoted to double, f64 `%g, `, and strings `%s, `. Strings are raw,
 unquoted text, so commas are not protected by a quoting layer. Output uses the
 serial record's `SetFieldString`; see persistence section 3 for that IO
 contract (`0x0097F54D`, `0x0097F5B7`, `0x0097F5E4`–`0x0097F93A`).
+
+There is no fragment-unwrapping layer on text input. With the concrete serial
+record, every output fragment has its own four-byte length prefix; the raw
+delimiter reader consumes those bytes as ordinary characters too. It ignores
+everything through `[` when finding a definition, so a preceding length word
+can be skipped incidentally. A length word before a numeric value can prevent
+conversion, including when its first byte is a control byte or NUL. Preserve
+these independent read/write contracts; this interface does not promise that
+its concrete length-prefixed output roundtrips through the raw text reader.
 
 The delimiter reader (`0x00980A41`) clears its text destination, discards
 semicolon comments through CR, drops LF, converts CR and tab to spaces, and
@@ -404,9 +450,17 @@ resource-level drawing command or message handler in the audited interface.
 
 *[compat]* Record loading (`0x00979171`) first tries BMP at the current cursor.
 If that fails it seeks to absolute zero and tries TGA; a failed seek aborts.
-The file BMP loader (`0x0097878C`) seeks to `bfOffBits`. Record-side offset
-handling remains SCR5. Failed loading must not be treated as a decoded image;
-post-failure buffer contents are not established.
+The file BMP loader (`0x0097878C`) seeks to `bfOffBits`. The record loader never
+seeks to that offset: pixels are read at the cursor following the headers and
+any palette. It merely requires unsigned 32-bit `(bfOffBits + 14) >= 54`.
+For RLE with zero image-size field it uses `bfSize − bfOffBits` as compressed
+length, rejecting length >= bfSize; otherwise it uses the declared image size.
+An extra gap before the declared pixel position is therefore decoded as pixel
+data on the record path (`0x00978EF5`–`0x00978F39`). Failed loading must not be
+treated as a decoded image. Failures before buffer creation retain its prior
+state; failure after creation/lock/conversion can leave changed dimensions or
+partially written pixels. There is no rollback or buffer replacement on this
+path. A subsequent TGA attempt can change the same retained buffer again.
 
 BMP accepts a 14-byte `BM` header and 40-byte information header. Header
 validation permits compression values 0 and 1 and depths 4, 8 and 24
@@ -429,9 +483,33 @@ can still report success after buffer creation and locking, so success alone
 does not validate that unsupported input.
 
 Loaders create then lock/unlock the destination buffer (file flags `0x8040`,
-record flags `0x8080`). The specialized 4444 dithering path and exact numeric
-diffusion rule require instruction verification; see SCR5. Do not silently
-replace it with nondithered truncation for comparison tests.
+record flags `0x8080`). The specialized BMP 24-to-4444 path is selected only
+when requested color type is 1, destination depth is 16 and the buffer's
+reported color type is **7** (`0x0097868A`). The TGA 32-bit path similarly
+tests reported color type 7 before calling the ARGB8 dither routine
+(`0x00978CCA`–`0x00978CDF`).
+
+### 7.3 Exact 4444 diffusion
+
+*[compat]* Both dither routines start with zero integer error storage and scan
+the first output row left-to-right, the next right-to-left, alternating each
+row. BMP source starts at its last stored row and moves backwards by aligned
+source stride; ARGB8 uses its supplied starting row and signed source pitch.
+Per channel, add floor(accumulated weighted error / 16) to the source byte,
+clamp only above 255, emit the high nibble, and retain the low nibble as error.
+Send that error with weights 7 to the next pixel in the scan direction, 3 to
+the next row's pixel opposite the scan direction, 5 directly below and 1 to
+the next row's pixel in the scan direction. Off-image contributions go to
+padding cells and do not wrap around. There is no half-unit rounding bias,
+negative error, floating arithmetic or division by 17.
+
+Errors are packed in uint32 byte lanes B/G/R/(A). Each lane holds a sum of
+weighted low nibbles, so extracting bits 4–7 of each lane is the division by
+16, with no cross-channel carry for valid byte inputs. The 24-bit version
+diffuses B/G/R only and emits alpha nibble F; the ARGB8 version diffuses alpha
+too. Destination words are A:R:G:B in descending nibbles. Both use unsigned
+byte loads, shifts, unsigned upper clamps and 16-bit output stores, verified
+at `0x00978325`–`0x009783DF` and `0x00978571`–`0x00978605`.
 
 ## 8. cGZPersistASCIIWriter
 
