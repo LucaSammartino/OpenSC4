@@ -153,7 +153,7 @@ impl UndergroundTail {
 
 /// A wall vertex list (helper `0x0065B070` / `0x006574A0`, NO17 c): u32
 /// count, then `count` 24-byte vertices.
-fn write_wall(w: &[Vertex], out: &mut dyn OutStream) {
+pub(super) fn write_wall(w: &[Vertex], out: &mut dyn OutStream) {
     out.put_u32(w.len() as u32);
     for v in w {
         v.write(out);
@@ -161,7 +161,7 @@ fn write_wall(w: &[Vertex], out: &mut dyn OutStream) {
 }
 
 /// The reader does not force the alpha byte.
-fn read_wall(inp: &mut dyn InStream) -> Option<Vec<Vertex>> {
+pub(super) fn read_wall(inp: &mut dyn InStream) -> Option<Vec<Vertex>> {
     let n = inp.get_u32()?;
     // No capacity from the stream's count (a corrupt count fails short).
     let mut w = Vec::new();
