@@ -20,15 +20,23 @@ lane tips are ancestors of main. No batch is in flight.
 The exact-function credit path (76 B, self-reviewed) was removed in the 2026-10-23 trim. Bounded/partial deliveries earn no owner credit; on resume, prefer finishing owners over
 parallel partial slices.
 
-**Unfinished work left in worktrees** (uncommitted or unqueued; inspect before reuse): Automata controller RE,
-LotModels, TerrainOverlays, NetworkRoutines, MissingPlugin reporter, MyStreetSim, PropertySetter helpers,
-AutoGamePause, RZ SysServPtr. Radius and CurveEditor R2 have READY docs queue entries that were not
-independently reviewed. Watercraft RE is WIP and not enqueued. Tooltip, RZ TextFile and native UTF8 are drafts.
+**Unlanded work** (worktrees removed 2026-10-23; every unlanded branch is pushed to origin, and each removed
+worktree's build-runs text is in `build-runs/worktree-archive-2026-10-23.tar.gz`, local only):
+- Nearest to landing, the nine workers stopped mid-round: `core-auto-game-pause4`, `core-lot-models-contracts4`,
+  `core-missing-plugin-reporter4`, `core-my-street-sim4`, `core-network-routines4`, `core-property-setter-helpers4`,
+  `core-rz-system-service-pointer4`, `core-terrain-overlays-contracts4`, `re-automata-controller-lifecycle4`.
+  Three end in an ungated "WIP: preserve uncommitted lane work" commit.
+- `re-curve-editor-views4`: spec transliterates x87 instruction sequences (CONTRIBUTING.md "Specs"); rewrite
+  as behaviour before landing.
+- Held Codex lanes (`git branch --no-merged main`, about 35): mostly blocked on unpublished contracts; review
+  one by one before reviving. `tools-build-singleflight4` and `tools-refill-rea-admission4` extend the removed
+  swarm tooling.
+- Pre-run parked branches (`glue25`, `glue26`, `glue-terrain3`, `verify-netmgrfix4`, `integration/*`,
+  `coordinator/*`) are unchanged.
 
 **Known issues:** train121 really worsened LandValue (72/72 to 71/72) and the coordinator landed it anyway
 ([incident](ops/acceptance-incident-train121.md)); every landing must read the full comparison delta, not just
-the verdict. Native per-step LandValue capture is still 0. The repo holds about 150 worktrees and 765 branches,
-and C: is 82% full.
+the verdict. Native per-step LandValue capture is still 0. C: is 68% full after the worktree cleanup.
 
 The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
