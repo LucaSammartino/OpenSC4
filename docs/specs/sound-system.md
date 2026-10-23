@@ -112,7 +112,9 @@ the resulting error condition (`0x0093B01E`, `0x0093B08B`).
 three values zero (`0x0093A8BA`). Repeated Play while IsPlaying is true returns
 success without restarting when property `0xFF303B1B` is zero; otherwise it
 calls Kill before starting the new request (`0x0093E146`). The four payloads
-are written, with notification, under properties `0xFF141C48`, `0xFF9250B3`,
+are written without notification (third argument 1 to register slot 3,
+`0x0093B268`, which skips the notification when it is nonzero, `0x0093B346`)
+under properties `0xFF141C48`, `0xFF9250B3`,
 `0xFF9EC945`, `0xFF1885BE`. Argument-routing mode is property `0xFF4DCD0D`;
 the complete mode table and bytecode interpretation remain SS1.
 

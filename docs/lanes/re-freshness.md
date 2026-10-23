@@ -27,6 +27,14 @@ ambience layer's events and score list) is upstream's [audio-ambience.md](../spe
 - tools/coverage-map.tsv: `cFresh*` → freshness.md. Specified bytes 3,526,497 → 3,545,325 (63.1% → 63.5%,
   `cov_local.py`); the audio area is now 42.3% specified.
 
+### Rebase onto `15c9ce9e` (2026-10-23)
+
+Upstream's docs/specs/sound-system.md §6 now owns `cFreshPlayer`, `cFreshCellPlayer` and the director (§8) by
+coverage row; `cFresh*` → freshness.md claims `cFreshScore`, `cFreshCell` and `cFreshDimensionPlayer`.
+freshness.md states the relation: the two agree on every body both cite (`Update` = set volume then play at
+`0x00947150`, slot 59 counting busy cells, the scaled-volume arithmetic, the cell states). The numbers above were
+measured on `a4f059a7`.
+
 ### Questions
 
 - New: FS1 (fields with no reader), FS2 (the start switch and suspend bytes), FS3 (the looping stop rule), FS4 (the

@@ -16,11 +16,18 @@ the **sems** (sound-parameter mappers), the **control groups**, the Hit **INI** 
 the "Hit" layer that [audio.md](audio.md) §2 names as boundary only (AU8). It does **not** cover:
 
 - the framework sound system and manager (`cGZSndSys`, `cGZSndMgr`, the data sources and the `tSound` record):
-  [audio.md](audio.md) §8.6 and the sound-system spec;
+  [audio.md](audio.md) §8.6, [sound-system.md](sound-system.md) §7 and [sound-framework.md](sound-framework.md);
 - the TKDT text format's measured samples and the Hit-list binary layout: [audio.md](audio.md) §10.10 (this spec adds
   the field order, the reader and the semantics);
 - the `.tlo` records (type `0x9D796DB4`): [audio.md](audio.md) §10.11;
 - the freshness score and the radio, which sit on top of Hit (their own specs).
+
+Relation to [sound-system.md](sound-system.md) §3–§5, the interface contract for `cHitTrackPlayer`, `cHitMan`,
+`cHitChannel`, `cHitIniFile` and `cHitPropertySetTrackResource`: this spec adds the behaviour that spec leaves open
+(the track bytecode of its SS1, the `.hit` file scan and hit lists of SS2, the channel of SS3) and the other twelve
+`cHit*` classes. Two points were re-read on the bytes on 2026-10-23: `Play`'s retrigger calls `Kill` (sound slot 9,
+`call [eax+0x24]` at `0x0093E16E`), and `Play` writes registers 0–3 **silently** (third argument 1 to register slot
+3, `0x0093B268`, which skips the notification when it is non-zero, `0x0093B346`).
 
 ---
 
@@ -454,7 +461,8 @@ slot 26) and sem (`0xFF891EAA`, HitMan `GetSem`).
 
 `Play(a, b, c, d)` (`0x0093E146`) *[compat]*:
 
-1. If the track is playing: return true unless `0xFF303B1B` (retrigger) is non-zero; then `Stop` it first.
+1. If the track is playing: return true unless `0xFF303B1B` (retrigger) is non-zero; then `Kill` it first (sound
+   slot 9, `0x0093E16E`).
 2. Registers 0–3 (`0xFF141C48`, `0xFF9250B3`, `0xFF9EC945`, `0xFF1885BE`) := `a, b, c, d` (silent).
 3. Map the arguments by mode `0xFF4DCD0D`:
 

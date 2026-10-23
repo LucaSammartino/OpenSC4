@@ -195,6 +195,10 @@ first, swap the first and last.
 
 ## 4. Playlists (`cGZPlayList`) *[compat]*
 
+[sound-system.md](sound-system.md) §9 is this parser's interface contract (and owns its coverage row); this section
+adds the line reader's details, the PLS keys and the M3U path rule it leaves to SS11. The two agree on the format
+choice and the `#EXTINF:` pairing.
+
 `Open(path)` (`0x008D6B22`): the directory of `path` is the base for relative entries. The whole file is read; NUL
 bytes are replaced by spaces. Lines are read by `_GetLine` (`0x008D6258`): skip leading spaces, tabs, `\n`, `\r`;
 take up to the next `\n` or `\r`; trim; convert the text encoding. The first line chooses the format:

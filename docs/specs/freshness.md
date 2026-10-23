@@ -16,6 +16,12 @@ changing. SimCity 4 uses it for the city ambience: `cSC4AudioAmbienceLayer` crea
 drives it through sound events ([audio-ambience.md](audio-ambience.md) §6 and §8.6, which own the caller side). The
 framework sound objects the cells play are the sound system's ([audio.md](audio.md) §8.6).
 
+Relation to [sound-system.md](sound-system.md) §6, the interface contract for `cFreshPlayer` and
+`cFreshCellPlayer` (its §8 lists the director): this spec adds what that spec leaves open in SS6 and SS7 (the score
+format, the beat clock, cell selection, divisions, fades, the cell player's start and loop paths) and `cFreshScore`,
+`cFreshCell` and `cFreshDimensionPlayer`. That spec's slot table follows the port's names, several of which sit one
+slot off (§4.2 here gives what each body does); the two agree on the bodies they both cite.
+
 ---
 
 ## 1. Identity *[compat]*

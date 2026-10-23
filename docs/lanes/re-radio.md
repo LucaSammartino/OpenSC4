@@ -25,6 +25,13 @@ the Ghidra export of the four owners and the SDK headers. Written on 2026-10-22.
 - tools/coverage-map.tsv: the four rows cite radio.md / intro-video-player.md. Specified bytes 3,545,325 → 3,563,529
   (63.5% → 63.8%, `cov_local.py`); audio 50.2%.
 
+### Rebase onto `15c9ce9e` (2026-10-23)
+
+Upstream's docs/specs/sound-system.md §9 now owns `cGZPlayList` by coverage row; that row stays there and radio.md §4
+links to it (the two agree on the format choice and the `#EXTINF:` pairing). `cRZRadio`, `cRZDiskRadioStation` and
+`cSC4MadCowPlayerWin` were still unclaimed upstream and stay on radio.md / intro-video-player.md. The numbers above
+were measured on `a4f059a7`.
+
 ### Questions
 
 - New: RA1 (event `0x4AB186E9`'s effect), RA2 (the shuffle-strategy bit), RA3 (two flags), RA4 (a game check of

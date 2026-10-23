@@ -28,6 +28,15 @@ lanes; [audio.md](../specs/audio.md) named Hit as boundary only (AU8).
 - tools/coverage-map.tsv: `cHit*` → hit-music.md. Specified bytes 3,478,316 → 3,526,497 (62.3% → 63.1%,
   `cov_local.py`); the audio area is now 33.9% specified.
 
+### Rebase onto `15c9ce9e` (2026-10-23)
+
+Upstream landed docs/specs/sound-system.md (lane `re-sound-hit5`), whose §3–§5 are the interface contract for five
+of the 17 owners (`cHitTrackPlayer`, `cHitMan`, `cHitChannel`, `cHitIniFile`, `cHitPropertySetTrackResource`) with
+their own coverage rows; `cHit*` → hit-music.md now claims the other twelve. hit-music.md states the relation. Two
+overlaps were re-read on the bytes: `Play`'s retrigger calls `Kill` (sound slot 9, `0x0093E16E`; hit-music.md §6.2
+said `Stop`, fixed) and writes registers 0–3 silently (register slot 3 with argument 1, `0x0093B346`;
+sound-system.md §3.2 said "with notification", fixed). The numbers above were measured on `a4f059a7`.
+
 ### Questions
 
 - New: HM1 (control-group gate), HM2 (tick registration and units), HM3 (the resume path), HM4 (three TKDT fields
