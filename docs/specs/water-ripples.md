@@ -41,7 +41,7 @@ have 5 entries, zoom 0–4; the native reader does not validate that count. "Shi
 | `0x491C9C04` | 0.15, 0.3, 0.3, 0.6, 0.75 | per zoom: texture advance per segment |
 | `0x491C9C05` | 45, 40, 35, 30, 26 | per zoom: the outer distance (m) |
 | `0x491C9C06` | 1 ×5 | per zoom: the inner distance (m, inland) |
-| `0x491C9C07` | 175000 | base period; exact native sampled range 122499..227498 (§1.5); time unit unresolved |
+| `0x491C9C07` | 175000 | base period in microseconds; exact native sampled range 122499..227498 (§1.5) |
 | `0x491C9C08`, `0x491C9C09` | 100, 150, 200, 255, 255 | per zoom: the inner and outer alpha |
 | `0x491C9C0A` | 0.2 ×5 | per zoom: the wobble as a fraction of the outer distance |
 | `0x491C9C0B` | 60 ×5 | per zoom: the largest turn between segments (degrees) |
@@ -206,6 +206,19 @@ state and the default model transform; it does not restore the prior state/textu
 
 ### 1.5 Updates (`DoMessage`, `0x00761F80`)
 
+**Process RNG initialization (WR12).** The shared object is constructed during executable static initialization,
+not by a ripple constructor, Init, tuning reset or city load. Initializer `0x00A751D0` (table entry
+`0x00B07680`) obtains the current `cRZTime` 32-bit value T and supplies `T XOR 0x8C09C57A` to the
+random constructor `0x00913A5C`. T is the host's current date/time conversion, not simulation time or an
+animation timer: default time construction uses host localtime and the date/hour/minute/second constructor
+(`0x00470B50–0x00470BA7`, `0x00470010`). This does not promise identical startup seeds across runs.
+Seed `0x00913667` copies an ordinary seed to both current-state and remembered-seed words; the constructor
+also zeroes its third word. There is one sentinel: if the supplied seed is `0xFFFFFFFF` (T = `0x73F63A85`),
+the effective seed is host time XOR `(clock OR low32(clock << 16))`, sampled by that helper instead.
+Zero is an ordinary seed. No ripple lifecycle or tuning reset reseeds this object. A deterministic fixture
+must supply T (and sentinel host samples if applicable), or capture the effective primitive state once;
+it must not substitute a constant seed or create a generator per owner.
+
 **Frame sampling (WR6).** Strip preparation samples a frame in `[0, frameCount)` first, then a period in `[L,H)`,
 and initializes its unsigned 32-bit clock to zero (`0x0075FEF2–0x0075FF3B`). There is one shared native
 cRZRandom object at `0x00B4D530`; calls consume it in shore order, strip list order. This is multiply-high range
@@ -225,6 +238,13 @@ scaling, not modulo, floating random interpolation, inclusive upper-bound sampli
   domain this is floor, including the representational error in the multipliers (`0x007601D3–0x0076026B`).
   For P = 175000 it gives **L = 122499, H = 227499**, so periods range 122499..227498. The earlier
   decimal-only 122500..227500 description is not the native arithmetic. No additional clamping is applied.
+
+**Time units (WR1).** The elapsed word in animation message `0x86AD10EE` is in microseconds. The manager
+constructs its elapsed timer with unit 3 (`0x00448E63–0x00448E95`; [timers.md](timers.md) §1.2), reads it
+at `0x0044884E` and publishes the bounded integer delta at `0x00448934–0x00448987`. Its separate floating
+message value is scaled by 0.001; the ripple uses the integer slot 14, not that float
+(`0x00761FC4–0x00761FCF`). Thus 175000 is 0.175 seconds and the strict rebuild threshold is 2 seconds.
+Direct tick callers must use these same units; the owner itself adds the raw word without conversion.
 
 **Tick.** Before the first Update has built the collection, DoAnimationTick does nothing. Afterwards, scheduling
 is processed first (§below), then each retained strip once in collection/list order. Add the raw elapsed value
@@ -257,8 +277,12 @@ DetectShores. A sequence of distant edits can therefore retain old dirty extents
 When a tick starts unarmed, arm/reset if current unsigned edit counter is > low32(snapshot + floor(low32(minimum²)
 / 10)). This is comparison against a wrapped sum, **not a wrapped difference**. The arming tick contributes no
 elapsed time to the rebuild clock. When a tick starts armed, add elapsed modulo 2³² and rebuild only at
-**strictly > 2000000**, not equality. Delayed rebuild clears all shores/strips, redetects, then recreates; the
-rebuild happens before frame animation on that tick (`0x00761E87–0x00761EE9`).
+**strictly > 2000000**, not equality. Delayed rebuild **clears pending first**, clears all shores/strips,
+redetects, then recreates; CreateRipples consequently does not redetect a second time. Pending is already
+false during both detection and recreation (`0x00761E9F`, calls at `0x00761EA3/0x00761EAA/0x00761EB1`).
+The rebuild happens before frame animation on that tick (`0x00761E87–0x00761EE9`). This is the WR14 rule;
+the immediate message below deliberately differs. The rebuild clock retains its accumulated value until
+another arming event resets it; clearing pending is not a clock reset.
 
 Message `0x89171496` clears the shore collection, redetects and recreates immediately (`0x00761FC1–0x00761FE8`).
 It does not itself clear a pending rebuild; CreateRipples sees that pending flag, clears/redetects again and
@@ -477,7 +501,9 @@ of borrowed property/variant pointers; successful exemplar acquisition is releas
 After reading minimum, clamp it to 2 by an **unsigned** comparison, so `0xFFFFFFFF` remains unchanged
 (`0x007600CC–0x007600E3`). After the spacing getter, access exactly elements 0..4 regardless of result or
 length: save each original value/64 to the step array and square it in place. Turn-limit elements 0..4 are
-multiplied in place by the binary32 degree factor at `0x00AA8C60` (`0x007602AB` onward). The other arrays
+multiplied in place by the binary32 degree factor at `0x00AA8C60`: bits **`0x3C8EFA35`**, exactly
+`0.01745329238474369049072265625` (`0x007602AB` onward, WR11). Each product is stored back to binary32;
+do not use a double-precision π/180 expression as an intermediate substitute. The other arrays
 retain their supplied count. A missing/short spacing or turn vector can cause invalid reads/writes; no false
 return, padding, or rollback exists. If a reset/reload omits an array that was already loaded, old transformed
 values are transformed again. Earlier field changes survive any later failure.
@@ -819,3 +845,18 @@ pending rehash discriminator; it is not new native execution or additional credi
     yields bucket 0 `[0,75077]`, whereas stable rehash would leave `[75077,0]`. The plain/textured insertion
     callers both invoke the proved helper `004F0940` (§§2.3,2.7); no prime-ladder/hash inference is transferred
     to another owner (including TickTK4) without its own helper/caller evidence.
+26. **WR1 units:** inject integer elapsed 175000 microseconds, clock 0 and period 175000: advance once and
+    zero the clock. Injecting 175 (milliseconds without conversion) must not advance. This tests owner input
+    units, not host timer precision or scheduler cadence.
+27. **WR11 factor:** turn factor bits `3C8EFA35`; transforming binary32 60 degrees once gives binary32
+    `3F860A92`. Reset/reload with that array absent transforms the retained value again. An omitted whole
+    exemplar does neither transform (§2.6).
+28. **WR12 startup/shared stream:** supply host time word `8C09C57A`: initial effective/remembered seed are
+    both zero, third word zero. First nonzero-bound raw draw returns 0 and leaves state `00003039`.
+    Creating a second owner, tuning reset, Shutdown and re-Init do not restart that stream. For time word
+    `73F63A85`, supply fallback time/clock samples and require their specified XOR/OR seed instead of
+    `FFFFFFFF`. These are injected-source expectations, not native-run captures.
+29. **WR14 delayed/immediate distinction:** with first-Update true, pending true and rebuild clock 2000000,
+    elapsed 0 does not detect; elapsed 1 clears pending before the detection callback, detects once, recreates
+    and animates new strips with elapsed 1. Clock remains 2000001. An immediate message with pending true
+    detects twice; zoom-driven pending recreation detects once (§1.5).
