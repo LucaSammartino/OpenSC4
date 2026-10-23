@@ -461,7 +461,8 @@ at byte offsets 0x28/0x64/0x94 (`0x005FD390`, `0x005FD480`, `0x005FD4F0`). The n
 directly copy matching types (tags 1/6/10); otherwise they call ConvertTypes into a temporary target variant,
 write destination only on conversion success, destroy the temporary, and return success/failure. They do not
 silently write zero on conversion failure (`0x009174F6`, `0x009176C8–0x00917720`, `0x00917852–0x009178B1`).
-The complete ConvertTypes conversion matrix is not established here.
+The caller-specific numeric conversion contract is in §2.6; the shared conversion rules remain in
+[data-formats §5.1](data-formats.md#51-converting-getters), not a separate ripple conversion algorithm.
 
 Float arrays (02/04/05/06/0A/0B) and byte arrays (08/09) use different copy helpers `0x005FFCC0` and
 `0x005FFB40`. On property presence they take the variant's raw array pointer and element count (slots
@@ -511,8 +512,90 @@ DoMessage(message pointer) at `0x00761F80` (§1.5). No Init, Shutdown or Cleanup
 
 WR8 remains open for a full literal signature/owner attribution of the allocation/copy/template helpers and
 reconciliation of the brief's 65 functions/15308 bytes with the 69-body/15276-byte address-window inventory.
-The scalar ConvertTypes matrix remains a shared dependency. The vtable checklist, direct lifecycle/resource
+The vtable checklist, direct lifecycle/resource
 paths and array copy/failure rules above are proved independently of those residuals; no whole-owner credit.
+
+### 2.6 Tuning caller conversion and retained-state ledger (WR8)
+
+This is the normal-return contract of `00760060–0076032E`, not a promise that malformed exemplars return
+normally. In order, the reader requests suffixes 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 0A, 0B, 0C, 0D
+of `0x491C9C00`. All helper bool results are discarded. The following table binds the actual calls to the
+shared variant contract; an absent property returns false without writing the named destination.
+
+| Suffix | Helper; variant slot in bytes | Destination and immediate use |
+|---|---|---|
+| 00 | `005FD390`; `+28` → `009174F6` | one-byte enabled at `00B0D7B0` |
+| 01 | `005FD480`; `+64` → `009176C8` | u32 minimum at `00B0D7B4`; unsigned clamp to at least 2 even if absent |
+| 02 | `005FFCC0`; raw `+1BC`, count `+10` | owned float vector `00B4D548`; always transform indices 0..4 to step and squared spacing |
+| 03 | `005FD4F0`; `+94` → `00917852` | binary32 height at `00B0D7B8` |
+| 04, 05, 06 | same raw float-vector helper | `00B4D554`, `00B4D560`, `00B4D56C`; copied without a five-element clamp |
+| 07 | same u32 helper | period `00B0D7BC`; recompute the bounds in §1.5 even if absent |
+| 08, 09 | `005FFB40`; raw `+17C`, count `+10` | owned byte vectors `00B4D578`, `00B4D584` |
+| 0A, 0B | same raw float-vector helper | `00B4D590`, `00B4D59C`; 0B always multiplies indices 0..4 by the stored degree factor |
+| 0C, 0D | same u32 helper | edit area `00B0D7C0`, fade count `00B0D7C4`; no clamp here |
+
+**Scalar match and conversion gates.** The property helper obtains the borrowed property through holder
+slot `+24`, then its variant through property slot `+14`. The native variant vtable `00ACECD0` binds the
+three output getters above. They compare the stored 16-bit tag with Bool=1, Uint32=6 or Float32=10.
+A matching tag takes the direct output path and returns true. A different tag constructs a zero-valued
+**temporary target** of exactly that type (`00915E8E`, `00915D6D`, `00915E0B`), calls
+`00917350(source, target)`, and copies target to the global only when AL is nonzero. The target variant
+is mutated in place by conversion; the borrowed source variant is not converted in place by this getter.
+Temporary destruction happens on both return paths. Conversion false leaves the old global value, after
+which the owner still performs its clamp/derived-array work. There is no caller-level type rejection,
+default installation, abort-on-false or rollback (`009174F6–0091754C`, `009176C8–0091771E`,
+`00917852–009178AF`).
+
+For **scalar numeric tags 1..14 (Bool through RZChar)**, this is positively the shared converter of
+data-formats §5.1: its source and target range gates are `0091735A–00917389`; bool and u32 targets take
+`00915AA5` at `009173B0`. The helper widens the source to 64 integer bits (signed/unsigned according to
+its tag, signed Char/RZChar, unsigned UnicodeChar). Float32 and Float64 loads are respectively 32 and
+64 bits at `00915B13/00915B1D`, then `_ftol2` truncates finite representable values toward zero.
+Bool tests the OR of **both** 32-bit halves (`009173D0–009173DF`); u32 stores only the low half
+(`009173EA–009173F0`). Neither is a floating-point nonzero test or saturating unsigned conversion.
+Float32 targets instead take the shared to-double path and store a binary32 result
+(`00917434–0091744B`). No process-wide floating precision/rounding setting is established by this reader;
+the inherited mode remains a parameter wherever the shared operation depends on it.
+
+Array/string tags, Empty and objects do **not** pass that numeric source-range gate. Their scalar requests
+enter the foreign round-trip path at `0091745F`; apply an already specified data-formats §5.1 case only
+with its original source type and assumptions. A raw pointer from the vector helper is not evidence that
+the scalar numeric converter accepts that type. This spec adds no text/parser/object/exception matrix.
+
+**Raw arrays are a separate operation.** On presence, the vector helper fetches pointer then count,
+resizes to count, copies count × 4 bytes for float vectors or count bytes for byte vectors, and compacts
+excess capacity on ordinary allocation success (`005FFCC0–005FFD74`, `005FFB40–005FFBFA`). There is no
+ConvertTypes call, element-type gate, count-equals-five check or float interpretation during the copy.
+For a correctly typed nonempty float array of six elements, all six are copied, and only the first five
+spacing/turn elements are transformed. An absent property preserves the old vector; a present zero-count
+property resizes it to empty instead. Neither makes spacing/turn's subsequent five unchecked accesses safe.
+A wrong-width array can over-read backing storage. Only valid backing and valid subsequent indices are
+within this normal-domain contract; no safe zero/default result is inferred for the other inputs.
+
+**Independent caller-state ledger (proposed, unexecuted).** In each numeric row the other properties,
+especially spacing and turn arrays, supply valid backing. Inputs are literal typed variants, not text.
+
+| Input / event | Conversion and caller state after normal return |
+|---|---|
+| 00 Float32 0.75, old enabled=true | truncation gives int64 0, so enabled=false; a direct float nonzero test would differ |
+| 01 Float32 −1.75 | int64 −1 → low u32 `FFFFFFFF`; unsigned clamp keeps `FFFFFFFF` |
+| 01 Sint32 −2 | sign extension → low u32 `FFFFFFFE`; clamp keeps it |
+| 00 Uint64 `00000001_00000000` | both-half bool test gives true despite zero low half |
+| 01 same Uint64 | low half 0, then clamp → 2 |
+| 01 Uint64 `00000001_00000007` | low half 7, clamp keeps 7 |
+| 01 absent, old minimum=1 | helper leaves 1; caller clamp changes it to 2 |
+| 01 absent, old minimum=50 | helper leaves 50; clamp keeps 50 |
+| 02 Float32 array `[2,3,4,5,6,99]` | owned count 6; step `[1/32,3/64,1/16,5/64,3/32]`, squared storage `[4,9,16,25,36,99]`; source array unchanged |
+| Existing spacing `[4,9,16,25,36,99]`, 02 absent on reread | count still 6; step `[1/16,9/64,1/4,25/64,9/16]`, squared storage `[16,81,256,625,1296,99]` |
+
+The read flag is a **process** flag (`00B4D524`), set before reading/registering the reset callback
+(`0076033E–00760368`). A reset clears only that flag (§2.4), retaining scalar globals, array contents,
+counts and derived values. Already-initialized Init still returns false before checking that flag.
+For a stopped instance, Shutdown then Init with flag still set skips rereading and preserves the tuning.
+After reset, the next eligible Init rereads: a missing scalar retains its previous value, while absent 02/0B
+cause another transform of retained arrays. A missing whole exemplar returns before **any** clamp or
+posttransform, unlike a present exemplar with missing properties. A successful present exemplar releases
+its acquired reference only after the last property call. Earlier mutations are not transactional.
 
 ## 3. Users
 

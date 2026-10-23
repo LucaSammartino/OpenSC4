@@ -1,8 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | blocked: coordinator STOP; parked after two substantive round-2 commits | Coordinator reviews committed WR7 answer and WR8 bounded proof; no further RE round authorized. |
+| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | in progress: original final round 3 | Publish finite WR8 caller conversion/state and nested storage contracts. |
 
 ## Handoff
+- Round 3 milestone 1: §2.6 positively binds scalar helper slots, target temporaries and numeric range gates; raw-array copy versus conversion, absence/reset/re-Init ledger published. No native execution.
+- Evidence identity: working exe 1.1.641.0 SHA256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` equals export-summary executable SHA256.
+- Next: finish instruction-backed nested storage contracts at `00760480–007607E6` and `00761590–00761789`; reconcile current question text and overview without archiving WR8 whole.
+- Round 3 authority: copied host proof and eligibility note admit original FINAL3, expected round 3; current manifest `run4-re-ripples-contracts4-r3-manifest.json`. Historical STOP below remains historical.
+- Round 3 next: primary export/instruction trace of `00760060`, then owned nested geometry copy/destruction helpers. Preserve all 21 prior unexecuted vectors and unresolved owner totals.
+- Local q.py Bash backend returns E_ACCESSDENIED; use bounded PowerShell commands and local apply_patch. No REA retry/process repair.
 - Goal: round 2 resolves ONLY remaining WR7/WR8 contracts, spec text only.
 - Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
 - Done round 2 milestone 1: 69fc2a72 publishes WR7 proof in §2.3/vectors 16–18; moved WR7 to answered.
