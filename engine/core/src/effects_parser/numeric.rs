@@ -97,7 +97,16 @@ impl Extended {
     pub fn input(raw: RawFloat) -> Result<Self, Unsupported> {
         let value = match raw {
             RawFloat::Extended(x) => x,
-            RawFloat::Dyadic(c, e) => return Ok(pack_exact(c < 0, u128::from(c.unsigned_abs()), i32::from(e))),
+            RawFloat::Dyadic(c, e) => {
+                let n = c.unsigned_abs();
+                if n != 0
+                    && (31 - n.leading_zeros() as i32 + i32::from(e) > 16383
+                        || n.trailing_zeros() as i32 + i32::from(e) < -16445)
+                {
+                    return Err(Unsupported::Numeric);
+                }
+                return Ok(pack_exact(c < 0, u128::from(n), i32::from(e)));
+            }
             RawFloat::Binary32(bits) => {
                 let sign = ((bits >> 16) & 0x8000) as u16;
                 let exponent = (bits >> 23) & 255;

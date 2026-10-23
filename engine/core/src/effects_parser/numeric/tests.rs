@@ -146,3 +146,54 @@ fn masked_signaling_nan_canonical_domain_and_extreme_exponents() {
     );
     assert_eq!(Extended::new(0x7ffe, u64::MAX).store(c), 0x7f800000);
 }
+
+#[test]
+fn arithmetic_rounding_is_distinct_from_store_and_preserves_distant_sticky_bits() {
+    for precision in [Precision::P24, Precision::P53, Precision::P64] {
+        for rounding in [Rounding::Nearest, Rounding::Down, Rounding::Up, Rounding::Zero] {
+            let c = Control { precision, rounding };
+            let x = Extended::new(0x3fff, 0x8000004000000000);
+            let m = x.mul_uint(65535, c);
+            let expected = if precision == Precision::P24 {
+                if rounding == Rounding::Up {
+                    65535.00390625f64
+                } else {
+                    65535.
+                }
+            } else {
+                65535. + 65535. / 33554432.
+            };
+            assert_eq!(m, Extended::binary64(expected.to_bits()));
+            for (sign, store) in [
+                (
+                    1,
+                    if rounding == Rounding::Up {
+                        0x4b400001
+                    } else {
+                        0x4b400000
+                    },
+                ),
+                (
+                    -1,
+                    if matches!(rounding, Rounding::Down | Rounding::Zero) {
+                        0x4b3fffff
+                    } else {
+                        0x4b400000
+                    },
+                ),
+            ] {
+                let (_, _, bits) = probability(RawFloat::Dyadic(sign, -1000), NumericPolicy::X87(c)).unwrap();
+                assert_eq!(bits, store);
+            }
+            let three = Extended::input(RawFloat::Dyadic(3, 0)).unwrap();
+            assert_eq!(
+                three.reciprocal(c).store(c),
+                if matches!(rounding, Rounding::Nearest | Rounding::Up) {
+                    0x3eaaaaab
+                } else {
+                    0x3eaaaaaa
+                }
+            );
+        }
+    }
+}

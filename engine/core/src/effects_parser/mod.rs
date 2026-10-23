@@ -40,7 +40,7 @@ pub struct Token {
 pub enum RawFloat {
     Extended(numeric::Extended),
     Dyadic(i32, i16),
-    /// A finite binary32 value lifted exactly into the pre-store domain,
+    /// A binary32 value lifted exactly into the pre-store domain,
     /// including signed zero; this is not a host-provided owner field/flag.
     Binary32(u32),
     Unsupported,

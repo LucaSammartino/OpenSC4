@@ -259,7 +259,7 @@ fn ec288_through_ec290_sound_brush_maps_and_stored_length() {
 }
 #[test]
 fn ec291_through_ec293_scrubber_aliases_crt_and_shape_overrides() {
-    for alias in ["scrubberEffect", "terrainEffect", "gameEffect", "floraEffect"] {
+    for alias in ["scrubberEffect", "demolishEffect", "gameEffect", "mapEffect"] {
         let mut c = live();
         let mut h = Host::default();
         let mut t = tokens(&[alias, "-single"]);
@@ -480,4 +480,164 @@ fn ec298_through_ec304_select_counts_tail_wrap_nesting_and_hooks() {
     assert_ne!(c.word_4a0, 0);
     assert!(c.enter_particle_sequence(&mut h).is_err());
     assert_eq!(c.byte_4ac, 1);
+}
+
+#[test]
+fn anonymous_failure_prefix_ranges_missing_names_and_nonfinite_lengths() {
+    let mut c = live();
+    let mut h = Host::default();
+    c.collection = Some(Identity(1));
+    c.id_maps[3].insert(b"oak".to_vec(), 9);
+    h.values = vec![Reply::Float(2.), Reply::RawFloat(RawFloat::Unsupported)].into();
+    assert!(c
+        .anonymous_component(
+            Kind::Brush,
+            &mut tokens(&["brushEffect", "-name", "oak", "-strength", "2", "unqualified"]),
+            &mut Ascii,
+            &mut h,
+            POLICY,
+            0
+        )
+        .is_err());
+    let d = &c.pending_nested.as_ref().unwrap().2;
+    assert_eq!(d.words[&0x20], 2f32.to_bits());
+    assert_eq!(d.words[&0x24], 1f32.to_bits());
+    assert!(h.payloads.is_empty());
+    assert!(!h.calls.iter().any(|call| matches!(call, Call::Release(..))));
+    let mut c = live();
+    let mut h = Host::default();
+    h.values = vec![Reply::Int(0)].into();
+    assert!(c
+        .anonymous_component(
+            Kind::Camera,
+            &mut tokens(&["cameraEffect", "-slave", "-zoom", "0"]),
+            &mut Ascii,
+            &mut h,
+            POLICY,
+            0
+        )
+        .is_err());
+    let d = &c.pending_nested.as_ref().unwrap().2;
+    assert_eq!(d.words[&0x0c], 8);
+    assert_eq!(d.bytes[&0x10], 0);
+    for kind in [Kind::Sound, Kind::Brush, Kind::Automata] {
+        let mut c = live();
+        let mut h = Host::default();
+        assert!(c
+            .anonymous_component(kind, &mut tokens(&["child"]), &mut Ascii, &mut h, POLICY, 0)
+            .is_err());
+        assert!(h.payloads.is_empty());
+    }
+    for (length, flag) in [(0x00000000, 1), (0x80000000, 1), (0x7fc00000, 0), (0x3f800000, 0)] {
+        let mut c = live();
+        c.collection = Some(Identity(1));
+        c.id_maps[2].insert(b"beep".to_vec(), 9);
+        let mut h = Host {
+            values: vec![Reply::Float(-1.), Reply::Float32(length)].into(),
+            ..Host::default()
+        };
+        c.anonymous_component(
+            Kind::Sound,
+            &mut tokens(&[
+                "soundEffect",
+                "-name",
+                "beep",
+                "-locationUpdateRate",
+                "negative",
+                "-length",
+                "raw",
+            ]),
+            &mut Ascii,
+            &mut h,
+            POLICY,
+            0,
+        )
+        .unwrap();
+        assert_eq!(h.payloads[0].words[&0x14], 0);
+        assert_eq!(c.visual.components[0].record.component.flags, flag);
+    }
+    // No float occurs here, so an unqualified numeric service cannot reject it.
+    live()
+        .anonymous_component(
+            Kind::Camera,
+            &mut tokens(&["cameraEffect", "-slave"]),
+            &mut Ascii,
+            &mut Host::default(),
+            NumericPolicy::Unqualified,
+            0,
+        )
+        .unwrap();
+}
+
+#[test]
+fn named_common_options_keep_store_order_and_zero_shell_comparison() {
+    let mut c = live();
+    let mut h = Host {
+        values: vec![
+            Reply::RawFloat(RawFloat::Extended(Extended::new(0x3fff, 0x8000004000000000))),
+            Reply::Uint(511),
+            Reply::Float(2.),
+            Reply::Float(3.),
+        ]
+        .into(),
+        ..Host::default()
+    };
+    c.named_component(
+        Named::Dynamic,
+        &mut tokens(&[
+            "dynamicParticleEffect",
+            "A",
+            "-scale",
+            "raw",
+            "-lod",
+            "511",
+            "-emitScale",
+            "2",
+            "3",
+        ]),
+        &mut Ascii,
+        &mut h,
+        POLICY,
+    )
+    .unwrap();
+    let r = &c.visual.components[0].record.component;
+    assert_eq!(u32::from_le_bytes(r.placement[52..56].try_into().unwrap()), 0x3f800000);
+    assert_eq!(r.placement[0], 1);
+    assert_eq!(r.placement[1] & 2, 2);
+    assert_eq!((r.lod_min, r.lod_max), (255, 0));
+    assert_eq!(&r.render[..2], &[2., 3.]);
+    let mut c = live();
+    let mut h = Host {
+        values: vec![Reply::Uint(2), Reply::Float32(0x80000000)].into(),
+        ..Host::default()
+    };
+    let policy = NumericPolicy::X87(numeric::Control {
+        precision: numeric::Precision::P64,
+        rounding: numeric::Rounding::Up,
+    });
+    c.named_component(
+        Named::Particle,
+        &mut tokens(&["particleEffect", "A", "-shells", "2", "zero"]),
+        &mut Ascii,
+        &mut h,
+        policy,
+    )
+    .unwrap();
+    assert_eq!(c.visual.components[0].record.component.spacing, 0);
+    let mut c = live();
+    c.word_4a4 = u32::MAX;
+    c.enter_select(&mut Host::default()).unwrap();
+    let mut h = Host::default();
+    assert_eq!(
+        c.named_component(
+            Named::Particle,
+            &mut tokens(&["particleEffect", "A", "-prob", "x"]),
+            &mut Ascii,
+            &mut h,
+            POLICY
+        ),
+        Err(Error::Parse("-prob only valid inside a select group".into()))
+    );
+    assert!(h.calls.is_empty());
+    assert!(c.visual.components.is_empty());
 }
