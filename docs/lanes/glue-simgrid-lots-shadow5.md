@@ -6,7 +6,8 @@
 
 - Round 3 resumed at detached HEAD `5da9bbedb`; no source changes yet.
 - Existing native request `qbuild-20261023-232536-build-ctest.req` is still pending; no DLL or native verdict exists locally.
-- Next: collect that existing native request, then submit a unique round-3 simgrid game request through 2032.
+- Next: collect that existing native request, then submit `sg3-record-2032-r3-20261023a` through 2032 using the prepared request template.
+- Round-3 blocking native verdict waiter is session 7552; collect its terminal result, do not replace it. It watches `build-runs/build-results/qbuild-20261023-232536-build-ctest.verdict` for nine minutes.
 - Do not enqueue a duplicate native verification. Lot records remain outside round-3 scope (LR12).
 - Regression profile lives in forbidden `tools/`; coordinator must apply the exact-only key addition after measured success.
 
