@@ -19,6 +19,9 @@
 - Verifier PID 27096 creation 1792724799.5432737 waits on stats client PID 20916 creation 1792724861.330828.
 - Exact argv: C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json.
 - Full identities/log summary: build-runs/renderer-r2-all-diagnostic.json; terminal output empty so far.
+- At 03:12:05Z stats client still has one thread, CPU user/system=0, established TCP 127.0.0.1:58965 -> 127.0.0.1:4644.
+- Coordinator observation file points to current round2 diagnosis; historical round1 identities retained separately.
+- Diagnostic helper initially used unavailable psutil net_connections; corrected to supported connections API and succeeded.
 - Next: continue collecting session 15723 to durable terminal; no duplicate, RPC, kill, or restart.
 - Historical report below is retained pending measured round 2 results.
 
