@@ -995,8 +995,12 @@ command parameter sets (`cIGZCommandParameterSet`), messages, Lua glue and prope
 | `0x07` | Sint32 | `0x10` | IGZUnknown (an object reference) |
 | `0x08` | Uint64 | `0x8000 \| t` | array of `t`; `0x8000` alone = raw bytes ("void array") |
 
-A **string** value is an `RZChar` array (`0x800E`) whose count is the string length (no terminator) *[inferred]*.
+A **string** value is an `RZChar` array (`0x800E`) whose count is the string length (no terminator) *[compat]*.
 Exemplar string properties load as this type.
+
+For the bounded original construction, storage, replacement, alias and clone lifetime contract,
+see [variant-storage.md](variant-storage.md). This is separate from the type/slot inventory and
+does not claim completion of the 127 methods.
 
 ### 9.2 On-disk encoding (`WriteVariant` / `ReadVariant`) *[compat]*
 
@@ -1831,6 +1835,15 @@ declaration corrupts the stack or returns garbage. The tables list only the over
 Every other slot matches the SDK in both order and argument size.
 
 ### 17.1 `cIGZVariant` (original vtable `0x00AA6788`, 127 interface slots)
+
+The table here is the embedded interface. Native standalone clones install a distinct table;
+the original constructor/interface evidence and bounded lifetime rules are in
+[variant-storage §2](variant-storage.md#2-native-identities-and-attribution).
+On normal native return, Erase/CopyFrom/CreateCopy explicitly set **AL=true**; the upper
+EAX bytes are not contractual. CreateCopy constructs a distinct standalone variant,
+initializes its own reference count to zero, then AddRefs it before publishing **one owned
+reference**. This establishes neither a clean allocation-failure return nor whole-interface
+behavioral equivalence; see [variant-storage §5](variant-storage.md#5-createcopy-and-return-channels).
 
 | Slots | Group (compiled order) |
 |---|---|
