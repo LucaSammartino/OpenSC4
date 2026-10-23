@@ -60,7 +60,7 @@ Destination byte contents are overwritten; descriptors are unchanged on the
 ordinary disjoint path. Source bytes are read without intentional modification.
 All ownership and allocation remain with the caller. There is no allocation
 failure branch inside these bodies. Caller allocation failure semantics are
-outside the proven contract; see [GI1](questions/grid-interpolation.md).
+outside the proven contract; see [GINT1](questions/grid-interpolation.md).
 
 ## 3. Coordinate mapping and fixed-point arithmetic
 
@@ -222,7 +222,7 @@ Larger counts and pointer arithmetic remain subject to 32-bit shift, wrap and
 signed/unsigned branch effects, not a checked arbitrary-size resampler. The
 ordinary-domain restriction above avoids those effects; it does not promote
 unchecked inputs to supported behavior. Open boundaries are recorded in
-[GI1–GI3](questions/grid-interpolation.md).
+[GINT1–GINT3](questions/grid-interpolation.md).
 
 ## 7. Independent literal vectors (proposed, not executed native)
 

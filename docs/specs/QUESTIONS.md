@@ -69,7 +69,8 @@ generated index: the questions live one file per spec, so read only the file for
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GF | graphics-formats |
-| GI | grid-interpolation, renderer-gdrivers-director-inventory |
+| GI | renderer-gdrivers-director-inventory |
+| GINT | grid-interpolation |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -216,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
-| grid-interpolation | 3 | 0 | GI4 | questions/grid-interpolation.md |
+| grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
