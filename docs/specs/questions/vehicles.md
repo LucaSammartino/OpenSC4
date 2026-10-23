@@ -10,13 +10,6 @@
   175 it and the look-ahead fill use. [as read]
 
 <!-- from: core-vehicles5 (2026-10-23) -->
-- **VH3 - §1/§5, automata.md §6.4: train and train-car records.** What are each
-  class's leading version, exact nested base, field order, car-reference IID,
-  network reference placement, version checks, and Read failure/reconstruction
-  rules? The class table mentions references but supplies no wire layout.
-  [Train/TrainCar Read and Write return Unsupported without consuming/emitting bytes.]
-
-<!-- from: core-vehicles5 (2026-10-23) -->
 - **VH4 - §2/§3/§5: construction and Init.** Which flags/defaults does each
   named owner set, what does traffic Init acquire, and in what order do failures
   unwind? §3 says only "sets its flags". TrainCar's stated 0x10000000 is known.
@@ -50,14 +43,6 @@
   behavior. [Route triples stay opaque; lane bits compare equal literally;
   network geometry is foreign, owner flags/tweens/anchoring remain in core;
   incomplete route setup reports Unsupported.]
-
-<!-- from: core-vehicles5 (2026-10-23) -->
-- **VH8 - §3 via automata.md §6.5: plummet/pull-over entry.** Resolve the
-  explicitly conflicting plummet descent constants and give the splash fade
-  duration's source/distribution. How are PullOver's unsaved vectors rebuilt
-  when Read restores a nonzero elapsed value? [Plummet entry Unsupported;
-  loaded five-float state ticks implemented; splash needs explicit seconds;
-  pull-over follows the detailed elapsed-counter description literally.]
 
 <!-- from: core-vehicles5 (2026-10-23) -->
 - **VH9 - inherited automaton states and dispatch hooks.** For the named
