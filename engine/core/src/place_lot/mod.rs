@@ -380,12 +380,7 @@ impl PlaceLot {
                 placed = result.built;
                 if placed {
                     let w = h.terrain().cell_width;
-                    self.last_placed = [
-                        (result.rect.x0 as f32 * w) as u32,
-                        (result.rect.z0 as f32 * w) as u32,
-                        ((result.rect.x1 + 1) as f32 * w) as u32,
-                        ((result.rect.z1 + 1) as f32 * w) as u32,
-                    ];
+                    self.last_placed = world_rectangle(result.rect, w);
                     self.feedback(h, true, false, point);
                     self.stop_previews(h);
                     h.effect(Effect::ClearCost(true));
@@ -415,6 +410,13 @@ impl PlaceLot {
 fn pick(h: &mut impl Host, values: &[u32], initial: u32) -> u32 {
     let rows: Vec<_> = values.iter().map(|&id| (id, format!("0x{id:08x}"))).collect();
     h.pick_list("Lot Plop", &rows, initial).unwrap_or(0)
+}
+
+fn world_rectangle(rect: Rect, width: f32) -> [u32; 4] {
+    // Section 4.4: retain the extended product until integer truncation, then
+    // store its low dword. A binary32 multiply or saturating float-to-u32 cast
+    // loses this behaviour (e.g. cell 10 with width 0.7 stores 6, not 7).
+    [rect.x0, rect.z0, rect.x1 + 1, rect.z1 + 1].map(|cell| (f64::from(cell) * f64::from(width)).trunc() as i64 as u32)
 }
 
 mod feedback;

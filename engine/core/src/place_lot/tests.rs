@@ -63,6 +63,7 @@ struct Fake {
     city_hidden: bool,
     building_creation: bool,
     denied_props: Vec<u64>,
+    cell_width: f32,
 }
 impl Default for Fake {
     fn default() -> Self {
@@ -107,6 +108,7 @@ impl Default for Fake {
             city_hidden: false,
             building_creation: true,
             denied_props: Vec::new(),
+            cell_width: 16.0,
         }
     }
 }
@@ -207,7 +209,7 @@ impl Host for Fake {
     }
     fn terrain(&self) -> Terrain {
         Terrain {
-            cell_width: 16.0,
+            cell_width: self.cell_width,
             width: 32,
             height: 32,
         }

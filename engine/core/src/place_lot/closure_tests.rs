@@ -18,6 +18,24 @@ fn cells(a: i32, b: i32, c: i32, d: i32) -> Rect {
 }
 
 #[test]
+fn click_world_rectangle_preserves_extended_product_and_low_dword() {
+    let mut h = Fake {
+        cell_width: 0.7,
+        hit: Some(point(7.2, 7.2)),
+        ..Fake::default()
+    };
+    h.cfg.as_mut().unwrap().size = [1, 1];
+    let mut t = tool(&mut h);
+    t.placeable = true;
+    t.cost = 0;
+    assert!(t.mouse_down(&mut h, mouse()));
+    assert_eq!(t.last_placed, [6, 6, 7, 7]);
+    // Low dwords wrap rather than saturating to u32::MAX.
+    assert_eq!(world_rectangle(cells(0, 0, 0, 0), 4294967296.0), [0; 4]);
+    assert_eq!(world_rectangle(cells(2, 2, 3, 3), 16.0), [32, 32, 64, 64]);
+}
+
+#[test]
 fn ct16_picker_shapes_flags_and_failure_outputs() {
     // Includes CT16-a/b/c and both alignments of every wide network.
     for (kind, cfg) in [(0, 0xEBF9_A440), (2, 0x8BF9_B356), (6, 0xABF9_A45C), (12, 0x2BF9_B222)] {
