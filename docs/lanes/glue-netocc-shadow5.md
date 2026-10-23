@@ -15,6 +15,8 @@
 - a58b9739 implements the resource-key fix. Full gate: cargo 6234 passed, 0 failed/ignored; clippy 0 diagnostics.
 - Native build/CTest queued as qbuild-20261023-221501-build-ctest (same all operation, session 17278); collect terminal result.
 - Added missing prior run record docs/runs/netocc-r2-2032-2-323.md; documentation-only changes while native gate waits.
+- Round 3 full gate terminal PASS: cargo 6234/0/0, clippy clean, native 103/103 edges, CTest 68/68; qbuild-20261023-221501-build-ctest.
+- Next/outstanding: netocc-r3-2032-1 city request to 2032-01-01, turbo=1, netocc_shadow=1. Wait using build-runs/wait-netocc.ps1, never qwait.
 - Round 2 uses detached HEAD; commit normally without moving refs.
 - Prior milestone 2b25736f: path key codec fix; be4072e6: full gate PASS.
 - NO45 resolved by coordinator: normalize only flags E000, triangle alpha FF, transform mask 7 to 5 at scale 1.
