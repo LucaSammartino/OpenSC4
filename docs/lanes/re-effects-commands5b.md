@@ -1,22 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress | Verify particle dictionary, publish nested contracts, then close EF15 only with complete evidence. |
+| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress: round 2 checkpoint | Resume source/emit/force, remaining nested families and class inventory; EF15 stays open. |
 
 ## Report
 
-Published effects §19.17–§19.28: all 27 particle registrations (23 unique
-descriptors), four dynamicParticle registrations, 19 new direct child-owner
-execution contracts and the owned endpoint/rate-option/ranged-float/vector
-helpers. Added 62 static conformance rows EC69–EC130. EF15 is still open;
-EFP1–EFP6 were already answered by commands5 and were not moved or redone.
-No new questions were filed. Seven particle handlers and other nested
-dictionaries still require execution contracts before whole-family closure.
+Round 2 publishes effects §§19.29–19.44: sequence wait/play, all shake,
+light and decal child handlers, particle texture/model/timedEffect/warp,
+and the owned draw-options helper. It adds 21 direct child-handler contracts
+and 93 static conformance rows EC131–EC223. All sequence, shake, light,
+decal and dynamic-particle child dictionaries now have execution contracts.
+Particle source/emit/force and other nested families remain incomplete.
+
+Across both commands5b rounds, §§19.17–19.44 add 40 direct child-handler
+contracts and 155 static rows EC69–EC223, plus shared helpers and dictionary
+identity tables. EFP1–EFP6 were already answered by commands5; no question
+was moved or reanswered here. EF15 remains open in questions/effects.md.
+No new questions were filed. Do not enqueue whole-family closure as ready.
 
 Measured evidence: export queries, bounded local decomp reads, PE words and
 instruction bytes. Numeric statements were checked against instructions;
-notable results are size multiplication by 50 omitted from pseudocode,
-unordered range acceptance, rate versus randomWalk delay semantics, and
-late 255-suffix scaling. All predictions are unexecuted: no native/game/shadow
+round 2 proves light length writes/clamps shake fade, decal size is unscaled,
+model alpha aliases short-circuit, timed insertion passes equal/unordered
+times, screw uses binary64 0.02 and uv declares minimum one but accesses a
+second selected index. Round 1 proves particle size ×50, unordered range
+acceptance, rate versus randomWalk delay semantics and late 255 scaling.
+All predictions are unexecuted: no native/game/shadow
 oracle, game request, ABI rows or C ABI changes. No REA call was needed.
 The named core-effects-commands5b report was absent in both checkouts;
 the explicitly permitted main parser README supplied the coverage table.
@@ -25,33 +33,26 @@ Validation: doccheck check and questions check passed at every spec milestone.
 Cargo/clippy/CTest n/a for spec-only work. No engine, plugin, capi, tools,
 ABI table or coverage-map edits. Git emitted packed-refs.lock permission
 diagnostics but successfully created every detached commit; no refs/config
-were changed. Partial work is not enqueued as ready. Resume from the Handoff.
+were changed. Final diff whitespace check passed. Partial work is not
+enqueued as ready; no merge-queue file was written. Resume from the Handoff.
 
 ## Handoff
 - Goal: continue commands5 without repeating its published sections; spec text only.
 - Baseline: effects §19.1–19.16; EFP1–EFP6 answered; EF15 remains open.
-- Done 46c18ac3: effects §19.17 verifies all 27 particle dictionary entries, including constructor-folded colour255/alpha255, and EC69–EC71 static vectors; doccheck/questions passed.
-- Done 411a61bd: §§19.18–19.21 publish zoom/stretch/life/rate/inject/maintain/align and common endpoint/rate-option helpers; EC72–EC90 static vectors; doccheck/questions passed.
-- Done 460e2037: §§19.22–19.24 publish collide/terrainRepel/randomWalk and ranged-float helper; EC91–EC104 static vectors; doccheck/questions passed.
-- Done 3a52f242: §§19.25–19.26 publish color/alpha/size/aspect/rotate, normalization and vector/scalar variation; EC105–EC119 static vectors; doccheck/questions passed.
-- Done 85f89542: §§19.27–19.28 verify four dynamicParticle registrations and all four child contracts; EC120–EC130; doccheck/questions passed.
-- Round 2 resumed at 21b0abd6; §§19.29–19.30 publish sequence dictionary, wait/play and EC131–EC140; doccheck/questions passed.
+- Done round 1 through 85f89542 (checkpoint 21b0abd6): §§19.17–19.28, particle/dynamic dictionaries, 19 direct children, EC69–EC130; checks passed.
 - Done round 2 1afa225d: sequence wait/play contracts, ten static rows EC131–EC140; checks passed.
-- Done round 2: §§19.31–19.34 publish shake/light dictionaries and all eight child handlers; EC141–EC160; doccheck/questions passed. Light length writes/clamps SHAKE fade P+3DC against SHAKE length P+3D8 (asm verified).
-- Done round 2 12289ba3: shake/light children and EC141–EC160; checks passed.
-- Done round 2: §§19.35–19.38 publish all eleven decal registrations/seven unique handlers and EC161–EC183; doccheck/questions passed. Decal size/rotate are unscaled, texture options precede name selection and survive missing-name failure.
-- Done round 2 f6c9986b: decal dictionary/children, EC161–EC183; checks passed.
-- Done round 2: §§19.39–19.42 publish particle texture/model/timedEffect and owned draw-options helper, EC184–EC208; doccheck/questions passed. Timed insertion passes equal/unordered times; model alpha alias short-circuits.
-- Done round 2 a577404c: particle resource/timed children and EC184–EC208; checks passed.
-- Done round 2: §§19.43–19.44 publish warp and EC209–EC223; doccheck/questions passed. uv declares minimum one but accesses selected index two; screw uses binary64 0.02, phase uses binary32 2pi and x87 trig.
+- Done round 2 12289ba3: §§19.31–19.34 shake/light dictionaries and all eight children, EC141–EC160; checks passed.
+- Done round 2 f6c9986b: §§19.35–19.38 decal dictionary/all seven children, EC161–EC183; checks passed.
+- Done round 2 a577404c: §§19.39–19.42 particle texture/model/timedEffect and owned draw helper, EC184–EC208; checks passed.
+- Done round 2 c6b50c9e: §§19.43–19.44 particle warp and EC209–EC223; checks passed.
 - Next exact step: publish remaining particle source 00597140, emit 0059C280 and force 0059A820; then group/select/game nested contracts and complete class inventory. EF15 stays open.
-- Sequence registration verified but not yet published: 00596190 installs wait/B0A400/A9FCC8 then play/B0A3FC/A9FCB8; four-byte objects, wrapper 007E3BE0, handlers at +0C. Class names unresolved in export.
-- Remaining particle execution: source, emit, force, warp, texture, model, timedEffect; all other particle table rows have section contracts.
-- Appearance: size multiplies x87 return by binary32 50 before rounding; 255 suffix scales lists only after vary succeeds; NaN varies accepted by instruction predicates.
-- Ranged-float helper 00597BF0 accepts unordered NaN but rejects ordered values outside inclusive bounds before float rounding; randomWalk delay is midpoint/radius, rate delay endpoints.
-- Numeric findings: zoom discards uint; life midpoint rounds first; rate tests full EAX from positional finder; inject/maintain resize before conversion; windBank OR precedes conversions.
-- Read prior lane Handoff; commands5b engine lane report absent in both worktree and main checkout.
-- Explicit engine read limited to main effects_parser/README.md: descriptor coverage remains open under EF15.
-- No game requests, REA queries, ABI changes or native execution yet.
-- Total this round: 62 new static rows EC69–EC130; 19 new direct child-owner contracts; no question closure or merge queue until EF15 complete.
+- Source export queried: 2155 bytes; first 210 pseudocode lines inspected, no contract published. Emit 2023 bytes, force 3120 bytes; func metadata queried, execution unresearched.
+- Remaining particle execution: source, emit, force only; all other particle rows link published contracts. No other nested-family completeness claim.
+- Light length cross-write, uv minimum mismatch and model alias short-circuit are intentional measured quirks, not prose errors.
+- Helpers build-runs/pe-effects.py and rd.py read PE data; use pe-effects.py for virtual-tail zero-fill. No RE code committed.
+- Read prior commands5 Handoff for group/select continuation navigation; do not redo §§19.1–19.16 or EFP1–EFP6.
+- Named core-effects-commands5b report absent in both checkouts. Explicit engine read was main effects_parser/README.md only.
+- No native/game/shadow oracle, game request, REA query or ABI change. All new vectors are static predictions.
+- Gate: doccheck check, questions check and git diff --check pass; cargo/clippy/CTest n/a.
+- Partial checkpoint near round context limit; no merge queue until EF15 complete. Preserve detached HEAD; supervisor publishes commits.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r2-manifest.json.
