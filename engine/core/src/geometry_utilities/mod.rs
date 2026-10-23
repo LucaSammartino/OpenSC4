@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Pure geometry from geometry-utilities.md §§1–6. No game pointers or globals.
 //!
-//! GU2: expressions follow the published formula order, with separate f32
-//! operations (foundation §18's r24 for ordinary finite operands), never FMA.
-//! Exact native association/store boundaries and extended exponent cases are
-//! not published. See README.md for the method checklist and open contracts.
+//! `pc24` exposes checked, bounded PC24/nearest/masked numeric operations.
+//! Legacy value adapters use separate f32 operations, never FMA, and are not
+//! ambient x87/PC64/extended-exponent models. See README.md for exact limits.
 
-mod mesh;
-mod texture;
-pub mod raw_texture;
 pub mod clipping;
+mod mesh;
 pub mod pc24;
+pub mod raw_texture;
+mod texture;
 pub use mesh::{add_box_mesh, box_corners, Bounds, BuilderUnsupported, MeshBuilder, Primitive, Vertex};
 pub use texture::{create_texture_from_text, Surface, TextFont, TextureHost, TextureImage};
 
@@ -69,27 +68,31 @@ pub fn twice_triangle_area(p: Vec3, a: Vec3, b: Vec3) -> f32 {
 }
 /// Whole-line distance; deliberately no clamp or zero-direction fallback (§2.1).
 pub fn point_distance_to_ray(p: Vec3, o: Vec3, d: Vec3) -> f32 {
-    let t = (dot(p, d) - dot(o, d)) / dot(d, d);
-    length_of_line(p, along(o, d, t))
+    let pd = (p[1] * d[1] + p[2] * d[2]) + p[0] * d[0];
+    let od = (o[1] * d[1] + o[0] * d[0]) + o[2] * d[2];
+    let t = (pd - od) / ((d[0] * d[0] + d[1] * d[1]) + d[2] * d[2]);
+    let r = sub(p, along(o, d, t));
+    ((r[0] * r[0] + r[1] * r[1]) + r[2] * r[2]).sqrt()
 }
 pub fn point_distance_to_rectangle(p: Vec2, min: Vec2, max: Vec2) -> f32 {
-    let x_inside = closed(p[0], min[0], max[0]);
-    let y_inside = closed(p[1], min[1], max[1]);
-    if x_inside && y_inside {
-        0.0
-    } else if x_inside {
-        (p[1] - min[1]).abs().min((p[1] - max[1]).abs())
-    } else if y_inside {
-        (p[0] - min[0]).abs().min((p[0] - max[0]).abs())
-    } else {
-        let mut distance = length_of_line_2d(p, min);
-        for corner in [[min[0], max[1]], [max[0], min[1]], max] {
-            let candidate = length_of_line_2d(p, corner);
-            if candidate < distance {
-                distance = candidate;
-            }
+    // §2.2 selects low before high, with unordered treated as within.
+    let side = |i: usize| {
+        if p[i] < min[i] {
+            Some((min[i], min[i] - p[i]))
+        } else if p[i] > max[i] {
+            Some((max[i], p[i] - max[i]))
+        } else {
+            None
         }
-        distance
+    };
+    match (side(0), side(1)) {
+        (None, None) => 0.0,
+        (Some((_, d)), None) | (None, Some((_, d))) => d,
+        (Some((x, _)), Some((y, _))) => {
+            let dx = p[0] - x;
+            let dy = p[1] - y;
+            (dy * dy + dx * dx).sqrt()
+        }
     }
 }
 pub fn get_normal_to_triangle(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
@@ -135,40 +138,47 @@ pub fn ray_intersects_bounding_box(o: Vec3, d: Vec3, min: Vec3, max: Vec3, hit: 
     let mut point = along(o, d, t);
     point[axis] = face[axis];
     for i in 0..3 {
-        if i != axis && !closed(point[i], min[i], max[i]) {
+        if i != axis && (point[i] < min[i] || point[i] > max[i]) {
             return false;
         }
     }
     store(hit, point);
     true
 }
+#[allow(clippy::manual_range_contains)] // Ordered rejections deliberately accept quiet NaN.
 pub fn ray_intersects_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3, hit: Option<&mut Vec3>) -> bool {
     let e1 = sub(b, a);
     let e2 = sub(c, a);
     let p = cross(d, e2);
-    let det = dot(e1, p);
+    let dot_zyx = |a: Vec3, b: Vec3| (a[2] * b[2] + a[1] * b[1]) + a[0] * b[0];
+    let det = dot_zyx(e1, p);
     if det.abs() < EPSILON {
         return false;
     }
     let s = sub(o, a);
-    let u = dot(s, p) / det;
+    let reciprocal = 1.0 / det; // Published binary32 reciprocal store.
+    let u = dot_zyx(s, p) * reciprocal;
     let q = cross(s, e1);
-    let v = dot(d, q) / det;
-    if !(closed(u, 0.0, 1.0) && v >= 0.0 && u + v <= 1.0) {
+    let v = dot_zyx(d, q) * reciprocal;
+    if u < 0.0 || u > 1.0 || v < 0.0 || u + v > 1.0 {
         return false;
     }
-    store(hit, along(o, d, dot(e2, q) / det));
+    if let Some(hit) = hit {
+        *hit = along(o, d, dot_zyx(e2, q) * reciprocal);
+    }
     true
 }
 pub fn ray_intersects_plane(o: Vec3, d: Vec3, plane: Plane, hit: Option<&mut Vec3>) -> bool {
     let n = [plane[0], plane[1], plane[2]];
-    let s = dot(n, o) + plane[3];
-    let k = dot(n, d);
-    if k.abs() >= EPSILON {
-        let t = s / k;
-        store(hit, std::array::from_fn(|i| o[i] - t * d[i]));
+    let s = ((o[1] * n[1] + o[2] * n[2]) + o[0] * n[0]) + plane[3];
+    let k = (d[0] * n[0] + d[2] * n[2]) + d[1] * n[1];
+    if k.abs().partial_cmp(&EPSILON) != Some(std::cmp::Ordering::Less) {
+        if let Some(hit) = hit {
+            let t = -(s / k);
+            *hit = along(o, d, t);
+        }
         true
-    } else if s.abs() >= EPSILON {
+    } else if s.abs().partial_cmp(&EPSILON) != Some(std::cmp::Ordering::Less) {
         store(hit, [0.0; 3]);
         false
     } else {
@@ -180,11 +190,12 @@ pub fn rays_intersect_2d(p1: Vec2, d1: Vec2, p2: Vec2, d2: Vec2, hit: Option<&mu
     let Some(hit) = hit else {
         return (d2[0] - d1[0]).abs() > EPSILON && (d2[1] - d1[1]).abs() > EPSILON;
     };
-    let k = d2[0] * d1[1] - d2[1] * d1[0];
+    let neg_y = -d2[1];
+    let k = d2[0] * d1[1] + neg_y * d1[0];
     if k.abs() < EPSILON {
         return false;
     }
-    let t = (d2[0] * (p2[1] - p1[1]) - d2[1] * (p2[0] - p1[0])) / k;
+    let t = (d2[0] * (p2[1] - p1[1]) + neg_y * (p2[0] - p1[0])) / k;
     *hit = along(p1, d1, t);
     true
 }
@@ -196,8 +207,9 @@ pub fn lines_intersect_2d(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2, hit: Option<&m
     if k.abs() < EPSILON {
         return false;
     }
-    let ua = (b[1] * delta[0] - delta[1] * b[0]) / k;
-    let ub = (delta[1] * a[0] - a[1] * delta[0]) / k;
+    let reciprocal = 1.0 / k;
+    let ua = (b[1] * delta[0] - delta[1] * b[0]) * reciprocal;
+    let ub = (delta[1] * a[0] - a[1] * delta[0]) * reciprocal;
     if !(closed(ua, 0.0, 1.0) && closed(ub, 0.0, 1.0)) {
         return false;
     }
@@ -212,21 +224,32 @@ pub fn bounding_boxes_intersect(
     out_min: Option<&mut Vec3>,
     out_max: Option<&mut Vec3>,
 ) -> bool {
+    try_bounding_boxes_intersect(a_min, a_max, b_min, b_max, out_min, out_max)
+        .expect("nonnull maximum required when overlapping minimum output is supplied")
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequiredMaximumOutput;
+pub fn try_bounding_boxes_intersect(
+    a_min: Vec3,
+    a_max: Vec3,
+    b_min: Vec3,
+    b_max: Vec3,
+    out_min: Option<&mut Vec3>,
+    out_max: Option<&mut Vec3>,
+) -> Result<bool, RequiredMaximumOutput> {
     for i in 0..3 {
         // §4.6 explicitly counts unordered comparisons as overlap.
         if a_min[i] >= b_max[i] || b_min[i] >= a_max[i] {
-            return false;
+            return Ok(false);
         }
     }
     if let Some(out_min) = out_min {
+        let out_max = out_max.ok_or(RequiredMaximumOutput)?;
         // §4.6 selects the second operand on ties and unordered comparisons.
         *out_min = std::array::from_fn(|i| if a_min[i] > b_min[i] { a_min[i] } else { b_min[i] });
-        store(
-            out_max,
-            std::array::from_fn(|i| if a_max[i] < b_max[i] { a_max[i] } else { b_max[i] }),
-        );
+        *out_max = std::array::from_fn(|i| if a_max[i] < b_max[i] { a_max[i] } else { b_max[i] });
     }
-    true
+    Ok(true)
 }
 pub fn point_in_rectangle_2d(p: Vec2, min: Vec2, max: Vec2) -> bool {
     p[0] >= min[0] && p[0] < max[0] && p[1] >= min[1] && p[1] < max[1]
@@ -234,7 +257,8 @@ pub fn point_in_rectangle_2d(p: Vec2, min: Vec2, max: Vec2) -> bool {
 pub fn scale_vector_2d(v: &mut Vec2, length: f32) {
     let magnitude = dot(*v, *v).sqrt();
     if magnitude > EPSILON {
-        *v = v.map(|x| (x * length) / magnitude);
+        let factor = length / magnitude;
+        *v = v.map(|x| x * factor);
     }
 }
 pub fn rotate_point_2d(c: Vec2, p: Vec2, angle: f32) -> Vec2 {
@@ -257,9 +281,16 @@ pub fn clip_polygon_to_edge_2d(e0: Vec2, e1: Vec2, poly: &[Vec2], max: usize) ->
 pub fn clip_polygon_to_polygon_2d(poly: &[Vec2], clip: &[Vec2], max: usize) -> Vec<Vec2> {
     let mut out = vec![[0.; 2]; poly.len().max(40)];
     let mut count = 0;
-    clipping::clip_polygon_signed(poly, i32::try_from(poly.len()).expect("signed count"), clip,
-        i32::try_from(clip.len()).expect("signed count"), &mut out, i32::try_from(max).expect("signed capacity"), &mut count)
-        .expect("defined PC24 clipping domain");
+    clipping::clip_polygon_signed(
+        poly,
+        i32::try_from(poly.len()).expect("signed count"),
+        clip,
+        i32::try_from(clip.len()).expect("signed count"),
+        &mut out,
+        i32::try_from(max).expect("signed capacity"),
+        &mut count,
+    )
+    .expect("defined PC24 clipping domain");
     out.truncate(count as usize);
     out
 }

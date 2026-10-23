@@ -30,7 +30,9 @@ pub struct UploadDescriptor {
     pub row_stride: i32,
     pub format: u32,
     pub element_type: u32,
-    pub auxiliary: [u32; 2],
+    /// GU7: only the compressed helper's unit auxiliary dimensions are public.
+    /// None leaves the plain helper's unestablished fields out of this model.
+    pub auxiliary: Option<[u32; 2]>,
     pub source_offset: usize,
 }
 
@@ -58,7 +60,8 @@ pub trait RawTextureHost {
     fn font_set_mode(&mut self, font: u32, mode: u32);
     fn font_width(&mut self, font: u32, text: &[u8]) -> i32;
     fn font_height(&mut self, font: u32, text: &[u8]) -> i32;
-    fn font_draw(&mut self, font: u32, text: &[u8], surface: u32, xy: [i32; 2], colour: u32);
+    fn font_draw(&mut self, font: u32, text: &[u8], surface: u32, xy: [i32; 2], colour: u32) -> bool;
+    fn surface_line(&mut self, surface: u32, from: [i32; 2], to: [i32; 2], colour: u32) -> bool;
     fn graphics_system(&mut self) -> bool;
     /// A false result can still return a nonnull surface requiring Release.
     fn surface_factory(&mut self) -> (bool, Option<u32>);
@@ -147,11 +150,24 @@ pub fn create_text_raw<H: RawTextureHost>(
         }
         for (flags, border) in [(0x8001, false), (0x8004, true)] {
             if border {
-                host.font_draw(font, text, s, layout.origin, u32::MAX);
+                let _ = host.font_draw(font, text, s, layout.origin, u32::MAX);
             }
             if host.access(s, flags) {
                 let d = host.descriptor(s);
-                let cleared = clear_pixels(host.bytes(s), d, border);
+                let cleared = if border {
+                    let [width, height] = layout.size;
+                    for (from, to) in [
+                        ([0, 0], [width - 1, 0]),
+                        ([0, height - 1], [width - 1, height - 1]),
+                        ([0, 0], [0, height - 1]),
+                        ([width - 1, 0], [width - 1, height - 1]),
+                    ] {
+                        let _ = host.surface_line(s, from, to, 0);
+                    }
+                    Ok(())
+                } else {
+                    clear_pixels(host.bytes(s), d)
+                };
                 host.end_access(s, flags);
                 cleared?;
             }
@@ -181,7 +197,13 @@ pub fn create_text_raw<H: RawTextureHost>(
     result
 }
 
-fn row_range(d: SurfaceDescriptor, y: i32, x: i32, width: i32, len: usize) -> Result<std::ops::Range<usize>, Unsupported> {
+fn row_range(
+    d: SurfaceDescriptor,
+    y: i32,
+    x: i32,
+    width: i32,
+    len: usize,
+) -> Result<std::ops::Range<usize>, Unsupported> {
     if width < 0 || d.bytes_per_pixel <= 0 {
         return Err(Unsupported::Backing);
     }
@@ -195,51 +217,64 @@ fn row_range(d: SurfaceDescriptor, y: i32, x: i32, width: i32, len: usize) -> Re
     Ok(start as usize..end as usize)
 }
 
-fn clear_pixels(bytes: &mut [u8], d: SurfaceDescriptor, border: bool) -> Result<(), Unsupported> {
+fn clear_pixels(bytes: &mut [u8], d: SurfaceDescriptor) -> Result<(), Unsupported> {
     if d.width <= 0 || d.height <= 0 || d.pixel_code != 9 || d.bytes_per_pixel != 4 {
         return Err(Unsupported::Descriptor);
     }
     for y in 0..d.height {
         let r = row_range(d, y, 0, d.width, bytes.len())?;
-        let row = &mut bytes[r];
-        if !border || y == 0 || y == d.height - 1 {
-            row.fill(0);
-        } else {
-            row[..4].fill(0);
-            let end = row.len();
-            row[end - 4..].fill(0);
-        }
+        bytes[r].fill(0);
     }
     Ok(())
 }
 
-pub fn upload_plain_raw<H: RawTextureHost>(host: &mut H, surface: Option<u32>, texture: Option<u32>, rect: Option<[i32; 4]>) -> Result<bool, Unsupported> {
+pub fn upload_plain_raw<H: RawTextureHost>(
+    host: &mut H,
+    surface: Option<u32>,
+    texture: Option<u32>,
+    rect: Option<[i32; 4]>,
+) -> Result<bool, Unsupported> {
     if !host.acquire_service() {
         return Err(Unsupported::RequiredHandle);
     }
     let result = (|| {
-        let (Some(s), Some(texture)) = (surface, texture) else { return Ok(false) };
-        if !host.access(s, 0x8040) { return Ok(false) }
+        let (Some(s), Some(texture)) = (surface, texture) else {
+            return Ok(false);
+        };
+        if !host.access(s, 0x8040) {
+            return Ok(false);
+        }
         let d = host.descriptor(s);
         let result = (|| {
             let mut format = 0;
             let mut element_type = 0;
             if !texture_format(d.pixel_code, 0, &mut format, &mut element_type)
-                || d.bytes_per_pixel == 0 || (d.byte_pitch == i32::MIN && d.bytes_per_pixel == -1) {
+                || d.bytes_per_pixel == 0
+                || (d.byte_pitch == i32::MIN && d.bytes_per_pixel == -1)
+            {
                 // Native ignores the helper boolean and reads unset fields. Do not do that in Rust.
                 return Err(Unsupported::Descriptor);
             }
             let [left, top, right, bottom] = rect.unwrap_or([0, 0, d.width, d.height]);
             let width = right.wrapping_sub(left);
             let height = bottom.wrapping_sub(top);
-            if width <= 0 || height <= 0 { return Err(Unsupported::Backing) }
+            if width <= 0 || height <= 0 {
+                return Err(Unsupported::Backing);
+            }
             let bytes = host.bytes(s).to_vec();
             for y in 0..height {
                 row_range(d, top.wrapping_add(y), left, width, bytes.len())?;
             }
             let source_offset = row_range(d, top, left, width, bytes.len())?.start;
-            let descriptor = UploadDescriptor { width, height, row_stride: d.byte_pitch / d.bytes_per_pixel,
-                format, element_type, auxiliary: [1, 1], source_offset };
+            let descriptor = UploadDescriptor {
+                width,
+                height,
+                row_stride: d.byte_pitch / d.bytes_per_pixel,
+                format,
+                element_type,
+                auxiliary: None, // GU7: not specified for plain uploads.
+                source_offset,
+            };
             Ok(host.upload(texture, descriptor, &bytes))
         })();
         host.end_access(s, 0x8040);
@@ -251,17 +286,30 @@ pub fn upload_plain_raw<H: RawTextureHost>(host: &mut H, surface: Option<u32>, t
 
 pub fn upload_compressed_raw<H: RawTextureHost>(host: &mut H, surface: u32, texture: u32) -> Result<bool, Unsupported> {
     let mut d = host.descriptor(surface);
-    if d.pixel_code != 9 || d.width & 3 != 0 || d.height & 3 != 0 { return Ok(false) }
-    if !host.access(surface, 0x8040) { return Ok(false) }
+    if d.pixel_code != 9 || d.width & 3 != 0 || d.height & 3 != 0 {
+        return Ok(false);
+    }
+    if !host.access(surface, 0x8040) {
+        return Ok(false);
+    }
     let result = (|| {
-        if d.width <= 0 || d.height <= 0 || d.bytes_per_pixel != 4 { return Err(Unsupported::Descriptor) }
+        if d.width <= 0 || d.height <= 0 || d.bytes_per_pixel != 4 {
+            return Err(Unsupported::Descriptor);
+        }
         d.byte_pitch = ((d.byte_pitch as u32 >> 2) * 4) as i32;
-        if d.byte_pitch <= 0 { return Err(Unsupported::Backing) }
+        if d.byte_pitch <= 0 {
+            return Err(Unsupported::Backing);
+        }
         let bytes = host.bytes(surface).to_vec();
-        for y in 0..d.height { row_range(d, y, 0, d.width, bytes.len())?; }
+        for y in 0..d.height {
+            row_range(d, y, 0, d.width, bytes.len())?;
+        }
         let len = usize::try_from(i64::from(d.width) * i64::from(d.height)).map_err(|_| Unsupported::Allocation)?;
         let mut packed = host.allocate_temporary(len).ok_or(Unsupported::Allocation)?;
-        if packed.len() != len { host.free_temporary(packed); return Err(Unsupported::Allocation) }
+        if packed.len() != len {
+            host.free_temporary(packed);
+            return Err(Unsupported::Allocation);
+        }
         let mut offset = 0;
         for by in (0..d.height).step_by(4) {
             for bx in (0..d.width).step_by(4) {
@@ -277,8 +325,19 @@ pub fn upload_compressed_raw<H: RawTextureHost>(host: &mut H, surface: u32, text
                 offset += 16;
             }
         }
-        let result = host.upload(texture, UploadDescriptor { width: d.width, height: d.height,
-            row_stride: d.width, format: 9, element_type: 0, auxiliary: [1, 1], source_offset: 0 }, &packed);
+        let result = host.upload(
+            texture,
+            UploadDescriptor {
+                width: d.width,
+                height: d.height,
+                row_stride: d.width,
+                format: 9,
+                element_type: 0,
+                auxiliary: Some([1, 1]),
+                source_offset: 0,
+            },
+            &packed,
+        );
         host.free_temporary(packed);
         Ok(result)
     })();

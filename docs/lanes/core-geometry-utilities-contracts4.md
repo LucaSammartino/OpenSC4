@@ -10,8 +10,13 @@
 - Implemented raw GU4 primitive host, byte-NUL layout, common epilogue, format/plain/compressed helpers.
 - Implemented signed clipping backing/count API and PC24 bounded length/plane/lighting/colour model.
 - Updated builder local u16 count, dirty/reset and wrapped inline closure; foreign bounds algorithm unchanged.
-- Added independent public vector tests. First focused qbuild quick is outstanding (transport handle 18).
-- Next: fix focused failures, commit stable source, run the one canonical all gate and fmt check.
+- Commits: a41cb7c2 initial ledger; 1e6c4bf7 first bounded implementation.
+- Focused quick first run: 3410 passed/2 failed (stale public-DIFFERS assertions), corrected.
+- Second focused Rust summaries: 3467 passed/0 failed/0 ignored across five summaries; native terminal pending (session82793).
+- Raw draw/line bools ignored, byte NUL (including invalid UTF-8) tested. Public H/V branch tests added.
+- GU7 filed for plain upload auxiliary fields; model leaves them unspecified (None), compressed Some([1,1]).
+- README now enumerates all 37 bodies with actual bounded/partial domains, no full-owner promotion.
+- Next: commit stable source, run geometry-canonical.py (one qbuild all) and qbuild fmt; record complete terminal and content evidence.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-geometry-utilities-contracts4-r1-manifest.json.
 - No game requests. No agents. GU1/2/3/5/6 residuals remain open.
 

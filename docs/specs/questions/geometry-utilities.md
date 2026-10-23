@@ -40,3 +40,6 @@
   bodies now have local contracts, including upload helpers and corners. Remains open: any folded/missing
   lifecycle attribution and foreign bounds/container dependencies; 37 attributed bodies is not full-owner
   completion or proof of algorithms in draw-context, ModelInstances, renderer or font services.
+
+<!-- from: core-geometry-utilities-contracts4 (2026-10-23) -->
+- **GU7 - §6.4.2 plain upload auxiliary fields:** The compressed descriptor explicitly has unit auxiliary dimensions; are any auxiliary dimensions initialized/passed by the plain helper, and if so to what values? [The raw portable descriptor models these as None for plain upload and Some([1,1]) for compressed upload. It implements the published plain width/height, source offset, signed stride, format/type and cleanup, without inventing unestablished auxiliary values.]

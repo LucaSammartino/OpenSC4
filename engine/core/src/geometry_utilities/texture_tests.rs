@@ -189,8 +189,7 @@ fn text_failure_paths_and_published_common_output_policy() {
     assert!(font.draws.is_empty());
     host.surface_failure = false;
     host.upload_result = false;
-    // Public integer wrapping domain includes negative width -1 -> dimension 1.
-    assert!(create_texture_from_text(
+    assert!(!create_texture_from_text(
         "test",
         &mut texture,
         Some(&mut font),
@@ -203,6 +202,7 @@ fn text_failure_paths_and_published_common_output_policy() {
     assert_eq!(size, [32, 16]);
     assert_eq!(texture, 1);
     font.w = -1;
+    // Public integer wrapping domain includes negative width -1 -> dimension 1.
     host.image = None;
     host.upload_result = true;
     assert!(create_texture_from_text(

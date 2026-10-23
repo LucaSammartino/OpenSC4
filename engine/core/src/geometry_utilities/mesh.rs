@@ -86,7 +86,8 @@ impl MeshBuilder {
         }
     }
     pub fn add_vertex(&mut self, position: Vec3) {
-        self.try_add_vertex(position).expect("AddVertex requires a vertex array and PC24 normal numeric domain");
+        self.try_add_vertex(position)
+            .expect("AddVertex requires a vertex array and PC24 normal numeric domain");
     }
     pub fn try_add_vertex(&mut self, position: Vec3) -> Result<(), BuilderUnsupported> {
         let vertex = Vertex {

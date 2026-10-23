@@ -13,7 +13,9 @@ pub enum ClipUnsupported {
 
 fn side(p: Vec2, e0: Vec2, e1: Vec2) -> Result<bool, ClipUnsupported> {
     // Quiet NaN is outside, per the public unordered side branch.
-    if p.into_iter().chain(e0).chain(e1).any(f32::is_nan) { return Ok(false) }
+    if p.into_iter().chain(e0).chain(e1).any(f32::is_nan) {
+        return Ok(false);
+    }
     let result = (|| {
         let x = pc24::mul(pc24::sub(p[0], e0[0])?, pc24::sub(e1[1], e0[1])?)?;
         let y = pc24::mul(pc24::sub(p[1], e0[1])?, pc24::sub(e1[0], e0[0])?)?;
@@ -28,10 +30,18 @@ fn crossing(p: Vec2, current: Vec2, e0: Vec2, e1: Vec2) -> Result<Option<Vec2>, 
         let d2 = [pc24::sub(e1[0], e0[0])?, pc24::sub(e1[1], e0[1])?];
         let neg_y = -d2[1];
         let k = pc24::add(pc24::mul(d2[0], d1[1])?, pc24::mul(neg_y, d1[0])?)?;
-        if k.abs() < EPSILON { return Ok(None) }
-        let numerator = pc24::add(pc24::mul(d2[0], pc24::sub(e0[1], p[1])?)?, pc24::mul(neg_y, pc24::sub(e0[0], p[0])?)?)?;
+        if k.abs() < EPSILON {
+            return Ok(None);
+        }
+        let numerator = pc24::add(
+            pc24::mul(d2[0], pc24::sub(e0[1], p[1])?)?,
+            pc24::mul(neg_y, pc24::sub(e0[0], p[0])?)?,
+        )?;
         let t = pc24::div(numerator, k)?;
-        Ok(Some([pc24::add(p[0], pc24::mul(t, d1[0])?)?, pc24::add(p[1], pc24::mul(t, d1[1])?)?]))
+        Ok(Some([
+            pc24::add(p[0], pc24::mul(t, d1[0])?)?,
+            pc24::add(p[1], pc24::mul(t, d1[1])?)?,
+        ]))
     })();
     result.map_err(|_: pc24::NumericUnsupported| ClipUnsupported::NumericDomain)
 }
@@ -39,9 +49,19 @@ fn crossing(p: Vec2, current: Vec2, e0: Vec2, e1: Vec2) -> Result<Option<Vec2>, 
 /// Each actual write checks accessible backing; max is a signed emission gate,
 /// not permission to resize or to read uninitialized crossing coordinates.
 #[allow(clippy::too_many_arguments)]
-pub fn clip_edge_signed(e0: Vec2, e1: Vec2, poly: &[Vec2], n: i32, out: &mut [Vec2], max: i32, count: &mut i32) -> Result<(), ClipUnsupported> {
+pub fn clip_edge_signed(
+    e0: Vec2,
+    e1: Vec2,
+    poly: &[Vec2],
+    n: i32,
+    out: &mut [Vec2],
+    max: i32,
+    count: &mut i32,
+) -> Result<(), ClipUnsupported> {
     *count = 0;
-    if n <= 0 { return Ok(()) }
+    if n <= 0 {
+        return Ok(());
+    }
     let poly = poly.get(..n as usize).ok_or(ClipUnsupported::Backing)?;
     let mut previous = poly[poly.len() - 1];
     let mut previous_inside = side(previous, e0, e1)?;
@@ -71,13 +91,25 @@ pub fn clip_edge_signed(e0: Vec2, e1: Vec2, poly: &[Vec2], n: i32, out: &mut [Ve
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn clip_polygon_signed(poly: &[Vec2], n: i32, clip: &[Vec2], m: i32, out: &mut [Vec2], max: i32, count: &mut i32) -> Result<(), ClipUnsupported> {
+pub fn clip_polygon_signed(
+    poly: &[Vec2],
+    n: i32,
+    clip: &[Vec2],
+    m: i32,
+    out: &mut [Vec2],
+    max: i32,
+    count: &mut i32,
+) -> Result<(), ClipUnsupported> {
     *count = n;
     if n > 0 {
         let source = poly.get(..n as usize).ok_or(ClipUnsupported::Backing)?;
-        out.get_mut(..n as usize).ok_or(ClipUnsupported::Backing)?.copy_from_slice(source);
+        out.get_mut(..n as usize)
+            .ok_or(ClipUnsupported::Backing)?
+            .copy_from_slice(source);
     }
-    if m <= 0 { return Ok(()) }
+    if m <= 0 {
+        return Ok(());
+    }
     let clip = clip.get(..m as usize).ok_or(ClipUnsupported::Backing)?;
     let mut previous = clip[clip.len() - 1];
     let mut scratch = [[0.; 2]; 40];
@@ -87,7 +119,9 @@ pub fn clip_polygon_signed(poly: &[Vec2], n: i32, clip: &[Vec2], m: i32, out: &m
         *count = emitted.min(max);
         if *count > 0 {
             let len = *count as usize;
-            out.get_mut(..len).ok_or(ClipUnsupported::Backing)?.copy_from_slice(&scratch[..len]);
+            out.get_mut(..len)
+                .ok_or(ClipUnsupported::Backing)?
+                .copy_from_slice(&scratch[..len]);
         }
         previous = current;
     }

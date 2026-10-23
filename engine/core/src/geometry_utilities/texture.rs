@@ -94,31 +94,31 @@ fn create_with_font<H: TextureHost>(
     let [width, height] = layout.size.map(|v| v as u32);
     let [x, y] = layout.origin;
     let result = (|| {
-    let surface = host.create_surface(width, height, 9);
-    let Some(mut surface) = surface else {
-        return false;
-    };
-    if surface.width != width
-        || surface.height != height
-        || surface.pixel_code != 9
-        || surface.pixels.len() as u64 != u64::from(width) * u64::from(height)
-    {
-        return false;
-    }
-    surface.pixels.fill([0; 4]);
-    font.draw(text, &mut surface, x, y, 0xFFFF_FFFF);
-    let width_usize = width as usize;
-    for row in 0..height as usize {
-        for column in 0..width_usize {
-            if row == 0 || row == height as usize - 1 || column == 0 || column == width_usize - 1 {
-                surface.pixels[row * width_usize + column] = [0; 4];
+        let surface = host.create_surface(width, height, 9);
+        let Some(mut surface) = surface else {
+            return false;
+        };
+        if surface.width != width
+            || surface.height != height
+            || surface.pixel_code != 9
+            || surface.pixels.len() as u64 != u64::from(width) * u64::from(height)
+        {
+            return false;
+        }
+        surface.pixels.fill([0; 4]);
+        font.draw(text, &mut surface, x, y, 0xFFFF_FFFF);
+        let width_usize = width as usize;
+        for row in 0..height as usize {
+            for column in 0..width_usize {
+                if row == 0 || row == height as usize - 1 || column == 0 || column == width_usize - 1 {
+                    surface.pixels[row * width_usize + column] = [0; 4];
+                }
             }
         }
-    }
-    let Some(image) = encode_surface(&surface, compressed) else {
-        return false;
-    };
-    host.upload(&image, texture)
+        let Some(image) = encode_surface(&surface, compressed) else {
+            return false;
+        };
+        host.upload(&image, texture)
     })();
     font.set_mode(mode);
     // §6.4.1: common outputs include surface creation and upload failures.
@@ -126,12 +126,7 @@ fn create_with_font<H: TextureHost>(
         *size = [width, height];
     }
     if let Some(rect) = rect {
-        *rect = [
-            layout.far[0] as f32,
-            layout.far[1] as f32,
-            x as f32,
-            y as f32,
-        ];
+        *rect = [layout.far[0] as f32, layout.far[1] as f32, x as f32, y as f32];
     }
     result
 }
