@@ -33,6 +33,116 @@ struct Recording {
     fit_widths: Vec<i32>,
     marker: Option<Vec<u8>>,
     marker_width: i32,
+    enumerated: [Vec<Vec<u8>>; 2],
+    patterns: Vec<Vec<u8>>,
+    installed: Vec<(i32, i32, Vec<u8>)>,
+    combo_indices: Vec<u32>,
+    buffer_ok: bool,
+    lock_ok: bool,
+    icon_calls: Vec<&'static str>,
+}
+
+impl file_browser::BrowserIo for Recording {
+    fn enumerate(&mut self, _: &[u8], kind: file_browser::Enumeration) -> Vec<Vec<u8>> {
+        self.enumerated[usize::from(kind == file_browser::Enumeration::Files)].clone()
+    }
+    fn wildcard_match(&mut self, pattern: &[u8], _: &[u8], _: u32) -> bool {
+        self.patterns.push(pattern.to_vec());
+        pattern == b"second"
+    }
+    fn clear_grid(&mut self, _: Handle) { self.installed.clear(); }
+    fn grid_set_text(&mut self, _: Handle, column: i32, row: i32, text: &[u8]) {
+        self.installed.push((column, row, text.to_vec()));
+    }
+    fn grid_set_bitmap(&mut self, _: Handle, _: i32, _: i32, _: Handle) {}
+    fn combo_select(&mut self, _: Handle, index: u32) { self.combo_indices.push(index); }
+    fn base_set_area(&mut self, _: Handle, _: Rect) { self.icon_calls.push("area"); }
+}
+
+impl file_browser::IconIo for Recording {
+    fn factory_buffer(&mut self, component: u32, iid: u32) -> Option<Handle> {
+        assert_eq!((component, iid), (0xc470_d325, 0x2073_2180));
+        self.icon_calls.push("factory");
+        None
+    }
+    fn graphics_buffer(&mut self) -> Option<Handle> { self.icon_calls.push("graphics"); Some(700) }
+    fn init_buffer(&mut self, _: Handle, width: i32, height: i32) -> bool {
+        assert!(matches!((width, height), (18, 17) | (84, 22)));
+        self.icon_calls.push("init"); self.buffer_ok
+    }
+    fn icon_strip(&mut self, id: u32) -> Option<Handle> {
+        assert_eq!(id, 0xa896_3eea); Some(701)
+    }
+    fn lock_buffer(&mut self, _: Handle, flags: u32) -> bool {
+        assert_eq!(flags, 0x8010); self.icon_calls.push("lock"); self.lock_ok
+    }
+    fn copy_buffer(&mut self, _: Handle, _: Handle, from: Rect, to: Rect) {
+        assert_eq!((from, to), ([36, 0, 54, 17], [0, 0, 18, 17])); self.icon_calls.push("copy");
+    }
+    fn unlock_buffer(&mut self, _: Handle) { self.icon_calls.push("unlock"); }
+    fn convert_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
+        assert_eq!(rgb, [255, 0, 255]); self.icon_calls.push("rgb"); 0x1234
+    }
+    fn set_color_key(&mut self, _: Handle, color: u32) {
+        assert_eq!(color, 0x1234); self.icon_calls.push("key");
+    }
+}
+
+#[test]
+fn fb_c19_patterns_are_alternatives_and_directories_bypass_them() {
+    use file_browser::*;
+    let mut b = FileBrowser::new(100);
+    let mut f = Recording::default();
+    b.flags = 12;
+    b.children[5] = Some(200);
+    b.filter_labels.push(b"group".to_vec());
+    b.filter_patterns.push(vec![b"first".to_vec(), b"second".to_vec()]);
+    f.enumerated = [vec![b"Z".to_vec(), b"A".to_vec()], vec![b"Data.TXT".to_vec()]];
+    let column = |index| Some(Column { index, width: 100, font: None });
+    b.populate_files([None, column(1), column(2)], &[], 0, &mut f).unwrap();
+    assert_eq!(f.patterns, [b"first".to_vec(), b"second".to_vec()]);
+    assert_eq!(b.entries.iter().map(|e| e.as_ref().unwrap().name.as_slice()).collect::<Vec<_>>(), [b"A".as_slice(), b"Z", b"Data.TXT"]);
+    assert!(f.installed.contains(&(2, 2, b"txt".to_vec())));
+    assert_eq!(b.entries[2].as_ref().unwrap().name, b"Data.TXT");
+}
+
+#[test]
+fn fb_c20_c21_c25_c26_icon_loader_failure_and_ownership() {
+    use file_browser::*;
+    let mut b = FileBrowser::new(100);
+    let mut f = Recording::default();
+    assert_eq!(FileBrowser::create_default_icon(None), Ok(true));
+    assert_eq!(b.load_default_icon(2, &mut f), Ok(false));
+    assert_eq!(f.refs, [(false, 700)]);
+    let mut output = Some(99);
+    FileBrowser::create_default_button_buffer(&mut output, &mut f).unwrap();
+    assert_eq!(output, None);
+    assert_eq!(f.refs, [(false, 700), (false, 700)]);
+    f.refs.clear();
+    f.icon_calls.clear();
+    f.buffer_ok = true;
+    assert_eq!(b.load_default_icon(2, &mut f), Ok(true));
+    assert_eq!(f.icon_calls, ["factory", "graphics", "init", "lock", "rgb", "key"]);
+    assert_eq!(f.refs, [(true, 700), (false, 700)]);
+    assert_eq!(b.icons[2], Some(700));
+    f.lock_ok = true;
+    f.icon_calls.clear();
+    assert_eq!(b.load_default_icon(2, &mut f), Ok(true));
+    assert_eq!(f.icon_calls, ["factory", "graphics", "init", "lock", "copy", "unlock", "rgb", "key"]);
+}
+
+#[test]
+fn fb_c27_filter_repeats_invalidate_without_population() {
+    let mut b = file_browser::FileBrowser::new(100);
+    let mut f = Recording::default();
+    b.filter_labels.push(b"all".to_vec());
+    b.filter_combo = Some(200);
+    assert!(b.select_filter(0, &mut f));
+    assert!(b.select_filter(0, &mut f));
+    assert!(!b.select_filter(1, &mut f));
+    assert_eq!(f.combo_indices, [0, 0]);
+    assert_eq!(f.invalidations, 2);
+    assert!(b.refresh_work.is_empty());
 }
 
 impl Foreign for Recording {

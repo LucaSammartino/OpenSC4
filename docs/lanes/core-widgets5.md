@@ -3,6 +3,9 @@
 | core-widgets5: widget control owners | Codex / core-widgets5 | in progress | Inspect existing modules and implement widget-controls owner contracts |
 
 ## Handoff
+- Round 2: collected qbuild-20261023-213040-build-ctest.verdict: PASS build 59/59, CTest 68/68; verifier marks tree changed. Original Rust 6390/clippy clean evidence remains.
+- Round 2 milestone: FileBrowser explicit population with resolved columns/icons, filter index, icon-strip loading and initialization failures; focused widget_controls 24 passed, 4138 filtered (before Grid edits). Grid module now under construction, not tested yet. No ready/closure claim.
+- Next: finish Grid state/layout/data/input, TextEdit, then audit ListBox/TreeView lifecycle; one final all gate on stable source. Manifest is run4-core-widgets5-r2-manifest.json.
 - Goal: close Grid, TextEdit, ListBox, TreeView and FileBrowser against widget-controls.
 - Done: 0de6813c adds ListBox/TreeView models and all family vectors; FileBrowser partial state/string/ownership layer now adds seven tests (21 total pass).
 - Next: FIRST collect existing qbuild operation with write_stdin session_id=81518 (60-second waits); do NOT launch another build. Then finish FileBrowser refresh bodies/resources/lifecycle/vectors; implement Grid/TextEdit. README lists remaining gaps.

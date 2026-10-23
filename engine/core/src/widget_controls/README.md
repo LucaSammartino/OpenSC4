@@ -10,9 +10,15 @@ Work in progress: ListBox and TreeView have state/message models and all of the
 family vectors WC-L01–L15, WC-T01–T12 and WC-F01. Those tests use recording
 foreign services and establish no native-game or pixel comparison. Grid,
 TextEdit incorporated contracts have not yet been implemented. FileBrowser
-has a partial state/string layer, with refresh calls recorded as pending work;
-it does not execute population and must not be used as a complete browser.
+has a state/string layer plus explicit file enumeration/filter/sort/installation
+with resolved column and icon inputs (`populate_files`). Automatic refresh still
+records pending work; native column sizing, drive population and restoration
+remain open FBQ5. It must not be used as a complete browser.
 No owner-wide closure is claimed.
+
+Round 2 adds FB-C19–C21/C25–C27: alternative pattern matching, borrowed icon-strip
+copy/failed-lock behavior, buffer initialization cleanup and repeated filter
+selection. Focused suite: 24 tests passed before the Grid implementation.
 
 `TreeView::insert_at` is a semantic ordered-child-list mutation used to build
 fixtures. It deliberately does not map native ordering sentinels or sibling

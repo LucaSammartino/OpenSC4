@@ -4,6 +4,9 @@
 //! not yet implemented are not represented by foreign whole-owner callbacks.
 use super::*;
 
+mod operations;
+pub use operations::{BrowserIo, Column, Enumeration, IconIo};
+
 pub const IID: u32 = 0x3aa5_2e64;
 pub const PRIMARY_SLOTS: usize = 107;
 pub const WINDOW_SLOTS: usize = 151;
@@ -108,6 +111,10 @@ pub struct FileBrowser {
     pub pending_name: Vec<u8>,
     pub filter_index: u32,
     pub filter_labels: Vec<Vec<u8>>,
+    pub filter_patterns: Vec<Vec<Vec<u8>>>,
+    /// Resolved combo interface; the incomplete AddControls table does not
+    /// establish a retained-field index for this control (FBQ2).
+    pub filter_combo: Option<Handle>,
     pub selection: Selection,
     pub selected_row: i32,
     pub dirty: bool,
@@ -149,6 +156,8 @@ impl FileBrowser {
             pending_name: Vec::new(),
             filter_index: 0,
             filter_labels: Vec::new(),
+            filter_patterns: Vec::new(),
+            filter_combo: None,
             selection: Selection::default(),
             selected_row: 0,
             dirty: false,
