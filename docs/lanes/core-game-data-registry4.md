@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` | **WIP**: owned core and16 literal tests; canonical gate green at7babaf67, final source has subsequent rustfmt-only changes | Coordinator must validate formatted engine tree2226d3b64adf716a335de644960e15ce494e7d58 before ready; no automatic lane restart |
+| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` | in progress: original round2/3; final-source qualification pending fresh process ownership check | Resolve current checker ownership, preserve evidence, then one serial canonical all |
+
+## Handoff
+
+- Goal: qualify unchanged formatted engine2226d3b64adf716a335de644960e15ce494e7d58, original round2/3.
+- Prior source/report HEAD4fe93763; no engine edits this round; existing report retained below.
+- Read copied eligibility/process/action proof in build-runs/evidence-run4/.
+- Fresh 05:15:47 inspection: no port4590 listener; only command runner/shell matched own cwd.
+- CIM denied; psutil has many cross-process AccessDenied errors, so absence of live checker is not proven.
+- Local collector build-runs/registry-r2-qualification.py; proof build-runs/registry-r2-final/.
+- Next: collect pending inspection terminal, resolve ownership before any canonical all; do not duplicate validators.
+- Correct report and final request to disclose ROOT optional stats35076 termination at04:52:15.453930–04:52:16.465343 exit15.
+- Original fc4verify33964/qbuild26456/daemon35116 remained alive; cache stats unavailable/cause UNKNOWN.
+- Earlier30532 already absent/no ROOT action remains separate; no restart or upgraded outcome.
+- Preserve GDR1–5, 37S5P6F/48/5807 and all old failure evidence; no tests/features/native/game expansion.
 
 ## Owned core
 
