@@ -4,10 +4,14 @@
 
 ## Handoff
 - Goal: close cSC4App in the existing portable application module; no capi/plugin/ABI changes.
-- Done: audited application spec sections 1-15; added city algorithms, raw preference persistence, plugin policy, bounded pumps, restart poll and corrected 28-service order.
-- Next: finish integrated lifecycle corrections, focused failure/order tests and owner table, then required full gate.
+- Done: first implementation milestone 44c88948; owner table covers all sections; 48 focused application tests pass (23 new, 25 existing).
+- Done: integrated owned runner, cISC4App getter surface, 28-service order, nine subscriptions, foreign entry, resource summaries, failure/rollback tests, reference retention and balanced scopes.
+- Next: run final explicit-file fmt and required qbuild all; collect terminal result, fix diagnostics if any, update report and queue.
 - Main checkout: C:/Users/tlori/FreeCity4 (lane tools only).
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-app5-r1-manifest.json.
-- Focused cargo operation session 84702 outstanding; collect it, do not relaunch.
+- No asynchronous operations or game requests outstanding.
 - q.py failed before cargo (Git Bash CreateFileMapping access denied); direct cargo works.
 - Save naming remains the explicit section 12 gap; resolved target is an explicit composition input.
+- AP12-AP15 appended to docs/specs/questions/application.md. Do not regenerate QUESTIONS.md with forbidden tools; coordinator handles generated index.
+- Remaining open: §§1-3 constructor/interfaces/startup, 3.1 config/setup, 5.1 heap-helper discipline, 6 preferences/GP apply, 8 acceptance, 9 aliases, 11.6 failure defaults, 11.10 contradictory stub summary, 11.16 naming, 13.3 video/reapply, 14 full setup/INI source (AP3-AP15).
+- fmt first invocation used worktree-relative paths but qbuild resolves from engine; rerun with absolute owned paths.

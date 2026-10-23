@@ -246,11 +246,7 @@ impl Application {
             Step::Effect(Effect::ReadStartupOption("AllowMultipleInstances")),
             Step::Effect(Effect::ReadStartupOption("Restart")),
         ];
-        // AP5: the exact restart test/wait is unpublished. Presence never
-        // delegates the wait algorithm or silently skips it.
-        if line.is_switch_present(b"Restart") {
-            steps.push(Step::Boundary(Boundary::RestartWait));
-        }
+        steps.push(Step::Boundary(Boundary::RestartWait));
         for director in [Director::Sc4, Director::Audio, Director::GzWww] {
             steps.push(Step::Effect(Effect::AddDirector(director)));
         }
@@ -272,7 +268,18 @@ impl Application {
             Step::Boundary(Boundary::FindAndRegisterLanguages),
             Step::Boundary(Boundary::PreferencesChanged),
         ]);
-        self.begin(Lifecycle::PreFrameworkInit, steps)
+        self.begin(Lifecycle::PreFrameworkInit, steps)?;
+        self.instance_policy = (
+            line.is_switch_present(b"AllowMultipleInstances"),
+            line.is_switch_present(b"Restart"),
+        );
+        Ok(())
+    }
+
+    pub(crate) fn abort_pending_startup(&mut self) {
+        self.lifecycle.waiting = None;
+        self.lifecycle.steps.clear();
+        self.lifecycle.result = false;
     }
 
     /// Also usable independently for framework composition/tests.
@@ -293,6 +300,10 @@ impl Application {
                 Step::Send(PRE_APP_INIT),
                 Step::Effect(Effect::RegisterV1 {
                     kind: QUIT_REQUEST,
+                    target: self.app_token,
+                }),
+                Step::Effect(Effect::RegisterV2 {
+                    kinds: super::compatibility::V2_SUBSCRIPTIONS,
                     target: self.app_token,
                 }),
                 Step::Create(Helper::CheatManager),
@@ -431,13 +442,19 @@ impl Application {
                     Service::MessageServer2 => Some(2),
                     _ => None,
                 };
-                let base = generation
-                    .map(|n| host.create(Object::GzMessageServer(n)))
-                    .transpose()?;
+                let base = if kind == Service::GraphicsSystem {
+                    host.graphics_driver()
+                } else {
+                    generation
+                        .map(|n| host.create(Object::GzMessageServer(n)))
+                        .transpose()?
+                };
                 let object = host.create(Object::Service { kind, base });
                 // AP6 portable ownership: wrapper constructor retained its base.
-                if let Some(base) = base {
-                    host.release_created(base);
+                if generation.is_some() {
+                    if let Some(base) = base {
+                        host.release_created(base);
+                    }
                 }
                 let object = object?;
                 let result = host.register_service(kind, object);
@@ -542,6 +559,10 @@ impl Application {
             }
             Step::Clear314 => self.field_314 = None,
             Step::FreeHelpers => {
+                self.unregister_app_cheats(host);
+                if let Some(manager) = self.helper(Helper::CheatManager) {
+                    host.release_created(manager);
+                }
                 // The actual order/free discipline is an AP5/AP6 boundary,
                 // not a guessed reverse-COM-release loop. Integration must
                 // destroy Init helpers before acknowledging ShutdownHelperOrder.

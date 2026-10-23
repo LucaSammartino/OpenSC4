@@ -98,7 +98,7 @@ impl Host for TestHost {
     }
 }
 
-fn app() -> Application {
+pub(super) fn app() -> Application {
     let mut directories = Directories::default();
     directories.plugin_a4 = b"P:\\".to_vec();
     directories.user_base_11c = b"U:\\".to_vec();
@@ -280,6 +280,10 @@ fn successful_init_exact_order_includes_every_unresolved_owner_call() {
             }),
             Call::Effect(Effect::RegisterV1 {
                 kind: 0xC7AA_61C6,
+                target: 1
+            }),
+            Call::Effect(Effect::RegisterV2 {
+                kinds: compatibility::V2_SUBSCRIPTIONS,
                 target: 1
             }),
             Call::Create(Object::Helper(Helper::CheatManager), 101),
