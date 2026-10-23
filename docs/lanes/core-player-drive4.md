@@ -15,6 +15,7 @@
 - Milestone75ccd5a8 records process ownership; all4 remaining component logs archived in quick-r2 with exact SHA256 unchanged (archive-r3-manifest.json); no recovered quick terminal verdict or completed final gate.
 - Fresh absolute-path new-file fmt: exit0, files2; shared lib separately exit1, diff_lines173 (baseline171 plus additive declaration). No mass formatting or engine edits; terminal logs fmt-new-r3-terminal.log and fmt-shared-r3-terminal.log.
 - Next: ONE final qbuild all through run-player-drive-r3.py, q.py direct argument transport (tested); final-r3-terminal.log durably captures wrapper output and exact wrapper_exit. Source/artifact preflight in source-r3-before-all.json. Do not repeat while alive or discard a complete matching gate for docs-only commits.
+- Final all launched on committed72be9027 at00:29:34Z: q.py29060(created00:29:34.180281Z), runner12324(.226582Z), qbuild26020(.384666Z), cargo4816/32724; terminal session78746. Inventory process-r3-final-started.json confirms own engine/target compiler paths and no duplicate old operation. Collect this operation, never replay. All subsequent commits are docs-only with identical engine tree.
 - No game request outstanding; no ABI/plugin/CAPI/default/shadow promotion; DR1-DR8 retained.
 
 ## Previous report (round 2)
