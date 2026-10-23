@@ -4,9 +4,9 @@
 
 ## Handoff
 - Goal: default-off advisor same-process record shadow; real-city exact through 2032.
-- Done: read prior four handoffs and advisors sections 2/11; added default-off record-only shadow plus synthetic graph native test.
-- Next: finish focused cargo test session 34805; run qbuild all and queued verify on stable source, then real-city 2032.
-- No game request outstanding. Focused cargo test running; initial q.py wrapper failed because Bash CreateFileMapping is denied; direct cargo started instead.
+- Done: implementation committed a8c61b7f; focused advisors 63/63; qbuild all Rust 6229/0 and clippy diagnostics=0.
+- Next: collect the SAME qbuild all operation, session 57613, through terminal native result. Native job qbuild-20261023-195720-build-ctest is queued; do not launch a duplicate verify. Then request game through 2032.
+- No game request outstanding. qbuild logs build-runs/qbuild-{test,clippy}.log. Initial q.py failed because Bash CreateFileMapping is denied; direct cargo focused check passed.
 - Graph compares system/advisor/advice/subject records; MySim records excluded by spec section 2.1, retained as identities in system map.
 - Read sets advice TEXT_DIRTY by spec; comparison deliberately strict, no normalization. Event ID (not saved by advice) is seeded from original getter before Read.
 - Do not attempt replacement factories or infer native signatures.
