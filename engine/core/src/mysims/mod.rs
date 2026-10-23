@@ -40,6 +40,7 @@ pub mod dispatch;
 pub mod pool;
 pub mod scripted;
 mod sim;
+pub mod street;
 
 #[cfg(test)]
 mod dispatch_tests;
