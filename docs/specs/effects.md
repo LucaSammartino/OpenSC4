@@ -1976,7 +1976,7 @@ owner ignores the insert-result boolean. `Smoke` and `smoke` are separate
 keys, whereas a second `Smoke` with a different priority is ignored after its
 reader/conversion/copy work. Empty optional text does not set the final byte;
 even a supplied third string leaves it zero. These are pending parser records;
-the command itself does not prove when a later consumer applies them.
+§19.9 defines their consumption at effect-block entry.
 Temporary strings are destroyed after the insertion returns. A throwing
 conversion precedes insertion, so it cannot insert a zero-priority entry as
 the resource-ID declarations do.
@@ -2001,3 +2001,103 @@ promoting a medium-confidence symbol label into a confirmed original class name.
 | EC32 | repeat exact name `Smoke` with priority 9 and optional `Other` | original EC31 record retained; conversion and optional-string copy still occur, then duplicate insertion returns false |
 | EC33 | after EC31, `setPriority smoke 9 Other surplus` | second entry `(smoke,9,Other,0)`; `surplus` ignored; case-sensitive distinct key |
 | EC34 | `setPriority New bad`; ParseInt throws | no new pending entry; no default-zero insertion or manager call |
+
+### 19.9 Root visual-effect block
+
+Root `effect` selects `cGroupEffectCommand`, descriptor `00A9F944`, enter
+`005A0D40`, exit `0059EB50`. This is the definition of a visual effect, distinct
+from nested `visualEffect` references. Its live name is the parser string at
+`P+434`; its description is at `P+444`. A nonempty live name throws
+`Can't nest effects! (Perhaps you meant visualEffect?)` **before** selecting
+arguments. The guard is the name's length, not generic block depth. With an
+empty name, the positional reader requires at least one initial value and
+copies only its first selected string into that name, preserving case. Further
+positional names are ignored. It does not validate the name against the
+directory. A quoted empty-name token, if supplied by the tokenizer, leaves this
+guard empty; the owner supplies no additional nonempty-name validation.
+
+Entry then replaces the description with a fresh default description: flags=0,
+priority=1, no component records, no parameter bindings, empty trailing string,
+and first message word (`description+20`) zero. The constructor does **not**
+initialize message words `+24,+28`; assignment copies their indeterminate
+temporary contents. They are not specified as zero or as the old description's
+words. With a supplied `startMessage`, the selected words below replace this
+indeterminate/default state individually. This is the text-constructor behavior,
+not the binary-reader version defaults in §3.
+
+The following keys are processed in order, after assigning the name and resetting
+the description. Presence switches request a minimum of zero values; they OR
+the indicated bit into the **description's** 32-bit flags. They do not set
+component flags. Their surplus ordinary values have no additional effect.
+
+| Key | Minimum values / interpretation | Effect |
+|---|---|---|
+| `viewRelative` | 0 | OR 001 hex |
+| `noAutoStop` | 0 | OR 002 hex |
+| `rigid` | 0 | OR 008 hex |
+| `ignoreOrientation` | 0 | OR 040 hex |
+| `hardStop` | 0 | OR 004 hex |
+| `noPropagate` | 0 | OR 010 hex |
+| `applyCursor` | 0 | OR 020 hex |
+| `noLODStop` | 0 | OR 080 hex |
+| `startMessage` | at least 1; first up to three selected values, ParseUint in order | store words at description `+20,+24,+28`; ignore fourth and later values |
+| `manualRestart` | 0 | OR 100 hex |
+
+Each successful message conversion is stored before the next; a throwing second
+conversion retains the first word and all previous flag/name/reset writes.
+Missing `startMessage` leaves the constructor state above. The option does not
+set a separate presence flag or enforce an exact three-word count.
+
+After those options, entry searches the pending `setPriority` container (§19.7)
+for the current name using exact-case string comparison. If it finds a record,
+it copies its signed priority verbatim into description `+04`, without a [1,5]
+range check. A nonempty optional string replaces the live effect name,
+preserving case. The record's byte at `+1C` is then set to 1. The record is not
+erased, and the renamed name is not looked up again. This path does **not**
+look up, mark, convert or validate an explicit `-priority` option.
+
+With no matching pending record, `priority` is looked up with minimum one value.
+When absent, default 1 remains. When present, only its first selected value is
+converted with ParseInt. Results below 1 or above 5 throw
+`argument out of range: expecting [1..5], got %d` before assigning priority or
+entering the generic block. Earlier name/reset/options survive. Thus an inline
+`-priority 0` fails, while a previously retained `setPriority Name 0` overrides
+with 0 successfully at this owner boundary. Because this command is a root
+descriptor, the generic root-fallback path itself does not post-reject an
+unmarked inline priority on the override path (§19.1).
+
+On either normal priority path, entry zeros words `P+4A0,P+4A4` and byte
+`P+4AC`, then enters the generic block. It does not zero `P+4A8` here. These
+scratch addresses are interface facts for the remaining select/sequence
+contracts, not yet a complete definition of those algorithms. A null `P+90`
+does not bypass name, option, pending-record or generic-block processing.
+
+On normal exit, nonnull `P+90` receives collection slot
+`+14(currentName,&description)`. Its result is ignored; then the live name is
+cleared to empty. A null collection omits publication but still clears the name.
+Exit does not clear/reset the description or pending-priority record, restore a
+previous name, or parse more options. If publication throws, the clear is not
+reached and the generic block is not popped. The next normal entry performs its
+own description reset. Collection copy/validation/replacement remains the
+individual foreign call's contract.
+
+Evidence: enter nesting/name/default assignment `005A0D40–005A0E1E`,
+default constructor `0058A930–0058A979` and assignment `0058B4A0–0058B4FD`,
+ordered flag/message writes `005A0E23–005A0F87`, pending-record lookup and
+rename/mark `005A0F87–005A1003` (finder `005A12E0` uses comparator
+`004B5CA0`), inline validation and generic-block entry `005A1005–005A10A6`,
+exit publication/clear `0059EB50–0059EBDA`. Nested dictionary execution remains
+EF15; entry/exit publication does not establish its child command algorithms.
+
+### 19.10 Effect-block conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC35 | nonempty live name `Outer`; attempted `effect` without arguments | nesting exception precedes positional minimum check; name/description unchanged |
+| EC36 | empty live name; `effect Name ignored`; no options/override; old description populated | live name `Name`, reset flags=0/priority=1/empty component and binding lists/empty trailing string/message0=0; message1,2 not constrained; scratch 4A0/4A4/4AC zero, generic block entered |
+| EC37 | `effect Name -manualRestart -applyCursor -viewRelative -startMessage 10 20 30 40`; uint replies 10,20,30 | name assigned and description reset, options processed in table order; flags=121 hex, message words 10/20/30; 40 not converted |
+| EC38 | `effect Name -rigid -startMessage 10 bad`; first uint=10, second throws | live name/reset/rigid bit and first message word retained; no manualRestart/priority lookup, scratch final reset or generic entry |
+| EC39 | no pending override; `effect Name -priority 0`; ParseInt=0 | range exception; name retained, default priority 1; no generic block entry |
+| EC40 | pending `(Name,0,Renamed,0)`; `effect Name -priority bad` | priority=0, live name `Renamed`, pending used byte=1; inline priority remains unmarked and unconverted; no second lookup for Renamed; block entered |
+| EC41 | returning exit with collection C and current name `Renamed` | C+14 receives `Renamed` and current description; name then empty, description/pending record retained. Null C instead clears name without publication |
+| EC42 | C+14 throws on exit | live name and description retained; generic block not popped; no implicit second exit |
