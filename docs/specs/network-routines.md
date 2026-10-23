@@ -61,9 +61,10 @@ null, overflowing or out-of-city requests into a claimed native `false` result. 
 
 ## 3. Bounds, lot records and zero bitmap
 
-First acquire `city.GetLotManager()` (city slot 33, `+0x84`) through global city `0x00B43CEC`.
-This happens even for an empty sequence (`0x0061F803`). Initial bounds are
-`xmin = zmin = 0x7FFFFFFF`, `xhigh = zhigh = 0`. For each input pair, in input order:
+Read the sequence's begin/end and initialize bounds to `xmin = zmin = 0x7FFFFFFF`, `xhigh = zhigh = 0`.
+Acquire `city.GetLotManager()` (city slot 33, `+0x84`) through global city `0x00B43CEC`.
+The getter runs even for an empty sequence (`0x0061F803`), after those header reads and before testing
+begin=end. For each input pair, in input order:
 
 1. Lower xmin/zmin if x/z is smaller. If x is at least xhigh, replace xhigh by x+1; analogously for zhigh.
 2. Ask `lotManager.GetLot(x, z, false)` (slot 6, `+0x18`, `0x0061F844–0x0061F852`).

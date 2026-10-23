@@ -7,8 +7,9 @@
 - Goal: document `0061F7C0` and its owned temporary filter in `docs/specs/network-routines.md`.
 - Round 2/3 uses the authorized primary export/instruction workflow. First-round exact NoApp result below remains historical and carries zero behavior credit.
 - Done: start committed `2b1d638f`; matching export/executable SHA-256 and 1.1.641.0 metadata measured.
-- Done: standalone contract drafted; full helper and filter instructions read; typed occupant lookup and bitmap polarity corrected in caller summaries.
-- Next: run question index, doccheck/diff checks; review boundary/lifetime details and finish report/queue.
+- Done: `574036c9` publishes standalone contract, full helper/filter instruction analysis, typed lookup and bitmap-polarity corrections, eight proposed vectors and NRT1.
+- Done: question index regenerated; doccheck check and diffcheck passed at publication.
+- Next: final documentation/question/link checks; finish report and queue. No game requests outstanding.
 - Facts: no zone eligibility method exists here; occupant-manager slot 32 miss marks selected bits; rects are per-input lots only, duplicates retained; cost untouched on FC00 reject.
 - Questions: NRT1 (unsupported-domain/allocation guarantees), `docs/specs/questions/network-routines.md`.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-network-routines4-r2-manifest.json`.
