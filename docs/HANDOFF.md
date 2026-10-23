@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 305 (Overlay manager and network-occupant model instance owners landed and claimed (run 5).); 304 (The cSC4AudioAmbienceManager owner (run 5 Codex lane) landed and was claimed: implemented +11,298 B; landvalue shadow 72/72 -> 71/72 run noise (seen before in train121) cost 6,711 B verified for this report.); 303 (Watercraft U-Drive-It commands and docking (partial owner, WC3-WC8 open) landed after a clean gate and regression with no worsened rows; coverage unchanged.); 302 (The unwired MyStreetSim core module landed after a clean gate and regression; coverage unchanged.); 301 (Seven unwired core modules and the automata controller lifecycle spec landed after a clean gate and regression; one netmgr shadow month of run noise; coverage unchanged.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 306 (Lighting manager and ARGB8 image owners landed and claimed (run 5).); 305 (Overlay manager and network-occupant model instance owners landed and claimed (run 5).); 304 (The cSC4AudioAmbienceManager owner (run 5 Codex lane) landed and was claimed: implemented +11,298 B; landvalue shadow 72/72 -> 71/72 run noise (seen before in train121) cost 6,711 B verified for this report.); 303 (Watercraft U-Drive-It commands and docking (partial owner, WC3-WC8 open) landed after a clean gate and regression with no worsened rows; coverage unchanged.); 302 (The unwired MyStreetSim core module landed after a clean gate and regression; coverage unchanged.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
