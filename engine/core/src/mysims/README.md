@@ -35,7 +35,7 @@ under MS17. The pool has no remaining open section.
 | 9.2 pathfinder/lot/neighbour dependencies | `JobPathfinder`, `JobSearchWorld`, `DispatchHost` | `t30`-`t35`, `t40_location_contract`; `ms12_21`-`ms12_25`, `ms12_28` |
 | 10 replacement boundary | Core job search implemented; trip automaton open: MS17 | No native replacement or ABI change |
 | 12.6 job search/notification | `find_new_job`, `set_current_commute_destination` | `ms12_06_job_search`, `ms12_21`-`ms12_25` |
-| 12.21 MS13 arithmetic and home rectangle | `world_to_cell`, `set_cell_position`, `home_start_rect` | `t42_ms13_arithmetic_and_home_rect`, `ms12_29_location_arithmetic` |
+| 12.21 MS13 arithmetic and home rectangle | `world_to_cell`, `set_cell_position`, `home_start_rect` | `t42_ms13_arithmetic_and_home_rect`, `ms12_29_location_arithmetic`, `ms12_31_home_rect` |
 | 12.23-26 MySim commute/trip sampling | MySim-owned, not assigned to dispatch; persistent job-search configuration kept separate | No closure claim for the MySim owner |
 
 ### cSC4MySimPool

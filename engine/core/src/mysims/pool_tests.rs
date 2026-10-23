@@ -356,7 +356,8 @@ fn p9_ms12_ini_reads() {
                 b"C".to_vec(),
             ));
             for f in ["gender", "zodiac"] {
-                i.entries.push((b"FamilyInfo".to_vec(), member_key(3, f).into_bytes(), Vec::new()));
+                i.entries
+                    .push((b"FamilyInfo".to_vec(), member_key(3, f).into_bytes(), Vec::new()));
             }
         });
         assert_eq!(MySimPool::new(h.clone()).import(), want, "n = {n}");
@@ -389,23 +390,37 @@ fn p10_ms12_absent_properties() {
 
 #[test]
 fn p11_ms14_required_reads_and_short_names() {
-    for missing in ["sims_family_nummembers", "sims_familymember1_name",
-        "sims_familymember1_gender", "sims_familymember1_zodiac", "sims_familymember1_guid"] {
+    for missing in [
+        "sims_family_nummembers",
+        "sims_familymember1_name",
+        "sims_familymember1_gender",
+        "sims_familymember1_zodiac",
+        "sims_familymember1_guid",
+    ] {
         let h = sims_host();
-        h.inis.borrow_mut().values_mut().for_each(|i| i.entries.retain(|(_, k, _)| k != missing.as_bytes()));
+        h.inis
+            .borrow_mut()
+            .values_mut()
+            .for_each(|i| i.entries.retain(|(_, k, _)| k != missing.as_bytes()));
         assert_eq!(MySimPool::new(h.clone()).import(), 0, "{missing}");
         assert!(h.converted.borrow().is_empty());
     }
     let h = sims_host();
     h.inis.borrow_mut().values_mut().for_each(|i| {
         for (_, k, v) in &mut i.entries {
-            if k == b"sims_family_nummembers" { *v = b"bad".to_vec(); }
+            if k == b"sims_family_nummembers" {
+                *v = b"bad".to_vec();
+            }
         }
     });
     assert_eq!(MySimPool::new(h).import(), 0);
     for name in [b"abc".as_slice(), b""] {
         let h = sims_host();
-        let ini = h.inis.borrow_mut().remove(b"D:\\Sims\\UserData2\\Export\\F.ini".as_slice()).unwrap();
+        let ini = h
+            .inis
+            .borrow_mut()
+            .remove(b"D:\\Sims\\UserData2\\Export\\F.ini".as_slice())
+            .unwrap();
         let path = [b"D:\\Sims\\UserData2\\Export\\".as_slice(), name, b".ini"].concat();
         h.inis.borrow_mut().insert(path.clone(), ini);
         *h.listings.borrow_mut().values_mut().next().unwrap() = vec![name.to_vec()];
@@ -418,7 +433,9 @@ fn p11_ms14_required_reads_and_short_names() {
     h.strings.borrow_mut().clear();
     h.inis.borrow_mut().values_mut().for_each(|i| {
         for (_, k, v) in &mut i.entries {
-            if k == b"sims_familymember1_gender" || k == b"sims_familymember1_zodiac" { v.clear(); }
+            if k == b"sims_familymember1_gender" || k == b"sims_familymember1_zodiac" {
+                v.clear();
+            }
         }
     });
     let p = MySimPool::new(h);

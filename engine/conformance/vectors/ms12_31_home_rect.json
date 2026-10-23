@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "mysim_ms13_home_rect",
+  "spec": ["mysims 4.7.1", "mysims 12.21"],
+  "description": "A home occupant without its own lot goes straight to the single cell. A home without an occupant uses the cell's lot.",
+  "steps": [
+    {"op": "mysim_job_search", "home": {"rect": [10,10,12,11], "cell": [10,10], "missing_lot": true},
+     "cell_lot": [9,9,14,14], "searches": [{"wealth": 2, "find_result": 0}],
+     "expect": {"results": [false], "notifies": [false], "dest_flags": [2], "flags": 17, "filter": 0, "density": 1,
+       "start_rect": [10,10,10,10], "travel": [463,463], "find_path": 1,
+       "calls": ["Reset","ClearAllTravelTypeFlags","SetRouteInfo","SetFlag","SetFlag","SetTripDestinationFilter","SetDestinationFlag","SetTrafficDensity","SetStartRect","SetTravelTypeFlag","FindPath"],
+       "destination": {"occupant": null, "world": [-16.0,-16.0], "cell": [-1,-1], "neighbor_city": [-1,-1], "in_city": true, "by_commute": false, "reserved": [0,0]}, "dispatch_flags": 128}},
+    {"op": "mysim_job_search", "home": {"cell": [10,10]}, "cell_lot": [9,9,14,14], "searches": [{"wealth": 2, "find_result": 0}],
+     "expect": {"results": [false], "notifies": [false], "dest_flags": [2], "flags": 17, "filter": 0, "density": 1,
+       "start_rect": [9,9,14,14], "travel": [463,463], "find_path": 1,
+       "calls": ["Reset","ClearAllTravelTypeFlags","SetRouteInfo","SetFlag","SetFlag","SetTripDestinationFilter","SetDestinationFlag","SetTrafficDensity","SetStartRect","SetTravelTypeFlag","FindPath"],
+       "destination": {"occupant": null, "world": [-16.0,-16.0], "cell": [-1,-1], "neighbor_city": [-1,-1], "in_city": true, "by_commute": false, "reserved": [0,0]}, "dispatch_flags": 128}}
+  ]
+}

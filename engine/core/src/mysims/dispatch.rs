@@ -123,7 +123,11 @@ pub fn world_to_cell(world: f32) -> i32 {
     let s = d + 12_582_912.0;
     let n = s.to_bits().wrapping_add(0xB4C0_0000) as i32;
     let next = n.wrapping_add(1);
-    if q == next as f32 { next } else { n }
+    if q == next as f32 {
+        next
+    } else {
+        n
+    }
 }
 
 impl DispatchLocation {
