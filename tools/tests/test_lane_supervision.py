@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -92,6 +93,15 @@ class Sandbox(unittest.TestCase):
 
 
 class CapacityCLI(Sandbox):
+    def test_healthy_initial_observation_does_not_invent_a_resolved_incident(self):
+        self.configure(9)
+        self.assertEqual(self.cli(1000, '--once').returncode, 0)
+        record = self.observed()
+        self.assertFalse(record['active'])
+        self.assertIsNone(record['first_observed'])
+        self.assertIsNone(record['resolved_at'])
+        self.assertEqual(record['age_seconds'], 0)
+
     def test_restarted_instances_keep_first_observation_until_actual_recovery(self):
         for at in (1000, 1040):
             result = self.cli(at, '--once')
@@ -135,6 +145,15 @@ class CapacityCLI(Sandbox):
         self.assertEqual(record['launchable_deficit'], 1)
         self.assertIn('brief0: waiting', result.stdout)
 
+    def test_duplicate_pids_and_unlaunched_helper_entries_do_not_inflate_actual_workers(self):
+        self.configure(8)
+        self.state['lanes'].update(duplicate=dict(pid=1), helper=dict(pid=9, role='helper'),
+                                   pending=dict(pid=9, status='pending'), draft=dict(pid=9, status='draft'))
+        put(self.runs / 'run4-coordinator-state.json', self.state)
+        result = self.cli(1000, '--once')
+        self.assertEqual(result.returncode, 4, result.stdout)
+        self.assertEqual(self.observed()['live'], 8)
+
     def test_stop_and_provider_pause_priority_and_observed_span_includes_pause(self):
         self.assertEqual(self.cli(1000, '--once').returncode, 4)
         pause = self.runs / 'provider-pauses/claude.json'
@@ -166,6 +185,23 @@ class CapacityCLI(Sandbox):
                 self.assertIn('evidence retained', result.stdout)
                 self.assertEqual(self.journal.read_text(), content)
                 self.assertFalse((self.runs / 'run4-heartbeat.json').exists())
+
+    def test_stop_outranks_malformed_journal_and_train_usage_without_erasing_evidence(self):
+        self.journal.parent.mkdir()
+        self.journal.write_text('{', encoding='utf-8')
+        put(self.runs / 'merge-train/state.json', dict(current=None))
+        (self.runs / 'STOP').touch()
+        for arguments in (('--wait-until', 'train'), ('--once',)):
+            result = self.cli(1000, *arguments)
+            self.assertEqual(result.returncode, 5, result.stdout)
+            self.assertIn('STOP set', result.stdout)
+        self.assertEqual(self.journal.read_text(), '{')
+
+    def test_old_heartbeat_snapshots_are_never_used_to_backdate_incident(self):
+        put(self.runs / 'run4-heartbeat.json', dict(at='2000-01-01', live=0, target=9))
+        self.assertEqual(self.cli(1000, '--once').returncode, 4)
+        self.assertEqual(self.observed()['first_observed'], 1000)
+        self.assertEqual(self.observed()['age_seconds'], 0)
 
     def test_rollback_keeps_first_and_last_verified_age_but_marks_duration_unknown(self):
         self.assertEqual(self.cli(1000, '--once').returncode, 4)
@@ -234,6 +270,39 @@ class CapacityCLI(Sandbox):
         self.assertEqual(errors, [])
         self.assertEqual(self.observed()['age_seconds'], 14)
 
+    def test_two_overlapping_observers_serialize_observation_and_journal_update(self):
+        entered, release = threading.Event(), threading.Event()
+        results, errors = [], []
+        value = heartbeat.summarize({'concurrency': 9, 'lanes': {}}, [], {}, is_alive=lambda pid: False)
+        def observe_first():
+            entered.set()
+            if not release.wait(2):
+                raise AssertionError('fixture release timed out')
+            return copy.deepcopy(value)
+        def observe_second():
+            self.assertEqual(self.observed()['first_observed'], 1000)
+            return copy.deepcopy(value)
+        def writer(observe, at):
+            try:
+                results.append(supervision.capacity(self.root, observe, now=lambda: at))
+            except BaseException as exc:
+                errors.append(exc)
+        first = threading.Thread(target=writer, args=(observe_first, 1000), daemon=True)
+        second = threading.Thread(target=writer, args=(observe_second, 1020), daemon=True)
+        first.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            second.start()
+        finally:
+            release.set()
+            first.join(3)
+            if second.ident is not None:
+                second.join(3)
+        self.assertFalse(first.is_alive() or second.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(self.observed()['age_seconds'], 20)
+
 
 class DispatcherOwnership(Sandbox):
     def identity(self, pid):
@@ -242,6 +311,32 @@ class DispatcherOwnership(Sandbox):
 
     def marker(self):
         return json.loads((self.runs / 'run4-refill-owner-v1.json').read_text())
+
+    def test_isolated_subprocess_daemon_publishes_its_real_pid_and_os_creation(self):
+        script = self.root / 'tools/lane_refill.py'
+        script.parent.mkdir()
+        shutil.copyfile(Path(__file__).parent / 'fixtures/refill_owner_entry.py', script)
+        self.configure(0)
+        environment = dict(os.environ, FC4_TESTED_TOOLS=str(Path(heartbeat.__file__).parent))
+        result = subprocess.run([sys.executable, str(script), '--root', str(self.root), '--once'],
+                                env=environment, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        child = json.loads(result.stdout)
+        self.assertNotEqual(child['pid'], os.getpid())
+        marker = self.marker()
+        self.assertEqual(marker['pid'], child['pid'])
+        self.assertEqual(marker['created'], child['identity']['created'])
+        self.assertEqual(marker['argv'], child['identity']['argv'])
+        self.assertEqual(marker['executable'], child['identity']['executable'])
+        self.assertEqual(marker['root'], str(self.root))
+        self.assertEqual((self.runs / 'run4-refill.pid').read_text().strip(), str(child['pid']))
+        before = (self.runs / 'run4-refill-owner-v1.json').read_bytes()
+        with supervision.ownership(self.runs / 'run4-refill-owner.lock'):
+            refused = subprocess.run([sys.executable, str(script), '--root', str(self.root), '--once'],
+                                     env=environment, capture_output=True, text=True, timeout=10)
+        self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
+        self.assertIn('ownership lock unavailable', refused.stdout)
+        self.assertEqual((self.runs / 'run4-refill-owner-v1.json').read_bytes(), before)
 
     def test_actual_daemon_flow_publishes_self_after_lock_and_retains_stale_on_exit(self):
         def launch(root, state_path):
@@ -306,6 +401,14 @@ class DispatcherOwnership(Sandbox):
         self.assertFalse(status['verified'])
         self.assertIn('FileNotFoundError', status['reason'])
 
+    def test_malformed_or_partial_companion_is_unknown_and_preserved(self):
+        marker = self.runs / 'run4-refill-owner-v1.json'
+        for content in ('{', 'null', '[]', '{}', '{"version":0}'):
+            marker.write_text(content, encoding='utf-8')
+            status = supervision.dispatcher(self.root, 'claude', identity=self.identity)
+            self.assertFalse(status['verified'], status)
+            self.assertEqual(marker.read_text(), content)
+
     def test_refused_second_and_queue_only_cannot_overwrite_markers(self):
         self.configure(9)
         with supervision.ownership(self.runs / 'run4-refill-owner.lock'):
@@ -356,6 +459,28 @@ class DispatcherOwnership(Sandbox):
             put(self.runs / 'provider-pauses/claude.json', {})
             self.assertIsNone(refill.main())
         self.assertFalse(supervision.dispatcher(self.root, 'claude', identity=self.identity)['verified'])
+
+    def test_dispatch_crash_releases_lock_retains_stale_marker_and_launch_denial_stays_blocked(self):
+        self.configure(8, launchable=1)
+        spec = self.runs / 'brief0.json'
+        put(spec, dict(args=dict(name='brief0', kind='tools', deps=[])))
+        with patch.object(supervision, 'process_identity', self.identity), \
+                patch.object(refill.launcher, 'launch'), \
+                patch.object(refill.launcher, 'alive', lambda pid: type(pid) is int and 1 <= pid <= 8), \
+                patch.object(sys, 'argv', ['refill', '--root', str(self.root), '--once']), \
+                patch.object(refill.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, 'denied guard', '')):
+            self.assertIsNone(refill.main())
+        queue = json.loads((self.runs / 'run4-refill-queue.json').read_text())
+        self.assertEqual(queue[0]['status'], 'blocked')
+        with patch.object(supervision, 'process_identity', self.identity), \
+                patch.object(refill.launcher, 'launch', side_effect=RuntimeError('fixture crash')), \
+                patch.object(sys, 'argv', ['refill', '--root', str(self.root), '--once']):
+            with self.assertRaisesRegex(RuntimeError, 'fixture crash'):
+                refill.main()
+        self.assertTrue((self.runs / 'run4-refill-owner-v1.json').exists())
+        status = supervision.dispatcher(self.root, 'claude', identity=self.identity)
+        self.assertFalse(status['verified'])
+        self.assertIn('lock is not held', status['reason'])
 
     def test_supported_os_identity_of_owned_test_process(self):
         actual = supervision.process_identity(os.getpid())

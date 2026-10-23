@@ -3,8 +3,9 @@
 Liveness is not progress: a live worker that has not committed for STALL_HOURS, or a ready merge-queue entry that has
 waited LAND_LAG_HOURS, is an alert of its own (an idle lane must not go unnoticed for days).
 
---wait-until train|backlog|<file> blocks until that event or BACKLOG LOW, prints one line and exits
-(0 event, 2 timeout, 3 usage, 4 backlog low, 5 STOP or provider pause)."""
+--wait-until train|backlog|<file> waits only at full capacity. All modes return
+4 for underfill/backlog shortage, 5 for STOP/provider pause, and 1 for supervision errors.
+Wait additionally returns 0 event, 2 timeout, 3 usage. Only local supervision artifacts are written."""
 import argparse
 from collections import Counter
 from datetime import datetime
@@ -33,7 +34,13 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
     """progress: {lane: epoch of its last commit or launch}; ready: {lane: epoch its ready queue entry was written};
     waiting_on(entry): the deps a pending brief still waits on (empty: the refiller can launch it)."""
     lanes = state.get('lanes', {})
-    live = sorted(name for name, entry in lanes.items() if is_alive(entry.get('pid')))
+    live, counted = [], set()
+    for name, entry in sorted(lanes.items()):
+        pid = entry.get('pid')
+        if (type(pid) is int and pid > 0 and pid not in counted and
+                entry.get('role') != 'helper' and entry.get('status') not in ('pending', 'draft') and is_alive(pid)):
+            live.append(name)
+            counted.add(pid)
     target = state.get('concurrency', 9)
     pending = [entry for entry in queue if entry.get('status') == 'pending']
     waiting = {entry['name']: list(waiting_on(entry)) if waiting_on else [] for entry in pending}

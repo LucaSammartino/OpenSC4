@@ -96,7 +96,7 @@ def read_artifact(path):
 def _validate_incident(old):
     if not isinstance(old, dict) or old.get('version') != 1:
         raise ValueError('unsupported capacity journal schema')
-    for key in ('first_observed', 'last_observed', 'last_verified_age_seconds'):
+    for key in ('last_observed', 'last_verified_age_seconds'):
         if not _number(old.get(key)):
             raise ValueError(f'invalid {key}')
     for key in ('active', 'clock_uncertain', 'stop', 'provider_paused', 'suppressed', 'launchable_shortfall'):
@@ -108,12 +108,25 @@ def _validate_incident(old):
     age = old.get('age_seconds')
     if age is not None and not _number(age):
         raise ValueError('invalid age_seconds')
-    if not old['clock_uncertain'] and (age is None or old['last_observed'] < old['first_observed']):
+    first = old.get('first_observed')
+    if 'first_observed' not in old or (first is not None and not _number(first)):
+        raise ValueError('invalid first_observed')
+    if first is None and (old['active'] or age != 0 or old['clock_uncertain'] or old.get('resolved_at') is not None):
+        raise ValueError('inconsistent never-underfilled journal')
+    if not old['clock_uncertain'] and (age is None or (first is not None and old['last_observed'] < first)):
         raise ValueError('inconsistent journal time')
     if old['active'] != (old['live'] < old['target']):
         raise ValueError('inconsistent capacity journal')
-    if not old['active'] and not _number(old.get('resolved_at')):
+    if not old['active'] and first is not None and not _number(old.get('resolved_at')):
         raise ValueError('missing recovery observation')
+    if old['open_slots'] != max(old['target'] - old['live'], 0):
+        raise ValueError('inconsistent open slots')
+    if old['launchable_deficit'] != max(old['open_slots'] - old['launchable'], 0):
+        raise ValueError('inconsistent launchable deficit')
+    if old['launchable_shortfall'] != (old['launchable_deficit'] > 0):
+        raise ValueError('inconsistent launchable shortfall')
+    if old['suppressed'] != (old['stop'] or old['provider_paused']):
+        raise ValueError('inconsistent suppression')
 
 
 def capacity(root, observe, *, now=time.time):
@@ -143,9 +156,10 @@ def capacity(root, observe, *, now=time.time):
             active = value['live'] < value['target']
             continuing = old is not None and old['active']
             closed = old is not None and not old['active'] and not active
-            first = old['first_observed'] if continuing or closed else at
-            uncertain = bool((continuing or closed) and (old['clock_uncertain'] or at < old['last_observed']))
-            age = None if uncertain else (old['age_seconds'] if closed else at - first)
+            first = old['first_observed'] if continuing or closed else (at if active else None)
+            uncertain = bool(first is not None and (continuing or closed) and
+                             (old['clock_uncertain'] or at < old['last_observed']))
+            age = None if uncertain else (old['age_seconds'] if closed else (at - first if first is not None else 0))
             incident = dict(version=1, active=active, first_observed=first, last_observed=at,
                             age_seconds=age, clock_uncertain=uncertain,
                             last_verified_age_seconds=(old['last_verified_age_seconds'] if uncertain else age),
@@ -156,7 +170,8 @@ def capacity(root, observe, *, now=time.time):
                             launchable_shortfall=len(value['launchable']) < value['open_slots'],
                             stop=value['stop'], provider_paused=value['provider_paused'],
                             suppressed=bool(value['stop'] or value['provider_paused']),
-                            resolved_at=None if active else (old['resolved_at'] if old and not old['active'] else at))
+                            resolved_at=(None if active or first is None else
+                                         (old['resolved_at'] if old and not old['active'] else at)))
             atomic_json(path, incident)
             value['capacity_incident'] = incident
             return value
@@ -223,7 +238,8 @@ def _windows_command(pid):
                                 capture_output=True, text=True, timeout=4,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode:
-        raise OSError('CIM command identity unavailable: ' + result.stderr.strip()[-300:])
+        raise OSError(f'CIM command identity unavailable (exit {result.returncode}): '
+                      f'stdout={result.stdout!r}; stderr={result.stderr!r}')
     data = json.loads(result.stdout)
     if not data.get('command'):
         raise OSError('CIM command unavailable (access denied or exited)')
@@ -299,7 +315,7 @@ def dispatcher(root, provider, *, identity=None):
     try:
         runs = root / 'build-runs'
         marker = read_artifact(runs / 'run4-refill-owner-v1.json')
-        if marker.get('version') != 1 or marker.get('role') != 'reviewed-refill-dispatcher':
+        if not isinstance(marker, dict) or marker.get('version') != 1 or marker.get('role') != 'reviewed-refill-dispatcher':
             raise ValueError('unsupported marker schema or wrong role')
         if Path(marker['root']).resolve() != root.resolve() or marker['provider'] != provider:
             raise ValueError('wrong root/provider')

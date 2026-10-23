@@ -249,8 +249,12 @@ was recorded in the rounds ledger.
 - **Keep the backlog launchable before a long wait (run 4, 2026-10-22):** before starting any wait longer than a few
   minutes (a train gate/regress above all), queue at least as many *launchable* briefs (every dep already on
   `main`) as there are open slots, and wait with `python tools/lane_heartbeat.py --wait-until train` instead of a
-  plain train wait. It returns on the train verdict or as soon as the heartbeat says `BACKLOG LOW` (exit 4): then
-  queue more launchable briefs and wait again. Briefs that depend on the train being waited for do not count; they
+  plain train wait. STOP/provider pause exits 5 before capacity or train events. Any actual underfill exits 4,
+  even when pending launchable briefs cover the open slots; it never sleeps waiting for those briefs to launch.
+  The heartbeat persists first observation/age and suppression in its own capacity journal across restarts;
+  a covering backlog or resuming from pause does not resolve it. Only observed actual recovery does. On exit 4,
+  inspect the exact deficit and normal refiller ownership, replenish reviewed launchable backlog if short, and
+  let the normal guarded refiller launch before waiting again. Briefs that depend on the train do not count; they
   drained run 4 from 9 live lanes to 1 while the log showed `pending 2`. See
   [docs/lane-tools.md](../lane-tools.md) "Run 4: the heartbeat backlog".
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
