@@ -84,7 +84,9 @@ All little-endian, no padding (foundations §2.2). Short names used in the table
 - `Write(stream)` and `Read(stream)` are `cIGZSerializable` slots 3 and 4, `__thiscall`, callee pops 4. `Write`
   returns true exactly when the stream has no error afterwards (`GetError() = 0`); it never returns false for any
   other reason (foundations §3.5 requires this).
-- `Read` returns false (and stops) on a version it does not accept; otherwise it returns `GetError() = 0`. The class
+- `Read` returns false (and stops) on its **own** unaccepted version; nested rejection propagates only where
+  the containing body tests it (see §2.3 for the occupant-base exception). Otherwise its final acceptance uses
+  `GetError() = 0`. The class
   store ignores the result and resynchronises on the entry size (foundations §3.5), so a short read never shifts the
   next entry; a read past the payload puts the stream into the sticky error state and fails the rest of the class
   *[compat]*.
@@ -109,6 +111,14 @@ Every occupant record below contains this block (14 bytes + the holder):
 
 `Read` (`0x005E8D60`) reads the same fields; the highlight byte becomes the occupant's status byte as
 `(highlight << 4) | 2`, i.e. "not yet initialised, loaded from a save" (bit 1). Flags and type are stored as read.
+
+**Nested-holder return (LG33):** this base reader ignores the exemplar holder's Boolean at `0x005E8DD8`
+and immediately queries stream `GetError` at `0x005E8DE1`. It returns true when that error is zero, even
+when the holder has just rejected its version or its nested plain-holder version. No cursor repair or rollback
+occurs. This is the common **base** body; each derived reader decides whether to test the base return and
+what follows. Landfill's tested base return and misaligned continuation are specified in landfill §6.4;
+do not generalise its 21-byte tail or total return to other derived occupants. The exemplar holder itself
+still tests the plain holder's return (foundations §10.3).
 
 ### 2.4 Occupant `Init` after a load (`0x005E8C90`) *[compat]*
 

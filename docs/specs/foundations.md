@@ -1172,6 +1172,15 @@ uint32  instance       all three zero = no parent
   holder asks the resource manager for the resource with that key, requesting `cISCResExemplar` (`0xA52160F5`).
   If it is found, it becomes the parent. If it is missing, the parent is **left unchanged** (none for a freshly
   constructed holder) and the read still succeeds. Return "stream not in error".
+- **The containing reader decides whether to propagate that Boolean** (LG33). The exemplar reader really
+  tests the plain holder's AL at `0x005FF454`–`0x005FF456`. In contrast, occupant base `Read` calls the
+  exemplar reader at `0x005E8DD8`, discards its AL, and returns only `GetError() == 0`
+  (`0x005E8DE1`–`0x005E8DED`). A bad holder version consumes its u16 without setting a stream error;
+  an occupant owner can therefore continue at that cursor. Landfill tests the base result, then reads its
+  own 21-byte tail there (landfill §6.4). This does not weaken the holder's own acceptance rule or establish
+  a rule for other owners. Bad exemplar/plain versions retain the parent. After a successful plain read,
+  the three parent-key destinations start at zero and key processing happens **before** the final error
+  check (`0x005FF465`–`0x005FF4E9`): even a short key can clear the parent if the resulting key is all zero.
 - Consequence *[compat]*: the parent is resolved against the **current** data files and plugins at load time.
   Changing an exemplar changes the inherited values of every saved object that refers to it. Removing it leaves
   the saved object with its own properties only.
