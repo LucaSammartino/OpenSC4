@@ -40,7 +40,7 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Dispatch evidence: generic root registrar 00676DB0; nested 00676B80; lookup 00679120; wrappers 007E3BE0/007E3B10/006773D0; end 00676110.
 - EFP2 navigation: rotateX lookup 00598A38, next rotateY 00598B70, rotateZ 00598C95. Three branches multiply ParseFloat ST0 by f32 at 00A9F384, FCOS then f32 temporary, FSIN stays x87 before product stores. Do not flatten to a host matrix multiply.
 - Last asm pages inspected: skip 96/152/208 at max 56 on 005989D0; next skip 264, but reread skip 40/56 for full X stack derivation. No numeric rotation contract published yet.
-- Guard last measured 143276/150000 before final navigation/checkpoint; continuation needed, no merge queue written.
+- Guard OVER at 152k/150000; checkpoint 5685fd80 committed before denial. Attempt to read skip 264 was denied and did not execute; next remains skip 264. No merge queue written.
 - Gate: doccheck check and questions check passed. No outstanding process or game label. Do not enqueue partial work as ready.
 - EFP1–EFP6 are in questions/effects-parser.md, EF15 in questions/effects.md.
 - Explicitly permitted engine read: main checkout effects_parser/README.md only.
