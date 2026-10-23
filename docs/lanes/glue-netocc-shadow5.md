@@ -21,6 +21,8 @@
 - First failures are native capture refusals: WriteCapture rejected property variants. Added opt-in traffic-shadow variant capture.
 - Corrected pole model lookup to shared verified property helper; improved per-class diagnostics and unknown load date.
 - Next: full gate on corrected capture, then unique netocc-r2-2032-2 game request. No outstanding game requests.
+- Corrected-source gate: cargo 6233/0, clippy 0 diagnostics; native request qbuild-20261023-211011-build-ctest pending.
+- Collect the SAME full-gate operation: exec session 91497; no duplicate build. Event waiter: build-runs/wait-netocc.ps1.
 
 ## Changes
 
