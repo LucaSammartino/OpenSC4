@@ -386,7 +386,9 @@ The table at `0x00ADA288` is zero based. QueryInterface (`0x00981A8F`)
 recognizes IIDs 1 and `0x1B0AAB0E`. The writer maintains a stack of active
 surveyors; OutputStream forwards to the top surveyor's stream (+0x70).
 Construction (`0x00983314`) starts reference count zero and initializes the
-stack container; empty-stack OutputStream behavior remains SCR6.
+stack container. Field writes and OutputStream require an active WriteRoot
+context; the native stream getter directly uses stack.back() without testing
+for an empty stack (`0x00982F1C`).
 
 | Slots | Methods |
 |---|---|
@@ -401,24 +403,65 @@ stack container; empty-stack OutputStream behavior remains SCR6.
 *[compat]* Scalar lines have a six-space prefix followed by
 `<type> <name> = <value>\n`. Booleans use `true` / `false`. Strings are written
 raw. Floating output uses the stream's typed conversion; no fixed decimal
-precision is established. Hex words use lowercase `0x%08x` (`0x009828A5`).
+precision is established by this owner. Numeric type spellings are `bool`,
+`Sint8`, `Uint8`, `Sint16`, `Uint16`, `Sint32`, `Uint32`, `Float32`, `Float64`;
+string overloads use `RZChar*` and `RZString`. Hex words use lowercase
+`0x%08x` (`0x009828A5`).
 Resource keys are labeled in order `G:<word1> I:<word2> T:<word0>`
-(`0x009828EA`). Array punctuation and complete header literals remain SCR6.
+(`0x009828EA`); each key component uses that hex-word format.
+
+Array lines have six leading spaces, then `<type> <name>[<count>] = `,
+then each element followed by `, `, then LF. The comma-space remains after
+the final element. A zero-count array writes its header and LF without an
+element or comma. Element conversion is the corresponding scalar stream
+conversion; bool elements are `true` / `false`. This punctuation is shared
+across the nine array methods (`0x009822DA`–`0x00982818`). It differs from the
+token adapter's comma-delimited wire format in section 6.
 
 `WriteRoot` (`0x009835ED`) obtains a surveyor using CLSID `0xBB194C78` / IID
 `0x9B194C66`. The surveyed graph determines dependency and object indices.
 Output order is resource name/key, indexed dependency list, indexed object
 directory, blank line, then object bodies in surveyor order. Completion
-flushes the stream, finalizes dependencies through surveyor slot +0x28, then
+flushes the stream, calls each dependency resource's method at +0x28 in
+dependency order, then
 pops/releases the active surveyor. There is no message handling or drawing.
 
-Object output (`0x0098298A`) includes GZCLSID and braces and calls the object's
-serialization method at +0x14. Null objects have class zero. Reference output
+The following table gives line spelling; `<key>` is the formatted key above,
+`<type>` is the serializable type name and indices/IDs use uint32 stream
+conversion. All line endings written by this owner are LF.
+
+| Output item | Text before LF |
+|---|---|
+| Root header | `Resource <name> <key>` |
+| Dependency header | `   Dep. Resource #<index> <name> <key>` |
+| Object directory and body header | `   Object #<index> <type>` |
+| Body open / close | `   {` / `   }` (close followed by another LF) |
+| Null referent field | `      cIGZPersistSerializableReferent* <name> = 0` |
+| Local referent field | `      cIGZPersistSerializableReferent* <name> = Object #<index> <type> GZCLSID: <hexclass>` |
+| External referent field | `      cIGZPersistSerializableReferent* <name> = Object ID <id> <type> in dep. resource #<index> <key>` |
+| Type info | `      TypeName: <type> GZCLSID: <hexclass> Version: <version>` |
+
+The object directory is followed by one blank line. Each object body is
+preceded by its repeated directory-style header. After all bodies another
+LF is written before flush. The same-resource vs external-reference decision
+uses identity of the referent's resource and the surveyor's root resource,
+not equality of their display names or keys (`0x00982F2B`).
+
+Inline Object output (`0x0098298A`) ignores its field-name argument and starts
+`      Object GZCLSID: <hexclass>`. A nonnull object then writes
+`\n      {\n`, calls the object's serialization method at +0x14, and writes
+`      }\n` followed by another LF. A null object writes class zero and LF
+without braces. Reference output
 (`0x00982F2B`) distinguishes null, local object index/type/class, and external
 object ID/type/dependency-resource index/key. Slot 25 first queries IID
 `0xBB11A53E` to obtain the referent interface. No checked stream-failure path
 was observed; do not infer transactional output or rollback on a partial
-write. Exact failures before a surveyor is installed remain SCR6.
+write. WriteRoot does not test factory success or the returned surveyor for
+null before invoking it (`0x00983613`–`0x00983636`). Thus factory failure and
+empty-stack field writes have no defined successful output/result contract.
+*[choice]* A portable implementation may reject those invalid contexts
+without reproducing a null dereference. It must preserve the successful
+output and ordering contracts above.
 
 ## 9. Conformance vectors
 
@@ -454,6 +497,9 @@ this documentation lane does not assert an existing executable test suite.
 | SCR-V25 | File callback with type 0x6AE76406; then unrelated type | true and modified set; false with flag preserved |
 | SCR-V26 | Text helper counter 4, total 6 | One successful byte read possible; second attempt fails without reading byte 5 |
 | SCR-V27 | GetField descriptor matches ID and type but different count | Failure; no implicit resizing/coercion |
+| SCR-V28 | ASCII bool array name flags, values true/false | `      bool flags[2] = true, false, ` followed by LF |
+| SCR-V29 | ASCII zero-count bool array name flags | `      bool flags[0] = ` followed by LF |
+| SCR-V30 | ASCII inline null object with any field name | `      Object GZCLSID: 0x00000000` and LF; no braces/name |
 
 Additional vectors for switch/positional readers and required/optional file
 ordering are normative in the linked specs. Inputs whose exact result is an

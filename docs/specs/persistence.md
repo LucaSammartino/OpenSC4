@@ -37,10 +37,11 @@ Owner classes specified here (coverage-map owners; byte counts from `tools/cover
 | `cGZPersistResourceManager` (incl. attributed built-in cache and container helpers; 2026-10-22 selection) | 109 | 8,437 | §10 / companion |
 | **total** | **262** | **23,229** | |
 
-Not specified here (same subsystem, left for later lanes): `cGZPersistBufferResource`/`Factory` (TGA/BMP image
-resources, 8,238 B), `cGZPersistBinaryReader`/`Writer`, `cGZPersistASCIIWriter`, `cGZPersistSurveyorWriter`
-(object-graph writers, ~9.2 kB), `cGZPropertySet*`/`cPropertySet*` (~5.3 kB), `cSL*`/`SL` (~15.6 kB), `nSCRes*`
-(the resource-script compiler, ~21 kB).
+See [SC resources](sc-resources.md) for `cGZPersistBufferResource` (BMP/TGA),
+`cGZPersistASCIIWriter`, `cSLTokenRecord`, its text adapter, and `nSCRes` script
+services. Still outside this spec: the persist-buffer factory,
+`cGZPersistBinaryReader`/`Writer`, `cGZPersistSurveyorWriter`,
+`cGZPropertySet*`/`cPropertySet*`, and the remaining `cSL*`/`SL` owners.
 
 ## 2. DB record (`cGZPersistDBRecord`, `cIGZPersistDBRecord` IID `0xE56B8F03`)
 
