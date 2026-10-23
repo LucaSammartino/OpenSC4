@@ -14,6 +14,7 @@
 #include "FC4Observer.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
+#include "FC4PropOccupantVerify.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -637,6 +638,7 @@ public:
                 monthsSinceLoad_ = 0;
                 IndustrialShadowProbe(CurrentCity(), "load");
                 FontSysVerify("load");
+                PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them

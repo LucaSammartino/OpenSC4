@@ -11090,8 +11090,10 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 // The glue15 lane: the tutorial system (plugin_glue15_test.inc).
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
+#include "plugin_prop_occupant_compare_test.inc"
 
 int main(int argc, char** argv) {
+    prop_compare_test::Check();
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
         return 2;
