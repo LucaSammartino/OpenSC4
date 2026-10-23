@@ -68,8 +68,8 @@ default. Message `0x26D31EC1` (§7) reloads the list.
 | # | Default | Use | # | Default | Use |
 |---|---|---|---|---|---|
 | 0 | 0.1 | U-Drive-It acceleration factor | 20 | 0.2618 | turn rate (into the drive state, §6) |
-| 1 | 0.001 | steering return rate | 21 | 8000 | crash duration, ms (automata.md §6.6) |
-| 2 | 1.0 | steering rate | 22 | 0.7854 | |
+| 1 | 0.001 | held-input steering gain per ms (§6.2.2) | 21 | 8000 | crash duration, ms (automata.md §6.6) |
+| 2 | 1.0 | steering return rate per second (§6.2.2) | 22 | 0.7854 | |
 | 3 | 0.05 | coasting drag | 23 | 0.95 | |
 | 4 | 0.2 | | 24 | 2.1817 | |
 | 5 | 5.0 | counter-steer boost | 25 | 1.0472 (60°) | run-aground angle (automata.md §6.6) |
@@ -218,8 +218,9 @@ not the rejected direction or the popped point. Evidence: `0x005709C4–0x00570A
 `0x00570A19–0x00570A9D`. The remaining compressed-reader and heading-quantization contract is still WC7.
 
 `Engine_AIBoatMotion` (`0x00571880`, 2.8 KB) picks cells when needed, steers the heading toward the next point and
-sets the speed; `Movement_PositionNew` (`0x0056C430`, with `0x00569940`, `0x00569E70`, `0x0056A440` and
-`0x0056AF90`) moves the boat by speed × time, turns it, keeps it on the water surface and tilts the model
+sets the speed; `Movement_PositionNew` (`0x0056C430`, with curved-motion helper `0x00569940`,
+straight-motion helper `0x00568230` and height/tilt helper `0x00569E70`) moves the boat by speed × time,
+turns it, keeps it on the water surface and tilts the model
 *[summary]*.
 
 ### 5.3 Ferries: requests and docking

@@ -6,7 +6,8 @@
 - Goal: answer WC3-WC8, and WC1/WC2 where evidence permits, without engine edits.
 - Done: 9414cde9 initial lane; 94facf3f WC8 answered with command/steering equations and 13 vectors.
 - Done: 1b572698 WC3 Init/Read boundaries; WC7 final docking/undocking, signed remainder and backtracking; 75-entry attribution inventory; 16 more vectors.
-- Next FIRST: fix §2 labels: p[1] is held-input steering gain per ms; p[2] is steering return rate per second (§6.2.2). Guard denied this pending spec edit; not applied. Then finish WC3 signatures/destruction/adjustors, WC4 full motion, WC5 crash, WC6 effects/base translation, WC7 routes/tow; WC1/WC2 if reachable.
+- Round 2: corrected §2 labels: p[1] is held-input steering gain per ms; p[2] is steering return rate per second (§6.2.2). Corrected movement-helper attribution (crash helpers are separate).
+- Next: finish WC3 signatures/destruction/adjustors, WC4 full motion, WC5 crash, WC6 effects/base translation, WC7 routes/tow; WC1/WC2 if reachable.
 - Main attribution now gives 75 functions/38073 bytes, versus brief 79/38556. Read-only reproducer: `build-runs/watercraft-owner-inventory.py 0` and `40`; imports Attribution only, no engine reads.
 - Numeric PE reader: `build-runs/watercraft-evidence.py <hex VA>...`; reads working exe, prints f32/bits; never commit these scripts or RE output.
 - WC8: tan/atan, f32 a=0.910000026226, b=1.57079637051; opposite gear crosses zero; neutral translator keeps speed. Steering channels +88/+84 are elapsed floats, ordered responses; owner never clears skier toggle +EB.
