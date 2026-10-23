@@ -102,7 +102,15 @@ pub trait PrimitiveHost {
     fn service_lookup(&mut self, framework: Id, service: u32, iid: u32, output: &mut Option<Id>) -> Result<u32>;
     fn allocate(&mut self, allocator: Id, bytes: u32) -> Result<Option<Id>>;
     fn reset_sentinel(&mut self, sentinel: Id) -> Result<()>;
-    fn query(&mut self, manager: Id, head: &mut Id, min: Option<Id>, max: Option<Id>, filter: Id, max_count: u32) -> Result<u32>;
+    fn query(
+        &mut self,
+        manager: Id,
+        head: &mut Id,
+        min: Option<Id>,
+        max: Option<Id>,
+        filter: Id,
+        max_count: u32,
+    ) -> Result<u32>;
     fn next(&mut self, node: Id) -> Result<Id>;
     fn occupant(&mut self, node: Id) -> Result<Id>;
     fn holder(&mut self, occupant: Id) -> Result<Option<Id>>;
