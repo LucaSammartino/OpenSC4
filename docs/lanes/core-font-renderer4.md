@@ -1,19 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane) | in progress | Implement independent literal tests, bounded renderer, focused check, committed-source gate. |
+| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane, detached HEAD) | WIP: portable renderer and 13 integration tests; ABI unchanged; quick1 exit 1, quick2 no durable exit (3309 unit pass, 10 integration pass, 1 corrected fixture failure); final all/clippy/ctest unknown; no game/native equivalence claim; FR1-FR3 retained | (1) Observe exact quick2 ownership/telemetry and collect terminal. (2) Validate final committed source, then canonical all without overlap. (3) Review FR boundaries before landing. |
 
-## Handoff
-- Goal: portable class 08CDA30B renderer only, from font-renderer.md sections 1-6; no native or whole-owner claim.
-- Admission: manifest lane/path/engine/round 1 match; detached HEAD 0e9917b; no inherited owned checker per task.
-- Read: rules, lane format, full renderer contract and FR1-3. FR1 semantic names withheld; FR2 backing refusal is safety extension; FR3 no 4444-byte credit.
-- Done: wrote 11 independent integration tests/expected ledgers before production code, then implemented primitive host queries, clipping, byte windows, packed paths, immutable table and safe lifetime model. Corrected palette backing in safety fixture; added 2 independent tests (13 total) for asymmetric dyadic cases and refusal/no rollback/dword-count/address-overflow distinctions.
-- Next: resolve exact quick2 terminal first (coordinator observation request in build-runs/coordinator-observation-request-renderer.json); only after terminal, rerun quick then stable-source all. No overlapping quick/all.
-- First quick (540d522c): session 19899 completed exit 1, 41.2s; Rust compile failed on accidental rustfmt filename headers, dependent compile and native build also failed. Corrected those two lines; no algorithm/test expectation changed.
-- Validation ownership: first quick terminal collected after native terminal failure was present. No live own checker remains; next wrapper records child PID/creation/command and durable exit. Preserve failed quick logs before retry.
-- Quick2 owned PID 15708, created 2026-10-23T02:40:39.838794+00:00; session 63703; ownership/terminal files build-runs/renderer-quick2-*. Rust: 3309 unit pass, 10 integration pass, 1 safety-fixture failure. Native build not yet terminal when recorded. Do not duplicate.
-- Exact rooted psutil tree subsequently showed fc4verify PID 22564 and remaining sccache --show-stats descendant 33008 (creation 1792723385.8034527). Build log [176/176] completed; qbuild still has no terminal. No cache RPC/kill issued. Tests edited only after observed compiler/build completion; no all has started.
-- Formatter: first invocation with relative paths failed lookup; repeated with absolute paths passed exit 0 on the two new Rust files. Existing lib.rs only adds final export; no mass formatting.
-- Task-specific instruction requests focused checks followed by ONE canonical stable committed-source all, superseding the generic extra baseline all.
-- Baseline engine tree: cd1be4a6afbbc6fa1afccadf717cd93bdbed9ffa.
-- Baseline HEAD: 0e9917bdbca4bf1e2e798dffcc1c50e42eab02d0. No game request authorized/needed for portable-only task.
-- Changes limited to new module, new integration tests, additive lib export, lane report.
+## Implementation and boundary
+
+New `engine/core/src/font_renderer.rs` owns signed clipping/source offsets, empty/depth/mode gates, ordered primitive queries, quantized word/dword pitch addressing, threshold and raw 4-byte palette indexing, the immutable 32768-entry exact dyadic blend table, word packing and wrapping packed dword XOR arithmetic. `lib.rs` adds only its final module export. Existing fonts/span/CAPI/plugin/CMake/ABI/config/coverage files are untouched.
+
+The bounded API has three free operations (`draw`, `lock`, `unlock`), eight primitive `Target` callbacks, and six explicit `Lifetime` methods (plus `Default`). Record/source/colour/pixel storage is supplied as safe byte windows, not native pointers/layout. Events retain record metadata, callback order and successful memory reads/stores. The core computes every clipped extent and pixel. Count zero needs no target or record; control characters skip raster; source dimensions do not clip; each eligible record resets its source origin. Depth 24 uses the same dword path as 32. Lock/unlock forward 8080 and raw AL without retaining target/font state. Lifetime is a safe effect model with signed Release and wrapping AddRef, not native allocation/free/QI or concurrency behavior.
+
+FR1 ignored-slot semantic names remain withheld. FR2 explicitly marks inadequate windows, missing target/records, unusable pitch and overflowing/out-of-domain geometry as safety refusals, with no source clipping, clamp, default native value or rollback. FR3 gets no inherited 4444-byte or larger-holder credit. No new questions filed; existing FR1-FR3 remain unresolved. No original producer, foreign callback behavior, span algorithm, native replacement eligibility or whole-owner completeness is claimed.
+
+## Independent tests
+
+Eleven literal expected-ledger tests were written before production code (540d522c). Two further independent distinguishers extend them (86e19dca). Final source contains **13 test functions**, specifying **94 batch-call scenarios, 8 lock/unlock calls and 11 lifetime calls**. These are source-case counts, not a claim that the final revision has executed.
+
+Cases cover source offsets 27..55 / target rows 40,76,112; 5x3 extent despite source dimensions 1x1; zero count/control skip; empty/reversed/edge/depth query order; fresh origins; 16/24/32 depths and odd pitch; thresholds 127/128; valid 256-entry palettes and indices 128/255; initial palette[0] read; q=0, coverage 31/32/255 and forced alpha/high/green bits; FEEE/7BDE/F79E; asymmetric dyadic floor; 88888888/80808080/FEFEFEFE and actual a=0 dword read/store; raw callback failure/AL forwarding; safe lifetime; separate missing backing/address overflow/no rollback and unsigned count semantics. Expected values are literal ledgers/hand arithmetic, never calls to production as oracle.
+
+## Validation evidence and unresolved check
+
+- Baseline HEAD: `0e9917bdbca4bf1e2e798dffcc1c50e42eab02d0`; baseline engine tree `cd1be4a6afbbc6fa1afccadf717cd93bdbed9ffa`. Manifest lane/path/engine/round 1 verified. No inherited own checker per admission.
+- Quick1, session 19899: durable terminal **exit 1**, 41.2 seconds. Accidental formatter filename headers prevented compilation (0 Rust test result lines); dependent compile and native build also failed. Corrected in 9acbe5d8. Historical logs retained as `build-runs/quick1-failed-{test,deps,build}.log`.
+- Quick2: owned qbuild PID **15708**, creation epoch **1792723239.839762**, UTC **2026-10-23T02:40:39.838794+00:00**, tool session **63703**. `build-runs/renderer-quick2-ownership.json` records actual creation/command; no terminal exit is present. Rust log: **3309 unit passed; 10 integration passed, 1 failed**. The failing safety fixture had insufficient palette backing before its intended short-target check; corrected palette backing to 256 entries, without changing production arithmetic or native expected results. Dependent compile log has no errors; native log reaches **176/176** links. These stage observations do not make the wrapper green.
+- Exact rooted child observation: fc4verify PID **22564**, creation epoch **1792723239.873988**; remaining descendant **33008**, creation epoch **1792723385.8034527**, command `sccache.EXE --show-stats --stats-format json`. Ownership is supported, terminal completion is unknown. No global discovery, duplicate checker, cache RPC or process kill was issued. Final test-only edits occurred after observed compiler/build completion. Do not infer operation survival or completion from this report.
+- Precise coordinator observation request: `build-runs/coordinator-observation-request-renderer.json`. Quick2 logs preserved as `quick2-failed-test.log`, `quick2-deps.log`, `quick2-build.log`; the wrapper's terminal log remains incomplete. Retain all failures/no-exit history.
+- Formatting: two new Rust files **pass**, exit 0. Initial relative-path formatter attempt failed file lookup; absolute paths fixed it. Checking shared `lib.rs` reports **188 existing module-order formatting diff lines** (commands/cmdline and other existing entries); no mass formatting was applied. `git diff --check` passes.
+- Final source has not been tested after the safety-fixture correction/two added tests. **Canonical all NOT STARTED**, to avoid overlap with the owned incomplete quick. Workspace Rust, clippy, full native/ctest gate verdicts are therefore **UNKNOWN**. The task-specific ONE stable-source all instruction supersedes the generic additional baseline all.
+- No game request, shadow comparison or native verification was performed or credited. ABI exports/version unchanged.
+
+## Next steps
+
+Coordinator must first observe the exact recorded quick2 identities and collect a durable terminal or diagnose the unsupported completion path. Then validate final committed source with focused quick, followed by ONE canonical committed-source all with before/after engine hashes and actual Rust/clippy/native/ctest terminal evidence. Do not overlap checks or treat old stage success as final gate success. This first logical round remains WIP and requests no worker self-restart or additional round.

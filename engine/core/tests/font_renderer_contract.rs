@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Independent literal ledgers from font-renderer.md section 6, written before production code.
-use fc4_core::font_renderer::{
-    draw, lock, unlock, Event, Lifetime, Memory, Record, Rect, Refusal, Release, Target,
-};
+use fc4_core::font_renderer::{draw, lock, unlock, Event, Lifetime, Memory, Record, Rect, Refusal, Release, Target};
 
 struct Buffer {
     width: i32,
@@ -113,10 +111,7 @@ fn zero_count_and_control_character_have_no_target_or_colour_access() {
     assert!(events.is_empty());
     let mut skipped = record(&[], rect(0, 0, 1, 1), 0);
     skipped.character = 0x1f;
-    assert_eq!(
-        draw(None, &[skipped], 1, 3, &[], None, &mut events),
-        Ok(true)
-    );
+    assert_eq!(draw(None, &[skipped], 1, 3, &[], None, &mut events), Ok(true));
     assert_eq!(
         events,
         vec![Event::Record {
@@ -173,13 +168,7 @@ fn literal_five_by_three_clip_uses_source_27_to_55_and_target_40_76_112() {
     assert!(reads(&events, Memory::Target).is_empty());
     assert_eq!(
         target.callbacks,
-        vec![
-            ("width", 0),
-            ("height", 0),
-            ("depth", 0),
-            ("pitch", 0),
-            ("pixels", 0)
-        ]
+        vec![("width", 0), ("height", 0), ("depth", 0), ("pitch", 0), ("pixels", 0)]
     );
     assert_eq!(
         &events[1..7],
@@ -263,11 +252,7 @@ fn threshold_and_raw_palette_indices_use_four_byte_entries_at_all_supported_dept
             palette[index * 4..index * 4 + 4].copy_from_slice(&value.to_le_bytes());
         }
         let foreground = 0x89abcdefu32.to_le_bytes();
-        let colours = if mode == 1 {
-            &foreground[..]
-        } else {
-            &palette[..]
-        };
+        let colours = if mode == 1 { &foreground[..] } else { &palette[..] };
         for depth in [16, 24, 32] {
             let bytes = if depth == 16 { 2 } else { 4 };
             let mut target = Buffer::new(depth, 16, 16);
@@ -287,11 +272,7 @@ fn threshold_and_raw_palette_indices_use_four_byte_entries_at_all_supported_dept
                 ),
                 Ok(true)
             );
-            let expected = if depth == 16 {
-                &expected16
-            } else {
-                &expected32
-            };
+            let expected = if depth == 16 { &expected16 } else { &expected32 };
             for (index, value) in expected.iter().enumerate() {
                 assert_eq!(
                     &target.pixels[index * bytes..index * bytes + bytes],
@@ -300,11 +281,7 @@ fn threshold_and_raw_palette_indices_use_four_byte_entries_at_all_supported_dept
             }
             assert_eq!(
                 reads(&events, Memory::Colour),
-                if mode == 1 {
-                    vec![0]
-                } else {
-                    vec![0, 4, 512, 1020]
-                }
+                if mode == 1 { vec![0] } else { vec![0, 4, 512, 1020] }
             );
             assert!(reads(&events, Memory::Target).is_empty());
             assert_eq!(writes(&events).len(), if mode == 1 { 2 } else { 3 });
@@ -333,9 +310,7 @@ fn packed_word_literals_and_quantization_boundaries() {
     for (format, background, foreground, coverage, expected, stored) in cases {
         let mut target = Buffer::new(16, 2, 2);
         target.format = [format, 32]; // Second format word does not replace queried depth.
-        target
-            .pixels
-            .copy_from_slice(&(background as u16).to_le_bytes());
+        target.pixels.copy_from_slice(&(background as u16).to_le_bytes());
         let mut events = Vec::new();
         assert_eq!(
             draw(
@@ -390,31 +365,16 @@ fn literal_dword_results_include_actual_zero_coverage_store_and_other_modes() {
 
 #[test]
 fn pitch_quantization_and_fresh_record_origins() {
-    for (depth, pitch, offsets) in [
-        (16, 7, vec![2, 8]),
-        (24, 15, vec![4, 16]),
-        (32, 15, vec![4, 16]),
-    ] {
+    for (depth, pitch, offsets) in [(16, 7, vec![2, 8]), (24, 15, vec![4, 16]), (32, 15, vec![4, 16])] {
         let mut target = Buffer::new(depth, pitch, 32);
         let mut events = Vec::new();
         let source = [128, 0, 0, 128];
         let first = record(&source, rect(1, 0, 2, 2), 3);
         assert_eq!(
-            draw(
-                Some(&mut target),
-                &[first],
-                1,
-                1,
-                &[1, 0, 0, 0],
-                None,
-                &mut events
-            ),
+            draw(Some(&mut target), &[first], 1, 1, &[1, 0, 0, 0], None, &mut events),
             Ok(true)
         );
-        assert_eq!(
-            writes(&events).iter().map(|p| p.0).collect::<Vec<_>>(),
-            offsets
-        );
+        assert_eq!(writes(&events).iter().map(|p| p.0).collect::<Vec<_>>(), offsets);
         assert_eq!(reads(&events, Memory::Source), vec![0, 3]);
     }
     let mut target = Buffer::new(32, 32, 64);
@@ -513,10 +473,7 @@ fn safe_lifetime_models_signed_release_and_query_out_preservation() {
 #[test]
 fn safety_extensions_refuse_invalid_backing_separately_from_native_vectors() {
     let mut events = Vec::new();
-    assert_eq!(
-        draw(None, &[], 1, 1, &[], None, &mut events),
-        Err(Refusal::Records)
-    );
+    assert_eq!(draw(None, &[], 1, 1, &[], None, &mut events), Err(Refusal::Records));
     assert_eq!(
         draw(
             None,
