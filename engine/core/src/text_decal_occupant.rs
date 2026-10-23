@@ -83,9 +83,8 @@ pub trait Host {
 }
 
 /// One owned state. Construct it through Owner so Drop retains foreign releases.
+#[non_exhaustive]
 pub struct State {
-    // Construction stays under Owner so ordinary Drop cannot lose releases.
-    _owned: (),
     pub prop: PropOccupant,
     pub base: OccupantBase,
     pub text: Vec<u8>,
@@ -129,7 +128,6 @@ impl<H: Host> Owner<H> {
                 orientation: 1,
                 source: None,
                 managers: [None; 2],
-                _owned: (),
             },
         }
     }

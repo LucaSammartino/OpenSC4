@@ -10,7 +10,8 @@
 - Baseline all: cargo 5499/0, clippy 0 diagnostics, native build 217/217; CTest 67/68 failed cargo_test after tree changed during run. Not a clean baseline; baseline-* logs retained.
 - Expanded quick session66740 terminal RC1: private codec import / missing fixture Copy, native 1/4; corrected via public reexports / Copy. fc4verify returned after689.2s, including long post-compile wait; no processes killed/restarted.
 - Corrected quick handle74016 terminal RC0: cargo3473/0/0 in5 result lines, dependents compiled, native4/4 (167.2s), fc4verify1069.7s; frozen f1ef930e source. No active handle.
-- Finite-domain predicate now uses equivalent RangeInclusive::contains to avoid manual-range lint; no semantic expansion. Next: canonical all on frozen committed source; report actual codes/counts/hashes.
+- 80a37737 canonical all terminal RC1: cargo5517/0/0 (26 result lines), clippy101 (manual-non-exhaustive lint;2 diagnostics including follow-up warning), native4/4 RC0, CTest68/68 RC0; fc4verify397.6s. Frozen source, no tree changes. Logs preserved as failed-canonical-*.
+- Replaced ownership construction seal with standard #[non_exhaustive], no algorithm change. Next: final canonical all on corrected frozen committed source; report actual codes/counts/hashes.
 - Fmt: new owner and fixture files PASS (RC0); recheck after final predicate spelling. No game runs.
 - TDO1 remains open: explicit nearest24 normal finite arithmetic only; unsupported domains distinct.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-text-decal-occupant4-r1-manifest.json.
