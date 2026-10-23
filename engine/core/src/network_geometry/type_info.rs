@@ -1,5 +1,3 @@
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-network-type-info4\engine\core\src\network_geometry\type_info.rs:
-
 //! Bounded process-global TypeInfo owner (network-type-info §§1–8).
 //!
 //! One `TypeRecords` models one process array, never a city-owned table. There is
@@ -57,6 +55,7 @@ pub struct SupportEntry {
 /// does not name the resource strings. No guessed resource labels/TGIs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Primitive {
+    RegisterExit,
     SupportSetup {
         record: usize,
         initial_size: usize,
@@ -78,6 +77,9 @@ pub enum Primitive {
         deleting: u8,
     },
     BeginBridgeEnumeration {
+        record: usize,
+    },
+    EndBridgeEnumeration {
         record: usize,
     },
     BridgeEntry {
@@ -124,6 +126,7 @@ pub enum Primitive {
 pub enum Reply {
     Bool(bool),
     Token(Option<Token>),
+    Acquired { success: bool, resource: Option<Token> },
     SupportSetup { buckets: usize, storage: Token },
     Support(Option<SupportEntry>),
     Property(Property),
@@ -419,6 +422,7 @@ impl TypeRecords {
             r.derived = [0x41200000, 0x40e24630, 0x41200000, 0x40e24630, 0x41a00000];
             owner.observe(record, Phase::Construct, f);
         }
+        f.call(Primitive::RegisterExit)?;
         Ok(owner)
     }
     pub fn record(&self, record: usize) -> &TypeRecord {
@@ -545,6 +549,7 @@ impl TypeRecords {
             r.bridges.push(entry);
             index += 1;
         }
+        f.call(Primitive::EndBridgeEnumeration { record })?;
         f.call(Primitive::DestroyBridgeSectionString { record })?;
         f.call(Primitive::SpecializeBridges {
             record,
@@ -614,17 +619,21 @@ impl TypeRecords {
 
     pub fn load_placement(&mut self, record: usize, f: &mut impl Foreign) -> Result<bool, Unsupported> {
         self.live()?;
-        let acquired = token(f.call(Primitive::AcquirePlacement {
+        let Reply::Acquired { success, resource } = f.call(Primitive::AcquirePlacement {
             type_id: record,
             resource_type: 0x6534284a,
             group: 0x084344e0,
             instance: PLACEMENT_INSTANCES[record],
             interface: 0xa52160f5,
             zeros: [0, 0],
-        })?)?;
-        let Some(resource) = acquired else {
-            return Ok(false);
+        })?
+        else {
+            return Err(Unsupported::PrimitiveReply);
         };
+        if !success {
+            return Ok(false);
+        }
+        let resource = resource.ok_or(Unsupported::NonreturningPrimitive)?;
         for (offset, id) in [
             (0, 0x879d12e7),
             (4, 0x279d1707),
@@ -724,9 +733,7 @@ impl TypeRecords {
                     completed_stores: slot,
                 });
             }
-            for field in slot..slot + count {
-                r.derived[field] = angle.to_bits();
-            }
+            r.derived[slot..slot + count].fill(angle.to_bits());
         }
         Ok(())
     }

@@ -1,5 +1,3 @@
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-network-type-info4\engine\core\src\network_geometry\type_info_tests.rs:
-
 //! Literal expectations transcribed from TI-V01–27 before production code.
 use super::type_info::*;
 use std::collections::BTreeMap;
@@ -34,7 +32,12 @@ impl Foreign for Fixture {
                 Reply::Token(Some(Token(self.next)))
             }
             Primitive::ConstructEvaluator { allocation } => Reply::Token(Some(allocation)),
-            Primitive::AcquirePlacement { .. } => Reply::Token(self.acquired.then_some(Token(800))),
+            Primitive::AcquirePlacement { .. } => Reply::Acquired {
+                success: self.acquired,
+                // False acquisition deliberately leaves a raw out token too.
+                // The owner must branch on the boolean and must not release it.
+                resource: Some(Token(800)),
+            },
             Primitive::Property { id, .. } => {
                 Reply::Property(self.properties.get(&id).cloned().unwrap_or(Property::Absent))
             }
@@ -65,6 +68,7 @@ fn ti_v01_v04_static_constructor_and_reverse_exit() {
                 record,
                 initial_size: 100
             })
+            .chain([Primitive::RegisterExit])
             .collect::<Vec<_>>()
     );
     for r in owner.records() {
@@ -98,6 +102,7 @@ fn ti_v01_v04_static_constructor_and_reverse_exit() {
 fn ti_v02_v03_v04_owned_destruction_order_and_backing_retention() {
     let (mut owner, mut f) = fresh();
     owner.load_evaluator(0, 0, &mut f).unwrap();
+    owner.append_evaluator_entry(0, None);
     owner.load_evaluator(0, 1, &mut f).unwrap();
     f.bridge = vec![Token(21), Token(22)];
     owner.load_bridges(0, &mut f).unwrap();
@@ -125,7 +130,6 @@ fn ti_v02_v03_v04_owned_destruction_order_and_backing_retention() {
         },
     ];
     owner.load_supports(0, &mut f).unwrap();
-    owner.append_evaluator_entry(0, None);
     owner.load_complete(0, &mut f);
     let backing = owner.record(0).backing_identities();
     let before = owner.record(0).placement().clone();
@@ -384,10 +388,13 @@ fn ti_v21_v22_v24_v25_v26_v27_partial_foreign_and_unsupported() {
     owner.load_evaluator(0, 0, &mut f).unwrap();
     owner.load_evaluator(0, 0, &mut f).unwrap();
     assert_eq!(owner.record(0).evaluator_entries(), &[Some(Token(1)), Some(Token(2))]);
-    f.bridge = vec![Token(40)];
+    f.bridge = vec![Token(40), Token(40)];
     owner.load_bridges(0, &mut f).unwrap();
     owner.load_bridges(0, &mut f).unwrap();
-    assert_eq!(owner.record(0).bridge_entries(), &[Token(40), Token(40)]);
+    assert_eq!(
+        owner.record(0).bridge_entries(),
+        &[Token(40), Token(40), Token(40), Token(40)]
+    );
     f.trace.clear();
     owner.load_verifiers(&mut f).unwrap();
     owner.load_conflicts(&mut f).unwrap();
@@ -420,4 +427,228 @@ fn ti_v21_v22_v24_v25_v26_v27_partial_foreign_and_unsupported() {
     assert_eq!(owner.record(0).loaded(), 1);
     assert_eq!(owner.record(10).loaded(), 0);
     assert_eq!(owner.record(11).loaded(), 0);
+}
+
+#[test]
+fn ti_v04_nonempty_placement_backings_survive_clear_then_free_in_field_order() {
+    let (mut owner, mut f) = fresh();
+    f.acquired = true;
+    for id in [0xc804dd92, 0xe974eaa4, 0xe974eaa5, 0xe974eaa6, 0xe974eaa7] {
+        f.properties.insert(
+            id,
+            Property::Vector {
+                words: vec![7],
+                success: true,
+            },
+        );
+    }
+    owner.load_placement(0, &mut f).unwrap();
+    owner.load_evaluator(0, 0, &mut f).unwrap();
+    f.bridge = vec![Token(20)];
+    owner.load_bridges(0, &mut f).unwrap();
+    let p = owner.record(0).placement().clone();
+    let backing = owner.record(0).backing_identities();
+    owner.clear(0, &mut f).unwrap();
+    assert_eq!(owner.record(0).placement(), &p);
+    assert_eq!(owner.record(0).backing_identities(), backing);
+    f.trace.clear();
+    owner.destroy(&mut f).unwrap();
+    assert_eq!(
+        &f.trace[f.trace.len() - 8..],
+        &[
+            Primitive::Free(Storage::Logical { record: 0, field: 0xa0 }),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x6c }),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x60 }),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x54 }),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x28 }),
+            Primitive::Free(Storage::Foreign(Token(900))),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x30 }),
+            Primitive::Free(Storage::Logical { record: 0, field: 0x24 }),
+        ]
+    );
+    assert_eq!(owner.clear(0, &mut f), Err(Unsupported::Destroyed));
+}
+
+#[test]
+fn ti_v16_v18_v20_v21_getter_order_plane_and_typed_geometry_view() {
+    let (mut owner, mut f) = fresh();
+    f.acquired = true;
+    for (id, word) in [
+        (0x879d12e7, 0x42b40000),
+        (0xc804dd89, 0x420c0000),
+        (0x4a2d49b9, 9),
+        (0xea86e3b5, 77),
+    ] {
+        f.properties.insert(
+            id,
+            Property::Scalar {
+                write: Some(word),
+                success: true,
+            },
+        );
+    }
+    f.properties.insert(
+        0x4a27124f,
+        Property::Scalar {
+            write: None,
+            success: false,
+        },
+    );
+    owner.load_placement(0, &mut f).unwrap();
+    let p = owner.record(0).placement();
+    assert_eq!(p.word(0), 0x3fc90fdb);
+    assert_eq!(p.word(0x20), 0x420c0000);
+    assert_eq!(p.word(0x8c), 9);
+    assert_eq!(p.word(0x9c), 77);
+    assert_eq!(p.word(0x84), 0);
+    assert_eq!(p.degree_view().max_slope, 90.0);
+    let ids = f
+        .trace
+        .iter()
+        .filter_map(|op| match op {
+            Primitive::Property { id, .. } => Some(*id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids,
+        [
+            0x879d12e7, 0x279d1707, 0x07b36c71, 0xc7b36ca4, 0xc7b36ca5, 0xc804dd86, 0xc804dd87, 0xc804dd88, 0xc804dd89,
+            0xc804dd90, 0xc804dd9b, 0xc804dd92, 0xc804dd93, 0xc804dd94, 0xc804dd95, 0xc804dd96, 0xc804dd97, 0xc804dd98,
+            0xc804dd99, 0xe974eaa4, 0xe974eaa5, 0xe974eaa6, 0xe974eaa7, 0x4a270db0, 0x4a270e94, 0x4a271248, 0x4a27124f,
+            0x4a275748, 0x4a2d49b9, 0x8a2d49ea, 0x8a2d49f0, 0x6a2d49f4, 0xea86e3b5
+        ]
+    );
+    f.properties.clear();
+    f.properties.insert(
+        0x4a2d49b9,
+        Property::Scalar {
+            write: Some(9),
+            success: true,
+        },
+    );
+    owner.load_placement(0, &mut f).unwrap();
+    assert_eq!(owner.record(0).placement().word(0x8c), 1);
+    assert_eq!(owner.record(0).placement().word(0x9c), 77);
+}
+
+#[test]
+fn ti_v07_v08_ti1_ti3_partial_stores_never_claim_publication() {
+    let (mut owner, mut f) = fresh();
+    f.acquired = true;
+    f.properties.insert(
+        0x07b36c71,
+        Property::Scalar {
+            write: Some(0x41f00000),
+            success: true,
+        },
+    );
+    assert_eq!(
+        owner.reload(&mut f),
+        Err(Unsupported::NonzeroDerivation {
+            source_offset: 8,
+            completed_stores: 2
+        })
+    );
+    assert_eq!(
+        owner.record(0).derived_words(),
+        [0, 0, 0x41200000, 0x40e24630, 0x41a00000]
+    );
+    assert_eq!(owner.record(0).loaded(), 0);
+    f.properties.clear();
+    f.properties.insert(
+        0x07b36c71,
+        Property::Scalar {
+            write: Some(0),
+            success: true,
+        },
+    );
+    owner.reload(&mut f).unwrap();
+    f.properties.insert(0x07b36c71, Property::UnsupportedVariant);
+    assert_eq!(owner.reload(&mut f), Err(Unsupported::PropertyVariant));
+    assert!(owner.records().iter().all(|r| r.loaded() == 1));
+    assert_eq!(owner.record(0).evaluator_entries().len(), 2);
+}
+
+#[test]
+fn ti_v09_all_literal_metadata_and_widths() {
+    let (mut owner, mut f) = fresh();
+    owner.reload(&mut f).unwrap();
+    let expected = [
+        [1, 0xa766c101, 0x2821ed93, 0, 0xe17bb266, 0x49e13260],
+        [2, 0xc8433ecb, 0xe8347989, 0, 0x217bb308, 0],
+        [0, 0x08433f47, 0xa8434037, 0, 0x8bf30a8b, 0],
+        [1, 0x092a047d, 0xa92a02ea, 0, 0x2a920bf9, 0],
+        [1, 0x09511847, 0xa951171c, 0xf0, 0x82c2ff49, 0],
+        [0, 0xa88e1592, 0x088e1962, 0, 0xa16f1463, 0x69e13770],
+        [0, 0x0b730a26, 0xcb730fac, 0, 0x6b730b83, 0],
+        [1, 0x8a15ee13, 0x8a15f3f2, 0xf1, 0xc17bb329, 0],
+        [2, 0x0b79e2e1, 0x2b79dffb, 0, 0xab79e761, 0],
+        [2, 0xabe08433, 0xebe084c2, 0, 0xebe091b6, 0],
+        [1, 0x2be08438, 0xcbe084cb, 0, 0xabe091a8, 0],
+        [1, 0x4be08afb, 0x6be08658, 0, 0x4be091b2, 0],
+        [0, 0x6be0843b, 0xebe084d1, 0, 0x6be091b4, 0],
+    ];
+    let expected_widths = [
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (1, 1),
+        (1, 1),
+        (1, 2),
+        (2, 2),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+    ];
+    for record in 0..13 {
+        assert_eq!(owner.record(record).metadata(), expected[record]);
+        assert_eq!(owner.record(record).widths(), expected_widths[record]);
+    }
+    let view = owner.record(0).geometry_view(0);
+    assert_eq!(view.slope_rise.to_bits(), 0);
+    assert_eq!(view.diagonal_slope_rise.to_bits(), 0);
+    assert_eq!(view.params.max_slope, 0.0);
+}
+
+#[test]
+fn ti_v24_v25_returning_failure_keeps_each_raw_callback_effect() {
+    let (mut owner, mut f) = fresh();
+    f.bridge = vec![Token(11)];
+    owner.load_bridges(0, &mut f).unwrap();
+    assert_eq!(owner.record(0).bridge_entries(), &[Token(11)]);
+    let end = f
+        .trace
+        .iter()
+        .position(|op| *op == Primitive::EndBridgeEnumeration { record: 0 })
+        .unwrap();
+    assert_eq!(
+        &f.trace[end..],
+        &[
+            Primitive::EndBridgeEnumeration { record: 0 },
+            Primitive::DestroyBridgeSectionString { record: 0 },
+            Primitive::SpecializeBridges { record: 0, width: 0 },
+        ]
+    );
+    f.support = vec![SupportEntry {
+        bucket: 2,
+        position: 0,
+        node: Token(30),
+        allocation_14: None,
+        allocation_8: None,
+    }];
+    owner.load_supports(0, &mut f).unwrap();
+    assert_eq!(owner.record(0).support_count(), 1);
+    f.trace.clear();
+    owner.clear(0, &mut f).unwrap();
+    assert_eq!(
+        f.trace,
+        [
+            Primitive::DestroyBridge(Token(11)),
+            Primitive::Free(Storage::Foreign(Token(30)))
+        ]
+    );
 }
