@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | continuation required by context guard; AP12/AP15 answered, AP13/AP14 partial | Publish remaining AP13 tables from handoff evidence; reconcile AP14, doccheck and enqueue only when complete |
+| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | in progress; AP12/AP15 answered, AP13/AP14 partial | Verify remaining font methods; publish AP13 tables, reconcile AP14, doccheck and enqueue |
 
 ## Report
 
@@ -48,5 +48,5 @@ fixed before use; only the corrected section-table-based reads support the publi
 - SetupFontSet 453A30: no FO→return; FO+3C first slot55 path, then data base whole-app+A4 character pointer with Fonts appended. Special language IDs0F/11/12/13/14 only: common name substrings 'arial mt','arta','courier ld','stoclet'; extras0F='mhei gb ' (trailing space),'mhei b5','hy round gothic','cordiaupc';11='hg-gothic','mhei b5','hy round gothic','cordiaupc';12='hg-gothic','mhei gb','hy round gothic','cordiaupc';13='hg-gothic','mhei gb','mhei b5','hy round gothic', plus 'cordiaupc' only if system micross.ttf exists and FO+38 succeeds;14='hg-gothic','mhei gb','mhei b5','cordiaupc', plus 'hy round gothic' if system Gulim.ttc exists and FO+38 succeeds. Enumerates <=64 font-name records stride136 via FO+48; lowercase each and substring-match each list entry; calls FO+44(name) for every match (can repeat). Determine +44 semantics next! Vtable00AC5488 +3C=894864 AddAllFontsFromDirectory,+44=894A3A,+48=893E5B,+50=89595D AddSubstitution.
 - Factory table and slot offsets verified in instruction bytes; no ABI rows proposed. Last doccheck and diff whitespace checks passed.
 - Main: `C:/Users/tlori/FreeCity4`; worktree: reserved detached HEAD, commit normally.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-app-ap5-r2-manifest.json`.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-app-ap5-r3-manifest.json`.
 - No game requests or ABI proposals. Engine access limited to expressly requested application README.
