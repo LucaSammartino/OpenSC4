@@ -1,19 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-video-preferences4 (bounded portable panel owner) | Codex / core-video-preferences4 | in progress: SAME R2 stable qualification; historical quick terminal UNKNOWN | Preserve inherited evidence, then one canonical all; bounded portable scope only |
-
-## Handoff
-
-- Goal: qualify existing bounded owner on SAME original R2 of 3; no engine expansion or games.
-- Inherited clean HEAD `83e502d6f2fc02c13f34fe09c0ef4d52ae43e170`; engine `75ef2f7165d45907f0f688a76f18d1c3297b1373`.
-- Code/tests `1244c283`; later commits report-only. Historical focused Rust 3482/0 includes 27 panel tests; native 217 links do not prove terminal success.
-- Copied host proof at 06:41:22 confirms old PIDs absent, listener4620 empty; 06:42:26 named own-cwd/argv refs empty, errors empty. Historical exit/cause remains UNKNOWN.
-- Manifest: `build-runs/run4-core-video-preferences4-r2-manifest.json` in MAIN; role core, reserved own detached worktree, source public spec.
-- Preserved 12 exact inherited logs/proof/manifest files and SHA256 index under own `build-runs/inherited-r1-r2-qualification/`; no overwrite of that archive. All historical errors and missing terminal retained.
-- Tracked engine content SHA256 `0f12bef2b3a9fa01e506a2fdcb14039163cbf2ea4cae99a967b275fb82a5c9a3`; snapshot `build-runs/video-r2-inherited.json`.
-- Next: record stable committed pre-gate snapshot and run ONE canonical qbuild all.
-- No old session handle belongs to this R2 tool context. No duplicate quick, baseline, host preflight, process/cache actions or game request.
-- VP1-VP5 and all partial/default/foreign App boundaries below remain unchanged. Own queue remains WIP until actual full gate passes.
+| core-video-preferences4 (bounded portable panel owner) | Codex / core-video-preferences4 | ready: SAME R2 canonical all PASS; cargo 5526/0, 27/27 panel fixtures, clippy 0, CTest 68/68; source unchanged | Land bounded portable owner only; VP1-VP5 remain unsupported; no native panel/game credit |
 
 ## Implementation and scope
 
@@ -36,20 +23,47 @@ The only engine edits are the new `engine/core/src/video_preferences/` module an
 
 Actual portable results: **27 video-preferences tests PASS** in the focused core run. The native public vectors remain **PROPOSED / UNEXECUTED**. No complete 14,965-byte owner, default-then-close, native execution, or game/shadow coverage is claimed.
 
-## Verification and outstanding operation
+## Stable final qualification (SAME original R2 of 3)
 
-- One focused `qbuild.py --wt <WT> quick` was launched. Rust tests passed: **3429 + 21 + 13 + 19 + 0 = 3482 passed, 0 failed**, five result rows. Dependent compilation reached Finished.
-- Native CMake log reached **217/217**, including FreeCity4.dll and plugin-load-test linking. This is a compilation observation, **not a terminal gate pass**.
-- The SAME operation remains outstanding: exec session **82127**; qbuild PID **29272**, fc4verify PID **36436**, child sccache PID **16164**. Do not duplicate, kill, restart or change cache configuration under this lane.
-- At **2026-10-23T05:30:45.597037Z**, PID 16164 was still running `C:\Users\tlori\.cargo\bin\sccache.EXE --show-stats --stats-format json`, created at Unix time **1792733156.0964632** (05:25:56Z), cwd this worktree, TCP **127.0.0.1:55909 -> 127.0.0.1:4620 ESTABLISHED**. Native build log last write was 06:25:54 local.
-- Durable process/creation/cwd/argv/port/log-hash proof: `build-runs/video-build-process-proof.json`; read-only capture helper: `build-runs/video-build-proof.py`. This evidence identifies the stats child without cache RPCs, WMI, cancellation or restart.
-- Focused evidence: `build-runs/fc4verify-quick-test.log`, `fc4verify-quick-deps.log`, `fc4verify-configure.log`, `fc4verify-build.log`. Native RC/full CTest terminal result is not established.
-- Final owned-file `qbuild fmt` passed (three absolute Rust filenames, exit 0). Rustfmt emits an environment warning about canonicalizing the user-home path; it reports no formatting diff. No mass reformat was applied to shared lib wiring.
-- Stable engine source tree: **75ef2f7165d45907f0f688a76f18d1c3297b1373**. No engine edits occurred after the code/tests commit or during checks.
-- Per task, no pre-edit baseline was run. The one canonical **all has NOT been started** because quick has no durable terminal result and a second run would duplicate outstanding work. Workspace aggregate, clippy -D warnings, full CTest and terminal/source-hash evidence remain required. This lane is **WIP, not ready**.
+The existing engine implementation required **no source changes or diagnostic fixes**. Exactly one canonical `qbuild.py --wt <WT> all` ran on clean committed HEAD `923944170d8b4f96812473cf04c04c3d5062a136`, from **2026-10-23T06:04:41.392850Z** through **06:09:24.753474Z**. The same yielded exec session **31315**, qbuild PID **34960**, was collected to actual terminal **exit 0**; PowerShell explicitly returned `$LASTEXITCODE`. No duplicate checker, process termination, cache RPC/restart, configuration change, baseline, quick rerun, focused duplicate or game request occurred.
+
+- Cargo workspace: **5526 passed, 0 failed, 0 ignored**, over **all 26** `test result:` rows. Ordered passed counts: **540 + 3 + 1 + 31 + 27 + 40 + 7 + 2 + 1232 + 3429 + 21 + 13 + 19 + 147 + 0 + 2 + 1 + 3 + 1 + 1 + 1 + 5 + 0 + 0 + 0 + 0 = 5526**. Every row has zero failures and zero ignored tests.
+- All **27/27** independently named video-preferences tests reran inside the workspace gate and passed; no missing fixture. Exact names, all summary rows, aggregate and log hashes are recorded in `build-runs/video-r2-results.json`.
+- Workspace clippy with `-D warnings`: **actual exit 0, diagnostics 0**. Its log also retains the environment's path-canonicalization `warn:` line; this is not a Rust/clippy diagnostic.
+- Native CMake via fc4verify: **PASS, 2/2 incremental edges (0.8 s)**. The log records the i686 capi cargo build and generated ABI entries **unchanged (185 interfaces)**. This run did not repeat the historical 217 compile/link edges. No generated file was edited.
+- Full native verification: **fc4verify PASS (129.6 s)**, returning success into terminal qbuild exit 0. CTest: **68/68 passed, 0 failed**, complete expected inventory; CTest log elapsed **125.06 s** (wrapper 125.3 s). This qualifies the existing bounded portable build, not native execution of the panel owner.
+- Historical owned-file `qbuild fmt` was already exit 0 on the three owned Rust files. No Rust edits occurred in R2, so no formatting or tests were redundantly rerun outside `all`.
+
+## Source binding and durable evidence
+
+R1 entry HEAD was `83e502d6f2fc02c13f34fe09c0ef4d52ae43e170`. The R2 pre-gate and post-gate HEAD were both `923944170d8b4f96812473cf04c04c3d5062a136`, with **empty tracked status** before and after. The checkpoint and final report commits change only this lane report. `1244c283` through qualification has no engine diff.
+
+Engine tree at R1 entry, before gate and after gate: **`75ef2f7165d45907f0f688a76f18d1c3297b1373`**. SHA256 of the sorted path-to-SHA256 map of every tracked engine file's actual bytes: **`0f12bef2b3a9fa01e506a2fdcb14039163cbf2ea4cae99a967b275fb82a5c9a3`**, identical at all three snapshots. Per-file hashes are in `build-runs/video-r2-{inherited,before-all,after-all}.json`; actual wrapper terminal and source-stable assertion are in `build-runs/video-r2-all-terminal.json`. Final report-only tip binding is recorded in `build-runs/video-r2-final.json`.
+
+Canonical log SHA256 values:
+
+| Log under build-runs | SHA256 |
+|---|---|
+| qbuild-test.log | `fe14290fd6d8c8eac10bf975e8986339feb0308a3528a8816e251fc811df86c3` |
+| qbuild-clippy.log | `89754ba308f5a728a6f1bb84b6cb4a9574d20408f3bd04051ed9ae049064641f` |
+| fc4verify-configure.log | `b5abc90cabcebb4d3ee75c9c6d83f2ee11f56fb229181b5a837c77360d5a17e5` |
+| fc4verify-build.log | `a08606cf427b212282f31603c881cf7ac516a4d0d0304cc8a32744cc09b4f3ef` |
+| fc4verify-ctest-list.log | `e24956fde143e36189263a8a310b0c4693add39e0aa198240f1ac4fb41ba33f0` |
+| fc4verify-ctest.log | `510ed1443c64f20e07f56db0d5c29b0fea349de66684c226d2359ca64d4a0bbf` |
+| video-r2-all-stdout.log | `20f2baba69a8fa6b5742948fffbdce8a135aba34ea6dca1e03a63f3c2ba583f3` |
+
+## Historical R1 evidence (terminal remains UNKNOWN)
+
+Before the canonical wrapper could overwrite logs, **12 exact inherited files** (quick/native logs, own q output including historical Bash/encoding errors, process proof/helper, copied host proof, manifest and checkpoint report) were preserved under unique `build-runs/inherited-r1-r2-qualification/`, with copy-verified hashes in `sha256.json`. In particular, old quick-test SHA256 is `a3d4b814ceb52b673159973732789aa65d8e9786d8281d7358e917677fdd47be`; old native-build SHA256 is `a9ad55c13f01e90b8fdd24fcdded513800d1faeb3aeb2ff52ff5d46660eebbf0`.
+
+Historical focused Rust was **3482/0** (3429 + 21 + 13 + 19 + 0); native progress reached **217/217**, including DLL/load-test links. Old exec **82127** belonged to ended R1 tool context and was unavailable here. Old backend **32756**, qbuild **29272**, fc4verify **36436** and stats child **16164** are **not** credited with successful terminal results.
+
+The inherited process proof records PID 16164 running `sccache --show-stats --stats-format json`, creation Unix time **1792733156.0964632**, own cwd, and **127.0.0.1:55909 -> 127.0.0.1:4620 ESTABLISHED** at **2026-10-23T05:30:45.597037Z**. Copied coordinator host proof at **06:41:22+01:00** records all four PIDs **ABSENT**, listeners **[]**, errors **[]**; its **06:42:26+01:00** named own-cwd/argv snapshot has refs **[]**, errors **[]**. Present absence establishes neither historical exit nor cause. No root kill of PID 16164 is claimed. No isolated global process preflight was repeated.
+
+R2 manifest identity was checked against this exact reserved detached worktree, lane, engine role, round 2 and entry HEAD; copied admission confirms the public-spec dependency and full windows-and-panels authorization. Runtime guards remain binding. The checkpoint commit printed a packed-refs lock permission error but successfully created detached commit `92394417`; no shared refs/config/hooks were changed.
 
 ## Questions and next step
 
 No new numbered questions. Existing **VP1-VP5** in `docs/specs/questions/video-preferences.md` remain precise unsupported boundaries; no speculative defaults or fallback algorithms were added.
 
-Coordinator: resolve the attributable external stats stall, collect the SAME quick operation to its durable terminal result, then run **one** canonical `qbuild.py --wt <WT> all` on the stable source, recording start/end engine hash, actual Rust aggregate, clippy, native RC/full CTest and terminal exit. Only promote to ready after that gate. No native/game launch is authorized by this portable boundary; full panel launch still needs its separate guards and published dependencies. q.py cannot start Bash here (E_ACCESSDENIED); use bounded PowerShell and lane wrappers.
+Ready for the coordinator's normal queue on this bounded portable scope. No new algorithm, owner, API, default, C ABI/plugin/SDK change or foreign App implementation was added. VP1-VP5 still require separately published qualification before expanding their unsupported boundaries. There is no native panel, game/shadow, default-then-close, freezer/reload or whole-14,965-byte-owner claim. No game run or shadow verdict is applicable to this report-only qualification.
