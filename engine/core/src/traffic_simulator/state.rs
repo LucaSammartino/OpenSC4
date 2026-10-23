@@ -207,7 +207,8 @@ impl DamageState {
 /// `0x007107F0`; §4.1, TS20): all lots in the lot manager's list order, then
 /// all neighbour connections. The connections are a snapshot taken by
 /// `Reset`; the lots are walked live, so a lot removed before the walk
-/// reaches it is skipped and a lot added during the phase is visited.
+/// reaches it is skipped and a lot added before the cursor reaches the
+/// sentinel is visited (zones §8.3.1).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SourceIter {
     /// The connections the last `Reset` listed (counted references in the
@@ -220,7 +221,8 @@ pub struct SourceIter {
     pub lots_seen: Rc<[u64]>,
     /// The last lot returned; `None` before the first.
     pub last_lot: Option<u64>,
-    /// The walk has passed the last lot.
+    /// The cursor has reached the sentinel, including while the last lot
+    /// returned is still being worked on.
     pub lots_done: bool,
     /// A cache: the first position of `last_lot` in `lots_seen` (`None`
     /// before the first lot or when it is not listed).
@@ -286,6 +288,12 @@ impl SourceIter {
                     _ => self.lots_seen.iter().position(|&x| x == l),
                 };
                 self.last_lot = Some(l);
+                // zones §8.3.1: the safe iterator advances BEFORE yielding
+                // a lot. Yielding the tail leaves it at the sentinel now,
+                // not on the next call. A frame may append another lot
+                // while this source is held across a sliced traffic day;
+                // that lot belongs to the next pass.
+                self.lots_done = self.last_index == Some(self.lots_seen.len() - 1);
             }
             None => {
                 if !fast {
