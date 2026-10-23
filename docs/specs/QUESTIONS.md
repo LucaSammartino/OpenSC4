@@ -227,7 +227,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
-| game-of-life | 3 | 0 | GL4 | questions/game-of-life.md |
+| game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
 | geometry-utilities | 5 | 1 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -326,7 +326,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
-| water-ripples | 4 | 6 | WR11 | questions/water-ripples.md |
+| water-ripples | 5 | 6 | WR12 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
@@ -334,4 +334,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **507** | **1262** | | |
+| **total** | **509** | **1262** | | |
