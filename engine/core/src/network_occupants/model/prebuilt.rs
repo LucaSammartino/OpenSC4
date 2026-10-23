@@ -39,7 +39,7 @@ pub trait ModelResource: Send + Sync {
     fn bounds(&self) -> Bounds;
 }
 
-pub trait ModelProvider {
+pub trait ModelProvider: ProcessorLighting {
     /// External cSC4ModelMakerUtility, not the network owner's method.
     fn model_instance_id(&self, rotation: u8, alternate: bool) -> u32;
     fn load(&self, key: ResourceKey) -> Option<Arc<dyn ModelResource>>;
@@ -223,7 +223,7 @@ impl PrebuiltPiece {
                 }
                 instance.deform(deformation);
             }
-            instance.flip_and_light(flip);
+            instance.flip_and_light(flip, provider);
         }
         if state.alpha != 0xFF {
             instance.alpha = Some(state.alpha as f32 * 0.003_921_569);

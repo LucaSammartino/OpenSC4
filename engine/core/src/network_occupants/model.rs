@@ -1,8 +1,8 @@
 //! Network model member bodies, network-occupants.md §§10.1–10.3 (NO21–26).
 //! These are ordinary members, not virtual overrides. Resources are external;
 //! Bind, Deform, winding, Clip, draw ordering and cache ownership live here.
-//! Processor lighting itself is unpublished (NO28), so its request remains
-//! explicit instead of accepting an original owner method's output.
+//! Processor lighting is a foreign primitive (NO28); the owner dispatches it
+//! after winding changes and before releasing the processor's source arrays.
 
 use super::record::Vertex;
 use std::sync::Arc;
@@ -160,11 +160,19 @@ impl ModelTransform {
     }
 }
 
-/// A request to the external processor, not a guessed lighting result (NO28).
+/// Arguments to the external processor, not a guessed lighting result (NO28).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LightingRequest {
     pub transform: ModelTransform,
     pub flip: bool,
+}
+
+/// `cS3DModelProcessor::LightModel`, a different owner from the network
+/// instance. The processor generates normals when absent and lights the
+/// private mesh through this transform. There is deliberately no no-op
+/// default: a caller must supply this foreign service.
+pub trait ProcessorLighting {
+    fn light_model(&self, meshes: &mut [Mesh], request: LightingRequest);
 }
 
 pub struct NetworkModelInstance {
@@ -234,7 +242,7 @@ impl NetworkModelInstance {
         }
     }
 
-    pub fn flip_and_light(&mut self, flip: bool) {
+    pub fn flip_and_light<P: ProcessorLighting + ?Sized>(&mut self, flip: bool, processor: &P) {
         self.passes.push(ModelPass::FlipAndLight);
         if flip {
             for mesh in &mut self.meshes {
@@ -261,7 +269,9 @@ impl NetworkModelInstance {
                 *value = -*value;
             }
         }
-        self.lighting = Some(LightingRequest { transform, flip });
+        let request = LightingRequest { transform, flip };
+        self.lighting = Some(request);
+        processor.light_model(&mut self.meshes, request);
         self.source_arrays.clear(); // ReleaseModel, even without flip.
     }
 
