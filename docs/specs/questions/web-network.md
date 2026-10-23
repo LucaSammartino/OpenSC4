@@ -9,6 +9,37 @@ HTTPMessage::GetSeparatedStringList; spec section web-network.md §3.2.
 Write/ReadCookieDataFile (008f7784, 008f9e2b): byte layout of each `CookieData%05u` entry and the encryption chosen
 by SetShouldEncryptCookieDataFile. Spec section web-network.md §3.6.
 
+Partial evidence 2026-10-23 (re-www-ww5): section 3.6 now specifies clear-before-read/write,
+text re-admission, unsigned expiration filtering, contiguous naming and 10000-entry read cap.
+The 50-byte helper `008f7752` calls string-copy/assignment helpers; exact binary transform,
+character conversion and the writer marker literal still need qualification. No cipher is claimed.
+
+## Q11 (re-www-ww5, 2026-10-23) — cache persistence and source-file admission
+
+Section 6 qualifies byte admission, reads and expiration. What are exact source-file overload
+`008fd76c` ownership/copy behavior, filename generation/reservation (`008fcd49`, `008fceeb`),
+INI-loader token acceptance/escaping (`008fdb0d`), orphan cleanup (`008fc6e0`) and holder buffer
+deallocation semantics? Verify the default INI-name pointer `00b16144`. Do file/RAM capacity
+settings have enforcement outside the specified periodic expiration sweep? Failed allocation
+and reference-count overflow remain outside the published domain.
+
+## Q12 (re-www-ww5, 2026-10-23) — command-generator wire grammar and execution
+
+Section 7 specifies message/poll/accept boundaries. Settle address-helper `0081e7d0` and exact
+bind address/port; ReadCommandInput `0081ef00` and line reader `0081ed50` framing/limits;
+malformed percent escapes in `0081ebd0`; ExecuteCommand `0081eb30` service/result mapping;
+and exact response concatenation plus zero-progress/error behavior in `0081f180`. Pseudocode
+for CheckForCommands incorrectly removes the accepted-command branch; instructions retain it.
+
+## Q13 (re-www-ww5, 2026-10-23) — remaining HTTP wire and date behavior
+
+Section 5 qualifies progress and synchronous notification, and links existing lifetime/admission
+contracts. Still required for whole-client implementation: request wire generation, worker retry
+and redirect policy, ReadMessage `00819800` body framing/chunk handling/spill-to-file failures,
+DoJobFinalization `0081a470`, exact date-parser acceptance `00818490`/`00818680`, runtime timezone
+adjustment at `00b18ba8`, and residual native slots 0/3. This is HTTP-owner work, not a reopening
+of parked WWW-owner Q9. Proposed vectors do not certify complete HTTP transaction equivalence.
+
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing
