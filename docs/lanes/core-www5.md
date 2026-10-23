@@ -4,6 +4,8 @@
 
 ## Handoff
 - Goal: close WWWSystem, HTTPClient, CookieManager and NetworkFileCache in core only.
+- Round 2 review: modeled the section 4.4 outer HTTP admission helper, held through WWW insertion.
+- Focused conformance: web_network_www 12/12 passed, including helper ordering and zero-ID release.
 - Done: a82e0ea7 initial handoff; implemented cookie/cache owners and HTTP notification/calendar helpers.
 - Extended existing WWW FTP admission and HTTP worker exit; added owner closure table and vector index.
 - Focused tests: 41 then 42 WWW tests passed; later sized-buffer/info tests and lifecycle edits await final gate.
@@ -21,6 +23,6 @@
 - Native request is still pending after repeated 60-second collects of the SAME session 1879; no duplicate check started.
 - Final contract review found WWW base service registration was absent; added the specified (0x449b1939,0) constructor effect and conformance assertion.
 - 25d407e5: constructor registration committed; its focused conformance test passed (1/1), and changed-file fmt passed (2 files, zero diff).
-- Next: review owner closure and run qbuild all on final layout (real source/input change).
+- Next: check changed-file formatting, then qbuild all on final source.
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.
 - Context exhausted while native queue remained pending; no merge-queue entry written. Resume the existing request, never replace it for progress.

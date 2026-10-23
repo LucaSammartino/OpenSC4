@@ -8,6 +8,7 @@ mod tests {
     struct Fake {
         effects: Vec<Effect>,
         http_effects: Vec<http::Effect>,
+        admission_trace: Vec<&'static str>,
         callbacks: Vec<(Job, Notification)>,
         headers: BTreeMap<(u32, u32), Vec<u8>>,
         cookies: Vec<Vec<u8>>,
@@ -34,6 +35,7 @@ mod tests {
             Self {
                 effects: vec![],
                 http_effects: vec![],
+                admission_trace: vec![],
                 callbacks: vec![],
                 headers: BTreeMap::new(),
                 cookies: vec![],
@@ -59,6 +61,9 @@ mod tests {
     }
     impl http::Host for Fake {
         fn effect(&mut self, value: http::Effect) {
+            if matches!(value, http::Effect::ConstructRequest(_)) {
+                self.admission_trace.push("submit");
+            }
             self.http_effects.push(value);
         }
         fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
@@ -71,6 +76,13 @@ mod tests {
                 .ok_or(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
         }
         fn effect(&mut self, value: Effect) {
+            match value {
+                Effect::Lock => self.admission_trace.push("www-lock"),
+                Effect::Unlock => self.admission_trace.push("www-unlock"),
+                Effect::EnterHttpAdmission => self.admission_trace.push("enter"),
+                Effect::LeaveHttpAdmission => self.admission_trace.push("leave"),
+                _ => {}
+            }
             self.effects.push(value);
         }
         fn now(&mut self) -> u32 {
@@ -307,6 +319,43 @@ mod tests {
         assert_eq!(w.status(2), 2);
         assert!(h.callbacks.is_empty());
         assert_eq!(w.http.queue.len(), 1);
+    }
+    #[test]
+    fn http_admission_helper_spans_submission_and_www_insertion() {
+        for counter in [0, u32::MAX] {
+            let mut w = service();
+            w.http.counter = counter;
+            let mut h = Fake::default();
+            let id = w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
+            if counter == 0 {
+                assert_eq!(id, 2);
+                assert_eq!(w.active.len(), 1);
+                assert_eq!(
+                    h.admission_trace,
+                    [
+                        "www-lock",
+                        "www-unlock",
+                        "enter",
+                        "submit",
+                        "www-lock",
+                        "www-unlock",
+                        "leave"
+                    ]
+                );
+            } else {
+                // WWW-16: HTTP's wrapped zero ID still queues a request, but
+                // WWW inserts nothing and leaks its selected target hold.
+                assert_eq!(id, 0);
+                assert!(w.active.is_empty());
+                assert_eq!(
+                    h.admission_trace,
+                    ["www-lock", "www-unlock", "enter", "submit", "leave"]
+                );
+                assert!(!h.effects.contains(&Effect::ReleaseTarget(9)));
+            }
+            assert_eq!(w.http.queue.len(), 1);
+            assert!(h.callbacks.is_empty());
+        }
     }
     #[test]
     fn duplicate_waiting_foreign_status_cancel_leaks_and_fanout_reentry() {

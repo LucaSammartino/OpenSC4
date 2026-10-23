@@ -24,6 +24,8 @@ pub enum Effect {
     RegisterService(u32, u32),
     Lock,
     Unlock,
+    EnterHttpAdmission,
+    LeaveHttpAdmission,
     AddTarget(u32),
     ReleaseTarget(u32),
     AddService,
@@ -410,8 +412,18 @@ impl Www {
             // opaque host submission is allowed to stand in for that owned body.
             return Err(Unsupported::OwnedBody("Q9 HTTP header record construction"));
         }
-        let foreign = self.http.submit(host, 2, &job.url, None, 0, &[], 0)?;
+        // Section 4.4's outer admission helper spans WWW insertion, in addition
+        // to the HTTP client's own queue/activation locks (section 4.14).
+        effect(host, Effect::EnterHttpAdmission);
+        let foreign = match self.http.submit(host, 2, &job.url, None, 0, &[], 0) {
+            Ok(id) => id,
+            Err(error) => {
+                effect(host, Effect::LeaveHttpAdmission);
+                return Err(error);
+            }
+        };
         if foreign == 0 {
+            effect(host, Effect::LeaveHttpAdmission);
             return Ok(0);
         } // selected target hold remains acquired
         effect(host, Effect::Lock);
@@ -421,6 +433,7 @@ impl Www {
         let id = job.id;
         self.active.push(job);
         effect(host, Effect::Unlock);
+        effect(host, Effect::LeaveHttpAdmission);
         Ok(id)
     }
     pub fn status(&self, id: u32) -> u32 {
