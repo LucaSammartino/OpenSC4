@@ -1,4 +1,9 @@
 # application: answered questions (archive)
+
+- **AP12 - section 14.1:** is Admin Enabled=`false` case-sensitive, and does by-name loading resolve before testing?
+  **ANSWERED 2026-10-23 (re-app-ap5):** DIFFERS — `false` is case-insensitive; `0` is exact. By-name loading constructs a path and calls slot 68, whose adjacent-INI check follows DLL existence testing. A bypass flag skips the check. See section 14.1 and AP12 conformance vectors.
+- **AP15 - sections 2, 9, 11.6:** complete slots 51–58 and obliteration failure/view/cleanup behavior.
+  **ANSWERED 2026-10-23 (re-app-ap5):** DIFFERS — slot 56 copies its own stored user-data path. Temporary-write failure does not prevent destructive close/deletion; the writer returns true on normal completion even after failed initialization/open. Read initialization is ignored, read-open failure shuts down/releases without close; absent source view defaults zoom/rotation to zero. No-city temporary writing has an unchecked city dereference, not a safe no-op. See sections 9/11.6 and AP15 vectors.
 <!-- Archive for [application.md](../../application.md). Lanes do not read this file. Open questions are in ../application.md. -->
 
 - **AP2 - section 7.1:** in `OnIdle` (`0x00449C70`), what does the 300 ms gate (+0x390 against `0x12C`) do on

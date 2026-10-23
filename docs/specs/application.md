@@ -684,6 +684,23 @@ is `...\City - New.sc4` (assuming the derived name pattern), renamed is true. No
 no backup; temp is renamed to `City - New.sc4`, then `City - Old.sc4` is deleted, and the city's path
 becomes the new name. If the temp rename failed, the old file stays and the path reverts.
 
+Save-path naming supplement to section 11.16 (AP14, partial): the helper
+`SC4CreateSavePathForCity(base, cityName, cityID, out)` (`0x005DC400`) forms
+`City - ` + cityName + `.sc4`, sanitizes that filename, and resolves it under base.
+It does not create a file. If the candidate exists, a nonzero cityID permits reuse when
+`SC4ReadRegionalCity` succeeds and the existing regional city's slot +0x6C value is either
+that cityID or zero. Otherwise it restores the original candidate and inserts ` (2)` before
+the last dot, then ` (3)`, and so on, testing existence and permitted reuse again each time.
+Suffixes do not accumulate. The counter is unsigned 32-bit and the format is ` (%u)`;
+the increment before the first suffix is explicit at `0x005DC6CB`. There is no maximum retry
+count or error returned for an unreadable occupied candidate: it advances to another name.
+The three-argument overload (`0x005DC790`) resolves the selected region's directory/name
+from the global app's region pointer and then uses the same naming helper. These calls
+require the corresponding region objects; there is no null-region fallback in that overload.
+The sanitizer (`0x005F9BF0`) first uses `MakeFileNameValid`, then collapses repeated ASCII
+spaces to one and trims the result. Its platform encoding/allowed-character details remain
+unpublished here; names containing only ordinary ASCII letters/spaces do not need that boundary.
+
 ## 12. Open (not specified here)
 
 SetupWinCtrlMgr, SetupFontSet, SetupResources and LoadRegistry beyond the summary of section 14.2,
@@ -720,13 +737,42 @@ focus loss (slot 18 also sets the app's `+0x5D0`), `+0x4AC` language, `+0x4EF` I
 expanded tooltips, `+0xF0C` software driver, `+0xF10`, `+0xF13` hardware driver wanted, `+0xF16` city detail,
 `+0xF17` full screen, `+0xF1C`…`+0xF24` resolution (§8). What `+0x470`, `+0x498` control is AP11.
 
-### 13.3 Re-applying them *[summary]*
+### 13.3 Re-applying them *[compat]*
 
 `DoPreferencesChanged` (`0x0044CE40`, message `0x231BBF91`, §6.2) re-applies the preferences: the language manager,
 the graphics driver and video mode (software `0x7ACA35C6`, DirectX `0xBADB6906`), the configuration rules
 (graphics-rules.md), and erases `-x` from the command line *[inferred: a one-shot flag]*. `ApplyVideoPreferences`
-(iface slot 19, `0x0044A1C0`) writes twelve video settings to the render properties and posts `0xC9F775BB`;
+(iface slot 19, `0x0044A1C0`) writes twelve video settings and posts `0xC9F775BB`;
 `GetAutoVideoPreferences` (slot 20, `0x0044A330`) reads fourteen.
+
+The video calls use the video-settings interface stored at whole-app +0x634, rather than
+the separately exposed render-properties pointer +0x630. Their argument is a video preference
+record; offsets below are relative to that record, not the beginning of cSC4Preferences.
+Apply writes unsigned bytes widened to 32 bits; GetAuto stores only the low byte of each
+setting result. Neither operation converts those bytes to booleans. Both use this order:
+
+| Order | Setting ID | Record byte offset |
+|---|---|---|
+| 1 | 0 | +0x01 |
+| 2 | 1 | +0x02 |
+| 3 | 2 | +0x03 |
+| 4 | 3 | +0x04 |
+| 5 | 6 | +0x07 |
+| 6 | 4 | +0x05 |
+| 7 | 5 | +0x06 |
+| 8 | 8 | +0x09 |
+| 9 | 7 | +0x08 |
+| 10 | 9 | +0x0A |
+| 11 | 10 | +0x0C |
+| 12 | 15 | +0x1C |
+
+GetAuto additionally sets byte +0x0B to 1 after setting 10 is read. After the twelve reads it
+reads setting 11: values 0, 1, 2, 3 set dwords +0x10/+0x14 to 800/600, 1024/768, 1280/1024,
+1600/1200 respectively; any other unsigned value leaves those dwords untouched. Finally setting
+12 maps 0 to dword +0x18 = 16, 1 to 32, and otherwise preserves the old value. Apply does not
+write settings 11 or 12 and does not modify the argument record. It queues message `0xC9F775BB`
+after all twelve writes when message server 2 exists; absent server skips notification only.
+Instruction evidence: `0x0044A1C6`–`0x0044A29D`, `0x0044A345`–`0x0044A47D`.
 
 ## 14. Plugins, resources and files *[compat]*
 
@@ -741,8 +787,6 @@ or exactly `0` is skipped
 (slot 67, `0x00451A10`) apply the same test to one library. `PreFrameWorkInit` runs it for the plugin directories
 (§3); a change notification from a directory watcher runs it again for that directory (§6.1).
 
-### 14.2 Resources *[summary]*
-
 The plugin comparison above operates on the INI reader's returned value: no extra trimming,
 numeric conversion or truth-word parsing is performed. Thus `FALSE`, `False` and `0` disable;
 `00`, `no` and an absent key do not. The case-insensitive branch lowercases both strings
@@ -752,6 +796,8 @@ flag. It therefore resolves the path before the adjacent-INI test; it does not a
 resolver to decide Enabled. By-path loading returns false before reading the INI if GZCOM is
 absent or the DLL does not exist. A nonzero bypass flag skips the Enabled test
 (`0x0044EB27`–`0x0044EB2B`).
+
+### 14.2 Resources *[summary]*
 
 `LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`: switches **`packedexemplars`** and **`packedtextures`**
 (`on`/`off`), and the sections `DBSegments` and `DBSegmentDirectoryFiles`, whose entries are `class;path` with
@@ -765,14 +811,65 @@ exemplars `0x6534284A` and the scripts `0xCA63E2A3`). `SetupFontSet` and `SetupW
 standard button captions, and the cursors: **`CustomCursors`** (`off`/`disabled`) and **`cursors`** (`bw`,
 `color16`, `color`, `color256`, `fullColor`) choose the cursor set.
 
+**Registry syntax correction (AP13, partial):** the packed options are command-line switches,
+not INI section names. Their values are lowercased before exact `on`/`off` comparisons; other
+values leave the existing flags alone (`0x004585F2`–`0x004586EA`). `[DBSegments]` uses hexadecimal
+segment IDs as entry names and `hexadecimal-class-ID;path` as values. The key and class token
+are passed to `RZAtoUint32HexA`; the semicolon split is at `0x00456C1D`, class conversion at
+`0x00456CA1`, and segment creation requests interface `0x656B8F0C`. Do not treat the entry name
+as the class ID or parse either ID as decimal. `%DataDirectory%` and `%Language%` are the
+case-sensitive substitution spellings. The directory-files section is registered separately
+under `CN_DBSDF`, rather than passed through the same class/path callback.
+
+Within `[DBSegments]`, `BEGIN_GROUP=PACKED_EXEMPLARS`, `NON_PACKED_EXEMPLARS`, `PACKED_TEXTURES`
+or `NON_PACKED_TEXTURES` conditionally includes entries until `END_GROUP` with the corresponding
+group name. These group names and the two marker keys are case-sensitive. Nested active groups
+combine as conditions; a packed group requires its packed flag, a non-packed group requires its
+absence. They are section entries, not extra INI sections (`0x00458100`–`0x00458480`). Missing
+Resources.ini is not a LoadRegistry failure: it returns true (`0x00458784`–`0x004587AD`).
+
+SetupResources registers the following complete type-to-factory-class list, in this order.
+Every registration supplies a third argument of zero; failed individual registration results
+are not checked. The final success test is resource-manager slot +0x84 >= 3, unsigned
+(`0x00457EBF`–`0x00458002`). Factory IDs are identifiers, not implementation algorithms.
+
+| Resource type | Factory class |
+|---|---|
+| `0xCA63E2A3` | `0x0A63DF8C` |
+| `0x2026960B` | `0x00436EB4` |
+| `0x686AA4B0` | `0xC8696797` |
+| `0x856DDBAC` | `0xA2FFB5D3` |
+| `0x7AB50E44` | `0x3AB50E2A` |
+| `0x7AB50E45` | `0x3AB50E2A` |
+| `0x29A5D1EC` | `0x69B6F01C` |
+| `0x09ADCD75` | `0x69B6F01C` |
+| `0x5AD0E817` | `0xFAD0F0B6` |
+| `0x6534284A` | `0x453429B3` |
+| `0x05342861` | `0x053429C8` |
+| `0xA83479D3` | `0xA83479EA` |
+| `0x296678F7` | `0x496678FE` |
+| `0xEA5118B0` | `0xEA5118B5` |
+| `0xA2E3D533` | `0x42E411C2` |
+
 ### 14.3 Files
+
+`GetAppIniFilePath(out)` (slot 29, `0x0044D570`) concatenates the stored data-directory
+base (the same path returned by slot 51) and `GetAppIniFileName`. If that file exists it
+assigns the candidate to out. Otherwise it assigns the stored slot-58 base plus the INI
+filename, with no existence check on that fallback (`0x0044D615`–`0x0044D662`). The operation
+uses string concatenation, not a filesystem search: no current-directory, CD, plugin or
+environment search and no separator insertion. Normal stored bases already end in a separator.
+Slot 31 similarly concatenates the slot-58 base and `GetAppPreferencesFileName` directly,
+without even the candidate existence test (`0x0044C0D9`–`0x0044C104`). Both assign out, replacing
+its previous contents; neither creates the file or updates directory caches.
 
 - The ini file is `SimCity 4.ini` (`GetAppIniFileName`), looked up by `GetAppIniFilePath`;
   `FindAndPossiblyFixIniFiles` (`0x0044FE70`, §4.2) reads `[Directories] Data` and `PlugIn` from it and keeps them
   when the folders exist.
 - The application's plugin directories are `Plugins` with the language name (`English` by default) inside the data
-  and CD directories (§9); `DoLoadCityUI` asks for a saved city under the `SavedCity` folder of the application
-  directory *[summary]*; `[Settings] Terrain Load/Save Location` of the ini file remembers the height-map dialog's
+  and CD directories (§9); `DoLoadCityUI` produces literal `SavedCity` plus the global suffix in section 11.10,
+  replacing the application-directory string initially fetched; it does not resolve a `SavedCity` subfolder.
+  `[Settings] Terrain Load/Save Location` of the ini file remembers the height-map dialog's
   folder (§11.15).
 
 ## 15. Message pumps (iface slots 4 and 5) *[compat]*
@@ -782,3 +879,31 @@ standard button captions, and the cursors: **`CustomCursors`** (`off`/`disabled`
 whether one waits, slot 9 with 0 delivers it) until the queue is empty, `max` messages were delivered, or more than
 `min` were and the elapsed time (a timer of unit 4 started on entry, *[inferred: milliseconds]*) exceeds `ms`.
 Without the server nothing happens. The city life cycle uses (100, 500, 5000) (§11).
+
+## 16. Conformance vectors for owner closure *[compat]*
+
+These are spec-level vectors for the implementer; no engine files are supplied by this RE lane.
+Paths below are literal Windows strings. Foreign primitive outcomes are fixture inputs.
+
+| ID | Inputs / fixture | Expected observable result |
+|---|---|---|
+| AP12-1 | Existing DLL; adjacent INI returns Enabled values `false`, `False`, `FALSE`, `0` in four runs | No GZCOM library add in any run |
+| AP12-2 | Same, values `00`, `no`, empty, missing key | Enabled filter permits add; no conversion of `00` to zero |
+| AP12-3 | Disabled adjacent INI, bypass flag nonzero | Library add attempted; missing DLL still fails before INI lookup |
+| AP12-4 | By-name request resolves to an existing path with Enabled=`FALSE` beside it | Slot 68 receives that path; its Enabled filter skips add |
+| AP14-getters | Distinct u32 sentinels at whole-app +0x44, +0x4C, +0x314, +0x318, +0x54, +0x5C | Slots 25, 26, 32, 33, 34, 37 return respective sentinels with no AddRef |
+| AP13-ini | Slot 51 base `C:\Game\`, slot 58 base `C:\User\`, app name `SimCity 4` | Existing `C:\Game\SimCity 4.ini` wins; absent candidate returns `C:\User\SimCity 4.ini` even if fallback absent |
+| AP14-cfg | Same bases and name, out initially `old` | Slot 31 assigns `C:\User\SimCity 4.cfg`; no existence probe |
+| AP14-video-write | Record bytes at offsets 1..10 equal their offsets, +0x0C=200, +0x1C=255 | Settings written in order 0,1,2,3,6,4,5,8,7,9,10,15 with corresponding unsigned byte values; one message after writes |
+| AP14-video-read | Setting 0 returns 0x123, setting 11=2, setting 12=1 | Record +1=0x23, +0x0B=1, resolution 1280×1024, depth 32 |
+| AP14-video-preserve | Resolution/depth seeded; setting 11=4, setting 12=2 | All three seeded dwords preserved; ordinary twelve byte reads still occur |
+| AP14-name | Base `C:\Region\`, city `Oak`, ID=0; candidate and ` (2)` occupied | Result `C:\Region\City - Oak (3).sc4`; no file created |
+| AP14-name-reuse | Candidate occupied; requested ID=7; readable existing city ID=7, then 0 in separate runs | Unsuffixed candidate reused in both runs; ID=8 instead causes ` (2)` candidate |
+| AP15-directories | Eight distinct stored path fixtures for slots 51–58; language index -1 for 53/54 | Each copies its own table source; slot 56 does not raise Unsupported or alias slot 58 |
+| AP15-temp-write | City open; temp segment initialization fails; read-open later fails | Temporary writer returns true and releases segment; outer routine still partial-closes, removes old path, attempts read, shuts down/releases read segment and removes temp; no NewCity |
+| AP15-read-init | Read-segment initialization false; read-open false | Path and read-open still attempted; shutdown and release, no close; no template pointer installed |
+| AP15-views | Source view absent; destination view present; rebuilding fails | Destination zoom=0 then rotation=0; missing destination instead makes neither setter call |
+| AP15-invalid | No city, temporary writer successfully opens segment | Native city dereference is invalid; not a native false/no-op vector |
+
+AP13's full font/control/cursor and malformed-registry cases, and AP14's full reapplication
+ordering, remain open in the question file until their remaining rules are published.
