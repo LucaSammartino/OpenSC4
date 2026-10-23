@@ -1,6 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-grid-interpolation4 (two integer byte-grid kernels) | `Codex` / `core-grid-interpolation4` (engine lane) | WIP: implementation `07be0ee9`; baseline Rust 5372 passed/0 failed, clippy failed E0432 during source overlap, native/CTest incomplete; own format exit 0; no game runs or new questions; ABI unchanged | (1) coordinator decides stalled cache-statistics case; (2) collect baseline session 46957; (3) focused 19-test pass, then stable-source canonical qbuild all |
+| core-grid-interpolation4 (two integer byte-grid kernels) | `Codex` / `core-grid-interpolation4` (engine lane) | in progress: round 2 qualification of implementation `07be0ee9`; archived real baseline failure and partial CTest; 19 tests still unrun; ABI unchanged | (1) one serial quick; (2) stable-engine canonical all; (3) report actual terminal results |
+
+## Handoff
+
+- Goal: execute and qualify the existing 19 literal tests; no new algorithms or consumers.
+- Round 2 manifest matches lane/core engine/path/base c589d72b, budget 150000/calls 100; detached HEAD retained.
+- Copied admission proofs: evidence-run4/coordinator-core-grid-{first-host,r2}-proof.json, GO exit 0, dependency on main.
+- Done: reviewed published sections 2-7 and GINT1-3; all G1-G12 literals (13 bodies) match, including 32767 ->127 and two-stage ->1.
+- Independently checked max-count middle 77, quarter unsigned 64 and signed 191; unused terminal additions wrap.
+- Checked disjoint caller storage, padded descriptors, counts 1..32767 and errors before writes. No expectation or source changes needed.
+- Engine tree 32938cf87952dce5118c967ae7022c7629141c7d; initial tracked state clean.
+- Archived 11 logs/proofs with hashes under build-runs/r1-fixed-archive/archive-index.json before any overwrite.
+- Baseline remains Rust 5372/0 preimplementation, real Clippy E0432 during source overlap, native 217/217 progress only, CTest partial 20/68; terminal UNKNOWN.
+- Root exact PID29472 creation1792725967.238675 readonly stats exit15 preserved parent28180/daemon36520 then; later disappearance has no known cause.
+- Fresh 03:49 UTC snapshot: old21192/28180/29472 absent, own named processes [], TCP4421 listeners []; not terminal proof.
+- No old session46957 collection/live assumption, no kills/cache/RPC/restart or duplicate validations.
+- Next: one wrapper serial quick (no focused-target interface advertised by --help), collect same yielded handle; then canonical all after committed stable-engine milestone.
+- Full prior report below is historical R1, superseded where explicitly corrected above.
+
+## Historical round 1 report
 
 ## Implementation and supported scope
 
