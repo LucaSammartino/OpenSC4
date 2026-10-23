@@ -2,8 +2,8 @@
 // Copyright (C) 2026 FreeCity4 contributors
 
 use super::{flag, TextureBinding, TextureSource};
-use std::sync::Arc;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Handle(pub i32);
@@ -20,7 +20,7 @@ impl Handle {
     }
 }
 
-/// Nine floats are preserved verbatim. Their meaning/order is open under OV1.
+/// cx, cz, full width, turns, stretch, repeatU, repeatV, offset, retained (§3.2).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placement(pub [f32; 9]);
 
@@ -34,7 +34,10 @@ pub struct CellRect {
 
 impl CellRect {
     pub fn clipped(self, city_cells: [u32; 2]) -> Self {
-        let min = [self.min[0].min(city_cells[0]), self.min[1].min(city_cells[1])];
+        let min = [
+            self.min[0].min(city_cells[0]),
+            self.min[1].min(city_cells[1]),
+        ];
         Self {
             min,
             max: [
@@ -53,7 +56,8 @@ impl CellRect {
     }
 
     pub(super) fn cells(self) -> impl Iterator<Item = [u32; 2]> {
-        (self.min[1]..self.max[1]).flat_map(move |z| (self.min[0]..self.max[0]).map(move |x| [x, z]))
+        (self.min[1]..self.max[1])
+            .flat_map(move |z| (self.min[0]..self.max[0]).map(move |x| [x, z]))
     }
 }
 
@@ -89,6 +93,8 @@ pub(super) struct HandleRecord {
 }
 
 pub(super) struct Overlay {
+    pub stamp: u16,
+    pub secondary: Option<[f32; 16]>,
     pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
@@ -104,6 +110,7 @@ pub(super) struct Overlay {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverlaySnapshot {
+    pub secondary: Option<[f32; 16]>,
     pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
@@ -118,6 +125,7 @@ pub struct OverlaySnapshot {
 impl Overlay {
     pub fn snapshot(&self) -> OverlaySnapshot {
         OverlaySnapshot {
+            secondary: self.secondary,
             primary: self.primary,
             flags: self.flags,
             cells: self.cells,
@@ -136,8 +144,8 @@ impl Overlay {
     }
 }
 
-/// Free-list storage. [choice, OV5] Freed slots are reused LIFO; stale handles
-/// are rejected until reuse. No generation bits are invented in the public ID.
+/// FIFO free queue with retained payloads (§2.3). Portable bounds/stale checks
+/// prevent unsafe Rust access; native validation is not claimed. No generations.
 pub(super) struct Arena<T> {
     slots: Vec<Option<T>>,
     free: VecDeque<u32>,
@@ -153,8 +161,6 @@ impl<T> Default for Arena<T> {
 }
 
 impl<T> Arena<T> {
-    // Construction stays private until OV1/OV2 supply placement contracts. Tests
-    // seed records here to exercise setter logic without a fake placement host.
     pub fn insert(&mut self, value: T) -> u32 {
         if let Some(index) = self.free.pop_front() {
             self.slots[index as usize] = Some(value);
@@ -168,12 +174,20 @@ impl<T> Arena<T> {
     }
 
     pub fn get(&self, index: u32) -> Option<&T> {
-        if self.free.contains(&index) { return None; }
+        if self.free.contains(&index) {
+            return None;
+        }
         self.slots.get(index as usize)?.as_ref()
     }
 
     pub fn get_mut(&mut self, index: u32) -> Option<&mut T> {
-        if self.free.contains(&index) { return None; }
+        if self.free.contains(&index) {
+            return None;
+        }
+        self.slots.get_mut(index as usize)?.as_mut()
+    }
+
+    pub fn payload_mut(&mut self, index: u32) -> Option<&mut T> {
         self.slots.get_mut(index as usize)?.as_mut()
     }
 
@@ -190,10 +204,13 @@ impl<T> Arena<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u32, &T)> {
-        self.slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, o)| if self.free.contains(&(i as u32)) { None } else { o.as_ref().map(|o| (i as u32, o)) })
+        self.slots.iter().enumerate().filter_map(|(i, o)| {
+            if self.free.contains(&(i as u32)) {
+                None
+            } else {
+                o.as_ref().map(|o| (i as u32, o))
+            }
+        })
     }
 }
 
