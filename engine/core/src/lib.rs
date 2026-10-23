@@ -170,3 +170,4 @@ pub mod video_preferences;
 pub mod network_transport;
 pub mod text_decal_occupant;
 pub mod utf8_validation;
+pub mod auto_game_pause;
