@@ -190,7 +190,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
-| animated-sprite | 8 | 1 | AS10 | questions/animated-sprite.md |
+| animated-sprite | 10 | 1 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | application | 9 | 2 | AP12 | questions/application.md |
@@ -222,10 +222,10 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 1 | 12 | DP14 | questions/dispatch.md |
-| draw-context | 4 | 5 | DC10 | questions/draw-context.md |
-| drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
+| draw-context | 3 | 6 | DC10 | questions/draw-context.md |
+| drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 14 | EF15 | questions/effects.md |
+| effects | 1 | 14 | EF16 | questions/effects.md |
 | effects-parser | 7 | 0 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -342,7 +342,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 3 | 5 | VW9 | questions/view3d-window.md |
-| water-ripples | 5 | 6 | WR12 | questions/water-ripples.md |
+| water-ripples | 8 | 6 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **535** | **1308** | | |
+| **total** | **541** | **1309** | | |
