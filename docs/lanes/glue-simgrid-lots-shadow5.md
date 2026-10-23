@@ -16,6 +16,8 @@
 - Full all session 65757 completed Rust tests 6537/6537 and clippy exit=0 diagnostics=0 (build-runs/qbuild-test.log and qbuild-clippy.log).
 - Sequencing mistake: all also queued native qbuild-20261023-233052-build-ctest while explicit verify pending. Removed that duplicate pending .req before execution. Session 65757 still waits for its removed request; preserve as incomplete wrapper, do not fabricate a verdict.
 - The ONE remaining native request is qbuild-20261023-232536-build-ctest (session 69384); await actual coordinator verdict. No game until DLL verified.
+- Removed-request all wrapper 65757 terminated via Ctrl-C with exit=1; Rust/clippy success logs remain distinct from that incomplete wrapper result.
+- Prepared game template build-runs/sg3-record-2032-r2-20261023a.request-template (not submitted), plus wait-sg3-verdict.ps1 for one blocking non-qwait wait. Label not outstanding. Submit only after native success.
 
 ## Prior round report
 
