@@ -116,14 +116,7 @@ impl Host for Script {
         result
     }
 
-    fn lookup(
-        &mut self,
-        framework: u32,
-        slot: u32,
-        service: u32,
-        iid: u32,
-        output: &mut u32,
-    ) -> u32 {
+    fn lookup(&mut self, framework: u32, slot: u32, service: u32, iid: u32, output: &mut u32) -> u32 {
         let reply = self.active.as_ref().unwrap().clone();
         assert_eq!((framework, service, iid), (reply.framework, reply.service, reply.iid));
         assert_eq!(*output, 0, "each selected lookup starts with null output");
@@ -131,7 +124,15 @@ impl Host for Script {
         if let Some(value) = reply.output {
             *output = value;
         }
-        self.record(Event::Lookup(framework, slot, service, iid, initial, *output, reply.status));
+        self.record(Event::Lookup(
+            framework,
+            slot,
+            service,
+            iid,
+            initial,
+            *output,
+            reply.status,
+        ));
         if *output != 0 {
             let balance = self.refs.entry(*output).or_default();
             *balance += 1;
@@ -200,14 +201,22 @@ fn literal_stages(replies: &[Reply; 4], entering: bool) -> [Vec<Event>; 4] {
             vec![Event::Call(p, 0x48, vec![])],
             vec![Event::Call(a, 0x30, vec![1])],
             vec![Event::Call(s, 0x28, vec![])],
-            vec![Event::City(u, 0x94, c), Event::Clock(c, 0x158, k), Event::Call(k, 0x68, vec![1])],
+            vec![
+                Event::City(u, 0x94, c),
+                Event::Clock(c, 0x158, k),
+                Event::Call(k, 0x68, vec![1]),
+            ],
         ]
     } else {
         [
             vec![Event::Call(p, 0x4c, vec![])],
             vec![Event::Call(a, 0x30, vec![0])],
             vec![Event::Call(s, 0x34, vec![])],
-            vec![Event::City(u, 0x94, c), Event::Clock(c, 0x158, k), Event::Call(k, 0x68, vec![0])],
+            vec![
+                Event::City(u, 0x94, c),
+                Event::Clock(c, 0x158, k),
+                Event::Call(k, 0x68, vec![0]),
+            ],
         ]
     };
     std::array::from_fn(|i| {
@@ -259,13 +268,23 @@ fn all_sixteen_selections_in_both_directions_exact_callbacks_and_refs() {
 
 #[test]
 fn raw_direction_and_each_raw_flag_use_only_low_byte() {
-    for (raw, selected) in [(2, true), (0x80, true), (u32::MAX, true), (0x100, false), (0xabcd1200, false), (0xabcd1202, true)] {
+    for (raw, selected) in [
+        (2, true),
+        (0x80, true),
+        (u32::MAX, true),
+        (0x100, false),
+        (0xabcd1200, false),
+        (0xabcd1202, true),
+    ] {
         for direction in [0, 1, 2, 0x80, u32::MAX, 0x100, 0x80000000] {
             for stage in 0..4 {
                 let replies = replies(0);
                 let (pending, expected) = if selected {
                     let entering = matches!(direction, 1 | 2 | 0x80 | u32::MAX);
-                    (vec![replies[stage].clone()], literal_stages(&replies, entering)[stage].clone())
+                    (
+                        vec![replies[stage].clone()],
+                        literal_stages(&replies, entering)[stage].clone(),
+                    )
                 } else {
                     (vec![], vec![])
                 };
@@ -322,6 +341,22 @@ fn false_lookup_status_and_zero_operation_release_replies_are_ignored() {
 }
 
 #[test]
+fn null_output_with_false_status_skips_only_that_stage() {
+    for direction in [0, 1] {
+        let mut replies = replies(0);
+        replies[0].status = 0;
+        let mut expected = literal_stages(&replies, direction == 1);
+        replies[0].output = None;
+        expected[0] = lookup_trace(&replies[0]);
+        let trace = Trace::default();
+        let mut host = Script::new(replies, trace.clone());
+        sc4_game_pause(&mut host, [direction, 1, 1, 1, 1]);
+        host.finish();
+        assert_eq!(*trace.borrow(), selected_trace(&expected, &[0, 1, 2, 3]));
+    }
+}
+
+#[test]
 fn null_city_or_clock_releases_app_not_borrowed_pointers_in_both_directions() {
     for direction in [0, 1] {
         for city_absent in [true, false] {
@@ -371,14 +406,29 @@ impl Storage for ObservedStorage {
 fn class_storage_boundary_preserves_original_entry_and_zero_extends_current_exit() {
     let trace = Trace::default();
     let bytes = Rc::new(Cell::new([0xa5; 4]));
-    let mut owner = AutoGamePause::from_storage(ObservedStorage { bytes: bytes.clone(), trace: trace.clone() });
-    assert_eq!(owner.store_entry([2, 0x80, u32::MAX, 0x100]), [1, 2, 0x80, u32::MAX, 0x100]);
+    let mut owner = AutoGamePause::from_storage(ObservedStorage {
+        bytes: bytes.clone(),
+        trace: trace.clone(),
+    });
+    assert_eq!(
+        owner.store_entry([2, 0x80, u32::MAX, 0x100]),
+        [1, 2, 0x80, u32::MAX, 0x100]
+    );
     assert_eq!(bytes.get(), [2, 0x80, 0xff, 0]);
     assert_eq!(owner.read_exit(), [0, 2, 128, 255, 0]);
-    assert_eq!(*trace.borrow(), vec![
-        Event::Store(0, 2), Event::Store(1, 0x80), Event::Store(2, 0xff), Event::Store(3, 0),
-        Event::Read(3, 0), Event::Read(2, 0xff), Event::Read(1, 0x80), Event::Read(0, 2),
-    ]);
+    assert_eq!(
+        *trace.borrow(),
+        vec![
+            Event::Store(0, 2),
+            Event::Store(1, 0x80),
+            Event::Store(2, 0xff),
+            Event::Store(3, 0),
+            Event::Read(3, 0),
+            Event::Read(2, 0xff),
+            Event::Read(1, 0x80),
+            Event::Read(0, 2),
+        ]
+    );
     // Isolated read boundary, not an assertion of mutated-lifetime support.
     bytes.set([0x80, 0xff, 2, 1]);
     assert_eq!(owner.read_exit(), [0, 128, 255, 2, 1]);
@@ -393,10 +443,16 @@ fn constructor_stores_before_callbacks_returns_same_object_destructor_leaves_byt
     ] {
         let trace = Trace::default();
         let storage = Rc::new(Cell::new([0xa5; 4]));
-        let mut owner = AutoGamePause::from_storage(ObservedStorage { bytes: storage.clone(), trace: trace.clone() });
+        let mut owner = AutoGamePause::from_storage(ObservedStorage {
+            bytes: storage.clone(),
+            trace: trace.clone(),
+        });
         let entry = replies(0);
         let exit = replies(1);
-        let pending = selected.iter().map(|&i| entry[i].clone()).chain(selected.iter().map(|&i| exit[i].clone()));
+        let pending = selected
+            .iter()
+            .map(|&i| entry[i].clone())
+            .chain(selected.iter().map(|&i| exit[i].clone()));
         let mut host = Script::new(pending, trace.clone());
         host.observe = Some((storage.clone(), bytes));
         let identity = &owner as *const _;
@@ -404,9 +460,19 @@ fn constructor_stores_before_callbacks_returns_same_object_destructor_leaves_byt
         owner.destruct(&mut host);
         host.finish();
         assert_eq!(storage.get(), bytes);
-        let mut expected = vec![Event::Store(0, bytes[0]), Event::Store(1, bytes[1]), Event::Store(2, bytes[2]), Event::Store(3, bytes[3])];
+        let mut expected = vec![
+            Event::Store(0, bytes[0]),
+            Event::Store(1, bytes[1]),
+            Event::Store(2, bytes[2]),
+            Event::Store(3, bytes[3]),
+        ];
         expected.extend(selected_trace(&literal_stages(&entry, true), selected));
-        expected.extend([Event::Read(3, bytes[3]), Event::Read(2, bytes[2]), Event::Read(1, bytes[1]), Event::Read(0, bytes[0])]);
+        expected.extend([
+            Event::Read(3, bytes[3]),
+            Event::Read(2, bytes[2]),
+            Event::Read(1, bytes[1]),
+            Event::Read(0, bytes[0]),
+        ]);
         expected.extend(selected_trace(&literal_stages(&exit, false), selected));
         assert_eq!(*trace.borrow(), expected);
     }
@@ -419,7 +485,14 @@ fn serial_scopes_exit_in_interrupted_order_without_saved_binding_or_suppression(
     let b_entry = replies(1);
     let a_exit = replies(2);
     let b_exit = replies(3);
-    let pending = [a_entry[2].clone(), a_entry[3].clone(), b_entry[2].clone(), a_exit[2].clone(), a_exit[3].clone(), b_exit[2].clone()];
+    let pending = [
+        a_entry[2].clone(),
+        a_entry[3].clone(),
+        b_entry[2].clone(),
+        a_exit[2].clone(),
+        a_exit[3].clone(),
+        b_exit[2].clone(),
+    ];
     let mut host = Script::new(pending, trace.clone());
     let mut a = AutoGamePause::from_storage([0xa5; 4]);
     let mut b = AutoGamePause::from_storage([0xa5; 4]);
@@ -443,7 +516,10 @@ fn repeated_direct_calls_reacquire_all_frameworks_services_city_and_clock() {
     let first = replies(0);
     let second = replies(1);
     let third = replies(2);
-    let mut host = Script::new(first.clone().into_iter().chain(second.clone()).chain(third.clone()), trace.clone());
+    let mut host = Script::new(
+        first.clone().into_iter().chain(second.clone()).chain(third.clone()),
+        trace.clone(),
+    );
     sc4_game_pause(&mut host, [1, 1, 1, 1, 1]);
     sc4_game_pause(&mut host, [1, 1, 1, 1, 1]);
     sc4_game_pause(&mut host, [0, 1, 1, 1, 1]);

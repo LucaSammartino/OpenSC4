@@ -19,14 +19,7 @@ pub type Pointer = u32;
 /// The host supplies no whole-pause, final-state or reference-balance oracle.
 pub trait Host {
     fn framework(&mut self) -> Pointer;
-    fn lookup(
-        &mut self,
-        framework: Pointer,
-        slot: u32,
-        service: u32,
-        iid: u32,
-        output: &mut Pointer,
-    ) -> u32;
+    fn lookup(&mut self, framework: Pointer, slot: u32, service: u32, iid: u32, output: &mut Pointer) -> u32;
     fn call(&mut self, participant: Pointer, slot: u32, arguments: &[u32]) -> u32;
     fn current_city(&mut self, application: Pointer, slot: u32) -> Pointer;
     fn clock(&mut self, city: Pointer, slot: u32) -> Pointer;
