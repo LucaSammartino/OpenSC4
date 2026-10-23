@@ -15,7 +15,8 @@
 - Source review: published drive-tool sections 1-10 and city-tools-input section 2; primitive host inventory and literal fixture decisions reviewed without changing source/expectations. No demonstrated compiler/test defect yet.
 - Current quick: qbuild PID36008 created 2026-10-22T23:49:45.780607Z, verifier25864, Rust test compiler25452; private i686 output. Source engine tree c96747fe52d09dcbd607457fd6c8a4934c60603e, no source diff. Snapshot: build-runs/source-r2-before-checks.json.
 - Serial continuation build-runs/finish-player-drive-r2.py waits that exact quick creation, requires exit0, then new-file fmt, separate shared-lib fmt, exactly one final all; no duplicate checker or process/cache action. Preserve/collect its terminal result and logs before any further gate.
-- Next: collect actual 26 fixture results, totals/flags/source/artifact hashes; commit gate result and complete report. Existing DLL dated 00:24 predates registration and is not acceptance.
+- 01:02:40 BST observation: all 26 player_drive tests PASS; fc4verify-quick-test.log sums 3126 passed/0 failed across 2 summaries, compilation 11m09s. Quick dependents still compiling; no complete quick/final-all claim. Evidence: build-runs/source-r2-owner-tests-passed.json.
+- Next: collect full quick, bounded fmt, and one final-all result from the existing serial continuation; inspect source/native/CTest/artifact correspondence. Existing DLL dated 00:24 predates registration and is not acceptance.
 - No game request; DR1-DR8 remain; only own module/tests, necessary lib declaration, report and appended questions allowed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-player-drive4-r2-manifest.json.
 
