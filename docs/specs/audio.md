@@ -498,9 +498,10 @@ destructor `0x004EFC60`, `DoEvent` `0x004EF490`.
 | `+0x0C` | vtable | `0x00A94130` — service (`Init` / `Shutdown`) | `0x004EF71E` |
 | `+0x10` | `*` | `GetService(0x1D07B39F, 0xE0510260)` — **`kRZRadioDefaultServiceId`** | `0x004EF737` |
 | `+0x14` | `cIGZSndSys*` | `GetService(0x23CECBA0, 0x106077D2)` — the sound system | `0x004EF757` |
-| `+0x18` | refcounted `*` | a required non-null capability; released and nulled in `Shutdown` | `0x004EF767`, `0x004EE059` |
+| `+0x18` | refcounted `*` | AudioScape manager, service `0x49E50BA1` / IID `0x29E39DB4`; initially null, acquired by `Init` | `0x004EF767`, `0x004EFF10` |
 | `+0x1C` | `u8` | **initialized flag** | `0x004EF76A` |
 | `+0x20` | `u32` | refcount | `0x004EDE60`, AddRef `0x008AE800` |
+| `+0x24`, `+0x28` | `u32` | constructor writes zero; no handler operation below assigns them | `0x004EF770`–`0x004EF773` |
 | `+0x2C` | list node `*` | `std::list` sentinel (12 bytes) | `0x004EF776` |
 | `+0x30` | `cRZTimer` | the rate limiter of section 7.3 | `0x004EF78A` |
 | `+0x48` | `u32` | rate-limit window (ms) | `0x004EF796` |
@@ -519,6 +520,52 @@ at `this+0x08`". That is a Ghidra `this`-base mistranslation: `DoMessage` runs w
 slot 3 of the vtable at `[base+8]`), so the loads Ghidra names `field2_0x8` are object **`+0x10`**, which is
 the **`kRZRadioDefaultServiceId` service** (`0x1D07B39F`), not a sound manager. The sound system is at
 object `+0x14` (`cIGZSndSys`). **DIFFERS** from that reading.
+
+#### 7.1.1 Construction and service lifetime (AU14)
+
+The constructor leaves the initialized flag, reference count, `+0x18`, `+0x24`, `+0x28` and rate-limit
+window at zero. The modal-window collection is empty, with a heap-allocated 12-byte circular sentinel.
+The timer is constructed with clock selector **4**, stopped, with its four timing words zero; its
+`+0x04` word is not initialized by this constructor (`0x004EF767`–`0x004EF796`, timer constructor
+`0x0088FEDF`). Padding at handler `+0x1D`–`+0x1F` and `+0x4C`–`+0x4F` has no assigned value.
+The two constructor service lookups in the layout table are independent: a missing framework or failed
+lookup leaves that service null and construction continues. Neither is retried into the member by `Init`.
+Allocation failure is not a clean false-return path: the sentinel is immediately dereferenced. *[compat]*
+
+`Init` and `Shutdown` receive the service subobject (`base+0x0C`); their `this+0x10` flag is therefore
+the **outer `+0x1C`**, not the radio pointer. `Init` returns true without effects if already initialized.
+Otherwise its externally visible contract is:
+
+| Condition/stage | Outcome |
+|---|---|
+| Fresh temporary sound-system lookup fails | False; no registration, no member changes. |
+| Sound system available | Register outer event target through sound-system slot 15 (`+0x3C`); ignore its result. |
+| Following AudioScape lookup fails | False, release temporary references; **do not unregister** the preceding registration. Flag remains false. A retry repeats registration. |
+| AudioScape available | Retain it into outer `+0x18`, replacing/releasing any previous value. This is a retained reference in addition to the temporary lookup reference. |
+| Filesystem service `0x2073215D` / IID `0xE0203660` unavailable | Skip radio-path configuration and continue. |
+| Filesystem available and member radio non-null | Obtain filesystem slot 7 path; append the runtime string fragment described by globals `0x00B21A0C`/`0x00B21A10`; radio slots 29(path), 23(false), 16(0), in that order. |
+| Subscriptions | Install the modal pair then the 13 main subscriptions listed in §7.2. All registration/subscription return values are ignored. |
+| Preferences | Run audio preference loading (`0x004F2D40`), apply the default/list preferences, and, if radio exists, radio slots 30(true), 23(music-enabled != 0), 16(music volume). Then set initialized and return true. |
+
+The preference work uses the foreign application audio-preference service, not new handler fields.
+On first/default preferences, the observed defaults are slider values `0x2D0` for music and `0x400` for
+SFX, reset the default music lists, and update both exclusion lists (`0x004F017D`–`0x004F01CB`).
+The conversion and list operations remain preference-service calls. *[compat]*
+
+There is **no** recoverable-failure test for a null global modal message server or the final message-server
+lookup: these are required integration services and are dereferenced. Do not invent a successful or false
+return, subscription rollback, or partial-subscription retry for their absence. A false result returned by
+a present service does not abort initialization (`0x004EFEC8`, `0x004EFFAB`–`0x004F0167`, `0x004F0205`).
+
+`Shutdown` returns true without effects when the flag is false. With the flag true it obtains a fresh
+temporary sound system. Failure returns false **without clearing the flag or any members**. Success
+unregisters the outer event target (result ignored), clears/releases `+0x18`, calls radio slot 23(false)
+if non-null, then releases and nulls the member radio pointer. It removes the 13 main subscriptions and
+the modal pair, clears the flag, releases temporary services and returns true. The message servers are
+again required, and unsubscribe results are ignored. It does not reset the timer/window, empty the modal
+list, clear the member sound-system pointer, or remove the city-only subscriptions. A second successful
+shutdown is a no-op. A later Init can reacquire AudioScape but **does not reacquire the now-null member
+radio**. Evidence: `0x004EE007`–`0x004EE082`, `0x004EE0B3`–`0x004EE25A`. *[compat]*
 
 ### 7.2 Message dispatch (`DoMessage` `0x004EF810`)
 
