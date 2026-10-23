@@ -155,3 +155,4 @@ pub mod legacy_control;
 pub mod map_view;
 pub mod city_input_tools;
 pub mod font_renderer;
+pub mod resource_catalog;
