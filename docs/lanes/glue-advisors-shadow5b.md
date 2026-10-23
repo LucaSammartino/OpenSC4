@@ -12,8 +12,9 @@
 - Gate qbuild-20261023-224153-build-ctest: cargo 6536/0, clippy 0, native build 52/52 PASS; CTest 68/69. Fixture high flags disagreed with advisor active byte; comparator correctly rejected it. Fixed high flags to 0x80000002 and test rejected advice records in isolation.
 - Failed native logs preserved as build-runs/fc4verify-{build,ctest}-ad19-initial.log.
 - Final qbuild all PASS: cargo 6536/0/0, clippy 0; job qbuild-20261023-224452-build-ctest native build 51/51, CTest 69/69 (82.2s), total native 87.2s. Source 4ea57879.
-- Next: submit and wait for adv-shadow5b-20261023-r3-ad19-2032 (turbo to 2032-01-01), inspect every shadow line and fixup count.
-- No request outstanding yet. Worktree intentionally detached; do not switch refs.
+- Outstanding game: adv-shadow5b-20261023-r3-ad19-2032 (turbo to 2032-01-01); request submitted. DLL SHA256 9e8ab93dc88c1755dfcac3445513e9a7fc832566f0957c63ab8ee92e62a99083.
+- Next: wait once via build-runs/wait-advisors-verdict.ps1 -Verdict <WT>/build-runs/game-results/adv-shadow5b-20261023-r3-ad19-2032.verdict; inspect every shadow line/fixup count. Do not submit a duplicate.
+- Worktree intentionally detached; do not switch refs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r2-manifest.json.
 - tools/ is forbidden: coordinator must append advisors_shadow to regress profile after exact run.
 
