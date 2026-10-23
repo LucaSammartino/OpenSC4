@@ -319,7 +319,7 @@ cGZSndMgr	audio	audio	sound-system.md	-	-	-
 cGZSnd*	audio	audio	sound-framework.md	-	-	-
 cGZSoundCOMDirector	audio	audio	sound-system.md	-	-	-
 cGZSound*	audio	audio	sound-framework.md	-	-	-
-GZSndSysMacCOMDirector	audio	audio	sound-system.md	-	-	-
+GZSndSysMacCOMDirector	audio	audio	sound-renderer.md	-	-	-
 GZSndSys*	audio	audio	-	-	-	-
 cHitTrackPlayer	audio	audio	sound-system.md	-	-	-
 cHitMan	audio	audio	sound-system.md	-	-	-

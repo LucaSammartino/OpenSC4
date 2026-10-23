@@ -135,7 +135,7 @@ marked.
 
 | Layer | Classes | Detailed here |
 |---|---|---|
-| framework sound system | `cGZSndSys` (`0xE41CE9FD`), `cGZSndMgr` (`0x7AF85B98`), WAV and "UTalk" data sources | §3.2, §8.3; [sound-system.md](sound-system.md) §7–§8; [sound-framework.md](sound-framework.md) |
+| framework sound system | `cGZSndSys` (`0xE41CE9FD`), `cGZSndMgr` (`0x7AF85B98`), WAV and "UTalk" data sources | §3.2, §8.3; [sound-system.md](sound-system.md) §7–§8; [sound-framework.md](sound-framework.md); the DirectSound back end [sound-renderer.md](sound-renderer.md) |
 | EA sound library (SNDSYS / AEMS) | the unnamed range `0x00864000`–`0x00879000`, `cSC4AudioAEMSEventSystem` | §10.2 |
 | Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | [sound-system.md](sound-system.md) §3–§5; [hit-music.md](hit-music.md) |
 | freshness (adaptive score) | `cFreshPlayer`, `cFreshScore`, `cFreshCell` | [sound-system.md](sound-system.md) §6; [freshness.md](freshness.md) |
