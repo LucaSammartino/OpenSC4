@@ -368,8 +368,13 @@ fn cache_staleness_dirty_frame_only_and_counter_wrap() {
     assert_eq!(s.cache().unwrap().vertices.map(|v| v.position), Q1_WORLD);
     s.state.transform.translation = [10.0, 20.0, 30.0];
     s.frame_dirty = true;
+    s.state.playback.frame = 1;
     s.draw(input, resources, &mut ctx).unwrap();
     assert!(!s.frame_dirty);
+    assert_eq!(
+        s.cache().unwrap().vertices.map(|v| v.uv),
+        [[0.09375, 0.0], [0.09375, 0.15625], [0.1875, 0.15625], [0.1875, 0.0]]
+    );
     assert_eq!(s.cache().unwrap().local, Q1);
     assert_eq!(s.cache().unwrap().vertices.map(|v| v.position), Q1_WORLD);
     s.cache.as_mut().unwrap().view_dirty = true;

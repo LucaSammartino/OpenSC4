@@ -376,6 +376,11 @@ impl<O> AnimatedSprite<O> {
             .textures
             .get(cache.metric.page as usize)
             .ok_or(Unsupported::Texture)?;
+        let alpha_reference = if self.state.flags & FLAG_FADE != 0 {
+            Some(times(self.state.alpha, 0.5)?)
+        } else {
+            None
+        };
         self.state.zoom = zoom;
         self.state.rotation = input.rotation as u8;
         self.state.bounds = bounds;
@@ -388,9 +393,9 @@ impl<O> AnimatedSprite<O> {
             context.set_model_shade(&self.state, input.rgb);
         }
         context.set_render_state(input.packed_state);
-        if self.state.flags & FLAG_FADE != 0 {
+        if let Some(reference) = alpha_reference {
             context.set_transparency(self.state.alpha);
-            context.set_alpha_func(4, (f64::from(self.state.alpha) * 0.5) as f32);
+            context.set_alpha_func(4, reference);
         }
         context.set_texture(texture, 0);
         context.draw_prims(2, 10, 4, 24, &cache.vertices);

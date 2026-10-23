@@ -498,7 +498,8 @@ fn picking_short_circuits_and_uses_fan_triangles() {
         assert_eq!(p.calls.len(), count);
         assert_eq!(p.calls[0], [c[0], c[1], c[2]]);
         if count == 2 {
-            assert_eq!(p.calls[1], [c[0], c[2], c[3]]);
+            // DIFFERS §6: preserve the primitive's actual argument order.
+            assert_eq!(p.calls[1], [c[2], c[3], c[0]]);
         }
     }
 }

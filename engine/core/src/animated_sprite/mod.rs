@@ -200,6 +200,8 @@ impl<O> AnimatedSprite<O> {
         }
     }
 
+    /// Cached-zoom convenience for ordinary source consumers. Draw uses the
+    /// incoming highlight-pass argument and signed full context zoom instead.
     pub fn drawing_suppressed(&self) -> bool {
         self.state.zoom <= 1
     }
