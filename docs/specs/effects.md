@@ -2423,3 +2423,1647 @@ Evidence: name guard `0059D8F8–0059D94A`, positional selection
 | EC66 | particles name `P`; `effectBase MixedCase ignored`; old binding `Old` | binding becomes `MixedCase`; second selection ignored; no foreign existence/collection call |
 | EC67 | particles name `P`; selected empty string | binding becomes empty; live particles name remains `P` |
 | EC68 | particles name `P`; `effectBase New -unknown`; nested post-check enabled | binding becomes `New`, then generic unhandled-switch error; binding survives |
+
+### 19.17 Particle child dictionary and dispatch identity
+
+`cParticleEffectCommand::RegisterCommands` (`005958F0`) installs the following
+**27 entries in this order** in the particles block's own dictionary. Each
+entry constructs a separate four-byte descriptor object; aliases share a
+descriptor address, not an allocation. All have the ordinary command wrapper
+`007E3BE0` at descriptor slot +04, no block-entry/exit override, and the direct
+handler at slot +0C below. They are not additional root commands. Allocation,
+ownership, name matching and generic post-command switch checking follow
+effects-parser §12; these rows do not imply that an owner consumes every switch.
+
+Names in the last column are the verified exported class names with the common
+`(anonymous_namespace)::` prefix omitted. `unnamed` means that this executable's
+export does not establish a class name; a name must not be invented from a
+literal. An inventory row establishes dispatch identity, not execution closure.
+Only handlers with published sections have execution contracts here.
+
+| Order | Literal | Descriptor | Direct handler | Owner / contract |
+|---:|---|---|---|---|
+| 1 | `zoom` | `00A9FB78` | `005970E0` | unnamed; §19.18 |
+| 2 | `color` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 3 | `alpha` | `00A9FB58` | `0059C060` | unnamed; §19.25 |
+| 4 | `size` | `00A9FB48` | `005998E0` | unnamed; §19.25 |
+| 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed; §19.25 |
+| 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand`; §19.25 |
+| 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand`; §19.45 |
+| 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand`; §19.47 |
+| 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand`; §§19.49–19.50 |
+| 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand`; §19.43 |
+| 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand`; §19.23 |
+| 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed; §19.18 |
+| 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand`; §19.18 |
+| 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand`; §19.19 |
+| 15 | `inject` | `00A9FA98` | `0059CBB0` | `cParticleInjectCommand`; §19.19 |
+| 16 | `maintain` | `00A9FA88` | `0059CC20` | `cParticleMaintainCommand`; §19.19 |
+| 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand`; §19.39 |
+| 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand`; §19.40 |
+| 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand`; §19.20 |
+| 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand`; §19.22 |
+| 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand`; §19.22 |
+| 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
+| 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed; §19.41 |
+| 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 25 | `colour` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 26 | `colour255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 27 | `alpha255` | `00A9FB58` | `0059C060` | unnamed; §19.25 |
+
+There are 23 distinct descriptor addresses. In particular, the two final
+registrations call constructors `00595D20` and `00595D30`, which only install
+`00A9FB68` and `00A9FB58` respectively. They do not install a per-instance
+normalization flag. Any alias-sensitive interpretation belongs to the handler's
+inspection of its input, not to extra descriptor state.
+
+Evidence: allocation/registration instructions `005958F0–00595D19`; literal
+pointer cells `00B0A314–00B0A37C`; direct-handler words at the listed descriptors
++0C; constructor stores `00595D22`, `00595D32`. Wrapper behavior is specified
+in effects-parser §12. This table does not close EF15's other dictionaries or
+remaining child algorithms.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC69 | construct a particles command with successful allocations | 27 registrations in table order, 23 distinct descriptor identities, one four-byte allocation per entry |
+| EC70 | compare `color`, `color255`, `colour`, `colour255` registrations | four different descriptor objects with identical descriptor address and handler; no alias-specific object field |
+| EC71 | compare `alpha` and `alpha255` registrations | different descriptor objects, both `00A9FB58` and handler `0059C060`; neither is a block command |
+
+### 19.18 Particle `zoom`, `stretch` and `life`
+
+Coordinates in the particle child contracts use the same `P` as §19.13 and
+`D=P+F0`. Scalar stores described as floats are binary32. Numeric conversion,
+reader selection and exception transport remain services as in §19.1 and
+effects-parser §§9,12. A command's completed writes and switch marks survive
+a subsequent conversion, reader or generic post-check error. No transaction
+or automatic rollback is installed by these owners.
+
+`zoom` (`005970E0`, descriptor `00A9FB78`) requires at least two **raw**
+records including the command record. Otherwise it throws `Not enough
+arguments`. It calls ParseUint on raw record 1 and discards the result.
+There is no description write, live-name guard, positional finder, switch
+lookup or zoom-range validation in this handler. Later raw records are ignored
+by the owner. Thus this command can reject a malformed number while making
+no description change even on success. A dash-prefixed raw record is still
+the operand sent to conversion; generic switch handling is separate.
+
+`stretch` (`00597C60`, descriptor `00A9FAC8`) has the same raw-count rule
+and error, also without a live-name guard or switch lookup. It converts raw
+record 1 with ParseFloat and stores the result at `D+DC` (`P+1CC`). Extra
+records are ignored by the owner. It supplies no default when the operand is
+missing, performs no clamp, and does not change a flag word.
+
+`cParticleLifeCommand` (`00597CD0`) instead selects at least one nonswitch
+value, ignoring the finder's return value. Let `m` be ParseFloat of selected
+value 0 **rounded to binary32 before either arithmetic operation**. Let `r`
+be ParseFloat of selected value 1 if supplied, otherwise zero. The second
+conversion result is retained in x87 precision without a binary32 store
+before use. Store `m-r` at `D+0C` and `m+r` at `D+10`, each rounded to
+binary32 independently. Values after the second are ignored. No positivity,
+ordering, finite-value or nonnegative-radius test is added by the owner.
+Negative r therefore reverses the ordinary lower/upper ordering.
+
+After both bound stores, look up `preroll` with minimum one. If present,
+convert its first value with ParseFloat and store binary32 at `D+1C`.
+If absent, copy the stored binary32 `m` to `D+1C`, even when a previous
+life command set a different preroll. No other fields or flags change.
+There is no particles-name guard here. A second positional conversion failure
+precedes both bound writes; a preroll failure follows both and leaves the old
+preroll in place.
+
+Evidence: raw-count/conversion/no-write zoom `005970E0–00597138`; stretch
+`00597C60–00597CC2`, store `00597CB6`; life selection and first rounding
+`00597CD7–00597D01`, second operand `00597D05–00597D33`, arithmetic/store
+order `00597D37–00597D60`, preroll `00597D62–00597DA0`. All arithmetic and
+store widths were checked against instruction bytes.
+
+### 19.19 Particle rate list, injection, maintenance and rate options
+
+These three owners write the float list at `D+88` (`P+178`). They do not
+require the live particles name to be nonempty and do not look up a named
+collection or create a runtime particle system. Omitted options retain
+previous description values, except for the explicit defaults below. All
+bit operations preserve unrelated bits; none of these owners clears a mode
+bit left by an earlier command.
+
+| Owner | Initial selection and result | Further processing |
+|---|---|---|
+| `cParticleRateCommand`, `0059CA70` | First look up `inject` with minimum one. If present, resize the list to length one, ParseFloat only its first argument and replace element 0; OR `D+00` with 2. Positional values are not selected on this path. If absent, select at least one nonswitch value; on a nonzero **full EAX** finder result, clear the old list and append ParseFloat of every selected value, rounding each to binary32. A stipulated returning zero EAX preserves the old list. | Apply the common rate options below on either path. Normal minimum-value failure is the reader's exception, not a synthesized empty rate curve. |
+| `cParticleInjectCommand`, `0059CBB0` | Select at least one nonswitch value; ignore finder return. Resize list to length one, convert first selected value with ParseFloat, replace element 0, then OR `D+00` with 2. Further selected values are ignored. | Apply the common rate options below. It does not look up `inject`. |
+| `cParticleMaintainCommand`, `0059CC20` | Select at least one nonswitch value; ignore finder return. Resize list to length one, convert first selected value with ParseFloat, replace element 0, then OR `D+00` with 4. Further selected values are ignored. | Look up **only** `delay` with minimum one; if present, assign the endpoint pair below to `D+20,+24`. It does not run the common rate options. |
+
+Resizing to one retains the previous element 0 when one exists and initializes
+a newly grown element to zero; it truncates extra elements **before** conversion.
+Consequently a conversion failure can leave the truncated old first value or
+a new zero. The mode-bit OR occurs only after successful conversion/store.
+The ordinary rate-list path clears the old list before its first conversion:
+a failing conversion leaves the successfully appended prefix. The helper
+misnamed `normalized` in the export (`00464180`) erases a vector range; this
+is a list clear, not numeric normalization.
+
+The owned **endpoint-pair helper** `005965B0` converts selected value 0 with
+ParseFloat and rounds it to binary32. If there is a second selected value,
+convert that with ParseFloat and return the two endpoints, each binary32;
+otherwise return two copies of the first. Extra values are ignored. It does
+not interpret a midpoint/radius, reorder, clamp or test the endpoints. A
+failure of the second conversion precedes either destination-field write.
+
+The common rate-option handler `00597DB0` queries these options **in table
+order**, independently of their textual order. Each row completes before the
+next is queried. All finder comparisons use AL except the positional rate
+path's full-EAX comparison noted above.
+
+| Order | Option / minimum | Result when present; result when absent |
+|---:|---|---|
+| 1 | `loop` / 1 | ParseFloat first value to `D+14`; if at least two values, ParseUint second to integer `D+18`; otherwise retain old `D+18`. Absent retains both. |
+| 2 | `single` / 0 | First value, if any, ParseFloat to `D+14`; with zero values store binary32 bits `3A83126F` (0.001 rounded). Then set integer `D+18=1`. Absent retains both. It overrides completed `loop` writes. |
+| 3 | `sustain` / 0 | OR `D+00` with `00000008`; absent retains flags. |
+| 4 | `scale` / 0 | OR `D+00` with `00080000`; absent retains flags. |
+| 5 | `areaScale` / 0 | OR `D+00` with `00100000`; absent retains flags. |
+| 6 | `volumeScale` / 0 | OR `D+00` with `00200000`; absent retains flags. These three scale flags can coexist. |
+| 7 | `delay` / 1 | Endpoint pair to `D+20,+24`; absent retains both. |
+| 8 | `trigger` / 1 | Endpoint pair to `D+28,+2C`; if found, omit `retrigger` lookup entirely. |
+| 9 | `retrigger` / 1 | Queried only if trigger absent. Endpoint pair to the same `D+28,+2C`; if both absent retain both. |
+
+Zero-minimum flag options do not parse any supplied values. `loop` ignores
+values after its second; `single` ignores values after its first. No option
+sets an implicit count unless specified above. The two alias options trigger
+and retrigger are not both consumed when both appear. Their leftover-switch
+consequence follows the generic nested post-check policy, after completed
+description changes. A later failure retains the base rate/injection change
+and every earlier option's changes. For example, failed loop count conversion
+retains the new loop duration but old count and skips single and all later
+options.
+
+Evidence: rate injection and full-EAX branch `0059CA77–0059CB1B`, append
+loop `0059CB20–0059CB91`, common call `0059CB94–0059CB96`; inject list,
+flag and helper call `0059CBB7–0059CC12`; maintain `0059CC2A–0059CCBA`;
+resize service `00464130`, erase helper `00464180–004641A3`; endpoint helper
+`005965B0–00596622`; common loop/single `00597DB9–00597E75`, flag ORs
+`00597E7F–00597EFE`, endpoint destinations and alias priority
+`00597F08–00597F95`. These instructions establish float stores versus
+integer count/flag stores; the pseudocode alone is not the numeric evidence.
+
+### 19.20 Particle `align`
+
+`cParticleAlignmentCommand` (`00597FB0`, descriptor `00A9FA58`) first
+requires the live particles name at `P+E0` to be nonempty, otherwise throws
+`Not in particles block`. It then requires at least two raw records, otherwise
+throws `Not enough arguments`. The guard is the name test, not a generic
+stack-type test. It calls the foreign ParseEnum on **raw record 1**, table
+`00B0A450`, final argument 0, with pairs `camera=0`, `ground=1`, `dirX=2`,
+`dirY=3`, `dirZ=4` and a null terminator. It stores the low byte of the
+return value at `D+D5` (`P+1C5`). Enum text conversion/failure remains a
+primitive service; this owner supplies no extra fallback branch.
+
+Next look up `damp` with minimum one: if present, convert its first value
+with ParseFloat and store binary32 at `D+198` (`P+288`). If absent retain
+the previous value. Then look up `bank` with minimum two. If bank is found,
+do not query `windBank`. Otherwise look up `windBank` with minimum two;
+when it is found, OR `D+08` with `80` **before converting either value**.
+On either successful lookup, ParseFloat the first value to `D+19C`
+(`P+28C`), then the second to `D+1A0` (`P+290`), each binary32. If neither
+lookup succeeds, retain both fields and flags. There is no angle conversion,
+normalization, clamp, or clearing of the wind-bank bit on a later bank command.
+Extra raw/option values are ignored by the owner.
+
+An enum conversion failure leaves all these fields unchanged. A damp failure
+retains the new alignment byte. A windBank first-value failure still retains
+its newly set flag; a second-value failure additionally retains the new first
+bank field. When bank and windBank coexist, windBank remains unqueried, which
+can cause the later generic post-check failure.
+
+Evidence: name guard `00597FB8–00598009`; raw count, enum call and byte store
+`0059800E–00598072`; enum pairs `00B0A450–00B0A47C`; damp lookup/store
+`00598060–00598095`; bank/windBank precedence and flag
+`0059809E–005980D0`; separate binary32 stores `005980EB–0059810D`.
+
+### 19.21 Particle scalar/rate/alignment conformance vectors (unexecuted)
+
+These are static predictions with independently stipulated reader/conversion
+replies, not executed native or shadow results. Unless specified otherwise,
+the live name is `P`, all unrelated description state is sentinel-filled,
+conversions return the displayed exact values, and absent options return false.
+Generic reader and post-check behavior is as in effects-parser §§9,12.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC72 | direct zoom owner with only command record | `Not enough arguments`; no conversion or description write |
+| EC73 | empty live name; raw `zoom 9 ignored` | ParseUint on raw 1 only, result discarded; description unchanged; no name error or owner option lookup |
+| EC74 | empty live name; raw `stretch -2 ignored`; ParseFloat=-2 | `D+DC=-2`; no selection or option lookup and no flag change; raw dash operand still sent to conversion |
+| EC75 | `life 5 2 ignored`, preroll absent | bounds `D+0C=3,+10=7`, `D+1C=5`; third selected value unconverted |
+| EC76 | `life 5 -2 -preroll 9` with reader selecting the two displayed values | bounds 7,3 without reorder; preroll 9 |
+| EC77 | life selected m=5, r=2; preroll lookup returns value whose conversion throws; old preroll=99 | new bounds 3,7 survive; preroll stays 99 |
+| EC78 | life first ParseFloat returns extended `1+2^-24`, second returns zero | first rounds to binary32 1 (nearest-even); both bounds and absent preroll become 1 |
+| EC79 | old rate list `[9,8,7]`; `rate 2 bad 4`; second conversion throws | old list cleared; resulting prefix `[2]`; no common option lookup |
+| EC80 | old rate list `[9,8,7]`; `rate 100 -inject 6 7`; inject finder selects 6,7 | list `[6]`, flag bit 2 set; 7 unconverted and positional 100 unselected; common options still queried |
+| EC81 | old list `[9,8]`, flag word 0; direct `inject bad`; conversion throws | list truncated to `[9]`, no bit 2 write and no common options |
+| EC82 | empty list, flags=2; `maintain 8 99 -delay 7 3` | list `[8]`, flags=6, delay endpoints 7,3 without reorder; 99 ignored; only delay queried after base selection |
+| EC83 | direct inject with value 4, options `loop`=(8,6), `single`=zero values, sustain/scale/areaScale/volumeScale present | list `[4]`; duration bits `3A83126F`, integer count 1; flags OR mask `0038000A`; table-order lookups regardless of text order |
+| EC84 | rate with loop=(8,bad), single present; old loop count=7; uint conversion throws | new base rate list and duration 8 survive; count remains 7; single not queried |
+| EC85 | inject 4, old count=7; loop=(8) only | duration 8, count remains 7; injection does not imply single count |
+| EC86 | inject 4; delay=(6); trigger=(9,2); retrigger also present; nested post-check enabled | delay 6,6; trigger endpoints 9,2; retrigger unqueried; generic leftover-switch error occurs after writes |
+| EC87 | empty live name, raw `align` without operand | `Not in particles block` precedes raw-count error; no enum call |
+| EC88 | name P; raw `align dirZ ignored`; ParseEnum returns 4; damp/bank/windBank absent | byte `D+D5=4`; all three float fields and wind flag retained |
+| EC89 | name P; align returns 1; damp=2; bank=(3,4), windBank present | byte 1, damp 2, bank fields 3,4; windBank unqueried; no newly set wind flag; later post-check can fail |
+| EC90 | name P; bank absent; windBank selected values 3,bad; second conversion throws | wind flag OR 80 and first bank field 3 survive; second bank field retained |
+
+### 19.22 Particle collision and terrain repulsion
+
+`cParticleCollisionCommand` (`00598120`) requires the live particles name
+at `P+E0` to be nonempty; an empty name throws `Not in particles block`
+before changing the description or querying options. There is no positional
+count or selection requirement. With a nonempty name, OR `D+00` with `100`
+before the first option lookup. Then process these options in table order.
+All flag ORs preserve existing bits, and absent options retain their fields
+except for the bounce-zero default.
+
+| Order | Option / minimum | Behavior |
+|---:|---|---|
+| 1 | `bounce` / 1 | Present: ParseFloat first value to binary32 `D+138` (`P+228`), without range validation. Absent: replace the existing value with bits `3E99999A` (binary32 0.3) **only if it compares equal to zero**; this includes negative zero but excludes NaN. Retain any other value. |
+| 2 | `sticky` / 0 | If present OR `D+00` with `200`. |
+| 3 | `killOutsideCity` / 0 | If present OR `D+00` with `800`. |
+| 4 | `effect` / **0** | If present, ParseFloat first selected value to `D+150` (`P+240`), with no range check. This is a scalar write, not an effect-name lookup. |
+| 5 | `death` / 1 | If present, ranged-float conversion with bounds 0,1, then binary32 store to the **same** `D+150`, replacing a completed effect write. |
+| 6 | `deathByWater` / 1 | If present, ranged-float conversion with bounds 0,1, then binary32 store to `D+154` (`P+244`). |
+| 7 | `destroyBuildings` / 0 | If present OR `D+04` with 1. |
+
+Extra supplied option values are not converted. There is no runtime collision,
+terrain or building-service call here. The base collide bit survives a later
+reader/conversion failure. A failed death conversion preserves an earlier
+effect write. Omission does not clear sticky, kill or destroy flags.
+
+The owned **ranged-float helper** `00597BF0` calls ParseFloat, then compares
+the returned x87 value against the binary32 bounds **before rounding the result
+to a destination float**. An ordered value below the lower bound or above the
+upper bound throws
+`argument out of range: expecting [%g..%g], got %g`, formatting the lower,
+upper and returned value as doubles. Bounds are inclusive. The instruction
+tests also accept an **unordered (NaN)** return; do not replace them with a
+predicate that rejects all nonfinite values. Infinities outside finite bounds
+are rejected. Success returns the unrounded x87 result to the caller's store.
+The normal service domain assumes exception transport on error, not a boolean
+or clamped numeric return.
+
+The zero minimum for `effect` is intentional: after a successful lookup the
+owner reads the first scratch index without checking the selected count. No
+default value or owner missing-argument error exists for a zero-value successful
+lookup. A usable first selected record is required for the normal conversion
+contract; empty selections lie outside that domain and must not be modeled as
+effect zero. This also applies to `preferDir` below.
+
+`cParticleTerrainRepelCommand` (`00598320`) has **no** live-name guard.
+It first ORs `D+00` with `400`, then selects at least two nonswitch values,
+ignoring the finder's return value. ParseFloat first value to `D+13C`
+(`P+22C`), then second to `D+140` (`P+230`), both binary32. Ignore later
+selected values. It then independently looks up `scout`, `vertical`,
+`killHeight`, each with minimum one, in that order. Convert the first value
+of each present option with ParseFloat to binary32 `D+144` (`P+234`),
+`D+148` (`P+238`), `D+14C` (`P+23C`) respectively. Absent options retain
+the old values. No positivity, ordering, range or finite-value check is added.
+The repel bit survives even the minimum-two reader exception; the first
+positional store survives failure converting the second. No rollback occurs.
+
+Evidence: collision guard/initial flag `00598120–0059818D`; bounce stores
+and x87 zero comparison `005981A2–005981E4`; flag/option sequence
+`005981EE–00598303`; effect minimum zero `00598234`, death/water bound
+arguments `0059828F–005982DC`; ranged helper comparisons/status-bit tests
+`00597BFD–00597C14`, error formatting `00597C16–00597C48`; zero data
+`00A81054`; terrain initial flag and separate operand stores
+`00598326–00598373`, options/stores `00598379–00598418`.
+
+### 19.23 Particle random walk
+
+`cParticleRandomWalkCommand` (`005979B0`) ORs `D+00` with `00800000`
+before its first lookup. It has no particles-name guard, positional selection
+or positional count requirement. It changes a description only; it does not
+sample random numbers or perform a simulation step. Options are queried in
+the order below. Absent options retain all their associated fields; no existing
+flag is cleared.
+
+| Order | Option / minimum | Result when present |
+|---:|---|---|
+| 1 | `delay` / 1 | Midpoint/radius result at `D+174,+178` (`P+264,+268`). |
+| 2 | `strength` / 1 | Midpoint/radius result at `D+17C,+180` (`P+26C,+270`). |
+| 3 | `turn` / 1 | Ranged-float first value with bounds 0,1 to binary32 `D+184` (`P+274`); second value if supplied, separately ranged 0,1 to `D+188` (`P+278`), otherwise store zero at `D+188`. Values are endpoints, not midpoint/radius, and are not reordered. |
+| 4 | `wait` / 0 | OR `D+00` with `01000000`. |
+| 5 | `preferSea` / 0 | OR `D+00` with `02000000`. |
+| 6 | `preferDir` / **0** | ParseVector3 of the first selected value, then copy its three binary32 words in component order to `D+18C,+190,+194` (`P+27C,+280,+284`). No normalization, length test or extra preference flag. A zero-value successful selection has the unchecked-first-index limitation in §19.22. |
+
+For delay and strength, convert the first value with ParseFloat and round it
+to binary32 midpoint `m`. Convert the second value with ParseFloat to x87
+radius `r` if supplied, otherwise use zero. Store `m-r`, then `r+m`, each
+rounded to binary32. There is no bound, positivity or order test; a negative
+radius reverses the bounds. Values after the second are ignored. This is
+**different from** the endpoint-pair helper used by rate delay (§19.19).
+A second-value conversion failure precedes both destination writes for
+delay/strength, while a second-value turn failure follows the first turn
+write. Ranged-float acceptance, including unordered returns, is §19.22.
+All earlier writes and the initial walk flag survive a later failure.
+
+Evidence: initial flag `005979BD–005979D5`; delay first rounding and x87
+arithmetic `005979F7–00597A44`; strength `00597A74–00597AC1`; turn
+bounded calls/separate stores/default zero `00597AC7–00597B3E`; flag
+lookups/ORs `00597B44–00597B80`; preferDir minimum zero, vector call and
+ordered word stores `00597B8A–00597BD5`. Literal cells point to `turn`
+at `00A96DCC`, `wait` at `00A9F474` and `preferSea` at `00AA0000`.
+
+### 19.24 Particle collision/random-walk conformance vectors (unexecuted)
+
+Fixtures use the independent primitive replies of §19.21. Ranged helper
+fixtures stipulate the conversion return itself; they do not assert that a
+particular text spelling is accepted for NaN or extended-precision values.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC91 | empty particles name; collide with malformed bounce | name error before any flag, option lookup or conversion |
+| EC92 | live name P; collide with no options; bounce is negative zero | OR flags with 100; bounce becomes bits `3E99999A`; no positional selection |
+| EC93 | collide bounce absent; old bounce is NaN | bounce remains NaN; no 0.3 replacement |
+| EC94 | collide: effect converts to 9, death converts to 0.25, deathByWater converts to 1; all flag options present | `D+150=0.25`, `D+154=1`; flags OR `B00` at `D+00`, OR 1 at `D+04`; scalar effect lookup minimum is zero |
+| EC95 | collide effect=9; death conversion returns 1.25 | range error; new effect value 9 and collide bit survive; no water/destroy lookup |
+| EC96 | ranged-float helper, bounds 0,1; stipulated NaN result | returns unordered value without range error; caller may store NaN |
+| EC97 | ranged-float helper, bounds 0,1; return `1+2^-30` in x87 precision | range error even though binary32 rounding would give 1; no destination store |
+| EC98 | empty live name; terrainRepel lacks its second nonswitch value | repel bit 400 already set when reader throws minimum-two error; no name error |
+| EC99 | terrainRepel selected 2,bad; second conversion throws | repel bit and `D+13C=2` survive; `D+140` and optional fields retained |
+| EC100 | terrainRepel selected -2,4,99; scout=5, vertical=6, killHeight=7 | first two scalar fields -2,4; extra value ignored; optional fields 5,6,7; no ordering/clamp or runtime service |
+| EC101 | empty live name; randomWalk with no options | only OR `D+00` with `00800000`; all scalar/vector state retained; no RNG call |
+| EC102 | randomWalk delay=(5,2); strength=(5,-2); turn=(0.75) | delay 3,7; strength 7,3; turn fields 0.75,0; no reorder |
+| EC103 | randomWalk turn=(0.25,2); second ranged conversion fails | first turn field 0.25 and walk flag survive; second turn field retained; wait/preferSea/preferDir unqueried |
+| EC104 | randomWalk wait/preferSea present; preferDir successful lookup supplies vector `(0,3,4)` | flags OR `03800000`; vector stored unchanged `(0,3,4)`; no vector normalization; lookup minimum zero |
+
+### 19.25 Particle appearance lists and variation
+
+These five child handlers select at least one nonswitch value, ignoring the
+finder return, **before** clearing their corresponding list. They have no
+particles-name guard. Convert and append every selected value in selection
+order, using the conversions below. Then query `vary` with minimum one;
+if present, use only its first selected value. If absent, retain the existing
+variation field. No mode flags, runtime resources or collection lookups change.
+Allocator capacity is not conformance state; successful ordinary list services
+are assumed. Minimum-value failure precedes list clear; a later conversion
+failure leaves the successfully appended prefix and prevents option processing.
+
+| Literal / handler | List in D (in P) | Element conversion before append | First `vary` operand and destination |
+|---|---|---|---|
+| `color`, `colour`, `color255`, `colour255` / `cParticleColorCommand`, `0059BDC0` | vector list `D+94` (`P+184`) | foreign ParseColor, append the three returned binary32 words | owned ranged-vector conversion (below), bounds 0,1 on each component, then store three words at `D+7C,+80,+84` (`P+16C,+170,+174`) |
+| `alpha`, `alpha255` / unnamed, `0059C060` | float list `D+A0` (`P+190`) | ParseFloat, round to binary32 | scalar bounded conversion below, binary32 at `D+78` (`P+168`) |
+| `size` / unnamed, `005998E0` | float list `D+AC` (`P+19C`) | ParseFloat **times binary32 50**, then round once to binary32; no intermediate binary32 store of the conversion result | scalar bounded conversion below, binary32 at `D+68` (`P+158`); vary is **not** multiplied by 50 |
+| `aspect` / unnamed, `00599A10` | float list `D+B8` (`P+1A8`) | ParseFloat, round to binary32 | scalar bounded conversion below, binary32 at `D+6C` (`P+15C`) |
+| `rotate` / `cParticleRotateCommand`, `00599B60` | float list `D+C4` (`P+1B4`) | ParseFloat, round to binary32, **no angle factor** in this handler | scalar bounded conversion below, binary32 at `D+70` (`P+160`) |
+
+List operands themselves have no owner-level clamp, positivity or unit-range
+test. ParseColor is a foreign primitive, not the owned ranged-vector helper;
+do not substitute vary's validation for its input grammar. Negative size and
+aspect values and alpha values above one can be stored if conversion returns
+them. `rotate` additionally queries `offset` with minimum one **after** vary:
+if present ParseFloat its first value to binary32 `D+74` (`P+164`), with
+no angle factor or range check; if absent retain the previous offset. It ignores
+further offset values. A vary failure prevents the offset lookup.
+
+Scalar vary is an inlined ParseFloat followed by the same inclusive 0,1 x87
+comparison policy as §19.22: ordered out-of-range values throw the scalar
+range error **before rounding**, unordered NaN returns are accepted, and no
+destination write occurs on error. Extra selected vary values are ignored.
+The check is on the variation operand, never on the completed list.
+
+The owned **ranged-vector helper** `0059BF10` calls ParseVector3 into a
+temporary three-component binary32 value, then checks each component in x,y,z
+order against inclusive binary32 bounds, lower then upper. Ordered violations
+throw `argument out of range: expecting components [%g..%g], got [%g %g %g]`,
+formatting lower, upper, x,y,z as doubles. The instruction tests accept
+unordered NaN components, as for the scalar helper. Only if every component
+passes are the three output words returned for assignment: an invalid y does
+not partially replace the description's x variation. The input vector is
+already binary32 before comparison, unlike the scalar vary's unrounded x87
+return. This helper is an owned decision, while ParseVector3 is foreign.
+
+For color and alpha, **after** the entire list and successful/absent vary,
+inspect the final three bytes of the **raw command record 0**. If and only if
+they equal `255`, scale the list in place by binary32 constant bits
+`3B808081` (approximately 1/255). Each already-stored component/element is
+multiplied in x87 precision and rounded back to binary32, visiting list order
+and x,y,z order within each color. This is multiplication by that constant,
+not division by an exact integer. Do not clamp the result, and **do not scale
+the variation fields**. Non-255 names leave the list unchanged. The descriptor
+has no normalization flag (§19.17); the raw command spelling controls this
+decision. Registered aliases all have at least three bytes; a direct-handler
+fixture with a shorter command name reaches a foreign substring range failure
+after the earlier list/vary changes, rather than a special owner syntax error.
+
+Failure order is observable: bad second list conversion leaves an unscaled
+one-element prefix even for a 255 alias; bad vary leaves the complete unscaled
+list. Existing variation survives a missing vary or failed validation. Repeated
+successful commands replace the list, so a later 255 command scales its new
+list once, not the old normalized list again. No renderer call occurs here.
+
+Evidence: color selection/clear/ParseColor append `0059BDCB–0059BE44`,
+vary/three-word stores `0059BE46–0059BE98`, suffix and scale dispatch
+`0059BE9E–0059BEF5`; vector helper comparisons/error `0059BF27–0059BFDB`,
+color component multiplications/stores `0059C014–0059C039`; alpha selection,
+append and vary `0059C06B–0059C161`, suffix/range path `0059C167–0059C23E`,
+scale loop `0059C256–0059C271`; size multiplication/store
+`0059993C–0059994F`, constant `00A84D24=42480000`; aspect append
+`00599A6C–00599AA3`; rotate append `00599BBC–00599BF3`, vary and raw offset
+`00599C0D–00599C8E`. Inlined scalar checks are
+`0059999E–005999BB`, `00599AEC–00599B09`, `00599C3C–00599C59`,
+`0059C13C–0059C161`; scalar error tails `005999CB`, `00599B19`,
+`00599CA1`, `0059C1F7`. Bounds 0,1 are `00A81054`, `00A81228`;
+error-format doubles `00A80990`, `00A80AB0`; normalization constant
+`00A90BBC=3B808081` and immediate `0059BEF0`.
+
+### 19.26 Particle appearance conformance vectors (unexecuted)
+
+Conversion replies are independent inputs as in §19.21; binary32 operations
+assume the ordinary nearest-even mode. These cases do not assert the grammar
+of the foreign color/vector/float readers beyond their returning values.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC105 | empty live name; size selection returns 2,-1 | list `D+AC=[100,-50]`; old vary retained; no name check or flags |
+| EC106 | size first conversion returns x87 value `1+2^-24` | multiply before rounding; stored first element bits `42480001`; rounding the conversion first would incorrectly produce 50 |
+| EC107 | old aspect list `[9]`; selected 2,bad; second conversion throws | new list `[2]`; old aspect vary retained; no vary lookup |
+| EC108 | rotate selected 0.25,2; vary=0.5; offset=-3 | list `[0.25,2]` with no angle conversion, vary 0.5, offset -3 |
+| EC109 | rotate values valid; vary returns 2; offset present | range error; list survives, old vary/offset retained; offset unqueried |
+| EC110 | aspect vary returns NaN; base list `[2]` | NaN stored in aspect vary; no range error |
+| EC111 | alpha255 selected 255,128,-255; vary=0.5 | list `[1, bits 3F008081, -1]`; vary 0.5 unchanged by normalization |
+| EC112 | alpha selected 255,128 | list `[255,128]`, no normalization; same descriptor as alpha255 |
+| EC113 | alpha255 selected 255,128; vary returns 2 | scalar range error before suffix scaling; list stays `[255,128]`; old vary retained |
+| EC114 | alpha255 selected 255,bad; second conversion throws | prefix `[255]` survives unscaled; no vary or suffix work |
+| EC115 | color255 ParseColor returns `(255,128,0)`; vary ParseVector3 returns `(1,0.5,0)` | color list `[(1,bits 3F008081,0)]`; variation exactly `(1,0.5,0)` without scaling |
+| EC116 | colour ParseColor returns `(255,128,0)` | stored vector stays `(255,128,0)`; colour255 with identical replies scales it as EC115 |
+| EC117 | color255 list parse succeeds `(255,0,0)`; vary returns `(0.5,2,0)` | vector range error, complete color list remains unscaled; all three old variation fields retained |
+| EC118 | color vary returns `(NaN,0.5,1)` | all components accepted and assigned, including NaN; no component normalization |
+| EC119 | alpha255 selected 256 with absent vary | result bits `3F808081`, above one; no owner clamp |
+
+### 19.27 Dynamic-particle child dictionary and contracts
+
+`cDynamicParticleEffectCommand::RegisterCommands` (`00595D40–00595DEC`)
+registers exactly four nested entries in the order below. Each uses a fresh
+four-byte ordinary command descriptor with wrapper `007E3BE0` at +04 and
+the listed direct handler at +0C. Registration/dispatch rules remain
+effects-parser §12. The dynamic-particle definition's live name is `P+2FC`,
+and its description is `Y=P+30C` (§19.13). All **four** child handlers require
+that name to be nonempty, throwing `Not in dynamic particle block` before
+selection or description writes. They test this name rather than the generic
+stack type; the particles name is irrelevant. No option omitted below is
+consumed, and generic leftover-switch errors can follow completed writes.
+
+| Order | Literal / pointer cell | Descriptor | Direct handler / verified class |
+|---:|---|---|---|
+| 1 | `effectBase` / `00B0A388` | `00A9FBB8` | `0059DA40`, unnamed |
+| 2 | `model` / `00B0A384` | `00A9FBA8` | `005A1C50`, `cDynamicParticleModelCommand` |
+| 3 | `mass` / `00B0A38C` | `00A9FB98` | `00598430`, unnamed |
+| 4 | `friction` / `00B0A390` | `00A9FB88` | `005984D0`, `cDynamicParticleFrictionCommand` |
+
+`effectBase` selects at least one nonswitch value, ignores the finder return,
+and copies the first selected string preserving case to `Y+0C` (`P+318`).
+Further selected values are ignored. There is no default empty assignment on
+a missing operand, collection lookup or existence test; the reader supplies
+the minimum-value exception. Empty string is assignable if the reader supplies
+it. No switches are queried, and the live definition name is unchanged.
+
+`mass` selects at least one nonswitch value, ignores the finder return, and
+stores ParseFloat of the first at binary32 `Y+18` (`P+324`). Further values
+are ignored. No switch lookup, clamp, inverse-mass calculation, positivity
+or finite-value test occurs. A conversion failure leaves the old mass.
+
+`friction` selects at least two nonswitch values, ignores the finder return,
+and stores ParseFloat first to binary32 `Y+20` (`P+32C`), then second to
+binary32 `Y+24` (`P+330`). Extra selected values are ignored. It then looks
+up `angular` with minimum one: if present convert its first value with
+ParseFloat to binary32 `Y+28` (`P+334`); if absent retain the existing angular
+value. These are direct scalar assignments, without range checks or angle
+factors. A failing second conversion retains the completed first store;
+a failing angular lookup/conversion retains both positional stores.
+
+`model` selects nonswitch values with minimum **zero** and tests the **full
+signed EAX** return. If EAX is zero or negative, return with the description
+unchanged. A positive return builds a temporary list of unsigned 32-bit IDs
+from **all** selected values, preserving order and duplicates. For each name,
+copy the selected string, lowercase each signed input byte through the same
+CRT locale service `009F0543` as modelID (§19.4), and look up that key in the
+model-name map at `P+B8`. In ASCII, `House` and `HOUSE` select the same key;
+the input token string is not modified. A missing key throws
+`No such model: '%s'` using the original selected string. It does not insert
+a zero map entry, call ParseUint, or load a resource. A present key contributes
+its mapped word, including zero, to the temporary list.
+
+Only after every selected name resolves is the description changed. With
+exactly one resulting ID, assign it to scalar `Y+30` (`P+33C`), then clear
+the word list at `Y+34` (`P+340`). With any other count, replace that word
+list with the temporary list **and retain the old scalar ID**. In the normal
+positive-return/no-selected-record fixture this replaces the list with empty;
+it does not reset the scalar to zero. No option lookups or flags occur.
+Unknown-name failure after an earlier successful name leaves both scalar
+and description list unchanged because only the temporary prefix was built.
+This is different from the incremental appearance and rate-list replacements.
+Foreign allocation/assignment exceptions have no added rollback guarantee.
+
+Evidence: dictionary allocations, vptr stores and registration calls
+`00595D40–00595DEC`; descriptor +0C words `00A9FBC4`, `00A9FBB4`,
+`00A9FBA4`, `00A9FB94`; base-name guard/selection/assignment
+`0059DA48–0059DAE4`; mass guard/conversion/store `00598438–005984B6`;
+friction guard `005984D8–0059852A`, two scalar stores and angular
+`00598533–005985A8`; model guard and signed-return comparison
+`005A1C58–005A1CC4`, name copy/lowercase/map-find `005A1D19–005A1D6B`,
+temporary append `005A1D6D–005A1DA7`, original-name error
+`005A1DE0–005A1E12`, scalar-versus-list publication `005A1E1B–005A1E5B`.
+Lowercase wrapper `009F055D` calls `___tolower_mt` (`009F047B`).
+
+### 19.28 Dynamic-particle child conformance vectors (unexecuted)
+
+Normal fixtures have a nonempty dynamic name, unrelated state sentinels,
+returning conversion/allocation/assignment services and no unlisted options.
+Cases stipulating EAX test the owner branch independently of the reader.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC120 | construct dynamicParticle descriptor, allocations succeed | four four-byte child descriptors registered in §19.27 order with exact literal/handler pairs |
+| EC121 | empty dynamic name; particles name nonempty; call each of effectBase/model/mass/friction with missing operands | each throws dynamic-block error before selecting or changing any state |
+| EC122 | effectBase selects `MiXeD`, extra | `Y+0C=MiXeD`; extra ignored; no name/collection validation or switch lookup |
+| EC123 | mass selects -2,99 | `Y+18=-2`; no inverse, clamp or second conversion |
+| EC124 | friction selects 2,bad; second conversion throws | `Y+20=2`; old `Y+24,+28` retained; angular unqueried |
+| EC125 | friction selects 2,3,99; angular selects -4 | fields `Y+20,+24,+28=2,3,-4`; 99 ignored, no angular unit conversion |
+| EC126 | model finder returns EAX=0 or `FFFFFFFF`, regardless of stipulated scratch indices | no description write or model lookup |
+| EC127 | model positive finder, selected `HOUSE`; map house=7; old scalar=9, list `[1,2]` | scalar becomes 7, list cleared; input spelling unchanged; no resource load |
+| EC128 | model positive finder, selected `A`, `B`, `a`; map a=7,b=0; old scalar=9 | list becomes `[7,0,7]`, old scalar remains 9; order/duplicates/zero preserved |
+| EC129 | model positive finder, selected A,Missing; map a=7 only; old scalar=9,list `[1,2]` | `No such model: 'Missing'`; scalar/list unchanged; no map insertion for missing |
+| EC130 | independently stipulated positive full EAX with empty selected list | description list becomes empty; scalar retained; no model lookup |
+
+### 19.29 Sequence child dictionary, `wait` and `play` *[compat]*
+
+The sequence registrar `00596190` installs precisely these two four-byte
+ordinary command descriptors, in order. Their class names are unresolved;
+the literals alone do not establish C++ class identity. Both descriptors use
+the ordinary nested wrapper `007E3BE0` at +04 (effects-parser §12).
+
+| Order | Literal / pointer cell | Descriptor | Direct handler (+0C) |
+|---:|---|---|---|
+| 1 | `wait` / `00B0A400` | `00A9FCC8` | `005A2400` |
+| 2 | `play` / `00B0A3FC` | `00A9FCB8` | `005A20C0` |
+
+Each successful command appends one element to the installed sequence
+description's element list at +0C, preserving earlier elements and command
+order. An element has two binary32 duration fields at +00,+04 and an owned
+effect-name string at +08 (20-byte native element stride). `wait` selects at
+least one nonswitch value and makes an element with an empty name; `play`
+selects at least two and copies the first selected string as the name,
+preserving case and without looking it up. The first duration is ParseFloat
+of the first value for `wait`, or the second for `play`. If another selected
+value exists, its ParseFloat supplies the second duration; otherwise the
+already-rounded first duration is copied bit for bit. Additional selected
+values are ignored. These are two endpoints as entered: neither sorting nor
+midpoint/radius conversion occurs. Negative, reversed and nonfinite values
+have no owner validation. Reader conversion remains a foreign contract.
+
+Both ignore the positional finder's return, consume no switches, and append
+only after all required conversions succeed. A missing minimum or conversion
+exception leaves the existing element list unchanged. A later generic
+leftover-switch exception can follow a successful append. Neither command
+checks a live block name, stack type or whether `P+490` is nonnull: successful
+operand processing requires the installed description pointer established by
+sequence entry (§19.14). A null pointer is not a recoverable `Not in sequence
+block` parse error. No effect is created or played by either command.
+
+Evidence: registration `00596190–005961F0`, descriptor words
+`00A9FCC8/00A9FCB8`; `wait` conversion/store/copy and append
+`005A2441–005A2496`; `play` string assignment `005A2100–005A2123`,
+duration stores/copy and append `005A2139–005A218E`; append helper
+`005A21C0–005A2212`. Instruction bytes confirm binary32 stores, copying
+the rounded first duration on omission, and absence of numeric predicates.
+
+### 19.30 Sequence child conformance vectors (unexecuted)
+
+Static predictions with stipulated reader results, not native/game goldens.
+Each successful fixture starts with an installed sequence description S and
+an existing element E. Unless specified, conversions succeed.
+
+| ID | Input / fixture | Required result |
+|---|---|---|
+| EC131 | registrar on empty dictionary | exactly wait/A9FCC8 then play/A9FCB8, both ordinary wrapper, no other entries |
+| EC132 | wait selects 3 | S elements `[E,(3,3,empty)]`; flags and name unchanged |
+| EC133 | wait selects 4,-2,99 | append `(4,-2,empty)`; 99 ignored; no sort |
+| EC134 | play selects `MiXeD`,2 | append `(2,2,"MiXeD")`; no name lookup or effect creation |
+| EC135 | play selects Missing,-3,7,99 | append `(-3,7,"Missing")`; fourth value ignored; no missing-effect error |
+| EC136 | wait or play; first duration converts, second throws | existing `[E]` unchanged; no partial appended element |
+| EC137 | wait first duration returns negative zero, second absent | both stored fields bits `80000000` |
+| EC138 | play name assigned; minimum satisfied; first duration returns NaN, second returns infinity | append name and returned binary32 nonfinite values; no owner range exception |
+| EC139 | live name empty but nonnull S; wait selects 1; unknown switch remains | append `(1,1,empty)` before generic leftover-switch error |
+| EC140 | sequence description pointer null, valid wait values | no owner name/null validation error; append requires nonnull pointer, outside recoverable command domain |
+
+### 19.31 Shake and light child dictionaries *[compat]*
+
+Shake registrar `00595FB0–00596084` and light registrar `00596090–0059618B`
+install the following entries in the listed order. Every entry allocates a
+fresh four-byte ordinary command, wrapper `007E3BE0` at +04 and the direct
+handler at +0C. Repeated descriptors are aliases, not shared object instances.
+Only the one child class explicitly named below is resolved by the export;
+the other child class names remain unknown, without inference from literals.
+
+| Block | Literal / pointer cell | Descriptor | Direct handler / verified child class |
+|---|---|---|---|
+| shake | `length` / `00B0A3C8` | `00A9FC78` | `005986A0`, `cShakeLengthCommand` |
+| shake | `amplitude` / `00B0A3CC` | `00A9FC68` | `0059A060`, unnamed |
+| shake | `frequency` / `00B0A3D0` | `00A9FC58` | `0059A120`, unnamed |
+| shake | `shakeAspect` / `00B0A3D4` | `00A9FC48` | `00598760`, unnamed |
+| shake | `table` / `00B0A3D8` | `00A9FC38` | `005987D0`, unnamed |
+| light | `strength` / `00B0A3E4` | `00A9FCA8` | `0059A1E0`, unnamed |
+| light | `length` / `00B0A3E0` | `00A9FC98` | `00598840`, unnamed |
+| light | `color` / `00B0A3E8` | `00A9FC88` | `0059D060`, unnamed |
+| light | `color255` / `00B0A3F0` | `00A9FC88` | `0059D060`, unnamed |
+| light | `colour` / `00B0A3EC` | `00A9FC88` | `0059D060`, unnamed |
+| light | `colour255` / `00B0A3F4` | `00A9FC88` | `0059D060`, unnamed |
+
+### 19.32 Shake scalar commands and the light length side effect *[compat]*
+
+These handlers have **no** live-name/block-type guard, including light length.
+Coordinates below are parser-relative P, with shake description `P+3D8`
+and light description `P+414` (§19.13). They do not create runtime objects.
+
+**Shake `length`** requires at least two raw records (including the command
+record), throwing `Not enough arguments` before writes otherwise. It does
+not use nonswitch selection: raw record 1 goes to ParseFloat and is stored
+as binary32 shake length `P+3D8`. Next it queries `fade` (minimum one
+argument); if present, ParseFloat of its first selected argument is stored
+at shake fade `P+3DC`. If absent, the previous fade is retained until the
+following clamp. After a successful/absent fade, if stored fade is **ordered
+greater than** stored shake length, fade is replaced by length's exact
+binary32 bits. Equality and unordered comparisons leave fade unchanged.
+Thus negative values are allowed, and this clamp does not impose a zero
+lower bound. Extra raw/selected values are ignored. Bad length conversion
+leaves both fields unchanged; bad fade conversion or missing fade argument
+leaves the new length and old fade, without the final clamp.
+
+**Shake `shakeAspect`** has the same raw count minimum/error, converts raw
+record 1 with ParseFloat and stores binary32 `P+3F8`. There is no range,
+finite-value or sign check and no switch query. Extra records are ignored.
+**Shake `table`** also has that raw minimum/error and passes raw record 1
+to foreign ParseEnum with table `00B0A4F0` and third argument zero. The
+table is exactly `random→0`, `sineY→1`, then a null terminator. Its returned
+32-bit value is stored at `P+3FC` without additional validation. Matching,
+numeric fallback and error text belong to ParseEnum, not this owner. Either
+handler leaves its old destination if its conversion throws. Unlike
+nonswitch selection, these raw-record accesses do not consume other switches.
+
+**Light `length`** selects at least one nonswitch operand, ignores the finder
+return, and stores its first ParseFloat as binary32 **light** length `P+42C`.
+Further selected operands are ignored. It then queries `fade` with minimum
+one, but stores a present first ParseFloat at **shake fade `P+3DC`**, not a
+light field. It performs exactly the ordered fade-versus-**shake length
+`P+3D8`** clamp described above, even when fade is absent. This cross-description
+write is required behavior: light duration does not bound the fade.
+Bad fade lookup/conversion leaves the new light length and old shake fade
+without clamping. The live names of both definitions are irrelevant.
+
+No scalar handler supplies extra defaults beyond retained fields and the
+clamp just stated. Unqueried switches reach the generic post-check after
+completed writes. Evidence, verified against instruction bytes: shake length
+`005986C1–00598751`, binary32 stores `005986F5/00598729`, ordered clamp
+`00598732–0059874B` (x87 status mask `41`); aspect `00598760–005987C2`,
+store `005987B6`; table `005987D0–00598839`; light length
+`0059884E–005988C9`, light store `0059886E`, **shake** store `005988A1`,
+comparison/copy `005988AA–005988C3`.
+
+### 19.33 Shake/light curves and light color aliases *[compat]*
+
+These four handlers select at least one nonswitch operand, ignore the finder
+return, and replace a list after successful minimum selection. None checks
+the live name or generic block type. Selection failure leaves the old list;
+then clearing precedes the first conversion, and values append one at a time.
+A later conversion exception therefore leaves only the converted prefix.
+Order and duplicates are preserved. No range, finite-value or sign check,
+interpolation, resource call or switch query occurs.
+
+| Block / literal | Handler | List coordinate | Conversion and units |
+|---|---|---|---|
+| shake amplitude | `0059A060` | `P+3E0` (shake +08) | each ParseFloat rounded to binary32, no scaling |
+| shake frequency | `0059A120` | `P+3EC` (shake +14) | each ParseFloat rounded to binary32, no frequency/unit conversion |
+| light strength | `0059A1E0` | `P+420` (light +0C) | each ParseFloat rounded to binary32, no scaling |
+| light color aliases | `0059D060` | `P+414` (light +00) | each ParseColor result copied as three binary32 words |
+
+Light color's four aliases are differentiated only by the final three bytes
+of raw command record 0. After **all** selected colors append, a `255` suffix
+scales every stored component with binary32 constant bits `3B808081`, using
+the same x87 multiplication and binary32 rounding helper `0059BFF0` as
+§19.25. There is no clamp and no variation option. A non-255 alias stores
+ParseColor's values unchanged. Failed color conversion leaves an **unscaled**
+prefix even for a 255 alias. A direct fixture whose command name has fewer
+than three bytes reaches the foreign substring range failure after replacing
+the list. Generic leftover-switch errors follow completed list replacement
+and suffix normalization. Missing `vary` is not defaulted or consumed;
+unlike particle color, this handler has no variation fields to update.
+Light exit may later supply fallback values only if its lists are empty
+(§19.14); these handlers do not add fallbacks themselves.
+
+Evidence: amplitude `0059A06F–0059A10D`, frequency
+`0059A12F–0059A1CD`, strength `0059A1EF–0059A28D`; their clear and
+binary32-store instructions are `0059A091/0059A0C1`,
+`0059A151/0059A181`, `0059A211/0059A241`. Color
+selection/clear/append `0059D073–0059D115`, suffix and multiplication
+dispatch `0059D117–0059D1BD`; scale helper per §19.25. Descriptor and
+literal pointer cells in §19.31 were read directly as PE words.
+
+### 19.34 Shake/light child conformance vectors (unexecuted)
+
+Static predictions with stipulated successful reader replies except the
+failure explicitly named. No native/game oracle or execution is claimed.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC141 | empty dictionaries; register shake then light separately | shake exactly five entries and light exactly six, in §19.31 order; fresh alias objects, common color descriptor |
+| EC142 | shake length raw 3; old fade 4; no fade option | length=3, fade=3 |
+| EC143 | shake length raw -2; fade returns -1 | length=-2, fade=-2, no lower bound |
+| EC144 | shake length raw 9; fade conversion throws; old fade 4 | length=9 survives; fade=4; no clamp |
+| EC145 | shake length raw 3; fade returns NaN | length=3, fade NaN, no ordered clamp |
+| EC146 | shake length raw NaN; fade returns 4 | length NaN, fade=4 |
+| EC147 | shake length, shakeAspect or table with command record alone | `Not enough arguments` before conversion/write |
+| EC148 | shakeAspect raw record 1 returns -5, extra records and switches | P+3F8=-5; extra operands ignored; switches not queried |
+| EC149 | table ParseEnum returns 1 from sineY, then stipulated conversion failure on next command | first sets P+3FC=1, next retains 1; table random=0,sineY=1 and third argument zero |
+| EC150 | light length selects 100; shake length=5,fade=1; fade returns 9 | light length=100; shake length=5,fade=5 |
+| EC151 | light length selects 2; shake length=5,fade=9; no fade switch | light length=2; shake fade=5 |
+| EC152 | light length selects 2; shake fade=1; fade conversion throws | light length=2 survives; shake fade=1 retained |
+| EC153 | amplitude old list [1]; selects 2,-3,2 | replacement [2,-3,2], no normalization or name guard |
+| EC154 | frequency old list [60]; selects 30,bad; second conversion throws | replacement prefix [30] survives |
+| EC155 | strength minimum selection throws; old list [7] | old [7] unchanged; no clear or conversion |
+| EC156 | strength selects -1,NaN | replacement [-1,NaN], no owner validation |
+| EC157 | color255 ParseColor returns (255,128,-255) | list [(1,bits 3F008081,-1)], no clamp |
+| EC158 | colour with same ParseColor reply as EC157 | list [(255,128,-255)], no scaling |
+| EC159 | colour255 selects two colors, second ParseColor throws | first appended color survives unscaled |
+| EC160 | color255 returns (255,0,0); unknown vary switch remains | normalized [(1,0,0)] before generic leftover-switch error; no variation lookup |
+
+### 19.35 Decal child dictionary *[compat]*
+
+Decal registrar `00595DF0–00595FAC` registers exactly eleven entries,
+seven unique descriptors, in the order below. Each entry allocates a fresh
+four-byte ordinary command with wrapper `007E3BE0` at +04. The listed
+handler occupies +0C; only the three explicitly named child classes are
+resolved by the export. No block-name/type guard occurs in any of these
+seven handlers. Description D is `P+360`; defaults remain §19.13, not
+per-command defaults.
+
+| Order | Literal / pointer cell | Descriptor | Direct handler / verified class |
+|---:|---|---|---|
+| 1 | color / `00B0A398` | `00A9FC28` | `0059CCD0`, unnamed |
+| 2 | color255 / `00B0A3A0` | `00A9FC28` | `0059CCD0`, unnamed |
+| 3 | colour / `00B0A39C` | `00A9FC28` | `0059CCD0`, unnamed |
+| 4 | colour255 / `00B0A3A4` | `00A9FC28` | `0059CCD0`, unnamed |
+| 5 | alpha / `00B0A3A8` | `00A9FC18` | `0059CE40`, unnamed |
+| 6 | alpha255 / `00B0A3AC` | `00A9FC18` | `0059CE40`, unnamed |
+| 7 | size / `00B0A3B0` | `00A9FC08` | `00599CE0`, cDecalSizeCommand |
+| 8 | aspect / `00B0A3B8` | `00A9FBF8` | `00599E50`, unnamed |
+| 9 | rotate / `00B0A3B4` | `00A9FBE8` | `00599F10`, unnamed |
+| 10 | life / `00B0A3BC` | `00A9FBD8` | `005985C0`, cDecalLifeCommand |
+| 11 | texture / `00B0A3C0` | `00A9FBC8` | `005A1E80`, cDecalTextureCommand |
+
+### 19.36 Decal curves and variation *[compat]*
+
+All five appearance handlers select at least one nonswitch operand, ignoring
+the finder's return. After successful selection they clear their destination
+list and append each converted value in selection order. Failed minimum
+selection preserves the old list; failed conversion leaves the new converted
+prefix. None sorts, clamps or rejects nonfinite list values. Extra selected
+values all contribute to the list, rather than being ignored.
+
+| Command | List in D / P | Conversion | Option after completing list |
+|---|---|---|---|
+| color aliases | `+34 / P+394` | ParseColor, three binary32 words copied | no variation lookup |
+| alpha aliases | `+28 / P+388` | ParseFloat, binary32 | vary → `D+4C / P+3AC` |
+| size | `+1C / P+37C` | ParseFloat, binary32; **no ×50 scale** | vary → `D+50 / P+3B0`, then cityScale |
+| aspect | `+40 / P+3A0` | ParseFloat, binary32 | none |
+| rotate | `+10 / P+370` | ParseFloat, binary32; no unit conversion | vary → `D+54 / P+3B4`; **no offset lookup** |
+
+Where present above, `vary` requests at least one argument, parses only the
+first with ParseFloat, then checks the unrounded x87 return against inclusive
+0 and 1. Ordered values outside that interval throw
+`argument out of range: expecting [%g..%g], got %g`; unordered NaN passes.
+Successful values round to binary32 at the destination. Missing vary retains
+the previous scalar; a conversion/range exception also retains it, but the
+new complete base list remains. For size only, presence-only `cityScale`
+(minimum zero) is queried **after** successful/absent vary and ORs flag
+`10` hex into `D+00`. It never clears that flag when absent. Vary failure
+prevents the cityScale lookup and flag update.
+
+After color/alpha lists and, for alpha, successful/absent vary, inspect the
+final three bytes of raw command record 0. Exactly `255` causes in-place
+scaling by binary32 constant `3B808081`, multiplying each already-stored
+component/value in x87 precision and rounding it back to binary32. Color
+uses helper `0059BFF0` (§19.25); alpha has its own equivalent scalar loop.
+No result clamp occurs. Variation is **not** scaled. A conversion or alpha
+variation error prevents scaling, leaving the new list/prefix unscaled.
+A direct name shorter than three bytes reaches foreign substring range
+failure after preceding list/vary mutations. Other aliases preserve reader
+values. These handlers query only the switches explicitly stated; generic
+leftover-switch failures can follow their completed writes/scaling.
+
+Evidence, numeric points verified against instruction bytes: color
+`0059CCD0–0059CE3E`, scale call `0059CE27–0059CE2D`; alpha selection
+`0059CE4B–0059CE53`, float store `0059CEA1`, vary checks/store
+`0059CF17–0059CF41`, suffix scalar multiply/store
+`0059D036–0059D040`; size list store `00599D3C–00599D41`, vary
+`00599DB7–00599DD9`, cityScale `00599DDF–00599DF8`; aspect
+`00599E5F–00599EFD`, float store `00599EB1`; rotate
+`00599F23–0059A018`, list store `00599F71`, vary checks/store
+`00599FE7–0059A009`. Bounds and normalization constant are the same
+PE values cited in §19.25. All native list clears precede conversion.
+
+### 19.37 Decal `life` and `texture` *[compat]*
+
+**Life** selects zero or more nonswitch operands. If any exist, it converts
+only the first with ParseFloat and stores binary32 duration `D+0C`
+(`P+36C`), with no range/finite/sign test. Otherwise duration is retained.
+It then queries presence-only options (minimum zero) in the fixed order
+below, independent of textual ordering. Missing options retain existing
+state. Further selected values are ignored. A failed duration conversion
+prevents all option work.
+
+| Option, lookup order | Update |
+|---|---|
+| static | OR `40` hex into word flags `D+00`; set mode **byte** `D+09=1` |
+| loop | set mode byte `D+09=1` |
+| single | set mode byte `D+09=2` |
+| sustain | set mode byte `D+09=3` |
+
+Thus sustain wins if several modes are present, but static's flag remains
+set. No duration default, automatic flag clearing or mutual-exclusion error
+is supplied by the command (`005985CE–0059868E`, binary32 duration
+store `005985FE`, byte stores `00598627/47/67/87`).
+
+**Texture** processes the following switches **before** nonswitch selection
+or any texture-name lookup. Missing switches retain the corresponding state.
+Each parameterized switch uses only its first selected argument, leaving
+extra selected values unused by this owner.
+
+| Lookup order / switch | Minimum | Conversion and update |
+|---|---:|---|
+| draw | 1 | ParseEnum with table `00B0A4C0`, third argument zero; store only returned low byte at `D+08` |
+| light | 0 | OR flags `D+00` with 2 |
+| water | 0 | OR flags with 4 |
+| ring | 0 | OR flags with `20` hex |
+| repeat | 1 | OR flags with 8 **before** ParseFloat; store binary32 `D+58` (`P+3B8`) |
+| offset | 1 | ParseVector2; copy its two returned words to `D+5C,+60` (`P+3BC,+3C0`) after successful parse |
+
+Draw table entries are `decal→0`, `additive→1`, `modulate→2`,
+`decalInvertDepth→3`, `decalNoOverlap→4`, followed by null. Matching,
+numeric fallback and syntax errors are foreign ParseEnum behavior. There
+is no owner enum-range check beyond the byte truncation, nor range or
+finite-value validation of repeat/offset. Repeat lookup failure occurs
+before its OR; repeat conversion failure preserves the OR and old scalar.
+Offset failure preserves both old offset components and earlier changes.
+
+After these options, call nonswitch selection with minimum **one if the
+current texture ID `D+04` is zero, otherwise zero**. Inspect the finder's
+full signed EAX; if nonpositive, leave the ID unchanged and perform no name
+lookup. If positive, use only the first selected name: copy it, fold its
+bytes to lowercase with the same foreign transform used in §19.28, then
+find the copy in the parser texture map at `P+AC`. A missing entry throws
+`No such texture: '<original spelling>'`, preserving the old ID and all
+earlier option writes. A found entry's full 32-bit ID replaces `D+04`,
+including zero. Extra names are ignored and their existence is not tested.
+The original input name is not rewritten, no missing-key insertion occurs,
+and no resource load or renderer call occurs. A zero ID remains the signal
+for a required name on a later invocation. Generic unconsumed switches are
+checked after this handler, so that error need not roll back any writes.
+
+Evidence: enum byte store `005A1EC8`; flags `005A1EEA/1F09/1F28/1F48`,
+repeat binary32 store `005A1F65`, offset copies `005A1FA2–005A1FB0`;
+minimum and signed finder test `005A1FB6–005A1FD7`; name transform and
+map find `005A2030–005A205A`; ID assignment `005A2068–005A206A`;
+missing-name exception `005A208B–005A20BD`. Table words `00B0A4C0–00B0A4EC`.
+
+### 19.38 Decal child conformance vectors (unexecuted)
+
+Static predictions with stipulated foreign reader replies; no native/game
+golden execution. Coordinates D refer to the decal description.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC161 | registrar on empty dictionary | exactly eleven entries in §19.35 order; seven unique descriptors, each alias a fresh ordinary command |
+| EC162 | size selects 2,-3 | D+1C list [2,-3], no ×50; previous vary and cityScale flag retained when options absent |
+| EC163 | size selects 2; vary returns 2; cityScale present; old flags 0 | range exception with list [2] retained; old vary retained, cityScale not queried, flags still 0 |
+| EC164 | size selects 2; vary returns NaN; cityScale present | list [2], NaN vary, flags OR 10 hex |
+| EC165 | aspect selects 2,3; vary remains an unqueried switch | list [2,3] before generic leftover-switch error; no variation update |
+| EC166 | rotate selects 90,-90; vary returns 0.25; offset remains | list [90,-90], vary 0.25, no unit conversion/offset lookup; generic leftover-switch error follows |
+| EC167 | color255 returns (255,128,-255) | D+34=[(1,bits 3F008081,-1)] |
+| EC168 | colour returns (255,128,-255); vary remains | D+34=[(255,128,-255)]; no scaling/variation lookup; later leftover-switch error |
+| EC169 | alpha255 selects 255,128; vary returns 0.5 | D+28=[1,bits 3F008081], D+4C=0.5 unchanged by normalization |
+| EC170 | alpha255 selects 255,128; vary returns 2 | range exception, list remains [255,128] unscaled, old vary retained |
+| EC171 | alpha255 selects 255,bad; second conversion throws | prefix [255] survives unscaled; no vary/suffix work |
+| EC172 | any decal curve, minimum selection throws | old destination list retained |
+| EC173 | empty live decal name; life no selected operands, all four switches present in arbitrary textual order; old duration 7,flags=0 | duration=7, flags=40 hex, mode byte=3; no name guard |
+| EC174 | life selects -2,99, no switches | duration=-2, second value ignored; flags/mode retained |
+| EC175 | life first conversion throws with static present | all description fields retained; static unqueried |
+| EC176 | texture draw ParseEnum returns 258; light,water,ring present; no name required, finder EAX=0 | draw byte=2; flags OR 26 hex; old ID retained |
+| EC177 | texture repeat selected argument conversion throws; old flags=0, repeat=1 | flags=8, repeat=1; no offset/name lookup |
+| EC178 | texture offset ParseVector2 throws after light succeeds | flags OR 2 survives; both old offset components retained; no nonswitch selection |
+| EC179 | texture ID=0; options succeed; minimum-one finder throws | preceding option changes survive, ID stays 0; no name lookup |
+| EC180 | texture ID=7; finder EAX=0 or FFFFFFFF regardless of scratch indices | minimum-zero selection; ID retained, no map lookup |
+| EC181 | texture positive finder selects `TeX`,Missing; map tex=0 | ID becomes 0; original spelling unchanged; Missing ignored; next invocation requires name |
+| EC182 | texture light succeeds; positive finder selects `MiSs`; no map key | `No such texture: 'MiSs'`; light flag remains set, old ID retained, no missing-key insertion |
+| EC183 | texture repeat returns -3, offset returns (2,-4); old flags=1,ID=7; no name | flags=9, repeat=-3, offset=(2,-4), ID=7, no owner numeric validation |
+
+### 19.39 Particle draw options and `texture` *[compat]*
+
+Particle coordinates D are relative to `P+F0`. Owned helper
+`ParseDrawOptions` (`005A1220`) is called by particle texture and model
+with D. It queries options in this fixed order; absence retains fields.
+
+| Option | Minimum | Update after successful conversion/presence |
+|---|---:|---|
+| draw | 1 | ParseEnum with table `00B0A408`, third argument zero; store low byte at `D+D4` |
+| light | 0 | OR word `D+00` with 1 |
+| noCull | 0 | OR word `D+00` with `10` hex |
+| sortOffset | 1 | ParseFloat first argument, round/store binary32 at `D+D8` |
+
+Draw table is `decal→0`, `decalInvertDepth→1`, `decalIgnoreDepth→2`,
+`depthDecal→3`, `depthDecalMasked→4`, `additive→5`,
+`additiveIgnoreDepth→6`, `modulate→7`, then null. It differs from decal's
+table (§19.37). Enum matching/fallback/errors belong to foreign ParseEnum.
+There is no owner enum range check before byte truncation and no numeric
+validation of sortOffset. Parameterized switches use only the first selected
+argument. Failure leaves prior option writes; draw conversion failure precedes
+all later options, sortOffset failure retains its old scalar after any earlier
+flag updates. Evidence: enum store `005A1262`, flag ORs
+`005A1281/005A129D`, binary32 store `005A12CF`; table words
+`00B0A408–00B0A44C`.
+
+`cParticleTextureCommand` (`005A10B0`) has **no live particle-name guard**.
+It first executes that complete draw-options helper, then presence-only
+`vflip` and `hflip` (minimum zero), ORing respectively `40000000` and
+`20000000` hex into `D+00`. It then selects nonswitch values with minimum
+one if current scalar texture/model ID `D+D0` (`P+1C0`) is zero, otherwise
+zero. As with decal texture, a nonpositive **full signed EAX** from selection
+causes no name lookup or ID change. A positive return uses only the first
+selected string, copies it and folds that copy to lowercase, then searches
+texture map `P+AC`. A missing name throws `No such texture: '<original
+spelling>'` without changing the ID or inserting a key. A match copies its
+full 32-bit ID to `D+D0`, including zero. Additional selected names are
+ignored, so missing later names do not throw.
+
+The old ID survives name-selection or lookup failure, but all preceding
+option changes remain. No model list is cleared here, no mode byte is reset,
+and no runtime texture is loaded. Missing options retain earlier values.
+Only options above are queried; generic leftover-switch checks follow the
+completed handler. Evidence: draw helper call `005A10C7`, flips
+`005A10E6/005A1104`, ID-dependent minimum and signed finder branch
+`005A110A–005A112B`, map lookup/assignment `005A1193–005A11BD`,
+missing-name exception `005A11DE–005A1210`. Folding uses foreign
+`009F0543`, as in the other resource-name handlers.
+
+### 19.40 Particle `model` options and binding *[compat]*
+
+`cParticleModelCommand` (`005A1340`) requires the particle live name at
+`P+E0` to be nonempty, throwing `Not in particles block` before any writes
+or option selection otherwise. It does not use a generic stack-type test.
+It then ORs model flags `D+08` (`P+F8`) with 1 and writes mode **byte**
+`D+D4=3` (`P+1C4`), before running the draw-options helper (§19.39).
+A present draw option can therefore overwrite this byte; absent draw leaves
+3. Draw-helper failure retains the initial flag/mode changes and any
+completed helper updates. There is no automatic texture-ID/list reset at
+this stage.
+
+The following option lookups follow the entire helper, in table order.
+All flags are OR operations, with no clearing on omission. Parameterized
+options use only the first selected argument; binary32 speeds have no
+range, sign, finite-value or unit conversion check.
+
+| Option / lookup order | Minimum | Update |
+|---|---:|---|
+| fakePerspective | 0 | model flags `D+08` OR 2 |
+| moveEntireSlave | 0 | model flags OR 8 |
+| slaveApplyAlpha, then applyAlpha **only if slaveApplyAlpha absent** | 0 each | if either queried switch is present, model flags OR `10` hex |
+| modelSpeed | 1 | ParseFloat to binary32 `D+1DC` (`P+2CC`), **then** model flags OR `40` hex |
+| modelSpeedStatic | 1 | ParseFloat to the same `D+1DC`, without clearing or setting flag `40` |
+| sustain | 0 | model flags OR `20` hex |
+| applyLighting | 0 | model flags OR 4 |
+| noCullFaces | 0 | model flags OR `400` hex |
+
+The alias lookup short-circuits: with slaveApplyAlpha present, applyAlpha is
+not queried/consumed and can cause a later generic leftover-switch error.
+When both speed options are present, modelSpeedStatic's value wins but
+modelSpeed's flag remains set. A failing modelSpeed conversion leaves its
+old speed and does not set flag `40`; a failing modelSpeedStatic conversion
+retains the successful earlier speed/flag. All preceding state changes survive.
+
+Next select nonswitch values with minimum **zero**, even if the scalar model
+ID is zero. If the full signed EAX is nonpositive, leave scalar ID and model
+list unchanged. Otherwise resolve **all** selected names into a temporary
+ID list, in order: lowercase a copy, find in model map `P+B8`, and append
+the mapped full 32-bit ID. Missing name throws `No such model: '<original
+spelling>'`. No nonexistent key is inserted. That failure leaves both live
+ID destinations unchanged, while earlier flag/mode/speed changes survive.
+Order, duplicates and zero IDs are accepted. Input spelling is not rewritten.
+
+On complete resolution, exactly one temporary ID replaces scalar `D+D0`
+and clears the live model list `D+1E0` (`P+2D0`). For any other count,
+replace that live list and retain the old scalar ID; this includes the empty
+list in a direct fixture with independently stipulated positive finder EAX.
+These are the same scalar/list publication rules as dynamic-particle model
+(§19.28), but with this handler's distinct guard/options and coordinates.
+The ID scalar is shared with particle texture; neither successful resolution
+nor omitted names loads a model or creates a runtime effect. Generic
+leftover-switch checking occurs after these writes.
+
+Evidence, numeric operations checked against instruction bytes: guard
+`005A1361–005A13A1`, initial flags/mode/helper `005A13A1–005A13C3`,
+short-circuit alpha options `005A1412–005A1436`; speed stores and flag
+`005A1467–005A147E`, `005A14AE–005A14B3`; remaining flags
+`005A14D4/005A14F3/005A1512`; minimum-zero and signed selection
+`005A151C–005A152D`; name folding/find/temporary append
+`005A15B0–005A15EA`; scalar/list publication `005A1623–005A164A`,
+`005A1688–005A168D`; missing-name error `005A1651–005A1683`.
+
+### 19.41 Particle `timedEffect` insertion *[compat]*
+
+Handler `005A16B0` has no live-name or generic-stack guard. Before any
+selection, it ORs `80000000` hex into particle flags `D+00` (`P+F0`).
+It selects at least two nonswitch operands, ignoring the finder's return.
+The first string is copied as the effect name without case folding or
+lookup; ParseFloat of the second rounds to binary32 time. Extra selected
+values are ignored, and no switches are queried. No duration sign, range
+or finite-value validation, time-unit conversion or effect creation occurs.
+
+On successful parsing, insert one `(name,time)` record in the timed-effect
+list at `D+1CC` (`P+2BC`), native stride 16 with owned string at +00 and
+binary32 time at +0C. Scan from the existing beginning and insert immediately
+before the **first existing time ordered greater than the new rounded time**;
+if none, append. Equal times are passed, preserving insertion order among
+ties. Unordered comparisons are also passed: a new NaN reaches the end,
+while an existing NaN does not itself stop a finite insertion. This is a
+linear insertion rule, not a promise that lists containing NaNs are globally
+sorted. All existing records and names are retained, with no deduplication.
+
+Failed minimum selection or time conversion leaves the list unchanged but
+retains the initial flag OR. On success, a later generic leftover-switch
+error leaves the inserted record. Defaults are neither substituted for
+missing operands nor written on failure. Allocation failures are not assigned
+an invented parse-error contract.
+
+Evidence: initial flag `005A16B9`, selection `005A16C7–005A16CF`,
+string copy `005A1702–005A171A`, binary32 time store `005A1735`,
+ordered x87 predicate `005A1750–005A175C` (status mask `41`),
+insert/append calls `005A1767–005A1780`; element insertion helpers
+`005A17A0` and `005A1920`. No class name is established by this handler's
+literal or descriptor; its dispatch identity is §19.17.
+
+### 19.42 Particle resource/timed child conformance vectors (unexecuted)
+
+Static predictions with stipulated foreign reader replies and resource maps.
+Model fixtures have a nonempty particle live name unless specified.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC184 | draw helper with all options; ParseEnum returns 261; sortOffset returns -2; old flags=0 | D+D4 byte=5, flags=11 hex, D+D8=-2; table decal=0 through modulate=7 as §19.39 |
+| EC185 | draw helper light/noCull succeed then sortOffset conversion throws | flags OR 11 hex survives; old sortOffset retained |
+| EC186 | texture empty live name, vflip+hflip; ID=7, finder EAX=0 | flags OR 60000000 hex; no name error/lookup; old ID retained |
+| EC187 | texture ID=0; draw/light succeeds, minimum-one selection throws | earlier draw/light changes survive; ID remains 0 |
+| EC188 | texture positive finder selects `TeX`,Missing; map tex=9 | scalar D+D0=9, later name ignored; model list/mode retained apart from explicit draw changes |
+| EC189 | texture hflip succeeds; map lacks selected `MiSs` | original-spelling missing-texture error, old ID retained, hflip survives |
+| EC190 | model empty particle live name; all switches present | `Not in particles block` before flag/mode/helper/selection writes |
+| EC191 | model no operands/options; old flags=0,scalar=7,list=[1,2], mode=0 | model flags=1,mode=3; minimum-zero selection; scalar/list retained |
+| EC192 | model draw ParseEnum returns 7; no names | mode byte=7 overrides initial 3; model flag 1 retained |
+| EC193 | model slaveApplyAlpha and applyAlpha present; no names | model flags OR 11 hex; applyAlpha unqueried; generic leftover-switch error after handler |
+| EC194 | model modelSpeed=2,modelSpeedStatic=-3 | speed=-3; model flags OR 41 hex; no sign check or static flag clearing |
+| EC195 | model modelSpeed conversion throws, old flags=0,speed=7 | initial model flags=1 and mode=3 survive; speed=7, flag 40 hex unset |
+| EC196 | modelSpeed=2 succeeds then modelSpeedStatic throws | speed=2 and model flags OR 41 hex survive; no later sustain/name work |
+| EC197 | model fakePerspective,moveEntireSlave,sustain,applyLighting,noCullFaces; no names, old model flags=0 | flags=42F hex including initial 1; no name minimum or resource lookup |
+| EC198 | model selected `A`, map a=9; old scalar=7,list=[1,2] | scalar=9,list cleared |
+| EC199 | model selected A,B,a, map a=9,b=0; old scalar=7 | list=[9,0,9], scalar remains 7 |
+| EC200 | model selected A,Missing, map a=9 only; fakePerspective succeeds | original-spelling model error; scalar/list unchanged, model flags OR 3 survives |
+| EC201 | model independently stipulated positive finder EAX, empty selected list | model list cleared by empty replacement; old scalar retained; no map lookup |
+| EC202 | timedEffect minimum-two selection throws; old flags=0,list L | flags=80000000 hex, list L unchanged |
+| EC203 | timedEffect selects `MiXeD`,bad; time conversion throws | flag OR retained, list unchanged, no name lookup |
+| EC204 | timed list [(A,1),(B,3),(C,3)]; timedEffect selects `MiXeD`,3,99 | [(A,1),(B,3),(C,3),(MiXeD,3)]; extra value ignored, case preserved |
+| EC205 | same initial list as EC204; insert X at -2 | [(X,-2),(A,1),(B,3),(C,3)] with no sign check |
+| EC206 | timed list [(A,1),(N,NaN),(B,3)]; insert X at 2 | [(A,1),(N,NaN),(X,2),(B,3)]; unordered existing N is passed |
+| EC207 | timed list [(A,1),(B,3)]; insert N at NaN | append (N,NaN); no range exception |
+| EC208 | empty particle name; timedEffect valid X,2 with unknown switch left | flag OR and (X,2) append precede generic leftover-switch error; no name guard |
+
+### 19.43 Particle `warp` *[compat]*
+
+`cParticleWarpCommand` (`0059B680`) queries only switches, in the order
+below, with no live particle-name or block-type guard. Nonswitch operands
+are not selected. Missing switches retain their corresponding fields/lists;
+this command does not reset the whole warp description. Coordinates D are
+particle-relative `P+F0`. Successful changes survive a later option error
+or generic leftover-switch error.
+
+**screw** requests minimum one argument. Its first ParseFloat is multiplied
+in x87 precision by the **binary64** constant 0.02 at `00AA02D8`, then
+rounded once to binary32 `D+104` (`P+1F4`). There is no owner numeric
+validation. Extra selected arguments are ignored. Conversion failure leaves
+the old scalar.
+
+**wiggle** requests minimum four arguments. It appends one 28-byte record
+to list `D+108` (`P+1F8`), leaving existing records in order. Let the
+record's seven binary32 fields be `w0…w6` at +00,+04,…,+18:
+
+- First ParseFloat rounds to `w2`; second ParseFloat rounds to `w0`.
+  Fields `w1,w3` are zero.
+- Third ParseFloat rounds to an amplitude A. Fourth argument passes the
+  owned ranged-float helper (§19.23), inclusive 0…1 with unordered NaN
+  accepted, and returns a rounded binary32 phase T.
+- Form angle `T × binary32(40C90FDB)` in x87 precision, without an
+  intermediate binary32 angle store. Then `w4` is binary32 of x87
+  `cos(angle) × A`, `w5=+0`, and `w6` is binary32 of the negated x87
+  `sin(angle) × A`. The native trigonometric operations are x87 FCOS/FSIN.
+
+Append occurs only after every conversion and phase check succeeds.
+Extra arguments beyond four are ignored. No frequency/amplitude sign or
+finite-value check occurs. A failed phase check leaves the old list, not a
+partial record. The range helper's error is the scalar range error in §19.23.
+
+**wiggleDir** requests minimum two arguments and appends a separate record
+to the same list after successful processing. First ParseFloat rounds to
+`w0`; ParseVector3 of the second copies its three returned words to
+`w4,w5,w6`, with no normalization. If a third selected argument exists,
+its ParseVector3 supplies `w1,w2,w3`; otherwise those three fields are
+zero. Arguments beyond the third are ignored. Failure leaves this record
+unappended but preserves an earlier wiggle append from the same command.
+Neither wiggle variant sets a model flag just by appending.
+
+**wiggleVerts** requests minimum zero and, when present, ORs `100` hex
+into model flags `D+08` (`P+F8`). No other work or flag clearing occurs.
+
+**uv** requests minimum **one**, but after parsing/storing its first
+ParseFloat at binary32 `D+114` (`P+204`) it unconditionally accesses
+the **second selected index** and passes that record to ParseVector2. A
+valid two-argument fixture copies the returned words to `D+118,+11C`
+(`P+208,+20C`), then ORs `100` hex into model flags. There is no second
+argument count check or owner validation of its numbers. A one-value
+invocation passes the declared minimum yet is outside the safely bounded
+index-access domain; do not invent a minimum-two parse error or default
+vector. Vector failure retains the new scalar and both old vector fields,
+without this option's flag OR. Extra selected arguments are ignored.
+
+**alpha** requests minimum two arguments. ParseVector3 of the first gives
+V=(x,y,z). In x87 precision compute `r=1/sqrt((x×x+y×y)+z×z)` using the
+binary32 inputs and binary32 constant 1, with no intermediate binary32 sum
+or reciprocal store. Store each `r×component` as binary32 direction
+`D+120,+124,+128` (`P+210,+214,+218`); the native store order is z,x,y.
+There is no zero-length or finite-value guard, so zero/nonfinite inputs are
+not turned into an owner validation exception. Next clear the alpha curve
+`D+12C` (`P+21C`) and process **all remaining selected arguments** as
+ParseFloat values. Each unrounded return is checked against inclusive 0…1
+before binary32 append. Ordered out-of-range throws the same scalar-range
+error as §19.36; unordered NaN passes. List order/duplicates are retained.
+After the whole curve succeeds, OR model flags with `100` hex.
+
+Alpha conversion failure before the vector result leaves direction/list
+unchanged. Failure in a later curve value leaves the new normalized
+direction and converted curve prefix; this alpha option's final flag OR
+has not occurred, although wiggleVerts or uv may already have set it.
+No runtime warp or renderer call is performed here.
+
+Evidence, instruction bytes checked: screw binary64 multiply/store
+`0059B6B6–0059B6C4`; wiggle scalar stores `0059B706/0059B731/0059B74C`,
+phase/trigonometry/append `0059B769–0059B7A2`; wiggleDir vector copies
+and optional third/default `0059B7FD–0059B880`; wiggleVerts
+`0059B885–0059B89E`; uv minimum-one and unconditional second-index access
+`0059B8A8–0059B8F4`, field stores/flag `0059B8D7–0059B918`;
+alpha normalization `0059B952–0059B9A8`, clear `0059B9B7`, range/append
+`0059B9EC–0059BA4F`, final flag `0059BA6D–0059BA79`.
+Record constructor `0059BAD0` zeros +04…+18; each variant assigns +00
+before append. Append/copy helpers `0059BB10/0059BB60` preserve all seven
+words and use native stride `1C` hex. Phase constant `00A9F384=40C90FDB`;
+normalization constant `00B0A508=3F800000`.
+
+### 19.44 Particle warp conformance vectors (unexecuted)
+
+Static predictions with stipulated reader replies; no native/game execution.
+All coordinates D are particle-relative. Valid fixtures have sufficient
+selected indices for the accesses specified above.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC209 | empty live particle name; screw first ParseFloat=50 | D+104=1 using binary64 0.02 multiply; no name guard |
+| EC210 | screw conversion throws, old D+104=7 | old 7 retained; no later options queried |
+| EC211 | wiggle returns first=2, second=3, amplitude=4,phase=0; old list [E] | append seven fields (3,0,2,0,4,0,negative zero); E retained |
+| EC212 | wiggle phase returns ordered 2; old list [E] | ranged-float exception; list [E] retained, no partial append |
+| EC213 | wiggleDir returns 3 and vector (1,2,3), no third argument | append (3,0,0,0,1,2,3); no vector normalization |
+| EC214 | wiggleDir returns 3, vector (1,2,3), third vector (4,5,6), extra fourth value | append (3,4,5,6,1,2,3); fourth ignored |
+| EC215 | wiggle succeeds; wiggleDir third-vector parse throws | first append retained; no wiggleDir record appended |
+| EC216 | wiggleVerts only, old model flags=2 | flags=102 hex, other state retained |
+| EC217 | uv first scalar=2, second ParseVector2=(3,-4); old flags=0 | D+114=2,D+118=3,D+11C=-4; flags=100 hex |
+| EC218 | uv scalar=2 succeeds, second-vector parse throws; old flags=0,vector=(7,8) | scalar=2 survives; vector=(7,8), flags=0 |
+| EC219 | uv supplies exactly one selected value | declared minimum-one succeeds; no minimum-two error/default vector; second-index access outside safely bounded fixture domain |
+| EC220 | alpha vector (0,0,2), remaining values 0,0.5,1; old flags=0 | direction (0,0,1), replacement curve [0,0.5,1], flags=100 hex |
+| EC221 | alpha vector (0,0,2), remaining values 0.5,2; old flags=0 | range exception after direction=(0,0,1) and curve prefix [0.5]; flags=0 |
+| EC222 | wiggleVerts succeeds; alpha vector (0,0,2), curve value 2 | range exception; flags already 100 hex, direction updated, old curve cleared |
+| EC223 | alpha vector (0,0,2), curve returns NaN | direction (0,0,1), curve [NaN], flags OR 100 hex; no owner range exception |
+
+### 19.45 Particle `source` *[compat]*
+
+`cParticleSourceCommand::Parse` (`00597140`) chooses a source shape, writes
+the two source-bound vectors, then applies the independent options below.
+It does not require positional values or a nonempty particle name. Here P
+is the parser context, D=P+F0 is the live particle description. Source bounds
+are D+50 (lower) and D+5C (upper); flags A are D+00, flags B D+08.
+Every invocation starts with local bounds (-1,0,-1), (1,0,1), irrespective
+of previous bounds. Omitted secondary options preserve their old fields.
+
+The following shape lookups short-circuit in table order. Only the first
+present shape is consumed. `min` is the finder's minimum argument count;
+additional selected arguments beyond those specified are ignored.
+
+| Shape / min | Bounds and additional changes |
+|---|---|
+| `point` / 0 | Both bounds (0,0,0); if any selected value, ParseVector3 first and use it for both bounds. |
+| `square` / 1 | ParseFloat first as r; lower (-r,0,-r), upper (r,0,r). If a second value exists, ParseVector3 it as center and add it to each bound. |
+| `quad` / 1 | ParseVector2 first as (a,b); lower (-a,0,-b), upper (a,0,b); optional second value is a Vector3 center added to both. |
+| `cube` / 1 | ParseFloat first as r; lower (-r,-r,-r), upper (r,r,r); optional second value is a Vector3 center added to both. |
+| `box` / 1 | ParseVector3 first as (a,b,c); lower (-a,-b,-c), upper (a,b,c); optional second value is a Vector3 center added to both. |
+| `dice` / 1 | ParseFloat first directly to D+1D8, then set both bounds to the shared zero vector. No center is read. |
+| `model` / 0 | OR flags A with 40 hex; retain the local default bounds. No value is converted. |
+| `modelBase` / 0 | OR flags A with 80 hex; retain the local default bounds. No value is converted. |
+| `city` / 0 | OR flags A with 1000 hex; if values exist, the endpoint-pair helper (§19.19) supplies lower.y and upper.y. X/Z retain the local defaults. |
+| `cityWindySide` / 0 | OR flags A first with 1000 hex, then with 2000 hex; optional endpoint pair changes Y as for city. |
+| none | Use the local default bounds. |
+
+There is no positivity, ordering, finiteness or overlap test. Negative extents
+can produce reversed bounds. Scalar radii are stored as binary32 before
+center addition; vector components and each resulting sum are binary32.
+Negation uses the parsed value, with binary32 stores before center addition.
+Neither dimensions nor centers are multiplied by 50. Shape flags accumulate;
+choosing point after model does not clear the model bit. A failed shape
+conversion leaves old destination bounds intact; a city endpoint failure can
+leave its already-set mode bits. Dice writes D+1D8 before bound publication.
+
+After shape completion, all six bound components are published before the
+first secondary lookup. These lookups are independent and occur in this
+order, regardless of text order. Masks below are hexadecimal.
+
+| Option / min | Result when present |
+|---|---|
+| `scaleParticles` / 0 | OR flags A with 400000. |
+| `pinToTerrain` / 0 | OR flags A with 4000. |
+| `pinToWater` / 0 | OR flags A with 8000. |
+| `terrainOnly` / 0 | OR flags A with 10000; set lower height D+158 to zero. |
+| `waterOnly` / 0 | OR flags A with 10000; set upper height D+15C to zero. |
+| `seaOnly` / 0 | Same upper-height write as waterOnly; then OR flags A with 20000. |
+| `lakeOnly` / 0 | Same upper-height write as waterOnly; then OR flags A with 40000. |
+| `belowHeight` / 1 | OR flags A with 10000, then ParseFloat first to upper height D+15C. |
+| `aboveHeight` / 1 | OR flags A with 10000, then ParseFloat first to lower height D+158. |
+| `heightRange` / 2 | OR flags A with 10000; ParseFloat first to lower height, then second to upper height. |
+| `killOutsideCity` / 0 | OR flags A with 800. |
+| `resetIncoming` / 0 | OR flags B with 200. |
+
+Zero-minimum flags ignore values. Height options ignore values beyond the
+listed count and do not reorder or validate endpoints. HeightRange overrides
+earlier completed height writes. A second heightRange conversion failure
+keeps its new lower endpoint and old upper endpoint. Every later failure
+retains bounds, flags, consumed switches and earlier completed writes. Shape
+alternatives left unconsumed remain subject to the nested post-check (§19.1).
+No renderer, terrain or city service is called by this handler.
+
+Evidence: shape defaults/point `00597159–0059721D`; square/quad
+`00597222–005973E1`; cube/box `005973E6–005975B7`; dice and model
+`005975BC–0059764E`; bound stores `00597652–0059768C`; secondary options
+`00597692–005978AE`; modelBase/city/cityWindySide `005978B9–005979A6`.
+Instruction bytes distinguish 32-bit stores and mode ORs. Shared zero at
+`00B22CC0` is in the PE virtual zero-fill region.
+
+### 19.46 Particle source conformance vectors (unexecuted)
+
+Each fixture supplies successful reader/conversion services except where
+explicitly failing. These are static predictions, not native observations.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC224 | source without options; old bounds arbitrary | bounds (-1,0,-1), (1,0,1); unrelated state retained |
+| EC225 | point (2,3,7) | both bounds (2,3,7) |
+| EC226 | square 2 with center (10,20,30) | lower (8,20,28), upper (12,20,32) |
+| EC227 | quad (2,5), center (10,20,30) | lower (8,20,25), upper (12,20,35) |
+| EC228 | cube -2 | lower (2,2,2), upper (-2,-2,-2); no rejection |
+| EC229 | box (2,3,5), center (10,20,30) | lower (8,17,25), upper (12,23,35) |
+| EC230 | point present together with malformed square | only point lookup is consumed; square not converted; later post-check may reject it after point bounds written |
+| EC231 | dice 4 | D+1D8=4, both bounds zero |
+| EC232 | cityWindySide with endpoints 8,-3 | flags A OR 3000 hex; bounds (-1,8,-1), (1,-3,1) |
+| EC233 | existing model flag; source point without value | zero bounds; model flag retained |
+| EC234 | terrainOnly, waterOnly, seaOnly, lakeOnly, belowHeight 4, aboveHeight 3, heightRange 9,2 | height endpoints 9,2; flags A OR 70000 hex; every listed option consumed |
+| EC235 | heightRange first conversion 9, second throws; killOutsideCity present | new lower height 9, old upper; flags A OR 10000 hex; new default source bounds retained; killOutsideCity unqueried |
+| EC236 | scaleParticles, pinToTerrain, pinToWater, killOutsideCity, resetIncoming | flags A OR 40C800 hex; flags B OR 200 hex; default bounds |
+
+### 19.47 Particle `emit`: rate and launch parameters *[compat]*
+
+`cParticleEmitCommand::Parse` (`0059C280`) operates on the same D=P+F0
+as the particle children above. It needs no positional value and supplies no
+implicit injection or rate when their switches are absent. It first queries
+`inject` (minimum one). When present it resizes D+88's rate list to one,
+converts only the first selected value to binary32 element 0, then ORs flags
+A with 2. Otherwise it queries `rate` (minimum one); when present it clears
+the rate list and appends every selected ParseFloat result as binary32.
+The resize/clear failure prefixes are exactly those in §19.19. Inject wins
+over rate; the unqueried rate switch remains unconsumed.
+
+It next applies the nine common rate-option lookups from §19.19, in the
+same order and with the same destinations and semantics: loop, single,
+sustain, scale, areaScale, volumeScale, delay, trigger, and retrigger only
+when trigger is absent. Here those operations are part of this owner's
+contract even though its instructions contain their own copy. No maintain
+lookup occurs. After them it processes the following independent switches
+in table order, even if their textual order is different. Omitted switches
+preserve the corresponding fields. All finder branches test AL.
+
+| Option / minimum | Selected values and result |
+|---|---|
+| `velocity` / 1 | First is ParseVector3 v; optional second is ParseFloat speed m (default 1); optional third is ParseFloat variation t (default 0). Set direction bounds D+30 and D+3C to normalized(v) minus/plus (t,t,t); speed endpoints D+48,+4C become (1−t)m and (1+t)m. |
+| `speed` / 1 | ParseFloat first as m, optional second as r (default 0), both rounded to binary32. Replace only speed endpoints with m−r, m+r. |
+| `dir` / 1 | ParseVector3 first as v; optional second is split into argument records. One subargument: ParseFloat it and use that variation on all axes. Three: ParseFloat subarguments in **Z, Y, X conversion order**, use the resulting X/Y/Z variation vector r. Any other subargument count throws `Expecting float or vector3 for second -dir argument`. Without a second value use r=(0,0,0). Normalize v only if its squared length is ordered greater than zero; set direction bounds to v−r, v+r. Speed endpoints are untouched. |
+| `vel` / 1 | ParseVector3 first as v. If its squared length is ordered greater than zero, set m to its length and normalize v; otherwise m=0 and retain v unchanged. Replace both speed endpoints with m and both direction bounds with v. |
+| `base` / 0 | OR flags A with 20 hex. Ignore selected values. |
+
+Extra selected values beyond these counts are ignored, except rate's list.
+Each row completes before the next; speed overrides velocity's speed only,
+dir overrides its direction only, and vel overrides both. There is no owner
+test for negative speed, variation, reversed endpoints, or finite values.
+Velocity has **no zero-length guard**: zero v reaches division by zero and
+the multiply, so ordinary masked x87 execution yields NaN direction bounds.
+Dir and vel do guard zero/unordered squared lengths; they retain a zero
+vector, rather than inventing an axis. No renderer or runtime emitter is
+created. Parsed switches and all completed earlier rows survive exceptions.
+Velocity/dir do not publish their bounds until their conversions succeed;
+in particular, a dir shape error leaves earlier velocity/speed writes intact
+and skips vel/base. The generic post-check can still reject unhandled input.
+
+Numeric qualification (R means binary32 rounding; arithmetic otherwise uses
+the x87 intermediate precision): velocity forms q=(x²+z²)+y², computes
+f=1/sqrt(q), retains x*f in extended precision and rounds y*f,z*f before
+adding/subtracting t. Its parsed m is rounded; its third ParseFloat t is
+used without an intermediate binary32 store. All final bounds/endpoints
+are binary32. Dir forms q=(z²+y²)+x², tests q directly, uses f=1/sqrt(q)
+if ordered positive, retains x*f extended and rounds y*f,z*f before final
+bound arithmetic. Its variation components are binary32. Vel forms the
+same q, stores R(q) **before** testing the unrounded q; on positive q its
+length is sqrt(R(q)), its reciprocal is computed from that length, all
+three normalized components are rounded, and length is rounded when
+stored to both speed endpoints. Thus these three spellings are not
+interchangeable floating-point algorithms. Speed's two sums use rounded
+m and r, with binary32 destinations. No ×50 unit scaling occurs.
+
+Evidence: injection/rate `0059C28B–0059C39E`; common rate options
+`0059C3A0–0059C575`; velocity conversions and normalization/stores
+`0059C57B–0059C6D6`; speed `0059C6DC–0059C75E`; dir split, reverse
+conversion order and guarded normalization `0059C764–0059C93C`;
+vel q store/test and reload `0059C97A–0059C9BE`, final stores/base
+`0059C9C0–0059CA35`; dir error `0059CA46–0059CA62`. Constant
+`00B0A508` is binary32 1. Instruction bytes establish the precision
+boundaries; the pseudocode's integer casts are not numeric conversions.
+
+### 19.48 Particle emit conformance vectors (unexecuted)
+
+Successful primitive replies are supplied independently. No native execution
+or game/shadow oracle has been performed for these predictions.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC237 | emit with no switches and no values | description unchanged; no implicit rate, speed or direction |
+| EC238 | inject 3 and rate 4,5 both present | rate list [3], flags A OR 2; rate not queried/consumed; post-check may fail after mutation |
+| EC239 | rate first ParseFloat succeeds as 7, second throws | list [7]; loop and later switches not queried |
+| EC240 | velocity (0,2,0), speed 8, variation 0.25 | direction lower (-0.25,0.75,-0.25), upper (0.25,1.25,0.25); speed endpoints 6,10 |
+| EC241 | velocity (0,0,0), no optional values | no owner exception; masked x87 yields NaN direction endpoints; speed endpoints 1,1 |
+| EC242 | velocity (0,1,0),4,0.5 then speed 10,2 | direction lower (-0.5,0.5,-0.5), upper (0.5,1.5,0.5); speed endpoints 8,12 |
+| EC243 | dir (0,0,0) with scalar variation 2 | direction (-2,-2,-2), (2,2,2); existing speed retained |
+| EC244 | dir (1,0,0) with variation (2,3,4) | conversions for variation occur 4,3,2; bounds (-1,-3,-4), (3,3,4) |
+| EC245 | velocity completed, then dir second value splits into two records | dir throws specified shape error; velocity results retained; vel/base unqueried |
+| EC246 | vel (3,4,0) after speed and dir | both speeds 5; both directions (R(0.6),R(0.8),0); prior speed/direction overridden |
+| EC247 | vel zero vector, then base | both speeds zero, both directions zero; flags A OR 20 hex |
+| EC248 | speed -2,-4 | endpoints 2,-6 without sorting or owner rejection |
+| EC249 | loop 2,5 and single without value | duration bits 3A83126F, loop count 1, as common options; existing rate retained |
+
+### 19.49 Particle `force`: acceleration and attraction *[compat]*
+
+`cParticleForceCommand::Parse` (`0059A820`) requires no positional values.
+All offsets in this and the next section are from **parser context P**,
+including description fields and the parser's cumulative tractor state.
+Flags A are P+F0 and B P+F8. Absent options retain state. Lookups and
+completed mutations occur in the order below, independent of text order.
+All switch tests use AL. Extra values beyond the specified conversions
+are ignored except where a list explicitly consumes every remaining value.
+No option tests sign, finiteness or range; there is no owner rollback.
+
+| Order | Option / minimum | Result when present |
+|---:|---|---|
+| 1 | `reset` / 0 | Zero acceleration vector P+1D0,+1D4,+1D8 and clear tractor list P+2A8. This does not reset other force fields, mode bits, attraction/explosion lists, cumulative tractor time or multiplier. |
+| 2 | `gravity` / 1 | ParseFloat first as g; acceleration.y becomes old y−g, rounded to binary32. X/Z retained. |
+| 3 | `wind` / 1 | ParseVector3 first, normalize without a zero-length guard; optional second ParseFloat scales it. Add resulting vector to existing acceleration. No ×50 scaling. |
+| 4 | `global_wind` / 1 | ParseFloat first directly to binary32 P+1DC. |
+| 5 | `screw` / 1 | ParseFloat first, multiply by **binary64** 0.02, store binary32 P+1F4 (the same field used by warp screw). |
+| 6 | `bomb` / 1 | ParseFloat first to binary32 P+1E0. If a second value exists, ParseVector3 it to P+1E4,+1E8,+1EC. Otherwise retain the old vector. |
+| 7 | `drag` / 1 | ParseFloat first to binary32 P+1F0. |
+| 8 | attraction alternatives | First present of motherDuck / 1, attractor / 1, alphaAttractor / 1, automata / 2; details below. Later alternatives are not queried or consumed. |
+| 9 | tractor alternatives | tractorRel / 2, else tractor / 2; §19.50. |
+| 10 | `tractorResetSpeed` / 1 | ParseFloat first to binary32 P+2B4. |
+| 11 | `tractorTimeScale` / 1 | Rescale tractor state and lifetime as §19.50. |
+| 12 | `terrainRepel` / 2 | Sequential ParseFloat stores to P+22C and P+230; then OR flags A with 400 hex. Optional third/fourth/fifth conversions to P+234,+238,+23C. Additional values ignored. |
+| 13 | `explosion` / 2 | ParseFloat first to binary32 P+2DC, clear float list P+2E4, then append ParseFloat of **all** remaining selected values as binary32. |
+| 14 | `explosionFront` / 2 | ParseFloat first to binary32 P+2F0, then second to P+2E0. |
+
+MotherDuck, attractor and alphaAttractor share one scalar/list operation:
+ParseFloat first to binary32 P+2A0, clear float list P+294, then append
+each remaining selected ParseFloat result as binary32. A sole scalar
+therefore leaves an empty list. On successful completion motherDuck ORs
+flags A with 08000000 hex; attractor adds no bit; alphaAttractor ORs
+flags A with 04000000 hex and flags B with 10 hex. These bits are never
+cleared by switching spellings. None of these three resets integer P+2A4.
+
+Automata is consumed even when it performs no write. It acts only when
+the attraction list is empty **or** integer P+2A4 is nonzero. If that
+condition holds, set P+2A0=1, ParseUint first to P+2A4, clear the list,
+ParseFloat second and append its binary32 value as the sole element.
+It ignores further values and adds no flags. If the list is nonempty
+and P+2A4=0, neither value is converted and every old field is retained.
+
+Wind numeric rule: from binary32 vector (x,y,z), form
+q=(x²+y²)+z² in x87 precision; f=1/sqrt(q). Round normalized X and Y
+to binary32. A binary32 copy of normalized Z is also made, but without
+the optional amplitude the unrounded Z product is used in the final add.
+With amplitude, use its unrounded ParseFloat reply, multiply the rounded
+normalized components, round scaled X/Y, and retain scaled Z extended
+until its final acceleration add. Each acceleration destination is binary32.
+Zero wind reaches division by zero and multiplication; it is not rejected
+or silently replaced by zero. Gravity's reply is likewise not rounded
+before subtraction. Other direct scalar stores are binary32.
+
+Failure prefixes are observable. A bomb vector conversion failure retains
+the new bomb scalar. Attraction scalar failure leaves the old list; a
+later element failure leaves the new scalar and successfully appended
+prefix, without the branch's final mode bits. Automata's ParseUint failure
+retains P+2A0=1 and the old list; its second conversion failure retains
+the new ID and empty list. TerrainRepel adds its bit after the second
+store, before optional stores. Explosion first failure preserves its list;
+a later failure leaves the new scalar and appended prefix. ExplosionFront
+second failure retains its new first field. Later options are unqueried
+after any exception. The handler calls no wind, terrain, automata or
+explosion runtime service; it only records description data.
+
+Evidence: reset/gravity `0059A82D–0059A8BE`; wind precision and addition
+`0059A8C4–0059A9A5`; direct scalars/bomb `0059A9AB–0059AAD0`;
+motherDuck/attractor/alphaAttractor `0059AAD9–0059AD6F`; automata
+guard and writes `0059AD74–0059AE0E`; terrainRepel `0059B153–0059B23E`;
+explosion `0059B247–0059B3EC` (tractor vector branch occupies an
+out-of-line part of this address range); explosionFront `0059B3F2–0059B43D`.
+Binary64 0.02 is at `00AA02D8`; instruction bytes verify the operand width.
+
+### 19.50 Force tractor points, cumulative time and scaling *[compat]*
+
+TractorRel wins over tractor; if present, tractor is not queried. Each
+accepts at least two selected values. A new 32-byte tractor record has
+position Vector3 at +00, tangent Vector3 at +0C, start time +18 and end
+time +1C. Construction initializes all eight binary32 words to zero.
+The list at P+2A8 appends one complete record; it is not sorted or
+searched for duplicate points. Existing records are retained.
+
+ParseVector3 first as new position p. CountArguments on the second
+selected value determines its interpretation: exactly one subargument
+uses ParseFloat, any other count uses ParseVector3 (which can itself
+reject malformed input). Read the current binary32 multiplier s=P+498
+before those conversions. With a scalar, form magnitude R(value/s),
+and a tangent direction d=p−previous record's position, or p−source
+bounds center if the list is empty. Round each difference to binary32.
+If q=(d.y²+d.z²)+d.x² is ordered positive, set tangent to
+R(d * (magnitude/sqrt(q))) componentwise; otherwise retain d unchanged.
+There is no zero-multiplier guard. With a vector v, use tangent
+R(v*(1/s)) componentwise, without normalizing it.
+
+Only **after** tangent calculation, tractorRel with a nonempty list
+adds the previous record's position to p, rounding each component.
+Thus scalar tangent calculation uses the supplied position before the
+relative addition. With an empty list both spellings use the source
+center and the supplied position is absolute. Source center is half the
+sum of bounds componentwise; X/Y sums remain extended before halving,
+whereas the Z sum is rounded before halving. The resulting center is
+binary32 (helper `0046FFC0`, half constant binary32 0.5).
+
+The new start time is the current binary32 P+494. If a third selected
+value exists, ParseFloat it as duration, compute duration*s + old P+494
+with no store between multiply and add, then store the same rounded
+result to P+494 and the record's end time. Without a third value, the
+record's end remains **zero** and P+494 is unchanged. Extra values are
+ignored. Append the record, then OR flags A with 10000000 hex. There
+is no check that end exceeds start. A duration conversion failure appends
+nothing; a later append failure can leave the newly advanced P+494
+without a new record or newly set mode bit. Earlier force mutations remain.
+
+TractorTimeScale converts its first value to binary32 t, replaces P+498
+with t, then multiplies, in order, cumulative time P+494 and lifetime
+endpoints P+FC,+100 by t, rounding each store. For every tractor record
+in list order, multiply tangent X/Y/Z by 1/t (the reciprocal remains
+extended), then multiply its start/end times by t, with binary32 stores.
+Positions are unchanged. This is a multiplication of the **current**
+state, not a ratio against the old multiplier, so repeated invocations
+compound the scaling although P+498 holds only the latest t. The same
+command's newly appended tractor is included. No zero or negative t
+validation occurs. ResetSpeed is not rescaled. Reset does not reset
+P+494 or P+498, even though it clears the tractor list.
+
+Evidence: record constructor `0059B450–0059B48F`; shape selection,
+scalar division and direction differences `0059AE13–0059AF59`;
+guarded normalization `0059AF5B–0059AF88`; relative position addition
+`0059AF8E–0059AFC0`; time/append/flag `0059AFC4–0059B017`;
+vector tangent branch `0059B2F9–0059B332`; ResetSpeed/TimeScale
+`0059B021–0059B151`; append helper `0059B4E0–0059B522` copies
+one 32-byte record or grows the list; source center `0046FFC0–0046FFF9`.
+These are owned data operations, not calls into a path-following service.
+
+### 19.51 Particle force conformance vectors (unexecuted)
+
+Primitive replies and successful list allocation are stipulated unless a
+failure is explicit. These are static predictions without a native oracle.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC250 | force without switches | no state change |
+| EC251 | reset; old acceleration (3,4,5), one tractor, attraction list [8], time 9, multiplier 2 | acceleration zero, tractor list empty; attraction list, time, multiplier and flags retained |
+| EC252 | acceleration (1,2,3); gravity 4, wind (0,3,0),6 | acceleration (1,4,3) |
+| EC253 | reset then wind zero | reset completed; masked x87 produces NaN acceleration; no owner zero-vector exception |
+| EC254 | screw 50; global_wind -2; drag -3 | P+1F4=1, P+1DC=-2, P+1F0=-3 |
+| EC255 | bomb scalar 7, vector conversion throws; drag present | P+1E0=7, old bomb vector; drag unqueried |
+| EC256 | motherDuck scalar 2 and list 3,4; attractor also present | P+2A0=2, list [3,4], flags A OR 08000000 hex; attractor unqueried |
+| EC257 | alphaAttractor scalar 5 only | P+2A0=5, empty list; flags A OR 04000000 hex, B OR 10 hex |
+| EC258 | motherDuck list conversion throws after one success | new scalar and one-element prefix; no new motherDuck bit; tractor unqueried |
+| EC259 | automata malformed values, existing nonempty attraction list and ID=0 | consumed switch; no conversions or writes |
+| EC260 | automata ID reply 23, scalar reply 6; list empty | P+2A0=1, P+2A4=23, list [6]; no mode-bit change |
+| EC261 | automata ID reply 23 then scalar throws; old ID nonzero | P+2A0=1, ID=23, empty list |
+| EC262 | terrainRepel values 2,3,4,5,6 | stores at P+22C,+230,+234,+238,+23C respectively; flags A OR 400 hex |
+| EC263 | terrainRepel first 2, second throws | P+22C=2, other repel fields retained; no new 400 hex bit |
+| EC264 | explosion first 7, remaining 2,3; explosionFront 4,5 | P+2DC=7, list [2,3], P+2F0=4, P+2E0=5 |
+| EC265 | empty tractors, source center zero, s=2, time=3; tractor (0,4,0),6,5 | append position (0,4,0), tangent (0,3,0), times 3,13; cumulative 13; flags A OR 10000000 hex |
+| EC266 | previous tractor position (10,0,0); s=1; tractorRel (2,0,0),4 | tangent (-4,0,0) computed before position addition; appended position (12,0,0); end=0 without duration |
+| EC267 | s=2, time=7; tractor (1,2,3), vector (4,6,8), no duration | tangent (2,3,4), times 7,0; cumulative stays 7 |
+| EC268 | tractorRel and tractor both present | only tractorRel consumed; one append before possible unhandled-switch post-check failure |
+| EC269 | tractorTimeScale 2; time=3, lifetime 4,6, tractor tangent (2,4,6), times 1,3 | multiplier=2, time=6, lifetime 8,12, tangent (1,2,3), times 2,6; positions/resetSpeed retained |
+| EC270 | repeat EC269 scaling with another tractorTimeScale 2 | multiplier still 2; time=12, lifetime 16,24, tangent (0.5,1,1.5), times 4,12 |
+| EC271 | time=7; successful tractor conversions except duration throws | no append, old time=7, no new tractor flag; prior force changes survive |
+
+### 19.52 Visual-effect and effect-group nested dictionaries *[compat]*
+
+The root effectGroup owner (§19.2) registers exactly one child: `instance`,
+descriptor `00A9FA08`, direct handler `00596980`, already specified in
+§19.4. Registration `005967D0–00596808` allocates four bytes and installs
+that descriptor, or passes null to the generic registrar on allocation
+failure. It does not embed a second implementation of instance.
+
+The root effect owner (§19.9) registers the following **19** children in
+this order (`cGroupEffectCommand::RegisterCommands`, `00596B70`). The
+first 17 each allocate a separate four-byte object. All 17 descriptors
+share wrapper `007E3BE0` at +04, no-op `00407990` at +08, and the direct
+handler at +0C below. Their +00 destruction entry is `007E3DB0`.
+Class names below are only names identified in the export; unnamed
+handlers remain unnamed. These registration identities do not by
+themselves supply the still-unpublished execution contracts.
+
+| Order | Literal | Descriptor | Direct handler | Identified owner / execution contract |
+|---:|---|---|---|---|
+| 1 | particleEffect | 00A9FEAC | 005A0120 | cGroupParticlesCommand; pending |
+| 2 | dynamicParticleEffect | 00A9FE9C | 005A0350 | cGroupDynamicParticleCommand; pending |
+| 3 | decalEffect | 00A9FE8C | 005A0480 | cGroupDecalCommand; pending |
+| 4 | shakeEffect | 00A9FE7C | 005A05F0 | cGroupShakeCommand; pending |
+| 5 | flashEffect | 00A9FE6C | 005A08E0 | cGroupFlashCommand; pending |
+| 6 | tintEffect | 00A9FE5C | 005A0A90 | cGroupTintCommand; pending |
+| 7 | soundEffect | 00A9FE4C | 005A2A50 | cGroupSoundCommand; pending |
+| 8 | chainEffect | 00A9FE3C | 0059D830 | unnamed; pending |
+| 9 | brushEffect | 00A9FE2C | 005A2CF0 | cGroupBrushCommand; pending |
+| 10 | scrubberEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 11 | demolishEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 12 | gameEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 13 | mapEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 14 | automataEffect | 00A9FE0C | 005A3710 | cGroupAttractorCommand; pending |
+| 15 | sequenceEffect | 00A9FDFC | 005A3890 | cGroupSequenceCommand; effects-parser §6.2, §§9–12 |
+| 16 | cameraEffect | 00A9FDEC | 005A3930 | cGroupCameraCommand; pending |
+| 17 | visualEffect | 00A9FDDC | 005A0BD0 | cGroupGroupCommand; pending |
+| 18 | select | 00A9FDC0 | enter 00596E70, exit 00596FE0 | unnamed block; pending |
+| 19 | particleSequence | 00A9FED4 | enter 00596F50, exit 00596F40 | unnamed block; pending |
+
+There are 16 distinct descriptor addresses. ScrubberEffect, demolishEffect,
+gameEffect and mapEffect have separate allocated objects but identical
+descriptors, with no alias-specific object word. Select and particleSequence
+allocate 24 bytes each and use the generic block initialization contract.
+Select calls constructor `00595850` then installs `00A9FDC0`;
+particleSequence's constructor `00596F20` calls `00677290` then installs
+`00A9FED4`. These constructor symbols have folded or unrelated export
+names; they do not prove a new source class name. Both block descriptors
+have +00=`007E3C40`, +04=`007E3B10`, +08=`00407990`, +0C=`00676B30`,
++10=`006773D0`, and enter/exit hooks +14/+18 as in the table.
+
+Every allocation failure still calls the generic registrar with null for
+that child; its validation/exception behavior is effects-parser §12.
+Registration retains/initializes each successful descriptor before
+proceeding to the next child. No collection lookup or effect creation
+occurs merely from registering this dictionary.
+
+Evidence: complete ordered registrations `00596B70–00596E6C`, literal
+pointer cells `00B0A2C4–00B0A30C`; descriptor words at the addresses
+above, especially distinct `00A9FE8C` for decalEffect and `00A9FDEC`
+for cameraEffect; block construction `00596E05–00596E66`,
+`00596F20–00596F31`; effectGroup child `005967D0–00596808` and
+literal pointer `00B0A2A4`. A scanning helper that pairs a descriptor
+with a later registration can misassign these folded/common rows; the
+table is checked against the actual registration instructions.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC272 | successful effect child registration | 19 children in table order, 16 distinct descriptor addresses; 17 four-byte allocations followed by two 24-byte allocations |
+| EC273 | compare scrubberEffect/demolishEffect/gameEffect/mapEffect | four allocated descriptor objects with the same 00A9FE1C descriptor and 005A30B0 direct handler; no per-object alias flag |
+| EC274 | compare particleEffect, decalEffect and cameraEffect | descriptors FEAC, FE8C, FDEC respectively (suffixes of table addresses); no off-by-one association |
+| EC275 | register effectGroup children successfully | one four-byte instance descriptor, same 00A9FA08 and handler as the root instance registration |
+| EC276 | register select and particleSequence | distinct block descriptors, generic wrappers shared; enter/exit hooks differ as table; registration does not itself execute enter |
