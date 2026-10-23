@@ -183,10 +183,69 @@ std::string RunZone(const harness::ScriptAction& a, cISC4City* city) {
 
 // ---- network: a straight run by code (network-manager.md §9) ---------------------------------------
 
+// Record-only replay. Whitelist read callbacks rather than allowing a normal
+// replacement host to commit terrain, occupants, messages or tool callbacks.
+// NT27: public getters do not expose solved piece IDs/types. Never credit this
+// projection as whole-owner verification (in particular bridges / power lines).
+struct NetworkShadow {
+    NetToolContext ctx;
+    fc4_nettool* core = nullptr;
+    fc4_netgeom_state geom{};
+    bool ok = false;
+    uint32_t failure = 0;
+    int32_t cost = 0;
+    std::vector<fc4_netgeom_cell> cells;
+
+    ~NetworkShadow() {
+        if (core) fc4_nettool_destroy(core);
+        if (ctx.geom) fc4_netgeom_destroy(ctx.geom);
+    }
+
+    bool Prepare(const harness::ScriptAction& a, cISC4City* city) {
+        ctx.city = city;
+        const auto sourceGeom = MakeNetGeomHost(&ctx);
+        fc4_netgeom_host gh{};
+        gh.struct_size = sizeof(gh);
+        gh.user = &ctx;
+        gh.cells = sourceGeom.cells;
+        gh.vertex_altitude = sourceGeom.vertex_altitude;
+        gh.cell_has_water = sourceGeom.cell_has_water;
+        gh.surface_water_level = sourceGeom.surface_water_level;
+        gh.max_allowed_height = sourceGeom.max_allowed_height;
+        gh.is_connection_node = sourceGeom.is_connection_node;
+        gh.cell_occupants = sourceGeom.cell_occupants;
+        gh.update_occupant_highlights = sourceGeom.update_occupant_highlights;
+        gh.bridge_type_count = sourceGeom.bridge_type_count;
+        ctx.geom = fc4_netgeom_create(&gh, nullptr, 0);
+        if (!ctx.geom) return false;
+        const auto sourceTool = MakeNetToolHost(&ctx);
+        fc4_nettool_host th{};
+        th.struct_size = sizeof(th);
+        th.user = &ctx;
+        th.draw_network_line = sourceTool.draw_network_line;
+        th.validate_and_solve = sourceTool.validate_and_solve;
+        th.get_network_occupant = sourceTool.get_network_occupant;
+        core = fc4_nettool_create(&th, static_cast<uint32_t>(a.type));
+        // Literal existing replacement Init inputs. Exemplar-dependent
+        // underground/bridge/powerline setup is deliberately not inferred.
+        if (!core || !fc4_nettool_init(core, city->CellCountX(), city->CellCountZ(),
+                                       0, 0, 0, 0, a.type != 5)) return false;
+        ok = fc4_nettool_place_network_occupants(core, a.x0, a.z0, a.x1, a.z1,
+                                                0, 0, true, -1);
+        failure = fc4_nettool_get_failure_state(core);
+        if (!fc4_netgeom_get_state(ctx.geom, &geom)) return false;
+        cost = fc4_netgeom_cost(ctx.geom, 0);
+        const uint32_t count = fc4_netgeom_get_cells(ctx.geom, nullptr, 0);
+        cells.resize(count);
+        return fc4_netgeom_get_cells(ctx.geom, cells.data(), count) == count;
+    }
+};
+
 struct NetworkCall {
     cFC4ISC4NetworkTool* tool;
     const harness::ScriptAction* a;
     bool ok;
+    NetworkShadow* shadow = nullptr;
 };
 
 // §9: Init; PlaceNetworkOccupants(a, b, mask 0, callback null, real 1,
@@ -199,6 +258,32 @@ void NetworkStep(void* p) {
                                            static_cast<uint32_t>(a.x1), static_cast<uint32_t>(a.z1), 0u, 0u, 1u,
                                            0xFFFFFFFFu);
     c->ok = (r & 0xFFu) != 0;
+    if (c->shadow) {
+        const auto& s = *c->shadow;
+        auto* t = reinterpret_cast<cFC4ISC4NetworkToolFull*>(c->tool);
+        SC4Vector<SC4Point<uint32_t>> cells;
+        t->GetDraggedCells(cells);
+        const uint32_t failure = t->GetFailureState();
+        const uint32_t valid = t->GetValidStepCount();
+        const uint32_t straight = t->GetStraightStepCount();
+        const uint32_t total = t->GetTotalStepCount();
+        const int32_t cost = t->GetCostOfSolution();
+        uint32_t cellDiffs = cells.size() != s.cells.size() ? 1u : 0u;
+        for (size_t i = 0; i < cells.size() && i < s.cells.size(); ++i) {
+            if (static_cast<int32_t>(cells[i].x) != s.cells[i].x ||
+                static_cast<int32_t>(cells[i].y) != s.cells[i].z) ++cellDiffs;
+        }
+        const uint32_t mismatches = cellDiffs + (c->ok != s.ok) + (failure != s.failure) +
+            (valid != s.geom.valid) + (straight != s.geom.straight_count) +
+            (total != s.geom.dragged_count) + (cost != s.cost);
+        Log("nettool shadow (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
+            "cells=%u/%u cell_diffs=%u ok=%d/%d failure=%08X/%08X valid=%u/%u straight=%u/%u "
+            "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires question=NT27",
+            a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
+            static_cast<uint32_t>(cells.size()), static_cast<uint32_t>(s.cells.size()), cellDiffs,
+            c->ok ? 1 : 0, s.ok ? 1 : 0, failure, s.failure, valid, s.geom.valid,
+            straight, s.geom.straight_count, total, s.geom.dragged_count, cost, s.cost);
+    }
     c->tool->Shutdown();  // slot 4
 }
 
@@ -227,6 +312,16 @@ std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
     }
     FC4_ADDREF(t);
     NetworkCall c{reinterpret_cast<cFC4ISC4NetworkTool*>(t), &a, false};
+    NetworkShadow shadow;
+    if (SettingInt("nettool_shadow", nullptr, 0) != 0) {
+        if (ours) {
+            Log("nettool shadow skipped: requires original nettool (disable replacement)");
+        } else if (shadow.Prepare(a, city)) {
+            c.shadow = &shadow;
+        } else {
+            Log("nettool shadow (type=%d setup): mismatches=1 unavailable=core", a.type);
+        }
+    }
     const bool clean = SehGuard("script PlaceNetworkOccupants", &NetworkStep, &c);
     FC4_X87_CHECK("script PlaceNetworkOccupants");
     if (ours) {

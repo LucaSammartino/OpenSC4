@@ -1,0 +1,22 @@
+# Original tools only; nettool_shadow=1. No save. Run through 2032-01-01.
+# Straight, reverse, diagonal, shared endpoint bend and T-junction.
+2026-02-01 network 4 4 14 4 0
+2026-02-02 network 14 6 4 6 3
+2026-02-03 network 20 4 28 12 0
+2026-02-04 network 14 4 18 8 0
+2026-02-05 network 9 4 9 12 0
+# Single cell and signed coordinate clamping.
+2026-02-06 network 32 4 32 4 0
+2026-02-07 network -4 16 8 16 3
+# Rail, avenue and powerline (powerline-specific pieces remain uncovered).
+2026-02-08 network 4 24 16 24 1
+2026-02-09 network 4 28 16 28 6
+2026-02-10 network 4 32 16 32 5
+# Conflicting crossing / repeated occupied drag: validation and failure probes.
+2026-02-11 network 9 20 9 30 1
+2026-02-12 network 4 4 14 4 0
+# Lowered strip between raised banks: water/bridge attempt, models uncovered.
+2026-02-13 terrain 40 40 60 46 280
+2026-02-13 terrain 47 40 53 46 0
+2026-02-14 network 42 43 58 43 0
+2031-12-01 network 64 8 74 8 3

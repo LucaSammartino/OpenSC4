@@ -115,3 +115,16 @@
   nonzero previously-placed count making intermediate steps pivots, or is another pivot/spacing
   rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-23) -->
+- **NT27 - same-process scripted placement result observation:** specify a public-interface
+  observation contract for native solved cells with network types, piece IDs and orientation
+  after slot 7, and confirm slots 23/25/26/27 expose the ordered dragged cells and current
+  valid/straight/total step counts after real placement, before Shutdown. Section 2 names
+  internal offsets but does not define a public solved-record getter or its ownership/layout.
+  [compare only public drag/status/cost getters; never invent class-method signatures or
+  read undocumented object storage; solved piece/type coverage remains unverified]
+  The existing plugin host also leaves bridge types/models and powerline-specific placement
+  unwired. The diagnostic replay uses the existing adapter's literal zero underground Init
+  values, shipped geometry parameters and zero demolition cost: its differences in these
+  paths are recorded, not suppressed or credited as exact whole-owner coverage.
