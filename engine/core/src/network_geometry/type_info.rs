@@ -689,10 +689,7 @@ impl TypeRecords {
             if !success && [0x60, 0x6c].contains(&offset) {
                 let p = &mut self.records[record].placement;
                 let mut words = p.vector_words(offset);
-                words.extend(std::iter::repeat_n(
-                    if offset == 0x60 { 0 } else { 0x41200000 },
-                    p.vectors[1].len(),
-                ));
+                words.extend(std::iter::repeat(if offset == 0x60 { 0 } else { 0x41200000 }).take(p.vectors[1].len()));
                 p.set_vector(record, offset, words);
             }
         }
