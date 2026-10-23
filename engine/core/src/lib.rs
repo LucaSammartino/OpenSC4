@@ -163,3 +163,4 @@ pub mod html_ui_hooks;
 pub mod game_data_registry;
 pub mod rz_sparse_matrix;
 pub mod local_grid_helper;
+pub mod rigid_body_2d;
