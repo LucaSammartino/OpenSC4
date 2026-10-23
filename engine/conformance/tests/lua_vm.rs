@@ -738,8 +738,10 @@ fn compatibility_failure_is_ignored_and_alert_only_reports_strings() {
 
 #[test]
 fn runtime_dobuffer_error_gc_and_load_without_execution() {
-    let mut a = Api::default();
-    a.runtime_status = 1;
+    let mut a = Api {
+        runtime_status: 1,
+        ..Api::default()
+    };
     a.load.push_back((0, vec![V::String(b"runtime".to_vec())]));
     assert_eq!(a.session().do_buffer(b"a\0b", b"chunk\0tail").unwrap(), 1);
     assert!(a.stack.is_empty());
