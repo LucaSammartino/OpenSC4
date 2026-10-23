@@ -11,6 +11,7 @@ pub enum DialogKind {
     Name,
     NetworkPath,
     Slope,
+    Size,
     Selector(SelectorKind),
     Browser,
 }
@@ -19,6 +20,7 @@ impl DialogKind {
         let (selector, instance) = match self {
             Self::Compatibility => (0xE9264B49, 0xE9263D4D),
             Self::Name | Self::NetworkPath | Self::Slope => (0xC9264BE2, 0xE9263D4C),
+            Self::Size => (0x8926EEBE, 0xE9263DE5),
             Self::Selector(SelectorKind::Building) => (0x89264BF9, 0xE9263D4F),
             Self::Selector(SelectorKind::Flora) => (0x89264BFA, 0x89404462),
             Self::Selector(SelectorKind::Prop) => (0x097CEFB0, 0x697CEF4C),
@@ -36,6 +38,9 @@ pub trait Host {
     fn run_modal(&mut self, window: u64) -> u32;
     fn text(&mut self, window: u64, id: u32) -> String;
     fn integer(&mut self, window: u64, id: u32) -> i32;
+    fn control_selection(&mut self, window: u64, id: u32) -> u32 {
+        self.integer(window, id) as u32
+    }
     fn selected_rows(&mut self, window: u64, id: u32) -> Vec<(u32, u32)>;
     fn grid_text(&mut self, _: u64, _: u32, _: u32, _: u32) -> Result<String> {
         Err(Unsupported::Dependency("grid text"))
@@ -154,6 +159,36 @@ const DESCRIPTIONS: [&[&str]; 3] = [
     ],
 ];
 impl Editor {
+    /// UI kernel only: the returned request must run core SetLotSize, whose
+    /// numeric/scale body is explicitly open LE4. No dimensions are guessed.
+    pub fn size_dialog_request(&mut self, h: &mut impl Host) -> Result<Option<[u32; 2]>> {
+        let size = self.config()?.size;
+        let Some(w) = h.create_dialog(DialogKind::Size) else { return Ok(None) };
+        for (index, id) in [0x0926ECD9, 0xE926ED2E].into_iter().enumerate() {
+            if h.has_control(w, id) {
+                seed(w, id, Value::Selection(u32::from(size[index]).wrapping_sub(1)), h);
+            }
+        }
+        let result = if modal(w, h) == ACCEPT {
+            let mut dimensions = [1; 2];
+            for (index, id) in [0x0926ECD9, 0xE926ED2E].into_iter().enumerate() {
+                if h.has_control(w, id) {
+                    dimensions[index] = h.control_selection(w, id).wrapping_add(1);
+                }
+            }
+            Some(dimensions)
+        } else { None };
+        dispose(w, h);
+        Ok(result)
+    }
+    pub fn size_dialog(&mut self, h: &mut impl Host) -> Result<bool> {
+        let Some([width, depth]) = self.size_dialog_request(h)? else { return Ok(false) };
+        self.set_lot_size(width, depth, true, h)?;
+        Ok(true)
+    }
+    pub fn set_lot_size(&mut self, _width: u32, _depth: u32, _changed: bool, _h: &mut impl Host) -> Result<()> {
+        Err(Unsupported::Dependency("LE4 SetLotSize scale/rectangle/byte arithmetic"))
+    }
     pub fn compatibility_dialog(&mut self, h: &mut impl Host) -> Result<bool> {
         self.config()?;
         let Some(w) = h.create_dialog(DialogKind::Compatibility) else {

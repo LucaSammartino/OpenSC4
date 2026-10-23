@@ -344,6 +344,9 @@ impl Editor {
             Command::Name => {
                 self.name_dialog(h)?;
             }
+            Command::Size => {
+                self.size_dialog(h)?;
+            }
             Command::Compatibility => {
                 self.compatibility_dialog(h)?;
             }

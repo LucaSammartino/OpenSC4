@@ -9,10 +9,12 @@
 mod dialogs;
 mod geometry;
 mod workflows;
+mod windows;
 pub use crate::lot_config_manager::LotConfigObject;
 pub use dialogs::*;
 pub use geometry::*;
 pub use workflows::*;
+pub use windows::*;
 
 pub type Result<T> = std::result::Result<T, Unsupported>;
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -119,6 +121,7 @@ pub enum Value {
     Integer(i32),
     Checked(bool),
     ClearFlag(u32),
+    Selection(u32),
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Cell {
@@ -311,3 +314,5 @@ pub fn drawing_style(kind: u8) -> ([u8; 3], f32) {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod window_tests;
