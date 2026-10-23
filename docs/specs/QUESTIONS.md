@@ -150,6 +150,8 @@ generated index: the questions live one file per spec, so read only the file for
 | SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
+| SSP | system-service-pointer |
+| ST | my-street-sim |
 | SV | foundations, ordinance |
 | TB | texture-bindings |
 | TD | tools-com-director |
@@ -230,7 +232,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
-| geometry-utilities | 5 | 1 | GU7 | questions/geometry-utilities.md |
+| geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
@@ -251,7 +253,9 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
+| missing-plugin-reporter | 0 | 0 | - | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
+| my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -312,6 +316,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8 | 3 | 3 | SR11 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
+| system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
@@ -337,4 +342,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **510** | **1262** | | |
+| **total** | **518** | **1263** | | |
