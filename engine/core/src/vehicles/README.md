@@ -43,7 +43,9 @@ prefix are in `tests.rs`; the leader test is in conformance/tests/vehicles.rs.
 | TrafficAutomaton | vehicles §2 leaders; §11.4 | find_leader_in_tile, find_leader | vh11_4_nearest_eligible_leader_ignores_height; open: VH7 lane-bit interpretation |
 | TrafficAutomaton | vehicles §2 collision; §9.1 | update_collision | collision_flags_wait_and_default_speed |
 | TrafficAutomaton | vehicles §2 state effects | EffectAction; collision enter/exit hooks | collision_flags_wait_and_default_speed; open: VH9 full state lifecycle |
-| TrafficAutomaton | automata §6.1-6.3 records/states | reused TrafficRecord and AutomatonBase | existing automata codec tests; record_roundtrip_and_every_truncation_atomic_before_init |
+| TrafficAutomaton | automata §6.1 base record | reused AutomatonBase | record_roundtrip_and_every_truncation_atomic_before_init |
+| TrafficAutomaton | automata §6.2 states | reused State and AutomatonBase stack | blocked_wait_obeys_stopped_flag_and_intersection; open: VH9 inherited handlers |
+| TrafficAutomaton | automata §6.3 traffic record | reused TrafficRecord | record_roundtrip_and_every_truncation_atomic_before_init |
 | TrafficAutomaton | automata §6.5 movement/wait/station | path_tick, straight_tick, blocked_wait_tick, animation_tick | blocked_wait_obeys_stopped_flag_and_intersection; vehicle_path_anchors_and_measures_but_traffic_does_not; open: VH7, VH9 |
 | TrafficAutomaton | managers §4 construction/§5 helpers | init, shutdown, direction_toward | open: VH4; movement_failures_remove_only_once_and_special_route_survives_reverse |
 | TrafficAutomaton | dispatch §4.2.1/§4.3 | inherited dispatch info ID stored in base.u1; no emergency override | open: VH9 for base dispatch slot contracts; manager route orchestration is foreign |
@@ -54,7 +56,11 @@ prefix are in `tests.rs`; the leader test is in conformance/tests/vehicles.rs.
 | Vehicle | vehicles §3 damage | update_after_damage | open: VH6 event/model mapping and ResolveCollision |
 | Vehicle | vehicles §3 motion blur | update_motion_blur | open: VH6 |
 | Vehicle | vehicles §3 player driving | player_drive | open: VH1 |
-| Vehicle | automata §6.1-6.4 save/load | read, write, reused VehicleRecord | record_roundtrip_and_every_truncation_atomic_before_init |
+| Vehicle | vehicles §2 inherited traffic behavior | traffic_owner, animation_tick | inherited traffic tests above; open: VH2, VH7, VH9 |
+| Vehicle | automata §6.1 base record | reused AutomatonBase | record_roundtrip_and_every_truncation_atomic_before_init |
+| Vehicle | automata §6.2 states | set_state, push_state, pop_state; reused State | collision_final_timeout_disappears_and_train_minimum; open: VH8, VH9 |
+| Vehicle | automata §6.3 traffic record | nested TrafficRecord | record_roundtrip_and_every_truncation_atomic_before_init |
+| Vehicle | automata §6.4 vehicle record | read, write, reused VehicleRecord | record_roundtrip_and_every_truncation_atomic_before_init |
 | Vehicle | automata §6.5 path/straight | path_tick, TrafficOwner::straight_tick | vehicle_path_anchors_and_measures_but_traffic_does_not; movement_failures_remove_only_once_and_special_route_survives_reverse; open: VH7 |
 | Vehicle | automata §6.5 lifetime/splash | shutdown, pop_state, plummet_tick | splash_survives_until_timer_then_releases_exactly_once; open: VH8 fade source |
 | Vehicle | automata §7.5 vectors | reused base.vectors; movement updates world.move_models | vehicle_path_anchors_and_measures_but_traffic_does_not; open: VH9 complete setter/model lifecycle |
@@ -63,6 +69,11 @@ prefix are in `tests.rs`; the leader test is in conformance/tests/vehicles.rs.
 | TrainCar | vehicles §1/§5; managers §1 | TrainCar, CLSID_TRAIN_CAR, init | train_shutdown_owns_cars_and_copies_measured_speed; open: VH4 inherited Init |
 | TrainCar | vehicles §5; automata §6.4 record | read, write | open: VH3 (never use VehicleRecord as a guessed train-car record) |
 | TrainCar | vehicles §5; managers §5 slot 132 | inherited Vehicle movement, no guessed placement override | open: VH5 |
+| TrainCar | vehicles §2 inherited traffic behavior | vehicle.traffic_owner | inherited traffic tests; open: VH2, VH7, VH9 |
+| TrainCar | vehicles §3 inherited vehicle behavior | vehicle field | inherited Vehicle tests; open: VH1, VH4, VH6-VH9 |
+| TrainCar | automata §6.1 base record | contained vehicle staging record | open: VH3 native nesting |
+| TrainCar | automata §6.2 states | contained vehicle stack | inherited Vehicle tests; open: VH8, VH9 |
+| TrainCar | automata §6.3 traffic record | contained vehicle staging record | open: VH3 native nesting |
 | TrainCar | automata §6.5 state/lifetime | vehicle field, Train::shutdown | train_shutdown_owns_cars_and_copies_measured_speed; inherited VH1/VH4/VH6-VH9 |
 | TrainCar | dispatch §4.3 | no train-car-specific behavior assigned | inherited open: VH9 |
 | Train | vehicles §1; managers §1 | Train, CLSID_TRAIN | unresolved_train_records_touch_neither_stream_nor_owner |
@@ -73,7 +84,12 @@ prefix are in `tests.rs`; the leader test is in conformance/tests/vehicles.rs.
 | Train | vehicles §5 collision; automata §6.5 | enter_collision, collide_tick | train_shutdown_owns_cars_and_copies_measured_speed; collision_final_timeout_disappears_and_train_minimum; open: VH6 direction/transform |
 | Train | vehicles §5 player driving/derail | player_drive | open: VH1 |
 | Train | vehicles §1/§5; automata §6.4 record | Train::{read,write} | unresolved_train_records_touch_neither_stream_nor_owner; open: VH3 |
-| Train | automata §6.1-6.3/§6.5 inherited state | vehicle field | inherited Vehicle tests; inherited VH4/VH6-VH9 |
+| Train | vehicles §2 inherited traffic behavior | vehicle.traffic_owner | inherited traffic tests; open: VH2, VH7, VH9 |
+| Train | vehicles §3 inherited vehicle behavior | vehicle field | inherited Vehicle tests; open: VH1, VH4, VH6-VH9 |
+| Train | automata §6.1 base record | contained vehicle staging record | open: VH3 native nesting |
+| Train | automata §6.2 states | contained vehicle stack | collision_final_timeout_disappears_and_train_minimum; open: VH8, VH9 |
+| Train | automata §6.3 traffic record | contained vehicle staging record | open: VH3 native nesting |
+| Train | automata §6.5 inherited state | vehicle field | inherited Vehicle tests; open: VH4, VH6-VH9 |
 | Train | dispatch §4.3 | no train-specific dispatch behavior assigned | inherited open: VH9 |
 
 vehicles §4 and §§6-8 assign behavior to TrailerVehicle, Tank, EmergencyVehicle,
