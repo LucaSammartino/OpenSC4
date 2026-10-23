@@ -1,8 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | in progress: guard stopped round 2 at 152k/150k; workspace cargo 5162/0 and owner 22/22 at 34dc4033; nine-file fmt passed before lint cleanup; clippy redundant_locals fix committed 628ec2a1 but unverified; native/CTest incomplete; ABI unchanged; LC9/LC10 retained | (1) Reconcile original all by PID/creation/command, no duplicate; (2) focused clippy/fmt after it ends; (3) authorized stable full gate before ready; no queue written |
+| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | in progress: final round 3/3; old cargo 5162/0 and owner 22/22 retained; old Clippy failed, two-line fix verified; touched-test fmt passed; old native/CTest incomplete with unknown exit; ABI unchanged; LC9/LC10 retained | (1) Run the one required stable corrected-source qbuild all; (2) inspect actual totals/artifacts and finalize bounded 45-entry report; no queue before passing gate |
 
 ## Handoff
+- Goal: finish existing bounded 45-entry owner's validation/report only, final original-family round 3/3; no further round or algorithm expansion.
+- Ancestors retained: ce60e13a, fixtures 02bd46f2 before production bf469091, final source/tests d8d3da6f; round-two handoff f72643de.
+- Read own source/fixtures, copied r2 result/stderr and coordinator reconciliation; no source edits.
+- Fresh audit 2026-10-23T00:20Z: 26 candidate processes; all command lines readable, historical validator PIDs absent; no own checker/output/compiler work observed.
+- Cwd reads failed for 15 other/service processes (commands still readable); own observer cwd read successfully; no own compiler output paths or descendants found. No process/cache/service changes or cache RPCs.
+- Own cache port 4782: local netstat found no endpoint. This is observation, not proof of old disappearance cause; cause and old native/full exit remain UNKNOWN.
+- Generated evidence: build-runs/r3-preflight-audit.json; copied reconciliation in build-runs/evidence-run4/ supersedes historic still-running language below.
+- Archived four overwrite-prone r2 logs to r2-* with apply_patch; SHA256 equality verified for all four. r1-* and mixed/failure/transport evidence retained.
+- Historic r2 cargo: 5162 passed/0 failures, 22 summaries; 22 owner fixtures passed. Old Clippy failed; old native 588-byte log ends compiling core/formats/capi, no CTest or final rc.
+- Git engine diff 34dc4033..HEAD is exactly removal of let mut f=f and let mut g=g from tests.rs; fixtures/assertions/production unchanged.
+- Post-fix absolute tests.rs qbuild fmt: exit=0 files=1 diff_lines=1, canonicalize-path warning only; engine max_width=120 unchanged, no reformatting.
+- Existing 22 tests unignored; vocabulary fixture 21 headers + 393 entries; prior nine-owner-file fmt passed before fix.
+- NEXT EXACT STEP: commit this checkpoint, then run ONE required complete qbuild all on committed stable corrected source, using r3 runner evidence; no baseline/quick or focused Clippy duplicate.
+- Inspect actual Cargo aggregate, all 22 owner names, Clippy, native and full CTest expected/observed count, source/tree/config/log/artifact hashes; partial progress never PASS.
+- Scope remains 42 complete safe-domain / 3 partial of 45; LC4/LC5/LC8/LC9/LC10 withheld, no 205-row/104642B ownership promotion; no game/native/ABI/plugin/default/coverage work.
+- Finalize READY only after a complete passing stable gate; otherwise final WIP/parked with exact diagnostic, no fourth round.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r3-manifest.json. Guard OVER => commit Handoff, return continue, no queue.
+
+## Historic round-two handoff (superseded by round-three observations)
 - Goal: finish portable LegacyControl owner validation; exact 45-entry scope, no GUI/game/network/ABI/native/default/coverage work.
 - Original clean ce60e13a remains ancestor; source milestones 02bd46f2 fixtures before bf469091 production, d8d3da6f source/tests.
 - Round 2 commits: 8949db4a validator reconciliation, 34dc4033 audit/fmt, 628ec2a1 actual two-line Clippy fix and full 45-entry report below.
