@@ -147,3 +147,23 @@ External primitive names in the spec: window-generator Init, SC4MarkedCellView, 
 GetCrimeIncidentArray, GetCongestionMap, GetPollutionGrid, GetOccupantCoverage and GetCrimeHotspot are
 boundaries, not additional implemented owner methods. Raw grids may use existing `TractGrid` reads; existing
 UI/View3D owners lack the missing filter/panel contracts and will not be changed to manufacture them.
+
+## Coordinator provenance correction (report only)
+
+Both successful operations include exact coordinator client-only interventions, omitted from the original
+delivery report. The inherited baseline's read-only cache-statistics client552 (created1792716645.6393185)
+was terminated01:57:38.118890 BST/exit15 after independent ownership review; the SAME validator2396 and
+daemon17880 survived and proceeded to CTest22792. Baseline5262/native215 does not validate later owner source.
+
+The stable owner operation at source5af24714866385f0c66c644f14503d1feda9e442 later waited on exact read-only
+stats client9364 (created1792718461.2334836). Root terminated ONLY that client02:31:56.677711 BST/exit15;
+the SAME validator3120 and daemon17880 survived and proceeded to CTest24004. The actual completed final
+5286-test/68-CTest proof remains tied to its unchanged source and raw logs, not inferred from the intervention.
+
+Both statistics queries were interrupted/unavailable; their underlying RPC cause is UNKNOWN. No daemon,
+compiler, source, validator, check or cache-policy restart occurred. No additional gate or implementation round
+was started. Exact structured/textual evidence was copied into own ignored build-runs; see
+coordinator-stats-client-intervention-mapview-r1-baseline.json and
+coordinator-current-final-stats-client-intervention.json. These case-specific root actions give no general
+worker process-control permission. This correction changes report provenance only; original1/3, QV gaps,
+unsupported/native/default/whole-owner limits and actual historical failures remain unchanged.
