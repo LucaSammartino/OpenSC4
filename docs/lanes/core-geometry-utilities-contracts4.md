@@ -1,6 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-geometry-utilities-contracts4: public geometry delta | Codex, `core-geometry-utilities-contracts4` | wip: canonical gate blocked on cache statistics | ROOT: resolve external stats RPC, collect existing handle9399; full CTest/terminal still required |
+| core-geometry-utilities-contracts4: public geometry delta | Codex, `core-geometry-utilities-contracts4` | in progress: final stable gate qualification | Archive historical evidence, then collect exactly one replacement canonical all |
+
+## Handoff
+
+- Goal: qualify the existing committed bounded geometry delta; no algorithm changes.
+- Source: HEAD383385db, engine4f6381b35ed54cd78fc8280308cbc9e5f1fd9b2d, clean.
+- Read final admission, host census, optional-stats journal and own R2 manifest.
+- Old session9399 collection attempted once: Unknown process id; receipt unavailable.
+- Historical canonical Rust5511/0/0, Clippy complete, native4/4 links and CTest20/68
+  are partial evidence, with terminal/native return codes UNKNOWN.
+- ROOT journal records only optional client18344 exit15; later disappearance cause UNKNOWN.
+- No validator/cache/daemon/process changes authorized or performed.
+- Next: archive all existing build-runs bytes with SHA256, then one serial qbuild all;
+  collect the same operation to terminal and compare strict engine snapshots.
+- No new game requests, engine edits, questions, ABI changes or broad coverage claims.
+- Prior report below is historical until reconciled with the final gate.
 
 ## Report
 
