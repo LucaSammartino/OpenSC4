@@ -13,7 +13,8 @@
 - Round 3: added verified sink/heel angle ramps, endpoint returns, distinct runtime/transform sinking y writes, bump rollback and 8 vectors in sections5.7.2/11.6. WC5 still open for axes/contact/overlap and full response.
 - Round 3: boat collision maximum-extent gate (not combined radii), SAT contact equality, size tags, equal-size double loss, AI sinking after player win and exact speed transfer/returns specified; 10 vectors. Milestone b00cbc6b contains prior scalar work.
 - Round 3: WC3 constructor populated11-entry vector and nonrecovering allocation failure, destruction ordering, all10 adjustors and QueryInterface/Write/sign/erase contracts added with6 vectors. Collision milestone05d3d416.
-- Next FIRST: WC4 motion arithmetic; collision model-to-footprint construction and heel contact/axes remain unresolved. Reserve final report and ready queue even with explicit gaps.
+- Round 3: WC4 position clamping/straight and curved equations, scalar banking/bow and distinct visual lift, publication ordering added with8 vectors. Lifecycle milestone91eab585.
+- Next FIRST: validate new vectors/arithmetic and finish Report+ready queue; WC1/WC2 and WC3–WC5 remain open (AI/inherited steps, complete attitude/crash transforms, shore/footprint construction).
 - Main attribution now gives 75 functions/38073 bytes, versus brief 79/38556. Read-only reproducer: `build-runs/watercraft-owner-inventory.py 0` and `40`; imports Attribution only, no engine reads.
 - Numeric PE reader: `build-runs/watercraft-evidence.py <hex VA>...`; reads working exe, prints f32/bits; never commit these scripts or RE output.
 - WC8: tan/atan, f32 a=0.910000026226, b=1.57079637051; opposite gear crosses zero; neutral translator keeps speed. Steering channels +88/+84 are elapsed floats, ordered responses; owner never clears skier toggle +EB.

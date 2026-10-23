@@ -71,22 +71,22 @@ default. Message `0x26D31EC1` (§7) reloads the list.
 | 1 | 0.001 | held-input steering gain per ms (§6.2.2) | 21 | 8000 | crash duration, ms (automata.md §6.6) |
 | 2 | 1.0 | steering return rate per second (§6.2.2) | 22 | 0.7854 | |
 | 3 | 0.05 | coasting drag | 23 | 0.95 | |
-| 4 | 0.2 | | 24 | 2.1817 | |
+| 4 | 0.2 | movement distance scale (§5.1.1) | 24 | 2.1817 | bow-lift angle cap and twice the model-height offset (§5.1.1) |
 | 5 | 5.0 | counter-steer boost | 25 | 1.0472 (60°) | run-aground angle (automata.md §6.6) |
 | 6 | −0.1 | lowest speed (reverse) | 26 | 10 | |
 | 7 | 0.3 | highest speed | 27 | 0.5 | player boat-to-boat crash threshold |
 | 8 | −entry 9 | lowest steering | 28 | 0.25 | player shore crash threshold |
 | 9 | 2.0 | highest steering | 29 | 0.75 | speed kept after a bump |
 | 10 | 0.001 | per-ms scale of the acceleration | 30 | −2000 | |
-| 11 | 50 | | 31 | 3000 | |
-| 12 | 5.0 | | 32 | 150 | U-Drive-It reverse threshold |
+| 11 | 50 | forward turning-radius scale (§5.1.1) | 31 | 3000 | |
+| 12 | 5.0 | reverse turning-radius scale (§5.1.1) | 32 | 150 | U-Drive-It reverse threshold |
 | 13 | 0.001 | | 33 | 0 | U-Drive-It forward threshold |
 | 14 | 0.001 | | 34 | 2.0 | |
 | 15 | 0.1 | AI boat-to-boat crash threshold | 35 | 100 | longest tick, ms |
 | 16 | 0.5 | AI shore crash threshold | 36 | 300 | dock request distance |
-| 17 | entry 18 / entry 7 | | 37 | 90 | final approach distance |
-| 18 | 0.3142 | | 38 | 1.0 | docking turn rate, degrees per ms |
-| 19 | entry 20 / entry 9 | | 39 | 1.0 | docking move rate, units per ms |
+| 17 | entry 18 / entry 7 | speed-to-bow-lift gain | 37 | 90 | final approach distance |
+| 18 | 0.3142 | bow-lift gain numerator (cap is entry 24) | 38 | 1.0 | docking turn rate, degrees per ms |
+| 19 | entry 20 / entry 9 | banking gain | 39 | 1.0 | docking move rate, units per ms |
 
 With no list at all the same defaults are used, with 8 = −2.0, 17 = 1.0472 and 19 = 0.1309. Uses not given are
 not traced *[summary]*.
@@ -236,6 +236,81 @@ sounds *[inferred]*.
     clamped to 0–entry 35: `Engine_AIBoatMotion`, `Movement_PositionNew`, `Engine_DetectCollision`,
     `Ferry_DockRequests` and `Ferry_ClearDockRequests`.
 13. The effect and model updates (slots 104 and 107).
+
+### 5.1.1 Position integration and publication (WC4, partial)
+
+`Movement_PositionNew` (`0x0056C430`) receives movement time from the caller;
+it does **not** clamp it internally. Before integrating, clamp turn to
+`[p[8],p[9]]` and speed to `[p[6],p[7]]`. Capture the current transform and
+runtime position. Exact zero turn selects straight motion; nonzero turn with
+nonzero speed selects curved motion. Zero speed does not turn in place: it
+only invokes inherited FindState(16), discarding the result. This call is not
+a state pop. Afterwards copy old runtime position to previous position and
+store the integrated runtime position, even in the zero-speed case.
+
+For straight motion (`0x00568230`) let heading be `H`, position `P`, and
+`d=p[4]*v*dt`. The displacement uses the **horizontal** heading:
+
+`N=(H_x,0,H_z)/sqrt(H_x²+H_z²)`, `P'=P+d*N`.
+
+Write `P'` to the output position and transform translation; preserve heading.
+The reciprocal length, normalized x and y, each displacement component and
+each final position component pass through float stores. Thus an implementer
+must not replace this with an unnormalized H or let heading y change height.
+There is no zero-horizontal-heading recovery: a zero denominator propagates
+invalid floating values rather than reporting false. Negative dt is used as
+given. Evidence: `0x00568230–0x005682E8`.
+
+For curved motion (`0x00569940`), define the radius using the clamped values:
+
+| Speed | Radius R |
+|---|---|
+| `v>0` | `p[11] * ((v/p[7]+0.5) + (1-abs(turn)/p[9]))` |
+| `v<=0` | `p[12] * ((abs(v)/abs(p[6])+0.5) + (1-abs(turn)/abs(p[8])))` |
+
+The owner calls this helper only with nonzero speed and turn. Let
+`U=(0,1,0)`. For positive turn set `S=normalize(U cross H)`; otherwise
+`S=normalize(H cross U)`. Set the turn center to
+`C=(P_x+R*S_x, water_level, P_z+R*S_z)`, sampling terrain slot 29 for its y.
+Let `V=normalize(P-C)` using **all three components**, and
+`theta=(p[4]*v*dt)/R` for positive turn, negated otherwise. Distance is stored
+as float before division by the float radius. Define the yaw rotation
+
+`Q_theta(x,y,z)=(cos(theta)*x+sin(theta)*z, y,
+                 -sin(theta)*x+cos(theta)*z)`.
+
+The new runtime position is `C+R*normalize(Q_theta(V))`. The owner saves old
+heading into previous heading (+0x300) and stores
+`normalize(Q_theta(H))` as current heading. Turn magnitude affects the radius;
+it is not an additional multiplier on theta. No radius/normalization failure
+is converted into a boolean result. For non-level input the radial normalization
+includes the difference from water level; do not substitute a flat xz circle.
+At dt=0 such an input can still move to radius R about C. Evidence:
+`0x00569940–0x00569E61`, radius `0x00569A33–0x00569ACC`,
+center/angle `0x00569AD0–0x00569BC0`.
+
+The curved helper writes transform translation as `(P'-P)+P` componentwise,
+with intermediate float rounding, rather than simply copying `P'`. It also
+samples terrain slot 29 a second time when `abs(P'_z-C_z)>0.00001`, discarding
+that sample. It does not return a failure flag.
+
+After position/heading integration, call the visual attitude helper
+`0x00569E70` when speed or turn is nonzero. With zero speed that helper itself
+does nothing. With nonzero speed it applies banking helper `0x005682F0`, then
+bow attitude, and adds `p[24]/2` to **transform** y. Runtime position y is not
+changed by this lift. The banking angle is
+`clamp((v/p[7])*p[19]*turn, -p[20], p[20])`, only when `v>0`;
+reverse speed skips banking. The bow angle is `clamp(p[17]*v,0,p[24])`.
+Entry 18 is used to derive p[17], not as this helper's direct bow-angle cap.
+These scalar rules are verified at `0x0056830A–0x00568361`,
+`0x00569F60–0x00569FA3`; the full attitude-basis composition remains unresolved.
+
+Finally, publish the transform through slot 75, copy runtime position and heading
+to inherited +0x40/+0x58, then call slot 100 `(true,true)`, slot 104, slot 107,
+in order. Publication still occurs at zero speed. These calls' results are
+ignored; Movement_PositionNew has no success/failure result
+(`0x0056C761–0x0056C84A`). AI speed/turn selection and inherited animation
+still require WC4; the integration equations do not close the whole tick.
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -1039,3 +1114,19 @@ they do not pass malformed buffers to a reader lacking bounds checks.
 | WC3-L04 | Complete destruction, all references nonnull | Effect releases descend from +0xDC4 to +0xDB0, then route/tow/station cleanup in §3.1 order, then base destruction; no owner Shutdown/berth-return calls. |
 | WC3-L05 | Three travel points [A,B,C], erase B | Vector [A,C], size reduced by 1, capacity unchanged; returned pointer addresses C. Erasing C next returns new end. |
 | WC3-L06 | Sign helper inputs -0.0, +0.0, -2, +2 | Results +1,+1,-1,+1. |
+
+### 11.9 Position integration vectors
+
+Use float tolerance 1e-5 for positions/rotations and 1e-6 for scalar parameters;
+publication order and unchanged fields are exact.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC4-M01 | Straight: P=(10,2,20), H=(3,4,0), p[4]=0.2, v=0.1, dt=100 | Runtime P'=(12,2,20); heading unchanged. Visual helper subsequently adds p[24]/2 to transform y only. |
+| WC4-M02 | Same with dt=-100 | Runtime P'=(8,2,20); integration has no internal nonnegative-time clamp. |
+| WC4-M03 | Curved: P=(0,0,0), H=(0,0,1), water=0, defaults, v=p[7]=0.3, turn=p[9]=2, dt=100 | R=75, theta=0.08, P'=(75*(1-cos(0.08)),0,75*sin(0.08)); heading=(sin(0.08),0,cos(0.08)). |
+| WC4-M04 | Same speed, turn=1 | R=100, theta=0.06; do not multiply theta again by turn. |
+| WC4-M05 | Reverse: v=p[6]=-0.1, turn=p[8]=-2, defaults, dt=100, level input | R=7.5, theta=+0.26666667, center on the opposite side from positive turn; no banking; bow angle=0, visual height still raised by p[24]/2. |
+| WC4-M06 | v=0, turn=1, previous/current positions differ initially | No position/heading integration; previous position becomes current; FindState(16) called, no pop. Visual helper no-op; transform and inherited fields still published, then slots 100,104,107. |
+| WC4-M07 | v=0.1, p[17]=1, p[24]=2, turn=0 | Bow angle=0.1, transform y increased by 1; runtime y unchanged by attitude helper. |
+| WC4-M08 | Curved dt=0, R>0, finite H, P_y different from water level | Position is C+R*normalize(P-C), which can differ from P; no special zero-dt early return. |
