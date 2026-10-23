@@ -3,6 +3,9 @@
 | core-widgets5: widget control owners | Codex / core-widgets5 | in progress | Continue Grid owner orchestration, implement TextEdit, finish browser and lifecycle audit |
 
 ## Handoff
+- Round 3 active (2026-10-23), manifest run4-core-widgets5-r3-manifest.json; detached HEAD is intentional.
+- Previous native verdict qbuild-20261023-225614-build-ctest collected again: PASS 159/159, CTest 68/68; no operation outstanding.
+- Next: implement TextEdit byte encoding/state/mutations/history with distinguishing vectors, then update closure rows honestly, final stable-source qbuild gate and READY queue (partial work expressly authorized).
 - Goal: close all five owners against widget-controls; incomplete, no ready/merge-queue claim.
 - Round 1 commits: 0de6813c ListBox/TreeView, d5e44377 Browser state. Round 2 a88ea3be adds Browser population/resource branches; this checkpoint adds Grid state helpers.
 - Collected old qbuild-20261023-213040-build-ctest.verdict: native PASS 59/59, CTest 68/68, marked tree changed.
