@@ -64,6 +64,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FM | feature-manager |
 | FN | drawing-fonts |
 | FQ | flora |
+| FR | font-renderer |
 | FS | graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
@@ -98,6 +99,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NO | network-occupants |
 | NOV | network-overlay-views |
 | NR | network-rules |
+| NRT | network-routines |
 | NT | network-tools |
 | OG | occupant-groups |
 | OM | occupant-manager |
@@ -142,6 +144,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TD | tools-com-director |
 | TE | text-edit |
 | TG | traffic-simulator |
+| TK | animation-tick-manager |
 | TM | timers |
 | TN | traffic-network |
 | TR | terrain |
@@ -169,6 +172,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
+| animation-tick-manager | 3 | 0 | TK4 | questions/animation-tick-manager.md |
 | application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -204,6 +208,7 @@ generated index: the questions live one file per spec, so read only the file for
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
+| font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
 | foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
@@ -234,6 +239,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 23 | 9 | NO32 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
+| network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -302,4 +308,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **460** | **1241** | | |
+| **total** | **467** | **1241** | | |
