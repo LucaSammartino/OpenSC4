@@ -88,6 +88,7 @@ pub enum Open {
     MySimCt14,
     RouteCt15,
     FillerConflictCt18,
+    FundingCostCt21,
     BuildingValuesCt19,
     TrafficInfoCt20,
 }

@@ -185,7 +185,7 @@ fn qct5_10_commute_unsigned_zero_substitution_and_thresholds() {
         assert!(fill_control(&mut f, 11, 0x1057, true, Subject::Occupant(1)));
         assert!(f.events.contains(&Effect::Text(
             11,
-            loc(&f, SubjectiveRating { index, auxiliary }.label())
+            loc(&f, [0xAA71_FAE3, 0x6A71_FADC, 0x0A71_FAD3][usize::from(index)])
         )));
     }
     f.developers.get_mut(&0x1010).unwrap().curves.clear();

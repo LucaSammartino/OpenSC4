@@ -235,6 +235,12 @@ pub fn fill_control(host: &mut impl Host, w: Token, id: u32, get: bool, subject:
         host.effect(Effect::SliderProperties(w, id, cost, related));
         let text = host.money((f64::from(v) * 0.01 * cost as f64) as i64);
         host.effect(Effect::MoneyChild(w, id + 0x100, text));
+        if i != 99 {
+            // CT21: §8.16.1 calls this a separate ID+2 update, but its cited
+            // §8.12.4 specifies ID+0x100. Keep the explicit helper contract;
+            // do not guess another target, amount or update phase.
+            host.effect(Effect::Unsettled(Open::FundingCostCt21));
+        }
         return true;
     }
     let r = |read| host.read(read, s);
@@ -438,8 +444,11 @@ fn fill_special(host: &mut impl Host, w: Token, i: u32, s: Subject) -> bool {
                     return true;
                 };
                 v.to_string()
-            } else {
+            } else if curve.is_none() {
                 "256".into()
+            } else {
+                host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
+                return true;
             }
         }
         64 => loc(
@@ -528,7 +537,8 @@ fn fill_special(host: &mut impl Host, w: Token, i: u32, s: Subject) -> bool {
                 loc(host, 0x0A71_FAD3)
             } else {
                 if let Some(value) = lot.as_ref().and_then(|l| developer_rating(host, l, 6)) {
-                    loc(host, value.label())
+                    // §8.12.4's commute-specific labels, in rating-index order.
+                    loc(host, [0xAA71_FAE3, 0x6A71_FADC, 0x0A71_FAD3][usize::from(value.index)])
                 } else {
                     host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
                     return true;
