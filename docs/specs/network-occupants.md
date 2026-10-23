@@ -649,21 +649,20 @@ Constructor `0x0064DB30`, object **0x124** bytes. Sub-objects: `+0` primary `cIS
 
 | Offset | Meaning |
 |---|---|
-| `+0x6C…+0x98` | model matrix (defaults from `0x00B46778`, identity 0/1); `+0x99` float 1.0 |
-| `+0x98/+0x9C/+0xA0` | position x/y/z (`GetPosition` `0x00649DA0`) |
+| `+0x68` | transform; matrix starts +6C (identity 0/1), scalar +9C=1.0 |
+| `+0xA0/+0xA4/+0xA8` | position x/y/z (`GetPosition` `0x00649DA0` receives occupant-view +8) |
 | `+0xAC/+0xB0` | connection vector (records of stride **0x2C**: +0 pole ref, +4 wire-point list, +8 byte flag, +9 byte, +0xC u32, +0x10 u32, +0x14…+0x24 two vertex lists) |
-| `+0xB4` | second vector |
+| `+0xB4` | connection vector capacity end (third word of the +AC vector) |
 | `+0xB8` | wire-exemplar index (set by `Init`'s `param_3`) |
 | `+0xBC` | delegate object (QI `0x26A68448` jump-dispatches to its vtable slot 0 — identity unknown, NO2/§12) |
 | `+0xC0/+0xC4` | model ids (from `0x00B43DD8+0x10/+0xC`) |
-| `+0xC8` | bbox-dirty byte |
-| `+0xCC/+0xD4` | x cells; `+0xD0/+0xD8` z cells |
-| `+0xDC/+0xE8/+0xF4` | three `ReadFromStream` structs (reader `0x006574A0`) |
+| `+0xC8/+0xCC` | signed cell x/z, returned by primary GetCell |
+| `+0xD0` | bbox-dirty byte (constructor 1) |
+| `+0xE8/+0xF4/+0x100` | three 24-byte vertex vectors (reader `0x006574A0`) |
 | `+0xE4` | connection-points table pointer (`InitConnectionPoints` `0x00649B30` picks `0x00B0C0D8` or `0x00B0C198` by the exemplar sub-type nibble: 1, 2 → first; 3, 4 → second) |
 | `+0xE8` | vertex array, stride 0x18 |
-| `+0x100` | u32 |
-| `+0x106` | byte |
 | `+0x10C` | float (model Y) |
+| `+0x110` | bool |
 | `+0x112` | distressed byte (`IsDistressed` `0x00649230` reads it) |
 | `+0x118` | stored by primary slot 14 (`0x00649250`) |
 
@@ -740,21 +739,78 @@ above. Thus changing `0xE9A18D3F` alone never changes this demolition quote.
 
 ### 4.4 Save record *[compat]*
 
-`Write` `0x0064B010` writes version **5** (verified: `PUSH 0x5; CALL [EAX+0x1C]` at `0x0064B01D`; `Read`
-`0x0064EA00` rejects < 4):
+`Write` `0x0064B010` writes u16 version **5**. `Read` `0x0064EA00` first ensures
+StaticInit, then rejects versions below 4; there is no upper-version rejection. The
+record body runs only after successful base occupant serialization. All offsets below
+are **primary-relative**: these methods receive the serializable view at primary+0xC,
+so add 0xC to their instruction displacements. This resolves the earlier contradictions
+between this section and §4.1. In particular, record +B0 is live **+BC (delegate)**,
+not the connection vector's live +B0 end pointer. Primary GetCell really reads +C8/+CC
+(`0x00649210`); the dirty byte is +D0 (`0x0064DCD1`).
 
-1. the `cSC4Occupant` record;
-2. the transform (`operator<<` `0x005DA8C0`, or the legacy form below v5);
-3. u32 `+0x94`; u32 `+0x98`; u32 `+0x9C` (position x, z);
-4. the connection count, then per connection: `SC4WriteGZSerializable` of the pole ref, then per wire-point entry
-   `SC4WriteGZSerializable` (pole refs read back with IID `0x09C05C6A` and `0xC9C05C5D`), u8 rec+8, u8 rec+9,
-   u32 rec+0xC, u32 rec+0x10, and the two vertex lists (counts then 0xC-stride entries);
-5. u32 `+0xAC`; u32 `+0xB4`; u32 `+0xB8`; u32 `+0xBC`; u32 `+0xC0`;
-6. 4 × 0xC-byte vertex writes over `+0xD8…+0x108`;
-7. the three struct writes (`+0xDC`, `+0xE8`, `+0xF4`);
-8. u32 `+0x100`; u8 `+0x48`; u8 `+0x49`; u32 `+0x58`; u8 `+0x106`.
+| Order | Field | Encoding |
+|---|---|---|
+| 1 | base occupant | base record |
+| 2 | transform +68 | current transform codec on Write and v5+ Read; legacy on v4 Read |
+| 3 | position +A0/+A4/+A8 | three f32, x/y/z order |
+| 4 | connection vector +AC | u32 connection count, then the connection bodies below in vector order |
+| 5 | exemplar index +B8 | u32 |
+| 6 | model IDs +C0/+C4, cell x/z +C8/+CC | four s32 words in that order |
+| 7 | four vectors at the **pointer stored in +E4** | f32 xyz at pointer+0, +0C, +18, +24, in that order (48 bytes) |
+| 8 | vertex vectors +E8, +F4, +100 | three independent wall-helper lists, described below |
+| 9 | model Y +10C | f32 |
+| 10 | bool +110 | u8, nonzero normalized on Read |
+| 11 | bytes +54/+55 | two raw u8 |
+| 12 | field +64 | f32 |
+| 13 | distressed +112 | raw u8 |
 
-`Read` is symmetric; then `InitConnectionPoints`, and it releases `+0xB0` if set.
+The four vectors in order 7 are **not inline object fields**. On Read,
+`InitConnectionPoints(primary)` runs after order 6, then the four xyz values are read
+through the selected +E4 pointer (`0x0064EF06–0x0064EF28`; Write
+`0x0064B4B0–0x0064B4C8`). Thus for the supported subtypes they overwrite the first four
+entries of the selected shared connection-point table. They do not constitute four
+new private vectors or overlap the wall-list headers. Invalid-subtype pointer behavior
+is not guarded by this record reader; callers must provide the valid table invariant.
+
+**Connection body.** Each live record has stride 0x2C. Its stream is:
+
+1. Destination pole reference (live record+0). Write passes its serializable view
+   at pole+0xC; Read requests **IID `0x09C05C6A`**, exactly that class-ID value.
+2. u32 number of power-line references in the linked list at record+4; then that many
+   references in list traversal order. Write passes each line's serializable view at
+   line+8; Read requests **IID `0xC9C05C5D`** for every list item. These are different
+   reference kinds, not alternative IIDs for the same pole reference.
+3. Two bool bytes, record+8 then +9 (Read normalizes nonzero to 1).
+4. Two s32 words, record+0C then +10 (both preserved, not reset to zero).
+5. The nested xyz-vector collection at record+14; then the collection at record+20.
+   **Each** is u32 outer count; for each member, u32 inner point count followed by
+   that many xyz f32 triples in point order. Empty collections and empty inner lists
+   retain their explicit zero counts. Each live outer/inner vector header is 12 bytes;
+   header/capacity pointers never go into the stream.
+
+Evidence: `0x0064B0BE–0x0064B139` (reference views and list count),
+`0x0064EAEE` / `0x0064EB33` (IIDs), `0x0064EB48–0x0064EB8D` (bools and signed words),
+and the nested-list writes between `0x0064B170` and `0x0064B43E`.
+
+**Wall-helper list.** Each of the three headers uses the same helper as §3.4:
+u32 vertex count, then per vertex f32 x/y/z, f32 u/v, u8 R/G/B/A. The live vertex is
+24 bytes: xyz at +0/+4/+8, BGRA bytes at +0C/+0D/+0E/+0F, uv at +10/+14. The stream
+is therefore 24 bytes per vertex **after** a four-byte count; it is not a memory dump
+(colour precedes UV in memory but follows it in the stream). Writer `0x0065B070`,
+reader `0x006574A0`; pole call sites `0x0064B4CA–0x0064B4E6` and
+`0x0064EF2A–0x0064EF46`.
+
+**Failure and cleanup.** There is no rollback. After the version/base gates, Read
+resizes the connection/list/vector containers and attempts all body fields without
+branching on individual reference/helper returns. `SC4ReadGZSerializable` clears the
+destination before lookup (`0x005D9742`); a failed lookup is not preservation of an
+old reference. At the end of the reached body, the old delegate live +BC is cleared
+and released if non-null, even when the stream has already failed
+(`0x0064EF98–0x0064EFB0`). The base-failure path skips all body work and delegate
+release. Both Write and Read then return `GetError()==0`; a failed reference lookup
+alone is not separately promoted to a false result by the owner. Unsupported version
+returns false directly. Allocation failure and malformed excessive counts have no
+additional owner validation contract.
 
 ### 4.5 Creation and consumption
 
@@ -1322,8 +1378,10 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
    the float32 rounding (foundations §18).
 10. **The connection matrix is 4 × 4 bytes at `+0x144`** (§2.6): exit × path-type, path type 0 always set along
     with the requested type, and the whole thing gated by network flag `0x2000`.
-11. **The pole reads its own record with two IIDs** (§4.4): pole refs come back as `0x09C05C6A` **or**
-    `0xC9C05C5D` (the line class ID) — a wire entry may name either.
+11. **Pole records use class-ID-valued IIDs for distinct ref kinds** (§4.4): each destination
+    pole uses `0x09C05C6A`, each linked-list power line uses `0xC9C05C5D`. Neither is an
+    alternative fallback IID for the other kind. Four xyz vectors are saved/read through
+    the selected shared connection-point table pointer, not inline object storage.
 12. **The demolition cost is an int64** (§2.4, slot 63): returned in `EDX:EAX`, saved as one `SetInt64`
     (§2.3 field 13).
 13. **The prebuilt primary's appendix** (§2.8): the vtable at `0x00AA7038` continues past the shared 81 slots with
@@ -1398,8 +1456,25 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     resolved to each other (traffic-network.md §4.8).
 15. **Connection occupants** (§3.6). A pipe connection saves as class `0xEA0A5ACF` with the seven wall writes and
     reloads; `QueryOccupantInterface` (subway, slot 44) QIs `0xCA16374F` then `0x4A10AFC2`.
-16. **Pole record** (§4.4). A pole with two connections saves version 5; on read the pole refs resolve with IID
-    `0x09C05C6A` **or** `0xC9C05C5D` (quirk 11); `InitConnectionPoints` runs again.
+16. **Pole record** (§4.4). Round-trip a v5 pole with two destination refs. The first
+    connection has line list [L1,L2], the second an empty list: reference read IIDs are
+    respectively 0x09C05C6A, 0xC9C05C5D, 0xC9C05C5D, 0x09C05C6A, with list counts
+    2 and 0. Set the first connection's two nested geometry collections to
+    [[(1,2,3)],[]] and [[]]: their count/triple sequence is
+    `2,1,(1,2,3),0,1,0`, occupying 32 bytes. Both empty inner vectors survive.
+    Signed fields −7 and 19 remain at record+0C/+10 after read; bool bytes 0x80
+    normalize to 1. Distinct model IDs 11/12 and cells −3/4 round-trip at live
+    +C0/+C4/+C8/+CC; exemplar index at +B8 is not a vector pointer.
+    Four sentinel xyz triples read into the chosen +E4 table at offsets 0/0C/18/24;
+    the three following wall-vector headers stay independent. Give the first wall
+    list one vertex xyz=(1,2,3), uv=(0.25,0.5), RGBA=(0x11,0x22,0x33,0x44): its
+    count is 1 and its payload is five f32 followed by those four bytes (28 bytes
+    total); live BGRA at vertex+0C is 33/22/11/44. Other empty wall lists consume
+    four bytes each. Version 3 rejects before base; v4 uses the legacy transform;
+    v5 uses current. With a preexisting delegate D, a failed body read still
+    clears/releases D once when cleanup is reached and returns false for sticky
+    stream error; base-read failure leaves D untouched. Assert that live vector
+    end +B0 is never passed to Release.
 17. **Pole cost** (§§4.2–4.3). In separate fresh static-init fixtures, omit the control exemplar,
     supply it without `0x0A2ECED8`, or supply a non-convertible value: the quote stays zero.
     A SINT64 `0x00000001_00000002` returns EDX=1, EAX=2; SINT64 −7 returns

@@ -149,20 +149,6 @@ implementer of the class tables and records.
   4.1-4.3 remain open, including native pool allocation required by section 13 test 4]
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
-  encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
-  mapping. Section 4.1 places model IDs at C0/C4 while section 4.4 writes B8/BC/C0, and GetCell reads
-  C8/CC although layout says C8 is bbox dirty and CC/D0 are cells. Position and vector offsets likewise
-  overlap the record's unrelated words. Which is authoritative? What is released at B0 after Read,
-  given B0 is also the connection vector end? Which reference uses which of the two class-ID IIDs,
-  and what happens on failed reads? No pole record codec is fabricated. [missing; section 4.4,
-  section 11 quirk 11 and section 13 test 16 remain open]
-
-  NO35 refinement: section 3.4 does define helper `0x006574A0` as a u32 count and
-  24-byte quad vertices, so that part can reuse the existing wall codec. The
-  wire-point nesting/counts and inconsistent live/record offsets still need clarification.
-
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
   named matrices; SetUIState, SetBitmapInfo, dispatch type/state, SetSourceOccupant and SetPylonOwner
   side effects; bounds/transform/position/pick; DoAnimationTick, SetVisibility, DoMessage, Draw and sort;

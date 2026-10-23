@@ -1,6 +1,25 @@
 # network-occupants: answered questions (archive)
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
+  encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
+  mapping. Section 4.1 places model IDs at C0/C4 while section 4.4 writes B8/BC/C0, and GetCell reads
+  C8/CC although layout says C8 is bbox dirty and CC/D0 are cells. Position and vector offsets likewise
+  overlap the record's unrelated words. Which is authoritative? What is released at B0 after Read,
+  given B0 is also the connection vector end? Which reference uses which of the two class-ID IIDs,
+  and what happens on failed reads? No pole record codec is fabricated. [missing; section 4.4,
+  section 11 quirk 11 and section 13 test 16 remain open]~~
+
+  NO35 refinement: section 3.4 does define helper `0x006574A0` as a u32 count and
+  24-byte quad vertices, so that part can reuse the existing wall codec. The
+  wire-point nesting/counts and inconsistent live/record offsets still need clarification.
+  **ANSWERED 2026-10-23 (re-netocc-answers5):** DIFFERS — §§4.1/4.4, quirk 11 and test 16:
+  record offsets are serializable-view relative (+C to get primary); cleanup releases live +BC delegate.
+  Destination pole IID is 0x09C05C6A; counted linked list uses line IID 0xC9C05C5D. Both geometry
+  collections contain counted inner xyz lists. Four xyz triples go through the selected shared +E4
+  pointer. Three wall lists are count + (xyz, uv, RGBA) per vertex. Reached-body failure has no rollback.
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - ~~**NO37 - sections 6.1-6.3 pylon offsets, Read and placement:** the record calls +5C and +70
   transforms but also names their interior +60/+64/+68 as separate bytes and +74 as a call number.
   How do these map to live state? Does v3 use legacy decoding for both transforms? Which IIDs are
