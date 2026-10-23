@@ -176,8 +176,8 @@ Named import is `0x0051E4A0`; it is not a numeric exemplar property.
 
 ### 4.2 Flight and control overview
 
-- **Parameters** (`LoadDriveParameters` `0x005340A0`): the same list read into the rotor model; angles are scaled
-  by 572.958 and one rate by 1000 × 3.333 *[summary of the twelve entries]*.
+- **Parameters** (`LoadDriveParameters` `0x005340A0`): the 13-field record and
+  exact conversion constants are specified in §4.1.
 - `PhysicsInit` and `InitInstance` set up the rotor model; `NextFrame` (`0x005397C0`) computes the engine power,
   then yaw, pitch, roll and slide (`YawPitchRollSlideReal`, with limits ±890 and 250), the
   horizontal move (`MoveXZReal`) and the vertical move (`MoveYReal`, kept above `GetAltitude`) *[summary]*.
@@ -213,7 +213,10 @@ accepted count; a small wrapped availability mask does not shrink station member
 
 ## 7. Open questions
 
-See [questions/aircraft.md](questions/aircraft.md) (AF1–AF2).
+See [questions/aircraft.md](questions/aircraft.md) (AF2–AF6). AF1, AF7 and AF8
+are resolved in §§3.1, 4.1 and 5; their entries are archived in
+[questions/answered/aircraft.md](questions/answered/aircraft.md). The flight-model,
+control, lifecycle, weapon and message summaries do **not** close those owner contracts.
 
 ## 8. Conformance tests
 
