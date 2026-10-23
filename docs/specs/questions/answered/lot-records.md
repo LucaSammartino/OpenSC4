@@ -1,5 +1,24 @@
 # lot-records: answered questions (archive)
 
+<!-- from: glue-simgrid-lots-shadow5 round 2 (2026-10-23); filed in that lane's worktree -->
+- ~~**LR12 - sections 1, 3.1, 14: lotrec_shadow observation inventory:** please define the exhaustive
+  record-only load/month shadow scope and discovery contract. Is the denominator the lot manager's
+  master-list cSC4Lot records (27 fields, including inline trips/properties), or every record class in
+  section 1, including business units, construction, signposts, decals, wild flora and the crime-only
+  lot mentioned in section 14? The master lot list alone cannot establish the latter inventory;
+  section 3.1 explicitly says the lot does not save its occupants. For the intended scope, specify
+  public owner/getter or record enumeration, exact native signatures/reference ownership, treatment
+  of objects absent from the master list, and required outcomes for unsupported/unspecified prop
+  subclasses. [lotrec_shadow deferred; implement and land the independently specified SG3
+  simgrid_shadow first, without claiming lot-record coverage]~~
+  **ANSWERED 2026-10-23 (re-lotrec-lr12):** MATCHES — §14.1 chooses the complete current master-list
+  cSC4Lot payload scope, not every §1 class; §17.6 T58–T65 defines inventory, nested-field, reference
+  and failure discriminators. City slot 33 borrows the manager; manager slots 15/16 supply registered
+  iterator/count, enumeration borrows lots, QI acquires Serializable and Write returns AL. Iterator
+  cleanup is nonvirtual unregister/C-free. Off-list lots, units and occupants are excluded as payloads;
+  references retain identity without recursion. Unspecified prop subclasses are outside scope, not
+  silently successful. An all-class coverage claim remains unsupported by this named shadow.
+
 <!-- from: glue-lotrecords-bind4 (2026-10-22) -->
 - **LR10 - sections 3.2/13.2, concrete lot slot 55:** what is the complete mutation contract of
   `cISC4Lot::SetPopulation(devType, population)` (`0x006C1940`, pop 8)? The save record specifies a vector
