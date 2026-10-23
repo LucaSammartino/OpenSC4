@@ -12,9 +12,9 @@
 - Follow-up guards committed at 8cdaae5d4; documentation at 8ddfe4069.
 - Ownership review corrected OpenDBRecord: manager retains ownership until CloseDBRecord, no observer Release; out pointer is success channel (same as FC4NetToolHost).
 - Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
-- Native verify queued: qbuild-20261023-233355-build-ctest, exec session 48101; collect same operation.
-- Verify remains unconsumed after 21 minutes (23:54 local), no DLL yet. functions cell 50 is collecting session 48101 through terminal result; do not duplicate.
-- Next: focused test + fmt, collect native result, diagnose, stable-source all, unique game request to 2032.
+- Native verify qbuild-20261023-233355-build-ctest TERMINAL FAIL: MSVC C2488 on naked forward declarations at 223/286; ctest skipped. Removed naked only from forward declarations.
+- Failed native evidence preserved under build-runs/netrules-native-failed-1; request had a long queue delay (file presence did not establish whether it had started).
+- Next: stable-source qbuild all on corrected source, then unique game request to 2032. No operation outstanding before full gate launch.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.

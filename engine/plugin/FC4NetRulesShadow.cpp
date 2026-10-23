@@ -220,7 +220,7 @@ void __fastcall Edges(void* n, void*, uint32_t meta, uint32_t* out) {
         f->queries.push_back({1, static_cast<uint8_t>(meta), word});
     } catch (...) { f->conflict = true; }
 }
-__declspec(naked) void EvalAfter();
+void EvalAfter();
 void __cdecl EvalBegin(uint32_t* saved) noexcept {
     // The contract permits only synchronous owner-thread traversal. A foreign
     // boundary permanently disables observation without touching borrowed data.
@@ -283,7 +283,7 @@ uintptr_t __cdecl EvalEnd(uint32_t* saved) noexcept {
 }
 
 __declspec(thread) uintptr_t g_reloadReturn = 0;
-__declspec(naked) void ReloadAfter();
+void ReloadAfter();
 void __cdecl ReloadBegin(uint32_t* saved) noexcept {
     // Recursive/concurrent reload is not a supported observation lifetime.
     if (GetCurrentThreadId() != g_thread) { InterlockedExchange(&g_foreignBoundary, 1); return; }
