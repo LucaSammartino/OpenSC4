@@ -2,23 +2,25 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! The publicly specified subset of `cSTEOverlayManager` (overlay-manager.md).
+//! Core owner implementation of `cSTEOverlayManager` (overlay-manager.md).
 //!
 //! This is a core implementation, not a replacement registration. In particular,
 //! Settled owner calculations use raw resource dimensions/settings and retain references.
-//! The selected numeric domain is explicit; incomplete rendering remains a named gap.
+//! Foreign drawing/lighting are traits; exact native FP residuals remain qualified.
 //! Slot 20 follows the corrected public contract: odd input only ORs self-lighting;
 //! even input never clears it and this call never invalidates terrain.
 //!
 //! Rust `Arc`s represent owned references; there is no interior mutability in
 //! getters. The eventual ABI adapter must provide synchronization around mutations.
 
+mod drawing;
 mod model;
 mod placement;
 mod records;
 mod render;
 mod round;
 
+pub use drawing::{DrawCommand, DrawingProducer, RectangleRoute, ShadowLighting, ShadowParameters, VisibleRows};
 pub use records::{CellRect, Handle, OverlaySnapshot, Placement, TextureScale};
 pub use render::{BlendFactor, DepthFunction, DrawState, FrameOptions, RenderSelection, DRAW_STATES};
 
@@ -33,6 +35,7 @@ pub const SHADOW_TEXTURE_KEY: u32 = 0xAA59_2B77;
 pub mod flag {
     pub const SHOWN: u32 = 1;
     pub const REPEAT: u32 = 1 << 1;
+    pub const SHADOW: u32 = 1 << 3;
     pub const PART: u32 = 1 << 4;
     pub const TEXTURE_MATRIX: u32 = 1 << 5;
     pub const SELF_LIT: u32 = 1 << 6;
@@ -42,15 +45,7 @@ pub mod flag {
 /// Named gaps, not guessed compatibility behavior. See the corresponding question.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContractGap {
-    PlacementAndAddArgumentsOv1,
-    ShadowAndModelConstructionOv2,
-    ChangeMessageOv3,
-    GetterAndDefaultsOv4,
-    HandlePlacementOv5,
-    StaticAlphaStepOv6,
     WorldTextureTransformOv7,
-    DrawingDetailsOv8,
-    RoundPartitionOv9,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,16 +84,19 @@ pub trait TextureSource: Send + Sync {
 pub enum BindingLookup {
     Slot5,
     Slot6,
-    ShadowSlot11,
 }
 
 pub trait TextureFactory: Send + Sync {
     fn binding(&self, key: u32, lookup: BindingLookup) -> Option<Arc<dyn TextureBinding>>;
+    fn shadow_binding_slot6(&self, key: [u32; 3]) -> Option<Arc<dyn TextureBinding>>;
+    fn key_word_slot11(&self) -> u32;
 }
 
 pub trait TerrainProvider: Send + Sync {
     fn cells(&self) -> [u32; 2];
     fn cell_width(&self) -> f32;
+    /// Terrain slot 68. Optional for headless clients that consume the change queue.
+    fn redisplay(&self, _pass: i32, _water: bool, _rectangle: CellRect, _flags: i32) {}
 }
 
 pub trait ViewProvider: Send + Sync {
@@ -159,6 +157,7 @@ pub struct OverlayManager {
     shadow_binding: Option<Arc<dyn TextureBinding>>,
     initialized: bool,
     geometry: Option<Geometry>,
+    cell_width: Option<f32>,
     dynamic: bool,
     water: bool,
     shadow_quality: i32,
@@ -181,6 +180,7 @@ impl OverlayManager {
             shadow_binding: None,
             initialized: false,
             geometry: None,
+            cell_width: None,
             dynamic: false,
             water: false,
             shadow_quality: 2,
@@ -224,6 +224,7 @@ impl OverlayManager {
             cell_scale: 1.0 / width,
             metres,
         });
+        self.cell_width = Some(width);
         self.decals_drawn = 0;
         self.shadows_drawn = 0;
         drop(self.shadow_binding.take());
@@ -365,6 +366,9 @@ impl OverlayManager {
     fn mark(&mut self, cells: CellRect) {
         if !self.dynamic && !cells.is_empty() {
             self.changed.push(cells);
+            if let Some(terrain) = &self.resources.terrain {
+                terrain.redisplay(0, self.water, cells, 0);
+            }
         }
     }
 
@@ -379,9 +383,6 @@ impl OverlayManager {
     ) -> Result<Handle, Error> {
         self.require_init()?;
         let resources = &self.resources;
-        if lookup == BindingLookup::ShadowSlot11 {
-            return Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2));
-        }
         match resources
             .factory
             .as_ref()
@@ -498,15 +499,84 @@ impl OverlayManager {
         )
     }
 
-    /// Slots 9â€“11 have no published complete argument contract. Only slot 10's
-    /// quality-zero early return can be implemented without inventing inputs.
-    pub fn check_shadow_add(&self, factory_form: bool) -> Result<Handle, Error> {
+    /// Slot 9, including the byte (not boolean-word) flip and owned secondary.
+    pub fn add_shadow_key(
+        &mut self,
+        key: [u32; 3],
+        position: [f32; 2],
+        width: f32,
+        turns: f32,
+        flip_v: u32,
+    ) -> Result<Handle, Error> {
         self.require_init()?;
-        if factory_form && self.shadow_quality == 0 {
-            Ok(Handle::NONE)
-        } else {
-            Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
+        if self.shadow_quality == 0 {
+            return Ok(Handle::NONE);
         }
+        let binding = self
+            .resources
+            .factory
+            .as_ref()
+            .ok_or(Error::NotInitialized)?
+            .shadow_binding_slot6(key);
+        let Some(binding) = binding else {
+            return Ok(Handle::NONE);
+        };
+        let size = binding.size();
+        if size.contains(&0) {
+            return Err(Error::Unsupported(Unsupported::InvalidResourceDimensions));
+        }
+        let aspect = (f64::from(size[1]) / f64::from(size[0])) as f32;
+        let placement = Placement([position[0], position[1], width, turns, 1.0, 1.0, 1.0, 0.0, 0.0]);
+        let (mut primary, cells, _, _) =
+            placement::calculate(placement, aspect, self.geometry.ok_or(Error::NotInitialized)?)?;
+        if flip_v as u8 != 0 {
+            for row in primary.chunks_exact_mut(4) {
+                row[1] = (f64::from(row[3]) + f64::from(-row[1])) as f32;
+            }
+        }
+        let secondary = Some(model::keyed_secondary(primary));
+        let index = self.overlays.insert(Overlay {
+            stamp: 0,
+            secondary,
+            primary,
+            cells,
+            flags: 9,
+            alpha: 1.0,
+            color: [1.0; 3],
+            draw_state: 0,
+            texture_scale: None,
+            binding: Some(binding),
+            source: None,
+        });
+        self.index_and_mark(index, cells);
+        let h = self.handles.insert(HandleRecord {
+            placement,
+            aspect,
+            target: Target::Overlay(index),
+        });
+        Ok(Handle((h | 0x8000_0000) as i32))
+    }
+
+    /// Slot 10 constructs all three key words before forwarding the other words.
+    pub fn add_shadow_group(
+        &mut self,
+        group: u32,
+        position: [f32; 2],
+        width: f32,
+        turns: f32,
+        flip_v: u32,
+    ) -> Result<Handle, Error> {
+        self.require_init()?;
+        if self.shadow_quality == 0 {
+            return Ok(Handle::NONE);
+        }
+        let word = self
+            .resources
+            .factory
+            .as_ref()
+            .ok_or(Error::NotInitialized)?
+            .key_word_slot11();
+        self.add_shadow_key([0x7ab5_0e44, group, word], position, width, turns, flip_v)
     }
 
     /// Six public model inputs. Lighting tokens remain borrowed and opaque;
@@ -524,7 +594,9 @@ impl OverlayManager {
         if self.shadow_quality == 0 {
             return Ok(Handle::NONE);
         }
-        if n <= 0 || n as usize > pairs.len() {
+        // §3.7 reads the first pair even for n<=0; valid backing is required.
+        let count = n.max(1) as usize;
+        if count > pairs.len() {
             return Err(Error::Unsupported(Unsupported::ModelNumericDomain));
         }
         let view = self.resources.view.as_ref().ok_or(Error::NotInitialized)?;
@@ -532,7 +604,7 @@ impl OverlayManager {
             .model_lighting_slot9()
             .ok_or(Error::Unsupported(Unsupported::MissingLighting))?;
         let mut primary = [0.0; 16];
-        if !lighting.projection_slot17(n, source, &mut pairs[..n as usize], descriptor, &mut primary) {
+        if !lighting.projection_slot17(n, source, &mut pairs[..count], descriptor, &mut primary) {
             return Ok(Handle::NONE);
         }
         let cells = if view.shadow_quality() >= 5 {
@@ -553,7 +625,7 @@ impl OverlayManager {
         }
         // Insertion/MarkChanged has already occurred. Unsupported arithmetic
         // preserves that allocated prefix; no native atomic failure is inferred.
-        let secondary = model::secondary(primary, &pairs[..n as usize])?;
+        let secondary = model::secondary(primary, &pairs[..count])?;
         self.overlays.get_mut(handle.index()).unwrap().secondary = Some(secondary);
         Ok(handle)
     }
@@ -628,9 +700,7 @@ impl OverlayManager {
             }
             return Ok(());
         }
-        let Target::Overlay(index) = target else {
-            return Err(Error::Gap(ContractGap::RoundPartitionOv9));
-        };
+        let Target::Overlay(index) = target else { unreachable!() };
         self.handles.get_mut(handle.index()).unwrap().placement = placement;
         self.update_placed_part(index, matrix, cells, repeat)
     }
@@ -760,10 +830,7 @@ impl OverlayManager {
         if let Target::Group(_) = self.target(handle)? {
             return Err(Error::Unsupported(Unsupported::GroupTextureScale));
         }
-        // Selected finite nonzero domain; native exceptional FP behavior is unqualified.
-        if !size.is_finite() || size == 0.0 || !offset.is_finite() {
-            return Err(Error::Unsupported(Unsupported::PlacementNumericDomain));
-        }
+        // §3.4 masked-exception semantics: zero propagates infinities/NaN.
         let r = 1.0 / f64::from(size);
         let t = (r * f64::from(offset) + 1.0) as f32;
         self.edit(handle, true, |overlay| {
@@ -821,7 +888,10 @@ impl OverlayManager {
     }
 
     pub fn stats_string(&self) -> String {
-        format!("{} decals, {} shadows", self.decals_drawn, self.shadows_drawn)
+        format!(
+            "{} decals, {} shadows",
+            self.decals_drawn as i32, self.shadows_drawn as i32
+        )
     }
 
     pub fn self_lit(&self, handle: Handle) -> Result<bool, Error> {
@@ -922,10 +992,14 @@ impl OverlayManager {
         mut apply: impl FnMut(&mut Overlay) -> bool,
     ) -> Result<(), Error> {
         for index in self.handle_indices(handle)? {
+            let mut changed = None;
             if let Some(overlay) = self.overlays.get_mut(index) {
                 if apply(overlay) && invalidate && !self.dynamic && !overlay.cells.is_empty() {
-                    self.changed.push(overlay.cells);
+                    changed = Some(overlay.cells);
                 }
+            }
+            if let Some(cells) = changed {
+                self.mark(cells);
             }
         }
         Ok(())

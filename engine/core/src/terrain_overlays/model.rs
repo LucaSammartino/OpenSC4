@@ -2,6 +2,26 @@
 //! Owned §3.7 fallback and secondary matrix. Foreign lighting retains its opaque inputs.
 use super::{round, CellRect, Error, Geometry, Unsupported};
 
+pub(super) fn keyed_secondary(p: [f32; 16]) -> [f32; 16] {
+    let mut output = [0.0; 16];
+    for row in (0..4).rev() {
+        let [a, b, c, d] = [p[row * 4], p[row * 4 + 1], p[row * 4 + 2], p[row * 4 + 3]].map(f64::from);
+        let cc = f64::from((c * 0.0) as f32);
+        let q = f64::from((d * 0.25 + cc) as f32);
+        let bb = f64::from((b * 0.0) as f32);
+        let aa = f64::from((a * 0.0) as f32);
+        output[row * 4] = ((a * 0.5 + bb) + q) as f32;
+        output[row * 4 + 1] = ((b * 0.5 + aa) + q) as f32;
+        output[row * 4 + 2] = if row == 0 {
+            ((d * 0.0 + aa) + c) + bb
+        } else {
+            ((d * 0.0 + c) + aa) + bb
+        } as f32;
+        output[row * 4 + 3] = ((aa + bb) + cc + d) as f32;
+    }
+    output
+}
+
 pub(super) fn fallback(direction: [f32; 3], b: [f32; 6], g: Geometry) -> Result<CellRect, Error> {
     if b.iter().any(|v| !v.is_finite()) {
         return Err(Error::Unsupported(Unsupported::ModelNumericDomain));
@@ -60,9 +80,7 @@ pub(super) fn secondary(p: [f32; 16], pairs: &[[f32; 2]]) -> Result<[f32; 16], E
     let [umin, vmin, umax, vmax] = extrema(pairs)?;
     let du = (f64::from(umax) - f64::from(umin)) as f32;
     let dv2 = ((f64::from(vmax) - f64::from(vmin)) * 2.0) as f32;
-    if p.iter().any(|v| !v.is_finite()) || !du.is_finite() || !dv2.is_finite() || du <= 0.0 || dv2 <= 0.0 {
-        return Err(Error::Unsupported(Unsupported::ModelNumericDomain));
-    }
+    // §3.7 explicitly has no zero-extent guard: masked FP propagates NaN/Inf.
     let ru = 1.0 / (f64::from(du) * 2.0);
     let rv = 1.0 / f64::from(dv2);
     let su = f64::from(ru as f32);
