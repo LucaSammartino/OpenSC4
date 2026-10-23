@@ -46,7 +46,6 @@ pub mod flag {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContractGap {
     WorldTextureTransformOv7,
-    DrawingDetailsOv8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -158,6 +157,7 @@ pub struct OverlayManager {
     shadow_binding: Option<Arc<dyn TextureBinding>>,
     initialized: bool,
     geometry: Option<Geometry>,
+    cell_width: Option<f32>,
     dynamic: bool,
     water: bool,
     shadow_quality: i32,
@@ -180,6 +180,7 @@ impl OverlayManager {
             shadow_binding: None,
             initialized: false,
             geometry: None,
+            cell_width: None,
             dynamic: false,
             water: false,
             shadow_quality: 2,
@@ -223,6 +224,7 @@ impl OverlayManager {
             cell_scale: 1.0 / width,
             metres,
         });
+        self.cell_width = Some(width);
         self.decals_drawn = 0;
         self.shadows_drawn = 0;
         drop(self.shadow_binding.take());

@@ -339,6 +339,136 @@ fn keyed_flip_byte_and_placement_unchanged() {
 }
 
 #[test]
+fn decal_source_shade_wrap_dispatch_and_dual_masks() {
+    for dynamic in [false, true] {
+        for extension in [false, true] {
+            let mut m = manager(dynamic);
+            let h = m.add_decal_source(Arc::new(Texture), [32., 32.], 16., 0.).unwrap();
+            m.enable_self_lighting(h, 1).unwrap();
+            m.set_texture_scale(h, 16., 0.).unwrap();
+            let (mut d, mut l) = (
+                Drawing {
+                    extension,
+                    ..Drawing::default()
+                },
+                Lighting::default(),
+            );
+            m.draw_frame(FRAME, &mut d, &mut l).unwrap();
+            assert!(d.binds.contains(&(0, false, true)));
+            assert!(d.commands.contains(&DrawCommand::Wrap {
+                stage: 0,
+                modes: [3, 2]
+            }));
+            assert!(d.commands.contains(&DrawCommand::Shade {
+                rgb: [1.; 3],
+                self_lit: true
+            }));
+            assert!(d.commands.contains(&DrawCommand::VertexColors(false, false)));
+            assert!(d.commands.contains(&DrawCommand::ResetTransparency));
+            assert!(d.commands.contains(&DrawCommand::ResetShade));
+            let expected = match (dynamic, extension) {
+                (false, false) => RectangleRoute::LandStatic,
+                (false, true) => RectangleRoute::LandStaticExtension,
+                (true, false) => RectangleRoute::LandDynamic,
+                (true, true) => RectangleRoute::LandDynamicExtension,
+            };
+            assert_eq!(d.rectangles[0].0, expected);
+            assert_eq!(d.releases, usize::from(extension));
+        }
+    }
+    let mut m = manager(true);
+    let h = m
+        .add_overlay_for_rect(Some(Arc::new(Texture)), rect([2, 3], [2, 3]), IDENTITY, 0x18)
+        .unwrap();
+    m.overlays.get_mut(h.index()).unwrap().secondary = Some(IDENTITY);
+    m.shadow_binding = None;
+    let (mut d, mut l) = (Drawing::default(), Lighting::default());
+    m.draw_frame(FRAME, &mut d, &mut l).unwrap();
+    assert_eq!(m.stats_string(), "1 decals, 1 shadows");
+    assert_eq!(d.rectangles.len(), 2); // no area/triangle test at submission/count
+    assert_eq!(d.binds.len(), 1); // debug has no per-record bind and no dummy shared binding
+}
+
+#[test]
+fn disabled_index_scans_records_and_empty_selection_still_cleans_context() {
+    let mut m = manager(false);
+    m.add_city_decal(3).unwrap();
+    let (mut d, mut l) = (
+        Drawing {
+            rows: VisibleRows::default(),
+            ..Drawing::default()
+        },
+        Lighting::default(),
+    );
+    m.draw_frame(FRAME, &mut d, &mut l).unwrap();
+    assert!(d.rectangles.is_empty());
+    assert_eq!((d.resets, d.acquires, d.releases), (1, 1, 1));
+    assert_eq!(
+        d.commands,
+        [DrawCommand::ClearTransform(0), DrawCommand::DepthOffset(91)]
+    );
+    m.handle_settings_message(CHANGE_MESSAGE, [3, 4], 0);
+    m.draw_frame(FRAME, &mut d, &mut l).unwrap();
+    assert_eq!(m.decals_drawn, 1);
+}
+
+#[test]
+fn redisplay_callback_observes_order_and_empty_dynamic_suppression() {
+    type Events = Mutex<Vec<(i32, bool, CellRect, i32)>>;
+    struct Ground(Events);
+    impl TerrainProvider for Ground {
+        fn cells(&self) -> [u32; 2] {
+            [8, 4]
+        }
+        fn cell_width(&self) -> f32 {
+            16.
+        }
+        fn redisplay(&self, pass: i32, water: bool, cells: CellRect, flags: i32) {
+            self.0.lock().unwrap().push((pass, water, cells, flags));
+        }
+    }
+    struct Parent(Arc<Ground>, Arc<View>);
+    impl ViewProvider for Parent {
+        fn terrain(&self) -> Option<Arc<dyn TerrainProvider>> {
+            Some(self.0.clone())
+        }
+        fn texture_factory(&self) -> Option<Arc<dyn TextureFactory>> {
+            self.1.texture_factory()
+        }
+        fn shadow_quality(&self) -> i32 {
+            3
+        }
+        fn shadow_debug(&self) -> i32 {
+            4
+        }
+        fn subscribe(&self, _: u32) {}
+        fn unsubscribe(&self, _: u32) {}
+    }
+    let ground = Arc::new(Ground(Mutex::new(vec![])));
+    let mut m = OverlayManager::new();
+    m.init(Arc::new(Parent(ground.clone(), view(3))), false, true).unwrap();
+    let h = m
+        .add_decal_binding(Some(Arc::new(Texture)), [32., 32.], 16., 0.)
+        .unwrap();
+    let old = m.snapshot(h).unwrap().unwrap().cells;
+    ground.0.lock().unwrap().clear();
+    m.set_position(h, [80., 32.]).unwrap();
+    let new = m.snapshot(h).unwrap().unwrap().cells;
+    assert_eq!(*ground.0.lock().unwrap(), [(0, true, old, 0), (0, true, new, 0)]);
+    ground.0.lock().unwrap().clear();
+    m.set_shown(h, true).unwrap(); // identical value still marks
+    assert_eq!(*ground.0.lock().unwrap(), [(0, true, new, 0)]);
+    ground.0.lock().unwrap().clear();
+    m.dynamic = true;
+    m.set_color(h, [1.; 3]).unwrap();
+    assert!(ground.0.lock().unwrap().is_empty());
+    m.dynamic = false;
+    m.add_overlay_for_rect(Some(Arc::new(Texture)), rect([2, 3], [2, 3]), IDENTITY, 0)
+        .unwrap();
+    assert!(ground.0.lock().unwrap().is_empty());
+}
+
+#[test]
 fn rotated_coefficients_expand_footprint_only_without_repeats() {
     let mut m = manager(false);
     let h = m

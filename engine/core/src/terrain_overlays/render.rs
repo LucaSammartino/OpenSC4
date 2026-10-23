@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 FreeCity4 contributors
 
-use super::{ContractGap, Error, OverlayManager, Unsupported};
+use super::{Error, OverlayManager, Unsupported};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DepthFunction {
@@ -176,15 +176,5 @@ impl OverlayManager {
             }
         }
         self.collect_cells_at_stamp(cells)
-    }
-
-    /// Legacy headless diagnostic. Use draw_frame with drawing/lighting producers
-    /// for rectangle submissions; this overload has no draw-context input.
-    pub fn draw(&mut self, options: FrameOptions, visible_cells: &[[u32; 2]]) -> Result<(), Error> {
-        let selection = self.select_frame(options, visible_cells)?;
-        if selection.skipped_snapshot {
-            return Ok(());
-        }
-        Err(Error::Gap(ContractGap::DrawingDetailsOv8))
     }
 }

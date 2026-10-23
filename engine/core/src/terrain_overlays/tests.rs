@@ -452,7 +452,7 @@ fn conformance_dynamic_snapshot_draws_nothing_without_changing_stats() {
     };
     assert_eq!(m.select_frame(frame, &[]).unwrap().decals, Vec::<u32>::new());
     assert!(m.select_frame(frame, &[]).unwrap().skipped_snapshot);
-    m.draw(frame, &[]).unwrap();
+    m.draw_frame_exact(frame).unwrap();
     assert_eq!(m.stats_string(), "0 decals, 0 shadows");
 }
 
@@ -819,7 +819,6 @@ fn static_visible_cells_deduplicate_overlays_and_apply_shown_part_snapshot_flags
     assert_eq!(m.select_frame(snapshot, &visible).unwrap().decals, [b.index()]);
     m.remove(a).unwrap();
     assert_eq!(m.select_frame(FRAME, &visible).unwrap().decals, [b.index()]);
-    assert_eq!(m.draw(FRAME, &visible), Err(Error::Gap(ContractGap::DrawingDetailsOv8)));
     assert_eq!(m.stats_string(), "0 decals, 0 shadows");
 }
 

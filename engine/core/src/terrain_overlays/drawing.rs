@@ -180,6 +180,7 @@ impl OverlayManager {
                     min: 1,
                     mip: 1,
                 });
+                // OV11: literal first matching rule until simultaneous-bit precedence is specified.
                 let modes = if o.flags & flag::REPEAT != 0 {
                     [3, 3]
                 } else if o.flags & flag::TEXTURE_MATRIX != 0 {
@@ -203,7 +204,6 @@ impl OverlayManager {
             let full = self.shadow_quality > 2 && options.use_second_stage;
             let debug = self.shadow_debug == 4;
             let old_flag = drawing.device_flag7();
-            self.shadows_drawn = 0;
             drawing.command(DrawCommand::DepthOffset(3));
             if !full {
                 drawing.command(DrawCommand::DeviceFlag7(true));
@@ -240,6 +240,7 @@ impl OverlayManager {
                     });
                 }
             }
+            self.shadows_drawn = 0;
             let result = self.draw_shadows(&ids, drawing, lighting, camera, extension, full, debug, p);
             if full {
                 drawing.command(DrawCommand::TextureEnabled {
@@ -288,12 +289,7 @@ impl OverlayManager {
                     matrix: compose(camera, secondary),
                 });
                 if !debug && drawing.location_strength_enabled() {
-                    let width = self
-                        .resources
-                        .terrain
-                        .as_ref()
-                        .ok_or(Error::NotInitialized)?
-                        .cell_width();
+                    let width = self.cell_width.ok_or(Error::NotInitialized)?;
                     let midpoint = [0, 1].map(|axis| {
                         ((f64::from(width) * 0.5) * f64::from(o.cells.min[axis].wrapping_add(o.cells.max[axis]))) as f32
                     });
