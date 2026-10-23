@@ -336,14 +336,14 @@ generated index: the questions live one file per spec, so read only the file for
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
-| view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
+| view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 5 | 6 | WR12 | questions/water-ripples.md |
-| watercraft | 8 | 0 | WC9 | questions/watercraft.md |
+| watercraft | 5 | 3 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **536** | **1263** | | |
+| **total** | **534** | **1266** | | |
