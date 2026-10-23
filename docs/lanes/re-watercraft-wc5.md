@@ -14,7 +14,9 @@ WC3–WC5 stay open with explicit residuals. WC6–WC8 were not re-audited.
   uses/unused entry 34, AI target slew, full normal visual-basis composition.
 - Corrected the earlier spec's normal bow cap and lift from p[24] to p[18],
   including existing vectors. Instructions verify +0x38C for cap and lift.
-- 23 new named vectors (113 total); prose vectors for an engine lane to encode.
+- 26 new named vectors (116 total); prose vectors for an engine lane to encode.
+- Final geometry milestone: §3.2 specifies endpoint outputs, maximum occupant
+  extent and outside-city order/results; it preserves the broader WC3 residual.
 - `python tools/doccheck.py check`: passed. `python tools/questions.py index`
   and `check`: passed. `git diff --check`: passed before this report update.
 - No cargo/clippy/ctest/game runs: spec-only work. No engine files read or
@@ -28,6 +30,7 @@ WC3–WC5 stay open with explicit residuals. WC6–WC8 were not re-audited.
 ## Handoff
 
 - Goal: resolve remaining WC1–WC5 using export and original instructions; spec text only.
+- Final round-2 checkpoint: §3.2 and WC3-G01–G03 add four helper contracts; 116 total named vectors. Outside-city corner order differs from inanimate: (min,min),(max,min),(min,max),(max,max). Continue remaining audit; no merge queue until final completion.
 - Round 2 milestone: WC1 answered; manager spawn writer 0057272C, mode draw >0.5 and groups 4417/4418. Added model-footprint §5.7.3, inanimate corner tables §5.7.4; corrected normal bow cap/lift to p[18]. Added 15 vectors; questions index/check and diff check pass.
 - Worktree reused with detached HEAD as instructed; do not change refs.
 - Done: `7b25ce6c` records initial handoff; read prior report, rules, question list, sections 2–3, 5.1.1–5.2 and 10.2. Prior WC6–WC8 must not be redone. No spec changes yet.

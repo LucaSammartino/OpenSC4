@@ -187,6 +187,31 @@ Evidence for forwarding and Write result preservation: `0x00566EE0–0x00566F53`
 the inventory but do not close WC3's remaining motion helpers or inherited-step
 contracts.
 
+### 3.2 Geometry helper contracts (WC3, partial)
+
+The following are whole-boat receiver contracts. They do not transfer ownership
+of the receiver or supplied output buffers. Output storage and the inherited
+services must be valid; none reports a recoverable failure for a null output
+pointer, malformed bounds or a failed inherited getter.
+
+| Entry | Inputs/result | Behavior and inherited boundary |
+|---|---|---|
+| `0x00567A50` | writable three-float output; void | Sample primary slot 17 GetRadius once; write `P-radius*H` using runtime P at +0x2F4 and H at +0x30C. Include all three components; do not flatten or normalize H. |
+| `0x00567AB0` | writable three-float output; void | Same sampling/fields, write `P+radius*H`. Neither endpoint helper changes boat fields, transform or effects. |
+| `0x00567B10` | no arguments; floating result | Obtain two vec3 bounds from the +4 occupant interface slot 10; return the largest `max-min` side, including y. No absolute value, radius division, margin or model lookup. It ignores the getter's return value. |
+| `0x005681B0` | no arguments; boolean | Obtain the cell rectangle from the +4 occupant slot 11. Test city slot 99 on `(xmin,zmin),(xmax,zmin),(xmin,zmax),(xmax,zmax)` in that order. Return true at first outside corner, false if all pass. Do not push a state here: callers own the 72 push. This corner order differs from the inanimate detector. |
+
+Endpoint x/y products are stored as floats before adding/subtracting P; the z
+product remains in floating evaluation until the final output store. Bounds
+x/y differences pass through float temporaries while the z difference remains
+in floating evaluation for the final maximum comparison. Ordinary finite
+conformance uses tolerance 1e-5; no stable repair of NaNs is specified.
+Evidence: `0x00567A50–0x00567B80`, `0x005681B0–0x00568225`.
+
+The manager collision search and shared footprint builder signatures/results
+and failure paths are in §5.7.3. These contracts expand the owner inventory;
+they do not certify the untraced entries in §10.1.
+
 ## 4. States *[compat]*
 
 `DoStateTick` (`0x00573340`) and the enter and exit hooks extend automata.md §6.6:
@@ -1184,7 +1209,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 113 individually named spec-side vectors. It does **not** certify
+This document supplies 116 individually named spec-side vectors. It does **not** certify
 complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
@@ -1398,3 +1423,11 @@ runtime heading and removal arguments are exact.
 | WC4-V02 | H=(0,0,1), positive v, banking angle a, bow angle zero | Banking up reference=(sin(a),cos(a),0); final R=(cos(a),-sin(a),0), U=(sin(a),cos(a),0), F=(0,0,1). |
 | WC4-V03 | Negative v, identity incoming rotation, H=(0,0,1), p[17]>0 and p[18]>0 | Bank leaves incoming rotation, bow angle zero, final basis identity; visual lift still applies. Speed zero instead leaves transform unchanged. |
 | WC4-V04 | Nonzero speed, vertical H=(0,1,0) | Bow axis H cross world-up is zero; no finite fallback. Do not substitute a default axis or report a boolean failure. |
+
+### 11.12 Geometry helper contract vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-G01 | Runtime P=(10,20,30), H=(2,3,4), GetRadius=5 | Rear output=(0,5,10); front output=(20,35,50). Each call samples radius once; neither normalizes H or changes boat fields. |
+| WC3-G02 | Occupant bounds min=(1,2,3), max=(4,12,8) | Extent helper returns 10, including vertical size; it does not use horizontal radius or model-footprint margins. |
+| WC3-G03 | Rectangle=(2,3,4,5); only (2,5) outside | City queries (2,3),(4,3),(2,5), then true; no fourth query and no state push. All corners inside gives false. |

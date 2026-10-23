@@ -7,6 +7,10 @@
   QueryInterface, Write forwarding, sign and travel-point erase contracts. §3 already resolves
   all four Init flags, ignored base/effect results and timer reset. §10.1 measures 75 attributed
   entries, not the brief's 79. The full per-method/inherited-call contract is still incomplete.
+  re-watercraft-wc5 round 2: §3.2 adds complete front/rear endpoint, maximum
+  occupant extent and outside-city helper contracts; §5.7.3 supplies manager
+  collision-search/shared footprint-builder signatures and failure behavior.
+  Remaining signatures/inherited computations in §10.1 still prevent closure.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
 - **WC4 - sections 5.1, 5.2, 5.3 and 6.1 movement:** please expand Engine_AIBoatMotion, Movement_PositionNew and its four helpers, inherited animation/player-drive steps, and effect/model updates into executable arithmetic, ordering and failure contracts. Missing details include interpolation, steering, speed selection, water height/tilt, collision footprint construction, route-coordinate encodings, whether final docking completion is tested before or after motion, whether wake heading change means vector-delta magnitude or angle, and whether final-approach/following dt is clamped. [no original owner computation accepted as provider input; final docking completion tested also after motion, final approach dt unclamped, wake change uses vector-delta magnitude; far-approach and full animation/drive ticks remain unsupported]
