@@ -116,7 +116,7 @@ void LoadTile(uint32_t instance) {
     cIGZPersistDBRecord* record = nullptr;
     const bool opened = rm->OpenDBRecord(key, &record, false);
     if (!opened || !record) {
-        if (record) { FC4_ACQUIRED(record, "OpenDBRecord"); FC4_RELEASE(record); }
+        if (record) { FC4_ACQUIRED(record, "OpenDBRecord"); FC4_RELEASE_CREATED(record); }
         if (!fc4_network_rules_load(g_rules, instance, nullptr, 0, nullptr)) throw std::runtime_error("missing tile load");
         return;
     }
@@ -129,9 +129,9 @@ void LoadTile(uint32_t instance) {
         ok = (size == 0 || record->GetFieldVoid(data.data(), size)) &&
              fc4_network_rules_load(g_rules, instance, data.data(), size, nullptr);
     } catch (...) {
-        record->Close(); FC4_RELEASE(record); throw;
+        record->Close(); FC4_RELEASE_CREATED(record); throw;
     }
-    record->Close(); FC4_RELEASE(record);
+    record->Close(); FC4_RELEASE_CREATED(record);
     if (!ok) throw std::runtime_error("resource read/load");
 }
 void Invalidate() {

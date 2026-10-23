@@ -9,6 +9,7 @@
 - Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
 - Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison at 1e9ada803.
 - Owner-thread rejection and non-vacuous exactness guards added; NR17 fixture asserts active under NDEBUG.
+- Follow-up guards committed at 8cdaae5d4. Resource-record temporaries now use RELEASE_CREATED; user documentation added.
 - Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
 - Native verify queued: qbuild-20261023-233355-build-ctest, exec session 48101; collect same operation.
 - Next: focused test + fmt, collect native result, diagnose, stable-source all, unique game request to 2032.
@@ -16,6 +17,8 @@
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
 - No game request yet; no round 3 question filed. Native verify above remains outstanding.
+- Game draft: build-runs/game-queue/netrules-r3-2032-a.draft (not enqueued). Label netrules-r3-2032-20261023a, simulator only, turbo through 2032-02-01.
+- Single event-based game waiter prepared at build-runs/await-netrules-game.py; invoke after request submission (no qwait).
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-shadow5-r3-manifest.json.
 
 ## Previous round report (superseded)
