@@ -163,13 +163,12 @@ fn submit(class: u32, id: Option<u32>, path: &[u8], host: &mut impl ResourceOwne
     let Some(segment) = host.create_segment(class, SEGMENT_INTERFACE) else {
         return;
     };
-    if host.initialize_segment(segment) {
-        if !host.set_segment_path(segment, path)
+    if host.initialize_segment(segment)
+        && (!host.set_segment_path(segment, path)
             || !host.open_segment(segment, 1, 0)
-            || !host.register_segment(segment, id)
-        {
-            host.shutdown_segment(segment);
-        }
+            || !host.register_segment(segment, id))
+    {
+        host.shutdown_segment(segment);
     }
     host.release_segment(segment);
 }

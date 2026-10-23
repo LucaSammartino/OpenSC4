@@ -2,9 +2,11 @@
 use super::{resources::*, *};
 use std::collections::{BTreeMap, VecDeque};
 
+type RegistryEntries = Vec<(Vec<u8>, Vec<u8>)>;
+
 #[derive(Default)]
 struct Files {
-    sections: BTreeMap<Vec<u8>, Vec<(Vec<u8>, Vec<u8>)>>,
+    sections: BTreeMap<Vec<u8>, RegistryEntries>,
     directories: BTreeMap<Vec<u8>, Vec<DirectoryEntry>>,
     paths: Vec<Vec<u8>>,
     log: Vec<String>,
