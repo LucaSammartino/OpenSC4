@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-persist-runtime4 (portable persistence runtime) | `core-persist-runtime4` / detached HEAD (engine lane) | in progress: all validation passed; R2 guard stopped queue creation | R3 reuse completed results, finalize report and enqueue actual tip; combined integration gate remains |
+| core-persist-runtime4 (portable persistence runtime) | `core-persist-runtime4` / detached HEAD (engine lane) | ready, bounded source: cargo 5098/0, clippy clean, CMake 4/4, CTest 68/68; six owners partial; ABI unchanged; game n/a | Coordinator combined integration gate; retain PR1-PR3 and PR9-PR13; no native/shadow/default promotion |
 
 ## Result and source
 
@@ -15,6 +15,7 @@ Original milestones: f8f00f3c records independent vectors before implementation;
 - Fmt failures retained: unscoped 1848 diff lines (baseline module order/child drift plus owned formatting); scoped 574 owned diff lines. Counts/first diagnostics survive in `fmt-console.log` and `runtime-format-patches/fmt-scoped-first-failure.log`. Only owned formatting was applied through apply_patch. Rendering-helper recovery notes retain Bash access denial and corrected UTF-8/filename handling; source was untouched before corrected rendering.
 - Scoped fmt then passed exit 0 for all 12 absolute touched-file paths, using skip_children=true,reorder_modules=false to preserve additive shared lists and avoid unrelated traversal. Wrapper's “14 files” counts the two configuration argument tokens.
 - ONE completed final all on f32318db: cargo test --workspace --target i686-pc-windows-msvc, **22 suites / 5098 passed / 0 failed / 0 ignored**, including formats doctests; clippy --workspace --all-targets -- -D warnings exit 0 / 0 diagnostics; CMake **4/4**; full CTest **68/68**, 0 failed, Total Test time **497.35 s**. qbuild and fc4verify both PASS; helper exit 0. CTest's fresh final total replaces no historical evidence. Archives: `build-runs/runtime-gates/all/`, `all-console.log`, `status.json`.
+- Final fc4verify explicitly reported **[the tree changed during the run]**. The change was confined to this lane report; the checked engine tree remains identical. This documentation-only flag is retained, not interpreted as a source failure or silently dropped.
 - No second final all was run for later documentation changes. Generated ABI index remained unchanged (185 interfaces); no plugin/CAPI/ABI/version/default/map/manager/cache changes.
 
 ## Test inventory and oracle limits
@@ -42,21 +43,18 @@ External primitives remain raw byte I/O/seek/position/size/close, buffer allocat
 
 ## Questions, game and next steps
 
-Existing lane questions **PR9-PR13** remain in `docs/specs/questions/persistence.md`: constructors/failure outputs/reentrancy; malformed strings/partial bytes; dimensions/BMP/colour conversion; malformed sizes/QFS framing/failure cleanup; shared stream errors/file-close result precedence. Retain **PR1-PR3**. No new R2 questions.
+Existing lane questions **PR9-PR13** remain in `docs/specs/questions/persistence.md`: constructors/failure outputs/reentrancy; malformed strings/partial bytes; dimensions/BMP/colour conversion; malformed sizes/QFS framing/failure cleanup; shared stream errors/file-close result precedence. Retain **PR1-PR3**. No new R2 or R3 questions.
 
 Game runs: n/a, explicitly excluded for this portable-core task. No game/native probe, live-user-file action, network, native/shadow/replaced/default promotion or ABI change. Ready applies only to the tested bounded source. Coordinator must run the next combined integration gate; resolve questions and implement native adapters/hosts before broader promotion.
 
-## Handoff
-- Goal: finalize existing bounded runtime lane; original R2/3 completed, not a new family/budget reset.
-- Done: full truthful report above committed as 1f33a38e. Preserve it; no implementation work remains for the bounded scope.
-- Done: f32318db commits scoped formatting only in eight owned .rs files; all algorithms still from 7921d6fe. lib.rs/qfs.rs/unrelated descendants unchanged.
-- Done: quick exit 0, 3225/0/0 in 12 suites; 17 new core + 1 formats runtime tests independently accounted, dependent compile and CMake 4/4.
-- Done: scoped touched-file fmt exit 0; skip_children=true,reorder_modules=false, 12 absolute paths.
-- Done: ONE final all exit 0 on f32318db; workspace 5098/0/0 in 22 suites, exact-name 17+1 pass; formats doctests pass; strict clippy exit 0/0 diagnostics; CMake 4/4; CTest 68/68, Total Test time 497.35s. Helper and qbuild/fc4verify all completed.
-- Source: engine tree 35d3aa7e613c6f0b87eb21cdf827e701be0a0147; verified engine diff f32318db..HEAD empty before final report. Later commits only lane document. No new checker needed for documentation.
-- Evidence: build-runs/runtime-gates/all/, all-console.log, status.json (all finished, exit 0, tip f32318db); quick/ and quick-console.log; full per-name runtime-execution-summary.json.
-- Retain baseline-mixed-r1-retained/: real E0433 after 5080 historic passes, CMake214/214, incomplete CTest20/68. Retain both fmt failures and helper recovery notes. No disappearance cause claimed.
-- All six owners remain partial, denominator131/13721B, no exact implemented-byte subtotal. Existing KeyList22/1071B separate unchanged; manager/cache109/8437B untouched. PR1-PR3/PR9-PR13 retained; no native/shadow/default promotion.
-- STOP: queue creation denied by R2 guard at context151k/150k. NO merge-queue file was written. Obeyed immediately; only this handoff/message/commit follows.
-- Exact next: R3 read this report and completed source-corresponding evidence; remove Handoff, restore bounded-ready row, commit, then create merge-queue/core-persist-runtime4.json with actual HEAD tip, kind engine, abi false, game_runs [], state ready. Do not rerun long gates for documentation-only changes. Coordinator combined integration gate still required.
-- Final result must state continue for this stopped R2; R3 is original last allowed round, no fourth/renamed budget. Detached HEAD remains intentional; no refs/switch/merge/push.
+## Final review (original round 3/3, 2026-10-23)
+
+Started clean at `f2d7da6a4805ebe1b1272c994eb3ab0d2de37f16`. Read the copied coordinator final review and R2 result. Recomputed all eight retained SHA-256 hashes (test, clippy, native build, CTest, execution summary, status, all console and scoped fmt console): all match that review. Independently recounted the quick/final totals and all 18 named runtime successes once per run from the raw logs; final CTest total is 497.35 s. Engine trees at the tested source and current HEAD both equal `35d3aa7e613c6f0b87eb21cdf827e701be0a0147`; engine diff is empty and working source is clean. Only this report changes in R3. No quick/fmt/all, game request, source/test change, cache RPC or process action was performed for final reporting.
+
+R2 queue creation was denied at `2026-10-23T00:15:34.122706Z`: **PreToolUse LANE GUARD - CONTEXT BUDGET context151k over150k**. R2 obeyed, committed its handoff at f2d7da6a and returned continue. No queue existed at R3 inspection; this final original round creates the normal queue only after its own report commit. The earlier denial remains evidence, not a prior successful enqueue or a failed test. No fourth round, rename, ref update, merge/rebase/reset or push.
+
+Read-only process metadata refreshed the coordinator's dated observation. At 00:22:37 UTC, inspection Python PID 36248 (created 00:22:37.685713, parent PowerShell 26540 created 00:22:37.457155, parent runner 28308 created 00:22:37.372730) had this worktree as cwd; argv was `"C:\Program Files\Python312\python.exe" build-runs/final-review-processes-r3.py`, launched by that PowerShell's inspection command. Cache daemon 24128 (parent 15964, created 2026-10-22 23:49:34.380758 UTC) had cwd `C:\Users\tlori\.cargo\bin\` and argv `"C:\Users\tlori\.cargo\bin\sccache.EXE"`; its only observed child was conhost 24008 (created 23:49:34.385736, cwd `C:\WINDOWS\`, argv `\??\C:\WINDOWS\system32\conhost.exe 0x4`). Neither was disturbed.
+
+At 00:25:01 UTC, expected R3 supervisor Python 29720 (parent 12644, created 00:20:06.891932) was identified by argv naming the lane backend and `run4-core-persist-runtime4-r3-manifest.json`; its cwd read was denied. Additional daemon 35784 (parent 14204, created 00:21:14.985130) and service descendants were inspected: compiler/cargo argv targeted `train-integration`, not this lane. Foreign-session cwd reads returned access denied; all queried candidate argv were available. No attributable lane build/test worker was found; no claim of global process absence or daemon idleness is made. These observations are dated metadata, not permanent absence guarantees. Python psutil was unavailable, so metadata used read-only Windows APIs; a PowerShell relative-path display method was unavailable and corrected for hash display. Neither affected source or retained gates.
+
+The queue describes the full persistence and resources change as kind engine, ABI false, no game runs, state ready, with the actual clean committed HEAD. Readiness is bounded by the partial-owner and oracle limits above. Combined integration remains coordinator work.
