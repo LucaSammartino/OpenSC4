@@ -248,12 +248,12 @@ generated index: the questions live one file per spec, so read only the file for
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
-| legacy-control | 5 | 4 | LC11 | questions/legacy-control.md |
+| legacy-control | 7 | 5 | LC14 | questions/legacy-control.md |
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
-| lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
+| lot-developer | 6 | 32 | LD39 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
@@ -342,7 +342,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 3 | 5 | VW9 | questions/view3d-window.md |
-| water-ripples | 8 | 6 | WR15 | questions/water-ripples.md |
+| water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **551** | **1311** | | |
+| **total** | **552** | **1317** | | |
