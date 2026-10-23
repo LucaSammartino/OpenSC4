@@ -46,13 +46,9 @@ pub struct SequenceController {
     pub direction: i8,
 }
 
-fn step(frame: &mut u16, start: u16, count: u32, direction: &mut i8, mode: u8) -> bool {
-    if count <= 1 {
-        return false;
-    }
-    let end = start.wrapping_add((count - 1) as u16);
+fn step(frame: &mut u16, start: u16, end: u32, direction: &mut i8, mode: u8) {
     if *direction > 0 {
-        if *frame == end {
+        if u32::from(*frame) == end {
             match mode {
                 3 => *frame = start,
                 2 => {
@@ -61,7 +57,6 @@ fn step(frame: &mut u16, start: u16, count: u32, direction: &mut i8, mode: u8) -
                 }
                 _ => {
                     *direction = 0;
-                    return true;
                 }
             }
         } else {
@@ -70,21 +65,36 @@ fn step(frame: &mut u16, start: u16, count: u32, direction: &mut i8, mode: u8) -
     } else if *direction < 0 {
         if *frame == start {
             match mode {
-                3 => *frame = end,
+                3 => *frame = end as u16,
                 2 => {
                     *direction = 1;
                     *frame = frame.wrapping_add(1);
                 }
                 _ => {
                     *direction = 0;
-                    return true;
                 }
             }
         } else {
             *frame = frame.wrapping_sub(1);
         }
     }
-    true
+}
+
+impl SequenceController {
+    fn advance(&mut self) {
+        if self.length > 1 {
+            let start = self.starts[usize::from(self.selected)];
+            let end = start.wrapping_add(self.length - 1);
+            step(&mut self.current, start, u32::from(end), &mut self.direction, self.mode);
+        }
+    }
+
+    fn validate_advance(&self) -> Result<(), PlaybackError> {
+        if self.length > 1 && usize::from(self.selected) >= self.starts.len() {
+            return Err(PlaybackError::InvalidFrame);
+        }
+        Ok(())
+    }
 }
 
 impl Playback {
@@ -96,14 +106,20 @@ impl Playback {
     }
     /// Returns dirty state, not whether the frame byte changed (Â§4.2).
     pub fn advance_unsequenced(&mut self, count: u32) -> Result<bool, PlaybackError> {
+        // The comparison is signed, but the endpoint remains full-width until
+        // the frame is stored as a byte. In particular count 300 has no reachable
+        // forward endpoint; count 65537 must not alias frame zero.
+        if (count as i32) <= 1 {
+            return Ok(false);
+        }
         let mut frame = self.frame as u16;
         let previous_direction = self.direction;
-        let dirty = step(&mut frame, 0, count, &mut self.direction, self.play_mode);
+        step(&mut frame, 0, count - 1, &mut self.direction, self.play_mode);
         if previous_direction != 0 && self.direction == 0 {
             self.position = 0.;
         }
         self.frame = u32::from(frame as u8);
-        Ok(dirty)
+        Ok(true)
     }
     pub fn tick_unsequenced(&mut self, elapsed: f32, count: u32) -> Result<TickResult, PlaybackError> {
         let mut next = *self;
@@ -220,11 +236,8 @@ impl<O> AnimatedSprite<O> {
     }
     pub fn advance_frame(&mut self) -> Result<u32, PlaybackError> {
         if let Some(c) = &mut self.sequence {
-            let start = *c
-                .starts
-                .get(usize::from(c.selected))
-                .ok_or(PlaybackError::InvalidFrame)?;
-            step(&mut c.current, start, u32::from(c.length), &mut c.direction, c.mode);
+            c.validate_advance()?;
+            c.advance();
             self.copy_controller_frame();
         } else {
             self.frame_dirty |= self.state.playback.advance_unsequenced(self.loaded.frame_count)?;
@@ -233,17 +246,22 @@ impl<O> AnimatedSprite<O> {
     }
     pub fn tick(&mut self, elapsed: f32) -> Result<u32, PlaybackError> {
         let mut p = self.state.playback;
+        // Safe diagnostics are transactional, including the decoded controller.
+        // Controller mode/direction never replace the owner's clock direction.
+        let mut sequence = self.sequence.clone();
         let result = p.tick_with(elapsed, |p| {
-            if self.sequence.is_some() {
-                let old = self.frame();
-                self.advance_frame()?;
-                p.frame = self.state.playback.frame;
-                Ok(old != self.frame())
+            if let Some(c) = &mut sequence {
+                c.validate_advance()?;
+                c.advance();
+                let dirty = u32::from(c.current) != p.frame;
+                p.frame = u32::from(c.current as u8);
+                Ok(dirty)
             } else {
                 p.advance_unsequenced(self.loaded.frame_count)
             }
         })?;
         self.state.playback = p;
+        self.sequence = sequence;
         self.frame_dirty |= result.frame_changed;
         Ok(result.status())
     }

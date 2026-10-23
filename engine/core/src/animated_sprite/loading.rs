@@ -5,6 +5,34 @@ use super::{numeric::X, *};
 pub const MODEL_HEADER_IID: u32 = 0x29a5d1ec;
 pub const TEXTURE_SERVICE_ID: u32 = 0x1ac0e11a;
 pub const TEXTURE_SERVICE_IID: u32 = 0xfac0e219;
+pub const FOREIGN_ANIMATED_RESOURCE_IID: u32 = 0x9ad0e7e3;
+
+/// An acquired foreign resource. Dropping it releases that acquisition; model
+/// creation and ownership of the output remain the foreign resource's contract.
+pub trait ForeignAnimatedResource<M> {
+    fn create_model(&self, argument: u32, output: &mut M) -> bool;
+}
+
+pub trait ForeignAnimatedResources {
+    type ModelOutput;
+    type Resource: ForeignAnimatedResource<Self::ModelOutput>;
+
+    fn animated_resource(&mut self, key: ResourceKey, iid: u32, options: [u32; 2]) -> Option<Self::Resource>;
+}
+
+/// §2's foreign route (the native GetSpriteAnimFromResourceKey export).
+/// Pass the same caller output to slot 4, even when it returns false. There is
+/// no model QI/AddRef, output clearing or sprite allocation on this route.
+pub fn create_foreign_from_key<S: ForeignAnimatedResources>(
+    key: ResourceKey,
+    services: &mut S,
+    output: &mut S::ModelOutput,
+) -> bool {
+    let Some(resource) = services.animated_resource(key, FOREIGN_ANIMATED_RESOURCE_IID, [0, 0]) else {
+        return false;
+    };
+    resource.create_model(0, output)
+}
 
 #[derive(Debug)]
 pub struct ModelHeader {
@@ -165,8 +193,8 @@ impl<O> AnimatedSprite<O> {
     }
 }
 
-/// Â§2's sprite route. The other factory's resource-manager IID/return interface
-/// is not specified (AS11); no fabricated successful foreign-model factory.
+/// §2's sprite route. Use `create_foreign_from_key` for the other native route;
+/// `creation_route` preserves the native swapped-name dispatch.
 pub fn create_sprite_from_key(
     key: ResourceKey,
     services: &mut impl OwnerResourceServices,
