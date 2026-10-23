@@ -7,7 +7,9 @@
 - Done: initial handoff 3a8069b97; implemented default-off getter-contract shadow and private core transport.
 - Scope: 25 fields per manager, four managers, load/month/shutdown; no native writes or retained pointers.
 - OV12 filed: exact arena enumeration/replay inputs absent; live records/cells/textures remain blocked.
-- Next: collect focused cargo test session 68887, then stable-source all + queued verify and game to 2032.
+- Done: implementation bd552f9e9; focused cargo test 1/1; full workspace cargo 6696/6696, clippy 0 diagnostics.
+- Next: collect qbuild all session 61030 (native build/CTest queued as qbuild-20261024-002330-build-ctest), then game to 2032.
 - Constraints: clean-room; no native signatures inferred; no tools/ access.
 - Gate: absolute-path fmt passed; relative-path fmt failed (resolved); q.py Bash failed Win32 error 5.
+- Gate logs: build-runs/qbuild-test.log and qbuild-clippy.log; native verdict still pending, do not duplicate.
 - Game: not started; no outstanding requests. No full-overlay coverage claim.
