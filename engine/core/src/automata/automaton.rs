@@ -483,6 +483,41 @@ pub struct AutomatonBase {
 }
 
 impl AutomatonBase {
+    /// Shared slot 51 contract, also used by non-traffic owners.
+    pub fn set_state(&mut self, state_type: u32, args: SetStateArgs) -> bool {
+        if self.states.last().map(|s| s.base.is_final).unwrap_or(false) {
+            return false;
+        }
+        self.states = vec![args.to_state(state_type, RefValue::Null)];
+        reindex(&mut self.states);
+        true
+    }
+
+    /// Shared slot 52 contract. A null-controller DEFAULT replaces the stack.
+    pub fn push_state(&mut self, state_type: u32, args: SetStateArgs) -> bool {
+        if state_type == state_type::DEFAULT && args.controller == 0 {
+            return self.set_state(state_type, args);
+        }
+        self.states.push(args.to_state(state_type, RefValue::Null));
+        reindex(&mut self.states);
+        true
+    }
+
+    /// Shared slot 53 contract, including final-state DISAPPEAR insertion.
+    pub fn pop_state(&mut self) -> bool {
+        let Some(top) = self.states.last() else {
+            return false;
+        };
+        if top.base.is_final && top.state_type != state_type::RIOT_END {
+            self.states
+                .push(SetStateArgs::default().to_state(state_type::RIOT_END, RefValue::Null));
+        } else {
+            self.states.pop();
+        }
+        reindex(&mut self.states);
+        true
+    }
+
     /// The base of a new automaton: occupant type `0x496E5783`, visible, no
     /// states, version 8.
     pub fn new() -> AutomatonBase {
@@ -1321,12 +1356,9 @@ impl Automaton {
     /// end's `SetState(1, …)` is a no-op against its leader (§8.1).
     pub fn set_state(&self, state_type: u32, args: SetStateArgs) -> bool {
         let mut r = self.rec.borrow_mut();
-        if r.base().states.last().map(|s| s.base.is_final).unwrap_or(false) {
+        if !r.base_mut().set_state(state_type, args) {
             return false;
         }
-        let mut states = vec![args.to_state(state_type, RefValue::Null)];
-        reindex(&mut states);
-        r.base_mut().states = states;
         *self.last_set_state.borrow_mut() = Some((state_type, args));
         true
     }
@@ -1337,34 +1369,14 @@ impl Automaton {
         if state_type == state_type::DEFAULT && args.controller == 0 {
             return self.set_state(state_type, args);
         }
-        let mut r = self.rec.borrow_mut();
-        let mut states = std::mem::take(&mut r.base_mut().states);
-        states.push(args.to_state(state_type, RefValue::Null));
-        reindex(&mut states);
-        r.base_mut().states = states;
-        true
+        self.rec.borrow_mut().base_mut().push_state(state_type, args)
     }
 
     /// Slot 53 `PopState`: false when the stack is empty. **A `final` state
     /// that is not already type 1 does not reveal the state below — it pushes
     /// DISAPPEAR (type 1) instead** (§12 quirk 11, `0x0050B660`).
     pub fn pop_state(&self) -> bool {
-        let mut r = self.rec.borrow_mut();
-        let mut states = std::mem::take(&mut r.base_mut().states);
-        let Some(top) = states.last() else {
-            r.base_mut().states = states;
-            return false;
-        };
-        if top.base.is_final && top.state_type != state_type::RIOT_END {
-            states.push(SetStateArgs::default().to_state(state_type::RIOT_END, RefValue::Null));
-            reindex(&mut states);
-            r.base_mut().states = states;
-            return true;
-        }
-        states.pop();
-        reindex(&mut states);
-        r.base_mut().states = states;
-        true
+        self.rec.borrow_mut().base_mut().pop_state()
     }
 
     /// Slot 56 `GetState`: the type of the top state.
