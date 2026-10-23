@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` | blocked: round 2 full REA preflight fails; no behavior publication | Coordinator repairs configured REA entrypoint and obtains full guard/handshake pass before further research |
+| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` (RE) | in progress: original round 3/3, copied host admission verified | Complete primary identity and bounded matrix/iterator contract |
+
+## Handoff
+
+- Goal: original final round 3/3, primary export/instruction matrix and iterator behavior only.
+- Initial HEAD `b1304240`, clean; prior R1/R2 reports preserved below.
+- Copied proof is in `build-runs/evidence-run4/coordinator-sparsematrix-final-host-proof.json` (not build-runs root).
+- Proof pins own b1304240, next_round 3, full host framework services (RZ) guard exit 0, dependency ancestor exit 0.
+- Actual main build-runs R3 manifest matches own lane, kind re, round 3 and exact worktree; no isolated spawn preflight rerun.
+- Catalog fixture metadata establishes supported host-admission workflow only; live REA target remains UNKNOWN. No live retry.
+- Current binary SHA256 matches prior export-summary hash 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b; locate actual export summary next.
+- Name query: 18 matrix names, 1 iterator, 2 foreign AutoPtr entries; not 39 unique bodies.
+- Next: inspect summary, canonical instruction queries and matching decomp; publish algorithms by calls 25–30.
+- No engine reads, builds, runtime/game requests, ABI proposals or native-executed vectors.
 
 ## Round 2 report (2026-10-23)
 
