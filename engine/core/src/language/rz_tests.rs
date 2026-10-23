@@ -656,7 +656,7 @@ fn formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last() {
         }
     }
     let mut text = s(b"old");
-    for c in [b'e', b'E', b'f', b'g', b'G'] {
+    for c in *b"eEfgG" {
         let format = [b'%', b'#', b'+', b'0', b'8', b'.', b'2', c, b'|', b'%', b'6', b'p'];
         text.sprintf(
             &format,
