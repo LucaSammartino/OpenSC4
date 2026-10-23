@@ -5,10 +5,6 @@
 - **VH1 - §3, §5, §6:** the U-Drive-It physics of the vehicle, train and tank (`DoPlayerDriveTick`,
   `PlayerDriveUpdateSpeed`, the derail draw, the tank shot) in full. [as read]
 
-<!-- from: re-vehicles (2026-10-21) -->
-- **VH2 - §2:** how `FindBestNeighborConnection` ranks the neighbour connections, and the slots 159, 167, 168 and
-  175 it and the look-ahead fill use. [as read]
-
 <!-- from: core-vehicles5 (2026-10-23) -->
 - **VH5 - §5: train-owned algorithms.** Supply car count/model/length/colour
   selection and random draws, car placement/following geometry and random sound

@@ -436,14 +436,23 @@ Conformance vectors:
 | Blur ring index 2; opacity 1; all slots present | Slots 2,1,0,3 receive approximately `1,2/3,1/3,0`; next index 3. |
 | Blur opacity -0.25; current model request fails | Existing current slot absent; next three slots receive 0; ring still advances. |
 
-### 12.5 Neighbour ranking and look-ahead evidence (VH2, partial)
+### 12.5 Neighbour ranking and look-ahead contracts (VH2)
 
 The neighbour selector (`0x00554EA0`) ranks successful pathfinder results by **route-entry count**, not
 Euclidean distance or a random draw. Only status 1 qualifies; an equal-sized route does not replace the
 earlier winner. Clamp each candidate destination cell to the city rectangle before pathfinding. The selector
 requires the city, neighbour-connection service and pathfinder service; a missing prerequisite returns null.
-The complete path-request setup and helper contracts remain VH2's open portion; this paragraph must not be
-read as closing the owner implementation. Ranking evidence: `0x00555114–0x0055523B`.
+Ranking evidence: `0x00555114–0x0055523B`. Collect connections in network-type order **3, 12, 8, 2, 10**,
+preserving each collection's order. Convert the automaton's X/Z position to the start cell through the city's
+coordinate conversion. Both start and end rectangles are single cells. The path request uses travel mask 2
+(also starting), traffic density 0, flag 1 and destination filter 3. Associate its output with a temporary route
+deque; after each attempt reset the finder and clear that deque. A successful zero-entry route is eligible
+and beats every positive entry count. The winning connection is retained during selection, but the returned
+object is a **network occupant at its clamped end cell**, obtained through the cell-lookup service at
+`0x00B43D54` (slot 14), not the neighbour-connection object itself. No winning connection, missing lookup
+service, or missing cell lookup leaves the output null. This lookup does not cause another ranking/pathfinding pass. The selector neither installs
+the winning route on the automaton nor calls SlowDown. Request evidence: `0x00554F00–0x00554F59`,
+`0x0055501F–0x005550ED`, `0x0055514C–0x00555287`; pathfinder slot meanings: pathfinder.md §9.
 
 Look-ahead fill (`0x00554870`) seeds an empty deque with the current retained network reference and packed
 path word, then fills to **slot 175's count plus one**, including the seed. It stops at a terminal node. A
@@ -451,3 +460,136 @@ failed expansion marks the preceding node terminal and returns false. The base s
 returns the unsigned tuning byte at `0x00B21D28`; it is not a fixed literal count. Flag `0x40` selects the
 explicit-route expansion (slot 168, `0x005527E0`); when clear, use slot 167 (`0x00550F40`). Slot 159 is
 `SlowDown` (`0x0054DA00`), not the neighbour ranking operation.
+
+**Node and path-word contract.** A look-ahead node comprises a retained network reference, a packed `u32`
+path word, and a terminal bool. The word's low byte is exit direction; byte 1 is entry direction; bits 24–27
+are the path's lane/type selector. The expansion routines preserve that selector, set the new entry to
+`(old exit + 2) mod 4`, and pack a successful exit as
+`selector × 0x01000000 + entry × 0x100 + exit`; byte 2 and bits 28–31 are zero in this newly packed word.
+They accept a previous node and an output node, and return a bool. A false result may already have changed
+the output reference or consumed explicit route data: these are not transactional operations.
+Evidence: `0x00550F59–0x00550F79`, `0x0055107E–0x00551090`, `0x005527F7–0x00552824`,
+`0x0055293D–0x00552952`, `0x005529FA–0x00552A07`.
+
+**Ordinary expansion (slot 167).** The traffic-network service's next-tile query receives the previous
+reference and path word, mode **0**, and selector. No result, or a result with no network occupant, fails.
+The returned occupant becomes the output reference even if no exit subsequently succeeds. Obtain its path
+information, and ask for an ordered four-direction list using its directional traffic data. This is an
+interface boundary with the traffic-network and traffic-simulator services: it uses their returned order and
+eligible-direction count, not Euclidean distance, the neighbour selector's shortest-route comparison, or an
+owner-side random permutation. The query at `0x0054E6F0` supplies the automaton's travel type, the simulator's
+travel-type scaling value, and the returned tile to obtain a 4 × 4 directional table; automaton slot 170 may
+adjust that table for attraction before traffic-network slot 6 supplies the ordered row for the new entry.
+The underlying service's ranking/draw policy is outside these four owner slots.
+
+In that order, an exit qualifies when the network occupant accepts `(selector, new entry, candidate exit)`
+through network-occupant slot 53 (`+0xD4`). An automaton whose slot 141 returns true additionally excludes the
+previous path word's **entry byte** from this list. Traffic's base slot 141 returns false, so it does not make
+that exclusion. On an accepted exit, set the packed word and succeed; the ordinary expansion does not itself
+set the terminal bool on this path (the fill routine initializes the output bool to false).
+
+A rejected exit has a special fallback when its list index is **strictly less** than the eligible-direction
+count and fallback is allowed. Request a generated path from the occupant's path-information service (slot 9,
+`+0x24`) with `(selector, new entry, 0xFF, tuning-data at 0x00B21D78, output word, 0)`, mark the output
+terminal and return true. The owner does not test the generator's return value. Fallback is forbidden if the
+automaton's byte `+0x1E8` is nonzero, travel type is 7 or 8, automata flag `0x200000` is set, or its current
+network occupant exists and reports network flag 2. Otherwise fallback is allowed. Exhausting all four exits
+returns false. Evidence: `0x00550F7C–0x005510CA`, `0x0054E6F0–0x0054E77F`,
+`0x0054EA30–0x0054EA77`; the base slot-141 target `0x00648EF0` returns false.
+
+**Explicit-route expansion (slot 168).** Empty route data fails. Otherwise take the first route triple's
+unsigned X and Z bytes, obtain the network list at that cell, and **consume that triple before checking for
+a usable connection**. The third byte is not used by this routine. If another triple remains, derive the
+desired exit by comparing it with the consumed cell: negative Z delta → 1, positive Z delta → 3, otherwise
+negative X delta → 0, otherwise → 2. Thus a duplicate cell selects 2, and Z takes precedence for a diagonal
+pair. Inspect the cell's network occupants in service-list order and use the first non-null one accepting
+`(selector, new entry, desired exit)`. Retain it, pack the word, clear terminal and succeed. A missing list or
+no accepting occupant fails without restoring the consumed triple. Evidence: `0x00552824–0x0055295F`.
+
+Consuming the last triple instead marks the output terminal and asks the next-tile service using the previous
+reference/path, mode **1**, and selector. No next tile fails. Otherwise retain its occupant and try four exits
+cyclically, starting with `(new entry + 2) mod 4`; use the first that accepts the same selector and new entry.
+No accepted exit fails. Success packs the word and leaves terminal true. This branch does not use ordinary
+expansion's generated-path fallback, nor slot 141's exclusion. Evidence: `0x00552962–0x00552A15`.
+
+**Fill result and failure.** A terminal tail prevents further expansion; already having the target node
+count succeeds without expanding. A missing tail reference
+also prevents expansion. Expansion failure appends no output node and marks the existing tail terminal;
+successful expansion appends its retained result. Request count zero still requires the seed (target size one).
+Evidence: `0x00554894–0x00554938`, `0x00554978–0x005549C8`, `0x00554A6D–0x00554AA8`.
+
+**SlowDown (slot 159).** Request a speed tween to zero. With positive `GetSpeedModifier()` (`slot 125`), its
+duration is binary32 `(1 / modifier) × 1.5`, in that operation order; with a nonpositive modifier it is
+binary32 `0.1` (`0x3DCCCCCD`). This is unrelated to ranking. Instruction evidence:
+`0x0054DA04–0x0054DA42`; literals `0x00A81228 = 1`, `0x00A880D4 = 1.5`.
+
+Conformance vectors (use controlled service results for the foreign network/pathfinder interfaces):
+
+| Setup | Required outcome |
+|---|---|
+| Connections A/B/C in collection order give `(status,count)` = `(1,9)`, `(1,4)`, `(1,4)` | B wins; C does not replace it |
+| A gives `(2,1)`, B gives `(1,8)`, C gives `(1,0)` | C wins; status 2 is ineligible |
+| City 8 × 6; candidate end cell `(9,−1)` | Finder receives end rectangle `(7,0,7,0)` |
+| Winning connection A at clamped cell; network-cell lookup returns occupant B | Return retained B; do not run another path request |
+| A wins but its network-cell lookup is missing | Return null, not the neighbour connection A |
+| Old word `0xA3EE0102`; accepted exit 3 | Selector 3, entry 0; new word `0x03000003` |
+| Ordinary service order `[3,2,0,1]`; only exits 2 and 0 accept | Choose 2; no geometric re-ranking |
+| Ordinary rejection at index 0, eligible count 1, fallback allowed | Generate terminal path immediately, even if later exits might accept |
+| Same rejection with eligible count 0, or fallback forbidden | Do not generate; continue trying exits |
+| Explicit cells `(4,5)` then `(3,4)` | Consumes `(4,5)` and seeks exit 1 (Z comparison wins) |
+| Explicit duplicate cells `(4,5)` then `(4,5)` | Seeks exit 2 |
+| Explicit first cell has no usable network | False; first triple remains consumed |
+| Last explicit cell; new entry 1 | Next-tile mode 1; exit tests are 3, 0, 1, 2; terminal true |
+| Fill target size 3; only seed exists and expansion fails | False; size remains 1; seed becomes terminal |
+| Slot 175 returns 0 and deque starts empty | Seed only; true without expansion |
+| Speed modifiers 2, 0, −1 | SlowDown durations 0.75, 0.1, 0.1 respectively; all target speed 0 |
+
+### 12.6 Inherited state clarifications (VH9, partial)
+
+These are additional native contracts for traffic, vehicle, TrainCar and Train. VH9 remains open for its
+other inherited handlers and dispatch hooks; this subsection does not claim complete inherited-state closure.
+
+**Countdown and controller precedence.** The base state dispatcher first subtracts the tick's millisecond
+delta from a strictly positive state timeout. Only a result **strictly below zero** pops the state: reaching
+exactly zero does not pop it and subsequent ticks no longer decrement that zero. After a pop, the newly
+exposed state receives the full tick delta; no residual-time calculation occurs. If the stack became empty,
+the dispatcher returns true. Otherwise its controller, if present, gets `(automaton, state type, full dt)`
+before the built-in handler. A true controller result bypasses that handler. A false controller result runs
+the built-in handler. Evidence: `0x00508AA0–0x00508C11`.
+
+**PLOP_JUMP.** With removal flag 1 set, return false without moving. Otherwise X/Z remain unchanged and the
+candidate Y is `old Y + dt_ms × vertical velocity`. When candidate Y is strictly below the saved floor, clamp Y
+to the floor and leave the velocity unchanged. When it is at or above the floor apply
+`velocity := velocity + gravity × dt_ms`; gravity is binary32 `0xB8690455` (about −0.000055555563).
+MoveTo receives the resulting position and a null orientation, and the handler returns true. Landing does
+**not** pop the state or reset velocity. Evidence: `0x005055F0–0x0050568F`; the ordered operations and floor
+comparison are at `0x00505630–0x00505676`.
+
+**ATTACH_ANIM.** AttachAnim takes the model resource input, animation selector, return/handled bool and state
+timeout. It first pushes state 19 with the supplied timeout and no controller, then stores the bool and
+selector and acquires an added model instance. A successful model acquisition retains that model, selects the
+animation (model slot 16) and sets its animation mode/value through model slot 18 to `(1,0)`; return true.
+A failed push returns false with no added model. Failed model creation returns false **with the pushed state
+still present**. Evidence: `0x005102A0–0x00510358`.
+
+On tick, removal flag 1 returns false before accessing the model. With a model, obtain its model-properties
+record (model's property-interface slot 15, `+0x3C`). If its final float is below 1, set it to
+`min(1, old value + dt_ms / (T × 0.5))` through model slot 18 with first argument 1, where T is runtime tuning
+float `0x00B21C84`. The additions/division use the instruction order shown, with a binary32 store before the
+clamp. Independently, selectors **2 and 3** suppress animation-completion popping. For every other selector,
+a present model whose current frame (slot 11) is at least frame count (slot 12) minus one causes PopState and
+returns true. Otherwise return the state's saved bool, including when the model is null. Do not pop a null
+model automatically. Evidence: `0x00508F80–0x00509067`, especially `0x00508FD5–0x0050901C` and
+`0x0050901F–0x00509065`.
+
+| Conformance setup | Required outcome |
+|---|---|
+| Timeout 20 ms; tick 20 ms, then tick 1 ms | Timeout becomes zero and stays zero; neither tick pops on timeout |
+| Timeout 20 ms; tick 21 ms, previous state exists | Pop once; exposed controller/handler gets 21 ms |
+| Controller returns true for PLOP_JUMP | No built-in hop movement |
+| Hop floor 10, Y 10.1, velocity −0.01, dt 20 ms | Y becomes 10; velocity remains −0.01; no pop |
+| Hop floor 10, Y 10, velocity 0, dt 20 ms | Y stays 10; gravity changes velocity to approximately −0.0011111113 |
+| Attached selector 2 or 3, last frame reached | No completion pop; return saved bool |
+| Attached selector 1, count 5, current frame 4 | Pop and return true |
+| Attached null model, saved bool false/true | Return false/true respectively; state remains |
+| Attached property value 0.8, T 1000 ms, dt 200 ms | Set `(1,1)` after clamping |

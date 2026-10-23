@@ -1,5 +1,15 @@
 # vehicles: answered questions
 
+<!-- from: re-vehicles (2026-10-21) -->
+- **VH2 - §2:** how `FindBestNeighborConnection` ranks the neighbour connections, and the slots 159, 167, 168 and
+  175 it and the look-ahead fill use. [as read]
+
+  **ANSWERED 2026-10-24 (re-vehicles-vh5b):** DIFFERS — [vehicles.md §12.5](../../vehicles.md#125-neighbour-ranking-and-look-ahead-contracts-vh2)
+  ranks successful paths by entry count, keeps the earlier tie, and defines finder inputs and connection lookup.
+  Slot 159 tweens speed to zero; 167 expands ordinary paths with a guarded terminal fallback; 168 consumes explicit
+  cells even on failure; 175 returns a tuning byte. The section specifies packed words, terminal results and
+  conformance vectors. Foreign network/simulator ordering remains an explicit service boundary.
+
 <!-- from: core-vehicles5 (2026-10-23) -->
 - **VH3 - §1/§5, automata.md §6.4: train and train-car records.** What are each
   class's leading version, exact nested base, field order, car-reference IID,

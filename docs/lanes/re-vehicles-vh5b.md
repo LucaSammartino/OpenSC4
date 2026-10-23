@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-vehicles-vh5b (vehicle owner behaviour) | Codex / `re-vehicles-vh5b` (reserved detached worktree) | WIP: VH4/VH6 answered; questions check and doccheck pass; five questions remain | Continue VH1/VH2/VH5/VH7/VH9 before owner closure |
+| re-vehicles-vh5b (vehicle owner behaviour) | Codex / `re-vehicles-vh5b` (reserved detached worktree) | in progress: Round 2 native evidence audit | Answer remaining questions where evidence permits; queue answered work READY and list remaining gaps |
 
 ## Report
 
@@ -37,6 +37,11 @@ archive/index maintenance and this report. The task's seven-question ready crite
 the merge-queue entry is WIP to avoid presenting unresolved owner algorithms as complete.
 
 ## Handoff
+- Round 2 spec milestone: VH2 complete (§12.5), archive moved; VH9 partial (§12.6) adds countdown/controller precedence, hop and attached animation contracts/vectors.
+- Native investigation stopped at approximately 100000/150000 measured context, following the two-thirds limit. No further broad native investigation this round.
+- Next: run questions index/check and doccheck; commit milestone, then replace stale Round 1 report and queue READY for answered work, listing VH1/VH5/VH7/VH9 open.
+- Round 2 resumed 2026-10-24. Read safe core-vehicles5 report first; its closure table is under forbidden engine/ and was not opened.
+- Round 2 next: finish inherited state/controller/model contracts (VH9), then remaining neighbour/path evidence; retain unresolved questions explicitly.
 - Goal: close the seven vehicle owner questions with behaviour and conformance vectors.
 - Done: lane plan c4cc37cec; two answers, partial VH2, vectors and archive/index d309110be; finishing commit adds Train override/report.
 - Next: complete VH2 by paging `re_query.py asm 00550f40` and `005527e0` and specifying packed path bytes, direction ranking and fallback paths; §12.5 is partial only.
