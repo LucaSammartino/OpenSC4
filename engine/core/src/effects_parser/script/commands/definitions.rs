@@ -52,6 +52,11 @@ pub struct Description {
     pub vectors: BTreeMap<u32, Vec<[f32; 3]>>,
     pub lists: BTreeMap<u32, Vec<u32>>,
     pub strings: BTreeMap<u32, Vec<u8>>,
+    /// Particle D+1CC. Stable insertion includes unordered times.
+    pub timed_effects: Vec<(Vec<u8>, f32)>,
+    /// Particle D+108 and D+1B8, respectively.
+    pub wiggles: Vec<[f32; 7]>,
+    pub tractors: Vec<[f32; 8]>,
 }
 impl Description {
     pub fn scalar(&mut self, at: u32, value: f32) {

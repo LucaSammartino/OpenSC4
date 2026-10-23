@@ -62,6 +62,49 @@ pub const LIGHT: [Registration; 6] = [
     direct("colour", 0x00a9fc88, 0x0059d060),
     direct("colour255", 0x00a9fc88, 0x0059d060),
 ];
+pub const DECAL: [Registration; 11] = [
+    direct("color", 0x00a9fc28, 0x0059ccd0),
+    direct("color255", 0x00a9fc28, 0x0059ccd0),
+    direct("colour", 0x00a9fc28, 0x0059ccd0),
+    direct("colour255", 0x00a9fc28, 0x0059ccd0),
+    direct("alpha", 0x00a9fc18, 0x0059ce40),
+    direct("alpha255", 0x00a9fc18, 0x0059ce40),
+    direct("size", 0x00a9fc08, 0x00599ce0),
+    direct("aspect", 0x00a9fbf8, 0x00599e50),
+    direct("rotate", 0x00a9fbe8, 0x00599f10),
+    direct("life", 0x00a9fbd8, 0x005985c0),
+    direct("texture", 0x00a9fbc8, 0x005a1e80),
+];
+pub const EFFECT_GROUP: [Registration; 1] = [direct("instance", 0x00a9fa08, 0x00596980)];
+pub const EFFECT: [Registration; 19] = [
+    direct("particleEffect", 0x00a9feac, 0x005a0120),
+    direct("dynamicParticleEffect", 0x00a9fe9c, 0x005a0350),
+    direct("decalEffect", 0x00a9fe8c, 0x005a0480),
+    direct("shakeEffect", 0x00a9fe7c, 0x005a05f0),
+    direct("flashEffect", 0x00a9fe6c, 0x005a08e0),
+    direct("tintEffect", 0x00a9fe5c, 0x005a0a90),
+    direct("soundEffect", 0x00a9fe4c, 0x005a2a50),
+    direct("chainEffect", 0x00a9fe3c, 0x0059d830),
+    direct("brushEffect", 0x00a9fe2c, 0x005a2cf0),
+    direct("scrubberEffect", 0x00a9fe1c, 0x005a30b0),
+    direct("demolishEffect", 0x00a9fe1c, 0x005a30b0),
+    direct("gameEffect", 0x00a9fe1c, 0x005a30b0),
+    direct("mapEffect", 0x00a9fe1c, 0x005a30b0),
+    direct("automataEffect", 0x00a9fe0c, 0x005a3710),
+    direct("sequenceEffect", 0x00a9fdfc, 0x005a3890),
+    direct("cameraEffect", 0x00a9fdec, 0x005a3930),
+    direct("visualEffect", 0x00a9fddc, 0x005a0bd0),
+    Registration {
+        name: "select",
+        descriptor: 0x00a9fdc0,
+        hooks: Hooks::Block(0x00596e70, 0x00596fe0),
+    },
+    Registration {
+        name: "particleSequence",
+        descriptor: 0x00a9fed4,
+        hooks: Hooks::Block(0x00596f50, 0x00596f40),
+    },
+];
 pub fn register(registrations: &[Registration], host: &mut impl Registrar) -> Result<(), Unsupported> {
     for &registration in registrations {
         register_one(registration, host)?;
@@ -83,12 +126,12 @@ mod tests {
             panic!("not a root registration");
         }
         fn allocate(&mut self, bytes: u32) -> Option<Descriptor> {
-            assert_eq!(bytes, 4);
+            assert!(bytes == 4 || bytes == 24);
             self.count += 1;
             Some(Descriptor(self.count))
         }
         fn shared_block_construct(&mut self, _: Descriptor) {
-            panic!("ordinary children only");
+            // Generic block constructor, followed by the registered descriptor.
         }
         fn install_vptr(&mut self, _: Descriptor, _: u32) {}
         fn register(&mut self, d: Descriptor, r: Registration) -> u8 {
@@ -171,5 +214,63 @@ mod tests {
         assert_eq!(SEQUENCE[0].descriptor, 0xa9fcc8);
         assert_eq!(SEQUENCE[1].descriptor, 0xa9fcb8);
         assert_eq!(LIGHT[2].descriptor, LIGHT[5].descriptor);
+    }
+    #[test]
+    fn ec161_ec272_through_ec276_decal_and_group_dictionaries() {
+        let mut h = Host::default();
+        register(&DECAL, &mut h).unwrap();
+        assert_eq!(h.count, 11);
+        assert_eq!(
+            h.registrations
+                .iter()
+                .map(|(_, r)| r.descriptor)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            7
+        );
+        assert_eq!(
+            DECAL.iter().map(|r| r.name).collect::<Vec<_>>(),
+            [
+                "color",
+                "color255",
+                "colour",
+                "colour255",
+                "alpha",
+                "alpha255",
+                "size",
+                "aspect",
+                "rotate",
+                "life",
+                "texture"
+            ]
+        );
+        let mut h = Host::default();
+        register(&EFFECT, &mut h).unwrap();
+        assert_eq!(h.count, 19);
+        assert_eq!(
+            h.registrations
+                .iter()
+                .map(|(_, r)| r.descriptor)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            16
+        );
+        for i in 9..13 {
+            assert_eq!(EFFECT[i].descriptor, 0xa9fe1c);
+            assert_eq!(EFFECT[i].hooks, Hooks::Direct(0x5a30b0));
+            if i > 9 {
+                assert_ne!(h.registrations[i - 1].0, h.registrations[i].0);
+            }
+        }
+        assert_eq!(
+            [EFFECT[0].descriptor, EFFECT[2].descriptor, EFFECT[15].descriptor],
+            [0xa9feac, 0xa9fe8c, 0xa9fdec]
+        );
+        assert_eq!(EFFECT[17].hooks, Hooks::Block(0x596e70, 0x596fe0));
+        assert_eq!(EFFECT[18].hooks, Hooks::Block(0x596f50, 0x596f40));
+        let mut h = Host::default();
+        register(&EFFECT_GROUP, &mut h).unwrap();
+        assert_eq!(h.count, 1);
+        assert_eq!(EFFECT_GROUP[0], crate::effects_parser::ROOT_COMMANDS[7]);
     }
 }

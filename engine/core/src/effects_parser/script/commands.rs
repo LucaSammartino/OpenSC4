@@ -8,6 +8,7 @@ use crate::effects::{EffectDescription, DIRECTORY_GROUP, DIRECTORY_TYPE};
 pub mod children;
 pub mod definitions;
 pub mod particle;
+pub mod resources;
 use definitions::{DefinitionKind, Definitions, Description};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

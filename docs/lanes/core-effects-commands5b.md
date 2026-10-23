@@ -22,4 +22,6 @@
 - Dynamic model keeps full signed EAX and selected indices as separate primitive inputs (EC126/130); no guessed native full-register return.
 - Definitions use sparse native-coordinate maps with absent indeterminate words; reuse existing effects::EffectDescription and ComponentRecord for visual/runtime payloads.
 - Commands methods return before generic push/pop; no turnkey script interpreter/lexer wired yet. Complete settled handler routing before claiming final closure.
-- Current milestone: particle §§19.18–26 implemented; five focused tests cover EC72–119 (5/5 passed). Next: decal §§19.35–38; resource/timed/warp/source/emit/force §§19.39–51; nested dictionaries §19.52; final owner table and full gate.
+- Milestone 72c9268b: particle §§19.18–26 implemented; five focused tests cover EC72–119 (5/5 passed).
+- Current milestone: decal §§19.35–38, particle draw/resource/model/timed §§19.39–42 implemented; EC162–208 tests 4/4 passed. Added decal/effect/effectGroup dictionaries (§19.52); registration test not run yet. Typed timed-effect/wiggle/tractor payload lists extend Description; reset clears them and inheritance clones them.
+- Next: implement/test warp/source/emit/force §§19.43–51; finish owner table; review allocation-failure boundary and complete final gate. No new question or game request.
