@@ -2,6 +2,8 @@
 #include "FC4NetOccShadow.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Interfaces.h"
+#include "FC4Properties.h"
 #include "FC4WriteCapture.h"
 #include "cISC4City.h"
 #include "cISC4OccupantManager.h"
@@ -18,6 +20,25 @@ extern "C" bool fc4_netocc_shadow_compare(uint32_t, const uint8_t*, size_t, NetO
 
 namespace fc4 {
 namespace {
+// Keep variant support local: adding a flag before WriteCapture's containers
+// changes every shared capture's layout, including captures with static lifetime.
+// The default stream retains its original constructor, layout and rejection path.
+class NetOccWriteCapture final : public WriteCapture {
+public:
+    bool WriteVariant(cIGZVariant const& value) override {
+        // Foundations §9.2, as in the traffic shadow. Unsupported variants
+        // must also mark the base capture bad if the native Write ignores false.
+        fc4_props* props = fc4_props_create();
+        const bool ok = fc4::props::CopyVariantToCore(AsGame(&value), 1, props) &&
+            fc4_props_write_variant(props, 1, [](void* ctx, const uint8_t* data, size_t len) {
+                auto* capture = static_cast<NetOccWriteCapture*>(ctx);
+                for (size_t i = 0; i < len; ++i) capture->SetUint8(data[i]);
+            }, this);
+        fc4_props_destroy(props);
+        return ok ? GetError() == 0 : WriteCapture::WriteVariant(value);
+    }
+};
+
 cISC4City* g_city = nullptr; // borrowed only while the city is up
 bool g_enabled = false;
 uint64_t g_lines = 0, g_clean = 0;
@@ -44,7 +65,7 @@ void Compare(const char* event, int32_t julian) {
             if (kind == 13) continue;
             ++records;
             ++kinds[kind];
-            WriteCapture record(true);
+            NetOccWriteCapture record;
             auto* object = manager.SerializableAt(id); // borrowed during capture
             NetOccResult result{};
             const bool captured = record.Capture(object);
@@ -77,7 +98,10 @@ void Compare(const char* event, int32_t julian) {
 }
 }
 void NetOccShadowCityLoaded(cISC4City* city, int32_t julian) {
-    g_enabled = SettingInt("netocc_shadow", "FC4_NETOCC_SHADOW", 0) != 0;
+    g_enabled = SettingInt("netocc_shadow", nullptr, 0) != 0;
+    // An absent/off ini key keeps no city pointer and performs no capture.
+    g_city = nullptr;
+    if (!g_enabled) return;
     g_city = city;
     g_lines = g_clean = 0;
     Compare("load", julian);
