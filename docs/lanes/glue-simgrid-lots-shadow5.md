@@ -2,7 +2,15 @@
 |---|---|---|---|
 | glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | wip: simgrid implemented; native queue pending; LR12 | Collect queued native result, run SG3 shadow through 2032; answer lot-record inventory contract. |
 
-## Report
+## Handoff
+
+- Round 3 resumed at detached HEAD `5da9bbedb`; no source changes yet.
+- Existing native request `qbuild-20261023-232536-build-ctest.req` is still pending; no DLL or native verdict exists locally.
+- Next: collect that existing native request, then submit a unique round-3 simgrid game request through 2032.
+- Do not enqueue a duplicate native verification. Lot records remain outside round-3 scope (LR12).
+- Regression profile lives in forbidden `tools/`; coordinator must apply the exact-only key addition after measured success.
+
+## Prior report
 
 Merged `re-simgrid-sg3` as `62809139`, then implemented `simgrid_shadow` in `6458df71`.
 The new key defaults off and is separate from the existing `simgrids_shadow` fixture switch.
