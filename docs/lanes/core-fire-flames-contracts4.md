@@ -1,11 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-fire-flames-contracts4 (settled FF3/FF4 contracts) | Codex / `core-fire-flames-contracts4` (detached reserved worktree) | WIP: full gate has no terminal receipt | Collect existing session 35392 / checker 21264; CTest still unqualified; no additional family round |
+| core-fire-flames-contracts4 (settled FF3/FF4 contracts) | Codex / `core-fire-flames-contracts4` (detached reserved worktree) | ready: Rust 5524/0, Clippy 0, native PASS, CTest 68/68 | Land bounded FF3/FF4 source; no additional family round or whole-owner/default credit |
 
 ## Report (2026-10-23, final child round 2/2)
 
-WIP. The required full qualification has no terminal result. No ready credit, additional
-family round, checker restart, native-original equivalence, or default coverage is claimed.
+Ready for the bounded source change: the same full checker returned terminal RC0 at
+07:47:12 UTC, with unchanged engine source. No additional family round, checker restart,
+native-original equivalence, or default coverage is claimed.
 Parent remains frozen at its first round; this is original family round 3/3.
 
 ### Settled implementation retained
@@ -50,7 +51,7 @@ Before fixed logs were reused, 22 evidence files were copied with SHA-256 hashes
 old journal/stdout, raw Rust/Clippy/native logs, focused record/log, q failure, and
 supplied source/host/provider/reservation evidence. No old log was discarded.
 
-### Current canonical all: incomplete, live operation
+### Current canonical all: terminal PASS with unchanged engine source
 
 Exactly one new canonical `qbuild.py --wt <WT> all` started at
 **2026-10-23 07:27:59 UTC**, on clean exact `cceac07f` / engine `f7eb6242`.
@@ -58,9 +59,10 @@ Journal PID **10496**, checker PID **21264** (creation epoch 1792740480.008031),
 exec session **35392**. Command, cwd, creation times, before hashes and paths are in
 `build-runs/contracts4-r2-stable-all.json`; transport mapping is in
 `build-runs/contracts4-r2-transport.json`. This same session was collected repeatedly
-with 60-second waits; it has not returned a terminal RC.
+with 60-second waits, and subsequently collected to its actual terminal RC0.
 
-At **07:43:39 UTC**, `contracts4-r2-progress-074339.json` records:
+The earlier **07:43:39 UTC** observation, preserved in
+`contracts4-r2-progress-074339.json`, recorded the following incomplete state:
 
 - Rust: **5524 passed / 0 failed / 0 ignored**, 26 summaries; **40 flames test lines**
   pass in that final-source workspace run, independently scoped from the old focused run.
@@ -82,6 +84,28 @@ Raw logs remain in `build-runs/qbuild-test.log`, `qbuild-clippy.log`,
 `fc4verify-configure.log`, `fc4verify-build.log` and `contracts4-r2-stable-all.log`.
 There was no extra baseline, focused, quick, fmt, or all run and no production edit.
 
+The **same exec session 35392** subsequently returned **exit 0** and wrote its terminal
+receipt at **2026-10-23 07:47:12.649402 UTC**. Final results supersede the incomplete
+observation above, without changing the old R1 UNKNOWN verdict:
+
+- Workspace Rust: **5524 passed / 0 failed / 0 ignored**, 26 summaries; test exit 0.
+- Clippy: **exit 0, diagnostics 0** (`-D warnings`); path-canonicalization warning
+  recorded above is retained in the raw log.
+- Native build: **PASS 175/175 edges**, 81.1 seconds, successful helper result.
+- Full CTest: **68/68 passed, 0 failed**, footer `100% tests passed, 0 tests failed out
+  of 68`, real test time 131.28 seconds (helper summary 131.4 seconds).
+- `fc4verify: PASS (1116.8 s)` and `qbuild: PASS`; overall journal **terminal_rc=0**.
+
+The receipt truthfully has **source_stable=false**, and fc4verify reports
+`[the tree changed during the run]`: before HEAD is `cceac07f`, after HEAD is
+`1cdcd5f299fa51a0e369f7e8841328c0bdb106d7`. That intervening commit changes **only this
+lane report**, recording the then-incomplete observation while the original checker
+continued. Both receipt snapshots have identical engine tree `f7eb6242`, identical
+full tracked-engine SHA-256 `406981615dd8c097e70410be0670133a12450fb73487cb5f84d8d1a06f82a08a`,
+and identical hashes for every owned file. Engine source was stable for the entire
+qualification; no receipt or HEAD-change flag was rewritten to conceal the report
+commit. Subsequent edits also affect only this report. No redundant all was launched.
+
 ### Operational limits and next step
 
 Fresh supplied host proof was GO0/brief0 with both dependencies landed. Its finite
@@ -92,8 +116,9 @@ cwd fields are a limitation, preserved in the drainage records. No process/cache
 compiler/validator kill, restart, RPC, helper intervention, agent, or provider change
 was performed. Supplied root evidence records no R1 process intervention either.
 
-Collect **the existing** operation using session 35392 if available. If transport is
-gone, inspect its durable receipt and exact PID/creation identities before deciding
-anything; never manufacture RC0 or start another checker for progress. The still-live
-cache-statistics child and absent CTest footer prevent ready qualification. No new
-family round or native/default/whole-owner credit is authorized. Game: n/a. Questions: none.
+No checker remains outstanding: session 35392 was collected to terminal, not replaced
+or interrupted. The cache-statistics wait resolved without process intervention; no
+cause or cache-service repair is inferred. The documentation commit also produced a
+packed-refs.lock PermissionDenied message while succeeding, confirmed by actual HEAD.
+Next: coordinator may land the bounded source and this report. No new family round or
+native-original/default/whole-owner credit is authorized. Game: n/a. Questions: none.
