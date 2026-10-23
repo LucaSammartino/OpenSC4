@@ -147,6 +147,7 @@ generated index: the questions live one file per spec, so read only the file for
 | SV | foundations, ordinance |
 | TB | texture-bindings |
 | TD | tools-com-director |
+| TDO | text-decal-occupant |
 | TE | text-edit |
 | TG | traffic-simulator |
 | TI | network-type-info |
@@ -176,7 +177,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
-| animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
+| animated-sprite | 8 | 1 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | application | 7 | 2 | AP10 | questions/application.md |
@@ -215,10 +216,10 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
+| foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
-| game-data-registry | 4 | 0 | GDR5 | questions/game-data-registry.md |
+| game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -254,7 +255,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
+| occupants-props | 11 | 7 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 3 | 6 | OV10 | questions/overlay-manager.md |
@@ -299,6 +300,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
+| text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
@@ -320,4 +322,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **482** | **1257** | | |
+| **total** | **481** | **1261** | | |
