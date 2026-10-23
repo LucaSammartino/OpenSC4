@@ -346,6 +346,7 @@ generated index: the questions live one file per spec, so read only the file for
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
+| widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
