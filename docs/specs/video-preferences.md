@@ -224,6 +224,8 @@ return asserted here is AL only. No sentinel upper EAX value is expected.
 | VP-T20 | QI unknown ID `2`, output initially `12345678` | False AL; output still `12345678`; no AddRef |
 | VP-T21 | Release count initially 3, valid live owner | Store count=2; EAX=2; no Shutdown/free. Separately, still-live Shutdown twice returns true AL both times and leaves pointer `W+8=null` |
 | VP-T22 | DoModalWin, H=null | No foreign calls; true AL; no conventional modal-result output |
+| VP-T23 | ShowDialog selector=1; `00b4dfd5=1`, guard=0; valid existing H | False AL; H unchanged; no host Release, script creation or redraw |
+| VP-T24 | ShowDialog selector=1; `00b4dfd5=1`, guard=1; valid existing H | True AL; H unchanged; no selector-table rejection or host callbacks |
 
 For VP-T11 the count is deliberately above destruction threshold; the exact
 AddRef implementation's arithmetic is not asserted. Release's own supported
