@@ -455,8 +455,8 @@ field := null. Each step is skipped when its field is null.
 6. The callout box `+0x3D8` is removed from the city window (window slot 16, `+0x40`) and released; release `+0x3D0`,
    `+0x3D4`; clear `+0x3DC` (`0x007EDE50`); release `+0x3E0`; `+0x31C` gets its slot 6 then is released.
 
-A replacement must leave no window created by `AddGUI` alive after `RemoveGUI` and must remove the message filter
-from every panel before destroying it.
+A replacement must remove the message filter from every tracked panel before destroying it. The parent-owned
+unstored overlay survives until base window teardown; see §6m (VW14).
 
 ## 6c. Input handlers: keys, characters and the mouse *[compat]*
 
@@ -743,6 +743,120 @@ Parameter 0 and 1 are read through the command's parameter set without a null te
 
 ## 6h. Panels and the control panel *[compat]*
 
+### Complete command-name registry (VW9, §6g supplement)
+
+`Init` registers exactly these **104 records in this order**, from `0x00B0DD98`, stride 12 bytes;
+every record's third word is **0** (`0x007E9959`–`0x007E9969`). Preserve even the commands that
+`ProcessCommand` does not handle here; registration is not evidence of a local dispatch case. The ID/name
+mapping also supplies the bus-stop (`0x6A935DC9`) and pipe (`0x6A935DEE`) command-server IDs.
+
+| Order | ID | Name |
+|---|---|---|
+| 1 | `0x6A935C34` | `ToggleGodPanel` |
+| 2 | `0x6A935CA4` | `ToggleMayorPanel` |
+| 3 | `0x6A935CA8` | `ToggleMySimPanel` |
+| 4 | `0x6A935CAB` | `ToggleOptionsPanel` |
+| 5 | `0x6A935CAD` | `SimSpeedPause` |
+| 6 | `0x6A935CB0` | `SimSpeedSlow` |
+| 7 | `0x6A935CB2` | `SimSpeedMedium` |
+| 8 | `0x6A935CB5` | `SimSpeedFast` |
+| 9 | `0x6A935CB7` | `ZoomIn` |
+| 10 | `0x6A935CBA` | `ZoomOut` |
+| 11 | `0x6A935CBD` | `Zoom0` |
+| 12 | `0x6A935CBF` | `Zoom1` |
+| 13 | `0x6A935CC2` | `Zoom2` |
+| 14 | `0x6A935CC4` | `Zoom3` |
+| 15 | `0x6A935CC7` | `Zoom4` |
+| 16 | `0x2BCBD5F1` | `Zoom5` |
+| 17 | `0x6A935CC9` | `RotateCW` |
+| 18 | `0x6A935CCC` | `RotateCCW` |
+| 19 | `0x6A935CD5` | `RotateLotCW` |
+| 20 | `0x6A935CD1` | `RotateLotCCW` |
+| 21 | `0x6A935CD8` | `ScrollLeft` |
+| 22 | `0x2A9484DA` | `ScrollLeftOnce` |
+| 23 | `0x2A948275` | `ScrollLeftStop` |
+| 24 | `0x6A935CDD` | `ScrollUp` |
+| 25 | `0x2A9484F2` | `ScrollUpOnce` |
+| 26 | `0x2A948272` | `ScrollUpStop` |
+| 27 | `0x6A935CE0` | `ScrollRight` |
+| 28 | `0x2A9484FF` | `ScrollRightOnce` |
+| 29 | `0x2A94826E` | `ScrollRightStop` |
+| 30 | `0x6A935CE2` | `ScrollDown` |
+| 31 | `0x2A94850B` | `ScrollDownOnce` |
+| 32 | `0x2A94826B` | `ScrollDownStop` |
+| 33 | `0x6A935CE5` | `CenterOnCursor` |
+| 34 | `0x6A935CE8` | `ToggleGridVisibility` |
+| 35 | `0x6A935CF1` | `Cancel` |
+| 36 | `0x6A935CF3` | `QueryTool` |
+| 37 | `0x6A935CF4` | `TrafficQueryTool` |
+| 38 | `0x6A935CF7` | `ZoneLowResidentialTool` |
+| 39 | `0x6A935D0B` | `ZoneMediumResidentialTool` |
+| 40 | `0x6A935D0E` | `ZoneHighResidentialTool` |
+| 41 | `0x6A935D11` | `ZoneLowCommercialTool` |
+| 42 | `0x6A935D17` | `ZoneMediumCommercialTool` |
+| 43 | `0x6A935D1A` | `ZoneHighCommercialTool` |
+| 44 | `0x6A935D1D` | `ZoneAgriculturalTool` |
+| 45 | `0x6A935D25` | `ZoneMediumIndustrialTool` |
+| 46 | `0x6A935D2B` | `ZoneHighIndustrialTool` |
+| 47 | `0x6A935D28` | `ZoneLandfillTool` |
+| 48 | `0x6A935D2E` | `DeZoneTool` |
+| 49 | `0x6A935D36` | `DemolishTool` |
+| 50 | `0x6A935D39` | `DispatchFireTool` |
+| 51 | `0xCA935DBD` | `DispatchPoliceTool` |
+| 52 | `0x6A935DC0` | `RoadTool` |
+| 53 | `0x6A935DC2` | `StreetTool` |
+| 54 | `0x6A935DC5` | `HighwayTool` |
+| 55 | `0x6B730F78` | `AvenueTool` |
+| 56 | `0x6A935DC9` | `PlaceBusStopTool` |
+| 57 | `0x6A935DDA` | `RailTool` |
+| 58 | `0x2B79E72B` | `LightRailTool` |
+| 59 | `0x6A935DDD` | `PlacePassengerDepotTool` |
+| 60 | `0x6A935DDF` | `PlaceFreightDepotTool` |
+| 61 | `0x2BFE11C9` | `PlaceLightRailStationTool` |
+| 62 | `0x6A935DE3` | `SubwayTool` |
+| 63 | `0x6A935DE6` | `PlaceSubwayStationTool` |
+| 64 | `0x6A935DEB` | `PowerLinesTool` |
+| 65 | `0x6A935DEE` | `PipesTool` |
+| 66 | `0x6A935DF1` | `PlaceSmallPoliceStationTool` |
+| 67 | `0x6A935DF4` | `PlaceLargePoliceStationTool` |
+| 68 | `0x2BFE0BEA` | `PlacePoliceKioskTool` |
+| 69 | `0x6A935DF7` | `PlaceJailTool` |
+| 70 | `0x6A935DFA` | `PlaceSmallFireStationTool` |
+| 71 | `0x6A935DFD` | `PlaceLargeFireStationTool` |
+| 72 | `0x6A935E0A` | `PlaceClinicTool` |
+| 73 | `0x6A935E0D` | `PlaceHospitalTool` |
+| 74 | `0x6A935E14` | `PlaceElementarySchoolTool` |
+| 75 | `0x6A935E11` | `PlaceHighSchoolTool` |
+| 76 | `0x6A935E17` | `PlaceCollegeTool` |
+| 77 | `0x2BFE1095` | `PlaceFerryTerminalTool` |
+| 78 | `0xEC3E82F8` | `PlaceLotTool` |
+| 79 | `0x6A935E1E` | `EnableDayOnly` |
+| 80 | `0x6A935E21` | `EnableNightOnly` |
+| 81 | `0x6A935E27` | `EnableDayAndNight` |
+| 82 | `0x6A935E2A` | `OpenPlayOptionsDialog` |
+| 83 | `0x6A935E2D` | `OpenGraphicOptionsDialog` |
+| 84 | `0x6A935E34` | `OpenAudioOptionsDialog` |
+| 85 | `0x6A935E45` | `OpenPhotoAlbumDialog` |
+| 86 | `0x6A935E4B` | `OpenSnapshotDialog` |
+| 87 | `0x6A935E36` | `SaveCity` |
+| 88 | `0x6A935E37` | `SaveCityQuick` |
+| 89 | `0x6A935E39` | `QuitCity` |
+| 90 | `0x6A935E3C` | `QuitGame` |
+| 91 | `0x6A935E3F` | `ToggleUIVisibility` |
+| 92 | `0x2A9496C9` | `OpenCheatCodeDialog` |
+| 93 | `0x2A94A04B` | `ToggleTerrainContourDisplay` |
+| 94 | `0x2A94A5B6` | `OpenObliterateCityDialog` |
+| 95 | `0x6AA9FE51` | `SetExpandedToolTips` |
+| 96 | `0x0B980581` | `SignTool` |
+| 97 | `0x0B980587` | `LabelTool` |
+| 98 | `0x6B98058A` | `ToggleSignsAndLabels` |
+| 99 | `0xABCDEE11` | `DemolishSignsAndLabels` |
+| 100 | `0x6A9391A0` | `FullScreenRefresh` |
+| 101 | `0x6A9753EA` | `PauseAnimation` |
+| 102 | `0x6A9753ED` | `StepAnimation` |
+| 103 | `0x6A9757C2` | `RegionBitmapLoad` |
+| 104 | `0xCAB22C64` | `AnimationRecorder` |
+
 *Added 2026-10-21 (re-view3dwin).*
 
 **The message filter's branches** (`0x007F58E0`, §6.3; answers VW4). A window message first passes the tutorial's
@@ -959,6 +1073,68 @@ clears `+0x408`. (This answers save-records.md Q4 for the View3D record.)
   set-up (`0x0079EA40`) and `0x0047A780` (stop: slot 4, then slot 5(0) when it returned true).
 
 ## 6m. Quirks
+
+### Dormant fields and panel extras (VW6, VW8)
+
+`+0x2EC` and `+0x2F0` have **no creator in this owner**: constructor zeroes them
+(`0x007F0FA2`/`0x007F0FA8`), `RemoveGUI` conditionally shuts down/releases the former and releases the latter,
+then zeroes both (`0x007EF348`–`0x007EF377`). No indirect out-argument in `AddGUI` supplies either field.
+Normal creation leaves them null; replacements need not invent two more GUI objects. The same is true of
+absolute `+0x184`, `+0x188` and `+0x410` (constructor stores `0x007F0B92`, `0x007F0B98`, `0x007F0EE8`).
+The first two are dormant stoppable helpers: shutdown, if populated, asks slot 4 whether running and calls
+slot 5(false) only when true (`0x0047A780`), then releases and clears them. `+0x410` is a dormant owned reference
+released during destruction (`0x007F119D`); it has no creation or active owner action. These are absence-of-use
+contracts, not unidentified mandatory services. Apparent accesses at `+0x184` in the message filter are relative
+to its `this+8` interface and refer to the main panel, not the absolute dormant field.
+
+The five-panel loop has two extra child windows (`0x007EE39B`–`0x007EE610`): mayor panel index 1 adds
+`0xE9889775`; MySim panel index 2 adds `0xABB26B0E`. A successful recursive `cIGZWinGen` lookup supplies its
+window interface, adds an owned entry to the GUI destruction list and a borrowed entry to that panel's alignment
+set, installs the common panel procedure and city message filter, enables window flag `0x800`, sends it to back
+(window slot 24, `+0x60`), disables `0x800`, then recursively clears focus acceptance. This transient flag is
+not a persistent panel setting. Only panel index 2 creates/initializes the MySim winproc and installs it on the
+panel itself; other panels retain the common procedure. All newly created panel children are aligned as a set
+to the city view and the panel is hidden. Failed extra-child lookup skips that extra only.
+
+### Required and optional creation paths (VW14)
+
+`DoPreCityInit` is void; it has no failure return or rollback transaction. Existing camera/control/renderer/
+animation/model-maker references are reused. When absent, each tries GZCOM, and **factory failure triggers a
+local concrete constructor fallback**, with AddRef after storing the result (`0x007F41B0`–`0x007F4690`).
+Camera-control viewport/Init and model-maker/animation Init results do not abort the sequence. Local allocation
+failure for these required objects, or the realistic filter, is followed by an unchecked dereference: it is a
+fatal precondition failure, not a successful initialization with null dependencies. The graphic-system QI for
+`0xC47B747C` gates the renderer configuration/Init block as a whole; failed QI skips that block, not AddGUI.
+The background-loader factory is optional; progress-screen updates are guarded. `Init` likewise requires its
+command registry service (it dereferences the acquisition result), rather than returning a clean failure on a
+missing service; optional accelerator/resource acquisitions follow their explicit guards in §3.
+
+`AddGUI` also has no Boolean success/rollback contract. A failed script creation skips that script window's
+immediate setup and continues; main-panel `cIGZWinGen` QI and the five panels' QIs are assumed successful once
+their script window exists (their results are dereferenced without testing). A missing required main panel
+can still fail at later unconditional child lookups. The common panel proc, news ticker, MySim proc, budget
+proc, callout, BMP and popup tracker are allocated as required helpers: null allocation is not a supported
+null-safe skip. Graph/building proc setup is conditional on the corresponding window; the optional background
+image, buffer creation, extra child lookups, full-size overlay factory and rotation-widget lookup have explicit
+success guards. No synthetic false result, balanced rollback or deferred retry is implied for an unchecked
+failure. A host may report a fatal initialization error instead of reproducing an access violation.
+
+The full-size overlay `0x6A5E44B6` is **parent-owned** after ChildAdd; its temporary creation reference is
+released and no owner handle is retained. `RemoveGUI` does **not** explicitly delete it. It can remain until
+the city window's base teardown removes remaining children. Thus the old “no AddGUI window alive after
+RemoveGUI” sentence applies to the explicitly tracked windows only; do not add a borrowed overlay handle or
+an extra destroy call. RemoveGUI followed by base Shutdown leaves no surviving children.
+
+### Terrain message meaning (VW7, §6i supplement)
+
+`0x470BD214` is a **whole-map erosion request**, handled by `cSTETerrain::DoMessage`:
+data1 0 runs the configured repeated water erosion followed by the terrain erosion pass; data1 1 runs just
+the terrain erosion pass with the alternate tuning (`0x00747B20`, erosion worker `0x00746F40`). The message
+handler uses its default tuning (second argument false), then refreshes the entire terrain rectangle
+`(0,0,width,height)` with notification arguments `(1,1,rectangle,1)` (`0x00741660`, handler call sites in
+terrain's `0x470BD214` branch). Other data1 values do no erosion but still refresh. The two landscape items
+and global tool cases 5/6 **post** it with data1 0/1; it is neither an immediate city-window callback nor an
+input-control install.
 
 *Added 2026-10-21 (re-view3dwin)*, besides those tagged in §3–§6c:
 
