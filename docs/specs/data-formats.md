@@ -1550,6 +1550,11 @@ Keyed families read by the simulators but outside this table: demand exemplars (
 
 ### 7.5 Getter helper use in the readers
 
+The separate [property setter helper contract](property-setter-helpers.md) covers eleven
+`SetPropertyValue` overloads' lookup/create/install order, raw typed dispatch, references
+and return channels. It preserves the existing RG16/PR9 scalar-versus-array facts; it does
+not extend the converting getter or Variant storage algorithms.
+
 Call sites in the catalogued reader functions (007025B0, 00692210, 006A8790, ...; 40 functions, terrain 0x0074B6A0 excluded). The neighbour functions also call these helpers for non-tuning holders.
 
 | Helper | Meaning | Call sites |
