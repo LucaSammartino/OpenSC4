@@ -1,8 +1,10 @@
 # Spec: animated sprite model instances (`cS3DModelInstanceAnimatedSprite`)
 
 Status: **behaviour spec**, clean-room input. This document describes *behaviour*, not code. It was written by the
-analysis team from the Windows 1.1.641 executable (read in the instruction bytes and in a Ghidra 12.1.4 project of
-the Steam build, whose code equals the GOG build's; evidence in `docs/lanes/re-dates.md`). Implementers must work
+analysis team from the Windows 1.1.641 executable. The round-2 instruction source has SHA256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, matching the canonical Windows export
+(image base `0x00400000`). This is a bounded contract publication; AS1/AS3 and the qualifications tracked in
+the questions file remain open. Implementers must work
 from this spec, the public LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled
 or disassembled code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
@@ -19,9 +21,10 @@ transform and view volume), [model-maker.md](model-maker.md) (which creates mode
 ## 0. Summary
 
 An animated sprite is a model instance drawn as one camera-facing quad. Its picture comes from a sprite
-animation: for each zoom, a sheet of frames in a texture, with one row of frames per view direction. Each draw
-picks the row from the direction the camera looks at the instance and the frame from the animation clock, and
-sizes the quad from the frame's pixels and the view's metres per pixel, so the sprite keeps its pixel size.
+animation: each zoom has orientation records and frames packed across texture pages (§4.1). A refreshing draw
+selects an orientation record from the instance's +Z direction and context rotation, then packs the temporal
+frame into the atlas. Quad geometry follows §5.1; cached geometry need not refresh with every frame or camera
+change (§5.2).
 
 ## 1. The object *[compat]*
 
@@ -130,13 +133,13 @@ old values. A fresh instance failing at i=0 remains empty and returns false.
 | 4–7 | `0x007FCD30`, `0x007FCC90`, `0x007FCE20`, `0x007FCDC0` | point and vector transforms | by the instance's transform and its inverse |
 | 8 | `0x007FB180` | `SetView(zoom, rotation)` | two bytes; the frame is due again when they change |
 | 9 | `0x007FCEA0` | `SetAnimation(index)` | picks a sequence of the animation table (its first frame and length) |
-| 10 | `0x007FCF00` | `SetFrame(n)` | n modulo the sequence's length |
+| 10 | `0x007FCF00` | `SetFrame(n)` | conditional remainder and byte narrowing; §4.3 |
 | 11, 12 | `0x007FB1C0`, `0x007FB1D0` | `GetFrame`, `GetFrameCount` | |
 | 13 | `0x007FCF60` | `AdvanceFrame()` | §4 |
 | 14 | `0x007FB310` | `SetRate(r)` | |
 | 15 | `0x007FCFB0` | `Tick(elapsed)` | §4 |
 | 16 | `0x007FB330` | `SetPlayMode(m)` | §4 |
-| 18 | `0x007FB340` | `SetFade(on, alpha)` | flag 2 and the alpha, when the alpha is within range |
+| 18 | `0x007FB340` | `SetFade(on, alpha)` | sentinel/NaN/disable rules in §4.4 |
 | 19 | `0x007FB3B0` | `SetHighlight(index)` | flag 1 and the highlight index; 0 clears |
 | 20 | `0x007FB410` | `SetSelfLit(on)` | flag 4 |
 | 21 | `0x007FD120` | `LoadFromResource(resource)` | §2 |
@@ -261,6 +264,29 @@ UpdateView `0x007FE400`, constructor entry/body `0x007FDCB0`/`0x007FDCBA`, destr
 export alias. This inventory identifies the verified surfaces; reconciliation to the brief's exact
 60-function/10482-byte owner accounting remains AS3, rather than a complete-owner claim.
 
+### 3.3 Bounded round-2 evidence inventory
+
+The following sizes are export function extents, not implementation credit or a claim that every byte is
+algorithmic. They distinguish newly traced owner bodies from adjustment thunks. The five bodies total
+4,849 export bytes; the two thunks total 16. These are overlapping evidence for the existing owner, not an
+additional owner or a reconciliation of the requested 60/10,482 inventory.
+
+| Entry | Export bytes | Evidence category |
+|---|---:|---|
+| SetOrientation `0x007FC4B0` | 1978 | owner body, algebra/masks traced; partial-path last-bit qualification remains |
+| LookAt `0x007FE250` | 318 | owner body, target/basis/counter traced |
+| UpdateView `0x007FE400` | 1669 | owner body, finite geometry/box traced |
+| Draw `0x007FEA90` | 701 | owner body, cache and outgoing calls traced |
+| Pick `0x007FD710` | 183 | owner body, cached triangle calls traced; helper semantics remain view-utilities §7 |
+| Pick thunk `0x007FE230` | 8 | pointer adjustment only |
+| Draw thunk `0x007FEE90` | 8 | pointer adjustment only |
+
+GetViewVolume `0x007FF340` (127 bytes) is camera support for the fallback equation, not sprite-owner bytes.
+SetModelTransform `0x007D2D20` is a foreign draw-context call; its entry/camera-copy path and published
+contract were consulted, not its full 553-byte algorithm. Frame/record decoding retained from round 1 is
+separate evidence (§4.1); neither it nor unknown owner inventory is obtained by subtracting these sizes
+from a total. AS2 usage/resource-name attribution remains excluded.
+
 ## 4. Animation and frames *[compat]*
 
 - The clock (`Tick`, slot 15): a rate whose bits are `0xC2C80000` (−100) calls slot 14 with −200.
@@ -371,7 +397,8 @@ store binary32(x+12582912), reinterpret bits as u32, add `0xB4C00000` modulo 2^3
 
 Temporal frame does **not** select this entry: the decoder below packs it across pages. Draw supplies
 a=asin(back.y), b=atan2(back.x,back.z), where back is the owner's +Z matrix column,
-rotation=context view rotation (`0x007FEB0D–007FEB62`). The conditional single addition of K is to the
+rotation=zero-extended low byte of context view rotation on the Draw path (`0x007FEB0D–007FEB62`).
+The selector itself accepts a signed integer rotation argument. The conditional single addition of K is to the
 camera-relative **yaw** b', not to a negative pitch a; the pitch-like input instead uses a+π−holder.base.
 Active x87 precision/rounding affects transients;
 do not round every operation. An absent holder pointer writes null; an allocated unloaded holder is not
@@ -498,6 +525,11 @@ point keeps that maximum and supplies both negative horizontal extrema.
 Draw returns 1 immediately for a nonzero **boolean highlight-pass argument** or signed context zoom<2.
 The stored highlight bit does not cause this early return (`0x007FEA90–007FEAAD`). There is no upper zoom
 range check: a context zoom outside the valid holder range must not be described as a safe successful draw.
+The normal loaded Draw domain is context zoom 2–4. After the signed early test, lookup uses the cached
+**low byte**: e.g. full context zoom 258 selects holder 2, but compares unequal to cached byte 2 on every draw
+and therefore refreshes every time. Full zoom 5 indexes beyond the five-holder array without a guard;
+it is not a defined empty draw. The same full-integer comparison/low-byte storage distinction applies to
+context rotation (`0x007FEABD–007FEB44`).
 
 If view-dirty is already set it remains set. Otherwise compare full context zoom/rotation integers to the
 zero-extended cached bytes, setting view-dirty when either differs. If view-dirty or frame-dirty is set,
@@ -532,6 +564,19 @@ h=(1,0,-1), B=(14,28,14), corners `(12,40,16),(12,0,16),(18,0,10),(18,40,10)`;
 box min=(-18,0,-16), max=(18,40,16). Frame-dirty and view-dirty end zero and the counter cache is copied.
 If only frame-dirty is set, metrics/UVs refresh but UpdateView and translation are skipped when counters match.
 
+**R2-Q4, proposed UNEXECUTED fallback vector.** Remove view utilities; give the camera raw horizontal
+volume L=−10,R=30, viewport width V=80, shift D=4 and context width 20. GetViewVolume returns left=−8,
+right=32, so m=2 exactly. With Q1's remaining inputs the complete Q1 intermediate/corner/box results follow.
+The zero-width and zero-denominator cases have no safe-result contract.
+
+**R2-Q5, proposed UNEXECUTED box-omission vector.** Use raw nonsingular camera rows `(1,0,0)`,
+`(1,1,1)`, `(0,0,1)`, m=g=1, W=4,H=2,ox=3,oy=1. Then d=t=a=1,
+h=(1,1,0), B=(0,1,1), and v0,v1,v2,v3 are `(-3,-1,1),(-3,-3,1),(1,1,1),(1,3,1)`.
+After origin/v0/v3 the extrema are min=(-3,-1,0), max=(1,3,1); the last candidate (-1,3,-1) gives
+final min=(-3,-1,-1), max=(1,3,1). The exact X minimum stays −3; it is not symmetrized to −1.
+The lower corner Y=−3 is outside this box. This deliberately raw camera fixture tests the literal box
+algorithm without assuming an orthonormal camera or silently widening it to all four corners.
+
 ## 6. Picking (`Pick`, `0x007FD710`)
 
 Pick copies the four **translated draw vertices**, not the local corners, and tests triangles (0,1,2), then
@@ -562,8 +607,10 @@ The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, 
 ## 10. Conformance tests
 
 1. **Zoom:** at zoom 1 the instance draws nothing; at zoom 2 it draws one quad.
-2. **Direction:** with N = 8 and base 0, a yaw of 0 gives direction 4 (round(8 × π ÷ 2π)).
+2. **Direction:** use §4.1's two angle inputs and native conversion, with conditional half-tie vector R2-D1.
 3. **Loop:** play mode 3 goes from the last frame to frame 0; mode 2 steps back to the previous frame.
 4. **Clock:** rate 10, direction 1, elapsed 0.25: with `+0xAA` set, two frames and 0.5 kept; without it, one
    frame and the position 1.
-5. **Size:** a 32-pixel frame at 0.5 m per pixel gives a 16 m quad.
+5. **Geometry/cache:** proposed UNEXECUTED R2-Q1–Q5 specify raw inputs, intermediate values, corners, bounds
+   and dirty transitions; R2-R1–R3 specify noncommuting orientation and sentinel behavior. No native,
+   game or implementation execution is claimed for these vectors.

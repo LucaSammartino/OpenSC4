@@ -11,6 +11,9 @@
 - Evidence: UpdateView 007FE400–007FEA84, Draw 007FEA90–007FED4C, Pick 007FD710–007FD7C6; GetViewVolume 007FF340–007FF3BE, queried export/bytes before supporting decomp.
 - Next: verify SetOrientation mask/composition 007FC4B0–007FCC69; supporting decomp _unnamed/region_007f0000.c:2350; prove noncommuting and sentinel fixtures, reconcile LookAt target/forward.
 - Before ready: reconcile §1.1 citation, defaults/lifetime/interface/inventory, clock duplicate prose, and partial questions. No game/native execution, ABI proposals or coverage credit.
+- Third milestone: bounded export-size inventory separates five owner bodies (4849 bytes) and two 8-byte thunks from foreign support; no complete 60/10482 attribution. Added Q4 fallback/Q5 box-omission vectors and partial AS6/AS7 question notes; no whole questions closed.
+- Checks: exact-rational Q1–Q5/link/citation helper passed; questions index regenerated without content change, questions check passed; git diff --check passed. Cargo/clippy/ctest/game are n/a for RE docs role.
+- Remaining publication limits: full inherited numeric-mode provenance, exhaustive partial-mask store transcription, malformed/nonfinite outcomes, full owner/lifetime inventory reconciliation. No automatic further round authorized.
 - Queue: task-specific prohibition overrides generic finish queue instruction; no queue file will be written.
 
 ## Retained R1 report (historical, not readiness)

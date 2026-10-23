@@ -48,6 +48,13 @@
   half-texel/edge conventions. [formula-only direction lookup with round ties away from zero/Euclidean modulo,
   decoded direction-major entries and pixel-edge UV helpers; no guessed orientation or camera-relative method]
 
+  R2 partial evidence (2026-10-23, re-sprites-contracts4): §3.1 now supplies axis/sign/order, per-component
+  omission/reset/counters and target-based LookAt; §4.1 supplies camera-relative angles, conditional
+  nearest-even conversion, sequence-byte application and retained packing/UV rules. Independent proposed
+  UNEXECUTED R2-R1–R3/D1 do not close this whole question: exhaustive partial-mask instruction-store
+  transcriptions and runtime numeric-mode provenance remain unestablished. AS1 controller provenance also
+  remains open. No host-trig or portable arithmetic oracle is authorized by these formulas.
+
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS7 - §5–6 quad, cache, draw and pick:** publish corner order/winding and offset origin/sign; the
   coordinate space of cached corners, bounding box, model transform and Pick triangles; whether model rotation
@@ -57,6 +64,13 @@
   order on failures. Which arguments accompany DrawPrims(2,10,4,...), and must draw state be restored too?
   [independent metric quad and transform/pick primitives only; no fabricated complete UpdateView/Draw/Pick,
   no provider may supply computed sprite quad output or original owner decisions]
+
+  R2 partial evidence (2026-10-23, re-sprites-contracts4): §§5.1–6 now supply finite raw-input quad/box
+  equations, corner order/space, reset/reflected-maximum bounds, signed zoom check, dirty/cache rules,
+  outgoing draw-call order, no forced state restore and stale Pick triangles. R2-Q1–Q5 are independent
+  proposed UNEXECUTED vectors. This question remains open for malformed/nonfinite input outcomes beyond
+  explicitly described branch behavior and whole-call numeric-mode provenance; no native execution,
+  foreign computed-quad provider, complete owner or default implementation promotion is claimed.
 
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS8 - §3 slots 18–20 fade/highlight/self-lit:** is the accepted alpha interval closed [0,1]? When alpha
