@@ -62,7 +62,216 @@ The repeated record pair is **position**, not IDs or height. Evidence: `005F7DD0
 successive 4-byte fields. Read writes the first position pair, height, size, then overwrites
 position with the second pair. Full stream details and vectors follow below.
 
-## 3. Publication boundary
+## 3. Inputs, comparisons and rebuild triggers
 
-This is a bounded static contract under construction, not complete class coverage or byte credit.
+*[compat]* The TextDecal interface takes binary32 height, RGB and alpha, a byte dynamic argument,
+and a 32-bit orientation. These setters have no defined success bool. Geometry and comparisons
+use x87, with binary32 field/stack stores at the points below, not an all-binary64 algorithm.
+Nonfinite rules below assume masked floating-point exceptions; trap behavior is outside this contract.
+
+| Operation | Mutation and following action |
+|---|---|
+| SetText (`005F82E0`) | assign argument string into O+6C through its +34 operation; always UpdateTexture, including equal text |
+| GetText (`005F8410`) | assign O+6C into caller's output string through output's +34 operation; no binding/refcount operation on the text source |
+| SetTextHeight (`005F7B10`) | accept strictly `0 < h < 8`, store input bits at +80 and UpdateDecal, including equal accepted height; reject 0, 8, infinities and NaN |
+| SetTextColor (`005F7B50`) | compare absolute new-minus-old in R, G, B order; if **any difference is >= epsilon or unordered**, store all three raw inputs; dynamic: SetColor on live A then B; static: UpdateDecal |
+| SetAlpha (`005F7C00`) | compare numerically with old alpha; equal, including opposite signed zeros, does nothing; unequal or unordered stores raw input; dynamic: SetAlpha on live A then B; static: UpdateDecal; no clamp |
+| SetOrientation (`005F7D60`) | compare all 32 bits; equal does nothing; otherwise store and UpdateDecal; no clamp |
+| SetDynamic (`005F8170`) | compare/store the argument's low byte, without canonicalizing it; equal does nothing; changed value invokes UpdateOverlayManager; routing uses nonzero truth |
+
+Epsilon is exactly the binary32 constant `38D1B717` at `00AA54A0`, namely
+`13743895 / 137438953472` (about 0.0001). Equality **does trigger** a color update:
+the parity branches at `005F7B6E–005F7B9D` distinguish ordered less from equal/greater/unordered.
+The old strict-greater wording is superseded. NaN in any tested color difference causes mutation;
+the remaining channels are then stored without further comparisons. Alpha uses `FUCOMPP`
+at `005F7C0D` and its equality/unordered distinction at `005F7C11–005F7C14`.
+Height's two comparisons are `005F7B14–005F7B30` against binary32 0 and 8.
+
+SetPosition (`005F7AA0`, occupant receiver) copies input x/z bits into O+94/+98, then
+calls the established embedded-prop box-translation operation with the entire input vector.
+It calls terrain +17C with `(x,z,out1,out2)` even for equal positions; neither output is used
+in the later label decision. Nonzero dynamic calls MoveDecal; static calls UpdateDecal.
+MoveDecal (`005F7A50`) itself does nothing when static; otherwise it calls A.SetPosition
+`(idA,&centerXZ)` then B.SetPosition `(idB,&centerXZ)` for nonsentinel IDs only.
+It does not change cached size or notify the occupant manager itself. These are manager slot +30
+calls, not full decal rebuilds. A static rebuild overwrites the translated box using terrain altitude;
+the dynamic path retains the shared translation result. TextDecal is therefore not covered by the
+plain prop's claim that no later terrain-dependent box writes occur.
+
+## 4. Owned resource, routing and decal lifetime
+
+*[compat]* Define A = O+B4, B = O+B8; source = O+B0. The source is the text texture
+**source object**, passed to overlay slot +0C, not an already computed placement or bounding box.
+The overlay primitive contract is [overlay-manager §3](overlay-manager.md#3-the-interface-0x00ab39e8-compat).
+The owner retains all decisions below. A provider may supply raw source identity/dimensions,
+terrain altitude, renderer level and opaque manager identities/IDs; it must not compute the owner's
+rebuild, replacement, box, routing or callback order.
+
+RemoveDecals (`005F77C0`) calls A.Remove(idA) if idA != `FFFFFFFF`, then stores that sentinel;
+then does the same for B. It retains managers, source, size, box, text and position.
+UpdateDecal begins with exactly the same A-then-B removal, before checking source or flags.
+The individual stores follow the respective Remove calls, not both calls together.
+IDs are opaque 32-bit values: only `FFFFFFFF` is rejected, not all values with the high bit set.
+These paths assume a valid manager whenever its ID is live; no null-manager guard exists.
+
+UpdateTexture (`005F8190–005F81E8`): null source field and Release old source if present.
+The native body checks the field a second time and nulls/releases it if nonnull; ordinary
+non-reentrant Release leaves it null, so there is one release. Then call the text resource factory
+at service `00B43CE4`, slot +14, with `(0xCC1FD62C,&text,&sourceField)`.
+Only the resulting pointer is tested; a separate factory return value is ignored.
+Nonnull output invokes UpdateDecal. Null output returns without removing existing IDs or changing
+the box/size. Thus failed replacement releases the old source and keeps old IDs until another
+remove/rebuild; it is not rollback to the old source. Source reference transfer is the factory-output
+contract; TextDecal does not explicitly AddRef the new source here. No OOM, exception or reentrancy
+guarantee is inferred from this ordinary path.
+
+UpdateOverlayManager (`005F7C80–005F7D51`) removes old A then old B IDs first. It obtains the
+terrain view (`00602160`) and requests slot +48 with index **1 static / 3 dynamic**, producing new B.
+If the pointer differs: AddRef nonnull new B, publish B, Release nonnull old B, in that order.
+Equal pointer causes neither AddRef nor Release. It next obtains the terrain view again and requests
+index **0 static / 2 dynamic**, applying the same replacement ordering to A. Finally UpdateDecal.
+Equal managers do not suppress removal/rebuild. Null replacements are stored and old references
+released; no fallback manager is selected. A null-manager state can safely reach the early exit of
+UpdateDecal (absent source or flag 2 clear), but adding with either manager null is unsupported.
+This publication does not invent safe behavior for that dereference.
+
+## 5. UpdateDecal geometry and primitive arguments
+
+*[compat]* Following removal, absent source returns immediately. Otherwise ask the occupant
+view O+12 slot +80 whether flag mask **2** is set, testing AL; false returns. Both early exits
+leave cached size and box unchanged. Neither dynamic nor initialized is a further gate.
+
+For the remaining path let the source's slot +0C output two u32 dimensions `(w,h)` in that order.
+The owner converts each to x87 numeric value with signed FILD plus `2^32` for negative signed
+interpretations (`005F788A–005F78AE`), then computes the following in this order. Ordinary supported
+dimensions are positive and nonzero; malformed source dimensions have no finite-geometry guarantee.
+Use `r32` for a binary32 store, and `P` for the active x87 arithmetic precision/rounding.
+
+1. Compute `q = (w / h) * textHeight * 16`, with an x87 rounding at each arithmetic operation.
+   Store `size = r32(q)` at O+90 **without popping q** (`005F78AE–005F78D0`).
+2. Store `hx = r32(q * 0.5)` and `hz = r32(textHeight * 8)` to stack binary32 slots
+   (`005F78DC–005F78F4`). The first expression uses retained q, not reloaded size.
+3. Query terrain service `00B43CF4` slot +34 with **(centerX,centerZ)**; store its x87 return
+   to a binary32 altitude temporary (`005F78D6–005F7901`). This is distinct from SetPosition's +17C query.
+4. If orientation is zero, exchange hx and hz. Every nonzero orientation keeps them.
+5. Renderer service `00B43DD0` slot +28 returns a view object; load its u32 word +18 as level.
+   Select binary32 **turns** from `00B0A978 + 16*level + 4*orientation`
+   (`005F7919–005F7939`). This is a two-dimensional table, not `table[level]` or a size scale.
+6. Write minimum `(r32(x-hx), r32(altitude-m), r32(z-hz))` at O+40/+44/+48;
+   maximum `(r32(hx+x), r32(altitude+m), r32(hz+z))` at O+4C/+50/+54.
+   Here `m` is binary32 `3DCCCCCD`, not mathematical 1/10. Instruction evidence:
+   `005F793D–005F7985`. No renderer-table value enters these bounds.
+7. Call A.AddDecal **(source,&centerXZ,size,turns)**, store returned ID at O+84 even on failure.
+   If nonsentinel: A.SetColor `(idA,&RGB)` then A.SetAlpha `(idA,alpha)`.
+   Then B.AddDecal with the same four arguments, store O+88; if nonsentinel set its color then alpha.
+   Failure of A does not skip B; failure of B does not remove successful A.
+8. Finally occupant-manager service `00B43D0C` slot +60 **(O+12,0)**, even if both Adds
+   returned sentinel. Evidence: `005F7988–005F7A3C`. The box and size precede either Add.
+
+| renderer level | orientation 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| 0 | 1/4 | 0 | 1/8 | 7/8 |
+| 1 | 3/4 | 0 | 5/8 | 7/8 |
+| 2 | 3/4 | 1/2 | 5/8 | 3/8 |
+| 3 | 1/4 | 1/2 | 1/8 | 3/8 |
+
+Those 16 source-image floats are exact binary fractions. Valid table access in this bounded contract
+requires level and orientation in 0…3. The setter does not enforce that range; no clamping or fallback
+is authorized for other values. Zero height and arbitrary float bits may enter through Read even
+though the ordinary setter rejects them. x87 precision/control-word setup across all callers is not
+proved here. Exact arbitrary-input results must preserve the explicit store points and be conditional
+on that environment; host f64 evaluation alone is not a native oracle.
+
+## 6. Initialization, flags, messages and shutdown
+
+*[compat]* Init (`005F7F40`, occupant receiver) first tests IsInitialized (AL); already true
+returns AL=1 without other work. Otherwise call embedded prop slot +20 with `0xCB79919B`,
+then shared prop Init with O+12 (its return is not tested). If byte O+3A bit `02` is clear:
+UpdateOverlayManager; get a temporary filter from service `00B43DC4` slot +48 (out starts null).
+If nonnull, call filter slot +0C **(O+12)**; if its AL is true, ask city-config `00B43DB8`
+slot +28; if that AL is true, call occupant slot +74 **(2)**. Release the filter.
+Regardless of that bit/temporary filter, subscribe through message-server `00B43CCC` slot +14
+with target **O+8**, in order `A6B79602`, `06CDB65B`, `26D31EC1`. Return AL=1.
+No direct UpdateTexture call occurs in Init; setting flag 2 may cause one via SetAllFlags.
+
+SetAllFlags (`005F81F0`, occupant receiver) snapshots byte O+3B and compares its bit 2 with
+the requested flags. When changing 2 from off to on, query city-config +28; false clears bit 2
+in the request and recomputes the change mask. Call shared base SetAllFlags with the effective
+request before any decal work. If bit 2 did not change, return. If turning off, RemoveDecals.
+If turning on: both managers nonnull -> UpdateDecal; otherwise UpdateOverlayManager. After this,
+if source is null and text length (text slot +1C) is unsigned greater than zero, UpdateTexture.
+Thus routing/rebuild may precede source acquisition, and even a same-source rebuild can happen
+before the later source check. Native branches: `005F81F8–005F829A`.
+
+DoMessage (`005F8030`, target O+8) reads type through message +10. Owner work precedes
+the established embedded-prop DoMessage (called with target O+8); its return is passed through.
+
+| Type | TextDecal work before delegation |
+|---|---|
+| `A6B79602` | UpdateDecal |
+| `26D31EC1` | UpdateOverlayManager; obtain temporary filter as in Init; nonnull filter +0C(O+12) and true city-config +28 cause occupant +74(2); Release filter. A false/null result does **not** clear an already set flag here |
+| `06CDB65B` | message +3C returns address of a filter pointer; dereference it and call filter +0C(O+12). If its AL and city-config AL are true, set flag 2 through +74 only if currently clear. Otherwise clear it through +7C only if currently set |
+| other | no additional owner work |
+
+The last filter is borrowed from the message, with no local Release; its pointer chain must be valid.
+No whole routing or message-output callback substitutes for these owner decisions.
+
+Shutdown (`005F76C0`, occupant receiver) returns AL=1 immediately if not initialized.
+Otherwise unsubscribe the same three types in the same order, target O+8. For A then B:
+if manager nonnull, Remove nonsentinel ID, set sentinel **after** Remove; null manager field
+before Release(manager). A null manager skips the ID reset too. Next null source before its
+Release, if nonnull. Finally shared embedded-prop shutdown `005EE160` with O+12; return AL=1.
+The explicit lifecycle relies on that shared shutdown clearing initialized. Repeated Shutdown
+after a valid completed shutdown therefore performs no owner releases or unsubscriptions.
+It does not reset text, height, size, color, alpha, orientation or center.
+
+Destruction is separate: body `005F8570` releases nonnull B, A, source in that order, without
+nulling them or Remove/Unsubscribe/Shutdown calls; destroys the text allocation; then delegates
+base teardown with O+12. Deleting wrapper `005F8510` also returns the object to its pool if
+argument bit 0 is set. Call Shutdown before destroying a live initialized subscription owner.
+Repeated destruction is unsupported; destruction after valid Shutdown has no manager/source
+Release calls because those fields are already null. Factory `005F84D0` allocates from the
+class pool then constructs at O; operator new `005F7D80` only allocates. The old `0x40` wording
+is not a valid object-size claim: the constructor demonstrably writes through O+B8.
+
+## 7. TextDecal-only stream semantics (OP2)
+
+*[compat]* Stream slot +30 is Float32 and +3C is GZStr, not Uint32. This is not inferred from
+NaN-looking IDs: compiled `cRZOStream::SetFloat32` `0092B276` writes exactly four argument
+bytes, and its compiled vtable slot is 12/+30 (`00AD1818`); SetGZStr `0092B765` is
+slot 15/+3C and calls string length (+1C) and bytes (+14). Compiled GetFloat32 `0092B2ED`
+reads exactly four bytes and occupies +30 (`00AD8528`); TextDecal pair/triple read helpers
+`005DA4F0/005DA550` pass addresses at 4-byte spacing. The established primitive encodings
+and string contract remain [foundations §§2.2–2.3](foundations.md#22-primitive-encodings-compat).
+These compiled-width facts plus the O+16 receiver resolve OP2 **for TextDecal only**.
+
+| Order after outer version | v3 Write / corresponding Read | Complete-object destination |
+|---|---|---|
+| 1 | complete embedded prop record (shared record contract) | serializable receiver O+16 is also the embedded prop serializable view |
+| 2 | GZStr | text O+6C |
+| 3 | two Float32 | x,z at O+94/+98 |
+| 4 | Float32 | height O+80 |
+| 5 | Float32 | cached size O+90 |
+| 6 | two Float32, same addresses again | x,z again; second pair wins on successful Read |
+| 7 | three Float32 | RGB O+9C/+A0/+A4 |
+| 8 | Float32 | alpha O+A8 |
+| 9 | Uint8 | low byte of orientation on Write; zero-extended into whole O+AC on Read |
+
+Write begins with Uint16 version 3. Read reads Uint16 version, then the prop record and text;
+if version <3, consumes an extra Uint32 and discards it. In version exactly 1 the height is
+Uint32 numerically converted unsigned-to-x87 then stored f32 (signed FILD plus 2^32 correction);
+all other versions use Float32 height. No outer maximum-version rejection is present, and Read
+does not invoke setters, UpdateTexture, rebuild or routing. Dynamic, source, managers and IDs
+are not in this extension record and are not implicitly reset by Read.
+
+If embedded prop Read/Write returns AL=false, skip the extension fields, then still return
+whether the stream GetError **AL** is zero. Both functions normalize the final result to full
+EAX=0/1 (`005F7E3C–005F7E48`, `005F7F28–005F7F35`). They do not directly return the
+embedded prop bool. Earlier extension failures are not individually branched on; rely on the
+stream's established error semantics. There is no owner-level rollback of already read fields.
+
+## 8. Coverage boundary
+
+The following is bounded static publication, not complete class byte credit. Literal proposed
+vectors are in [text-decal-vectors.md](text-decal-vectors.md); all are **UNEXECUTED**.
 No original execution, implementation oracle or live reference traces have been used.
