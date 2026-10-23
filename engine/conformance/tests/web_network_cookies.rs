@@ -1,4 +1,6 @@
-use super::*;
+//! web-network section 3: cookie vectors with deterministic clock/INI replies.
+use fc4_core::rzurl::RzUrl;
+use fc4_core::www::{cookies::*, Contract};
 use std::collections::BTreeMap;
 #[derive(Default)]
 struct Io {
@@ -105,8 +107,9 @@ fn admission_replacement_expiration_and_lookup() {
     assert!(m.add_text(b"s=1; Secure; Path=/", Some(&u), &mut io).unwrap());
     assert!(m.lookup(&url(b"https://www.simcity.com/"), 0, 100).is_none());
     assert!(m.add_text(b"p=1; Path=/; Port=81,82", Some(&u), &mut io) == Ok(false));
-    assert!(!suffix(b"a.a.a", b".a")); // first occurrence is not the suffix
-    assert!(!suffix(b"x", b"longer"));
+    m.add_text(b"test=v; Domain=.a; Path=/", None, &mut io).unwrap();
+    assert!(m.lookup(&url(b"http://a.a.a/"), 0, 100).is_none()); // first occurrence is not the suffix
+    assert!(m.lookup(&url(b"http://x/"), 0, 100).is_none()); // domain longer than server
     assert!(!m.add_text(b"", None, &mut io).unwrap());
 }
 #[test]

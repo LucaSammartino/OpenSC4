@@ -53,11 +53,13 @@ are implemented and tested, pending spec clarification.
 
 ## Vector index
 
-The spec's constructed vectors execute as Rust tests with deterministic foreign
+The spec's constructed vectors execute in `engine/conformance/tests` as
+`web_network_cookies.rs`, `web_network_cache.rs`, `web_network_http.rs`,
+`web_network_http_lifetime.rs`, and `web_network_www.rs`, with deterministic foreign
 replies, rather than as live HTTP/FTP requests. CK01–CK06, HTTP01–HTTP09 and
 NFC01–NFC12 are labeled at their assertions. WWW vectors map as follows:
 
-| Vectors | `service::tests` test |
+| Vectors | `web_network_www::tests` test |
 |---|---|
 | WWW-01–03 | `identity_default_hold_order_and_dispatch_target_selection` |
 | WWW-04 | `handler_failure_owns_attempt_and_releases_after_callback` |

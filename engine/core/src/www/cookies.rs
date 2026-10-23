@@ -417,7 +417,3 @@ impl Manager {
         Ok(true)
     }
 }
-
-#[cfg(test)]
-#[path = "cookies_tests.rs"]
-mod tests;

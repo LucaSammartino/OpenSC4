@@ -91,7 +91,8 @@ equivalence claim. This does not request a new RE round or reopen the parked own
   the cookie splitter's blank characters and empty-item convention, and does it trim
   name/value separately after trimming each item? What is atol overflow behavior?
   Do skipped first cookie attributes still cause the header's leading separator?
-  Are the cookie path/binary setters plain assignments? Does the cache writer
+  Are the cookie path/binary setters plain assignments, and what is the cookie
+  constructor path literal at `00b16134`? Does the cache writer
   materialize records directly, or call the public file getter with its expiration,
   counter and access effects, and in which map enumeration order? [Current core uses
   ASCII whitespace, preserves empty semicolon items in nonempty input, trims only

@@ -15,6 +15,7 @@
 - f4277b01: bounded owner implementations, tests and README committed; absolute-path fmt passed (8 files, zero diff).
 - First full gate still RUNNING: session 1879; cargo 6450 passed/0 failed, clippy 0 diagnostics.
 - Native queue label qbuild-20261023-213449-build-ctest outstanding; collect SAME operation before any rerun.
-- CONTRIBUTING requires vectors in engine/conformance; relocate the new core-vector test modules there.
-- Next: collect gate terminal result; relocate vectors without duplicating assertions, then gate final layout.
+- CONTRIBUTING diagnostic resolved: moved WWW, HTTP lifetime, HTTP notification, cookie and cache vectors into engine/conformance/tests/web_network_*.rs without duplicate assertions.
+- Relocation focused run: 26 passed, 0 failed; removed its two unused imports before final gate.
+- Next: collect session 1879 terminal native result, then qbuild all on final layout (real source/input change).
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.

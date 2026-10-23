@@ -1,4 +1,5 @@
-use super::*;
+//! web-network section 6: cache vectors with deterministic clock/file replies.
+use fc4_core::www::{cache::*, Contract};
 #[derive(Default)]
 struct Io {
     now: u32,
