@@ -1,5 +1,24 @@
 # Answered GZ graphics questions
 
+- **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
+  primary slots and subinterface thunk mappings; settle HWND ownership, window
+  creation/reconfiguration failure cleanup, event pump ordering and every
+  Windows keyboard/mouse/focus/resize/quit translation. Confirm names/units of
+  the two words set by message `0xFA0C6390`, IID `0x1A0C615F`, subtype 13.
+  Evidence next: `0x0098C690`, `0x0098CDB0`, `0x0098D080`, `0x0098D230`,
+  `0x0098D9C0`, `0x0098DC40`–`0x0098DD70`; instructions are needed where
+  adjusted-this and message locals are incorrectly typed in the export.
+
+  **ANSWERED 2026-10-23 (re-gzgraphics-gzg5b):** DIFFERS — §§7.1–7.4 specify
+  the native lifetime, adjusted interfaces, ordered retained listeners and full
+  window-message translation. Primary slots 7/8 suspend/resume rather than
+  attach/remove listeners; slot 15 emits repaint event 4 rather than pumping;
+  slot 18 filters/reposts keyboard messages rather than bridging a window proc.
+  Stored subtype-13 coordinates are signed client x/y pixels. Realization can
+  mark itself realized on failure; the keyboard filter can consume a 1025th
+  message without saving/reposting/counting it. Both quirks are contractual;
+  vectors GZG-V62–V77 cover the newly settled behavior.
+
 - **GZG6 — section 2.1 context destruction versus section 3.4 replacement:**
   Does final context destruction call engine Shutdown before releasing it, or
   only release the independently retained engine and target? Section 2.1 says

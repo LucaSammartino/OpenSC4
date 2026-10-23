@@ -798,19 +798,19 @@ after slot 30; the following bytes are a string, not additional methods.
 |---|---|
 | 0–2 | QI, AddRef, Release (`0x0098B7A0`, `0x0098B820`, `0x0098B830`) |
 | 3 | store canvas type and request initial `(0,0,width,height)` bounds, `0x0098BCC0` |
-| 4 | canvas realization/configuration, `0x0098DD70` (GZG4) |
-| 5 | folded getter `0x00680920` (GZG4) |
+| 4 | realize once from a four-word bounds record; §7.4, `0x0098DD70` |
+| 5 | byte-valued realized-state getter, `0x00680920` |
 | 6 | Shutdown, `0x0098DDB0` |
-| 7–8 | listener attach/remove helpers, `0x0098DC40`, `0x0098DCB0` (GZG4) |
+| 7–8 | suspend/release window; resume/recreate window, `0x0098DC40`, `0x0098DCB0` |
 | 9–10 | set four bounds; copy saved bounds, `0x0098BD80`, `0x0098CAB0` |
 | 11–12 | show and focus; show, `0x0098BA30`, `0x0098BA50` |
 | 13–14 | set title; forward to slot 15, `0x0098B9B0`, `0x0098CAE0` |
-| 15 | host event pump, `0x0098C690` (GZG4) |
-| 16–17 | folded entries `0x008265C0`, `0x0068D1B0` (GZG4) |
-| 18 | host-window procedure bridge, `0x0098CDB0` (GZG4) |
+| 15 | request repaint event 4 unless paint is suppressed, `0x0098C690` |
+| 16–17 | signed client mouse x/y getters, `0x008265C0`, `0x0068D1B0` |
+| 18 | filter/repost queued keyboard input; returns discarded-message count, `0x0098CDB0` |
 | 19 | post a packaged host message, `0x0098BA60` |
-| 20 | folded entry `0x00578900` (GZG4) |
-| 21–22 | host-window helpers `0x0098B850`, `0x0098B8E0` (GZG4) |
+| 20 | address of stored HWND word, not HWND value, `0x00578900` |
+| 21–22 | shut down canvas and request framework exit; center window in work area, `0x0098B850`, `0x0098B8E0` |
 | 23–24 | width, height getters `0x0098CC30`, `0x0098CC40` |
 | 25–28 | folded entries `0x0068D1C0`, `0x0081F910`, `0x006AAEB0`, `0x0040D390` (GZG4) |
 | 29–30 | input-channel enabled query; nested enable/disable, `0x0098BAC0`, `0x0098BDC0` |
@@ -838,8 +838,8 @@ routine; do not combine its exported field offsets with complete-object offsets.
 
 Windows realization (`0x0098D9C0`) coordinates the graphics driver window/mode,
 and registers `MSWHEEL_ROLLMSG`. Registration failure stores `0xFFFFFFFF`.
-The windowed/driver-owned paths emit canvas-event subtypes **8** and **9**;
-the exact conditions and HWND ownership are GZG4. These native host resources
+Window realization and release emit canvas-event subtypes **8** and **9**
+under the conditions in §7.4. These native host resources
 are *[compat-limit]*: other operating systems may use their own window system
 while preserving the canvas/listener contract.
 
@@ -880,9 +880,150 @@ notification. A combined mask affects both channels independently
 
 DoMessage (`0x0098BD00`) returns true for all input messages. For type
 `0xFA0C6390`, it queries IID `0x1A0C615F`; subtype **13** updates two stored
-coordinate words from that message. Other types, failed QI and other subtypes
-do not update those words. The acquired interface is released. Exact payload
-coordinate names and translation into mouse/key/canvas events are GZG4.
+coordinate words from that message. They are signed **client x and y in pixels**,
+not desktop coordinates, deltas or dimensions. Other types, failed QI and other
+subtypes do not update those words. The acquired interface is released. The
+handler receives the message-target subobject at complete-object `+0x10`:
+the stores at handler-relative `+0x2C/+0x30` therefore update the same complete
+`+0x3C/+0x40` words read by primary slots 16–17. The eight-byte position getter
+and both stores are verified at `0x0098BD43`–`0x0098BD5C`; the getters use integer
+loads at `0x008265C0` and `0x0068D1B0`.
+
+### 7.4 Native realization, interfaces and event translation
+
+**Window lifetime.** The canvas does not independently create or destroy an
+HWND. It asks the active graphics driver to change mode through driver slot 66
+(`+0x108`), passing the canvas window-procedure bridge. The first native message
+records the HWND if none was saved, then installs resource icon 1000 as the class
+icon. Realization requires the framework interface `0x23EA70A1` and graphics
+driver-control interface `0xC47B747C`. With creation requested and no saved HWND,
+it searches the driver's mode records in enumeration order for the first matching
+client width, height, current mode discriminator and low-six-bit screen format.
+It requests that mode, then accepts driver slot 50's status only when **zero**.
+Success centers the window if the graphics service reports a windowed mode,
+registers `MSWHEEL_ROLLMSG` (zero becomes sentinel `0xFFFFFFFF`), and sends canvas
+event 8. A missing interface, no matching mode, missing driver or nonzero status
+returns false; it does not emit event 8 (`0x0098D9C0`–`0x0098DB9E`, matching
+tests `0x0098DA90`–`0x0098DADA`, status test `0x0098DB12`–`0x0098DB30`).
+
+With creation disabled **or an HWND already saved**, the same helper instead
+requests driver mode `-1` with arguments `(null,1,1)` when that interface and
+driver exist. It clears the saved HWND, frees and clears its auxiliary allocation,
+emits event 9, and returns true. This cleanup still occurs when driver QI fails;
+the helper never calls DestroyWindow directly (`0x0098DBA1`–`0x0098DC3D`). Thus
+calling this helper with creation enabled while an HWND exists releases it; it
+is not an idempotent ensure-window operation.
+
+Primary slot 4 is idempotent when the realized byte is already nonzero. Otherwise
+it saves the supplied four-word bounds, clears the auxiliary allocation pointer,
+invokes realization, and **sets the realized byte even on failure**, returning
+the helper's result (`0x0098DD70`). Slot 7, when realized, sets its suspended byte,
+shows the window, emits event 6, releases the native window as above, then clears
+the realized byte; it always returns true. Slot 8, when unrealized, obtains the
+graphics bounds, saves them, invokes realization and sets the realized byte. On
+failure it calls Shutdown, including that method's normal service cleanup; on
+success it clears suspension, emits event 7, then shows/focuses the window. When
+already realized it returns true without these actions (`0x0098DC40`,
+`0x0098DCB0`). Native failure does not promise rollback to the preceding HWND.
+
+Centering uses SPI_GETWORKAREA and the outer GetWindowRect size, places that
+rectangle centrally using signed integer division, and passes current visibility
+as MoveWindow's repaint argument. Failed work-area/window queries leave it alone;
+fullscreen mode skips centering (`0x0098B8E0`). Primary slot 21 first calls canvas
+Shutdown if realized, then requests framework exit with argument 1 and returns
+integer zero (`0x0098B850`). A close message instead emits event 10; it does not
+directly perform that exit request.
+
+**Adjusted interfaces and listeners.** QI for `0xE46397DB` returns complete `+4`.
+Its slots 0–2 subtract 4 before invoking primary QI/AddRef/Release; slot 3 returns
+the primary canvas pointer without AddRef; slot 4 returns the **HWND value**;
+slot 5 returns a zero 16-bit value; slot 6 takes `(listener,enable)` and manages
+native-message listeners. QI for `0x3AC7A210` returns `+8`; its slots 0–2 subtract
+8 and slot 3 returns the stored message-server pointer, borrowed. The `+0xC`
+subinterface's slot 3 is the folded true-returning one-argument handler; the
+`+0x10` subinterface's slot 3 is DoMessage. Their QI/ref thunks subtract 12/16;
+the service and service's embedded unknown thunks subtract 20/24. These are
+adjustments to one lifetime, not independent reference counts (tables
+`0x00ADAD3C`–`0x00ADAD88`; thunks `0x0098CB00`–`0x0098CC20`). The `+0xC/+0x10`
+tables do not imply extra QI identities beyond §7.1's explicit cases.
+
+Listener enable rejects null or an already-stored pointer; a new pointer is
+inserted at the front and retained once overall. Disable removes/releases an existing pointer
+and returns true; null or missing pointers return false. Native messages visit
+listeners in reverse registration order before built-in handling. Each receives
+`(HWND,message,wParam,lParam,out handled)` with handled initially false. The first
+listener setting it true ends processing and supplies the window-procedure
+return value (`0x0098C6F0`, `0x0098D28C`–`0x0098D2F0`). Listener mutation during
+dispatch is not guarded by a snapshot.
+
+**Windows messages.** Except where noted, the following handled messages return
+zero. The registered legacy wheel message is first rewritten to `WM_MOUSEWHEEL`
+with `wParam` shifted left 16 bits, before listeners run. Unlisted messages,
+including middle-button, double-click, WM_SYSCHAR, WM_SYSDEADCHAR and WM_QUIT,
+reach DefWindowProc; this window procedure does not implement a thread-level
+WM_QUIT pump (`0x0098D230`–`0x0098D71A`).
+
+| Native message | Observable translation |
+|---|---|
+| WM_DESTROY (2) | Return zero; no explicit PostQuitMessage. |
+| WM_MOVE (3) | Get client rectangle in desktop coordinates, offset its origin to the two **unsigned** lParam words, save bounds and notify the screen buffer's bounds setter. |
+| WM_SIZE (5) | Keep mapped client origin, replace width/height with unsigned lParam words, save and notify buffer bounds; no separate resize canvas event here. |
+| WM_ACTIVATE (6) | Emit canvas subtype 2 when LOWORD(wParam) is nonzero, otherwise subtype 3. Minimized high word does not select the subtype. |
+| WM_PAINT (15) | For saved HWND only, BeginPaint, repaint helper, EndPaint. If paint suppression is clear, emit canvas subtype 4; otherwise fill the client area with brush handle 16 when HDC is non-null. |
+| WM_CLOSE (16) | Emit canvas subtype 10. |
+| WM_SETCURSOR (32) | Return 1 without default processing. |
+| WM_INPUTLANGCHANGE (81) | Refresh locale ANSI code page from LOWORD(lParam); zero becomes `0x10`; return DefWindowProc's result. |
+| WM_KEYDOWN / WM_SYSKEYDOWN (256/260) | Unless key input disabled or virtual key `0xE5`, emit key subtype 5. |
+| WM_KEYUP / WM_SYSKEYUP (257/261) | Same gate, key subtype 6. |
+| WM_CHAR (258) | Unless key input disabled, emit text subtype 4 using the encoding path below. |
+| WM_MENUCHAR (288) | Call DefWindowProc; preserve a nonzero result, otherwise return `0x10000`. |
+| WM_MOUSEMOVE (512) | Save signed lParam x/y; unless mouse input disabled, emit mouse subtype 13 with clamped client position. |
+| WM_LBUTTONDOWN / WM_RBUTTONDOWN (513/516) | Save signed x/y; unless disabled, capture the HWND if needed and emit mouse subtype 7/8. |
+| WM_LBUTTONUP / WM_RBUTTONUP (514/517) | Save signed x/y; unless disabled, release capture if this HWND owns it and neither left nor right button remains down, then emit subtype 10/11. |
+| WM_MOUSEWHEEL (522) | Unless disabled, convert signed lParam desktop x/y through ScreenToClient; emit mouse subtype 14 with clamped position and wheel amount. Does not directly update saved x/y. |
+| WM_EXITSIZEMOVE (562) | Save mapped client desktop bounds, notify buffer bounds, then emit canvas subtype 5. |
+
+Mouse positions in emitted messages clamp each axis to `[0,width-1]` and
+`[0,height-1]`, with the lower clamp performed first. A zero-sized axis can
+therefore yield -1. Raw signed positions are stored before mouse-disable checks;
+message feedback through DoMessage can subsequently replace them with the
+clamped subtype-13 position. Mouse flags map native MK_SHIFT/MK_CONTROL to
+bits 1/2, current Alt key state to bit 4, and native left/right/middle button
+state to bits `0x10/0x20/0x40`. Keyboard flags sample all six states with
+GetKeyState and additionally preserve lParam bit `0x40000000`. Key messages
+carry the virtual-key word and LOWORD(lParam) repeat count. The signed loads,
+clamps and message arguments are visible at `0x0098BE50`–`0x0098BEE8`,
+`0x0098B6E0`–`0x0098B79F` and `0x0098C400`–`0x0098C478`.
+
+Wheel amount is signed `trunc(delta*100/120)`. **Only a positive result above
+999 is replaced by 100**; negative extremes do not receive the corresponding
+clamp. A successful SPI_GETWHEELSCROLLLINES query multiplies by
+`min(unsigned lines,10)`; query failure leaves that amount unscaled
+(`0x0098BF20`–`0x0098C07F`). This is a scaled wheel amount, not raw wheel ticks.
+
+WM_CHAR compares the locale code page with the current framework code page.
+When equal, it emits the sign-extended low input byte directly, with repeat
+count and sampled flags. When unequal, it appends the byte to a pending string;
+on the first byte it determines the encoding's additional-byte count and adds
+one. Once that many bytes exist, it converts the whole string to framework
+encoding, emits one subtype-4 message per converted **signed byte**, and clears
+both strings and the pending count. It does not emit Unicode code points or a
+single multi-byte text message (`0x0098D080`–`0x0098D226`; byte sign extension
+at `0x0098D0D8`).
+
+**Queue filtering is not a normal dispatch pump.** Slot 18 removes messages with
+PeekMessage's inclusive filter `0x100..0x108`, all HWNDs, and PM_REMOVE. It saves
+at most 1024, removes character/system-character/dead-character messages, and
+works backwards over key releases: matching earlier presses for the same key
+and intervening matching-key records are discarded, stopping at another key
+release. Surviving records are reposted in their original order. The return is
+the number explicitly marked discarded; PostMessage failures are not included.
+The routine also contains mouse coalescing tests, but those are unreachable
+under this keyboard-only PeekMessage filter. A further PeekMessage occurs after
+the 1024th saved message, **before** the count check: a 1025th available message
+is consumed without being saved, reposted or counted. Verify this boundary with
+a recording host, not a live input queue (`0x0098CDB7`–`0x0098CDED`,
+`0x0098CE40`–`0x0098CE49`, complete routine `0x0098CDB0`–`0x0098D077`).
 
 ## 8. Conformance vectors
 
@@ -956,6 +1097,22 @@ a vector explicitly says otherwise.
 | GZG-V59 | Valid indexed alpha input byte 255, levels 3 | output 3, since inner divisor is 85; no clamp to levels-1 |
 | GZG-V60 | Legacy loader lock fails, positive dimensions; recording allocator that rejects invalid frees without dereferencing | no Unlock or buffer Release; attempted pixel free uses one-past-end address; no reliable normal-return assertion |
 | GZG-V61 | Graphics driver index equals count; missing driver ID | null in both cases; no AddRef, active-driver fallback or driver creation |
+| GZG-V62 | Canvas primary slot 15; paint suppression clear, then set | canvas subtype 4 only on first call; no PeekMessage, TranslateMessage or DispatchMessage |
+| GZG-V63 | Canvas slot 4 with unrealized canvas; recording driver has no matching mode | false, no event 8; realized-state getter nevertheless true |
+| GZG-V64 | Canvas native helper creation requested while HWND exists; driver-control QI fails | HWND cleared, auxiliary allocation freed/cleared, event 9, true; no DestroyWindow call |
+| GZG-V65 | Enable native listeners A, B, A; A declines, B handles message with result 123 | enables return true, true, false; one retained reference per listener; visit B first and stop; return 123, skip A and built-in/default handling |
+| GZG-V66 | Disable nonexistent listener, then remove A, then remove A again | false, true, false; one Release only |
+| GZG-V67 | Mouse enabled; canvas 100×50; WM_MOUSEMOVE at signed client `(-3,60)` | immediate saved position `(-3,60)`; subtype-13 message carries `(0,49)`; feeding it through DoMessage makes getters return `(0,49)` |
+| GZG-V68 | Mouse disabled; same move | saved raw position still changes; no mouse message |
+| GZG-V69 | Mouse move on zero-width, zero-height canvas | emitted clamped coordinates `(-1,-1)` |
+| GZG-V70 | Key enabled; WM_SYSKEYDOWN, virtual key `0x41`, repeat 3, lParam bit 30 set, Shift held | key subtype 5, key `0x41`, repeat 3; flags include 1 and `0x40000000`; no menu/default route |
+| GZG-V71 | Key enabled; WM_KEYDOWN with virtual key `0xE5` | zero return, no key message |
+| GZG-V72 | Wheel delta +120, scroll-lines query returns 3; then delta +1200, query returns 3 | subtype 14 amounts 300 and 300: +1200 becomes 1000, is replaced by 100, then multiplied by 3 |
+| GZG-V73 | Wheel delta -1200, scroll-lines query returns 3 | subtype 14 amount -3000; positive-only reset does not apply |
+| GZG-V74 | Equal locale/framework encodings; WM_CHAR byte `0xE9`, repeat 2 | one key subtype-4 message with signed byte -23 and repeat 2 |
+| GZG-V75 | Slot-18 host queue contains exactly 1025 unrelated-key-down records in filter range, no releases | saves/reposts first 1024 in order, consumes last without reposting, discarded count zero |
+| GZG-V76 | WM_DESTROY, WM_CLOSE, WM_QUIT, with recording native default handler | destroy returns zero; close emits canvas event 10; quit reaches default handler; none directly calls PostQuitMessage |
+| GZG-V77 | QI Windows subinterface `0xE46397DB`; primary slot 20 and subinterface slot 4 | primary returns address of HWND storage; subinterface returns stored HWND value; getter calls do not AddRef |
 
 ## 9. Evidence limits and open questions
 
@@ -970,9 +1127,10 @@ had a binary open.
 This spec settles the interface-level context, engine selection/initialization
 boundary, buffer dispatch and host/service rules listed above. It does **not**
 claim all generic geometry coverage, SimGL vertex emission, all graphics
-service IO helpers, Windows event translation or standalone alpha pixel kernels.
-Those are explicit follow-up questions, not free design choices. They are filed
-as GZG1 through GZG5 in
+service IO helpers or standalone alpha pixel kernels. The Windows canvas event
+translation is settled in §7.4, including the misleading former pump/listener labels.
+Those remaining gaps are explicit follow-up questions, not free design choices.
+They are filed as GZG1–GZG3 and GZG5 in
 [questions/gz-graphics.md](questions/gz-graphics.md). An engine lane can implement
 the settled contracts and linked software kernels while leaving those unresolved
 operations outside any replacement/compatibility claim.

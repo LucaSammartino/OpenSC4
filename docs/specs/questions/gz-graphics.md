@@ -35,14 +35,6 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   Remaining audit includes folded driver slots
   17/20. Relevant owners are `cGZGraphicSystem` and `cGZGraphicSystemW32`,
   including unnamed helpers in region `0x00980000`.
-- **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
-  primary slots and subinterface thunk mappings; settle HWND ownership, window
-  creation/reconfiguration failure cleanup, event pump ordering and every
-  Windows keyboard/mouse/focus/resize/quit translation. Confirm names/units of
-  the two words set by message `0xFA0C6390`, IID `0x1A0C615F`, subtype 13.
-  Evidence next: `0x0098C690`, `0x0098CDB0`, `0x0098D080`, `0x0098D230`,
-  `0x0098D9C0`, `0x0098DC40`–`0x0098DD70`; instructions are needed where
-  adjusted-this and message locals are incorrectly typed in the export.
 - **GZG5 — section 6, standalone alpha operations and loader details:** settle
   GenericBufferClip's exact rectangle/output mutation and all clipped versus
   NoClip alpha/shade/shadow/bright/stretch/half-source formulas, supported
