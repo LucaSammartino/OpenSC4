@@ -29,7 +29,7 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_model_transform(&mut self, model: Option<Transform>) -> Result<(), Error> {
         self.ready()?;
-        self.qualified_numeric()?;
+        let arithmetic = self.qualified_numeric()?;
         if model.is_none() && self.model_view_valid {
             return Ok(());
         }
@@ -41,12 +41,12 @@ impl<D: Driver> DrawContext<D> {
             self.model_counter = self.model_counter.wrapping_add(1);
             self.model_transform = model;
             if model.flags != 0 {
-                self.composed = self.composed.followed_by(model)?;
+                self.composed = self.composed.followed_by_with_control(model, arithmetic)?;
                 self.composed_counter = self.composed_counter.wrapping_add(1);
             }
         }
         // Complete owner stores precede the driver. No MatrixMode call here.
-        self.matrix = self.composed.qualified_matrix()?;
+        self.matrix = self.composed.qualified_matrix(arithmetic)?;
         self.matrix_loaded = true;
         self.emit(Command::LoadMatrix(self.matrix))?;
         self.model_view_valid = model.is_none();
@@ -55,9 +55,8 @@ impl<D: Driver> DrawContext<D> {
 
     /// Distinct raw-matrix overload, section 8.4; no compact scale or counters.
     pub fn set_model_matrix(&mut self, input: Matrix) -> Result<(), Error> {
-        use super::numeric::{add, mul, store};
         self.ready()?;
-        self.qualified_numeric()?;
+        let arithmetic = self.qualified_numeric()?;
         if !self.model_view_valid {
             self.composed = self.camera.as_ref().ok_or(Error::MissingCamera)?.view_transform()?;
             self.composed_counter = self.composed_counter.wrapping_add(1);
@@ -66,31 +65,34 @@ impl<D: Driver> DrawContext<D> {
         for row in 0..3 {
             for col in 0..4 {
                 let p = [
-                    mul(f64::from(self.composed.rotation[row][0]), f64::from(input[col]))?,
-                    mul(f64::from(self.composed.rotation[row][1]), f64::from(input[4 + col]))?,
-                    mul(f64::from(self.composed.rotation[row][2]), f64::from(input[8 + col]))?,
-                    mul(f64::from(self.composed.translation[row]), f64::from(input[12 + col]))?,
+                    arithmetic.mul(f64::from(self.composed.rotation[row][0]), f64::from(input[col]))?,
+                    arithmetic.mul(f64::from(self.composed.rotation[row][1]), f64::from(input[4 + col]))?,
+                    arithmetic.mul(f64::from(self.composed.rotation[row][2]), f64::from(input[8 + col]))?,
+                    arithmetic.mul(f64::from(self.composed.translation[row]), f64::from(input[12 + col]))?,
                 ];
                 let sum = if col == 0 {
-                    add(add(add(p[1], p[3])?, p[2])?, p[0])?
+                    arithmetic.add(arithmetic.add(arithmetic.add(p[1], p[3])?, p[2])?, p[0])?
                 } else {
-                    add(add(add(p[2], p[1])?, p[0])?, p[3])?
+                    arithmetic.add(arithmetic.add(arithmetic.add(p[2], p[1])?, p[0])?, p[3])?
                 };
-                matrix[4 * col + row] = store(sum)?;
+                matrix[4 * col + row] = arithmetic.store(sum)?;
             }
         }
         for col in 0..4 {
             let sum = if col == 0 {
-                add(add(f64::from(input[4]), f64::from(input[0]))?, f64::from(input[8]))?
+                arithmetic.add(
+                    arithmetic.add(f64::from(input[4]), f64::from(input[0]))?,
+                    f64::from(input[8]),
+                )?
             } else {
-                add(
-                    add(f64::from(input[col]), f64::from(input[8 + col]))?,
+                arithmetic.add(
+                    arithmetic.add(f64::from(input[col]), f64::from(input[8 + col]))?,
                     f64::from(input[4 + col]),
                 )?
             };
-            // Keep explicit zero multiplication; nonfinite input is outside the
-            // qualified domain, never silently simplified to input[12+col].
-            matrix[4 * col + 3] = store(add(mul(sum, 0.0)?, f64::from(input[12 + col]))?)?;
+            // Explicit zero multiplication preserves DC-V24's infinity -> NaN.
+            matrix[4 * col + 3] =
+                arithmetic.store(arithmetic.add(arithmetic.mul(sum, 0.0)?, f64::from(input[12 + col]))?)?;
         }
         self.matrix = matrix;
         self.matrix_loaded = true;
@@ -117,13 +119,10 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_shade(&mut self, rgb: Rgb) -> Result<(), Error> {
         self.ready()?;
-        self.qualified_numeric()?;
+        let arithmetic = self.qualified_numeric()?;
         let mut color = [0.0; 3];
         for (index, value) in color.iter_mut().enumerate() {
-            *value = numeric::store(numeric::mul(
-                f64::from(rgb[index]),
-                f64::from(self.default_shade[index]),
-            )?)?;
+            *value = arithmetic.store(arithmetic.mul(f64::from(rgb[index]), f64::from(self.default_shade[index]))?)?;
         }
         self.set_self_lit_shade(color)
     }
@@ -151,10 +150,10 @@ impl<D: Driver> DrawContext<D> {
             None => self.default_shade,
         };
         let color = if let Some(tint) = tint {
-            self.qualified_numeric()?;
+            let arithmetic = self.qualified_numeric()?;
             let mut color = [0.0; 3];
             for (index, value) in color.iter_mut().enumerate() {
-                *value = numeric::store(numeric::mul(f64::from(light[index]), f64::from(tint[index]))?)?;
+                *value = arithmetic.store(arithmetic.mul(f64::from(light[index]), f64::from(tint[index]))?)?;
             }
             color
         } else {

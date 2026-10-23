@@ -43,7 +43,10 @@ impl Transform {
 
     /// Qualified DC8 composition, with whole-byte branches and distinct stores.
     pub fn followed_by(self, model: Self) -> Result<Self, Error> {
-        use super::numeric::{add, mul, store};
+        self.followed_by_with_control(model, super::Arithmetic::default())
+    }
+
+    pub fn followed_by_with_control(self, model: Self, arithmetic: super::Arithmetic) -> Result<Self, Error> {
         if model.flags == 0 {
             return Ok(self);
         }
@@ -65,31 +68,31 @@ impl Transform {
         ];
         for row in 0..3 {
             let p = [
-                mul(f64::from(a[row][0]), f64::from(mt[0]))?,
-                mul(f64::from(a[row][1]), f64::from(mt[1]))?,
-                mul(f64::from(a[row][2]), f64::from(mt[2]))?,
+                arithmetic.mul(f64::from(a[row][0]), f64::from(mt[0]))?,
+                arithmetic.mul(f64::from(a[row][1]), f64::from(mt[1]))?,
+                arithmetic.mul(f64::from(a[row][2]), f64::from(mt[2]))?,
             ];
-            let dot = add(add(p[1], p[2])?, p[0])?;
+            let dot = arithmetic.add(arithmetic.add(p[1], p[2])?, p[0])?;
             let scaled = if row < 2 {
-                f64::from(store(mul(dot, s)?)?)
+                super::numeric::Float::from(f64::from(arithmetic.store(arithmetic.mul(dot, s)?)?))
             } else {
-                mul(f64::from(store(dot)?), s)?
+                arithmetic.mul(f64::from(arithmetic.store(dot)?), s)?
             };
-            translation[row] = store(add(scaled, f64::from(self.translation[row]))?)?;
+            translation[row] = arithmetic.store(arithmetic.add(scaled, f64::from(self.translation[row]))?)?;
             for col in 0..3 {
                 let p = [
-                    mul(f64::from(a[row][0]), f64::from(b[0][col]))?,
-                    mul(f64::from(a[row][1]), f64::from(b[1][col]))?,
-                    mul(f64::from(a[row][2]), f64::from(b[2][col]))?,
+                    arithmetic.mul(f64::from(a[row][0]), f64::from(b[0][col]))?,
+                    arithmetic.mul(f64::from(a[row][1]), f64::from(b[1][col]))?,
+                    arithmetic.mul(f64::from(a[row][2]), f64::from(b[2][col]))?,
                 ];
                 let [x, y, z] = orders[row][col];
-                rotation[row][col] = store(add(add(p[x], p[y])?, p[z])?)?;
+                rotation[row][col] = arithmetic.store(arithmetic.add(arithmetic.add(p[x], p[y])?, p[z])?)?;
             }
         }
         Ok(Self {
             rotation,
             translation,
-            scale: store(mul(s, f64::from(model.scale))?)?,
+            scale: arithmetic.store(arithmetic.mul(s, f64::from(model.scale))?)?,
             flags: self.flags | model.flags,
         })
     }
@@ -109,18 +112,17 @@ impl Transform {
         m
     }
 
-    pub(super) fn qualified_matrix(self) -> Result<Matrix, Error> {
-        use super::numeric::{mul, store};
+    pub(super) fn qualified_matrix(self, arithmetic: super::Arithmetic) -> Result<Matrix, Error> {
         let mut matrix = [0.0; 16];
         for row in 0..3 {
             for col in 0..3 {
                 matrix[col * 4 + row] = if self.flags & 2 != 0 {
-                    store(mul(f64::from(self.rotation[row][col]), f64::from(self.scale))?)?
+                    arithmetic.store(arithmetic.mul(f64::from(self.rotation[row][col]), f64::from(self.scale))?)?
                 } else {
-                    store(f64::from(self.rotation[row][col]))?
+                    self.rotation[row][col]
                 };
             }
-            matrix[12 + row] = store(f64::from(self.translation[row]))?;
+            matrix[12 + row] = self.translation[row];
         }
         matrix[15] = 1.0;
         Ok(matrix)

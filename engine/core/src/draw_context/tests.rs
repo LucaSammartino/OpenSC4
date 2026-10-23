@@ -260,17 +260,17 @@ fn settled_numeric_qualification_and_original_alpha_reference() {
         ]
     );
     assert_eq!((c.word >> 21) & 15, 10);
-    // Wider cancellation and nonfinite raw zero products are outside exact53,
-    // not claimed as portable reproductions of public x87-64 vectors 18/23/24.
+    // An x87-64 operation rounds A+1 back to A, without rejecting the input.
     let a = f64::from(2.0_f32.powi(80));
-    assert_eq!(numeric::add(a, 1.0), Err(Error::UnsupportedNumeric));
+    assert_eq!(numeric::add(a, 1.0), numeric::add(a, 0.0));
     c.model_view_valid = true;
     c.composed = Transform::IDENTITY;
     let before = c.driver.commands.len();
     let mut raw = [0.; 16];
     raw[0] = f32::INFINITY;
-    assert_eq!(c.set_model_matrix(raw), Err(Error::UnsupportedNumeric));
-    assert_eq!(c.driver.commands.len(), before);
+    c.set_model_matrix(raw).unwrap();
+    assert!(c.matrix[3].is_nan());
+    assert_eq!(c.driver.commands.len(), before + 1);
     c.set_numeric_control(NumericControl::Unqualified);
     assert_eq!(
         c.set_model_transform(Some(Transform::IDENTITY)),
@@ -770,7 +770,7 @@ fn texture_dependencies_suppressed_stage_and_higher_stage_behavior() {
     c.enable_texture(0, 0).unwrap();
     assert_eq!(c.state_word() & 0x1000_0020, 0);
     c.driver.commands.clear();
-    c.properties.use_second_stage = true;
+    c.properties.use_second_stage = false; // higher-stage enable bypasses boolean 11
     c.enable_texture(1, 5).unwrap();
     c.enable_texture(0, 5).unwrap();
     assert_eq!(
@@ -1155,7 +1155,7 @@ fn errors_do_not_fabricate_success_cache_or_missing_owned_constants() {
     assert_eq!(c.set_model_transform(None), Err(Error::MissingCamera));
     assert_eq!(c.set_model_shade(42, None), Ok(())); // DC8 null-manager fallback
     assert_eq!(c.set_tex_coord(0, 2), Err(Error::InvalidStage));
-    assert_eq!(c.set_alpha_func(0, f32::NAN), Err(Error::InvalidValue));
+    c.set_alpha_func(0, f32::NAN).unwrap(); // native packing does not clamp
     c.set_index_buffer(usize::MAX);
     assert_eq!(c.draw_indexed(0, 1, 1), Err(Error::AddressOverflow));
     let count = c.driver.commands.len();
@@ -1356,4 +1356,237 @@ fn unknown_default_values_cannot_be_used_to_fabricate_second_pass() {
     c.prepare_second_pass().unwrap();
     assert!(c.stages[0].texture_known);
     assert!(c.stages[0].texture.is_none());
+}
+
+#[test]
+fn closure_dc_v17_v18_v20_v23_v24() {
+    let mut c = context();
+    c.model_view_valid = true;
+    c.composed = Transform {
+        rotation: [[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]],
+        translation: [1., 2., 3.],
+        scale: 5.,
+        flags: 0x80,
+    };
+    c.composed_counter = 40;
+    c.model_counter = 7;
+    c.set_model_transform(Some(Transform {
+        rotation: [[3., 0., 0.], [0., 3., 0.], [0., 0., 3.]],
+        translation: [4., 5., 6.],
+        scale: 7.,
+        flags: 1,
+    }))
+    .unwrap();
+    assert_eq!(c.composed.translation, [41., 52., 63.]);
+    assert_eq!((c.composed.scale, c.composed.flags), (35., 0x81));
+    assert_eq!((c.composed_counter, c.model_counter), (41, 8));
+    assert_eq!([c.matrix[0], c.matrix[5], c.matrix[10]], [6.; 3]);
+
+    // DC-V18 fixes nine different summation orders at x87-64 precision.
+    let a = 2.0_f32.powi(80);
+    c.model_view_valid = true;
+    c.composed = Transform {
+        rotation: [[1.; 3]; 3],
+        flags: 1,
+        ..Transform::IDENTITY
+    };
+    c.set_model_transform(Some(Transform {
+        rotation: [[a; 3], [-a; 3], [1.; 3]],
+        flags: 1,
+        ..Transform::IDENTITY
+    }))
+    .unwrap();
+    assert_eq!(
+        c.composed.rotation.map(|row| row.map(f32::to_bits)),
+        [[0, 0, 0x3f80_0000], [0, 0x3f80_0000, 0], [0, 0, 0],]
+    );
+    assert_eq!(
+        c.matrix,
+        [0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 1.]
+    );
+
+    // DC-V20: completed rotation spills before scale expansion.
+    c.model_view_valid = true;
+    c.composed = Transform {
+        rotation: [[1., 1., 0.], [0., 1., 0.], [0., 0., 1.]],
+        flags: 2,
+        ..Transform::IDENTITY
+    };
+    c.set_model_transform(Some(Transform {
+        rotation: [[1., 0., 0.], [f32::from_bits(0x3380_0000), 1., 0.], [0., 0., 1.]],
+        scale: 3.,
+        flags: 2,
+        ..Transform::IDENTITY
+    }))
+    .unwrap();
+    assert_eq!(c.composed.rotation[0][0].to_bits(), 0x3f80_0000);
+    assert_eq!(c.matrix[0].to_bits(), 0x4040_0000);
+
+    // DC-V23: the raw first column has a different four-term order.
+    c.model_view_valid = true;
+    c.composed = Transform {
+        rotation: [[0., 1., 1.], [0.; 3], [0.; 3]],
+        translation: [1., 0., 0.],
+        ..Transform::IDENTITY
+    };
+    let mut raw = [0.; 16];
+    raw[4] = a;
+    raw[8] = 1.;
+    raw[12] = -a;
+    raw[15] = 1.;
+    c.set_model_matrix(raw).unwrap();
+    assert_eq!(c.matrix[0].to_bits(), 0x3f80_0000);
+
+    // DC-V24: infinity times the explicit zero must remain NaN.
+    c.model_view_valid = true;
+    c.composed = Transform::IDENTITY;
+    raw = [0.; 16];
+    raw[0] = f32::INFINITY;
+    raw[12] = 9.;
+    c.set_model_matrix(raw).unwrap();
+    assert!(c.matrix[3].is_nan());
+}
+
+#[test]
+fn closure_texture_reciprocals_and_x87_controls() {
+    let mut c = context();
+    c.composed.translation = [7., 5., 0.];
+    let mut m = material();
+    m.flags |= 0x20;
+    let mut texture = slot(0, 3);
+    texture.flags = 1;
+    texture.scale = 3.;
+    m.textures = vec![texture];
+    c.set_material_state(&m, flags()).unwrap();
+    let last_matrix = |c: &DrawContext<Device>| {
+        c.driver
+            .commands
+            .iter()
+            .rev()
+            .find_map(|command| {
+                if let Command::TexMatrix(Some(matrix)) = command {
+                    Some(*matrix)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    };
+    let matrix = last_matrix(&c);
+    assert_eq!(matrix[0].to_bits(), 0x3eaa_aaab);
+    // The live reciprocal is not rounded to binary32 before multiplication.
+    assert_eq!(matrix[12].to_bits(), 0xc015_5555);
+    assert_eq!(matrix[13].to_bits(), 0x3fd5_5555);
+    m.textures[0].scale = 0.;
+    c.composed.translation = [0.; 3];
+    c.set_material_state(&m, flags()).unwrap();
+    assert!(last_matrix(&c)[0].is_infinite());
+    assert!(last_matrix(&c)[12].is_nan());
+
+    for precision in [Precision::Bits24, Precision::Bits53, Precision::Bits64] {
+        for (rounding, expected) in [
+            (Rounding::NearestEven, 8),
+            (Rounding::Down, 7),
+            (Rounding::Up, 8),
+            (Rounding::TowardZero, 7),
+        ] {
+            let arithmetic = Arithmetic { precision, rounding };
+            c.set_numeric_control(NumericControl::X87(arithmetic));
+            c.set_alpha_func(1, 0.5).unwrap();
+            assert_eq!((c.word >> 21) & 15, expected);
+            assert_eq!(state::quantize_with_control(0.5, arithmetic).unwrap(), expected);
+        }
+    }
+    assert_eq!(state::quantize(2.).unwrap(), 14); // no saturation
+    assert_eq!(state::quantize(-0.5).unwrap(), 8);
+    let a = Arithmetic::default();
+    let tiny = f64::from(f32::from_bits(1));
+    assert_eq!(a.store(a.mul(tiny, 0.5).unwrap()).unwrap().to_bits(), 0);
+    let up = Arithmetic {
+        rounding: Rounding::Up,
+        ..a
+    };
+    assert_eq!(up.store(up.mul(tiny, 0.5).unwrap()).unwrap().to_bits(), 1);
+    let zero = Arithmetic {
+        rounding: Rounding::TowardZero,
+        ..a
+    };
+    assert_eq!(
+        zero.store(zero.mul(f64::from(f32::MAX), 2.).unwrap()).unwrap(),
+        f32::MAX
+    );
+}
+
+#[test]
+fn closure_fog_constructor_gap_and_indexed_highlight_write() {
+    let mut c = DrawContext::new(Device::default(), props());
+    assert_eq!(c.fog_cache(), (0, [f32::MAX; 4], [f32::MAX; 2]));
+    assert_eq!(c.opaque_f4(), &[0; 0x38]);
+    assert_eq!(c.turn_on_fog(1), Err(Error::Gap(ContractGap::Fog)));
+    assert!(c.driver.commands.is_empty());
+    c.init().unwrap();
+    c.set_highlight_color(2, [0.25, 0.5, 0.75, 1.]).unwrap();
+    c.set_render_state_highlight(2).unwrap();
+    assert!(c.driver.commands.contains(&Command::TexColor([0.25, 0.5, 0.75, 1.])));
+    assert_eq!(c.highlights[1], [0., 1., 0., 1.]);
+    assert_eq!(c.set_highlight_color(11, [0.; 4]), Err(Error::InvalidValue));
+}
+
+#[test]
+fn closure_arithmetic_precision_and_binary32_boundaries() {
+    let a = Arithmetic::default();
+    for (precision, power, expected) in [
+        (Precision::Bits24, 24, 0.),
+        (Precision::Bits53, 24, 1.),
+        (Precision::Bits53, 53, 0.),
+        (Precision::Bits64, 53, 1.),
+    ] {
+        let arithmetic = Arithmetic { precision, ..a };
+        let big = 2.0_f64.powi(power);
+        let sum = arithmetic.add(big, 1.).unwrap();
+        assert_eq!(arithmetic.store(arithmetic.add(sum, -big).unwrap()).unwrap(), expected);
+    }
+    let up = Arithmetic {
+        rounding: Rounding::Up,
+        ..a
+    };
+    let big = 2.0_f64.powi(80);
+    assert_eq!(
+        up.store(up.add(up.add(big, 1.).unwrap(), -big).unwrap()).unwrap(),
+        131_072.
+    );
+    let down = Arithmetic {
+        rounding: Rounding::Down,
+        ..a
+    };
+    assert_eq!(down.store(down.add(1., -1.).unwrap()).unwrap().to_bits(), 0x8000_0000);
+
+    // Independent host IEEE binary32 results at PC24/nearest-even. These
+    // exercise exponent alignment, sticky rounding, signs, subnormals/overflow.
+    let pc24 = Arithmetic {
+        precision: Precision::Bits24,
+        ..a
+    };
+    let mut seed = 0x57a3_901d_u32;
+    for _ in 0..512 {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let x = f32::from_bits(seed);
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let y = f32::from_bits(seed);
+        if x.is_finite() && y.is_finite() {
+            let sum = pc24.store(pc24.add(f64::from(x), f64::from(y)).unwrap()).unwrap();
+            assert_eq!(sum.to_bits(), (x + y).to_bits());
+            // x87 precision control does not restrict the exponent range. At
+            // underflow a subsequent binary32 store can round a second time;
+            // compare products at PC64 instead, where the 48-bit product is exact.
+            let product = a.store(a.mul(f64::from(x), f64::from(y)).unwrap()).unwrap();
+            assert_eq!(product.to_bits(), (x * y).to_bits());
+        }
+    }
+    for scale in [1., 3., 10., 0.1, -3., f32::MIN_POSITIVE, f32::from_bits(1), f32::MAX] {
+        assert_eq!(
+            a.store(a.reciprocal(scale).unwrap()).unwrap().to_bits(),
+            ((1.0_f64 / f64::from(scale)) as f32).to_bits()
+        );
+    }
 }

@@ -60,34 +60,37 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_material_state(&mut self, material: &Material, flags: DrawFlags) -> Result<(), Error> {
         self.ready()?;
-        self.qualified_numeric()?;
+        let arithmetic = self.qualified_numeric()?;
         if material.textures.len() > 2 {
             return Err(Error::InvalidValue);
         }
         let bit = |n: u32| flags.bits & (1u8 << n) != 0;
         let grey = bit(3);
         let fade = bit(1) && !grey;
-        let reference = numeric::material_threshold(material.alpha_threshold);
-        let packed = PackedState::pack(PackInput {
-            color_write: material.flags & 0x100 != 0,
-            depth_write: material.flags & 0x80 != 0 && !bit(4) && !bit(5),
-            depth_test: !bit(4) && (material.flags & 2 != 0 || bit(5)),
-            alpha_test: material.flags & 1 != 0,
-            blend: material.flags & 0x10 != 0 || fade,
-            textures: material.textures.len(),
-            cull: material.flags & 8 != 0,
-            depth_func: if bit(5) { 4 } else { material.depth_func as i32 },
-            source_blend: if fade { 4 } else { material.blend[0] as i32 },
-            destination_blend: if fade { 5 } else { material.blend[1] as i32 },
-            alpha_func: material.alpha_func as i32,
-            alpha_reference: if fade && flags.a < 1.0 {
-                numeric::store(numeric::mul(f64::from(reference), f64::from(flags.a))?)?
-            } else {
-                reference
+        let reference = arithmetic.material_threshold(material.alpha_threshold)?;
+        let packed = PackedState::pack_with_control(
+            PackInput {
+                color_write: material.flags & 0x100 != 0,
+                depth_write: material.flags & 0x80 != 0 && !bit(4) && !bit(5),
+                depth_test: !bit(4) && (material.flags & 2 != 0 || bit(5)),
+                alpha_test: material.flags & 1 != 0,
+                blend: material.flags & 0x10 != 0 || fade,
+                textures: material.textures.len(),
+                cull: material.flags & 8 != 0,
+                depth_func: if bit(5) { 4 } else { material.depth_func as i32 },
+                source_blend: if fade { 4 } else { material.blend[0] as i32 },
+                destination_blend: if fade { 5 } else { material.blend[1] as i32 },
+                alpha_func: material.alpha_func as i32,
+                alpha_reference: if fade && flags.a < 1.0 {
+                    arithmetic.store(arithmetic.mul(f64::from(reference), f64::from(flags.a))?)?
+                } else {
+                    reference
+                },
+                stage0_mode: material.textures.first().map_or(-1, |slot| slot.mode as i32),
+                stage1_mode: material.textures.get(1).map_or(-1, |slot| slot.mode as i32),
             },
-            stage0_mode: material.textures.first().map_or(-1, |slot| slot.mode as i32),
-            stage1_mode: material.textures.get(1).map_or(-1, |slot| slot.mode as i32),
-        })?;
+            arithmetic,
+        )?;
         if grey {
             self.emit(Command::ColorMultiplier([flags.a; 3]))?;
         } else if fade && flags.a < 1.0 {
@@ -106,15 +109,14 @@ impl<D: Driver> DrawContext<D> {
                     self.set_tex_env_mode(slot.mode as i32, stage)?;
                 }
                 if slot.flags & 1 != 0 {
-                    self.qualified_numeric()?;
-                    let k = numeric::reciprocal(slot.scale)?;
+                    let k = arithmetic.reciprocal(slot.scale)?;
                     let tx = self.composed.translation[0];
                     let ty = self.composed.translation[1];
                     let mut matrix = [0.0; 16];
-                    matrix[0] = numeric::store(k)?;
-                    matrix[5] = numeric::store(-k)?;
-                    matrix[12] = numeric::store(numeric::mul(-k, f64::from(tx))?)?;
-                    matrix[13] = numeric::store(numeric::mul(k, f64::from(ty))?)?;
+                    matrix[0] = arithmetic.store(k)?;
+                    matrix[5] = arithmetic.store(-k)?;
+                    matrix[12] = arithmetic.store(arithmetic.mul(-k, f64::from(tx))?)?;
+                    matrix[13] = arithmetic.store(arithmetic.mul(k, f64::from(ty))?)?;
                     self.set_tex_transform(matrix, stage)?;
                 } else {
                     self.clear_tex_transform(stage)?;

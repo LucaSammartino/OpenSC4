@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::state::quantize;
+use super::state::quantize_with_control;
 use super::*;
 
 impl<D: Driver> DrawContext<D> {
+    fn alpha_reference(&self, q: u32) -> Result<f32, Error> {
+        // Packed replay has no caller qualification precondition. Retain its
+        // portable nearest/even default when no ambient control was supplied.
+        let arithmetic = match self.numeric_control {
+            NumericControl::X87(arithmetic) => arithmetic,
+            _ => Arithmetic::default(),
+        };
+        arithmetic.store(arithmetic.mul(f64::from(q), f64::from(f32::from_bits(0x3d88_8889)))?)
+    }
+
     fn toggle(&mut self, bit: u32, on: i32, command: fn(bool) -> Command) -> Result<(), Error> {
         self.ready()?;
         if on == -1 {
@@ -74,7 +84,7 @@ impl<D: Driver> DrawContext<D> {
                 self.texture_bit(1, true)
             }
             (1, false) => self.texture_bit(1, false),
-            (_, true) if self.reaches_driver(stage) => {
+            (_, true) => {
                 self.select(stage)?;
                 self.emit(Command::Capability {
                     capability: 5,
@@ -113,11 +123,11 @@ impl<D: Driver> DrawContext<D> {
         let q = if reference == -1.0 {
             (self.word >> 21) & 15
         } else {
-            quantize(reference)?
+            quantize_with_control(reference, self.qualified_numeric()?)?
         };
         let bits = (f << 10) | (q << 21);
         let mask = (7 << 10) | (15 << 21);
-        let reconstructed = ((self.word >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889);
+        let reconstructed = self.alpha_reference((self.word >> 21) & 15)?;
         if (self.word >> 10) & 7 != f || (reference != -1.0 && reference != reconstructed) {
             self.word = (self.word & !mask) | bits;
             self.emit(Command::AlphaFunc {
@@ -218,7 +228,7 @@ impl<D: Driver> DrawContext<D> {
         if changed & ((7 << 10) | (15 << 21)) != 0 {
             self.emit(Command::AlphaFunc {
                 function: ((target >> 10) & 7) as u8,
-                reference: ((target >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889),
+                reference: self.alpha_reference((target >> 21) & 15)?,
             })?;
         }
         if changed & (255 << 13) != 0 {
@@ -276,5 +286,11 @@ impl<D: Driver> DrawContext<D> {
         self.set_render_state(self.highlight_state)?;
         self.set_tex_color(self.highlights[color])?;
         self.set_tex_combiner(&HIGHLIGHT_COMBINER_BYTES.map(|byte| byte.unwrap()), 0)
+    }
+
+    /// Renderer ReadProperties supplies each indexed RGBA (section 1.5).
+    pub fn set_highlight_color(&mut self, index: usize, color: Rgba) -> Result<(), Error> {
+        *self.highlights.get_mut(index).ok_or(Error::InvalidValue)? = color;
+        Ok(())
     }
 }
