@@ -817,8 +817,10 @@ The Write writes the crew count from the `+0x188` list, then per node reads two 
   message server `0x00B43CCC` slot 0x14, target = the message-target sub-object at object `+0x4`: `0x66956814`,
   `0xA6B79602`, `0x06CDB65B`, `0x26D31EC1` (`0x86AD10EE` is **not** subscribed: the animation-tick manager calls
   `DoMessage` directly, lot-developer §6.7.8); register with the animation-tick manager (service
-  `0x00602600`, slot 0x14, priority `0x80`); fill 6 × 5 `cISC4SimGrid<float>*` slots from the framework
-  (`0x1AC0E11A`/`0xFAC0E219` service, table `0x00AA1E30…0x00AA1E48`); pack the render state at object `+0xF8`
+  `0x00602600`, slot 0x14, priority `0x80`); fill 6 × 5 **texture-binding** slots from the framework
+  (`0x1AC0E11A`/`0xFAC0E219` factory, table `0x00AA1E30…0x00AA1E48`; the old SimGrid type was a
+  decompiler error). IDs, render fields and the construction visual contract are in lot-developer §6.7.15;
+  pack the render state at object `+0xF8`
   (`0x007D2B50`); finally call **occupant slot 23 `AddOccupantGroup(0x5007)`** on itself (`CALL [EAX+0x5C]` at
   `0x005D1505`, `ECX` = the occupant sub-object, vtable `0x00AA21B8` slot 23 = `0x005E9350`, one stack argument,
   callee pops 4). Its compiled body (`0x005E9350`): read the occupant's u32-array property `0xAA1DD396` (the
