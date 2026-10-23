@@ -67,11 +67,11 @@ impl Properties for Registry {
         self.float = value;
         true
     }
-    fn dump(&self) -> Vec<(String, PropertyValue)> {
+    fn dump(&self) -> Vec<(Vec<u8>, PropertyValue)> {
         vec![
-            ("forceSoftwareDriver".into(), PropertyValue::Bool(self.bools[0])),
-            ("TestInt".into(), PropertyValue::Int(self.integer)),
-            ("TestFloat".into(), PropertyValue::Float(self.float)),
+            (b"forceSoftwareDriver".to_vec(), PropertyValue::Bool(self.bools[0])),
+            (b"TestInt".to_vec(), PropertyValue::Int(self.integer)),
+            (b"TestFloat".to_vec(), PropertyValue::Float(self.float)),
         ]
     }
 }
@@ -135,6 +135,7 @@ impl InformationProvider for Provider {
 
 struct Log {
     allow: bool,
+    open: bool,
     paths: Vec<String>,
     text: String,
     closes: usize,
@@ -143,6 +144,7 @@ impl Default for Log {
     fn default() -> Self {
         Self {
             allow: true,
+            open: false,
             paths: Vec::new(),
             text: String::new(),
             closes: 0,
@@ -152,17 +154,27 @@ impl Default for Log {
 impl LogFile for Log {
     fn open(&mut self, path: &str) -> bool {
         self.paths.push(path.into());
+        self.open = self.allow;
         self.allow
     }
-    fn write(&mut self, text: &str) {
-        self.text.push_str(text);
+    fn is_open(&self) -> bool {
+        self.open
     }
-    fn close(&mut self) {
+    fn write_bytes(&mut self, bytes: &[u8]) -> bool {
+        self.text.push_str(std::str::from_utf8(bytes).unwrap());
+        true
+    }
+    fn close(&mut self) -> bool {
         self.closes += 1;
+        self.open = false;
+        true
     }
 }
 
 type Manager = GraphicsRuleManager<Registry, Log>;
+
+#[path = "closure_tests.rs"]
+mod closure_tests;
 fn fixture(script: &str) -> (Manager, Arc<Mutex<Registry>>, Provider, Files) {
     let properties = Arc::new(Mutex::new(Registry::default()));
     let mut files = Files::default();
@@ -237,11 +249,17 @@ fn threshold_conversion_is_signed64_low32_without_binary32_rounding() {
 fn gr5_nan_follows_main_spec_all_pass_any_no_match() {
     let mut env = Environment::default();
     env.numbers[1] = f32::NAN;
-    for condition in ["atLeast memory 2", "atMost memory 2"] {
+    for condition in [
+        "atLeast memory 2",
+        "atMost memory 2",
+        "atLeast memory 2\natMost memory 2",
+    ] {
         let all = parse(&format!("rule\n{condition}\nend")).unwrap();
         let any = parse(&format!("rule -any\n{condition}\nend")).unwrap();
         assert!(all.rules[0].matches(&env, &AsciiLowercase).unwrap());
         assert!(!any.rules[0].matches(&env, &AsciiLowercase).unwrap());
+        let failing = parse(&format!("rule\nhas MMX\n{condition}\nend")).unwrap();
+        assert!(!failing.rules[0].matches(&env, &AsciiLowercase).unwrap());
     }
 }
 
@@ -614,8 +632,8 @@ fn v10_explicit_logging_regathers_without_evaluation_and_failed_open_still_gathe
     assert_eq!(m.environment.numbers[0], 999.0);
     assert!(trace(&p).is_empty());
     assert_eq!(m.logger().closes, 1);
-    assert!(m.logger().text.starts_with("Log generated on 2026-10-22, 09:07\n"));
-    assert!(!m.logger().text.contains("Rules\n"));
+    assert!(m.logger().text.starts_with("Log generated on 2026-10-22, 09:07\r\n"));
+    assert!(!m.logger().text.contains("Rules\r\n"));
     assert!(!m.logger().text.contains("recommended:"));
     m.log.allow = false;
     provider.data.cpu_mhz = 1001;
@@ -678,8 +696,11 @@ fn log_filename_preferences_property_dump_and_failed_open_evaluation() {
     m.set_options_from_configuration(&context, &AsciiLowercase).unwrap();
     assert_eq!(m.logger().paths, ["app/ALPHA-config-log.txt"]);
     assert_eq!(provider.measures, 1);
-    assert!(m.logger().text.contains("Rules\n-----\napplying r\n  option 3 = 77\n"));
-    assert!(m.logger().text.contains("TestInt = -7\n"));
+    assert!(m
+        .logger()
+        .text
+        .contains("Rules\r\n-----\r\napplying r\r\n  option 3 = 77\r\n"));
+    assert!(m.logger().text.contains("TestInt = -7\r\n"));
     let rows: Vec<_> = m.logger().text.lines().filter(|s| s.contains("recommended:")).collect();
     assert_eq!(rows.len(), 12);
     assert!(rows[0].starts_with("Visual Effects"));
@@ -767,8 +788,8 @@ fn lexical_literal_subset_comments_symbols_includes_and_optional_user_order() {
         files.reads,
         [
             "data/Graphics Rules.sgr",
-            "user/Graphics Options.sgr",
-            "data/Video Cards.sgr"
+            "data/Video Cards.sgr",
+            "user/Graphics Options.sgr"
         ]
     );
     assert_eq!(
@@ -796,11 +817,13 @@ fn unsupported_or_malformed_grammar_fails_instead_of_inventing_native_semantics(
         ("rule", "Unclosed block"),
         ("rule -mystery\nend", "Bad rule arguments"),
         ("Rule\nend", "Unknown command"),
-        ("rule\natLeast memory \"1+2\"\nend", "Bad real number"),
+        (
+            "rule\natLeast memory \"sqrt(4)\"\nend",
+            "Unsupported GR4 numeric primary/function",
+        ),
         ("rule\nhas MMX extra\nend", "Bad argument count"),
         ("rule\nproperty TestBool True\nend", "Bad boolean"),
-        ("rule\nproperty TestInt 2.5\nend", "Bad integer"),
-        ("rule\nproperty TestInt $missing\nend", "Unknown symbol"),
+        ("rule\nproperty TestInt $missing\nend", "Unknown variable"),
         (
             "optionGroup 1\nproperty TestInt 9\nend",
             "Property requires a rule or selected option",
@@ -823,7 +846,7 @@ fn unsupported_or_malformed_grammar_fails_instead_of_inventing_native_semantics(
             .message,
         "Include cycle"
     );
-    for bad in ["", ".", "+", "1e", "1e+", "1 2", "2x", "1+2", "NaN", "inf"] {
+    for bad in ["", ".", "+", "1e", "1e+", "1 2", "2x"] {
         assert_eq!(real(bad).unwrap_err(), "Bad real number");
     }
     for (good, expected) in [("+.5", 0.5), ("2.", 2.0), ("-1.25e+2", -125.0)] {
@@ -844,7 +867,7 @@ fn general_six_significant_digits_and_exponent_boundaries() {
         (1000000.0, "1e+06"),
         (f32::MIN_POSITIVE, "1.17549e-38"),
     ] {
-        assert_eq!(general(value), expected, "{value}");
+        assert_eq!(general(value).unwrap(), expected, "{value}");
     }
 }
 
@@ -911,8 +934,7 @@ fn wildcard_matches_independent_exhaustive_short_byte_language() {
 }
 
 #[test]
-fn acquired_file_failures_do_not_publish_and_optional_roots_remain_explicit_policy() {
-    // GR4: these are documented local policies until registration semantics land.
+fn acquired_file_failures_respect_registration_bits() {
     let registry = Registry::default();
     let mut files = Files::default();
     files.text.insert("r".into(), "rule primary\nend".into());
@@ -921,9 +943,10 @@ fn acquired_file_failures_do_not_publish_and_optional_roots_remain_explicit_poli
         .unwrap();
     assert_eq!(result.rules[0].name, "primary");
     files.fail.insert("o".into());
-    let e = RuleParser::new(&registry, 0, 0, false)
+    let result = RuleParser::new(&registry, 0, 0, false)
         .parse_files(&mut files, "r", "o")
-        .unwrap_err();
+        .unwrap();
+    let e = &result.diagnostics[0];
     assert_eq!((e.path.as_str(), e.message.as_str()), ("o", "Read failed"));
     files.fail.clear();
     files.text.remove("r");
@@ -980,10 +1003,9 @@ fn parse_success_replaces_both_lists_and_uint32_recommendations_keep_bits() {
 }
 
 #[test]
-fn native_owner_boundary_ids_and_indices_are_rejected_without_panics() {
-    // GR6: no native credit for these still-unspecified malformed-input policies.
-    assert!(card_ids("xxxxxxxxGHIJxxxxxxxxxx0000x").is_err());
-    assert!(card_ids("xxxxxxxx+234xxxxxxxxxx0000x").is_err());
+fn permissive_ids_and_explicit_unsafe_index_embedding_boundary() {
+    assert_eq!(card_ids("xxxxxxxxGHIJxxxxxxxxxx0000x").unwrap(), (0, 0));
+    assert_eq!(card_ids("xxxxxxxx+234xxxxxxxxxx0000x").unwrap(), (0, 0));
     let (mut m, _, _, _) = fixture("partialRule\noption 4294967295 0\nend");
     assert_eq!(
         m.apply_rules(&AsciiLowercase),

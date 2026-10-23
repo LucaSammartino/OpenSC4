@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Portable graphics-rule manager and parser, written from graphics-rules.md.
 //!
-//! GR4/GR6 mark missing shared-parser/failure/logging contracts. This module owns
+//! GR4/GR6 mark remaining shared-parser/failure/exceptional-format contracts. This module owns
 //! all rule parsing/evaluation decisions; its services supply measurements,
 //! file bytes, lowercase bytes, render properties and log I/O only. No original
 //! parser/manager output is accepted as a foreign service. No complete-owner,
 //! native acquisition, shadow or replacement credit is claimed with GR4 open.
 
 mod environment;
+mod expression;
 mod logging;
 mod model;
 mod parser;
@@ -48,7 +49,7 @@ pub enum ManagerError {
     NotInitialized,
     StringService(MatchError),
     Allocation(String),
-    MissingFallbackProperty(String),
+    Unsupported(&'static str),
 }
 
 /// Pure state. The held renderer uses Arc/Mutex, never RefCell: getters may run
@@ -155,6 +156,8 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         })();
         match parsed {
             Ok(parsed) => {
+                self.diagnostics
+                    .extend(parsed.diagnostics.iter().map(ToString::to_string));
                 self.rules = parsed.rules;
                 self.groups = parsed.groups;
                 if let Some(identity) = parsed.card_identity {
@@ -215,16 +218,19 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
                 }
                 continue;
             }
-            if self.log_open {
-                self.log.write(&format!("applying {}\n", rule.name));
+            if self.log.is_open() {
+                logging::line(
+                    &mut self.log,
+                    format!("applying {}", rule.name.split('\0').next().unwrap_or("")).as_bytes(),
+                );
             }
             applied.push(rule.name.clone());
             rule.properties.apply(&mut *properties);
             for &(group, option) in &rule.recommendations {
                 model::grow(&mut self.groups, group).map_err(ManagerError::Allocation)?;
                 self.groups[group as usize].recommendation = option;
-                if self.log_open {
-                    self.log.write(&format!("  option {group} = {option}\n"));
+                if self.log.is_open() {
+                    logging::line(&mut self.log, format!("  option {group} = {option}").as_bytes());
                 }
             }
             if properties.get_bool(0) == Some(true) {
@@ -244,11 +250,9 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         let names = ["RenderCloudsAndFog", "RenderShadows", "RenderDecals", "UseSecondStage"];
         let mut indices = Vec::new();
         for name in names {
-            indices.push(
-                properties
-                    .find_bool(name)
-                    .ok_or_else(|| ManagerError::MissingFallbackProperty(name.into()))?,
-            );
+            // §12.1: retain the unknown-index sentinel as an ordinary action;
+            // the renderer setter determines its effect, not the parser.
+            indices.push(properties.find_bool(name).unwrap_or(u32::MAX));
         }
         let software = Rule {
             name: "standard software".into(),
@@ -280,8 +284,8 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         self.rules = vec![software, hardware, stages];
         // §7 does not clear or construct groups, or apply any property.
         self.diagnostics.push("Using fallback rules.".into());
-        if self.log_open {
-            self.log.write("Using fallback rules.\n");
+        if self.log.is_open() {
+            logging::text(&mut self.log, "Using fallback rules.\n");
         }
         Ok(())
     }
@@ -297,25 +301,30 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
             .is_some_and(|v| v.eq_ignore_ascii_case("off"))
         {
             let file = format!("{}-config-log.txt", self.environment.strings[4]);
-            self.log_open = self.log.open(&logging::in_directory(&context.app_directory, &file));
+            self.log.open(&logging::in_directory(&context.app_directory, &file));
+            self.log_open = self.log.is_open();
         }
+        let mut log_result = Ok(());
         if self.log_open {
-            logging::configuration(&mut self.log, &self.environment, &context.stamp);
-            self.log.write("Rules\n-----\n");
+            log_result = logging::configuration(&mut self.log, &self.environment, &context.stamp);
+            logging::text(&mut self.log, "Rules\n-----\n");
         }
         let result = self.apply_rules(strings);
         if self.log_open {
             if let Some(properties) = &self.properties {
                 let properties = properties.lock().unwrap_or_else(|p| p.into_inner());
                 let groups = &self.groups;
-                logging::options(&mut self.log, &*properties, context.preferences.as_ref(), |group| {
-                    groups.get(group as usize).map_or(0, |g| g.recommendation)
-                });
+                let options_result =
+                    logging::options(&mut self.log, &*properties, context.preferences.as_ref(), |group| {
+                        groups.get(group as usize).map_or(0, |g| g.recommendation)
+                    });
+                log_result = log_result.and(options_result);
             }
             self.log.close();
             self.log_open = false;
         }
-        result
+        // Unsupported logging profiles still evaluate the rules and close the file.
+        result.and_then(|applied| log_result.map(|()| applied))
     }
 
     pub fn log_configuration_to_file(
@@ -325,12 +334,13 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         provider: &mut impl InformationProvider,
     ) -> Result<bool, ManagerError> {
         self.gather_information(provider)?;
-        if !self.log.open(path) {
+        self.log.open(path);
+        if !self.log.is_open() {
             return Ok(false);
         }
-        logging::configuration(&mut self.log, &self.environment, stamp);
+        let result = logging::configuration(&mut self.log, &self.environment, stamp);
         self.log.close();
-        Ok(true)
+        result.map(|()| true)
     }
 }
 

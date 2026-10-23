@@ -13,9 +13,8 @@ pub trait Properties {
     fn set_int(&mut self, index: u32, value: i32) -> bool;
     fn set_float(&mut self, index: u32, value: f32) -> bool;
     /// Ascending indices within each type; bools, then ints, then floats (§6).
-    /// This unbound Rust logging model requires UTF-8 names. Native byte-name
-    /// formatting is an unresolved GR6 contract, not a lossy conversion policy.
-    fn dump(&self) -> Vec<(String, PropertyValue)>;
+    /// Names are foreign CRT bytes, not UTF-8; the logger applies C-string NUL termination.
+    fn dump(&self) -> Vec<(Vec<u8>, PropertyValue)>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,27 +46,20 @@ impl Properties for RenderProperties {
     fn set_float(&mut self, index: u32, value: f32) -> bool {
         i32::try_from(index).is_ok_and(|i| self.set_float(i, value))
     }
-    fn dump(&self) -> Vec<(String, PropertyValue)> {
+    fn dump(&self) -> Vec<(Vec<u8>, PropertyValue)> {
         self.bool_properties()
             .iter()
-            .map(|p| {
-                (
-                    p.name().expect("GR6: UTF-8 property names required").to_owned(),
-                    PropertyValue::Bool(*p.value()),
-                )
-            })
-            .chain(self.int_properties().iter().map(|p| {
-                (
-                    p.name().expect("GR6: UTF-8 property names required").to_owned(),
-                    PropertyValue::Int(*p.value()),
-                )
-            }))
-            .chain(self.float_properties().iter().map(|p| {
-                (
-                    p.name().expect("GR6: UTF-8 property names required").to_owned(),
-                    PropertyValue::Float(*p.value()),
-                )
-            }))
+            .map(|p| (p.name_bytes().to_vec(), PropertyValue::Bool(*p.value())))
+            .chain(
+                self.int_properties()
+                    .iter()
+                    .map(|p| (p.name_bytes().to_vec(), PropertyValue::Int(*p.value()))),
+            )
+            .chain(
+                self.float_properties()
+                    .iter()
+                    .map(|p| (p.name_bytes().to_vec(), PropertyValue::Float(*p.value()))),
+            )
             .collect()
     }
 }

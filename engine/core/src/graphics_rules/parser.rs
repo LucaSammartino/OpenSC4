@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Owned command parser for the explicitly published literal subset (§§3–4/12).
+//! Owned command parser for the published subset (§§3–4/12).
 //!
 //! GR4 is open: this is not a claimed reconstruction of the unspecified nSCRes
-//! expression/lexical grammar. Unsupported expressions fail rather than being
+//! complete lexical grammar. Unsupported functions fail rather than being
 //! evaluated by an OS provider or an original rule-manager callback.
 
 use super::environment::{FLAGS, NUMBERS, STRINGS};
 use super::model::{grow, threshold_from_real, OptionGroup, Properties, PropertySet, Rule};
 use std::collections::BTreeMap;
 
-/// Filesystem acquisition only. None means absent; Err means acquisition failed.
+/// Filesystem acquisition only. None means open failure; Err means another acquisition error.
+/// ReadLine false (including a read failure) ends the returned prefix, not a new error (§3).
 pub trait ScriptFiles {
     fn read(&mut self, path: &str) -> Result<Option<String>, String>;
 }
@@ -32,6 +33,8 @@ pub struct ParsedRules {
     pub rules: Vec<Rule>,
     pub groups: Vec<OptionGroup>,
     pub card_identity: Option<String>,
+    /// Nonfatal optional-root errors; executed callbacks are retained (§3).
+    pub diagnostics: Vec<ParseError>,
 }
 
 enum Block {
@@ -68,25 +71,27 @@ impl<'a, P: Properties> RuleParser<'a, P> {
         }
     }
 
-    /// Both root paths are acquired before command parsing starts (§3).
+    /// Visit roots in registration order; only required-root errors fail (§3).
     pub fn parse_files(
         mut self,
         files: &mut impl ScriptFiles,
         rules_path: &str,
         options_path: &str,
     ) -> Result<ParsedRules, ParseError> {
-        let rules = files.read(rules_path);
-        let options = files.read(options_path);
-        let rules = rules
-            .map_err(|message| error(rules_path, 0, message))?
-            .ok_or_else(|| error(rules_path, 0, "Missing rules file"))?;
-        let options = options.map_err(|message| error(options_path, 0, message))?;
-        // GR4: registration 1/0 semantics are not specified. The literal optional
-        // user file is skipped when absent; the primary rules file is required.
-        self.source(files, rules_path, &rules)?;
-        if let Some(options) = options {
-            self.source(files, options_path, &options)?;
+        let required = match files.read(rules_path) {
+            Ok(Some(text)) => self.source(files, rules_path, &text),
+            Ok(None) => Err(error(rules_path, 0, "Missing rules file")),
+            Err(message) => Err(error(rules_path, 0, message)),
+        };
+        let optional = match files.read(options_path) {
+            Ok(Some(text)) => self.source(files, options_path, &text),
+            Ok(None) => Ok(()),
+            Err(message) => Err(error(options_path, 0, message)),
+        };
+        if let Err(e) = optional {
+            self.output.diagnostics.push(e);
         }
+        required?;
         self.finish(options_path)
     }
 
@@ -126,27 +131,41 @@ impl<'a, P: Properties> RuleParser<'a, P> {
             if args.is_empty() {
                 continue;
             }
-            // GR4: only the explicitly described whole-token $name form.
-            for arg in &mut args[1..] {
-                if let Some(name) = arg.strip_prefix('$') {
-                    *arg = self
-                        .symbols
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| error(path, line, "Unknown symbol"))?;
-                }
+            for arg in &mut args {
+                *arg = substitute(arg, &self.symbols).map_err(|m| error(path, line, m))?;
             }
-            if args[0] == "sinclude" {
-                arity(&args, 2).map_err(|m| error(path, line, m))?;
-                let include_path = relative_path(path, &args[1]);
-                let included = files
-                    .read(&include_path)
-                    .map_err(|m| error(path, line, m))?
-                    .ok_or_else(|| error(path, line, "Missing included file"))?;
-                self.source(files, &include_path, &included)?;
-            } else {
-                self.command(&args).map_err(|m| error(path, line, m))?;
+            self.dispatch(files, path, line, &args)?;
+        }
+        Ok(())
+    }
+
+    fn dispatch(
+        &mut self,
+        files: &mut impl ScriptFiles,
+        path: &str,
+        line: usize,
+        args: &[String],
+    ) -> Result<(), ParseError> {
+        if args[0] == "eval" {
+            arity(args, 2).map_err(|m| error(path, line, m))?;
+            let mut tokens = tokenize(&args[1]).map_err(|m| error(path, line, m))?;
+            for token in &mut tokens {
+                *token = substitute(token, &self.symbols).map_err(|m| error(path, line, m))?;
             }
+            if tokens.is_empty() {
+                return Err(error(path, line, "Unknown command"));
+            }
+            return self.dispatch(files, path, line, &tokens);
+        } else if args[0] == "sinclude" {
+            arity(&args, 2).map_err(|m| error(path, line, m))?;
+            let include_path = relative_path(path, &args[1]);
+            let included = files
+                .read(&include_path)
+                .map_err(|m| error(path, line, m))?
+                .ok_or_else(|| error(path, line, "Missing included file"))?;
+            self.source(files, &include_path, &included)?;
+        } else {
+            self.command(args).map_err(|m| error(path, line, m))?;
         }
         Ok(())
     }
@@ -245,6 +264,9 @@ impl<'a, P: Properties> RuleParser<'a, P> {
                     rule.negative.push((index, a[2].clone()));
                 }
             }
+            "define" | "enddef" | "create" | "arrayCreate" | "namespace" => {
+                return Err("Unsupported GR4 shared command body".into());
+            }
             _ => return Err("Unknown command".into()),
         }
         Ok(())
@@ -336,68 +358,45 @@ fn enum_index(names: &[&str], name: &str) -> Result<usize, String> {
 }
 
 fn unsigned(s: &str) -> Result<u32, String> {
-    // GR4: decimal plus the hexadecimal literal form in published V9.
-    if let Some(hex) = s.strip_prefix("0x") {
-        if hex.is_empty() || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err("Bad integer".into());
-        }
-        u32::from_str_radix(hex, 16).map_err(|_| "Bad integer".into())
-    } else {
-        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
-            return Err("Bad integer".into());
-        }
-        s.parse().map_err(|_| "Bad integer".into())
-    }
+    Ok(threshold_from_real(real(s)?) as u32)
 }
 
 fn signed(s: &str) -> Result<i32, String> {
-    // GR4: literal signed decimals, and unsigned hex bit patterns, only.
-    if s.starts_with("0x") {
-        return unsigned(s).map(|n| n as i32);
-    }
-    let digits = s.strip_prefix(['-', '+']).unwrap_or(s);
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return Err("Bad integer".into());
-    }
-    s.parse().map_err(|_| "Bad integer".into())
+    // §4.5: portable round-to-nearest/even profile of the native bias/bit trick.
+    // GR6: an embedding with another x87 rounding mode is unsupported.
+    let biased = (real(s)? + f64::from(12582912.0f32)) as f32;
+    Ok(biased.to_bits().wrapping_sub(0x4b400000) as i32)
 }
 
-/// Literal real reader. Deliberately does not invent nSCRes expression operators.
+/// Published arithmetic subset; function/primary tables remain open GR4.
 pub fn real(s: &str) -> Result<f64, String> {
-    let b = s.as_bytes();
-    let mut p = usize::from(b.first().is_some_and(|c| *c == b'+' || *c == b'-'));
-    let mut digits = 0;
-    while p < b.len() && b[p].is_ascii_digit() {
-        p += 1;
-        digits += 1;
-    }
-    if p < b.len() && b[p] == b'.' {
-        p += 1;
-        while p < b.len() && b[p].is_ascii_digit() {
-            p += 1;
-            digits += 1;
+    super::expression::evaluate(s)
+}
+
+fn substitute(input: &str, symbols: &BTreeMap<String, String>) -> Result<String, String> {
+    let mut output = String::new();
+    let mut rest = input;
+    while let Some(at) = rest.find('$') {
+        output.push_str(&rest[..at]);
+        rest = &rest[at + 1..];
+        let name;
+        if let Some(braced) = rest.strip_prefix('{') {
+            let end = braced.find('}').ok_or("Unknown variable")?;
+            name = &braced[..end];
+            rest = &braced[end + 1..];
+        } else {
+            let end = rest
+                .bytes()
+                .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+                .count();
+            name = &rest[..end];
+            rest = &rest[end..];
         }
+        // GR4: literal insertion; boundary-dependent parenthesization remains open.
+        output.push_str(symbols.get(name).ok_or("Unknown variable")?);
     }
-    if digits == 0 {
-        return Err("Bad real number".into());
-    }
-    if p < b.len() && (b[p] == b'e' || b[p] == b'E') {
-        p += 1;
-        if p < b.len() && (b[p] == b'+' || b[p] == b'-') {
-            p += 1;
-        }
-        let start = p;
-        while p < b.len() && b[p].is_ascii_digit() {
-            p += 1;
-        }
-        if start == p {
-            return Err("Bad real number".into());
-        }
-    }
-    if p != b.len() {
-        return Err("Bad real number".into());
-    }
-    s.parse().map_err(|_| "Bad real number".into())
+    output.push_str(rest);
+    Ok(output)
 }
 
 fn add_property(set: &mut PropertySet, properties: &impl Properties, name: &str, value: &str) -> Result<(), String> {
@@ -477,13 +476,21 @@ pub fn card_ids(version: &str) -> Result<(u32, u32), String> {
     if bytes.len() <= 26 {
         return Ok((0, 0));
     }
-    let parse = |part| {
-        // GR6: malformed hexadecimal returns an error, not a guessed PCI ID.
-        std::str::from_utf8(part)
-            .ok()
-            .filter(|s| s.bytes().all(|b| b.is_ascii_hexdigit()))
-            .and_then(|s| u32::from_str_radix(s, 16).ok())
-            .ok_or_else(|| "Bad card ID".to_owned())
+    let parse = |mut part: &[u8]| {
+        while part.first().is_some_and(u8::is_ascii_whitespace) {
+            part = &part[1..];
+        }
+        if part.starts_with(b"0x") || part.starts_with(b"0X") {
+            part = &part[2..];
+        }
+        part.iter().take_while(|b| b.is_ascii_hexdigit()).fold(0, |value, b| {
+            value * 16
+                + u32::from(if b.is_ascii_digit() {
+                    b - b'0'
+                } else {
+                    b.to_ascii_lowercase() - b'a' + 10
+                })
+        })
     };
-    Ok((parse(&bytes[8..12])?, parse(&bytes[22..26])?))
+    Ok((parse(&bytes[8..12]), parse(&bytes[22..26])))
 }
