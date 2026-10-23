@@ -27,16 +27,60 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Call {
-    RenderState, GetRenderState, StageState, Texture, Transform, Material,
-    Clear, BeginScene, EndScene, Viewport, GetViewport, GetCaps, PixelFormat,
-    RestoreAll, CooperativeLevel, CreateVertexBuffer, LockVertexBuffer,
-    UnlockVertexBuffer, BufferLost, Draw, DrawIndexed, DrawBuffer, DrawIndexedBuffer,
-    CreateSurface, AttachedSurface, LockSurface, UnlockSurface, RestoreSurface,
-    LoadLibrary, ResolveCreate, CreateDirectDraw, QueryDirect3D, EnumerateModes,
-    RegisterClass, UnregisterClass, CreateWindow, DestroyWindow, PositionWindow,
-    ShowWindow, UpdateWindow, ClientRect, ClientToScreen, AdapterInfo, MessageBox,
-    CooperativeFlags, DisplayMode, CreateClipper, ClipperWindow, AttachClipper,
-    Flip, Blt, PostMessage,
+    RenderState,
+    GetRenderState,
+    StageState,
+    Texture,
+    Transform,
+    Material,
+    Clear,
+    BeginScene,
+    EndScene,
+    Viewport,
+    GetViewport,
+    GetCaps,
+    PixelFormat,
+    RestoreAll,
+    CooperativeLevel,
+    CreateVertexBuffer,
+    LockVertexBuffer,
+    UnlockVertexBuffer,
+    BufferLost,
+    Draw,
+    DrawIndexed,
+    DrawBuffer,
+    DrawIndexedBuffer,
+    CreateSurface,
+    AttachedSurface,
+    LockSurface,
+    UnlockSurface,
+    RestoreSurface,
+    LoadLibrary,
+    UnloadLibrary,
+    ResolveCreate,
+    CreateDirectDraw,
+    QueryDirect3D,
+    EnumerateModes,
+    RegisterClass,
+    UnregisterClass,
+    CreateWindow,
+    DestroyWindow,
+    PositionWindow,
+    ShowWindow,
+    UpdateWindow,
+    ClientRect,
+    ClientToScreen,
+    AdapterInfo,
+    MessageBox,
+    CooperativeFlags,
+    DisplayMode,
+    CreateClipper,
+    ClipperWindow,
+    AttachClipper,
+    Flip,
+    Blt,
+    PostMessage,
+    PlaceholderDevice,
 }
 
 pub trait Device: Host {
@@ -68,9 +112,7 @@ pub fn floats(values: &[f32]) -> Vec<u8> {
     values.iter().flat_map(|v| v.to_le_bytes()).collect()
 }
 
-pub const IDENTITY: [f32; 16] = [
-    1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
-];
+pub const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 pub fn quantize(value: f32) -> u32 {
     let v = (value + 49152.0).to_bits().wrapping_sub(0x4740_0000);
     v.wrapping_sub(v >> 8) & 255
