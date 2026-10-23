@@ -77,6 +77,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GZ | framework-gz-services |
 | HD | html-document |
 | HG | foundations |
+| HU | html-ui-hooks |
 | HW | history |
 | IN | commercial-industrial |
 | LC | legacy-control |
@@ -218,6 +219,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
+| html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
@@ -308,4 +310,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **467** | **1241** | | |
+| **total** | **471** | **1241** | | |

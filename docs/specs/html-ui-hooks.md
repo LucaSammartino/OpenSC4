@@ -232,6 +232,10 @@ first argument through string slots `+0x1C` (length) and `+0x18` (bytes), copies
 that byte range, and never reads the second argument. It does not use incoming
 ECX as owner state (`0078D140`–`0078D193`; both returns pop 8 argument bytes).
 Consumer callers supply zero as the second argument. It is not an output pointer.
+The five direct call sites are tutorial UI `0044420D`, city-situation UI
+`0052CBC4`, advisor popup tracker `00762E41`, advice list `007936AB`, and
+View3D `007F413D`. Each call site's argument pushes were checked; this is
+caller evidence only, not a restudy of those owners.
 
 For a valid byte string S with length N, apply these tests in order:
 
