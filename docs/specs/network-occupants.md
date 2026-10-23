@@ -1517,6 +1517,17 @@ the occupant type **`0xA9B6D7DE`** at `+0x2C` (`0x005F19F9`) — not the bare ty
 | `+0x1AC` | embedded GZ string; constructor empty (not an int64) |
 | `+0x1C0` | owner reference; constructor null |
 
+**Initial enum values** *[compat; answers NO44]*: UI state +6C is **1** and dispatch state +70 is
+**0**. Dispatch type +74 is **not initialized** by construction: it retains the incoming allocation's
+four bytes until a setter or record read supplies it. It has no promised numeric default. The zero in
+dispatch state is not a blanket zero-initialization of all three enums. The instruction stores are
+`0x005F17C0` (+70=0) and `0x005F17D1` (+6C=1); the entire constructor
+`0x005F1730–0x005F1A0E` has no +74 store. Its basic-model base constructor
+`0x00801CF0–0x00801D67`, called at primary+3C with virtual-base construction disabled, initializes
+only through primary+64 and does not supply that missing value. A deterministic fresh-object dispatch
+type is an implementation *[choice]*, not a recovered default; do not use an uninitialized native type
+to index texture tables before assigning a supported type.
+
 All offsets in this layout are from the primary object. **Record methods receive the
 serializable view at primary+0xC**, so their instruction displacements must have 0xC
 added to obtain these live offsets. The serializable QI thunk subtracts 0xC
@@ -2249,3 +2260,8 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     In an AddWallQuad-only fixture use top A y=36/alpha=64, top B y=20/alpha=128, bottomY=4:
     V is 2 and 1 at the two bottom vertices, alpha sequence 64/64/128/128. With topA y=−12,
     its bottom V is −1, with no clamp.
+45. **Pylon constructor enums** (§6.1). Construct over storage whose +6C/+70/+74 words are
+    `0x13579BDF/0x2468ACE0/0xA5A5A5A5`: +6C becomes 1, +70 becomes 0, and +74 remains
+    `0xA5A5A5A5`. Repeat with a different +74 sentinel; construction must not promise zero there.
+    SetDispatchType(4) then makes it 4 with the setter effects in test 40. A portable implementation
+    can represent the pre-set dispatch type as unspecified rather than reading uninitialized memory.
