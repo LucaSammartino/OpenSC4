@@ -23,14 +23,8 @@ impl Zoom {
     }
 }
 
-/// The provider decodes the exemplar, not the owner's tuning decisions.
-pub trait TuningSource {
-    fn boolean(&self, exemplar: [u32; 3], property: u32) -> Option<bool>;
-    fn integer(&self, exemplar: [u32; 3], property: u32) -> Option<u32>;
-    fn scalar(&self, exemplar: [u32; 3], property: u32) -> Option<f32>;
-    fn per_zoom(&self, exemplar: [u32; 3], property: u32) -> Option<[f32; 5]>;
-}
-
+/// Explicit inputs for the older isolated geometry kernels. Production exemplar
+/// reads use retained::RetainedTuning, never this fixed-five diagnostic record.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RippleTuning {
     pub enabled: bool,
@@ -72,35 +66,6 @@ impl Default for RippleTuning {
 }
 
 impl RippleTuning {
-    /// §1.1. Missing property behavior is unpublished (WR8); `read` reports
-    /// missing values instead of silently assuming the shipped values are defaults.
-    pub fn read(source: &dyn TuningSource) -> Result<Self, Error> {
-        let integer = |id| source.integer(RIPPLE_EXEMPLAR, id).ok_or(Error::InvalidTuning);
-        let per_zoom = |id| source.per_zoom(RIPPLE_EXEMPLAR, id).ok_or(Error::InvalidTuning);
-        let result = Self {
-            enabled: source
-                .boolean(RIPPLE_EXEMPLAR, 0x491C_9C00)
-                .ok_or(Error::InvalidTuning)?,
-            minimum_shore_points: integer(0x491C_9C01)?.max(2),
-            spacing: per_zoom(0x491C_9C02)?,
-            height: source
-                .scalar(RIPPLE_EXEMPLAR, 0x491C_9C03)
-                .ok_or(Error::InvalidTuning)?,
-            texture_advance: per_zoom(0x491C_9C04)?,
-            outer_distance: per_zoom(0x491C_9C05)?,
-            inner_distance: per_zoom(0x491C_9C06)?,
-            frame_period: u64::from(integer(0x491C_9C07)?),
-            inner_alpha: per_zoom(0x491C_9C08)?,
-            outer_alpha: per_zoom(0x491C_9C09)?,
-            wobble: per_zoom(0x491C_9C0A)?,
-            max_turn_degrees: per_zoom(0x491C_9C0B)?,
-            edit_area_threshold: integer(0x491C_9C0C)?,
-            fade_pairs: integer(0x491C_9C0D)?,
-        };
-        result.validate()?;
-        Ok(result)
-    }
-
     pub fn validate(&self) -> Result<(), Error> {
         // Safe Rust boundary validation only; invalid native tuning is unknown (WR8).
         let finite = [

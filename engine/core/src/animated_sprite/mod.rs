@@ -7,11 +7,13 @@
 //! for the public method inventory and AS3–AS9 for blocking contract holes.
 //! Getters use shared borrows; no RefCell or original-owner callbacks.
 
+mod cached;
 mod frames;
 mod geometry;
 mod lifetime;
 mod playback;
 
+pub use cached::*;
 pub use frames::*;
 pub use geometry::*;
 pub use lifetime::*;
@@ -49,6 +51,7 @@ pub struct AnimatedSprite<O> {
     owner: Option<Arc<O>>,
     zooms: Vec<LoadedZoom>,
     frame_dirty: bool,
+    cache: Option<SpriteCache>,
 }
 
 impl<O> AnimatedSprite<O> {
@@ -58,6 +61,7 @@ impl<O> AnimatedSprite<O> {
             owner,
             zooms: Vec::new(),
             frame_dirty: true,
+            cache: None,
         }
     }
 
@@ -148,22 +152,44 @@ impl<O> AnimatedSprite<O> {
         Ok(())
     }
 
-    pub fn set_fade(&mut self, on: bool, alpha: f32) {
-        // AS8: §3 says "within range" without endpoints. Literal [0,1],
-        // including endpoints; invalid alpha leaves both state fields intact.
-        if (0.0..=1.0).contains(&alpha) {
-            self.state.alpha = alpha;
-            self.set_flag(FLAG_FADE, on);
+    /// §4.4, conditional on completing comparisons (no trap-mode guarantee).
+    pub fn set_fade(&mut self, on: bool, alpha: f32) -> u32 {
+        if on && alpha == -100.0 {
+            return 2;
         }
+        // An unordered, completing comparison follows the accepting branch.
+        if on && alpha != -200.0 && (alpha.is_nan() || alpha <= f32::from_bits(0x3f7d70a4)) {
+            self.state.alpha = alpha;
+            self.set_flag(FLAG_FADE, true);
+        } else {
+            self.state.alpha = 1.0;
+            self.set_flag(FLAG_FADE, false);
+        }
+        2
     }
 
-    pub fn set_highlight(&mut self, index: u32) {
-        self.state.highlight = index;
+    pub fn set_highlight(&mut self, index: u32) -> u32 {
+        if index == u32::from(self.state.highlight as u8) && (index != 0) == (self.state.flags & FLAG_HIGHLIGHT != 0) {
+            return 0;
+        }
+        // The existing u32 snapshot field is retained for source consumers;
+        // its setter stores a byte, not a native-layout or ABI declaration.
+        self.state.highlight = u32::from(index as u8);
         self.set_flag(FLAG_HIGHLIGHT, index != 0);
+        2
     }
 
-    pub fn set_self_lit(&mut self, on: bool) {
-        self.set_flag(FLAG_SELF_LIT, on);
+    /// Ordinary source adapter; use the raw-byte method for §4.4 inputs.
+    pub fn set_self_lit(&mut self, on: bool) -> u32 {
+        self.set_self_lit_raw(u8::from(on))
+    }
+
+    pub fn set_self_lit_raw(&mut self, on: u8) -> u32 {
+        if on == u8::from(self.state.flags & FLAG_SELF_LIT != 0) {
+            return 0;
+        }
+        self.set_flag(FLAG_SELF_LIT, on != 0);
+        2
     }
 
     fn set_flag(&mut self, flag: u8, on: bool) {
@@ -174,8 +200,10 @@ impl<O> AnimatedSprite<O> {
         }
     }
 
+    /// Cached-zoom convenience for ordinary source consumers. Draw uses the
+    /// incoming highlight-pass argument and signed full context zoom instead.
     pub fn drawing_suppressed(&self) -> bool {
-        self.state.flags & FLAG_HIGHLIGHT != 0 || self.state.zoom <= 1
+        self.state.zoom <= 1
     }
 
     pub fn material(&self) -> MaterialState {
@@ -237,8 +265,8 @@ pub struct MaterialState {
 }
 impl MaterialState {
     fn with_fade_test(mut self) -> Self {
-        if self.transparency.is_some() {
-            self.draw.alpha_reference = 0.0;
+        if let Some(alpha) = self.transparency {
+            self.draw.alpha_reference = (f64::from(alpha) * 0.5) as f32;
         }
         self
     }
@@ -246,3 +274,6 @@ impl MaterialState {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod contract_tests;

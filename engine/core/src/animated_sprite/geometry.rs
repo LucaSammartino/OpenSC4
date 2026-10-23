@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Published transform algebra (view-utilities §7) and billboard primitives.
-//! Native UpdateView/Draw integration remains blocked on AS6/AS7, not delegated
-//! to a provider that would make original sprite-owner decisions.
+//! This file retains portable transform/billboard choices; the separately
+//! qualified cached path is in cached.rs, without sprite-owner callbacks.
 
 pub type Vec3 = [f32; 3];
 
@@ -133,8 +133,7 @@ pub trait TrianglePicker {
     fn triangle_pick(&mut self, a: Vec3, b: Vec3, c: Vec3) -> bool;
 }
 
-/// §6: two triangles of a four-vertex fan, stop at the first hit. Which native
-/// cached vertices to pass remains an AS7 hole; this helper does not fake them.
+/// §6: raw triangle order 012 then 230, stopping at the first hit.
 pub fn pick_quad(corners: &[Vec3; 4], picker: &mut impl TrianglePicker) -> bool {
-    picker.triangle_pick(corners[0], corners[1], corners[2]) || picker.triangle_pick(corners[0], corners[2], corners[3])
+    picker.triangle_pick(corners[0], corners[1], corners[2]) || picker.triangle_pick(corners[2], corners[3], corners[0])
 }

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 FreeCity4 contributors
 
-use super::{
-    dimensions, Cell, CellRect, ContractGap, Error, RippleTuning, TerrainProvider, TextureFactory, TuningSource, Zoom,
-};
+use super::lifecycle::Event;
+use super::retained::{RawTuningSource, ReadArithmetic, RetainedTuning, RippleProcess};
+use super::{dimensions, Cell, CellRect, ContractGap, Error, RippleTuning, TerrainProvider, TextureFactory, Zoom};
 use std::sync::Arc;
+use std::sync::Mutex;
 
 pub const ANIMATION_TICK: u32 = 0x86AD_10EE;
 pub const TERRAIN_CHANGED: u32 = 0x278E_6003;
@@ -60,9 +61,13 @@ impl RebuildState {
     }
 
     pub fn tick(&mut self, elapsed: u64, counter: u64, remembered: u64, tuning: &RippleTuning) -> bool {
+        self.tick_threshold(elapsed, counter, remembered, tuning.edit_count_threshold())
+    }
+
+    fn tick_threshold(&mut self, elapsed: u64, counter: u64, remembered: u64, threshold: u64) -> bool {
         if self.pending {
             self.elapsed = self.elapsed.saturating_add(elapsed);
-        } else if counter.saturating_sub(remembered) > tuning.edit_count_threshold() {
+        } else if counter.saturating_sub(remembered) > threshold {
             // Literal arm at this tick, start counting with the next one; WR10.
             self.arm();
         }
@@ -72,8 +77,12 @@ impl RebuildState {
     /// Returns true when §1.5 requests intersection checking/removal of strips.
     /// Rectangle area means cells (width * height), not inclusive vertices; WR10.
     pub fn terrain_edit(&mut self, rect: CellRect, tuning: &RippleTuning) -> bool {
+        self.terrain_edit_threshold(rect, tuning.edit_area_threshold)
+    }
+
+    fn terrain_edit_threshold(&mut self, rect: CellRect, threshold: u32) -> bool {
         self.accumulated_area = self.accumulated_area.saturating_add(rect.cell_area());
-        if self.accumulated_area > u64::from(tuning.edit_area_threshold) {
+        if self.accumulated_area > u64::from(threshold) {
             self.accumulated_area = 0;
             self.arm();
             true
@@ -97,7 +106,9 @@ pub enum RippleUpdate {
 /// ownership is blocked by WR4–WR8; no installation of host-computed strips.
 #[derive(Default)]
 pub struct WaterRipple {
-    tuning: Option<RippleTuning>,
+    process: Option<Arc<Mutex<RippleProcess>>>,
+    initialized: bool,
+    pub lifecycle_events: Vec<Event>,
     terrain: Option<Arc<dyn TerrainProvider>>,
     factory: Option<Arc<dyn TextureFactory>>,
     counts: [u32; 2],
@@ -108,29 +119,40 @@ pub struct WaterRipple {
 }
 
 impl WaterRipple {
-    /// §1.1: tuning is read only at the first successful initialization.
-    /// Reinitialization/reference replacement is a Rust lifetime policy (WR8).
+    /// §2.4 normal required-service domain. Shared process storage is supplied
+    /// explicitly, so reset and another instance operate on the same globals.
     pub fn init(
         &mut self,
         terrain: Arc<dyn TerrainProvider>,
         factory: Arc<dyn TextureFactory>,
-        source: &dyn TuningSource,
-    ) -> Result<(), Error> {
+        source: &dyn RawTuningSource,
+        process: Arc<Mutex<RippleProcess>>,
+        arithmetic: ReadArithmetic,
+    ) -> Result<bool, Error> {
+        if self.initialized {
+            return Ok(false);
+        }
+        self.process = Some(process.clone());
+        process
+            .lock()
+            .expect("non-reentrant tuning domain")
+            .eligible_init(source, arithmetic)
+            .map_err(Error::UnsupportedTuning)?;
+        self.initialized = true;
+        self.lifecycle_events.push(Event::Initialized);
         let counts = dimensions(terrain.as_ref())?;
-        let tuning = match &self.tuning {
-            Some(tuning) => tuning.clone(),
-            None => RippleTuning::read(source)?,
-        };
-        self.shutdown();
-        self.tuning = Some(tuning);
         self.terrain = Some(terrain);
+        self.lifecycle_events.push(Event::AcquireTerrain);
         self.factory = Some(factory);
         self.counts = counts;
-        Ok(())
+        self.lifecycle_events.push(Event::Subscribe);
+        Ok(true)
     }
 
-    pub fn tuning(&self) -> Option<&RippleTuning> {
-        self.tuning.as_ref()
+    pub fn tuning(&self) -> Option<RetainedTuning> {
+        self.process
+            .as_ref()
+            .map(|p| p.lock().expect("non-reentrant tuning domain").tuning.clone())
     }
     pub fn rebuild_state(&self) -> &RebuildState {
         &self.rebuild
@@ -139,7 +161,7 @@ impl WaterRipple {
         self.remembered_counter
     }
     pub fn is_initialized(&self) -> bool {
-        self.terrain.is_some()
+        self.initialized
     }
 
     pub fn eligible_flags(flags: u32) -> bool {
@@ -177,7 +199,7 @@ impl WaterRipple {
         if self.terrain.is_none() {
             return Err(Error::NotInitialized);
         }
-        if !self.tuning.as_ref().ok_or(Error::NotInitialized)?.enabled {
+        if !self.tuning().ok_or(Error::NotInitialized)?.enabled {
             return Ok(RippleUpdate::Disabled);
         }
         // §1.4 first Update detects even if drawing is disabled. The property
@@ -192,13 +214,15 @@ impl WaterRipple {
 
     pub fn do_message(&mut self, message: RippleMessage) -> Result<(), Error> {
         let terrain = self.terrain.as_ref().ok_or(Error::NotInitialized)?;
-        let tuning = self.tuning.as_ref().ok_or(Error::NotInitialized)?;
+        let tuning = self.tuning().ok_or(Error::NotInitialized)?;
         match message {
             RippleMessage::AnimationTick(elapsed) => {
-                if self
-                    .rebuild
-                    .tick(elapsed, terrain.edit_counter(), self.remembered_counter, tuning)
-                {
+                if self.rebuild.tick_threshold(
+                    elapsed,
+                    terrain.edit_counter(),
+                    self.remembered_counter,
+                    u64::from(tuning.minimum).pow(2) / 10,
+                ) {
                     self.rebuild_now()?;
                 }
             }
@@ -206,7 +230,7 @@ impl WaterRipple {
                 super::vertex_index(rect.min, self.counts)?;
                 super::vertex_index(rect.max, self.counts)?;
                 CellRect::new(rect.min, rect.max)?;
-                self.rebuild.terrain_edit(rect, tuning);
+                self.rebuild.terrain_edit_threshold(rect, tuning.edit_area);
                 // No strips exist in this bounded owner, so intersection removal
                 // is vacuous. A nonempty shore cannot pass detect_shores.
             }
@@ -222,13 +246,18 @@ impl WaterRipple {
     }
 
     pub fn shutdown(&mut self) {
+        if !self.initialized {
+            return;
+        }
+        self.initialized = false;
+        self.lifecycle_events.push(Event::Unsubscribe);
+        if self.terrain.is_some() {
+            self.lifecycle_events.push(Event::ReleaseTerrain);
+        }
         self.terrain = None;
         self.factory = None;
-        self.counts = [0; 2];
-        self.zoom = None;
-        self.detected = false;
-        self.remembered_counter = 0;
-        self.rebuild = RebuildState::default();
-        // §1.1 read once: retain tuning until Rust destruction (WR8 lifecycle).
+        // Shores/first Update/zoom/dirty state and process globals survive.
+        // No binding is held by this incomplete strip owner. Rust Arc Drop is
+        // memory safety, never evidence of an additional native Release event.
     }
 }

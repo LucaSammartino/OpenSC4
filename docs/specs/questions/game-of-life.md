@@ -9,3 +9,6 @@
 
 <!-- from: re-game-of-life4 (2026-10-23), first original round -->
 - **GL3 — sections 1–2,4: residual attribution and controls.** Are there additional folded/inlined simulator operations or a native callable setter for suppress/edit mode beyond the parent construction and mouse-mode assignment described here? Four out-of-line bodies and ten boundary contexts do not establish a complete owner body denominator. No standalone QI/GetCell/ClearCells/Shutdown/constructor interface has been demonstrated. Resolve any additional interface/body through concrete receiver and caller evidence rather than adding methods from class names or the approximate public 3 KB estimate.
+
+<!-- from: core-game-of-life4 (2026-10-23) -->
+- **GL4 — section 5.2: relative surviving-age store order.** The transition table requires the incremented byte in both C and P before callback selection, but does not state their relative store order. Is C-before-P observable owner order, or should only the pair-before-callback constraint be asserted? [Portable implementation uses table order C then P and marks this choice; callbacks see both completed stores. Primitive trace ordering within this pair remains partial, with no native order claim.]
