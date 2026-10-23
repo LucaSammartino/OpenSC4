@@ -302,7 +302,7 @@ cSCLua*	Lua host	framework	lua-host.md	-	-	-
 cGZLua5*	Lua host	framework	lua-host.md	-	-	-
 cGZLuaScriptServer	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
-cLUAExtensionsCollector*	Lua host	framework	lua-host.md	-	-	-
+cLUAExtensionsCollector*	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
 # the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): lua-host.md §8 covers how they reach the
 # host, not what each one does
