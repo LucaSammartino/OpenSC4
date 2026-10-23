@@ -9,6 +9,8 @@
 - Done: implementation milestone ab95d746; all 32 focused tests passed. Focused clippy -D warnings passed on that source.
 - Owner table audited/updated for every old row and every §8.16 subsection. Corrected commute-specific labels in final source; filed CT21 for ID+2 versus ID+0x100 cost reference, marked additional update Unsupported.
 - Final owned-source qbuild fmt: 6 files, diff_lines=0. Next: collect the one final qbuild all operation to terminal; read named log summaries, then commit final report/queue.
+- Full gate is the still-running unified exec session 43173 (qbuild all); do not duplicate. Workspace tests and clippy logs finished successfully; CMake configure still pending at initial C compiler ABI try-compile link (object written 17:22:52).
+- Evidence: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log; focused initial diagnostic retained in build-runs/query-focused-first-failure.txt. Process details via CIM denied; no shared processes touched.
 - Final gate required: qbuild.py --wt <this worktree> all on stable final source.
 - No game requests outstanding; no plugin/capi wiring authorized.
 - q.py wrapper failed before running Cargo (Bash CreateFileMapping error 5); direct PowerShell Cargo worked. qbuild fmt requires absolute owned file paths. Formatting applied using apply_patch from rustfmt check hunks.
