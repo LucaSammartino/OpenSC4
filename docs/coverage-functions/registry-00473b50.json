@@ -1,0 +1,45 @@
+{
+  "address": "00473B50",
+  "owner": "cSC4GameDataRegistry",
+  "stages": [
+    "specified",
+    "implemented"
+  ],
+  "review": {
+    "by": "Codex /root; independent review of /root/live_refill preparation",
+    "citation": "docs/coverage-functions/registry-pilot-review.md#independent-root-review",
+    "approved": true
+  },
+  "normal_domain_complete": true,
+  "limitations": "Portable semantic implementation only. Valid live allocated record tokens represent native readable records; None encodes null, context u32 carries all32 bits. Native pointer/layout/factory, destroyed/foreign/stale/fabricated pointers, allocation failure and reentry remain excluded by the public valid-memory contract; no known normal value branch is omitted. No original method execution, shadow/replacement/default/ABI or whole-owner credit. Current normalized production/assertion files match the actual completed historical gate; no claim the entire current-main tree ran that old gate.",
+  "validation": {
+    "command": "\"C:\\Program Files\\Python312\\python.exe\" \"C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py\" --wt \"C:\\Users\\tlori\\FreeCity4\\.claude\\worktrees\\core-game-data-registry4\" all",
+    "result": "PASS",
+    "production_sha256": "f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd",
+    "assertions_sha256": "c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e",
+    "log_sha256": "e9505d16d2b2aa0002ed67e621edf202a58b9d3dcd50a74d778ec15386cd848a",
+    "provenance": "docs/coverage-functions/registry-pilot-validation.txt#actual-completed-validation; original archived registry-r2-final/qualification.json/summary.json/terminal.log with all8 raw log hashes independently matched"
+  },
+  "decisions": [
+    {
+      "contract": "| CheckEntryFlags(mask) | false | true exactly when `(flags & mask)==mask` |",
+      "production": "Ok(self.record(id)?.is_some_and(|e| e.flags & mask == mask))",
+      "assertion": "assert_eq!(r.check_flags(None, 0), Ok(false));"
+    },
+    {
+      "contract": "CheckEntryFlags(0) is true for every non-null record, including nodes.",
+      "production": "pub fn check_flags(&self, id: Option<EntryId>, mask: u32) -> Domain<bool>",
+      "assertion": "assert_eq!(r.check_flags(Some(id(100)), 0), Ok(true));"
+    },
+    {
+      "contract": "| CheckEntryFlags(mask) | false | true exactly when `(flags & mask)==mask` |",
+      "production": "e.flags & mask == mask",
+      "assertion": "assert_eq!(r.check_flags(Some(id(105)), 0x8000_0000), Ok(true));"
+    },
+    {
+      "contract": "| CheckEntryFlags(mask) | false | true exactly when `(flags & mask)==mask` |",
+      "production": "e.flags & mask == mask",
+      "assertion": "assert_eq!(r.check_flags(Some(id(105)), u32::MAX), Ok(false));"
+    }
+  ]
+}

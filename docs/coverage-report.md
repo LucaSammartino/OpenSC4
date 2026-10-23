@@ -8,8 +8,8 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | accepted owner spec or reviewed exact-function contract | 3,226,906 | **57.8%** | 14,602 | 49.4% |
-| **implemented** | accepted owner module or reviewed exact-function implementation | 2,018,463 | **36.1%** | 8,982 | 30.4% |
+| **specified** | accepted owner spec or reviewed exact-function contract | 3,226,982 | **57.8%** | 14,605 | 49.4% |
+| **implemented** | accepted owner module or reviewed exact-function implementation | 2,018,539 | **36.1%** | 8,985 | 30.4% |
 | **verified** | its same-process shadow is exact in the run that measured it | 1,093,232 | **19.6%** | 4,298 | 14.6% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,012,661 | **18.1%** | 3,899 | 13.2% |
 
@@ -19,8 +19,8 @@ The legacy owner-only subtotal is preserved. Additions are a set union over actu
 
 | Status | Owner-only functions | Owner-only bytes | Added functions | Added bytes |
 |---|---:|---:|---:|---:|
-| specified | 14,602 | 3,226,906 | 0 | 0 |
-| implemented | 8,982 | 2,018,463 | 0 | 0 |
+| specified | 14,602 | 3,226,906 | 3 | 76 |
+| implemented | 8,982 | 2,018,463 | 3 | 76 |
 | verified | 4,298 | 1,093,232 | 0 | 0 |
 | replaced | 3,899 | 1,012,661 | 0 | 0 |
 
@@ -30,7 +30,7 @@ Completion remains partial unless the legacy owner row qualifies; each cell list
 
 | Owner | Specified | Implemented |
 |---|---|---|
-| No new function additions | - | - |
+| `cSC4GameDataRegistry` | partial (3/48 fn; 76/5807 B) | partial (3/48 fn; 76/5807 B) |
 
 ## Whole executable
 
@@ -51,7 +51,7 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 8,632 | 1,965,688 | 35.2% | 98.5% (97.8%) | 75.4% (72.2%) | 44.8% (40.8%) | 51.5% (45.2%) |
-| framework | 4,866 | 631,930 | 11.3% | 36.6% (41.8%) | 24.9% (25.8%) | 0.7% (0.6%) | 0.0% (0.0%) |
+| framework | 4,866 | 631,930 | 11.3% | 36.6% (41.9%) | 24.9% (25.9%) | 0.7% (0.6%) | 0.0% (0.0%) |
 | renderer | 5,198 | 1,214,553 | 21.7% | 57.9% (58.3%) | 31.2% (28.7%) | 17.2% (14.5%) | 0.0% (0.0%) |
 | ui | 5,104 | 1,105,746 | 19.8% | 22.7% (13.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,965 | 223,456 | 4.0% | 12.8% (8.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -122,7 +122,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | commercial/industrial | 2 | 26 | 2,022 | yes (26/26 fn; 2022/2022 B) | yes (26/26 fn; 2022/2022 B) | 24/24, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes (26/26 fn; 2022/2022 B) | yes (26/26 fn; 2022/2022 B) |
 | simulation | automata groups | 2 | 15 | 1,662 | yes (15/15 fn; 1662/1662 B) | - (0/15 fn; 0/1662 B) | - | - (0/15 fn; 0/1662 B) | - (0/15 fn; 0/1662 B) |
 | simulation | foundations | 1 | 7 | 918 | yes (7/7 fn; 918/918 B) | yes (7/7 fn; 918/918 B) | - | - (0/7 fn; 0/918 B) | - (0/7 fn; 0/918 B) |
-| framework | application | 15 | 718 | 145,124 | partial (43/718 fn; 2648/145124 B) | - (0/718 fn; 0/145124 B) | - | - (0/718 fn; 0/145124 B) | - (0/718 fn; 0/145124 B) |
+| framework | application | 15 | 718 | 145,124 | partial (46/718 fn; 2724/145124 B) | partial (3/718 fn; 76/145124 B) | - | - (0/718 fn; 0/145124 B) | - (0/718 fn; 0/145124 B) |
 | framework | framework services (GZ) | 115 | 975 | 89,078 | partial (168/975 fn; 11502/89078 B) | partial (17/975 fn; 951/89078 B) | - | - (0/975 fn; 0/89078 B) | - (0/975 fn; 0/89078 B) |
 | framework | persistence and resources | 47 | 782 | 86,316 | partial (260/782 fn; 23177/86316 B) | partial (109/782 fn; 8437/86316 B) | - | - (0/782 fn; 0/86316 B) | - (0/782 fn; 0/86316 B) |
 | framework | web and network | 10 | 437 | 86,144 | partial (41/437 fn; 9498/86144 B) | partial (41/437 fn; 9498/86144 B) | - | - (0/437 fn; 0/86144 B) | - (0/437 fn; 0/86144 B) |
@@ -302,7 +302,14 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | b0d5f185df98ccf4 | |
 | engine/plugin/FC4Subsystems.cpp | b315a0a4b162abfc | |
-| tools/coverage-functions.json | 0f9a6c888ee4e9aeaadb89d870321f1c7cb0ab438c1c0d73394607a000800a45 | exact-function evidence (normalized full SHA-256) |
+| docs/coverage-functions/registry-00473b50.json | dcc02f34ab918107ab075a6fa2cbc3ad55805016a41a305c0e141ee5d5f09465 | exact-function evidence (normalized full SHA-256) |
+| docs/coverage-functions/registry-00473b70.json | f118da46248d7f74be6008104029cb2ee6936fec5f61ebfe8125bd3149c60e2d | exact-function evidence (normalized full SHA-256) |
+| docs/coverage-functions/registry-00473b90.json | dba9a590930e5cae834a9f0e6ba393495a6a88ecb728f7156fdaf118f5bb4e81 | exact-function evidence (normalized full SHA-256) |
+| docs/coverage-functions/registry-pilot-validation.txt | e9505d16d2b2aa0002ed67e621edf202a58b9d3dcd50a74d778ec15386cd848a | exact-function evidence (normalized full SHA-256) |
+| docs/specs/game-data-registry.md | 58225ab1eb363e2773f8b88900ce1bcd1c041cda59d07fd1a7d4db7a45d472d8 | exact-function evidence (normalized full SHA-256) |
+| engine/core/src/game_data_registry/mod.rs | f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd | exact-function evidence (normalized full SHA-256) |
+| engine/core/src/game_data_registry/tests.rs | c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e | exact-function evidence (normalized full SHA-256) |
+| tools/coverage-functions.json | f52f6bc45ffe813003c000851253a43b3d7f25d10b58dcae393634af28bfcfeb | exact-function evidence (normalized full SHA-256) |
 | build-runs/regress-train121.out | 48ce7d5ff8477247 | regress train121 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
 Read from tools/regress.ps1: 40 replace keys, 30 shadows. On by default in FC4Subsystems.cpp: budget, simulator.

@@ -1,0 +1,75 @@
+Registry pilot retained validation — independently reviewed by ROOT
+
+Tracked destination: docs/coverage-functions/registry-pilot-validation.txt
+Scope: CheckEntryFlags00473B50, SetEntryContext00473B70, GetEntryContext00473B90 only.
+result=PASS
+command="C:\Program Files\Python312\python.exe" "C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py" --wt "C:\Users\tlori\FreeCity4\.claude\worktrees\core-game-data-registry4" all
+command_argv=["C:\\Program Files\\Python312\\python.exe","C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py","--wt","C:\\Users\\tlori\\FreeCity4\\.claude\\worktrees\\core-game-data-registry4","all"]
+start=2026-10-23T05:18:46.891365+01:00
+end=2026-10-23T05:26:33.200024+01:00
+terminal_exit=0
+source_before=260d6f992265b481db5d241b82700c8793bf4d4e
+source_after=3fc08ce14f1b60f23faac83df303675a72c36c9b
+engine_before=2226d3b64adf716a335de644960e15ce494e7d58
+engine_after=2226d3b64adf716a335de644960e15ce494e7d58
+engine_equal=true; before and after engine_diff empty; both snapshots tracked-clean.
+production_path=engine/core/src/game_data_registry/mod.rs
+production_sha256=f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd
+assertions_path=engine/core/src/game_data_registry/tests.rs
+assertions_sha256=c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e
+contract_path=docs/specs/game-data-registry.md
+contract_sha256=58225ab1eb363e2773f8b88900ce1bcd1c041cda59d07fd1a7d4db7a45d472d8
+
+Actual completed validation, not a new run
+Original collector5928 -> qbuild7056 (creation1792729127.0441196) -> fc4verify22544.
+Retained terminal tool session65673; collector actual exit0.
+Rust: 23 actual test-result summaries, passed counts 540, 3, 1, 31, 27, 40, 7, 2, 1232, 3344, 147, 0, 2, 1, 3, 1, 1, 1, 5, 0, 0, 0, 0.
+Sum5388 passed,0failed,0ignored. Clippy exit0/diagnostics0. Native actual RC0/4of4edges. CTest68of68/0failed/134.97s raw (135.0 wrapper).
+Exact relevant original test output:
+test game_data_registry::tests::g6_g7_full_width_flags_context_and_raw_publisher_dispatch ... ok
+test game_data_registry::tests::g8_null_missing_leaf_visits_and_borrowed_outputs ... ok
+
+Verbatim original terminal output (tree-change warning preserved):
+fc4verify build: PASS 4/4 edges (64.8 s)  log C:\Users\tlori\FreeCity4\.claude\worktrees\core-game-data-registry4\build-runs\fc4verify-build.log
+fc4verify ctest: PASS 100% passed, 0 failed of 68 (135.0 s)  log C:\Users\tlori\FreeCity4\.claude\worktrees\core-game-data-registry4\build-runs\fc4verify-ctest.log
+fc4verify: PASS (349.5 s)  [the tree changed during the run]
+test: exit=0 passed=5388 failed=0 ignored=0  (log C:\Users\tlori\FreeCity4\.claude\worktrees\core-game-data-registry4\build-runs\qbuild-test.log)
+clippy: exit=0 diagnostics=0  (log C:\Users\tlori\FreeCity4\.claude\worktrees\core-game-data-registry4\build-runs\qbuild-clippy.log)
+
+qbuild: PASS
+
+Source stability interpretation
+HEAD260d6f99 ->3fc08ce1 changed only reports/operational documentation while engine2226d3b6 and all gate-bound source hashes stayed equal. This explains the raw warning; it is not suppressed or upgraded by hand.
+Current production and assertions normalized SHA256 equal both gate before/after hashes AND git object at260d6f99. Current checkout CRLF raw bytes differ only in line endings; the strict protocol expressly normalizes CRLF toLF.
+Current whole main engine/lib module lists changed through later integration; this evidence qualifies these exact unchanged source/assertion files, not a claim the entire current-main tree ran this historical gate.
+
+Exact archive provenance and original raw SHA256
+Archive root: build-runs/landed-evidence/core-game-data-registry4/
+registry-r2-final/qualification.json raw_sha256=cf1e899d4fd95799dfd434d1ee7cf4f63146b0f243a9a6277875786aecdc7cab normalized_sha256=f901e1befbde98cb571b2c8108e06fe6d069970c5747b4db4786acebd95cbe66
+registry-r2-final/summary.json raw_sha256=d2350b2f67a2fbfdfc489c172ff005ea5f27b13c97a24cf538cd22b2487fbdae normalized_sha256=c01aae7732e8644b964f414d4223613d5228457034e8f2f6dfcd7bd2edd1f28a
+registry-r2-final/terminal.log raw_sha256=6ecf1a641cb027aa4be5f0f3126d09cbc0c0dca714d11962701de1cd0d82d3ad normalized_sha256=a6812480c6938a4cd06f6e01db8acb06c462622096ad12a65a2c8aeb72672c1f
+fc4verify-build.log raw_sha256=3d63fe3a18e0c541bb6b2e0e3c12287ddfacbf51cde8554d3f363609c3802219 normalized_sha256=4e0c693d23ce8cff792a1a462897db58b8e55452846cc18bc909aa496f01ae2c bytes=1004
+fc4verify-configure.log raw_sha256=6b7f3ae3daf4bf279b1e7b5c35f8857567b1bb7b18146384e0fce706ad02b9a1 normalized_sha256=6b7f3ae3daf4bf279b1e7b5c35f8857567b1bb7b18146384e0fce706ad02b9a1 bytes=576
+fc4verify-ctest-list.log raw_sha256=9ff75ba4fe5e9da5ad44fc87d647fb9cdc21bdf8ce8e0a56aa4c122669040323 normalized_sha256=9ff75ba4fe5e9da5ad44fc87d647fb9cdc21bdf8ce8e0a56aa4c122669040323 bytes=3039
+fc4verify-ctest.log raw_sha256=e96218a9d39785be01ab026a5a8d38ea3b858171eb57d09a9e6e082deb19a0e3 normalized_sha256=e96218a9d39785be01ab026a5a8d38ea3b858171eb57d09a9e6e082deb19a0e3 bytes=8702
+qbuild-clippy.log raw_sha256=d0c8d121b2745753559474b9b71f3073e3f3cb53bf6119d4aa711f00ef2ff81b normalized_sha256=d0c8d121b2745753559474b9b71f3073e3f3cb53bf6119d4aa711f00ef2ff81b bytes=574
+qbuild-test.log raw_sha256=0f8a4c120c486a9f48793a1bf0804f03f7f28574ef1b368c248a09ea6e95b1fa normalized_sha256=0f8a4c120c486a9f48793a1bf0804f03f7f28574ef1b368c248a09ea6e95b1fa bytes=334744
+registry-focused-cargo.log raw_sha256=8923d56ed8975c5283b353fbb4afc034eabcbdc773da788c906caeda48c3cfb6 normalized_sha256=8923d56ed8975c5283b353fbb4afc034eabcbdc773da788c906caeda48c3cfb6 bytes=2004
+registry-focused.log raw_sha256=8d4022ab5dfb60218f29594f923d72e51571617598fa4dfa2c67a488843e7a74 normalized_sha256=8d4022ab5dfb60218f29594f923d72e51571617598fa4dfa2c67a488843e7a74 bytes=152
+All eight retained raw log hashes and terminal raw hash independently match qualification/summary.
+
+Interventions and failed/incomplete history retained
+ROOT stopped ONLY optional read-only stats27548@05:24:16.413447–05:24:18.018816 exit15; SAMEfc4verify22544+daemon8408 survived. Cache statistics unavailable/causeUNKNOWN. No daemon/compiler/validator restart or success inference from this action.
+Earlier ROOT stats35076@04:52:15.453930–04:52:16.465343 exit15 belongs prior source7babaf67/engine4f8e, not the final formatted source; old30532 absence causeUNKNOWN remains distinct.
+build-runs/landed-evidence/core-game-data-registry4/coordinator-optional-stats-20261023-045212.json raw_sha256=2f64b62b7d07687a57526e6314744f7db794da6db990179da85c2d2cd243aa64 normalized_sha256=91e199810a70238f0de6ffe1437d5745de4d3f8d97c6e2ad41aedcdd4cf1852f
+build-runs/landed-evidence/core-game-data-registry4/coordinator-optional-stats-20261023-052416.json raw_sha256=a9348391b8a7b09ca398a584581b29dea6f3a742831637ea415c7006c8061111 normalized_sha256=ad8bdcce8cc15c1c81f086a2ad4063a0c3478569d3019a8b00bf0b32dfd1564a
+Round1 unformatted canonical results do not qualify final formatted files. Formatting failure/pre-format gate, q.py/Bash AccessDenied, two patch failures, lib.rs ordering drift and later CIM/cwd visibility denials remain in original lane report/archive.
+Prior evidence21files retained under registry-r2-final/prior-evidence/ with archive-sha256.json. This retained record does not replace or erase them.
+
+Evidence limitations
+Portable compiled source and independent literal assertions only. Native Registry method executions=0; no original-vs-replacement comparisons, shadow/replacement/default/ABI or whole-owner credit.
+SetEntryContext literal tests call the setter with0 and null; full-width nonzero context is read from creation0x33330000. No test is claimed to have setu32::MAX. Universal full32-bit setter behavior is established by reviewed direct u32-to-u32 assignment dataflow, subject to ROOT independent acceptance.
+Valid live record tokens represent native readable records; null is explicit. Removed/foreign/fabricated/destroyed records and reentry remain outside the public valid-memory domain. Root surviving Shutdown remains accessible without index-membership checks.
+No new test/build/native/game/source-feature command was run for this publication. Independent ROOT review is published separately; this validation record alone does not activate a ledger claim.
+
+

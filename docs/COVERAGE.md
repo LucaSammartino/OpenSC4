@@ -90,9 +90,11 @@ subsystem is proven. The regress path still wins whenever the regress shadows li
 
 ## Exact-function staged evidence: `tools/coverage-functions.json`
 
-This is a separate, conservative capability for an otherwise partial owner. The initial tracked ledger is empty;
-the [Registry pilot review](coverage-functions/registry-review.md) withholds all three candidate entries. It does
-not amend the completed Directory/HTML owner qualification. Neither this format nor a hash proves semantic
+This is a separate, conservative capability for an otherwise partial owner. The initial tracked ledger was empty;
+the [initial Registry review](coverage-functions/registry-review.md) withheld three entries until source-matched
+provenance and independent semantic review were published. The [completed Registry review](coverage-functions/registry-pilot-review.md)
+now admits those three exact functions for specified/implemented only through the unchanged resolver.
+It does not amend the completed Directory/HTML owner qualification. Neither this format nor a hash proves semantic
 correspondence. Reviewed, published evidence is required before adding a record; never fill records from generic
 getters, mock host outcomes, a test count, or a convenient supported subset of a known valid normal domain.
 

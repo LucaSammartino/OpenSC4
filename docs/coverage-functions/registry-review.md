@@ -1,7 +1,11 @@
-# Registry pilot review: withheld
+# Registry pilot review: initial withholding
 
-This is a tooling admission review, not a native or engine validation. No records are activated in
-`tools/coverage-functions.json`, including specified-only records. No coverage-map row is changed.
+This preserves the initial tooling admission review, when no records were activated in
+`tools/coverage-functions.json`, including specified-only records. No coverage-map row was changed.
+The later [independent ROOT review](registry-pilot-review.md#independent-root-review) supplies the missing
+source-matched provenance and whole-function correspondence. The unchanged strict resolver subsequently
+accepted exactly these three specified/implemented entries: 76 bytes, 3/48 owner functions, with the owner
+still partial. Native verified/replaced flags remain false. The initial reasons below remain historical evidence.
 
 The public [Registry contract §3.2](../specs/game-data-registry.md#32-lookup-and-access-channels) publishes
 null false/read-null behavior, full 32-bit context store/read and `(flags & mask)==mask`, with zero mask true

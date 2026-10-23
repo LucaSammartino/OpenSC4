@@ -16,9 +16,17 @@ unchanged120-to121. Existing ABI layouts are already applied; safe native captur
 installation/lifetime remains unproved. No rerun, credit restoration or algorithm patch.
 See [the acceptance incident](ops/acceptance-incident-train121.md). Inspect every shadow
 delta before the next landing; structured worsening enforcement is under review.
-Registry pilot activation remains held until this incident is published and independently
-reviewed. Complete cause remains unresolved; future unrelated deliveries require explicit
+The incident is published and independently reviewed. Complete cause remains unresolved;
+future unrelated deliveries require explicit
 review of their actual shadow deltas and retain this nonexact baseline.
+
+**Registry exact-function admission:** ROOT independently accepted the complete null/full-u32
+semantics and actual source-matched archived gate for00473B50/70/90. Published qualifications,
+literal assertion limits and retained tree-change warning are in docs/coverage-functions/registry-pilot-review.md.
+Unchanged strict resolver/report/treemap/audit accepted exactly3functions/76B in each of
+specified and implemented; owner remainspartial3/48, native verified/replaced false.
+Full tools247PASS/1skip45.27s, actualsession6653exit0; no engine/game rerun or denominator change.
+Bytes now3226982/2018539/1093232/1012661; headline57.8/36.1/19.6/18.1, including the LV loss.
 
 **Capacity recovery08:13:** fresh heartbeat08:11:40 was8/9 actual workers. FireFlamesR1
 ended with a new selected-model-at-capacity error; preserve work and consumed round.
