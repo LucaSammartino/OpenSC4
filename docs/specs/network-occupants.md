@@ -1722,6 +1722,30 @@ contract. Sources: `0x005F1610–0x005F1705`, tables `0x00AA4F20/0x00AA4F3C`.
 This section settles the accessors, picker and ordinary texture selection, not NO36's remaining
 billboard construction, label/MySim composition, Draw and message owner algorithms.
 
+#### 6.2.3 Drawing and message decisions *[compat; NO36 partial]*
+
+Draw (`0x005F2830–0x005F29A4`) returns 1 without submitting anything when its self-lit argument is
+true or the byte at `context[+38][+0C]+39C` is nonzero. Otherwise pass zero alone consumes a dirty
+model by calling RebuildModel. Both supported passes install the cached +7C transform and clear
+texture transform zero. Pass zero sets transparency to f32 bits `0x3ECCCCCD`, uses state +13C,
+binds the raw texture ID +148 and submits the four main vertices at +E4 with primitive/format
+`(6,2)`. It resets transparency and returns 2. Pass one resets transparency, uses state +134 and
+draws the same main quad. It also draws the four label vertices +154 with texture +150 only when
+the **dispatch state getter** (primary slot 12) is neither 1 nor 4, call number +14C is nonzero,
+and dispatch type +74 is not 4. Pass one does not consume dirty state; its return is 1.
+Other pass numbers submit nothing and return 1. There is no texture-ID-zero rejection in these
+submissions. The label eligibility is evaluated before a pass-zero rebuild, although pass zero
+does not draw the label (`0x005F2864–0x005F2898`, `0x005F28A1–0x005F28AD`,
+`0x005F291E–0x005F299A`).
+
+DoMessage (`0x005F26F0–0x005F282C`, receiving primary+4) always returns true, including unrecognized
+messages. `0x86AD10EE` obtains the message's +38 u32, divides by **unsigned 1000**, and passes the
+quotient to DoAnimationTick. `0x26D31EC1` immediately rebuilds the model. `0xA6B79602` only marks
++68 dirty. For `0x06CDB65B`, the filter obtained from message +3C tests this occupant (+8): rejection
+removes visibility flag 2 and calls renderer +74 only if that flag was set; acceptance sets flag 2
+and calls renderer +70 only if it was clear. Already-matching visibility causes no renderer call.
+The renderer receives the adjusted 3D-model view, not the occupant interface.
+
 ### 6.3 Record *[compat]*
 
 `Write` `0x005F0A10` emits u16 version 5 and the base occupant record, then the following
@@ -2378,3 +2402,13 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     retain shade index 2 rather than converting it to true/1; pass shade RGB at `0x00B0CFC8` to Draw.
     Starting from wall count 3, attached CreateWalls clears the lists and retains 3; after detachment
     rebuilding gives count 4. A linked position y=40 and unattached depth=16 gives +170=40,+174=24.
+52. **Pylon pass and dirty behavior** (§6.2.3). With dirty=true, selfLit=true returns 1 and leaves
+    dirty set with zero submissions. With selfLit=false and the context gate clear, pass one also
+    leaves dirty set: dispatch state=0, call=7, type=0 submits main and label, while states 1/4,
+    call=0 or type=4 suppress only the label. Pass zero rebuilds once, submits just the main quad
+    with transparency bits `0x3ECCCCCD`, resets transparency, and returns 2. Unsupported pass 2
+    neither rebuilds nor submits. A zero raw texture ID does not suppress the main submission.
+53. **Pylon messages** (§6.2.3). Animation payloads 999/1000/1999/2000 deliver tick values 0/1/1/2.
+    A visibility rejection while flag 2 is clear produces no renderer removal; when set, it clears
+    the flag and removes once. Repeated acceptance adds only on the first clear-to-set transition.
+    The view-change message marks dirty without a rebuild; `0x26D31EC1` rebuilds immediately.

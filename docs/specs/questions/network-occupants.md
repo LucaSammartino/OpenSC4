@@ -112,6 +112,9 @@ implementer of the class tables and records.
   bounds, transform counter/mask copies, texture-ID sorting, pick eligibility/height/strict distance,
   ordinary texture resource tables and stale-ID behavior on replacement failure. Full model construction,
   MySim/label composition, Draw and message owner algorithms remain open. NO44 is answered separately.
+  **Progress 2026-10-23 (re-netocc-answers5d):** §6.2.3/tests 52–53 settle Draw's pass-specific dirty
+  consumption, main/label submissions, dispatch-state label gate and all message decisions. Model and
+  MySim/number-label composition remain open; no full owner closure is claimed.
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
