@@ -70,7 +70,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FN | drawing-fonts |
 | FQ | flora |
 | FR | font-renderer |
-| FS | graphics-formats |
+| FS | freshness, graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GDR | game-data-registry |
@@ -244,6 +244,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
+| freshness | 5 | 0 | FS6 | questions/freshness.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
@@ -366,4 +367,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1359** | | |
+| **total** | **612** | **1359** | | |

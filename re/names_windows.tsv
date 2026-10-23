@@ -13762,8 +13762,9 @@ va	name	source	confidence	note
 009457c6	cRZUnknown::QueryInterface	auto:B0	medium	mac 000262d6 score 0.929 support 13.0
 009457e1	cFreshCellPlayer::Release	auto:C	high	mac 0036bc5e score 1.0 support 2
 009457fb	cFreshCellPlayer::QueryInterface	auto:A	high	mac 0036bc84 score 1.0 support 0
-00945820	cFreshCellPlayer::UpdateScaledVol	auto:D	medium	mac 0036bcd2 score 0.5 support 1
+00945820	cFreshCellPlayer::UpdateScaledVol	manual:freshness.tsv	high	freshness.md §5.2
 0094585f	cFreshScore::cFreshScore	auto:B6	medium	mac 0036c294 score 0.872 support 2.0
+009458c4	cFreshScore::GetCell	manual:freshness.tsv	high	freshness.md §2.1 (+0x48 + (row*64 + col)*4)
 009458d6	cFreshCellPlayer::cFreshCellPlayer	auto:B0	medium	mac 0036c3ec score 0.933 support 1.0
 00945942	icf::cFreshCellPlayer::AddRef	folded	folded	5 names: cFreshCellPlayer::AddRef | cGZGimexFactory::AddRef | cGZGimexReader::AddRef | cGZGimexWriter::AddRef | cGZPersistResourceKeyList::AddRef
 00945949	cFreshCellPlayer::IsPlaying	auto:C	low	mac 007379e4 score 1.0 support 1
@@ -13790,11 +13791,11 @@ va	name	source	confidence	note
 00945ed0	NetworkFileCache::SetFileCacheSize	auto:C	low	mac 0043e234 score 1.0 support 1
 00945edc	NetworkFileCache::SetRAMCacheSize	auto:C	low	mac 0043e220 score 1.0 support 1
 00945f38	cFreshCellPlayer::FilenameHasGuid	auto:B2	medium	mac 0036be14 score 0.976 support 3.5
-00946039	cFreshScore::ParseScore	auto:A	high	mac 0036c484 score 1.0 support 0
-0094680f	cFreshCellPlayer::StartCellExternal	auto:B1	medium	mac 0036d3ae score 0.926 support 5.5
+00946039	cFreshScore::ParseScore	manual:freshness.tsv	high	freshness.md §2.2 (versions 5-7)
+0094680f	cFreshCellPlayer::StartCellExternal	manual:freshness.tsv	high	freshness.md §5.5
 00946a79	cFreshScore::LoadScore	auto:B4	medium	mac 0036d108 score 0.962 support 2.0
 00946b30	cFreshScore::LoadScore	auto:B3	medium	mac 0036d00a score 0.974 support 3.0
-00946c2c	cFreshCellPlayer::Start	auto:A	high	mac 0036d766 score 0.771 support 0
+00946c2c	cFreshCellPlayer::Start	manual:freshness.tsv	high	freshness.md §5.1
 00946fe6	cFreshPlayer::QueryInterface	auto:A	high	mac 0036dd16 score 1.0 support 0
 00947004	cFreshPlayer::Release	auto:C	high	mac 0036dd52 score 1.0 support 1
 0094701e	cFreshPlayer::Init	auto:C	high	mac 0036f75e score 1.0 support 1
@@ -13806,6 +13807,7 @@ va	name	source	confidence	note
 00947519	cFreshPlayer::GetCellToSubtract	auto:C	high	mac 0036e3c2 score 1.0 support 1
 00947559	cFreshPlayer::SetVolume	auto:C	high	mac 00370150 score 1.0 support 1
 0094758e	cFreshPlayer::StopFade	auto:C	high	mac 0036e148 score 1.0 support 1
+009475fb	cFreshPlayer::BeatTime	manual:freshness.tsv	high	freshness.md §4.6 ((n - origin) * 60000 / tempo)
 0094761c	cFreshPlayer::ProcessVolumeFadeTimerCallback	auto:B0	medium	mac 0036e7b0 score 0.954 support 1.0
 009476c3	cFreshPlayer::UpdatePlayerInfo	auto:D	medium	mac 0036dfdc score 0.5 support 3
 0094776d	cFreshPlayer::SetZoom	auto:C	high	mac 0036e9e0 score 1.0 support 1
@@ -13829,17 +13831,20 @@ va	name	source	confidence	note
 00947a55	cFreshPlayer::SetDivision3DPosition	auto:C	high	mac 0036edc4 score 1.0 support 1
 00947aa9	cFreshPlayer::SetNumDivisionsX	auto:C	high	mac 0036ee08 score 1.0 support 1
 00947ac1	cFreshPlayer::SetNumDivisionsZ	auto:C	high	mac 0036ee28 score 1.0 support 1
+00947ad9	cFreshPlayer::ChooseDivision	manual:freshness.tsv	high	freshness.md §4.8
 00947c38	cFreshPlayer::Init	auto:B5	medium	mac 0036de42 score 0.941 support 1.5
 00947d28	cFreshPlayer::Shutdown	auto:C	high	mac 0036f902 score 1.0 support 1
 00947db8	cFreshPlayer::Play	auto:C	high	mac 0036fb22 score 1.0 support 1
 00947e90	cFreshPlayer::StopNoLock	auto:B1	medium	mac 0036e074 score 0.989 support 2.0
+00947f58	cFreshPlayer::UpdateBeatClock	manual:freshness.tsv	high	freshness.md §4.6 (the 250 ms sound-system update)
 009482c5	cFreshPlayer::SubtractCell	auto:C	high	mac 0036e6f6 score 1.0 support 1
 00948321	FreshPlayerVolumeFadeTimerCallback	auto:B1	low	mac 0036e898 score 1.0 support 1.0
 0094832a	cFreshPlayer::FadeVolume	auto:C	high	mac 003701bc score 1.0 support 1
 00948420	cFreshPlayer::SetTempo	auto:C	high	mac 0037033a score 1.0 support 1
 009484a0	cFreshPlayer::SetXPos	auto:C	high	mac 0036e8a2 score 1.0 support 1
 00948504	cFreshPlayer::SetYPos	auto:C	high	mac 0036e93c score 1.0 support 1
-00948573	cFreshPlayer::ToggleCell	auto:C	high	mac 0036e346 score 1.0 support 1
+00948573	cFreshPlayer::ToggleCell	manual:freshness.tsv	high	freshness.md §4.7 (body: the start score, slot 58)
+00948719	cFreshPlayer::FindBestCellToStart	manual:freshness.tsv	high	freshness.md §4.7 (vtable slot 54)
 009489ae	cFreshPlayer::cFreshPlayer	auto:B3	medium	mac 0036f400 score 0.923 support 1.0
 00948b7f	cFreshPlayer::GetScore	auto:C	low	mac 00737dee score 1.0 support 1
 00948b85	cFreshPlayer::IsPlaying	auto:C	low	mac 00737dfa score 1.0 support 1
@@ -13865,10 +13870,13 @@ va	name	source	confidence	note
 00949100	cFreshDimensionPlayer::Play	auto:B0	medium	mac 003706b2 score 0.966 support 3.0
 0094950a	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>,std::_Select1st<std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>>>::insert_unique	auto:D	medium	mac 00758392 score 0.5 support 20
 0094970d	cFreshDimensionPlayer::Update	auto:B1	medium	mac 0037080c score 0.969 support 4.0
+00949902	cFreshDimensionPlayer::cFreshDimensionPlayer	manual:freshness.tsv	high	freshness.md §6 (400 bytes, CLSID 0xBDDA72DD)
 00949ade	icf::cGZApp::Shutdown	folded	folded	34 names: cGZApp::Shutdown | cGZCOM::Init | cGZCOM::Shutdown | cGZCheatCodeManager::Init | cGZCheatCodeManager::Shutdown | cGZDBSegmentDirectoryFiles::GetPath | cGZFileSystem::Init | cGZFileSystem::Shutdown | cGZSndSys::IsServiceRunning | cGZSoundCOMDirector::PostAppInit | cGZWin::GZPaint | cGZWinIMEServer::GetCompositionEnabled | cHTMLContainerElement::IsContainer | cHitDebugInfo::Init | cHitDebugInfo::Shutdown | cHitMan::Unpause | cHitTrackPlayer::Init | cPropertySetUint32XmlReader::HandleEndCdataSection | cPropertySetUint32XmlReader::HandleStartCdataSection | cRZCOMDllDirector::AbortiveQuit | cRZCOMDllDirector::OnInstall | cRZCOMDllDirector::PostAppInit | cRZCOMDllDirector::PostAppShutdown | cRZCOMDllDirector::PostSystemServiceShutdown | cRZCOMDllDirector::PreAppInit | cRZCOMDllDirector::PreFrameWorkInit | cRZDiskRadioStation::Init | cRZDiskRadioStation::Shutdown | cRZLanguageManager::Init | cRZLanguageManager::Shutdown | cRZLanguageUtility::Shutdown | cRZOStream::Shutdown | cRZSystemService::Init | cRZSystemService::Shutdown
 00949b47	cHitTrackPlayer::GetUseCount	auto:C	low	mac 00727df6 score 1.0 support 2
 00949b73	icf::cGZGraph::SetGraphAreaOutlineAndFill	folded	folded	11 names: cGZGraph::SetGraphAreaOutlineAndFill | cGZPersistSurveyorWriter::WriteTypeInfo | cGZSndSys::SetServiceRunning | cGZWinTextTicker::SetCaption | cHTMLElement::Insert | cHTMLElement::OnMouseDownL | cHTMLElement::OnMouseUpL | cHTMLElement::SetLinkColor | cHTMLHR::Draw | cHTMLHR::Layout | cHTMLListItemHangingIndent::Draw
 00949c27	cFreshDimensionPlayer::LoadScore	auto:A	high	mac 00370ee4 score 1.0 support 0
+00949d19	cFreshDimensionPlayer::RebuildCellPool	manual:freshness.tsv	high	freshness.md §6
+00949ea4	cFreshDimensionPlayer::SetScoreEnabled	manual:freshness.tsv	high	freshness.md §6
 0094a5ea	icf::cGZApp::GZRun	folded	folded	9 names: cGZApp::GZRun | cGZPersistDBSerialRecord::GetError | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleEndCdataSection | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleStartCdataSection | cGZWinIMEServer::IsIMEAvailable | cHTMLElement::IsContainer | cHTMLElement::Selectable | cHitTrackPlayer::StopAllInstances | cRZNullOStream::GetError
 0094abc9	cGZToolsCOMDirector::cGZToolsCOMDirector	auto:B1	medium	mac 002eca08 score 0.935 support 2.0
 0094ac43	cGZToolsCOMDirector::Get	auto:B2	medium	mac 002ecaec score 0.931 support 1.0

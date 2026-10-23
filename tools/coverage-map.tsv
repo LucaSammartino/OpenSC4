@@ -330,7 +330,7 @@ cHit*	audio	audio	hit-music.md	-	-	-
 cFreshPlayer	audio	audio	sound-system.md	-	-	-
 cFreshCellPlayer	audio	audio	sound-system.md	-	-	-
 cFreshnessCOMDirector	audio	audio	sound-system.md	-	-	-
-cFresh*	audio	audio	-	-	-	-
+cFresh*	audio	audio	freshness.md	-	-	-
 cRZRadio	audio	audio	-	-	-	-
 cRZDiskRadioStation	audio	audio	-	-	-	-
 cGZPlayList	audio	audio	sound-system.md	-	-	-
