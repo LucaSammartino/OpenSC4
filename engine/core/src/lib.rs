@@ -158,3 +158,5 @@ pub mod city_input_tools;
 pub mod font_renderer;
 pub mod resource_catalog;
 pub mod animation_tick_manager;
+
+pub mod html_ui_hooks;
