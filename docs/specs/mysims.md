@@ -487,6 +487,17 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
 
 **Dispatch location (`cLocation`, 0x28 bytes) contract** *[compat]*:
 
+**Equality (MS19).** Two locations are equal exactly when all of these match:
+the byte-valued in-this-city flag, occupant identity (including null), byte-valued
+byCommute flag, signed cell x and z, and regional city x and z. Occupant identity
+does not override any coordinate or flag difference. Regional coordinates participate
+even for local locations. World coordinates, duration and deadline do not participate.
+Thus two null-occupant locations can be equal, but a null/non-null pair cannot;
+two locations referencing the same building with different cells are unequal.
+This is exact stored-field equality, independent of validity or proximity.
+Instructions `0x00431640`–`0x00431688`, with the two-word regional comparison at
+`0x00424EC0`–`0x00424EDE`, establish the rule; the latter's exported deque name is wrong.
+
 | Offset | Field | Default (`0x00431320`) |
 |---|---|---|
 | `+0x00` | occupant (referenced) | null |
@@ -1317,6 +1328,20 @@ On a successful LeaveForWork or ReturnHome state change, copy the dispatch track
 to the MySim's last-player-trip field (`+0x150`); this is not a fresh wall-clock sample
 (`0x00426F1E`–`0x00426F27`, `0x00426F60`).
 
+**`TeleportToCommuteLocation` (MS19, `0x00431C70`–`0x00431CF6`).** This void operation
+copies the complete stored commute location to current, even if invalid. It makes no
+validity check, search, queue edit, path reset, automaton release or arrival notification.
+Home, commute and active destination are unchanged. Travel becomes `0xFE`, current's
+deadline becomes now + its copied duration (wrapping 32-bit addition), previous state
+becomes the old state, state becomes 3, and flags gain bit 2. All those state writes
+precede callbacks. Changed flags emit `0x4BB2D020(oldFlags,newFlags,0)` first; changed
+state then emits `0x4BB2CFC0(oldState,3,0)`, under §3.3's owner delivery gate. The change
+counter gains one for a changed travel type, one unconditionally for the copied location,
+and one after each changed flags/state notification attempt, even without an owner.
+There is no boolean failure result. DispatchCommute in MySim state 1 subsequently queues
+home with options 4 and returns success under its residence guard; an invalid stored
+commute does not prevent that queue request or cause job validation here.
+
 **`GoTo(location)`** (`0x00437130`) copies the argument and applies the occupant-only duration minimum of
 §4.11. Outside dispatch state 2 it expires the current dwell by setting deadline = now − 1, clears the
 queue, queues that copy, and returns true. In state 2 it clears the queue and replaces the active destination.
@@ -1583,3 +1608,15 @@ of implemented tests. They may be implemented by the engine lane without access 
     non-null output still makes CheckCommute use and release that object; a true return with null output
     returns false without FailCommute (§4.7). These are contract cases, not captured native game traces;
     solve the configured path request rather than returning a saved native result.
+
+### 12.27 MS19 location equality and named teleport *[compat]*
+
+These are normative fixtures for the dispatch owner, without a native game-run claim.
+
+| Vector | Input | Expected observation |
+|---|---|---|
+| MS19-01 exact identity | Two copies of a local location with occupant A, cell (4,5), region (−1,−1), flags (1,0) | Equal. Change only world x/z, duration or deadline: still equal. Change either cell, either region coordinate, either flag byte, or occupant: unequal. Test each independently |
+| MS19-02 null and neighbour | Null occupant, flags (0,1), cell (4,5), region (2,3), copied twice | Equal even if invalid. Changing region to (2,4), byCommute to 0, or one occupant to A gives unequal; identical non-null occupants never override those differences |
+| MS19-03 teleport ordering | State 2, flags 0, travel 1, counter 10, now 100; commute duration 7, deadline 999; all four locations distinct; queue contains Q | Current becomes the commute copy with deadline 107; active/home/commute and queue Q unchanged; travel FE, previous 2, state 3, flags 2. Counter 14. Owner sees flags (0,2) then state (2,3), both seeing new current/state/travel. No EBA06C12 or EBA06BD4 |
+| MS19-04 repeated/invalid teleport | State 3, flags 2, travel FE, counter 10, now 100; invalid commute with duration −1 | Current copies invalid commute, deadline 99; counter 11; previous 3, state 3; no notices. No validity/pathfinder/automaton calls. Repeat without owner: same state and counter effects |
+| MS19-05 state-1 commute request | MySim state 1 with residence and invalid stored commute; home duration 9, now 100 | Teleport effects of MS19-04 (or MS19-03 if old dispatch state differs), then queue replaced by home with options 4. Commute is not repaired. DispatchCommute succeeds; arrival is not synthesized |
