@@ -13,6 +13,9 @@
 - LR12 filed for exhaustive lot-record scope/discovery (master lots vs every section 1 class, off-list crime lot and occupants). Per task, finish simgrid independently first; no lotrec_shadow implemented or claimed.
 - Focused cargo completed: 4 simgrids_verify tests passed (including 2 new full-walk cases). fmt passed using absolute filename (relative filename fmt failed); q.py failed due Bash mapping permissions, direct PowerShell cargo works.
 - Native verify qbuild-20261023-232536-build-ctest queued, session 69384: collect SAME operation with write_stdin; no second verify. Full all gate still required after native diagnosis.
+- Full all session 65757 completed Rust tests 6537/6537 and clippy exit=0 diagnostics=0 (build-runs/qbuild-test.log and qbuild-clippy.log).
+- Sequencing mistake: all also queued native qbuild-20261023-233052-build-ctest while explicit verify pending. Removed that duplicate pending .req before execution. Session 65757 still waits for its removed request; preserve as incomplete wrapper, do not fabricate a verdict.
+- The ONE remaining native request is qbuild-20261023-232536-build-ctest (session 69384); await actual coordinator verdict. No game until DLL verified.
 
 ## Prior round report
 
