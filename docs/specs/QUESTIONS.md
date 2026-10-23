@@ -347,7 +347,7 @@ generated index: the questions live one file per spec, so read only the file for
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
-| traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
+| traffic-simulator | 0 | 94 | TG27, TS69 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **586** | **1397** | | |
+| **total** | **586** | **1398** | | |
