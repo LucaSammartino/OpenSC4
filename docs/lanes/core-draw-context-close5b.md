@@ -4,9 +4,12 @@
 
 ## Handoff
 - Goal: close SC4DrawContext and cSC4PackedRenderState against draw-context spec, including newly settled DC9.
-- Done: implemented section 1.5.1 fog and DC-V27 through DC-V35; borrowed colour/scalar driver inputs, cache semantics and nonreturn prefix tests.
+- Done: ba033b93 implemented section 1.5.1 fog and DC-V27 through DC-V35; borrowed colour/scalar driver inputs, cache semantics and nonreturn prefix tests.
 - Focused result: 37 draw_context tests passed; explicit owned-file fmt passed (3 files, zero diff).
-- Next: finish audit of remaining owner rows against spec and implementation, then run stable final-source full gate.
+- Done: rechecked other owner rows against spec and implementation; expanded section/item labels to distinguish section 13.3 fog from numbered conformance item 3.
+- Next: collect the running final-source qbuild all operation (session 38209); inspect PASS/FAIL lines and named logs, then report and queue.
+- Full gate was launched once after final Rust edits; only documentation changed afterward.
+- Residual boundaries only: DC1 foreign byte meanings, DC2 foreign flag meanings, DC3 native stack attribution; no new questions.
 - Diagnostics: relative fmt file arguments failed (absolute paths pass); q.py Bash unavailable (CreateFileMapping error), direct PowerShell cargo succeeded.
 - Scope: core only, no plugin/capi/ABI changes; Rust minimum 1.75.
 - No game request outstanding; no game shadow integration exists for this module.
