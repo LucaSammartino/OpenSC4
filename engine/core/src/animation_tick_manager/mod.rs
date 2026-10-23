@@ -14,7 +14,7 @@
 //! is not a claim of native compatibility. No Rust HashSet iteration is used.
 //!
 //! Floating arithmetic explicitly selects nearest-even / 24-bit significand
-//! operations (foundations §18). Other inherited PC/RC settings are unsupported
+//! operations (foundations Ã‚Â§18). Other inherited PC/RC settings are unsupported
 //! compatibility domains, not inferred native bit-exact results.
 
 use std::collections::VecDeque;
@@ -278,6 +278,8 @@ impl Manager {
         Ok(0)
     }
 
+    /// Errors identify an unsupported normal-path precondition, not a native
+    /// graceful failure or retry protocol. Do not continue using that state.
     pub fn init(&mut self, host: &mut impl Host) -> Result<bool, Unsupported> {
         if self.destroyed {
             return Err(Unsupported::Destroyed);
@@ -319,7 +321,10 @@ impl Manager {
         if !self.initialized {
             return Ok(true);
         }
-        let cycle = self.message.as_ref().and_then(|m| m.retained_unknown)
+        let cycle = self
+            .message
+            .as_ref()
+            .and_then(|m| m.retained_unknown)
             .is_some_and(|id| id.base == self.identity);
         if self.references <= u32::from(cycle) {
             return Err(Unsupported::ExternalOwnerRequired);
@@ -422,9 +427,7 @@ impl Manager {
             // [choice] IEEE infinity/NaN on zero divisor, no invented guard.
             self.rate = crate::x87::r24(f64::from(self.rate) + weighted) as f32;
         }
-        if self.auto_enabled && self.depth != 0
-            && host.elapsed(Timer::Auto) >= self.auto_interval
-        {
+        if self.auto_enabled && self.depth != 0 && host.elapsed(Timer::Auto) >= self.auto_interval {
             self.step_pending = true;
             host.effect(Effect::Reset(Timer::Auto));
         }
@@ -443,8 +446,11 @@ impl Manager {
                     if self.step_pending {
                         self.timestamp = self.last[bucket].wrapping_add(self.step_delta);
                     }
-                    let delta = self.timestamp.wrapping_sub(self.last[bucket])
-                        .min(self.max).max(self.min);
+                    let delta = self
+                        .timestamp
+                        .wrapping_sub(self.last[bucket])
+                        .min(self.max)
+                        .max(self.min);
                     let message = self.message.as_mut().expect("initialized message");
                     message.data2 = delta;
                     message.data3 = millisecond_bits(delta);
@@ -505,7 +511,11 @@ impl Manager {
         self.auto_interval = interval;
         if enable != self.auto_enabled {
             self.auto_enabled = enable;
-            host.effect(if enable { Effect::Restart(Timer::Auto) } else { Effect::Reset(Timer::Auto) });
+            host.effect(if enable {
+                Effect::Restart(Timer::Auto)
+            } else {
+                Effect::Reset(Timer::Auto)
+            });
         }
     }
 
@@ -521,8 +531,12 @@ impl Manager {
         }
     }
 
-    pub fn message(&self) -> Option<&Message> { self.message.as_ref() }
-    pub fn message_mut(&mut self) -> Option<&mut Message> { self.message.as_mut() }
+    pub fn message(&self) -> Option<&Message> {
+        self.message.as_ref()
+    }
+    pub fn message_mut(&mut self) -> Option<&mut Message> {
+        self.message.as_mut()
+    }
 
     /// Standard-message retained-field assignment: AddRef new before Release old.
     /// Foreign identities are primitive host refs, never QI-canonicalized.
@@ -530,32 +544,115 @@ impl Manager {
         assert!(self.message.is_some(), "retained-field assignment requires a message");
         let old = self.message.as_ref().and_then(|m| m.retained_unknown);
         if let Some(identity) = new {
-            if identity.base == self.identity { self.add_ref(); }
+            if identity.base == self.identity {
+                self.add_ref();
+            }
             host.effect(Effect::UnknownAddRef(identity));
         }
         if let Some(identity) = old {
             // Caller guarantees this cannot be final Release/reenter (TK3).
-            if identity.base == self.identity { self.references = self.references.wrapping_sub(1); }
+            if identity.base == self.identity {
+                self.references = self.references.wrapping_sub(1);
+            }
             host.effect(Effect::UnknownRelease(identity));
         }
-        if let Some(message) = self.message.as_mut() { message.retained_unknown = new; }
+        if let Some(message) = self.message.as_mut() {
+            message.retained_unknown = new;
+        }
     }
 
     pub fn primary_identity(&self) -> InterfaceIdentity {
-        InterfaceIdentity { base: self.identity, interface: Interface::Primary }
+        InterfaceIdentity {
+            base: self.identity,
+            interface: Interface::Primary,
+        }
     }
-    pub fn timestamp(&self) -> u32 { self.timestamp }
-    pub fn frame(&self) -> u32 { self.frame }
-    pub fn bucket_timestamps(&self) -> [u32; 4] { self.last }
-    pub fn smoothed_rate(&self) -> f32 { self.rate }
-    pub fn bounds(&self) -> (u32, u32) { (self.min, self.max) }
-    pub fn pause_depth_bits(&self) -> u32 { self.depth }
-    pub fn pending_step(&self) -> bool { self.step_pending }
-    pub fn reference_count(&self) -> u32 { self.references }
-    pub fn in_tick(&self) -> bool { self.in_tick }
-    pub fn is_initialized(&self) -> bool { self.initialized }
+    pub fn timestamp(&self) -> u32 {
+        self.timestamp
+    }
+    pub fn frame(&self) -> u32 {
+        self.frame
+    }
+    pub fn bucket_timestamps(&self) -> [u32; 4] {
+        self.last
+    }
+    pub fn smoothed_rate(&self) -> f32 {
+        self.rate
+    }
+    pub fn bounds(&self) -> (u32, u32) {
+        (self.min, self.max)
+    }
+    pub fn pause_depth_bits(&self) -> u32 {
+        self.depth
+    }
+    pub fn pending_step(&self) -> bool {
+        self.step_pending
+    }
+    pub fn reference_count(&self) -> u32 {
+        self.references
+    }
+    pub fn in_tick(&self) -> bool {
+        self.in_tick
+    }
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
+    }
     /// Auxiliary message receiver reads type but never invokes tick.
-    pub fn receive_message(&self, message: &Message) -> bool { let _ = message.kind; true }
-    pub fn read(&mut self) -> Result<(), Unsupported> { Err(Unsupported::PersistenceSchema) }
-    pub fn write(&self) -> Result<(), Unsupported> { Err(Unsupported::PersistenceSchema) }
+    pub fn receive_message(&self, message: &Message) -> bool {
+        let _ = message.kind;
+        true
+    }
+    pub fn read(&mut self) -> Result<(), Unsupported> {
+        Err(Unsupported::PersistenceSchema)
+    }
+    pub fn write(&self) -> Result<(), Unsupported> {
+        Err(Unsupported::PersistenceSchema)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Seed only arithmetic edges impractical to reach with billions of calls.
+    // This does not establish a safe seeded pending-teardown path (V19/TK3).
+    struct RawHost;
+    impl Host for RawHost {
+        fn effect(&mut self, _: Effect) {}
+        fn elapsed(&mut self, _: Timer) -> u32 {
+            9997
+        }
+        fn framework_present(&mut self) -> bool {
+            true
+        }
+        fn allocate_message(&mut self, _: u32) -> bool {
+            true
+        }
+        fn do_message(&mut self, _: Target, _: &mut Manager) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn wrapping_frame_depth_and_reference_storage() {
+        let mut host = RawHost;
+        let mut m = Manager::new(0x1000, &mut host);
+        m.add_ref();
+        m.init(&mut host).unwrap();
+        m.frame = u32::MAX;
+        m.timestamp = 10000;
+        assert_eq!(m.tick(&mut host), 2000);
+        assert_eq!(m.frame, 0);
+        assert!(m.rate.is_infinite()); // Wrapping -3+3 gives zero denominator.
+        m.depth = 0x7FFF_FFFF;
+        m.pause(&mut host, true);
+        assert_eq!(m.depth, 0x8000_0000);
+        assert!(!m.is_paused());
+        assert_eq!(m.tick(&mut host), 0);
+        m.depth = u32::MAX;
+        m.pause(&mut host, true);
+        assert_eq!(m.depth, 0);
+        m.references = u32::MAX;
+        assert_eq!(m.add_ref(), 0);
+    }
 }
