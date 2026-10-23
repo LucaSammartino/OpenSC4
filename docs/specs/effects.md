@@ -3190,3 +3190,173 @@ failure explicitly named. No native/game oracle or execution is claimed.
 | EC158 | colour with same ParseColor reply as EC157 | list [(255,128,-255)], no scaling |
 | EC159 | colour255 selects two colors, second ParseColor throws | first appended color survives unscaled |
 | EC160 | color255 returns (255,0,0); unknown vary switch remains | normalized [(1,0,0)] before generic leftover-switch error; no variation lookup |
+
+### 19.35 Decal child dictionary *[compat]*
+
+Decal registrar `00595DF0–00595FAC` registers exactly eleven entries,
+seven unique descriptors, in the order below. Each entry allocates a fresh
+four-byte ordinary command with wrapper `007E3BE0` at +04. The listed
+handler occupies +0C; only the three explicitly named child classes are
+resolved by the export. No block-name/type guard occurs in any of these
+seven handlers. Description D is `P+360`; defaults remain §19.13, not
+per-command defaults.
+
+| Order | Literal / pointer cell | Descriptor | Direct handler / verified class |
+|---:|---|---|---|
+| 1 | color / `00B0A398` | `00A9FC28` | `0059CCD0`, unnamed |
+| 2 | color255 / `00B0A3A0` | `00A9FC28` | `0059CCD0`, unnamed |
+| 3 | colour / `00B0A39C` | `00A9FC28` | `0059CCD0`, unnamed |
+| 4 | colour255 / `00B0A3A4` | `00A9FC28` | `0059CCD0`, unnamed |
+| 5 | alpha / `00B0A3A8` | `00A9FC18` | `0059CE40`, unnamed |
+| 6 | alpha255 / `00B0A3AC` | `00A9FC18` | `0059CE40`, unnamed |
+| 7 | size / `00B0A3B0` | `00A9FC08` | `00599CE0`, cDecalSizeCommand |
+| 8 | aspect / `00B0A3B8` | `00A9FBF8` | `00599E50`, unnamed |
+| 9 | rotate / `00B0A3B4` | `00A9FBE8` | `00599F10`, unnamed |
+| 10 | life / `00B0A3BC` | `00A9FBD8` | `005985C0`, cDecalLifeCommand |
+| 11 | texture / `00B0A3C0` | `00A9FBC8` | `005A1E80`, cDecalTextureCommand |
+
+### 19.36 Decal curves and variation *[compat]*
+
+All five appearance handlers select at least one nonswitch operand, ignoring
+the finder's return. After successful selection they clear their destination
+list and append each converted value in selection order. Failed minimum
+selection preserves the old list; failed conversion leaves the new converted
+prefix. None sorts, clamps or rejects nonfinite list values. Extra selected
+values all contribute to the list, rather than being ignored.
+
+| Command | List in D / P | Conversion | Option after completing list |
+|---|---|---|---|
+| color aliases | `+34 / P+394` | ParseColor, three binary32 words copied | no variation lookup |
+| alpha aliases | `+28 / P+388` | ParseFloat, binary32 | vary → `D+4C / P+3AC` |
+| size | `+1C / P+37C` | ParseFloat, binary32; **no ×50 scale** | vary → `D+50 / P+3B0`, then cityScale |
+| aspect | `+40 / P+3A0` | ParseFloat, binary32 | none |
+| rotate | `+10 / P+370` | ParseFloat, binary32; no unit conversion | vary → `D+54 / P+3B4`; **no offset lookup** |
+
+Where present above, `vary` requests at least one argument, parses only the
+first with ParseFloat, then checks the unrounded x87 return against inclusive
+0 and 1. Ordered values outside that interval throw
+`argument out of range: expecting [%g..%g], got %g`; unordered NaN passes.
+Successful values round to binary32 at the destination. Missing vary retains
+the previous scalar; a conversion/range exception also retains it, but the
+new complete base list remains. For size only, presence-only `cityScale`
+(minimum zero) is queried **after** successful/absent vary and ORs flag
+`10` hex into `D+00`. It never clears that flag when absent. Vary failure
+prevents the cityScale lookup and flag update.
+
+After color/alpha lists and, for alpha, successful/absent vary, inspect the
+final three bytes of raw command record 0. Exactly `255` causes in-place
+scaling by binary32 constant `3B808081`, multiplying each already-stored
+component/value in x87 precision and rounding it back to binary32. Color
+uses helper `0059BFF0` (§19.25); alpha has its own equivalent scalar loop.
+No result clamp occurs. Variation is **not** scaled. A conversion or alpha
+variation error prevents scaling, leaving the new list/prefix unscaled.
+A direct name shorter than three bytes reaches foreign substring range
+failure after preceding list/vary mutations. Other aliases preserve reader
+values. These handlers query only the switches explicitly stated; generic
+leftover-switch failures can follow their completed writes/scaling.
+
+Evidence, numeric points verified against instruction bytes: color
+`0059CCD0–0059CE3E`, scale call `0059CE27–0059CE2D`; alpha selection
+`0059CE4B–0059CE53`, float store `0059CEA1`, vary checks/store
+`0059CF17–0059CF41`, suffix scalar multiply/store
+`0059D036–0059D040`; size list store `00599D3C–00599D41`, vary
+`00599DB7–00599DD9`, cityScale `00599DDF–00599DF8`; aspect
+`00599E5F–00599EFD`, float store `00599EB1`; rotate
+`00599F23–0059A018`, list store `00599F71`, vary checks/store
+`00599FE7–0059A009`. Bounds and normalization constant are the same
+PE values cited in §19.25. All native list clears precede conversion.
+
+### 19.37 Decal `life` and `texture` *[compat]*
+
+**Life** selects zero or more nonswitch operands. If any exist, it converts
+only the first with ParseFloat and stores binary32 duration `D+0C`
+(`P+36C`), with no range/finite/sign test. Otherwise duration is retained.
+It then queries presence-only options (minimum zero) in the fixed order
+below, independent of textual ordering. Missing options retain existing
+state. Further selected values are ignored. A failed duration conversion
+prevents all option work.
+
+| Option, lookup order | Update |
+|---|---|
+| static | OR `40` hex into word flags `D+00`; set mode **byte** `D+09=1` |
+| loop | set mode byte `D+09=1` |
+| single | set mode byte `D+09=2` |
+| sustain | set mode byte `D+09=3` |
+
+Thus sustain wins if several modes are present, but static's flag remains
+set. No duration default, automatic flag clearing or mutual-exclusion error
+is supplied by the command (`005985CE–0059868E`, binary32 duration
+store `005985FE`, byte stores `00598627/47/67/87`).
+
+**Texture** processes the following switches **before** nonswitch selection
+or any texture-name lookup. Missing switches retain the corresponding state.
+Each parameterized switch uses only its first selected argument, leaving
+extra selected values unused by this owner.
+
+| Lookup order / switch | Minimum | Conversion and update |
+|---|---:|---|
+| draw | 1 | ParseEnum with table `00B0A4C0`, third argument zero; store only returned low byte at `D+08` |
+| light | 0 | OR flags `D+00` with 2 |
+| water | 0 | OR flags with 4 |
+| ring | 0 | OR flags with `20` hex |
+| repeat | 1 | OR flags with 8 **before** ParseFloat; store binary32 `D+58` (`P+3B8`) |
+| offset | 1 | ParseVector2; copy its two returned words to `D+5C,+60` (`P+3BC,+3C0`) after successful parse |
+
+Draw table entries are `decal→0`, `additive→1`, `modulate→2`,
+`decalInvertDepth→3`, `decalNoOverlap→4`, followed by null. Matching,
+numeric fallback and syntax errors are foreign ParseEnum behavior. There
+is no owner enum-range check beyond the byte truncation, nor range or
+finite-value validation of repeat/offset. Repeat lookup failure occurs
+before its OR; repeat conversion failure preserves the OR and old scalar.
+Offset failure preserves both old offset components and earlier changes.
+
+After these options, call nonswitch selection with minimum **one if the
+current texture ID `D+04` is zero, otherwise zero**. Inspect the finder's
+full signed EAX; if nonpositive, leave the ID unchanged and perform no name
+lookup. If positive, use only the first selected name: copy it, fold its
+bytes to lowercase with the same foreign transform used in §19.28, then
+find the copy in the parser texture map at `P+AC`. A missing entry throws
+`No such texture: '<original spelling>'`, preserving the old ID and all
+earlier option writes. A found entry's full 32-bit ID replaces `D+04`,
+including zero. Extra names are ignored and their existence is not tested.
+The original input name is not rewritten, no missing-key insertion occurs,
+and no resource load or renderer call occurs. A zero ID remains the signal
+for a required name on a later invocation. Generic unconsumed switches are
+checked after this handler, so that error need not roll back any writes.
+
+Evidence: enum byte store `005A1EC8`; flags `005A1EEA/1F09/1F28/1F48`,
+repeat binary32 store `005A1F65`, offset copies `005A1FA2–005A1FB0`;
+minimum and signed finder test `005A1FB6–005A1FD7`; name transform and
+map find `005A2030–005A205A`; ID assignment `005A2068–005A206A`;
+missing-name exception `005A208B–005A20BD`. Table words `00B0A4C0–00B0A4EC`.
+
+### 19.38 Decal child conformance vectors (unexecuted)
+
+Static predictions with stipulated foreign reader replies; no native/game
+golden execution. Coordinates D refer to the decal description.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC161 | registrar on empty dictionary | exactly eleven entries in §19.35 order; seven unique descriptors, each alias a fresh ordinary command |
+| EC162 | size selects 2,-3 | D+1C list [2,-3], no ×50; previous vary and cityScale flag retained when options absent |
+| EC163 | size selects 2; vary returns 2; cityScale present; old flags 0 | range exception with list [2] retained; old vary retained, cityScale not queried, flags still 0 |
+| EC164 | size selects 2; vary returns NaN; cityScale present | list [2], NaN vary, flags OR 10 hex |
+| EC165 | aspect selects 2,3; vary remains an unqueried switch | list [2,3] before generic leftover-switch error; no variation update |
+| EC166 | rotate selects 90,-90; vary returns 0.25; offset remains | list [90,-90], vary 0.25, no unit conversion/offset lookup; generic leftover-switch error follows |
+| EC167 | color255 returns (255,128,-255) | D+34=[(1,bits 3F008081,-1)] |
+| EC168 | colour returns (255,128,-255); vary remains | D+34=[(255,128,-255)]; no scaling/variation lookup; later leftover-switch error |
+| EC169 | alpha255 selects 255,128; vary returns 0.5 | D+28=[1,bits 3F008081], D+4C=0.5 unchanged by normalization |
+| EC170 | alpha255 selects 255,128; vary returns 2 | range exception, list remains [255,128] unscaled, old vary retained |
+| EC171 | alpha255 selects 255,bad; second conversion throws | prefix [255] survives unscaled; no vary/suffix work |
+| EC172 | any decal curve, minimum selection throws | old destination list retained |
+| EC173 | empty live decal name; life no selected operands, all four switches present in arbitrary textual order; old duration 7,flags=0 | duration=7, flags=40 hex, mode byte=3; no name guard |
+| EC174 | life selects -2,99, no switches | duration=-2, second value ignored; flags/mode retained |
+| EC175 | life first conversion throws with static present | all description fields retained; static unqueried |
+| EC176 | texture draw ParseEnum returns 258; light,water,ring present; no name required, finder EAX=0 | draw byte=2; flags OR 26 hex; old ID retained |
+| EC177 | texture repeat selected argument conversion throws; old flags=0, repeat=1 | flags=8, repeat=1; no offset/name lookup |
+| EC178 | texture offset ParseVector2 throws after light succeeds | flags OR 2 survives; both old offset components retained; no nonswitch selection |
+| EC179 | texture ID=0; options succeed; minimum-one finder throws | preceding option changes survive, ID stays 0; no name lookup |
+| EC180 | texture ID=7; finder EAX=0 or FFFFFFFF regardless of scratch indices | minimum-zero selection; ID retained, no map lookup |
+| EC181 | texture positive finder selects `TeX`,Missing; map tex=0 | ID becomes 0; original spelling unchanged; Missing ignored; next invocation requires name |
+| EC182 | texture light succeeds; positive finder selects `MiSs`; no map key | `No such texture: 'MiSs'`; light flag remains set, old ID retained, no missing-key insertion |
+| EC183 | texture repeat returns -3, offset returns (2,-4); old flags=1,ID=7; no name | flags=9, repeat=-3, offset=(2,-4), ID=7, no owner numeric validation |
