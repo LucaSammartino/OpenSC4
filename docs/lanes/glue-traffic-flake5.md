@@ -9,7 +9,9 @@
 - Root: SourceIter delayed reaching the sentinel until its next call, but zones §8.3.1 advances before yielding. Appending after the last source was yielded incorrectly visited an extra lot in that phase.
 - Fix: mark lots_done when yielding the last lot. Existing live-list tests corrected at the sentinel boundary; new replay covers ConfirmTrips and FullTrips with same-day retries and an intervening append.
 - Focused gate: 91 traffic tests passed; explicit fmt check on state.rs/tests.rs/shadow_tests.rs passed. q.py cannot launch Git Bash in this sandbox; direct cargo evidence in build-runs/traffic-focused.log.
-- Next: collect qbuild all session 42673 to terminal, then qbuild verify (coordinator native queue). No game request submitted yet.
+- Done: 4883e8c4 core fix and tests. qbuild all workspace tests passed 6443/6443, clippy passed with 0 diagnostics.
+- Native: qbuild all itself queued build+ctest as qbuild-20261023-215222-build-ctest through the coordinator (same route as verify); do not submit duplicate verify while it is queued.
+- Next: collect qbuild all session 42673 to terminal, then submit first unique traffic_shadow city run to 2032. No game request submitted yet.
 - Evidence sources: main build-runs/regress-train152-shadows.log and regress-train155-shadows.log (copy into local build-runs before reading).
 - Required final checks: qbuild all; native qbuild verify through coordinator queue; game queue unique labels, direct wait without qwait.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-traffic-flake5-r1-manifest.json.
