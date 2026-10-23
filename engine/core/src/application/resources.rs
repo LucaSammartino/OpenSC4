@@ -52,6 +52,7 @@ pub struct DirectoryEntry {
 /// Primitive calls only; enumeration returns native order and immediate children.
 /// Factories/resource manager must exist, as required by the native precondition.
 pub trait ResourceOwnerHost {
+    fn language_name(&mut self, index: i32) -> Option<Vec<u8>>;
     fn registry_entries(&mut self, file: &[u8], section: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)>;
     fn directory_exists(&mut self, path: &[u8]) -> bool;
     fn create_directory(&mut self, path: &[u8]);

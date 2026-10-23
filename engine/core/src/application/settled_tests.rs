@@ -129,6 +129,7 @@ fn video_slots_preserve_bytes_and_unknown_dimensions_and_notify_last() {
 fn preference_order_window_driver_language_failure_and_partial_speed() {
     let mut app = app();
     app.preferences.pause_on_focus_loss = true;
+    app.preferences_image.0[0x4A4] = 2;
     app.preferences.simulation = 50.0;
     app.preferences.width = 1024;
     app.preferences.height = 768;
@@ -148,6 +149,7 @@ fn preference_order_window_driver_language_failure_and_partial_speed() {
     assert_eq!(app.do_preferences_changed(false, &mut h), CheatStep::Done);
     assert_eq!(h.log, ["speed:20"]);
     assert!(app.pause_on_focus_loss());
+    assert_eq!(app.preferences_image.0[0x4A4], 1);
     assert_eq!(app.preferences_image.0[0x4EB], 9);
     h.log.clear();
     app.do_preferences_changed(true, &mut h);

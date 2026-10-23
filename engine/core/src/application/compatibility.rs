@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Preferences, plugin policy, registry summary and bounded pumps (§13-15).
+//! Preferences, plugin policy, getters and bounded pumps (§13-15).
 use super::{Application, Preferences};
 
 pub const PREFERENCES_KEY: [u32; 3] = [0xA9DD_6E06, 0x49DD_6E08, 1];
@@ -287,8 +287,8 @@ pub enum AppValue<'a> {
 }
 
 impl Application {
-    /// All published cISC4App getter slots. Unpublished folded slots return
-    /// their slot number as an explicit unsupported result (AP14). Tokens are
+    /// All published cISC4App getter slots. Non-getter slots return their slot
+    /// number as an error; their callable methods are separate APIs. Tokens are
     /// borrowed, and embedded variants preserve identity without inventing a
     /// native pointer. Lazy directories require externally serialized mutation.
     pub fn app_interface_getter(
@@ -426,8 +426,8 @@ pub trait ResourceHost {
 }
 
 impl Application {
-    /// §14.3 only accepts existing INI overrides. INI path resolution remains
-    /// an explicit caller input until slot 29 is specified (AP13).
+    /// §14.3 only accepts existing INI overrides. The caller may supply the
+    /// result of slot 29 or an already-open INI path.
     pub fn find_and_possibly_fix_ini_files(&mut self, ini_path: &[u8], host: &mut impl ResourceHost) {
         for (key, plugin) in [(b"Data".as_slice(), false), (b"PlugIn".as_slice(), true)] {
             if let Some(path) = host.ini_value(ini_path, b"Directories", key) {
@@ -439,66 +439,6 @@ impl Application {
                     }
                 }
             }
-        }
-    }
-
-    /// Implements the published registry summary. Callback internals/class
-    /// syntax are expressly open in §12; the foreign factory gets raw class bytes.
-    pub fn load_registry_summary(
-        &self,
-        language: Option<&[u8]>,
-        packed: [Option<&[u8]>; 2],
-        host: &mut impl ResourceHost,
-    ) {
-        let file = append_path(&self.directories.data_7c, b"Sys\\Resources.ini");
-        // AP13: the summary does not name the INI section for these options.
-        // Their values are explicit inputs, rather than an invented section.
-        for (value, textures) in [(packed[0], false), (packed[1], true)] {
-            if let Some(value) = value {
-                if let Some(enabled) = super::command_line::on_off(value) {
-                    host.packed_setting(textures, enabled);
-                }
-            }
-        }
-        for section in [b"DBSegments".as_slice(), b"DBSegmentDirectoryFiles".as_slice()] {
-            for entry in host.ini_entries(&file, section) {
-                if let Some(entry) = registry_entry(&entry, &self.directories.data_7c, language) {
-                    if section == b"DBSegments" {
-                        host.open_resource_segment(&entry.class, &entry.path);
-                    } else {
-                        for file in host.database_files(&entry.path, false) {
-                            host.open_resource_segment(&entry.class, &file);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Enumeration/creation/order from §14.2. The complete factory list and
-    /// database extensions are open (AP13), so foreign enumeration takes care
-    /// of identifying database files; callers supply the published factory list.
-    pub fn setup_resources_summary(
-        &self,
-        plugin_directories: &[Vec<u8>],
-        factories: &[u32],
-        host: &mut impl ResourceHost,
-    ) {
-        for file in host.database_files(&self.directories.data_7c, false) {
-            if file.ends_with(b".dat") {
-                host.open_resource_segment(b"", &file);
-            }
-        }
-        for directory in plugin_directories {
-            if !host.directory_exists(directory) {
-                host.create_directory(directory);
-            }
-            for file in host.database_files(directory, true) {
-                host.open_resource_segment(b"", &file);
-            }
-        }
-        for factory in factories {
-            host.register_resource_factory(*factory);
         }
     }
 }
@@ -541,7 +481,13 @@ impl Application {
     /// not an adapter's fabricated success for an app algorithm.
     pub fn run_owned(
         &mut self,
-        host: &mut (impl super::Host + CompatibilityHost + super::city::CityHost + StartupHost + ResourceHost),
+        host: &mut (impl super::Host
+                  + CompatibilityHost
+                  + super::city::CityHost
+                  + StartupHost
+                  + ResourceHost
+                  + super::preference_application::PreferenceHost
+                  + super::resources::ResourceOwnerHost),
     ) -> super::Flow {
         loop {
             let flow = self.run(host);
@@ -571,10 +517,48 @@ impl Application {
                     }
                 }
                 super::Boundary::FindAndPossiblyFixIniFiles => {
-                    let Some(path) = self.resolved_ini_path.clone() else {
-                        return super::Flow::NeedsImplementation(boundary);
+                    let path = match self.app_interface_getter(29, None, host) {
+                        Ok(AppValue::String(path)) => path,
+                        _ => unreachable!("slot 29 is a string getter"),
                     };
                     self.find_and_possibly_fix_ini_files(&path, host);
+                }
+                super::Boundary::PreferencesChanged => {
+                    if self.do_preferences_changed(false, host) == super::preference_application::CheatStep::NonProgress
+                    {
+                        return super::Flow::NeedsImplementation(super::Boundary::InvalidNativeInput(
+                            "copied x-cheat loop cannot progress",
+                        ));
+                    }
+                }
+                super::Boundary::SetupResources => {
+                    let line = host.framework_command_line();
+                    let mut exemplars = Vec::new();
+                    let mut textures = Vec::new();
+                    let exemplars = line
+                        .is_switch_present_value(b"packedexemplars", &mut exemplars, true)
+                        .then_some(exemplars);
+                    let textures = line
+                        .is_switch_present_value(b"packedtextures", &mut textures, true)
+                        .then_some(textures);
+                    let language = host.language_name(0);
+                    let mut registry = std::mem::take(&mut self.resource_registry);
+                    let loaded = registry.load(
+                        self,
+                        language.as_deref(),
+                        [exemplars.as_deref(), textures.as_deref()],
+                        host,
+                    );
+                    self.resource_registry = registry;
+                    if loaded.is_err() {
+                        return super::Flow::NeedsImplementation(super::Boundary::InvalidNativeInput(
+                            "unmatched resource END_GROUP",
+                        ));
+                    }
+                    let registry = self.resource_registry.clone();
+                    // §3.1 specifies this call but no Init failure branch here.
+                    // Its independently callable boolean remains observable.
+                    self.setup_resources(&registry, language.as_deref(), host);
                 }
                 super::Boundary::DriverConfiguration => {
                     let hardware = host.driver_description_hardware();

@@ -30,3 +30,6 @@
 <!-- from: re-app (2026-10-22) -->
 - **AP11 - sections 8, 13.2:** what the preferences `+0x470` (`-sim`) and `+0x498` (`-RDD`) and the render
   properties setting `0x25` (`-AutoZoomChange`) control. [as read]
+
+<!-- from: core-app5b (2026-10-23) -->
+- **AP16 - sections 3.1 step 8, 14.2 resource factories:** does Init inspect SetupResources' final count>=3 result, or continue after a false result? [Literal section 3.1 call ordering: invoke SetupResources and continue, since no failure branch is specified there. The direct setup_resources API returns the exact unsigned count>=3 boolean. No failure dialog, rollback, or early Init return is invented.]

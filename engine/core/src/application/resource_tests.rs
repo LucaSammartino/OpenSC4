@@ -15,6 +15,9 @@ struct Files {
     reject_init: VecDeque<bool>,
 }
 impl ResourceOwnerHost for Files {
+    fn language_name(&mut self, _: i32) -> Option<Vec<u8>> {
+        None
+    }
     fn registry_entries(&mut self, _: &[u8], section: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
         self.sections.get(section).cloned().unwrap_or_default()
     }
