@@ -1020,6 +1020,13 @@ Behaviour:
 
 ### 10.4 `cSC4TextDecalOccupant` (`0x8B79C707`) *[compat]*
 
+**2026-10-23 correction:** the authoritative receiver-frame and owned-state contract is now
+[text-decal-occupant.md](text-decal-occupant.md). The older mixed-frame field and behavior
+description below is superseded: SetPosition/Shutdown receive O+12, Read/Write receive O+16,
+and the constructor/internal rebuild receive O. In particular, record +5C is the text string,
+not a lot tag; the repeated pair is position, not decal IDs. Do not implement the historical
+OP1 conflict or the old geometry description as a fallback.
+
 A terrain text label drawn by the terrain overlay manager (the city-detail label tool creates it). It also embeds
 a complete `cSC4PropOccupant` at `+0x04` (constructor `0x005F8300`), with the same consequences as §10.3. Object
 size `0x40`-strided group of the prop allocator (operator new `0x005F7D80`).
