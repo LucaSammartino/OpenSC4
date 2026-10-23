@@ -1,68 +1,11 @@
-//! RZ21–RZ40. The exact-rational provider exercises core assembly for the
-//! specified finite witnesses; it does NOT establish legacy scaling parity.
+//! RZ21–RZ50 exercise the shipped legacy decimal primitive and core assembly.
 use super::*;
-
-struct ExactBinaryTest;
-
-impl LegacyDecimal for ExactBinaryTest {
-    fn convert(&self, value: f64) -> Result<DecimalIntermediate, StringFault> {
-        let bits = value.to_bits();
-        let exponent = ((bits >> 52) & 2047) as i32;
-        let mantissa = (bits & ((1_u64 << 52) - 1)) | if exponent == 0 { 0 } else { 1_u64 << 52 };
-        let power = if exponent == 0 { -1074 } else { exponent - 1075 };
-        // Exact integer decimal arithmetic; the negative power's denominator
-        // becomes a decimal point by multiplying the numerator by five.
-        let mut digits: Vec<u8> = mantissa.to_string().bytes().rev().map(|c| c - b'0').collect();
-        for _ in 0..power.unsigned_abs() {
-            let mut carry = 0;
-            for digit in &mut digits {
-                let product = *digit * if power < 0 { 5 } else { 2 } + carry;
-                *digit = product % 10;
-                carry = product / 10;
-            }
-            if carry != 0 {
-                digits.push(carry);
-            }
-        }
-        digits.reverse();
-        let mut position = digits.len() as i32 + power.min(0);
-        let carry = digits.get(17).is_some_and(|&c| c >= 5);
-        digits.truncate(17);
-        if carry {
-            let mut index = digits.len();
-            loop {
-                if index == 0 {
-                    digits.insert(0, 1);
-                    digits.truncate(17);
-                    position += 1;
-                    break;
-                }
-                index -= 1;
-                if digits[index] < 9 {
-                    digits[index] += 1;
-                    break;
-                }
-                digits[index] = 0;
-            }
-        }
-        Ok(DecimalIntermediate {
-            digits: digits.into_iter().map(|c| b'0' + c).collect(),
-            position,
-        })
-    }
-}
 
 fn check(format: &[u8], argument: FormatArg<'_>, expected: &[u8]) {
     let mut string = RzString::from_bytes(b"previous");
     let address = &string as *const RzString;
     let returned = string
-        .sprintf(
-            format,
-            &[argument],
-            &NumericPrimitives {
-                decimal: ExactBinaryTest,
-            },
-        )
+        .sprintf(format, &[argument], &NumericPrimitives::<()>::default())
         .unwrap();
     assert_eq!(returned as *const RzString, address);
     assert_eq!(string.bytes(), expected, "format {}", String::from_utf8_lossy(format));
@@ -232,17 +175,16 @@ fn rz40_precision_cap_and_general_zero_precision() {
 }
 
 #[test]
-fn legacy_scaling_boundary_is_explicit_and_transactional() {
+fn default_legacy_provider_formats_finite_and_zero() {
     let mut string = RzString::from_bytes(b"unchanged");
-    assert!(matches!(
-        string.sprintf(
+    string
+        .sprintf(
             b"prefix %f",
             &[FormatArg::Float(1.25)],
-            &NumericPrimitives::<()>::default()
-        ),
-        Err(StringFault::Unsupported("RZS7"))
-    ));
-    assert_eq!(string.bytes(), b"unchanged");
+            &NumericPrimitives::<()>::default(),
+        )
+        .unwrap();
+    assert_eq!(string.bytes(), b"prefix 1.250000");
     string
         .sprintf(
             b"%+f %p",
@@ -293,4 +235,138 @@ fn invalid_decimal_provider_is_rejected_without_assignment() {
         ));
         assert_eq!(string.bytes(), b"unchanged");
     }
+}
+
+fn finite_vector(bits: u64, raw: &[u8; 18], digits: &[u8], position: i32, format: &[u8], output: &[u8]) {
+    let value = f64::from_bits(bits);
+    assert_eq!(&super::legacy_decimal::raw_digits(value), raw);
+    assert_eq!(
+        ().convert(value).unwrap(),
+        DecimalIntermediate {
+            digits: digits.to_vec(),
+            position
+        }
+    );
+    float(format, value, output);
+}
+
+#[test]
+fn rz41_smallest_subnormal() {
+    finite_vector(
+        1,
+        b"494065645841246544",
+        b"49406564584124654",
+        -323,
+        b"%.20e",
+        b"4.94065645841246540000e-324",
+    );
+}
+
+#[test]
+fn rz42_largest_finite() {
+    finite_vector(
+        0x7fef_ffff_ffff_ffff,
+        b"179769313486231570",
+        b"17976931348623157",
+        309,
+        b"%.20e",
+        b"1.79769313486231570000e+308",
+    );
+}
+
+#[test]
+fn rz43_largest_subnormal() {
+    finite_vector(
+        0x000f_ffff_ffff_ffff,
+        b"222507385850720088",
+        b"22250738585072009",
+        -307,
+        b"%.16e",
+        b"2.2250738585072009e-308",
+    );
+}
+
+#[test]
+fn rz44_smallest_normal() {
+    finite_vector(
+        0x0010_0000_0000_0000,
+        b"222507385850720138",
+        b"22250738585072014",
+        -307,
+        b"%.16e",
+        b"2.2250738585072014e-308",
+    );
+}
+
+#[test]
+fn rz45_legacy_truncation_quarter() {
+    finite_vector(
+        0x430c_6bf5_2634_0002,
+        b"100000000000000024",
+        b"10000000000000002",
+        16,
+        b"%.2f",
+        b"1000000000000000.20",
+    );
+}
+
+#[test]
+fn rz46_legacy_truncation_three_quarters_and_sign() {
+    finite_vector(
+        0x430c_6bf5_2634_0006,
+        b"100000000000000074",
+        b"10000000000000007",
+        16,
+        b"%.2f",
+        b"1000000000000000.70",
+    );
+    float(b"%.2f", f64::from_bits(0xc30c_6bf5_2634_0006), b"-1000000000000000.70");
+}
+
+#[test]
+fn rz47_legacy_truncation_eighth() {
+    finite_vector(
+        0x42d6_bcc4_1e90_0008,
+        b"100000000000000124",
+        b"10000000000000012",
+        15,
+        b"%.3f",
+        b"100000000000000.120",
+    );
+}
+
+#[test]
+fn rz48_binary_tenth_guard() {
+    finite_vector(
+        0x3fb9_9999_9999_999a,
+        b"100000000000000005",
+        b"10000000000000001",
+        0,
+        b"%.20e",
+        b"1.00000000000000010000e-001",
+    );
+}
+
+#[test]
+fn rz49_leading_zero_corrected_by_guard() {
+    finite_vector(
+        0x3ff0_0000_0000_0000,
+        b"099999999999999999",
+        b"1",
+        1,
+        b"%.20e",
+        b"1.00000000000000000000e+000",
+    );
+}
+
+#[test]
+fn rz50_guard_carry_changes_decimal_position() {
+    finite_vector(
+        0x4415_af1d_78b5_8c40,
+        b"999999999999999999",
+        b"1",
+        21,
+        b"%.16e",
+        b"1.0000000000000000e+020",
+    );
 }

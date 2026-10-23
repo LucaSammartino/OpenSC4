@@ -16,7 +16,7 @@ pub enum FormatArg<'a> {
 
 /// Raw numeric conversion boundary, before field padding (rz-strings §5.1).
 /// Negative nonzero non-NaN inputs become magnitudes; NaNs retain their sign.
-/// This remains injectable for the legacy extended-scaling boundary (RZS7).
+/// NumericPrimitives supplies the specified legacy conversion; hosts may inject a provider.
 pub trait FormatPrimitives {
     fn float_digits(
         &self,

@@ -1,8 +1,7 @@
 //! Numeric runtime assembly from rz-strings §5.1. No host printf is used.
 //!
-//! The 12-byte extended scaling procedure is not specified sufficiently to
-//! reproduce its final intermediate digit (RZS7). That single operation remains
-//! an explicit provider; decimal rounding, layout and special values live here.
+//! The default provider implements the §5.1.1 legacy extended primitive;
+//! decimal rounding, layout and special values live here.
 
 use super::{FormatPrimitives, StringFault};
 
@@ -21,13 +20,13 @@ pub trait LegacyDecimal {
 }
 
 impl LegacyDecimal for () {
-    fn convert(&self, _: f64) -> Result<DecimalIntermediate, StringFault> {
-        Err(StringFault::Unsupported("RZS7"))
+    fn convert(&self, magnitude: f64) -> Result<DecimalIntermediate, StringFault> {
+        super::legacy_decimal::convert(magnitude)
     }
 }
 
-/// Implements §5.1 around the legacy decimal intermediate. With `()` as the
-/// provider, finite nonzero conversion is explicitly Unsupported (RZS7).
+/// Implements §5.1 around the legacy decimal intermediate. The default `()`
+/// provider implements the software extended arithmetic specified in §5.1.1.
 #[derive(Debug, Default)]
 pub struct NumericPrimitives<D = ()> {
     pub decimal: D,

@@ -12,6 +12,7 @@
 //! them.
 
 mod detokenizer;
+mod legacy_decimal;
 mod manager;
 mod names;
 mod numeric_format;

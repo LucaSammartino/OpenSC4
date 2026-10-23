@@ -1,12 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rzstrings5b (RZS6 numeric formatting closure) | Codex / `core-rzstrings5b` (engine lane, detached HEAD) | WIP: source 0abd4aeff; cargo 6717/0, clippy clean, native build 220/220, CTest 69/69; RZ21–RZ40 covered with test-only finite intermediate provider; RZS7 blocks full owner closure; no ABI change or game runs | (1) Answer RZS7 and regenerate question index; (2) implement legacy finite extraction; (3) close §5.1 and review for ready. |
+| core-rzstrings5b | Codex / `core-rzstrings5b` (engine lane, detached HEAD) | in progress: RZS7 implemented; 33 numeric tests pass; explicit-file fmt clean | Full qbuild gate, final report and READY entry |
 
 ## Handoff
 
 - Round 2 in progress: merged requested re-rzstrings-rzs7 at 7ca4094aa (merge succeeded despite packed-refs lock warning).
-- Next: implement §5.1.1 finite extraction with u128 limb arithmetic; replace test-only provider and cover RZ41–RZ50.
-- Then update owner closure, run full gate on stable source, commit final report and READY entry.
+- Done: §5.1.1 finite extraction with u128 limb arithmetic, default provider implemented; exact-rational test provider removed.
+- Done: 33 numeric tests passed, including RZ21–RZ50 on shipped extraction; RZ41–RZ50 check raw digits/intermediate/output. Explicit-file fmt: 5 files, zero diffs.
+- Done: Owner closure maps numeric §5.1.1 and inherited utility/manager sections; RZS7 no longer open.
+- Next: run full qbuild gate on stable source, collect same operation through terminal result, commit final report and READY entry.
 - Previous results below apply only to the previous source. No game requests outstanding.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-rzstrings5b-r2-manifest.json.
 
