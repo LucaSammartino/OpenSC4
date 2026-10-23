@@ -368,12 +368,12 @@ fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
 cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/render_properties	-	-
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
-cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
-cSC4RuleParser	graphics rules	renderer	graphics-rules.md	-	-	-
-(anonymous_namespace)::cRuleCommand	graphics rules	renderer	graphics-rules.md	-	-	-
-(anonymous_namespace)::cOptionGroupCommand	graphics rules	renderer	graphics-rules.md	-	-	-
-(anonymous_namespace)::cVendorCommand	graphics rules	renderer	graphics-rules.md	-	-	-
-(anonymous_namespace)::AddOptionToSet	graphics rules	renderer	graphics-rules.md	-	-	-
+cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
+cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
+(anonymous_namespace)::cRuleCommand	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
+(anonymous_namespace)::cOptionGroupCommand	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
+(anonymous_namespace)::cVendorCommand	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
+(anonymous_namespace)::AddOptionToSet	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 _GLOBAL__N_*SC4RuleParser.cpp*	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_CreatecSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_cSC4ConfigRuleManagerCLSID	graphics rules	renderer	graphics-rules.md	-	-	-
