@@ -3,9 +3,10 @@
  "name": "ng18_04_diagonal_snap_width_2",
  "spec": [
   "network-geometry 3.2",
-  "18.4"
+  "18.4",
+  "network-tools 3.5 (NT28)"
  ],
- "description": "Avenue (widths 2, 2), snap on, (0, 0) -> (5, 4): dx := dz = 4; end (4, 4); dragged count 5; straight count 0. [choice] Each step's second cell is on the + side across the pen axis (pen direction 6, so +x).",
+ "description": "Avenue (widths 2, 2), snap on, (0, 0) -> (5, 4): dx := dz = 4; end (4, 4); dragged count 5; straight count 0. NT28 groups the staircase into z-major rows, widening the singleton first row and interior rows toward +x; the two-position last row is not widened again. Minor coordinates increase within each row.",
  "steps": [
   {
    "op": "ng_segments",
@@ -75,6 +76,10 @@
       0
      ],
      [
+      0,
+      1
+     ],
+     [
       1,
       1
      ],
@@ -83,6 +88,10 @@
       1
      ],
      [
+      1,
+      2
+     ],
+     [
       2,
       2
      ],
@@ -91,6 +100,10 @@
       2
      ],
      [
+      2,
+      3
+     ],
+     [
       3,
       3
      ],
@@ -99,11 +112,11 @@
       3
      ],
      [
-      4,
+      3,
       4
      ],
      [
-      5,
+      4,
       4
      ]
     ]
