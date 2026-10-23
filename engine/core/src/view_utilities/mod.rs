@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Owned SC4ViewUtilities algorithms, from docs/specs/view-utilities.md §§1–7,9,11.
 //!
-//! This is the documented contract surface, not a claim of complete 49-function
-//! owner coverage: VU4 requests the missing inventory/setter/lifecycle contracts.
+//! The 50-body accounting and remaining numeric limits are in README.md.
 //! Camera snapshots and camera eye rays are typed external camera inputs; no
 //! SC4ViewUtilities result, geometry test, picking or frustum computation is
 //! delegated to a host. Getters use ordinary shared references, never RefCell.
@@ -13,12 +12,15 @@ mod picking;
 
 use std::sync::OnceLock;
 
-pub use frustum::{Frustum, GroundLine, Plane, Projection};
+pub use frustum::{clip_polygon_to_polygon_2d, Frustum, GroundLine, IndeterminateClipIntersection, Plane, Projection};
 pub use math::{
-    get_ray_intersection_with_ground_plane, ray_intersects_ground_plane, Aabb, Pixel, PixelRect, Ray, Vec3,
+    cross_in_storage, get_ray_intersection_with_ground_plane, max_of_four_floats, min_of_four_floats, point_array_aabb,
+    ray_intersects_ground_plane, ray_intersects_plane, Aabb, Pixel, PixelRect, Ray, Vec3,
 };
 pub use picking::{
-    mesh_pick, model_pick, triangle_indices, triangle_pick, Mesh, Model, ModelInstance, Pick, PrimitiveGroup, Transform,
+    decode_indices, mesh_pick, mesh_pick_checked, model_pick, model_pick_checked, primitive_vertex_indices,
+    ray_intersects_triangle, triangle_indices, triangle_pick, InvalidMeshReference, Mesh, Model, ModelInstance, Pick,
+    PrimitiveGroup, Transform, TriangleIterator,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -38,7 +40,7 @@ pub struct CameraState {
     pub position: Vec3,
     pub look_at: Vec3,
     pub zoom: u32,
-    pub rotation: u32,
+    pub rotation: i32,
     pub viewport_width: i32,
     pub viewport_height: i32,
     pub near_clip_distance: f32,
@@ -63,36 +65,68 @@ pub struct ViewAngles {
     pub ground_pitch: f32,
 }
 
-pub fn get_camera_view_angles_for_rotation(rotation: u32, zoom: u32) -> Option<ViewAngles> {
-    // VU5: the five-entry table has no specified out-of-range access behavior.
-    // A checked Rust result avoids pretending a sixth zoom has a contract.
-    let degrees = *[30.0_f32, 35.0, 40.0, 45.0, 45.0].get(zoom as usize)?;
-    let offset = -std::f32::consts::PI / 8.0;
-    let pitch = degrees * (std::f32::consts::PI / 180.0);
+pub fn get_camera_view_angles_for_rotation(rotation: i32, zoom: u32) -> Option<ViewAngles> {
+    // Checked adapter: native out-of-table reads have no portable value.
+    let pitch = f32::from_bits(*[0x3f06_0a92, 0x3f1c_61aa, 0x3f32_b8c2, 0x3f49_0fdb, 0x3f49_0fdb].get(zoom as usize)?);
+    let offset = f64::from(f32::from_bits(0xbec9_0fdb));
     Some(ViewAngles {
-        yaw: rotation as f32 * std::f32::consts::FRAC_PI_2 + offset,
+        // At 64-bit x87 precision this product/add is exact before the store:
+        // quarter-turn = 0xC90FDB * 2^-23, offset = -quarter-turn/4.
+        // Integer accumulation avoids an unproved f64 double-rounding shortcut.
+        yaw: ((i64::from(rotation) * 4 - 1) * 0x00c9_0fdb) as f32 * (1.0 / 33_554_432.0),
         pitch,
-        ground_pitch: (pitch.tan() / offset.cos()).atan(),
+        // Native FSIN/FCOS/FPTAN/FPATAN have no portable libm bit guarantee.
+        ground_pitch: (f64::from(pitch).tan() / offset.cos()).atan() as f32,
     })
 }
 
-pub fn get_object_y_rotation_angle(rotation: u32) -> f32 {
-    -(rotation as f32) * std::f32::consts::FRAC_PI_2
+pub fn get_object_y_rotation_angle(rotation: i32) -> f32 {
+    (-(i64::from(rotation) * 0x00c9_0fdb)) as f32 * (1.0 / 8_388_608.0)
 }
 
 pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
     get_camera_view_angles_for_rotation(0, zoom)?;
-    let a = std::f32::consts::PI / 8.0;
-    Some(width * (a.cos() + a.sin()))
+    let a = f64::from(f32::from_bits(0x3ec9_0fdb));
+    Some((f64::from(width) * (a.cos() + a.sin())) as f32)
 }
 
-pub fn get_vector_for_edge(edge: u32) -> Vec3 {
-    match edge % 4 {
-        0 => Vec3::new(0.0, 0.0, -1.0),
-        1 => Vec3::new(1.0, 0.0, 0.0),
-        2 => Vec3::new(0.0, 0.0, 1.0),
-        _ => Vec3::new(-1.0, 0.0, 0.0),
+pub fn rotate_vector_by_view_rotation(v: &mut Vec3, rotation: i32) {
+    let (x, z) = (v.x, v.z);
+    match rotation % 4 {
+        1 => {
+            v.x = -z;
+            v.z = x;
+        }
+        2 => {
+            v.x = -x;
+            v.z = -z;
+        }
+        3 => {
+            v.x = z;
+            v.z = -x;
+        }
+        _ => {}
     }
+}
+
+pub fn get_vector_for_edge_into(edge: i32, out: &mut Vec3) {
+    out.y = 0.0;
+    let (x, z) = match edge % 4 {
+        0 => (0.0, -1.0),
+        1 => (1.0, 0.0),
+        2 => (0.0, 1.0),
+        3 => (-1.0, 0.0),
+        _ => return,
+    };
+    out.x = x;
+    out.z = z;
+}
+
+/// Value-returning adapter uses zero for the otherwise preserved x/z words.
+pub fn get_vector_for_edge(edge: i32) -> Vec3 {
+    let mut out = Vec3::ZERO;
+    get_vector_for_edge_into(edge, &mut out);
+    out
 }
 
 pub fn round_down_to_nearest_block_boundary(value: f32, block: i32) -> Option<i32> {
@@ -102,15 +136,18 @@ pub fn round_up_to_nearest_block_boundary(value: f32, block: i32) -> Option<i32>
     round_block(value, block, true)
 }
 fn round_block(value: f32, block: i32, up: bool) -> Option<i32> {
-    // VU8: positive blocks/representable results only; invalid blocks and
-    // integer overflow are explicit failures, not guessed native UB.
-    if block <= 0 || !value.is_finite() || !(-2147483648.0..2147483648.0).contains(&value) {
-        return None;
-    }
-    let value = i64::from(value as i32);
-    let block = i64::from(block);
-    let down = value.div_euclid(block) * block;
-    i32::try_from(if up && down != value { down + block } else { down }).ok()
+    // Masked invalid _ftol2 conversion gives low word zero. Checked division
+    // exposes native IDIV faults as None, including the second adjusted divide.
+    let n = crate::x87::ftol32(f64::from(value));
+    let remainder = n.checked_rem(block)?;
+    let adjusted = if remainder != 0 && up && n >= 0 {
+        n.wrapping_add(block)
+    } else if remainder != 0 && !up && n <= 0 {
+        n.wrapping_sub(block)
+    } else {
+        n
+    };
+    Some(adjusted.checked_div(block)?.wrapping_mul(block))
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -143,7 +180,7 @@ pub struct ViewUtilities {
     draw: Frustum,
     draw_narrowed: bool,
     draw_rect: PixelRect,
-    viewport_ground: OnceLock<[Vec3; 4]>,
+    viewport_ground: OnceLock<Option<[Vec3; 4]>>,
     visible_area: OnceLock<Option<VisibleArea>>,
     unused_constructor_fields: [f32; 3],
 }
@@ -208,7 +245,7 @@ impl ViewUtilities {
     }
     pub fn view_frustum(&self) -> Frustum {
         let mut view = self.view;
-        if let Some(points) = self.viewport_ground.get() {
+        if let Some(Some(points)) = self.viewport_ground.get() {
             view.ground_points = *points;
         }
         view
@@ -222,7 +259,7 @@ impl ViewUtilities {
     pub fn draw_is_narrowed(&self) -> bool {
         self.draw_narrowed
     }
-    pub fn get_zoom_and_rotation(&self) -> (u32, u32) {
+    pub fn get_zoom_and_rotation(&self) -> (u32, i32) {
         (self.camera.zoom, self.camera.rotation)
     }
     pub fn viewport_units_to_world_units(&self, value: f32) -> f32 {
@@ -243,29 +280,30 @@ impl ViewUtilities {
         };
         self.camera = *camera;
         let v = camera.volume;
+        let depth_scale = 1.0 / (f64::from(v.far) - f64::from(v.near));
         self.scales = Vec3::new(
-            camera.viewport_width as f32 / (v.right - v.left),
-            camera.viewport_height as f32 / (v.top - v.bottom),
-            1.0 / (v.far - v.near),
+            (f64::from(camera.viewport_width) / (f64::from(v.right) - f64::from(v.left))) as f32,
+            (f64::from(camera.viewport_height) / (f64::from(v.top) - f64::from(v.bottom))) as f32,
+            depth_scale as f32,
         );
-        self.inverse_scales = Vec3::new(1.0 / self.scales.x, 1.0 / self.scales.y, 1.0 / self.scales.z);
+        self.inverse_scales = Vec3::new(1.0 / self.scales.x, 1.0 / self.scales.y, (1.0 / depth_scale) as f32);
         self.angles = angles;
-        self.rotation_yaw = camera.rotation as f32 * std::f32::consts::FRAC_PI_2;
-        self.sin_negative_yaw = (-angles.yaw).sin();
-        self.cos_negative_yaw = (-angles.yaw).cos();
-        self.sin_pitch = angles.pitch.sin();
-        self.cos_pitch = angles.pitch.cos();
+        self.rotation_yaw = -get_object_y_rotation_angle(camera.rotation);
+        self.sin_negative_yaw = (-f64::from(angles.yaw)).sin() as f32;
+        self.cos_negative_yaw = (-f64::from(angles.yaw)).cos() as f32;
+        self.sin_pitch = f64::from(angles.pitch).sin() as f32;
+        self.cos_pitch = f64::from(angles.pitch).cos() as f32;
         self.forward = (camera.look_at - camera.position).normalized();
-        self.right = self.forward.cross(Vec3::new(0.0, 1.0, 0.0)).normalized();
-        self.up = self.right.cross(self.forward).normalized();
+        let right = self.forward.cross(Vec3::new(0.0, 1.0, 0.0));
+        self.up = right.cross(self.forward).normalized();
+        self.right = right.normalized();
         self.view = Frustum::build(
             camera.position,
-            self.forward,
-            self.right,
-            self.up,
+            (self.forward, self.right, self.up),
             v,
             camera.projection,
             self.city,
+            &self.view.corners,
         );
         self.valid = true;
         true
@@ -335,7 +373,7 @@ impl ViewUtilities {
     pub fn is_bounding_box_in_draw_frustum(&self, bounds: Aabb) -> bool {
         self.draw.contains_box(bounds)
     }
-    pub fn get_frustum_aabb_city_clipped(&self, view_frustum: bool) -> Aabb {
+    pub fn get_frustum_aabb_city_clipped(&self, view_frustum: bool) -> Option<Aabb> {
         if view_frustum {
             self.view.city_clipped_bounds
         } else {
@@ -380,8 +418,7 @@ impl ViewUtilities {
             _ => return false,
         };
         let p = choices.map(|(x, y, z)| self.project_point_to_viewport_coordinates_2d(corner(x, y, z)));
-        // VU8: "nearest" tie behavior is unspecified; use existing ties-even
-        // helper, with its documented native large-magnitude behavior.
+        // §4.4 float-bit bias conversion, including its out-of-range results.
         *out = PixelRect::new(
             crate::x87::rhe(p[0].x - 0.5),
             crate::x87::rhe(p[1].y - 0.5),
@@ -417,10 +454,12 @@ impl ViewUtilities {
         y: f32,
         out: &mut Vec3,
     ) -> bool {
-        // VU7: original temporary contents after camera-ray failure unspecified.
-        // Initialize to zero in safe Rust; still ignore failure/always return true.
+        // Checked portable boundary: native failure consumes uninitialized stack
+        // words. Preserve out and return false; no successful coordinate invented.
         let mut ray = Ray::default();
-        self.viewport_position_to_ray(camera, x, y, &mut ray);
+        if !self.viewport_position_to_ray(camera, x, y, &mut ray) {
+            return false;
+        }
         *out = get_ray_intersection_with_ground_plane(ray);
         true
     }
@@ -428,14 +467,18 @@ impl ViewUtilities {
         &self,
         camera: Option<&dyn CameraRayProvider>,
         rect: PixelRect,
-    ) -> [Vec3; 4] {
+    ) -> Option<[Vec3; 4]> {
         let a = rect.top_left;
         let b = rect.bottom_right;
-        [(a.x, a.y), (b.x, a.y), (a.x, b.y), (b.x, b.y)].map(|(x, y)| {
+        let mut points = [Vec3::ZERO; 4];
+        for (i, (x, y)) in [(a.x, a.y), (b.x, a.y), (a.x, b.y), (b.x, b.y)].into_iter().enumerate() {
             let mut p = Vec3::ZERO;
-            self.get_viewport_point_intersection_with_ground_plane(camera, x as f32, y as f32, &mut p);
-            Vec3::new(p.x, 0.0, p.z)
-        })
+            if !self.get_viewport_point_intersection_with_ground_plane(camera, x as f32, y as f32, &mut p) {
+                return None;
+            }
+            points[i] = Vec3::new(p.x, 0.0, p.z);
+        }
+        Some(points)
     }
     pub fn get_city_corner_position(&self, corner: u32, out: &mut Vec3) -> bool {
         out.y = 0.0;
@@ -456,7 +499,7 @@ impl ViewUtilities {
         out.z = z;
         true
     }
-    pub fn get_visible_edges(&self) -> (u32, u32) {
+    pub fn get_visible_edges(&self) -> (i32, i32) {
         (
             self.camera.rotation.wrapping_add(1) % 4,
             self.camera.rotation.wrapping_add(2) % 4,
@@ -483,47 +526,56 @@ impl ViewUtilities {
         &mut self,
         rect: PixelRect,
         camera: Option<&dyn CameraRayProvider>,
-    ) {
+    ) -> bool {
         self.visible_area.take();
         self.viewport_ground.take();
         self.draw_rect = rect;
         let full = PixelRect::new(0, 0, self.camera.viewport_width, self.camera.viewport_height);
-        self.draw_narrowed = rect != full;
-        // VU9: literally clear both caches on every draw rectangle (§5), even
-        // though its later "if not cached" wording is then redundant.
-        let points = *self
-            .viewport_ground
-            .get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));
-        if !self.draw_narrowed {
+        if rect == full {
+            self.draw_narrowed = false;
+            let previous_ground = self.draw.ground_points;
             self.draw = self.view;
+            self.draw.ground_points = previous_ground;
+            let points = *self
+                .viewport_ground
+                .get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));
+            let Some(points) = points else { return false };
             self.draw.ground_points = points;
-            return;
+            return true;
         }
+        // §5 null renderer faults natively; null camera retains previous draw
+        // flag/geometry. Checked policy rejects both after the entry stores.
+        if !self.renderer_present || !self.camera_present || camera.is_none() {
+            return false;
+        }
+        self.draw_narrowed = true;
         let c = rect.center();
         let factor = self.camera.metres_per_pixel;
         let mut volume = self.camera.volume;
         if rect.top_left.x != 0 || rect.bottom_right.x != self.camera.viewport_width {
-            volume.left = (rect.top_left.x as f32 - c.x as f32) * factor;
-            volume.right = (rect.bottom_right.x as f32 - c.x as f32) * factor;
+            volume.left = rect.top_left.x.wrapping_sub(c.x) as f32 * factor;
+            volume.right = rect.bottom_right.x.wrapping_sub(c.x) as f32 * factor;
         }
         if rect.top_left.y != 0 || rect.bottom_right.y != self.camera.viewport_height {
-            volume.top = (c.y as f32 - rect.top_left.y as f32) * factor;
-            volume.bottom = (c.y as f32 - rect.bottom_right.y as f32) * factor;
+            volume.top = c.y.wrapping_sub(rect.top_left.y) as f32 * factor;
+            volume.bottom = c.y.wrapping_sub(rect.bottom_right.y) as f32 * factor;
         }
-        let points = self.get_viewport_rect_ground_corners(camera, rect);
+        let Some(points) = self.get_viewport_rect_ground_corners(camera, rect) else {
+            return false;
+        };
         let position = self
             .unproject_point_from_viewport_coordinates_to_world_coordinates(Vec3::new(c.x as f32, c.y as f32, 0.0))
             - self.forward * volume.near;
         self.draw = Frustum::build(
             position,
-            self.forward,
-            self.right,
-            self.up,
+            (self.forward, self.right, self.up),
             volume,
             self.camera.projection,
             self.city,
+            &self.draw.corners,
         );
         self.draw.ground_points = points;
+        true
     }
 
     pub fn get_ground_plane_visible_area_rectangle(
@@ -532,12 +584,21 @@ impl ViewUtilities {
     ) -> Option<VisibleArea> {
         *self.visible_area.get_or_init(|| {
             let full = PixelRect::new(0, 0, self.camera.viewport_width, self.camera.viewport_height);
-            let p = *self
-                .viewport_ground
-                .get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));
+            let p = self.get_viewport_rect_ground_corners(camera, full)?;
             // §6 explicitly says viewport corners, not dirty-rectangle corners.
             let inner = Aabb::from_points(&[(p[0] + p[1]) * 0.5, (p[2] + p[3]) * 0.5]);
-            let bounds = Aabb::from_points(&p);
+            let bounds = Aabb {
+                min: Vec3::new(
+                    min_of_four_floats(p.map(|p| p.x)),
+                    0.0,
+                    min_of_four_floats(p.map(|p| p.z)),
+                ),
+                max: Vec3::new(
+                    max_of_four_floats(p.map(|p| p.x)),
+                    0.0,
+                    max_of_four_floats(p.map(|p| p.z)),
+                ),
+            };
             let outer = Aabb {
                 min: Vec3::new(
                     round_down_to_nearest_block_boundary(bounds.min.x, 64)? as f32,

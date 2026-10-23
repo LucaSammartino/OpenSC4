@@ -421,7 +421,7 @@ nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-r
 nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	core/src/span_render565	span565	-
 nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	-
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	-
-nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	-	-
+nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
@@ -529,7 +529,7 @@ fn:ResolvePath	paths and directories	framework	paths.md	-	-	-
 fn:Splitpath	paths and directories	framework	paths.md	-	-	-
 fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
 fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
-cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	-	-	-
+cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	core/src/persistence_manager	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-

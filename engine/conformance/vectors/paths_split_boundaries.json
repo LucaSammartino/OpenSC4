@@ -16,6 +16,12 @@
     {"op":"path_split_directory","input":"C:\\a\\b","expect":["b\\","C:\\a\\"]},
     {"op":"path_split_directory","input":"abc\\","expect":["abc\\"]},
     {"op":"path_split_directory","input":"abc","expect":["ab\\"]},
+    {"op":"path_split_directory","input":"abc","count":0,"expect":[]},
+    {"op":"path_split_directory","input":"abc","count":-1,"expect":[]},
+    {"op":"path_split_directory","input":"x","expect":[]},
+    {"op":"path_split_directory","input":"\\","expect":[]},
+    {"op":"path_split_directory","input":"\\a\\","count":8,"expect":["a\\"]},
+    {"op":"path_split_directory","input":"C:\\a\\","count":8,"expect":["a\\","C:\\"]},
     {"op":"path_split_directory","input":"","expect":null}
   ]
 }

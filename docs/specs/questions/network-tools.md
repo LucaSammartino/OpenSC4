@@ -1,4 +1,5 @@
 # network-tools: open questions
+
 <!-- Questions about [network-tools.md](../network-tools.md). Append new entries at the END; when one is answered, move it to answered/network-tools.md. Rules: README.md. -->
 
 <!-- from: the cores27 lane, the network tools core (2026-10-20) -->
@@ -65,12 +66,52 @@
   the 48-byte pole record holds besides the cell, how `+0x384` (wire cells) is counted, what `PlacePoles`' argument
   means, and where slot 81 `CheckForReservedTiles` is called on this path (it is the only source of the power-line
   codes, and §9 step 4 reads the valid count and the code after step 2). The core keeps them as host hooks. [missing]
-- **NT19 - network-geometry §11, the power-line parameter defaults:** only `+0x3A4` has a stated default (20). What
-  are the defaults of `+0x3A8` (`0x098B27D0`), `+0x3AC` (`0x4A5F5953`) and `+0x3B0` (`0x0A5F596B`) when the exemplar
-  lacks them, and what do `+0x3A4`/`+0x3A8` control? The core uses 0. [missing]
-- **NT20 - §9 step 4 and §11 NT3, two literal readings:** (a) "When `real`, `AttemptNeighborConnections` is followed
-  by `PlaceNeighborConnections`": does `AttemptNeighborConnections` also run in draft mode, and does
-  `PlaceNeighborConnections` depend on its result? The core runs Attempt whenever the conditions hold and Place
-  after it when real, regardless of the result. (b) In `CheckForReservedTiles`, a zoned (1) or road (3) last cell
-  leaves `last` at the previous clear cell, so a line ending on a zoned cell loses that cell (v = last + 1); is that
-  the original's behaviour, and what does a `CellIsOKForPlacement` result above 3 do (the core ignores it)? [ambiguous]
+  **PARTIALLY RESOLVED 2026-10-22 (re-powerline-completion4):** power-line-tool.md §§4–5 now specifies records,
+  spacing/pivots, clearance ray, counting, interception eligibility/flags, off-pivot pending emission,
+  cell-index group consumption, zone/blocked/end removal asymmetry, saved endpoint processing and
+  append-only repairs, allowRepair and draft undo. Slot 81 is not called inside Determine/PlacePoles.
+  **Final-round residual:** source/reachability of the `+0x398` cell-index groups (§6.6). Connection
+  geometry NT21 is answered. NT22 retains only the backward split invariant; no group construction
+  is attributed to zone update without proof. Keep whole-owner host hooks pending those contracts.
+
+<!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
+- **NT22 - power-line-tool.md §6, zone repair:** prove UpdateOnZoneChange `0x006522F0` deduplication,
+  rectangle-edge/split-cell behavior and query/ref-release order; FindNewPolePosition `0x006520C0`
+  endpoint selection when either endpoint is null. Entry guard and outside-clear search are proved;
+  remaining pseudocode has invalid stack/register attribution and needs instruction tracing. [not proved]
+  **Partial answer 2026-10-22 (re-powerline-completion4):** §6.2 now proves all of FindNewPolePosition:
+  ninth dword unused; optional tenth pointer controls mask and geometry; null still creates/reuses one
+  pole; nonnull replaces anchors and solves. Remaining UpdateOnZoneChange caller obligations unchanged.
+  §6.3 additionally proves wire endpoint-overlap deduplication, skip/search/detach and split-call order.
+  **Precise final residual:** the caller invariant allowing backward relocation `(k,count,-1)` at
+  `0x00652828` to find an outside clear cell before indexing below zero. The helper has no such guard.
+  **Final-round partial answer 2026-10-22 (re-powerline-completion4):** §6.4 proves entry/query,
+  signed pole bounds, per-connection relocation arguments and final removal/ref-release order.
+  The remaining NT22 obligation is the backward split's data/reachability invariant: none of the
+  local guards proves a clear outside cell at or before k. No safe lower bound is inferred.
+- **NT24 - power-line-tool.md §9 support inventory:** prove full classifier `0x0064FD00` zone/occupant
+  precedence, FindPoleOccupant `0x0064FFE0` candidate filters, wire probe `0x0064FBF0` selection/ref ownership,
+  allocator `0x0064A2E0`, and the 13 container helpers' copy/erase ownership. Reconcile brief 49 functions
+  against measured 46 entries, both 16156 bytes. [not proved]
+  **Partial answer 2026-10-22 (re-powerline-completion4):** §6.1 proves classifier call/overwrite order,
+  last-match pole/wire probes and their QI ownership, and raw allocator. Remaining: the 13 container
+  helpers and exact source of the 49-versus-46 function-count discrepancy were still open after round 2.
+  **Final-round partial answer 2026-10-22 (re-powerline-completion4):** §6.5 specifies all 13
+  container helpers / 1530 B, including independent inner buffers, raw descriptor-pointer copies,
+  zero AddRef/Release, erase and destruction. The measured inventory remains 46 unique entries /
+  16156 B. The sole remaining NT24 item is the exact source/counting basis of the brief's 49;
+  no missing functions or sizes are invented to reconcile an unsourced count.
+
+<!-- from: core-powerline-contractfix4 (engine lane, 2026-10-22) -->
+- **NT25 - power-line-tool §5.3/§5.5 invalid geometry allocation:** the literal count formula can
+  produce N<=0, or a very large count, under invalid resource values. What is the observable
+  allocation/failure behavior and retained-reference cleanup in those cases? [unsupported in the
+  portable builder: report the raw nonpositive count explicitly; do not clamp N or promote coverage]
+
+<!-- from: core-powerline-contractfix4 (engine lane, 2026-10-22) -->
+- **NT26 - power-line-tool §4.1 versus PL-G1:** for a fresh horizontal six-step drag with one
+  cell per step and anchors (0,0),(5,0), diagonal-distance equality selects pivots only at the
+  anchors. PL-G1 expects an intermediate pole at step 3 for spacing=3. Does PL-G1 assume a
+  nonzero previously-placed count making intermediate steps pivots, or is another pivot/spacing
+  rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
+  fresh previous=0 remains endpoint-only; no guessed intermediate pivot]

@@ -705,7 +705,7 @@ used.**
   and stops them by name (slots 12 / 13, `0x005E7660` / `0x005E7750`, case-insensitive) or all at once (slots 6 / 7),
   and finds one by REGP name (slot 10, `0x005E7A60`): the airplane's `Init` (`0x005017C0`) takes
   `fx_00_planepropstill`, else `fx_00_fireplanepropstill`, and `fx_00_planeprop`, else `fx_00_fireplaneprop`.
-- Update (slot 5 `0x005E6160`; slot 4 `0x005E6B40` also sets parameter 15 of each effect to speed × direction):
+- Update (slot 5 `0x005E6160`; slot 4 `0x005E6B40` also sets parameter 15 of each started effect to speed × direction):
   for each started effect, record r = the instance's current frame (0 if the instance is not animated), **with no
   check against C**. Local transform: translation (f0, f1, f2); rotation from the quaternion
   (n · sin h, cos h) with h = f6 × −0.5 (constant `0x00A949FC`) and n = (f3, f4, f5) × (1 / |(f3, f4, f5)|)
@@ -713,7 +713,7 @@ used.**
   (1 − 2y² − 2z², 2xy + 2zw, 2xz − 2yw), (2xy − 2zw, 1 − 2x² − 2z², 2yz + 2xw), (2xz + 2yw, 2yz − 2xw, 1 − 2x² − 2y²)
   (`0x005E6342`–`0x005E644F`). The effect's position is the instance's rotation × (f0, f1, f2) × the instance's
   scale + the instance's translation (`0x005E66A5`–`0x005E6759`); its orientation is the instance's rotation composed
-  with the local one *[inferred]*. The result goes to the effect's `SetTransform` (`cISC4VisualEffect` slot 8,
+  with the local one (the zero-flag shortcuts are specified in §3.11.3). The result goes to the effect's `SetTransform` (`cISC4VisualEffect` slot 8,
   `0x005E6AC2`).
 - Consequence: an identity record (zero axis) divides by zero, so its orientation is NaN; its position is correct.
   FreeCity4 reproduces the exe's reading, and uses no rotation for a zero axis *[choice]* (GF13).
@@ -730,6 +730,236 @@ used.**
   the composed translation still sees the right place; which emitters of `blue_blinking_light_slow` do which is
   in the effect description, not in the code. An in-game look at a bridge light whose record is the identity
   settles the visible result.
+
+#### 3.11.1 Model-effects lifetime and controls (GF20–GF21) *[compat]*
+
+The following rules are from the owner bodies and the executable vtable at `0x00AA4060`;
+method names below are descriptive. This object is not a COM interface: slots 0–2 are
+Init, Shutdown and SetModelInstance, rather than QueryInterface/AddRef/Release.
+Its constructor (`0x005E8670`–`0x005E86AA`) initializes the attached instance to null
+and its ordered entry map to empty (a separately allocated 64-byte sentinel and zero
+entry count). There is no constructor visibility, camera, global-space or public-flag field.
+
+`Init` (slot 0, `0x005E5E50`) invokes slot 16 only when an instance is attached and
+returns true even when detached. It does not first clear the map or start effects.
+`Shutdown` (slot 1, `0x005E86B0`) clears effects, then sets the instance pointer to null
+and releases its old reference, and returns true. Clear (`0x005E8510`) visits entries
+in ascending REGP-key order; for every nonnull effect it calls Stop(false), Release,
+then nulls the stored pointer, regardless of started state. Only after that traversal
+does it destroy all entries and reset the map. The attached instance remains alive
+through all effect stops/releases. This is distinct from replacing/removing one entry,
+which calls Stop(true) (`0x005E884D`, `0x005E82F0`).
+
+**Destruction is different from Shutdown.** The shared nonvirtual destruction body
+`0x00513E00` destroys map nodes and their effect-name/key strings, frees the sentinel,
+then releases a nonnull instance. It calls neither Stop nor Release on stored effects.
+The recursive node destructor `0x00511900` likewise only destroys the two strings and
+frees each node. Thus destruction alone does not perform the clear/stop sequence;
+clients requiring that sequence must have called Shutdown. Attribution is supported
+by the five paired embedding sites: ctor calls at `0x0051429E`, `0x0053C7A4/AF`,
+`0x0054CE1A`, `0x006051D2`; destruction calls at `0x00513EA9`, `0x0053C8E9/F4`,
+`0x0054CEC9`, `0x00605440`. The owner does not release the borrowed record vectors.
+
+`SetModelInstance` (slot 2, `0x005E5E60`) does nothing for the same pointer, including
+null-to-null. Otherwise it first invokes Shutdown, then acquires the incoming nonnull
+instance through its AddRef slot, installs it, and releases any instance pointer still
+present after that Shutdown. In the native implementation Shutdown already made that
+pointer null. Attachment does not invoke Init, discover registrations, rebuild or start.
+Slot 3 is a shared four-byte getter (`0x0060CE80`): it returns the attached pointer
+without AddRef. Neither attachment nor that getter acquires a model resource.
+
+| Control | Native behavior and result |
+|---|---|
+| StartAll(control), slot 6, `0x005E7580` | For each nonnull effect, query IsStarted (effect slot 5); forward the full 32-bit argument to Start (effect slot 3) only if false. No specified return value. |
+| StopAll(control), slot 7, `0x005E75F0` | Query IsStarted and forward the full 32-bit argument to Stop (effect slot 4) only if true. No specified return value. |
+| StartEffectsNamed(name, startArgument, createIfMissing), slot 12, `0x005E7660` | Compare the stored **effect name** with name using CRT `_stricmp`. Start every matching nonnull effect, even already started ones. Return true if any such entry matched, regardless of the callee's return. With no match and a true third argument, call AddEffectAtRegion(name, name), start its nonnull result, and return true; otherwise false. Only AL is the boolean return (`0x005E7708`–`0x005E7740`). |
+| StopEffectsNamed(name, stopArgument), slot 13, `0x005E7750` | Only started nonnull effects are compared by the same effect-name rule and stopped. Repeated stops of a stopped effect are suppressed. No specified return value. |
+| GetEffect(key), slot 10, `0x005E7A60` | Ordered map find by REGP key, returning the stored effect or null, with no AddRef. This does not compare effect names or use `_stricmp`. |
+| RemoveEffect(key), slot 11, `0x005E82D0` | Exact key find; absent is a no-op. For a nonnull effect call Stop(true), Release and null the pointer, then erase the entry. No specified return value. |
+
+The ABI's old `bool` labels do not describe the full accepted domain: the owner
+forwards a 32-bit start/stop control, without canonicalizing it to 0 or 1. In the
+native visual effect at vtable `0x00AA1170`, Start (`0x005BE920`) forwards that value
+to its child runtimes, conditionally performs manager bookkeeping when it is not 2,
+and sets started=true and stopping=false. Stop (`0x005BEBA0`) promotes control 0 to
+1 when effect flags include bit `0x04`; it forwards the resulting value to children,
+conditionally performs manager bookkeeping when it is not 2, and for nonzero sets
+started=false, stopping=false; for zero it sets stopping=true **without clearing
+started** (`0x005BEC05`–`0x005BEC1A`). Both bodies do nothing when their manager
+pointer is null. Thus false is a request for deferred stopping, subject to that
+effect flag; true clears started immediately. A second StopAll(false) can still be
+forwarded while IsStarted remains true. Start's false/true values are child control
+values; both set this visual effect's started byte. Their child-specific restart
+semantics are not a separate model-effects-owner state or boolean flag.
+
+`_stricmp` is a CRT byte-string comparison; it is not the REGP reader's UTF-8/UTF-16
+MakeLower operation described below. Native locale behavior must not be replaced by
+an asserted Unicode effect-name comparison. Specifically, `0x00A04487` obtains the
+current CRT thread locale, refreshes it if necessary, uses ASCII comparison for the
+C-locale path, otherwise compares unsigned bytes after locale `tolower` mapping
+(`0x00A0448C`–`0x00A044E9`). Map keys instead compare unsigned bytes lexicographically,
+with the shorter length first for equal prefixes (`0x005E86D0`, `0x00662840`).
+
+`AddEffectAtRegion(regionName, effectName)` (slot 9, `0x005E7A10`) asks the attached
+instance for its model through slot 18, then the model for its registration container
+through slot 3, and looks up the region key. A missing instance/model/container/key
+sets the records argument to null; it **still calls AddEffect** and returns that call's
+effect pointer. Thus a missing region can create an effect; it is not a no-op.
+The calls obtain borrowed data: no AddRef/Release on the model or container appears
+in this path. The entry retains a borrowed pointer to the registration record vector,
+not a copy of that vector (`0x005E8920`–`0x005E8924`).
+
+#### 3.11.2 Update domain and motion forwarding (GF23–GF24) *[compat]*
+
+Both updates return true in AL, including when detached or empty, and do nothing
+unless an instance is attached and the entry count is nonzero (`0x005E616A`–`0x005E6180`,
+`0x005E6B4A`–`0x005E6B60`). Only nonnull **started** effects enter the transform path;
+there is no owner visibility test at that gate (`0x005E6215`–`0x005E622D`).
+
+Slot 4 has three 32-bit arguments: an unused first argument, a pointer to three
+binary32 direction components, and a binary32 scalar speed. Its first argument is
+not read in the body, so calling it a position input does not imply that it changes
+placement. For each started effect, it calls SetTransform first, then parameter slot
+11 with ID 15, a pointer to three binary32 products speed×direction, and count 1
+(`0x005E74C2`–`0x005E7508`). The three products each use x87 multiplication and a
+binary32 store. They are not normalized or rotated by the instance. Stopped/null
+effects receive neither operation. In particular, "parameter 15 of each effect" above
+means each effect passing the started gate, not all extant entries. The owner performs
+no unit conversion; callers must supply compatible speed and direction units.
+
+One verified caller is `cSC4Automaton::InitEffectsList` (`0x0050EBB0`): after attaching
+its first model instance and calling Init it passes its world-position vector at
+automaton +`0x40`, orientation vector at +`0x58`, and binary32 speed at +`0x94`
+(`0x0050EBEC`–`0x0050EBFF`). This establishes the first argument's pointer-shaped use
+at that caller; the owner does not constrain the unused word's pointee type. The
+owner does not establish a physical distance/time unit for +`0x94`; neither a metres
+per second claim nor an extra conversion factor follows from this body.
+
+For a nonnull record-vector pointer, record addressing is base + frame×28 with
+32-bit address arithmetic; neither the vector's end nor its count is tested
+(`0x005E62AF`–`0x005E62B6`). Empty vectors and out-of-range frames have **no defined
+native safe result**: a nonnull computed address is read unchecked. A null vector
+pointer, or a computed address equal to zero, skips local-record loading and uses the
+initialized local identity transform. Missing model data in AddEffectAtRegion supplies
+that null vector, while updates themselves only require the instance, not a usable
+model. A checked portable error for empty/out-of-range records is a safety choice,
+not a native clamp, wrap, fallback or false return.
+
+For nonempty updates the instance supplies its transform through instance slot 9.
+QueryInterface for `0xA818EDD8` obtains the animated-instance interface: success uses
+its slot 11 current-frame result; failure uses frame 0 (`0x005E61D8`–`0x005E6205`).
+The acquired animation interface, if nonnull, is released after the traversal
+(`0x005E6B0C`–`0x005E6B25`; motion version `0x005E7550`–`0x005E7569`). This is a
+temporary interface reference, distinct from the borrowed model/REGP path.
+
+#### 3.11.3 Complete attributed inventory and transform flags (GF19, GF22) *[compat]*
+
+The 23-body / 8,406-byte attribution is exactly the following set, using exported
+body-byte counts (padding and the shared bodies below are excluded). All public calls
+use the object as `this`; explicit arguments are 32-bit words unless specified.
+`void` means there is no stable specified return channel; do not turn leftover EAX
+values into effect counts or success codes. Slots 0–16 constitute the whole vtable.
+
+| Slot / role | Address | Bytes | Arguments, result and behavior |
+|---|---|---:|---|
+| 0 Init | `0x005E5E50` | 15 | No arguments; true in AL; conditional discovery, §3.11.1. |
+| 1 Shutdown | `0x005E86B0` | 31 | No arguments; true in AL; clear then detach/release. |
+| 2 SetModelInstance | `0x005E5E60` | 59 | Instance pointer; void; same-pointer no-op. |
+| 4 motion update | `0x005E6B40` | 2608 | Unused word, direction pointer, binary32 speed; true in AL; §3.11.2. |
+| 5 update | `0x005E6160` | 2515 | No arguments; true in AL; §3.11.2. |
+| 6 StartAll | `0x005E7580` | 112 | Start control; void. |
+| 7 StopAll | `0x005E75F0` | 112 | Stop control; void. |
+| 8 AddEffect | `0x005E8810` | 347 | Key string reference, effect-name string reference, nullable record-vector pointer; borrowed effect pointer or null; §3.11.4. |
+| 9 AddEffectAtRegion | `0x005E7A10` | 78 | Region-name and effect-name string references; forwards AddEffect's pointer result. |
+| 10 GetEffect | `0x005E7A60` | 38 | Key string reference; borrowed effect pointer or null. |
+| 11 RemoveEffect | `0x005E82D0` | 69 | Key string reference; void. |
+| 12 StartEffectsNamed | `0x005E7660` | 225 | Effect-name reference, start control, create-if-missing boolean (low byte); boolean AL. |
+| 13 StopEffectsNamed | `0x005E7750` | 148 | Effect-name reference, stop control; void. |
+| 14 ToggleEffectsNamed | `0x005E77F0` | 231 | Effect-name reference, control, create-if-missing low byte; void; §3.11.4. |
+| 15 RecreateEffectsNamed | `0x005E78E0` | 293 | Same argument shapes as slot 14; void; §3.11.4. |
+| 16 InitEffectsList | `0x005E8320` | 488 | No arguments; void; guarded discovery in ascending REGP-key order. |
+| Constructor | `0x005E8670` | 59 | No arguments; returns this; null instance, empty map. |
+| Clear helper | `0x005E8510` | 146 | No arguments; void; stop(false), release effects, then erase all nodes. |
+| Erase-node helper | `0x005E7BE0` | 100 | Map receiver and iterator; void; unlink/rebalance through shared helper, destroy effect-name then key string, free node, decrement count. Does not stop/release an effect. |
+| Copy-entry helper | `0x005E7C50` | 115 | Destination entry as receiver, source entry pointer; returns destination. Copies key and effect-name strings; shallow-copies effect and record-vector pointers, without AddRef. |
+| Make-entry helper | `0x005E8250` | 115 | Destination entry as receiver, key reference and payload pointer; returns destination. Copies the key and payload's effect-name string and shallow-copies its effect/vector pointers. |
+| Link-node helper | `0x005E85B0` | 189 | Map receiver, result-iterator output, insertion hint/parent, entry pointer, side-control word; returns result output pointer. Allocates 64 bytes, copy-constructs entry, links/rebalances, increments count; no effect call. |
+| Unique-insert helper | `0x005E86D0` | 313 | Map receiver, iterator/inserted result output, entry pointer; writes existing iterator and false for duplicate key, otherwise delegates link and writes iterator/true. No effect start or duplicate replacement. No specified scalar return. |
+
+Slot 3 (`0x0060CE80`, 4 bytes) is the shared attached-instance getter; destruction
+(`0x00513E00`, 83 bytes) and recursive node destruction (`0x00511900`, 93 bytes)
+are also shared bodies outside the 23 / 8,406 total. The adjacent 60-byte-record
+vector helpers at `0x005E5EA0`, `0x005E5F90`, `0x005E6020`, `0x005E60E0`,
+`0x005E6110`, `0x005E7A90`, `0x005E7AE0`, `0x005E7CD0` are not missing
+model-effects slots: the owner entry has a **borrowed 28-byte REGP-record vector**,
+not that vector of reference-counted transform records. Address adjacency does not
+make those helpers part of this owner inventory.
+
+There are no owner index/count getter slots, visibility getters/setters, camera
+tests, global/local mode switches or public bit-flag APIs in this inventory. The
+object's four words are vtable, acquired instance pointer, map sentinel and map
+count; the last word is an entry count, not a visibility flag. Entry traversal is
+ascending exact REGP-key byte order, not insertion order. A hidden/revisible signal
+is not consumed here: as long as IsStarted returns true, update sends transforms.
+Any visibility-driven start/stop at a caller or downstream renderer is outside this
+owner contract; no hidden state or implicit restart should be synthesized here.
+
+Transform flag bytes are a different matter. A local transform starts as identity
+with flag byte 0 and scale 1. A loaded nonnull REGP record sets local flags to `0x05`
+(`0x005E6603`), even when its angle is zero. If local flags are zero, copy the
+instance transform. Otherwise, if instance flags are zero, copy the local transform
+and scale 1. If both are nonzero, compose instance×local, retain instance scale,
+and use flags `instanceFlags OR 0x05` (`0x005E6813`). The outgoing version byte is
+always 0. Thus the earlier "sends 5" description applies to a loaded record with
+no other instance flag bits, not every update. No per-bit rotation/translation/scale
+test occurs in this owner: only zero versus nonzero controls these shortcuts
+(`0x005E6605`–`0x005E669F`). Arbitrary nonzero instance flag bits pass through.
+
+Numeric qualification: normalization uses x87 binary32 loads, the sum in the order
+**(z² + y²) + x²**, square root and reciprocal, then separately stores the normalized
+components to binary32 (`0x005E62DC`–`0x005E6340`). The angle is binary32 times
+binary32 −0.5 before x87 FSIN/FCOS. Algebraic formulas above describe the transform;
+they do not authorize reassociating the native x87 arithmetic or introducing a zero-axis
+guard as a compatibility rule. The existing GF13 zero-axis policy remains a choice.
+
+#### 3.11.4 Creation, toggle, recreation and failure branches *[compat]*
+
+AddEffect obtains the effects manager through the global city, then finds or inserts
+the exact key. For an existing nonnull effect it unconditionally Stop(true)s and
+Releases it before attempting creation; neither started state nor equality of effect
+names avoids replacement. CreateVisualEffect receives the requested effect-name
+bytes and an output-pointer address. On true, AddEffect retains that returned effect
+reference without an additional AddRef, stores the **borrowed** record-vector pointer,
+copies the effect-name string and returns the effect. It does not start or transform
+it. On false it erases the entry and returns null; the previous effect is not restored.
+The owner does not clean up a nonnull output supplied with false, or validate a null
+output supplied with true. The global city and AddEffect's manager result are
+dereferenced without null checks (`0x005E8819`–`0x005E8821`, `0x005E88FA`–`0x005E8919`):
+there is no native graceful "manager unavailable" result here. Allocation is also
+not converted into an owner-level false return; the native helpers assume storage.
+
+InitEffectsList checks instance, model, registration container and an empty key map
+before discovery, and otherwise invokes AddEffect once for each matching `fx_` key.
+It neither clears unrelated entries nor stops after one failed creation. Repeated
+Init therefore replaces discovered keys, preserving unrelated manually added keys.
+The full key and derived effect name are separate stored strings. Their copies and
+the borrowed vector pointer explain why the model data must outlive entries.
+
+ToggleEffectsNamed (slot 14) visits every nonnull effect-name match using `_stricmp`;
+it queries IsStarted and sends the same supplied control to Stop if started, Start
+otherwise (`0x005E783D`–`0x005E7857`). With any match it stops there after traversal.
+With no match and create-if-missing true, it AddEffectAtRegion(name, name)s and starts
+a nonnull result. It supplies no stable boolean/count result.
+
+RecreateEffectsNamed (slot 15) first gets the effects manager; **this method** returns
+without action if it is null. For every nonnull effect-name match it Release calls
+the old effect **without Stop**, creates by the caller's spelling of the name into
+the same pointer field, and on true calls Start(control). On false it nulls the
+pointer but keeps the entry, effect name and record-vector pointer. A failure at one
+match does not suppress other matches. A match counts even when recreation fails,
+so create-if-missing does not run afterward. With no nonnull match and a true third
+argument, the same AddEffectAtRegion(name, name)/Start fallback is used
+(`0x005E794B`–`0x005E7986`, `0x005E79DB`–`0x005E79FD`).
 
 **Consumer 2: fire crews** *[compat]*. `cSC4SimFireCrew::InitRegTranslationArray` (`0x00548F10`) looks up
 `regpoint01` (string `0x00A9B2E4`) in the crew's first model and copies the position (f0, f1, f2) of every record.

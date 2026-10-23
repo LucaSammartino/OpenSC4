@@ -6,6 +6,7 @@
 //! without duplicates, plus the deferred (pending) registration list.
 
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::Token;
 
@@ -23,10 +24,6 @@ pub struct Registry {
     pub(crate) depth: u32,
     pub(crate) pending: VecDeque<Pending>,
     pub(crate) map: BTreeMap<u32, Vec<Token>>,
-    /// The flush re-entry flag. [choice] The original keeps it in one
-    /// process-wide byte per server generation; the core keeps it per
-    /// server, which is the same with one server per process.
-    pub(crate) flushing: bool,
 }
 
 impl Registry {
@@ -88,6 +85,7 @@ impl Registry {
 
 /// A server that embeds a [`Registry`].
 pub trait HasRegistry {
+    const RAW_PENDING: bool = false;
     fn registry_mut(&mut self) -> &mut Registry;
 }
 
@@ -95,7 +93,7 @@ pub trait HasRegistry {
 /// target dropping its last reference may re-enter it (its destructor may
 /// unregister), which is the path that reaches the pending list (GZ3).
 pub trait RegistryHost<S: ?Sized> {
-    fn add_ref_target(&mut self, target: Token);
+    fn add_ref_target(&mut self, server: &mut S, target: Token);
     fn release_target(&mut self, server: &mut S, target: Token);
 }
 
@@ -105,17 +103,16 @@ where
     S: HasRegistry + ?Sized,
     H: RegistryHost<S> + ?Sized,
 {
-    let reg = server.registry_mut();
-    if reg.depth != 0 {
-        host.add_ref_target(target);
-        reg.pending.push_back(Pending { add: true, target, ty });
+    if server.registry_mut().depth != 0 {
+        defer(server, host, Pending { add: true, target, ty });
         return true;
     }
+    let reg = server.registry_mut();
     reg.depth = 1;
     if reg.insert(target, ty) {
-        host.add_ref_target(target);
+        host.add_ref_target(server, target);
     }
-    server.registry_mut().depth -= 1;
+    server.registry_mut().depth = server.registry_mut().depth.wrapping_sub(1);
     flush(server, host);
     true
 }
@@ -126,22 +123,18 @@ where
     S: HasRegistry + ?Sized,
     H: RegistryHost<S> + ?Sized,
 {
-    let reg = server.registry_mut();
-    if reg.depth != 0 {
-        host.add_ref_target(target);
-        reg.pending.push_back(Pending { add: false, target, ty });
+    if server.registry_mut().depth != 0 {
+        defer(server, host, Pending { add: false, target, ty });
         return true;
     }
+    let reg = server.registry_mut();
     reg.depth = 1;
     let removed = reg.erase(target, ty);
-    // [choice] The list's reference is dropped while the depth is still 1,
-    // so a target destructor that re-enters the registry is deferred to the
-    // pending list and replayed by the flush below (the only reachable
-    // pending path in the core; GZ3).
+    // GZ3/GZ6b: unlink before Release, while depth remains positive.
     for _ in 0..removed {
         host.release_target(server, target);
     }
-    server.registry_mut().depth -= 1;
+    server.registry_mut().depth = server.registry_mut().depth.wrapping_sub(1);
     flush(server, host);
     true
 }
@@ -153,26 +146,61 @@ where
     S: HasRegistry + ?Sized,
     H: RegistryHost<S> + ?Sized,
 {
-    let reg = server.registry_mut();
-    if reg.flushing || reg.depth != 0 {
+    if server.registry_mut().depth != 0 {
         return;
     }
-    reg.flushing = true;
+    let flag = if S::RAW_PENDING { &FLUSH1 } else { &FLUSH2 };
+    if flag
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+    let _guard = FlushGuard(flag);
     while let Some(&p) = server.registry_mut().pending.front() {
         if p.add {
             add_notification(server, host, p.target, p.ty);
         } else {
             remove_notification(server, host, p.target, p.ty);
         }
-        // Pop the replayed entry (it is still the front: a replay at depth 0
-        // never defers) and drop the pending entry's reference.
-        let reg = server.registry_mut();
-        if reg.pending.front() == Some(&p) {
-            reg.pending.pop_front();
+        // Generation 1 drops the add hold BEFORE unlinking; generation 2
+        // unlinks first. Replay sees the still-linked front in both cases.
+        if S::RAW_PENDING && p.add {
+            host.release_target(server, p.target);
         }
+        server.registry_mut().pending.pop_front();
+        if !S::RAW_PENDING {
+            host.release_target(server, p.target);
+        }
+    }
+}
+
+static FLUSH1: AtomicBool = AtomicBool::new(false);
+static FLUSH2: AtomicBool = AtomicBool::new(false);
+
+struct FlushGuard(&'static AtomicBool);
+impl Drop for FlushGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn defer<S: HasRegistry + ?Sized, H: RegistryHost<S> + ?Sized>(server: &mut S, host: &mut H, p: Pending) {
+    if S::RAW_PENDING {
+        server.registry_mut().pending.push_back(p);
+        if p.add {
+            host.add_ref_target(server, p.target);
+        }
+    } else {
+        // GZ6b: two temporary counted wrappers, then the list copy; the
+        // temporaries are destroyed before returning from the locked call.
+        host.add_ref_target(server, p.target);
+        host.add_ref_target(server, p.target);
+        server.registry_mut().pending.push_back(p);
+        host.add_ref_target(server, p.target);
+        host.release_target(server, p.target);
         host.release_target(server, p.target);
     }
-    server.registry_mut().flushing = false;
 }
 
 /// Apply pending (§4.2), run at the start of every MessageSend: an add
@@ -183,32 +211,35 @@ where
     S: HasRegistry + ?Sized,
     H: RegistryHost<S> + ?Sized,
 {
-    let reg = server.registry_mut();
-    let pending = std::mem::take(&mut reg.pending);
-    let mut releases = Vec::new();
-    for p in &pending {
+    // No depth/flush gate: a nested send applies still-linked pending work.
+    // Precondition: foreign callbacks must not invalidate the native live
+    // pending/type-list iterator (section 5.1's controlled callbacks do not).
+    let mut i = 0;
+    while let Some(p) = server.registry_mut().pending.get(i).copied() {
         if p.add {
-            if reg.insert(p.target, p.ty) {
-                host.add_ref_target(p.target);
+            if server.registry_mut().insert(p.target, p.ty) && !S::RAW_PENDING {
+                host.add_ref_target(server, p.target);
             }
         } else {
-            for _ in 0..reg.erase(p.target, p.ty) {
-                releases.push(p.target);
+            for _ in 0..server.registry_mut().erase(p.target, p.ty) {
+                host.release_target(server, p.target);
             }
         }
+        i += 1;
     }
-    // [choice] References are dropped after the walk, list entries first,
-    // then the pending entries', so a re-entrant destructor sees a
-    // consistent registry and an empty pending list.
-    releases.extend(pending.iter().map(|p| p.target));
-    for t in releases {
-        host.release_target(server, t);
+    let pending = std::mem::take(&mut server.registry_mut().pending);
+    if !S::RAW_PENDING {
+        for p in pending {
+            host.release_target(server, p.target);
+        }
     }
+    // GZ-V14: raw adds transfer their hold on insertion; duplicate raw adds
+    // deliberately leak it. Raw removes have no hold. Bulk clear releases none.
 }
 
 /// Destruction (§4.7): depth 0, free every type list with its references,
 /// then the pending list. [choice] Lists are released in ascending type
-/// order, each in registration order.
+/// order, each in registration order (GZ8; cleanup visitation is unspecified).
 pub fn clear<S, H>(server: &mut S, host: &mut H)
 where
     S: HasRegistry + ?Sized,
@@ -221,7 +252,9 @@ where
     for t in map.into_values().flatten() {
         host.release_target(server, t);
     }
-    for p in pending {
-        host.release_target(server, p.target);
+    if !S::RAW_PENDING {
+        for p in pending {
+            host.release_target(server, p.target);
+        }
     }
 }

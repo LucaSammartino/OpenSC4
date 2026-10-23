@@ -47,12 +47,22 @@ fn optional_text(value: Option<Vec<u8>>) -> R<Json> {
     value.as_deref().map(text).unwrap_or(Ok(Json::Null))
 }
 
+fn signed_count(op: &Json) -> R<i32> {
+    match opt(op, "count") {
+        None => Ok(2),
+        Some(value) => value
+            .as_i64()
+            .and_then(|n| i32::try_from(n).ok())
+            .ok_or_else(|| "invalid signed count".to_owned()),
+    }
+}
+
 pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
     let method = name.strip_prefix("path_")?;
     Some((|| {
         let input = bytes(op, "input")?;
         let got = match method {
-            "is_full" => Json::Bool(helpers::is_full_path(input)),
+            "is_full" => Json::Bool(helpers::is_full_path(input).map_err(|e| format!("unsupported CRT byte: {e:?}"))?),
             "normalize" => {
                 let max = count(op, "max", 520)?;
                 optional_text(if let Some(base) = opt(op, "base") {
@@ -70,30 +80,33 @@ pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
                         .collect::<R<_>>()?,
                 )
             }
-            "split_directory" => match helpers::split_directory(input, count(op, "count", 2)?) {
+            "split_directory" => match helpers::split_directory(input, signed_count(op)?) {
                 Some(parts) => Json::Array(parts.iter().map(|p| text(p)).collect::<R<_>>()?),
                 None => Json::Null,
             },
             "owner" => {
-                let mut path = RzPath::new(input, &mut Cwd(op));
+                let mut path = RzPath::new(input, &mut Cwd(op)).map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                 let mut results = Vec::new();
                 let mut out = Vec::new();
                 for call in arr(field(op, "calls")?, "calls")? {
                     let method = str_of(field(call, "method")?, "method")?;
                     let result = match method {
                         "get_path" => {
-                            path.get_path(&mut out);
+                            path.get_path(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
                         "get_drive_and_directory" => {
-                            path.get_drive_and_directory(&mut out);
+                            path.get_drive_and_directory(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
                         "get_file_name_and_extension" => {
-                            path.get_file_name_and_extension(&mut out);
+                            path.get_file_name_and_extension(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
-                        "get_drive" => text(path.get_drive())?,
+                        "get_drive" => text(path.get_drive().map_err(|e| format!("unsupported CRT byte: {e:?}"))?)?,
                         "get_directory" => text(path.get_directory())?,
                         "get_file_name" => text(path.get_file_name())?,
                         "file_name" => text(path.file_name())?,
@@ -106,9 +119,13 @@ pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
                             bytes(call, "value")?,
                             call.get("split").and_then(Json::as_bool).unwrap_or(false),
                         )),
-                        "set_path" => Json::Bool(path.set_path(bytes(call, "value")?, &mut Cwd(op))),
+                        "set_path" => Json::Bool(
+                            path.set_path(bytes(call, "value")?, &mut Cwd(op))
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?,
+                        ),
                         "set_buffer" => {
-                            path.set_buffer(count(call, "parts", 15)? as u32);
+                            path.set_buffer(count(call, "parts", 15)? as u32)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             Json::Null
                         }
                         _ => return Err(format!("unknown path method {method}")),

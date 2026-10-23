@@ -337,10 +337,19 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue-span565-impl4 lane (FC4Span565Bridge.h)
                                   "span565_trace",
                                   "span8888_shadow",
+                                  // verify-variants4: isolated owned native variant comparisons.
+                                  "variant_shadow",
                                   // Independent native grid verification (default off).
                                   "simgrids_shadow",
                                   // glue-dates4: independent native date interface probe
                                   "dates_probe",
+                                  // Public process command-line read-only probe (default off).
+                                  "cmdline_probe",
+                                  // Opt-in owned original / production Rust FontSys comparison.
+                                  "fontsys_verify",
+                                  "span8_shadow",
+                                  "feature_shadow",
+                                  "persist_manager_verify",
                                   // verify-dbpf-native4: read-only public packed-file comparison.
                                   "dbpf_native", "dbpf_native_fixtures", "dbpf_native_file",
 };

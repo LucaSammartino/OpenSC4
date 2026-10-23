@@ -37,6 +37,8 @@
 #include <string>
 #include <vector>
 
+#include "FC4VariantShadow.h"
+
 namespace fc4 {
 namespace {
 
@@ -446,6 +448,7 @@ void FormatsShadowStartup() {
 }
 
 void FormatsShadowCityLoaded() {
+    variant_shadow::Run();
     DbpfNativeCityLoaded();
     if (!g_enabled || g_done) return;
     g_done = true;

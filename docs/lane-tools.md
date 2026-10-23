@@ -13,7 +13,7 @@ at another checkout, read-only.
 |---|---|---|
 | `slots` | coordinator, before every spawn | `active N / cap M - spawn ok`; exit 0 only when a spawn is ok |
 | `check <lane> [--deps a,b] [--touches k1,k2]` | coordinator, before every spawn | refuses a lane that would be wasted work; prints `ok` or one reason per line |
-| `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | **lanes** | one tool call instead of a polling loop |
+| `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | tooling and RE lanes, the coordinator (engine lanes use `.claude/lane-bin/qwait.py`: they do not run `tools/`) | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
 | `ledger [--out ...] [--md docs/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
 | `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator, when writing a lane prompt | a context pack of at most 60 lines to paste into the prompt, with each spec's section outline (line ranges and sizes); `--focus` marks the sections and subsections the task is about, so the lane reads those ranges instead of a 100-200 KB spec |
@@ -37,10 +37,11 @@ build caches are 10-19 GB), `at cap`, `cpu busy` (CPU load at 85% or more, best 
 prints the inputs and the active lanes. Spawn only on exit 0, and spawn one lane at a time: a lane that has not
 written a file yet is only counted from its first change.
 
-## Lanes: use `wait`, never a polling loop
+## Waiting: one call, never a polling loop
 
 A game run goes through the queue, which takes minutes. Do not poll with `sleep` turns or repeated `Read`s: every
-poll is a turn that costs tokens and finds nothing. Submit the request, then make **one** call:
+poll is a turn that costs tokens and finds nothing. Engine lanes wait with `.claude/lane-bin/qwait.py`
+([harness.md](harness.md) "How long to wait"). Tooling and RE lanes submit the request, then make **one** call:
 
 ```
 python tools/lanes.py wait --verdict <label> --timeout 540
@@ -82,3 +83,58 @@ coordinator can add `--lane <name>` to look in another worktree.
   writes `build-runs/lane-ledger.tsv` (one row per run), `build-runs/lane-ledger-by-lane.tsv` and, with `--md`,
   [token-ledger.md](token-ledger.md). Read the caveats there before quoting tokens per coverage point: lanes landed
   through the merge train have no journal, and coverage also moves when the coverage tool changes.
+
+## Run 4: the heartbeat backlog and `--wait-until`
+
+Reviewed briefs may omit `evidence` or use `[]`; otherwise it must be a list of nonempty file-path
+strings. Relative sources are read against `--root`, including when the spec or process cwd is elsewhere;
+absolute sources remain supported. `lane_refill.py --queue` validates every requested spec before writing
+the queue, and direct launch rechecks readable regular files before setup. Errors name the spec,
+`evidence[index]` (or the invalid container), value and filesystem/type reason. Evidence basenames and
+overwrite order are unchanged; prose belongs in the brief text, not in `evidence`.
+
+`python tools/lane_heartbeat.py --once` (the five-minute scheduled task) writes `build-runs/run4-heartbeat.json` and
+one log line. Pending briefs in `build-runs/run4-refill-queue.json` are split the way the refiller decides:
+a brief is **launchable** when every one of its `args.deps` is an ancestor of `main` (`lane_refill.unmet_deps`, the
+refiller's own `git merge-base --is-ancestor` rule), otherwise it is **waiting**. The line reads
+`pending L launchable / W waiting [brief: dep,dep; ...]`, and the JSON has `launchable`, `waiting` (brief to the deps
+it waits on) and `open_slots` (target minus live). On top of the existing alerts, `BACKLOG LOW: L launchable < N open
+slots` fires whenever the refiller has fewer briefs it can start than free slots (not while STOP or a provider
+pause is set). It was added after run 4 drained from 9 live lanes to 1 with `pending 2` in the log: both briefs
+depended on the train that was waiting to land, so neither could start, and the old `REVIEW QUEUE` alert only fires
+at 0 pending.
+
+The coordinator's long waits go through it:
+
+```
+python tools/lane_heartbeat.py --wait-until train [--fresh] [--timeout 540]
+python tools/lane_heartbeat.py --wait-until backlog
+python tools/lane_heartbeat.py --wait-until build-runs/gate-train100.out
+```
+
+It checks every `--poll` seconds (default 10), prints nothing meanwhile, and on the first of these prints one line
+and exits:
+
+| Exit | Line | When |
+|---|---|---|
+| 1 | `ERROR: cannot read critical JSON <path> ...` | coordinator, refill queue or train data stays unreadable/malformed after bounded recovery; no heartbeat artifact is written |
+| 0 | `TRAIN <id>: gate FAIL`, `TRAIN <id>: gate ok, regress <verdict>`, `TRAIN <id>: no longer current (landed or cleared)` | `train`: the current train in `build-runs/merge-train/state.json` needs the coordinator (`RUNNING` does not count) |
+| 0 | `FILE <path>: present` | a file path (relative to `--root`: the checkout holding the script, the main checkout for the coordinator) exists |
+| 4 | `BACKLOG LOW: ...; live x/y, pending L launchable / W waiting [...]` | the heartbeat alert above |
+| 5 | `HALT: STOP set` / `HALT: provider <p> paused` | the STOP flag or a provider pause |
+| 2 | `TIMEOUT after <s>s waiting for <event>; ...` | nothing happened; call it again |
+| 3 | `WAIT: ...` | no current train for `train`, or `--timeout` outside (0, 3600] |
+
+A verdict or file already there returns at once (exit 0), and so does a backlog that is already low (exit 4): that is
+the point, the wait never starts while slots are going to empty. `--fresh` ignores a train verdict or file that was
+there before the call (for a re-run gate, whose old `gate.ok: false` stays in the state file until the new one is
+written). `backlog` waits for the backlog only. The default `--timeout` is 540 s, under a 10-minute tool-call
+limit; the maximum is 3600. The wait is read-only: it does not write the heartbeat files.
+
+Critical JSON reads share at most five attempts, separated by 0.25 s, within a 2 s read-recovery budget
+and the caller's remaining wait deadline. Recovery checks STOP and the current provider pause freshly
+between attempts. Deadline exhaustion returns exit 2 with the read diagnostic; persistent failure before
+that deadline returns exit 1, including initial train discovery (valid JSON with no current train remains
+exit 3). `--once`/scheduled reports use the same bounded read policy and leave existing report/log bytes
+unchanged on failed snapshots. These limits bound retries and sleeps; they cannot interrupt an OS read
+already in progress. They do not imply a proven cause for the observed sharing/partial-write failures.

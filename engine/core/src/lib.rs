@@ -111,6 +111,7 @@ pub mod x87;
 pub mod zones;
 pub mod rzurl;
 pub mod html_document;
+pub mod www;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
@@ -142,3 +143,9 @@ pub mod occupant_groups;
 pub mod animated_sprite;
 pub mod draw_context;
 pub mod gdrivers_director;
+pub mod key_accelerator;
+pub mod view_input_controls;
+pub mod snapshots;
+pub mod resource_editor;
+pub mod application;
+pub mod lotconfig_editor;

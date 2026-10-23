@@ -530,7 +530,21 @@ if(FC4_IS_WIN32_X86)
         # Constructed-native industrial verification; no replacement or natural interception.
         plugin/FC4IndustrialShadow.cpp
         plugin/FC4IndustrialShadow.h
-        plugin/compat/FC4IndustrialCompat.h)
+        plugin/compat/FC4IndustrialCompat.h
+        # Opt-in native language utility verification (production core transport).
+        plugin/FC4LanguageVerify.cpp
+        plugin/FC4LanguageVerify.h
+        # Owned cGZFontSys verification (drawing-fonts sections 12/12.1).
+        plugin/FC4FontSysVerify.cpp
+        plugin/FC4FontSysVerify.h
+        # Opt-in span8 checked adapter and native type2 route (SR9/SR10).
+        plugin/FC4SpanRender8.cpp
+        plugin/FC4SpanRender8.h
+        plugin/FC4Span8Fixture.inc
+        plugin/FC4FeatureShadow.cpp
+        plugin/FC4FeatureShadow.h
+        plugin/FC4PersistManagerVerify.cpp
+        plugin/FC4PersistManagerVerify.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

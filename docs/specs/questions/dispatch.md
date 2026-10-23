@@ -1,17 +1,17 @@
 # dispatch: open questions
+
+2026-10-22 final round 3/3 (re-dispatch-completion4): DP11, DP12 and DP13 remain answered
+and archived. DP10's construction, adjustments, process-global handles, tracking, Update gates,
+refresh, texture keys and delayed-untrack completion are specified in dispatch §4.1.3.
+This round adds the number-texture slot/ownership/failure protocol, intermediate number/icon
+quads, borrowed screen-rectangle getter/storage, exact conflict/relocation/fallback algorithm,
+and final 2D draw submission/order with independent distinguishing vectors.
+**PARK DP10; no fourth round.** The precise remaining addresses/scope are at §4.1.3's
+“DP10 final-round residual”: final camera/2D vertex values, full visible-entry preparation,
+kinds 3/4 generation and alternate world-space/3D branches. Preserve the worktree.
+No complete-owner, complete view-provider, supported replacement or exact-shadow credit.
 <!-- Append new questions at the end; IDs continue docs/specs/QUESTIONS.md. -->
 
 <!-- from: glue-dispatch-complete4 (2026-10-22) -->
 - **DP10 - §§2, 4.1, 4.2, 8 slot 22: native vehicle-view provider contract.** What are the complete construction/factory, IID/subobject, renderer registration/unregistration, refresh, TrackAutomaton and UntrackAutomaton contracts of cSC4DispatchVehicleView (argument layouts, ownership, return channels and slots/nonvirtual entry points)? The spec publishes size 0xA0 and layer 5/priority 1000, but no callable view interface; the public SDK has no such interface. A replacement must also serve external callers of manager slot 22. [Leave view callbacks unwired; no complete-owner or supported replacement credit. Do not delegate to the original dispatch manager or invent a view.]
 
-<!-- from: glue-dispatch-complete4 (2026-10-22) -->
-- **DP11 - §§4.1, 4.2, 4.4, 4.5: native pylon construction and placement.** Publish the pylon factory/class ID and IID acquisition/initialization contract, complete callable slot prefix (the SDK omits spec slot 3 AsOccupant and consequently shifts its remaining methods), return channels, ownership and station lot-diagonal placement/return algorithm. Which lot interface supplies the diagonal endpoints, transform and offsets? The spec gives named pylon slots and start + step × (i + 1), but not a native construction path or exact start/step computation and station-return predicate. [No fabricated pylons, positions or undeclared native forwarders; leave unsupported construction/placement callbacks unwired and replacement incomplete.]
-
-<!-- from: glue-dispatch-complete4 (2026-10-22) -->
-- **DP12 - §4.2 BeginDispatch: complete native vehicle creation/retarget contract.** Publish the exact GetDispatchAutomataProperties argument meanings/layouts, source station-to-spawn position/heading algorithm, automata-manager acquisition and vehicle creation/path slots with all arguments/return channels/ownership, event-target setup, and failure cleanup order. The current text identifies manager slot 17 mode 2 and automaton state/event slots but does not define enough arguments to issue those native calls. [Do not guess an ABI or delegate BeginDispatch to the native dispatch manager; begin_vehicle stays unwired and an actual Dispatch cannot be credited as supported.]
-
-<!-- from: glue-dispatch-complete4 (2026-10-22) -->
-- **DP13 - §4.5 and protection §8.4: air-source GetStations ownership and unit-state contract.** Does each air source's slot 6 return borrowed station pointers or AddRef every element? Publish both air sources' slot 6/7 arguments, outputs and ownership explicitly. PR8 proves AddRef-on-copy for ground fire/police sources only. Run gdc4-original-20261022-a1 matched independently acquired sources and free counts (police 4, fire 2, air 0), created a real fire dispatch, then failed while releasing an air-source list element after repeated samples. [Only ground providers receive PR8's acquired-reference release; for air providers, do not Release a reference whose acquisition is not published. This conservative literal ownership choice is not complete replacement credit.]
-
-<!-- from: glue-dispatch-complete4 correction (2026-10-22) -->
-DP13 evidence correction: a2 failed identically. Inspection of the allowed SDK SC4List implementation showed its destructor already releases non-null elements; the lane's explicit ground release therefore doubled that cleanup. Clearing nodes after audited cleanup fixes this implementation error. Neither failure proves an air-source ownership rule; the requested air contract is still unpublished. The original replacement's SC4List destructor already balanced ground station references.

@@ -40,3 +40,9 @@ span565	span565_source_current40	249	249	docs/lanes/verify-span565-context4.md	S
 span565	span565_joint97	249	249	docs/lanes/verify-span565-context4.md	Gated joint97 current40 save/shutdown exact; natural0
 industrial_shadow	industrial_constructed_source	263052	263052	docs/lanes/verify-industrial4.md	Actual original factory versus production Rust CAPI; IN3 natural interception excluded
 industrial_shadow	industrial_constructed_joint97	131526	131526	docs/lanes/verify-industrial4.md	Official joint97 shadow load/shutdown2suites; no natural interception claim
+span8	span8_source_own_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_own_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_current40_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_current40_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_joint98_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_joint98_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain

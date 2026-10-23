@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Small value types for view-utilities.md. Arithmetic follows the written order,
-//! with separate f32 operations (no fused multiply-add).
+//! without fused multiply-add. See README for the portable numeric boundary.
 
 use std::ops::{Add, Mul, Neg, Sub};
 
@@ -27,15 +27,27 @@ impl Vec3 {
         )
     }
     pub fn normalized(self) -> Self {
-        // VU5: zero-length/nonfinite camera basis behavior is not specified.
-        // Literal division preserves IEEE NaNs rather than inventing a basis.
-        self * (1.0 / self.dot(self).sqrt())
+        // §2.2: no zero guard. Widen products before sqrt and store components
+        // once. f64 is a portable evaluation policy, not x87 bit emulation.
+        let x = f64::from(self.x);
+        let y = f64::from(self.y);
+        let z = f64::from(self.z);
+        let inverse = 1.0 / ((x * x + y * y) + z * z).sqrt();
+        Self::new((x * inverse) as f32, (y * inverse) as f32, (z * inverse) as f32)
     }
     pub fn min(self, other: Self) -> Self {
-        Self::new(self.x.min(other.x), self.y.min(other.y), self.z.min(other.z))
+        Self::new(
+            if other.x < self.x { other.x } else { self.x },
+            if other.y < self.y { other.y } else { self.y },
+            if other.z < self.z { other.z } else { self.z },
+        )
     }
     pub fn max(self, other: Self) -> Self {
-        Self::new(self.x.max(other.x), self.y.max(other.y), self.z.max(other.z))
+        Self::new(
+            if other.x > self.x { other.x } else { self.x },
+            if other.y > self.y { other.y } else { self.y },
+            if other.z > self.z { other.z } else { self.z },
+        )
     }
 }
 
@@ -90,10 +102,9 @@ impl PixelRect {
         }
     }
     pub fn center(self) -> Pixel {
-        // VU8: integer halves are specified, overflow is not. Widen first.
         Pixel::new(
-            ((i64::from(self.top_left.x) + i64::from(self.bottom_right.x)) / 2) as i32,
-            ((i64::from(self.top_left.y) + i64::from(self.bottom_right.y)) / 2) as i32,
+            self.top_left.x.wrapping_add(self.bottom_right.x) / 2,
+            self.top_left.y.wrapping_add(self.bottom_right.y) / 2,
         )
     }
 }
@@ -126,6 +137,25 @@ impl Aabb {
     }
 }
 
+/// §12 005D6900: first point initializes even for a nonpositive count. Empty
+/// or insufficient storage has no native defined result; checked policy is None.
+pub fn point_array_aabb(points: &[Vec3], count: i32) -> Option<Aabb> {
+    let count = usize::try_from(count.max(1)).ok()?;
+    Some(Aabb::from_points(points.get(..count)?))
+}
+
+/// §12 005D6F10: writes x, then y, then z, rereading aliased operands. Indices
+/// make the native aliasing contract expressible without aliased Rust borrows.
+pub fn cross_in_storage(storage: &mut [Vec3], a: usize, b: usize, out: usize) -> Option<()> {
+    storage.get(a)?;
+    storage.get(b)?;
+    storage.get(out)?;
+    storage[out].x = storage[a].y * storage[b].z - storage[a].z * storage[b].y;
+    storage[out].y = storage[a].z * storage[b].x - storage[a].x * storage[b].z;
+    storage[out].z = storage[a].x * storage[b].y - storage[a].y * storage[b].x;
+    Some(())
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Ray {
     pub origin: Vec3,
@@ -138,17 +168,38 @@ pub fn get_ray_intersection_with_ground_plane(ray: Ray) -> Vec3 {
     ray.origin + ray.direction * (-ray.origin.y / ray.direction.y)
 }
 
-/// §4.1 geometry ray-plane test. VU6: literal forward half-ray, including t=0;
-/// exactly parallel rays miss and leave the output alone. No epsilon is invented.
+/// §7.2 geometry plane predicate, including coplanarity and negative t.
 pub fn ray_intersects_ground_plane(ray: Ray, out: &mut Vec3) -> bool {
-    if ray.direction.y == 0.0 {
-        return false;
-    }
-    let t = -ray.origin.y / ray.direction.y;
-    if t >= 0.0 {
-        *out = ray.origin + ray.direction * t;
-        true
+    ray_intersects_plane(ray, Vec3::new(0.0, 1.0, 0.0), 0.0, Some(out))
+}
+
+// Exact binary32 word 0x3C23D70A; literal keeps the project's Rust 1.75 MSRV.
+pub const GEOMETRY_TOLERANCE: f32 = 0.01;
+
+pub fn ray_intersects_plane(ray: Ray, normal: Vec3, offset: f32, out: Option<&mut Vec3>) -> bool {
+    let a = normal.dot(ray.origin) + offset;
+    let b = normal.dot(ray.direction);
+    let (hit, point) = if b.abs() < GEOMETRY_TOLERANCE {
+        if a.abs() < GEOMETRY_TOLERANCE {
+            (true, ray.origin)
+        } else {
+            (false, Vec3::ZERO)
+        }
     } else {
-        false
+        // Unordered b deliberately takes this branch.
+        (true, ray.origin - ray.direction * (a / b))
+    };
+    if let Some(out) = out {
+        *out = point;
     }
+    hit
+}
+
+/// Separate 87-byte helpers (§12); ordered comparisons ignore NaNs and retain
+/// the first signed zero. Infinity does not replace the finite starting bound.
+pub fn min_of_four_floats(values: [f32; 4]) -> f32 {
+    values.into_iter().fold(f32::MAX, |a, b| if b < a { b } else { a })
+}
+pub fn max_of_four_floats(values: [f32; 4]) -> f32 {
+    values.into_iter().fold(-f32::MAX, |a, b| if b > a { b } else { a })
 }
