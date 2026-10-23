@@ -50,9 +50,10 @@
 //!    implements the coherent reading of §4.2: the low bits are the live-object
 //!    count and `0x40000000` marks the page in the active ring. The initial
 //!    value `FUN_0090CF9A`'s successor writes to `page+0x0C` is **0** here.
-//! 4. **AU8** — Hit tracks, the radio and the freshness score are boundaries
-//!    only (§2, §11). They are **out of scope**: this module does not
-//!    implement them.
+//! 4. **AU8** — The original audio spec treats HIT/freshness as boundaries.
+//!    [`sound_system`] now implements their confirmed lower-level contracts
+//!    from `sound-system.md`, with its SS1–SS11 open items explicit. Radio
+//!    policy remains outside that module.
 //! 5. **AU9** — the `0xFF000000` tag in `cGZSndMgr::GetSound` (§8.6).
 //!    [`sound_manager`] applies the OR before the lookup, as measured.
 //! 6. **AU10** — the CLSID `0x00436EB4` registered for type `0x2026960B`
@@ -85,6 +86,8 @@ pub mod pool;
 pub mod save;
 pub mod snd_event;
 pub mod sound_manager;
+/// Lower sound owners; behavior source: `docs/specs/sound-system.md`.
+pub mod sound_system;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 
