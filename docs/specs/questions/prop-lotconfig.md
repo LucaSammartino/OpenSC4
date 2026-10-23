@@ -84,13 +84,3 @@
   re-initialises the city) to exercise the reload in game? [none known; reload verified only offline] Also: is a
   preference byte outside 1..3 possible? [passed through unclamped, as the spec names only 1..3]
 
-<!-- from: verify-propcfg4 native comparison (2026-10-22) -->
-- **PL23 - A3.2 profile padding and lot-configuration §3.7 foundation IDs, raw comparison evidence:**
-  `vpc4-r2-native-20261022a` (immutable DLL SHA256 prefix `04b93bd7`, native city owners, clean2032/ref0)
-  reports 1544/1544 prop profiles differing only in the three unspecified bytes after wealth, and 1908/1909
-  complete configuration arrays differing (1908 appended foundations; the six printed first differences are
-  the final record). The published contracts explicitly leave these bytes/IDs unwritten and choose zero in
-  FreeCity4. What deterministic raw-equivalence contract, if any, can apply to these fields without copying
-  native bytes or filtering mismatches? [none inferred: retain every raw difference and no whole-owner exact
-  credit; do not change algorithms or defaults to match unspecified native memory; other array differences
-  have not been ruled out by a field-by-field diagnostic]
