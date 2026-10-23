@@ -266,7 +266,7 @@ impl Arithmetic {
         // 67 quotient bits plus sticky; the denominator is a binary32 load.
         let denominator = u128::from(scale.significand >> 40);
         let numerator = 1_u128 << 90;
-        let quotient = numerator / denominator | u128::from(numerator % denominator != 0);
+        let quotient = (numerator / denominator) | u128::from(numerator % denominator != 0);
         Ok(self.finite(scale.negative, quotient, -scale.exponent - 67))
     }
     pub(super) fn material_threshold(self, threshold: u8) -> Result<f32, Error> {
