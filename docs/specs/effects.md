@@ -2450,7 +2450,7 @@ Only handlers with published sections have execution contracts here.
 | 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed; §19.25 |
 | 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand`; §19.25 |
 | 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand`; §19.45 |
-| 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
+| 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand`; §19.47 |
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
 | 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand`; §19.43 |
 | 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand`; §19.23 |
@@ -3742,3 +3742,90 @@ explicitly failing. These are static predictions, not native observations.
 | EC234 | terrainOnly, waterOnly, seaOnly, lakeOnly, belowHeight 4, aboveHeight 3, heightRange 9,2 | height endpoints 9,2; flags A OR 70000 hex; every listed option consumed |
 | EC235 | heightRange first conversion 9, second throws; killOutsideCity present | new lower height 9, old upper; flags A OR 10000 hex; new default source bounds retained; killOutsideCity unqueried |
 | EC236 | scaleParticles, pinToTerrain, pinToWater, killOutsideCity, resetIncoming | flags A OR 40C800 hex; flags B OR 200 hex; default bounds |
+
+### 19.47 Particle `emit`: rate and launch parameters *[compat]*
+
+`cParticleEmitCommand::Parse` (`0059C280`) operates on the same D=P+F0
+as the particle children above. It needs no positional value and supplies no
+implicit injection or rate when their switches are absent. It first queries
+`inject` (minimum one). When present it resizes D+88's rate list to one,
+converts only the first selected value to binary32 element 0, then ORs flags
+A with 2. Otherwise it queries `rate` (minimum one); when present it clears
+the rate list and appends every selected ParseFloat result as binary32.
+The resize/clear failure prefixes are exactly those in §19.19. Inject wins
+over rate; the unqueried rate switch remains unconsumed.
+
+It next applies the nine common rate-option lookups from §19.19, in the
+same order and with the same destinations and semantics: loop, single,
+sustain, scale, areaScale, volumeScale, delay, trigger, and retrigger only
+when trigger is absent. Here those operations are part of this owner's
+contract even though its instructions contain their own copy. No maintain
+lookup occurs. After them it processes the following independent switches
+in table order, even if their textual order is different. Omitted switches
+preserve the corresponding fields. All finder branches test AL.
+
+| Option / minimum | Selected values and result |
+|---|---|
+| `velocity` / 1 | First is ParseVector3 v; optional second is ParseFloat speed m (default 1); optional third is ParseFloat variation t (default 0). Set direction bounds D+30 and D+3C to normalized(v) minus/plus (t,t,t); speed endpoints D+48,+4C become (1−t)m and (1+t)m. |
+| `speed` / 1 | ParseFloat first as m, optional second as r (default 0), both rounded to binary32. Replace only speed endpoints with m−r, m+r. |
+| `dir` / 1 | ParseVector3 first as v; optional second is split into argument records. One subargument: ParseFloat it and use that variation on all axes. Three: ParseFloat subarguments in **Z, Y, X conversion order**, use the resulting X/Y/Z variation vector r. Any other subargument count throws `Expecting float or vector3 for second -dir argument`. Without a second value use r=(0,0,0). Normalize v only if its squared length is ordered greater than zero; set direction bounds to v−r, v+r. Speed endpoints are untouched. |
+| `vel` / 1 | ParseVector3 first as v. If its squared length is ordered greater than zero, set m to its length and normalize v; otherwise m=0 and retain v unchanged. Replace both speed endpoints with m and both direction bounds with v. |
+| `base` / 0 | OR flags A with 20 hex. Ignore selected values. |
+
+Extra selected values beyond these counts are ignored, except rate's list.
+Each row completes before the next; speed overrides velocity's speed only,
+dir overrides its direction only, and vel overrides both. There is no owner
+test for negative speed, variation, reversed endpoints, or finite values.
+Velocity has **no zero-length guard**: zero v reaches division by zero and
+the multiply, so ordinary masked x87 execution yields NaN direction bounds.
+Dir and vel do guard zero/unordered squared lengths; they retain a zero
+vector, rather than inventing an axis. No renderer or runtime emitter is
+created. Parsed switches and all completed earlier rows survive exceptions.
+Velocity/dir do not publish their bounds until their conversions succeed;
+in particular, a dir shape error leaves earlier velocity/speed writes intact
+and skips vel/base. The generic post-check can still reject unhandled input.
+
+Numeric qualification (R means binary32 rounding; arithmetic otherwise uses
+the x87 intermediate precision): velocity forms q=(x²+z²)+y², computes
+f=1/sqrt(q), retains x*f in extended precision and rounds y*f,z*f before
+adding/subtracting t. Its parsed m is rounded; its third ParseFloat t is
+used without an intermediate binary32 store. All final bounds/endpoints
+are binary32. Dir forms q=(z²+y²)+x², tests q directly, uses f=1/sqrt(q)
+if ordered positive, retains x*f extended and rounds y*f,z*f before final
+bound arithmetic. Its variation components are binary32. Vel forms the
+same q, stores R(q) **before** testing the unrounded q; on positive q its
+length is sqrt(R(q)), its reciprocal is computed from that length, all
+three normalized components are rounded, and length is rounded when
+stored to both speed endpoints. Thus these three spellings are not
+interchangeable floating-point algorithms. Speed's two sums use rounded
+m and r, with binary32 destinations. No ×50 unit scaling occurs.
+
+Evidence: injection/rate `0059C28B–0059C39E`; common rate options
+`0059C3A0–0059C575`; velocity conversions and normalization/stores
+`0059C57B–0059C6D6`; speed `0059C6DC–0059C75E`; dir split, reverse
+conversion order and guarded normalization `0059C764–0059C93C`;
+vel q store/test and reload `0059C97A–0059C9BE`, final stores/base
+`0059C9C0–0059CA35`; dir error `0059CA46–0059CA62`. Constant
+`00B0A508` is binary32 1. Instruction bytes establish the precision
+boundaries; the pseudocode's integer casts are not numeric conversions.
+
+### 19.48 Particle emit conformance vectors (unexecuted)
+
+Successful primitive replies are supplied independently. No native execution
+or game/shadow oracle has been performed for these predictions.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC237 | emit with no switches and no values | description unchanged; no implicit rate, speed or direction |
+| EC238 | inject 3 and rate 4,5 both present | rate list [3], flags A OR 2; rate not queried/consumed; post-check may fail after mutation |
+| EC239 | rate first ParseFloat succeeds as 7, second throws | list [7]; loop and later switches not queried |
+| EC240 | velocity (0,2,0), speed 8, variation 0.25 | direction lower (-0.25,0.75,-0.25), upper (0.25,1.25,0.25); speed endpoints 6,10 |
+| EC241 | velocity (0,0,0), no optional values | no owner exception; masked x87 yields NaN direction endpoints; speed endpoints 1,1 |
+| EC242 | velocity (0,1,0),4,0.5 then speed 10,2 | direction lower (-0.5,0.5,-0.5), upper (0.5,1.5,0.5); speed endpoints 8,12 |
+| EC243 | dir (0,0,0) with scalar variation 2 | direction (-2,-2,-2), (2,2,2); existing speed retained |
+| EC244 | dir (1,0,0) with variation (2,3,4) | conversions for variation occur 4,3,2; bounds (-1,-3,-4), (3,3,4) |
+| EC245 | velocity completed, then dir second value splits into two records | dir throws specified shape error; velocity results retained; vel/base unqueried |
+| EC246 | vel (3,4,0) after speed and dir | both speeds 5; both directions (R(0.6),R(0.8),0); prior speed/direction overridden |
+| EC247 | vel zero vector, then base | both speeds zero, both directions zero; flags A OR 20 hex |
+| EC248 | speed -2,-4 | endpoints 2,-6 without sorting or owner rejection |
+| EC249 | loop 2,5 and single without value | duration bits 3A83126F, loop count 1, as common options; existing rate retained |
