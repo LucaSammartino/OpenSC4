@@ -4,6 +4,14 @@
 
 ## Report
 
+## Handoff
+- Gate finished PASS: cargo 5891/0/0, clippy zero diagnostics, CMake 4/4, CTest 68/68. No operation remains running.
+- Final report below is committed; owner closure remains WIP solely for DC9 fog; existing DC3 stack attribution remains open.
+- Context reached 149698/150000 before queue creation. Next: remove this Handoff, commit lane report, write build-runs/merge-queue/core-draw-context-close5.json with state wip, actual HEAD, kind engine, abi false, game_runs []. No checks need repeating for documentation/queue work.
+- Reserved branch core-draw-context-close5; detached HEAD; supervisor publishes commits. Generated question index needs coordinator refresh.
+
+## Full report
+
 Implemented the published non-fog SC4DrawContext and cSC4PackedRenderState contracts in
 `engine/core/src/draw_context`. Driver, texture, camera, lighting, view and instance
 services remain foreign traits. No plugin/C API integration or C ABI change.
