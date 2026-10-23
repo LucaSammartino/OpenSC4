@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-video-preferences4 (bounded portable panel owner) | Codex / core-video-preferences4 | WIP: 27 portable tests PASS; quick Rust 3482/0; native compile 217/217; wrapper stalled in sccache stats, no terminal gate | Collect existing quick operation after external cache resolution, then run one canonical all; no native/game owner credit |
+| core-video-preferences4 (bounded portable panel owner) | Codex / core-video-preferences4 | in progress: SAME R2 stable qualification; historical quick terminal UNKNOWN | Preserve inherited evidence, then one canonical all; bounded portable scope only |
+
+## Handoff
+
+- Goal: qualify existing bounded owner on SAME original R2 of 3; no engine expansion or games.
+- Inherited clean HEAD `83e502d6f2fc02c13f34fe09c0ef4d52ae43e170`; engine `75ef2f7165d45907f0f688a76f18d1c3297b1373`.
+- Code/tests `1244c283`; later commits report-only. Historical focused Rust 3482/0 includes 27 panel tests; native 217 links do not prove terminal success.
+- Copied host proof at 06:41:22 confirms old PIDs absent, listener4620 empty; 06:42:26 named own-cwd/argv refs empty, errors empty. Historical exit/cause remains UNKNOWN.
+- Manifest: `build-runs/run4-core-video-preferences4-r2-manifest.json` in MAIN; role core, reserved own detached worktree, source public spec.
+- Preserved 12 exact inherited logs/proof/manifest files and SHA256 index under own `build-runs/inherited-r1-r2-qualification/`; no overwrite of that archive. All historical errors and missing terminal retained.
+- Tracked engine content SHA256 `0f12bef2b3a9fa01e506a2fdcb14039163cbf2ea4cae99a967b275fb82a5c9a3`; snapshot `build-runs/video-r2-inherited.json`.
+- Next: record stable committed pre-gate snapshot and run ONE canonical qbuild all.
+- No old session handle belongs to this R2 tool context. No duplicate quick, baseline, host preflight, process/cache actions or game request.
+- VP1-VP5 and all partial/default/foreign App boundaries below remain unchanged. Own queue remains WIP until actual full gate passes.
 
 ## Implementation and scope
 
