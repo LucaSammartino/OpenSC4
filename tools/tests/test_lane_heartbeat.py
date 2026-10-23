@@ -202,15 +202,18 @@ def test_wait_backlog_low_stop_and_timeout(tmp_path):
                               is_alive=lambda pid: True, refill_pid=1, waiting_on=lambda entry: ['train99-lane'])
     code, line = wait(tmp_path, 'backlog', snap=lambda root: low)
     assert code == heartbeat.WAIT_BACKLOG
-    assert line == ('BACKLOG LOW: 0 launchable < 9 open slots; live 0/9, '
-                    'pending 0 launchable / 1 waiting [x: train99-lane]')
+    assert 'CAPACITY: 9 actual workers missing; launchable deficit 9;' in line
+    assert 'pending 0 launchable / 1 waiting [x: train99-lane]' in line
     assert wait(tmp_path, 'backlog', snap=quiet_snapshot(stop=True))[0] == heartbeat.WAIT_HALT
     assert wait(tmp_path, 'backlog', snap=quiet_snapshot(provider_paused=True))[0] == heartbeat.WAIT_HALT
     code, line = wait(tmp_path, 'missing.out', timeout=25, poll=10)
     assert code == heartbeat.WAIT_TIMEOUT and line.startswith('TIMEOUT after 25s waiting for missing.out')
 
 
-def test_wait_event_wins_over_backlog_low(tmp_path):
+def test_wait_capacity_wins_over_completed_train(tmp_path):
     write_train(tmp_path, {'id': 'train9', 'gate': {'ok': False}, 'regress': None})
     low = heartbeat.summarize({'concurrency': 9, 'lanes': {}}, [], {}, is_alive=lambda pid: True, refill_pid=1)
-    assert wait(tmp_path, 'train', snap=lambda root: low)[0] == heartbeat.WAIT_EVENT
+    before = (tmp_path / 'build-runs/merge-train/state.json').read_bytes()
+    assert wait(tmp_path, 'train', snap=lambda root: low)[0] == heartbeat.WAIT_BACKLOG
+    assert (tmp_path / 'build-runs/merge-train/state.json').read_bytes() == before
+    assert wait(tmp_path, 'train')[0] == heartbeat.WAIT_EVENT
