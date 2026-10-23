@@ -1,12 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widgets-wg5 (widget control family specs) | Codex / `re-widgets-wg5` | in progress | Inspect owner exports and existing specs; write widget-controls.md and vectors; doccheck |
+| re-widgets-wg5 (widget control family specs) | Codex / `re-widgets-wg5` | ready: family spec, native control inventories and 28 proposed conformance scenarios; doccheck passed; partial owner boundaries explicit | Implement documented portions; resolve WC1–WC3 before claiming complete ListBox/TreeView behavior |
+
+## Report
+
+- Added [widget-controls.md](../specs/widget-controls.md), a family contract for Grid, TextEdit, ListBox, TreeView and FileBrowser. Incorporated existing owner specs by link instead of duplicating their inventories and detailed algorithms.
+- Added ListBox's 66-slot list interface and window-extension inventory, construction/state, selection/index/ID behavior, row geometry, input routing, notifications, reference ownership and drawing/service boundary.
+- Added TreeView's 60-slot primary interface and window overrides, construction/root/state, selection/expansion/visibility, key/wheel/bar dispatch, and interface-level drawing/lifetime boundary.
+- Native checks corrected misleading ListBox export labels: W slots 158/159 remove/insert storage; public selection is L slots 10/11. Native thunk displacement is 0xD8, despite decimal-228 names. Tree primary table ends before non-pointer 0x40490FDB.
+- Numeric instructions checked for ListBox binary32 constructor default, signed gutter/division geometry, equal-only color invalidation; TreeView integer/byte defaults, one-step wheel behavior (including delta zero), Init return and view offsets. Evidence is address-cited in the spec.
+- Added 28 proposed discriminating conformance scenarios. They are documentation vectors, not executed engine tests or game measurements.
+- Filed WC1, WC2 and WC3 in [questions/widget-controls.md](../specs/questions/widget-controls.md); regenerated QUESTIONS.md. These cover unresolved adapters, descriptor/removal/order/resource failure contracts, exact rendering and drag/modifier behavior. No existing question was moved or claimed answered.
+- Validation: `python tools/doccheck.py check` passed. Cargo/clippy/ctest and game/shadow checks are n/a for this documentation-only lane. No ABI exports or ABI files changed; no ABI row proposal.
+- Scope limit: inventories do not establish whole-owner completeness. Existing Grid/TextEdit/FileBrowser parked residuals remain with their own specs. ListBox/TreeView residuals are explicit; this round is ready as a bounded spec deliverable, not a full 107 KB behavior proof.
+- Tools: used re_query.py first, local decomp and native PE table words. REA was not called (brief says no binary open). q.py failed with Windows CreateFileMapping error 5; native PowerShell succeeded. Git printed a packed-refs.lock permission warning during commit, but created the detached-HEAD commit normally; shared refs were not changed.
 
 ## Handoff
 
 - Goal: specify Grid, TextEdit, ListBox, TreeView and FileBrowser without engine edits.
-- Done: family reading map and Grid/TextEdit/FileBrowser summaries written with linked inventories, defaults, dispatch, drawing/IO and failure boundaries.
-- Next: finish ListBox and TreeView sections from local decomp and native tables; add vectors/questions and doccheck.
+- Done: initial map committed as `8b792da7`; family spec, two new owner inventories, 28 scenarios and three residual questions finished; doccheck passed.
+- Next: coordinator may land this bounded documentation deliverable; future authorized RE can resolve WC1–WC3. No automatic restart requested.
 - Evidence: main checkout `C:/Users/tlori/FreeCity4`; export available via re_query.py. No REA needed or available binary.
 - Tool note: q.py Bash wrapper fails with Windows CreateFileMapping error 5; use native PowerShell with capped output.
 - No ABI edits, game requests or engine reads.
