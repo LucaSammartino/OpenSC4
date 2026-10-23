@@ -2444,11 +2444,11 @@ Only handlers with published sections have execution contracts here.
 | Order | Literal | Descriptor | Direct handler | Owner / contract |
 |---:|---|---|---|---|
 | 1 | `zoom` | `00A9FB78` | `005970E0` | unnamed; §19.18 |
-| 2 | `color` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
-| 3 | `alpha` | `00A9FB58` | `0059C060` | unnamed |
-| 4 | `size` | `00A9FB48` | `005998E0` | unnamed |
-| 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed |
-| 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand` |
+| 2 | `color` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 3 | `alpha` | `00A9FB58` | `0059C060` | unnamed; §19.25 |
+| 4 | `size` | `00A9FB48` | `005998E0` | unnamed; §19.25 |
+| 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed; §19.25 |
+| 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand`; §19.25 |
 | 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand` |
 | 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
@@ -2466,10 +2466,10 @@ Only handlers with published sections have execution contracts here.
 | 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand`; §19.22 |
 | 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
 | 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed |
-| 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
-| 25 | `colour` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
-| 26 | `colour255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
-| 27 | `alpha255` | `00A9FB58` | `0059C060` | unnamed |
+| 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 25 | `colour` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 26 | `colour255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
+| 27 | `alpha255` | `00A9FB58` | `0059C060` | unnamed; §19.25 |
 
 There are 23 distinct descriptor addresses. In particular, the two final
 registrations call constructors `00595D20` and `00595D30`, which only install
@@ -2790,3 +2790,107 @@ particular text spelling is accepted for NaN or extended-precision values.
 | EC102 | randomWalk delay=(5,2); strength=(5,-2); turn=(0.75) | delay 3,7; strength 7,3; turn fields 0.75,0; no reorder |
 | EC103 | randomWalk turn=(0.25,2); second ranged conversion fails | first turn field 0.25 and walk flag survive; second turn field retained; wait/preferSea/preferDir unqueried |
 | EC104 | randomWalk wait/preferSea present; preferDir successful lookup supplies vector `(0,3,4)` | flags OR `03800000`; vector stored unchanged `(0,3,4)`; no vector normalization; lookup minimum zero |
+
+### 19.25 Particle appearance lists and variation
+
+These five child handlers select at least one nonswitch value, ignoring the
+finder return, **before** clearing their corresponding list. They have no
+particles-name guard. Convert and append every selected value in selection
+order, using the conversions below. Then query `vary` with minimum one;
+if present, use only its first selected value. If absent, retain the existing
+variation field. No mode flags, runtime resources or collection lookups change.
+Allocator capacity is not conformance state; successful ordinary list services
+are assumed. Minimum-value failure precedes list clear; a later conversion
+failure leaves the successfully appended prefix and prevents option processing.
+
+| Literal / handler | List in D (in P) | Element conversion before append | First `vary` operand and destination |
+|---|---|---|---|
+| `color`, `colour`, `color255`, `colour255` / `cParticleColorCommand`, `0059BDC0` | vector list `D+94` (`P+184`) | foreign ParseColor, append the three returned binary32 words | owned ranged-vector conversion (below), bounds 0,1 on each component, then store three words at `D+7C,+80,+84` (`P+16C,+170,+174`) |
+| `alpha`, `alpha255` / unnamed, `0059C060` | float list `D+A0` (`P+190`) | ParseFloat, round to binary32 | scalar bounded conversion below, binary32 at `D+78` (`P+168`) |
+| `size` / unnamed, `005998E0` | float list `D+AC` (`P+19C`) | ParseFloat **times binary32 50**, then round once to binary32; no intermediate binary32 store of the conversion result | scalar bounded conversion below, binary32 at `D+68` (`P+158`); vary is **not** multiplied by 50 |
+| `aspect` / unnamed, `00599A10` | float list `D+B8` (`P+1A8`) | ParseFloat, round to binary32 | scalar bounded conversion below, binary32 at `D+6C` (`P+15C`) |
+| `rotate` / `cParticleRotateCommand`, `00599B60` | float list `D+C4` (`P+1B4`) | ParseFloat, round to binary32, **no angle factor** in this handler | scalar bounded conversion below, binary32 at `D+70` (`P+160`) |
+
+List operands themselves have no owner-level clamp, positivity or unit-range
+test. ParseColor is a foreign primitive, not the owned ranged-vector helper;
+do not substitute vary's validation for its input grammar. Negative size and
+aspect values and alpha values above one can be stored if conversion returns
+them. `rotate` additionally queries `offset` with minimum one **after** vary:
+if present ParseFloat its first value to binary32 `D+74` (`P+164`), with
+no angle factor or range check; if absent retain the previous offset. It ignores
+further offset values. A vary failure prevents the offset lookup.
+
+Scalar vary is an inlined ParseFloat followed by the same inclusive 0,1 x87
+comparison policy as §19.22: ordered out-of-range values throw the scalar
+range error **before rounding**, unordered NaN returns are accepted, and no
+destination write occurs on error. Extra selected vary values are ignored.
+The check is on the variation operand, never on the completed list.
+
+The owned **ranged-vector helper** `0059BF10` calls ParseVector3 into a
+temporary three-component binary32 value, then checks each component in x,y,z
+order against inclusive binary32 bounds, lower then upper. Ordered violations
+throw `argument out of range: expecting components [%g..%g], got [%g %g %g]`,
+formatting lower, upper, x,y,z as doubles. The instruction tests accept
+unordered NaN components, as for the scalar helper. Only if every component
+passes are the three output words returned for assignment: an invalid y does
+not partially replace the description's x variation. The input vector is
+already binary32 before comparison, unlike the scalar vary's unrounded x87
+return. This helper is an owned decision, while ParseVector3 is foreign.
+
+For color and alpha, **after** the entire list and successful/absent vary,
+inspect the final three bytes of the **raw command record 0**. If and only if
+they equal `255`, scale the list in place by binary32 constant bits
+`3B808081` (approximately 1/255). Each already-stored component/element is
+multiplied in x87 precision and rounded back to binary32, visiting list order
+and x,y,z order within each color. This is multiplication by that constant,
+not division by an exact integer. Do not clamp the result, and **do not scale
+the variation fields**. Non-255 names leave the list unchanged. The descriptor
+has no normalization flag (§19.17); the raw command spelling controls this
+decision. Registered aliases all have at least three bytes; a direct-handler
+fixture with a shorter command name reaches a foreign substring range failure
+after the earlier list/vary changes, rather than a special owner syntax error.
+
+Failure order is observable: bad second list conversion leaves an unscaled
+one-element prefix even for a 255 alias; bad vary leaves the complete unscaled
+list. Existing variation survives a missing vary or failed validation. Repeated
+successful commands replace the list, so a later 255 command scales its new
+list once, not the old normalized list again. No renderer call occurs here.
+
+Evidence: color selection/clear/ParseColor append `0059BDCB–0059BE44`,
+vary/three-word stores `0059BE46–0059BE98`, suffix and scale dispatch
+`0059BE9E–0059BEF5`; vector helper comparisons/error `0059BF27–0059BFDB`,
+color component multiplications/stores `0059C014–0059C039`; alpha selection,
+append and vary `0059C06B–0059C161`, suffix/range path `0059C167–0059C23E`,
+scale loop `0059C256–0059C271`; size multiplication/store
+`0059993C–0059994F`, constant `00A84D24=42480000`; aspect append
+`00599A6C–00599AA3`; rotate append `00599BBC–00599BF3`, vary and raw offset
+`00599C0D–00599C8E`. Inlined scalar checks are
+`0059999E–005999BB`, `00599AEC–00599B09`, `00599C3C–00599C59`,
+`0059C13C–0059C161`; scalar error tails `005999CB`, `00599B19`,
+`00599CA1`, `0059C1F7`. Bounds 0,1 are `00A81054`, `00A81228`;
+error-format doubles `00A80990`, `00A80AB0`; normalization constant
+`00A90BBC=3B808081` and immediate `0059BEF0`.
+
+### 19.26 Particle appearance conformance vectors (unexecuted)
+
+Conversion replies are independent inputs as in §19.21; binary32 operations
+assume the ordinary nearest-even mode. These cases do not assert the grammar
+of the foreign color/vector/float readers beyond their returning values.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC105 | empty live name; size selection returns 2,-1 | list `D+AC=[100,-50]`; old vary retained; no name check or flags |
+| EC106 | size first conversion returns x87 value `1+2^-24` | multiply before rounding; stored first element bits `42480001`; rounding the conversion first would incorrectly produce 50 |
+| EC107 | old aspect list `[9]`; selected 2,bad; second conversion throws | new list `[2]`; old aspect vary retained; no vary lookup |
+| EC108 | rotate selected 0.25,2; vary=0.5; offset=-3 | list `[0.25,2]` with no angle conversion, vary 0.5, offset -3 |
+| EC109 | rotate values valid; vary returns 2; offset present | range error; list survives, old vary/offset retained; offset unqueried |
+| EC110 | aspect vary returns NaN; base list `[2]` | NaN stored in aspect vary; no range error |
+| EC111 | alpha255 selected 255,128,-255; vary=0.5 | list `[1, bits 3F008081, -1]`; vary 0.5 unchanged by normalization |
+| EC112 | alpha selected 255,128 | list `[255,128]`, no normalization; same descriptor as alpha255 |
+| EC113 | alpha255 selected 255,128; vary returns 2 | scalar range error before suffix scaling; list stays `[255,128]`; old vary retained |
+| EC114 | alpha255 selected 255,bad; second conversion throws | prefix `[255]` survives unscaled; no vary or suffix work |
+| EC115 | color255 ParseColor returns `(255,128,0)`; vary ParseVector3 returns `(1,0.5,0)` | color list `[(1,bits 3F008081,0)]`; variation exactly `(1,0.5,0)` without scaling |
+| EC116 | colour ParseColor returns `(255,128,0)` | stored vector stays `(255,128,0)`; colour255 with identical replies scales it as EC115 |
+| EC117 | color255 list parse succeeds `(255,0,0)`; vary returns `(0.5,2,0)` | vector range error, complete color list remains unscaled; all three old variation fields retained |
+| EC118 | color vary returns `(NaN,0.5,1)` | all components accepted and assigned, including NaN; no component normalization |
+| EC119 | alpha255 selected 256 with absent vary | result bits `3F808081`, above one; no owner clamp |
