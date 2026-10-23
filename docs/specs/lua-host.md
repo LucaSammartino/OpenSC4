@@ -1158,8 +1158,12 @@ Each `cSCLua` instance, on `Open`, adds its notification target to the game-data
 `OnGameDataRegistryNotification(registry, type, entry)` (`0x00881650`, pops 12) keeps a Lua mirror of the registry
 tree. Every entry also has a Lua registry slot keyed by the entry pointer as light userdata.
 
-Whether the registry replays existing entries to a newly added target is not known (§15). Instance 1 is subscribed
-before any city component publishes. Instance 2 is subscribed only while the automata scripts run.
+The native registry synchronously replays existing entries to a new target, including the root,
+in depth-first reverse-sibling insertion order; duplicate registration returns false without replay
+([registry §5](game-data-registry.md#5-notification-targets-and-replay), `0x00474F70`,
+`0x00474DE0`, `0x00473BD0`). This resolves legacy Q7 for nonmutating registration.
+Instance 1 is subscribed before any city component publishes. Instance 2 is subscribed only while
+the automata scripts run. Mutation during replay has no established snapshot guarantee.
 
 ### 9.2 `AddEntry` (type 3)
 
@@ -1374,8 +1378,7 @@ The `cIGZLua5`/`cIGZLua5Thread`/`cIGZLuaScriptServer`/`cISCStringDetokenizer` vt
   duplicates exist.
 - Q5. Whether the default error reporter writes anywhere (§4.3).
 - Q6. The meaning of the output parameter ID `0x2B999D2B` that call closures skip (§9.4).
-- Q7. Whether the game-data registry replays existing entries to a newly added notification target (§9.1). This
-  matters for instance 2 and 3, which subscribe late.
+- Q7 answered: existing entries are replayed synchronously (§9.1; archived as LH3).
 - Q8. The exact text and output of the default reporter (only its parts are known).
 
 ---
