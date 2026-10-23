@@ -281,7 +281,7 @@ void NetworkStep(void* p) {
             (total != s.geom.dragged_count) + (cost != coreCost);
         Log("nettool shadow (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
             "cells=%u/%u cell_diffs=%u ok=%d/%d failure=%08X/%08X valid=%u/%u straight=%u/%u "
-            "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires question=NT27",
+            "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires contract=NT27-NT29",
             a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
             static_cast<uint32_t>(cells.size()), static_cast<uint32_t>(s.cells.size()), cellDiffs,
             c->ok ? 1 : 0, s.ok ? 1 : 0, failure, s.failure, valid, s.geom.valid,

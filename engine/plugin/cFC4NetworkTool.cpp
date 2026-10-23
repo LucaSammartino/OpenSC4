@@ -325,6 +325,7 @@ void cFC4NetworkTool::EnablePreviewUpdate(bool enable) {
 void cFC4NetworkTool::SetAnchorPoints(const SC4Vector<SC4Point<uint32_t>>&) {}
 
 void cFC4NetworkTool::GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) const {
+    outCells.clear();  // NT27: assign a caller-owned copy, replacing its contents.
     if (!live_ || ctx_.geom == nullptr) return;
     fc4_netgeom_cell cells[FC4_NETTOOL_MAX_CELLS];
     const uint32_t n = fc4_netgeom_get_cells(ctx_.geom, cells, FC4_NETTOOL_MAX_CELLS);
@@ -335,11 +336,20 @@ void cFC4NetworkTool::GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) c
 
 void cFC4NetworkTool::SetValidStepCount(uint32_t) {}
 
-uint32_t cFC4NetworkTool::GetValidStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetValidStepCount() const {
+    fc4_netgeom_state state{};
+    return live_ && ctx_.geom && fc4_netgeom_get_state(ctx_.geom, &state) ? state.valid : 0;
+}
 
-uint32_t cFC4NetworkTool::GetStraightStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetStraightStepCount() const {
+    fc4_netgeom_state state{};
+    return live_ && ctx_.geom && fc4_netgeom_get_state(ctx_.geom, &state) ? state.straight_count : 0;
+}
 
-uint32_t cFC4NetworkTool::GetTotalStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetTotalStepCount() const {
+    fc4_netgeom_state state{};
+    return live_ && ctx_.geom && fc4_netgeom_get_state(ctx_.geom, &state) ? state.dragged_count : 0;
+}
 
 bool cFC4NetworkTool::IsRegularStep(uint32_t) const { return false; }
 

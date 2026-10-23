@@ -6,7 +6,10 @@
 - Goal: correct nine inexact public-result probes using NT27-NT29, measure all 14 through 2032, READY queue either way.
 - Done: merged re-nettool-nt27 as af12f558f; successful merge printed packed-refs permission error; no ref repair attempted.
 - Prior results below: 5/14 exact at turbo and normal, clean refs=0; source 5b266ce51.
-- Next: inspect geometry draw/cost and plugin host; implement staircase rows, retained pricing and Boolean public failure.
+- Implemented: NT28 staircase rows/width order, Boolean failure; host callback now preserves refused-pass reasons; failed smooth clears solved price inventory.
+- Implemented: NT29 retained network corners with live terrain, tests for inventory/shared vertices/markers/repeat charge; NT27 replacement copy/count getters corrected.
+- Focused cargo geometry tests: 46/46 pass. q.py Bash unavailable (CreateFileMapping error); direct cargo works. fmt requires absolute file arguments; final formatting pending.
+- Next: final fmt, full qbuild all, then unique 2032 game request. Prior report below remains round-1 evidence only.
 - No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
 - Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
