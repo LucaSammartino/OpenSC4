@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress; round 2 | Finish README closure audit, run final all gate, report and enqueue. |
+| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress; round 2 | Run final all gate, report and enqueue. |
 
 ## Handoff
 - Goal: implement nSGLDX7 driver, texture and primitive managers in core with foreign device traits, conformance coverage, and owner closure.
@@ -22,4 +22,5 @@
 - Corrected focused gate: 31 gdriver tests passed, zero failed (session 70182 terminal); explicit two-file fmt passed. Preserved pre-fix sentinel failure and corrected cleanup-test expectation logs in build-runs/gdriver5-r2-*.log.
 - New questions RD9–RD11 appended to renderer-driver.md questions; existing RD6/RD7/RD8 explicit boundaries.
 - No game requests outstanding. No plugin/capi integration, so game checks are not applicable to this core-only draft.
-- Next: finish per-owner/section README closure mapping (RD9-RD11 remain open), run final stable-source qbuild all once, then commit report and write ready queue with full HEAD. No merge-queue entry yet; ABI false.
+- Round 2 source milestone 3c769fe7: Enable fix and 31-test focused pass. README now maps every applicable subsection per owner; remaining boundaries are explicitly scoped. Added final matrix/no-op/blit, alias/refcount and light-field coverage; 32 tests await final all gate, two-file fmt passed.
+- Next: run final stable-source qbuild all once, collect its terminal result, then commit report and write ready queue with full HEAD. No requests outstanding; no merge-queue entry yet; ABI false.

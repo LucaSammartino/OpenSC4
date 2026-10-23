@@ -217,6 +217,24 @@ fn dx7_01_02_04_noops_and_identity() {
     assert!(d.query_interface(0x09cd86f9, Some(&mut out)).unwrap());
     assert_eq!(d.refs, 1);
     assert_eq!(d.primitives.refs, 1);
+    for (iid, token) in [
+        (1, 0x10c),
+        (0x669565fe, 0x100),
+        (0xe69bfe2a, 0x104),
+        (0x87e2b87d, 0x108),
+    ] {
+        assert!(d.query_interface(iid, Some(&mut out)).unwrap());
+        assert_eq!(out, token);
+    }
+    assert_eq!(d.refs, 5);
+    assert_eq!(d.release(), 4);
+    assert_eq!(d.add_ref(), 5);
+    assert_eq!(d.class_id(), crate::gdrivers_director::FOREIGN_DX7_CLASS);
+    assert_eq!(
+        d.query_interface(1, None),
+        Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite))
+    );
+    assert_eq!(d.refs, 5);
 }
 #[test]
 fn dx7_03_09_11_loss_restore_metadata_and_defaults() {
@@ -548,6 +566,53 @@ fn matrices_viewport_formats_and_draw_patterns() {
     assert_eq!(d.get_viewport(&mut h), [0; 4]);
 }
 #[test]
+fn matrix_modes_unchecked_failures_viewport_reset_and_unsupported_blits() {
+    let (mut d, mut h) = fixture();
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    d.error = 6;
+    h.calls.clear();
+    d.matrix_mode(0);
+    assert!(h.calls.is_empty());
+    assert_eq!(d.primitives.entries.len(), 1);
+    h.failures.push_back((Call::DrawBuffer, FAIL));
+    h.failures.push_back((Call::Transform, FAIL));
+    d.load_identity(&mut h);
+    assert_eq!(d.error, 6);
+    assert!(h.failures.is_empty());
+    assert!(positions(&h, Call::DrawBuffer)[0] < positions(&h, Call::Transform)[0]);
+    let transforms: Vec<_> = h.calls.iter().filter(|c| c.call == Call::Transform).collect();
+    assert_eq!(transforms.len(), 2);
+    assert_eq!(transforms[0].args, [1]);
+    assert_eq!(transforms[0].data, floats(&IDENTITY));
+    let mut view = IDENTITY;
+    view[10] = -1.;
+    assert_eq!(transforms[1].args, [2]);
+    assert_eq!(transforms[1].data, floats(&view));
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    h.calls.clear();
+    d.matrix_mode(99);
+    assert!(h.calls.is_empty());
+    d.load_identity(&mut h);
+    assert_eq!(positions(&h, Call::DrawBuffer).len(), 1);
+    assert!(positions(&h, Call::Transform).is_empty());
+    assert_eq!(d.error, 6);
+    d.projection = IDENTITY;
+    d.set_viewport(Some([900, 700, 10, 20]), &mut h);
+    assert_eq!(&h.viewport[..4], &[800, 0, 0, 0]);
+    assert_eq!(d.matrix_mode, 99);
+    assert_eq!(d.projection, IDENTITY);
+    d.set_viewport(None, &mut h);
+    assert_eq!(h.viewport, d.full_viewport);
+    assert_eq!(d.matrix_mode, 99);
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    h.calls.clear();
+    d.blit_unsupported();
+    assert_eq!(d.error, 3);
+    assert_eq!(d.primitives.entries.len(), 1);
+    assert!(h.calls.is_empty());
+}
+
+#[test]
 fn defaults_clear_quantization_and_stencil_failures() {
     let (mut d, mut h) = fixture();
     d.default_state(&mut h);
@@ -834,7 +899,11 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
     assert_eq!(h.calls.len(), count);
     let light = D3DLight::default();
     assert_eq!(light.kind, 1);
+    assert_eq!(light.colors, [[0.; 4]; 3]);
+    assert_eq!(light.position, [0.; 3]);
     assert_eq!(light.direction, [0., 0., 10.]);
+    assert_eq!(light.falloff, 1.);
+    assert_eq!(light.attenuation, [0.; 3]);
     assert_eq!(light.theta.to_bits(), 0x3f47ae14);
     assert_eq!(light.phi.to_bits(), 0x3fc8f5c3);
     assert_eq!(light.range, None);
