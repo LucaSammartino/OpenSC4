@@ -1,5 +1,9 @@
 # water-ripples: answered questions
 
+<!-- from: core-ripples5 (2026-10-23) -->
+- **WR13 - §1.3 spline arithmetic:** publish the actual intermediate spill/evaluation order for the four-point spline, derivative normalization and transcendental operations if bit-identical x87 output is required. The section identifies address ranges but gives only algebraic weights and warns that rearrangements need not match. [Core uses the literal published weights with binary32 Rust intermediates, sin and acos; exact x87 arithmetic remains unsupported rather than claimed by tolerance fixtures.]
+  **ANSWERED 2026-10-23 (re-ripples-wr5):** DIFFERS — §1.3 now gives ordered weight/derivative/coordinate reductions, every binary32 spill versus retained x87 value, asymmetric X/Z and Tx/Tz normalization, x87 sine/phase/vertex ordering and turn normalization/dot/acos path. Native acos uses x87 square root/atan with math-wrapper control-word handling; host Rust sin/acos and all-binary32 intermediates do not establish bit equality. Addresses `0075FC40–0075FE65`, `007612C5–0076142C`, `009F0090/009F00AD/009FAB25/009FABBB`; vector 30. Exceptional foreign math policy remains a named boundary, not a guessed finite/clamped result.
+
 <!-- from: re-ripples (2026-10-19) -->
 - **WR1 - §1.1, §1.5:** the time unit of the animation tick's elapsed value, the frame period `0x491C9C07` (175000)
   and the 2,000,000 rebuild delay (microseconds is inferred).

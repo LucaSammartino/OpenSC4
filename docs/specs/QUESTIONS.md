@@ -342,7 +342,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 3 | 5 | VW9 | questions/view3d-window.md |
-| water-ripples | 4 | 10 | WR15 | questions/water-ripples.md |
+| water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **537** | **1313** | | |
+| **total** | **536** | **1314** | | |

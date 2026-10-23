@@ -123,6 +123,64 @@ bit-identical. Phase is a binary32 owner field, reset to zero once per `CreateRi
 not per shore or strip (`0x00761E1A`, `0x00761E48`). Each spline evaluation uses sin of the old phase, then
 adds binary32 `0.1` (`0x3DCCCCCD` at `0x00A8C950`; `0x0075FDF8–0x0075FE1C`). Rejected samples consume phase too.
 
+**Arithmetic contract (WR13).** The following is an evaluation/rounding ledger for valid four-point input,
+not a requirement to reproduce the owner's local storage. All inputs are binary32. Let F mean a binary32
+store/reload; every other operation below is a separate x87 operation under the caller's precision/rounding
+control, without an implicit binary32 store, fused multiply-add or reassociation. The owner does not install
+a control word here. Register-resident means x87 storage, not a promise that every caller selects 64-bit
+significand precision. Exact cross-platform matching requires equivalent x87 arithmetic and transcendental
+primitives *[compat-limit]*; ordinary binary32 or host `sin`/`acos` tolerance tests are not bit equality.
+The constants are s = binary32 `3E2AAAAB` (1/6 approximation), h = binary32 `3F000000` (1/2),
+and integers 1,2,3,4,6 represented exactly (`00AB45F0`, `00A84D2C` and `00A81228/00A8825C/00A85074/00A8E17C/00A90900`).
+
+| Quantity | Ordered arithmetic; parentheses specify grouping | Storage |
+|---|---|---|
+| a | `3 × t` | register; reused for weights/derivatives |
+| w0 | `((((3 − t) × t − 3) × t + 1) × s)` | register |
+| w1 | `((((a − 6) × t) × t + 4) × s)` | F |
+| w2 | `((((3 − a) × t + 3) × t + 1) × s)` | F |
+| w3 | `(t × (t × t)) × s` | F; squared parameter remains separately in a register |
+| d0 | `(((2 − t) × t − 1) × h)` | F |
+| d1 | `(((a − 4) × t) × h)` | F |
+| d2 | `(((2 − a) × t + 1) × h)` | F |
+| d3 | `(t × t) × h` | register, using the retained square |
+
+Instruction proof: weights `0075FC43–0075FCD9`, derivatives `0075FCDD–0075FD33`.
+For point coordinates x0..x3 and z0..z3, the position and derivative reductions have **different orders**:
+
+| Quantity | Ordered sum, with separate products | Final storage |
+|---|---|---|
+| Px | `((w2×x2 + w1×x1) + w3×x3) + w0×x0` | F |
+| Pz | `((w3×z3 + w2×z2) + w0×z0) + w1×z1` | F |
+| X | `((d2×x2 + d1×x1) + d3×x3) + d0×x0` | F |
+| Z | `((d3×z3 + d2×z2) + d0×z0) + d1×z1` | register |
+
+These are `0075FD35–0075FD89` and `0075FD8F–0075FDDB`. Compute reciprocal length
+`1 / sqrt(Z×Z + X×X)` with x87 square root. Store Tx = F(X × reciprocal), but retain
+Tz = Z × reciprocal in a register (`0075FDDD–0075FDFD`). There is no zero-derivative guard.
+The unit normal used for vertices is `(Tz, −Tx)`.
+
+Use x87 sine of the old stored phase, multiply by the stored wobble amplitude, then add the zoom outer
+distance; retain this radius in a register. Independently store F(old phase + binary32 `3DCCCCCD`).
+Store each output coordinate once: outer x = F(radius×Tz + Px), outer z = F(Pz − radius×Tx),
+inner x = F(Px − Tz×innerDistance), inner z = F(Tx×innerDistance + Pz)
+(`0075FDFF–0075FE5C`). In particular, do not round Tz or radius before these products.
+
+**Turn arithmetic.** For each accepted-side spacing comparison, displacement is previous minus candidate;
+the following normalization recomputes candidate minus previous. Differences and squared products stay in
+x87 registers through the distance comparison. Normalization sums z² + x², takes x87 square root and
+reciprocal, then stores **both** normalized components to binary32. The direction dot product sums
+previous-z×current-z + previous-x×current-x without an intermediate binary32 store
+(`007612C5–00761347`, `00761390–00761414`). It is not clamped to [−1,1].
+The acos entry at `009F0090` has a misleading export name. It stores a binary64 copy for classification
+but retains the register argument for the calculation. For ordinary finite |dot| < 1 it computes the angle
+with x87 `atan2(sqrt((1+dot)×(1−dot)), dot)` (`009F00C8–009F00D6`); exact ±1 use zero/π.
+Its math wrapper temporarily masks exceptions and selects nearest rounding while preserving the caller's
+precision bits, then restores the saved control word on the normal path (`009FAB25`, `009FABBB`).
+The returned angle is compared directly to the stored binary32 turn limit, with no binary32 angle spill
+(`00761349–00761360`, `00761416–0076142C`). Native exceptional math handling remains a library boundary;
+this ledger does not invent a clamp, a finite fallback or portable NaN payloads.
+
 **Vertices.** The first vertex is outer, the second inner. Outer position is `(P.x + rN.x, waterY, P.z + rN.z)`,
 where r = D + (D × wobble)sin(phase); inner is `(P.x − dN.x, waterY + height, P.z − dN.z)`.
 Thus the configured height raises only the inner side (`0x007603F3–0x00760420`, `0x0075FE22–0x0075FE5C`).
@@ -537,6 +595,47 @@ DoMessage(message pointer) at `0x00761F80` (§1.5). No Init, Shutdown or Cleanup
 | Ripple | DetectShores `00761B70`, AddShore `00761A00`, CreateRipples `00761CF0`, shore traversal `00761140`, spline `0075FC40`, StartNewRipple `00760EE0`, preparation `0075FEE0` | §§1.2–1.3; resource failure contract above |
 | Ripple | DrawRipple `0075FE70`, grouped bounds `007609B0/00761010`, contact `0075FB40/007607F0`, edit `00760E10`, tick `00761E70`, remove-last `007606B0` | §§1.4–1.5; message dispatch table above |
 
+**Direct ripple call shapes (WR8 supplement).** These name behavioral record types defined in §§1.2–1.5/2.7,
+not new C ABI exports or recovered source declarations. An unobserved result is not a usable return value.
+Unless stated otherwise, the receiver is the primary ripple object. All pointer/range arguments require
+valid native storage; the table adds no invalid-pointer policy.
+
+| Entry | Inputs after receiver; result | Behavioral obligation |
+|---|---|---|
+| `00761790` construction | none; object pointer | initial fields/refcount in §2.4 |
+| `007619D0` deleting destruction | uint32 flags; result unused | nested destruction, optional free; no Shutdown |
+| `00760330`, `0075FBB0` | none; bool | Init/Shutdown, §2.4 |
+| `00760060`, `0075FB20` | no receiver or arguments; tuning result unused / reset bool true | process tuning read/reset, not instance destruction |
+| `00761B70`, `00761CF0` | none; result unused | append detection / rebuild strips, pending rule §1.5 |
+| `00761A00` | pointer to ordered index deque; result unused | copy to a new owned shore, §1.2 |
+| `00761140` | shore-record pointer; result unused | traverse that shore, append strips, §1.3 |
+| `0075FC40` | control-point vector descriptor pointer, int32 span index, binary32 t; result unused | update candidate vertex fields/phase; no returned point object |
+| `00760EE0` | shore-record pointer, pointer to current-strip pointer; result unused | may replace caller's strip pointer; lazy texture acquisition, §1.3 |
+| `0075FEE0` | strip-record pointer; result unused | sample animation and prepare fade |
+| `007609B0` | strip-record pointer; result unused | replace cached contact boxes for that strip, §1.4 |
+| `00761010` | none; result unused | rebuild strip and shore bounds, §1.4 |
+| `007607F0` | signed four-word rectangle pointer; bool in low byte | remove contacting strips; not a pure predicate |
+| `00760E10` | message pointer; result unused | packed edit bounds, §1.5 |
+| `00761E70` | uint32 elapsed microseconds; result unused | scheduling then animation |
+| `0075FE70` | strip-record pointer, draw-context pointer; result unused | draw one strip, §1.4 |
+| `00761FF0` | draw-context pointer; result unused by callers | first-update creation and draw |
+| `00761F80` | message pointer; bool true, including unknown IDs | message-interface receiver is primary+12, §1.5 |
+
+Two misleading owner names are **not object-receiver methods**: `0075FB40` consumes a rectangle pointer
+and strip pointer and returns contact in the low byte; `007606B0` consumes the strip-list descriptor in
+the register receiver and pops its last node. The latter must not be called with a ripple object as receiver
+(`007606B0–007606BB`). Storage helpers are the separate §2.7 checklist. Reference thunks
+`00761820/30/40/50/60` only adjust secondary receivers before the shared reference operations already listed.
+
+**Inventory boundary.** A fresh export address-window measurement gives 25 bodies / 5838 bytes at
+`[007504F0,00751C76)` and 44 bodies / 9438 bytes at `[0075FAE0,00762100)`: total **69 / 15276**.
+This includes table storage operations, thunks and the folded comparator body `007507A0`, as well as direct
+owner calls. It excludes out-of-window shared reference/allocator/convertor functions. Thus an address-window
+count is reproducible, but is not a count of owner methods; the historical **65 / 15308** has no supplied
+membership manifest and cannot serve as a completeness criterion. No four-body subtraction reconciles byte
+totals, since the supposedly smaller historical inventory has more bytes. Use the entry/role checklists,
+not either aggregate, to assess supported behavior.
+
 WR8 remains open for remaining literal signatures/owner attribution beyond the bounded storage contracts in
 §2.7, Pick's semantic argument types, and reconciliation of the brief's 65 functions/15308 bytes with the
 69-body/15276-byte address-window inventory.
@@ -778,8 +877,9 @@ animation tick drives the ripples.
 ## 5. Open questions
 
 See [questions/water-ripples.md](questions/water-ripples.md). WR4–WR7 and WR9–WR10 have native contracts here;
-WR7 was answered in §2.3. WR8 has bounded lifecycle, caller and storage contracts in §§2.4–2.7 and retains
-the explicit owner-attribution/signature residuals. WR1–WR3 remain separate semantic questions; in particular,
+WR7 was answered in §2.3. WR1 and WR11–WR14 are answered in §§1.3/1.5/2.4. WR8 has bounded lifecycle,
+caller, direct-call and storage checklists in §§2.4–2.7; its historical attribution and foreign/error-domain
+residuals remain open. WR2–WR3 remain separate semantic questions; in particular,
 bit 1 is a temporary trace visit mask here, not evidence that it means water.
 
 ## 6. Conformance tests
@@ -787,6 +887,7 @@ bit 1 is a temporary trace visit mask here, not evidence that it means water.
 All entries are proposed **UNEXECUTED** vectors, not native/game outputs or implementation validation.
 Round 3 adds caller/storage ledgers in §§2.6–2.7 and entries 22–24 below. Entry 25 records a previously
 pending rehash discriminator; it is not new native execution or additional credit for the older WR7 vectors.
+This lane adds entries 26–31; these also remain unexecuted proposals.
 
 1. **Spline:** with points (0, 0), (16, 0), (32, 0), (48, 0) and t = 0, P = (16, 0) and the tangent is +x.
 2. **Strip width:** at zoom 4, φ = 0: the outer vertex is 26 m out, the inner 1 m in.
@@ -860,3 +961,14 @@ pending rehash discriminator; it is not new native execution or additional credi
     elapsed 0 does not detect; elapsed 1 clears pending before the detection callback, detects once, recreates
     and animates new strips with elapsed 1. Clock remains 2000001. An immediate message with pending true
     detects twice; zoom-driven pending recreation detects once (§1.5).
+30. **WR13 arithmetic ledger:** at t = 0, require w0 register value equal to binary32 `3E2AAAAB`,
+    w1 stored `3F2AAAAB`, w2 stored `3E2AAAAB`, w3 zero; d0/d1/d2/d3 are −0.5, −0, +0.5, +0.
+    For points `(0,0),(16,0),(32,0),(48,0)`, position rounds to `(16,0)`, Tx = 1 and Tz = 0.
+    With D=26, innerDistance=1 and phase zero, outer `(16,waterY,−26)`, inner `(16,waterY+height,1)`;
+    new phase bits `3DCCCCCD`. For non-axis inputs, instrument the named weight/position/X/Tx stores and
+    compare against the §1.3 ledger under the same control word, keeping w0/d3/Z/Tz/radius unspilled.
+    Algebraic/tolerance equality alone must not mark this vector bit-exact. No native output capture is claimed.
+31. **WR8 receiver/lifecycle:** compare fresh, already-initialized and stopped/reinitialized owners against
+    §2.4, including initial refcount zero, false repeated Init and true repeated Shutdown. Destruction alone
+    must not fabricate terrain/binding release or a process RNG reset. Exercise remove-last with a nonempty
+    strip-list receiver and verify only that list's final payload is freed (§2.7); it is not an object method.
