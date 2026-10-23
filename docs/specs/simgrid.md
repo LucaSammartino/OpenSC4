@@ -185,8 +185,9 @@ regardless of stream errors *[quirk]*. *[choice]* FreeCity4 returns false on a s
 
 ### 6.1 Reference counting
 
-A new grid has count 0. Owners `AddRef` it. `Release` destroys it when the count is 1 or less (§4). Getters on the
-simulators return their grid pointers **without** `AddRef`.
+A new grid has count 0. Owners `AddRef` it. `Release` destroys it when the count is 1 or less (§4). Single-pointer
+getters in §6.2.1 return borrowed pointers **without** `AddRef`. Residential's three-output getters are an
+exception: they `AddRef` every output; the caller releases each one (§6.2.2).
 
 ### 6.2 Creation by the original
 
@@ -194,6 +195,139 @@ The original simulators construct their grids **directly** (`new` + constructor 
 `SetTractSize` + `SetInstanceID`), not through GZCOM. On load, the class-object store creates grids through the
 COM director's factories (§2) and the owner receives them through `ReadGZSerializable` with IID `0xC9BD939A`.
 The map view also constructs `uint16`/`int16` grids of its own.
+
+### 6.2.1 Owner/getter inventory for city record shadows (SG3) *[compat]*
+
+**Scope [choice, coordinator contract]:** at PostCityInit (after the owners have handled city initialization)
+and each monthly observation, sample the simulation-owned grids exposed by the getters below. This is an
+exhaustive inventory **for this scope**, not an enumeration of every live SimGrid or every saved grid. There
+is no global live-grid enumerator required by this contract. A class-store record walk or references observed
+by a stream adapter do not establish this inventory: original owners also construct grids directly.
+
+Obtain the current owners through the corresponding city getters (`GetLandValueSimulator`,
+`GetPollutionSimulator`, `GetPowerSimulator`, `GetPlumbingSimulator`, `GetCrimeSimulator`,
+`GetFireProtectionSimulator`, `GetPoliceSimulator`, `GetFlammabilitySimulator`, `GetAuraSimulator`,
+`GetTrafficSimulator`, `GetBuildingDevelopmentSimulator`, `GetCommercialSimulator`, `GetResidentialSimulator`).
+Slots below are zero-based slots of each owner's primary interface, including IUnknown. Each no-argument
+getter returns `cISC4SimGrid<element>*` in EAX; its stack pop is zero. Selectors are 32-bit stack arguments
+(pop 4). These are interface calls: identical executable addresses can serve unrelated methods in other
+interfaces, and their exported function names alone do not identify the owner.
+
+Let `C = (city.CellCountX(), city.CellCountZ())`, and `D(S) = (Cx >> shift(S), Cz >> shift(S))` from §3.
+The dimensions column gives **new-city geometry**; the actual grid's `GetTractCountX/Z`, `GetTractSize`,
+`GetTractShift`, widths and inverse widths are authoritative, especially after load. Do not resize an observed
+grid to the table's default. The parenthesized counts are for a 256 × 256-cell city. A loaded grid's §5 record
+can preserve geometry independently of current tuning. All entries cover the entire city, indexed `[x][z]`.
+
+| Owner | Getter (slot; selector if any) | Element | Tract size S / dimensions | Instance ID or discriminator |
+|---|---|---|---|---|
+| land value | `GetIntrinsicLandValueMap` (7) | uint8 | tuning `0x47E2C200`, shipped 2 / D(S) (128 × 128) | `0x89D5BB39` |
+| land value | `GetTotalLandValueMap` (8) | uint8 | same | `0x89D5BB51` |
+| land value | `GetSlopeMap` (9) | float32 | 8 / D(8) (32 × 32) | `0x49D5BB6F` |
+| pollution | `GetPollutionGrid` (5; 0 air, 1 water) | int16 | 2 / D(2) (128 × 128), each | `0x49D5BC40`, `0x49D5BC41` |
+| pollution | `GetPollutionGrid` (5; 2 garbage) | int16 | 1 / C (256 × 256) | `0x49D5BC42`; preserve all bits, including landfill bit 15 |
+| pollution | `GetPollutionGrid` (5; 3 radiation) | int16 | 2 / D(2) (128 × 128) | **source** `0x89D5BBF3`, not radiation-value `0x49D5BC43` |
+| power | `GetPoweredGrid` (35 const / 36 mutable) | uint8 | 1 / C (256 × 256) | `0x49D5BC86`; both slots alias one grid |
+| plumbing | `GetWateredGrid` (7) | uint8 | 1 / C (256 × 256) | published role; ID alternates `0x49D5BBA1` / `0x49D5BB8C` |
+| crime | `GetCrimeGrid` (5) | uint8 | tuning `0x47E2C200`, default 2 / D(S) (128 × 128) | `0x89D5B895` |
+| fire protection | coverage getter (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5B8F9` |
+| police | coverage getter (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5BBB9` |
+| flammability | `GetFlammabilityGrid` (5) | uint8 | 1 / C (256 × 256) | adjusted `0x49D5B953` |
+| aura | `GetAuraGrid` (12) | int8 | 4 / D(4) (64 × 64) | `0x69D5B600` |
+| aura | `GetParkMap` (14) | int16 | 4 / D(4) (64 × 64) | `0x49D5B602` |
+| aura | `GetLandmarkMap` (15) | int16 | 4 / D(4) (64 × 64) | `0x8A674CAF` |
+| traffic | `GetAirPollutingTrafficMap` (8) | uint8 | 1 / C (256 × 256) | `0x89D5C3A2` |
+| traffic | `GetCommercialTrafficMap` (9) | uint8 | 4 / D(4) (64 × 64) | `0xCABD2925` |
+| traffic | `GetCongestionMap` (10) | uint8 | 1 / C (256 × 256) | `0x69D5C402` |
+| traffic | `GetTripLengthMap` (13) | uint8 | 1 / C (256 × 256) | `0x69D5C3BF` |
+| building development (BDS) | `GetBuildingMap` (41) | uint8 | 1 / C (256 × 256) | `0x49D5B678` |
+| commercial | `GetProximityMap` (5; `0x3320`, `0x3330`) | uint8 | 1 / C (256 × 256), each | `0x89D5B788`, `0x89D5B6EF` |
+| residential | `GetProximityMap` (5; wealth 1, 2, 3) | uint8 | 1 / C (256 × 256), each | `0x49D5BC96`, `0x49D5BCA6`, `0x49D5BCB7` |
+| residential | `GetPopulationGrids` (25; three outputs) | uint16 | P / D(P), shipped 4 (64 × 64), each | `0x69D5C2A0` through `0x69D5C2A2` |
+| residential | `GetEQGrids` (23; three outputs) | float32 | E / D(E), shipped 4 (64 × 64), each | `0x69D5C2D0` through `0x69D5C2D2` |
+| residential | `GetHQGrids` (24; three outputs) | float32 | E / D(E), shipped 4 (64 × 64), each | `0x69D5C2E0` through `0x69D5C2E2` |
+| residential | `GetSchoolAverageGradeMap` (39) | float32 | P / D(P), shipped 4 (64 × 64) | `0x69D5C324` |
+| residential | `GetHospitalAverageGradeMap` (40) | float32 | P / D(P), shipped 4 (64 × 64) | `0x69D5C330` |
+| residential | `GetAverageAgeMap` (41) | uint8 | P / D(P), shipped 4 (64 × 64) | `0x69D5C303` |
+| each growth developer | `GetDesirabilityMap` (13) | int16 | developer tuning `0x87CD6310`, shipped 4 / D(S) (64 × 64) | developer type + `0x02000000` |
+| each growth developer | `GetCapacityMap` (14) | uint16 | same | type + `0x05000000` |
+| each growth developer | `GetPopulationMap` (15) | **int16** | same | type + `0x03000000` |
+| each growth developer | `GetMaxCapacityMap` (16) | uint16 | same | type + `0x06000000` |
+
+Residential P and E are taken from the R$ developer population grid's tract size on a new city; on load they
+come from the residential record. They are not constants to impose on restored grids (residential §2).
+Growth developer population is signed int16; residential population is unsigned uint16. They are different
+grids even if their current values and dimensions happen to match.
+
+**Developer discovery:** BDS slot 34 `GetDevelopers()` returns a borrowed pointer in EAX to its internal
+`std::map<uint32, cISC4GrowthDeveloper*>` (pop 0; the STLport map layout and allocator are documented in
+[building-development.md](building-development.md) §9 and [allocators.md](../abi/allocators.md)). Read every
+entry without modifying the map, and apply the four growth-getter rows to each current developer. Both map
+and values are borrowed; enumeration itself adds no references. BDS slot 32
+`GetDeveloper(uint32 developerType)` is a borrowed lookup (pop 4, null if absent), not an enumerator. Shipped
+keys are `0x1010`, `0x1020`, `0x1030`, `0x3110`, `0x3120`, `0x3130`, `0x3320`, `0x3330`, `0x4100`,
+`0x4200`, `0x4300`, `0x4400`. Use map keys or developer slot 6 `GetSubType()` for identity; slot 5 `GetType()`
+is the target zone (1/2/3), not the developer key. Do not probe all integers or assume exactly twelve entries
+when exemplars are modified. In the shipped set the inventory has **38 non-growth roles + 4 × 12 = 86 roles**.
+
+**Exclusions:** the map view's grids; all newly created return/scratch grids (including residential
+`GetAverageEQGrid`/`GetAverageHQGrid` slots 21/22); aura's explicitly transient grid (`GetTransientAuraGrid`,
+13), even though it is saved; owner-private grids with no getter (crime effect, unadjusted protection, raw
+flammability, pollution's other sources and unused radiation value, aura base/building/raw-park/department
+grids, growth work/zoned-count grids, traffic's other grids, plumbing work). The weather moisture map and
+power consumption map are raw vector objects, not `cISC4SimGrid`; no §5 record applies to them. Flora owns
+no SimGrid. Landfill, industrial and civic simulators add no SimGrid getter to this inventory. These exclusions
+mean a successful sample establishes the owner-getter scope only, not all persisted city grids.
+
+**Evidence:** geometry uses signed shifts at `0x00461000`–`0x00461019` (S/shift at `0x00460FD3`–`0x00460FEB`);
+the per-owner creation sizes and IDs are specified in landvalue §2, pollution §2, power §2, plumbing §2,
+crime §2, protection §2, flammability §2, aura §2, traffic-simulator §1, building-development §1.3,
+commercial-industrial §2.1, residential §2 and growth-developer §1.2/§4.8. Getter instruction checks:
+land value `0x006BDD80`, `0x0060FB80`, `0x006AAC50`; aura `0x0068D1B0`, `0x0040D390`, `0x0068D1D0`;
+crime `0x006A0050`; flammability `0x0040D390`; fire/police/power `0x006EFA50`; traffic `0x006AAC50`,
+`0x0080BC00`, `0x00698CF0`, `0x00820250`; BDS map `0x00698CF0`, developer-map address `0x00698CD0`;
+growth `0x007C9FB0`, `0x004E82A0`, `0x007C1910`, `0x007E56F0`; residential scalar-grid getters
+`0x00809240`, `0x00407AC0`, `0x006AAEB0`. These bodies return pointers without reference-count calls.
+Commercial selectors are checked at `0x0069EAD4`–`0x0069EAEE`; residential selectors at
+`0x006F6F94`–`0x006F6FB1`. Pollution `0x006E3364`–`0x006E3373` selects radiation **source** for type 3;
+there is no selector bounds check, so only 0..3 belong to this contract.
+
+### 6.2.2 Sampling and pointer lifetime (SG3) *[compat]*
+
+All single-pointer inventory getters are borrowed: do not release their results. The aliases
+`power.GetSupplyValueMapPtr(grid*&)` (slot 20, pop 4, `0x006EAD60`) and
+`plumbing.GetSupplyValueMapPtr(grid*&)` (slot 6, pop 4, `0x006DA450`) write the same borrowed grid object
+pointer through the output argument, **not** a row-vector address; do not count an alias as another role.
+Getters on residential slots 23/24/25 instead each take **three output pointer references** (pop 12), in
+wealth order R$, R$$, R$$$. They write the owner-held grids and `AddRef` each; release all nine acquired
+references after the sample. Their EAX is the third AddRef result, not a success flag
+(`0x006F72E3`–`0x006F72FA`, `0x006F7326`–`0x006F733D`, `0x006F735D`–`0x006F7374`).
+
+Acquire each role again at **each** observation on the simulation thread while the owners are alive, after
+initialization and before shutdown. Read the grid and finish its capture within that observation; do not retain
+borrowed row pointers, the developer map, or a previous role-to-object association across simulation work,
+loads, resizing, owner replacement or city teardown. AddRef can keep an object alive but does not guarantee
+it remains the current object for the role. A replaced owner is sampled through its public getters under the
+same contract; no original-class field offsets are needed to discover this scope.
+
+Plumbing is a deliberate identity quirk: when a pass publishes its result it **swaps pointers**, not the
+contents of a fixed public object. Both creation IDs can therefore be the current published grid; select by
+getter, never by an ID filter or a pointer retained at PostCityInit. The other getter results likewise describe
+the current role, rather than a promise of permanent pointer identity. Owners release grids at shutdown;
+neither a city-global cache nor a previous sample extends a borrowed pointer's lifetime.
+
+For comparison, identify a role by owner + getter + selector (developer key/wealth where applicable), then
+capture that grid's own §5 metadata and all `countX × countZ` elements in x-major order. Capture **all native
+bits** (signed values, garbage flags, float32 bits), not a rendered overlay or a converted byte map. Record
+instance IDs as metadata, not as an enumeration key: unrelated grids can share an ID. Do not call `Init`,
+`SetTractSize`, or a writing slot on an observed grid. Serializing or copying it is observation, not a request
+to advance its owner's update pipeline. Monthly fields may contain partially refreshed or previous-cycle
+values; no forced refresh is part of this inventory.
+
+Reporting policy *[choice]*: include an outcome for every expected role, with explicit null owner, null grid,
+unavailable developer-map access, geometry/type mismatch or capture failure; do not silently reduce the
+denominator and call the remaining subset complete. Keep absent/unsupported roles distinct from exact
+comparisons. Re-enumerate developers each observation, so additions/removals change the expected set then.
 
 ### 6.3 Raw memory access by original code *[compat]*
 
@@ -241,8 +375,9 @@ growth developers, and any later one).
 5. **Access.** Values may be read and written through the interface (slots 7, 22, 26, 27) or through the
    `GetGridData` pointer with the §6.3 layout. When writing through the pointer, never change the vectors'
    sizes or reallocate them (only `SetTractSize` and `Read` may); the game's allocator owns that memory.
-6. **Lifetime.** Getters hand out the grid without `AddRef` (as the original does), so the grid must stay alive
-   from `Init` until the owner's `Shutdown`, and the owner releases each grid exactly once in `Shutdown`.
+6. **Lifetime.** Owners keep grids alive until `Shutdown` and release their owned references there. A getter
+   can expose a different owned grid after a publication swap (§6.2.2). Single-pointer getters borrow;
+   residential three-output getters add caller-owned references that must also be released (§6.2.2).
 
 ## 7. Shared map utilities (`cSC4MapUtilities`) *[compat]*
 
@@ -419,3 +554,29 @@ ignores stream errors and trusts stored geometry (§5); `SetTractSize` keeps old
     → 5 → 1.
 18. Scanning iterator over [0, 2] × [0, 1] after `Reset(0, 0)`: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1), then false.
     `Reset(5, 0)` → first `GetNext` false.
+
+Owner-inventory conformance vectors (SG3; requirements for a future shadow harness, not claims of executed tests):
+
+19. **SG3-inventory-default:** initialized 256 × 256-cell shipped city, twelve BDS developer keys listed in
+    §6.2.1, all owner getters present → 86 expected roles: 38 non-growth, 48 growth. Calling both power
+    overloads and its supply-map alias still contributes one role; plumbing's alias likewise adds none.
+    Aura transient, residential synthesized averages and private grids contribute zero expected roles.
+20. **SG3-geometry:** 64 × 64-cell new city, shipped tuning → power/plumbing/flammability and proximity
+    maps 64 × 64; crime/land value intrinsic/total/pollution air/water/radiation/protection 32 × 32;
+    aura/traffic commercial/residential population-EQ-HQ-grade-age/growth 16 × 16; slope 8 × 8.
+    A restored intrinsic grid with S = 4 and counts 32 × 32 in a 128-cell city is captured as 32 × 32,
+    not resized to the shipped S = 2 (64 × 64). Metadata differences remain visible.
+21. **SG3-selectors-types:** pollution source radiation at (0,0) = −17, unused radiation-value grid = 123;
+    pollution selector 3 captures −17. Garbage raw `0x8001` captures bytes `01 80`, not amount 1 alone.
+    Growth population raw `0xFFFF` is int16 −1, residential population raw `0xFFFF` is uint16 65535;
+    their two-byte records agree at that position but the role/type identities remain different.
+22. **SG3-reference-balance:** initial reference counts q for each EQ/HQ/population grid; acquire the three
+    triples → each count q + 1; capture and release each output once → each count q. A borrowed proximity,
+    grade, age, power or growth getter leaves its count unchanged. No synthesized average getter is invoked.
+23. **SG3-publication:** plumbing at sample A returns object A, ID `0x49D5BBA1`, value (0,0) = 1; after a
+    completed pass sample B returns object B, ID `0x49D5BB8C`, value (0,0) = 0. Expected: one published role
+    in each sample, with the second object's metadata/value. Capturing object A twice fails this vector.
+24. **SG3-discovery-change:** developer map adds key K after the first sample → next expected set adds K's
+    four roles; removing K removes those four next time. A null crime grid in an otherwise complete shipped
+    inventory → 86 expected roles, at most 85 captured and one explicit failure, never 85/85 complete.
+    A new owner returned by the city is queried again; a stale pointer from the previous owner is not sampled.
