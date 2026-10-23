@@ -39,6 +39,7 @@ pub mod dilation;
 pub mod directory;
 pub mod game;
 mod manager;
+pub mod particle_owners;
 pub mod particles;
 pub mod shipped;
 
@@ -47,8 +48,8 @@ mod tests;
 
 pub use brush::{BrushEffect, BRUSH_DATA4};
 pub use directory::{
-    game_flag, AttractorRecord, BrushRecord, ComponentRecord, EffectDescription, EffectDirectory, GameRecord,
-    ParamBinding, ParseError, SectionOffsets,
+    game_flag, AttractorRecord, BrushRecord, ComponentRecord, EffectDescription, EffectDirectory,
+    GameRecord, ParamBinding, ParseError, SectionOffsets,
 };
 pub use game::{DemolishFilter, EffectRect, GameEffect, OccupantFacts, BURN_CAUSE};
 pub use manager::{Component, EffectId, EffectInfo, EffectsManager, EffectsStats, FinishMode};
@@ -167,7 +168,14 @@ pub trait EffectsHost {
     /// Demolition slot 6 `DemolishRegion(true, rect, privilege 0, flags,
     /// dezone, filter, …)`; the host asks [`DemolishFilter::skips`] per
     /// occupant.
-    fn demolish_region(&mut self, _rect: EffectRect, _flags: u32, _dezone: bool, _filter: &DemolishFilter) {}
+    fn demolish_region(
+        &mut self,
+        _rect: EffectRect,
+        _flags: u32,
+        _dezone: bool,
+        _filter: &DemolishFilter,
+    ) {
+    }
     /// Fire manager slot 6 `ExtinguishCell(x, z, amount)`.
     fn extinguish_cell(&mut self, _x: i32, _z: i32, _amount: i32) {}
     /// A queued post (`MessagePost`).

@@ -4,7 +4,12 @@
 
 ## Handoff
 - Goal: close the seven assigned particle owners against particles.md; core only, no ABI changes.
-- Done: reserved detached worktree reused; initial status clean.
-- Next: read existing effects, effects_parser, rigid_body_2d modules and assigned spec sections.
+- Done: extended existing emitter with full creation/motion records and draw-before-finish commands; added geometry, decal, dynamic, description/sequence and noncontact body contracts.
+- Done: focused pre-review run passed 43 particle tests (26 existing plus 17 new); later ownership/bootstrap audit corrections require final verification.
+- Next: collect qbuild all session 84690 (pre-review source; do not duplicate); inspect diagnostics, run final stable gate after review corrections.
+- Review corrections: uninitialized geometry teardown source leak, pending decal handle retry leak, body angle/friction Unsupported prefix, constructor empty containers, explicit PT13 bootstrap boundary.
+- Open: PT1/2/3/8/9/10/11 existing numeric limits; filed PT12 primary-sector spec conflict and PT13 ordinary bootstrap/transform inventory.
+- Native game requests: none; core-only and no plugin/capi wiring.
+- Closure map: engine/core/src/effects/particle_owners/README.md (includes precise unresolved domains).
 - Constraints: renderer/terrain remain foreign traits; no plugin/capi edits; no game integration requested.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-particles5-r1-manifest.json.

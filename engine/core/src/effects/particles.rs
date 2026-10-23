@@ -7,12 +7,13 @@
 //! The particle component's start/stop protocol and its emitters
 //! (`docs/specs/effects.md` §7.1, §7.1.1; EF1, EF13; conformance test 16).
 //!
-//! Only what the finish test (§7) observes is modelled: `started`, the
+//! The default projection models what the finish test (§7) observes: `started`, the
 //! delayed-stop request, the live particles and the emitter state (phase,
-//! loop counter, carry, countdown). Drawing, motion and the per-particle
-//! render data are outside this model. EF14 supplies the slot-20 age test
-//! and the first init draw (life); motion, terrain kills and other init
-//! draws/birth hooks are not modelled. Native owner outputs are not inputs.
+//! loop counter, carry, countdown). `set_motion` adds the complete creation
+//! record and supported physics from particles.md without a second emitter.
+//! Checked entry points expose PT1/PT8 helper limits. Abstract draw commands
+//! preserve dispatch and finish ordering, without claiming pixel conformance.
+//! Native owner outputs are not inputs.
 //!
 //! The protocol (§7.1):
 //! - base `Stop(mode1, _)` with `started` set: `delayed := mode1`; mode1 == 0
@@ -30,6 +31,10 @@
 //! when it is reached. Random draws come from the global `cRZRandom`
 //! (`0x00B22DF8`), passed in by the caller.
 
+use super::particle_owners::{
+    ordinary::{birth_events, crossing_events, Motion, Record},
+    Unsupported,
+};
 use crate::rng::RzRandom;
 
 /// Particle description flag A bits (§7.1, §7.1.1).
@@ -164,7 +169,9 @@ impl EmitterDesc {
                 let i = pos.floor() as usize;
                 let t = pos - i as f64;
                 if t > 0.0 {
-                    (f64::from(self.curve[i]) + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i]))) as f32
+                    (f64::from(self.curve[i])
+                        + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i])))
+                        as f32
                 } else {
                     self.curve[i]
                 }
@@ -178,12 +185,24 @@ impl EmitterDesc {
 struct Particle {
     age: f32,
     life: f32,
+    record: Option<Record>,
+    _lease: Option<super::particle_owners::pool::Lease>,
 }
 
 impl Particle {
-    fn update(&mut self, t: f32) -> bool {
+    fn update(&mut self, t: f32, motion: Option<&Motion>) -> Result<bool, Unsupported> {
+        if self.record.as_ref().is_some_and(|p| !p.alive) {
+            return Ok(false);
+        }
         self.age += t;
-        self.age < self.life
+        let alive = self.age < self.life;
+        if let Some(record) = &mut self.record {
+            record.alive = alive;
+            if alive {
+                motion.expect("motion record owner").update(record, t)?;
+            }
+        }
+        Ok(alive && self.record.as_ref().map_or(true, |p| p.alive))
     }
 }
 
@@ -211,7 +230,7 @@ pub struct ParticleSimulator {
     /// `dt` (`+0x108`).
     dt: f32,
     /// Total age (`+0x110`).
-    age: f32,
+    age: f64,
     /// Pre-roll pending (`+0x118`).
     preroll_pending: bool,
     /// Emission suppressed (`+0x21A`).
@@ -222,9 +241,27 @@ pub struct ParticleSimulator {
     stop_mode: u32,
     /// Particles created over the component's life (diagnostics).
     created: u64,
+    /// Optional full particles.md records; legacy finish-only callers retain
+    /// their existing projection without consuming extra random draws.
+    motion: Option<Motion>,
+    events: Vec<(Vec<u8>, [f32; 3])>,
 }
 
 impl ParticleSimulator {
+    /// No guessed service identities or native transform algorithm (PT13).
+    pub fn init_native_services(&mut self) -> Result<(), Unsupported> {
+        Err(Unsupported::PT13)
+    }
+    /// Component main slot 4 is distinct from the draw-associated update.
+    pub fn component_update(&mut self, _dt: f32) {}
+    pub fn set_float_parameter(&mut self, id: u32, values: &[f32]) -> Result<(), Unsupported> {
+        match id {
+            2 => self.desc.scales[1] = values[0],
+            0x102 => self.desc.scales[2] = values[0],
+            _ => return Err(Unsupported::PT13),
+        }
+        Ok(())
+    }
     /// A component with its description set (`SetDescription`).
     pub fn new(desc: EmitterDesc) -> ParticleSimulator {
         let mut p = ParticleSimulator {
@@ -244,6 +281,8 @@ impl ParticleSimulator {
             start_arg: 0,
             stop_mode: 0,
             created: 0,
+            motion: None,
+            events: Vec::new(),
         };
         p.set_description(desc);
         p
@@ -254,7 +293,11 @@ impl ParticleSimulator {
     /// scale `+0x1E0`. EF14: the replacement is used for `ρ` only; burst
     /// age and gaps still use the description's raw period.
     pub fn set_description(&mut self, mut desc: EmitterDesc) {
-        let period = if desc.period > 1e-6 { desc.period } else { 1e-6 };
+        let period = if desc.period > 1e-6 {
+            desc.period
+        } else {
+            1e-6
+        };
         self.rho = 1.0 / f64::from(period);
         self.suppressed = false;
         desc.scales[1] = 1.0;
@@ -273,9 +316,21 @@ impl ParticleSimulator {
     /// the interval range if `D+0x28 ≥ 0`, else 0 (`rng` is the global
     /// `cRZRandom`), and the pre-roll is pending only for `arg != 0`.
     pub fn start(&mut self, arg: u32, rng: &mut RzRandom) {
+        self.start_checked(arg, rng, None)
+            .expect("use start_checked for unresolved motion helpers");
+    }
+    pub fn start_checked(
+        &mut self,
+        arg: u32,
+        rng: &mut RzRandom,
+        sea_access: Option<u32>,
+    ) -> Result<(), Unsupported> {
         let d = &self.desc;
         if arg != 0 && d.loop_count > 0 && d.flags_a & emitter_flag::HOLD == 0 {
-            return;
+            return Ok(());
+        }
+        if self.started && !self.delayed_stop {
+            return Ok(());
         }
         self.started = true;
         self.delayed_stop = false;
@@ -283,6 +338,9 @@ impl ParticleSimulator {
         self.loops = 0;
         self.carry = 0.0;
         self.age = 0.0;
+        if let Some(motion) = &mut self.motion {
+            motion.prepare_start(rng, sea_access)?;
+        }
         let (sd, iv) = (d.start_delay, d.interval);
         self.countdown = if sd.0 >= 0.0 {
             rng.range_f64(f64::from(sd.0), f64::from(sd.1)) as f32
@@ -294,6 +352,7 @@ impl ParticleSimulator {
         self.start_arg = arg;
         self.stop_mode = 0;
         self.preroll_pending = arg != 0;
+        Ok(())
     }
 
     /// The component's `Stop(mode)` `0x005B21E0`: stores the mode and calls
@@ -357,6 +416,9 @@ impl ParticleSimulator {
 
     /// Total age (`+0x110`).
     pub fn age(&self) -> f32 {
+        self.age as f32
+    }
+    pub fn accumulated_time(&self) -> f64 {
         self.age
     }
 
@@ -364,13 +426,79 @@ impl ParticleSimulator {
         self.created
     }
 
+    /// Enable full records in the SAME emitter, rather than a second emission
+    /// implementation. Unsettled helpers are rejected explicitly before Start.
+    pub fn set_motion(&mut self, motion: Motion) -> Result<(), Unsupported> {
+        assert!(self.live.is_empty(), "configure before particle creation");
+        let d = &motion.description.value;
+        let f = |at| d.get_scalar(at).expect("initialized description");
+        self.set_description(EmitterDesc {
+            flags_a: d.words[&0],
+            flags_b: d.words[&8],
+            life_min: f(0x0c),
+            max_age: f(0x10),
+            period: f(0x14),
+            loop_count: d.words[&0x18],
+            preroll: f(0x1c),
+            start_delay: (f(0x20), f(0x24)),
+            interval: (f(0x28), f(0x2c)),
+            curve: d.floats[&0x88].clone(),
+            scales: [1.; 3],
+            rate_scale: motion.scale,
+        });
+        self.motion = Some(motion);
+        Ok(())
+    }
+    pub fn records(&self) -> impl Iterator<Item = &Record> {
+        self.live
+            .iter()
+            .filter_map(|particle| particle.record.as_ref())
+    }
+    pub fn remove_particle(&mut self, index: usize) {
+        let particle = &mut self.live[index];
+        if let Some(record) = &mut particle.record {
+            record.alive = false;
+        } else {
+            particle.life = particle.age;
+        }
+    }
+    /// Names are uncomposed PT2 event requests, not fabricated effect lookups.
+    pub fn take_events(&mut self) -> Vec<(Vec<u8>, [f32; 3])> {
+        std::mem::take(&mut self.events)
+    }
+    pub fn draw_slot(&self, context_present: bool, model_present: bool) -> u8 {
+        if !context_present || self.live.is_empty() {
+            19
+        } else if model_present {
+            18
+        } else {
+            17
+        }
+    }
+
     /// The draw-time update `0x005B8540` (only while started): the step
     /// (plus the pending pre-roll once) is stored and added to the age;
     /// every live particle is aged first, then the emitter dispatch runs
     /// unless suppressed, then `CheckForStop`.
     pub fn update(&mut self, dt: f32, rng: &mut RzRandom) {
+        self.update_checked(dt, rng)
+            .expect("use update_checked for unresolved motion helpers");
+    }
+    pub fn update_checked(&mut self, dt: f32, rng: &mut RzRandom) -> Result<(), Unsupported> {
+        self.update_with_draw(dt, rng, false, false, &mut |_| {})
+    }
+    /// Abstract slot commands preserve draw-before-finish ordering (§7). Exact
+    /// vertex/state packing remains PT8; the foreign context owns its lifetime.
+    pub fn update_with_draw(
+        &mut self,
+        dt: f32,
+        rng: &mut RzRandom,
+        context: bool,
+        model: bool,
+        draw: &mut impl FnMut(DrawCommand),
+    ) -> Result<(), Unsupported> {
         if !self.started {
-            return;
+            return Ok(());
         }
         let mut t = dt;
         if self.preroll_pending {
@@ -378,41 +506,127 @@ impl ParticleSimulator {
             self.preroll_pending = false;
         }
         self.dt = t;
-        self.age += t;
-        self.live.retain_mut(|p| p.update(t));
-        if !self.suppressed {
-            self.dispatch(rng);
+        self.age += f64::from(t);
+        if let Some(motion) = &mut self.motion {
+            if motion.flags() & 0x2000 != 0 {
+                return Err(Unsupported::PT1);
+            }
+            if !motion
+                .description
+                .value
+                .floats
+                .get(&0x1a4)
+                .map_or(true, Vec::is_empty)
+                && motion.description.value.get_scalar(0x1b0).unwrap_or(0.) > 0.
+            {
+                return Err(Unsupported::PT1);
+            }
+            motion.frame_force();
+            if motion.flags() & 0x8000_0000 != 0 {
+                for particle in &self.live {
+                    if let Some(record) = &particle.record {
+                        if record.alive {
+                            for name in crossing_events(
+                                &motion.description.value.timed_effects,
+                                particle.age,
+                                t,
+                            ) {
+                                self.events.push((name.to_vec(), record.position));
+                            }
+                        }
+                    }
+                }
+            }
         }
-        self.check_for_stop();
+        let mut index = 0;
+        while index < self.live.len() {
+            if self.live[index].update(t, self.motion.as_ref())? {
+                index += 1;
+            } else {
+                self.live.remove(index);
+            }
+        }
+        if !self.suppressed {
+            self.dispatch(rng)?;
+        }
+        let slot = self.draw_slot(context, model);
+        if slot == 19 {
+            draw(DrawCommand::Slot(19));
+        } else {
+            draw(DrawCommand::Slot(14));
+            if self.desc.flags_a & 1 != 0 {
+                draw(DrawCommand::SelfLit(true));
+            }
+            draw(DrawCommand::ModelTransform);
+            draw(DrawCommand::RenderState);
+            draw(DrawCommand::Slot(slot));
+            if self.desc.flags_a & 1 != 0 {
+                draw(DrawCommand::SelfLit(false));
+            }
+        }
+        if !self.check_for_stop()
+            && self
+                .motion
+                .as_ref()
+                .is_some_and(|m| m.flags() & 0x800000 != 0)
+        {
+            return Err(Unsupported::PT1);
+        }
+        Ok(())
     }
 
     /// Init always sets alive and age 0 and draws life first, even for a
     /// degenerate range or a particle rejected by the later slot-20 test.
     /// Plain emitters skip slot 20 entirely (`initial_age == None`).
-    fn create(&mut self, initial_age: Option<f32>, rng: &mut RzRandom) {
+    fn create(&mut self, initial_age: Option<f32>, rng: &mut RzRandom) -> Result<(), Unsupported> {
         self.created += 1;
+        let lease = if self.motion.is_some() {
+            let pool = super::particle_owners::pool::global_effect_pool();
+            let Some(lease) = super::particle_owners::pool::Pool::allocate(&pool, |_| true) else {
+                return Ok(());
+            };
+            Some(lease)
+        } else {
+            None
+        };
         let mut p = Particle {
             age: 0.0,
             life: rng.range_f64(f64::from(self.desc.life_min), f64::from(self.desc.max_age)) as f32,
+            record: self
+                .motion
+                .as_ref()
+                .map(|motion| motion.init(rng))
+                .transpose()?,
+            _lease: lease,
         };
         let alive = match initial_age {
-            Some(a) => p.update(a),
+            Some(a) => p.update(a, self.motion.as_ref())?,
             None => true,
         };
         if alive {
+            if initial_age.is_some() {
+                if let (Some(motion), Some(record)) = (&self.motion, &p.record) {
+                    if motion.flags() & 0x8000_0000 != 0 {
+                        for name in birth_events(&motion.description.value.timed_effects) {
+                            self.events.push((name.to_vec(), record.position));
+                        }
+                    }
+                }
+            }
             self.live.push(p);
         }
+        Ok(())
     }
 
     /// The dispatch `0x005B96E0`.
-    fn dispatch(&mut self, rng: &mut RzRandom) {
+    fn dispatch(&mut self, rng: &mut RzRandom) -> Result<(), Unsupported> {
         if self.delayed_stop {
-            return;
+            return Ok(());
         }
         let mut e = if self.countdown > 0.0 {
             self.countdown -= self.dt;
             if self.countdown > 0.0 {
-                return;
+                return Ok(());
             }
             -self.countdown
         } else {
@@ -430,10 +644,10 @@ impl ParticleSimulator {
     }
 
     /// The loop-budget emitter `0x005B8B50`: one burst per loop.
-    fn emit_loop_budget(&mut self, e: f32, rng: &mut RzRandom) {
-        self.phase = f64::from(self.phase as f32 + e * self.rho as f32);
+    fn emit_loop_budget(&mut self, e: f32, rng: &mut RzRandom) -> Result<(), Unsupported> {
+        self.phase += f64::from(e) * self.rho;
         if self.phase <= f64::from(self.loops) {
-            return;
+            return Ok(());
         }
         let d = &self.desc;
         let mut x = d.curve.first().copied().unwrap_or(0.0);
@@ -447,28 +661,30 @@ impl ParticleSimulator {
             let a = ((self.phase - f64::from(self.loops)) * f64::from(period)) as f32;
             if a < max_age && burst != 0 {
                 for _ in 0..burst {
-                    self.create(Some(a), rng);
+                    self.create(Some(a), rng)?;
                 }
             }
             self.loops += 1;
             if loop_count != 0 && self.loops >= loop_count {
                 self.stop(0);
-                return;
+                return Ok(());
             }
             if iv.0 >= 0.0 {
                 let gap = rng.range_f64(f64::from(iv.0), f64::from(iv.1));
                 self.phase -= gap * self.rho;
                 if self.phase < f64::from(self.loops) {
-                    self.countdown = ((f64::from(self.loops) - self.phase) * f64::from(period)) as f32;
+                    self.countdown =
+                        ((f64::from(self.loops) - self.phase) * f64::from(period)) as f32;
                     self.phase = f64::from(self.loops);
-                    return;
+                    return Ok(());
                 }
             }
         }
+        Ok(())
     }
 
     /// The rate emitter `0x005B87B0`: sub-steps of at most 1/15 s.
-    fn emit_rate(&mut self, mut e: f32, rng: &mut RzRandom) {
+    fn emit_rate(&mut self, mut e: f32, rng: &mut RzRandom) -> Result<(), Unsupported> {
         let (period, loop_count, iv, hold) = (
             self.desc.period,
             self.desc.loop_count,
@@ -490,7 +706,7 @@ impl ParticleSimulator {
                     }
                 } else if !hold {
                     self.stop(0);
-                    return;
+                    return Ok(());
                 } else {
                     self.loops = loop_count - 1;
                     self.phase = f64::from(loop_count) - 1e-6;
@@ -502,32 +718,46 @@ impl ParticleSimulator {
             self.carry = x - n;
             let n = n.max(0.0) as u32;
             for k in 0..n {
-                self.create(Some(e - k as f32 * s / n as f32), rng);
+                self.create(Some(e - k as f32 * s / n as f32), rng)?;
             }
             e -= s;
             if gap {
                 e -= rng.range_f64(f64::from(iv.0), f64::from(iv.1)) as f32;
                 if e < 0.0 {
                     self.countdown = -e;
-                    return;
+                    return Ok(());
                 }
             }
         }
+        Ok(())
     }
 
     /// EF14(a): top up to ceil(curve[0]), with no scaling, wrapping,
     /// counter/carry/countdown updates, slot 20 or birth hook.
-    fn emit_plain(&mut self, e: f32, rng: &mut RzRandom) {
+    fn emit_plain(&mut self, e: f32, rng: &mut RzRandom) -> Result<(), Unsupported> {
         self.phase += f64::from(e) * self.rho;
         if self.phase <= f64::from(self.loops) {
-            return;
+            return Ok(());
         }
         // [choice, EF14] Empty curve -> 0; T <= live -> no creations,
         // avoiding the native unsigned-underflow loop (~2^32 attempts).
-        let target = self.desc.curve.first().copied().unwrap_or(0.0).ceil().max(0.0) as u32;
-        for _ in self.live.len() as u64..u64::from(target) {
-            self.create(None, rng);
+        let target = self
+            .desc
+            .curve
+            .first()
+            .copied()
+            .unwrap_or(0.0)
+            .ceil()
+            .max(0.0) as u32;
+        let count = if self.motion.is_some() {
+            target.wrapping_sub(self.live.len() as u32)
+        } else {
+            target.saturating_sub(self.live.len() as u32)
+        };
+        for _ in 0..count {
+            self.create(None, rng)?;
         }
+        Ok(())
     }
 
     /// `CheckForStop` `0x005B9D40`: a requested delayed stop becomes
@@ -539,6 +769,14 @@ impl ParticleSimulator {
         }
         false
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DrawCommand {
+    Slot(u8),
+    SelfLit(bool),
+    ModelTransform,
+    RenderState,
 }
 
 #[cfg(test)]
