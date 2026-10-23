@@ -4,14 +4,10 @@
 
 ## Handoff
 
-- Goal: default-off record-only shadow to published NR16/NR17; full gate and 2032 verdict.
 - Done: merged re-netrules-nr17 at 845060f5; includes NR16 and ABI validation bytes.
-- Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
 - Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison at 1e9ada803.
 - Owner-thread rejection and non-vacuous exactness guards added; NR17 fixture asserts active under NDEBUG.
-- Follow-up guards committed at 8cdaae5d4; documentation at 8ddfe4069.
 - Ownership review corrected OpenDBRecord: manager retains ownership until CloseDBRecord, no observer Release; out pointer is success channel (same as FC4NetToolHost).
-- Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
 - Native verify qbuild-20261023-233355-build-ctest TERMINAL FAIL: MSVC C2488 on naked forward declarations at 223/286; ctest skipped. Removed naked only from forward declarations.
 - Failed native evidence preserved under build-runs/netrules-native-failed-1; request had a long queue delay (file presence did not establish whether it had started).
 - Full qbuild all PASS on ef0469c1a source: 6649 tests, 0 failed; clippy 0 diagnostics; native 47/47 edges; CTest 70/70. Native label qbuild-20261024-000818-build-ctest TERMINAL PASS.
@@ -20,8 +16,6 @@
 - Exact next step: inspect b log funds/bankruptcy/shutdown lines to diagnose identical early city exit; then change only game inputs and submit a NEW unique label through 2032. No additional source gate needed unless source changes.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
-- Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
-- Workspace test/clippy gate PASS: 6649 passed, 0 failed, 0 ignored; clippy 0 diagnostics (qbuild-test.log, qbuild-clippy.log).
 - No round 3 question filed. Final source at ef0469c1a; latest progress commit 8a3fe37e5. Do not add netrules_shadow to shadows profile: no clean 2032 proof.
 - Game label netrules-r3-2032-20261023a, simulator only, turbo through 2032-02-01; scripted original-tool placements for 12 evaluator-bearing types and five later annual actions (build-runs/netrules-r3-actions.txt).
 - Game a uses simulator only; b uses simulator,budget; both turbo, same script. Logs/verdicts in build-runs/game-results/. a last month: 366 evaluations, 24 tables, mismatches/table_mismatches/incomplete/unavailable all 0; shutdown 33 lines, 32 exact.
