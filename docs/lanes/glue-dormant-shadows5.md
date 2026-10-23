@@ -79,7 +79,7 @@ No direct MSVC configure/build or duplicate native check was launched. Full logs
 The single game request had turbo1, end_date2032-01-01, timeout660, all six keys on, cells32,
 citydetail_seed1592594157, and an empty replacement list. It completed in71.375 simulation seconds,
 91 seconds wall, with zero incomplete or resynced shadow lines. The event-driven blocking helper
-`build-runs/wait-verdict.ps1` accepted an already-existing verdict and never used qwait or a polling loop;
+`build-runs/wait-verdict.ps1` supports an already-existing verdict and never used qwait or a polling loop;
 the original wait was collected to terminal completion.
 
 Reviewed implementations: FC4PropLotShadow.cpp, FC4VariantShadow.h, FC4CityDetailShadow.cpp,
