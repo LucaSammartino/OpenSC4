@@ -580,8 +580,14 @@ pub struct HtmlDocument<H: HtmlHost> {
 impl<H: HtmlHost> HtmlDocument<H> {
     /// Constructor (§1.1).
     pub fn new(mut host: H) -> Self {
-        let [default_text, default_vlink, default_link, default_alink] = *DEFAULT_COLORS
-            .get_or_init(|| [host.rgb(0, 0, 0), host.rgb(100, 32, 164), host.rgb(0, 0, 255), host.rgb(192, 0, 255)]);
+        let [default_text, default_vlink, default_link, default_alink] = *DEFAULT_COLORS.get_or_init(|| {
+            [
+                host.rgb(0, 0, 0),
+                host.rgb(100, 32, 164),
+                host.rgb(0, 0, 255),
+                host.rgb(192, 0, 255),
+            ]
+        });
         let mut d = HtmlDocument {
             host,
             nodes: Vec::new(),
@@ -1255,8 +1261,11 @@ pub fn make_relative_to_text_alignment_style(v: &[u8]) -> u32 {
 /// `RZConvertToUint32A` (§7.11): detect base before skipping whitespace/sign,
 /// then unsigned 32-bit strtoul with saturation followed by wrapping negation.
 pub fn convert_to_u32(v: &[u8]) -> u32 {
-    let hex = v.starts_with(b"0x") || v.starts_with(b"0X")
-        || v.iter().skip_while(|c| c.is_ascii_digit()).next()
+    let hex = v.starts_with(b"0x")
+        || v.starts_with(b"0X")
+        || v.iter()
+            .skip_while(|c| c.is_ascii_digit())
+            .next()
             .is_some_and(|c| matches!(c, b'a'..=b'f' | b'A'..=b'F'));
     let base = if hex { 16 } else { 10 };
     let mut i = 0;
@@ -1275,7 +1284,11 @@ pub fn convert_to_u32(v: &[u8]) -> u32 {
         n = n.saturating_mul(base).saturating_add(digit);
         i += 1;
     }
-    if negative { n.wrapping_neg() } else { n }
+    if negative {
+        n.wrapping_neg()
+    } else {
+        n
+    }
 }
 
 /// The text-segment whitespace rule driven by the preformatted flag (§5.4 table).
@@ -1322,4 +1335,3 @@ fn find_character<H: HtmlHost>(host: &H, s: &[u8], pat: &[u8], mut i: usize) -> 
     }
     None
 }
-
