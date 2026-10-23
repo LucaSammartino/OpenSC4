@@ -64,7 +64,7 @@ untraced/summary-only material and the questions in application.md's question fi
 | 1.2 Fields | app state, timers, preferences image, city state, handles | `tests::idle_gate_and_focus_tail_preserve_strict_comparisons`; open: AP6 native constructor defaults |
 | 2 cISC4App | `app_interface_getter`, `app_interface_getter_language`, `app_file_name`, video/request/save/load APIs | getter regression and `settled_directory_and_path_slots_use_distinct_sources_and_literal_concatenation`; open: AP3 semantic aliases only |
 | 3 Startup order | `app_start`, `begin_pre_framework_init`, `begin_post_framework_init`, `wait_for_instance` | `entry_keeps_order_and_rejects_missing_ini_directory`, restart/startup/watcher/Lua tests; open: AP6 version/user-data/OS/date/log/language/alpha/script details |
-| 3.1 Init | `begin_init`, `apply_driver_description`, `run_owned`, v2 subscriptions, resource setup | startup/owned runner/driver/subscription/resource tests; open: AP5 config target, AP6 unpublished helper calls |
+| 3.1 Init | `begin_init`, `apply_driver_description`, `run_owned`, v2 subscriptions, resource setup | startup/owned runner/driver/subscription/resource tests; open: AP5 config target, AP6 unpublished helper calls, AP16 resource-result handling |
 | 4 Services | `SERVICES`, director/service steps | `tests::all_services_register_in_published_order_and_wrap_two_gz_bases`; open: AP10 unnamed identities/bodies (foreign) |
 | 4.1 Directors | ordered Sc4/Audio/GzWww effects | `tests::pre_framework_order_keeps_restart_and_plugin_boundaries_and_exact_environment` |
 | 4.2 Services | corrected 28-service order; graphics interface passed borrowed | service-order and allocation/registration failure tests; open: AP6 failure rollback, AP10 unnamed classes |
@@ -98,7 +98,7 @@ untraced/summary-only material and the questions in application.md's question fi
 | 11.14 Quit from region | `request_quit_from_region` | directed delivery/cancel test; no save |
 | 11.15 Terrain picker | `load_height_field`, `terrain_message`, slot-29 INI path | picker and `terrain_ini_path_uses_slot29_when_global_app_exists`; open: AP4 unnamed face identity |
 | 11.16 SaveCity(path) | `save_city`, `save_path`, `replace_file`, root/store ordering | save success/rollback/filter/cap/encoding/collision/ID-reuse tests; §12 scoped-helper internals stay foreign |
-| 12 Open | typed boundaries for unsettled helpers, explicit invalid-input results | invalid-region/obliteration tests; open: AP3–AP11 only, no invented native boot |
+| 12 Open | typed boundaries for unsettled helpers, explicit invalid-input results | invalid-region/obliteration tests; open: AP3–AP11, no invented native boot; additional Init ambiguity AP16 |
 | 13 Preferences | raw image plus typed app fields | preference round-trip/quirk test |
 | 13.1 File | `read_preferences`, `save_preferences`, record key/version constants | `preferences_preserve_unmodeled_bytes_and_clear_live_language_and_ime` |
 | 13.2 Fields | `Preferences`, `PreferencesImage`, command-line effects | preference and command tests; open: AP11 field meanings, native defaults AP6 |
