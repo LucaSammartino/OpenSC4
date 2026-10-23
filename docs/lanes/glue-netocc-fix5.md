@@ -15,6 +15,8 @@
 - Final workspace tests PASS 6653/0/0; clippy PASS, zero diagnostics.
 - Failed native request qbuild-20261023-231436-build-ctest: plugin_disable_test and plugin_ini_dialogs_test exit AV; other original regressions now pass. Evidence build-runs/failed-isolation1-ctest.log.
 - Focused hung operation 72265 terminated/collected (Ctrl-C, exit 1); debugger tests reached terminal C0000005. No diagnostic operation remains outstanding.
-- Next: commit dependency fix, run corrected-source qbuild all once; then unique city request to 2032, wait with build-runs/wait-netocc-verdict.ps1 (no qwait).
+- Dependency fix committed as 21b0c98b7; corrected-source qbuild all running in shell session 47442. Collect it; do not duplicate.
+- Corrected-source cargo 6653/0/0 and clippy zero diagnostics PASS; native request qbuild-20261023-233345-build-ctest outstanding.
+- Next: collect native result, inspect local header dependency with ninja -t query, then unique city request to 2032; wait with build-runs/wait-netocc-verdict.ps1 (no qwait).
 - Detached HEAD is intentional; never switch or update refs.
 - No game request outstanding.
