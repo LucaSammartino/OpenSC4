@@ -261,9 +261,9 @@ mod tests {
                 .len(),
             16
         );
-        for i in 9..13 {
-            assert_eq!(EFFECT[i].descriptor, 0xa9fe1c);
-            assert_eq!(EFFECT[i].hooks, Hooks::Direct(0x5a30b0));
+        for (i, registration) in EFFECT.iter().enumerate().take(13).skip(9) {
+            assert_eq!(registration.descriptor, 0xa9fe1c);
+            assert_eq!(registration.hooks, Hooks::Direct(0x5a30b0));
             if i > 9 {
                 assert_ne!(h.registrations[i - 1].0, h.registrations[i].0);
             }
