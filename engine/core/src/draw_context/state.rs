@@ -40,19 +40,24 @@ pub struct PackInput {
     pub stage1_mode: i32,
 }
 
+#[cfg(test)]
 pub(super) fn quantize(reference: f32) -> Result<u32, Error> {
-    // Qualified nearest/even64 domain: exact53 intermediate arithmetic, one
-    // binary32 bias store, then the low nibble. No half-up integer conversion.
-    if !reference.is_finite() || !(0.0..=1.0).contains(&reference) {
-        return Err(Error::InvalidValue);
-    }
-    let product = super::numeric::mul(f64::from(reference), 15.0)?;
-    let biased = super::numeric::add(product, 12_582_912.0)?;
-    Ok(super::numeric::store(biased)?.to_bits() & 15)
+    quantize_with_control(reference, super::Arithmetic::default())
+}
+
+pub(super) fn quantize_with_control(reference: f32, arithmetic: super::Arithmetic) -> Result<u32, Error> {
+    // No clamping, including outside [0,1]. One binary32 bias store, then nibble.
+    let product = arithmetic.mul(f64::from(reference), 15.0)?;
+    let biased = arithmetic.add(product, 12_582_912.0)?;
+    Ok(arithmetic.store(biased)?.to_bits() & 15)
 }
 
 impl PackedState {
     pub fn pack(input: PackInput) -> Result<Self, Error> {
+        Self::pack_with_control(input, super::Arithmetic::default())
+    }
+
+    pub fn pack_with_control(input: PackInput, arithmetic: super::Arithmetic) -> Result<Self, Error> {
         let mut result = Self {
             value: 0,
             mask: u32::MAX,
@@ -89,7 +94,7 @@ impl PackedState {
         if input.alpha_reference == -1.0 {
             result.mask &= !(15 << 21);
         } else {
-            result.value |= quantize(input.alpha_reference)? << 21;
+            result.value |= quantize_with_control(input.alpha_reference, arithmetic)? << 21;
         }
         Ok(result)
     }

@@ -4,8 +4,8 @@
 //! Driver/camera/light/instance interfaces are external calls only. Packing,
 //! state transitions, composition, material decisions and mesh ordering live
 //! here. No RefCell or borrowed game reference is owned by this implementation.
-//! DC1/DC2 remain opaque and DC3 stack/lifetime boundaries remain open. This
-//! module and its qualified numeric domain are not promoted to a plugin.
+//! DC1/DC2 remain opaque and DC3 stack attribution remains open. See README.md
+//! for owner closure. This module is not promoted to a plugin.
 
 mod boxes;
 mod cache;
@@ -16,6 +16,7 @@ mod textures;
 mod transforms;
 mod types;
 
+pub use numeric::{Arithmetic, Precision, Rounding};
 pub use state::{PackInput, PackedState, BOX_STATE, DEFAULT_STATE, HIGHLIGHT_STATE};
 pub use types::*;
 
@@ -25,6 +26,8 @@ use std::sync::Arc;
 pub enum ContractGap {
     /// DC3: renderer callback brackets do not establish owner Begin/End methods.
     BeginEnd,
+    /// DC9: the owner is attributed, but no fog operation contract is given.
+    Fog,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,6 +52,7 @@ pub enum Error {
 pub enum NumericControl {
     Unqualified,
     NearestEven64Gradual,
+    X87(Arithmetic),
 }
 
 pub const HIGHLIGHT_COLORS: [Rgba; 11] = [
@@ -100,6 +104,10 @@ pub struct DrawContext<D: Driver> {
     default_shade: Rgb,
     shade_override: bool,
     lighting_enabled: u8,
+    fog_enabled: u8,
+    fog_color: Rgba,
+    fog_scalars: [f32; 2],
+    opaque_f4: [u8; 0x38],
     numeric_control: NumericControl,
     depth_offset: i32,
     stages: Vec<Stage>,
@@ -138,6 +146,10 @@ impl<D: Driver> DrawContext<D> {
             default_shade: [1.0; 3],
             shade_override: false,
             lighting_enabled: 0,
+            fog_enabled: 0,
+            fog_color: [f32::MAX; 4],
+            fog_scalars: [f32::MAX; 2],
+            opaque_f4: [0; 0x38],
             numeric_control: NumericControl::Unqualified,
             depth_offset: 0,
             stages: Vec::new(),
@@ -238,6 +250,18 @@ impl<D: Driver> DrawContext<D> {
     pub fn default_shade(&self) -> Rgb {
         self.default_shade
     }
+    pub fn fog_cache(&self) -> (u8, Rgba, [f32; 2]) {
+        (self.fog_enabled, self.fog_color, self.fog_scalars)
+    }
+    pub fn opaque_f4(&self) -> &[u8; 0x38] {
+        &self.opaque_f4
+    }
+
+    /// Literal boundary of section 1.5: attribution alone supplies neither an
+    /// argument signature nor fog query/cache/driver semantics. See DC9.
+    pub fn turn_on_fog(&mut self, _on: u8) -> Result<(), Error> {
+        Err(Error::Gap(ContractGap::Fog))
+    }
     pub fn depth_offset(&self) -> i32 {
         self.depth_offset
     }
@@ -272,11 +296,11 @@ impl<D: Driver> DrawContext<D> {
         self.numeric_control = control;
     }
 
-    fn qualified_numeric(&self) -> Result<(), Error> {
-        if self.numeric_control == NumericControl::NearestEven64Gradual {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedNumeric)
+    fn qualified_numeric(&self) -> Result<Arithmetic, Error> {
+        match self.numeric_control {
+            NumericControl::NearestEven64Gradual => Ok(Arithmetic::default()),
+            NumericControl::X87(arithmetic) => Ok(arithmetic),
+            NumericControl::Unqualified => Err(Error::UnsupportedNumeric),
         }
     }
 
