@@ -498,9 +498,10 @@ destructor `0x004EFC60`, `DoEvent` `0x004EF490`.
 | `+0x0C` | vtable | `0x00A94130` — service (`Init` / `Shutdown`) | `0x004EF71E` |
 | `+0x10` | `*` | `GetService(0x1D07B39F, 0xE0510260)` — **`kRZRadioDefaultServiceId`** | `0x004EF737` |
 | `+0x14` | `cIGZSndSys*` | `GetService(0x23CECBA0, 0x106077D2)` — the sound system | `0x004EF757` |
-| `+0x18` | refcounted `*` | a required non-null capability; released and nulled in `Shutdown` | `0x004EF767`, `0x004EE059` |
+| `+0x18` | refcounted `*` | AudioScape manager, service `0x49E50BA1` / IID `0x29E39DB4`; initially null, acquired by `Init` | `0x004EF767`, `0x004EFF10` |
 | `+0x1C` | `u8` | **initialized flag** | `0x004EF76A` |
 | `+0x20` | `u32` | refcount | `0x004EDE60`, AddRef `0x008AE800` |
+| `+0x24`, `+0x28` | `u32` | constructor writes zero; no handler operation below assigns them | `0x004EF770`–`0x004EF773` |
 | `+0x2C` | list node `*` | `std::list` sentinel (12 bytes) | `0x004EF776` |
 | `+0x30` | `cRZTimer` | the rate limiter of section 7.3 | `0x004EF78A` |
 | `+0x48` | `u32` | rate-limit window (ms) | `0x004EF796` |
@@ -520,9 +521,56 @@ slot 3 of the vtable at `[base+8]`), so the loads Ghidra names `field2_0x8` are 
 the **`kRZRadioDefaultServiceId` service** (`0x1D07B39F`), not a sound manager. The sound system is at
 object `+0x14` (`cIGZSndSys`). **DIFFERS** from that reading.
 
+#### 7.1.1 Construction and service lifetime (AU14)
+
+The constructor leaves the initialized flag, reference count, `+0x18`, `+0x24`, `+0x28` and rate-limit
+window at zero. The modal-window collection is empty, with a heap-allocated 12-byte circular sentinel.
+The timer is constructed with clock selector **4**, stopped, with its four timing words zero; its
+`+0x04` word is not initialized by this constructor (`0x004EF767`–`0x004EF796`, timer constructor
+`0x0088FEDF`). Padding at handler `+0x1D`–`+0x1F` and `+0x4C`–`+0x4F` has no assigned value.
+The two constructor service lookups in the layout table are independent: a missing framework or failed
+lookup leaves that service null and construction continues. Neither is retried into the member by `Init`.
+Allocation failure is not a clean false-return path: the sentinel is immediately dereferenced. *[compat]*
+
+`Init` and `Shutdown` receive the service subobject (`base+0x0C`); their `this+0x10` flag is therefore
+the **outer `+0x1C`**, not the radio pointer. `Init` returns true without effects if already initialized.
+Otherwise its externally visible contract is:
+
+| Condition/stage | Outcome |
+|---|---|
+| Fresh temporary sound-system lookup fails | False; no registration, no member changes. |
+| Sound system available | Register outer event target through sound-system slot 15 (`+0x3C`); ignore its result. |
+| Following AudioScape lookup fails | False, release temporary references; **do not unregister** the preceding registration. Flag remains false. A retry repeats registration. |
+| AudioScape available | Retain it into outer `+0x18`, replacing/releasing any previous value. This is a retained reference in addition to the temporary lookup reference. |
+| Filesystem service `0x2073215D` / IID `0xE0203660` unavailable | Skip radio-path configuration and continue. |
+| Filesystem available and member radio non-null | Obtain filesystem slot 7 path; append the runtime string fragment described by globals `0x00B21A0C`/`0x00B21A10`; radio slots 29(path), 23(false), 16(0), in that order. |
+| Subscriptions | Install the modal pair then the 13 main subscriptions listed in §7.2. All registration/subscription return values are ignored. |
+| Preferences | Run audio preference loading (`0x004F2D40`), apply the default/list preferences, and, if radio exists, radio slots 30(true), 23(music-enabled != 0), 16(music volume). Then set initialized and return true. |
+
+The preference work uses the foreign application audio-preference service, not new handler fields.
+On first/default preferences, the observed defaults are slider values `0x2D0` for music and `0x400` for
+SFX, reset the default music lists, and update both exclusion lists (`0x004F017D`–`0x004F01CB`).
+The conversion and list operations remain preference-service calls. *[compat]*
+
+There is **no** recoverable-failure test for a null global modal message server or the final message-server
+lookup: these are required integration services and are dereferenced. Do not invent a successful or false
+return, subscription rollback, or partial-subscription retry for their absence. A false result returned by
+a present service does not abort initialization (`0x004EFEC8`, `0x004EFFAB`–`0x004F0167`, `0x004F0205`).
+
+`Shutdown` returns true without effects when the flag is false. With the flag true it obtains a fresh
+temporary sound system. Failure returns false **without clearing the flag or any members**. Success
+unregisters the outer event target (result ignored), clears/releases `+0x18`, calls radio slot 23(false)
+if non-null, then releases and nulls the member radio pointer. It removes the 13 main subscriptions and
+the modal pair, clears the flag, releases temporary services and returns true. The message servers are
+again required, and unsubscribe results are ignored. It does not reset the timer/window, empty the modal
+list, clear the member sound-system pointer, or remove the city-only subscriptions. A second successful
+shutdown is a no-op. A later Init can reacquire AudioScape but **does not reacquire the now-null member
+radio**. Evidence: `0x004EE007`–`0x004EE082`, `0x004EE0B3`–`0x004EE25A`. *[compat]*
+
 ### 7.2 Message dispatch (`DoMessage` `0x004EF810`)
 
-A binary search on the message type. It returns 0 only for a null message; every other type returns 1.
+A binary search on the message type. A null message returns 0. Ordinary routes return 1 even when their
+sub-handler rejects the payload; the mouse route forwards its own boolean (§7.2.4). *[compat]*
 
 | Type | Name | Handler |
 |---|---|---|
@@ -531,17 +579,111 @@ A binary search on the message type. It returns 0 only for a null message; every
 | `0x2A611B51` | | `+0x10` service slot 31 (`+0x7C`) |
 | `0x26D31EC1` | `kSC4MessagePostCityInit` | `HandleCityInitShutdownMessages` `0x004EE970` (**Add**) |
 | `0x26D31EC2` | `kSC4MessagePreCityShutdown` | `HandleCityInitShutdownMessages` (**Remove**) |
-| `0x26D31EC4` | | builds and posts a message |
+| `0x26D31EC4` | | builds a message of type `0x2A3AD653` with data1 = 0 and posts it |
 | `0x26D31EC5` | | builds a message of type `0x2A3AD653` with data1 = 1 and posts it |
 | `0x2A3AD653` | `kMessageSetRadioStation` | `HandleRadioMessages` `0x004EF010` |
 | `0x8A385DD8` | AutomataPlaySFX | `HandleAutomataMessages` `0x004EE560` |
 | `0xA9E3B6E3` | | `HandleAutomataMessages` `0x004EE560` |
 | `0xAA396960` | AutomataStopSFX | `HandleAutomataMessages` `0x004EE560` |
 | `0xEA3ADA33` | | `HandleAutomataMessages` `0x004EE560` |
-| `0xAA611B6E` | | `msg->slot10()` then the `+0x10` service slot 7 (`+0x1C`), then `msg->slot2()` |
+| `0xAA611B6E` | | obtain `msg->slot10()` interface; pass it to radio slot 7 if radio exists, then release that interface |
 | `0xAA650861` | | `msg->slot9()` then the `+0x10` service slot 30 (`+0x78`) as a bool |
 | `0xC9F1011A`, `0xE94671EB` | | `LAB_004EFA91` |
 | `0xFA0C6390` | `kMouseMessageType` | `HandleMouseMessagesForModalWindow` `0x004EF5D0` |
+| `0x49F10111`, `0x894671F6` | | `HandleDispatchManagerMessages` `0x004EE300` |
+| `0x49E64801` | | `HandleAutomataMessages` (accepted but no matching inner operation) |
+| `0x0A611B34`, `0xAA650860`, `0x4348B111`, `0x4A7FB7E9` | | radio/settings routes described below |
+
+Types absent from this **completed** table have no effects and return 1. In particular the subscribed
+`0xC53D10AA` and city-only `0xE94671ED` are ignored; subscription alone does not imply dispatch.
+`LAB_004EFA91` is the call to `HandleDispatchManagerMessages`, not an additional algorithm.
+
+#### 7.2.1 Radio and settings messages (AU13)
+
+Radio service absence makes each radio operation a no-op. Payload/interface references are still balanced.
+`0x26D31EC4` and `0x26D31EC5` each allocate a standard message, retain it, set type `0x2A3AD653`, set data1
+to 0 or 1 respectively, post through global `0x00B43CCC` slot 4 with priority 0, then release their local
+reference. Data2 is absent. They queue station selection, rather than selecting immediately. Allocation
+failure and a missing post service are unchecked, not false-return cases (`0x004EF87D`–`0x004EF932`).
+
+`HandleRadioMessages` accepts only a non-null message whose QI `0x65297976` succeeds and whose payload type
+is `0x2A3AD653`; otherwise it returns false, releasing any acquired interface. Data1 selects **0 → `kmay`**,
+**1 → `krgn`**; other values return true without selection. Fade duration is data2 when present, otherwise
+**4000** (global `0x00B0988C`). For either recognized station, the selection helper first obtains the
+current station through radio slot 10(out), calls radio slot 30(false), resolves the current station through
+slot 12(current-name), and compares that result with slot 11(requested-name). If the current result is
+non-null and identical, there is no change call. Otherwise call slot 13(requested-name, transition), where
+transition is a two-word record **`(0, duration)`**. The helper also supports a null transition when its
+third argument is false, but this message route always supplies true. The helper is a no-op for a null
+radio. Successful recognition returns true regardless of radio call results (`0x004EF010`–`0x004EF0BA`,
+`0x004EE270`–`0x004EE2F6`). The station strings are referenced by `0x00B09850`/`0x00B0984C`. *[compat]*
+
+Other main routes use the message slots directly, without payload QI:
+
+| Type | Observable operations |
+|---|---|
+| `0x2A611B51` | Radio slot 31(), if radio exists. |
+| `0xAA611B6E` | Message slot 10 returns its data1 word interpreted as an interface pointer. If non-null, call radio slot 7(object) when radio exists, then object slot 2 once even if radio was absent. No message release and no AddRef/QI in this route. |
+| `0xAA650861` | Read data1 (slot 9); radio slot 30(data1 != 0) if available. |
+| `0x0A611B34` | Name is `kmay` for data1 0, `krgn` for 1, null otherwise. Read data2 via slot 15. Read data3 through slot 19 only if present (slot 18), otherwise use 0. If radio slot 11(name) returns an object, call its slot 14(data2), then slot 12(2 if data3 == 0, otherwise 1). No call for null radio/object. |
+| `0xAA650860` | With radio present, if data2 present call radio slot 16(data2). If data1 present, desired enabled is data1 == 1; compare radio slot 24(). Only on a change call slot 23(desired), then, when enabling, slot 8(0). |
+| `0x4348B111` | Only when application audio-preference word at preference-object `+0x10` is nonzero, QI payload `0x65297976`; if successful and radio exists, slot 23(data1 != 0). Release acquired payload. |
+| `0x4A7FB7E9` | Read message data1; `RZ::SS` slot 7(`0x0BAAB7A4`, data1, 0, 0, 0). This is a sound-service request, not direct radio selection. |
+
+The standard message slot 10 is a raw load of `+0x10` (`0x0099BE66`–`0x0099BE69`), **not an acquiring
+getter**: it neither AddRefs nor QIs anything. Thus `0xAA611B6E` consumes a reference supplied in data1;
+do not release the message itself or add an invented acquisition. Slot 15 similarly loads data2 at
+`+0x14` (`0x009D4714`). Slot 32 loads borrowed void1 at `+0x24` (`0x009D858F`).
+Evidence for dispatch: `0x004EF891`–`0x004EF903`, `0x004EFA3A`–`0x004EFA8F`,
+`0x004EFAA3`–`0x004EFAFE`, `0x004EFB21`–`0x004EFC5B`. *[compat]*
+
+#### 7.2.2 Dispatch-manager messages (AU13)
+
+The sub-handler requires a non-null message, non-null QI `0x65297976` payload, member sound system and
+data1 presence (payload slot 8). Missing any returns false, releasing acquired payload. Data1 is the
+dispatch category; void1 (slot 32) is the sound instance key for the category routes:
+
+| Type | Accepted categories | Sound ID |
+|---|---|---|
+| `0x894671F6` | 0, 1, 5, 6 | `0x09C66951` |
+| `0xE94671EB` | 0, 1, 5, 6 | `0x29D99E9E` |
+
+For an accepted category and nonzero key, request a sound-event payload interface IID `0x5B523BA4`
+through sound-system slot 13: event `0xEA451903`, output interface, and four words
+**`(sound ID, void1 key, 0, 0)`**. Pass the returned interface to sound-system slot 12, then release it.
+The output is assumed valid; no allocation/QI failure branch is supplied. Zero key and other categories
+are successful no-ops. Evidence: `0x004EE356`–`0x004EE3AE`, `0x004EE4B8`–`0x004EE51E`.
+
+`0xC9F1011A` and `0x49F10111` instead retain the void1 object and QI it for `0xC9B6D7D6`. Missing void1 or
+failed QI returns false with balanced references. Successful QI is merely a capability check: release it
+and the retained object, emit **no sound**, return true. No sound IDs should be guessed for those two
+messages (`0x004EE3B8`–`0x004EE4B6`). All paths release the outer acquired payload. *[compat]*
+
+#### 7.2.3 Modal notifications (AU13)
+
+The modal target receives a raw notice record: type at byte 0, window pointer at byte 8. It always returns
+true (`0x004EFE50`), and notices other than `0x62BA7B42`/`0x62BA7B43` do nothing. Begin notices retain
+the window and push it to the front of the handler's modal stack; nested begins are allowed. End notices
+pop/release the front window, **ignoring the notice's own window field**. A matching begin is a precondition
+of end; empty-stack end is unchecked. There is no implicit list clear at city shutdown. *[compat]*
+
+On empty→nonempty and nonempty→empty transitions only, obtain `RZ::GS` slot 14's window, retain it, QI
+`0x3AC7A210`, and obtain that interface's slot 3 message server. If both are available, add (slot 5) or
+remove (slot 6) the main target `base+8` subscription to `0xFA0C6390`. Release the temporary QI/window
+references. A missing window, failed QI or null returned server skips the subscription change **without
+preventing the push/pop**; subscription results are ignored. The separately retained global message
+service `0x00B43CCC` is released after processing. Evidence: `0x004EFCC0`–`0x004EFE44`.
+
+#### 7.2.4 Mouse outside a modal window (AU13)
+
+Use the front modal window, retained for the call. QI the message for `0x1A0C615F`. Failed QI or a subtype
+other than **7, 9, 8** returns true without sound. For these subtypes obtain the window rectangle through
+slot 47 and the message point through slot 10. Bounds are signed and **inclusive** on all four edges.
+Only an outside point calls global sound service `0x00B43CB8` slot 11 with
+**`(1, 0xAA62C9D5, 0, 0, 0)`**, temporarily retaining/releasing the service. If that service is null,
+return false; otherwise return true, ignoring its result. Release the mouse QI and window reference on
+either return. This false result is forwarded by main `DoMessage`. A valid front window is required;
+there is no safe empty-list mouse route (`0x004EF5D0`–`0x004EF6EA`). *[compat]*
 
 **Subscriptions.** `Init` (`0x004EFE80`) fetches four services — `0x23CECBA0`/`0x106077D2` (`cIGZSndSys`),
 `0x49E50BA1`/`0x29E39DB4`, `0x2073215D`/`0xE0203660`, `0x4FA845B`/`0x652294C7` (`cIGZMessageServer2`) —
@@ -566,8 +708,9 @@ clear `+0x1C`. The city-init set is **not** torn down here — it is removed by 
 
 ### 7.3 `HandleAutomataMessages` (`0x004EE560`)
 
-Entry: `+0x18` must be non-null, and the message must answer QI `0x65297976`; if `+0x14` (`cIGZSndSys`) is
-null the handler releases and returns 0.
+Entry: `+0x18` and message must be non-null, and QI `0x65297976` must return a non-null payload;
+otherwise return false without an unowned release. If `+0x14` (`cIGZSndSys`) is null, release the acquired
+payload and return false. Every later exit also releases that payload once (`0x004EE560`–`0x004EE5B5`).
 
 For type **`0x8A385DD8` (play)** — `0x004EE707`:
 
@@ -575,30 +718,156 @@ For type **`0x8A385DD8` (play)** — `0x004EE707`:
    handler runs (timer at `+0x30`): if the timer is running and `GetElapsedTime` is **< `+0x48`**, the play
    is **dropped** and the handler returns 1. Otherwise the timer restarts and `+0x48` is set to
    `1000 + rand()*3000/0x7FFF` — a uniform random **1000…4000 ms** (`0x004EE73C`–`0x004EE75F`) *[compat]*.
-2. The position is obtained: `payload->slot32()`, then QI **`0xA9B40F05`** into a `cS3DVector3` seeded from
-   global `DAT_00B21A04`.
+2. Obtain borrowed void1 through payload slot 32 and QI it for **`0xA9B40F05`**. Failed QI releases any
+   returned interface, releases the payload and returns false **without posting**. A null void1 is
+   unchecked, not a seeded-position success case. After successful QI, seed three float words from
+   `DAT_00B21A04` (image default zero) and let position-interface slot 7 fill `(x,y,z)`.
 3. Two events are posted to the sound system (`+0x14`) through its `vt[0x2C]`:
-   - **`0xEA451903`** with `(payload->slot9(), payload->slot14(1,0))` — the **start-sound** event;
-   - **`0xCA45190F`** with the packed vector — the **set-sound-position** event.
+   - **`0xEA451903`** with four words **`(payload data1, payload data2, 1, 0)`** — start sound;
+   - **`0xCA45190F`** with four words **`(payload data2, trunc(x), trunc(y), trunc(z))`** — set position.
+   The key is read from payload slot 14 (data2) separately for each event. Coordinates are loaded as
+   binary32 and converted by `_ftol2`, truncating toward zero to signed integers; these are integer words,
+   not float bit patterns or a vector pointer. For `(1.9,-2.9,3.1)` and key 77 the position words are
+   `(77,1,-2,3)`. The four words populate standard event data1–data4 (§3.2). Release the position QI after
+   both posts. Evidence: `0x004EE78D`–`0x004EE839`. *[compat]*
 
-For type **`0xAA396960` (stop)** — `0x004EE83E`: `payload->slot14(0,0,0)` is taken and **`0x6A451908`** is
-posted to the sound system with it.
+For type **`0xAA396960` (stop)** — `0x004EE83E`: post **`0x6A451908`** with
+**`(payload data2, 0, 0, 0)`**. Slot 14 is a no-argument getter. The earlier `slot14(1,0)` and
+`slot14(0,0,0)` notation misattributed the sound-system call's stacked arguments to that getter. *[compat]*
 
 `0xEA451903`, `0x6A451908` and `0xCA45190F` are therefore **sound-system event ids, not message types**.
 They are dispatched by `cSC4AudioSoundManager::DoEvent` (section 8.3). **Corrects:** an earlier reading
 called these "command identifiers sent to `field8_0x14`" and guessed that field was the Lua script server; it
 is `cIGZSndSys` and they are events. **DIFFERS** on the target; the ids themselves **MATCH**.
 
-For `0xA9E3B6E3` the handler posts `0x49DE8A94` and `0xA9DE8B59` to `+0x18`, or QIs `0x26BB767E` and posts a
-derived id. For `0xEA3ADA33` it calls `SFX::SoundManager` (`0x004BB9E0`) and
-`cSC4AudioSoundManager::GenerateNewInstanceId` (`0x004F7BB0`) directly.
+#### 7.3.1 Alternate automata requests (AU15)
+
+`0xA9E3B6E3` requires non-null void1 and presence of both data1 and data2 (payload slots 8 and 13).
+Failure returns false. Signed data1 chooses the AudioScape operation:
+
+| data1 | Calls on `+0x18` |
+|---|---|
+| 0 | Slot 14(`0x49DE8A94`, void1), then slot 14(`0xA9DE8B59`, void1). Void1 is fetched for each call; no position QI. |
+| > 0 | QI void1 `0x26BB767E`; obtain position through its slot 8; slot 13(`0x49DE8A94`, void1, position, **50.0f**). |
+| < 0 | Same position path, sound ID **`0xA9DE8B59`**. |
+
+Failed position QI returns false with QI/payload cleanup. Success releases position QI and returns true;
+the posted instance is the void1 pointer, **not data2**. The `50.0f` word is `0x42480000`.
+Evidence: `0x004EE5E5`–`0x004EE702`. *[compat]*
+
+`0xEA3ADA33` uses **the original message's** void1 (slot 32) and QIs `0x26BB767E`. On success its slot 8
+fills position and the QI is released. On failure execution continues, but position has no initialized
+value: there is no specified zero/seed fallback or clean false return. Null void1 is unchecked. Message
+data1, if absent, defaults to `0xFFFFFFFF`; data2, if absent, also defaults to `0xFFFFFFFF`. The boolean
+selector is data1 != 0, and signed/unsigned bit-identical data2 selects:
+
+| data2 | data1 == 0 | data1 != 0 |
+|---|---|---|
+| 1 | `0x4A5E7FFC` | `0x0A5E802C` |
+| 2 | `0x2A5E7F2C` | `0x0A5E7F51` |
+| 3 | `0x2A5E8067` | `0x6A5E8088` |
+| any other | `0x69F01280` | `0x69F01280` |
+
+Call `SFX::SoundManager` (`0x004BB9E0`) for its service access side effects, but do not call a method on
+its return value. Call **no-argument**, global `GenerateNewInstanceId` once (§8.4); then AudioScape slot 13
+with **`(selected sound, generated ID, position, 50.0f)`**. Return true and release the acquired outer
+payload. The generator neither consumes nor produces a vector and does not belong to this handler's
+state. Evidence: `0x004EE862`–`0x004EE94E`, selector `0x004EDE20`–`0x004EDE5B`. *[compat]*
+
+#### 7.3.2 Construction requests (AU13)
+
+Both main construction routes require member AudioScape, a non-null message, and a non-null QI
+`0x65297976` payload; failure returns false. Data1 is the instance key. Data3 mask **`0x2`** selects sound
+**`0xEA62C800`** when set, **`0xAA62C82A`** otherwise (`0x004EECC4`–`0x004EECC9`).
+
+For `0x89F10866`, positional mode means data2 is present **and nonzero**. Non-positional mode calls
+AudioScape slot 14(sound, data1). Positional mode QIs borrowed void1 for `0xA821EF94`; when a non-null
+interface is returned, obtain its slot 48 object, let that object's slot 8 fill position, and call
+AudioScape slot 13(sound, data1, position, 0.0f). Release that QI. A null QI result emits nothing but still
+returns true. Unlike the alternate route above, the QI boolean itself is not tested here.
+
+For `0xA9F10E45`, a null void1 returns false. Otherwise use the same `0xA821EF94` → slot 48 → slot 8
+position path, but call **AudioScape slot 15**(sound, data1, position, 0.0f). Null QI result is a successful
+no-op. Release QI and payload. Neither route checks a null intermediate slot-48 object. These calls do
+not use the automata rate limiter or generate an instance ID. Evidence: `0x004EEC10`–`0x004EED73`,
+`0x004EEE23`–`0x004EEEE9`, `0x004EEFF2`. *[compat]*
 
 ### 7.4 `cSC4AudioEventHandlerDisasterFire`
 
 CLSID `0x69E500BC`, factory `0x004EB100`, object size **`0x34`**. Registered alongside the handler under
-service IID `0xBB523BB2` by `cSC4AudioCOMDirector::PostAppInit` (`0x004EBF40`); `HandleTorchControlMessages`
-(`0x004EF170`), `_StartTorchSound` (`0x004EF0C0`) and `_StopTorchSound` (`0x004EF100`) are its sound entry
-points.
+service IID `0xBB523BB2` by `cSC4AudioCOMDirector::PostAppInit` (`0x004EBF40`). **Correction (AU16):**
+`HandleTorchControlMessages` (`0x004EF170`), `_StartTorchSound` (`0x004EF0C0`) and `_StopTorchSound`
+(`0x004EF100`) belong to **`cSC4AudioEventHandler`**, whose `DoEvent` calls them with the outer base
+and whose sound-system member they read at `+0x14`. They do not belong to DisasterFire.
+
+### 7.5 Sound-system callbacks and torch state (AU16)
+
+`DoEvent` (`0x004EF490`) returns **true immediately** if member sound system is null. With it present,
+obtain a temporary service `0x1AF85BFB` / IID `0x3AF85BB7` and QI the input event for `0x65297976`;
+release both acquired references at exit. QI failure does not reject or change dispatch; the QI payload
+is not used. Dispatch reads the original event's slot 4 type. Null event is unchecked. After any
+dispatched/ignored event the return is **false**, even if sound requests succeeded (`0x004EF58B`).
+
+| Event type | Effect |
+|---|---|
+| `0x2A106113`, `0x8A10611A`, `0x0A106122`, `0x4A106126`, `0x8A10611D`, `0xAA96FE8F` | Torch table below. |
+| `0xAA36D9B6` | Sound-system slot 32(callback `0x004EF120`, 0, 0). For each object visited, callback QIs `0xFD584467`; on success read interface slot 4(`0x20`,0), then slot 3(`0x20`,read value); release QI if non-null; callback returns true. |
+| `0x0BAAB7A4` | Read event slot 6's payload, then payload slot 9 value. Obtain an interface through `RZ::SS` slot 43(out); call that interface's slot 11(`0x7F`, value), then release it. Payload/output validity is assumed. |
+| other | No effects apart from temporary acquisition/release. |
+
+Torch processing requires member AudioScape and non-null `RZ::SS`; otherwise it returns false without
+changing torch state. A null event also returns false, balancing the temporary sound-service reference.
+All normal torch calls return false as well, irrespective of sound results. Their event payload is obtained
+through event slot 6, not the temporary QI above; it supplies signed x through slot 9, signed y through
+slot 14, and a wrapping `u32` timestamp through slot 19. Valid payload and member sound system are
+preconditions on sound-producing branches. *[compat]*
+
+Torch state is **process-global**, initially zero: mode (`0x00B219F0`), movement-volume enabled
+(`0x00B219F1`), previous smoothed speed (`f32`, `0x00B219F4`), previous y/x (signed words at
+`0x00B219F8`/`0x00B219FC`), and previous timestamp (`0x00B21A00`). It is not reset by handler Init,
+Shutdown or destruction. Every valid torch event, including an unrecognized direct call, updates the
+speed/history after its type-specific action.
+
+Elapsed time is wrapping subtraction of timestamps, interpreted unsigned (the instruction sequence
+converts a negative signed difference by adding **4294967296.0f**). For zero elapsed time speed is zero;
+otherwise speed is Euclidean distance between the two signed integer points divided by
+`elapsed * binary32(0.01)`. The x difference is stored to binary32 before squaring; previous y is first
+converted/stored to binary32, and its subtraction/square stays in x87 precision. Add the squared terms,
+take square root, divide, then store speed to binary32. Cap at **60.0f**. Smoothed speed is
+`(previous smoothed speed + capped speed) * 0.5`, stored to binary32 for the next event. For volume V,
+continue the same x87 result (before rounding that history store), multiply first by **424.0f**, then
+by binary32 **`0x3C888889`** (approximately 1/60), then truncate toward zero. Do not replace this with
+a single rounded `424/60` factor. Evidence: `0x004EF1E6`–`0x004EF2A8`; constants at `0x00A80AA8`,
+`0x00A823A4`, `0x00A84D2C`, `0x00A94124`–`0x00A9412C`. *[compat]*
+
+Define Start(sound,key,volume) as two sound-system slot-11 posts, in order:
+`0xEA451903` with **(sound,key,0,0)**, then `0x4A451915` with **(key,volume,0,0)**.
+The native helper has five arguments (sound,key,unused,volume,unused); callers' 0/1 and `0x200` arguments
+are ignored. Stop(key) posts `0x6A451908` with **(key,0,0,0)**. Neither helper tests sound-system presence,
+reports post failure or retains keys. Evidence: `0x004EF0C0`–`0x004EF11A`.
+
+| Torch event | Ordered effects, before updating history |
+|---|---|
+| `0x2A106113` | Start(`0x6A10AC51`, `0x601`, 1024). |
+| `0x8A10611A` | Stop `0x601`, `0x602`, `0x603`; **not `0x600`**. Does not reset the two mode flags. |
+| `0x0A106122` | Disable movement-volume updates. |
+| `0x8A10611D` | Enable movement-volume updates. |
+| `0x4A106126` | If movement-volume enabled, post `0x4A451915` for `0x602` then `0x603`, both volume **V+600**, trailing words zero; otherwise no posts. |
+| `0xAA96FE8F` with payload data1 != 0 | If mode false: set it true; Start(`0x6A10ABCF`,`0x600`,1024), Start(`0x0A10AD41`,`0x602`,V+600), Start(`0x2AA73C50`,`0x603`,1024−V), then Stop `0x601`. If mode already true, no posts. |
+| `0xAA96FE8F` with payload data1 == 0 | If mode true: clear it, Stop `0x602`, Stop `0x603`, Start(`0x6A10AC51`,`0x601`,1024). If already false, no posts. |
+
+Evidence: `0x004EF2B3`–`0x004EF478`. The mode test reads the same data1 used as x for the speed calculation.
+
+### 7.6 Destruction (AU16)
+
+The deleting destructor **does not call Shutdown**, unsubscribe, stop torch sounds, clear global torch
+history or unregister the event target. These remain explicit lifetime responsibilities. It destroys
+the timer and frees the modal collection's nodes and sentinel, releases any remaining AudioScape member,
+then releases the member sound-system and radio references. The raw window pointers in leftover modal
+nodes are **not released** by this list destructor; balanced begin/end notices are required to avoid
+leaking their retained references. Shutdown itself does not empty the list either. Finally free outer
+storage only when deleting-destructor flag bit 0 is set; native return is the original object pointer.
+Evidence: `0x004EFC60`–`0x004EFCBF`, node freeing `0x005650A0`–`0x005650DD`. *[compat]*
 
 ---
 
@@ -1508,7 +1777,8 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ## 16. Conformance tests
 
 Each test names the behaviour, the address that produces it, and the observable. A replacement passes when
-every *[compat]* assertion holds. 25 tests.
+every *[compat]* assertion holds. 42 test groups. Groups 26–42 specify the AU13–AU16 owner closure cases;
+their foreign services are recording fixtures, so they do not require an audio device or game session.
 
 1. **Sound-event object size and allocation.** Allocate a `cGZSndEventStd`. The allocation must come from
    the pool when and only when the requested size is `0x38`; any other size goes to the ordinary heap.
@@ -1609,3 +1879,89 @@ every *[compat]* assertion holds. 25 tests.
     rate-limit gate and position lookup, and one `tSound` in the manager hashtable keyed by that id. The
     stop chain must be identical with `0xAA396960` and `0x6A451908` into `_StopSound`. Nothing in the chain
     may touch the city save. (section 8.7)
+26. **Construction and partial Init.** With both constructor lookups failing, expect null radio/sound,
+    null AudioScape, flag/refcount/window 0, empty modal list, timer selector 4 and stopped. Missing Init
+    sound service: false, zero registrations. Sound present but AudioScape missing: false, exactly one
+    registration and no unregister; retry duplicates that registration. Failed registration return must
+    not stop the next stage. (`0x004EF6F0`, `0x004EFE80`; §7.1.1)
+27. **Init repeat, ignored subscription failures and Shutdown retry.** With valid integration services,
+    make every subscribe return false: still perform both modal and all 13 main subscriptions and return
+    true. Second Init performs nothing. Missing Shutdown sound service: false, flag/services intact;
+    restore it and expect unregister, AudioScape release, radio slot 23(false), radio release/null, 13
+    main unsubscribes and modal pair, true. Repeated Shutdown does nothing. Re-Init must not reacquire
+    radio; city subscriptions, modal stack and timer survive Shutdown. (§7.1.1)
+28. **Construction sound selection.** Data1 91, data3 0: non-positional `0x89F10866` calls AudioScape
+    slot 14(`0xAA62C82A`,91). Data3 2 selects `0xEA62C800`; bits other than mask 2 do not affect selection.
+    Data2 absent or present zero remains non-positional. Present/nonzero data2 and position `(3,4,5)`
+    use slot 13(sound,91,position,0.0f). `0xA9F10E45` uses slot 15 with the same tuple. Null QI result
+    returns true/no post; null void1 on `0xA9F10E45` returns false; missing AudioScape/payload QI returns
+    false; acquired references are released. Main dispatch masks those false returns to true. (§7.3.2)
+29. **Deferred station selection and radio helper.** EC4 queues station data1 0, EC5 queues 1; neither
+    includes data2. Deliver the queued messages and expect `kmay`/`krgn`, fade record `(0,4000)`; present
+    data2 123 gives `(0,123)`. Same resolved current/requested station skips slot 13 but still calls slot
+    30(false). Data1 2 is a successful no-op. Failed payload QI rejects direct helper, and no radio
+    still accepts valid station messages without calls. (§7.2.1)
+30. **Pointer transfer and radio controls.** `0xAA611B6E` with data1 pointer P and distinct message M:
+    expect radio slot 7(P), Release(P), no AddRef(P), no Release(M); null radio still releases P, null P
+    does nothing. `0x0A611B34` with data1 0/data2 44/data3 absent yields object slots 14(44),12(2);
+    present data3 −7 yields 12(1). `0xAA650860` toggles only when desired differs from current, with
+    slot 8(0) only on enabling. Verify preference gate on `0x4348B111` and the `0x0BAAB7A4` request
+    made by `0x4A7FB7E9`. (§7.2.1)
+31. **Dispatch categories and capability-only notifications.** For each category 0,1,5,6 and key 77,
+    `0x894671F6` builds `(0x09C66951,77,0,0)` and `0xE94671EB` builds `(0x29D99E9E,77,0,0)` via slot 13,
+    then submits/releases the returned interface. Categories 2,3,4,7 and zero key emit nothing. C9F1011A
+    and 49F10111 successfully QI `0xC9B6D7D6`, release it, and emit nothing; failed QI returns false to
+    the direct helper and true through main dispatch. Missing data1 presence rejects. (§7.2.2)
+32. **Ignored subscribed types.** Deliver C53D10AA and E94671ED with otherwise sound-capable payloads:
+    true, no effects. Direct 49E64801 reaches automata but produces no sound. Null main message returns
+    false. This test uses direct delivery independently from subscription eligibility. (§7.2)
+33. **Nested modal ownership.** Begin A, begin B, end notice naming A: retained windows are A then B,
+    but the end releases B. Final end releases A. Subscribe mouse once on the first begin, unsubscribe
+    once on the final end, never on nested transitions. Failed window QI still pushes/pops. (§7.2.3)
+34. **Modal bounds and return exception.** Window rectangle `(10,20,30,40)`: points on every edge/corner
+    produce no sound for each subtype 7,8,9. Points `(9,20)`, `(31,40)`, `(10,19)`, `(30,41)` each post
+    `(1,0xAA62C9D5,0,0,0)` via slot 11, return true and balance references. Same outside point with
+    missing global sound service returns false through main DoMessage. Other subtype or failed mouse
+    QI returns true/no sound. (§7.2.4)
+35. **Automata packed event and QI failure.** Sound 55, data2 77, position `(1.9,-2.9,3.1)` yields start
+    event `0xEA451903` words `(55,77,1,0)`, then position event `0xCA45190F` words `(77,1,-2,3)`; stop
+    emits `0x6A451908` words `(77,0,0,0)`. Failed position QI emits no event and returns false, even if
+    the host supplies nonzero seed words. Verify payload/position reference releases and that slot 14
+    getters receive **no arguments**. A rate-limited magic sound still returns true and performs no
+    position lookup. (§7.3)
+36. **Alternate automata selection.** A9E3B6E3 with both data presence flags and void1 P: data1 0 calls
+    slot 14(`0x49DE8A94`,P), slot 14(`0xA9DE8B59`,P), in order. Data1 1 or −1 with position `(1,2,3)`
+    calls slot 13(`0x49DE8A94` or `0xA9DE8B59`,P,position,50.0f). Independently remove either presence
+    flag, remove void1, or fail positional QI: direct helper false, no posts, balanced payload/QI.
+    No instance generation and no timer changes on these routes. (§7.3.1)
+37. **EA3ADA33 matrix and ID source.** Exercise all six cells of the selector table plus data2 0 and
+    absent data2 (both `0x69F01280`). Absent data1 selects the nonzero column. Fixture generated ID 99
+    appears as the AudioScape slot-13 key, never a data2/key from the message. Verify SFX service access,
+    one no-argument global generation and 50.0f range. Failed position QI continues; assert only the
+    defined calls/ID, not an invented value for its indeterminate position. (§7.3.1)
+38. **DoEvent return and dispatch.** Null member sound system: true, no service/QI. With it available,
+    unknown type and each recognized type return false after balancing temporary references, even if
+    the initial payload QI fails. AA36D9B6 invokes enumeration `(callback,0,0)`; recording callback QI
+    success yields slot 4(32,0) then slot 3(32,result), release and true; failed QI still returns true.
+    0BAAB7A4 with value 45 calls the obtained service interface slot 11(127,45) and releases it. (§7.5)
+39. **Torch start/stop and sticky mode.** From zero globals, event 2A106113 emits exactly start/volume
+    for sound `0x6A10AC51`, key 0x601, volume 1024. AA96FE8F with nonzero data1 enters mode and starts
+    keys 0x600/602/603 before stopping 0x601; repeat emits nothing. A zero-data1 transition stops 602,
+    stops 603, starts 601. Stop-all event 8A10611A stops only 601/602/603 and leaves mode/enabled flags
+    intact. Helper's third/fifth arguments do not alter any event word. (§7.5)
+40. **Torch numeric/history and enabled gate.** With previous point `(0,0)`, timestamp 0, speed 0,
+    use point `(3,4)`, timestamp 100: speed approximately 5, stored smoothed speed 2.5f, V=17.
+    Enabled 4A106126 posts volumes 617 on both keys 602 and 603. Next event at the same timestamp has
+    speed 0, stored smoothed speed 1.25f, V=8. Disabled processing emits no volume posts but still
+    updates history. Add timestamp wrap `0xFFFFFFF0`→`0x10` (elapsed 32), a speed above 60 (cap before
+    averaging), and two handlers sharing the same history. No member AudioScape or no RZ sound service
+    changes neither history nor sounds and returns false. (§7.5)
+41. **Destruction is separate from shutdown.** Destroy without Shutdown after a begin notice: free
+    timer/list storage, release remaining AudioScape/sound/radio once each, but do not unsubscribe,
+    unregister, stop sounds or Release the raw stacked window. With Shutdown already successful,
+    destruction must not release the already-cleared AudioScape/radio a second time. Deletion flag 0
+    retains outer storage; flag 1 frees it. Global torch history survives both. (§7.6)
+42. **Unchecked-input boundaries.** Null required final message servers, null void1 on ordinary play,
+    empty-stack modal end/mouse, and null torch payload are outside the original's checked contract.
+    A replacement may diagnose these safely *[choice]*, but must not treat them as measured successful
+    requests, fabricate coordinates, or count them as the false-return cases above. (§§7.1.1–7.6)
