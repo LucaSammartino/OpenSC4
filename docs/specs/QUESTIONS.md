@@ -56,6 +56,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DS | disasters |
 | DT | dates |
 | EF | effects |
+| EFP | effects-parser |
 | EH | residential-education-health |
 | EX | data-formats |
 | FBQ | win-filebrowser |
@@ -72,6 +73,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GF | graphics-formats |
 | GI | renderer-gdrivers-director-inventory |
 | GINT | grid-interpolation |
+| GL | game-of-life |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -123,8 +125,10 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
+| Q | network-transport |
 | QR | region-screen |
 | QV | map-view |
+| RB | rigid-body-2d |
 | RC | resource-catalog |
 | RD | renderer-driver |
 | RE | resource-exemplar-editor |
@@ -161,6 +165,7 @@ generated index: the questions live one file per spec, so read only the file for
 | UG | underground-occupants |
 | VH | vehicles |
 | VIC | view-input-controls |
+| VP | video-preferences |
 | VU | view-utilities |
 | VW | view3d-window |
 | WC | watercraft |
@@ -211,6 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
+| effects-parser | 6 | 0 | EFP7 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
@@ -220,7 +226,8 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
-| geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
+| game-of-life | 3 | 0 | GL4 | questions/game-of-life.md |
+| geometry-utilities | 5 | 1 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
@@ -252,6 +259,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
+| network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
@@ -289,6 +297,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
+| rigid-body-2d | 6 | 0 | RB7 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -311,6 +320,7 @@ generated index: the questions live one file per spec, so read only the file for
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
+| video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
@@ -322,4 +332,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **481** | **1261** | | |
+| **total** | **504** | **1262** | | |
