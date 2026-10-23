@@ -380,7 +380,7 @@ fn raw_highlights_select_native_radius_without_claiming_comparison() {
             radius: HighlightRadius::None
         }]
     );
-    assert_eq!(collect_highlights(5, &buildings), Err(Unsupported::CrimeHotspot));
+    assert_eq!(highlight_request(5).unwrap().provider, Provider::Crime);
     let mut view = selected(1);
     for _ in 0..2 {
         assert_eq!(

@@ -54,14 +54,14 @@ pub enum Unsupported {
     HighlightKind(u32),
     HighlightRadius(u32),
     HighlightComparison,
-    CrimeHotspot,
     RepeatedInit,
     RepeatedHook,
     MissingNotificationValue,
     ClockRegression,
     PanelsQV3,
     GroupButtonQV3(u32),
-    LegendShape,
+    LegendStringRead(usize),
+    LegendLayout,
     GridType,
     OverlayGeometryQV10,
     TrafficMarkersQV4,
@@ -99,8 +99,8 @@ pub enum Effect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Initialization {
     pub effects: Vec<Effect>,
-    /// Native allocation/initialization failure behavior has no contract.
-    /// The plan does not imply that a native marked-cell view was created.
+    /// Native marked-cell allocation must produce a valid object (§1).
+    /// The intent-only plan does not imply that an object was created.
     pub boundary: Unsupported,
 }
 
@@ -175,6 +175,8 @@ pub struct MapView {
     mode_button: Option<u32>,
     two_way_toggle: Option<bool>,
     overlay_enabled: bool,
+    retained_highlights: Vec<HighlightRecord>,
+    highlight_style: HighlightStyle,
 }
 
 impl MapView {
@@ -202,6 +204,8 @@ impl MapView {
             mode_button: None,
             two_way_toggle: None,
             overlay_enabled: false,
+            retained_highlights: Vec::new(),
+            highlight_style: HighlightStyle::default(),
         }
     }
 

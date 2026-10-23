@@ -5,9 +5,10 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnerError {
     Unsupported(Unsupported),
-    /// Opaque adapter failure, not an invented native return code (QV12).
+    /// Invalid adapter/service input, distinct from normally returning false.
     Foreign(u32),
     MissingExemplar,
+    MissingMessageServer,
 }
 
 impl From<Unsupported> for OwnerError {
@@ -64,6 +65,37 @@ pub enum RenderCommand<'a> {
 
 pub trait Renderer {
     fn render(&mut self, command: RenderCommand<'_>) -> Result<(), OwnerError>;
+    fn primitive(&mut self, command: RenderCommand<'_>) -> Result<bool, OwnerError> {
+        self.render(command)?;
+        Ok(true)
+    }
+    fn update_custom_view(&mut self, _handle: u64) -> Result<bool, OwnerError> {
+        Ok(true)
+    }
+    fn create_visual_effect(&mut self, _name: &str) -> Result<Option<u64>, OwnerError> {
+        Err(OwnerError::Foreign(7))
+    }
+    fn visual_effect(&mut self, _effect: VisualEffect) -> Result<bool, OwnerError> {
+        Err(OwnerError::Foreign(8))
+    }
+    fn highlight_occupant(&mut self, _occupant: u64, _highlight: bool, _argument: u32) -> Result<bool, OwnerError> {
+        Err(OwnerError::Foreign(17))
+    }
+    fn release_occupant(&mut self, _occupant: u64) -> Result<(), OwnerError> {
+        Err(OwnerError::Foreign(0))
+    }
+    /// Buffer acquisition flags are always 0x8040. None is an ordinary failure.
+    fn acquire_bitmap(&mut self, _flags: u32, width: usize, height: usize) -> Result<Option<ClipRect>, OwnerError> {
+        Ok(Some(ClipRect {
+            left: 0,
+            top: 0,
+            right: width as i32,
+            bottom: height as i32,
+        }))
+    }
+    fn release_bitmap(&mut self) -> Result<(), OwnerError> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -100,6 +132,19 @@ pub trait Simulators {
     /// City slots 93/94, used only to decide whether resampling is needed.
     fn city_cells(&mut self) -> Result<[usize; 2], OwnerError>;
     fn buildings(&mut self, request: HighlightRequest) -> Result<Vec<RawBuilding>, OwnerError>;
+    /// Crime slot 8 outputs; None means false with no output writes.
+    fn crime_hotspot(&mut self) -> Result<Option<CrimeHotspot>, OwnerError> {
+        Err(OwnerError::Foreign(8))
+    }
+    fn terrain_altitude(&mut self, _x: f32, _z: f32) -> Result<f32, OwnerError> {
+        Err(OwnerError::Foreign(13))
+    }
+    fn occupant_cells(&mut self, _occupant: u64) -> Result<[i32; 4], OwnerError> {
+        Err(OwnerError::Foreign(11))
+    }
+    fn city_world_width(&mut self) -> Result<f32, OwnerError> {
+        Err(OwnerError::Foreign(93))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -169,11 +214,13 @@ impl RawExemplar {
 }
 
 impl MapView {
-    /// Execute the Init primitives; adapter errors stop at the failed primitive.
-    /// Repeated initialization and native rollback remain QV9/QV12.
+    /// §1: latch survives missing server; ordinary false primitives are ignored.
     pub fn init_with(&mut self, windows: &mut impl WindowSystem) -> Result<(), OwnerError> {
         for effect in self.init()?.effects {
-            windows.effect(WindowEffect::Lifecycle(effect))?;
+            if matches!(effect, Effect::Subscribe(_)) && !windows.message_server_present() {
+                return Err(OwnerError::MissingMessageServer);
+            }
+            windows.primitive(WindowEffect::Lifecycle(effect))?;
         }
         Ok(())
     }
@@ -196,7 +243,7 @@ impl MapView {
     ) -> Result<OwnerSelection, OwnerError> {
         let start = self.begin_selection(view);
         for effect in start.effects {
-            windows.effect(WindowEffect::Lifecycle(effect))?;
+            windows.primitive(WindowEffect::Lifecycle(effect))?;
         }
         let key = match start.outcome {
             SelectionOutcome::Inactive => return Ok(OwnerSelection::Inactive),
@@ -207,34 +254,83 @@ impl MapView {
         };
         let raw = resources.exemplar(key)?.ok_or(OwnerError::MissingExemplar)?;
         self.store_selection(&raw)?;
+        self.highlight_style = HighlightStyle::from_exemplar(&raw)?;
         self.palettes = Some(build_palettes(
             &self.config.as_ref().expect("stored selection").ramp_pairs,
         )?);
         for setting in raw.render_settings()? {
-            renderer.render(RenderCommand::Setting(setting))?;
+            renderer.primitive(RenderCommand::Setting(setting))?;
         }
         // Literal property presence creates a foreign class. No pointer is
         // released unless this owner received a successfully created handle.
-        // QV12: initialization/attachment details beyond the IID are unpublished.
         if let Some(class) = raw.optional_u32(0x4a0b_47eb)? {
-            self.custom_view = Some(windows.create_custom_view(class, 0x8a17_5d6b)?);
+            self.custom_view = windows.create_custom_view(class, 0x8a17_5d6b)?;
+            if let Some(handle) = self.custom_view {
+                windows.primitive(WindowEffect::InitCustomView(handle))?;
+            }
         }
-        let highlight_boundary = self.poll_highlights(simulators)?;
+        let highlight_boundary = self.poll_highlights(renderer, simulators)?;
         self.draw_with(renderer, simulators)?;
-        windows.effect(WindowEffect::ChildFlag {
-            child: 0x4203,
-            iid: 0xca31_8385,
-            value: raw.bool_field(CHILD_FLAG)?,
-        })?;
+        if windows.query_control(0x4203, 0xca31_8385)? {
+            windows.primitive(WindowEffect::ChildFlag {
+                child: 0x4203,
+                iid: 0xca31_8385,
+                value: raw.bool_field(CHILD_FLAG)?,
+            })?;
+        }
         self.current_view = Some(view);
         for effect in self.hook_update_messages()? {
-            windows.effect(WindowEffect::Lifecycle(effect))?;
+            windows.primitive(WindowEffect::Lifecycle(effect))?;
         }
         Ok(OwnerSelection::Selected { highlight_boundary })
     }
 
-    fn poll_highlights(&mut self, simulators: &mut impl Simulators) -> Result<Option<Unsupported>, OwnerError> {
+    pub fn poll_highlights(
+        &mut self,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<Option<Unsupported>, OwnerError> {
         let kind = self.config.as_ref().map_or(0, |config| config.highlight_kind);
+        if kind == 5 {
+            let hotspot = simulators.crime_hotspot()?;
+            let mut candidate = if let Some(hotspot) = hotspot {
+                let x = ((f64::from(hotspot.x) + 0.5) * 16.0) as f32;
+                let z = ((f64::from(hotspot.z) + 0.5) * 16.0) as f32;
+                let y = simulators.terrain_altitude(x, z)?;
+                let mut record = HighlightRecord {
+                    occupant: None,
+                    position: [x, y, z],
+                    radius: 100.0,
+                    effect: None,
+                };
+                record.effect = record.create_effect(&self.highlight_style.name, 100.0, renderer)?;
+                Some(record)
+            } else {
+                None
+            };
+            let changed = candidate.is_some() || !self.retained_highlights.is_empty();
+            let previous = std::mem::take(&mut self.retained_highlights);
+            for record in &previous {
+                record.stop(renderer)?;
+            }
+            if let Some(mut record) = candidate.take() {
+                record.add(&self.highlight_style.name, renderer)?;
+                self.retained_highlights.push(record);
+            }
+            for record in previous {
+                record.release(renderer)?;
+            }
+            self.dirty |= changed;
+            return Ok(None);
+        }
+        self.dirty |= !self.retained_highlights.is_empty();
+        for record in self.retained_highlights.drain(..) {
+            record.remove(renderer)?;
+        }
+        if kind == 0 {
+            // Only clearing retained records is settled; other kind-0 state is QV7.
+            return Ok(Some(Unsupported::HighlightKind(0)));
+        }
         let request = match highlight_request(kind) {
             Ok(request) => request,
             Err(error) => return Ok(Some(error)),
@@ -315,7 +411,8 @@ impl MapView {
             .map_err(|_| Unsupported::HelperAllocation)?;
         pixels.resize(count, 0);
         emit_colors(values, palette, &mut pixels)?;
-        renderer.render(RenderCommand::Bitmap {
+        self.decorate_bitmap(grid.width, grid.height, &mut pixels, renderer, simulators)?;
+        renderer.primitive(RenderCommand::Bitmap {
             class: 0x2073_2180,
             iid: 0xc470_d325,
             bits: 32,
@@ -325,6 +422,9 @@ impl MapView {
             own_cells: matches!(request, SourceSelection::Grid(GridRequest { own_cells: true, .. })),
             pixels: &pixels,
         })?;
+        if let Some(handle) = self.custom_view {
+            renderer.update_custom_view(handle)?;
+        }
         Ok(OwnerUpdate::Drawn)
     }
 
@@ -338,7 +438,7 @@ impl MapView {
             .checked_sub(self.last_redraw_ms)
             .ok_or(Unsupported::ClockRegression)?;
         self.notify(ANIMATION_TICK, None)?;
-        let highlight_boundary = self.poll_highlights(simulators)?;
+        let highlight_boundary = self.poll_highlights(renderer, simulators)?;
         let interval = if self.source == 76 {
             self.dirty = true;
             250

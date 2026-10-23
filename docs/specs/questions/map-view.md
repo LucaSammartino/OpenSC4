@@ -58,3 +58,11 @@
   and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the
   slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
   preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
+
+<!-- from: core-map-view5b (2026-10-23) -->
+- **QV14 - §5.2: ring intermediate precision:** which x87 precision-control and rounding-control modes
+  apply to the ring helper, and at which operations (including square roots) are intermediates rounded?
+  Does the stated formula require 24-, 53- or 64-bit significands between its explicit binary32 stores?
+  Please add a near-threshold pixel vector that discriminates these modes. [literal formula implemented
+  with the explicit binary32 stores and binary64 intermediates; §10.15-16 pass; this is a portable numeric
+  choice, not a claim of native edge-pixel/weight equivalence for all coordinates; invalid domains remain QV10]
