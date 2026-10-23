@@ -1,32 +1,185 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 | in progress | Audit 45 named entries, independent fixtures, implement and gate |
+| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | WIP: workspace cargo 5162/0 and owner 22/22 at 34dc4033; nine-file fmt passed before lint cleanup; clippy failed redundant_locals, two bindings removed but fix unverified; original all native build active, CTest not started; ABI unchanged; LC9/LC10 retained | (1) Collect original all by verified PID/creation/command, no duplicate; (2) focused clippy/fmt after it ends; (3) authorized passing stable full gate before ready |
 
-## Handoff
-- Goal: first portable LegacyControl owner from published legacy-control sections 1–12 only.
-- Worktree reserved, detached HEAD reused; initial status clean, no commits beyond main.
-- Read rules and lane format; no forbidden sources opened.
-- Task-specific validation overrides baseline request: no unchanged baseline full build; one focused quick, touched-file fmt, one stable final all.
-- No GUI/game/network, C ABI, plugin or capped-family changes permitted.
-- Audit complete: exact 45 contracted owner functions; Custom shared stub is additional, not owner credit.
-- Frozen independent expected fixtures BEFORE implementation: 393 ordered vocabulary entries plus lifecycle, typed scans, fallback, two-pass, resource, Tree/Grid and boundary effect vectors.
-- Done: fixtures commit 02bd46f2 precedes all production source.
-- Production milestones: bf469091 (owner implementation), d8d3da6f (22 conformance tests, finalized source and engine-format configuration).
-- Done: portable lifecycle/build, 21 vocabulary tables/maps, common + seven published type bodies + Custom shared stub; fragment wrapper/frame/common with explicit LC8 coverage.
-- Done: added full-builder fixtures for all seven published widgets, fragment wrapper/common/LC8, FileBrowser defaults/filter index, Tree image/root/font, Grid stale-scan/scratch and resource ref effects.
-- Validation pending: first quick lifetime compile failure and second quick formatting-header failure preserved in build-runs/fc4verify-quick-test-{first,format}-failure.log. Fixed both. Third quick queued on Cargo lock (session 75463); do not start another quick.
-- Formatting: first invocation used wrong relative paths; corrected absolute paths expose engine rustfmt configuration mismatch. Applying engine configuration only to new source; shared lib.rs must not be mass-reformatted.
-- Current quick evidence is NOT a pass: overlapping earlier failed invocations left NUL gaps/old errors in quick-test.log; intact failure snapshots retained. Never trust that mixed log as final source evidence.
-- Next: inspect the ALREADY RUNNING direct qbuild all and its final logs/verdict; do NOT launch duplicate checks. Final touched-file fmt result unresolved in session 60998; new files formatted with engine max_width=120, shared lib.rs preserved.
-- The q.py all transport FAILED BEFORE qbuild started: build-runs/q/20261023-000344-12404.log is UTF16 Access denied, Bash/Service/CreateInstance/E_ACCESSDENIED. Do not interpret this as a cargo/all result.
-- Direct PowerShell qbuild.py all STARTED after a6cd7701 (first actual all), exec session 47475 / functions cell 50 already yielded its initial result. No source edits since d8d3da6f. No game requests or queue until stable passing gate.
-- Full 45-entry report draft and foreign-helper/domain audit: build-runs/legacy-control-report-draft.md. Gate/count fields deliberately pending; copy into final lane report only after actual evidence.
-- LC9/LC10 filed for unsafe/malformed/duplicate domains; allowed indeterminate-field choices labeled in code.
-- No unchanged baseline or game run. Full gate pending; no verified cargo/clippy/CMake/CTest counts. Shared Git packed-refs.lock warning occurs during commit, but detached commits succeed; do not change shared config/refs.
-- Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
-- Round 2 OS audit: no surviving attributable validator; limited-query fallback obtained candidate command lines/creation/PID. Only own matching Python is supervisor PID 33956, not a check. No other process touched.
-- Old all/native logs end during compilation with no exit/results; fmt result absent. Mixed quick has 3717 NUL bytes. Original result/stderr and transport failure retained; overwrite-prone logs moved to r1-* with original hashes in build-runs/legacy-control-validation-reconciliation.md.
-- Round 2: all five moved r1-* logs verified SHA256-identical; original failure snapshots and UTF16 transport failure unchanged. Audited production builder/lifecycle/readers, seven published type bodies, fragment limits and original 22 tests; no new owner defect found, no expected fixture changed.
-- Formatting replacement: qbuild fmt with absolute paths for all nine owner .rs files returned exit=0, files=9, diff_lines=1 (only canonicalize-path warning). Engine max_width=120 configuration applied; shared lib.rs not reformatted.
-- Next: run the one necessary replacement stable committed-source all via build-runs/legacy-control-final-gate.py; collect actual workspace/clippy/native/CTest exits and source hashes, then finalize exact 45-entry report. No duplicate quick or baseline.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r2-manifest.json. Round-1 stop ce60e13a preserved as ancestor; no queue.
+# Portable LegacyControl owner report
+
+Source milestones: independent literal fixtures `02bd46f2` preceded production
+`bf469091`; source/tests finalized in `d8d3da6f`. The original round stopped at
+`ce60e13a`, preserved as an ancestor. Round 2 reconciled validation in `8949db4a`
+and recorded the audit/format result in `34dc4033`. Round 2 removed only two
+redundant mutable local rebindings from the vocabulary test after Clippy reported
+them. Production, fixtures, all assertions/counts/tolerances and all 22 test
+functions remain intact. No ignored tests or lint suppressions were added.
+
+## Exact 45-entry inventory
+
+Complete means the published portable effects in the declared safe domain,
+including explicitly allowed deterministic choices. It does not mean native
+memory layout, unsafe CRT inputs, whole native UI behavior, or default readiness.
+Conservatively: 42 complete entries, 3 partial entries, 0 wholly unsupported
+entries within these 45; 12 further owned interpreters remain Unsupported (LC4).
+
+1. QueryInterface — complete: four IIDs, interface identity, AddRef, untouched output on failure.
+2. Release — complete: decrement above one; count one or zero destroys without first decrementing.
+3. Destructor/scalar deleting destructor — complete portable detach/shutdown/ref order; Rust tombstone/storage replaces native deletion.
+4. GetControlVocabulary — complete borrowed getter.
+5. SetOwnControl — complete flag setter.
+6. SetOwnControl legacy thunk — complete same setter.
+7. SetParent — complete release/null old, legacy QI, acquire control, release temporary, unconditional true.
+8. UseWinProc — complete equality no-op, new AddRef before old Release.
+9. ForceControl — complete same ref ordering, leaves own flag unchanged.
+10. GetID — complete null/default/read channel.
+11. SetID — complete null/no-op/write channel.
+12. DoExceptions — complete true-only QI, one-shot procedure handoff, procedure then interface release.
+13. Constructor — complete defaults, lazy creation, exact registration order, vocabulary reuse AddRef, usable on failure.
+14. ImplementInterface — complete ignored-argument true stub.
+15. SetParameters — partial: complete published known/no-interpreter builder; successful unknown per-type QI stops explicitly Unsupported (LC4).
+16. GetScriptFragment — partial overall: complete allocation/reference/output wrapper and known frame/common; unknown successful writer QI marks PartialLc8.
+17. ControlVocabularyCommon — complete 64 words, no map inserts.
+18. ControlVocabularyFlatRect — complete registration and map inserts.
+19. ControlVocabularyText — complete registration; interpreter remains LC4.
+20. ControlVocabularyTextEdit — complete registration; interpreter remains LC4.
+21. ControlVocabularyListBox — complete registration; interpreter remains LC4.
+22. ControlVocabularyCombo — complete registration; interpreter remains LC4.
+23. ControlVocabularyBtn — complete registration; interpreter remains LC4.
+24. ControlVocabularyBMP — complete registration; interpreter remains LC4.
+25. ControlVocabularySlider — complete registration.
+26. ControlVocabularyScrollbar — complete registration; interpreter remains LC4.
+27. ControlVocabularyLineInput — complete registration; interpreter remains LC4.
+28. ControlVocabularyOptGrp — complete registration; interpreter remains LC4.
+29. ControlVocabularySpinner — complete registration; interpreter remains LC4.
+30. ControlVocabularyOutline — complete registration.
+31. ControlVocabularyTextTicker — complete registration; interpreter remains LC4.
+32. ControlVocabularyFileBrowser — complete registration.
+33. ControlVocabularyTreeView — complete registration.
+34. ControlVocabularyFolders — complete registration, no own property words.
+35. ControlVocabularyGrid — complete registration.
+36. ControlVocabularyCustom — complete registration, no own property words.
+37. ControlVocabularySC3WinGen — complete registration, SC3WinGen/GZWinGen aliases share their class.
+38. InterpretPropertiesCommon — complete published safe effects, explicit area-zero choice.
+39. InterpretPropertiesSlider — complete: max before min, direction, resource references/keys, signed second-pass value.
+40. InterpretPropertiesTreeView — complete published unique-key effects, retained positions, maps/root/fonts/depth-first build; duplicate keys explicitly Unsupported (LC10).
+41. InterpretPropertiesFileBrowser — complete: raw getter defaults, font precedence, mappings and pair-position filter keys.
+42. InterpretPropertiesGrid — partial: safe published effects implemented; uninitialized scratch/resource and unsafe malformed cells Unsupported (LC10).
+43. InterpretPropertiesFolders — complete: fonts, image-key effects/references, explicit unparsed-field zero choice, repeated second-pass elements.
+44. InterpretPropertiesFlatRect — complete: all repeated type-6 styles ORed, unconditional style setter, edge colors.
+45. InterpretPropertiesOutline — complete: nonzero-style setter, colors, 32-node cap, explicit unparsed-component zero choice.
+
+The 21 vocabulary functions are table-driven core algorithms with 393 exact
+ordered entries, 20 class and 20 interpreter map entries. Common has no map
+entry; aliases add words without extra owner credit. Custom's shared bare-return
+interpreter, AddRef/GetControl, area support and property readers are implemented
+support, not additional named owner bodies. Broader 205-row/104642-byte
+attribution is not implementation credit for this 45-entry scope.
+
+## Core ownership and retained quirks
+
+Core owns typed linear property scans, numeric/field parsing, type selection,
+lookup order, defaults, maps, build ordering, two passes, resource/reference
+decisions and interpreter payloads. Foreign provides individual factory/QI/ref,
+field/raw-widget operations, fonts/colors/resources, notifier helper operations
+and string allocation/appending. It never decides builder/interpreter outcomes.
+Tests use a foreign recorder with literal event vectors and independent raw
+getter/factory answers, not an outcome-producing host interpreter.
+
+Successful SetParameters still returns false. Fallback attempts only the lowest
+same-IID class, then Custom, while storing requested CLSID. The second build
+forgets the old control without Release. Type effects precede common effects,
+procedure handoff, Init, attach/front; type/common repeat in their second pass.
+Pending parent/procedure lifetimes, equality no-ops, one-shot handoff,
+owned-control detach/shutdown versus release-only, and zero-count destruction
+remain literal.
+
+LC4's 12 unknown interpreters are Btn, OptGrp, TextEdit, Spinner, LineInput,
+ListBox, SC3WinGen, Combo, TextTicker, Text, Scrollbar and BMP. Failed QI is the
+published no-effect path. Successful unknown QI is released then Unsupported.
+Prior build effects are precisely old-control overwrite, factory/fallback,
+requested-ID parameters, own=true, QI/Release. Common/procedure/Init/attach/front
+and second pass have not run; pending parent and procedure remain retained.
+
+LC5's manager-slot-3 parent is opaque. LC8's 19 unknown foreign writers remain
+partial after successful writer QI; common output is never described as complete
+native output. The fragment wrapper preserves true with a control in its valid
+foreign-result domain. Resolution scans all 21 rows when either ID is missing.
+LC9 retains UTF8/bounded numeric and indeterminate-field choices. LC10 retains
+duplicate-map and Grid scratch/notifier limits. No question was closed, no new
+question filed in round 2, and no shared question index was edited.
+
+## Validation attribution
+
+The original all/fmt did not survive the round transition. OS PID/creation/command
+audit with limited-query fallback found no matching validator; no other check
+was killed. The old all/native logs end in compilation without return codes or
+test results; the mixed quick log has 3717 NUL bytes. All five overwrite-prone
+logs were moved byte-identically to r1-* names, verified by SHA256. Original
+lifetime/header failure snapshots and the UTF16 q.py pre-launch Access denied
+transport failure remain intact. Details: legacy-control-validation-reconciliation.md.
+
+Replacement fmt: qbuild fmt, nine absolute owner paths, exit=0, files=9,
+diff_lines=1 (canonicalize-path warning only). Engine max_width=120; shared lib.rs
+was not mass-formatted. Original 22 test functions remain unignored and exercise
+production algorithms; the vocabulary fixture has 21 header rows + 393 entries.
+
+One replacement all was launched by legacy-control-final-gate.py on clean
+HEAD 34dc40338ed4c4c5520781bc1f8d83b156421fd8,
+tree 736c76bcac18bc6173e2063d2d16853fc6cf9bcb.
+Source bundle SHA256: 200e916d47a25e750903c43a52c9e558cb97a588130d8f84e7d02fbf6d6dd1e0.
+Attribution: qbuild PID 29620, created 2026-10-22T23:30:30.519874Z,
+parent runner PID 2284, created 2026-10-22T23:30:30.413866Z; both commands/cwd
+match this worktree. Rustc PIDs 33708/29016 compile this worktree's core.
+
+Workspace test phase completed: 5162 passed, 0 failed, 0 ignored, 0 measured,
+0 filtered, across 22 Cargo summary rows. LegacyControl tests 22/22 passed.
+qbuild-test.log: 312613 bytes, no NULs, SHA256
+1eddbeade616bf9a85366eaf94fa78943dd8fcb414dea643236bbc9d4e693a35.
+No Rust diagnostics in that log. Clippy processes 29416/27140 were created
+2026-10-22T23:45:20Z, cwd this worktree/engine. Clippy **failed** under -D warnings
+with clippy::redundant_locals at tests.rs:225/226: `let mut f = f;` and
+`let mut g = g;`. Both original bindings were already mutable. Removed these two
+statements only. Focused Clippy and touched-test fmt after the fix remain pending:
+the original all is still in native compilation, so no overlapping check ran.
+The original failed qbuild-clippy.log remains unchanged: 1568 bytes, no NULs,
+SHA256 09a5622612bb0f79045ed3efe2582999c19eae12180c55e063a15c7b855bf3ae.
+
+CMake configured/generated successfully (0.2s/0.1s); configure log SHA256
+23b704df9201df16e5e48025e1f225f0e16cdf4ed6974357e53d7f57f5b63990.
+Native build at last OS sample was compiling release core: fc4verify PID 21424,
+created 2026-10-22T23:52:18.665579Z; CMake PID 38668, created
+2026-10-22T23:52:22.117063Z; rustc PID 25156, created
+2026-10-22T23:52:24.690336Z, CPU 25.8125 seconds, cwd own engine. No other check
+was killed. No original native rc, completed Ninja progress/full denominator,
+CTest N/N/end or full wrapper return code is yet available. CTest had not started.
+
+The full gate was launched on clean 34dc4033; its completed after snapshot is
+pending. The final test-only lint fix changes the source bundle after the failed
+Clippy phase. Production and vocabulary fixture hashes remain unchanged. Never
+use this operation as a passing stable final-tip gate. The runner will print
+original qbuild rc and its before/after head/tree/dirty/source hashes on exit.
+Session 9365 has an outstanding collection in functions cell 42; neither ID
+proves liveness or completion. Recheck OS PID/creation/command/cwd before adoption.
+
+WIP: this round consumed its one replacement full all, which already failed
+Clippy; no second all or duplicate quick was launched, and no wrapper gate was
+overridden. Actual independent owner tests and workspace totals passed before
+the lint-only fix, whose assertions/expected effects remain identical.
+
+## Next steps
+
+1. Collect the existing qbuild all PID 29620 / runner PID 2284 and native operation
+   after verifying current creation/command/cwd. Preserve all logs and original
+   rc; successful Ninja restat may have partial predicted progress. Do not infer
+   success from a progress denominator or start overlapping checks.
+2. Once it ends, preserve the failed clippy log before a focused qbuild clippy
+   rerun; run qbuild fmt on the absolute touched test path. No fixture/assertion
+   rewrite is needed. Do not change tools, parsers or caches.
+3. Obtain an authorized passing stable full all on a clean final tip before
+   ready. Coordinator regenerates the shared question index. LC4/LC5/LC8/LC9/LC10
+   and all native/default/whole-UI exclusions remain; no question was closed.
+
+Relative to original base 82feac1f, shared lib.rs only adds the final module
+declaration; engine rustfmt configuration is unchanged. This round does not
+claim a passing gate or a complete native/default/whole-owner implementation.
+
+No GUI/game/network run, C ABI/export/version/default/coverage/native glue
+change, imported widget answers, whole-UI/pixel equivalence or whole-owner credit.

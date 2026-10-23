@@ -222,8 +222,6 @@ fn exact_vocabulary_order_ids_aliases_and_maps() {
     assert_eq!(f.events, effects);
     f.events.clear();
     // A fresh constructor must reuse, not register again.
-    let mut f = f;
-    let mut g = g;
     let _second = LegacyControl::new(&mut g, &mut f);
     assert_eq!(f.events, vec![Event::Add(99)]);
 }
