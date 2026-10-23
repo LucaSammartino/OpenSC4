@@ -695,7 +695,7 @@ Fields past the network occupant's (§2.2):
 | `+0x260`, `+0x261` | 2 × bool | refresh pending, model rebuild needed (slot 100, §3.2) |
 | `+0x262` | bool | cleared by `Read`; the subway builds its model before its paths while it is clear |
 | `+0x264` | u32 | the layer's class ID (`0x49C05B9F` pipe, `0xCA16374F` subway), given to `Init` (slot 82) |
-| `+0x268` | u32 | saved and returned by slot 96; nothing in these classes sets it (NO41) |
+| `+0x268` | u32 | opaque saved model-key word, returned unchanged by slot 96 (§3.6.3) |
 | `+0x26C` | pointer | the static model descriptor (slot 101) |
 
 A vertex list is a vector of the 24-byte vertices of §2.2 (begin/end/capacity).
@@ -946,19 +946,19 @@ themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x
 
 | Offset | Type | Field |
 |---|---|---|
-| `+0x68` | u32 | saved; meaning not known (NO41) |
+| `+0x68` | u32 | number of active wall lists (0–4); saved |
 | `+0x6C`, `+0x78`, `+0x84`, `+0x90`, `+0xA0`, `+0xAC`, `+0xBC` | 7 vertex lists | the connection's model *[summary]* |
 | `+0xC8` | pointer | the **attached** underground occupant (the one at this cell), counted |
 | `+0xCC` | pointer | a **linked** occupant (slot 40), counted |
 | `+0x150`, `+0x154` | 2 × s32 | the cell |
 | `+0x160`…`+0x16C` | 4 × f32 | four heights |
-| `+0x170` | f32 | saved (NO41) |
+| `+0x170` | f32 | model's upper anchor elevation; saved |
 | `+0x174` | f32 | creation-time position y minus the cell size; not a separate record field |
-| `+0x178` | s32 | saved (NO41) |
+| `+0x178` | s32 | self-lit shade-table index, initially 1; saved |
 | `+0x17C` | bool | the model state has been taken into account |
 | `+0x180`, `+0x18C` | 2 × 3 × f32 | the box (slot 42) |
 | `+0x230` | 3 × f32 | the position (occupant slots 8 `GetPosition`, 9 `SetPosition`) |
-| `+0x240` | u32 | saved (NO41) |
+| `+0x240` | u32 | creation class ID; saved |
 | `+0x244` | bool | set by `Read` |
 
 **Record** (`Write` `0x00654C50`, `Read` `0x00657590`):
@@ -1113,8 +1113,23 @@ Subtraction and multiplication remain on the x87 stack until the f32 V store; no
 temporary intervenes (`0x00655659–0x0065567F`, `0x0065569C–0x006556EE`). The wall builder clears
 its lists before appending; the helper itself does not clear them.
 
-UG5 remains open for the descriptor-dependent geometry, complete Draw/view/transform and message decisions;
-NO40/NO41 also remain open. Neither a successful lookup nor these packing tuples is an owner-closure claim.
+#### 3.6.3 Saved auxiliary words *[compat; NO41]*
+
+The underground base's +268 is an **opaque model-key word**: preserve all 32 bits on record round trips
+and return them unchanged as GetModelKey's second output. It is not a descriptor pointer or an inferred
+network enum. The descriptor is separately +26C: Init's apparent +268 store is relative to object+4
+(`0x0065C0A8–0x0065C0B4`), whereas GetModelKey reads +268 relative to the primary object
+(`0x0065A81C–0x0065A826`). No semantic conversion is justified by these methods. The connection's +68
+counts the active wall lists: construction gives zero, unattached CreateWalls rebuilds it to four,
+attached CreateWalls retains it despite clearing the lists (§3.6.2; `0x00655F5F`). Its +170 is the upper
+model anchor height: initially position.y, subsequently refreshed from the linked occupant (or the
+own-cell connection lookup) position in CreatePieceModel; +174 is the attached underground ceiling,
+or +170 minus the common underground depth when unattached (`0x006559A6–0x006559E5`,
+`0x00655AC1–0x00655B05`). +178 is the signed **shade-table index**, initialized to 1, used as
+`0x00B0CFB0 + 12×index` for Draw's self-lit RGB; the saved value is retained without validation.
++240 is the class ID supplied to creation Init, independently of the occupant type and descriptor
+(`0x0065473C`, `0x00656EDA–0x00656EF2`). Thus the opaque base word needs no invented meaning,
+and the shade word must not be normalized to a boolean.
 
 The subclasses differ in exactly three slots plus the type: the **pipe connection** ctor `0x006483E0` = the
 underground-connection ctor + its own vtables (`0x00AA9578` primary etc.), `Init` `0x00648050`; the **subway
@@ -2358,3 +2373,8 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     `(2,36,6),(2,4,6),(8,12,10),(8,28,10)`; UVs `(0,0),(0,2),(1,2),(1,0)`;
     alphas 64/64/128/128 and white RGB. B's drop 16 does not give a different V.
     Appending to a one-vertex destination leaves five vertices. A negative A drop gives negative V.
+51. **Auxiliary saved words** (§3.6.3). Load underground +268=`0x12345678`; GetModelKey and the next
+    save both retain that word, independently of the live descriptor pointer. For a connection,
+    retain shade index 2 rather than converting it to true/1; pass shade RGB at `0x00B0CFC8` to Draw.
+    Starting from wall count 3, attached CreateWalls clears the lists and retains 3; after detachment
+    rebuilding gives count 4. A linked position y=40 and unattached depth=16 gives +170=40,+174=24.

@@ -136,10 +136,6 @@ implementer of the class tables and records.
   attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
   underground base geometry and Draw/transform/box algorithms remain open.
 
-<!-- from: re-ugbase (2026-10-20) -->
-- **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
-  classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
-
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]

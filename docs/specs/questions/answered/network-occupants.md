@@ -1,5 +1,12 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: re-ugbase (2026-10-20) -->
+- **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
+  classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
+  **ANSWERED 2026-10-23 (re-netocc-answers5d):** DIFFERS — §3.6.3/test 51: base +268 is an opaque
+  saved model-key word; Init's descriptor store is actually primary+26C. Connection words are active
+  wall count, upper anchor elevation, signed shade index, and creation class ID respectively.
+
 <!-- from: core-netocc-poles5 (2026-10-23) -->
 - ~~**NO44 - §6.1 constructor enum defaults:** what initial 32-bit values does the pylon constructor assign to UI state +6C, dispatch state +70 and dispatch type +74? The published constructor defaults cover dirty, references, transform, call, blink, drag and the v5 tail but do not specify these three values. [unpublished; core construction requires the three values as explicit inputs rather than assuming zero]~~
   **ANSWERED 2026-10-23 (re-netocc-poles5):** DIFFERS — §6.1 and §13 test 45: UI=1,
