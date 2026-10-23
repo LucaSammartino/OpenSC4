@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rz-sparsematrix4: bounded sparse matrix, original R2 | Codex; core-rz-sparsematrix4 | WIP: first 21/21 literal tests passed; MSRV warning fixed; new quick waiting in stats; final all unrun | Root decision on owned stats PID 33108; collect same quick 49758; validate correction and canonical all |
+| core-rz-sparsematrix4: bounded sparse matrix, original R2 | Codex; core-rz-sparsematrix4 | in progress: quick terminal PASS/0, 21/21 literal tests passed; correction formatted | Run canonical all on stable corrected engine 57061af0 |
+
+## Handoff
+
+- Quick SAME session 49758 returned terminal exit 0: fc4verify quick PASS, 3349/0, 21 sparse tests ok, dependencies compiled, native build 4/4; fc4verify 474.6 s, qbuild PASS.
+- Terminal explicitly says tree changed during run: atomic correction committed after compilation. Thus quick validates f4bb6e0d effects, not stable corrected engine 57061af0d159dc2c7803383c212fb04e8ca0c300.
+- Durable terminal build-runs/r2-quick-terminal.json; first-quick archived 4 files/244746 bytes, manifest build-runs/r2-first-quick-evidence/manifest.json. Original evidence remains archived separately.
+- The new stats wait is no longer a live blocker; its completion cause is unknown, no lane process action. Prior snapshots/report below describe observations at their stated times.
+- Next exact step: one canonical qbuild all on stable committed corrected engine; capture true terminal and before/after source/log proof. No second quick required.
+- SM1–5 stay open, no game/ABI change. Queue WIP until stable all PASS.
 
 ## Report
 
