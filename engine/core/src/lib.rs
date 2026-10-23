@@ -160,3 +160,4 @@ pub mod resource_catalog;
 pub mod animation_tick_manager;
 
 pub mod html_ui_hooks;
+pub mod game_data_registry;
