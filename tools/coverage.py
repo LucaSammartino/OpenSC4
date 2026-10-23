@@ -37,6 +37,7 @@ import bisect
 import csv
 import fnmatch
 import hashlib
+import importlib.util
 import os
 import re
 import struct
@@ -50,6 +51,9 @@ AREAS = ["simulation", "framework", "renderer", "ui", "audio", "region", "other"
 SHARED = "<shared>"
 HUB_REFS = 64  # a function referring to more distinct functions than this is a registration hub
 REPO = Path(__file__).resolve().parents[1]
+_function_spec = importlib.util.spec_from_file_location("coverage_functions", REPO / "tools/coverage_functions.py")
+_function_module = importlib.util.module_from_spec(_function_spec)
+_function_spec.loader.exec_module(_function_module)
 
 csv.field_size_limit(1 << 30)
 
@@ -762,6 +766,51 @@ def kib(n):
 STAT = ("specified", "implemented", "verified", "replaced")
 
 
+def function_statuses(att, owner, rule, rows, export, exe_sha, repo=REPO, tracked=None):
+    identity_paths = [export / p for p in ("calls.tsv", "data-references.tsv", "instructions.asm")]
+    identity_paths += [repo / p for p in ("re/names_windows.tsv", "docs/abi/vtables.tsv", "docs/abi/interfaces.tsv",
+                                        "tools/coverage-libs.tsv", "tools/coverage-ranges.tsv", "tools/coverage-noncode-refs.tsv")]
+    artifact = {"exe_sha256": exe_sha,
+                "functions_sha256": text_sha256(export / "functions.tsv"),
+                "details_sha256": text_sha256(export / "function-details.tsv"),
+                "attribution_sha256": hashlib.sha256("\n".join(text_sha256(p) for p in identity_paths).encode("ascii")).hexdigest()}
+    try:
+        return _function_module.resolve(att, owner, rule, rows, repo / "tools/coverage-functions.json",
+                                        repo, text_sha256, EXE_SHA256, artifact, tracked)
+    except ValueError as exc:
+        sys.exit("coverage: FAIL CLOSED: " + str(exc))
+
+
+def tally_functions(items, statuses):
+    t = {"n": 0, "b": 0, **{s + k: 0 for s in STAT for k in ("_n", "_b")}}
+    for va, size, *_ in items:
+        t["n"] += 1
+        t["b"] += size
+        for s in STAT:
+            if statuses[va][s]:
+                t[s + "_n"] += 1
+                t[s + "_b"] += size
+    return t
+
+
+def completion(items, statuses, baseline, s):
+    """A ledger never promotes a whole owner/row to yes, even if all entries qualify."""
+    t = tally_functions(items, statuses)
+    if all(baseline[g[0]][s] for g in items):
+        label = "yes"
+    else:
+        label = "partial" if t[s + "_n"] else "-"
+    return f"{label} ({t[s + '_n']}/{t['n']} fn; {t[s + '_b']}/{t['b']} B)"
+
+
+def audit_lines(att, owner, rule, fun_row, statuses, baseline):
+    yield "address\tbytes\towner\trule\tsubsystem\t" + "\t".join(STAT) + "\t" + "\t".join("owner_" + s for s in STAT)
+    for va in att.order:
+        yield (f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\t"
+               + "\t".join(str(int(statuses[va][s])) for s in STAT) + "\t"
+               + "\t".join(str(int(baseline[va][s])) for s in STAT))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--export", help="Ghidra export directory (default ghidra/export/windows)")
@@ -807,6 +856,7 @@ def main():
     # statuses per map row
     status_warn, rrun = map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
     warnings = list(shadow_warn) + status_warn
+    statuses, baseline, function_inputs = function_statuses(att, owner, rule, rows, export, exe_sha)
 
     def match(o):
         for i, r in enumerate(rows):
@@ -850,20 +900,7 @@ def main():
     excl_b, excl_n = sum(lib_b.values()), sum(lib_n.values())
 
     def tally(items):
-        t = {"n": 0, "b": 0}
-        for s in STAT:
-            t[s + "_n"] = 0
-            t[s + "_b"] = 0
-        for va, size, i, _ in items:
-            t["n"] += 1
-            t["b"] += size
-            if i is None:
-                continue
-            for s in STAT:
-                if rows[i][s]:
-                    t[s + "_n"] += 1
-                    t[s + "_b"] += size
-        return t
+        return tally_functions(items, statuses)
 
     whole = tally(game)
     by_area = {a: tally([g for g in game if g[3] == a]) for a in AREAS + ["shared", "unattributed"]}
@@ -920,12 +957,35 @@ def main():
     w("")
     w("| Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |")
     w("|---|---|---:|---:|---:|---:|")
-    for s, desc in (("specified", "a spec in docs/specs covers its owner"),
-                    ("implemented", "a clean-room module in engine/ implements its owner"),
+    for s, desc in (("specified", "accepted owner spec or reviewed exact-function contract"),
+                    ("implemented", "accepted owner module or reviewed exact-function implementation"),
                     ("verified", "its same-process shadow is exact in the run that measured it"),
                     ("replaced", "our class runs instead of the original in the regress replace run")):
         w(f"| **{s}** | {desc} | {whole[s + '_b']:,} | **{pct(whole[s + '_b'], game_b)}** | {whole[s + '_n']:,} | "
           f"{pct(whole[s + '_n'], game_n)} |")
+    w("")
+    w("### Accounting transition: owner baseline and exact-function additions")
+    w("")
+    w("The legacy owner-only subtotal is preserved. Additions are a set union over actual entries, not whole-owner completion.")
+    w("")
+    w("| Status | Owner-only functions | Owner-only bytes | Added functions | Added bytes |")
+    w("|---|---:|---:|---:|---:|")
+    legacy = tally_functions(game, baseline)
+    for s in STAT:
+        w(f"| {s} | {legacy[s + '_n']:,} | {legacy[s + '_b']:,} | {whole[s + '_n'] - legacy[s + '_n']:,} | {whole[s + '_b'] - legacy[s + '_b']:,} |")
+    w("")
+    w("### Owners with exact-function additions")
+    w("")
+    w("Completion remains partial unless the legacy owner row qualifies; each cell lists exact completed/total functions and bytes.")
+    w("")
+    w("| Owner | Specified | Implemented |")
+    w("|---|---|---|")
+    added_owners = sorted({owner[va] for va in att.order if statuses[va] != baseline[va]})
+    for o in added_owners:
+        items = [g for g in game if owner[g[0]] == o]
+        w(f"| `{o}` | {completion(items, statuses, baseline, 'specified')} | {completion(items, statuses, baseline, 'implemented')} |")
+    if not added_owners:
+        w("| No new function additions | - | - |")
     w("")
     w("## Whole executable")
     w("")
@@ -959,8 +1019,7 @@ def main():
     w("")
     w("## By subsystem")
     w("")
-    w("One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every "
-      "map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines "
+    w("One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns give exact completed/total functions and bytes; `yes` requires the legacy owner baseline. Shadow: clean/total lines "
       f"in `{regress.name}` (`not in regress` when the shadow exists but the regress shadows run does not use it), "
       "or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when "
       "a compared set differs).")
@@ -968,17 +1027,16 @@ def main():
     w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |")
     w("|---|---|---:|---:|---:|---|---|---|---|---|")
 
-    def flag(idx, s):
-        vals = {rows[i][s] for i in idx}
-        return "yes" if vals == {True} else "-" if vals == {False} else "part"
+    def flag(items, s):
+        return completion(items, statuses, baseline, s)
 
     for key in sorted(subs, key=lambda k: (AREAS.index(k[0]), -sum(g[1] for g in subs[k]), k[1])):
         items = subs[key]
         idx = sub_rows[key]
         notes = sorted({rows[i]["shadow_note"] for i in idx} - {"-"})
         w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {len(items):,} | {sum(g[1] for g in items):,} | "
-          f"{flag(idx, 'specified')} | {flag(idx, 'implemented')} | {', '.join(notes) or '-'} | "
-          f"{flag(idx, 'verified')} | {flag(idx, 'replaced')} |")
+          f"{flag(items, 'specified')} | {flag(items, 'implemented')} | {', '.join(notes) or '-'} | "
+          f"{flag(items, 'verified')} | {flag(items, 'replaced')} |")
     w("")
     w("## Excluded from the denominator")
     w("")
@@ -1033,6 +1091,8 @@ def main():
         w(f"| ghidra/export/windows/{f} | {text_sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
     for k in ("names", "vtables", "interfaces", "libs", "ranges", "noncode refs", "map", "shadows", "regress.ps1", "subsystems"):
         w(f"| {inputs[k].relative_to(REPO).as_posix()} | {text_sha256(inputs[k])[:16]} | |")
+    for path, digest in function_inputs.items():
+        w(f"| {path} | {digest} | exact-function evidence (normalized full SHA-256) |")
     w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
       f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "
       f"{rrun[0]} |")
@@ -1049,9 +1109,7 @@ def main():
     Path(args.out).write_text("\n".join(L), encoding="utf-8", newline="\n")
     if args.owners:
         with open(args.owners, "w", encoding="utf-8", newline="\n") as f:
-            f.write("address\tbytes\towner\trule\tsubsystem\n")
-            for va in att.order:
-                f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
+            f.write("\n".join(audit_lines(att, owner, rule, fun_row, statuses, baseline)) + "\n")
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
           + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT) + f"; wrote {args.out}")
 
