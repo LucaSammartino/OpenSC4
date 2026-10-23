@@ -15,4 +15,6 @@
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
 - No game requests outstanding.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
+- Filed RZS8 in docs/specs/questions/rz-strings.md for nonvirtual helper ABI; RZS7 reserved by concurrent lane.
+- Coordinator must regenerate the questions index (engine lane cannot run tools/).
 - q.py Bash failed with Win32 CreateFileMapping error 5; direct cargo used for focused tests.
