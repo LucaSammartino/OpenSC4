@@ -457,6 +457,93 @@ value unchanged while flag `0x10` is set. Without that flag it clears the value 
 at now 116 without flag `0x10` reports 0, and at now 116 with the flag reports 100. Do not replace this
 quirk with an elapsed-time computation. Serialization preserves the timestamp (§6.2.1).
 
+### 4.6.2 Route-ready transport: verified MS18 contracts *[compat]* (partial)
+
+These contracts supplement §4.6.1. They do **not** close the complete transport owner:
+the residual MS18 question identifies the missing cases. Foreign transport services must
+report real outcomes; route acceptance, an expired wait and a model allocation alone do
+not constitute arrival.
+
+**Proximity geometry.** The distance helper (`0x00431900`–`0x00431A29`) resolves
+each location to a cell rectangle. With an occupant, look up its lot; without one,
+look up the lot at the stored cell. A found lot supplies its cell bounds. With no
+lot, use the degenerate rectangle (cellX,cellZ,cellX,cellZ). World x/z and neighbour
+region coordinates are not geometric inputs (`0x00431880`–`0x004318F4`).
+
+For rectangle arguments A then B, the helper measures the ordinary Euclidean
+point-to-rectangle distance from **each of B's four corners to A**, takes the
+minimum, then truncates toward zero to a signed integer. Each individual distance
+is stored as float32 before minimum selection; integer rectangle coordinates are
+converted to float32. Point-to-rectangle distance is zero for a point inside or
+on the rectangle, the perpendicular gap alongside an edge, and the square root
+of the sum of squared axis gaps beyond a corner. The square root is real: the
+instructions contain `FSQRT` at `0x005D7324`; the final conversion is `_ftol2`
+at `0x00431A21`. Use the main-thread floating-point environment of foundations
+§18. This is neither a squared-distance helper nor a general symmetric
+rectangle-to-rectangle minimum. In particular, one rectangle containing another
+can give a different result when the arguments are swapped. Do not substitute
+rectangle overlap or center-to-center distance.
+
+Both arrival comparisons pass **active destination as A and current location as B**
+(`0x00435B82`–`0x00435B8F`, `0x004361ED`–`0x004361FA`). Let D be that truncated
+linear result, and P be `DESTINATION_PROXIMITY_MIN`. The threshold is the signed
+low 32 bits of P×P. Idle-completion proximity is **D < threshold**; final-marker
+proximity is **D ≤ threshold** (`0x00435B94`–`0x00435BA3`,
+`0x004361FF`–`0x00436209`). Thus the published tuning is squared even though
+the compared distance is linear. Negative tuning is not clamped; multiplication
+wrap and signed comparisons are significant.
+
+**Transport handoff waits.** Travel codes are 0 Walk, 1 Car, 2 Bus, 3 Rail,
+6 Subway, 7 LightRail, 8 Monorail; FE and FF are controller sentinels.
+For a switch from one of 0/1/2/3/6/7/8 to a different ordinary mode, the
+target class determines the wait: 0/1 uses now + `IDLE_DURATION_MIN`; 2/3/6/7/8
+uses now + `TRANSIT_SWITCH_WAIT`. Current's occupant is released and the held
+automaton is cleared before this wait; this does not change the active destination
+to current or emit arrival. Source FE/FF and same-mode continuation take different
+branches, and must not be treated as this ordinary switch (`0x004362E6`–`0x00436365`).
+
+During a transit-stop search (flag `0x10`), a missing current occupant triggers
+an occupant-manager query over the rectangle spanning current cell and the
+route marker's cell, extended by one cell on each side. Select the **first**
+returned occupant matching the target stop purpose; this is not a nearest-stop
+distance sort. The target also sets the automaton group used while boarding:
+
+| Target mode | Stop purpose | Automaton group |
+|---|---|---|
+| 2 | `0x1301` | `0x4200` |
+| 3 | `0x1300` | `0x4215` |
+| 6 | `0x1302` | `0x4217` |
+| 7 | `0x1303` | `0x422C` |
+| 8 | `0x1307` | `0x422E` |
+
+On selection, current holds that occupant and takes its world/cell position;
+deadline = now + transit wait, and the wait getter's stored timestamp = now.
+Emit `0xEBA0732E(purpose,0,0)` **before** clearing the held automaton
+(`0x00435EF4`–`0x00435F46`). A missing stop takes the stuck path, not an arrival.
+With a stop and deadline ≥ now, search for a matching-group automaton at the
+current cell, retaining service enumeration order and requiring the automaton
+interface. With deadline < now, attempt the next route leg without a supplied
+automaton instead; FF means stuck. Successful dispatch of that leg sets flag
+`0x200` and clears `0x436`, each through the existing changed-mask contract.
+The expiry boundary is strict (`0x00435F79`–`0x00435FB9`).
+
+**Final-marker observations and notice order.** For route marker FE, if either
+current or active destination is a neighbour location, release current's occupant
+and clear the held automaton before measuring proximity. At D > threshold, keep
+the trip in progress, use travel FE, set deadline = now + idle minimum, and emit
+`0x2BAC398F(0,0,0)` before the common state/flag notifications. At D ≤ threshold,
+the near-marker path emits `0xEBA06BD4(0,0,0)` before that common tail; it can still
+choose an idle wait when current differs from both home and commute and neither
+neighbour/idle condition applies. The notice alone therefore does not promise
+state 3 (`0x004361AD`–`0x004362E0`).
+
+The common tail installs the selected travel type, calls the state setter (including
+its flag-2-before-state order), invokes setStuck if selected, applies idle setup
+`flags |= 0x2401` if selected, clears the selected mask, then ORs the selected
+flags. Every changed flag operation remains separately observable; masks must
+not be folded into one final notice (`0x004364E5`–`0x0043657F`). The exact selection
+of those masks for all remaining branches is still MS18.
+
 ### 4.7 Job, commute and residence changes
 
 **`FindNewJob()`** asks the dispatch to set a commute destination "by commute": the dispatch runs a traffic
@@ -846,7 +933,7 @@ nonnegative clamp. Object offsets below are interoperability facts, not required
 | `MIN_TIME_AT_LOCATION` | `+0x20` | `GoTo` raises a copied destination's duration to this minimum **only when it has an occupant**; destination selection/arrival derives deadlines from location durations. `AddDestinationLocation` alone does not apply this clamp |
 | `MIN_TIME_AT_TRANSIT_SWITCH` | `+0x24` | Transit waiting deadline = now + this value; switches to public modes 2/3/6/7/8 use this delay |
 | `MIN_TIME_IDLE` | `+0x1C` | Idle/retry deadline = now + this value; switching to foot/car uses this delay |
-| `DESTINATION_PROXIMITY_MIN` | `+0x18` | Compared as a signed 32-bit square against the integer distance helper result in final-segment/arrival decisions. The idle-completion branch tests distance < square; final route-marker handling accepts distance ≤ square. MS18 retains the exact geometry helper/transport consequences |
+| `DESTINATION_PROXIMITY_MIN` | `+0x18` | Signed low-32-bit square compared against the truncated **linear** cell-rectangle distance of §4.6.2. Idle completion tests distance < square; final route-marker handling accepts distance ≤ square. No square root of the tuning or square of the measured distance is substituted |
 | `APPROACH_DISTANCE` | `+0x14` | On a changed automaton cell, when not player-driving: flag `0x8000` = ((x − destination.x)² + (z − destination.z)² < value²), using signed 32-bit products/sum. Equality clears the flag; §4.6 turns a rising edge into `MYSIM_APPROACHING_LOCATION` |
 
 Evidence: the five named tuning assignments in MySim Init; duration clamp in `0x00437130`;
@@ -1620,3 +1707,16 @@ These are normative fixtures for the dispatch owner, without a native game-run c
 | MS19-03 teleport ordering | State 2, flags 0, travel 1, counter 10, now 100; commute duration 7, deadline 999; all four locations distinct; queue contains Q | Current becomes the commute copy with deadline 107; active/home/commute and queue Q unchanged; travel FE, previous 2, state 3, flags 2. Counter 14. Owner sees flags (0,2) then state (2,3), both seeing new current/state/travel. No EBA06C12 or EBA06BD4 |
 | MS19-04 repeated/invalid teleport | State 3, flags 2, travel FE, counter 10, now 100; invalid commute with duration −1 | Current copies invalid commute, deadline 99; counter 11; previous 3, state 3; no notices. No validity/pathfinder/automaton calls. Repeat without owner: same state and counter effects |
 | MS19-05 state-1 commute request | MySim state 1 with residence and invalid stored commute; home duration 9, now 100 | Teleport effects of MS19-04 (or MS19-03 if old dispatch state differs), then queue replaced by home with options 4. Commute is not repaired. DispatchCommute succeeds; arrival is not synthesized |
+
+### 12.28 MS18 verified geometry and stop cases *[compat]*
+
+These cases cover only the settled portions of §4.6.2; they are specification
+vectors, not implemented tests or captured game traces.
+
+| Vector | Input | Expected observation |
+|---|---|---|
+| MS18-01 linear threshold | No lots; destination cell (0,0), current (3,3), P=2 | D=trunc(float32(sqrt(18)))=4. Idle proximity false, final-marker proximity true. A squared-distance replacement would incorrectly reject the final marker |
+| MS18-02 equality boundary | Destination point (0,0); current points (3,0), (4,0), (5,0), P=2 | D=3/4/5: idle proximity true/false/false; final-marker proximity true/true/false |
+| MS18-03 lot geometry direction | A point rectangle (0,0,0,0), B rectangle (−2,−2,2,2) | Helper(A,B)=2, helper(B,A)=0. Altering world positions without changing cell/lot resolution does not change these results |
+| MS18-04 stop enumeration | Target mode 3, missing current occupant; two returned purpose-1300 stops A then B, B closer | Choose A, set group 4215, update current from A, deadline now + transit wait and wait timestamp now; EBA0732E data=(1300,0,0) precedes automaton clearing. Reversing enumeration reverses selection |
+| MS18-05 wait boundary | Transit flag 10, selected stop, now 100, deadline 100 versus 99; foreign next-leg attempt returns FF | At 100 search for a matching-group automaton and remain waiting if none. At 99 attempt the next leg without a supplied automaton and take stuck on FF. No synthetic arrival |
