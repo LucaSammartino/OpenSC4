@@ -110,22 +110,8 @@ pub trait Primitives {
     fn message_code(&mut self, message: Message, code: u32);
     fn message_entry(&mut self, message: Message, entry: EntryId);
     fn message_deliver(&mut self, target: Target, message: Message, registry: &Registry) -> bool;
-    fn value_call(
-        &mut self,
-        callback: Callback,
-        key: u32,
-        input: u32,
-        output: u32,
-        registry: &Registry,
-    ) -> bool;
-    fn value_exchange(
-        &mut self,
-        callback: Callback,
-        key: u32,
-        variant: u32,
-        set: bool,
-        registry: &Registry,
-    ) -> bool;
+    fn value_call(&mut self, callback: Callback, key: u32, input: u32, output: u32, registry: &Registry) -> bool;
+    fn value_exchange(&mut self, callback: Callback, key: u32, variant: u32, set: bool, registry: &Registry) -> bool;
     /// Logical destructor/deleting-wrapper effect; no host allocation is inferred.
     fn service_destroyed(&mut self, identity: ServiceIdentity, free_allocation: bool);
 }
@@ -138,10 +124,7 @@ pub enum LeafKind {
 #[derive(Debug)]
 enum Kind {
     Node(Object),
-    Leaf {
-        key: u32,
-        callback: Option<Callback>,
-    },
+    Leaf { key: u32, callback: Option<Callback> },
 }
 #[derive(Debug)]
 struct Entry {
@@ -190,12 +173,7 @@ pub struct Create<'a> {
 }
 
 impl Registry {
-    pub fn new(
-        identity: ServiceIdentity,
-        root: Allocation,
-        root_key: Object,
-        host: &mut impl Primitives,
-    ) -> Self {
+    pub fn new(identity: ServiceIdentity, root: Allocation, root_key: Object, host: &mut impl Primitives) -> Self {
         host.add_ref(Reference::Object(root_key));
         let root = root.0;
         Self {
@@ -292,31 +270,19 @@ impl Registry {
         let Some(id) = id else {
             return Ok(false);
         };
-        self.records
-            .get_mut(&id)
-            .ok_or(Unsupported::InvalidRecord)?
-            .context = context;
+        self.records.get_mut(&id).ok_or(Unsupported::InvalidRecord)?.context = context;
         Ok(true)
     }
     /// Value scan, deliberately independent of record dereference (§3.2).
     pub fn is_valid(&self, id: Option<EntryId>) -> Domain<bool> {
         self.alive()?;
-        Ok(id.is_some_and(|id| {
-            self.nodes
-                .values()
-                .chain(self.leaves.values())
-                .any(|&v| v == id)
-        }))
+        Ok(id.is_some_and(|id| self.nodes.values().chain(self.leaves.values()).any(|&v| v == id)))
     }
     pub fn lookup_raw(&self, key: u32) -> Domain<Option<EntryId>> {
         self.alive()?;
         Ok(self.leaves.get(&key).copied())
     }
-    pub fn lookup_object(
-        &self,
-        key: Option<Object>,
-        host: &mut impl Primitives,
-    ) -> Domain<Option<EntryId>> {
+    pub fn lookup_object(&self, key: Option<Object>, host: &mut impl Primitives) -> Domain<Option<EntryId>> {
         self.alive()?;
         let Some(key) = key else {
             return Ok(None);
@@ -326,8 +292,7 @@ impl Registry {
         }
         let qi = host.query_unknown(key);
         let found = if qi.succeeded {
-            qi.output
-                .and_then(|key| self.nodes.get(&key.word()).copied())
+            qi.output.and_then(|key| self.nodes.get(&key.word()).copied())
         } else {
             None
         };
@@ -345,12 +310,7 @@ impl Registry {
             create.name.ok_or(Unsupported::NullName)?.to_owned(),
         ))
     }
-    pub fn add_node(
-        &mut self,
-        key: Option<Object>,
-        create: Create<'_>,
-        host: &mut impl Primitives,
-    ) -> Domain<EntryId> {
+    pub fn add_node(&mut self, key: Option<Object>, create: Create<'_>, host: &mut impl Primitives) -> Domain<EntryId> {
         self.active()?;
         if let Some(id) = self.lookup_object(key, host)? {
             return Ok(id);
@@ -451,13 +411,7 @@ impl Registry {
             Some(Kind::Node(_)) => Err(Unsupported::CallbackSignature),
         }
     }
-    pub fn value_call(
-        &self,
-        id: Option<EntryId>,
-        input: u32,
-        output: u32,
-        host: &mut impl Primitives,
-    ) -> Domain<bool> {
+    pub fn value_call(&self, id: Option<EntryId>, input: u32, output: u32, host: &mut impl Primitives) -> Domain<bool> {
         Ok(self
             .callback(id)?
             .is_some_and(|(cb, key)| host.value_call(cb, key, input, output, self)))
@@ -542,12 +496,7 @@ impl Registry {
             TargetKind::Message => &mut self.messages,
         }
     }
-    pub fn subscribe(
-        &mut self,
-        kind: TargetKind,
-        target: Option<Target>,
-        host: &mut impl Primitives,
-    ) -> Domain<bool> {
+    pub fn subscribe(&mut self, kind: TargetKind, target: Option<Target>, host: &mut impl Primitives) -> Domain<bool> {
         self.active()?;
         let target = target.ok_or(Unsupported::InvalidRecord)?;
         let reference = Reference::Target(kind, target);
@@ -627,15 +576,8 @@ impl Registry {
         }
         let parent = self.records[&id].parent.expect("nonroot parent");
         self.destroy_tree(id, host);
-        let children = &mut self
-            .records
-            .get_mut(&parent)
-            .expect("owned parent")
-            .children;
-        let position = children
-            .iter()
-            .position(|&child| child == id)
-            .expect("linked entry");
+        let children = &mut self.records.get_mut(&parent).expect("owned parent").children;
+        let position = children.iter().position(|&child| child == id).expect("linked entry");
         children.remove(position);
         true
     }
@@ -646,11 +588,7 @@ impl Registry {
             None => false,
         })
     }
-    pub fn remove_object(
-        &mut self,
-        key: Option<Object>,
-        host: &mut impl Primitives,
-    ) -> Domain<bool> {
+    pub fn remove_object(&mut self, key: Option<Object>, host: &mut impl Primitives) -> Domain<bool> {
         self.active()?;
         Ok(match self.lookup_object(key, host)? {
             Some(id) => self.remove_entry(id, host),
@@ -673,17 +611,10 @@ impl Registry {
     pub fn shutdown(&mut self, host: &mut impl Primitives) -> Domain<bool> {
         self.active()?;
         host.framework_unregister(self.identity);
-        self.broadcast(
-            Event {
-                code: 1,
-                entry: None,
-            },
-            host,
-        );
+        self.broadcast(Event { code: 1, entry: None }, host);
         self.nodes.clear();
         self.leaves.clear();
-        let children =
-            std::mem::take(&mut self.records.get_mut(&self.root).expect("root").children);
+        let children = std::mem::take(&mut self.records.get_mut(&self.root).expect("root").children);
         for child in children {
             self.destroy_tree(child, host);
         }
@@ -725,10 +656,7 @@ impl Registry {
     }
     pub fn add_ref(&mut self) -> Domain<u32> {
         self.alive()?;
-        self.count = self
-            .count
-            .checked_add(1)
-            .ok_or(Unsupported::CounterOverflow)?;
+        self.count = self.count.checked_add(1).ok_or(Unsupported::CounterOverflow)?;
         Ok(self.count)
     }
     pub fn release(&mut self, host: &mut impl Primitives) -> Domain<u32> {

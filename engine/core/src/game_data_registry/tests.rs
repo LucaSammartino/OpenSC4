@@ -106,10 +106,7 @@ impl Primitives for Host {
         });
         // QI primitive owns acquiring its output; core must release it, even on false.
         if let Some(key) = out.output {
-            *self
-                .refs
-                .entry(ref_key(Reference::Object(key)))
-                .or_default() += 1;
+            *self.refs.entry(ref_key(Reference::Object(key))).or_default() += 1;
         }
         out
     }
@@ -120,11 +117,8 @@ impl Primitives for Host {
         self.effects.push(Effect::Framework(false));
     }
     fn typed_event(&mut self, target: Target, event: Event, registry: &Registry) -> bool {
-        self.effects.push(Effect::Typed(
-            target.word(),
-            event.code,
-            event.entry.map(EntryId::word),
-        ));
+        self.effects
+            .push(Effect::Typed(target.word(), event.code, event.entry.map(EntryId::word)));
         if self.observe && event.code == 2 {
             let victim = event.entry.unwrap();
             let membership = [
@@ -162,8 +156,7 @@ impl Primitives for Host {
         }
     }
     fn message_type(&mut self, message: Message, value: u32) {
-        self.effects
-            .push(Effect::MessageType(message.word(), value));
+        self.effects.push(Effect::MessageType(message.word(), value));
     }
     fn message_registry(&mut self, message: Message, registry: ServiceIdentity) {
         self.effects
@@ -173,36 +166,18 @@ impl Primitives for Host {
         self.effects.push(Effect::MessageCode(message.word(), code));
     }
     fn message_entry(&mut self, message: Message, entry: EntryId) {
-        self.effects
-            .push(Effect::MessageEntry(message.word(), entry.word()));
+        self.effects.push(Effect::MessageEntry(message.word(), entry.word()));
     }
     fn message_deliver(&mut self, target: Target, message: Message, _: &Registry) -> bool {
-        self.effects
-            .push(Effect::Deliver(target.word(), message.word()));
+        self.effects.push(Effect::Deliver(target.word(), message.word()));
         self.callback_result
     }
-    fn value_call(
-        &mut self,
-        callback: Callback,
-        key: u32,
-        input: u32,
-        output: u32,
-        _: &Registry,
-    ) -> bool {
-        self.effects
-            .push(Effect::Call(callback.word(), key, input, output));
+    fn value_call(&mut self, callback: Callback, key: u32, input: u32, output: u32, _: &Registry) -> bool {
+        self.effects.push(Effect::Call(callback.word(), key, input, output));
         self.callback_result
     }
-    fn value_exchange(
-        &mut self,
-        callback: Callback,
-        key: u32,
-        variant: u32,
-        set: bool,
-        _: &Registry,
-    ) -> bool {
-        self.effects
-            .push(Effect::Exchange(callback.word(), key, variant, set));
+    fn value_exchange(&mut self, callback: Callback, key: u32, variant: u32, set: bool, _: &Registry) -> bool {
+        self.effects.push(Effect::Exchange(callback.word(), key, variant, set));
         self.callback_result
     }
     fn service_destroyed(&mut self, _: ServiceIdentity, free: bool) {
@@ -210,31 +185,14 @@ impl Primitives for Host {
     }
 }
 fn registry(host: &mut Host) -> Registry {
-    Registry::new(
-        ServiceIdentity::new(700).unwrap(),
-        Allocation(id(100)),
-        obj(900),
-        host,
-    )
+    Registry::new(ServiceIdentity::new(700).unwrap(), Allocation(id(100)), obj(900), host)
 }
 fn tree(host: &mut Host) -> Registry {
     let mut r = registry(host);
-    assert_eq!(
-        r.add_node(Some(obj(11)), create(101, 100, "A"), host),
-        Ok(id(101))
-    );
-    assert_eq!(
-        r.add_node(Some(obj(12)), create(102, 100, "B"), host),
-        Ok(id(102))
-    );
-    assert_eq!(
-        r.add_node(Some(obj(13)), create(103, 101, "X"), host),
-        Ok(id(103))
-    );
-    assert_eq!(
-        r.add_node(Some(obj(14)), create(104, 101, "Y"), host),
-        Ok(id(104))
-    );
+    assert_eq!(r.add_node(Some(obj(11)), create(101, 100, "A"), host), Ok(id(101)));
+    assert_eq!(r.add_node(Some(obj(12)), create(102, 100, "B"), host), Ok(id(102)));
+    assert_eq!(r.add_node(Some(obj(13)), create(103, 101, "X"), host), Ok(id(103)));
+    assert_eq!(r.add_node(Some(obj(14)), create(104, 101, "Y"), host), Ok(id(104)));
     host.effects.clear();
     r
 }
@@ -250,28 +208,18 @@ fn g1_g2_separate_keyspaces_duplicate_unchanged_and_copied_names() {
     assert_eq!(r.add_node(Some(obj(11)), c, &mut h), Ok(id(101)));
     name.clear();
     assert_eq!(
-        r.add_leaf(
-            11,
-            None,
-            LeafKind::Call,
-            create(102, 100, "same.Name"),
-            &mut h
-        ),
+        r.add_leaf(11, None, LeafKind::Call, create(102, 100, "same.Name"), &mut h),
         Ok(Some(id(102)))
     );
     assert_eq!(r.lookup_object(Some(obj(11)), &mut h), Ok(Some(id(101))));
     assert_eq!(r.lookup_raw(11), Ok(Some(id(102))));
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
     h.effects.clear();
     let mut duplicate = create(199, 102, "changed");
     duplicate.context = 999;
     duplicate.flags = 7;
     assert_eq!(r.add_node(Some(obj(11)), duplicate, &mut h), Ok(id(101)));
-    assert_eq!(
-        r.add_leaf(11, None, LeafKind::Exchange, duplicate, &mut h),
-        Ok(None)
-    );
+    assert_eq!(r.add_leaf(11, None, LeafKind::Exchange, duplicate, &mut h), Ok(None));
     assert_eq!(r.name(Some(id(101))), Ok(Some("same.Name")));
     assert_eq!(r.context(Some(id(101))), Ok(Some(19)));
     assert_eq!(r.parent(Some(id(101))), Ok(Some(id(100))));
@@ -285,13 +233,7 @@ fn g3_anonymous_key_uses_record_token_no_zero_insertion() {
     let mut h = Host::default();
     let mut r = registry(&mut h);
     assert_eq!(
-        r.add_leaf(
-            0,
-            None,
-            LeafKind::Exchange,
-            create(105, 100, "anon"),
-            &mut h
-        ),
+        r.add_leaf(0, None, LeafKind::Exchange, create(105, 100, "anon"), &mut h),
         Ok(Some(id(105)))
     );
     assert_eq!(r.value(Some(id(105))), Ok(Some(105)));
@@ -300,13 +242,7 @@ fn g3_anonymous_key_uses_record_token_no_zero_insertion() {
     assert_eq!(r.lookup_raw(123), Ok(None));
     assert_eq!(r.leaves.len(), 1);
     assert_eq!(
-        r.add_leaf(
-            105,
-            None,
-            LeafKind::Call,
-            create(106, 100, "collision"),
-            &mut h
-        ),
+        r.add_leaf(105, None, LeafKind::Call, create(106, 100, "collision"), &mut h),
         Ok(None)
     );
 }
@@ -352,10 +288,7 @@ fn g4_g5_three_orders_and_false_visitors() {
         Ok(false)
     );
     assert_eq!(visits, vec![101]);
-    assert_eq!(
-        r.subscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(true)
-    );
+    assert_eq!(r.subscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(true));
     assert_eq!(
         h.typed(),
         vec![
@@ -378,8 +311,7 @@ fn g6_g7_full_width_flags_context_and_raw_publisher_dispatch() {
     c.flags = u32::MAX;
     c.context = 0x3333_0000;
     let cb = Callback::new(44);
-    r.add_leaf(0x2222_0000, cb, LeafKind::Exchange, c, &mut h)
-        .unwrap();
+    r.add_leaf(0x2222_0000, cb, LeafKind::Exchange, c, &mut h).unwrap();
     r.add_leaf(55, cb, LeafKind::Call, create(106, 100, "call"), &mut h)
         .unwrap();
     assert_eq!(r.view(Some(id(105))).unwrap().unwrap().flags, 0xFFFF_FFFE);
@@ -424,14 +356,8 @@ fn g8_null_missing_leaf_visits_and_borrowed_outputs() {
     assert_eq!(r.set_context(None, 0), Ok(false));
     assert_eq!(r.check_flags(None, 0), Ok(false));
     assert_eq!(r.is_valid(None), Ok(false));
-    assert_eq!(
-        r.visit_immediate(None, 0, |_, _, _| panic!("empty")),
-        Ok(true)
-    );
-    assert_eq!(
-        r.visit_breadth_first(None, 0, |_, _, _| panic!("empty")),
-        Ok(true)
-    );
+    assert_eq!(r.visit_immediate(None, 0, |_, _, _| panic!("empty")), Ok(true));
+    assert_eq!(r.visit_breadth_first(None, 0, |_, _, _| panic!("empty")), Ok(true));
     assert_eq!(r.value_call(None, 0, 0, &mut h), Ok(false));
     assert_eq!(r.value_exchange(None, 0, false, &mut h), Ok(false));
     assert!(h.effects.is_empty());
@@ -472,30 +398,21 @@ fn lookup_exact_then_qi_core_search_and_release_before_return() {
         output: Some(obj(11)),
     });
     assert_eq!(r.lookup_object(Some(obj(51)), &mut h), Ok(Some(id(101))));
-    assert_eq!(
-        h.effects,
-        vec![Effect::Query(51), Effect::Release(object_ref(11))]
-    );
+    assert_eq!(h.effects, vec![Effect::Query(51), Effect::Release(object_ref(11))]);
     h.effects.clear();
     h.qi.push_back(QueryOutcome {
         succeeded: false,
         output: Some(obj(11)),
     });
     assert_eq!(r.lookup_object(Some(obj(52)), &mut h), Ok(None));
-    assert_eq!(
-        h.effects,
-        vec![Effect::Query(52), Effect::Release(object_ref(11))]
-    );
+    assert_eq!(h.effects, vec![Effect::Query(52), Effect::Release(object_ref(11))]);
     h.effects.clear();
     h.qi.push_back(QueryOutcome {
         succeeded: true,
         output: Some(obj(99)),
     });
     assert_eq!(r.lookup_object(Some(obj(53)), &mut h), Ok(None));
-    assert_eq!(
-        h.effects,
-        vec![Effect::Query(53), Effect::Release(object_ref(99))]
-    );
+    assert_eq!(h.effects, vec![Effect::Query(53), Effect::Release(object_ref(99))]);
     // Creation keeps supplied alias54, not canonical99, when fallback misses.
     h.qi.push_back(QueryOutcome {
         succeeded: true,
@@ -516,10 +433,7 @@ fn lookup_exact_then_qi_core_search_and_release_before_return() {
         r.add_node(Some(obj(55)), create(106, 100, "duplicate alias"), &mut h),
         Ok(id(101))
     );
-    assert_eq!(
-        h.effects,
-        vec![Effect::Query(55), Effect::Release(object_ref(11))]
-    );
+    assert_eq!(h.effects, vec![Effect::Query(55), Effect::Release(object_ref(11))]);
     assert_eq!(h.count(object_ref(11)), 1);
     assert_eq!(h.count(object_ref(99)), 0);
 }
@@ -528,8 +442,7 @@ fn lookup_exact_then_qi_core_search_and_release_before_return() {
 fn g9_remove_notifications_before_each_erase_then_parent_first_destroy() {
     let mut h = Host::default();
     let mut r = tree(&mut h);
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
     h.effects.clear();
     h.observe = true;
     assert_eq!(r.remove_object(Some(obj(11)), &mut h), Ok(true));
@@ -573,10 +486,7 @@ fn g10_registration_holds_duplicate_no_replay_first_equal_unsubscribe() {
     let mut r = registry(&mut h);
     h.effects.clear();
     let tr = target_ref(TargetKind::Typed, 70);
-    assert_eq!(
-        r.subscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(true)
-    );
+    assert_eq!(r.subscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(true));
     assert_eq!(
         h.effects,
         vec![
@@ -588,32 +498,20 @@ fn g10_registration_holds_duplicate_no_replay_first_equal_unsubscribe() {
     );
     assert_eq!(h.count(tr), 1);
     h.effects.clear();
-    assert_eq!(
-        r.subscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(false)
-    );
+    assert_eq!(r.subscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(false));
     assert_eq!(h.effects, vec![Effect::Add(tr), Effect::Release(tr)]);
     assert_eq!(h.count(tr), 1);
     h.effects.clear();
-    assert_eq!(
-        r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(true)
-    );
+    assert_eq!(r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(true));
     assert_eq!(h.effects, vec![Effect::Release(tr)]);
     assert_eq!(h.count(tr), 0);
     h.effects.clear();
-    assert_eq!(
-        r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(false)
-    );
+    assert_eq!(r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(false));
     assert!(h.effects.is_empty());
     // Structural fixture for the first-equal rule; duplicate registration itself
     // cannot construct this list in the supported nonmutating public domain.
     r.typed = vec![target(70), target(71), target(70)];
-    assert_eq!(
-        r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h),
-        Ok(true)
-    );
+    assert_eq!(r.unsubscribe(TargetKind::Typed, Some(target(70)), &mut h), Ok(true));
     assert_eq!(r.typed, vec![target(71), target(70)]);
 }
 
@@ -623,10 +521,7 @@ fn g11_message_replay_primitive_ledger_and_ordinary_silence() {
     let mut r = registry(&mut h);
     h.effects.clear();
     let mr = target_ref(TargetKind::Message, 80);
-    assert_eq!(
-        r.subscribe(TargetKind::Message, Some(target(80)), &mut h),
-        Ok(true)
-    );
+    assert_eq!(r.subscribe(TargetKind::Message, Some(target(80)), &mut h), Ok(true));
     assert_eq!(
         h.effects,
         vec![
@@ -649,8 +544,7 @@ fn g11_message_replay_primitive_ledger_and_ordinary_silence() {
     assert!(h.effects.is_empty()); // empty typed list still skips message broadcast
     r.remove_raw(21, &mut h).unwrap();
     assert!(h.effects.is_empty());
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
     h.effects.clear();
     r.add_leaf(22, None, LeafKind::Call, create(106, 100, "Z2"), &mut h)
         .unwrap();
@@ -675,11 +569,9 @@ fn g11_message_replay_primitive_ledger_and_ordinary_silence() {
 fn each_new_target_only_gets_own_replay_typed_order_ignores_false() {
     let mut h = Host::default();
     let mut r = tree(&mut h);
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
     h.effects.clear();
-    r.subscribe(TargetKind::Typed, Some(target(71)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(71)), &mut h).unwrap();
     assert_eq!(
         h.typed(),
         vec![
@@ -691,8 +583,7 @@ fn each_new_target_only_gets_own_replay_typed_order_ignores_false() {
         ]
     );
     h.effects.clear();
-    r.subscribe(TargetKind::Message, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Message, Some(target(70)), &mut h).unwrap();
     let entries: Vec<_> = h
         .effects
         .iter()
@@ -708,18 +599,11 @@ fn each_new_target_only_gets_own_replay_typed_order_ignores_false() {
         .unwrap();
     assert_eq!(
         h.effects,
-        vec![
-            Effect::Typed(70, 3, Some(105)),
-            Effect::Typed(71, 3, Some(105))
-        ]
+        vec![Effect::Typed(70, 3, Some(105)), Effect::Typed(71, 3, Some(105))]
     );
     h.effects.clear();
-    r.unsubscribe(TargetKind::Message, Some(target(70)), &mut h)
-        .unwrap();
-    assert_eq!(
-        h.effects,
-        vec![Effect::Release(target_ref(TargetKind::Message, 70))]
-    );
+    r.unsubscribe(TargetKind::Message, Some(target(70)), &mut h).unwrap();
+    assert_eq!(h.effects, vec![Effect::Release(target_ref(TargetKind::Message, 70))]);
     assert_eq!(h.count(target_ref(TargetKind::Typed, 70)), 1);
 }
 
@@ -729,10 +613,8 @@ fn g12_shutdown_preserves_root_record_but_not_membership() {
     let mut r = tree(&mut h);
     r.add_leaf(55, None, LeafKind::Call, create(105, 100, "Z"), &mut h)
         .unwrap();
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
-    r.subscribe(TargetKind::Message, Some(target(80)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
+    r.subscribe(TargetKind::Message, Some(target(80)), &mut h).unwrap();
     h.effects.clear();
     assert_eq!(r.shutdown(&mut h), Ok(true));
     assert_eq!(h.shutdown_seen, vec![(true, true, true)]);
@@ -771,8 +653,7 @@ fn g13_node_hold_four_five_five_four_borrowed_getters_no_addref() {
     let mut h = Host::default();
     h.refs.insert(ref_key(object_ref(11)), 4);
     let mut r = registry(&mut h);
-    r.add_node(Some(obj(11)), create(101, 100, "N"), &mut h)
-        .unwrap();
+    r.add_node(Some(obj(11)), create(101, 100, "N"), &mut h).unwrap();
     assert_eq!(h.count(object_ref(11)), 5);
     h.effects.clear();
     assert_eq!(
@@ -797,10 +678,7 @@ fn g14_service_shared_count_views_and_zero_one_greater_release() {
     let mut r = registry(&mut h);
     assert_eq!(r.ref_count(), Ok(0));
     assert_eq!(r.query_interface(0xE898_ED03), Ok(Some(Face::Registry)));
-    assert_eq!(
-        r.query_interface(0x287F_B697),
-        Ok(Some(Face::SystemService))
-    );
+    assert_eq!(r.query_interface(0x287F_B697), Ok(Some(Face::SystemService)));
     assert_eq!(r.query_interface(1), Ok(Some(Face::Unknown)));
     assert_eq!(r.ref_count(), Ok(3));
     assert_eq!(r.query_interface(0xFFFF_FFFF), Ok(None));
@@ -810,26 +688,19 @@ fn g14_service_shared_count_views_and_zero_one_greater_release() {
     assert_eq!(r.release(&mut h), Ok(1));
     assert!(h.effects.is_empty());
     assert_eq!(r.release(&mut h), Ok(0));
-    assert_eq!(
-        h.effects,
-        vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]
-    );
+    assert_eq!(h.effects, vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]);
     assert_eq!(r.root(), Err(Unsupported::Destroyed));
     let mut zero = registry(&mut h);
     h.effects.clear();
     assert_eq!(zero.release(&mut h), Ok(0));
-    assert_eq!(
-        h.effects,
-        vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]
-    );
+    assert_eq!(h.effects, vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]);
 }
 
 #[test]
 fn destructor_does_not_synthesize_shutdown_and_node_release_is_preorder() {
     let mut h = Host::default();
     let mut r = tree(&mut h);
-    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h)
-        .unwrap();
+    r.subscribe(TargetKind::Typed, Some(target(70)), &mut h).unwrap();
     h.effects.clear();
     assert_eq!(r.init(&mut h), Ok(true));
     assert_eq!(h.effects, vec![Effect::Framework(true)]);
@@ -862,16 +733,10 @@ fn tagged_unsupported_inputs_distinct_from_defined_negatives() {
     );
     let mut c = create(101, 100, "bad");
     c.parent = None;
-    assert_eq!(
-        r.add_node(Some(obj(11)), c, &mut h),
-        Err(Unsupported::NullNodeParent)
-    );
+    assert_eq!(r.add_node(Some(obj(11)), c, &mut h), Err(Unsupported::NullNodeParent));
     c = create(101, 100, "bad");
     c.name = None;
-    assert_eq!(
-        r.add_node(Some(obj(11)), c, &mut h),
-        Err(Unsupported::NullName)
-    );
+    assert_eq!(r.add_node(Some(obj(11)), c, &mut h), Err(Unsupported::NullName));
     assert_eq!(
         r.add_node(Some(obj(11)), create(100, 100, "bad"), &mut h),
         Err(Unsupported::ReusedAllocation)
@@ -881,26 +746,11 @@ fn tagged_unsupported_inputs_distinct_from_defined_negatives() {
         Err(Unsupported::CallbackSignature)
     );
     assert_eq!(r.debug_dump(None), Ok(()));
+    assert_eq!(r.debug_dump(Some(id(100))), Err(Unsupported::DiagnosticOutput));
+    r.add_leaf(21, None, LeafKind::Exchange, create(105, 100, "leaf"), &mut h)
+        .unwrap();
     assert_eq!(
-        r.debug_dump(Some(id(100))),
-        Err(Unsupported::DiagnosticOutput)
-    );
-    r.add_leaf(
-        21,
-        None,
-        LeafKind::Exchange,
-        create(105, 100, "leaf"),
-        &mut h,
-    )
-    .unwrap();
-    assert_eq!(
-        r.add_leaf(
-            22,
-            None,
-            LeafKind::Exchange,
-            create(106, 105, "leaf child"),
-            &mut h
-        ),
+        r.add_leaf(22, None, LeafKind::Exchange, create(106, 105, "leaf child"), &mut h),
         Ok(None)
     );
     assert_eq!(
@@ -908,13 +758,7 @@ fn tagged_unsupported_inputs_distinct_from_defined_negatives() {
         Err(Unsupported::NodeParentIsLeaf)
     );
     assert_eq!(
-        r.add_leaf(
-            0,
-            None,
-            LeafKind::Call,
-            create(21, 100, "anon collision"),
-            &mut h
-        ),
+        r.add_leaf(0, None, LeafKind::Call, create(21, 100, "anon collision"), &mut h),
         Err(Unsupported::AnonymousKeyCollision)
     );
     assert_eq!(
@@ -929,13 +773,7 @@ fn tagged_unsupported_inputs_distinct_from_defined_negatives() {
     assert_eq!(h.count(target_ref(TargetKind::Message, 80)), 1); // no fabricated rollback
     r.shutdown(&mut h).unwrap();
     assert_eq!(
-        r.add_leaf(
-            23,
-            None,
-            LeafKind::Call,
-            create(106, 100, "restart"),
-            &mut h
-        ),
+        r.add_leaf(23, None, LeafKind::Call, create(106, 100, "restart"), &mut h),
         Err(Unsupported::AfterShutdown)
     );
 }
@@ -960,8 +798,5 @@ fn leaves_retain_nothing_and_delete_wrapper_uses_only_low_bit() {
     let mut r = registry(&mut h);
     h.effects.clear();
     r.delete_wrapper(0x8000_0001, &mut h).unwrap();
-    assert_eq!(
-        h.effects,
-        vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]
-    );
+    assert_eq!(h.effects, vec![Effect::Release(object_ref(900)), Effect::Destroy(true)]);
 }

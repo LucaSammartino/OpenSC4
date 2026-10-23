@@ -21,5 +21,8 @@
 - Gate engine tree4f8e2f98cbca6a1222d565f43cb5197fd4acb304; no active validator remains.
 - New files inherited engine/max_width120 after installation; repository formatting failed before gate, but command continued.
 - Next: apply held formatting-only patch to NEW files, fmt-check, commit; final tip must be WIP because engine source hash changes after the one permitted canonical gate.
+- Formatting-only candidate applied to new module/tests after gate exit; no behavioral edits or repeated validator.
+- Combined fmt now reports only lib.rs module-order differences (190 lines); do not mass-sort existing exports.
+- New raw source hashes: mod.rs f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd; tests.rs c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e.
 - Authority: docs/specs/game-data-registry.md; safe tokens model identity only.
 - No game requests; no native or whole-owner promotion intended.
