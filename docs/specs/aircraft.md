@@ -45,9 +45,26 @@ airports and police stations with heliports send fire planes and police helicopt
 
 ### 3.1 Drive parameters (`LoadDriveParameters`, `0x004FC910`)
 
-The values come from the automaton's exemplar data, or its parent group's when it has none (a walk up the
-`+0x0C` parent chain) *[inferred: an exemplar property]*. A value of 0 takes the default. Entries 2 and 3 are
-multiplied by 1000 when they are given (their defaults, 25 and 150, are not).
+The source is the Lua `automata_group` definition's **`airplane` table**, imported by
+`ImportAutomataGroups` (`0x00521C70`) and `ImportAirplaneParams` (`0x0051E1E0`). There is
+**no numeric exemplar-property ID for this table**. The automaton's resolved group supplies
+the record; if absent, use the first ancestor with a record. Inheritance selects a whole
+record, not individual fields. `helicopter` is the alternative table for rotorcraft (§4.1),
+and `playerdrive` is a separate record (§3.5). The group import checks `airplane` before
+`helicopter` before `WatercraftDriveParams`; these alternatives share one record slot.
+
+Each named field imports as a binary32 value; a missing/nil field becomes zero
+(`ReadTableField`, `0x005FB535–0x005FB539`). Thus an empty table creates a present,
+all-zero record and stops inheritance. This is a fixed named record, not a variable-length
+list with an exposed count. A raw buffer shorter than 18 floats is not a supported input
+to the flight owner; the original loader has no length check or zero-padding operation.
+
+A value equal to either signed zero selects the default. No finite/range validation is
+performed: nonzero negative values, infinities and NaNs survive loading. For entries 2
+and 3 the zero test is **after multiplication by binary32 1000**; their fallbacks, 25
+and 150, are unscaled (`0x004FC987–0x004FC9D6`). Ancestor lookup follows parents until
+a record or null; it has no cycle detection (`0x004FC8E0`). A recordless cycle therefore
+does not terminate. The loader does not establish an acyclic-data guarantee.
 
 | # | Default | Derived default when 0 | # | Default | Derived default when 0 |
 |---|---|---|---|---|---|
@@ -63,6 +80,34 @@ multiplied by 1000 when they are given (their defaults, 25 and 150, are not).
 
 With no list at all the defaults above are used, with 5 = 0.06545, 7 = 0.3927, 9 = 0.04363, 11 = 10000, 13 = 0.04.
 `LoadPlayerDriveParameters` loads a second set for U-Drive-It *[summary]*.
+
+The preceding decimal angle defaults are rounded descriptions, **not exact replacement
+constants**. Use the binary32 encodings below. Direct no-record defaults are stored as
+constants; zero-field defaults for 5/7/9/13 are calculated from the selected maxima.
+In particular 9 multiplies by binary32 `0x3DAAAAAB` (approximately 1/12), rather than
+dividing by exact 12. Stores round to binary32; the original arithmetic uses x87
+intermediates (`0x004FCA96–0x004FCB60`, `0x004FCBE1–0x004FCC85`).
+
+| Entry | Lua field / meaning | Exact no-record default (binary32 bits) |
+|---|---|---|
+| 0 | `Mass` | `42C80000` (100) |
+| 1 | `WingArea` | `3F800000` (1) |
+| 2 | `TakeOffSpeed`, scaled ×1000 | `41C80000` (25) |
+| 3 | `MaxSpeed`, scaled ×1000 | `43160000` (150) |
+| 4 | `ElevatorMax`, radians | `3E860A92` |
+| 5 | `ElevatorChangeRate` | `3D860A92`; zero field: entry 4 ×0.25 |
+| 6 | `AileronMax`, radians | `3F490FDB` |
+| 7 | `AileronChangeRate` | `3EC90FDB`; zero field: entry 6 ×0.5 |
+| 8 | `RudderMax`, radians | `3F060A92` |
+| 9 | `RudderChangeRate` | `3D32B8C3`; zero field: entry 8 ×`3DAAAAAB` |
+| 10 | `ThrottleMax`, force scale | `461C4000` (10000) |
+| 11 | `ThrottleChangeRate` | `461C4000`; zero field: entry 10 |
+| 12 | `FlapsMax` | `3ECCCCCD` (approximately 0.4) |
+| 13 | `FlapsChangeRate` | `3D23D70A`; zero field: entry 12 ×binary32 0.1 |
+| 14 | `StallAngle`, radians | `3F060A92` |
+| 15 | `LiftFactorLevelFlight` | `3DA3D70A` |
+| 16 | `LiftFactorMaxClimb` | `3F2E147B` |
+| 17 | `LiftFactorFullStall` | `00000000` |
 
 ### 3.2 Init and effects
 
@@ -99,6 +144,38 @@ into control inputs and drops `jetbomb` bombs.
 
 ## 4. The helicopter *[compat]*
 
+### 4.1 Drive-parameter record (AF1)
+
+The `automata_group` **`helicopter` table** has **13** named binary32 fields,
+not twelve or eighteen. Record selection and missing-field import follow §3.1.
+`LoadDriveParameters` (`0x005340A0`) overlays the existing rotor preset: a zero
+field keeps the previous destination value, and absence of any ancestor record
+leaves the preset unchanged. This differs from the airplane's fixed-default loader.
+
+| Entry | Lua field | Conversion before zero fallback | Destination preset field |
+|---|---|---|---|
+| 0 | `Mass` | none | mass |
+| 1 | `Power` | none | engine power |
+| 2 | `SpeedMultiplier` | none | horizontal speed multiplier |
+| 3 | `MaxSpeed` | ×1000, then ×binary32 `40555555` | speed limit |
+| 4 | `DragFactor` | none | translational drag |
+| 5 | `RotationalDragFactor` | none | rotational drag |
+| 6 | `BankMax` | ×binary32 `440F3D4D` | bank maximum |
+| 7 | `BankChangeRate` | same | bank change rate |
+| 8 | `PitchMax` | same | pitch maximum |
+| 9 | `PitchChangeRate` | same | pitch change rate |
+| 10 | `YawRateMax` | same | maximum yaw rate |
+| 11 | `BankMultiplier` | none | visible bank multiplier |
+| 12 | `PitchMultiplier` | none | visible pitch multiplier |
+
+`440F3D4D` is approximately 572.957824707 (tenths of degrees per radian),
+not rounded 572.958. The speed multiplier constant is approximately 3.33333325386.
+Their order and float-width operands are established at `0x0053412A–0x0053414F`
+and `0x0053418A–0x0053422B`. These fields have no non-finite/range rejection.
+Named import is `0x0051E4A0`; it is not a numeric exemplar property.
+
+### 4.2 Flight and control overview
+
 - **Parameters** (`LoadDriveParameters` `0x005340A0`): the same list read into the rotor model; angles are scaled
   by 572.958 and one rate by 1000 × 3.333 *[summary of the twelve entries]*.
 - `PhysicsInit` and `InitInstance` set up the rotor model; `NextFrame` (`0x005397C0`) computes the engine power,
@@ -120,6 +197,16 @@ fire planes) is inserted, it is added to the source's list, its units are number
 bit vector, and its available-units property (`0xCC0AFDDB`) is set to all units (`2^n − 1`); removal reverses it
 *[summary of the removal]*.
 
+The available-units property is a **32-bit** mask. Station insertion accepts a positive
+signed 32-bit unit count; it does not clamp that count to 32. Its mask is
+`(1u32 << (count modulo 32)) − 1`, with subtraction wrapping in 32 bits
+(`0x006ACBEC–0x006ACBF5` count gate; `0x006ACC39–0x006ACC53` shift, decrement and property write).
+Consequently counts 31, 32, 33, 63 and 64 produce `0x7FFFFFFF`, **0**, 1,
+`0x7FFFFFFF` and **0**, respectively. In particular the previous `2^n − 1`
+description is valid only for counts 1–31, not 32. Counts with the sign bit set are
+rejected by this insertion gate. The separate station-number allocation uses the full
+accepted count; a small wrapped availability mask does not shrink station membership.
+
 ## 6. Quirks
 
 1. `ClipToWorld` allows positions 1000 units outside the city.
@@ -134,3 +221,16 @@ See [questions/aircraft.md](questions/aircraft.md) (AF1–AF2).
    gives entry 2 as 3 gets 3000.
 2. An entry 5 of 0 with entry 4 = 0.4 gives 0.1.
 3. A fire-plane station with a unit count of 3 sets its available-units property to 7.
+4. Import `airplane = { ElevatorMax = 0.4 }`: its other named fields import as zero;
+   entry 5 becomes binary32 0.1 and the record prevents ancestor-field inheritance.
+   With no `airplane` table, an ancestor record is used; with no record anywhere,
+   entry 9 has bits `3D32B8C3` and entry 4 has bits `3E860A92`.
+5. Load entry 2 = −3: takeoff speed is −3000. A NaN `ElevatorMax` remains NaN,
+   including its derived zero `ElevatorChangeRate`; infinity `MaxSpeed` remains
+   infinity. This tests the absence of loader sanitization, not later flight behavior.
+6. Fire-plane station count/mask pairs: 0/no insertion, 1/1, 31/`7FFFFFFF`,
+   32/0, 33/1, 63/`7FFFFFFF`, 64/0, `80000000`/no insertion. No AF8 error or
+   saturation is substituted for the original wrapping mask.
+7. Helicopter record with all fields zero preserves every preset field. Giving
+   only `BankMax = 1` changes that maximum to binary32 `440F3D4D` while preserving
+   `PitchMax`; an ancestor with `PitchMax = 2` is not merged into the present record.
