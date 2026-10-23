@@ -702,14 +702,13 @@ after a successful destination lock (`0x009888E0`, `0x00988A80`). They do not us
 the image decoder selected by the draw context or any 3D texture loader.
 
 These routines are not evidence for acceptance of arbitrary BMP variants,
-negative-height images or truncated files. Exact alpha quantization, mask byte
-interpretation, argument widths and allocation/short-read failure behaviour
-are GZG5. Implementers must not infer them from the unreliable pointer/local
-types in exported pseudocode. Likewise the underlying pixel formulas and
-GenericBufferClip mutation contract remain GZG5. Until settled, the 32-level
-count is a service fact, not proof of a particular divisor or endpoint rounding
-rule for every alpha method. The clipping and loader details settled below do
-not close the remaining standalone pixel-kernel portion of GZG5.
+negative-height images or truncated files. Section 6.3 specifies their raw
+index handling and unchecked-input behavior from the instructions, whose
+argument widths and cleanup differ from the misleading exported local types.
+The 32-level count is a service fact, not proof of a particular divisor or
+endpoint rounding rule for every alpha drawing method. The clipping and loader
+details settled below do not close the remaining standalone pixel-kernel
+portion of GZG5.
 
 ### 6.3 Standalone clipping and legacy-loader details
 
