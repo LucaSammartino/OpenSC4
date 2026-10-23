@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Portable `cGZLegacyControl` owner, from legacy-control §§1–12.
+//! Portable `cGZLegacyControl` owner, from legacy-control §§1–14.
 //!
 //! The core owns scans, ordering, maps, ref effects and mutations. `Foreign` only
 //! performs individual interface/field/resource operations. No GUI is created by
 //! this module. Handles are opaque identities, never dereferenced pointers.
 //!
-//! LC4: a successful QI to an unpublished interpreter is released and reported
-//! unsupported. During a build the preceding effects are: old control forgotten
-//! WITHOUT Release, factory/fallback calls, requested-ID parameters, own=true,
-//! then QI/Release. Common, procedure handoff, Init and attachment have not run.
+//! All published per-type passes are implemented. Open input domains and fragment
+//! writers are called out in README.md rather than silently treated as success.
 //! LC5: the default parent is *only* the opaque WinMgr slot-3 result.
 //! LC8: fragments have explicit coverage; common-only output is partial whenever
 //! the resolved interface answers an unknown per-type writer's QI.
@@ -33,6 +31,13 @@ pub type Rect = [i32; 4];
 pub const WIN_IID: u32 = 0x22ba0121;
 pub const LEGACY_IID: u32 = 0x9a4527cb;
 pub const GEN_IID: u32 = 0x5386d516;
+
+/// 32-bit foreign layout facts (§§2–3), independent of this safe Rust value's
+/// physical representation. Interface views share one owner and reference count.
+pub const OBJECT_SIZE: u32 = 0x20;
+pub const VTABLES: [(u32, u32); 3] = [(0, 0x00ad5360), (4, 0x00ad5344), (8, 0x00ad5324)];
+pub const VTABLE_SLOT_COUNTS: [u32; 3] = [11, 8, 8];
+pub const FIELD_OFFSETS: [u32; 5] = [0x0c, 0x10, 0x14, 0x18, 0x1c];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResourceKey {
@@ -144,10 +149,14 @@ pub trait Foreign {
     fn winmgr_slot3(&mut self) -> Handle;
     fn new_string(&mut self) -> Handle;
     fn append_string(&mut self, string: Handle, text: &str);
+    /// Allocate the external SC3 procedure (8 bytes, initial count zero, LC12).
+    /// The generator setter receives it directly, including null on OOM.
+    fn new_default_procedure(&mut self) -> Option<Handle>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Unsupported {
+    Open(&'static str),
     Interpreter(u32),
     Malformed(&'static str),
     ForeignResult(&'static str),

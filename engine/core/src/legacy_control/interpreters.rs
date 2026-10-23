@@ -2,8 +2,11 @@
 use super::parse::*;
 use super::*;
 
+mod controls;
+mod feedback;
 mod file_browser;
 mod grid;
+mod options;
 mod tree;
 
 fn n(v: u32) -> Value {
@@ -39,6 +42,8 @@ fn font_word(
         param(h, 0xfaa3be85u32.wrapping_add(index), n(id), f);
         true
     } else if let Some(s) = p.text(key) {
+        // Earlier §§9.3–9.6 explicitly publish this text payload; LC13 only
+        // leaves the newly inventoried §9.9 helper branches unsettled.
         param(h, 0xfaa3be85u32.wrapping_add(index), text(s), f);
         true
     } else {
@@ -156,7 +161,12 @@ pub fn interpret(kind: Kind, h: Handle, p: Properties<'_>, first: bool, f: &mut 
         Kind::TreeView => tree::run(h, interface, p, first, f),
         Kind::FileBrowser => file_browser::run(h, interface, p, first, f),
         Kind::Grid => grid::run(h, interface, p, first, f),
-        _ => Err(Unsupported::Interpreter(iid)),
+        Kind::Text | Kind::TextEdit | Kind::ListBox | Kind::Combo => controls::run(kind, h, interface, p, first, f),
+        Kind::Btn | Kind::Bmp | Kind::Scrollbar | Kind::LineInput | Kind::Spinner | Kind::TextTicker => {
+            feedback::run(kind, h, interface, p, first, f)
+        }
+        Kind::Gen | Kind::OptGrp => options::run(kind, h, interface, p, first, f),
+        Kind::Common | Kind::Custom => unreachable!(),
     };
     f.release(interface);
     result
