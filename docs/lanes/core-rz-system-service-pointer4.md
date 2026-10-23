@@ -1,4 +1,21 @@
-# core-rz-system-service-pointer4 — round 1 interrupted
+# core-rz-system-service-pointer4 — round 2 stopped
+
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| core-rz-system-service-pointer4 — system-service pointer utility | Codex / core-rz-system-service-pointer4 | blocked: coordinator STOP | Await coordinator authorization; implementation remains unstarted |
+
+## Handoff
+
+- Goal: original same-family round 2 of 3, implement the bounded public pointer utility and 32 independent literal traces, then one stable full gate.
+- Entry HEAD: eef1d5a7697ac5f5f74bca539cc78f78073f7774; clean worktree observed.
+- Completed: required bootstrap git command, exit 0; read lane rules, lane format and public spec through the start of section 2.2.
+- No production edits, algorithms, fixtures, formatting, tests, builds, native or game runs were performed.
+- The next read was denied by the lane guard: coordinator STOP since 2026-10-23T09:16:47, reason "User stopped the goal on 2026-10-23; halt new work and report status".
+- Stopped immediately; no checker or game request is outstanding. No merge-queue file was written.
+- Next: only after coordinator clears STOP, inspect current own admission/manifest and finish reading public sections 2–5 before implementation. Do not run a baseline gate.
+- Preserve all existing round 1 evidence and the failure report below; no refund, new family, READY, ABI or coverage claim.
+
+## Preserved round 1 failure report
 
 | Field | Actual result |
 |---|---|
