@@ -28,3 +28,16 @@
   arithmetic/rounding (`0x0097822A`, `0x0097844B`, `0x00978E35`). Failed-load
   retained-buffer state and malformed RLE limits are not currently defined.
   [unsettled; use the documented supported conversion pairs only]
+
+<!-- from: core-sc-resources5 (2026-10-23) -->
+- **SCR7 (§§2–3,5–7):** Please settle the remaining portable boundaries:
+  decimal operand/exponent grammar; variable namespace lookup order and `%`
+  parameter boundaries; whether SetTokenString names the field definition;
+  how length-prefixed SetFieldString fragments are consumed by the raw text
+  delimiter reader; runtime numeric overflow/nonfinite spelling; the color-type
+  number selecting 4444 and the image resource's base type. [Minimal decimal
+  literals; newest namespace prefix first; whole-token `%name`; token string
+  used as definition name; preserve literal SetFieldString writes and raw
+  delimiter reads separately; numeric prefixes use caller-width wrapping;
+  no claimed text roundtrip or 4444 parity; image base type zero pending a
+  specified type. Existing explicit open domains remain SCR1–SCR5.]
