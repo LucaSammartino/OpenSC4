@@ -414,9 +414,9 @@ fn ld38_bindings_effect_parameters_and_unclipped_cuts() {
     c.set_lot(&mut h, &mut st, reference(1));
     let bindings = h.bindings.unwrap();
     for (row, base) in TEXTURE_BASES.into_iter().enumerate() {
-        for j in 0..5 {
+        for (j, binding) in bindings[row].iter().enumerate() {
             assert_eq!(
-                bindings[row][j],
+                *binding,
                 TextureBinding {
                     class: 0x1AC0E11A,
                     interface: 0xFAC0E219,

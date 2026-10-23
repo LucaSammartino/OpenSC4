@@ -14,6 +14,10 @@
 - Preserved earlier diagnostics: q.py Bash access failure; focused compile failure
   (RNG comparison), then 15/16 assertion failure; both corrected-source results distinct.
 - Question: LD39, absent texture-scale defaults; supplied scales implemented.
-- Next: run final fmt and full qbuild all once, record gate.
+- Gate 1 (94afaf7b): cargo 6089/6089; clippy test-only needless_range_loop;
+  CMake stalled at compiler ABI probe for 550.5 s, lane stopped its own two
+  configure processes; CTest skipped. Terminal FAIL; `build-runs/gate1-failed/`.
+- Fixed the clippy diagnostic using iterator/enumerate.
+- Next: rerun qbuild all on corrected source, collect terminal result.
 - Scope: core only; no plugin, C ABI or game integration changes.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-construction5b-r1-manifest.json`.
