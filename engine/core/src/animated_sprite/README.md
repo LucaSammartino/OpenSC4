@@ -28,13 +28,13 @@ spec: the table below accounts for every public method it actually names.
 | Tick (15) | Explicitly unsequenced raw-unit clock; prescribed skip/no-skip quirk. Unresolved sentinels/non-progressing paths error transactionally. Native return codes other than documented 2 absent: AS5. |
 | SetPlayMode (16) | Raw byte setter; extra side effects unspecified: AS5. |
 | Shared slot 17 (always zero) | Published constant, no named API invented. |
-| SetFade / SetHighlight / SetSelfLit (18–20) | Raw flags and material effects, preserving unrelated bits; alpha-edge/invalid cases tracked in AS8. |
+| SetFade / SetHighlight / SetSelfLit (18–20) | §4.4 completing-comparison contracts, byte truncation/raw self-lit byte, returns and unrelated state preservation. Bool self-lit adapter retained. No nonfinite whole-call or trap-mode guarantee. |
 | LoadFromResource / Load (21–22) | Typed foreign zoom prefix acquisition, IID 0x69B6F01C and stop-first-missing. Prefix is not reported as native Load success. Native return/reset/key/lifetime rules absent: AS4. |
 | GetTextureResourceData / GetTextureData | Direction equation, decoded record lookup, page-edge UV/flip and scale helpers. Native bytes, camera angles and packing absent: AS1/AS6. |
 | GetTransform / SetTransform | Snapshot getter/algebra; setter counter semantics absent: AS3. |
-| UpdateView | Metric billboard primitive and widening box helper only. Native offset/space/cache/fallback semantics absent: AS7. |
-| Draw / Draw thunk | Published material state and visibility predicate; no successful Draw method or full command stream claimed. Coordinate/shade/restore/argument contracts absent: AS7. |
-| Pick / Pick thunk | Fan triangle order with first-hit short circuit; primitive provider owns TrianglePick, not the sprite owner's decision. Native cached-vertex spaces absent: AS7/AS9. |
+| UpdateView | Owned §5.1 exact-stage finite quad and reset/reflected box, using stored decoded/scaled metrics and raw camera primitives. Other numeric regions explicitly Unsupported. |
+| Draw / Draw thunk | Owned cache invalidation, full-integer context comparisons, low-byte holder use, translation and individual context-call protocol. Refresh selection supports only the explicit zero-angle single-orientation raw-record domain below. No native thunk/ABI or complete owner claim. |
+| Pick / Pick thunk | Owned stale translated-vertex fan selection with first-hit short circuit; only the individual foreign TrianglePick primitive is delegated. No refresh or visibility rejection. |
 | GetAnimatedModelFromResourceKey / GetMeshAnimFromResourceKey / GetSpriteAnimFromResourceKey | `creation_route` retains the published swapped-looking type routing. No fake successful factory/load operation: AS4. |
 
 ## Basic-instance contract
@@ -66,6 +66,48 @@ that convention to native offsets. `Transform` algebra and metric quads are
 independent components until AS6/AS7 permit complete native owner integration.
 
 ## Verification
+
+The 29-test paragraph below records the inherited component suite, not the
+current gate. New literal public-contract vectors and current measurements are
+recorded in the lane report and engine/conformance/animated-sprite-contracts.md.
+
+## Qualified cached algorithms
+
+The new cached path does not use the old provisional direction-major
+SpriteTable selector or billboard helper. Those remain portable components,
+not native SetOrientation or published resource-selection implementations.
+
+Callers explicitly install current stored cache state; this is a portable
+suboperation input, not a factory/default/load claim. UpdateView computes
+geometry itself from W/H/offsets and raw camera rows, magnification, and mpp
+or already rounded GetViewVolume endpoints. Scale has already affected metrics.
+Only arithmetic whose every stage is exact is admitted: nonzero operands and
+results must have magnitude in [2^-12,2^12], and rational divisions must be
+exact. This conservative subset makes the distinct native store boundaries
+irrelevant to admitted results. Other finite inputs return Unsupported.
+Signed-zero payloads are not promised. No x87 control-word closure is claimed.
+
+Dirty Draw refresh supports raw holder divisors [1,1,1], angle limits
+[binary32 pi, binary32 pi, 0, 0], owner back column (0,0,1), and low rotation
+zero. Then asin/atan2 inputs have exact zero results, P=R=1, and both selector
+B conversions receive zero. The engine selects entry zero and decodes its
+published eight bytes, including temporal frame packing, page, UV flips and
+qualified scale. This is an explicit narrow domain, not generic trig or
+native-angle goldens. Other orientation/holder domains return Unsupported.
+Clean cache draws do not run this selector. Out-of-range holders, absent
+resources, malformed packing and texture bounds are checked portable errors;
+native fault behavior and fault-time partial writes are outside this API.
+
+Draw takes raw context and shade-state snapshots and invokes individual
+foreign primitives; hosts never select a frame or return an entire quad/Draw.
+All boolean callback returns are ignored. Only ResetShade/ResetTransparency
+run at the end; no saved-state restoration or fault rollback is promised.
+The owned repr(C) vertex has position/colour/UV and stride 24; it is not a
+borrowed native instance layout, C ABI export or persistence schema.
+
+AS1/2/3/4/5/6/7/9 whole-call, resource, control-word, trig, controller,
+lifetime and default questions remain. The 60-function/10482-byte catalogue
+is unreconciled. Native/game owner coverage remains UNEXECUTED.
 
 29 Rust unit tests cover the five §10 scenarios at the supported component
 level, raw timing thresholds at 1/2, residual timing, looping/reversal/failure,
