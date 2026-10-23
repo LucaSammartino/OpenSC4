@@ -986,6 +986,14 @@ impl GzFont {
     }
 }
 
+impl Drop for GzFont {
+    fn drop(&mut self) {
+        // §3: destruction calls Shutdown before the owned fields (including the foreign
+        // renderer reference and face) are released, also for ordinary Rust ownership.
+        self.shutdown();
+    }
+}
+
 /// A reference-counted font (the COM object around [`GzFont`]). No RefCell: the state sits behind a
 /// mutex so getters may run from another thread.
 pub struct FontObj {
