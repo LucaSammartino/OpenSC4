@@ -138,7 +138,7 @@ fn owner() -> (WaterRipple, Arc<Sea>, Arc<Factory>, Arc<Mutex<retained::RipplePr
             vec![std::f32::consts::FRAC_PI_3; 5],
         ];
         p.tuning.bytes = [vec![100, 150, 200, 255, 255], vec![100, 150, 200, 255, 255]];
-        p.random = Some(NativeRandom { state: 1 });
+        p.random = Some(NativeRandom::from_effective_seed(1));
     }
     (w, ground, factory, shared)
 }
@@ -291,7 +291,7 @@ fn spline_domain_no_padding_phase_shared_and_only_inner_height_raised() {
 
 #[test]
 fn native_rng_high_product_zero_bound_and_one_advance_overshoot_wrap() {
-    let mut random = NativeRandom { state: 0xFFFF_FFFF };
+    let mut random = NativeRandom::from_effective_seed(0xFFFF_FFFF);
     assert_eq!(random.bounded(0), 0);
     assert_eq!(random.state, u32::MAX);
     let q = u64::from(u32::MAX) * 0x41C6_4E6D + 0x3039;
@@ -435,12 +435,13 @@ fn edit_removes_all_contacts_rearms_clock_and_delayed_tick_animates_new_strips()
     w.do_message(RippleMessage::AnimationTick(1)).unwrap();
     assert!(!w.rebuild_state().pending());
     assert!(w.shores()[0].strips.iter().all(|s| s.animation.clock == 1));
-    // Delayed tick clears/detects, then pending Create clears/detects again.
-    assert_eq!(ground.refreshes.load(Ordering::SeqCst), 3);
+    // Delayed tick detects once and retains its elapsed rebuild clock.
+    assert_eq!(w.rebuild_state().elapsed(), 2_000_001);
+    assert_eq!(ground.refreshes.load(Ordering::SeqCst), 2);
     w.terrain_edit_packed(200, 20).unwrap();
     w.do_message(RippleMessage::AnimationTick(100)).unwrap();
     w.do_message(RippleMessage::RebuildNow).unwrap();
-    assert_eq!(ground.refreshes.load(Ordering::SeqCst), 5);
+    assert_eq!(ground.refreshes.load(Ordering::SeqCst), 4);
     assert!(!w.rebuild_state().pending());
 }
 
@@ -555,6 +556,12 @@ fn shared_random_and_state_survive_owners_reset_and_empty_animation() {
 
 #[test]
 fn owner_reference_pick_shutdown_reinit_keeps_collection_and_first_update() {
+    let mut fresh = WaterRipple::default();
+    assert_eq!(fresh.references().count(), 0);
+    assert!(!fresh.is_initialized());
+    assert!(fresh.shores().is_empty());
+    assert!(fresh.shutdown());
+    assert!(fresh.lifecycle_events.is_empty());
     let (mut w, ground, factory, shared) = owner();
     assert_eq!(w.references().count(), 0);
     assert_eq!(w.remove_ref(), 0);
@@ -568,8 +575,21 @@ fn owner_reference_pick_shutdown_reinit_keeps_collection_and_first_update() {
     assert!(!w.pick(&mut words));
     assert_eq!(words, [1, 2, 3, 4]);
     w.update(zoom(0), true).unwrap();
+    assert_eq!(
+        w.init(
+            ground.clone(),
+            factory.clone(),
+            &Source::default(),
+            shared.clone(),
+            arithmetic()
+        ),
+        Ok(false)
+    );
     let count = w.shores()[0].strips.len();
     assert!(w.shutdown());
+    let event_count = w.lifecycle_events.len();
+    assert!(w.shutdown());
+    assert_eq!(w.lifecycle_events.len(), event_count);
     assert_eq!(w.shores()[0].strips.len(), count);
     assert_eq!(
         &w.lifecycle_events[w.lifecycle_events.len() - 3..],
@@ -590,4 +610,88 @@ fn owner_reference_pick_shutdown_reinit_keeps_collection_and_first_update() {
     assert_eq!(ground.refreshes.load(Ordering::SeqCst), refreshes);
     assert_eq!(w.release(), lifecycle::Release::Delete);
     assert!(w.is_initialized());
+}
+
+#[test]
+fn microseconds_are_not_milliseconds_and_overshoot_is_discarded() {
+    for (elapsed, expected) in [(175, (0, 175)), (175_000, (1, 0)), (900_000, (1, 0))] {
+        let mut a = Animation {
+            frame: 0,
+            clock: 0,
+            period: 175_000,
+        };
+        let mut rng = NativeRandom::from_effective_seed(0);
+        a.tick(elapsed, 8, [122_499, 227_499], &mut rng);
+        assert_eq!((a.frame, a.clock), expected);
+    }
+}
+
+#[test]
+fn startup_host_seed_sentinel_and_process_stream_survive_lifecycle() {
+    struct Host {
+        times: std::collections::VecDeque<u32>,
+        clock: u32,
+        clocks: usize,
+    }
+    impl mesh::RandomHost for Host {
+        fn time_word(&mut self) -> u32 {
+            self.times.pop_front().unwrap()
+        }
+        fn clock_word(&mut self) -> u32 {
+            self.clocks += 1;
+            self.clock
+        }
+    }
+    let mut host = Host {
+        times: [0x8C09_C57A].into(),
+        clock: 0,
+        clocks: 0,
+    };
+    let mut process = retained::RippleProcess::startup(&mut host);
+    assert_eq!(process.random, Some(NativeRandom::from_effective_seed(0)));
+    let random = process.random.as_mut().unwrap();
+    assert_eq!(random.bounded(0), 0);
+    assert_eq!(random.state, 0);
+    assert_eq!(random.bounded(10), 0);
+    assert_eq!(random.state, 0x3039);
+    assert_eq!((random.remembered_seed, random.third_word), (0, 0));
+    assert_eq!(host.clocks, 0);
+    let shared = Arc::new(Mutex::new(process));
+    let factory = Arc::new(Factory {
+        texture: None,
+        calls: AtomicUsize::new(0),
+    });
+    let ground = Arc::new(Sea::new([2, 2]));
+    for _ in 0..2 {
+        let mut w = WaterRipple::default();
+        w.init(
+            ground.clone(),
+            factory.clone(),
+            &Source::default(),
+            shared.clone(),
+            arithmetic(),
+        )
+        .unwrap();
+        assert!(w.shutdown());
+        shared.lock().unwrap().reset();
+        assert!(w
+            .init(
+                ground.clone(),
+                factory.clone(),
+                &Source::default(),
+                shared.clone(),
+                arithmetic()
+            )
+            .unwrap());
+        assert_eq!(shared.lock().unwrap().random.unwrap().state, 0x3039);
+    }
+    let mut sentinel = Host {
+        times: [0x73F6_3A85, 0x1234_5678].into(),
+        clock: 0xABCD_EF12,
+        clocks: 0,
+    };
+    let random = NativeRandom::startup(&mut sentinel);
+    assert_eq!(random, NativeRandom::from_effective_seed(0x1234_5678 ^ 0xEFDF_EF12));
+    assert_eq!(sentinel.clocks, 1);
+    assert!(sentinel.times.is_empty());
 }

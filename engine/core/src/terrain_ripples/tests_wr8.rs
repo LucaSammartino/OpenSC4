@@ -5,7 +5,10 @@
 //! execution is portable-only, never a native output oracle.
 use super::*;
 use crate::variant::Elem;
-use retained::{Property, RawTuningSource, ReadEvent, RetainedTuning, RippleProcess, Scalar, Target, Unsupported};
+use retained::{
+    Property, RawTuningSource, ReadEvent, RetainedTuning, RippleProcess, Scalar, Target, Unsupported,
+    DEGREE_FACTOR_BITS,
+};
 use std::{collections::BTreeMap, sync::Mutex};
 use storage::{Assignment, Buffer, Event as StorageEvent, Kind, Ledger, Shore, Strip, StripList};
 
@@ -168,7 +171,8 @@ fn sixth_element_and_source_bits_survive_repeated_absence_transform() {
     process.eligible_init(&raw, arithmetic()).unwrap();
     assert_eq!(process.tuning.floats[0], first_squared);
     assert_eq!(process.tuning.step, first_step);
-    assert_eq!(process.tuning.floats[5], vec![30., 30., 30., 30., 30., 99.]);
+    assert_eq!(process.tuning.floats[5][..5], [f32::from_bits(0x3F86_0A92); 5]);
+    assert_eq!(process.tuning.floats[5][5], 99.);
     assert_eq!(raw.values[&2].bytes, source_before);
     let before = process.tuning.clone();
     process.reset();
@@ -178,7 +182,11 @@ fn sixth_element_and_source_bits_survive_repeated_absence_transform() {
     process.eligible_init(&raw, arithmetic()).unwrap();
     assert_eq!(process.tuning.floats[0], second_squared);
     assert_eq!(process.tuning.step, second_step);
-    assert_eq!(process.tuning.floats[5], vec![15., 15., 15., 15., 15., 99.]);
+    assert_eq!(
+        process.tuning.floats[5][..5],
+        [f32::from_bits(0x3F86_0A92) * f32::from_bits(DEGREE_FACTOR_BITS); 5]
+    );
+    assert_eq!(process.tuning.floats[5][5], 99.);
     raw.whole = false;
     process.reset();
     let before = process.tuning.clone();
@@ -466,7 +474,20 @@ fn insertion_erase_iterator_clear_and_nonempty_pop_contracts() {
     dest.strips.erase(1..1, &mut output, &mut ledger).unwrap();
     assert_eq!(output, end);
     let sentinel = dest.strips.sentinel;
+    let survivor_id = dest.strips.nodes[0].id;
+    let survivor_vertices = dest.strips.nodes[0].strip.vertices.records.clone();
+    let last = &dest.strips.nodes[1];
+    let freed = [
+        last.strip.rectangles.id.unwrap(),
+        last.strip.vertices.id.unwrap(),
+        last.id,
+    ];
+    let before = ledger.events.len();
     dest.strips.remove_last(&mut ledger).unwrap();
+    assert_eq!(ledger.events[before..], freed.map(StorageEvent::Free));
+    assert_eq!(dest.strips.nodes.len(), 1);
+    assert_eq!(dest.strips.nodes[0].id, survivor_id);
+    assert_eq!(dest.strips.nodes[0].strip.vertices.records, survivor_vertices);
     dest.strips.clear(&mut ledger);
     assert_eq!(dest.strips.sentinel, sentinel);
     assert!(dest.strips.nodes.is_empty());

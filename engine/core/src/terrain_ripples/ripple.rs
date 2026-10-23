@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 FreeCity4 contributors
 
+use super::arithmetic::{Arithmetic, Portable};
 use super::lifecycle::{Event, Interface, References, Release};
 use super::mesh::{self, Animation, Parameters, Vertex};
 use super::render::{self, Rect, Renderer};
@@ -161,7 +162,8 @@ pub struct Shore {
 /// Portable owner. Terrain/renderer primitives remain foreign. Native invalid
 /// service/backing/exception domains remain typed errors, never safe success.
 #[derive(Default)]
-pub struct WaterRipple {
+pub struct RippleOwner<A: Arithmetic> {
+    math: A,
     process: Option<Arc<Mutex<RippleProcess>>>,
     initialized: bool,
     pub lifecycle_events: Vec<Event>,
@@ -179,7 +181,17 @@ pub struct WaterRipple {
     shores: Vec<Shore>,
     phase: f32,
 }
-impl WaterRipple {
+/// Portable host-math owner. Use `RippleOwner<A>` for caller-controlled native
+/// arithmetic; no geometry or traversal is delegated to that backend.
+pub type WaterRipple = RippleOwner<Portable>;
+
+impl<A: Arithmetic> RippleOwner<A> {
+    pub fn with_arithmetic(math: A) -> Self {
+        Self {
+            math,
+            ..Self::default()
+        }
+    }
     pub fn init(
         &mut self,
         terrain: Arc<dyn TerrainProvider>,
@@ -304,7 +316,8 @@ impl WaterRipple {
                 }
                 binding.is_some()
             };
-            let raw = mesh::traverse(
+            let raw = mesh::traverse_with_arithmetic(
+                &self.math,
                 &shore.points,
                 &mut self.phase,
                 self.water,
@@ -466,11 +479,11 @@ impl WaterRipple {
                     self.remembered_counter,
                     t.minimum.wrapping_mul(t.minimum) / 10,
                 ) {
+                    // §1.5/WR14: unlike the immediate message, delayed rebuild
+                    // clears pending before detection. Keep the rebuild clock.
+                    self.rebuild.pending = false;
                     self.shores.clear();
                     self.detect_shores()?;
-                    // Literal §1.5 sequence: no pending-clear is specified here.
-                    // CreateRipples therefore redetects again, as for RebuildNow.
-                    // Whether the delayed path clears it first remains WR14.
                     self.create_ripples(self.zoom.ok_or(Error::NotInitialized)?)?;
                 }
                 if let Some(binding) = self

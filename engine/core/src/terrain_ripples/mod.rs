@@ -7,10 +7,11 @@
 //! renderer and terrain operations remain foreign primitives. See the module
 //! README's Owner closure table and [`OWNER_CHECKLIST`] for scope and open gaps.
 //! Selection still has unimplemented drawing contracts; no host may supply
-//! prepared owner output to bypass them. Raw tick units and flag/byte values
-//! are deliberately opaque (WR1–3).
+//! prepared owner output to bypass them. Ticks use microseconds; flag/byte
+//! semantic names remain deliberately opaque (WR2–3).
 //! Resource lifetimes use `Arc`; getters never use interior mutability.
 
+pub mod arithmetic;
 mod geometry;
 pub mod lifecycle;
 pub mod mesh;
@@ -26,7 +27,7 @@ pub use geometry::{
     candidate_pair, spline, AnimatedStrip, CandidatePair, FrameAnimation, PairDecision, PairFilter, Point,
     RippleVertex, SplinePoint, StripGeometry,
 };
-pub use ripple::{RebuildState, RippleMessage, RippleUpdate, WaterRipple};
+pub use ripple::{RebuildState, RippleMessage, RippleOwner, RippleUpdate, WaterRipple};
 pub use selection::{Material, SelectedTerrainArea, SelectionRenderProperties, TexturedCell};
 pub use tuning::{RippleTuning, Zoom, RIPPLE_EXEMPLAR, RIPPLE_TEXTURE};
 
@@ -42,18 +43,18 @@ pub const OWNER_CHECKLIST: &[(&str, bool, &str)] = &[
     (
         "cSTEWaterRipple: spline, normals, pair filters",
         true,
-        "§1.3; exact arithmetic WR13",
+        "§1.3; ordered arithmetic with explicit primitive backend",
     ),
     ("cSTEWaterRipple: ordered shore tracing", true, "§1.2"),
     (
         "cSTEWaterRipple: full strip traversal and preparation",
         true,
-        "§1.3; exact arithmetic WR13",
+        "§1.3; native math exactness is backend-dependent",
     ),
     (
         "cSTEWaterRipple: animation and delayed rebuild state",
         true,
-        "§1.5; RNG seed WR12; delayed pending WR14",
+        "§1.5; host startup source; delayed/immediate ordering",
     ),
     ("cSTEWaterRipple: frustum, render state, draw", true, "§1.4"),
     (

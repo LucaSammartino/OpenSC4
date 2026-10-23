@@ -4,8 +4,11 @@
 
 ## Handoff
 - Goal: close settled cSTEWaterRipple contracts in the existing terrain_ripples module; no ABI/plugin changes.
-- Done: reserved detached worktree confirmed clean; existing closure table and spec follow-up report inspected.
-- Next: read module implementation and targeted updated spec sections; implement with focused tests.
+- Done: a95e3c12 initial handoff. Implemented fixed WR11 factor, WR12 host startup/shared RNG, WR14 delayed-clear order; first focused run passed 67 tests after a test-only Node clone correction (build-runs/focused-1.txt).
+- Done: implemented ordered WR13 arithmetic with primitive backend, owner integration, and five ledger tests. Fresh/repeated lifecycle and remove-last payload tests strengthened for WR8.
+- Next: collect focused test session  (latest native cargo invocation); finish closure/conformance documentation; run canonical all on final source.
+- Arithmetic: portable backend is binary64/host math, explicitly not native x87 bit equality; generic RippleOwner accepts controlword-aware primitive arithmetic without delegating geometry.
+- Formatting: qbuild fmt needs absolute file paths; initial relative-path check failed. Formatting diff applied with apply_patch, six owned files.
 - Spec source: docs/specs/water-ripples.md; WR8 remains partly open.
 - No game requests outstanding; portable core-only task.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-ripples5b-r1-manifest.json.
