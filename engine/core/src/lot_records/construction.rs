@@ -25,9 +25,7 @@ use crate::stream::{InStream, OutStream, RefValue};
 use crate::variant::{mem, Elem, Variant};
 use crate::x87::r24;
 
-use super::{
-    get_box, get_vec3, put_box, put_vec3, Bounds, OccupantRecord, IID_BUILDING_OCCUPANT, IID_LOT,
-};
+use super::{get_box, get_vec3, put_box, put_vec3, Bounds, OccupantRecord, IID_BUILDING_OCCUPANT, IID_LOT};
 
 pub const CLSID_CONSTRUCTION_OCCUPANT: u32 = 0xA97F_909E;
 /// §2.3 field 5.
@@ -425,10 +423,7 @@ impl ConstructionTuning {
         set(0x8989_EC25, &mut t.plank_width);
         let mut tex = [None; 3];
         let mut rates = [None; 2];
-        for (i, id) in [0x8989_EC26u32, 0x8989_EC27, 0x8989_EC28]
-            .into_iter()
-            .enumerate()
-        {
+        for (i, id) in [0x8989_EC26u32, 0x8989_EC27, 0x8989_EC28].into_iter().enumerate() {
             let mut v = f32::NAN;
             set(id, &mut v);
             tex[i] = (!v.is_nan()).then(|| inv(v));
@@ -442,11 +437,7 @@ impl ConstructionTuning {
         set(0x8989_EC2C, &mut t.crane_post_gap);
         set(0x8989_EC2D, &mut t.crane_height_above_scaffold);
         set(0x8989_EC2E, &mut t.crane_rotation_ms);
-        [
-            t.plank_texture_scale,
-            t.scaffold_texture_scale,
-            t.girder_texture_scale,
-        ] = tex;
+        [t.plank_texture_scale, t.scaffold_texture_scale, t.girder_texture_scale] = tex;
         if let Some(g) = rates[0] {
             t.growth_rate = g;
         }
@@ -507,12 +498,7 @@ pub fn rebuild_model(
 ) -> ConstructionGeometry {
     let (mn, mx) = bbox;
     let mut ground = mn[1];
-    for (x, z) in [
-        (mn[0], mn[2]),
-        (mx[0], mn[2]),
-        (mn[0], mx[2]),
-        (mx[0], mx[2]),
-    ] {
+    for (x, z) in [(mn[0], mn[2]), (mx[0], mn[2]), (mn[0], mx[2]), (mx[0], mx[2])] {
         let a = altitude(x, z);
         if a < ground {
             ground = a;
@@ -532,10 +518,7 @@ pub fn rebuild_model(
         top_y,
         f: f as f32,
         segments: n as u32,
-        scaffold: (
-            [mn[0] - g, ground, mn[2] - g],
-            [mx[0] + g, top_y, mx[2] + g],
-        ),
+        scaffold: ([mn[0] - g, ground, mn[2] - g], [mx[0] + g, top_y, mx[2] + g]),
     }
 }
 
@@ -572,10 +555,7 @@ pub fn timing(
         tuning.growth_rate,
     );
     let b = phase_days(f64::from(tuning.segment_height), tuning.growth_rate);
-    let c = phase_days(
-        r24(f64::from(geom.top_y) - f64::from(geom.ground)),
-        tuning.removal_rate,
-    );
+    let c = phase_days(r24(f64::from(geom.top_y) - f64::from(geom.ground)), tuning.removal_rate);
     let n = i64::from(geom.segments);
     // max_signed on 32-bit values, then an unsigned division.
     let rest = (i64::from(d) - b * n - a - c) as i32;
@@ -674,9 +654,7 @@ pub struct CraneFit {
 pub fn crane_duration(t: f32, delta: f64) -> u32 {
     let k = f64::from(f32::from_bits(CRANE_K_BITS));
     let q = f64::from(t) * delta * k;
-    ((q + 12_582_912.0) as f32)
-        .to_bits()
-        .wrapping_sub(0x4B40_0000)
+    ((q + 12_582_912.0) as f32).to_bits().wrapping_sub(0x4B40_0000)
 }
 
 /// `AnimateCrane(ms)` (`0x005CD570`) on the record's crane fields (#14e,
@@ -766,12 +744,7 @@ pub trait ConstructionHost {
     fn create_prop(&mut self, type_id: u32) -> Option<RefValue>;
     fn place_prop(&mut self, prop: &RefValue, position: [f32; 3], orientation: u8);
     fn render_detail(&mut self) -> u32;
-    fn create_automaton(
-        &mut self,
-        type_id: u32,
-        position: [f32; 3],
-        roof: bool,
-    ) -> Option<RefValue>;
+    fn create_automaton(&mut self, type_id: u32, position: [f32; 3], roof: bool) -> Option<RefValue>;
     fn worker_direction(&mut self, automaton: &RefValue, direction: [f32; 2]);
     /// Foreign visual-effect creation; its parameters are unspecified (LD38).
     fn create_dust_clouds(&mut self);
@@ -891,17 +864,12 @@ impl ConstructionOccupant {
     /// [literal].
     pub fn add_occupant_group(&mut self, host: &mut dyn ConstructionHost, group: u32) -> bool {
         let holder = &mut self.rec.base.holder;
-        let mut items = holder
-            .get(PROP_OCCUPANT_GROUPS)
-            .map(|v| v.items())
-            .unwrap_or_default();
+        let mut items = holder.get(PROP_OCCUPANT_GROUPS).map(|v| v.items()).unwrap_or_default();
         if items.iter().any(|e| e.as_i64() as u32 == group) {
             return false;
         }
         items.push(Elem::U32(group));
-        holder
-            .own
-            .add(PROP_OCCUPANT_GROUPS, Variant::array(mem::UINT32, items));
+        holder.own.add(PROP_OCCUPANT_GROUPS, Variant::array(mem::UINT32, items));
         host.post_occupant_group_added(group);
         true
     }
@@ -917,11 +885,7 @@ impl ConstructionOccupant {
 
     /// `RebuildModel` (ld §6.7.3) into the record: scaffold box #7, `N`,
     /// span `r24(N · segH)`, `startY`, world box widened by post width (OP17).
-    fn rebuild_model(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &ConstructionStatics,
-    ) -> ConstructionGeometry {
+    fn rebuild_model(&mut self, host: &mut dyn ConstructionHost, st: &ConstructionStatics) -> ConstructionGeometry {
         let bbox = host.building_bounds(&self.rec.building);
         let geom = rebuild_model(&bbox, &st.tuning, |x, z| host.altitude(x, z));
         let (mut lo, mut hi) = geom.scaffold;
@@ -940,12 +904,7 @@ impl ConstructionOccupant {
     }
 
     /// `SetLot(lot)` (ld §6.7.4, lr §9.2).
-    pub fn set_lot(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &mut ConstructionStatics,
-        lot: RefValue,
-    ) {
+    pub fn set_lot(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, lot: RefValue) {
         self.init(host);
         self.rec.building = RefValue::Null;
         self.rec.lot = lot;
@@ -1041,10 +1000,7 @@ impl ConstructionOccupant {
                 s.state = 2;
                 s.next_day = today.wrapping_add(s.e);
                 let scaffold = self.rec.local_bounds;
-                for (i, p) in scatter_sparks(st, &scaffold, sparks)
-                    .into_iter()
-                    .enumerate()
-                {
+                for (i, p) in scatter_sparks(st, &scaffold, sparks).into_iter().enumerate() {
                     host.place_spark(i, p);
                 }
             }
@@ -1180,11 +1136,7 @@ impl ConstructionOccupant {
     /// per axis.
     pub fn position(&self) -> [f32; 3] {
         let (a, b) = self.rec.world_bounds;
-        [
-            (a[0] + b[0]) * 0.5,
-            (a[1] + b[1]) * 0.5,
-            (a[2] + b[2]) * 0.5,
-        ]
+        [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5]
     }
 
     pub fn bounding_box(&self) -> Bounds {
@@ -1216,12 +1168,7 @@ impl ConstructionOccupant {
     }
 
     /// Phase interpolation is open (LD36); crane smoothstep is settled.
-    pub fn animation_tick(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &mut ConstructionStatics,
-        ms: u32,
-    ) {
+    pub fn animation_tick(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, ms: u32) {
         self.do_animation_tick(st, ms);
         let s = self.rec.scalars;
         if self.rec.has_crane && (0..=2).contains(&s.state) && s.crane_state == 0 {

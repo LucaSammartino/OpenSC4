@@ -2,13 +2,7 @@
 use super::*;
 
 pub const CRANE_MODELS: [u32; 3] = [0x1C21_0000, 0x1C22_0000, 0x282A_0000];
-pub const GROUND_TYPES: [u32; 5] = [
-    0x0200_0000,
-    0x0201_0000,
-    0x0205_0000,
-    0x0304_0000,
-    0x0305_0000,
-];
+pub const GROUND_TYPES: [u32; 5] = [0x0200_0000, 0x0201_0000, 0x0205_0000, 0x0304_0000, 0x0305_0000];
 pub const ROOF_TYPES: [u32; 3] = [0x0303_0000, 0x0205_0000, 0x0206_0000];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -48,19 +42,10 @@ impl ConstructionStatics {
     /// plain cRZTime, without XOR; the caller owns the separate CRT RNG.
     pub fn load(source: &mut dyn ConstructionSource, time: u32, crt: CrtRand) -> Self {
         let tuning = ConstructionTuning::from_properties(|id| source.property(id));
-        let cranes = CRANE_MODELS.map(|id| {
-            source
-                .crane_bounds(id)
-                .map(CraneSize::from_bounds)
-                .unwrap_or_default()
-        });
+        let cranes = CRANE_MODELS.map(|id| source.crane_bounds(id).map(CraneSize::from_bounds).unwrap_or_default());
         let mut props = |ids: &[u32]| {
             ids.iter()
-                .filter_map(|&type_id| {
-                    source
-                        .prop_dimensions(type_id)
-                        .map(|[x, z]| PropSize { type_id, x, z })
-                })
+                .filter_map(|&type_id| source.prop_dimensions(type_id).map(|[x, z]| PropSize { type_id, x, z }))
                 .collect()
         };
         let seeds = crate::rng::FixedSeeds {
@@ -155,25 +140,14 @@ pub fn swing_limits(world: Bounds, position: [f32; 3], side: usize, reach: f32) 
     (centre - half, centre + half)
 }
 
-pub fn outer_crane(
-    areas: &mut [Bounds; 8],
-    local_height: f32,
-    st: &mut ConstructionStatics,
-) -> Option<CraneFit> {
+pub fn outer_crane(areas: &mut [Bounds; 8], local_height: f32, st: &mut ConstructionStatics) -> Option<CraneFit> {
     let world = (areas[4].0, areas[6].1);
     let (xa, za, xb, zb) = (areas[0].0[0], areas[0].1[2], areas[2].1[0], areas[2].0[2]);
     for (k, size) in st.cranes.iter().enumerate() {
-        if size.width == 0.0
-            || !((0.8 * size.reach <= xb - xa || zb - za >= 12.0) && local_height >= 12.0)
-        {
+        if size.width == 0.0 || !((0.8 * size.reach <= xb - xa || zb - za >= 12.0) && local_height >= 12.0) {
             continue;
         }
-        let reach_room = [
-            world.1[2] - za,
-            xb - world.0[0],
-            zb - world.0[2],
-            world.1[0] - xa,
-        ];
+        let reach_room = [world.1[2] - za, xb - world.0[0], zb - world.0[2], world.1[0] - xa];
         let need = st.tuning.crane_post_gap + size.back + st.tuning.crane_post_width;
         let sides: Vec<_> = (0..4)
             .filter(|&s| {
@@ -208,11 +182,7 @@ pub fn outer_crane(
 }
 
 /// The settled part of inner placement. Exact pose is explicitly open (§6.7.15).
-pub fn inner_crane_choice(
-    b: Bounds,
-    sizes: &[CraneSize; 3],
-    rng: &mut RzRandom,
-) -> (usize, Option<u8>) {
+pub fn inner_crane_choice(b: Bounds, sizes: &[CraneSize; 3], rng: &mut RzRandom) -> (usize, Option<u8>) {
     let raw = rng.next_raw();
     let x_long = b.1[0] - b.0[0] >= b.1[2] - b.0[2];
     let side = if x_long { 0 } else { 1 } + if raw < 0x7FFF_FFFF { 0 } else { 2 };
@@ -248,12 +218,7 @@ pub enum Unsupported {
 }
 
 impl ConstructionOccupant {
-    pub(super) fn attempt_crane(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &mut ConstructionStatics,
-        b: Bounds,
-    ) {
+    pub(super) fn attempt_crane(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, b: Bounds) {
         let policy = host.crane_policy(&self.rec.building);
         let fit = if policy == 1 || policy == 3 {
             outer_crane(
@@ -265,8 +230,7 @@ impl ConstructionOccupant {
             None
         };
         if let Some(fit) = fit {
-            self.rec.has_crane =
-                host.create_crane(fit.position[0], fit.position[2], fit.crane_type);
+            self.rec.has_crane = host.create_crane(fit.position[0], fit.position[2], fit.crane_type);
             self.rec.crane_position = fit.position;
             self.rec.scalars.crane_type = fit.crane_type;
             self.rec.scalars.swing_min = fit.swing_min;
@@ -298,11 +262,7 @@ impl ConstructionOccupant {
         } else {
             [0, 2][st.rng.uniform_u32(2) as usize]
         };
-        let (fx, fz) = if orientation % 2 == 0 {
-            (p.x, p.z)
-        } else {
-            (p.z, p.x)
-        };
+        let (fx, fz) = if orientation % 2 == 0 { (p.x, p.z) } else { (p.z, p.x) };
         let x = st.rng.range_f64(0.0, f64::from(w - fx)) as f32;
         let z = st.rng.range_f64(0.0, f64::from(d - fz)) as f32;
         // Literal area minimum for the unspecified placement y/anchor (LD37).
@@ -314,11 +274,7 @@ impl ConstructionOccupant {
         }
     }
 
-    pub(super) fn ground_props(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &mut ConstructionStatics,
-    ) {
+    pub(super) fn ground_props(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics) {
         if st.ground.is_empty() {
             return;
         }
@@ -346,15 +302,10 @@ impl ConstructionOccupant {
         }
     }
 
-    pub(super) fn roof_props(
-        &mut self,
-        host: &mut dyn ConstructionHost,
-        st: &mut ConstructionStatics,
-    ) {
+    pub(super) fn roof_props(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics) {
         let b = self.rec.local_bounds;
         let product = (b.1[0] - b.0[0]) * (b.1[2] - b.0[2]);
-        let mut count =
-            st.rng.range_i32(0, 1) + i32::from(product > 256.0) + 2 * i32::from(product > 1024.0);
+        let mut count = st.rng.range_i32(0, 1) + i32::from(product > 256.0) + 2 * i32::from(product > 1024.0);
         while count > 0 {
             st.crt.random_shuffle(&mut st.roof);
             let Some(p) = st

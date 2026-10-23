@@ -32,11 +32,7 @@ fn statics() -> ConstructionStatics {
 
 #[test]
 fn test44_divide_lot_and_nan_and_inverted() {
-    let a = divide_lot(
-        bounds(0.0, 0.0, 48.0, 32.0),
-        bounds(10.0, 8.0, 30.0, 20.0),
-        2.0,
-    );
+    let a = divide_lot(bounds(0.0, 0.0, 48.0, 32.0), bounds(10.0, 8.0, 30.0, 20.0), 2.0);
     let expected = [
         bounds(8.0, 0.0, 32.0, 6.0),
         bounds(32.0, 6.0, 48.0, 22.0),
@@ -48,11 +44,7 @@ fn test44_divide_lot_and_nan_and_inverted() {
         bounds(0.0, 22.0, 8.0, 32.0),
     ];
     assert_eq!(a, expected);
-    let a = divide_lot(
-        bounds(0.0, 0.0, 48.0, 32.0),
-        bounds(f32::NAN, 40.0, 60.0, 50.0),
-        2.0,
-    );
+    let a = divide_lot(bounds(0.0, 0.0, 48.0, 32.0), bounds(f32::NAN, 40.0, 60.0, 50.0), 2.0);
     assert!(a[0].0[0].is_nan());
     assert!(a[1].1[2] < a[1].0[2]);
 }
@@ -369,11 +361,7 @@ fn static_tables_filter_missing_profiles_and_reseed_plain_time() {
 #[test]
 fn tests20_21_timing_and_queued_completion_day() {
     let mut st = statics();
-    let g = rebuild_model(
-        &([0.0, 100.0, 0.0], [10.0, 110.0, 10.0]),
-        &st.tuning,
-        |_, _| 100.0,
-    );
+    let g = rebuild_model(&([0.0, 100.0, 0.0], [10.0, 110.0, 10.0]), &st.tuning, |_, _| 100.0);
     assert_eq!(g.start_y.to_bits(), 0x42C8_3333);
     let t = timing(&g, &st.tuning, Some(30));
     assert_eq!((g.segments, t.a, t.b, t.c, t.e), (4, 0, 1, 1, 6));

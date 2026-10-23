@@ -11,10 +11,7 @@ use crate::variant::{mem, Elem, Variant};
 use crate::x87::r24;
 
 fn host_ref(id: u64, class_id: u32) -> RefValue {
-    RefValue::Host {
-        token: id,
-        class_id,
-    }
+    RefValue::Host { token: id, class_id }
 }
 
 fn sample() -> ConstructionRecord {
@@ -173,9 +170,7 @@ fn v4_bytes(scale: f32, tail: u32) -> (Vec<u8>, Vec<u8>, usize) {
     let v5 = write_obj(&RefValue::Object(RecordObject::new(r)));
     let at = v5.windows(13).position(|w| w == EXAMPLE_XFORM).unwrap();
     assert_eq!(v5.windows(13).filter(|w| *w == EXAMPLE_XFORM).count(), 1);
-    let mut legacy = le(&[
-        0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 8.0, 2.5, 8.0, scale,
-    ]);
+    let mut legacy = le(&[0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 8.0, 2.5, 8.0, scale]);
     legacy.extend_from_slice(&tail.to_le_bytes());
     assert_eq!(legacy.len(), 56);
     let mut v4 = v5[..at].to_vec();
@@ -196,10 +191,7 @@ fn v4_legacy_transform_record() {
     assert_eq!(rem, 0);
     let r: ConstructionRecord = rec(&o);
     assert_eq!(r.transform.mask, 5);
-    assert_eq!(
-        r.transform.matrix,
-        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-    );
+    assert_eq!(r.transform.matrix, [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
     assert_eq!(r.transform.translation, [8.0, 2.5, 8.0]);
     assert_eq!(r.transform.scale, 1.0);
     assert_eq!(r.transform.counter, 0x78);
@@ -220,10 +212,7 @@ fn v4_legacy_transform_record() {
     let (o, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
     assert!(ok);
     let r: ConstructionRecord = rec(&o);
-    assert_eq!(
-        (r.transform.mask, r.transform.scale, r.transform.counter),
-        (7, 2.0, 0)
-    );
+    assert_eq!((r.transform.mask, r.transform.scale, r.transform.counter), (7, 2.0, 0));
     let (v4, _, _) = v4_bytes(f32::NAN, 3);
     let (o, ok, _) = read_obj(construction::CLSID_CONSTRUCTION_OCCUPANT, &v4);
     assert!(ok);
@@ -269,9 +258,7 @@ fn xform_read_rules_no15() {
     // Mask 7 with scale 1.0 reads back as 5; live mask 0: no reset, counter
     // +1 per part only.
     let mut b7 = vec![7u8];
-    b7.extend(le(&[
-        2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0, 1.0, 2.0, 3.0, 1.0,
-    ]));
+    b7.extend(le(&[2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0, 1.0, 2.0, 3.0, 1.0]));
     let mut t = Xform::default();
     let mut c = 0u8;
     t.counter = c;
@@ -289,8 +276,7 @@ fn xform_read_rules_no15() {
     };
     let mut c = 250u8;
     live.counter = c;
-    live.read_into(&mut ByteReader::new(&EXAMPLE_XFORM))
-        .unwrap();
+    live.read_into(&mut ByteReader::new(&EXAMPLE_XFORM)).unwrap();
     c = live.counter;
     assert_eq!(live.mask, 1);
     assert_eq!(live.matrix, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
@@ -309,9 +295,7 @@ fn xform_read_rules_no15() {
     c = odd.counter;
     assert_eq!((odd.mask, odd.scale, c), (1, 4.0, 1));
     // Legacy: mask never reset (bits stay), scale bit by the 1.0 test.
-    let mut lg = le(&[
-        1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
-    ]);
+    let mut lg = le(&[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
     lg.extend_from_slice(&0x0000_01FEu32.to_le_bytes());
     let mut t = Xform {
         mask: 2,
@@ -361,10 +345,7 @@ fn tuning_shipped_and_defaults() {
     assert_eq!(t.post_width, 1.0);
     let d = ConstructionTuning::from_properties(|_| None);
     assert_eq!(d, ConstructionTuning::default());
-    assert_eq!(
-        (d.growth_rate, d.removal_rate, d.plank_texture_scale),
-        (1.0, 2.0, None)
-    );
+    assert_eq!((d.growth_rate, d.removal_rate, d.plank_texture_scale), (1.0, 2.0, None));
 }
 
 fn shipped_tuning() -> ConstructionTuning {
@@ -418,11 +399,9 @@ fn test20_construction_timing() {
     assert_eq!(g.ground, 99.5);
     assert_eq!(g.scaffold, ([-2.0, 99.5, -2.0], [12.0, 110.0, 12.0]));
     // A NaN altitude keeps the current ground.
-    let g = rebuild_model(
-        &([0.0, 100.0, 0.0], [1.0, 110.0, 1.0]),
-        &shipped_tuning(),
-        |_, _| f32::NAN,
-    );
+    let g = rebuild_model(&([0.0, 100.0, 0.0], [1.0, 110.0, 1.0]), &shipped_tuning(), |_, _| {
+        f32::NAN
+    });
     assert_eq!(g.ground, 100.0);
 }
 
@@ -561,9 +540,7 @@ impl ConstructionHost for Host {
     }
     fn create_sparks(&mut self, n: usize) -> Vec<RefValue> {
         self.say(format!("sparks {n}"));
-        (0..n as u64)
-            .map(|i| host_ref(40 + i, IID_EFFECT_PROP))
-            .collect()
+        (0..n as u64).map(|i| host_ref(40 + i, IID_EFFECT_PROP)).collect()
     }
     fn spark_slot8(&mut self, i: usize, v: u32) {
         self.say(format!("spark {i} slot8 {v}"));
@@ -660,11 +637,7 @@ fn test21_construction_schedule() {
     ];
     for (my, corner, d, done) in cases {
         let (h, _) = run(Host::new(my, corner, d), 1);
-        assert_eq!(
-            days_of(&h, "lot state 3 0 0"),
-            vec![done],
-            "{my} {corner:?} {d:?}"
-        );
+        assert_eq!(days_of(&h, "lot state 3 0 0"), vec![done], "{my} {corner:?} {d:?}");
     }
     let (h, _) = run(Host::new(110.0, Some(99.0), None), 0);
     assert_eq!(days_of(&h, "lot state 3 0 0"), vec![30]);
@@ -733,10 +706,7 @@ fn set_building_completion_posts_only_on_change() {
     c.set_building_completion(&mut h, 0.0);
     assert!(h.log.is_empty());
     c.set_building_completion(&mut h, 0.25);
-    assert_eq!(
-        h.log,
-        vec!["completion 0.25".to_string(), "post 2977AE2F".to_string()]
-    );
+    assert_eq!(h.log, vec!["completion 0.25".to_string(), "post 2977AE2F".to_string()]);
 }
 
 #[test]
@@ -818,10 +788,7 @@ fn test25_crane_pause() {
     assert_eq!(s.crane_state, 0);
     assert!(s.crane_target >= 0.5 && s.crane_target <= 1.0);
     assert_eq!(s.crane_previous, 0.0);
-    assert_eq!(
-        s.crane_duration,
-        crane_duration(6000.0, f64::from(s.crane_target))
-    );
+    assert_eq!(s.crane_duration, crane_duration(6000.0, f64::from(s.crane_target)));
 }
 
 #[test]
@@ -863,13 +830,7 @@ fn set_lot_crane_initial_values() {
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
     let s = c.rec.scalars;
     assert_eq!(
-        (
-            s.crane_type,
-            s.swing_min,
-            s.swing_max,
-            s.crane_target,
-            s.crane_previous
-        ),
+        (s.crane_type, s.swing_min, s.swing_max, s.crane_target, s.crane_previous),
         (2, s.swing_min, s.swing_max, s.swing_min, s.swing_max)
     );
     assert!(s.swing_min < s.swing_max);
@@ -997,10 +958,7 @@ fn live_refs_released_by_set_lot_read_and_shutdown() {
     c.set_lot(&mut h, &mut st, RefValue::Object(a.clone()));
     assert_eq!(std::rc::Rc::strong_count(&a), 2);
     c.set_lot(&mut h, &mut st, RefValue::Object(b.clone()));
-    assert_eq!(
-        (std::rc::Rc::strong_count(&a), std::rc::Rc::strong_count(&b)),
-        (1, 2)
-    );
+    assert_eq!((std::rc::Rc::strong_count(&a), std::rc::Rc::strong_count(&b)), (1, 2));
     c.shutdown(&mut h);
     assert_eq!(std::rc::Rc::strong_count(&b), 1);
     assert!(c.rec.effects.is_empty() && c.rec.building.is_null());
