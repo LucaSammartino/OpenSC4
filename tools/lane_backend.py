@@ -107,8 +107,10 @@ def codex_defaults():
     p = home/'config.toml'
     d = tomllib.loads(p.read_text(encoding='utf-8')) if p.is_file() else {}
     result = {k: d[k] for k in ('model', 'model_reasoning_effort') if k in d}
-    if (d.get('windows') or {}).get('sandbox'):
-        result['windows.sandbox'] = d['windows']['sandbox']
+    # Pinned, not read from config.toml: the elevated sandbox logs on as the
+    # CodexSandboxOffline account for every command and never closes the logon,
+    # so a swarm leaks tens of thousands of lsass sessions (2026-10-23).
+    result['windows.sandbox'] = 'unelevated'
     return result
 
 
@@ -134,6 +136,8 @@ def codex_command(m, schema, final, env):
     options = codex_defaults() | m.get('codex', {})
     if options.get('sandbox', 'workspace-write') != 'workspace-write':
         raise ValueError('Codex lanes require the scoped workspace permission profile')
+    if options.get('windows.sandbox') == 'elevated':
+        raise ValueError('The elevated Windows sandbox leaks logon sessions; use unelevated')
     args += codex_git_permissions(m)
     for key in ('model', 'model_reasoning_effort', 'windows.sandbox'):
         if options.get(key):

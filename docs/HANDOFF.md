@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 308 (View utilities owner landed and claimed; watercraft spec answers landed (run 5).); 307 (MySim pool owner landed and claimed; netocc r2 contracts landed (run 5).); 306 (Lighting manager and ARGB8 image owners landed and claimed (run 5).); 305 (Overlay manager and network-occupant model instance owners landed and claimed (run 5).); 304 (The cSC4AudioAmbienceManager owner (run 5 Codex lane) landed and was claimed: implemented +11,298 B; landvalue shadow 72/72 -> 71/72 run noise (seen before in train121) cost 6,711 B verified for this report.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 309 (GZ font owner landed and claimed (run 5).); 308 (View utilities owner landed and claimed; watercraft spec answers landed (run 5).); 307 (MySim pool owner landed and claimed; netocc r2 contracts landed (run 5).); 306 (Lighting manager and ARGB8 image owners landed and claimed (run 5).); 305 (Overlay manager and network-occupant model instance owners landed and claimed (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
