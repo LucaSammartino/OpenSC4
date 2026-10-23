@@ -16,6 +16,10 @@ the zone types), [city-tools-input.md](city-tools-input.md) (§2 the base contro
 (§6 the tutorial slots), [water-ripples.md](water-ripples.md) (§2.2 `MarkSelected`), [ui-windows.md](ui-windows.md)
 (the city view's cursor text and cost indicator slots).
 
+The local grid helper's owned geometry, effect-state and resource rules are in
+[local-grid-helper.md](local-grid-helper.md); the calls below describe this
+tool's use of the helper.
+
 ## 0. Summary
 
 The zone tool zones (or, as type 0, dezones) the rectangle the player drags, or, when the player holds the button

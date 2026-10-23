@@ -6,7 +6,8 @@
 
 - Goal: first dedicated `docs/specs/local-grid-helper.md`; no engine/source/ABI changes.
 - Done: scope commit `fd690b95`; canonical export queried first; all six bodies read as instructions; SetPosition rules and provenance ledger drafted.
-- Next: finish lifecycle/resource rules and independent literal traces, add consumer links, regenerate question index and run docs checks.
+- Done: transform milestone `ac0468a1`; lifecycle/resource/return ledger and PROPOSED/UNEXECUTED G1–G7, boundary B and L1–L14 traces drafted; consumer links added.
+- Next: independently check exact rational/bit literals and local links; regenerate question index; run questions/doccheck/diff checks and retain errors.
 - Authority: `C:/Users/tlori/FreeCity4/build-runs/run4-re-local-grid-helper4-r1-manifest.json`; guard within budget.
 - Scope: six provisional entries/538 bytes; shared constructor/destructor attribution must be qualified.
 - Measured: spacing offset is 1/16, scale is 16 times the fifth accessor reply; x/z use separate floor/divisor/offset replies; descriptor has uninitialized padding +2..+3.
