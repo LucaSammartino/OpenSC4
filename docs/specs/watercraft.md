@@ -416,16 +416,84 @@ is above the level of terrain slot 29 *[inferred: the sea level]*.
 
 1. A corner of the cell rectangle outside the city → `PushState(72)`.
 2. **Other boats** are tested when this boat is player-driven, or when neither is and AI collisions are enabled
-   (`0x00B22A7C` clear). The other boat is the first in the manager's list within the two boats' combined size whose
+   (`0x00B22A7C` clear). The other boat is the first in the manager's list passing the maximum-extent distance gate below whose
    footprint overlaps (`0x005690D0`). A crash happens when |speed − other speed| / entry 7 is above entry 27 (this
    boat player-driven) or entry 15. A player crash plays AEMS event 7. The boat with the lower or equal size class
    (`0x00566D60`) sinks: a player-driven loser gets `NotifyAutomatonEvent(0xB, 0)` and `PushState(71)` for entry 21
    ms (and "sunk by a collision"); an AI loser fades out (`PushState(73)`), unless the winner is the player's boat,
    in which case it sinks. Below the threshold the boats bump (`0x0056A310`): the other boat takes a new speed when
-   it can move and this boat keeps entry 29 of its speed.
+   it can move and this boat keeps entry 29 of its speed (the transfer is the caller's speed, not a mass-weighted exchange).
 3. **The shore and buildings** (`Crash_InanimateCollisionDetection`, `0x005687C0`): a hit faster than entry 28
    (player) or entry 16 (AI), as |speed| / entry 7, plays AEMS event 7 for the player and runs `Crash_DetermineCase`
    (automata.md §6.6); slower hits bump.
+
+#### 5.7.0 Boat selection, size and response (WC5)
+
+Use the **top** state equal to 16 to identify player drive in this detector; merely
+finding 16 lower in the stack is insufficient. The caller's player state or the
+global AI-collision enable admits the manager scan. It does not filter candidate
+boats by their player state. Null candidates and the caller itself are skipped;
+scan order is the manager list's order, not closest distance.
+
+For boat `i`, let `L_i` be the largest of the three side lengths of the bounds
+returned by its +4 interface slot 10 (`0x00567B10`). The broad-phase gate is
+`length(P_A-P_B) < max(L_A,L_B)`, with all three coordinates participating.
+It uses neither a sum of radii nor the sum of the two lengths. A distance equal
+to the maximum fails. The first admitted boat whose oriented footprints overlap
+is returned; no boat yields null (`0x005690D0`, gate `0x00569195–0x005691CC`).
+
+The footprint overlap helper (`0x00506450`) returns false if either footprint
+is invalid. For finite valid rectangles with centers `C_A,C_B`, unit axes
+`e_i,f_i` and half extents `h_i,k_i`, it accepts exactly when all four separating
+axis inequalities hold, for `n` in `{e_A,f_A,e_B,f_B}`:
+
+`abs(dot(C_B-C_A,n)) <= h_A*abs(dot(e_A,n)) + k_A*abs(dot(f_A,n))
+                       + h_B*abs(dot(e_B,n)) + k_B*abs(dot(f_B,n))`.
+
+Edge and corner contact therefore overlap. This is a two-dimensional footprint
+test, after the three-dimensional distance gate. The original tests axes in
+A-first-axis, A-second-axis, B-first-axis, B-second-axis order and rejects on the
+first positive separation (`0x005064E6–0x005065F9`). The model-to-footprint
+construction, including offsets/scales passed to `0x0050A310`, is still unresolved;
+the inequalities alone do not close that construction contract.
+
+Size class is 3 when the group has tag `0x4414`, otherwise 2 when it has tag
+`0x4413`, otherwise 1; tag `0x4414` wins if both occur. This classification
+requires a group and does not provide a null-group fallback (`0x00566D60–0x00566D9D`).
+For an admitted overlap, the speed threshold is **strictly**
+`abs(v_A-v_B)/p_A[7] > (p_A[27] if A is player-driven, else p_A[15])`.
+It compares scalar speeds, even when headings oppose. Equality bumps. Above it:
+
+| Player involvement | Size relation | Result, in order |
+|---|---|---|
+| Neither boat | A smaller | A pushes 73; B unchanged. |
+| Neither boat | A larger | B pushes 73; A unchanged. |
+| Neither boat | Equal | A pushes 73, then B pushes 73. |
+| At least one player | A smaller | A sinks; B unchanged. |
+| At least one player | A larger | B sinks; A unchanged. |
+| At least one player | Equal | A sinks, then B sinks. |
+
+Here "sinks" is an explicit `(0xB,0)` notification followed by PushState(71)
+with **that victim's** `p[21]` duration and the timed-state flag set. A player
+victim additionally gets +0x2B2 set to 1 before that notification; an AI victim
+does not. In particular, when a player wins, the AI loser really enters 71,
+but does not acquire the collision-mushroom byte. Existing bytes are not cleared
+on AI victims. State entry independently sends its own `(0xB,0)`, so the explicit
+notification and the entry notification must not be collapsed into one event.
+If A is player-driven, AEMS event 7 receives slot 6 then slot 5 before victim
+transitions; this detector does not issue that sound for a player B while A is AI.
+Evidence: `0x0056C176–0x0056C363` (size comparisons and player branches).
+
+Below/equal threshold, roll A back (§5.7.2), sample A's current speed `v`, and
+ask whether B can move. If yes, set B's speed to `v`; otherwise leave B's speed
+unchanged (including any state push from its movement gate). Then set A's speed
+to `p_A[29]*v`. There is no direction projection, exchange, RNG or overlap-based
+impulse (`0x0056C36A–0x0056C396`). Continue to shore detection using this reduced
+speed. A shore bump only rolls position back; it does not apply this attenuation.
+
+The detector returns true for outside-city removal, a boat crash, or a shore
+crash, and false for no hit or only bumps. A boat crash returns before shore
+detection. Outside-city removal pushes 72 before all boat/shore work.
 
 #### 5.7.1 Crash dispatch and effect prerequisites (WC5, partial)
 
@@ -891,3 +959,18 @@ they do not pass malformed buffers to a reader lacking bounds checks.
 | WC5-S06 | Heel: T=8000, B=1, t=3200, contact byte remains set after slide phase | Slow ramp reaches 0.4 and continues. At t=4000 the fast ramp applies and completes instead. |
 | WC5-S07 | Heel: t=T | Return false before any contact phase or angle store. |
 | WC5-S08 | Bump rollback: previous position=(1,2,3), current=(4,5,6), speed=0.2, turn=0.7 | Runtime/inherited/transform translations become (1,2,3); orientation, speed and turn unchanged by helper; publication then slots 100,104,107. |
+
+### 11.7 Boat collision selection and response vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC5-B01 | L_A=10, L_B=6, center distance=10, overlapping test rectangles | Candidate rejected before footprint test. At distance just below 10, footprint test is reached. |
+| WC5-B02 | Two valid axis-aligned rectangles, centers (0,0) and (2,0), both half extents (1,1) | Overlap true, including edge contact. Moving second center past 2 separates them. Invalidating either rectangle makes overlap false. |
+| WC5-B03 | Group has both 0x4413 and 0x4414 | Class 3. Only 0x4413 gives 2; neither gives 1. |
+| WC5-B04 | Player A and AI B, same class, speed ratio above p_A[27] | AEMS 7 slots 6,5; A sets collision byte, notifies and enters 71; then B notifies/enters 71 without setting its collision byte. Each enter also notifies. Both use their own durations. |
+| WC5-B05 | Player A larger than AI B, ratio above threshold, B collision byte initially 0 | Only B sinks; B collision byte stays 0. Return true and skip shore detection. |
+| WC5-B06 | AI A smaller than player B, AI collisions enabled, ratio above p_A[15] | Only A sinks; no AEMS event 7 from this detector; A collision byte is not set. |
+| WC5-B07 | AI A and AI B same class, ratio above p_A[15] | Push 73 on A then B, with no explicit crash notifications; return true. |
+| WC5-B08 | Exact threshold equality, v_A=0.2, p_A[29]=0.75, B movement gate true, no shore hit | Roll back A; B speed=0.2, A speed=0.15; return false. No heading-based sign adjustment. |
+| WC5-B09 | Same bump, B movement gate false | B speed unchanged; A still attenuates to 0.15. |
+| WC5-B10 | A and B both have v=0.2 and opposite headings | Relative-speed ratio is zero, hence bump for nonnegative threshold; do not use relative velocity magnitude. |

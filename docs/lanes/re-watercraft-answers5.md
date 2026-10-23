@@ -11,7 +11,8 @@
 - Round 2: WC7 answered: compressed route format and exhaustion, station reservation/held-byte ownership, following equations and first-list tow picker; 15 more vectors. WC6 milestone 7f2c873e.
 - Round 2: WC7 milestone 1f86fb4d; crash dispatch milestone 478e6759 specifies double elapsed accumulation, (0xB,0), and null grounding/mushroom failure paths; 4 more vectors. WC5 remains open for motion/collisions.
 - Round 3: added verified sink/heel angle ramps, endpoint returns, distinct runtime/transform sinking y writes, bump rollback and 8 vectors in sections5.7.2/11.6. WC5 still open for axes/contact/overlap and full response.
-- Next FIRST: finish collision overlap/size/bump response, then WC3 inventory contracts, WC4 motion; reserve final report and ready queue even with explicit remaining gaps.
+- Round 3: boat collision maximum-extent gate (not combined radii), SAT contact equality, size tags, equal-size double loss, AI sinking after player win and exact speed transfer/returns specified; 10 vectors. Milestone b00cbc6b contains prior scalar work.
+- Next FIRST: WC3 inventory contracts, WC4 motion; collision model-to-footprint construction and heel contact/axes remain unresolved. Reserve final report and ready queue even with explicit gaps.
 - Main attribution now gives 75 functions/38073 bytes, versus brief 79/38556. Read-only reproducer: `build-runs/watercraft-owner-inventory.py 0` and `40`; imports Attribution only, no engine reads.
 - Numeric PE reader: `build-runs/watercraft-evidence.py <hex VA>...`; reads working exe, prints f32/bits; never commit these scripts or RE output.
 - WC8: tan/atan, f32 a=0.910000026226, b=1.57079637051; opposite gear crosses zero; neutral translator keeps speed. Steering channels +88/+84 are elapsed floats, ordered responses; owner never clears skier toggle +EB.
