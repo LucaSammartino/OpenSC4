@@ -416,6 +416,53 @@ empty comments, `GetFlag` true for `0x1` and `0x2` only, gives
 A control with neither parameter that answers only `IGZWin` gives `clsid=GZWin iid=IGZWin `; one whose stored
 class is `0x12345678` (not in the table) gives `clsid=0x12345678 `.
 
+### 7.7 Per-type writer vocabulary: partial LC8 evidence
+
+The following words are confirmed outputs of the §7.6 writers. This is a vocabulary inventory,
+**not an unconditional output list or a complete emission contract**. A word may depend on getter
+success, metadata, flags, or repeated records. Do not implement every listed word unconditionally,
+or claim that an empty suffix is equivalent to the original. LC8 remains open for the precise
+conditions, values and repeated-record behavior. Each row's evidence address is in §7.6's writer table.
+
+For compactness, `font colours` below means, in order, `colorfontnormal`, `colorfontdisabled`,
+`colorfonthilited`; `font backgrounds` means `colorfontnormalbkg`, `colorfontdisabledbkg`,
+`colorfonthilitedbkg`. These abbreviations are not literal script words. All spellings below are literal,
+including capitalization. Identifying a vocabulary does not add a new requirement on interpreter inputs.
+
+| Type | Confirmed output words |
+|---|---|
+| FlatRect | `colorleft`, `colortop`, `colorright`, `colorbottom`, repeated `style` |
+| Text | `font`, `align`, `notify`, `wrapped`, `opaque`, `forecolor`, `bkgcolor`, `gutters`, `textoffsets`, bare `autofit` |
+| TextEdit | `font`, `initvalue`, font colours, font backgrounds, `caretcolor`, `highlightcolor`, `outlinecolor`, `maxtext`, `gutters`, `overwrite`, `insertindex`, `insertpos`, `caretperiod`, `maxundo`, `hscrollimage`, `vscrollimage`, `hscrollimageRect`, `vscrollimageRect`, bare `autofit` |
+| ListBox | `vscrollbar`, `hscrollbar`, `font`, font colours, `highlightcolor`, `outlinecolor`, `sunken`, `outline`, `scrollbargutters`, `gutters`, `sort`, `drop`, `initselection`, repeated `listelement`, bare `autofit` |
+| LineInput | `font`, font colours, `colorLT`, `colorRB`, `colorLTinside`, `colorRBinside`, `fillcolorhighlite`, `gutters`, `filled`, `editable`, `style`, `fillalphahilite`, `caretpos`, `charlimit`, `selection` |
+| Combo | `font`, font colours, `highlightcolor`, `editable`, `outlinecolor`, `initselection`, `combodownarrowimage`, `combodownarrowrect`, `combodowncolor`, `buttongutter`, `gutters`, repeated `listelement` |
+| Btn | `image`, `font`, font colours, font backgrounds, `toggle`, `triggerondown`, `showcaption`, `fill`, `autosize`, `wrapcaption`, `shiftcaption`, `tips`, `tipsdelay`, `tipstimeout`, `style`, `gutters`, `tiptext`, `tipres`, `tipoffsets`, `tipflag`, `align`, `btnclicksnd`, `btnupsnd` |
+| BMP | `image`, `imagerect`, `notify`, `transparentbkg`, `edgeimage`, `alpha` |
+| Slider | `minmaxvalue`, `direction`, `image`, `initvalue` |
+| Scrollbar | `minmaxvalue`, `direction`, `pagesize`, `linesize`, `linepagecount`, `image`, `initvalue` |
+| OptGrp | `maincaption`, `itemcaption`, `drawfill`, `outline`, `gutters`, `labelfont`, `buttonfont`, `captiontextresid`, `backimage`, `labelfontcolornormal`, `labelfontcolordisabled`, `buttonfontcolornormal`, `buttonfontcolorhilited`, `buttonfontcolordisabled`, `outlinecolor`, `initselection`, `autofilltype`, `autofillsize`, bare `autofit`; child callback emits `option`, `optionmoveto`, `optionsetsize` |
+| Spinner | `image`, `font`, `outline`, `fill`, `autonumber`, `autonumbercomma`, `autonumbercurrency`, `initvalue`, `minmax`, `stepsize`, `coloroutlinel`, `coloroutlinet`, `coloroutliner`, `coloroutlineb`, `digits`, `align`, `colorfontnormal` |
+| Outline | `colordark`, `colorlight`, repeated `style`, repeated `node` |
+| TextTicker | `font`, `speed`, `frequency` |
+| Gen | `image`, `blttype`, `userdata`, `moveable`, `sizeable`, `defaultkeys`, `closevisible`, `gobackvisible`, `minmaxvisible`, `closedisabled`, `gobackdisabled`, `minmaxdisabled`, `titlebar`, `fill`, `outline`, `paint`, `sidebar`, `gutters` |
+| FileBrowser | `defaultpath`, `backdir`, `defaultselectiontype`, `defaultselectionname`, `defaultselectionextension`, `filesortprimary`, `filesortsecondary`, `directorysort`, `column1data`, `column2data`, `column3data`; `filenamefont`, `fileextensionfont`, `drivenamefont` and their colour/alignment words below; `iconcolumnwidth`, `extensioncolumnwidth`, `rowheight`, `linegridenabled`, `linegridcolor`, `columngridenabled`, `columngridcolor`, `highlightcolorforeground`, `highlightcolorbackground`, `backdirtext`, `drivelistsize`, `backgroundcolor`, `backgroundtransparent`, `outline`, `backgroundimage`, repeated `filter` |
+| Folders | `font`, `image`, repeated `listelement` |
+| TreeView | `displayroot`, `displaynodeicons`, `displaytreelines`, `multiselect`, `icongutter`, `rowheight`, `minmaxboxsize`, `backgroundcolor`, `highlightcolor`, repeated `image`, `roottext`, `rooticon`, `rooticonselected`, `rooticonexpanded`, `rooticonexpandedselected`, `rootcolorforeground`, `rootcolorbackground`, `rootcolorforegroundhilited`, `rootcolorbackgroundhilited`, `rootfont`, `rootexpanded`, `rootselected`, repeated `node` |
+| Grid | `font`, `fontcolor`, `textalign`, `textwrapping`, `gutters`, `selrule`, `maxselcount`, `olinecolor`, `dcolwidth`, `drowheight`, `colhdrsz`, `rowhdrsz`; the 23 style words of §9.5 step 10; `colgridclr`, `rowgridclr`, repeated `wingridcell`, `wingridcol`, `wingridrow` |
+
+FileBrowser colour/alignment suffixes are `foregroundcolor`, `backgroundcolor`, `foregroundcolorhilited`,
+`backgroundcolorhilited`, `alignment`, with prefix `filename`, `fileextension` or `drivename`.
+`foregroundcolordisabled` and `backgroundcolordisabled` are additionally confirmed for `filename` and
+`drivename`; do not assume symmetric disabled output for `fileextension`.
+
+Some established format facts are useful even before LC8 is closed: `autofit` is a bare word plus a space,
+not `autofit=yes` (helper `0x0095C07A`); quoted text is inserted without quote/backslash escaping
+(`0x0095C028`). The option child walker (`0x0095F87B`) appends a definition followed by move and size for
+each visited button. Move/size use `word="unsignedID:(signedX,signedY)" `; size is width/height from its
+area. This differs from the interpreter's grouping of all definitions before all geometry effects.
+These facts alone do not establish a lossless text round trip.
+
 ## 8. The common interpreter (`0x0095660D`)
 
 `InterpretPropertiesGZWinCommon(win, props, firstPass)`. `SetFlag(mask, bool)` is `cIGZWin` `+0x110`; flag
@@ -724,7 +771,7 @@ empty string even for literal-text and string-resource cells: those setters affe
 that descriptor. The column notifier receives coordinate `(first,0)` and a copy of all three scanned
 32-bit numbers `(first,second,third)`; the row notifier receives `(0,first)` and that same three-word
 payload. The helpers copy 12 bytes, including on replacement (`0x009583C5–0x00958432`,
-`0x009584E0–0x0095854D`); caller arguments are at `0x0095ADD3` and `0x0095AEEC`. Thus the column's
+`0x009584E0–0x0095854D`); callers are in `0x0095A250`, with the row handoff at `0x0095AEEC`. Thus the column's
 second number is retained in metadata even though the sizing call ignores it.
 
 *[choice]* Track whether the style scratch and resource-key components used by step 11 have defined
@@ -831,8 +878,7 @@ Colour setters below receive the graphics service's packed colour for the three 
 low-byte component conversion. A numeric font either goes directly to a font-ID setter or is resolved through
 the window-control manager, as indicated. A String font goes through the existing named-font helper
 `0x0094C255`. Both forms record font metadata with helper `0x0094C222`/`0x0094C255`, selector 0 unless stated.
-The String-font helper's exact stored payload and any indirect font application are not settled by this
-owner's font setter path. Its copied String metadata is specified in §9.4 (LC13); no direct
+The String-font helper's copied payload and base-window behavior are specified in §9.4 (LC13); no direct
 font-object/ID setter is called on that branch.
 Where a default `main9` is stated, resolve the
 name to an ID and then obtain its font object from the window-control manager.
@@ -1132,12 +1178,10 @@ Second pass populates **all options before any option geometry**, then selects, 
 ## 11. Open questions
 
 - LC8. Word sets of the 19 per-type script-fragment writers (§7.6 table; not owner functions).
-- LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
-- LC9. Portable string-byte and overflowing numeric-scan behavior.
-- LC10. TreeView duplicate map keys and Grid scratch/notifier domains.
-- LC11. Additional unchecked interpreter scans and allocation failures (§13.3).
-- LC12. SC3WinGen's installed procedure object and its external message behavior (§13.1).
-- LC13. Named-font helper payload and indirect application (§9.9).
+
+LC5 and LC9–LC13 are answered in §§6, 7.5, 9.2, 9.4, 9.5 and 13.1–13.3. LC8 still blocks a claim
+of complete per-type serialization or native round-trip equivalence; §7.7 inventories confirmed words
+but does not supply every emission condition and repeated-record contract.
 
 ## 12. Coverage of owner functions (honest)
 
@@ -1189,8 +1233,8 @@ callback returns true **only** for message IDs `0xA2BF8AD0` and `0xA2BF8AD1`, fa
 it ignores the window and remaining three arguments. These callbacks neither draw nor forward messages.
 Instruction evidence: `0x0062C980–0x0062C984`, `0x0094C835–0x0094C850`.
 
-Each AddRef increments the object count and retains the COM DLL director. Each Release drops the director
-reference, decrements a nonzero object count, and deletes the object when the resulting count is zero;
+Each AddRef increments the object count and retains the COM DLL director. Each Release invokes the director's
+`+0x28` lifetime hook, decrements a nonzero object count, and deletes the object when the resulting count is zero;
 return that resulting count. No separate adapter reference is acquired before installation: generator
 `SetWinProc` retains the new default procedure once. Do not add a synthetic balancing Release in the
 adapter after that installation.
@@ -1269,7 +1313,7 @@ and `T(k,text)` below describe fixture inputs, not original-program code. A pass
 selected type interpreter and interface query/release; a full-build test includes §6 and both common passes.
 Unless specified, other properties are absent and resources load successfully. Compare packed colours
 through the graphics-service fixture. Numeric float vectors use round-to-nearest, ties-to-even. Every
-successfully obtained per-type interface is released once. String-font helper internals are excluded (LC13).
+successfully obtained per-type interface is released once. String-font metadata follows §9.4.
 
 | ID | Fixture/input | Expected observation |
 |---|---|---|

@@ -5,8 +5,9 @@
 ## Handoff
 
 - Goal: close legacy-control questions LC5 and LC8–LC13 with evidence and explicit portable policy.
-- Done: specified LC5/LC9–LC13 policies, native map/notifier rules, font copy and SC3 procedure lifetime; added LCV34–LCV43.
-- Next: finish LC8's 19 serializer writer contracts, move all answered entries and update cross-references; doccheck.
+- Done: 7d36db6f specified LC5/LC9–LC13 policies, native map/notifier rules, font copy and SC3 procedure lifetime; added LCV34–LCV43.
+- Done: moved six answered entries; question index/check and doccheck passed; inventoried confirmed words for all 19 LC8 writers without claiming complete emission contracts.
+- Next: final report/queue; LC8 remains open for a successor (investigation stopped at the brief's two-thirds allowance).
 - Facts: manager slot 3 is current main window; named-font metadata is copied type-0x800E bytes, no base-window font application.
 - SC3 procedure vtable image words: 0094c813 0094c7ce 0094c7e5 0062c980 0094c835 0094c851.
 - TreeView unique maps are first-wins; duplicate alone must not be rejected. Grid axis helpers copy all three numbers.
