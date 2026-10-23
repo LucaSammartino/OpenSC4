@@ -25,9 +25,9 @@ are the observed low-byte-only control arguments' actual foreign signatures?
 
 ## NUI3 — Secondary interfaces, flags and return-channel completion
 
-**2026-10-23 (re-network-tool-ui4), open.** Spec §§3, 5, 9: complete secondary
-table/ref/deleting-wrapper signature audit; distinguish inherited/shared stubs
-from owner bodies rather than assigning all 41 catalog entries. Resolve actual
+**2026-10-23 (re-network-tool-ui4), open.** Spec §§3, 5, 9 identify secondary
+table/ref/deleting-wrapper adjustments and the shared DoWinMsg stub. Without
+assigning all 41 catalog entries, resolve actual
 foreign bool widths for context result sound, neighbor flag and control-state
 calls whose upper argument bytes are not normalized in the owner. DoPlacement
 does not manufacture a canonical success return; which external callers, if

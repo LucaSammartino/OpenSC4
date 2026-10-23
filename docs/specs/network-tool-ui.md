@@ -43,8 +43,7 @@ resource/vector fields explicitly written there. It does **not** establish that
 every intervening field is zero: in particular no default attached context,
 current/start cell, type, bridge or altitude value is inferred. Allocation and
 exception behavior are unknown; the ordinary constructor returns the receiver
-in EAX (`0x00645E4E`). Initialization is specified separately below as evidence
-is established. The ordinary backend factory caller allocates `0x134` bytes,
+in EAX (`0x00645E4E`). The initializer is specified below. The ordinary backend factory caller allocates `0x134` bytes,
 constructs, AddRefs, calls the initializer below with `(backend, backend type)`,
 and writes the UI pointer to its output (`0x00623B20`). It ignores initializer
 AL. Its allocation-null branch subsequently dereferences null; it is not a
@@ -96,6 +95,36 @@ IsActive (`0x00644FC0`) loads only AL from byte +25; upper EAX is not a result.
 Primary slots 4/5/6/14 (`0x006452E0/2F0/300/7B0`) tail-forward to backend
 slots 42/43/44/33 respectively; their return channel is the foreign callee's.
 The UI is not derived behaviorally from the base view-input implementation.
+
+The complete exported primary table has these slots; pointer arguments and
+event words are 32 bits. “No result” means this contract provides no return
+value, even if a last foreign call happens to leave a register value.
+
+| Primary slot | Entry | Input words / result |
+|---|---|---|
+| 0 | QueryInterface | IID, output pointer / AL |
+| 1, 2 | AddRef, Release | none / shared refcount result |
+| 3 | Shutdown | none / AL=1 |
+| 4, 5, 6 | ViewInputControlId, CursorId, PenWidth | none / raw forwarded result |
+| 7, 8 | EnterUI, LeaveUI | none / no result |
+| 9, 10, 11 | OnMouseDownL, OnMouseUpL, OnMouseMove | screenX, screenY, raw event word / AL |
+| 12 | CancelInput | none / no result |
+| 13 | IsActive | none / AL |
+| 14 | DirectionalCursorBase | none / raw forwarded result |
+| 15 | LastDragDirection | none / EAX, partially specified numeric rule |
+| 16 | AttachToView | context word / no result |
+
+Secondary table `0x00AA9128` at primary+4 has QI `0x00645E60` (subtract 4),
+AddRef/Release `0x008DCC00/10` (subtract 4 then primary ref thunk),
+DoWinProcMessage, and shared DoWinMsg `0x0041D4C0`. That shared entry is a stub:
+AL=0, pop 20, no owner state change. Table `0x00AA9118` at primary+8 has QI
+`0x00645E70` (subtract 8), AddRef/Release `0x008DCC30/40` (subtract 8 then
+primary thunk), DoMessage. The refcount table `0x00AA9104` at primary+C begins
+with deleting thunk `0x00645E80` (subtract C), Release `0x008DCC60`, AddRef
+`0x008DCC70` (both subtract C then primary thunk); do not mistake it for a QI
+table. Deleting wrapper `0x00646240` takes one word, always destructs, frees
+through GlobalHeapFree only when its low flag byte has bit0 set, returns the
+original primary pointer in EAX, pop 4. No additional exported ABI is proposed.
 
 ## 4. Press, cancel and cleanup chronology
 
@@ -354,7 +383,7 @@ inspected. No whole 41-entry / 8005-byte credit follows from this table.
 | QI `644F40`; IsActive `644FC0`; ref thunks `8DC540/550` | Supported; QI AL and output untouched on miss; shared refcount foreign |
 | ctor `645D50`; initializer `645240`; shutdown `645A90`; destructor `645E90` | Supported ordinary sequencing; allocation/exception paths Unknown |
 | primary vtable `AA9140`, 17 entries | slots 0..16 identified by export; no inferred extra primary Init slot |
-| secondary QI thunks `645E60/70`, deleting thunk `645E80` | Partial; receiver adjustments need final secondary-table audit (NUI3) |
+| secondary QI/ref thunks `645E60/70`, `8DCC00/10/30/40/60/70`, deleting `645E80/646240` | Supported receiver/flag/return sequence; shared refcount/heap primitives foreign |
 | ID/cursor/pen/directional forwarding `6452E0/2F0/300/7B0` | Supported forwarding only; raw backend results foreign |
 | enter/leave `645310/340`; attach `6457C0` | Supported; no ownership/capture inference |
 | placement `645370`; abort `645570`; cancel `6457A0` | Supported normal CFG; no owner bool placement result |
@@ -363,8 +392,8 @@ inspected. No whole 41-entry / 8005-byte credit follows from this table.
 | down `645F50`; move `646AC0`; anchor `6460F0` | Press and simple move supported; extra-anchor numerical helper Partial |
 | release `646D00`; button `6468B0`; messages `646A80/647000` | Supported branches stated; dialog layout/enumeration Partial |
 | LiesOnSegment `645AC0`; direction helpers `645090/5130`; LastDragDirection `645BE0` | Partial, no ordinary geometric/octant rule inferred (NUI1) |
-| AddBridgeEntry `646260`, container helpers `645180/5A60/5CA0`, deleting wrapper `646240` | Partial/navigation only; no full body credit |
-| base input / shared `DoWinMsg 41D4C0` | Foreign/shared, not owned event semantics |
+| AddBridgeEntry `646260`, container helpers `645180/5A60/5CA0` | Partial/navigation only; no full body credit |
+| base input / shared `DoWinMsg 41D4C0` | Foreign/shared; the latter's AL=0/pop20 stub identified, not an owned UI algorithm |
 | GetCost, Reset, SetAnchors, PlaceAllSegments, GetFailure, possible-neighbor query | Single foreign backend primitives; no solve/route/occupant/rule/numeric algorithm covered |
 | withdraw, neighbor callback, screen pick, ray-plane, terrain scale/dimensions | Single foreign raw primitives with explicit result/output contracts at caller |
 | preview/resource/window/context/sound/string/ref/clock services | Single foreign raw primitives; no whole UI orchestration outcome |
