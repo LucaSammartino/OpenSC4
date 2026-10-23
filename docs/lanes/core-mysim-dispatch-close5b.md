@@ -9,7 +9,8 @@
 - Done: settled MS18 geometry, ordinary waits, stop/boarding, final observations/common tail; owner table updated. Conformance 22/22, focused core dispatch 27/27 pass; fmt 5 files clean.
 - Done: `784a20b7` implements MS18 verified operations and closure table.
 - Gate R1 terminal: cargo 6093/6093 and clippy 0 diagnostics PASS; CMake configure TIMEOUT 900s at C ABI detection; CTest skipped. Failed log preserved at build-runs/failed-configure-r1.log, summary gate-r1.txt.
-- Next: retry full gate with _CL_=/Z7 (native compiler probe PDB-server diagnostic; changed build input, source unchanged), then unique mysims shadow regression.
+- Gate R2 terminal: _CL_=/Z7 did not fix configure; same 900s timeout, cargo 6093/6093 PASS, clippy 0 diagnostics, CTest skipped. Log build-runs/failed-configure-r2.log.
+- Next: bounded native configure probe (build-runs/probe-native.py), generated CMake cache seeded with explicit /Z7 and /DEBUG:NONE /INCREMENTAL:NO; only rerun full gate if native configure passes. No game DLL yet.
 - Remaining Unsupported: MS18 route branch/mask/index selection, neighbour retries, full completion/recovery ordering, input/pylon lifecycle, mission callbacks, delegated RNG. Helpers do not invent route selections.
 - Initial MS18 geometry fixture failed because its null point resolved an overlapping lot; corrected fixture uses an occupied point with no lot. Corrected suite passes.
 - Focused check: direct cargo test -p fc4-conformance --test mysim_dispatch ms19: 5/5 PASS.
