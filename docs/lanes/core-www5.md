@@ -1,28 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-www5: web/network owner closure | Codex, core-www5 | in progress | Review owner closure, then gate final source |
+| core-www5: web/network owner closure | Codex, core-www5 | in progress; native gate running | Collect session 9932 to terminal result |
 
 ## Handoff
 - Goal: close WWWSystem, HTTPClient, CookieManager and NetworkFileCache in core only.
-- Round 2 review: modeled the section 4.4 outer HTTP admission helper, held through WWW insertion.
-- Focused conformance: web_network_www 12/12 passed, including helper ordering and zero-ID release.
-- Done: a82e0ea7 initial handoff; implemented cookie/cache owners and HTTP notification/calendar helpers.
-- Extended existing WWW FTP admission and HTTP worker exit; added owner closure table and vector index.
-- Focused tests: 41 then 42 WWW tests passed; later sized-buffer/info tests and lifecycle edits await final gate.
-- Q15 appended to docs/specs/questions/web-network.md: literal splitter/settings/writer edge choices.
-- Existing spec limits remain Q1/Q3/Q7/Q9/Q10/Q11/Q13, documented by section in www/README.md.
-- Formatting applied via apply_patch from rustfmt-generated diffs (never wrote formatter output into source).
-- q.py failed before cargo because Git Bash CreateFileMapping denied; direct cargo worked.
-- qbuild fmt rejected relative file inputs (runs from engine); next use absolute owned paths.
-- f4277b01: bounded owner implementations, tests and README committed; absolute-path fmt passed (8 files, zero diff).
-- First full gate collected in round 2: cargo 6450 passed/0 failed, clippy 0 diagnostics.
-- Native label qbuild-20261023-213449-build-ctest: verdict pass, build 220/220 edges, CTest 69/69.
-- CONTRIBUTING diagnostic resolved: moved WWW, HTTP lifetime, HTTP notification, cookie and cache vectors into engine/conformance/tests/web_network_*.rs without duplicate assertions.
-- Relocation focused run: 26 passed, 0 failed; removed its two unused imports before final gate.
-- 77c7b8a2: conformance relocation committed; final fmt passes all 11 owned Rust files (zero diff).
-- Native request is still pending after repeated 60-second collects of the SAME session 1879; no duplicate check started.
-- Final contract review found WWW base service registration was absent; added the specified (0x449b1939,0) constructor effect and conformance assertion.
-- 25d407e5: constructor registration committed; its focused conformance test passed (1/1), and changed-file fmt passed (2 files, zero diff).
-- Next: check changed-file formatting, then qbuild all on final source.
-- No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.
-- Context exhausted while native queue remained pending; no merge-queue entry written. Resume the existing request, never replace it for progress.
+- f4277b01: bounded cookie/cache owners and HTTP notification/calendar helpers, WWW FTP admission, HTTP worker exit, closure table/vector index.
+- 77c7b8a2: moved owner conformance into engine/conformance/tests/web_network_*.rs (26 tests passed).
+- 25d407e5: WWW constructor base service registration (0x449b1939,0), conformance test passed.
+- 20754b82: section 4.4 outer HTTP admission helper held through WWW insertion; focused WWW 12/12 passed.
+- Formatting: all 11 owned Rust files passed previously; round 2 changed-file check passed (2 files, zero diff).
+- cf77a534 collected prior qbuild-20261023-213449-build-ctest verdict: pass, build 220/220, CTest 69/69.
+- FINAL qbuild all on stable source 20754b82 is running in session 9932. Collect SAME operation, never duplicate.
+- Final cargo: 6451 passed, 0 failed/ignored; clippy: 0 diagnostics. Logs: build-runs/qbuild-{test,clippy}.log.
+- Final native queue label qbuild-20261023-224629-build-ctest: .running observed; no verdict yet.
+- Q15 filed in docs/specs/questions/web-network.md: literal splitter/settings/writer edge choices.
+- Existing limits Q1/Q3/Q7/Q9/Q10/Q11/Q13 remain explicitly documented by section in www/README.md.
+- No game requests: unconnected core only; no ABI/plugin/capi changes; detached HEAD retained.
+- Next: collect session 9932 terminal result, record final report, commit and write ready merge queue.
