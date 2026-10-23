@@ -35,12 +35,11 @@ pass-order boundary reviewable; it does not close the prebuilt occupant owner.
 
 ### Remaining owners (not closed)
 
-These rows are an audit inventory, not Unsupported implementations or coverage
-claims. A missing implementation of specified behavior still prevents closure.
-The model-only subset above remains the only closed owner. Round 2 adds
-published pole, pylon and connection contracts below, with **zero new whole
-owner closures**: the source specs omit required algorithms or give conflicting
-layouts. Open rows are missing contracts, not newly invented Unsupported paths.
+The model-only subset above remains the only whole owner closed. The detailed
+tables below map the settled pole, pylon and connection contracts to core code
+and tests, with explicit Unsupported boundaries only for the remaining spec
+questions. NO34, NO35 and NO37 are implemented; NO33, NO36, NO43 and UG5 remain
+partly open. Resolved record layouts are no longer treated as contradictory.
 
 | Owner | Spec sections | Code / test / remaining work |
 |---|---|---|
@@ -56,88 +55,102 @@ layouts. Open rows are missing contracts, not newly invented Unsupported paths.
 | cSC4UndergroundOccupant | network §3.1 | `UndergroundPiece` partial fields/heights; extended geometry, wall/zipper helpers, Init, StaticInit and full Shutdown remain |
 | cSC4UndergroundOccupant | network §3.2 | `UndergroundPiece` position/sort/model-choice/imaginary-connection helpers; no complete geometry lifecycle |
 | cSC4UndergroundOccupant | network §§3.3–3.5,11,13 test 13; underground §§1,2,3,5–9 | `UndergroundRecord`, `UndergroundTail`, `tests_record` cover records; pipe/subway override helpers do not close their abstract base |
-| cSC4UndergroundConnectionOccupant | network §3.6; underground §§1,4–9 | `ConnectionRecord`, `UndergroundConnection` record/shutdown/hidden-triangle/subscription contracts; `tests_connection`; open: UG1, UG5; detailed table below |
+| cSC4UndergroundConnectionOccupant | network §3.6; underground §§1,4–9 | `ConnectionRecord`, `UndergroundConnection`, `ConnectionStatics`; records, creation searches/surface, lifetime and interface rules tested; geometry/bounds/Draw/messages open: UG5/NO40; detailed table below |
 | cSC4PowerLineOccupant | network §§1,5.1 | `PowerLine`, `tests::{pole_line_pylon_qi,power_line_slots}`; base shutdown forwarding and resolved live layout remain; open: NO13 |
 | cSC4PowerLineOccupant | network §§5.2,11,13 tests 2,18 | raw `PowerLineRecord`, `tests::power_line_record_round_trip`; live/record mapping unresolved (NO13); creation belongs to power-line tool |
-| cSC4PowerPoleOccupant | network §§1,4.1–4.2 | `PowerPole`, `PoleFields`, `PoleConnection`, `PoleStatics`; `tests_power_pole`; open: NO33, NO34; detailed table below |
+| cSC4PowerPoleOccupant | network §§1,4.1–4.2 | constructor/getters/highlight/enumeration and identity tested; full model/pool/bounds open: NO33; detailed table below |
 | cSC4PowerPoleOccupant | network §4.3 | `PowerLineControl`, `PoleStatics::init_once`, `PowerPole::init_published_state`; open: NO33 |
-| cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17 | type/cost-word/table-selection tests; native pool, pole record and cost formula remain open: NO33-NO35 |
-| cSC4PylonOccupant | network §§1,6.1–6.3,11,13 tests 2,19,20 | `PylonRecord`, `Pylon`, `PylonGlobals`; `tests_pylon`; open: NO36, NO37; detailed table below |
+| cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17 | nested record/shared tables/IIDs/cleanup and signed property quote tested; native pool open: NO33 |
+| cSC4PylonOccupant | network §§1,6.1–6.3,11,13 tests 2,19,20,40–42 | corrected one-transform record, placements, setters and shared timer tested; texture/model/render open: NO36; constructor enum inputs: NO44; detailed table below |
 
 Network §§0,8,9 are overview/other owners. Section 13 tests 14–17,19–23,25
 exercise other owners or city integration; they are not model-instance closure
 tests. No real-game behavior is measured here: this module has no ABI/plugin
 wiring.
 
-### cSC4PowerPoleOccupant (open)
+### cSC4PowerPoleOccupant and ::tConnection
 
-All sections below refer to network-occupants.md. Tests are in
-`tests_power_pole.rs` unless qualified. The Rust state is semantic: the native
-pool's 0x124 allocation is metadata, not a claim about `size_of::<PowerPole>()`.
-No raw pole record is guessed from contradictory offsets. Constructor inputs
-for unpublished state are mandatory rather than assumed zero defaults.
+`power_pole.rs` owns the settled contracts below; tests are in
+`tests_power_pole.rs` unless qualified. NO34/NO35 are implemented, not open.
+Raw native pool allocation and complete model/wire/render computations remain
+explicitly unsettled by NO33/NO43. `PoleUnsupported` exposes the cell-walk,
+diagonal-floor and model/bounds/Pick/Draw boundaries; no foreign trait returns
+an original-owner result. Terrain, manager, stream, renderer and effect calls
+remain foreign primitives. `fresh()` implements published constructor defaults;
+`new(fields)` and the legacy `init_published_state` are explicit state/prefix
+helpers and do not stand in for complete initialization.
 
-| Spec section | Code item | Covering test or open remainder |
+| Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
-| §1.1 | `NetOccClass::PowerPole`, `PowerPole::new` | `tests::class_ids_and_types`, `connection_views_and_published_state`; native pool open: NO33 |
-| §1.2 | `identity::{query_interface,null_this_returns_true}` | `tests::pole_line_pylon_qi`; delegate identity open: NO2 |
-| §1.3 | `NetOccClass::class_id` | `tests::class_ids_and_types` |
-| §1.4 | network-piece flag query belongs to other owner | no pole IsOfType algorithm assigned |
-| §4.1 | `PoleFields`, `PoleConnection`, `PowerPole`, `ConnectionPointTable` | `connection_views_and_published_state`; missing defaults/coordinates, conflicting cell and model/record offsets open: NO33, NO35 |
-| §4.2 | connection count/views, cell, distressed/ignored getters, field-118 storage, `PoleStatics::demolition_cost` | `connection_views_and_published_state`, `static_controls_load_once_and_cost_preserves_both_words`; mutation, render, geometry, zoom, output slots and resource algorithms open: NO33; quote formula open: NO34 |
-| §4.3 | `PowerLineControl::load`, `PoleStatics::init_once`, `PowerPole::init_published_state` | `tests::control_variables`, `published_init_copies_models_and_clears_geometry_in_order`, `static_controls_load_once_and_cost_preserves_both_words`; LoadModel internals, full point init and SetDistressed effects open: NO33 |
-| §4.4 | no fabricated codec or live reconciliation | open: NO35; common wall helper itself is defined by §3.4 |
-| §11 quirks 2,6,11,12 | null-this metadata and signed 64-bit static cost | `tests::pole_line_pylon_qi`, static-cost test; record quirks open: NO35 |
-| §13 test 2 | pole occupant type | `connection_views_and_published_state` |
-| §13 test 4 | `POWER_POLE_POOL_OBJECT_SIZE` records native size | open: NO33; constant assertion does not establish a native pool implementation |
-| §13 test 16 | no fabricated record | open: NO35 |
-| §13 test 17 | static low/high words return an int64 unchanged | `static_controls_load_once_and_cost_preserves_both_words`; exemplar-to-cost formula open: NO34 |
+| network §1.1, §1.3 identity/type | `NetOccClass::PowerPole`, `PowerPole::fresh` | `tests::class_ids_and_types`, `pole_constructor_shared_tables_and_geometry_conformance_43_44` |
+| network §1.2, §4.1 QI/delegate and null-this | `identity::{query_interface,null_this_returns_true}`; delegate is a foreign interface query | `tests::pole_line_pylon_qi`; core-only metadata, no ABI thunk claim |
+| network §1.4 | network flag queries belong to the network-piece owner | no additional pole algorithm |
+| network §4.1 constructor/layout | `PoleFields::default`, `PowerPole::fresh`, `PoleConnection` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`; native 0x124 pool open: NO33 |
+| network §4.2 connection/cell/preview/highlight/sort/model enumeration | getters, `set_preview`, `set_highlight`, `sort_value`, `model_instances` | `connection_views_and_published_state`, `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
+| network §4.2 bounds/transform/Pick, §4.3 full Init/model/default-exemplar refresh | `PoleUnsupported::ModelBoundsPickDrawNO33NO43`; state-prefix helper is not full Init | open: NO33, NO43 |
+| network §4.3 tuning/quote/static lifetime | `PowerLineControl::load`, `PoleStatics::{initialize,demolition_cost,shutdown}`, `POLE_TEXTURES` empty bindings | `tests::control_variables`, `pole_quote_conversion_once_and_independent_controls_conformance_17`, `static_controls_load_once_and_cost_preserves_both_words`; variant conversion is foreign |
+| network §4.3 insertion message / §4.7 shutdown | `on_inserted_message`, `insert_lines`, `shutdown` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
+| network §4.4 record gates/codec/shared table/cleanup | `PowerPole::{write,read_into}`, nested `PoleConnection::vertices`, `read_wall_into` | `pole_nested_record_iids_shared_overwrite_and_failure_cleanup_conformance_16`, `pole_legacy_v4_future_versions_and_raw_bool_read` |
+| network §4.5 creation/consumption | power-line tool and power simulator are foreign owners | no additional pole algorithm |
+| network §4.6 table selection/points and shared overwrite | `AttachmentTables`, `init_connection_points`, `attachment_points` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`, pole record tests |
+| network §4.6 insert/remove/break and retained records | `insert_lines`, `remove_connection_record`, `remove_connection`, `break_all_connections` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
+| network §4.6 line-cell lookup/delegation; wire construction/cell walk | `line_cells`, `line_cells_to`; precise walk returns `PoleUnsupported` | connection test above; open: NO33, NO43 (wire sampling is also assigned to power-line-tool) |
+| network §4.7 distress | `set_distressed`, `stop_distress_effect` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
+| network §4.7 position/model/zoom/Draw/DrawPowerlines | `PoleUnsupported::ModelBoundsPickDrawNO33NO43` | open: NO33, NO43; the published summaries are not complete algorithms |
+| network §4.7.1 unrotated floor/wall inputs, alpha, UVs, ordered edges | `create_floor`, `wall_quad`, `create_walls` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`; diagonal rotation open: NO43 |
+| network §7.2 reference ownership, §11 quirks 2,6,11,12,21,22,24,25 | distinct ref IIDs, shared table mutation, retained records, signed quote, highlight | record, quote and connection tests above; safe `Option` getter exposes the native unchecked-index precondition |
+| network §11 quirk 23 off-map position | full position/model path remains unsettled | open: NO33; specified y fallback must accompany that implementation |
+| network §12 / §13 tests 2,4,16,17,35,38,39,43,44 | implementations/tests above | test 4 native allocation open: NO33; test 35 identity metadata tested, actual forwarding is ABI glue |
 
-### cSC4PylonOccupant (open)
+### cSC4PylonOccupant
 
-Tests are in `tests_pylon.rs`. Raw record fields are deliberately distinct
-from call/drag state and the shutdown reference because the spec aliases them
-inconsistently. `read_into` preserves existing v5-only tail state when reading
-v3/v4, releases the source before reading its replacement, and takes the legacy
-path for both transforms below v4: these literal choices are recorded in NO37.
-No host callback supplies a pylon-owned rendering/texture/geometry result.
+`pylon.rs`, tests in `tests_pylon.rs`. There is one transform and one source ref;
+the source serialized at displacement +6C is exactly the source released at
+live +78. Constructor enum values are mandatory inputs (NO44). Position still
+executes both placement attempts around `rebuild_model`; that computation
+returns `PylonUnsupported` until NO36 supplies its algorithm.
 
-| Spec section | Code item | Covering test or open remainder |
+| Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
-| §1.1 | `Pylon::from_state`, `NetOccClass::Pylon` | `type_and_call_drag_state`, `tests::class_ids_and_types` |
-| §1.2 | `identity::{query_interface,null_this_returns_true}` | `tests::pole_line_pylon_qi`; contradictory generic class-IID prose open: NO10 |
-| §1.3 | `NetOccClass::class_id` | `tests::class_ids_and_types` |
-| §1.4 | network flag query belongs to other owner | no pylon IsOfType algorithm assigned |
-| §6.1 | `PylonRecord`, `Pylon` supplied-state construction | `type_and_call_drag_state`; matrix/default and live-offset reconciliation open: NO36, NO37 |
-| §6.2 | call/drag getters/setters, source getter, `init_published_lifecycle`, `shutdown_published_lifecycle`, `PylonGlobals` | `type_and_call_drag_state`, `lifecycle_order_inserted_and_uninserted`; render/texture/setter/geometry algorithms open: NO36; exact placement flags/renderer and source-offset reconciliation open: NO37 |
-| §6.3 | `PylonRecord::{write,read_into}` | `v5_record_order_both_transforms_and_references`, `legacy_v3_and_current_v4_preserve_absent_tail`, `truncated_records_fail_at_every_boundary`, `failed_reference_read_has_already_released_old_source`; live mapping/ref IIDs/legacy interpretation open: NO37 |
-| §11 quirks 6,8 | v5 write, v3/v4 read and own occupant type | record/type tests above; live mapping open: NO37 |
-| §13 test 2 | own occupant type | `type_and_call_drag_state` |
-| §13 test 19 | v5 two-transform/two-ref stream, legacy read | `v5_record_order_both_transforms_and_references`, `legacy_v3_and_current_v4_preserve_absent_tail`; exact legacy interpretation open: NO37 |
-| §13 test 20 | shutdown base first, inserted removal, three unsubscriptions | `lifecycle_order_inserted_and_uninserted`; full placement side effects open: NO37 |
+| network §§1.1–1.3 identity/type/QI | `NetOccClass::Pylon`, `PylonRecord::new` | `tests::{class_ids_and_types,pole_line_pylon_qi}`; existing QI discrepancy open: NO10 |
+| network §1.4 | network-piece flag queries are another owner | no pylon-specific flag query |
+| network §6.1 fields/defaults | `Pylon::{new}`, `PylonRecord::new`, auxiliary transforms, texture/ref state | `pylon_lifecycle_packing_and_all_placement_edges`, record tests; enum defaults open: NO44 |
+| network §6.2 Init/guard/packing/shutdown | `Pylon::{init,shutdown}`, `PYLON_RENDER_STATES`, `PylonGlobals` | `pylon_lifecycle_packing_and_all_placement_edges`; renderer probe result intentionally discarded |
+| network §6.2 placement | `place_in_manager`, `place_in_renderer` | `pylon_lifecycle_packing_and_all_placement_edges` (matching states, null services, failures, other-bit preservation) |
+| network §6.2.1 enums/bitmap/call/drag/ref setters | setters, `same_ref`, `replace_ref` | `pylon_setters_references_and_shared_blink_conformance_40_41` |
+| network §6.2.1 animation | `animation_tick`, shared `PylonGlobals::blink_accumulator` | `pylon_setters_references_and_shared_blink_conformance_40_41` (sharing, discarded excess, modulo wrap, ineligible state) |
+| network §6.2.1 position/visibility | `get_position`, `set_position`, `set_visibility` | `pylon_position_visibility_and_explicit_model_gap_conformance_42`; middle RebuildModel open: NO36 |
+| network §6.2 texture/model/Draw/Pick/bounds/transform/sort/messages | `PylonUnsupported::ModelTextureGeometryDrawBoundsTransformMessagesNO36`, `rebuild_model` | explicit-error assertion in position test; open: NO36 |
+| network §6.3 record | `PylonRecord::{write,read_into}` | `pylon_record_bytes_one_transform_signed_enums_and_iids`, `pylon_v3_v4_future_and_tail_preservation` (one transform, signed bytes/u16/string, ref cleanup/IIDs, v3/v4/future) |
+| network §7.2, §11 quirks 6,8 | source/owner ownership, v5 write, type | record and lifecycle tests above; §6.3's corrected live offsets/IIDs govern older §7.2 shorthand |
+| network §12 / §13 tests 2,19,20,40–42 | implementations/tests above | test 42's RebuildModel step remains explicitly open: NO36 |
 
-### cSC4UndergroundConnectionOccupant (open)
+### cSC4UndergroundConnectionOccupant
 
-Tests are in `tests_connection.rs`. The shared §3.4 wall codec is reused for all
-seven lists and preserves alpha. The record retains all specified raw fields;
-it is not mapped onto conflicting runtime references. No base model/drawing
-behavior is inferred from pipe/subway consumers.
+`connection.rs`, tests in `tests_connection.rs`. The record is the live source
+of attached/linked refs: no duplicate shadow references. Host adapters adjust
+views without an extra AddRef. `ConnectionUnsupported` represents the missing
+bounds/geometry/draw/transform/message contracts (UG5/NO40). Creation completes
+all published surface/search/subscription work and reports that bounds remain
+unavailable. `model_state_changed` consumes the false latch, then reports the
+same gap; it does not call a renderer with fabricated bounds.
 
-| Spec section | Code item | Covering test or open remainder |
+| Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
-| network §1.1 | `NetOccClass::UndergroundConnection` | `tests::class_ids_and_types`; base leaves occupant type to subclasses |
-| network §1.2 | `identity::query_interface` | `tests::subclass_qi_chains` |
-| network §1.3 | `NetOccClass::class_id` | `tests::class_ids_and_types` |
-| network §1.4 | network-piece flag query belongs to other owner | no connection IsOfType algorithm assigned |
-| network §3.6 | `ConnectionRecord`, `UndergroundConnection::{hidden_triangles,shutdown,init_published_subscriptions}` | `seven_wall_record_order_round_trip_and_truncation`, `hidden_triangles_subscriptions_and_shutdown_order`; callback, packed states, creation/model/geometry and reference mapping open: UG1, UG5 |
-| underground §1 | existing class/QI identity; base has no pipe/subway type selection | `tests::{class_ids_and_types,subclass_qi_chains}`; subclass factories are other owners |
-| underground §4 | subclasses' type/network/QI/sort are other owners; base record implemented | seven-wall record test; subclass folded ABI entries require no base-owner arithmetic |
-| underground §5 | `NetOccClass::sub_objects` view metadata | `tests::subclass_qi_chains`; native adjusting thunks are ABI glue outside this core-only task |
-| underground §6 | callers, not additional base-owner behavior | no base-owner test obligation |
-| underground §7 | quirk 5 assigns constant sort to subclasses | subclass behavior, not base-owner implementation |
-| underground §8 | explicitly open base drawing/model building/descriptor use | open: UG1; further explicit-body gaps UG5 |
-| underground §9 tests 1,7 | existing subclass identity/QI metadata | `tests::{class_ids_and_types,subclass_qi_chains}`; subclass runtime QueryOccupantInterface/sort not claimed; tests 2-6,8 assign pipe/subway behavior, not this owner |
-| network §13 test 15 | seven wall writes in base record | seven-wall record test; pipe connection save class and subway runtime QI are subclass obligations |
+| network §§1.1–1.3; underground §1 | identity metadata, `ConnectionKind::{class_id,occupant_class,network_type,occupant_type}` | `tests::{class_ids_and_types,subclass_qi_chains}`, creation test; base does not assign a pipe/subway type |
+| network §1.4 | network-piece flags belong to another owner | no connection-specific flag query |
+| network §3.6 record, §7.2; underground §4 | `ConnectionRecord::{write,read_into}`, `read_wall_into` | `connection_record_exact_version_seven_lists_refs_and_partial_failure` (exact v2, seven independent lists, IIDs, attached −4, post-read latches, reached mutations) |
+| network §3.6/3.6.1 static Init/callback/packing/subscriptions | `ConnectionStatics::{initialize,setup_packed_states,shutdown}`, `UndergroundConnection::init` | `connection_statics_latch_packing_enumeration_and_position_conformance_13` |
+| network §3.6.1 creation surface/matrices/search/foreign network changes | `UndergroundConnection::create`, `NEIGHBORS` | `connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11`; final ComputeBox open: UG5/NO40 |
+| network §3.6 hidden triangles/ref setter/refresh/shutdown/post messages | `hidden_triangles`, `set_linked_occupant`, `refresh_attached`, `shutdown`, `post_occupant_message` | `connection_linked_refs_refresh_messages_query_and_shutdown` |
+| network §3.6.1 ModelStateChanged | `model_state_changed` consumes false flag | explicit unsupported/repeat assertions in linked-ref test; bounds and therefore renderer notification remain open: UG5/NO40 |
+| network §3.6.1; underground §4 enumeration/position | `model_instances`, `set_position`, `position` | `connection_statics_latch_packing_enumeration_and_position_conformance_13` |
+| network §3.6; underground §4 subclass slot 44/sort | `query_occupant_interface`, `sort_value` | `connection_linked_refs_refresh_messages_query_and_shutdown`; first QI is released, second ref is returned owned |
+| network §3.6 DoMessage/full view/transform/bounds/geometry/Draw; underground §8 | `ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40` | open: UG5, NO40; NO41 unknown words preserved without interpretation |
+| underground §5 thunks | `NetOccClass::sub_objects`; adapter supplies adjusted interfaces | `tests::subclass_qi_chains`; native thunk code is ABI glue outside core |
+| underground §6 callers / §7 quirks / §8 questions | no extra owner algorithm beyond rows above | constant subclass sort and saved-flag override tested above |
+| network §11 quirk 20 / §12 / §13 test 15; underground §9 tests 1,7,9–13 | record, creation, lifecycle, QI and enumeration tests above | §9 test 12 bounds/notification remains open: UG5/NO40; tests 2–6,8 belong to pipe/subway owners |
+
 
 ## Placement demolition helper
 

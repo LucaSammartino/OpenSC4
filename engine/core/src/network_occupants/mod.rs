@@ -8,10 +8,12 @@
 //!   usable message, `Init`/`Shutdown`, path connections, orientation, the
 //!   occupied cell). Not the §2.3 record, the geometry or the drawing.
 //! - [`power_line`]: §5, `cSC4PowerLineOccupant` slots and its v2 record.
-//! - [`power_pole`]: published §4 state, controls, static-word cost and Init
-//!   state prefix; full owner remains open (NO33-NO35).
-//! - [`pylon`]: §6 record, call/drag state, published lifecycle (NO36-NO37).
-//! - [`connection`]: §3.6 record, hidden triangles and Shutdown (UG1/UG5).
+//! - [`power_pole`]: §4 records, shared attachments, controls/quote, geometry,
+//!   connection cleanup and effects; full model/render owner open: NO33/NO43.
+//! - [`pylon`]: §6 corrected record, placement, setters and shared timer;
+//!   model/render open: NO36; constructor enum inputs: NO44.
+//! - [`connection`]: §3.6 records, creation/search/lifetimes and statics;
+//!   descriptor geometry/bounds/render/messages open: UG5/NO40.
 //!
 //! - [`record`], [`xform`]: the §2.3 base record v4-v8 and the transform.
 //! - [`underground`]: §3.2 behaviour and the §3.3-§3.5 records.
