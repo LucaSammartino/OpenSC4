@@ -310,6 +310,7 @@ enum : uint32_t {
     // the reference warnings caused.
     kFC4SeamAutomataCmTeardown = 69,
     kFC4SeamUnreadRefs = 70,  // glue-exemplars4: a reference read in Read is not touched before the store load ends
+    kFC4SeamAdvisorsShadow = 71,  // record-only snapshot of a = borrowed cIGZUnknown*
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -49,6 +49,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4AutomataShadow.h"  // the glue19 lane
+#include "FC4AdvisorsShadow.h"  // record-only, default off
 #include "FC4MySimsShadow.h"  // the mysims1 lane: mysims_shadow
 #include "cFC4Automata.h"  // the glue19 lane
 #include "FC4HistoryShadow.h"
@@ -721,6 +722,7 @@ void Resolve() {
     AutomataShadowStartup(enabledKey("automata"));
     // The MySims shadow (FC4MySimsShadow.h; it compares the original MySim agent + advisors).
     MySimsShadowStartup();
+    AdvisorsShadowStartup();  // advisors_shadow = 1 only; no replacement factory
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).

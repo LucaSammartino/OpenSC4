@@ -609,4 +609,7 @@ const char* SwitchesOffList();
 // Full path of FreeCity4.ini (next to the DLL).
 std::string IniPath();
 
+// advisors_shadow = 0 / 1 (default 0): round-trip original advisor records
+// through the core at city load and each month; no replacement or simulation.
+
 }  // namespace fc4
