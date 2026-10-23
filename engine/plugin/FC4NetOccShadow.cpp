@@ -2,11 +2,8 @@
 #include "FC4NetOccShadow.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
-#include "FC4Properties.h"
-#include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
 #include "cISC4City.h"
-#include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
 #include "cIGZSerializable.h"
 #include "fc4.h"
@@ -17,7 +14,7 @@
 struct NetOccResult {
     uint32_t status, fixups, first, expectedLen, actualLen, expected, actual;
 };
-extern "C" bool fc4_netocc_shadow_compare(uint32_t, uint32_t, const uint8_t*, size_t, NetOccResult*);
+extern "C" bool fc4_netocc_shadow_compare(uint32_t, const uint8_t*, size_t, NetOccResult*);
 
 namespace fc4 {
 namespace {
@@ -27,18 +24,6 @@ uint64_t g_lines = 0, g_clean = 0;
 const uint32_t kClasses[] = {0xC9C05C6E, 0x49C1A034, 0x49CC1BCD, 0x8A4BD52B,
     0x4A10AFC2, 0x49C05B9F, 0xCA16374F, 0x8A139184, 0xEA0A5ACF, 0xCA15ED6B,
     0x09C05C6A, 0xC9C05C5D, 0x49B6D69B};
-
-uint32_t ModelInstance(cIGZSerializable* object) {
-    cISC4Occupant* occupant = nullptr;
-    if (!object->QueryInterface(GZIID_cISC4Occupant, reinterpret_cast<void**>(&occupant)) || !occupant) return 0;
-    FC4_ACQUIRED(occupant, "netocc shadow occupant QI");
-    auto* holder = occupant->AsPropertyHolder(); // borrowed
-    uint32_t instance = 0;
-    std::vector<uint32_t> words;
-    if (props::GetU32s(holder, 0x27812821, words) && words.size() >= 3) instance = words[2];
-    FC4_RELEASE(occupant);
-    return instance;
-}
 
 void Compare(const char* event, int32_t julian) {
     if (!g_enabled || !g_city) return;
@@ -64,15 +49,14 @@ void Compare(const char* event, int32_t julian) {
             NetOccResult result{};
             const bool captured = record.Capture(object);
             const auto& b = record.Bytes();
-            const uint32_t model = cls == 0x09C05C6A ? ModelInstance(object) : 0;
-            const bool compared = captured && fc4_netocc_shadow_compare(cls, model, b.data(), b.size(), &result);
+            const bool compared = captured && fc4_netocc_shadow_compare(cls, b.data(), b.size(), &result);
             fixups += result.fixups;
             bytes += b.size();
             if (!compared || result.status != 0) {
                 ++mismatches;
-                if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u model=%08X",
+                if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u",
                     cls, id, captured ? 1u : 0u, compared ? result.status : 4u, result.first,
-                    result.expected, result.actual, result.expectedLen, result.actualLen, model);
+                    result.expected, result.actual, result.expectedLen, result.actualLen);
             }
         }
     }

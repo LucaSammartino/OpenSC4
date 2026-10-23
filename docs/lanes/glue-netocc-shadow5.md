@@ -4,6 +4,14 @@
 
 ## Handoff
 
+- Round 3 resumed at 79619a24; no outstanding operations. Manifest: main build-runs/run4-glue-netocc-shadow5-r3-manifest.json.
+- Confirmed network-occupants §4.6: attachment selection uses exemplar resource instance, not model property.
+- Next: derive pole host input from decoded base.holder.parent_key().instance; regression, full gate, unique city request to 2032.
+- Implemented decoded exemplar-key host input; removed model-property QI from native shadow and private transport argument.
+- Focused capi shadow tests: 3 passed (new regression covers all four valid subtypes with unrelated model property).
+- Explicit capi/src/netocc_shadow.rs fmt PASS. Initial fmt path engine/capi/... was invalid, corrected to engine-relative path.
+- q.py focused invocation failed to start Bash (CreateFileMapping error 5); direct cargo focused tests passed.
+- Next: commit implementation, run one stable-source all gate, submit netocc-r3-2032-1.
 - Round 2 uses detached HEAD; commit normally without moving refs.
 - Prior milestone 2b25736f: path key codec fix; be4072e6: full gate PASS.
 - NO45 resolved by coordinator: normalize only flags E000, triangle alpha FF, transform mask 7 to 5 at scale 1.

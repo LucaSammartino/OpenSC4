@@ -51,7 +51,7 @@ impl OutStream for Output {
     }
 }
 // Numeric capture identities have no interface-view displacement or ownership.
-struct Host(u32);
+struct Host;
 impl References for Host {
     fn add_ref(&mut self, _: &RefValue) {}
     fn release(&mut self, _: &RefValue) {}
@@ -89,14 +89,16 @@ impl PoleStaticHost for Host {
     }
 }
 impl PoleRecordHost for Host {
-    fn exemplar_model_instance(&mut self, _: &OccupantBase) -> u32 {
-        self.0
+    fn exemplar_model_instance(&mut self, base: &OccupantBase) -> u32 {
+        // network-occupants §4.6 selects by the exemplar resource key, not
+        // the model property 0x27812821. The captured base retains that key.
+        base.holder.parent_key().map_or(0, |key| key.instance)
     }
 }
 
-fn roundtrip(class: NetOccClass, model: u32, input: &mut dyn InStream, out: &mut dyn OutStream) -> Option<bool> {
+fn roundtrip(class: NetOccClass, input: &mut dyn InStream, out: &mut dyn OutStream) -> Option<bool> {
     use NetOccClass::*;
-    let mut host = Host(model);
+    let mut host = Host;
     Some(match class {
         Network | PreBuilt | Bridge | Tunnel => write_network_record(&read_network_record(input)?, out),
         Underground => write_underground_record(&read_underground_record(input)?, out),
@@ -240,7 +242,7 @@ struct ResultRow {
     actual: u32,
 }
 
-fn compare(class: NetOccClass, model: u32, bytes: &[u8]) -> ResultRow {
+fn compare(class: NetOccClass, bytes: &[u8]) -> ResultRow {
     let mut row = ResultRow::default();
     let Some((expected, fixups)) = normalize(class, bytes) else {
         row.status = 2;
@@ -250,7 +252,7 @@ fn compare(class: NetOccClass, model: u32, bytes: &[u8]) -> ResultRow {
     let mut numbers = Numbers;
     let mut input = ByteReader::with_resolver(bytes, &mut numbers);
     let mut output = Output(ByteWriter::new());
-    if roundtrip(class, model, &mut input, &mut output) != Some(true)
+    if roundtrip(class, &mut input, &mut output) != Some(true)
         || input.remaining() != 0
         || input.error() != 0
         || output.error() != 0
@@ -283,7 +285,6 @@ fn compare(class: NetOccClass, model: u32, bytes: &[u8]) -> ResultRow {
 #[no_mangle]
 unsafe extern "C" fn fc4_netocc_shadow_compare(
     class_id: u32,
-    model: u32,
     data: *const u8,
     len: usize,
     result: *mut ResultRow,
@@ -296,7 +297,7 @@ unsafe extern "C" fn fc4_netocc_shadow_compare(
     }
     let bytes = unsafe { std::slice::from_raw_parts(data, len) };
     unsafe {
-        *result = compare(class, model, bytes);
+        *result = compare(class, bytes);
     }
     true
 }
@@ -304,6 +305,38 @@ unsafe extern "C" fn fc4_netocc_shadow_compare(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pole_attachment_selection_uses_exemplar_key_not_model_property() {
+        use fc4_core::property::PropertyHolder;
+        use fc4_core::variant::{mem, Elem, Variant};
+        use std::rc::Rc;
+
+        for subtype in 1..=4 {
+            let mut pole = PowerPole::new(PoleFields::default());
+            pole.base.holder.parent = Some((
+                ResKey {
+                    type_id: 0x6534_284A,
+                    group: 1,
+                    instance: 0x1234_0000 | (subtype << 8),
+                },
+                Rc::new(PropertyHolder::new()),
+            ));
+            pole.base.holder.own.add(
+                0x2781_2821,
+                Variant::Array {
+                    elem: mem::UINT32,
+                    items: vec![Elem::U32(0x5AD0_E817), Elem::U32(0), Elem::U32(0x0AD3_0000)],
+                },
+            );
+            pole.select_connection_point_table(subtype as u8);
+            let mut out = ByteWriter::new();
+            assert_eq!(pole.write(&AttachmentTables::default(), &mut out), Ok(true));
+            assert_eq!(compare(NetOccClass::PowerPole, out.bytes()).status, 0);
+        }
+        // A missing key must not silently select a default attachment table.
+        assert_eq!(Host.exemplar_model_instance(&OccupantBase::default()), 0);
+    }
+
     #[test]
     fn exact_normalization_and_unrelated_bytes_stay_visible() {
         let mut record = NetworkBaseRecord {
@@ -314,13 +347,13 @@ mod tests {
         record.transform.mask = 7;
         let mut out = ByteWriter::new();
         assert!(write_network_record(&record, &mut out));
-        let row = compare(NetOccClass::Network, 0, out.bytes());
+        let row = compare(NetOccClass::Network, out.bytes());
         assert_eq!((row.status, row.fixups), (0, 5));
         let (expected, _) = normalize(NetOccClass::Network, out.bytes()).unwrap();
         let mut changed = expected.clone();
         *changed.last_mut().unwrap() ^= 1;
         assert_ne!(expected, changed);
-        assert_eq!(compare(NetOccClass::Network, 0, &changed).status, 0);
+        assert_eq!(compare(NetOccClass::Network, &changed).status, 0);
         // The mutation is retained, not normalized away.
         assert_eq!(normalize(NetOccClass::Network, &changed).unwrap().0, changed);
     }
@@ -337,13 +370,13 @@ mod tests {
         assert!(write_pipe_record(&record, 0x87654321, &mut out));
         assert_eq!(
             (
-                compare(NetOccClass::Pipe, 0, out.bytes()).status,
-                compare(NetOccClass::Pipe, 0, out.bytes()).fixups
+                compare(NetOccClass::Pipe, out.bytes()).status,
+                compare(NetOccClass::Pipe, out.bytes()).fixups
             ),
             (0, 1)
         );
         for end in 0..out.len() {
-            assert_ne!(compare(NetOccClass::Pipe, 0, &out.bytes()[..end]).status, 0);
+            assert_ne!(compare(NetOccClass::Pipe, &out.bytes()[..end]).status, 0);
         }
     }
 }
