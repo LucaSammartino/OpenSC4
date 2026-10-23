@@ -209,7 +209,8 @@ Only when not initialised (the initialised byte `+0x04`). Steps:
    `+0x140` with the view manager (slot 4 `+0x10`) when it is non-zero. The preview model sets `+0x140`: `0xA`
    for a building in occupant group `0x1401` (water), `0xF2` for group `0x1302` (subway), otherwise it keeps its
    value (0 from the constructor); the view manager is the city view's (slot 6 `GetViewManager`, through
-   `0x00602180`) (re-plop; what the two views show is CT17).
+   `0x00602180`). `0xA` is the Water data view; `0xF2` is the subway-building placement view,
+   distinct from the subway-network tool view `0xF1` (map-view.md §2; §3.14 below).
 7. Return true.
 
 ### 3.3 Shutdown (`0x004C0300`) *[compat]*
@@ -231,6 +232,12 @@ Always returns false (the message is not consumed).
 | `0x49D5B83F` | `DoPlopRingEffectFinished` (`0x004BE0A0`) |
 | `0x99EF1142`, `0x99EF1143` | unless `+0x118` is set: recalc the 3D view's coverage helper |
 | `0xA6B79602`, `0xC9F775BB` | stop and release the two preview effects `+0xDC`, `+0xE0` (stop with slot 4(0) when slot 5 says running), then `SetVisualUserFeedback(+0x94, +0x95, +0x88)` to rebuild them |
+
+`DoPlopRingEffectFinished` clears `+0x118` unconditionally. With a held 3D view it obtains
+the coverage helper (view slot 49) and recalculates coverage, even if the flag was already clear;
+without a view it only clears the flag. It neither stops nor releases the ring and does not change
+placeability, categories, configuration or the number of plops left. Evidence: `0x004BE0A0–0x004BE0BD`
+(instruction-verified; CT22, re-citytools-ct5, 2026-10-23).
 
 ### 3.5 OnKeyDown(vkey, modifiers) (`0x004C3060`) *[compat]*
 
@@ -279,7 +286,12 @@ Returns the `PlaceLot` result (false when it was not called).
 4. If the cursor text changed (`0x00454BB0` compare), show it with key `0xE9C877FA` (3D view slot 40 `+0xA0`).
 5. When placeable, flag, any coordinate of the position (by more than `1e-4`, float `0x00A90688`) or the shown
    rotation (`+0x40` vs `+0x38`) changed: `SetVisualUserFeedback(placeable, flag, pos)` and store the new values.
-6. Window manager slot 19 (`+0x4C`) (Q CT2); return true.
+6. If the held window manager exists, request an **input-message queue flush** through slot 19
+   (`+0x4C`); ignore its result and return true. This request also occurs for a failed terrain pick
+   and for a move that leaves feedback unchanged. The named `SC4FlushInputMessageQueue` wrapper
+   (`0x005F8610–0x005F8620`) makes exactly this same null-guarded call; the move's call is
+   `0x004C369C–0x004C36A5`. This is an input-queue operation, with no additional tool state change
+   or explicit redraw/cursor-refresh request (CT2, re-citytools-ct5, 2026-10-23).
 
 ### 3.8 OnMouseExit (`0x004C36C0`) *[compat]*
 
@@ -334,6 +346,10 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
   street count below, otherwise −8. The best rotation is the first with the highest score. The player's rotation
   (`+0x38`) is kept when (its score ≠ 0 or the best score < 1) and its score ≥ best − 4; otherwise the best one is
   taken. The rectangle and centre are the chosen rotation's; the result is whether any rotation was placeable.
+  Equality at four points keeps the player's rotation: own 3 / best 7 keeps it, own 3 / best 8
+  changes it. The separate zero-frontage exception still changes own 0 / best 1. This follows the
+  signed greater-or-equal comparison at `0x004BED15–0x004BED2E`, not an inclusive four-point
+  improvement threshold (CT24, re-citytools-ct5, 2026-10-23).
 - **Street count** (`GetLotFacingStreetCount`, `0x004BE5D0`): along the row of cells just outside the lot on its
   facing side (rotation 0: `z0 − 1`, 1: `x1 + 1`, 2: `z1 + 1`, 3: `x0 − 1`), for each cell inside the city, the
   network occupant of a road, street, avenue or one-way road (traffic network map slot 8, mask `0x449`) adds 4 for
@@ -355,11 +371,21 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
    the cost.
 5. **Clearing:** `DemolishRegion(true, cells, privilege 1, 0x2000, false, filter, …)` with the tool's filter
    `cSC4PlaceLotDemolishFilter` (`0x004BDF70`; its type test `0x004BDFB0` leaves power poles `0x2890D4DE` and power
-   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, commit, skipFunds := cost is 0, checkSlope, skipSize, …)`
+   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, true, skipFunds := cost is 0, true, true, false, null, null, null)`
    (dezoning, zones.md §6).
 6. **Zoning:** the zone type is 15 (plopped); 11 when the preview building is in occupant group `0x1508`; 12 when it
    is in group `0x1509` or the configuration is compatible with water (configuration slot 14) *[inferred: airports,
-   seaports]*. `PlaceZone(cells, type, commit, skipFunds, checkSlope, skipSize, …)`.
+   seaports]*. `PlaceZone(cells, type, true, true, true, true, false, null, null, null)`.
+   Both calls explicitly enable `checkSlope`, skip the size check and disable `checkLotInside`;
+   their last three output pointers are null (signature in zones.md §6). The first skips funds only
+   for a zero tool cost; the second always skips funds. Each region contains all cells in the rectangle.
+   Demolition must succeed before dezoning, dezoning before zoning, and zoning before lot creation.
+   A false result prevents the later calls and returns placement failure when no lot exists. The
+   tool makes no rollback call for earlier successful clearing/zoning. These mutations are committed
+   even when the tool's `effects` argument is false; that argument controls visual effects, not a dry run.
+   Evidence: demolition gate `0x004C1A44–0x004C1A6B`, dezoning arguments/gate
+   `0x004C1A71–0x004C1A98`, zoning arguments/gate `0x004C1AFE–0x004C1B1B`,
+   null-lot exit `0x004C1B93–0x004C1B99` (CT23, re-citytools-ct5, 2026-10-23).
 7. **The lot:** `CreateLotIfPossible(x0, z0, w, h, rotation, &lot, true, water-compatible, cfg)` (lot manager slot 22).
 8. **The building:** the lot developer's `ConstructDefaultLot(lot, cfg, +0x34, cfg slot 20)` (its slot 7,
    lot-developer.md §6.4). On success: the cost is withdrawn (`WithdrawFunds`, budget slot 8) when it is not 0; the
@@ -374,20 +400,181 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
    lot's size, which posts `0x49D5B83F` when it ends (§3.4).
 10. The result is whether the building was made.
 
-### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[summary; CT16]*
+### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[compat]*
 
-*Added 2026-10-22 (re-plop).* The configuration is `0xEBF9A440` with rotation 2 by default. The cell under the
-cursor must hold a network occupant of exactly one of road, highway, avenue or ground highway (types 0, 2, 6, 12)
-whose sides form a straight piece (two opposite sides connected, none half-connected); the booth's cells and
-rotation follow the piece's direction, and `SeekCompatibleNetworks` (`0x004BF6B0`) must find, within 2 steps along
-the network (mask `0x1045`), no occupant with another surface network.
+*Completed 2026-10-23 (re-citytools-ct5; CT16).* The cursor position is converted to cell `(x,z)` and
+snapped to that cell's corner `(X,Z)`. Height is retained. Before testing the network, output defaults
+are configuration `0xEBF9A440`, rotation 2, inclusive cells `(x,z,x,z+1)` and position `(X,Z+8)`.
+The network-map lookup uses mask `0x1045`, final argument true. Missing occupant fails. The first present
+network type in priority order 0, 2, 6, 12 is selected; none fails. Its flags, masked by `0x1F4F`, must
+contain no bit other than the selected type's bit. This is a masked exclusion, not a test of all flags.
 
-### 3.14 Feedback *[summary; CT17]*
+The network occupant's slot 38 returns four side bytes, side 0 in the least-significant byte. Sides
+0/1/2/3 correspond to −x/−z/+x/+z. In each byte, low two bits 0 mean disconnected, 2 connected;
+1 or 3 fail immediately. Exactly two opposite sides must be connected. Bit 2 is a separate alignment
+marker, including on a disconnected side; the other bits do not affect this picker.
 
-*Added 2026-10-22 (re-plop).* `GetBuildingPreviewModel` (`0x004C0680`) builds the preview building (marked with
-property `0x029244DB`, civic-buildings.md) and its props and sets `+0x140` (§3.2 step 6); `SetVisualUserFeedback`
-(`0x004C2660`), `SetConstraintFeedback` (`0x004C2090`) and `SetPropOccupantDrawAttributes` (`0x004BE180`) tint the
-preview and the constraint tiles by validity.
+| Selected type | Configuration |
+|---|---|
+| 0 (road) | `0xEBF9A440` |
+| 2 (highway) | `0x8BF9B356` |
+| 6 (avenue) | `0xABF9A45C` |
+| 12 (ground highway) | `0x2BF9B222` |
+
+The table gives inclusive cell bounds and final position relative to the snapped corner, including
+the initial +8 z shift. These are literal 8/16 world-unit offsets, not multiples of a queried cell size.
+
+| Type | Connected sides | Alignment marker | Rotation | Cells | Position `(x,z)` in world units |
+|---|---|---|---|---|---|
+| road | 0,2 | ignored | 1 | `(x,z,x+1,z)` | `(X+8,Z)` |
+| road | 1,3 | ignored | 2 | `(x,z,x,z+1)` | `(X,Z+8)` |
+| 2/6/12 | 0,2 | side 1 bit 2 set | 1 | `(x,z-1,x+1,z)` | `(X+8,Z-8)` |
+| 2/6/12 | 0,2 | side 1 bit 2 clear | 1 | `(x,z,x+1,z+1)` | `(X+8,Z+8)` |
+| 2/6/12 | 1,3 | side 0 bit 2 set | 2 | `(x-1,z,x,z+1)` | `(X-8,Z+8)` |
+| 2/6/12 | 1,3 | side 0 bit 2 clear | 2 | `(x,z,x+1,z+1)` | `(X+8,Z-8)` |
+
+Finally `SeekCompatibleNetworks(rect, 2, type)` must succeed. For every cell in the inclusive rectangle,
+it independently follows the network's low four connection bits (occupant slot 40), with the side
+offsets above. The starting cell is depth 0; occupants at depths 0, 1 and 2 are checked, but depth 2
+does not expand. Every lookup uses mask `0x1045`, true. A missing occupant ends that branch successfully;
+there is no reciprocal-connection requirement or visited-cell suppression. An occupant fails the
+whole test when its slot 9 reports any flag in `((~(1 << type)) & 0x1FFF) | 0x400000`.
+Thus another type among bits 0–12, or flag `0x400000` itself, disqualifies a reached occupant even
+when it is the same chosen network type. This is the literal flag rule, regardless of the flag's
+name. On such a failure the already selected configuration, rotation, rectangle and position remain
+outputs; callers must honor the false result.
+
+Evidence: defaults/snapping `0x004BFB30–0x004BFBC5`; type exclusion and side decoding
+`0x004BFBD2–0x004BFC9E`; shape/position writes `0x004BFCBF–0x004BFE93` (float constants
+`0x00A8E178` = 8, `0x00A8D45C` = 16); configuration table `0x00A90650`;
+search `0x004BF6B0`, direction tables `0x00A90708`/`0x00A90718`.
+
+### 3.14 Feedback *[compat]*
+
+*Completed 2026-10-23 (re-citytools-ct5; CT17).* Visibility and placement validity are separate inputs:
+an invalid lot can have a visible preview. Missing terrain pick suppresses feedback (§3.7); invalidity
+alone selects the failure appearance below.
+
+#### 3.14.1 Preview occupants and coverage (`GetBuildingPreviewModel`, `0x004C0680`)
+
+A missing lot configuration makes this routine do nothing. With no existing building preview, use
+the configuration's first building entry (slot 24), retain its local rotation and position, and
+subtract half the unrotated lot's world width/depth from its local x/z. Each dimension is the unsigned
+configuration cell count times terrain cell size; multiply by binary32 0.5 before subtraction and
+store the result as binary32. Gather building exemplars/family members through the building-development
+service for every identifier in the entry. Use the first hash-set entry's profile (not a random draw,
+not the lowest ID) and create the preview through the building occupant manager. No building entry,
+empty candidates, unavailable profile or failed creation leaves no building preview.
+
+The new occupant gets flag `0x10` and boolean properties `0x029244DB` and `0x29F013E6` true. Initially
+hide it through the drawing helper. This is a temporary preview, not a constructed lot building.
+Coverage categories are cleared then ORed in police/fire/health/education order: bits 1/2/4/8.
+Police and fire use their station predicates; health and education use successful property reads
+of `0x091B42A2` and `0x691B42B3` respectively (presence/read success, not a nonzero-value test).
+Each matching category supplies the coverage query's radius/auxiliary result and the two effect names
+`PlopMode_<category>_Plop` and `PlopMode_<category>_Inactive`, with capitalized category names
+`Police`, `Fire`, `Health`, `Education`. A failed radius query sets radius 32. Multiple categories
+retain all bits, but the last matching category supplies the final radius and effect names. Update
+the view's coverage helper with the categories and recalculate it.
+
+Building group `0x1401` selects registered view `0xA`; otherwise group `0x1302` selects `0xF2`.
+Neither group leaves the previous ID unchanged (initially zero). Both groups therefore select `0xA`.
+These are the Water data view and the subway-building placement view, respectively, as listed in
+map-view.md §2. They request the shipped views' complete display/filter settings, rather than
+constructing an ad hoc pipe/subway layer here. Registration and removal are §3.2/§3.3.
+
+For props, consider configuration entries of type 1 only, with flag bit 0 clear and exactly one
+exemplar identifier. Require prop-manager availability and successful creation, then boolean
+property `0x4A89FCF3` true (missing/false excludes the prop). Accepted props get flag `0x10`, both
+preview properties true, and a retained occupant reference with local rotation and position.
+Their x/z receive the same half-lot centering adjustment as the building. Family/multiple-ID
+and optional entries do not become preview props on this path. Configuration-effect release
+releases these previews; repeated feedback updates move the retained occupants.
+
+Evidence: building entry/offsets `0x004C0713–0x004C079E`, candidate/profile/creation
+`0x004C07A4–0x004C0827`, flags/properties `0x004C084A–0x004C08B8`, coverage and view
+selection `0x004C08BD–0x004C0C05`, prop processing `0x004C0CAB–0x004C0EF3`.
+
+#### 3.14.2 Drawing and colours (`SetVisualUserFeedback`, `0x004C2660`)
+
+When feedback is hidden, hide the local grid, stop any running coverage ring, footprint and direction
+arrow, remove registered preview building/props, and stop and clear both constraint-effect arrays.
+For the hidden drawing request the attribute flag byte is 2, highlight selector 0, RGB `(1,1,1)`
+and alpha 0. A hidden request does not create a model to compensate for a missing building preview.
+
+When visible, put the local grid at the supplied position; show it unless city slot 66's slot 20
+reports the suppressing terrain mode. A present coverage ring with positive radius gets an identity
+orientation, position at that point and uniform scale `2 × radius`; start it with argument 0 if
+stopped. A nonpositive radius does not cause a new ring start in this branch.
+
+Use `building_footprint_ok` for valid placement and `building_footprint_notok` for invalid placement.
+Recreate the footprint when validity changes, it is missing, or it has stopped; stop/release the old
+one. Bind an available generated lot-footprint texture as effect parameter 6 (one texture). Set its
+position to the supplied point, orientation about y to rotation times the binary32 constant
+`1.5707950592041016` (`0x3FC90FD0`), and uniform scale to the generated footprint extent `+0x104`
+times binary32 `0.9999899864196777` (`0x3F7FFF58`); start with 0 if stopped. The slight inset is
+intentional. Texture/effect resources supply the footprint artwork and colours.
+
+The direction effect is `Lot_Direction_Arrow`. Recreate it when validity changes or it is absent;
+an existing stopped arrow is reused and restarted. For unrotated lot depth `D` and terrain cell size
+`s`, its inset distance is `d = trunc(D × s × 0.5 − 6)` using x87 operations and `_ftol2`.
+Place it at point plus `(0,0,−d)`, `(d,0,0)`, `(0,0,d)`, `(-d,0,0)` for rotations 0–3.
+Its y-axis orientation is rotation times the **binary64** constant −1.570795 (`0xBFF921F9F01B866E`),
+with scale 1. The footprint uses a positive binary32 angle; the arrow uses a negative binary64
+angle. Start with 0 if stopped. The tool does not recolour the arrow by validity.
+
+For a present building preview, pass flag byte 3, highlight selector **3 valid / 4 invalid**, RGB
+`(1,1,1)`, alpha binary32 0.4 (`0x3ECCCCCD`) to the building and accepted props, and show them.
+These are highlight selectors, not replacement RGB values: the renderer's default selector 3 is
+blue-grey `(0.2,0.2,0.4,0.6)` and selector 4 dark red `(0.66,0,0,0.7)` (draw-context.md §1.1/§6).
+Renderer property overrides of that palette remain effective. Do not turn the valid model green
+by analogy with other tools. Every contained model instance receives draw mode 5 and the supplied
+20-byte attribute record; its uninterpreted bytes are not additional deterministic tool state
+(model-instances.md §1). Then update constraints, irrespective of validity.
+
+For both building and props, let centered local offset be `(a,b)` in x/z. Relative to the supplied
+point the world x/z offsets for rotations 0–3 are `(-a,-b)`, `(b,-a)`, `(a,b)`, `(-b,a)`.
+World y is the supplied point's y: the saved local y is not added. Occupant orientation is
+`(local rotation + tool rotation) mod 4` for the normal 0–3 rotations. Showing an unregistered
+occupant sets position/orientation and inserts it; showing a registered one updates it and, on
+an orientation change, sends `0x99EF1145` with argument 0. Hiding removes a registered occupant.
+The same transform and drawing record apply to every accepted prop, not only the main building.
+
+A validity transition selects cursor `0x417EE36B` (valid) or `0x88E70B76` (invalid), including on
+the hidden branch. Missing optional visual effects are skipped; no replacement colour effect is made.
+Evidence: hide path `0x004C2D4F–0x004C2EDF`, ring/grid `0x004C2675–0x004C27CE`, footprint
+`0x004C27CE–0x004C2A1A`, arrow `0x004C2A1A–0x004C2CEC`, attributes `0x004C2CEC–0x004C2D45`,
+cursor `0x004C2EDF–0x004C2F0D`; occupant transforms/draw calls `0x004BE180–0x004BE5AA`;
+default highlight palette `0x007D63C6–0x007D63FC` and palette selection `0x007D5670`.
+
+#### 3.14.3 Constraint tiles (`SetConstraintFeedback`, `0x004C2090`)
+
+Type 5 configuration entries (water constraints) use `selection_blue`; type 6 (land constraints)
+use `selection_red`. These colours describe the entry type, **not** valid/invalid placement. Process
+entries in configuration order, maintaining a separate effect array for each colour. A missing
+configuration returns without updates. When §3.9 cannot obtain a lot rectangle, no entries are
+used and the existing surplus effects are stopped.
+
+For each entry convert local minimum and maximum x/z, each with 8 world units added, through terrain
+`PositionToCell`. Subtract 1 from both maximum cell coordinates to obtain inclusive cell bounds
+`(u0,v0,u1,v1)`. With unrotated configuration width `W` and depth `D`, rotate them as follows:
+
+| Tool rotation | Rotated inclusive bounds |
+|---|---|
+| 0 | `(W-1-u1, D-1-v1, W-1-u0, D-1-v0)` |
+| 1 | `(v0, W-1-u1, v1, W-1-u0)` |
+| 2 | `(u0,v0,u1,v1)` |
+| 3 | `(D-1-v1,u0,D-1-v0,u1)` |
+
+Translate by the lot rectangle's minimum cell from §3.9. Set effect parameter `0xC` to four
+binary32 **cell coordinates** `(x0,z0,x1+1,z1+1)` (count 4), then start with argument 0.
+Reuse the next effect of that colour, creating the named effect only when the array needs another
+entry; stop unused trailing effects after the pass. A later pass may reuse those stopped effects.
+Do not multiply the parameter by cell size or collapse two adjacent constraint entries into one.
+The effect resources supply actual blue/red shades; this function supplies no numeric tint.
+Evidence: conversion/rotation/translation `0x004C2160–0x004C227F` and `0x004C237C–0x004C248E`,
+effect updates/cleanup `0x004C2280–0x004C2655`; integer rotation helper `0x004BDFD0–0x004BE083`
+with dispatch table `0x004BE084`.
 
 ## 4. Quirks
 
@@ -407,14 +594,16 @@ preview and the constraint tiles by validity.
 8. Query tool: a network occupant both tries the neighbour dialog and continues to the query dialog (§8.12.1).
 9. Place-lot: after a successful click no lot is placeable while the lot's centre stays inside the placed lot's
    world rectangle (§3.6, §3.10) (re-plop).
-10. Place-lot: the automatic facing keeps the player's rotation unless another has at least 4 more street points
-    (§3.11) (re-plop).
+10. Place-lot: the automatic facing keeps the player's rotation at exactly four fewer street points;
+    an improvement greater than four changes it, subject to §3.11's zero-frontage exception
+    (corrected CT24, re-citytools-ct5).
 11. Place-lot: a building that fails after its lot was made credits the city with the lot's cost (§3.12)
     *[quirk]* (re-plop).
 
 ## 5. Open questions
 
-See docs/specs/questions/city-tools-input.md (CT1-CT17).
+See docs/specs/questions/city-tools-input.md for remaining query-tool questions. Place-lot questions
+CT2, CT16, CT17 and CT22–CT24 are answered in the corresponding answered file (2026-10-23).
 
 ## 6. Conformance tests
 
@@ -468,12 +657,39 @@ Place-lot tool (re-plop, 2026-10-22):
   fails (§3.6, §3.10).
 - A builder that fails on a lot costing 500 deposits 500 and withdraws nothing (§3.12).
 
+Place-lot closure vectors (re-citytools-ct5, 2026-10-23):
+
+| ID | Setup/action | Required observation |
+|---|---|---|
+| CT2-a | Move with a held WM, no terrain hit | One WM input-queue flush after feedback/text processing; handled = true. |
+| CT16-a | Road at cell (10,20), 16-unit corner (160,320), side word `0x00020002`; search clean | Config `EBF9A440`, rotation 1, cells (10,20,11,20), position (168,320). |
+| CT16-b | Avenue at that cell, side word `0x00020402`; search clean | Config `ABF9A45C`, rotation 1, cells (10,19,11,20), position (168,312); side 1 marker shifts the footprint. |
+| CT16-c | Ground highway at that cell, side word `0x02000200`; search clean | Config `2BF9B222`, rotation 2, cells (10,20,11,21), position (168,312). With side 0 byte 4, cells (9,20,10,21), position (152,328). |
+| CT16-d | Side low bits contain 1/3, adjacent connections, or three connections | Picker false. A road plus avenue in masked flags also fails. |
+| CT16-e | A reached depth-2 occupant has flag `400000`; then put the flag only at depth 3 | First search false; second true if every checked occupant is otherwise compatible. Missing branch occupants pass; do not inspect depth 3. |
+| CT17-a | Show valid, then invalid, at the same point with a preview | All building/prop model instances get mode 5, flag 3, white RGB, alpha 0.4; highlight selectors 3 then 4. Footprint changes ok → notok; cursor changes to `88E70B76`. Constraint colours retain entry types. |
+| CT17-b | Hide feedback with ring/footprint/arrow running, registered preview and two constraint arrays | Grid hidden, three running effects stopped, preview occupants removed, constraint effects stopped and arrays cleared. Validity is independent of this visibility input. |
+| CT17-c | Building local centered offset (3,5), local rotation 1, local y 9; point (100,7,200); tool rotations 0/1/2/3 | World positions (97,7,195), (105,7,197), (103,7,205), (95,7,203); orientations 1/2/3/0. Same rule for accepted props. |
+| CT17-d | W=4, D=3; a constraint converts to inclusive local cells (0,0,1,0); translated lot minimum (10,20); rotations 0/1/2/3 | Parameter `0xC` respectively (12,22,14,23), (10,22,11,24), (10,20,12,21), (12,20,13,22), in cell units. Type 5 blue, type 6 red at every rotation. |
+| CT17-e | Preview matches police and education; final radius query fails | Categories 9, radius 32, Education effect names. A present zero-valued education property still matches if its read succeeds. |
+| CT17-f | Building belongs to water and subway groups; then a subway-only building | Registered view IDs `A` then `F2` (Water and subway-building placement); neither uses subway-network tool view `F1`. |
+| CT17-g | Prop entries: optional singleton; nonoptional two-ID; nonoptional singleton whose preview property is false; nonoptional available singleton with property true | Only the last is retained as a preview prop. Both preview properties are set true on that occupant. |
+| CT17-h | D=3, s=16, point (100,7,200), rotations 0–3 | Arrow distance 18; positions (100,7,182), (118,7,200), (100,7,218), (82,7,200). A stopped existing arrow restarts; a stopped footprint is recreated. |
+| CT2-b | Repeat an unchanged move; then move with no held WM | One flush on the repeat; no WM call with null; both handled. |
+| CT22-a | Ring-finished message, flag set, view present | Flag clears before one coverage recalculation; message result false. |
+| CT22-b | Repeat ring-finished with flag clear; then with null view | Recalculates again with view; only flag clear with null. No ring release or plop decrement. |
+| CT23-a | Nonzero cost, effects false; services succeed | Dezoning flags `(commit,skipFunds,checkSlope,skipSize,checkLotInside)` = `(true,false,true,true,false)`; zoning = `(true,true,true,true,false)`; all three output pointers null. |
+| CT23-b | Zero cost; services succeed | Both zoning calls use `(true,true,true,true,false)`. |
+| CT23-c | Demolition false / dezoning false / zoning false, separately | Respectively no zoning calls / no second zoning or lot creation / no lot creation. No rollback call, construction, refund or placement effects. |
+| CT24-a | Own frontage 3; best 6, 7, then 8 | Keep, keep, change, respectively. Own 0 / best 1 changes despite the small gap. |
+
 ## 7. Coverage
 
 `cSC4ViewInputControl` (all 17 functions) is specified by §2. `cSC4ViewInputControlPlaceLot` is specified for its
 lifecycle and input dispatch (§3.1–§3.8) and for its cells, placement test, automatic facing and placing
 (§3.9–§3.12; re-plop 2026-10-22), so it is claimed as specified, with `cSC4PlaceLotDemolishFilter`. The toll
-booths (§3.13) and the preview and feedback drawing (§3.14) stay at summary level (CT16, CT17).
+booth picker/search (§3.13), preview occupants, coverage, drawing and constraint feedback (§3.14)
+are now behaviour-level contracts with CT16/CT17 vectors (re-citytools-ct5, 2026-10-23).
 
 `cSC4ViewInputControlQuery` is specified for its creation, lifecycle, input dispatch, message dispatch and pick
 filters (§8.1–§8.9), its tips (§8.11), the query click and every dialog filler (§8.12), the other dialogs (§8.13),

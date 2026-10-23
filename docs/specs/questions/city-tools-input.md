@@ -6,8 +6,6 @@
   How does `cSC4View3DWin` walk its control stack and persistent controls on an input event (top first? stop at
   the first true? does `ShouldStack` false change the push)? Owner: the 3D view's input forwarding, not specified
   anywhere. [top control first, stop on true *[inferred]*]
-- **CT2 - §3.7 step 6, window manager slot 19 (`+0x4C`) after every place-lot mouse move:** which call is it
-  (redraw request, cursor refresh)? [unknown]
 - **CT4 - §2.1, the base constructor:** not re-read; confirm it zeroes `+0x04..+0x20` and the reference count
   starts at 0. [zeroes all *[inferred]*]
 - **CT6 - §8.2, the query tool's `+0x98`:** the constructor stores 3; no function of §8 reads it. Who reads it
@@ -41,16 +39,6 @@
 - **CT15 - §8.15:** route mode: `MakeRoutePath`, `GetBuildingOccupantPaths`, `GetNetworkOccupantPaths`,
   `DoesRouteCrossCell`, `GetRouteTravelTypes` and the legend's travel-type toggles in detail. [outline]
 
-<!-- from: re-plop (2026-10-22) -->
-- **CT16 - §3.13, the toll booths:** the side codes the network occupant's slot 38 gives, the booth's cells per
-  direction, and what `SeekCompatibleNetworks` (`0x004BF6B0`) tests (its flag mask `0x400000`). [summary]
-
-<!-- from: re-plop (2026-10-22) -->
-- **CT17 - §3.14, §3.2 step 6, the feedback:** the preview model (`GetBuildingPreviewModel`, `0x004C0680`), the
-  constraint tiles and the colours of `SetVisualUserFeedback`, `SetConstraintFeedback` and
-  `SetPropOccupantDrawAttributes`, and what the views `0xA` and `0xF2` registered with the view manager show
-  (*[inferred]* the water-pipe and subway layers). [summary]
-
 <!-- from: core-query-tool5 (2026-10-23) -->
 - **CT18 - §8.12.1, empty-cell sound conflict:** conformance test 10 requires a failure sound for an empty
   non-zone cell although DescribePick's numbered steps omit it; should that sound be emitted? Occupant slots
@@ -82,19 +70,3 @@
   initialization/notification/write-back timing. The core retains the explicit `ID + 0x100` helper and
   notification behavior and marks the additional update Unsupported rather than inventing cost controls.
 
-<!-- from: core-place-lot5 (2026-10-23) -->
-- **CT22 - §3.4 ring-finished message:** specify the body of `DoPlopRingEffectFinished`.
-  The spec names the helper but gives no state transitions or effects. [Unsupported;
-  other message branches implemented; no native owner callback]
-
-<!-- from: core-place-lot5 (2026-10-23) -->
-- **CT23 - §3.12 clearing/zoning calls:** what are the explicit checkSlope and skipSize
-  values for the two PlaceZone calls, and do failures from demolition/dezoning/zoning
-  abort placement? [literal published sequence: run both calls, preserve the foreign
-  service's default checkSlope/skipSize, no unspecified early returns]
-
-<!-- from: core-place-lot5 (2026-10-23) -->
-- **CT24 - §3.11 versus §4 quirk 10, facing equality:** the detailed formula keeps
-  the player's rotation when `own >= best - 4`, but quirk 10 says another facing
-  with "at least 4 more" points changes it. Which governs at exactly four more?
-  [literal §3.11 formula: own 3 / best 7 keeps the player; covered by a test]

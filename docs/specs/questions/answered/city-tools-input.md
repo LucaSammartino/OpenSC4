@@ -1,5 +1,34 @@
 # city-tools-input: answered questions
 
+- **CT17 — §3.14 / §3.2 step 6, preview models, constraints, feedback colours and views.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — §3.14 specifies preview creation/filtering,
+  transforms, coverage categories, independent visibility/validity, effect reuse and constraint cell
+  rectangles. Model highlight selectors are 3 valid / 4 invalid with white RGB and alpha 0.4;
+  constraints are blue for water/type 5, red for land/type 6 irrespective of validity. Views are
+  Water (`A`) and subway-building placement (`F2`), not subway-network placement (`F1`). CT17-a–h
+  provide conformance vectors.
+
+- **CT16 — §3.13, toll-booth side codes, cells and compatible-network mask.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — §3.13 specifies the four byte codes,
+  alignment bit, six footprint/position cases and configuration IDs. Search checks depth 0 through 2
+  inclusive and rejects any flag in `((~(1 << type)) & 0x1FFF) | 0x400000`; the latter flag rejects
+  even a same-type occupant. Missing branches pass. CT16-a–e are conformance vectors.
+
+- **CT2 — §3.7, WM slot 19 after mouse movement: which operation?**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — input-message queue flush,
+  identified by the identical call in SC4FlushInputMessageQueue; conditional on held WM,
+  unconditional with respect to pick/feedback changes. §3.7 and §6 give the rule/vectors.
+- **CT22 — §3.4, body of DoPlopRingEffectFinished.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — clear the overlay flag, then
+  recalculate coverage if a 3D view is held; no ring release or placeability change. §3.4/§6.
+- **CT23 — §3.12, explicit zoning flags and clearing failures.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — slope check and skip-size both
+  true, checkLotInside false, commit true on both zoning calls; dezoning skipFunds = zero
+  tool cost, zoning skipFunds true. Every clearing stage gates the next; no rollback. §3.12/§6.
+- **CT24 — §3.11 versus §4, equality at a four-point frontage improvement.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** MATCHES — detailed formula governs:
+  own 3 / best 7 keeps player rotation; own 3 / best 8 changes it. Corrected quirk 10. §3.11/§6.
+
 <!-- re-query-ct5: resolved portions only; residual questions retain their IDs in the open file. -->
 - **CT14 (resolved portion) — neighbour kinds/resources and writer ordering.**
   **ANSWERED 2026-10-23 (re-query-ct5):** DIFFERS — §8.16.6 specifies last-successful network-kind priority
