@@ -1132,3 +1132,7 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4RenderPropsFixture.cpp plugin/FC4RenderPropsFixture.h)
 endif()
+
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4CityShadow.cpp plugin/FC4CityShadow.h)
+endif()

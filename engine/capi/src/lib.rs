@@ -1159,3 +1159,4 @@ mod scres_file_shadow;
 mod gzmsg_shadow;
 // Private production-core render-properties registry expectations.
 mod renderprops_shadow;
+mod city_shadow;

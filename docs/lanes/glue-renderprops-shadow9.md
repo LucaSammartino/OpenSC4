@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-renderprops-shadow9: render properties round 2 | Codex / `glue-renderprops-shadow9` (engine lane, detached HEAD) | ready for measured partial scope: cargo 6999/0, clippy clean, CTest 80/80; house renderprops 73/73 exact to 2032, clean, ref_warnings=0; RP8 filed; no public ABI change | (1) Land measured registry and owned-fixture coverage. (2) Refresh questions index. (3) Implement RP7 trace/view bridges before whole-owner credit. |
+| glue-renderprops-shadow9: render properties round 3 | Codex / `glue-renderprops-shadow9` (engine lane, detached HEAD) | in progress: merge fix and final gates | Preserve both sides, regenerate questions index, re-gate, enqueue READY. |
+
+## Handoff
+
+- Goal: round 3 merge fix only; RP8 remains open and shadow remains partial.
+- Prior measured result: `3b91d3b8f`, renderprops 73/73 exact to 2032, clean, ref_warnings=0.
+- Merging main: resolved additive conflicts in capi modules, CMake sources and observer load/month calls, preserving both sides.
+- RP7 open entry already removed; answered archive pointer remains. RP8 remains open.
+- Next: run explicitly requested questions index, commit merge, qbuild all to terminal result, update report and queue with full HEAD.
+- No new game request outstanding; prior unique completed verdict remains valid.
 
 ## Result and coverage
 

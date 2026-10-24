@@ -2,21 +2,36 @@
 //!
 //! No original watercraft implementation is used as a provider.
 
+mod collision;
 mod commands;
+mod crash;
+mod following;
+mod inherited;
 mod math;
 mod movement;
 mod operations;
 mod owner;
+mod physics;
 mod record;
+mod routes;
 mod states;
 
-pub use commands::{DriveCommand, PlayerEffects};
+pub use collision::{CollisionQueries, Footprint, ModelGeometry};
+pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
 pub use movement::Gear;
 pub use operations::{candidate_directions, Message, MessageDisposition};
 pub use owner::*;
+pub use physics::{Publication, Transform};
 pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
+pub use routes::{direction_step, quantize_heading, sign, RouteError, RouteReader};
 pub use states::CrashCase;
 
+#[cfg(test)]
+mod collision_tests;
+#[cfg(test)]
+mod physics_tests;
+#[cfg(test)]
+mod round2_tests;
 #[cfg(test)]
 mod tests;
 

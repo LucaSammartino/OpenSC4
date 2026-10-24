@@ -188,6 +188,9 @@ generated index: the questions live one file per spec, so read only the file for
 | WG | win-grid |
 | WR | water-ripples |
 | WT | widget-toolkit |
+| WTC | widget-toolkit |
+| WTG | widget-toolkit |
+| WTH | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
 | ZT | zone-tool |
@@ -197,7 +200,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 5 | 3 | AF9 | questions/aircraft.md |
+| aircraft | 6 | 3 | AF10 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -242,7 +245,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
@@ -267,7 +270,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 4 | 11 | LR15 | questions/lot-records.md |
+| lot-records | 3 | 12 | LR15 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -275,7 +278,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 1 | 18 | MS20 | questions/mysims.md |
+| mysims | 0 | 20 | MS21 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -314,9 +317,9 @@ generated index: the questions live one file per spec, so read only the file for
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 1 | RM15 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
-| regional-city | 6 | 0 | RY7 | questions/regional-city.md |
+| regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
-| render-properties | 3 | 4 | RP8 | questions/render-properties.md |
+| render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 9 | 2 | RD12 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
@@ -359,13 +362,13 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 3 | 5 | WC9 | questions/watercraft.md |
+| watercraft | 4 | 5 | WC10 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
+| widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **604** | **1454** | | |
+| **total** | **609** | **1458** | | |

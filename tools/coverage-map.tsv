@@ -176,8 +176,8 @@ fn:operator<<	city and save file	simulation	-	-	-	-
 # ---- simulation: no spec yet
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
-cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
+cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	core/src/helicopter	-	-
+cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	core/src/watercraft	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
@@ -260,7 +260,7 @@ cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	-	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	-	-	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	-	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-

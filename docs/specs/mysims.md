@@ -15,7 +15,7 @@ and the daily/monthly ticker (`docs/specs/advisors.md`, written separately); res
 Window procs, the pick-sim and move-in input controls, balloon rendering, camera following, sounds and
 U-Drive-It mission definitions belong to their UI/automata owners. The dispatch's simulation state,
 destination queue, persistence and player-trip entry points belong here (§4.6.1, §6.2.1, §7.2.1).
-The remaining multimodal handoff questions are tracked explicitly as MS18; they do not permit immediate-arrival stubs.
+The multimodal handoff rules are in §4.6.3–§4.6.5 (MS18); they do not permit immediate-arrival stubs.
 
 ---
 
@@ -41,7 +41,7 @@ Lua variables, advisor events, UI/audio messages and automata.
 | `cSC4MySimAgentSimulator` | `0x29E37DEC` | `cISC4MySimAgentSimulator` `0xA9E37EBB` (also answers `1`), `cIGZMessageTarget2` `0x452294AA`, `cIGZSerializable` `0xE4FDA3D4` | per-city dispatcher of messages to the MySims | this spec |
 | `cSC4MySim` | `0x4A1DBBBF` | `cISC4MySim` `0x0A1DA42F`, private class pointer `0x8BC01FFE` *[inferred: returns the object itself, AddRef'd]*, plus everything `cSC4Advisor` answers (`cISC4Advisor` `0xCA09F544`, `cIGZSerializable`, `cIGZMessageTarget2`, `1`) | one MySim | this spec |
 | `cSC4MyStreetSim` | `0x0BF606A5` | answers `cISC4MySim` `0x0A1DA42F` | the "My Street" sim (advisor id 30) | out of scope; it shares the agent's sixth slot (§1.3) |
-| `cSC4MySimDispatch` | `0xCBC14674` | `0xEB8B6F9A`, message target `0x452294AA`, serializable `0xE4FDA3D4` | per-MySim trip controller (path, automaton, commute destination) | this spec, §4.6.1, §4.7, §6.2.1, §7.2.1; remaining handoffs MS18 |
+| `cSC4MySimDispatch` | `0xCBC14674` | `0xEB8B6F9A`, message target `0x452294AA`, serializable `0xE4FDA3D4` | per-MySim trip controller (path, automaton, commute destination) | this spec, §4.6.1–§4.6.5, §4.7, §6.2.1, §7.2.1–§7.2.3 |
 | `cSC4MySimPool` | — | — | imports Sim templates (names, portraits) for the pick-sim UI | **app/UI**; contract in §4.12 |
 | `cMySimBuildingFilter` | — | `cISC4OccupantFilter` | building query filter | this spec, §4.9 |
 | `cSC4AdviceSubject` | `0x6A26D049` | `0x6A26D050` | event subject | advisors.md |
@@ -395,7 +395,7 @@ but **skips that stack-restoration call** (`0x00427CBD`/`0x00427CC5`/`0x00427CD1
 The argument names follow the dispatch notification that calls it: `0x4BB2CFC0` passes (data3, data2, −1, −1)
 and `0x4BB2D020` passes (−1, −1, data3, data2) *[inferred: data3 = new, data2 = old]*.
 
-### 4.6.1 Dispatch trip state, destinations and clock *[compat]* (MS17, partial)
+### 4.6.1 Dispatch trip state, destinations and clock *[compat]* (MS17)
 
 The dispatch state is distinct from MySim state (§2.2): **−1** = unplaced/recovery, **2** = trip in progress,
 **3** = at a location. Constructor state and previous state are both −1; flags and the simulation-minute
@@ -419,7 +419,7 @@ the new state, then sets flag 2 with its flag notification, then sends the state
 state 3 still sets flag 2 if needed, but sends no state notification when the state is unchanged
 (`0x00431BC0`, `0x00431C10`). See §3.3 for the message envelope and owner reentrancy.
 
-The following transitions are settled independently of the remaining transport handoffs (MS18).
+The following transitions complement the transport handoffs in §4.6.2–§4.6.5 (MS18).
 Location equality here is §4.7.1's identity/cell comparison, not geometric proximity. The export's
 `0x00431690` name is misleading: instructions implement **location inequality**, not deque mutation.
 
@@ -441,7 +441,7 @@ Location equality here is §4.7.1's identity/cell comparison, not geometric prox
 
 Evidence: `updateState` `0x004365C0`–`0x004370EC`; the destination deadline store is
 `0x004367CD`–`0x004367E0`; failure state/notice is `0x00436D61`–`0x00436D8A`.
-This table does not yet specify all route-ready/transport-switch branches; see MS18.
+For route-ready/transport-switch branches, use §4.6.2–§4.6.5.
 
 **Destination queue.** `AddDestinationLocation(location, options)` copies the supplied location and always
 returns true: option bit 4 first clears the queue, bit 1 selects front insertion, otherwise insert at the
@@ -457,10 +457,10 @@ value unchanged while flag `0x10` is set. Without that flag it clears the value 
 at now 116 without flag `0x10` reports 0, and at now 116 with the flag reports 100. Do not replace this
 quirk with an elapsed-time computation. Serialization preserves the timestamp (§6.2.1).
 
-### 4.6.2 Route-ready transport: verified MS18 contracts *[compat]* (partial)
+### 4.6.2 Route-ready transport: geometry and stops *[compat]*
 
-These contracts supplement §4.6.1. They do **not** close the complete transport owner:
-the residual MS18 question identifies the missing cases. Foreign transport services must
+These contracts supplement §4.6.1; §4.6.3–§4.6.5 complete the dispatch-side handoffs.
+Foreign transport services must
 report real outcomes; route acceptance, an expired wait and a model allocation alone do
 not constitute arrival.
 
@@ -542,7 +542,185 @@ its flag-2-before-state order), invokes setStuck if selected, applies idle setup
 `flags |= 0x2401` if selected, clears the selected mask, then ORs the selected
 flags. Every changed flag operation remains separately observable; masks must
 not be folded into one final notice (`0x004364E5`–`0x0043657F`). The exact selection
-of those masks for all remaining branches is still MS18.
+of those masks for the other branches is given next.
+
+### 4.6.3 Route-ready decisions and recovery (MS18) *[compat]*
+
+The route-ready controller consumes an ordered route of three-byte markers (unsigned
+cell x, unsigned cell z, mode). FE is the end/walking marker; FF is a failed dispatch
+result, not a successful ninth transport. The ordinary modes are 0, 1, 2, 3, 6, 7, 8.
+Bits 1, 4, 10, 20 and 40 below are **hexadecimal masks**, respectively idle,
+delay, stop wait, route switch ready and stuck. Several may coexist; priority matters.
+This section describes the dispatch's decisions; routing, network snapping, model
+creation and route acceptance are service inputs, not assumed successes.
+
+**Observable flag operations.** The tables give a removal mask C and addition mask A.
+After the indicated service calls/notices, install the selected travel type (one change
+counter increment if different), run the state setter (§4.6.1), run setStuck if A has
+40, perform idle setup `flags |= 0x2401` if A has 1, remove C, then add A.
+Each of these operations sends its own changed-flags notice and counter increment.
+An unchanged operation is silent. State is retained unless a row says otherwise.
+These are ordered effects, not a license to combine masks. The common tail always
+returns true, including recovery/failure decisions; a true return is not arrival.
+Evidence: instructions `0x004364E5`–`0x0043658B`.
+
+| Priority/input | Result before the common effects | C | A |
+|---|---|---|---|
+| Stuck 40 without idle 1 | State −1; retain travel and queue | 0 | 0 |
+| Idle 1, including stuck+idle | Use the idle recovery rules below | as below | as below |
+| Travel FE, no delay 4, current unequal to both home and commute | Deadline = now + idle minimum; retain travel/state/queue | 0 | 1 |
+| Stop wait 10 | Use §4.6.2's stop search/boarding; missing stop or a failed leg selects stuck | 0 on failure; 436 on successful leg | 40 on failure; 200 on successful leg; 0 while awaiting a vehicle |
+| Delay 4, now ≤ deadline | Wait; no leg attempt | 0 | 0 |
+| Delay 4, now > deadline | Attempt leg without a supplied automaton; travel = result | 0 on FF; 436 otherwise | 40 on FF; 200 otherwise |
+| No switch-ready 20 | Attempt leg without an automaton; success uses its travel result. On FF, skip to the next switch as described below | 436 on success; 2 on successful skip; 0 if no switch | 200 on success; 220 on successful skip; 0 if no switch |
+| Switch-ready 20 | Use the mode/marker table below | as below | as below |
+
+For a successful skip, current's cell becomes the marker immediately before the
+new switch, and travel takes that marker's mode. This is a cell relocation, not a
+destination arrival. If no switch remains, send `0xEBA06C12` and select state −1.
+`jumpToNextSwitch` advances only while the leg-start index is below the leg-end index,
+and rejects a resulting end-of-route/FE marker (`0x00434DF0`–`0x00434E23`). Leg
+partitioning skips equal-mode markers, snaps the segment to the network, and advances
+past an unsnappable zero-length non-FE segment; it is not random route selection
+(`0x00434230`). The successful skip and failure masks are verified at
+`0x00436459`–`0x004364DD`.
+
+| Switch-ready marker/source | Effect and notices before common effects | C | A |
+|---|---|---|---|
+| Marker FE, D > P² | Travel FE; deadline = now + idle minimum; send `0x2BAC398F(0,0,0)` | 460 | 423 if both locations are local; 427 otherwise |
+| Marker FE, D ≤ P², both locations local, no prior delay/idle, current differs from both home and commute | Travel FE; deadline = now + idle minimum; send `0xEBA06BD4(0,0,0)`; retain trip state | 460 | 423 |
+| Other near FE | Travel FE; state 3; add now to current's **duration** (+7C), not its deadline (+80); copy active to current only if active is valid; send `0xEBA06BD4(0,0,0)` | 8460 | 2 if both locations local; 6 otherwise |
+| Same ordinary source and marker mode | Reuse current automaton for next-leg dispatch. FF invokes setStuck immediately. Success separately adds 200, removes 400 and records the returned travel value | 20 | 0 before fallback below |
+| Different ordinary modes, target 0/1 | Release current occupant and held automaton; deadline = now + idle minimum; retain source travel during wait | 20 | 1 |
+| Different ordinary modes, target 2/3/6/7/8 | Release current occupant and held automaton; deadline = now + transit wait; retain source travel | 20 | 10 |
+| Source FE/FF, marker not FE and not the same source | Select state −1; no ordinary-mode switch wait | 20 | 0 before fallback |
+| Other mode (including 4/5 or unrecognized target) | No ordinary-mode wait; for an ordinary source, clear the held automaton | 20 | 0 before fallback |
+
+Before measuring FE-marker proximity, if either current or active is a neighbour,
+release current's occupant and clear the held automaton. Both-local testing uses
+each location's occupant/local flag, not the by-commute flag. D and P² have the
+width/rounding rules in §4.6.2. In the near-arrival row, copying active subsequently
+replaces the just-modified duration/deadline with the copied values; if active is
+invalid the modified duration remains. This odd duration write is literal
+(`0x0043629B`–`0x004362C5`), not a corrected `now + duration` deadline.
+
+**Switch fallback.** After a switch-ready decision, if A has none of bits in 53,
+add bits 3 to A, force travel FE, clear the destination queue and set deadline to
+now + idle minimum. This also happens after same-mode success or immediate
+setStuck: do not silently suppress it because an automaton was dispatched or a
+failure already notified. Immediate same-mode flag/notices precede the fallback
+and common tail. This fallback is not run by the earlier stop/delay/idle rows
+(`0x0043638F`–`0x00436454`).
+
+**Idle recovery.** Its initial removal mask is 2002. Obtain the held automaton,
+and its model information when available. If 2000 was set on entry, first send
+`0xEBA06BD0(0,0,0)` and retrieve the stored offset for the current model type.
+Only an existing model-type-2 automaton with model-info kind 7 and travel 0 or FE
+can continue directly. Otherwise snapshot current, substitute the current route
+marker's cell in that snapshot unless it is FE, and try road snapping first on
+current and then, if that fails, on the snapshot. If both fail, send EBA06C12,
+select state −1 and do not run the following expired-idle stage. On a successful
+snap, current receives the snapshot, EBA06BD0 is sent, and a one-marker fallback
+dispatch is attempted. Its FF result sends EBA06C12 and selects state −1. Its
+non-FF result replaces selected travel unless the stored source travel is FE.
+Thus two EBA06BD0 notices can occur in one update; do not deduplicate them.
+Evidence: `0x0043588D`–`0x00435AF4`.
+
+Only an idle entry with 2000 set continues into the expired-idle stage. Reacquire
+the held automaton; while it exists and deadline ≥ now, retain the wait and apply
+a stored model offset only when it is **strictly positive** (zero is not applied
+here). When absent or strictly expired, first clear idle bit 1, separately
+notifying, then measure D. Travel FE with switch-ready 20 completes at state 3,
+deadline = now + current duration, removal A403; copy active only if valid and
+D < P². Otherwise attempt a new leg. Success uses removal 2437/addition 200.
+On FF, try skipping a switch: success uses removal 2002/addition 220 and the
+preceding marker's cell/mode. If skipping fails but D < P², complete at state 3
+with removal A403 and deadline = now + current duration, copying active only if
+valid. Otherwise emit EBA06C12 and select state −1. These completions do not emit
+EBA06BD4. Evidence: `0x00435AF4`–`0x00435CA7`; strict idle proximity is distinct
+from the inclusive FE-marker test.
+
+**Stuck is also a notice producer.** setStuck first adds 2401 when not already
+idle and either flags have 12 or travel is 0/1; then always adds 440; then sends
+EBA06C12 even if neither flags operation changed anything. It does not itself
+change state, travel, current or active destination (`0x004320D0`). A delayed or
+stop-wait FF reaches it after the common state setter; same-mode FF reaches it
+before fallback. A subsequent stuck-without-idle update selects state −1.
+
+### 4.6.4 Neighbour retries, models and foreign transport inputs (MS18) *[compat]*
+
+**Neighbour retry quirk.** `updateNeighborLocation(index, location)`
+(`0x00434C40`–`0x00434DE4`) returns false for the shipped binary's normal execution.
+For a neighbour location it checks the regional connection, allocates an empty
+occupant list, links its sentinel to itself, and immediately tests that empty
+list. No service call populates it between initialization and test
+(`0x00434CC8`–`0x00434CDE`). Local locations and missing/empty regional connections
+also return false. Consequently no retry index selects a connection and no
+location is changed by this helper. The unreachable selection body decrements
+the supplied index once per matching occupant class, would select at zero
+(one-based), and would clamp the selected cell to city bounds; implementers must
+not invent an enumeration to make that body reachable. This rule settles the
+retry outcome, however unhelpful the original behavior appears.
+
+**Model choice is deterministic in this owner.** The mode-to-group mapping is
+0/FE → 4107, 1 → 420B, 2 → 4200, 3 → 4215, 6 → 4217, 7 → 422C, 8 → 422E;
+other modes map to group 0. Model type is 0 for car, 1 for ordinary walking, 2
+for idle walking or FE, and −1 for the transit/unknown modes. A missing walking
+model key substitutes group 4149 for male and 414A otherwise. The stored model
+map supplies resource keys and offsets; absent offsets are −1, not a random
+choice (`0x00432900`, `0x00432960`, `0x004329A0`).
+
+Creating an automaton uses current's world x/z and y=0, or (0,0,0) when current
+is invalid, the mapped group, stored key, creation flags 214042, dispatch's
+message target and FF priority. A created occupant gains property 1BC42C49=1
+(`0x00435170`–`0x004352A3`). A supplied automaton is retained only if its occupant
+matches the mapped group and its cancellation/busy test permits reuse; otherwise
+release it and request creation. Next-leg extraction must contain more than one
+route marker before basic dispatch is attempted (`0x00435540`). Failure to
+create, obtain the route interface or accept the route produces FF; do not
+treat creation alone as departure or arrival. Success retains the automaton's
+occupant, records model type and updates current from its reported position
+(`0x004352B0`–`0x00435528`).
+
+There is **no dispatch-owned random draw** in these decisions, recovery, model
+lookups or neighbour retries. Automata creation/model realization and movement
+are calls into foreign services. Their returned identity, group/model data,
+route-acceptance result, positions and ordered callbacks are explicit inputs to
+an independent dispatch model. This spec does not prescribe the foreign
+automata owner's internal RNG stream, nor permit drawing from the MySim
+residence generator as a substitute. No successful-trip evidence follows from
+an accepted destination or creation request.
+
+### 4.6.5 Automaton and mission callbacks (MS18) *[compat]*
+
+`DoMessage`'s `this` is dispatch+8. The following contracts use base-object
+locations/flags; the decompiler's apparent fields are displaced by eight bytes.
+For automaton message 09D92FC3, the subtype is the integer returned by message
+slot +38. Except subtype 5's state guard, matching the sender's occupant to the
+held automaton occupant is the guard specified below. All other subtypes have
+no dispatch effect. Evidence: `0x00437500`–`0x004378C4`.
+
+| Subtype/input | Dispatch effects in order |
+|---|---|
+| 1, idle bit set | Add 2000 with changed-flags notice, then update state; repeated bit still runs update |
+| 2, held occupant matches sender | If active-player 10000, call ExitUDriveIt; otherwise GoTo(active destination), then add 401 with changed-flags notice even when GoTo failed |
+| 5, state 2 and not active-player | Query held automaton's route interface. With at most one remaining marker, sample its position into current, add 420, select next leg, update state. Otherwise submit its remaining route excluding the first marker, with acceptance arguments true/false; do not advance the dispatch leg or synthesize arrival |
+| 9, held occupant matches sender | Release current's occupant if present and increment the change counter. If pending-player 20000, clear that bit with notice, then EnterUDriveIt. Sample held occupant position; if the sampled cell differs from current and not active-player, set approach flag 8000 iff squared integer cell distance to active is strictly below approach-cell tuning squared. Finally update current from the sampled world position |
+| Message 0BB324BD, data1=1, active-player set | ExitUDriveIt; other data1 values do nothing |
+
+The approach test uses signed 32-bit subtract/multiply/add and signed comparison
+(`0x004377CF`–`0x00437834`), with the low 32 bits of arithmetic; equality clears
+8000. This is a squared **cell** distance, unlike §4.6.2's truncated linear lot
+distance. While active-player control is set, automatic trip updates pause;
+subtype 9 can nevertheless process pending-entry and position input. Exit's
+queue/home/path/flag behavior remains §7.2.1; neither a mission callback nor
+Exit guarantees automatic arrival at the requested destination.
+
+Message 8BBBD22A calls the message's +80 accessor, then stores the boolean
+from +24 as the dispatch's tool/control latch. On A6B79601/A6B79611, a set
+latch causes the mission service's +88(false) call and clears the latch only
+when both its +8C and +34 queries are false (`0x0043797C`–`0x004379F6`).
+
 
 ### 4.7 Job, commute and residence changes
 
@@ -1452,9 +1630,135 @@ setStuck and returns false; otherwise true. It does not overwrite current locati
   true. State notification precedes that final flag notification. Exit does not directly emit an arrival
   notice; recovery runs on a subsequent state update.
 
-Dispatch-tool calls use this same GoTo destination contract. The remainder of transport selection,
-visual automaton construction, and mission-service callback details are MS18, not permission to report
-arbitrary successful arrivals. Conformance inputs must distinguish accepted requests from arrival.
+Dispatch-tool calls use this same GoTo destination contract. Transport decisions and mission callbacks
+are specified in §4.6.3–§4.6.5. Conformance inputs must distinguish accepted requests from arrival.
+
+### 7.2.2 Dispatch-tool lifecycle (MS18) *[compat]*
+
+`CreateDispatchTool` allocates/initializes the dispatch input control, installs it
+in the view's input-control stack with priority 2, and retains the installed
+control in the shared active-tool reference; failed initialization releases it
+and returns false (`0x00426830`). Input initialization is idempotent: cursor
+2BAC4970, timer units 4, enabled state, and a pylon occupant filter. It subscribes
+to 09C8B8EA, E94671EB/EC/ED, 894671F6 and AA25827C (`0x00439450`). The three
+E94671E* messages and 894671F6 are acknowledged without a destination request;
+AA25827C removes the control when its selected MySim is inactive. Input focus
+changes update enabled state; losing focus to a different non-48E2A1F8 control
+clears hover and restores the saved position/state of a dragged pylon
+(`0x004396E0`). Switching the selected MySim ends the old one's dispatch tool
+before retaining the new MySim (`0x00439840`).
+
+Beginning a MySim's dispatch tool requires a dispatch; it creates/configures the
+pylon if needed, attaches the MySim's unknown interface, clears locked state,
+marks the tool active and retains the current view control (`0x0042CB10`).
+Pylon picking requires both pylon interface C9B6D7D6 and its associated MySim
+interface 0A1DA42F; an arbitrary occupant under the cursor is insufficient
+(`0x00439890`). Hover changes release the former highlight and retain/highlight
+the replacement (`0x00439660`).
+
+Clicks use a timer-based double-click, not an OS double-click event. If the timer
+is running and elapsed is **less than 500**, the click is a double-click and
+resets the timer; otherwise restart it (`0x004399BE`–`0x004399E3`). With no current
+pylon, first try picking another MySim's pylon; otherwise begin the selected
+MySim's tool and place its pylon using the view's screen-to-world result and
+terrain height, if projection succeeds. Picking a pylon selects its MySim,
+unlocks it, and posts 8BBBD22A with the double-click boolean. A single click
+begins dragging and saves pylon position/state and cursor offset; a double-click
+does not begin a drag. For an already dragged pylon, a single click projects
+with the saved offset and updates its position; a double-click posts 8BBBD22A
+with data1=1. Both finish dragging and call the MySim's lock operation with true.
+Clicks without a view return unhandled; handled click paths finish through the
+control's normal reset operation (`0x00439980`–`0x00439C8C`).
+
+Mouse movement over an undragged pylon updates hover and cursor (13B138D0 for a
+pickable pylon, otherwise 2BAC4970). While dragging, hold movement during the
+running timer's first 500 units, then reset it and use offset-adjusted projection
+and terrain height. The MySim's target test supplies the validity boolean;
+invalid movement sets pylon state 1; valid movement updates position and sets
+state 3. The input control does not itself manufacture route completion
+(`0x00439C90`). Key-down delegates the key-pass test and returns false
+(`0x00439380`).
+
+Locking with true converts the pylon occupant into a location, preferring the
+building occupant of the lot at that cell when available and binding the pylon
+to it. Compare that location to the active destination using the existing
+occupant/local and cell rules. Only a changed eligible target calls GoTo;
+success sets pylon state 3, posts 4BC42C48, sets MySim state 6 and restarts the
+player-trip timer; failure sets pylon state 1. A repeated target makes no new
+GoTo call. The locked byte is stored even if no new trip is requested or GoTo
+fails. Unlocking clears the pylon's bound occupant (`0x00427120`–`0x004272AC`).
+
+Ending marks the tool inactive. If it was active, unlocked and still has a
+dispatch, destroy its pylon unless dispatch state is 2 with an active
+occupant/local destination matching the pylon. Destroying calls the pylon's
+destroy operation, releases the held reference, and clears locked state
+(`0x00426480`, `0x004264C0`). Shutdown unregisters its subscriptions, clears hover,
+restores any dragged pylon's saved position/state, ends the selected MySim's
+tool, disables dragging, releases the filter and shuts down the base input
+control (`0x00439540`). These lifetime effects are separate from GoTo acceptance.
+
+### 7.2.3 Native dispatch interface and observation limits (MS20) *[compat]*
+
+IID EB8B6F9A is the concrete dispatch's primary unknown interface, **not** a
+virtual interface containing all of the named dispatch methods. Its entire
+primary vtable at A857CC has the following nine entries. The next word at
+A857F0 is data pointing to another table, not a tenth method. Constructor
+instructions install that primary table, message-target table A857BC at +8 and
+serializable table A857A4 at +C (`0x00433A79`–`0x00433A86`). QI returns base
+for EB8B6F9A, base+8 for 452294AA, base+C for E4FDA3D4, and AddRefs a successful
+result (`0x004311F0`–`0x00431253`). All calls below are x86 thiscall; only the low
+byte is meaningful for boolean returns. Arguments occupy 32-bit stack slots.
+
+| Slot / offset | Contract | Pop / return | Evidence |
+|---|---|---|---|
+| 0 / 00 | QueryInterface(u32 iid, void** out), clears out before testing; successful out owns one reference | 8 / bool AL | 004311F0 |
+| 1 / 04 | AddRef(), increases reference count | 0 / u32 EAX | 0057EB00 |
+| 2 / 08 | Release(), releases one reference; final release destroys the object | 0 / u32 EAX | 0057EB70 |
+| 3 / 0C | Scalar deleting destructor(u32 deleteFlags); runtime destruction entry, not Init | 4 / object address EAX | 00434650–0043466D |
+| 4 / 10 | RemoveRef(), decrements a nonzero reference count without destruction | 0 / u32 EAX | 0090D981–0090D98F |
+| 5 / 14 | GetRefCount(), reads the reference count; shared body's exported name is misleading | 0 / u32 EAX | 009D7E63–009D7E66 |
+| 6 / 18 | CanUDriveIt(), §7.2.1; no ownership transfer | 0 / bool AL | 00431D00 |
+| 7 / 1C | EnterUDriveIt(), §7.2.1; mutating request | 0 / bool AL | 00437340 |
+| 8 / 20 | ExitUDriveIt(), §7.2.1; mutating request | 0 / bool AL | 00434360 |
+
+Init/Shutdown, AddDestinationLocation, GoTo, setters, all four location getters,
+clock/wait getters and geometry/stop helpers have **no slots on this IID**.
+They are direct concrete-class calls; a method name/address does not make a
+public callable interface. Location getters return borrowed addresses inside
+the dispatch, not AddRef'd location objects. The public MySim interface has no
+GetDispatch method either (§7.2), and GetActiveMySims explicitly excludes inactive
+MySims (§7.1). A class-factory-created dispatch is a fresh object, not discovery
+of a MySim's existing dispatch. Serialization may expose a dispatch reference
+for a serialized active MySim, but the state-zero MySim record omits that
+reference (§6.2); it is not a universal inactive-owner discovery mechanism.
+
+There is **no public read-only observer that receives every dispatch input**.
+Queue/GoTo/tuning calls are direct, owner notices are synchronous outputs
+(§3.3), and automaton queries/callbacks carry additional foreign state. Minute
+and animation subscriptions cannot recover missing requests. A snapshot or
+serialized record may compare specified fields, but reconstructing the inputs
+from those outputs and replaying them is not independent verification. Live
+independent replay requires an explicitly instrumented input boundary capturing
+request arguments, ordered service results and callbacks, or controlled test
+fixtures supplying those inputs. This is a limitation of the original public
+ABI, not an undocumented slot to guess or permission to mutate live owners.
+
+**Constructor guarantees.** In addition to state/previous −1, flags/minutes 0
+and travel FF: change counter +34 and auxiliary +38 are 0; tracking scalar +3C
+is −1; wait timestamp +54 is 0. Tuning +14/+18 are signed integer 10 and
++1C/+24 are signed integer 5. Each of current/home/active/commute starts with
+null occupant, world x/z −16.0f, cell and region x/z −1, local/occupant flag 1,
+by-commute flag 0, duration/deadline 0. Queue, route and model map are empty;
+held automaton, service/pathfinder references and auxiliary string are empty;
+model type +15C is −1 and deferred-init byte +188 is 0. The constructor retains
+its supplied owner when non-null. These are explicit stores in
+`0x00433A60`–`0x00433D37`; shift-by-4 followed by integer-to-float stores gives
+the −16.0 coordinates. Fields such as tuning +20 and leg indices +2C/+30 are
+not assigned by this constructor: **do not promise zero or a tuned default**
+for them before initialization. Padding, allocation addresses and container
+capacity are likewise not semantic defaults. Init/Lua tuning and deserialization
+can subsequently replace constructor values. No replay claim may assume the
+entire allocated object was zero-filled.
 
 ## 8. Random numbers *[compat]*
 
@@ -1466,8 +1770,9 @@ No other simulation-side draw exists in the agent or MySim class. The dispatch e
 clock/deadline arithmetic, wait getter, state/flag notification setters and record read/write specified above
 make **no RNG draw** and must not consume the MySim residence-search generator. Its constructor does not
 construct a cRZRandom member: its call to `0x008EC270` initializes deque storage (allocation
-and block arithmetic), not a seed. No RNG bytes appear in §6.2.1. The transport/automata handoff's delegated
-randomness remains MS18; do not infer a per-dispatch generator or replay a residence draw for it.
+and block arithmetic), not a seed. No RNG bytes appear in §6.2.1. Transport/model
+choices and the boundary to foreign automata randomness are specified in §4.6.4;
+do not infer a per-dispatch generator or replay a residence draw for it.
 Balloon/idle-animation and advice-script randomness belongs to the corresponding UI/advisor owners.
 
 ---
@@ -1549,9 +1854,10 @@ the MySims own no grid).
 - Nobody reads MySim or agent memory by offset outside these classes *[inferred: no raw offsets found]*.
 - **Dispatch**: the replacement must retain separate current/default/active/commute locations, destination
   queue, time and state/flag notifications (§4.6.1), its own serialized record (§6.2.1), and request/arrival
-  distinction (§7.2.1). An immediate-arrival stub is not conformant. MS18 identifies the remaining transport
-  handoff work before the whole dispatch owner can be declared complete; balloon rendering may be provided
-  by its UI owner independently.
+  distinction (§7.2.1). An immediate-arrival stub is not conformant. Transport handoffs are specified in
+  §4.6.2–§4.6.5. Whole-owner implementation/verification still requires independent input capture and
+  comparison; §7.2.3 explains why the public ABI alone cannot supply every input. Balloon rendering may
+  be provided by its UI owner independently.
 
 ---
 
@@ -1573,6 +1879,9 @@ the MySims own no grid).
 11. `MySim::Read` accepts any version (§6.2).
 12. Ageing uses the advisor month counter and a birth month fixed at move-in, so a MySim ages once per 12 monthly
     steps regardless of the calendar.
+13. Dispatch neighbour retries always fail because their candidate list remains empty (§4.6.4).
+14. Near FE completion adds now to the duration field, and same-mode continuation can clear queued
+    destinations through the idle fallback (§4.6.3).
 
 ### 11.2 Open questions
 
@@ -1720,3 +2029,35 @@ vectors, not implemented tests or captured game traces.
 | MS18-03 lot geometry direction | A point rectangle (0,0,0,0), B rectangle (−2,−2,2,2) | Helper(A,B)=2, helper(B,A)=0. Altering world positions without changing cell/lot resolution does not change these results |
 | MS18-04 stop enumeration | Target mode 3, missing current occupant; two returned purpose-1300 stops A then B, B closer | Choose A, set group 4215, update current from A, deadline now + transit wait and wait timestamp now; EBA0732E data=(1300,0,0) precedes automaton clearing. Reversing enumeration reverses selection |
 | MS18-05 wait boundary | Transit flag 10, selected stop, now 100, deadline 100 versus 99; foreign next-leg attempt returns FF | At 100 search for a matching-group automaton and remain waiting if none. At 99 attempt the next leg without a supplied automaton and take stuck on FF. No synthetic arrival |
+
+### 12.29 MS18 complete dispatch-side decisions and MS20 observation *[compat]*
+
+These are normative, prose conformance vectors for implementers. They are not
+engine test additions or captured native traces. Unless stated otherwise, a
+fixture has state 2, an attached owner, distinct valid locations, now 100,
+idle minimum 5, transit wait 7 and no unrelated flags. Foreign service answers
+are configured inputs; expected dispatch state is computed independently.
+
+| Vector | Input | Expected observation |
+|---|---|---|
+| MS18-06 all ordinary pairs | Cartesian product source/target in {0,1,2,3,6,7,8}, unequal; flags 20 | For target 0/1: deadline 105, flags 2401, source travel retained. For target 2/3/6/7/8: deadline 107, flags 10, source travel retained. Occupant/automaton released. No arrival notice. Exercises all 42 unequal pairs |
+| MS18-07 same-mode fallback | Source=target 1, flags 420, queue Q; supplied automaton accepts next leg | Before common tail, flags notices 420→620→220. Fallback clears Q, travel FE, deadline 105; idle setup gives 2621, removal 20 gives 2601, addition 3 gives 2603. State remains 2. No arrival notice |
+| MS18-08 FE/FF source | Flags 20, source FE or FF, current equal to home to bypass earlier FE idle; marker 1, queue Q | State −1; fallback empties Q, travel FE, deadline 105, flags 2403. State notice precedes flag notices. FF is not dispatched as a transport |
+| MS18-09 delay expiry | Flags 4, deadline 100 versus 99; configured next-leg result 1 | Equality: no service call, flags/travel unchanged. Expired: attempt once, travel 1, flags 200 via separate removal/addition. No arrival |
+| MS18-10 stuck ordering | Flags 4, expired delay; next leg FF | Travel FF; setStuck sends flags 4→444 then EBA06C12; common addition 40 is silent. State remains 2 until next update selects −1. No home/current copy |
+| MS18-11 idle+stuck priority | Flags 41, travel FE, no held automaton, both road-snap attempts fail | Idle recovery is selected ahead of stuck-without-idle. EBA06C12 then state −1; travel remains FE. No arrival and no next-leg service call |
+| MS18-12 neighbour retries | Neighbour location with existing nonempty regional connection; retry indices 0,1,2 and 99 | Each returns false, location byte-for-byte semantically unchanged; no connection occupant enumeration, no RNG draw. Repeat with local location or absent connection: same false outcome |
+| MS18-13 near local FE | Flags 20, marker FE, D=P², current=home, active valid with duration 9/deadline 777 | EBA06BD4 before state/flag tail; active copied to current, so final duration/deadline 9/777; state 3, travel FE, flags 2; no 2BAC398F |
+| MS18-14 invalid active FE | Same as MS18-13, but active invalid; current duration 9/deadline 777 and configured D≤P² | State 3, current retained with duration 109 and deadline 777. EBA06BD4 still occurs. Exposes duration-versus-deadline write without a valid-location copy hiding it |
+| MS18-15 far FE | Flags 20, both locations local, marker FE, D>P² | 2BAC398F before common effects; state 2, travel FE, deadline 105, flags 2423. No EBA06BD4 or arrival |
+| MS18-16 stop boarding failure | Flags 10, selected stop, deadline 100; ordered matching vehicle A then B, A answers automaton QI and rejects leg | Try A first; FF selects stuck rather than silently trying B. Travel FF; ordered stuck flag notices then EBA06C12; no arrival |
+| MS18-17 duplicate idle notice | Flags 2001; existing automaton fails direct-continuation model test; road snap succeeds; fallback dispatch FF; no held automaton remains | EBA06BD0 at entry, EBA06BD0 before fallback dispatch, EBA06C12 on dispatch failure. Then expired-idle recovery may make further calls/notices; the first two start notices remain distinct |
+| MS18-18 callback identity | Subtype 2 from different occupant versus held occupant, active-player clear | Different sender: no GoTo/flags. Matching sender: GoTo(active), then add 401 even if request fails; no synthetic arrival |
+| MS18-19 approach equality | Subtype 9, matching held occupant, current cell differs from sampled cell, active-player clear; active at (0,0), sampled at (3,4), approach tuning 5 | Squared distance 25 equals 25, so clear 8000. Tuning 6 sets 8000. Current then takes sampled position; no linear lot-distance test |
+| MS18-20 pending player | Subtype 9 from held occupant; flags 20000, car automaton satisfies player guard | Clear pending flag and notify before EnterUDriveIt; entry may set active-player 10000; automatic trip progress pauses. Wrong sender cannot consume pending entry |
+| MS18-21 mission exit | Active-player set; message 0BB324BD data1=1 versus 0 | 1 invokes §7.2.1 Exit including state-before-final-flags order; 0 leaves control unchanged. Neither reports successful automatic arrival |
+| MS18-22 click boundary | Running click timer elapsed 499 versus 500 | 499 is double-click/reset; 500 is single-click/restart. Drag movement is held below 500 and allowed at 500; no simulation-minute conversion |
+| MS18-23 lifecycle | Dragged pylon with saved position/state, hover reference, selected MySim; shutdown | Unsubscribe, clear highlight/reference, restore saved drag position/state, end MySim tool, release filter/base control. No fabricated destination request or arrival |
+| MS20-01 interface extent | QI EB8B6F9A, 452294AA and E4FDA3D4 | Returned pointers base/base+8/base+C each own one added reference. Primary slots 3/4/5 are destructor/RemoveRef/GetRefCount, never Init/Shutdown/queue. Release QI references normally; do not call destructor/RemoveRef in a live observation fixture |
+| MS20-02 constructor | Construct without Init, null owner | Four invalid local locations with cell/region −1, world −16f and zero timing; tuning 10/10/5/5 only at +14/+18/+1C/+24; counters/timestamp zero and tracking/model type −1. Exclude +20 and leg indices from default comparisons |
+| MS20-03 observability | Only minute/animation subscriptions and serialized outputs; an owner directly calls GoTo between samples | Capture is incomplete; no independent live replay verdict. Native output cannot supply the missing request input. Fresh class-factory object and active-only enumeration do not discover an inactive owner's dispatch |

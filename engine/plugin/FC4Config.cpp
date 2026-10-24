@@ -390,6 +390,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "renderprops_shadow",
                                   // EX54/EX55 read-only packed-file shadow, default off.
                                   "dbpf_shadow",
+                                  // HG8 bounded read-only city geometry (default off).
+                                  "city_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
