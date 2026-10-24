@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // data-formats sections 2 and 8.1. Public SDK calls only; no private ABI.
 #include "FC4DbpfNative.h"
+#include "FC4DbpfRotation.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -39,16 +40,33 @@ struct Counts {
     unsigned zero = 0, one = 0, multi = 0, failed = 0;
     unsigned listFalse = 0, keyDifferences = 0, countDifferences = 0;
 };
-struct HeldFile { cIGZPersistDBSegment* segment; cIGZDBSegmentPackedFile* packed; };
+struct HeldFile {
+    cIGZPersistDBSegment* segment;
+    cIGZDBSegmentPackedFile* packed;
+    std::string path;
+};
 struct HeldSample {
     int32_t julian = 0;
     std::vector<HeldFile> files;
     size_t next = 0;
     Counts counts;
+    bool full = false;
+    uint64_t month = 0;
+    size_t available = 0, first = 0;
 };
 // Main-thread only. Retain only references explicitly acquired by QI, never
 // borrowed manager/index pointers. Both readers run together for each file.
 std::deque<HeldSample> pending;
+bool shadowLoaded = false;
+uint64_t shadowMonth = 0, completedFiles = 0, completedRecords = 0;
+uint64_t coverageCycle = 0;
+std::map<std::string, unsigned> covered, rotationCovered;
+
+unsigned CoverageRecords(const std::map<std::string, unsigned>& files) {
+    unsigned records = 0;
+    for (const auto& file : files) records += file.second;
+    return records;
+}
 
 // Validate interface table storage and every published method address against
 // the identified supported image. These addresses are never called untyped.
@@ -413,7 +431,11 @@ void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& v
     if (segment->QueryInterface(GZIID_cIGZDBSegmentPackedFile, reinterpret_cast<void**>(&packed)) && packed) {
         FC4_ACQUIRED(packed, "DBPF shadow packed QI");
         if (!Interface(packed, 39)) { ++c.refusal; return; }
-        if (segment->IsOpen()) sample.files.push_back({segment, packed});
+        if (segment->IsOpen()) {
+            cRZBaseString path;
+            packed->GetPath(path);
+            sample.files.push_back({segment, packed, path.ToChar()});
+        }
         else FC4_RELEASE(packed);
         return;
     }
@@ -436,6 +458,9 @@ void DbpfShadowObserve(int32_t julian) {
     pending.emplace_back();
     auto& sample = pending.back();
     sample.julian = julian;
+    sample.full = !shadowLoaded;
+    shadowLoaded = true;
+    sample.month = sample.full ? 0 : shadowMonth++;
     auto& c = sample.counts;
     std::set<cIGZPersistDBSegment*> visited;
     auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
@@ -447,6 +472,20 @@ void DbpfShadowObserve(int32_t julian) {
         for (uint32_t i = 0; i < manager->GetSegmentCount(); ++i)
             VisitHeld(manager->GetSegmentByIndex(i), visited, sample);
     }
+    std::sort(sample.files.begin(), sample.files.end(), [](const HeldFile& a, const HeldFile& b) {
+        return a.path < b.path;
+    });
+    sample.available = sample.files.size();
+    if (!sample.full) {
+        const auto subset = DbpfMonthlySubset(sample.available, sample.month);
+        sample.first = subset.first;
+        std::vector<HeldFile> selected;
+        for (size_t i = 0; i < sample.files.size(); ++i) {
+            if (subset.Contains(i, sample.available)) selected.push_back(std::move(sample.files[i]));
+            else FC4_RELEASE(sample.files[i].packed);
+        }
+        sample.files = std::move(selected);
+    }
 }
 
 namespace {
@@ -456,15 +495,30 @@ void HeldSummary(const HeldSample& sample) {
     fc4_date date{};
     fc4_date_from_julian(sample.julian, &date);
     Log("dbpf shadow %04d-%02d-%02d: files=%u opened=%u indexes=%u records=%u raw=%u payload=%u "
-        "compressed=%u empty=%u refusals=%u scope=resource-manager-packed mismatches=%u",
+        "compressed=%u empty=%u refusals=%u scope=resource-manager-packed "
+        "subset=%s first=%u selected=%u available=%u completed=%u/%u "
+        "cumulative_files=%llu cumulative_records=%llu covered_files=%u/%u covered_records=%u "
+        "rotation_cycle=%llu rotation_files=%u/%u rotation_records=%u/%u mismatches=%u",
         date.year, date.month, date.day_of_month, c.files, c.opened, c.indexes, c.records, c.raw, c.payload,
-        c.compressed, c.empty, c.refusal, c.differ + c.refusal);
+        c.compressed, c.empty, c.refusal, sample.full ? "full" : "rotate",
+        static_cast<unsigned>(sample.first), static_cast<unsigned>(sample.files.size()),
+        static_cast<unsigned>(sample.available), static_cast<unsigned>(sample.next),
+        static_cast<unsigned>(sample.files.size()),
+        static_cast<unsigned long long>(completedFiles), static_cast<unsigned long long>(completedRecords),
+        static_cast<unsigned>(covered.size()), static_cast<unsigned>(sample.available), CoverageRecords(covered),
+        static_cast<unsigned long long>(coverageCycle), static_cast<unsigned>(rotationCovered.size()),
+        static_cast<unsigned>(sample.available), CoverageRecords(rotationCovered), CoverageRecords(covered),
+        c.differ + c.refusal);
 }
 }
 
 void DbpfShadowTick() {
     if (pending.empty()) return;
     auto& sample = pending.front();
+    if (!sample.full && coverageCycle != sample.month / 12 + 1) {
+        coverageCycle = sample.month / 12 + 1;
+        rotationCovered.clear();
+    }
     const DWORD started = GetTickCount();
     auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     // Return to the framework between files. Each measured large file took
@@ -473,7 +527,19 @@ void DbpfShadowTick() {
     while (sample.next < sample.files.size()) {
         auto& file = sample.files[sample.next++];
         if (!com || !file.segment->IsOpen()) ++sample.counts.refusal;
-        else CompareHeld(com, file.segment, file.packed, sample.counts);
+        else {
+            const auto before = sample.counts;
+            CompareHeld(com, file.segment, file.packed, sample.counts);
+            // Coverage credit requires the entire file to finish exactly. The
+            // rotation always compares its complete index, raw and payload data.
+            if (before.refusal == sample.counts.refusal && before.differ == sample.counts.differ) {
+                const unsigned records = sample.counts.records - before.records;
+                covered[file.path] = records;
+                if (!sample.full) rotationCovered[file.path] = records;
+                ++completedFiles;
+                completedRecords += records;
+            }
+        }
         FC4_RELEASE(file.packed);
         file.packed = nullptr;
         if (GetTickCount() - started >= 800) break;
@@ -494,6 +560,10 @@ void DbpfShadowShutdown() {
         HeldSummary(sample);
     }
     pending.clear();
+    shadowLoaded = false;
+    shadowMonth = completedFiles = completedRecords = coverageCycle = 0;
+    covered.clear();
+    rotationCovered.clear();
 }
 
 void DbpfNativeCityLoaded() {

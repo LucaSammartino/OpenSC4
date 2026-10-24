@@ -1113,3 +1113,8 @@ add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
 endif()
+
+# DBPF shadow: every rolling year covers all deterministically sorted files.
+add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
+target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
+add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
