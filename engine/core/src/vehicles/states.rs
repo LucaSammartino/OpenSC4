@@ -12,11 +12,9 @@ impl TrafficAutomaton {
         if kind == 13 {
             return Ok(self.owner().blocked_wait_tick(dt_ms, movement.speed_scale, world));
         }
-        if kind == 30 {
-            if tween_value(&self.record.base.f3[..4]) > 0.0 {
-                self.owner().path_tick(dt_ms, movement, false, world)?;
-            }
-            // Station calls the base dispatcher after its path move (automata §6.5).
+        // Station calls the base dispatcher after its path move (automata §6.5).
+        if kind == 30 && tween_value(&self.record.base.f3[..4]) > 0.0 {
+            self.owner().path_tick(dt_ms, movement, false, world)?;
         }
         let mut facade = Vehicle::default();
         facade.record.traffic = std::mem::take(&mut self.record);

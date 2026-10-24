@@ -33,3 +33,14 @@
   inherited handlers return Unsupported; do not run the game's owner. Generic
   DEFAULT/BEE_LINE/CHASE/BUMPED seek, SCRIPTED, disappearance, vehicle IDLE,
   collide, wait, station, plummet and pull-over have core handlers.]
+
+<!-- from: core-vehicles-close11 (2026-10-24) -->
+- **VH10 - §12.3 Init virtual bodies and managers §5 slot 158:** §12.3 says
+  Vehicle loads drive parameters through slot 158; managers §5 describes that
+  slot as a random lateral-offset draw. Specify the inputs, fields and ordering
+  of the complete slot-158 body, and Traffic's slot-134 body invoked on fresh
+  non-straight Init. Is that body BeginRoute or another route operation, and
+  what are its empty-route/failure effects? [Init owner additions/model-failure
+  ordering are implemented, but the current InitWorld owner-slot hooks are
+  provisional and do not count as closed core algorithms. They must be replaced
+  with specified core behavior or an explicit open-contract result.]

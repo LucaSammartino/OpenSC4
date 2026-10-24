@@ -379,9 +379,8 @@ impl Vehicle {
         }
     }
 
-    /// The direction distribution is open (VH6). It is never replaced with a
-    /// made-up RNG algorithm. A resolved direction can enter the known crash.
-
+    /// Test/setup helper for a fully resolved direction. Native collision
+    /// perturbation and already-colliding behavior are in handle_collision.
     pub fn enter_collision(&mut self, direction: Vec3, world: &mut impl VehicleWorld) -> Result<bool> {
         world.post_message(COLLISION_MESSAGE);
         self.record.traffic.base.automata_flags |= 0x10000000;
