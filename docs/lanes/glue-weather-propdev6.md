@@ -8,8 +8,9 @@
 - Prior lane file absent from main; read from commit cea30b3cc without switching refs.
 - Prior weather implementation and measurements exist on unlanded commits; WE1 daily wind arithmetic question was filed there, not on current main.
 - Weather source restored from prior lane's engine-only changes and integrated additively with current main; dated monthly lines use `weather shadow <date>:`. Default-off, full save record comparison and independent CRT replay; no model resynchronization.
-- Focused test session 62174 running; native verify session 31147 queued as qbuild-20261024-022343-build-ctest. Collect these operations to terminal; do not duplicate.
+- Focused weather Rust tests 3/3 passed; owned weather.rs fmt passed.
+- Native verify qbuild-20261024-022343-build-ctest terminal PASS: 233/233 build edges (96.4s), CTest 72/72 (162.2s), total 262.3s. Reports tree changed (source was committed while queued); final stable-source full gate remains required.
 - Diagnostic: q.py cannot start Git Bash in this sandbox (CreateFileMapping error); use direct PowerShell commands. fmt paths are relative to engine/, so use capi/src/weather.rs.
 - Next: collect focused/native results, weather-only game run; complete prop developer observation using PV14/PV15.
-- No game request outstanding in this worktree.
+- Weather-only turbo request gwp6-weather-2032-a outstanding. Collect via build-runs/wait-verdict.ps1 (no qwait). Summary script build-runs/shadow-summary.py prints exact counts and next free run number.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-weather-propdev6-r1-manifest.json.
