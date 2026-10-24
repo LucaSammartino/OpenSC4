@@ -651,7 +651,7 @@ public:
                 fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
                 fc4::Span8CityLoaded();
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
-                fc4::MySimDispatchShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                fc4::MySimDispatchShadowCityLoaded(CurrentCity());
                 OverlaysShadowCityLoaded(CurrentCity());
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.

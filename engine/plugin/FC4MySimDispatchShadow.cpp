@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4MySimDispatchShadow.h"
 #include "FC4Config.h"
+#include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Subsystems.h"
@@ -56,6 +57,7 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     // Never Init or Read the fixture: it must not subscribe to city messages.
     if (!FindEnabledClass(kDispatch, nullptr) && com && com->GetClassObject(kDispatch, kSerializable, &out) && out) {
         auto* fixture = static_cast<cIGZSerializable*>(out);
+        FC4_ACQUIRED(fixture, "dispatch constructor fixture factory owned");
         if (Compare(fixture, true, fields, differences)) ++fixtures;
         else ++errors;
         FC4_RELEASE_CREATED(fixture);
@@ -87,5 +89,12 @@ void MySimDispatchShadowShutdown() {
     if (months) Log("mysimdispatch: measured %u/%u exact constructor/header samples; live trip owner remains unverified (MS20/MS18)", clean, months);
     lastMonth = 0;
     months = clean = 0;
+}
+
+void MySimDispatchShadowCityLoaded(cISC4City* city) {
+    // PublishedJulian is not available on every load callback. Use the same
+    // public simulator date getter as the existing MySims load shadow.
+    auto* simulator = AsGame(city ? city->GetSimulator() : nullptr);
+    MySimDispatchShadowMonth(city, simulator ? simulator->GetSimDateNumber() : 0);
 }
 }
