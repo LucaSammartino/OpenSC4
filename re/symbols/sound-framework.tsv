@@ -1,0 +1,21 @@
+va	name	evidence	mac_x86
+009666f4	cGZSndSys::UpdateTimerCallback	sound-system.md §2.2 (20 ms callback timer)
+00966a1b	cGZSndSys::DoMessage	sound-system.md §2.2 (message type 0xDB53383B)
+00969bf2	cGZSndSegmentDataSourceCreator::Create	sound-system.md §4.1 (XA, UTalk, MP3, WAV order)
+00969e08	cGZSndSegmentDataSourceCreator::cGZSndSegmentDataSourceCreator	sound-system.md §4.1 (CLSID 0xDC1F73D6)
+0096a382	cGZSndPropertyCache::cGZSndPropertyCache	sound-system.md §4.2 (CLSID 0x9D4C6B95)
+0096a3de	cGZSndPropertyCache::CreateInstanceSet	sound-system.md §4.2
+0096ac16	cGZSndDefaultEventHandler::cGZSndDefaultEventHandler	sound-system.md §4.3 (CLSID 0x7DC495CC)
+0096a972	cGZSndDefaultEventHandler::DoEvent	sound-system.md §4.3
+0096ae6b	cGZSndWavFileDataSource::Open	sound-system.md §4.4 (mmio, PCM only)
+0096b078	cGZSndXAFileDataSource::Open	sound-system.md §4.5 ("XA" header)
+0096b1f5	cGZSndXAFileDataSource::cGZSndXAFileDataSource	sound-system.md §4.5 (CLSID 0x1D07EB4B, 0xF84 bytes)
+0096b28c	cGZSndXAFileDataSource::Read	sound-system.md §4.5
+0096b34f	cGZSndXAFileDataSource::DecodeMono	sound-system.md §4.5 (15-byte frames)
+0096b4de	cGZSndXAFileDataSource::FillBuffer	sound-system.md §4.5 (0xF00 bytes)
+0096b544	cGZSndXAFileDataSource::DecodeStereo	sound-system.md §4.5 (30-byte frames)
+0096b919	cGZSndWavFileDataSource::cGZSndWavFileDataSource	sound-system.md §4.4 (CLSID 0xBB7051F5)
+00968ae7	cGZSndMgr::GetSound	sound-system.md §3.2 (name form: CRC24 | 0xFF000000)
+009693c0	cGZSndMgr::GetSound	sound-system.md §3.2 (id form)
+009694a2	cGZSndMgr::SndAutoPlay	sound-system.md §3.2
+00967885	cGZSndSys::UpdateTargets	sound-system.md §2.3 (250 ms slow round)

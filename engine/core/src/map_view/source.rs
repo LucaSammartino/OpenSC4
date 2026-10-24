@@ -44,6 +44,7 @@ pub struct GridRequest {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeveloperGrid {
+    CapacityPercentage,
     Unsigned16Slot14,
     Signed16Slot13,
     /// Select slot 11 entries and the documented ×12 operation only.
@@ -106,7 +107,7 @@ pub fn select_source(source: u32, layer: u32, debug: bool) -> Result<SourceSelec
             let grid = match layer {
                 2 => DeveloperGrid::Unsigned16Slot14,
                 3 | 4 => DeveloperGrid::Signed16Slot13,
-                5 => return Err(Unsupported::DeveloperLayer5QV4),
+                5 => DeveloperGrid::CapacityPercentage,
                 6 => DeveloperGrid::DebugEntriesTimes12,
                 // [literal, QV4] Even the documented default layer 1 has no
                 // published grid selection. Do not infer one from its name.

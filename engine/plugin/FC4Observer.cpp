@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Observer.h"
+#include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
@@ -66,6 +67,7 @@
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4NetToolDragShadow.h"
+#include "FC4QueryToolShadow.h"
 #include "FC4NetRulesShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
@@ -107,8 +109,10 @@
 #include "FC4GZMsgShadow.h"
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
+#include "FC4GDriverShadow.h"
 #include "FC4DbpfNative.h"
 #include "FC4AppShadow.h"
+#include "FC4ViewUtilShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -638,6 +642,7 @@ public:
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
                 NetRulesShadowCityLoaded();
                 NetToolDragShadowLoaded(CurrentCity());
+                QueryToolShadowObserve(CurrentCity(), 0, true);
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
@@ -687,6 +692,8 @@ public:
                 CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LightingShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 AppShadowObserve(static_cast<int32_t>(PublishedJulian()), true);
+                GDriverShadowCityLoaded();
+                ViewUtilShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
@@ -747,6 +754,8 @@ public:
                 GZMsgShadowCityShutdown();
                 RenderPropsShadowCityShutdown();
                 LightingShadowCityShutdown();
+                GDriverShadowCityShutdown();
+                ViewUtilShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
@@ -805,6 +814,8 @@ public:
                 RenderPropsShadowMonth(julian);
                 CityShadowObserve(CurrentCity(), julian, false);
                 LightingShadowMonth(julian);
+                GDriverShadowMonth(julian);
+                ViewUtilShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
                 DbpfShadowObserve(julian);
@@ -823,6 +834,7 @@ public:
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 NetRulesShadowMonth(julian);
                 NetToolDragShadowMonth(CurrentCity(), julian);
+                QueryToolShadowObserve(CurrentCity(), julian, false);
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
@@ -832,6 +844,7 @@ public:
                 DatesProbe(CurrentCity(), "month");
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
+                LegacyCtlShadowMonth(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

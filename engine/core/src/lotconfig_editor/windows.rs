@@ -21,9 +21,8 @@ pub enum WindowEffect {
     Sort(u64, u32, bool, u32, u32),
     RemoveRow(u64, u32, u32, u32),
     Error(&'static str, &'static str),
-    /// The spec establishes this native message, including "non-existant",
-    /// but does not publish its full text (LE8). No text is invented here.
-    FileUnavailableError,
+    /// Clear/store order is observable around Release (§7.1).
+    ClearReference(u32),
     CopyController(u64, Option<u64>),
     AttachChooser(u64),
     WindowManager94(u64),
@@ -258,6 +257,18 @@ impl Chooser {
         }
         h.effect(Effect::Release(p)); // temporary creation reference
     }
+    /// Compose the actual core Open outcome, including Unsupported, with the
+    /// native cleanup/registration protocol. Partial Read effects are retained.
+    pub fn finish_core_edit(
+        &mut self,
+        pending: PendingEditor,
+        editor: &Editor,
+        opened: Result<bool>,
+        h: &mut impl WindowHost,
+    ) -> Result<bool> {
+        self.finish_edit(pending, opened == Ok(true), editor.identity.id, h);
+        opened
+    }
     pub fn editor_closed(&mut self, pointer: u64, h: &mut impl Host) {
         if self.editors.remove(&pointer).is_some() {
             h.effect(Effect::Release(pointer));
@@ -358,7 +369,11 @@ impl Chooser {
             return Ok(());
         }
         if !h.file_writable_and_exists(&identity.path) {
-            h.window_effect(WindowEffect::FileUnavailableError);
+            h.message_box(
+                "The exemplar you are trying to delete is either non-existant or write-protected.\n\n",
+                "No can do",
+                (0x10000, 1, 0),
+            );
             return Ok(());
         }
         if !h.delete_item(identity)? {
@@ -497,20 +512,37 @@ impl EditorWindow {
             if let Some(&p) = self.references.get(&0x15C) {
                 h.window_effect(WindowEffect::NotifyClosed(p));
             }
-            for offset in [0x134, 0x138, 0x13C, 0x15C, 0x160] {
-                self.release_field(offset, h);
-            }
-            for p in std::mem::take(&mut editor.identity.references).into_iter().flatten() {
+            if let Some(&p) = self.references.get(&0x130) {
                 h.effect(Effect::Release(p));
+                self.references.remove(&0x130);
+                h.window_effect(WindowEffect::ClearReference(0x130));
             }
-            for slot in &mut self.networks {
-                if let Some(p) = slot.take() {
-                    h.window_effect(WindowEffect::NetworkStop(p));
+            for offset in [0x134, 0x138, 0x13C, 0x15C, 0x160] {
+                if let Some(p) = self.references.remove(&offset) {
+                    h.window_effect(WindowEffect::ClearReference(offset));
                     h.effect(Effect::Release(p));
                 }
             }
-            for p in self.owned_references.drain(..) {
-                h.effect(Effect::Release(p));
+            for (index, slot) in editor.identity.references.iter_mut().enumerate() {
+                if let Some(p) = *slot {
+                    h.effect(Effect::Release(p));
+                    *slot = None;
+                    h.window_effect(WindowEffect::ClearReference(0x188 + 4 * index as u32));
+                }
+            }
+            for (index, slot) in self.networks.iter_mut().enumerate() {
+                if let Some(p) = *slot {
+                    h.window_effect(WindowEffect::NetworkStop(p));
+                    h.effect(Effect::Release(p));
+                    *slot = None;
+                    h.window_effect(WindowEffect::ClearReference(0x194 + 4 * index as u32));
+                }
+            }
+            // Native Shutdown leaves the dangling values and logical end intact.
+            for &p in &self.owned_references {
+                if p != 0 {
+                    h.effect(Effect::Release(p));
+                }
             }
             self.initialized = false;
         }

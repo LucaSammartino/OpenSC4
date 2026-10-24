@@ -17,32 +17,27 @@ pub struct OwnedPalettes {
 }
 
 pub fn build_palettes(pairs: &[u32]) -> Result<OwnedPalettes, Unsupported> {
-    // Literal interpolation between full-range, strictly ordered stops. QV8:
-    // only exact integer channel results are accepted: no endpoint extension,
-    // duplicate-stop policy or undocumented fractional rounding is invented.
-    if pairs.len() < 4 || pairs.len() % 2 != 0 || pairs[0] != 0 || pairs[pairs.len() - 2] != 255 {
+    // Unsafe native reads are diagnosed, never reported as a native false return.
+    if pairs.len() < 2 || pairs.len() % 2 != 0 {
         return Err(Unsupported::RampGeneration);
     }
     let mut table = [0; 256];
-    for stops in pairs.chunks_exact(2).collect::<Vec<_>>().windows(2) {
-        let (left, right) = (stops[0], stops[1]);
-        if right[0] <= left[0] || right[0] > 255 {
-            return Err(Unsupported::RampGeneration);
+    let mut stop = 0;
+    for (index, color) in table.iter_mut().enumerate() {
+        let index = index as u32;
+        while stop + 3 < pairs.len() && pairs[stop + 2] <= index {
+            stop += 2;
         }
-        let width = i64::from(right[0] - left[0]);
-        for index in left[0]..=right[0] {
-            let offset = i64::from(index - left[0]);
-            let mut color = 0;
-            for shift in [0, 8, 16, 24] {
-                let start = i64::from((left[1] >> shift) & 255);
-                let end = i64::from((right[1] >> shift) & 255);
-                let numerator = start * width + (end - start) * offset;
-                if numerator % width != 0 {
-                    return Err(Unsupported::RampGeneration);
-                }
-                color |= ((numerator / width) as u32) << shift;
-            }
-            table[index as usize] = color;
+        *color = pairs[stop + 1];
+        if index < pairs[stop] || stop + 3 >= pairs.len() {
+            continue;
+        }
+        let weight = index.wrapping_sub(pairs[stop]).wrapping_mul(256) / pairs[stop + 2].wrapping_sub(pairs[stop]);
+        *color = 0;
+        for shift in [0, 8, 16, 24] {
+            let a = i64::from((pairs[stop + 1] >> shift) & 255);
+            let b = i64::from((pairs[stop + 3] >> shift) & 255);
+            *color |= ((a + ((b - a) * i64::from(weight) + 128).div_euclid(256)) as u32 & 255) << shift;
         }
     }
     Ok(OwnedPalettes {
@@ -68,14 +63,11 @@ pub fn i8_index(value: i8) -> u8 {
 /// Only finite values whose truncated result is a representable table index.
 /// This checks before Rust's saturating cast, never inventing native clipping.
 pub fn float_index(value: f32) -> Result<u8, Unsupported> {
-    if !value.is_finite() {
-        return Err(Unsupported::NonFiniteFloat);
+    // Masked x87 invalid produces integer-indefinite, whose low byte is zero.
+    if !value.is_finite() || !(-9223372036854775808.0..9223372036854775808.0).contains(&f64::from(value)) {
+        return Ok(0);
     }
-    let truncated = value.trunc();
-    if !(0.0..=255.0).contains(&truncated) {
-        return Err(Unsupported::FloatOutOfRange);
-    }
-    Ok(truncated as u8)
+    Ok(value.trunc() as i64 as u8)
 }
 
 pub fn u16_index(_value: u16, _scale: u32) -> Result<u8, Unsupported> {
@@ -93,7 +85,7 @@ pub fn i16_index(_value: i16, _scale: u32) -> Result<u8, Unsupported> {
 /// arithmetic; division by 255 has no integer-input halfway ties.
 pub fn premultiply_argb(argb: u32) -> u32 {
     let alpha = argb >> 24;
-    let channel = |shift: u32| ((((argb >> shift) & 255u32) * alpha + 127) / 255) << shift;
+    let channel = |shift: u32| ((((argb >> shift) & 255u32) * alpha + 128) / 256) << shift;
     (argb & 0xff00_0000) | channel(16) | channel(8) | channel(0)
 }
 

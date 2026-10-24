@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.); 622 (Failed initial attempt retained separately; no coverage credit claimed.); 619 (MS21/MS22 applied and constructor scope extended; 73/73 exact samples. Live owner and transport remain unverified under MS20.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).); 644 (partial DX7 transition shadow, gdriver 72/72 exact, 35 samples to 2032); 643 (query tool predicate shadow landed (run 5); no owner credit (partial shadow).); 642 (default-off query tool hover/describe predicate fixture exact 73/73 through 2032, partial scope with CT27 open); 641 (pedestrian, map view, text edit and legacy control answers, legacy control shadow and a partial map view closure landed (run 5); no new owner credit (map view keeps one open closure row).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

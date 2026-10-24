@@ -5,6 +5,7 @@
 mod collision;
 mod commands;
 mod crash;
+pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
 mod math;
@@ -14,7 +15,13 @@ mod owner;
 mod physics;
 mod record;
 mod routes;
+mod runtime;
+pub use runtime::{AnimationServices, AnimationTimes, DriveServices, MotionServices, RopeEffect, SpatialServices};
 mod states;
+mod subsidiary;
+mod targets;
+pub use subsidiary::{AnimatedModel, AnimationService, Lighting, Subsidiary};
+pub use targets::AiTargets;
 
 pub use collision::{CollisionQueries, Footprint, ModelGeometry};
 pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
@@ -27,11 +34,15 @@ pub use routes::{direction_step, quantize_heading, sign, RouteError, RouteReader
 pub use states::CrashCase;
 
 #[cfg(test)]
+mod closure_tests;
+#[cfg(test)]
 mod collision_tests;
 #[cfg(test)]
 mod physics_tests;
 #[cfg(test)]
 mod round2_tests;
+#[cfg(test)]
+mod runtime_tests;
 #[cfg(test)]
 mod tests;
 
