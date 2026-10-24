@@ -159,7 +159,7 @@ fn te8_reverse_search_keeps_overlapping_matches() {
         },
     );
     e.text = b"ababa".to_vec();
-    assert_eq!(adapters::search(&e.text, b"aba", 4, false), 2);
+    assert_eq!(e.find_text(b"aba", 4, false, &mut Services::default()), 2);
 }
 #[test]
 fn te8_forward_search_from_interior() {
@@ -167,16 +167,18 @@ fn te8_forward_search_from_interior() {
 }
 #[test]
 fn te8_empty_forward_search_owner_rejects_end() {
+    let mut e = super::editor(0, 0);
+    e.text = b"abc".to_vec();
     for (position, expected) in [(2, 2), (3, u32::MAX)] {
-        let result = adapters::search(b"abc", b"", position, true);
-        assert_eq!(if result < 3 { result } else { u32::MAX }, expected);
+        assert_eq!(e.find_text(b"", position, true, &mut Services::default()), expected);
     }
 }
 #[test]
 fn te8_empty_reverse_search_owner_rejects_end() {
+    let mut e = super::editor(0, 0);
+    e.text = b"abc".to_vec();
     for (position, expected) in [(1, 1), (u32::MAX, u32::MAX)] {
-        let result = adapters::search(b"abc", b"", position, false);
-        assert_eq!(if result < 3 { result } else { u32::MAX }, expected);
+        assert_eq!(e.find_text(b"", position, false, &mut Services::default()), expected);
     }
     assert_eq!(adapters::search(b"a\0ba\0b", b"\0b", u32::MAX, false), 4);
 }
