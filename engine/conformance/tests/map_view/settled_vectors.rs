@@ -131,7 +131,7 @@ fn v21_center_aligned_resampling_and_two_stage_rounding() {
     );
     assert_eq!(
         ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [3, 3]).unwrap())[4],
-        0 // QV16: literal truncated-step formula, not vector 21's exact halfway.
+        0 // QV16: vector 21 now requires the literal truncated-step result.
     );
     assert_eq!(
         ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [1, 1]).unwrap()),

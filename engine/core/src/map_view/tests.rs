@@ -62,12 +62,11 @@ fn floats_truncate_before_range_check_and_refuse_unpublished_domains() {
 }
 
 #[test]
-fn contradictory_sixteen_bit_rules_never_become_a_conversion() {
-    assert_eq!(u16_index(512, 1024), Err(Unsupported::SixteenBitConflict));
-    assert_eq!(i16_index(-512, 1024), Err(Unsupported::SixteenBitConflict));
-    assert_eq!(u16_index(0, 256), Err(Unsupported::SixteenBitConflict));
-    assert_eq!(i16_index(0, 256), Err(Unsupported::SixteenBitConflict));
-    // Independent arithmetic demonstrates QV5; it is not the implementation.
+fn answered_sixteen_bit_rules_use_arithmetic_shift() {
+    assert_eq!(u16_index(512, 1024), Ok(127));
+    assert_eq!(i16_index(-512, 1024), Ok(64));
+    assert_eq!(u16_index(0, 256), Ok(0));
+    assert_eq!(i16_index(0, 256), Ok(128));
     assert_eq!(128 + ((-512i64 * (0x7fff00 / 1024)) >> 16), 64);
     assert_eq!((0xffff00 / 256, 0x7fff00 / 256), (65535, 32767));
 }
@@ -84,7 +83,7 @@ fn raw_fields_use_only_documented_defaults_and_ranges() {
     let mut raw = exemplar(64, 1);
     let fields = raw.selection_fields().unwrap();
     assert_eq!((fields.scale, fields.layer, fields.block_by_lot), (256, 1, None));
-    for (value, expected) in [(0, 256), (1, 256), (2, 2), (0xff_ffff, 0xff_ffff), (0x100_0000, 256)] {
+    for (value, expected) in [(0, 0), (1, 1), (2, 2), (0xff_ffff, 0xff_ffff), (0x100_0000, 0x100_0000)] {
         raw.0.retain(|p| p.id != SCALE);
         raw.0.push(Property::new(SCALE, RawValue::U32(value)));
         assert_eq!(raw.selection_fields().unwrap().scale, expected);
@@ -195,7 +194,7 @@ fn every_developer_type_and_published_layer_is_discriminated() {
             })
         );
     }
-    assert_eq!(select_source(64, 1, false), Err(Unsupported::DeveloperLayer(1)));
+    assert_eq!(select_source(64, 1, false), Ok(SourceSelection::DrawNothing));
     assert!(matches!(
         select_source(64, 5, false),
         Ok(SourceSelection::Developer {
@@ -542,12 +541,9 @@ fn malformed_resource_and_helper_inputs_are_refused_without_native_failure_value
         emit_colors(Values::U8(&[1, 2]), &palette(), &mut output),
         Err(Unsupported::BufferLength)
     );
-    for values in [Values::U16(&[512]), Values::I16(&[-512])] {
-        assert_eq!(
-            emit_colors(values, &palette(), &mut output),
-            Err(Unsupported::SixteenBitConflict)
-        );
-        assert_eq!(output, [9]);
+    for (values, index) in [(Values::U16(&[512]), 2), (Values::I16(&[-512]), 126)] {
+        emit_colors(values, &palette(), &mut output).unwrap();
+        assert_eq!(output, [palette().lookup(index)]);
     }
 }
 
@@ -597,10 +593,7 @@ fn empty_source_animation_notifications_dirty_without_inventing_highlight_change
 #[test]
 fn owner_boundaries_cannot_be_completed_by_supplied_helper_inputs() {
     let mut view = selected(64);
-    assert_eq!(
-        view.update(),
-        UpdateOutcome::Unsupported(Unsupported::DeveloperLayer(1))
-    );
+    assert_eq!(view.update(), UpdateOutcome::DrawNothing);
     view.set_developer_debug_flag(true);
     assert_eq!(
         view.update(),

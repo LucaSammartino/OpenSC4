@@ -180,6 +180,7 @@ pub struct MapView {
     highlight_style: HighlightStyle,
     hooked_messages: Vec<u32>,
     travel_types: Vec<u8>,
+    factors: ScaleFactors,
 }
 
 impl MapView {
@@ -210,6 +211,7 @@ impl MapView {
             highlight_style: HighlightStyle::default(),
             hooked_messages: Vec::new(),
             travel_types: Vec::new(),
+            factors: ScaleFactors::default(),
         }
     }
 
@@ -389,6 +391,7 @@ impl MapView {
 
     fn store_selection(&mut self, raw: &RawExemplar) -> Result<(), Unsupported> {
         let fields = raw.selection_fields()?;
+        self.factors = ScaleFactors::from_scale(raw.optional_u32(SCALE)?);
         if raw.find(TRAVEL_TYPES)?.is_some() {
             self.travel_types = raw.travel_types()?;
         }
@@ -462,6 +465,10 @@ impl MapView {
 
     pub fn retained_travel_types(&self) -> &[u8] {
         &self.travel_types
+    }
+
+    pub fn selection_fields(&self) -> Option<&SelectionFields> {
+        self.config.as_ref()
     }
 
     /// Collect from raw building records only. Equality/order and therefore

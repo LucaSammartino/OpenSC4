@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! map-view Ãƒâ€šÃ‚Â§10 and owner interface vectors. No game/renderer implementation.
 use fc4_core::map_view::*;
+mod close18_vectors;
 #[path = "map_view/settled_vectors.rs"]
 mod settled_vectors;
 use std::collections::VecDeque;
@@ -217,6 +218,7 @@ impl Renderer for Render {
 }
 
 struct Sims {
+    debug_entries: Option<Vec<[i32; 3]>>,
     missing_developer: bool,
     returned_buildings: Vec<RawBuilding>,
     grid: RawMapGrid,
@@ -229,6 +231,9 @@ struct Sims {
     trace: Trace,
 }
 impl Simulators for Sims {
+    fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
+        Ok(self.debug_entries.clone())
+    }
     fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
         Ok(!self.missing_developer)
     }
@@ -278,6 +283,7 @@ fn inputs(source: u32) -> (MapView, Resource, Windows, Render, Sims) {
         Windows::default(),
         Render::default(),
         Sims {
+            debug_entries: None,
             missing_developer: false,
             returned_buildings: Vec::new(),
             grid: RawMapGrid {
@@ -330,39 +336,31 @@ fn mayor_rating_owner_builds_and_draws_both_extremes() {
 }
 
 #[test]
-fn conformance_index_conflict_is_explicit_qv5() {
+fn conformance_index_answer_is_explicit_qv5() {
     // Ãƒâ€šÃ‚Â§10.1 cannot be asserted as a conversion: the signed formula gives 64,
     // while its vector requires 65. Neither conflicting result is fabricated.
     assert_eq!((512u64 * (0xffff00 / 1024)) >> 16, 127);
     assert_eq!(128 + ((-512i64 * (0x7fff00 / 1024)) >> 16), 64);
-    assert_eq!(u16_index(512, 1024), Err(Unsupported::SixteenBitConflict));
-    assert_eq!(i16_index(-512, 1024), Err(Unsupported::SixteenBitConflict));
+    assert_eq!(u16_index(512, 1024), Ok(127));
+    assert_eq!(i16_index(-512, 1024), Ok(64));
 }
 
 #[test]
 fn pollution_throttle_vector_reaches_due_tick_without_faking_conversion() {
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(8);
     sims.grid.values = GridValues::I16(vec![0, 512]);
-    // Selection has installed source/config before the unresolved conversion.
-    assert_eq!(
-        view.select_with(8, &mut res, &mut win, &mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::SixteenBitConflict))
-    );
-    view.hook_update_messages().unwrap();
+    view.select_with(8, &mut res, &mut win, &mut render, &mut sims).unwrap();
     view.notify(0xfa6d_d0bb, None).unwrap();
     assert!(!view.tick_with(100, &mut render, &mut sims).unwrap().due);
     view.notify(0xfa6d_d0bb, None).unwrap();
     assert!(!view.tick_with(300, &mut render, &mut sims).unwrap().due);
     let tick = view.tick_with(1000, &mut render, &mut sims).unwrap();
     assert!(tick.due);
-    assert_eq!(
-        tick.update,
-        Some(Err(OwnerError::Unsupported(Unsupported::SixteenBitConflict)))
-    );
+    assert_eq!(tick.update, Some(Ok(OwnerUpdate::Drawn)));
     assert_eq!(sims.polls, 4); // selection plus every tick, including throttled ticks
     assert!(!view.dirty());
     assert_eq!(view.last_redraw_ms(), 0);
-    assert!(render.bitmaps.is_empty());
+    assert_eq!(render.bitmaps.len(), 2);
 }
 
 #[test]

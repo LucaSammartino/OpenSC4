@@ -133,7 +133,7 @@ pub enum GridValues {
 }
 
 impl GridValues {
-    fn raw(&self) -> (ValueType, Values<'_>) {
+    pub(super) fn raw(&self) -> (ValueType, Values<'_>) {
         match self {
             Self::U8(v) => (ValueType::U8, Values::U8(v)),
             Self::I8(v) => (ValueType::I8, Values::I8(v)),
@@ -153,6 +153,9 @@ pub struct RawMapGrid {
 }
 
 pub trait Simulators {
+    fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
+        Err(OwnerError::Foreign(11))
+    }
     fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
         Ok(true)
     }
@@ -538,10 +541,49 @@ impl MapView {
                 DeveloperGrid::CapacityPercentage => ValueType::I16,
                 DeveloperGrid::Unsigned16Slot14 => ValueType::U16,
                 DeveloperGrid::Signed16Slot13 => ValueType::I16,
-                DeveloperGrid::DebugEntriesTimes12 => return Err(Unsupported::DeveloperDebugLayout.into()),
+                DeveloperGrid::DebugEntriesTimes12 => ValueType::I16,
             },
         };
-        let mut grid = if matches!(
+        let debug_grid = matches!(
+            request,
+            SourceSelection::Developer {
+                grid: DeveloperGrid::DebugEntriesTimes12,
+                ..
+            }
+        );
+        let mut grid = if debug_grid {
+            let geometry_request = match request {
+                SourceSelection::Developer {
+                    developer_type, layer, ..
+                } => SourceSelection::Developer {
+                    developer_type,
+                    layer,
+                    grid: DeveloperGrid::Signed16Slot13,
+                },
+                _ => unreachable!(),
+            };
+            let geometry = simulators.grid(geometry_request)?;
+            let Some(entries) = simulators.developer_debug_entries(self.source)? else {
+                return self.draw_empty(renderer, simulators);
+            };
+            let mut values = vec![
+                0i16;
+                geometry
+                    .width
+                    .checked_mul(geometry.height)
+                    .ok_or(Unsupported::GridGeometry)?
+            ];
+            for [x, z, value] in entries {
+                if x < 0 || z < 0 || x as usize >= geometry.width || z as usize >= geometry.height {
+                    return Err(Unsupported::GridGeometry.into());
+                }
+                values[x as usize * geometry.height + z as usize] = value.wrapping_mul(12) as i16;
+            }
+            RawMapGrid {
+                values: GridValues::I16(values),
+                ..geometry
+            }
+        } else if matches!(
             request,
             SourceSelection::Developer {
                 grid: DeveloperGrid::CapacityPercentage,
@@ -569,8 +611,15 @@ impl MapView {
         if grid.cell_size.iter().any(|v| !v.is_finite() || *v <= 0.0) {
             return Err(Unsupported::GridGeometry.into());
         }
+        // Word conversion feeds the ordinary byte drawing/interpolation path.
+        if matches!(grid.values, GridValues::U16(_) | GridValues::I16(_)) {
+            let indices = (0..values.len())
+                .map(|i| values.index(i, self.factors))
+                .collect::<Result<Vec<_>, _>>()?;
+            grid.values = GridValues::U8(indices);
+        }
         if let Some(config) = &self.config {
-            if config.interpolate {
+            if config.interpolate && !debug_grid {
                 let cells = simulators.city_cells()?;
                 if cells.contains(&0) {
                     return Err(Unsupported::GridGeometry.into());
@@ -595,9 +644,10 @@ impl MapView {
             if self.source == 9 {
                 return Err(Unsupported::TrafficMarkersQV4.into());
             }
-            let cells = marked_cells(
+            let cells = marked_cells_scaled(
                 &grid,
                 &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+                self.factors,
             )?;
             renderer.overlay_replace(&cells)?;
         }
@@ -609,7 +659,7 @@ impl MapView {
             .try_reserve_exact(count)
             .map_err(|_| Unsupported::HelperAllocation)?;
         pixels.resize(count, 0);
-        emit_colors(values, palette, &mut pixels)?;
+        emit_colors_scaled(values, palette, &mut pixels, self.factors)?;
         if self.source == 4 {
             let city = simulators.city_cells()?;
             let turn = renderer.orientation().wrapping_neg() & 3;
@@ -648,6 +698,27 @@ impl MapView {
             pixels: &pixels,
         })?;
         Ok(OwnerUpdate::Drawn)
+    }
+
+    fn draw_empty(
+        &mut self,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<OwnerUpdate, OwnerError> {
+        let [width, height] = renderer.bitmap_size()?;
+        let mut pixels = vec![0; width.checked_mul(height).ok_or(Unsupported::GridGeometry)?];
+        self.decorate_bitmap(width, height, &mut pixels, renderer, simulators)?;
+        renderer.primitive(RenderCommand::Bitmap {
+            class: 0x2073_2180,
+            iid: 0xc470_d325,
+            bits: 32,
+            width,
+            height,
+            cell_size: [16.0; 2],
+            own_cells: false,
+            pixels: &pixels,
+        })?;
+        Ok(OwnerUpdate::DrawNothing)
     }
 
     pub fn tick_with(
