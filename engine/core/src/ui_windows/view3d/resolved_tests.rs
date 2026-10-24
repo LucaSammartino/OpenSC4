@@ -43,7 +43,10 @@ fn vw_t19_t20_deferred_tail_and_timer_boundaries() {
 #[test]
 fn vw_t21_inverted_limits_minimum_first() {
     let mut v = view();
-    let mut h = Host::default();
+    let mut h = Host {
+        changed: false,
+        ..Host::default()
+    };
     assert!(v.set_zoom_limits(&mut h, 4, 2, None));
     h.ops.clear();
     v.set_zoom(&mut h, 3);
