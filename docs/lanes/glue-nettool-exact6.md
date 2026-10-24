@@ -19,9 +19,9 @@
 - Powerline valid13/0,cost65/0; bridge valid17/0,cost974/0. No fitted correction.
 - Round2 all FAIL, session24883 terminal: cargo6652/1, clippy0, build91/91, CTest71/72.
 - Sole round2 diagnostic: legacy tests_power_line::cost_of_solution_shipped_values lacks counts.
-- Corrected that fixture to supply counted_poles explicitly; final full gate still required.
-- NEXT: preserve round2 logs before next all; fmt seventh owned tests_power_line.rs;
-  run final all, then unique city label (run383+ only after grep docs/runs).
+- Corrected fixture supplies counted_poles; round3 cargo6894/0 and clippy0; seven-file fmt clean.
+- NEXT: collect gate session65514 (active collector functions cell77), native request
+  qbuild-20261024-034154-build-ctest; then unique city label (run383+ after grep docs/runs).
 - Then trace four corner inventories per NT30; wire actual powerline and bridge resources/hosts.
-- No operation/request outstanding. No ABI exports/version, regress/profile or shared refs changed.
+- Only round3 gate outstanding. Round2 full logs preserved as build-runs/r2-*.log.
 - Focused failed fixture evidence: build-runs/nt31-fixture-*. q.py Bash fails here; direct cargo works.
