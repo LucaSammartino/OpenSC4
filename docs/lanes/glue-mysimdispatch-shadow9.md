@@ -14,7 +14,7 @@
 - Filed MS21 for exact route partition/index/snap rules; failed-leg skip and callback-5 progression remain unsupported. MS20 explicitly rules out complete public read-only input observation; a controlled/instrumented input boundary is required for live whole-owner credit.
 - Corrected and expanded integration now passes 38/38, including MS18-13/14/15 FE timing and MS18-16 first-vehicle rejection. Removed duplicated core test copies; executable new vectors live only in conformance include.
 - Full qbuild all first attempt launched on 140680449; cargo test-discovery failed because tests/mysim_dispatch_ms18.inc.rs was auto-discovered as a crate (dot invalid). Moved the included module into tests/support/mysim_dispatch_ms18.rs. Must preserve failed logs and rerun full only after collecting original operation to terminal.
-- Original full operation: exec session 10266; functions wait cell 58 is currently collecting it. Do not duplicate. No round-2 game request yet.
+- Original full operation: exec session 10266, now waiting for native build/CTest queue label qbuild-20261024-100651-build-ctest. Rust/clippy failed solely on auto-discovered dotted crate; evidence preserved in build-runs/r2-failed-discovery/. Do not duplicate. No round-2 game request yet.
 - Next: collect original full, archive logs, commit discovery fix, full qbuild all on corrected inputs, then unique house game request through 2032 (no qwait).
 - Clean-room prohibition on running tools/ still applies; questions index regeneration delegated to coordinator (incoming index already has answered entries).
 - No round-2 game request outstanding; unique labels required, wait via same exec session without qwait.
