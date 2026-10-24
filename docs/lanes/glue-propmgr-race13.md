@@ -12,6 +12,8 @@
 - Diagnostic verify qbuild-20261024-203951-build-ctest PASS: build 168/168, CTest 81/81. This was to build unpatched diagnostic DLL, not final all gate.
 - Done: runs 735/736 both clean through 2032, propmgr 220/220, zero resyncs/reference warnings; DLL 39ab9efd. PL24 updated to retract unsafe capture assumptions.
 - Next: collect the already running final qbuild all operation (session 27222, functions cell 39); write final report and ready queue entry.
+- Current all Rust stage FAILED: capi 595 passed/1 failed, slot44_holds_the_lock_across_threads (lock_waits 0/1). No worker-start handshake before 300 ms timeout (occupant_manager_tests.rs:686-714). Other stages still running; collect this operation to terminal before repeating.
+- Corrected input for the permitted retry: RUST_TEST_THREADS=1 (also used by prior lane gate). Preserve current qbuild-test.log and other failed-gate logs before retry; do not edit unrelated owner/test code.
 - No game request outstanding. No new owners or questions this round. Earlier mismatch cause remains unproven; do not claim a general boundary fix.
 
 ## Previous round (superseded safety evidence)
