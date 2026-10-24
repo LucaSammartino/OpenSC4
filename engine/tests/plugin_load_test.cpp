@@ -11091,6 +11091,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
+#include "plugin_mysims_factory_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11108,6 +11109,9 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
     SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
     SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
+
+    if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true);
+    if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, false);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {

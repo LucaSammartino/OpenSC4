@@ -552,6 +552,9 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    // Pending integration: my-street-sim.md has a distinct Street owner;
+    // mysims.md §7.2.3 requires replacing native concrete dispatch callers.
+    {"mysims", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -608,6 +611,14 @@ void Resolve() {
     const std::string enable = Lower(Setting("enable", "FC4_ENABLE", &enableSource));
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
+        if (strcmp(s.key, "mysims") == 0) {
+            g_enabled[i] = false;
+            if (ListContains(enable, s.key)) {
+                Log("subsystem 'mysims': replacement unavailable; native factories retained "
+                    "(Street owner integration pending; dispatch requires complete owner boundary)");
+            }
+            continue;
+        }
         if (!s.defaultOn && !ListContains(enable, s.key)) {
             // Off by default and not enabled: not "disabled" (the lists and the
             // autotest verdict stay as without this subsystem).

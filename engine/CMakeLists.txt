@@ -1182,3 +1182,17 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
 endif()
+
+# MySim dispatch public ABI: constructor-only checks, no concrete trip calls.
+add_executable(fc4_mysim_dispatch_contract_test tests/mysim_dispatch_contract_test.cpp)
+target_include_directories(fc4_mysim_dispatch_contract_test PRIVATE plugin
+    third_party/gzcom-dll/gzcom-dll/include)
+add_test(NAME mysim_dispatch_contract_test COMMAND fc4_mysim_dispatch_contract_test)
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_mysims_factory_boundary_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-mysims)
+    add_test(NAME plugin_mysims_default_off_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-mysims)
+    set_tests_properties(plugin_mysims_factory_boundary_test plugin_mysims_default_off_test
+        PROPERTIES RUN_SERIAL TRUE)
+endif()

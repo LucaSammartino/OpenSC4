@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4MySimDispatchShadow.h"
+#include "FC4MySimDispatchContract.h"
 #include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -104,6 +105,21 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
         FC4_ACQUIRED(fixture, "dispatch constructor fixture factory owned");
         if (Compare(fixture, true, fields, differences, ranges)) ++fixtures;
         else ++errors;
+        void* primary = nullptr;
+        if (fixture->QueryInterface(0xEB8B6F9Au, &primary) && primary) {
+            auto* dispatch = static_cast<MySimDispatchPublic*>(primary);
+            FC4_ACQUIRED(dispatch, "dispatch constructor primary QI owned");
+            const auto contract = CheckMySimDispatchConstructor(*dispatch, [](cIGZUnknown* owned) {
+                FC4_ACQUIRED(owned, "dispatch constructor probe QI owned");
+                FC4_RELEASE(owned);
+            });
+            fields += contract.fields;
+            differences += contract.differences;
+            if (contract.differences) {
+                Log("mysimdispatch shadow (cont.) constructor ABI: failed_mask=0x%03X", contract.failedMask);
+            }
+            FC4_RELEASE(dispatch);
+        } else ++errors;
         FC4_RELEASE_CREATED(fixture);
     } else ++errors;
 
@@ -127,7 +143,7 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     rangeSamples += ranges;
     if (differences == 0 && errors == 0) ++clean;
     Log("mysimdispatch shadow %04d-%02d-%02d: constructor=%u live_headers=%u live_ranges=%u fields=%u errors=%u "
-        "scope=constructor-auxiliary-and-live-header-contracts live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
+        "scope=constructor-public-ABI-auxiliary-and-live-header-contracts live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
         date.year, date.month, date.day_of_month, fixtures, live, ranges, fields, errors, differences + errors);
 }
 
