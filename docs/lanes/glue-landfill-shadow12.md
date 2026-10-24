@@ -1,15 +1,33 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-landfill-shadow12: landfill owner shadows | Codex / glue-landfill-shadow12 | in progress | Inspect owner probes, implement supported comparisons, gate and run to 2032 |
+| glue-landfill-shadow12: landfill owner shadows | Codex / glue-landfill-shadow12 | ready: measured developer and occupant work | Coordinator credit/profile review; independent zone verification remains parked LG31 |
 
-## Handoff
-- Goal: measure exact shadows for all three landfill owners in the house city through 2032.
-- Done: implemented LG33 good-stream holder-rejection handling; focused reader tests 2/2 pass (build-runs/focused-reader.log). Extended occupant probe to 11 cases and 7 reloads; corrected LG32 void SetPosition call.
-- Next: collect SAME final qbuild all (session 56030, native qbuild-20261024-145728-build-ctest), then finalize report and ready queue for measured work. No outstanding game request.
-- Clean room: tools/ tables and regress script are forbidden by the overriding clean-room rule; coordinator must handle their credit/profile updates.
-- Existing LG31 explicitly parks native zone verification: no public callable contract. Do not claim zone verification through developer serialization.
-- No game request outstanding. q.py failed because Git Bash CreateFileMapping is denied; capture helper uses direct subprocess instead. Initial fmt used wrong relative root; applied absolute-path fmt suggestions.
-- Milestone 2c4b2946f: source fix/probe extension. First full gate Rust tests 591 passed/1 stale C ABI test failed; clippy passed. Corrected the stale test to LG33 (holder rejection succeeds, checks position words/bounds); fmt passed. Native result still pending on original operation (session 73444).
-- Milestone 8db352b74: C ABI test correction. First gate completed FAIL solely Rust test; native build PASS 262/262, CTest 81/81, with tree-changed annotation (test corrected during gate). Original logs preserved as build-runs/gate1-*.log; native verdict qbuild-20261024-144548-build-ctest.verdict. Final full gate now running on corrected source.
-- Final gate Rust 7214/7214 passed; clippy 0 diagnostics. Native pending. Source stable; documentation milestone commits may change HEAD during native gate.
-- Game glue-landfill-shadow12-2032-20261024a clean through 2032-01-13, ref_warnings=0; landfill developer 73/73 exact, resynced=0; occupant probe 11/11 exact, created/destroyed=18/18, reloads=7/7. Run record docs/runs/glue-landfill-shadow12-2032-20261024a-511.md. Zone verification remains parked LG31.
+## Changes
+
+- `2c4b2946f`: implemented landfill §6.4 / LG33: ignore nested holder rejection when the stream remains good, preserving the cursor for the landfill tail. Added literal version-boundary and sticky-error tests.
+- Extended the existing default-off `landfill_shadow` occupant probe from 9 to 11 cases, adding rejected plain-holder versions 1 and 3. All accepted records are written and reloaded into fresh native objects.
+- Applied §7.3 / LG32's concrete void SetPosition contract through a corrected occupant-interface prefix; score position and bounds rather than residual EAX/AL.
+- `8db352b74`: corrected the C ABI test's obsolete holder-rejection expectation and checked the misaligned tail's exact position words and bounds.
+- C ABI exports unchanged. No native zone calls, private field access, or native captures used as Rust inputs.
+
+## Validation
+
+- Focused reader tests: 2 passed, 0 failed (`build-runs/focused-reader.log`). Explicit owned-file fmt: 2 files, no differences. `git diff --check` clean.
+- Final `qbuild.py all`: **PASS**, workspace tests **7214 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**; queued native build **46/46 edges PASS**, full CTest **81/81 PASS**. Native request `qbuild-20261024-145728-build-ctest`; verdict in `build-runs/build-results/`; final logs `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. No source changed during this gate.
+- First full gate failed on the obsolete C ABI test (591 passed / 1 failed); clippy passed, native build 262/262 and CTest 81/81 passed. Its logs are preserved as `build-runs/gate1-*.log`; first verdict `qbuild-20261024-144548-build-ctest.verdict` notes the test-source correction during that run. Both asynchronous checks were collected to completion, without duplicate requests.
+
+## Real city
+
+Run record: [run 511](../runs/glue-landfill-shadow12-2032-20261024a-511.md). Konradshohe, turbo, original landfill developer, `enable=simulator`, `landfill_shadow=1`, requested end date 2032-01-01.
+
+`glue-landfill-shadow12-2032-20261024a 73/73` — landfill developer monthly shadow lines, every mismatch count zero, resynced lines zero.
+
+`landfill occupant probe summary exact=11/11 created=18 destroyed=18 reloads=7/7; public factory/interfaces; authored inputs; SetPosition void LG32; nested-holder rejection LG33; no zone calls`
+
+AUTOTEST **clean**, date **2032-01-13**, real_seconds=26.000, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, **ref_warnings=0**. Evidence: `build-runs/game-results/glue-landfill-shadow12-2032-20261024a.verdict` and `.log`. No measured differences; no normal-speed diagnostic required. No game request outstanding.
+
+## Questions and next steps
+
+No new questions. Existing **LG31**, `docs/specs/questions/landfill.md`, explicitly parks independent native `cSC4LandfillZone` verification: no public acquisition/call/lifetime contract is published for the specified zone methods and record operations. This lane does not claim zone verification from the developer's serialized zones. Overall landfill verification therefore remains partial pending LG31; this ready entry contains the measurable developer/occupant work requested by the task's partial-closure rule.
+
+Coordinator: review and credit these exact measured owners, retaining the zone limitation. This engine lane did not read or edit coverage tools/tables or the regress profile because the overriding clean-room rule forbids `tools/`; any profile/credit update belongs to the coordinator. The shadow stays default-off behind the existing ini key.
