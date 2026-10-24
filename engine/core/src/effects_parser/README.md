@@ -13,6 +13,11 @@ exception delivery and rotation transcendental accuracy remain foreign services.
 
 ## Owner closure
 
+The six-owner audit is in [effects/README.md](../effects/README.md). The separate
+`EffectsParser` queue wrapper and `EffectsBootstrap` have no published algorithms
+in these specs (EF18); `bootstrap` returns explicit Unsupported for both. They
+must not be confused with the settled `cSC4EffectsParser` command owner below.
+
 `root_registration_order_literals_descriptors_hooks_and_construction` (abbreviated
 **root test** below) independently checks all 21 literal/descriptor/hook tuples,
 their order, allocation size and block construction. All test items below are in
