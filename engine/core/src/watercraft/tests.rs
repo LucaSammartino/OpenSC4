@@ -744,7 +744,23 @@ fn wakes_wait_until_strictly_above_250ms_then_restart_in_order() {
     b.update_wakes(250.0, 16.0);
     assert!(b.events.is_empty());
     b.update_wakes(1.0, 16.0);
-    assert_eq!(b.events, WAKES.map(Event::StopWake));
+    assert_eq!(
+        b.events,
+        [
+            Event::StopWake("SMLWake"),
+            Event::EffectUpdate,
+            Event::StopWake("SMLWash"),
+            Event::EffectUpdate,
+            Event::StopWake("MEDWake"),
+            Event::EffectUpdate,
+            Event::StopWake("MEDWash"),
+            Event::EffectUpdate,
+            Event::StopWake("LargeWake"),
+            Event::EffectUpdate,
+            Event::StopWake("LargeWash"),
+            Event::EffectUpdate,
+        ]
+    );
     b.events.clear();
     b.speed = -0.001;
     b.update_wakes(1.0, 16.0);
