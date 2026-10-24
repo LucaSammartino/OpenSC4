@@ -1,5 +1,22 @@
 # vehicles: answered questions
 
+<!-- from: core-vehicles5 (2026-10-23) -->
+- ~~**VH9 - inherited automaton states and dispatch hooks.** For the named
+  traffic/vehicle owners, specify inherited RANDOM_WALK, PLOP_JUMP, ZOT and
+  ATTACH_ANIM controller/model contracts and countdown ordering, and the base
+  dispatch getters/setters versus emergency-only overrides. The state table
+  gives outlines, not complete controller/model rules. [Active underspecified
+  inherited handlers return Unsupported; do not run the game's owner. Generic
+  DEFAULT/BEE_LINE/CHASE/BUMPED seek, SCRIPTED, disappearance, vehicle IDLE,
+  collide, wait, station, plummet and pull-over have core handlers.]~~
+
+  **ANSWERED 2026-10-24 (re-vehicles-vh11):** DIFFERS — [vehicles.md §12.6](../../vehicles.md#126-inherited-state-and-dispatch-contracts-vh9)
+  specifies all four handlers, countdown precedence and literal dispatch slots.
+  The requested controller attraction is native MAGNET (18), not a separate ZOT
+  dispatch case; its displacement has no tick-delta factor. Random walk has
+  signed walk/rest timing and repeated turn draws. Base dispatch setters are
+  mostly no-ops; emergency transitions must not be applied to ordinary vehicles.
+
 <!-- from: re-vehicles (2026-10-21) -->
 - **VH2 - §2:** how `FindBestNeighborConnection` ranks the neighbour connections, and the slots 159, 167, 168 and
   175 it and the look-ahead fill use. [as read]
@@ -65,3 +82,35 @@
   health thresholds, accident `(2,30000)`, event `(11,1)` and named injury/crash
   effects. The primary vehicle mesh is not replaced. Blur uses its existing model
   resource key and four ring samples with successively reduced opacity.
+
+<!-- from: core-vehicles-close11 (2026-10-24) -->
+- ~~**VH10 - §12.3 Init virtual bodies and managers §5 slot 158:** §12.3 says
+  Vehicle loads drive parameters through slot 158; managers §5 describes that
+  slot as a random lateral-offset draw. Specify the inputs, fields and ordering
+  of the complete slot-158 body, and Traffic's slot-134 body invoked on fresh
+  non-straight Init. Is that body BeginRoute or another route operation, and
+  what are its empty-route/failure effects? [Init owner additions/model-failure
+  ordering are implemented, but the current InitWorld owner-slot hooks are
+  provisional and do not count as closed core algorithms. They must be replaced
+  with specified core behavior or an explicit open-contract result.]~~
+
+  **ANSWERED 2026-10-24 (re-vehicles-vh11):** DIFFERS — [vehicles.md §12.7](../../vehicles.md#127-init-lateral-offset-and-initial-path-vh10):
+  slot 158 only draws a lateral offset. Slot 134 initializes a path from current
+  position without consuming the route; it is not BeginRoute. Its failure is
+  ignored by Traffic Init. Eight conformance vectors specify these effects.
+
+<!-- from: core-vehicles-close11 round 2 (2026-10-24) -->
+- ~~**VH11 - §12.1 train car identity/runtime binding:** after Read appends a
+  shared-stream car reference, how does the core bind it to its owned TrainCar
+  runtime, and what happens on a missing or duplicate identity? Can a live car
+  ever have a null serializable identity? [One ordered list holds each identity
+  and optional runtime. Loaded entries remain unresolved; collision reports
+  VH5 before side effects until all are bound. Write rejects a runtime car with
+  null identity before output rather than silently losing it on reload. No
+  guessed car instance or foreign train-owner callback is created.]~~
+
+  **ANSWERED 2026-10-24 (re-vehicles-vh11):** DIFFERS — [vehicles.md §12.8](../../vehicles.md#128-train-references-are-runtime-car-references-vh11):
+  resolve the shared object and query the car interface during Read; no separate
+  train binding phase exists. Missing references are skipped and duplicates
+  alias the same runtime object. Valid TrainCars expose serialization on that
+  same object. Five conformance vectors cover identity and aliasing.
