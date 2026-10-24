@@ -18,6 +18,9 @@ Round 3 gate: `qbuild-20261024-035627-build-ctest` PASS: workspace 6905 passed/0
 
 ## Handoff
 
+- Final source 48679b680 gate PASS `qbuild-20261024-041351-build-ctest`: Rust 6906/0/0, clippy 0; native 49/49 edges (6.5s), CTest 75/75 (108.3s), total 116.5s. Session 91349 collected to terminal; previous-source gate remains distinct.
+- One new request now outstanding: `gwp6-r3-creation-normal-2032-a`, normal speed through 2032. Wait using existing build-runs/wait-verdict.ps1 -Label (FileSystemWatcher, no qwait); collect its session through terminal. New label's verdict was absent before submission.
+
 - Round 3 first game `gwp6-r3-we1-propdiag-2032-turbo-a` complete: clean/ref_warnings=0 through 2032-01-03; weather 73/73 exact, 0 resyncs; 2566 weather steps at 2032-01-01. Propdev 23958/23968 selector events matched; 45055 complete/410 invalid streams; 41297 eligible output matches/4168 incomplete of 45465 operations. First 24 invalid streams were extra engine calls after matching every captured native event; not a verified full-operation result.
 - Diagnostic led to further source: capture actual public lot/network creation call arguments, failures, retained returned tokens and nested notification spans instead of inferring return values from insertion messages. Native call executes once; forwards restore on scope exit. Native fixture tests both return cases, arguments, spans, once-only forwarding/restoration/reuse. Added WE1 moisture conformance through real terrain and both blur passes (all 4 vectors passed).
 - Next: new stable-source full gate required after these diagnostic fixes; then unique combined 2032 game request. No request outstanding. Previous gate/verdict remain valid for 1b9ed3f39 source, not final source.
