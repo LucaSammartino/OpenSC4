@@ -18,7 +18,8 @@
 - NT30 appended for the four residual retained-corner cost fixtures; NT31 for concrete powerline/bridge replay inputs. Coordinator must regenerate question index (no tools/ access).
 - Artifact confirmation c: clean through 2032-01-07, refs=0, 8/14 exact, all comparison lines identical to a/b; record 344, DLL 28231e1b.
 - Final review: newly implemented replacement count getters reached geometry RefCell. Corrected to atomic publication after Init/Reset/draw/place/Shutdown; getters only load atomics. Existing other replacement getters are outside this publication change.
-- Next: repeat full gate for this real threading correction, then new artifact confirmation d, final report and READY queue. Prior report below remains round-1 evidence only.
+- Final stable source 65082c135: qbuild all PASS, cargo 6760/0, clippy clean, native build 50/50, CTest 69/69 (108.6s), request qbuild-20261024-011752-build-ctest. Session 42992 collected to terminal exit 0.
+- Next: final artifact confirmation d, then final report and READY queue. Prior report below remains round-1 evidence only.
 - No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
 - Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
