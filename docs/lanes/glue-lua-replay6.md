@@ -14,5 +14,5 @@
 - Next: submit and collect unique `lua-replay6-c9a62c9b1-turbo-2032-20261024a` run (no qwait); record run >=382 in label-only filename. Then final report, merge main as task explicitly requests, queue full actual HEAD.
 - Formatting first used a relative path rejected by qbuild; corrected to absolute owned-file path. No source compilation failure.
 - Task explicitly overrides spec §8.6 evidence label `lua-registry`; `lua` summary must still confer no full-VM verification credit.
-- No game/native requests outstanding at this gate milestone. Prepared watcher: build-runs/wait-lua-verdict.ps1.
+- Game request submitted: `lua-replay6-c9a62c9b1-turbo-2032-20261024a`, turbo Konradshohe to 2032; DLL SHA256 `2D4B35923B7B650C9DBE1D3DC3111EAC6FCE645C40759C26FAA74EED48F1A758`. Only request outstanding; do not resend/discard a completed verdict. Native gate complete.
 - Do not access tools/ or analysis sources. No ABI export changes intended.
