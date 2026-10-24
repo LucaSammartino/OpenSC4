@@ -79,6 +79,7 @@ void RawNamed(cISCLua* lua, int32_t index, const char* name) {
     lua->RawGet(table);
 }
 uint32_t FunctionAtTop(cISCLua* lua) {
+    // [abi-ret] lua-host.md §5 slot 16: IsCFunction returns a bool in AL.
     return lua->IsCFunction(-1) ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lua->ToCFunction(-1))) : 0;
 }
 
