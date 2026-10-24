@@ -7,6 +7,7 @@
 - Done: reused reserved worktree; read rules, questions and glue-scres-shadow5 open-contract notes; queried native signatures and dispatch.
 - Measured: token text f64 writer 0x0097F8E2 dereferences one pointer, RET 4; ASCII f64 0x0098228D consumes name plus by-value f64, RET 12.
 - Measured: command ParseCommand 0x00679450 receives parser interface at complete object +0x98; direct ParseCommandArguments uses complete object. Binary adapter ctor 0x0097EB78 initializes table 0x00AD9978, text ctor replaces it with 0x00AD99E8.
-- Next: finish field getter/setter argument meaning, native image/ASCII contracts, natural graphics-rules route; publish section 10 and vectors.
+- Done: section 10 publishes native ABI, passive observation limits, natural dispatch routes and SCR-V69–79. SCR8/SCR9 moved to answered archive.
+- Next: regenerate questions index, run doccheck, review diff and finalize report/queue.
 - No engine files read or edited. No game run required by this documentation lane.
 - Main evidence root: `C:/Users/tlori/FreeCity4`; lane manifest: `build-runs/run4-re-scres-scr8-r1-manifest.json` in main.

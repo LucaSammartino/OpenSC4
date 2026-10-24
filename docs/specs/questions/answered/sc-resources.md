@@ -1,5 +1,37 @@
 # sc-resources: answered questions
 
+<!-- from: glue-scres-shadow5 (2026-10-24) -->
+- **SCR8 - native capture ABI for sections 3-8:** Please publish complete x86 signatures (including return channels and concrete versus interface views) for command/file parser input and output tokens, token-record initialization and typed getters/setters, text-adapter string/definition writes, buffer-resource read/write and buffer access, and ASCII writer fields/graph/stream access. The behavior/slot inventories do not establish these argument types. In particular the text numeric writers have only one stack word even for f64/s64: are these const references? What non-mutating accessor can capture the original raw record bytes and ASCII output without changing its cursor or invoking serialization again? [Keep those capture paths off; implement only the specified adapter numeric/descriptor/key reads, with SDK read/seek operations restoring the original position. Partial adapter coverage must not credit the whole subsystem.]
+
+  **ANSWERED 2026-10-24 (re-scres-scr8):** DIFFERS — section 10.1 publishes
+  stack arguments, AL/EAX/void channels and object views. Token adapter numeric
+  writes are const references, including f64/s64; ASCII f64 is by value.
+  Typed token accessors take descriptor/value references and an element index.
+  ASCII string slots 22/23 are object/char-pointer respectively. Neither token
+  record nor ASCII writer offers a universal raw-byte snapshot getter: observe
+  existing raw IO/sink writes, or use the guarded read/seek fallback in 10.2
+  with exact cursor restoration. Vectors SCR-V69–73 and SCR-V75–79 apply.
+
+<!-- from: glue-scres-shadow5 (2026-10-24) -->
+- **SCR9 - natural resource/token capture dispatch:** In real-city run `scres5-r1-2032-a` (Konradshohe, turbo through 2032-01-19), the specified binary/text adapter vtables installed successfully before PreAppInit, but every numeric/descriptor/key slot had zero observations (73 dated lines, `scres 0/73`, no refusal or native difference). Which natural resource-file paths use these tables, which call implementations directly, and which earlier lifecycle/capture entry is required to see the game's actual parser/token/image/writer traffic? Please specify the complete argument/result ABI and safe passive capture route for those paths. [Try installation at OnStart before framework initialization; never credit an empty sample or substitute constructed inputs for real file traffic.]
+
+  Follow-up evidence (2026-10-24): `scres5-r1-2032-b` installed at OnStart before framework initialization, corrected the ini registration and load date, and reached 2032-01-05 cleanly with no warnings and ref_warnings=0. Still `scres 0/73`: calls=0, bytes=0, refused=0 throughout. Earlier lifecycle installation did not expose natural adapter dispatch. No native value differences were observed because no comparisons occurred. The lane remains WIP without coverage credit.
+
+  Round-2 implementation note (2026-10-24): the implementer cannot resolve SCR8/SCR9 from decompilation without violating the binding clean-room role. `scres_constructed` now calls only the already specified numeric/descriptor/key adapter read ABI on fixed section-6 vectors and a shipped pack-1 INI byte prefix (key published in feature-manager section 4.1). This is partial adapter coverage, not a command/file/INI parser shadow or an answer establishing natural dispatch. Please publish the remaining signatures in the permitted spec/ABI sources; no question is considered answered by the constructed probes.
+
+  Round-2 measurement (2026-10-24): `scres5-r2-constructed-birch` reached 2032-01-07 cleanly with ref_warnings=0. Constructed binary adapters 24/24, text adapters 22/22, and a shipped pack-1 INI's first 16 raw bytes through binary scalar adapters 10/10 were exact (56/56, refused=0, mismatches=0; harness scres 3/3 lines). Key 00000000/8A5971C5/2B563701, prefix FNV-1a 6AE1A633. This establishes only the stated adapter cases, not natural dispatch or complete command/file/resource parsing. SCR8/SCR9 remain unresolved.
+
+  **ANSWERED 2026-10-24 (re-scres-scr8):** DIFFERS — sections 10.1–10.2
+  specify startup rule-file/command dispatch, token-compatible factory read
+  and write, direct image loading and ASCII graph output with native capture
+  boundaries. Rule files use cRZTextFile and parser input slot 5, not token
+  adapters; macro/eval argument dispatch and image decode include direct calls.
+  Install parser capture before rule initialization, not merely token tables
+  before city dates. No lifecycle forces all owners to execute; empty or
+  constructed samples cannot establish natural owner coverage. Vectors
+  SCR-V74–79 distinguish these routes. The preceding historical unresolved
+  status describes the implementation round before this specification.
+
 <!-- from: re-persist-sl5 (2026-10-23) -->
 - ~~**SCR1 (§2):** What are the exact term/function grammar and remainder rule,
   and mixed-delimiter nesting/escape behavior? Enum lookup and color/vector
