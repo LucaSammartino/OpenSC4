@@ -186,7 +186,7 @@ other IIDs delegate to cGZWin. Constructor `009CA883` installs window table
 
 The list table contains **66 slots**, ending immediately before window table
 `00AE1780`. This inventory gives native targets, not inferred C++ signatures.
-“Unresolved” means interface presence only; see WC1. A slash separates adjacent
+Residual signatures and quirks are specified in section 5.6. A slash separates adjacent
 slots, not alternate targets for one slot. The table was checked against the
 native executable words at `00AE1678`–`00AE177C`.
 
@@ -194,29 +194,29 @@ native executable words at `00AE1678`–`00AE177C`.
 |---|---|---|
 | 0–3 | `009CAA0A` / `0095BA81` / `0095BA8C` / `0095BA6F` | QueryInterface / AddRef / Release / AsIGZWin adapters |
 | 4 | `009C93D7` | Remove entry by index |
-| 5–6 | `009C9E74` / `009CA084` | Removal wrappers; string-to-index search boundary unresolved |
+| 5–6 | `009C9E74` / `009CA084` | Remove first exact text match / clear all; section 5.6 |
 | 7–8 | `009C9F12` / `009C8B24` | Insert text at index with ID / replace text at index |
 | 9 | `009C8A7E` | Resize height to whole lines |
 | 10–13 | `009C8CEE` / `009C9C82` / `009D8564` / `009C9E41` | Select index / select ID / get selected index / get selected ID |
-| 14–18 | `009C8F3C` / `009CEC4A` / `009CB16A` / `009C88D4` / `009C88DE` | Update suppression and associated adapters; WC1 |
+| 14–18 | `009C8F3C` / `009CEC4A` / `009CB16A` / `009C88D4` / `009C88DE` | Enable sorting / get sorting byte / sort now / set drop byte / get drop byte; section 5.6 |
 | 19 | `009C9AEB` | Text-area output rectangle |
 | 20–21 | `009C8E72` / `009C8E9D` | Previous/next selection without notification |
-| 22–23 | `009C8E29` / `009C8E46` | First/last navigation adapters; WC1 |
+| 22–23 | `009C8E29` / `009C8E46` | Scroll first/last page, without selection; section 5.6 |
 | 24–25 | `009C8EC4` / `009C8EF3` | Page navigation; previous page in section 5.3 |
 | 26–29 | `009C8D71` / `009C8D8F` / `009C9CFA` / `009C8DD1` | Is row visible / make row visible / select first prefix match / set first visible row |
-| 30–33 | `009C8F69` / `009CDC27` / `009D858F` / `009CDC23` | Count and state accessors used by owner; full alias/signature audit WC1 |
+| 30–33 | `009C8F69` / `009CDC27` / `009D858F` / `009CDC23` | Get count / row height / whole visible rows / first row (signed 32-bit) |
 | 34 | `009C8F99` | Row hit test; x does not affect row calculation |
-| 35–36 | `009C912B` / `009C913E` | Service/notification-target adapters; WC1 |
+| 35–36 | `009C912B` / `009C913E` | Set/get two drop-sizing policy bytes; section 5.6 |
 | 37–38 | `009C88E2` / `009C8934` | Background buffer / font reference setters |
 | 39–40 | `009C8969` / `009C89A4` | Indexed font-color set/get |
-| 41 | `009C89CB` | Font-color adapter; WC1 |
+| 41 | `009C89CB` | Reset indexed font color to sentinel through slot 39 |
 | 42–43 | `009C89DF` / `009C8A09` | Selection color conversion/set and companion adapter |
-| 44–46 | `009C8A31` / `009C8A3B` / `009C8A3F` | Selection-highlight enable set/get / intensity setter (numeric edge cases WC1) |
-| 47–50 | `009C900F` / `009C9D3B` / `009C9EBB` / `009C9BD7` | Drop sizing/scrollbar adapters; WC1 |
+| 44–46 | `009C8A31` / `009C8A3B` / `009C8A3F` | Selection-highlight enable set/get / binary32 intensity setter; section 5.6 |
+| 47–50 | `009C900F` / `009C9D3B` / `009C9EBB` / `009C9BD7` | Resize drop height / width; copy indexed text / search using caller string comparator |
 | 51–54 | `009C8783` / `009C879F` / `009C87A3` / `009C87BF` | Flat-outline set/get / 3D-outline set/get |
-| 55–60 | `009C87C3` / `009C87FE` / `009C8848` / `009C8877` / `009C888E` / `009C88BD` | Style/gutter adapters; WC1 |
-| 61–63 | `009C8F70` / `009C98BD` / `0093877E` | Minimum row-height byte setter / adapter / shared stub; WC1 |
-| 64–65 | `009C919E` / `009C91AD` | Notification delivery mode adapters; WC1 |
+| 55–60 | `009C87C3` / `009C87FE` / `009C8848` / `009C8877` / `009C888E` / `009C88BD` | Set/get outline colors, bar-gap bytes, text-gutter bytes; section 5.6 |
+| 61–63 | `009C8F70` / `009C98BD` / `0093877E` | Set minimum row-height byte / scrollbar skin and rectangle / false stub taking two words |
+| 64–65 | `009C919E` / `009C91AD` | Set/get notification delivery byte; section 5.6 |
 
 W uses the common 0–150 window slot numbering. Owner overrides are
 0 QueryInterface, 4 Init, 5 Shutdown, 68 SetFlag, 88 GZPaint, 130/131 key
@@ -231,7 +231,7 @@ The W extension is particularly vulnerable to misleading export names:
 | 152 | `009C8BB0` | Character/prefix navigation when not capturing; returns false |
 | 153 | `009C8909` | Replace retained border buffer |
 | 154 | `009CA6D0` | Copy indexed entry's text into an output string; false if lookup fails |
-| 155 | `009C9C20` | Find matching text and output the first matching index; comparison helper boundary WC1 |
+| 155 | `009C9C20` | Find complete case-sensitive byte match and output first matching index |
 | 156 | `009C8666` | Recompute row height and whole visible-line count |
 | 157 | `009C9B9B` | Return indexed entry's string interface through output; false if absent |
 | 158 | `009CA0DF` | Remove a stored entry |
@@ -285,7 +285,7 @@ both invalidate even when assigned the existing byte (`009C8783/009C87A3`).
 Shutdown hides the window, then releases/nulls border, background, font and
 the references at W+`0x134/0x138`, in that order, then delegates to base
 (`009C85EE`). Timer/container destruction belongs to destruction, not these
-five releases. Allocation failure recovery for construction remains WC1.
+five releases. See section 5.6 for destruction and allocation domains.
 
 ### 5.3 Entries, selection and geometry *[compat]*
 
@@ -299,7 +299,7 @@ otherwise −2 or an index at/above count means last, other negatives mean first
 It changes the entry's text, updates drop sizing when enabled, invalidates and
 returns true. Public removal (`009C93D7`) rejects indices above the last;
 it adjusts scroll origin and selection, then updates/removes the vertical bar
-and invalidates. Negative removal indices and allocation failure are WC1.
+and invalidates. Negative removal indices and allocation failure follow section 5.6.
 
 Selecting an index (`009C8CEE`) preserves −1 as no selection; other values clamp
 to [0,count−1], with empty count yielding −1. A changed nonnegative selection
@@ -327,9 +327,9 @@ zero; it caps at count−wholeRows only when count exceeds wholeRows. Previous
 selection fails at the first row, on no selection or an empty list; otherwise
 it selects index−1 without notification. Previous page chooses
 `max(0,first−wholeRows+1)`, sets that origin and selects it without notification.
-First-prefix-match (`009C9CFA`) searches in list order and selects/notifies the
-first BeginsWith match with helper argument 1; missing match returns false.
-Case/encoding details of that helper remain WC1.
+Character navigation (`009C9CFA`) searches in list order and selects/notifies
+the first exact leading-byte match; missing match returns false. It takes one
+character byte, not a string prefix (section 5.6).
 
 HitTest (`009C8F99`) returns −1 for no entries. With clamp=true it clamps y
 into [0,height−1]. The row is signed
@@ -341,7 +341,63 @@ TextArea (`009C9AEB`) normalizes the window rectangle to local origin, insets
 by x/y gutters, and subtracts vertical bar width plus bar gap from the right
 edge when that bar exists.
 
+#### Removal, page forward and drop sizing (WC4)
+
+For a valid removal index `r`, old count `n`, selection `s` and origin `f`,
+storage is removed first. The requested origin is `f−1` only when `r<f`,
+otherwise `f`; SetFirstVisible applies its usual clamp. Selection decrements
+only when `r<s`, or when `r=s=n−1`. When the selected row has a successor,
+the index is retained and now designates that successor, with no select call
+or selection notification from this adjustment. The decrement path calls
+Select with notify=true; its ordinary/drop notification rules still apply.
+Removing the sole selected row yields −1. Subsequent bar removal when all
+remaining entries fit resets origin to zero. Drop-height/width refreshes run
+when their respective bytes are enabled (`009C9408`–`009C949F`).
+
+NextPage always returns true. It acts only when `n>0` and `f<n−v`, where `v`
+is whole visible rows. It requests origin `p=f+v−1`, then selects `p+v`
+with notify=false. The latter is based on the requested origin, not the
+clamped origin returned by SetFirstVisible; Select can clamp the row and move
+the origin again to make it visible. The apparent upper clamp of `p` tests
+the old `f` against `n−v`, so it is ineffective inside this branch
+(`009C8EF9`–`009C8F33`). For example `n=20,v=4,f=0` requests origin 3,
+selects row 7, and ends with origin 4. For `n=10,v=4,f=5` it requests 8,
+origin clamps to 6, and selection clamps to row 9. Do not replace this with
+a conventional one-page advance.
+
+Drop sizing is persistent policy: height/width sizing calls set the
+corresponding enabled byte in drop mode. Insertion, text replacement and
+removal run enabled height sizing then enabled width sizing. Init first
+recomputes row metrics, runs those same enabled policies, sets origin zero,
+and makes the selection visible before taking capture. Height policy is
+enabled by default; width policy is disabled by default. Outside drop mode
+both sizing calls return false without setting policy (`009C8415`,
+`009C8B24`, `009C9F12`, `009C900F`, `009C9D3B`).
+
+Height sizing marks its policy enabled even when it returns false because
+the list is empty or `n<v`. Otherwise desired height is `n*rowHeight+2*yGutter`.
+Available height is `parentHeight−windowTop−2`; absent parent uses
+`INT_MAX` for parentHeight. It preserves width and requests the lesser of
+desired/available height. When desired fits (including equality), it sets
+wholeRows to `n`, resets origin zero and removes the bar. When clipped it
+sets wholeRows to signed `(available−2*yGutter)/rowHeight` truncated toward
+zero, adds the bar and calls whole-line resize, so actual height can be
+smaller than available. Both branches refresh bar placement/range and
+invalidate. Gutters are sign-extended bytes, products/subtractions are
+32-bit integer operations, and the clipped division is IDIV
+(`009C903F`–`009C911A`). There is no minimum-height or zero-divisor guard in
+that branch, nor an automatic empty-list shrink.
+
+Width sizing measures every stored string through font slot `+0xC4`, takes
+the unsigned maximum starting at 1, and sets width to that maximum plus
+twice the signed x-gutter byte. It does not add scrollbar/border widths or
+strip color prefixes for measurement. Empty storage therefore requests
+`1+2*xGutter`. A nonempty list without a font requests the default font
+through WCM; this path assumes usable WCM/font services rather than returning
+a clean allocation failure (`009C9D3B`–`009C9DCC`).
+
 ### 5.4 Messages and capture *[compat]*
+
 
 There is no ListBox-specific DoMessage override. Base dispatch invokes the
 window hooks. Key-down `009C8BD1` consumes PageUp/PageDown/Up/Down, invokes the
@@ -363,7 +419,7 @@ to a scrollbar. Drop mouse-move otherwise changes the hovered row with
 notify=false; ordinary mouse-move does not change selection (`009C9769`).
 Scrollbar forwarding converts coordinates into the bar window, uses base
 message 10 for left-up and 13 for move, and reacquires list capture after
-dispatch. The exact asymmetric bar-capture tracking is WC1.
+dispatch. The asymmetric bar-capture byte is specified in section 5.6.
 
 | Event | Delivery (`009C91EE/009C924E/009C91B4`) |
 |---|---|
@@ -383,15 +439,15 @@ the bar width and gap, reads bar value as first visible row, fills with base
 fill when no background buffer exists or blits that buffer otherwise. A drop
 border buffer is rendered with the edge helper. A visible selected row is
 highlighted only when enabled and intensity is nonzero; the solid fill branch
-requires intensity exactly 1.0. Do not assume arbitrary fractional intensity
-produces a blend: its pixel result is unresolved WC1.
+requires intensity exactly 1.0. Fractional intensity produces no selection
+fill; the selected text-color policy still applies.
 
 Text drawing starts at first visible row, advances by cached row height,
 clips the last row to the drawing bottom and emits through the font interface.
 Normal/selected/alternate font colors are independent of selection fill.
 Strings beginning with the color escape are interpreted for drawing rather
-than changing stored text; the exact escape, malformed-prefix treatment,
-ellipsis fitting and fractional intensity remain WC1. Flat or 3D outline is
+than changing stored text; malformed prefixes and fitting follow section 5.6.
+Flat or 3D outline is
 drawn after rows when a font exists. With no font, the row text/outline branch
 is skipped; background work still occurs. No filesystem/clipboard IO belongs
 to this control. Missing bar/resource pointers skip the guarded owner work;
@@ -404,6 +460,130 @@ changed (`009C8972`–`009C899A`, instruction-verified). Getter returns false fo
 out-of-range or sentinel `0xDEADBEEF` without writing output; otherwise writes
 the word and returns true. Boolean returns are low-byte values, not a promise
 about all EAX bits (`009C89A4`).
+
+The color-prefix predicate (WC5) is a leading ASCII `#` byte (`0x23`),
+not an ESC control byte or markup tag. The literal `##` escapes it: exactly
+one leading byte is removed, leaving the rest as ordinary displayed text;
+there is no recursive parsing. A single leading `#` takes the color-prefix
+branch, which requires at least seven bytes, removes those seven bytes,
+and, in the window-flag-2-enabled branch, scans `#%02x%02x%02x` for RGB.
+With that flag disabled it still strips the prefix but keeps the alternate
+font-color policy. Prefix recognition and slicing modify only the temporary
+paint string. Constants at `00A9F354` and `00AA6DDC` are respectively `#`
+and `##`; calls/length checks are at `009CA457`–`009CA508`, with the
+alternate-color counterpart starting at `009CA534`. A '#' prefix is recognized
+even when its suffix is not hex; see section 5.6 for failed conversion.
+
+### 5.6 Residual ABI, malformed inputs and quirks (WC1) *[compat]*
+
+These are L-view calls (W+`0xD8`). Each argument occupies one native stack
+word, including bytes and binary32 values; boolean results promise AL only.
+Output arguments below require valid writable pointers. Folded target names
+are not API names: slots 30–33 return W+`0x164`, `0x104`, `0xFC`, `0x100`;
+slot 12 returns selection W+`0xF8`. No extra AddRef or notification accompanies
+these getters (`009C8F69`, `009CDC23/27`, `009D8564/858F`).
+
+| L slot | Arguments and observable behavior |
+|---:|---|
+| 5 | C-string pointer: creates a temporary string, invokes W151 find-and-remove, returns its boolean |
+| 6 | No arguments: clears entry storage, count=0, selection=−1, first=0; recomputes metrics, removes bars with both removal flags true, invalidates; no explicit boolean result |
+| 14–16 | No arguments: enable sorting once / return sorting byte / sort now. Enable sets W+0x10C only on the first call and invokes slot 16; it is not a nesting counter or update-suppression API |
+| 17–18 | One byte / none: store/get drop-mode byte W+0x10F without resource setup, sizing or invalidation |
+| 22 | No arguments: false for count<=0; otherwise set first row to zero and return true; does not select |
+| 23 | No arguments: set first row to zero if wholeRows>=count, otherwise count−wholeRows, when count>0; always returns true, including empty |
+| 35–36 | Two bytes / two byte-output pointers: store/get W+0x130/131 drop height/width policies; setter/getter true, no immediate sizing/invalidation |
+| 41 | One integer color index: forwards sentinel 0xDEADBEEF to slot 39, including its unusual equal-value invalidation rule |
+| 43 | One color-output pointer: false and untouched output for sentinel selection color; otherwise convert stored color through W127, write it, true |
+| 49 | Signed row index, output string interface: copy via W154 into a temporary then assign through output-string slot 14 on success; false leaves output untouched |
+| 50 | Index-output pointer, caller string interface: scan in list order, calling caller string slot 10 with entry text and comparison flag 1; write first match and return true, otherwise false without writing |
+| 55–56 | Two color words / two word-output pointers: convert colors through W128 and store W+0x124/128, invalidate; getter fails without writes if either sentinel, otherwise converts both through W127, writes both, true |
+| 57–58 | Two bytes / two byte-output pointers: store/get W+0x12C/12D (bar gaps); setter recalculates metrics and invalidates, true |
+| 59–60 | Two bytes / two byte-output pointers: store/get W+0x12E/12F (text gutters); setter recalculates metrics and invalidates, true |
+| 61 | One byte, zero-extended into minimum-height word W+0x108; recalculate metrics and invalidate, true |
+| 62 | Buffer interface, rectangle pointer: AddRef incoming before Release old W+0x134, copy four rectangle words to W+0x13C; if a bar and buffer exist, set its skin with the supplied rectangle, or full buffer rectangle if empty; true |
+| 63 | Two words: false stub, no effects |
+| 64–65 | One byte / none: store/get W+0x160; setter true, no invalidation; zero means Send, any nonzero means Post |
+
+The table is instruction-verified at its listed inventory addresses. Slots 55
+and 14/16 have no independent boolean guarantee. Sort-now saves selected text,
+sorts entry values through the language-manager comparison at service slot 22
+with flag 1, writes the sorted values back, then selects the first matching
+saved text with notify=true when selection was not −1. Duplicate labels can
+therefore change the selected caller ID. Sorting is an immediate operation;
+ordinary insertion still follows the requested index. Locale comparison is a
+service dependency, not byte ordering (`009CB16A`, `009C8F4C`).
+
+W155 takes index-output and concrete string pointers and compares complete
+byte sequences, including equal lengths, case sensitively (`0043AB70`). W151
+uses that first matching index for L4 removal; absent text returns false.
+L28 instead takes a **character byte**, compares exactly one leading byte
+case sensitively, selects the first match with notify=true, and returns false
+if absent. This is not a variable-length or case-folded prefix search
+(`009C9C20`, `009C9CFA`, `0090E443`).
+
+Negative public removal is a native inconsistency, not clamping: L4 rejects
+only index>count−1, then calls W158. W158 returns false if stored count=0;
+for nonempty storage, zero removes first, −2 or index>=count removes last,
+and another negative traverses without finding a row but **still decrements
+the stored count** and returns true. L4 ignores W158's return and proceeds
+with its normal origin/selection/bar updates and true result. Thus −1 on an
+empty list passes the public bound check and returns true, and −3 on a
+nonempty list can desynchronize count from actual storage. W159 has the
+analogous count increment after an unmatched negative traversal, though L7
+normalizes its index before invoking it (`009C93D7`, `009CA0DF`, `009CAC56`).
+Do not make malformed calls into an atomic validated operation.
+
+There is no suppression nesting in these adapters. Repeated Shutdown releases
+each still-present retained resource once and nulls it; entries and timer
+survive until destruction. Destruction frees the timer, invokes Shutdown,
+destroys entry strings/list storage and delegates to base destruction; the
+deleting wrapper frees the object only for flag bit 0. Destruction itself is
+single-use (`009CAA15`, `009CAC3A`). Storage allocation returns are used by
+the list-link helper without a null guard (`009560FE`, `009CAA5C`); constructor
+also requires WCM. Allocation failure has no owner false/rollback contract.
+
+Intensity L46 takes binary32, stores it, clamps values greater than 1 to 1
+and less than 0 to +0, then invalidates. NaNs survive both comparisons;
+negative zero remains negative zero; infinities clamp to the corresponding
+endpoint. x87 comparison/status tests are at `009C8A3F`–`009C8A6D`. Paint
+has no fractional blend call: only exactly 1 produces fill, and NaN does not
+produce fill (`009CA2AC`–`009CA359`).
+
+An unescaped leading '#' shorter than seven bytes clears the temporary paint
+string, so that row emits no text. For length>=7 in the enabled flag-2 path,
+three uninitialized stack words are supplied to the C scan `#%02x%02x%02x`;
+the conversion count is ignored and all three words go to RGB conversion.
+Failed fields retain prior stack contents (including values from a preceding
+row in the same paint). There is no deterministic fallback color. Seven bytes
+are removed even after a partial/failed scan. Flag-2-disabled drawing strips
+seven bytes without scanning. These quirks do not change stored strings
+(`009CA4AF`–`009CA4F4`, `009CA5A6`–`009CA5E3`). Paint asks font slot 42 for
+the number of bytes fitting the available text width with final argument zero,
+then draws that prefix through slot 51 with flags `0x08000000`, two zero
+trailing arguments and the chosen color. The owner neither appends dots nor
+rewrites the string to add an ellipsis (`009CA5EE`–`009CA640`); font fitting
+and glyph pixels belong to the font service.
+
+After forwarded bar move, tracking becomes **captureOwner==bar**; after
+forwarded bar left-up, it becomes **captureOwner!=bar**. Both read capture
+before retaking list capture, and return the bar dispatch result. A true
+tracking byte lets later events bypass list/bar hit bounds and explicitly
+restores bar capture before dispatch. With false tracking, the pointer must
+be inside the list and then inside the bar's half-open local bounds. Preserve
+the opposite tests (`009C9861`–`009C986E`, `009C971B`–`009C9728`).
+
+| Vector | Setup / operation | Required result |
+|---|---|---|
+| WC-L27 | Enable sorting twice with recording comparator | First call sorts, second does nothing; no suppression depth |
+| WC-L28 | Entries ['Alpha','alpha']; search exact 'alpha'; character navigation 'A' | Exact search returns 1; character selects 0, case sensitively |
+| WC-L29 | Nonempty three-row list; public removal −3 | Physical rows unchanged, stored count 2; normal public repair/invalidation still runs |
+| WC-L30 | Three rows; public removal −2; empty list public removal −1 | First removes last; second returns true even though storage removal failed |
+| WC-L31 | Set intensity −infinity, 0.5, +infinity, NaN | Stored +0, 0.5, 1, NaN respectively; only 1 produces highlight fill |
+| WC-L32 | Paint '#bad' and '##bad' | First emits no text; second displays '#bad'; storage unchanged |
+| WC-L33 | Paint '#123456A' then '#12xxxxB' with enabled flag 2 | First sets RGB 0x12/0x34/0x56; second scan replaces red only, retains green/blue from first row; suffixes A/B draw |
+| WC-L34 | Font fit returns 3 for six-byte text | Draw receives original pointer, count 3 and flags 0x08000000; owner adds no dots |
+| WC-L35 | Bar dispatch leaves bar capturing, first move then left-up | Tracking true after move, false after left-up; list retakes capture each time |
+| WC-L36 | Shutdown twice then deleting destructor | Five retained resources released once total; timer and entry storage disposed during destructor only |
 
 ## 6. TreeView
 
@@ -419,21 +599,21 @@ do not extend it into the next pure-call table.
 | O slots | Target(s), in slot order | Role / boundary |
 |---|---|---|
 | 0–2 | `009CFA42` / `0094D34F` / `009D006C` | QueryInterface / AddRef / Release |
-| 3–7 | `009CFA64` / `009CFAA6` / `009CFAB9` / `009CFAF2` / `009CFB0D` | Property/flag adapters, WC2 |
-| 8–11 | `009B002D` / `009CFB32` / `009CFB49` / `009CFB64` | Property/service adapters, WC2 |
-| 12–16 | `00879480` / `009CFB89` / `009CFBBA` / `009CFBC1` / `009CFBF8` | Property/service adapters, WC2 |
-| 17–18 | `009D0081` / `009CFC0C` | Property/service adapters, WC2 |
-| 19–22 | `009D3F7B` / `009D34A7` / `009D0C63` / `009D407E` | Image/resource adapters (22 releases image-list entries after first four); WC2 |
+| 3–7 | `009CFA64` / `009CFAA6` / `009CFAB9` / `009CFAF2` / `009CFB0D` | Flag at +0x148, margin-pair and margin setters; section 6.6 |
+| 8–11 | `009B002D` / `009CFB32` / `009CFB49` / `009CFB64` | Margin getter, stored pair set/get, row-height setter; section 6.6 |
+| 12–16 | `00879480` / `009CFB89` / `009CFBBA` / `009CFBC1` / `009CFBF8` | Row-height getter, +0x130 set/get, base-color set/get; section 6.6 |
+| 17–18 | `009D0081` / `009CFC0C` | Set/get +0x180 property; section 6.6 |
+| 19–22 | `009D3F7B` / `009D34A7` / `009D0C63` / `009D407E` | Image/resource adapters; section 6.6 |
 | 23–25 | `009D3D60` / `009D3CBA` / `009D3A7A` | Insert wrappers / descriptor-based InsertNode |
-| 26–28 | `009D1FAB` / `009D2E07` / `009CFC13` | Move node / removal-family boundary / adapter; WC2 |
+| 26–28 | `009D1FAB` / `009D2E07` / `009CFC13` | Move / remove / clear-root wrapper; section 6.6 |
 | 29–30 | `009D33CD` / `009D2092` | Get/set node descriptor |
-| 31–38 | `009D219B` / `009D21BA` / `009D21F2` / `009D2209` / `009D2226` / `009D225F` / `009CFC1B` / `009D22BD` | Node text/style/data adapters; exact per-slot contracts WC2 |
+| 31–38 | `009D219B` / `009D21BA` / `009D21F2` / `009D2209` / `009D2226` / `009D225F` / `009CFC1B` / `009D22BD` | Text/data/images/default font/node font; section 6.6 |
 | 39 | `009D22D4` | Set node font (null uses default) |
-| 40–44 | `009CFC50` / `009CFC67` / `009D2343` / `009D237B` / `009D23D9` | Node properties/expanded getter; WC2 |
+| 40–44 | `009CFC50` / `009CFC67` / `009D2343` / `009D237B` / `009D23D9` | Default/node colors and expanded getter; section 6.6 |
 | 45–47 | `009D23F0` / `009D3E03` / `009D3E50` | Set expanded / get visible / make visible |
-| 48–50 | `009D246B` / `009D2485` / `009D24C4` | Node properties/selected state; WC2 |
+| 48–50 | `009D246B` / `009D2485` / `009D24C4` | Child count/array and selected byte; section 6.6 |
 | 51–52 | `009D24DB` / `009D24FC` | Parent handle / stored insertion-reference word; −1 if unavailable |
-| 53–55 | `009D00B3` / `009D00FA` / `009D00C5` | Selection accessors; WC2 |
+| 53–55 | `009D00B3` / `009D00FA` / `009D00C5` | Selection count/first/array; section 6.6 |
 | 56–59 | `009D2EE6` / `009D081F` / `009D2514` / `009CFA36` | Select / deselect / clear selection / AsIGZWin |
 
 The 151-slot W table overrides 0/2 interface/lifetime thunks, 3 DoMessage,
@@ -445,7 +625,7 @@ contracts. Important non-slot methods: InternalInit `009D3956`, root creation
 `009D0888`, scrollbar creation/check/update `009D0112/009D01C0/009D0331/009D049B`,
 selection-cache repair `009D0FD1`, cursor lookup `009D0626`, drag notification
 `009D067F`. Drag helper hooks are Init `009CFDCE`, Shutdown `009CFE60`, paint
-`009CFE70`, mouse-up `009CFEF0` and move `009D141A`; detailed drag behavior WC3.
+`009CFE70`, mouse-up `009CFEF0` and move `009D141A`; drag behavior section 6.7.
 This is an interface inventory, not a complete proof of all these bodies.
 
 ### 6.2 State, defaults and lifetime *[compat]*
@@ -487,7 +667,8 @@ handle. Shutdown clears visible/selection caches, destroys mapped nodes and
 image entries, releases/nulls default font, working buffer and both bars, then
 base shutdown (`009D320F`, W-relative entry). Root and resource allocation
 failures are not safely guarded throughout; do not promise successful partial
-initialization or atomic rollback. Exact restart-after-shutdown behavior WC2.
+initialization or atomic rollback. Shutdown does not reset internal-init,
+root pointer or next handle; restart is not a fresh initialization (section 6.6).
 
 ### 6.3 Node operations and selection *[compat]*
 
@@ -499,9 +680,9 @@ On success it consumes the next handle, copies text/style/data, assigns parent,
 starts unselected and not force-branch, inserts in the parent's ordered list,
 updates child count/map, marks layout dirty and invalidates. Null font uses
 the default. Row height grows to accommodate the font metric, but is not
-reduced by this operation. Ordering sentinels −2, −3, −4 exist; the exact
-prepend/append/sorted helper contracts and invalid-reference mutation/leak
-behavior are WC2. An allocation returning null is subsequently dereferenced;
+reduced by this operation. Ordering sentinels −2, −3, −4 mean prepend, append
+and sorted insertion respectively; explicit references and post-allocation
+failure state follow section 6.6. An allocation returning null is subsequently dereferenced;
 no graceful false/−1 result is established for that case.
 
 SetExpanded `009D23F0` fails for an absent handle. On a changed byte it marks
@@ -530,7 +711,22 @@ for all selected nodes, sends once if nonempty, and returns true even if empty.
 Descriptor get/set at `009D33CD/009D2092` transfers text/data/style and state;
 the setter invokes expanded, make-visible and select/deselect operations as
 needed, preserving their notifications, then dirties layout and invalidates.
-The complete output descriptor ABI and child-handle copy are WC2.
+The output descriptor ABI and child-handle copy are specified in section 6.6.
+
+#### Root inclusion and navigation anchor (WC6)
+
+Flattening is preorder in child-list order. Control flag `0x2` includes the
+special root (node byte `+0x45`); clearing it omits that node and visits its
+children at the same depth, even if its expanded byte is false. With the flag
+set, the root occupies row zero and its children require expansion. Ordinary
+nodes occupy a row regardless of their expanded byte; only their descendants
+are gated by expansion. A special root does not increment indentation depth
+for its children. A hidden root has its flattened-visible byte cleared with
+the other nodes and is not added back. These are owner rules, not an implied
+native-treeview style (`009D2FEB`–`009D30EF`). Keyboard navigation uses the
+last entry in the selection sequence when there are several, the sole entry
+when there is one, and row zero when none. It does not use the first selected
+node (`009D15C1`–`009D15E3`).
 
 ### 6.4 Input, dispatch and notification *[compat]*
 
@@ -554,7 +750,7 @@ expand/collapse messages. Home/End/Up/Down/PageUp/PageDown navigate the visible
 sequence and select one node with replacement=true. Left collapses an expanded
 node or navigates to its parent when already closed; Right expands a closed
 node, otherwise advances one visible row. Navigation clamps to the visible
-range; zero-node indexing and exact page arithmetic remain WC3. Key-up returns
+range; zero-node indexing and exact page arithmetic follow section 6.7. Key-up returns
 false (`009CFF04`).
 
 Mouse-down `009D1031` operates on the node under the cursor; expander hits
@@ -562,7 +758,7 @@ toggle expansion and emit expand/collapse, while text/image hits select or
 activate according to modifier/double-click state. Activation sends
 `0x1AF5A13B` and can toggle a branch as Enter does. Hit rectangles come from
 painting, including the horizontal scroll transform. Right-down, drag start,
-drag-over, cancellation and exact modifier/double-click behavior remain WC3;
+drag-over, cancellation and exact modifier/double-click behavior follow section 6.7;
 do not replace them with an assumed host-treeview policy. Tree notifications
 are synchronous W slot 144 sends to the notification target, with handles
 converted by W slot 63; selection-changed has zero payload rather than a
@@ -588,9 +784,443 @@ buffer and blits the viewport to the window drawing buffer. Buffer access
 flags are acquired/tested and released around guarded owner operations;
 failed access skips that guarded operation. IO consists of graphics/font/
 resource-service calls; no directory enumeration or clipboard IO is proven
-for this owner. Exact line/expander pixels, selected gradient arithmetic,
-image-list load failure and drag-helper drawing remain WC3. In particular,
-this section is an interface drawing contract, not pixel-exact conformance.
+for this owner. Sections 6.6–6.7 settle image failures, owner line/expander
+geometry, selection fills and drag drawing. Final rasterization belongs to
+the called graphics/font services; no pixel comparison is claimed.
+
+#### Layout and hit geometry (WC6)
+
+Use unsigned 32-bit stored dimensions and wraparound arithmetic. Let `h` be
+row height (`+0x128`), `b` expander size (`+0x130`), `g` spacing (`+0x134`),
+`i` reserved image width (`+0x12C`), and `mx,my` the margins (`+0x138/+0x13C`).
+Flag `0x4` enables images; `0x8` enables connector/expander drawing. Neither
+changes membership in the flattened sequence. Layout measurement uses
+`c=(i-b)/2` rounded down only when images are enabled and `i>b`, otherwise
+zero. Ordinary depth `d` contributes `(b+g+c)*(d+1)` before the reserved image
+and text space. Root contribution is zero. Maximum content width is the
+maximum contribution plus `g+i+3+font-measured text width` (`009D3017`–
+`009D30D9`). Image/text space is reserved even when image drawing is disabled.
+
+Painting deliberately differs at the numeric edge: its `c` is the logical
+right shift of the wrapping difference `i-b` whenever images are enabled,
+without the measurement pass's `i>b` guard (`009D17DA`–`009D17E8`). For an
+ordinary node its expander origin is `x=(b+g+c)*d+c`,
+`y=(row-first)*h`; the root uses `(0,0)`. Let `a=x+b+g` (root: `a=0`).
+DrawItem's text rectangle is `[a+g+i,y,a+g+i+3+textWidth,y+h]`; text is
+emitted three pixels right and one pixel down from that rectangle's top-left.
+The image, if enabled with a usable index, is centered in the `i` by `h`
+reserved area at `(a,y)`, with each centering difference shifted logically
+right by one. Selected image indices override the ordinary index only when
+not −1; expanded images apply only to expanded nodes having children.
+There is no image-index bounds check (`009D0CB1`–`009D0DFD`).
+
+Painting resets the visited node's three rectangle-valid bytes. Text geometry
+becomes valid when DrawItem targets the working buffer; image geometry becomes
+valid only after successful `0x8010` buffer access/blit. A branch's expander
+rectangle is `[x,y+((h-b) arithmetic-shift-right 1),x+b,
+y+((h-b) arithmetic-shift-right 1)+b]`, recorded only after successful
+`0x8008` access. A leaf has connector lines but no expander hit rectangle.
+These rectangles remain in working-buffer coordinates and are not clipped
+to the viewport (`009D17C0`–`009D17C8`, `009D1A00` vicinity,
+`009D0DAC`–`009D0DB9`, `009D0F64` vicinity).
+
+The drawable viewport starts at window left/top plus `mx,my`. Available
+width/height subtract twice the respective margin and the opposite-axis bar's
+thickness when present, then are capped by working-buffer dimensions.
+Whole rows are unsigned `viewportHeight/h`; the paint/page count is
+`ceil(viewportHeight/h)`, including a partial row. The quotient is computed
+with x87 unsigned-integer conversion and division, passed as a double to
+ceil, then converted to integer; no intervening float store is present
+(`009D3713`–`009D3772`; ceil entry `009F0A20`). Thus `h=0` is outside the
+safe domain. Last paint row is `first+paintCount−1`; it is not clamped to
+total here. The unsigned correction comparison at `009D3782`–`009D37B7`
+compares `last-first` against `paintCount−1`, so ordinary arithmetic does
+not trigger its apparent end-of-content adjustment.
+
+Cursor-to-row lookup first applies the inclusive rectangle test to
+`(mouseX-mx,mouseY-my)` against `[0,0,viewportWidth,viewportHeight]`, then
+unsigned-divides adjusted Y by `h` and accepts offsets up to `last-first`
+inclusive (`009D0626`–`009D0678`). It does not independently check the
+flattened-sequence length. Exact bottom-edge hits can therefore reach an
+unbacked row. Mouse handlers test the recorded subrectangles inclusively
+after transforming X by horizontal scroll minus `mx`, and Y by `−my`.
+Stale/unpainted geometry and out-of-range edge lookup are native quirks;
+no fabricated valid hit is specified for them.
+
+### 6.6 Verified properties, descriptors and adapters (WC2) *[compat]*
+
+This section settles WC2's properties, descriptors, node/image adapters,
+ordering, move/removal, ownership and restart. All offsets here are relative to O.
+Integer/pointer arguments and outputs are 32 bits; byte arguments occupy
+one stack word. Unless explicitly stated otherwise, these property setters
+have no independent boolean return guarantee.
+
+| O slots | Arguments and behavior |
+|---:|---|
+| 3–4 | Set(mask, byte enabled) / get(mask) for word +0x148. Get means any masked bit is set. Enabling does nothing if **any** requested bit is already set; otherwise ORs the entire mask. Disabling does nothing if none are set; otherwise clears all masked bits. A mutation marks layout dirty and invalidates. This is distinct from the main flags at +0x118 |
+| 5–6 | Set(two words) / get(two word-output pointers) for +0x138/13C. Setter marks dirty and invalidates only if either changes; getter writes both |
+| 7–8 | Set(one word) / get() for +0x134. Changed setter dirties and invalidates |
+| 9–10 | Set(two words) / get(two word-output pointers) for +0x16C/170. No dirtying or invalidation |
+| 11–12 | Set(one word) / get() for +0x128 row height. Changed setter dirties and invalidates, with no lower-bound validation |
+| 13–14 | Set(one word) / get() for +0x130. Before comparing/storing, setter clamps the requested word to **+0x118**, using an unsigned minimum. It does not clamp to row height +0x128. A changed value dirties and invalidates |
+| 15–16 | Set(color word) converts through W128 and stores +0x124; dirties/invalidates only on changed converted value. Get() converts stored word through W127 and returns it, including sentinel values |
+| 17–18 | Set(one word) / get() for +0x180. Setter stores on change but dirties/invalidates only if selection sequence is nonempty |
+| 37 | Set default font(pointer): same pointer is a no-op; otherwise AddRef incoming nonnull, Release old nonnull, store. Does not update existing nodes, dirty layout, grow row height or invalidate |
+| 40–41 | Get(index) / set(index, word) for four defaults +0x174..180. Signed index>=4 returns zero/no write. There is **no negative-index check**; negative indices address preceding object words. Setter does not dirty or invalidate |
+
+These rules come from `009CFA64`–`009CFC7D`, the folded getters
+`009B002D`/`00879480` and setter `009D0081`. The odd unsigned clamp and signed
+upper-only index bound are literal instruction behavior, not corrected names.
+Output pointers are mandatory and not checked for null.
+
+**Two different descriptor layouts.** O25 insertion takes a pointer to a
+descriptor with parent at +0, insertion reference +4, text-interface pointer
++8, user data +0xC, four image words +0x10..1C, font pointer +0x20, four color
+words +0x24..30 and expanded byte +0x34. It does not take the layout used by
+O29/O30 below. Text is copied by assignment, user data is an opaque word,
+font is borrowed and null selects the default font. There is no per-node
+font AddRef. The font must exist before metric lookup.
+
+O29 get(handle, output descriptor) and O30 set(handle, input descriptor)
+both return false for an absent handle; getter leaves output untouched in
+that case. Their layout is:
+
+| Offset | Field |
+|---:|---|
+| +0 | Caller-provided string interface; getter assigns node text through it, setter copies from it |
+| +4 | User-data word |
+| +8/+0xC/+0x10/+0x14 | Four image-index words, matching node +0x34/38/3C/40 |
+| +0x18 | Font pointer (borrowed getter result; setter delegates to node-font setter) |
+| +0x1C/+0x20/+0x24/+0x28 | Four raw node color words, matching node +0x24/28/2C/30 |
+| +0x2C/+0x2D/+0x2E/+0x2F | Expanded / force-branch / currently visible / selected bytes |
+| +0x30 | Caller-constructed native list of signed child handles; getter replaces contents with immediate children in child-list order |
+
+The getter computes visibility through O46, so it can refresh dirty layout;
+it does not return the raw flattened-visible byte alone. Its child output is
+a list, not an array plus capacity/count pair, and contains no grandchildren
+(`009D33CD`–`009D34A6`). Setter does not consume the child list or force-branch
+byte. It first changes expanded and emits the corresponding expand/collapse
+message if changed, then calls MakeVisible if the visible byte is nonzero
+(false does not hide), then selects with replacement=false or deselects only
+if selected differs. It copies images, delegates font, copies text/data/colors,
+and finally marks layout dirty and invalidates, returning true. It preserves
+the intermediate notification/visibility side effects even when final stored
+values are unchanged (`009D2092`–`009D219A`).
+
+**Insertion ordering and failure state.** Sentinel −2 prepends; −3 appends.
+Sentinel −4 inserts before the first child whose complete byte string is
+lexicographically >= the new text, or appends if none. Comparisons are case
+sensitive unsigned-byte comparisons with shorter-prefix-first ordering;
+equal new labels precede old equals. This uses the inversion of existing<new
+in `009D1708`/`004B5CA0`, not the language manager used by ListBox sorting.
+List helpers `009D74D9` and `008F6E80` insert before the first link and before
+the end sentinel respectively; `00897C8D` inserts **before** its link.
+
+For a non-sentinel insertion reference, a globally absent handle returns −1
+**after** allocating/constructing the new node, consuming the next handle,
+copying its text/style and possibly growing row height. That node is neither
+linked nor mapped nor freed on this path. There is no child-count update,
+dirtying or invalidation on that failure. A globally existing reference that
+is a child inserts before that child; a globally existing reference outside
+the chosen parent's children appends instead of failing. The stored reference
+word remains the caller's original value (`009D3B82`–`009D3CB3`). Invalid
+parent/map fails before allocation; null node allocation is dereferenced.
+
+**Shutdown is not restart.** W Shutdown clears the two node-pointer caches,
+destroys/frees every mapped node, clears the map, releases each nonnull image
+buffer and clears image entries, then releases/nulls default font, working
+buffer, horizontal bar and vertical bar before base Shutdown. The node
+destructor destroys its text and child-list storage, with no font Release
+(`009D2BD9`). It does not own the opaque data word. Shutdown does **not** reset
+O+0x11C internal-init, O+0x110 root pointer, next handle, or style words
+(`009D320F`–`009D3311`, whose receiver is W=O+4). The ordinary root is freed
+with the map and its stored pointer is left dangling. Repeated Shutdown has
+empty containers/null retained interfaces and does not release them again;
+it still calls base Shutdown. A later Init skips InternalInit and proceeds
+to recalculate with that stale root and released resources. There is no
+supported clean restart or promise that this malformed lifecycle returns
+success safely (`009D3F56`–`009D3F7A`).
+
+InternalInit sets its one-shot byte before fetching resources. A failed
+working-buffer initialization releases/nulls the returned buffer; absent
+graphics service skips creation. Neither this failure nor a missing default
+font resets the one-shot byte for retry. These are observable owner failure
+policies, not an atomic Init transaction (`009D3956`–`009D3A79`). Image-list
+setup and its failure details are specified below.
+
+| Vector | Setup / operation | Required result |
+|---|---|---|
+| WC-T19 | +0x148 has bit 1 set; enable mask 3 through O3 | No write/invalidation; bit 2 remains clear because any overlap suppresses enabling |
+| WC-T20 | Main flags +0x118=11, row height=16; set O13 to 14 | +0x130 becomes 11, not 14; dirty/invalidate if changed |
+| WC-T21 | Child labels ['B','D']; insert 'C' sorted, then 'C' sorted | ['B',newest C,older C,'D']; equal labels insert before old equals |
+| WC-T22 | Insert before a valid handle belonging to another parent | New node appends to requested parent and retains supplied reference word |
+| WC-T23 | Insert before globally absent reference, with a taller valid font | −1; next handle consumed and row height can grow; no map/child-count/dirty/invalidation commit; allocated node leaks |
+| WC-T24 | Get descriptor with prefilled child list, immediate children [8,3], grandchild 9 | Output list becomes [8,3]; visibility queried through O46; font returned without AddRef |
+| WC-T25 | Set descriptor with force=true, visible=false, altered child list | Force flag/child topology unchanged; false visible does not hide; final dirty/invalidation still occurs |
+| WC-T26 | Init, Shutdown twice, inspect root/init/font state | Root pointer and internal-init remain; font null, map empty; later Init is not a fresh restart |
+
+#### Remaining primary adapters and image ownership
+
+All calls below use O; words are native 32-bit stack arguments and boolean
+results promise AL only. Borrowed results do not AddRef. Missing handles
+produce the results stated below, without dirtying or notifying.
+
+| Slot | Arguments → result and observable behavior |
+|---|---|
+| 19 | (index, buffer, rectangle pointer) → bool. Accepts signed indices 0–3 only; grows the image vector through index, AddRefs incoming nonnull buffer before releasing the previous nonnull entry, copies the four rectangle words. An empty rectangle with a nonnull buffer becomes its full dimensions. Null buffer is accepted with the supplied rectangle. Width grows to rectangle width; row height grows to rectangle height+2 only when rectangle height exceeds current row height. Both comparisons are unsigned; neither metric shrinks. No dirty/invalidate call |
+| 20 | (nonnull buffer, rectangle pointer) → appended index; null buffer → −1 without reading the rectangle. Retains the buffer, applies the same empty/full-rectangle and growing-metric rules, appends after all existing entries. No dirty/invalidate call |
+| 21 | (index, buffer-output pointer, rectangle-output pointer) → bool. Unsigned index outside current image count fails without outputs. Otherwise copies the borrowed buffer and four rectangle words; no AddRef |
+| 22 | () → no defined result. Releases entries at indices ≥4, then truncates to four if larger. Preserves the first four entries and all cached metrics; no dirty/invalidate call |
+| 23 | (parent, reference, text bytes, closed image, selected-closed image, open image, selected-open image) → handle. Copies text through a temporary string and inserts with data=0, current default font/colors and expanded=false |
+| 24 | (parent, reference, text bytes, data) → handle. As slot 23 but images are 0,1,2,3 in that order and user data is supplied |
+| 28 | () → forwards to removal slot 27 with handle 0 (special root); does not destroy/recreate the root |
+| 31 | (handle) → borrowed node string interface, or the control's fallback string at O+0x1A4 when absent |
+| 32 | (handle, string interface) → bool. Copies text, dirties and invalidates even for equal text; absent → false |
+| 33–34 | (handle) → user-data word or 0; (handle, word) → bool. Store succeeds without layout, invalidation or notification |
+| 35–36 | (handle, image selector) → image word or −1; (handle, selector, image word) → bool. Selectors 0–3 map to node +0x34/38/3C/40. Invalid selector fails; valid setter always dirties/invalidates |
+| 38 | (handle) → borrowed font or null |
+| 42–43 | (handle, color selector) → raw color word or 0; (handle, selector, word) → bool. Selectors 0,1,2,3 map to node +0x24,+0x2C,+0x28,+0x30 respectively. No color conversion; valid setter always dirties/invalidates; invalid selector fails |
+| 44 | (handle) → expanded byte, or false |
+| 48 | (handle) → immediate-child count, or 0 |
+| 49 | (handle, output array) → bool. Null output or absent node → false. Copies every immediate child handle in list order, with no capacity argument; empty child list with nonnull output → true |
+| 50 | (handle) → selected byte, or false |
+| 53 | () → selection count |
+| 54 | () → first selected handle or −1; keyboard navigation instead anchors at the last selected entry |
+| 55 | (output array) → true. Copies all selected handles in sequence order with no capacity check; null is safe only when selection is empty |
+
+An empty rectangle means signed right<=left or bottom<=top (`007C1870`).
+Image contracts are instruction-verified at `009D3F7B`–`009D40BD`,
+`009D34A7`–`009D354E`, `009D0C63`–`009D0CB0`. Slot 23's seven arguments
+and slot 24's four arguments are verified at `009D3D60`/`009D3CBA`;
+both perform InternalInit first if needed. Temporary string allocation failure
+is dereferenced, not returned as a clean insertion failure (`009D3166`–`009D3183`).
+Adapter field/selector mappings and bounds are verified at
+`009D219B`–`009D24DA`, `009D00B3`–`009D0111`.
+
+**Move and removal.** Slot 26 (handle, new parent, reference) has no defined
+boolean result. Missing source/destination or a source without a parent is
+a no-op. Otherwise it splices the existing node, preserves its subtree,
+handle/data/style/selection, updates parent child counts and parent pointer,
+then dirties and invalidates. Reference −2 means prepend, −3 append. A positive
+reference inserts **after** the matching immediate destination child; a missing
+positive reference wraps to the destination's beginning. Other nonpositive
+values, including −4 and 0, prepend; move does not sort. There is no cycle,
+self-parent or descendant-parent rejection. Such malformed hierarchy requests
+do not have a safe traversal guarantee (`009D1FAB`–`009D2091`).
+
+Slot 27 (handle) returns false for an absent node. It unlinks an ordinary
+node from its parent, recursively processes its descendants, deselects each
+selected processed node through the normal notifying deselector, and destroys
+the marked ordinary nodes while erasing their map entries. The special root
+is not marked for destruction: removing handle 0 clears its children and
+selection but leaves that root mapped. Child lists/counts are reduced;
+layout is dirtied and invalidated even when removing an already empty root.
+There is no independent removal notification or replacement selection.
+This follows `009D2E07`–`009D2EE5` and helper `009D1735`–`009D17A7`.
+Node destruction disposes its string and child-list storage, not its borrowed
+font or image entries (`009D2BD9`). Image buffers belong to the control's
+retained image vector and are released on replacement/truncation/Shutdown;
+nodes merely store indices into it.
+
+**Resource failures.** InitializeImageList returns immediately without GS or
+WCM and preserves any preinstalled images. Each missing/null default slot
+0–3 is attempted independently; buffer-creation failure skips that slot and
+continues. A created buffer is installed and the temporary reference released
+even if surface initialization or access fails; failure does not roll back
+earlier slots or make Init fail. Defaults 0/1 are solid blue/red; 2/3 use the
+WCM color `0x08963F6C` as background/transparent key and draw the respective
+blue/red triangle. Successful access `0x8001` is paired with release; failed
+access skips only the guarded fill. The triangle is still requested when
+surface initialization succeeded but access failed (`009D0888`–`009D0C62`).
+InternalInit sets its completed byte before these requests. Missing default
+font is retained as null and later metric consumers require a valid font;
+there is no promised allocation rollback/retry. Its working-buffer init
+failure releases/nulls that buffer (`009D3956`–`009D3A79`). These are service
+failure boundaries, not a promise to recover from arbitrary allocator faults.
+
+| Vector | Stimulus | Required result |
+|---|---|---|
+| WC-T27 | Replace image 0 with the same retained buffer; get it | AddRef before Release; borrowed getter; no invalidate |
+| WC-T28 | Row height 12; append images of heights 12,13,2 | Heights become 12,15,15; smaller images never shrink it |
+| WC-T29 | Truncate seven images with slot 22 | Release entries 4–6 only; count 4; cached metrics unchanged |
+| WC-T30 | Move A into children [B,C], reference B, then reference absent 999 | Orders [B,A,C], then [A,B,C]; no sorted interpretation of −4 |
+| WC-T31 | Remove root with selected child and grandchild | Selected removals notify individually; root survives mapped with zero children |
+| WC-T32 | Get text for missing handle; get/set invalid image selector | Fallback borrowed string; image getter −1/setter false with no invalidation |
+| WC-T33 | Set color selector 1 then descriptor-get | Raw word appears at descriptor +0x24 (node +0x2C) |
+| WC-T34 | Enumerate empty node with null output then valid output | False then true; no array writes |
+| WC-T35 | Select A then B cumulatively; slots 53–55 and navigation | Count 2; first A; copy [A,B]; keyboard anchor B |
+| WC-T36 | Default buffer creation succeeds, surface init fails, next slot succeeds | Failed-init buffer still retained in its slot; later slot attempted; Init has no aggregate failure |
+
+### 6.7 Input, drag and rendering closure (WC3) *[compat]*
+
+**Keyboard and empty layout.** PageUp/PageDown subtract/add the paint/page
+count O+0x164, including a partial bottom row; there is no overlap-row
+subtraction. Home requests 0, End total−1, Up row−1, Down row+1. Arithmetic
+wraps at 32 bits, then negative signed candidates become 0, then unsigned
+candidates ≥total become total−1. Navigation selects with replacement=true;
+modifier arguments are not used for range/additive keyboard selection.
+Left/Right act on expansion/parent only when selection is nonempty; otherwise
+they still pass row zero through the common selection step. No dirty-layout
+refresh is demanded here. These are cached-layout operations
+(`009D15BB`–`009D1687`, instruction-verified).
+
+There is **no empty-visible-sequence guard** for the navigation keys. With
+total=0 the final clamp produces −1, followed by an array access before its
+beginning and a node dereference. This is an unsafe native edge, not successful
+no-op navigation. Escape clears selection safely; Enter with empty selection
+and unrecognized keys return true without navigating. Collapse by mouse or
+Enter recursively clears selected bytes on descendants, leaves the collapsing
+node's selected byte intact, and marks selection-cache repair pending. Paint
+later removes cleared entries and emits one selection-change notification
+if any were removed (`009D0F85`/`009D0FD1`). Public SetExpanded follows its
+own section 6.3 contract; do not add this mouse-only cleanup to every setter.
+
+**Mouse ordering and shared double-click state.** No cursor-row hit returns
+false without clearing selection. On a hit, left/right down first call
+MakeVisible(handle), then transform coordinates as in section 6.5. Left-down
+samples the current Control key, not Shift or the event's modifier argument.
+An expander hit has priority, toggles expanded, records its rectangle as the
+last click rectangle, dirties/invalidates and sends expand/collapse followed
+by raw-handle click `0x1AF5A13F`; it does not select that node.
+
+For icon/text hits, a normal click selects with replacement=true. With Control
+down **and** control flag `0x10` enabled it deselects an already selected node
+or selects with replacement=false. Shift has no range-selection rule. A
+recognized double click sends converted-handle activation before toggling a
+branch (children/force-branch), then sends click. On a leaf it still proceeds
+through the normal selection/toggle path. A row hit outside valid painted
+subrectangles changes no selection but still sends raw-handle click.
+
+The timer, last handle, timestamp and last rectangle are static globals shared
+by all instances (`00BAC0A0`–`00BAC0D0`). When timestamp is zero, a row hit
+restarts the timer, records handle and stores timestamp **1**. Otherwise the
+same handle qualifies when unsigned `(elapsed−timestamp)` is strictly below
+WCM's interval; every row hit replaces handle and timestamp with a fresh
+elapsed reading. No window identity is compared, and mouse-up does not reset
+this state. Activation additionally requires all four icon/text rectangle
+words equal the stored rectangle; a different rectangle is recorded and
+the click acts as an ordinary click. Timer arithmetic/equality are verified
+at `009D10AB`–`009D1118` and `005DC950`. Equal handle/geometry in two controls
+can therefore qualify across instances. Right-down has no modifier toggle:
+icon/text hits select with replacement=true, send right-click `0x1AF5A13E`
+then click `0x1AF5A13F`, both with the raw handle and zero trailing arguments.
+Expander/blank hits on a valid row consume without those notifications
+(`009D1031`–`009D1419`).
+
+**Drag protocol.** MouseMove returns true. A drag request requires nonempty
+selection, event bit `0x10`, and the cursor row absent or not selected. It does
+not measure a distance threshold. Notification target is required: it is
+dereferenced directly for synchronous request `0x1AF5A140`, with converted
+control payload, pointer to an initially zero acceptance byte and trailing
+zero. Both target return=true and a nonzero acceptance byte are required.
+There is no drag helper or selection mutation on refusal (`009D2577`–`009D25FB`).
+
+On acceptance, image bounds union each selected node's valid expander/icon/text
+rectangles. Aggregate left/right start at zero and use signed min/max; height
+is selection count times row height, with 32-bit wrapping. A temporary GS
+buffer is created for that width/height, filled −1 on successful `0x8001`
+access, and rendered as packed rows in selection-sequence order. Selection
+is copied then cleared before drawing, so these rows use unselected styles.
+Creation failure leaves selection intact; surface-init failure releases the
+temporary buffer and skips the helper. Failed fill access still permits the
+remaining drag. GS itself is required on this path (`009D2604`–`009D27B5`).
+
+Helper construction borrows the control, pointer to the stack-local copied
+node sequence, and buffer; it does not AddRef these (`009CFD89`). The enclosing
+window's slot `+0xA4` runs the helper while those objects live. Its Init first
+requires base Init success, sizes from the buffer, positions at current cursor
+minus stored offsets (both zero in this owner), and takes capture. Move
+repositions/redraws the image and converts cursor coordinates back to the
+source before NotifyDrag. Paint blits the supplied image through the drawing
+buffer; Shutdown releases capture then calls base Shutdown. Left-up requests
+manager termination with arguments `(0xF, helper, 0)` and returns true
+(`009CFDCE`–`009CFE5F`, `009CFE60`–`009CFF03`, `009D141A`–`009D14BE`).
+
+NotifyDrag uses row height h: look up the row at `(x,y+(h>>2))`; the insertion
+side is unsigned `((y+(h>>2)−my) mod h) < (h>>1)`. h=0 is unsafe. On changed
+target/side, reject the target if it or any ancestor occurs in the copied
+dragged sequence. Store the side at O+0x121, select an accepted target with
+replacement=true or clear selection on rejection, and invalidate. There is
+no separate drag-over notification to the target (`009D067F`–`009D0746`).
+
+After the helper runner returns, empty live selection means cancellation:
+no drop notification and the old selection is not restored. Otherwise the
+first live selected node is the target. Side=false yields `(target,−2)`.
+Side=true yields `(target parent, predecessor sibling)` or −2 when first/no
+predecessor. The copied dragged nodes are reselected with replacement=false,
+then drop `0x1AF5A141` sends that pair converted through W63. The owner does
+**not** move nodes itself or inspect the helper runner's return for success.
+It resets side=false and invalidates, calls temporary-buffer slot `+0x10`,
+disposes the copied vector and releases the buffer. No owner-specific cancel
+notification or keyboard-cancel handler is established in these helper paths;
+termination policy belongs to the enclosing runner. The helper's borrowed
+sequence must not outlive that call (`009D27B6`–`009D291B`).
+
+**Selected fill and clipping.** Ordinary selected rows acquire `0x8001` and
+fill the text rectangle with default color O+0x180. If insertion-side byte
+O+0x121 is true, the first fill uses the componentwise integer average of
+default O+0x178 and O+0x180 RGB bytes: each sum shifts arithmetically right one
+(all inputs 0–255). A second fill uses O+0x180, the buffer's full left/right
+extent, original text top t and bottom `(bottom+3*t+2) arithmetic-shift-right 2`,
+with wrapped 32-bit arithmetic. This is two flat fills, not interpolated
+gradient pixels. Example t=16,bottom=32 gives second bottom=20; colors 0 and
+255 average to 127, not 128 (`009D0E16`–`009D0F18`, instruction-verified).
+Failed access skips both fills; selected text is still drawn with node selected
+colors +0x28/+0x30. Ordinary text uses +0x24/+0x2C. Neither path adds ellipsis;
+font slot +0xCC receives the complete byte range, origin text-left+3,row-top+1
+and two trailing zero arguments. Section 6.5 defines the text rectangle.
+
+**Connectors and expanders.** Flag `0x8` gates these operations. Let x,y be
+the node's section 6.5 working-buffer origin; b is expander size, h row height,
+q=floor(b/2), and e=y+((h−b) arithmetic-shift-right 1). Ancestor continuation
+bits draw vertical lines for the full row at each ancestor's expander center,
+excluding the current depth. The child-list traversal sets a continuation
+bit for every sibling except the last. A leaf draws a horizontal arm from
+x+q to x+b at e+q, then an extension of spacing g (images enabled) or g+b
+(images disabled). It draws the incoming vertical half unless it is row zero
+with root hidden, and the outgoing half unless it is the last sibling.
+Line color/style are O+0x16C/+0x170 through buffer slot +0x70 under `0x8004`
+access (`009D17A8`–`009D19B8`).
+
+A node with children draws its b-square outline under `0x8008`, then a minus
+at its center under `0x8004`; closed nodes add a vertical plus stroke under
+a separate access. Stroke length starts at q and decrements when b and q have
+the same parity; its offset is logical `(b−length)>>1`. Thus b=9 gives length
+4 and offset 2; b=8 gives length 3 and offset 2. Coordinates use logical
+halving here (`009D1A2B`–`009D1A58`, instruction-verified). Expanded nodes with
+children also draw the outgoing half-row connector. Every successful guarded
+access has its matching release; an access failure omits only that operation.
+It does not suppress later strokes/text or roll back prior drawing. Expander
+hit validity is set only by a successful outline operation.
+
+The owner leaves hit rectangles in working-buffer coordinates and delegates
+actual clipping/rasterization to the graphics/font interfaces. GZPaint repairs
+dirty selection, optionally fills both target and working background for
+flag `0x20`, draws the hierarchy and blits source viewport shifted by horizontal
+scroll into the window's stored destination rectangle. The tree pass requires
+nonzero total O+0x160; zero total skips selection-cache repair and tree blit,
+but optional target-background work still happens (`009D37C6`–`009D390C`).
+Exact line rasterization, rectangle-edge coverage, font glyphs and triangle
+sampling remain service contracts, not missing TreeView owner policy; these
+spec vectors do not assert a game-verified bitmap.
+
+| Vector | Stimulus | Required result |
+|---|---|---|
+| WC-T37 | Total 20, page count 4, anchor row 7; PageDown then PageUp | Select rows 11 then 7, replacement=true |
+| WC-T38 | Empty visible sequence; Home, Enter, Escape separately | Home is unsafe pre-begin access; Enter consumes; Escape clears safely |
+| WC-T39 | Control+click selected node with flag 0x10 on/off | On deselects; off replaces selection; Shift adds no range policy |
+| WC-T40 | Right click icon of unselected node | Replacement selection notification if changed, then raw-handle right-click and click |
+| WC-T41 | Same handle and rectangle clicked in two controls within interval | Shared timer can recognize activation across controls |
+| WC-T42 | Double-click interval equality; elapsed−timestamp exactly interval | Ordinary click, no activation |
+| WC-T43 | Collapse parent with selected descendant, then paint | Descendant selected byte clears immediately; repair removes entry and notifies once |
+| WC-T44 | Drag request target returns true but leaves acceptance byte zero | No helper, no selection clear, no drop |
+| WC-T45 | h=16,my=3; drag y=3 versus y=7 | Shifted remainder 4 versus 8: side true versus false |
+| WC-T46 | Drag over dragged node's descendant | Target rejected, selection cleared; ending there produces no drop |
+| WC-T47 | Helper returns with accepted target, then source owner continues | Reselect copied nodes before pair notification; no automatic move |
+| WC-T48 | Selected row t=16,bottom=32, side=true, RGB endpoints 0/255 | Average fill 127; full-width top band ends at 20 with default selected fill |
+| WC-T49 | Selected fill access fails, font service available | No fills/release for failed access; selected text still emitted |
+| WC-T50 | Expander outline access fails; line accesses succeed | No valid expander hit rectangle; minus/plus can still draw |
+| WC-T51 | b=9 open/closed branch | Length 4 centered stroke; closed adds vertical stroke; open omits it |
 
 ## 7. Family conformance vectors
 
@@ -601,6 +1231,20 @@ Use ordinary valid initialized services unless a failure is the test input.
 
 | ID | Setup and action | Required observation |
 |---|---|---|
+| WC-T13 | Root R has children A,B; A has child C and is expanded; clear flag 0x2 and collapse R | Flattened sequence A,C,B; root not flattened-visible; A/B depth zero |
+| WC-T14 | Same hierarchy, set flag 0x2 | Collapsed R alone; expand R to obtain R,A,C,B; A/B still depth zero |
+| WC-T15 | Select A then B with accumulation enabled; navigate Up | Replacement selection is the row before B, using the last selected entry |
+| WC-T16 | Viewport height 33, row height 16, first row 0, enough content | Whole-row count 2, paint/page count 3, last paint row 2 |
+| WC-T17 | Images disabled, b=9,g=3,i=12,h=16,d=1,row=2,first=1,textWidth=20 | Expander origin (12,16); DrawItem origin (24,16); text rectangle [39,16,62,32], text origin (42,17); image space remains reserved |
+| WC-T18 | Successful paint of a branch, then fail its next expander/image access | Visited node's expander/image validity is cleared; failed guarded operations do not restore it; text rectangle still records when DrawItem targets working buffer |
+| WC-L19 | Entries A,B,C; select index 1, then remove index 1 | Selection stays 1 and now designates C; no selection message from the index adjustment |
+| WC-L20 | Entries A,B,C; select index 2, then remove index 2 | Selection becomes 1 (B); ordinary mode emits selection-changed through Select(notify=true) |
+| WC-L21 | Twenty entries, wholeRows=4, origin=0; NextPage | Selection 7, final origin 4, no selection notification |
+| WC-L22 | Ten entries, wholeRows=4, origin=5; NextPage | Selection 9, final origin 6; repeated NextPage at origin 6 is a successful no-op |
+| WC-L23 | Drop list: five entries, rowHeight=10, yGutter=1, wholeRows=2; available height 100; height-size | Height 52, wholeRows 5, origin 0, no bar |
+| WC-L24 | Same inputs, available height 37 | Initial request 37; wholeRows 3; whole-line resize requests height 32; bar added |
+| WC-L25 | Empty drop list, xGutter=3; width-size, then height-size | Width request 7; height-size returns false without shrinking height; both policies are now enabled |
+| WC-L26 | Paint `abc`, `##abc`, `###abc`, `#112233abc`, keeping stored strings | Ordinary `abc`; literal `#abc`; literal `##abc`; prefix-stripped `abc`; all stored strings unchanged |
 | WC-L01 | Query ListBox own IID through W, then through L; release results | Both designate L=W+0xD8, with matching retention; null own-IID output fails without AddRef |
 | WC-L02 | Three entries, selection 1; select index 99 with notify=true twice in ordinary mode | Selection 2; two selection messages, each type 3 / 0x08710E0F, payload row 2 |
 | WC-L03 | Same test in drop mode | Selection 2 and invalidation, no selection message from the public select operation |
@@ -636,8 +1280,12 @@ The linked Grid, TextEdit and FileBrowser inventories remain authoritative;
 their pre-existing parked questions are not duplicated here. ListBox's 66
 list slots plus window extensions and TreeView's 60 primary slots plus window
 overrides are inventoried above. **An inventory is not a complete owner spec.**
-WC1–WC3 identify exact unproved adapters, entry ordering/destruction, rendering
-and drag boundaries. No engine implementation, binary hook, ABI-table update,
-in-game run or shadow equality is claimed. These contracts are sufficient for
-separately testable state/message portions; the unresolved areas must remain
-explicit implementation questions rather than guessed compatibility rules.
+WC1–WC6 are answered in the question archive; sections 5.6, 6.6 and 6.7
+complete the named ListBox/TreeView owner boundaries. Native unsafe inputs
+and malformed lifecycle behavior are specified as quirks, not safe recovery
+promises. Remaining exact pixels depend on the graphics/font services'
+rasterization, clipping and glyph contracts, and helper termination depends
+on the enclosing runner; no additional TreeView policy is inferred for them.
+No engine implementation, binary hook, ABI-table update, in-game run or
+shadow equality is claimed. Implementers must test these owner contracts
+before marking implementation closure.
