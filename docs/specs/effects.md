@@ -2172,6 +2172,262 @@ or engine test execution is claimed here.
 | EF20-9 | Same final queue produced by different watch flags or repeated parses; observer attaches afterwards | snapshots can match; original per-input watch flags and parse count are unavailable, not reconstructed as false/one |
 | EF20-10 | Empty vector with spare allocation, or malformed end/cycle while sampling | first records zero elements; malformed/unreadable sample is refused and never counted exact |
 
+### 18.8 Natural-call observation and complete description payloads (EF21) *[compat]*
+
+**DIFFERS from obtaining a resource by another service request, or assuming that
+a city-load/month notification is a lock.** The observation contract below is
+for Windows 1.1.641. It permits a default-off observer to record calls the game
+already makes. It supplies no new native calls and no requirement to reproduce
+allocator addresses. The attachment addresses are executable-version-specific
+evidence, not additional interface slots. Installing interception is a harness
+operation; the original has no observer-registration API for these events.
+
+#### 18.8.1 Attachment, borrowed resource identity and event lifetime
+
+Attach before the manager's natural Init/bootstrap if complete history is
+required. At `005945B0`, ECX is the manager primary M; there are no explicit
+arguments and no Boolean result. Its direct caller is Init at `00594D72`.
+Record entry/normal return separately from parse success. Preserve the actual
+option-service reply, option bytes and resulting packed choice (§6.2), rather
+than treating the option's presence or this routine's EAX residue as success.
+The resulting packed-choice byte is at bootstrap-frame ESP+12 at `00594723`
+and `0059488A`; that frame offset is valid at those sites only. The original
+does not store that choice in a persistent manager field.
+
+Observe the **existing** resource-service slot-4 calls at `0059475A` and
+`00594861`. At callee entry, ECX is the service, and the five stack arguments
+after the return address are: pointer to a three-u32 key (type, group,
+instance), IID `CA51189B`, pointer to the resource-primary output cell, zero,
+zero. Copy the key before returning to its caller. Capture AL at return and,
+only on success, the pointer in the original output cell. This is the live
+resource primary R, not an effects collection and not a persist-base pointer.
+The fixed request is `(EA5118B0,EA5118B1,1)`; the enumeration path supplies the
+enumerated key and skips instance 1. Failed attempts remain events even though
+they produce no publication. Evidence: argument construction
+`0059472D–0059475F`, `00594822–00594866`.
+
+The two natural publication dispatches are `00594768` and `0059486F`.
+Resource primary slot 5 resolves to `005A3BC0`: ECX=R, one stack argument
+destination C, void return, callee pop 4. Source C is R+4; destination is
+M+94 in bootstrap. Copy the source payload **before** the operation, then
+source and destination after it, because the empty-destination case swaps
+storage (§18.7.3). A post-publication resource can consequently be empty even
+when the requested directory was populated. The incoming resource reference
+belongs to bootstrap. An observer neither acquires nor releases it and must
+finish copying while that reference is live. The enumeration loop releases
+the previous resource before requesting its successor (`0059483B–00594849`);
+final cleanup releases the remaining resource (`005949E1–005949EB`). There
+is no stable manager field containing this last resource. A late observer
+reports the resource/history as unavailable; scanning manager memory or
+requesting the same key again does not recover the original lifetime.
+
+For a complete trace, distinguish the natural primary stream Read
+(`005A51E0`, slot 7, stream pointer argument) from the void publication slot.
+Record the stream identity and actual result, ordered primitive input replies
+or an independently copied original input stream, and resulting collection.
+Do not seek, read, close or retain that borrowed stream to fill gaps. A resource
+cache hit may yield publication without a new Read; absence of Read is not an
+empty input or successful read. The Read's root-version rejection (outside
+3..4) is a failure, not a new empty directory (§3). Reference-count and stream
+lifecycle events must be observed where naturally executed; final collection
+contents cannot establish how often loading, QI, serialization or release ran.
+
+At collection entry/publication calls copy the caller's name, description and
+type/index inputs before the original can fold, replace or exchange them.
+Capture returned values at their declared widths (§18.7.1), and retain both
+input events and post-state. Begin/End, queue registration flags, command-parser
+installation, file-parser parse AL/diagnostic, and message sends remain ordered
+events (§6.2, §18.6 and §18.7.4). In particular `0058E4E0` is a **void manager
+wrapper**: its call of file-parser slot 8 at `0058E4EB` supplies the parse AL;
+the wrapper's return does not. The successful path sends `C9F775BB` at
+`0058E566`. For the natural file-parser slot-6 registration, capture its path
+and original u32 flags at entry, including watch bit 1; retained required-byte
+state cannot recover that bit later. Reentrant events retain their nesting and
+order. Preserve all registers, flags, calling convention, return channels and
+exception paths; observer failure marks a capture invalid without skipping,
+repeating or changing the original operation. No getter, QI, Begin/End, Parse,
+resource request or message send is added merely to make observation possible.
+
+#### 18.8.2 Quiescence, including reload
+
+There is **no native city-load or month callback in these effects methods that
+provides a collection/queue mutex or a published snapshot generation**. A
+callback label alone is therefore insufficient evidence of synchronization.
+On a proven single owner thread, a synchronous copy after the outermost
+bootstrap has returned, or after the outermost effects tick has returned, is
+between these methods' writes provided the observer makes no calls that pump
+messages or reenter the owners. This is an explicit harness precondition, not
+a claim that any plugin callback with the same calendar label has that order.
+Validate the identity/thread and outermost-operation depth in the trace; if
+another writer cannot be excluded, refuse the sample (§18.7.4). Never move a
+borrowed pointer to a background worker for later traversal.
+
+Reload is especially relevant. `DoEffectsTick` (`00593D00`) checks the file
+parser's modified byte; when true it calls Begin (`00593D28`), parse
+(`00593D2D`), End (`00593D36`), sets M+B8C=1, updates active effects, clears
+M+B8C, then calls command-parser slot 2 (`00593D56`). A parser success message
+can be dispatched **inside parse**, before End and active-effect repair. It is
+not a commit barrier. End-return is sufficient for that collection's fixups,
+but a combined collection/queue/live-manager snapshot must wait for the whole
+outer reload/tick to return. M+B8C is an update-phase flag, not a lock covering
+Begin/parse/End. Bootstrap similarly ends its collection at `005949D1`, then
+releases enumeration/resource temporaries before returning. Init performs
+further initialization after its bootstrap call. A load sample intended to
+describe initialized manager state must follow outer Init return as well.
+Do not dispatch another event while copying; if observation attaches mid-call,
+history and the current generation are incomplete until a verified outer
+boundary. Capture a fresh generation after every observed reload even when
+names/counts happen to match. Evidence: instruction bytes
+`00593D06–00593D59`, `0058E4EB–0058E576`, `005949CD–00594A24`.
+
+#### 18.8.3 Payload value types and framing
+
+All offsets/strides below are hexadecimal relative to the **description's own
+start D**, not M or C. u8/u16/u32 mean exact-width unsigned values; s32 means
+a signed word; f32 means the four stored binary32 bits. Compare float bits,
+including signed zero and NaN payloads; no float-to-double canonicalization or
+decimal round trip. V(T) is the three-pointer vector in §18.7.2 whose elements
+are T. S is the three-pointer owned byte string there. Preserve lengths,
+duplicates and order. A triple has three successive f32 values and stride C.
+Do not compare allocator state, vptrs, reference counts or padding as payload.
+Addresses may serve as trace-local identities with alias relationships, never
+as expected replacement addresses. Anonymous and named descriptions have the
+same payload layout; anonymity changes directory naming, not the object type.
+
+**Particle description:** pointer-vector entries address D directly, with no
+vptr/base adjustment. The allocation is `208` hex bytes, base value extent `204`;
+D+204 is its intrusive reference count, excluded from payload. In particular
+the misleading exported name of `005B1C80` is not a payload assignment: the
+instructions decrement +204 and free on zero. Base assignment copies payload
+but leaves this count alone (`005B1CB0–005B1CC2`).
+
+| Particle coordinate | Complete retained value layout |
+|---|---|
+| 00,04,08 | three u32 flag words; retain full memory values, not stream masks |
+| 0C,10,14 | f32 lifetime endpoints and scalar |
+| 18 | u32 loop/count word |
+| 1C | f32 |
+| 20..84, every 4 bytes | f32 scalars, pairs and triples in native order; includes bounds and direction/acceleration data |
+| 88 | V(f32), stride 4 |
+| 94 | V(triple), stride C |
+| A0,AC,B8,C4 | four independent V(f32), stride 4 |
+| D0 | u32 scalar texture/model resource ID |
+| D4,D5 | two u8 mode values; D6..D7 padding excluded |
+| D8..104, every 4 bytes | f32 |
+| 108 | V(wiggle), stride 1C; each element seven successive f32 at 00..18 |
+| 114,118,11C,120,124,128 | f32 |
+| 12C | V(f32), stride 4 |
+| 138..15C, every 4 bytes | f32 |
+| 160 | S, effectBase bytes |
+| 16C,16E | two u16 values |
+| 170..1A0, every 4 bytes | f32 |
+| 1A4 | V(f32), stride 4 |
+| 1B0 | f32 |
+| 1B4 | u32 flags |
+| 1B8 | V(tractor), stride 20; position triple +00, tangent triple +0C, f32 start/end +18/+1C |
+| 1C4 | f32 reset speed |
+| 1C8 | copied 32-bit word with no deterministic constructor default (§19.13); retain raw bits with provenance, not an invented zero |
+| 1CC | V(timed effect), stride 10; S at element +00, f32 time +0C |
+| 1D8,1DC | f32 |
+| 1E0 | V(u32 model IDs), stride 4 |
+| 1EC,1F0 | f32 |
+| 1F4 | V(f32), stride 4 |
+| 200 | f32 |
+
+There are no unlisted payload bytes in the base extent. Constructor/reset and
+semantic mutations are §19.13, §§19.16–26 and §§19.39–51. The table describes
+memory, not legacy stream layout: old/new readers differ, notably retention
+of flag words. Evidence: copy `005B17F0–005B1C77`; byte stores
+`005B1946–005B1958`, halfword stores around `005B1B00–005B1B08`, nested-copy
+calls `005B19FB`, `005B1BE2`, `005B1C0C`; 1C/20/10 strides in
+`005B0450`, `00625270`, `005B1680`; readers `005B0B50`, `005B1DC0`.
+An uninitialized/indeterminate input word is not suitable for an independently
+predicted golden; report its validity separately instead of giving its raw
+capture a deterministic conformance meaning.
+
+| Family / extent | Complete payload fields; everything else is identity or stated padding |
+|---|---|
+| Dynamic/model particle, 40 | vptr/refcount at 00/04 excluded; u32 08; S 0C; six f32 at 18,1C,20,24,28,2C; u32 scalar model ID 30; V(u32) 34 |
+| Decal, 64 | u32 flags 00 and ID 04; u8 08,09; padding 0A..0B excluded; f32 0C; V(f32) 10,1C,28; V(triple) 34; V(f32) 40; six f32 at 4C,50,54,58,5C,60 |
+| Shake, 28 | f32 length/fade 00,04; V(f32) amplitude 08, frequency 14; f32 aspect 20; u32 table enum 24 |
+| Light, 1C | V(triple) color 00; V(f32) strength 0C; f32 duration 18 |
+
+Dynamic assignment is `00583750–005837B5`, stream scalar-width evidence
+`005837C0–00583849`; decal assignment `005833F0–0058347A` explicitly copies
+two bytes rather than the padding word; shake assignment
+`00588080–005880BC`; light getter's typed copies `00589032–00589059`.
+Their defaults and command semantics remain §19.13, §§19.27–28 and
+§§19.31–38. Keep both dynamic scalar ID and its list even when one is dormant.
+Light length's write to the **shake fade** is required (§19.32); a capture
+must not attribute that write to an invented light-fade member.
+
+#### 18.8.4 Component object payloads, including unnamed entries
+
+The built-in type-3..8 descriptions have primary vptr at 00 and a refcount
+sub-object at 04 (its vptr at 04, count at 08). Payload begins at 0C; neither
+the primary vptr nor the secondary identity is payload. Directory index is
+separate from object identity: record every vector slot, even when several
+slots alias one object or there is no name-map entry.
+
+| Type / native extent | Complete payload |
+|---|---|
+| 3 brush / 34 | u32 brush ID 0C; f32 rate 10, length 14; u8 apply/one-shot 18; padding 19..1B excluded; s32 level 1C; f32 strength endpoints 20,24, width endpoints 28,2C, target height 30. §8.1, §19.55 |
+| 4 attractor / 1C | S at 0C; u8 group selector 18; padding 19..1B excluded. Preserve original string spelling. §19.55 |
+| 5 scrubber / 50 | u32 flags 0C, word 10, integer radius 14, demolition flags 18; f32 limits 1C,20; u32 burn/toxic/extinguish 24,28,2C; u32 message and data 30,34; u32 shape kind 38; f32 shape values 3C,40,44,48 and duration 4C. §9.1, §19.55 |
+| 6 sequence / 18 | V(sequence element) at 0C; stride 14, f32 duration endpoints +00,+04, S name +08. §19.14 and §19.29 |
+| 7 sound / 1C | u32 word 0C, u32 sound ID 10; f32 interval 14 and length 18. §19.55 |
+| 8 camera / 18 | u32 flags 0C; u8 zoom/rotation storage 10, u8 11; padding 12..13 excluded; f32 attach radius 14. Zoom and rotation options both write 10; do not split them into invented independent fields. §19.55 |
+| 9,10,11,12,13,14,15 | Reserved directory slots, not seven additional built-in description classes. Native resource Read has sections/constructors for 3..8, then version-4 dynamic particles, then visual records; it has no 9..15 payload sections. Empty vectors and empty name maps are complete values for these buckets. |
+
+The generic AddComponentDescription interface nevertheless accepts a caller's
+description, asks its slot 0 for the type, and selects bucket (type−3) with
+20-byte stride, **without a type-range check** (`0058AC1C–0058AC2C`).
+Thus reserved does not mean forced empty: a foreign extension may publish an
+object there. There is no universal native memory layout for that object's
+private payload. A nonempty reserved bucket must be reported as an unsupported
+foreign payload, with its slot/name/alias framing preserved, unless that
+extension supplies its own contract. Do not read it as brush, guess a size,
+invoke its factory/serializer, or count pointer equality as payload exactness.
+This explicitly defines the closed built-in input domain; it is not a missing
+native type-9..15 layout. The manager's generic factory dispatch likewise uses
+the published description interface (`0059192A–00591964`).
+
+Evidence for complete built-in extents/identities: constructors `005812F0`,
+`00580F10`, `005BC9D0`, `005BDF10`, `005BE300`, `00581C10`; resource Read's
+allocation/section sequence `005A56F2–005A5D35` and following dynamic/visual
+sections; anonymous publication and ownership §§19.53–55. The table also
+covers anonymous descriptions not reachable from any visual component.
+
+#### 18.8.5 Coverage boundary and conformance vectors (proposed, unexecuted)
+
+These contracts enable retained-payload and natural-history comparisons; they
+do not turn a successful directory comparison into whole-owner credit.
+For cSC4EffectsResource, compare stream inputs/results, reference/serialization
+lifecycle and **pre/post** publication, including cache hits and failures.
+For cSC4EffectsManager, additionally compare live/new/active effect state,
+tick/lifecycle behaviour, publication fixups, derived ID/trigger lookups and
+camera state using §§2,4–7,11,18.6–18.7. A parser/bootstrap trace and all retained
+description families close the capture8 omissions, but manager lifecycle and
+live effects still require their own measured probes. Explicit unavailable,
+unsupported or refused samples carry no exactness credit. In particular no
+snapshot-only scheme can retrospectively reconstruct a completed bootstrap.
+
+| ID | Fixture / natural event | Required result |
+|---|---|---|
+| EF21-1 | Observer active before Init; packed resource success | one observed request key/IID/result and borrowed R; source before publication and source/destination after; no additional request, QI or publication |
+| EF21-2 | Empty destination; source has two particle records and one anonymous brush | capture source payload before swap; post source may be empty; destination has all three payloads and anonymous slot without an invented name |
+| EF21-3 | Enumeration releases R1, request R2 fails, later request R3 succeeds | ordered release/failure/success events; no traversal of R1 after release and no output dereference on failure; R3 publication distinct |
+| EF21-4 | Observer attaches after bootstrap; retained manager directory readable | retained comparison possible in verified interval; resource input and bootstrap history unavailable, never reconstructed from manager counts |
+| EF21-5 | Reload parse succeeds and synchronously sends C9F775BB before End | message event recorded; combined snapshot waits for outer reload/tick return; End/fixups, live repair and parser cleanup precede sample |
+| EF21-6 | Month callback on another thread or reentered during Begin/parse | refuse collection/queue snapshot; same headers read twice do not change refusal |
+| EF21-7 | Particle vector has one pointer; D+204 varies, two float members contain 80000000 and 7FC01234 | compare payload float bits exactly; refcount not a payload mismatch; all nested vectors recursively compared at their specified strides |
+| EF21-8 | Dynamic description has scalar ID 7 and list [8,8]; one anonymous sequence contains wait then play MixedCase | preserve scalar and both IDs; two ordered sequence entries and exact original name bytes, no name-based deduplication |
+| EF21-9 | Decal padding differs; shake table=1; light length command with fade=3 | padding ignored; shake enum compared as u32; light duration and mutated shake fade captured in their separate records |
+| EF21-10 | Camera anonymous zoom 5 then rotation 2; no other options | flags 3, byte 10=2, byte 11=0; no independent stored zoom=4 |
+| EF21-11 | Type-9..15 directories empty, then a foreign type-12 description is registered | empty case fully represented; later type-12 slot/name framing retained but private payload unsupported and whole-payload sample uncredited |
+| EF21-12 | Same final directory after two natural parses with different watch flags | final snapshot may match; trace retains both parses and original flags; diagnostic/modified state compared separately |
+| EF21-13 | Resource cache hit publishes without stream Read; another request reads unsupported root version | first records absence of a new Read, not empty input; second records failure and actual post-state, not synthetic successful publication |
+
 ## 19. Effects-script command contracts *[compat]*
 
 This section concerns text-description commands, separate from the binary
