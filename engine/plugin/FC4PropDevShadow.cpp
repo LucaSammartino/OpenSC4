@@ -22,6 +22,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
+#include "FC4PropDevTranscript.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -389,6 +390,7 @@ struct MonthStats {
     uint32_t steps = 0, blocks = 0, certain = 0, rawCompared = 0;
     uint32_t origRemoved = 0, oursRemoved = 0, notKept = 0, origCreated = 0, oursCreated = 0;
     uint32_t messages = 0, ticks = 0;
+    uint32_t selectorEvents = 0, selectorZero = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -781,7 +783,19 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
         g_run.Abandon();
         s.ran = false;
     }
+    std::vector<void*> requesters;
+    if (g_run.core && g_vtable) {
+        for (const auto& ref : ListOf(g_run.core, FC4_PROP_LIST_REQUESTERS))
+            if (ref.token) requesters.push_back(FromToken(ref.token));
+    }
+    PropSelectorTrace trace;
+    const auto* version = compat::IdentifiedVersion();
+    const bool recording = version && trace.Begin(requesters, version->imageBase);
     *finished = target->DoMessage(msg);  // the original's step, exactly once
+    trace.Finish();
+    if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
+    g_month.selectorEvents += U(trace.Events().size());
+    for (const auto& event : trace.Events()) if (event.result == 0) ++g_month.selectorZero;
     if (!SehGuard("propdev shadow (after the step)", &StepAfter, &s)) {
         Log("propdev shadow: a fault after the original's step; the shadow core is abandoned (its references leak)");
         g_run.Abandon();
@@ -829,6 +843,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
              mo.st.time_of_day_count, mo.st.dated_count, mo.st.power_count, mo.st.sign_count, mo.st.trigger_count,
              mo.st.is_night, mo.resynced ? " (resynced from the record)" : "");
     const std::string line = std::string(head) + "; mismatches=" + std::to_string(g_month.d.mismatches) +
+                             "; selector-events=" + std::to_string(g_month.selectorEvents) +
+                             " selector-zero=" + std::to_string(g_month.selectorZero) + " replay=pending" +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     g_month = MonthStats{};
