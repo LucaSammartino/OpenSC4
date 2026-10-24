@@ -95,6 +95,7 @@ generated index: the questions live one file per spec, so read only the file for
 | HU | html-ui-hooks |
 | HW | history |
 | IN | commercial-industrial |
+| IV | intro-video |
 | LC | legacy-control |
 | LD | lot-developer |
 | LE | lot-configuration-editor |
@@ -276,6 +277,7 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
+| intro-video | 2 | 0 | IV3 | questions/intro-video.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
 | landvalue | 2 | 7 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
@@ -392,4 +394,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **634** | **1443** | | |
+| **total** | **636** | **1443** | | |
