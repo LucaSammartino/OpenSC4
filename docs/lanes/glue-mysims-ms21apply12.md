@@ -22,8 +22,6 @@ Count line: `mysimdispatch 73/73`. Exact harness summary: `mysimdispatch    73 l
 
 The measurement verifies constructor scope including two newly promised auxiliary fields. It does not verify live-trip or transport behavior. MS20/§7.2.3 explicitly excludes independent replay from public snapshots; direct requests and ordered service results need a supported input boundary. No duplicate question was filed for this answered limitation. No new questions. Shadows remain default-off. Forbidden tools/ coverage tables and regress profile are coordinator work; no main merge or shared-ref update was attempted. No request remains outstanding.
 
-## Handoff
-Goal: finish READY enqueue for the measured MS21/MS22 work above.
-Done: implementation d6f131f61; full passing gate; run520; final report/run record committed37ecbcca25c176ffd27c04fd10b02f7763784bef.
-Next: obtain actual HEAD after this handoff commit and write build-runs/merge-queue/glue-mysims-ms21apply12.json with lane/branch glue-mysims-ms21apply12, full tip, kind engine, abi false, game_runs [mysimdispatch-ms21apply12-r1-2032-20261024a], state ready, and scope-limited summary. Return ready. Do not repeat gates or game without a real source/input change.
-Facts: context guard exceeded150k and blocked the attempted merge-queue creation; NO queue file was written. All operations are terminal, no request outstanding. Cargo7385/0, clippy0, CTest81/81; game clean through2032-01-04, ref_warnings0, mysimdispatch73/73. Live headers/ranges0: no live-owner verification claim; MS20 remains the explicit boundary limitation. No questions filed or public ABI change. Report and run record already complete above; remove only this handoff when finalizing, commit, then enqueue the resulting full HEAD.
+## Closure
+
+Resumed after the context stop and confirmed the saved terminal gate and game verdict. Only the lane report and run record changed after tested source d6f131f61; no repeat gate or game run was needed. READY covers the implemented MS21/MS22 work and the exact constructor measurement. Live-trip verification remains open under MS20. Count by run label: `mysimdispatch-ms21apply12-r1-2032-20261024a 73/73` (mysimdispatch shadow, constructor scope). The merge-queue entry uses the full final report commit hash; the supervisor publishes that detached HEAD to the reserved branch.
