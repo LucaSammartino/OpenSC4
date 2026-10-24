@@ -293,6 +293,7 @@ cSTEEdgeReconcile*	region	region	-	-	-	-
 cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
+cGZDBSerialRecordAsIGZFile	persistence and resources	framework	record-as-file.md	-	-	-
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
 cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
