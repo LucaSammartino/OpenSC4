@@ -551,6 +551,7 @@ int32_t TagGc(lua_State* state) {
     cISCLua* L = HostOf(state);
     if (L == nullptr) return 0;
     // HostOf QIs even when this is another state or non-userdata: balance every path.
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 73): the value is used as a bool
     if (g_live != nullptr && L == g_live->Lua() && L->IsUserData(1)) {
         const int32_t tag = L->ToUserTag(1);
         if (tag == g_tags[0] || tag == g_tags[1]) {
