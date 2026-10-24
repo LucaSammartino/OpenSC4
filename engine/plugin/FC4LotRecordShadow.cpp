@@ -8,9 +8,11 @@
 #include "FC4RefAudit.h"
 #include "FC4SafeLotIterator.h"
 #include "FC4WriteCapture.h"
+#include "FC4Interfaces.h"
 #include "compat/FC4Compat.h"
 #include "cIGZSerializable.h"
 #include "cISC4City.h"
+#include "fc4.h"
 #include <algorithm>
 #include <vector>
 
@@ -109,8 +111,15 @@ void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     if (sample.block && (!SehGuard("LR12 iterator cleanup", &Sample::ReleaseIterator, &sample) || sample.removed < 0))
         ++sample.observation.errors;
     const auto& s = sample.observation;
-    Log("lotrec-shadow: phase=%s julian=%d expected=%u visited=%u captures=%u exact=%u/%u mismatches=%u differences=%u errors=%u empty=%u bytes=%llu mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props",
-        loaded ? "load" : "month", julian, s.expected, s.visited, s.captures, s.exact, s.expected,
-        s.Mismatches(), s.differences, s.errors, s.expected == 0 && s.Mismatches() == 0 ? 1u : 0u, sample.bytes);
+    if (loaded && city) {
+        auto* sim = AsGame(city->GetSimulator());  // borrowed
+        if (sim) julian = sim->GetSimDateNumber();
+    }
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("lotrec shadow %04d-%02d-%02d %s: julian=%d expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props; mismatches=%u",
+        date.year, date.month, date.day_of_month, loaded ? "load" : "month", julian,
+        s.expected, s.visited, s.captures, s.exact, s.expected,
+        s.differences, s.errors, s.expected == 0 && s.Mismatches() == 0 ? 1u : 0u, sample.bytes, s.Mismatches());
 }
 }

@@ -8,8 +8,10 @@
 #include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
 #include "FC4Diag.h"
+#include "FC4Interfaces.h"
 #include "cISC4City.h"
 #include "cISC4SimGrid.h"
+#include "fc4.h"
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -168,8 +170,15 @@ void SimGridRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     const bool safe = SehGuard("SG3 simgrid record shadow", &Run, &s);
     if (!safe) ++s.unavailable;
     const uint32_t mismatches = s.differences + s.unavailable;
-    Log("simgrid-shadow: phase=%s julian=%d roles=%u expected=%u developers=%u exact=%u/%u mismatches=%u differences=%u unavailable=%u cells=%llu bytes=%llu mode=record-only scope=SG3",
-        loaded ? "load" : "month", julian, s.roles, 38u + 4u * s.developers, s.developers,
-        s.exact, s.roles, mismatches, s.differences, s.unavailable, s.cells, s.bytes);
+    if (loaded && city) {
+        auto* sim = AsGame(city->GetSimulator());  // borrowed
+        if (sim) julian = sim->GetSimDateNumber();
+    }
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("simgrid shadow %04d-%02d-%02d %s: julian=%d roles=%u expected=%u developers=%u exact=%u/%u differences=%u unavailable=%u cells=%llu bytes=%llu mode=record-only scope=SG3; mismatches=%u",
+        date.year, date.month, date.day_of_month, loaded ? "load" : "month", julian,
+        s.roles, 38u + 4u * s.developers, s.developers,
+        s.exact, s.roles, s.differences, s.unavailable, s.cells, s.bytes, mismatches);
 }
 } // namespace fc4
