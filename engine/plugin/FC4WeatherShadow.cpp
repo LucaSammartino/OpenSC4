@@ -67,6 +67,7 @@ constexpr DWORD kConfigureObserver = 0xE042FC40;
 constexpr DWORD kRandSite = 0x009EFBA4;
 DWORD g_thread = 0;
 DWORD g_savedDr0 = 0, g_savedDr6 = 0, g_savedDr7 = 0;
+DWORD g_observedDr7 = 0;
 bool g_configured = false;
 uint32_t g_randBefore = 0, g_randAfter = 0, g_randCount = 0;
 bool g_randValid = true;
@@ -81,6 +82,7 @@ LONG CALLBACK ObserveRand(EXCEPTION_POINTERS* p) {
         p->ExceptionRecord->NumberParameters == 1) {
         c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
         if (p->ExceptionRecord->ExceptionInformation[0] == 1) {
+            g_observedDr7 = c->Dr7;
             if ((c->Dr7 & 3) != 0) { g_randValid = false; return EXCEPTION_CONTINUE_EXECUTION; }
             g_savedDr0 = c->Dr0;
             g_savedDr6 = c->Dr6;
@@ -126,6 +128,8 @@ bool BeginRand() {
     g_thread = GetCurrentThreadId();
     const ULONG_PTR operation = 1;
     RaiseException(kConfigureObserver, 0, 1, &operation);
+    if (!g_configured)
+        Log("weather shadow observer: configuration failed valid=%d dr7=%08X", g_randValid ? 1 : 0, g_observedDr7);
     if (!g_configured) g_thread = 0;
     return g_configured;
 }
@@ -225,6 +229,9 @@ bool WeatherShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMess
     const int32_t nativeDate = AsGame(g_core->City()->GetSimulator())->GetSimDateNumber();
     const bool weekly = type == 0x66956815;
     const bool observing = weekly && BeginRand();
+    if (g_steps < 12)
+        Log("weather shadow delivery: type=%08X delivered=%lld native=%d weekly=%d observing=%d",
+            type, data1, nativeDate, weekly ? 1 : 0, observing ? 1 : 0);
     if (weekly && !observing) ++g_differences;
     *finished = target->DoMessage(msg); // exactly one genuine original call
     if (observing && !EndRand()) ++g_differences;
