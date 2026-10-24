@@ -16,6 +16,8 @@
 - Current all Rust stage FAILED: capi 595 passed/1 failed, slot44_holds_the_lock_across_threads (lock_waits 0/1). No worker-start handshake before 300 ms timeout (occupant_manager_tests.rs:686-714). Other stages still running; collect this operation to terminal before repeating.
 - Corrected input for the permitted retry: RUST_TEST_THREADS=1 (also used by prior lane gate). Preserve current qbuild-test.log and other failed-gate logs before retry; do not edit unrelated owner/test code.
 - No game request outstanding. No new owners or questions this round. Earlier mismatch cause remains unproven; do not claim a general boundary fix.
+- Corrected all gate terminal PASS: cargo 7464/0 (51 result lines), clippy 0 diagnostics, native 164/164 and CTest 81/81; qbuild-20261024-224215-build-ctest. No engine changes since 424731910.
+- Final gate DLL SHA256 b65c4f6dcae1e35a62aab54847bafc7f601043149396ff720a05ce124c3701f8 differs from earlier game artifact 39ab9efd; verifying final artifact before ready. Outstanding unique game label propmgr-race13-r3-final-a (turbo through 2032); next normal-speed run, then final report/queue. No further gate required absent source/input changes.
 
 ## Previous round (superseded safety evidence)
 
