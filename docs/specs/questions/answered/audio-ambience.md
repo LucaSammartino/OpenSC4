@@ -1,5 +1,20 @@
 # audio-ambience: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AA14: audio-ambience.md §8.1.1 supplies
+layer defaults, lifetime, references, uncovered slots and conformance cases; §8.3 distinguishes
+direct repeated CreateFilters from the message path's explicit cleanup. Failed first Init
+retains the latch/count, and singular loop removal sends no stop.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AA14 - layer construction, lifetime and uncovered slots:** §8 inventories slots 0–28 but
+  gives no complete constructor/QI/AddRef/Release/destructor, StaticInit/StaticShutdown, Shutdown,
+  DoMessage, Enable, CanHandleOccupant, Insert/Move/RemoveOccupant, loop add/remove, freshness
+  load/add/remove and score-master-volume bodies. Please specify defaults (including initial loop
+  ID and process cell cache), service/reference acquisition/release, Init's first-failure/retry
+  state and resource/player ownership for these routines. In §8.3 does repeated CreateFilters
+  clear old lists/counters as well as bit vectors? [Implement §8.2–8.7 covered algorithms as
+  explicit stages; no guessed native constructor/lifetime/score-loading or successful full Init.]
+
 - **AA2 - section 3.4:** what does `_UpdateLotOccupantsForConditionChange` (`0x004E9DA0`) start or stop per lot
   condition, for properties `0xCA19D7CA`, `0x0A4C13CB`, `0x4A4C132E`?
   **ANSWERED 2026-10-21 (re-audioambience4):** DIFFERS (no engine rule was stated) — by new condition (data2; insert/init pass -1 = current): 0/5/6 stop 0x0A4C13CB, start 0xCA19D7CA; 2/3 stop 0xCA19D7CA, start 0x0A4C13CB; 1/4 stop both; new 0 with old (data1) 1 also starts 0x4A4C132E; all loops, building or prop occupants of the lot. audio-ambience.md 3.4.

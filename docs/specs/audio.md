@@ -969,13 +969,147 @@ mis-attributions**: `0x004F7BA0` is `inc [ecx+0x10]` (this class's own refcount)
 stopped first (`_StopSound(this, id, 1)`); if the caller passed id 0 a fresh one is taken from
 `GenerateNewInstanceId`; the sample is resolved through `cIGZSndMgr` (`+0x60`) slot `0x48` with
 `kGZIID_cIGZSndDataSourceHolder` `0x206077D2`; a `tSound` is allocated with `+0x08` = instance id, `+0x04` =
-sound id, `+0x34 = (param & 0xFF) * 0.01 * 100.0`, `+0x38 = x 4`; it is stored in the `+0x38` hashtable and
+sound id, `+0x34 = signedProperty38 * 0.01f * 100.0f`, `+0x38 = x 4`; start-parameter bit 0 sets
+instance flag `0x20` and does not supply either radius. It is stored in the `+0x38` hashtable and
 the `+0x48` list.
 
 **`_StopSound` (`0x004F94C0`, `ret 8`).** On an **unknown instance id it returns false and does nothing**
 (`xor al,al; ret 8` at `0x004F94FF`) — no side effects. The caller `FUN_004F9990` ignores that and still
 returns 1. Otherwise it unregisters, turns off completion notification, and takes the soft (`+0x20`) or hard
 (`+0x24`) path on the event's second argument; the effect component always sends 0 (soft) *[compat]*.
+
+### 8.3.1 Remaining manager owner contracts (AU46, AU49)
+
+**Defaults and lifetime.** Constructor `0x004F9830` starts refcount, elapsed/update counters,
+focus countdown, flag byte `+0x2C`, instance/capacity counters and service holders at zero;
+master volume is 1024 and tuning defaults are 3, 10, 30. It constructs the hash table with
+initial size argument 100, an empty instance list and the response curve. Init (`0x004FA2F0`)
+first acquires SndSys, retains it in `+0x5C`, then acquires SndMgr and retains it in `+0x60`.
+Either missing service returns false; missing SndMgr leaves the newly retained SndSys in place.
+There is no initialized latch or rollback. After both acquisitions it reads tuning, calls
+SndSys `+0x3C(this)` and `+0x78(this+4,20)`, and obtains the message server. If available it
+subscribes `this+0x0C` to the seven messages in §8.3, in table order except sim-speed last
+(post-app, pre-app, pre-city, listener, focus, pause, speed). Missing message server skips
+subscriptions. Registration results do not gate success. It reads preferences, sets master
+volume to the configured value if enabled, otherwise zero, updates all instances and returns true.
+Temporary service references are balanced independently of retained holders.
+
+Shutdown (`0x004F82E0`) sends StopAllSounds(true), calls SndSys `+0xBC`, then unsubscribes
+speed, pause, focus, listener, pre-city, pre-app, post-app if a message server exists. It calls
+SndSys `+0x7C(this+4)` and `+0x40(this)`, clears/releases SndSys then SndMgr, and returns true.
+Null holders skip their calls. Destructor `0x004F8820` destroys containers, curve and reference
+holders; it does not substitute for Shutdown. These calls do not make Init transactional.
+
+**Payload routes.** Event `+0x18` supplies the payload. Reset (`0x004F9000`) and volume
+(`0x004F9D20`) reject a null event or null payload. Each retains the payload across processing,
+reads the instance ID at payload `+0x24`, balances its reference, and returns true even when
+the ID is absent. Reset's inner operation (`0x004F8DD0`) returns false for a missing ID;
+otherwise it temporarily retains the instance, QIs its holder for `0xBB1BE367`, calls that
+interface's `+0x30`, then QIs it for `0xFD584467`. If that succeeds it reads property `0x15`
+with second argument zero and writes the same value back to property `0x15` (third argument
+zero). Failed QI skips the dependent calls but does not change the found-ID success result.
+All temporary interfaces and the temporary instance reference are released.
+
+Volume first reads payload `+0x38`, then `+0x24`. The inner setter (`0x004F9AF0`) stores the
+raw volume word at instance `+0x18`, treats that word as signed i32, multiplies it by the f32
+gain at `+0x1C`, truncates toward zero and writes buffer property `0x15(value,0)`. It updates
+position when the instance has children or a master, sets instance flag bit 0, and returns
+true; a missing ID returns false without these effects. No clamp is applied
+(`0x004F9B37`–`0x004F9B57`).
+
+Enumeration (`0x004F83E0`) requires valid event/payload pointers: unlike reset, it does not
+null-check them. Payload `+0x80` provides an object QI'd for `0xEA4FC425`. Failed QI returns
+false, balancing acquired references. Success walks the instance list in order and calls
+callback `+0x0C` with each **instance pointer**, stopping at its first false result. Both
+exhaustion and early callback termination return true. The callback object and QI result are
+released; a callback is not promised a snapshot independent of list mutation.
+
+**Focus and stop-all.** Focus message `0x4348B111` (`0x004F7F00`) requires SndSys and a
+successful message QI for `0x65297976`. It converts QI-view `+0x24` to a boolean and creates
+event `0x6A95CBA2`, payload IID `0x5B523BA4`, data `(boolean,0,0,0)` through SndSys `+0x34`.
+Successful creation dispatches through `+0x20` and returns true; failure returns false.
+The created event and message view are released on both paths as applicable.
+The focus-event helper (`0x004F99F0`) rejects missing event, SndSys or payload; otherwise it
+retains the payload, reads `+0x24`, and walks every instance. Gain calls Resume; loss increments
+its pause count and, only on transition to one for a non-child, disables completion and calls
+holder `+0x24`. Loss sets manager volume to zero. Gain restores the configured volume if
+enabled, otherwise zero; gain also sets the countdown to 50. It returns true after releasing
+the payload. **DoEvent discards this helper's boolean and returns false** for this route.
+
+Public StopAllSounds creates event `0xCAA44CA7` with the same payload IID and four data words
+`(argument,0,0,0)`, dispatches/releases it, and returns creation success; missing SndSys returns
+false. Its event route directly reads payload `+0x24` without a null gate and normalizes to
+boolean. The helper `0x004F9610` repeatedly stops the current first list entry until empty,
+using that boolean. DoEvent returns false after these effects. UpdateAllSounds similarly
+posts `0x4A8C52C8`; its event helper `0x004FA180` rewrites effective volume, updates linked
+positions, applies distance and simulation-pause policies to every instance, and returns true.
+
+**Tick callback.** Update runs on the `this+4` interface. It adds dt modulo 2^32 to manager
+elapsed time. While countdown is nonzero it sets it to signed-min(countdown,50) minus one
+and enumerates SndSys with `(0x004F7FD0,0,manager)`. That callback always returns true; a
+non-null sound successfully QI'd for `0x206077D2` receives `+0x50()` followed by
+`+0x54(0)` then `+0x54(saved value)`, and the QI reference is released. Update brackets its
+list walk with an increment/decrement of `+0x1C` (`0x004F9CAA`–`0x004F9D0F`).
+Per-sound callback `0x004F9690` converts dt as unsigned u32 to f32 and advances the ramp
+at instance `+0x40`. Equal current/target means no work; otherwise it moves toward target
+by dt times signed rate, clamped to the remaining signed difference, and stores f32 current.
+It truncates current to i32 into `+0x18`, multiplies that integer by f32 gain `+0x1C`, truncates
+again, and writes property `0x15(value,0)`. Linked instances then update position. This is
+two truncations, with no integer-volume clamp (`0x004F7C50`–`0x004F7CAA`,
+`0x004F9694`–`0x004F96DF`).
+
+**Start, completion, stop and position.** The word `tSound+0x14` is a retained manager
+reference, initially null in constructor `0x004F8790`, assigned before completion registration;
+it is **not** a play argument. Holder play receives `(instance ID, manager volume,512,0)`.
+Other constructor defaults are zero IDs, null buffers/master, empty child list, zero flags,
+pause count/ramp/radii, gain 1.0 and the position sentinel in all six coordinate fields.
+Radius computation uses signed property `0x38`, x87 multiplication by f32 0.01 then f32 100;
+the inner radius is rounded to f32 by FST, but the still-extended product is multiplied by
+f32 4 before storing the outer radius (`0x004F9FCA`–`0x004F9FEB`). It is not computed
+from the start parameter's low byte, nor from a reload of the rounded inner radius.
+
+Failed sound resolution or failed buffer QI returns false and releases temporary outputs;
+there is no instance insertion. The pool allocator and instance constructor are required to
+produce storage: `0x004F9F3E` dereferences the allocation and `0x004F9F61` dereferences the
+constructor result without a clean null-return path. A failed holder play returns false
+before map/list insertion, dropping local instance and interface references; it does not
+restore any old instance stopped for an ID collision. Completion registration's result does
+not gate play. EnableCompletionNotification (`0x004F8130`) QIs the holder for `0xE9D00A9A`
+and calls its `+0x0C` with manager `+8` when enabling, null when disabling, then releases the
+QI result. Failed QI returns false without registration. Callback `0x004F98F0` QIs its input
+for `0xFD584467`, reads property `0x34` as instance ID, finds/temporarily retains the instance,
+stops it with true, then balances both references. Unknown IDs have no stop effects.
+
+Stop removes the manager's list/hash entry before foreign stop calls. With no children it
+disables completion, checks holder `+0x1C()` and calls `+0x24()` for a true hard-stop argument;
+for false it calls `+0x20()` only if property `0x33` is nonzero. Thus false stop of a one-shot
+does not issue a foreign stop, although it removes the manager record. One-shot counter is
+decremented when property `0x33` is zero; otherwise the independent-loop counter is decremented
+only for a non-child. With children, the first child becomes master (`0x004F9150`) and inherits
+the remaining children and buffer references; removing a child unlinks it from its master
+(`0x004F9100`). Instance buffers are cleared/released, then temporary/container references
+are dropped (`0x004F94C0`–`0x004F960F`).
+
+SetPosition (`0x004FA260`, despite its exported tSound name, takes the manager base) returns
+false for an unknown ID. A found instance is temporarily retained; raw f32 x/y/z are stored
+at `+0x20/+0x24/+0x28`, its position and then its master's position (if any) are updated,
+distance pause policy runs, flag bit 1 is set and the temporary reference released; return true.
+UpdatePosition selects the raw coordinates for a childless instance, averaged coordinates
+otherwise, after the mode-specific linked volume/pan update. Buffer `+0x0C` receives property
+`0x20(trunc(x),1)`, `0x21(trunc(y),1)`, `0x22(trunc(z),0)` in that order
+(`0x004F90B2`–`0x004F90F3`). Foreign property results do not gate the found-ID return value.
+
+**Conformance cases.** Missing SndMgr after successful SndSys acquisition leaves SndSys retained;
+Shutdown releases it. Missing payload rejects reset/volume, but an unknown ID with a payload
+returns true. Enumeration with three instances and false on callback two visits exactly two
+and returns true. Volume -3 with gain 0.5 writes -1, sets bit 0 and retains raw -3. Ramp current
+3.9, target 5, rate 0.01, dt 1 stores about 3.91 then uses integer 3 before gain. Focus gain
+arms 50; 50 subsequent updates run the restore callback 50 times. Focus-event DoEvent returns
+false despite applying gain. Start flags 255 and property 0x38=7 use the property-based radii
+and only flag bit 0's meaning. A failed play leaves no new record. Register then unregister
+completion with `(manager+8)` then null. Soft-stop one-shot removes the entry with no +0x20
+or +0x24 call. SetPosition(unknown) is false; a childless found ID at (-1.8,2.9,3.1) produces
+properties (-1,2,3) with flags (1,1,0) and returns true even if those property calls fail.
 
 ### 8.4 `GenerateNewInstanceId` (`0x004F7BB0`) — answered
 
@@ -1334,8 +1468,11 @@ record.
    above) are used together as `(clsid, iid)`;
 3. `QueryInterface(0xFD584467, …)` on the returned object;
 4. stores two `cRZAutoRefCount<cIGZBuffer>` at `tSound+0x0C` and `+0x10`, reads property `0x38` from the
-   second buffer and derives `+0x34 = value`, `+0x38 = value * 4.0` (the pause-for-distance radii);
-5. plays via vtable `+0x14 (instanceId, +0x14, 0x200, 0)`.
+   second buffer and derives the two pause-for-distance radii using the signed conversion,
+   multiply order and separate f32 stores in §8.3.1;
+5. sets property `0x10` to 3 with third argument 0, then plays the holder via vtable
+   `+0x14(instanceId, managerMasterVolume, 0x200, 0)`. The volume is **manager** `+0x14`, not
+   instance `+0x14` (which holds the manager reference). See §8.6 for the instruction-checked correction.
 
 Instance lookup in general is the same idiom: hash bucket `id % bucketCount`, chain on `+0x04`
 (`tSound::SetPosition` `0x004FA260`).
@@ -1348,9 +1485,9 @@ Load path:
 |---|---|---|
 | `cSC4AudioAEMSEventSystem::LoadSoundBank` | `0x004E1E10` | reads property key `0xEBF44DF7` for the bank instance id, `StopAllSounds`, then builds TGI `{type=0x00000000, group=0x8A5971C5, instance=<prop>}` and calls `LoadBankFromResource` |
 | `…::LoadBankFromResource` | `0x004E1DA0` | `new(0x24)` → `cSC4AudioAEMSSoundBank` ctor → `LoadFromResource` → `AddBank` |
-| `cSC4AudioAEMSSoundBank::LoadFromResource` | `0x004E24E0` | `SC4GetResourceAsFile(tgi, &file, 0)`; on success copies the TGI into `bank+0x14/+0x18/+0x1C` and calls `LoadFromFile` |
+| `cSC4AudioAEMSSoundBank::LoadFromResource` | `0x004E24E0` | acquires file, calls `LoadFromFile`, copies TGI only after successful Read, then closes/releases file; final success also requires Close (§10.7.1) |
 | `…::LoadFromFile` | `0x004E2490` | `file->GetSize()` twice, `file->Read(bank+0x08, size)` — a raw slurp; **no validation here** |
-| `…::AddBank` | `0x004E1BB0` | `SNDAEMSI_addmodulebank(bank, name, userdata, allocFn=FUN_004E2410)`; on success links into `field231_0x138` |
+| `…::AddBank` | `0x004E1BB0` | registrar receives `(raw image,0,0,identity callback 0x004E2410)`; result zero links into `+0x138` (§10.7.1) |
 | `SNDAEMSI_addmodulebank` | `0x00867800` | the EA-library bank registrar |
 | `_SNDAEMSI_resolvemodulebank` | `0x00864F60` | the pointer-relocation pass (every offset becomes an absolute pointer) |
 
@@ -1410,6 +1547,118 @@ of `(size, stride2, handler)`; handlers are dispatched at `_SNDAEMSI_updatemodul
 `DAT_00B508A4` (16 slots); registration of SNDBANK blob #1 (`FUN_0086B340`) and #2 if their offsets are
 non-zero. **No `"AB"` magic check is visible** in `LoadFromFile` or `addmodulebank` *[inferred]* the magic is
 consumed inside the SNDBANK blob (`FUN_0086B340` `0x0086B340` / `_SNDbankadd` `0x0086B35B`).
+
+### 10.7.1 AEMS owner lifetime and IO results (AU48)
+
+Constructor `0x004E1C20` constructs the system-service view at base `+0x0C` with service ID
+`0xAC1FAE31` and flags `0x80000000`. QI `0x004E1430` answers `0xBB523BB2` at base,
+`0x8C1FAEB7` at base+4, `0x452294AA` at base+8, and otherwise delegates to system-service
+QI on base+0x0C. Successful QI AddRefs the service. AddRef/Release (`0x004E19C0/0x004E19D0`)
+delegate to the system-service reference implementation; there is no second local counter.
+The constructor makes empty storage/work vectors and bank list; gain `+0x110`, effects value
+`+0x114`, master factor `+0x13C` and speed factor `+0x140` are 1.0, effects selector `+0x118`
+is 37, response curve is constructed, image pointer `+0x12C` and adjacent size/end fields
+are zero, and the handle vector contains 21 zero words. The speed-volume vector is initially
+empty; tuning populates it. Backend options are obtained by Init, not default-filled here.
+
+Init (`0x004E2210`, this = service view) uses process latch `0x00B21938`. If already set it
+returns true without work. First call sets it **before** initialization, zeroes the handle
+vector, invokes its own base+4 parameter setters for velocity, throttle and wobble with the
+process value at `0x00B2193C`, reads preferences into master factor (signed volume /1024 or
+zero when disabled), and reads tuning. It sizes the workspace to 200000 bytes, obtains backend
+options, installs callback `0x004E13E0`, sets options, calls backend init with workspace and
+constant `0x72B00`, then effects-bus init with `(0,trunc(effects value),effects selector,0,0)`.
+The callback simply returns zero and performs no work. Any negative result from get-options,
+set-options, backend init or effects-bus init invokes Shutdown and returns false; these
+results use signed comparisons (`0x004E2308`–`0x004E2382`). After success it updates volume,
+registers the primary event target with SndSys `+0x3C` if that service exists, attempts the
+system resource load, and subscribes its base+8 message view to `0xA6B79602` if the global
+message server exists. These later results, and ReadTuningValues' result, do not gate true.
+
+Shutdown (`0x004E1AB0`, service view) returns true, including when the latch was clear.
+When set, it clears the latch first, stops sounds, zeroes all handles, removes all banks,
+enters the backend critical section, removes the event system, leaves critical, restores
+the sound system, clears the workspace's logical length, unregisters the primary target
+through SndSys `+0x40` when obtainable and unsubscribes base+8 from `0xA6B79602` when possible.
+It retains container allocation. Destruction (`0x004E1920`, deleting wrapper `0x004E1D80`)
+destroys owned vectors/list/storage and base service; it does **not** call Shutdown.
+
+StopAllSounds (`0x004E1320`) invokes its base+4 EndSound slot for indices
+0 through 14, then 17,18,20,19, in that order; it does not iterate all 21 indices.
+StartSound (`0x004E16F0`, base+4 view) rejects an already nonzero handle. Otherwise it enters
+critical, calls backend start through `0x00B107E4` with the address of the requested index,
+leaves critical, and stores backend-result-plus-one when that is signed-positive, otherwise
+zero. This attempted-start path returns true even on backend failure. EndSound
+(`0x004E1740`) returns false for a zero handle; otherwise it calls `0x00B107EC(handle-1,&index)`
+inside critical, clears the handle and returns true regardless of backend result. Neither
+method bounds-checks the index. Parameter setters `0x004E1530/0x004E15A0/0x004E1610` clamp
+ordinary f32 inputs to [0,1], multiply by f32 127, truncate toward zero, and call
+`0x00B107F0(parameter index 0/1/2,value)` inside critical; return backend result >=0.
+The instruction comparisons leave NaN on the conversion path, not a finite clamped endpoint.
+
+DoEvent (`0x004E14B0`) handles master-volume event `0x2A5B69C0`: it reads payload `+0x24`
+as unsigned u32, divides by 1024, stores f32 master factor, evaluates the response curve
+on `(speed factor * tuning gain) * unrounded master factor`, then multiplies its result by
+f32 127, truncates and calls SNDmastervol. It always returns false, including after effects.
+No event/payload null gate or ownership acquisition occurs here. Ordinary UpdateVolume
+instead evaluates `(speed factor * stored master factor) * tuning gain`, rounded to f32
+at the curve argument. Message callback `0x004E1680` runs on base+8 and handles only
+`0xA6B79602`; it indexes the speed-volume vector using global simulator `+0x0C` without
+bounds checks, stores that f32 speed factor, evaluates `(master factor * tuning gain) *
+speed factor`, scales/truncates by 127 and calls SNDmastervol, returning true. Other messages
+return false. Numeric order is instruction-checked at `0x004E13F0`–`0x004E141A`,
+`0x004E14DA`–`0x004E151D`, `0x004E16A8`–`0x004E16DC`; 127 is f32 at `0x00A931C0`.
+
+**Bank and file ownership.** AddBank rejects null or any nonzero registrar result; **zero
+means success**. It passes `(bank raw image,0,0,0x004E2410)` to the registrar. That callback
+returns its first argument unchanged; it is not a heap allocator despite the earlier name.
+On success AddBank stores zero at bank+0x20, retains the bank and appends it to the bank list
+(`0x004E1BBC`–`0x004E1C1D`; the shared helper `0x006CE100` is a field setter, not a destructor).
+RemoveBank (`0x004E1790`) matches the first bank's cached **instance** ID, calls backend
+remove with bank+0x20, unlinks it and drops the list and temporary references; missing ID
+returns false. RemoveAllBanks removes from the head, calls backend remove for each and
+balances those same references. Backend removal results are ignored. UnloadSoundBank
+(`0x004E18B0`, base+4 view) reads property `0xEBF44DF7`, stops sounds, zeroes handles,
+then removes that bank. LoadSoundBank uses the same property, stops sounds, then loads its TGI.
+
+A new bank has refcount zero, null raw vector and zero cached TGI/handle. LoadBankFromResource
+holds one temporary reference and releases it after load/AddBank success or failure. Allocation
+returning null has no safe false-return path: the load method is still invoked on that pointer.
+Final bank Release (`0x004E2450`) frees raw vector storage and outer allocation; count >1
+merely decrements. LoadFromFile borrows the caller's file without AddRef/Release/Close.
+It rejects null, resizes byte storage to the **first** GetSize result and passes the **second**
+GetSize result to Read. It returns Read's boolean with no size equality, bytes-read or header
+check (`0x004E24A3`–`0x004E24CF`). A shorter second size leaves the rest unvalidated; a larger
+one may overrun allocation. There is no specified safe recovery or fabricated false for
+that overrun or allocation failure. A failed read leaves the resized storage in the bank.
+LoadFromResource owns its acquired file: after a successful acquisition it always calls
+file `+0x14` (Close) then releases it. Only a successful Read copies the cached TGI, and
+the resource loader's final success is the Close result. This corrects §10.7's abbreviated
+claim that the TGI is copied before reading. Failed acquisition releases any returned reference.
+
+The **system** LoadFromFile (`0x004E2120`) uses the same two-size raw-read policy for its
+system image. Only a true Read enters critical, removes the old backend system and adds the
+new image; add result zero means true. False Read performs neither backend call, even if
+some bytes were delivered. Resource wrapper `0x004E21A0` likewise closes/releases the file
+and returns Close success only after successful load. Neither reader validates a short
+successful read. Tuning acquisition failure logs and returns false with existing values
+unchanged. Successful acquisition reads the three scalar keys independently, preserving
+their old values when absent, resets the curve to its default pair before applying the
+curve property, resets the speed vector to its five defaults before applying its property,
+and returns true without requiring every key or validating the resulting vector length
+(`0x004E1EA0`–`0x004E2118`). Init ignores a false tuning result.
+
+**Conformance cases.** Repeat Init after success does no IO; negative get-options runs the
+full latched shutdown and permits a later retry. Failed final system-resource load does not
+change Init's true result. StopAll requests exactly the 19 indices above, leaving 15 and 16
+alone. Backend start -1 stores zero but returns true; a second successful start at the same
+index is allowed. Parameter 0.5 passes 63; input 2 passes 127. DoEvent updates volume but
+returns false. Registrar zero appends/retains a bank; -1 does neither. RemoveBank matches
+instance ID alone. File sizes (8,4) allocate 8 and request 4; (4,8) request 8 despite allocation
+4, an unsafe original quirk, not a requirement to corrupt replacement memory. False Read
+does not cache TGI; true Read plus false Close caches TGI but reports resource-load failure.
+Failed system Read does not remove/add the backend system. Missing tuning resource preserves
+old tuning, while a successful resource with no speed key restores the five-element default.
 
 ### 10.8 Tuning
 
@@ -1653,6 +1902,72 @@ Format: `CLSID ← factory`. Vtable address is in §11.1's families by factory b
 
 ---
 
+### 11.3 Director execution and lifetime (AU47)
+
+The constructor (`0x004EC710`) registers the nine named classes first, in this order:
+`AA355871`, `29E2797F`, `BDB6171E`, `69E500BC`, `6A12F51C`, `4A47DC0D`, `CA4A66B9`,
+`5CFBDBBF`, `5CFBDBD5`. The 83 leaf registrations then follow §11.2's literal table order.
+There is no interleaving with the nine named registrations. This constructs registration records,
+not instances of those classes. Service holders `+0x4C` through `+0x68` start null; the base
+director is constructed first (`0x004EC713`–`0x004EC748`).
+
+OnStart (`0x004EB1B0`) first registers the director's `this+4` framework hook using framework
+slot `+0x1C`. It then performs §16.16's five add/start pairs, passing the original OnStart
+argument to every child. Neither AddDirector nor child OnStart results gate the next pair.
+It returns true after all five pairs. The framework and child directors are required pointers;
+there is no checked null-service failure path here.
+
+PostAppInit (`0x004EBF40`) begins with result false. It obtains the Hit configuration resource
+with group `0x8A5971C5`, instance `0xEA8A1115`, and constructs the Hit INI reader on the returned
+file. Failed resource acquisition or failed default-entry enumeration returns false, releases
+the temporary file reference and creates no services. The reader is destroyed when constructed.
+After successful enumeration, the following operations occur:
+
+| Order | Operation and ownership |
+|---|---|
+| 1 | Create radio `0x5CFBDBBF`, IID `0x287FB697`, into a temporary reference; call its `+0x20`, then framework `+0x0C(radio)` only when each preceding operation succeeded |
+| 2 | Create SEM `0xAA355871`, same IID, into director holder `+0x58` |
+| 3 | Create scape `0x29E2797F`, IID `0x29E39DB4`, into `+0x64` |
+| 4 | Create handler `0xBDB6171E`, IID `0xBB523BB2`, into `+0x48` relative to this callback's interface view |
+| 5 | Create second handler `0x69E500BC`, IID `0xBB523BB2`, into `+0x4C` relative to that view |
+| 6 | Create ambience manager `0x6A12F51C`, same IID, into `+0x50` relative to that view |
+| 7 | Create sound manager `0x4A47DC0D`, same IID, into `+0x5C` |
+| 8 | Create listener `0xCA4A66B9`, same IID, into `+0x60` |
+| 9 | Call first handler `+0x0C`, ambience manager `+0x20`, SoundManager Init, Listener Init, then SEM initialization `0x004EDAA0` |
+| 10 | QI second handler then ambience manager for `0x89E51472`; on each successful QI call `+0x0C`, balancing each temporary reference |
+
+The mixed offsets in this table are deliberate: PostAppInit executes on the director's secondary
+view; its handler holders are four bytes above those addresses in the base object. Do not use the
+decompiler's negative-array object expressions as ownership rules.
+
+Only successful radio creation **and** radio initialization **and** framework registration sets
+the result true (`0x004EBF58`, `0x004EBFE1`–`0x004EC005`). Any later failed creation or initialization
+clears it. A failed optional QI in order 10 does not clear it. Remaining creations and initializers
+are still attempted: this is not a first-failure transaction and there is no unwind. In particular,
+a failed creation followed by an unconditional initializer dereferences its output; the original
+does not promise a clean false return for a null output. Before replacing any retained service,
+the old reference is cleared and released. Temporary radio and hook references are released on exit.
+The result is loaded back after reader/file cleanup (`0x004EC286`–`0x004EC2A4`), rather than being
+the destructor's result as the pseudocode suggests.
+
+PreAppShutdown (`0x004EC2B0`) visits second handler, first handler, SEM, listener, sound manager,
+ambience manager, scape, in that order. Handlers are queried for `0x89E51472` and receive `+0x10`
+only on successful QI; SEM uses its teardown (misnamed Init), listener and sound manager use
+Shutdown, ambience uses `+0x24`, scape `+0x10`. Each existing holder is then cleared and released;
+the temporary handler hook is balanced. It returns true and skips null holders. Destruction is
+different: `0x004EBEC0` releases holders in descending order `+0x68, +0x64, +0x60, +0x5C, +0x58,
++0x54, +0x50, +0x4C`, then destroys the base director. It does not perform PreAppShutdown.
+Deleting destructor `0x004EC680` frees outer storage only when deletion flag bit 0 is set.
+
+**Conformance cases.** Record the 92 AddCls calls and require the nine-class prefix above before
+the 83 leaves; make every child OnStart return false and still require all five pairs and true
+from the parent. Deny the configuration file and require false with no service creation. Let
+radio registration fail but every later initializer succeed: the final result remains false.
+Let radio registration succeed and a later initializer fail: require later initializers to run,
+false at exit, and no automatic shutdown. With all required outputs valid, deny either optional
+hook QI: it skips only that hook initialization. Check shutdown order separately from destructor
+reference-release order, including a second shutdown with cleared holders.
+
 ## 12. Save behaviour
 
 **Nothing in the audio layer is saved.** *[compat]*
@@ -1828,9 +2143,11 @@ their foreign services are recording fixtures, so they do not require an audio d
     (`+0xF8`) with the same field under the same guard. A state whose `+0x18` is 0 must never reach either.
     (`0x00511450`, `0x0050E3F0`)
 12. **Handler routing, and only while a city is loaded.** `cSC4AudioEventHandler::DoMessage` must route
-    `0x8A385DD8`, `0xA9E3B6E3`, `0xAA396960` and `0xEA3ADA33` to `HandleAutomataMessages` and no other type
-    there. `0x26D31EC1` must subscribe those four (with seven more) to the handler main target and
-    `0x26D31EC2` must unsubscribe exactly that set, so outside a city the messages are not heard.
+    `0x8A385DD8`, `0xA9E3B6E3`, `0xAA396960`, `0xEA3ADA33` and `0x49E64801` to
+    `HandleAutomataMessages`. The fifth type is accepted with return 1 and no operation; the four
+    operation cases in older fixtures remain valid, but are not an exhaustive dispatch test (AU45).
+    Use §7.2's complete subscription table for city entry/exit rather than deriving subscriptions
+    from the four operation cases.
     (`0x004EF810`, `0x004EE970`)
 13. **Rate limiting.** On a play whose payload slot 9 is `0xA9F14C47`, if the handler timer at `+0x30` is
     running and the elapsed time is below the threshold at `+0x48`, the play must be dropped. Otherwise the
