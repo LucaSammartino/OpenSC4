@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree; supervisor publishes reserved branch) | in progress: initial lua 73/73 and full gate passed; main merge changed engine inputs | Repeat full gate and game check on merged source before READY. |
+| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree; supervisor publishes reserved branch) | ready: merged-source full gate passed; lua 73/73 exact to 2032, ref_warnings=0 | Land bounded registration changes; retain no full-VM verification credit. |
 
 ## Changes and verification scope
 
@@ -26,7 +26,7 @@ line, summaries and README explain the scope; counting `lua` supplies **no
 full-VM Lua verification credit**. No tools/ file, regress profile, generated
 ABI entry, public C ABI export or version was changed.
 
-## Gate
+## Initial gate
 
 - Implementation commit: `c9a62c9b1`. Six focused capi tests passed, including
   collector order, missing bindings and exact pointer identity without rebasing.
@@ -38,12 +38,13 @@ ABI entry, public C ABI export or version was changed.
   build **233/233** edges (115.1 s), full CTest **72/72** (146.2 s),
   fc4verify **PASS** (265.1 s), qbuild **PASS**, exit 0.
 - Native request `qbuild-20261024-030121-build-ctest` collected to terminal
-  completion without duplication. Logs: `build-runs/qbuild-{test,clippy}.log`,
-  `build-runs/fc4verify-{configure,build,ctest}.log`. The tree-change note from
+  completion without duplication. Logs preserved as
+  `build-runs/initial-qbuild-{test,clippy}.log` and
+  `build-runs/initial-fc4verify-{build,ctest}.log`. The tree-change note from
   the verifier was caused by documentation commits/README clarification; runtime
   source stayed at c9a62c9b1 throughout the gate and game run.
 
-## Real-city result
+## Initial real-city result
 
 [Run 382](../runs/lua-replay6-c9a62c9b1-turbo-2032-20261024a.md), unique label
 `lua-replay6-c9a62c9b1-turbo-2032-20261024a`: Konradshohe, turbo,
@@ -60,6 +61,35 @@ callback labels are both 0x0040C890 in the measured process. A single file-event
 wait accepted the unique completed verdict; no qwait, resend or game launch.
 No turbo differences occurred, so no normal-speed rerun was required.
 
+## Merged-source final validation
+
+The requested pre-queue main merge introduced traffic-engine changes, so the
+full gate and game run were repeated on the changed build inputs. Merged runtime
+source **f36681776** passed `qbuild all`: **6891 passed, 0 failed, 0 ignored**,
+clippy **0 diagnostics**, native build **203/203** (127.1 s), full CTest
+**72/72** (185.3 s), fc4verify **PASS** (314.5 s), qbuild **PASS**, exit 0.
+Native request `qbuild-20261024-031454-build-ctest` was collected to completion;
+no tree-change note. Logs use ordinary `build-runs/qbuild-{test,clippy}.log`
+and `build-runs/fc4verify-{configure,build,ctest}.log` names. The first passing
+measurement above is preserved separately; no duplicate progress checks ran.
+
+[Run 383](../runs/lua-replay6-f36681776-turbo-2032-20261024b.md), unique label
+`lua-replay6-f36681776-turbo-2032-20261024b`: Konradshohe turbo to 2032,
+actual verdict **2032-01-02**, **clean**, **ref_warnings=0**; foreign exceptions,
+watchdog stalls, rtc, overruns, panics, structured exceptions, incomplete lines
+and other warnings all 0. City time **62.859 s**, queue wait **6 s**, wall **77 s**.
+Final DLL SHA256:
+`3D64BD56E6A000EA16B2AFDED6DF6CCD5242E4EFAD43F81C5AAD0A54DDC516B4`.
+
+Final exact result: **lua 73/73**, both harness-recognized and independently
+counted. Load sample 2026-01-27 through month 2032-01-01, **3431** per-entry
+observations, all 47 entries in every sample and all six difference/mismatch
+fields zero. Scratch 0x0040C890 throughout. The unique completed verdict was
+collected by the same file-event wait, without qwait or resending. No differences
+required a normal-speed rerun. Both game labels remain valid separate evidence.
+Latest main engine inputs were checked against the merged source before enqueue;
+subsequent main changes at that check were documentation only.
+
 ## Questions and next steps
 
 No new questions; LH6/LH7 are answered. No nondeterminism fields were excluded.
@@ -68,12 +98,3 @@ other owners and unsampled VMs remain outside the bounded comparison, never
 counted as matches. A complete replay would require a separately justified
 capture and side-effect/identity contract. No native/game requests outstanding.
 Coordinator: land this bounded change and retain that scope in coverage reports.
-
-## Handoff
-
-- Final requested main merge introduced traffic-engine changes, not just documentation. Initial gate and run above remain measurements of runtime source c9a62c9b1.
-- Merged runtime source f36681776: qbuild all PASS, workspace 6891/0/0, clippy 0 diagnostics; native request qbuild-20261024-031454-build-ctest PASS, build 203/203 (127.1 s), CTest 72/72 (185.3 s), verify PASS (314.5 s). Operation session 16633 collected to exit 0; no tree-change note.
-- First gate full build/ctest/workspace/clippy logs preserved as build-runs/initial-*.log. Merged gate uses ordinary log names.
-- New unique game request: lua-replay6-f36681776-turbo-2032-20261024b, Konradshohe turbo to 2032. DLL SHA256 3D64BD56E6A000EA16B2AFDED6DF6CCD5242E4EFAD43F81C5AAD0A54DDC516B4. Only request outstanding; initial game/native operations fully complete.
-- Next: collect the unique verdict with build-runs/wait-lua-verdict.ps1 (no qwait), measure exact lua counts, record run 383+ after checking docs/runs. Final report and final main merge immediately before actual-HEAD READY queue.
-- Preserve the two source/gate/run measurements separately; the final queue must use actual full detached HEAD.
