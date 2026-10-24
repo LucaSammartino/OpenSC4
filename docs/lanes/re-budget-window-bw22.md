@@ -7,5 +7,7 @@
 - Goal: settle BW21 constructor/headless boundary and narrow BW17 with behaviour and vectors.
 - Worktree reused at detached HEAD as instructed; no engine changes permitted.
 - Read owner closure table and existing BW17 remainder. BW21 is absent from the open question file at this base; check answered records before adding any question.
-- Next: query constructor/callers and inspect relevant exported decomp sections; verify ABI and numeric claims against instructions.
+- Done: BW21 behaviour and observation vectors in budget-window §1.1/§9; archive answer. Byte-verified no-argument thiscall, GlobalHeapAlloc/Free and reused total scratch.
+- Next: finish ordinance refresh/scale/B formatting; partition the unverified BW17 remainder, regenerate index and run doccheck.
+- Evidence: local build-runs/asm-*.txt and asm_slice.py; no REA queried (session has no binary).
 - Gates: doccheck pending. No game runs or ABI changes planned.

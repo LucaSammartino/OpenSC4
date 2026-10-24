@@ -1,4 +1,10 @@
 # budget-window: answered questions (archive)
+
+<!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
+- **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.
+
+  **ANSWERED 2026-10-24 (re-budget-window-bw22):** DIFFERS — §1.1 specifies a no-explicit-argument thiscall constructor, ECX storage/EAX same pointer, GlobalHeapAlloc(0x140)/GlobalHeapFree, and the deleting-destructor flags word. Population can avoid DoModalWin but still needs generated windows, normal init, providers/resources, a valid parent and balanced pause/teardown; there is no window-free native calculation API. Counts, offsets and reference vectors are fields; +0x90/+0x94 is reused section scratch and strings live in child controls, with no primary-vtable result getter. Static lifecycle vectors are in §9; no native off-screen run is claimed.
+
 <!-- Archive for [budget-window.md](../../budget-window.md). Lanes do not read this file. Open questions are in ../budget-window.md. -->
 
 <!-- from: re-panels4 (2026-10-21) -->

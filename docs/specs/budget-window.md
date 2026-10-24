@@ -25,6 +25,60 @@ may supply populated rows or refreshed totals. Its bounded remainder keeps BW17 
 | `cSC4BudgetUIWinProc` vtables | `0x00AB4A40`, `0x00AB4A2C`, `0x00AB4A1C` |
 | Budget-panel tab windows | `0xAA3AC000` and `0xAA3AC001` (ShowWindow `0x00768670` shows one, hides the other by the flag at `+0x194`) |
 
+### 1.1 Construction and observation without a modal loop (BW21) *[compat]*
+
+`0x007862B0` is an x86 **thiscall constructor with no explicit arguments**: ECX is the address of
+caller-owned storage and EAX returns that same address. It takes neither selector, period, department nor
+window on the stack. The bytes move ECX to ESI at `0x007862B8`, return ESI in EAX at `0x00786523`, and
+use plain RET at `0x0078652B`. Both callers agree (`0x0076847B`–`0x00768493`, `0x00786530` caller).
+The four explicit arguments belong to CreateSubBudgetWindow (§3), not construction.
+
+The normal allocation is `GlobalHeapAlloc(0x140)` (`0x005E55E0`, caller-cleans-stack), followed by the
+constructor with the returned pointer in ECX. Its matching free is `GlobalHeapFree(pointer)`
+(`0x005E5620`, also caller-cleans-stack). These are the executable's global heap wrappers: allocation
+enters the heap at `0x00B230E8` under the lock at `0x00B230E0`; free reads the allocator tag in the
+allocation prefix (`0x005E5636`–`0x005E5656`). Do not mix this storage with a foreign malloc/free pair.
+The deleting destructor at `0x0077E420` takes one stack flags word (RET 4): it always performs owner
+cleanup `0x0077C4C0`, and frees this storage only when flags bit 0 is set (`0x0077E428`–`0x0077E430`).
+The constructor sets reference count +4 and initialized byte +8 to zero, empties the vectors, initializes
+the string objects and deal-list sentinel, and sets signed-64 scale +0xB0/+0xB4 to 1. It is not a memset
+of all 0x140 bytes. In particular, obtain the mode arguments through CreateSubBudgetWindow before init.
+Construction already needs the native allocator and localized-string services (LTEXT
+`0x6A3FF01C:0x8A5796D1`, loaded at `0x007864CB`–`0x00786508`).
+
+There is **no window-free native calculation entry point** on this owner. Construction alone produces
+no rows or totals; `on_init(null)` returns 0. The minimum path avoiding a *modal loop* is to construct,
+hold a counted reference, call CreateSubBudgetWindow with the desired group selector, period and
+department 0, then deliver the normal init to its real generated window (§4). The init builds the content
+and child controls synchronously; ShowWindow, focus transfer, location persistence and DoModalWin in §2
+are not part of the population algorithm. An off-screen observation adapter therefore still needs working
+GZCOM/window factories, resources, city/budget providers and the simulator pause service. Calling
+UpdateValues on a bare constructed object or replacing its content pointer with null is not this lifecycle:
+the builders dereference content and existing child controls. This describes the static call boundary;
+an off-screen adapter has not been run against the game in this audit.
+
+Observe the initialized content before teardown; an admitted UpdateValues refresh can then recompute it
+from public providers (§6 of the companion). Balance the one init pause with one DestroySubBudgetWindow,
+let window shutdown clear its references, release the out-window reference and finally the held owner
+reference (§2 and §6). The modeless end path requires a valid parent window (§6); use a functioning
+window-manager parent even for an invisible adapter. Preserve the native unguarded-resume quirk on
+failure rather than describing an uninitialized Destroy as a harmless cleanup.
+
+| Observation | Native location / contract |
+|---|---|
+| Mode, department, period | +0x20, +0x24, +0x28 after CreateSubBudgetWindow; zero period selects monthly, nonzero selects annual in init |
+| Counts and viewport | Unsigned A/B counts +0x124/+0x128; A/B offsets +0x11C/+0x120 |
+| Group department cancel snapshot | Vector +0x38..+0x3C of {f32 starting fraction, counted department}; not rendered row values |
+| Current slider identities | Vector +0x2C..+0x30 of {control ID, counted department}; not a vector of amounts |
+| Current section amount | Signed-64 scratch +0x90/+0x94; reused for A then B, not two persistent category totals (`0x00789B93`, `0x0078A269`) |
+| Rendered labels, item amounts and section totals | Children of content window +0x10, obtained by child ID (window +0x8C); inspect their text after population/refresh. Money strings are assigned to controls, not retained in a public row-result array |
+| Owner string objects | +0xB8, +0xCC, +0xE0, +0xF4 contain period labels; +0x108 contains the constructor-loaded label. They are not category total strings |
+
+The six-slot primary vtable (§1) has no row, total or display-string getter. `get_window_indiv_item`
+retrieves the typed occupant property of an individual row; it does not expose group calculation results.
+The existing control-ID/visibility rules (§4.1 and companion §6) remain necessary to distinguish headers,
+items and totals. In particular, reading +0x90 after both passes cannot recover A's total.
+
 ## 2. Opening a sub-budget dialog (`cSC4BudgetUIWinProc::DoSubBudgetWindow`, `0x00768460`) *[compat]*
 
 Input: one 32-bit **selector**. Only the budget panel's button handler calls it (9 call sites in `DoWinProcMessage`
@@ -602,6 +656,19 @@ the individual restore records in `initIndividualBudget` (`0x00786690`), and whe
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
 ## 9. Conformance tests
+
+BW21 observation vectors (static contracts; no native adapter run claimed):
+
+- Construct in correctly allocated 0x140-byte storage with no explicit arguments: EAX equals the storage,
+  +4=0, +8=0, counts/offsets are zero, scale=1. No budget-provider enumeration occurs until init.
+- Call CreateSubBudgetWindow for a group with period 7, department 0: before init there are no populated
+  rows; after normal init scale=12. Period 0 instead yields scale=1. Passing the selector as a constructor
+  stack argument does not configure the group.
+- Populate both A and B with different nonzero totals: both total controls retain their own money text,
+  but +0x90/+0x94 after both passes contains B's scratch total. A reader treating +0x90/+0x98 as an
+  A/B total pair fails this vector (+0x98 is layout state).
+- An init delivered twice pauses only once; one Destroy balances that pause. A null-window init returns
+  0 and produces no rows. Test modeless teardown with a valid parent and release all held references.
 
 1. Opening any selector while a sub-budget dialog is held does nothing.
 2. While a dialog is open `IsHiddenPaused()` is true; after OK or Cancel it is false and the panel balance sheet was
