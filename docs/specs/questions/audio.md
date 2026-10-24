@@ -56,3 +56,13 @@
   the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
   [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
   Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU49 — start/position/stop instance completion:** §8.3 derives pause radius from the start
+  parameter's low byte, but §10.6 step 4 assigns it from buffer property 0x38. What is the exact
+  order and final value? Supply the tSound+14 constructor word passed to play(+14), buffer/QI and
+  allocation failure paths, completion registration/unregistration calls, stop +20/+24 handle
+  operations, and SetPosition's state fields/property calls/return semantics. The existing local
+  fixture has no foreign position effect; the new resolve/play stages cannot close these bodies
+  without those contracts. [Keep local fixture separate; implement known get-sound/QI/property/
+  play operations as explicit stages, never assume missing word+14 or successful native dispatch.]

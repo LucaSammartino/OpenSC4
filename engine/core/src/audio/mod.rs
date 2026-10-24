@@ -98,6 +98,8 @@ pub mod listener;
 pub mod scape;
 /// AEMS raw bank IO; full event system remains AU48.
 pub mod aems;
+/// Ambience-layer covered algorithms; constructor and extra-slot gaps: AA14.
+pub mod ambience_layer;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 

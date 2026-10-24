@@ -2,8 +2,9 @@
 
 # Audio core
 
-SC4 family closure is in progress. The event handler now implements the extended
-audio.md §7 algorithms; the remaining family owners are listed explicitly below.
+SC4 owner contracts are mapped below to executable stages and explicit spec gaps.
+EventHandler implements the extended audio.md §7 algorithms. Owners with open
+questions are not claimed as complete native replacements.
 No plugin, C ABI, audio device or game data is embedded in this module.
 
 ## Foreign boundary
@@ -48,8 +49,16 @@ completed dispatch table's conflict with the older four-operation fixture list.
 | EventHandler §14.5, §14.13 | shared `RateLimiter`, inclusive window | `limiter_draws_only_on_restart_is_shared_and_accepts_exact_threshold` |
 | EventHandler §16.12–13,17,21,25–42 | handler vectors mapped to rows above; AU45 qualifies vector 12 | owner/closure tests |
 | AmbienceManager, audio-ambience §§1–7,10 | Existing portable owner | [Owner table](../audio_ambience/README.md); AA10 open |
-| AmbienceLayer, audio-ambience §8, §10.9–18 | **Pending implementation**; existing manager uses a foreign layer | Family closure still in progress |
-| SoundManager, audio §8 | Existing instance-table fixture; **pending complete owner execution** | Existing tests; foreign owner tests needed |
+| AmbienceLayer, audio-ambience §8.1 lifecycle and uncovered slot inventory | open: AA14 StaticInit, native constructor/QI/destructor, full Init/Shutdown and extra slots including loading/reference ownership | No successful full Init or foreign algorithm is fabricated |
+| AmbienceLayer, audio-ambience §8.2 tuning | `ambience_layer::LayerTuning::read/defaults`, explicit unsigned ease rates and property order | `aa10_09_missing_resource_keeps_constructor_loop_and_present_clears_bytes` |
+| AmbienceLayer, audio-ambience §8.3 filter creation/cache | `LayerGlobals`, `LayerFilters::create`, borrowed lists/acquired QIs/cache-owned references | `aa10_10_shared_filter_cache_counts_each_listing_and_balances_queries` |
+| AmbienceLayer, audio-ambience §8.4 filters/groups/update boundaries | `LayerFilters`, `GroupLayer`, `AmbienceLayer::begin_update/end_update/handle_cell/handle_occupant` | `aa10_11_global_kind_three_with_only_cell_interface_never_passes`; `aa10_12_groups_have_strict_radius_and_keep_fixed_center_and_cycle_peaks`; `cell_cache_is_shared_and_group_intersection_keeps_inner_centers_once` |
+| AmbienceLayer, audio-ambience §8.5 sampling/score/average | `AmbienceLayer::update`, `distributed_positions`, `weighted_average`; mode 6 explicit native-fault diagnostic | `aa10_13_sample_reduction_keeps_first_in_each_occupied_grid_cell`; `aa10_14_empty_group_mean_is_zero_and_no_loop_starts`; `aa10_18_mode_six_is_explicit_native_fault` |
+| AmbienceLayer, audio-ambience §8.6 freshness | `update_freshness_parameters`, `update_scores`, explicit create/set/post/release and division slots | `aa10_15_freshness_unsigned_wrap_and_preference_scaling`; `aa10_16_score_start_updates_same_tick_and_failed_fade_falls_through` |
+| AmbienceLayer, audio-ambience §8.7 loops/ease/Pause | `update_loops`, `Ease`, `pause`, shared ID counter supplied by caller | `aa10_17_easing_scalar_and_vector_rounding_stages`; `loop_start_volume_position_stop_and_release_order` |
+| AmbienceLayer, audio-ambience §10.9–18 conformance | Tests 9–18 individually named above; native initialization/extra methods open: AA14 | `ambience_layer::tests` |
+| SoundManager, audio §§8.1–8.5,10.6,10.8 settled instance/tuning model | `sound_manager` local fixture, ID table/list/tuning; `owner::query_interface/subscriptions/event_route/resolve_sample`, `ResolvedSample::play_constructed/release` foreign continuations | Existing instance/tuning tests; `sample_resolution_playback_and_owned_reference_cleanup`; `acquiring_qi_subscription_exception_and_event_aliases` |
+| SoundManager, remaining §§8.1–8.3/10.6 owner execution | open: AU46 focus/reset/volume/enumeration/update/lifetime; AU49 instance construction/position/completion/stop and inconsistent radius assignment | Legacy `do_event` is only a local fixture, not a full foreign event executor |
 | COMDirector, audio §§1.1,1.2,11 | `director::on_start`, `register_classes`, identity/class tables | `executable_startup_interleaves_add_start_and_registers_92_classes`; existing identity/order tests |
 | COMDirector, audio §1.1/1.3 application lifetime | open: AU47 service creation/failure/unwind and teardown, constructor interleaving | Measured class set and add/start sequence implemented; no full lifetime claim |
 | AEMSSoundBank, audio §10.7 raw file/resource IO | `aems::AemsSoundBank::read_file/read_resource`, twice-size/raw read, cached TGI | `bank_raw_slurp_calls_size_twice_and_never_checks_magic`; `resource_cache_and_success_only_bank_linkage` |
