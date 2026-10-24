@@ -12,12 +12,15 @@
 - New diagnostic: regress-pl21fix-r2-diag-20261024a (both profiles via explicitly requested regress -Queue).
 - Unchanged DLL f86ce9002955b95e10fe2658e67fed08daa72d81db7760b517e7ad35f63b1a59.
 - Replace finished clean2032, foreign_exceptions/stalls/ref_warnings=0, 175.313 s.
-- Shadows remains active; collect existing exec session 96006 to terminal; do not resubmit.
-- Results currently in MAIN/build-runs/game-results/regress-pl21fix-r2-diag-20261024a-*.verdict.
+- Shadows finished clean2032, foreign_exceptions/stalls/ref_warnings=0, 739.625 s; propmgr220/220, lotcfg293/293.
+- Regress operation 96006 collected to terminal exit0; no game request outstanding.
+- Both logs/verdicts copied into local build-runs/game-results; diagnostic run record 390.
+- Regress PASS/0 problems but eight worse vs train176: missing newer observers and landvalue71/72.
 - Main has train176 observer/write-capture changes absent from reserved HEAD; train179 included them.
 - Both build caches are Debug/FC4_CHECKED=OFF (configuration difference ruled out).
 - Async permission requested to merge main into detached HEAD to reproduce actual failing inputs; pending.
-- Next: collect diagnostic shadows, then reproduce on newer base if authorized; no speculative fix.
+- Gate operation 10802 active: cargo6891 passed, clippy0; native build/CTest queued as qbuild-20261024-053124-build-ctest.
+- Next: collect gate to terminal, then reproduce on newer base if authorized; no speculative fix.
 - Required gate: qbuild all on stable final source, then both house profiles twice.
 - Manifest: main build-runs/run4-glue-propmgr-pl21fix6-r2-manifest.json.
 - Prior round report below is historical and does not establish round-2 acceptance.
