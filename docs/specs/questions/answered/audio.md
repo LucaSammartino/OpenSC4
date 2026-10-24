@@ -1,5 +1,34 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU46: audio.md §8.3.1 supplies the
+payload gates, reset/enumeration/volume/focus/stop-all calls, tick arithmetic, defaults and
+nontransactional Init/Shutdown. Focus and stop-all DoEvent return false after their effects.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU46 — sound-manager missing owner bodies:** sections 8.1–8.3 inventory a focus flag,
+  service pointers, Update callbacks and event routes, but do not define the payload gates,
+  state transitions, return values or foreign slot calls for reset (`0x4A4D35E0`), enumeration
+  (`0x4A4FE6F6`), volume (`0x4A451915`), focus (`0x6A95CBA2` and focus message), and the
+  `0xCAA44CA7` stop-all helper. What are those algorithms, the per-sound update callback
+  (`0x004F9690`), completion/registration lifetime, constructor flag defaults, and Init/Shutdown
+  failure ordering? Section 10.6 supplies lookup/start facts, not these contracts.
+  [Retain existing instance-table fixture; do not guess these missing owner bodies or claim
+  full SoundManager closure. Implement settled routing/state/IO separately while awaiting answers.]
+
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU49: audio.md §8.3.1 specifies the
+property-based x87 radius calculation, manager-volume play argument, completion lifetime,
+allocation failure limits, hard/soft stop differences and foreign position writes.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU49 — start/position/stop instance completion:** §8.3 derives pause radius from the start
+  parameter's low byte, but §10.6 step 4 assigns it from buffer property 0x38. What is the exact
+  order and final value? Supply the tSound+14 constructor word passed to play(+14), buffer/QI and
+  allocation failure paths, completion registration/unregistration calls, stop +20/+24 handle
+  operations, and SetPosition's state fields/property calls/return semantics. The existing local
+  fixture has no foreign position effect; the new resolve/play stages cannot close these bodies
+  without those contracts. [Keep local fixture separate; implement known get-sound/QI/property/
+  play operations as explicit stages, never assume missing word+14 or successful native dispatch.]
+
 **ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU47: §11.3 specifies the nine named
 registrations before all 83 leaves, unconditional five-child start sequence, cumulative
 PostAppInit failure result without rollback, and distinct shutdown/destructor orders.

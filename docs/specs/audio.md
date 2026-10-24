@@ -978,6 +978,139 @@ the `+0x48` list.
 returns 1. Otherwise it unregisters, turns off completion notification, and takes the soft (`+0x20`) or hard
 (`+0x24`) path on the event's second argument; the effect component always sends 0 (soft) *[compat]*.
 
+### 8.3.1 Remaining manager owner contracts (AU46, AU49)
+
+**Defaults and lifetime.** Constructor `0x004F9830` starts refcount, elapsed/update counters,
+focus countdown, flag byte `+0x2C`, instance/capacity counters and service holders at zero;
+master volume is 1024 and tuning defaults are 3, 10, 30. It constructs the hash table with
+initial size argument 100, an empty instance list and the response curve. Init (`0x004FA2F0`)
+first acquires SndSys, retains it in `+0x5C`, then acquires SndMgr and retains it in `+0x60`.
+Either missing service returns false; missing SndMgr leaves the newly retained SndSys in place.
+There is no initialized latch or rollback. After both acquisitions it reads tuning, calls
+SndSys `+0x3C(this)` and `+0x78(this+4,20)`, and obtains the message server. If available it
+subscribes `this+0x0C` to the seven messages in §8.3, in table order except sim-speed last
+(post-app, pre-app, pre-city, listener, focus, pause, speed). Missing message server skips
+subscriptions. Registration results do not gate success. It reads preferences, sets master
+volume to the configured value if enabled, otherwise zero, updates all instances and returns true.
+Temporary service references are balanced independently of retained holders.
+
+Shutdown (`0x004F82E0`) sends StopAllSounds(true), calls SndSys `+0xBC`, then unsubscribes
+speed, pause, focus, listener, pre-city, pre-app, post-app if a message server exists. It calls
+SndSys `+0x7C(this+4)` and `+0x40(this)`, clears/releases SndSys then SndMgr, and returns true.
+Null holders skip their calls. Destructor `0x004F8820` destroys containers, curve and reference
+holders; it does not substitute for Shutdown. These calls do not make Init transactional.
+
+**Payload routes.** Event `+0x18` supplies the payload. Reset (`0x004F9000`) and volume
+(`0x004F9D20`) reject a null event or null payload. Each retains the payload across processing,
+reads the instance ID at payload `+0x24`, balances its reference, and returns true even when
+the ID is absent. Reset's inner operation (`0x004F8DD0`) returns false for a missing ID;
+otherwise it temporarily retains the instance, QIs its holder for `0xBB1BE367`, calls that
+interface's `+0x30`, then QIs it for `0xFD584467`. If that succeeds it reads property `0x15`
+with second argument zero and writes the same value back to property `0x15` (third argument
+zero). Failed QI skips the dependent calls but does not change the found-ID success result.
+All temporary interfaces and the temporary instance reference are released.
+
+Volume first reads payload `+0x38`, then `+0x24`. The inner setter (`0x004F9AF0`) stores the
+raw volume word at instance `+0x18`, treats that word as signed i32, multiplies it by the f32
+gain at `+0x1C`, truncates toward zero and writes buffer property `0x15(value,0)`. It updates
+position when the instance has children or a master, sets instance flag bit 0, and returns
+true; a missing ID returns false without these effects. No clamp is applied
+(`0x004F9B37`–`0x004F9B57`).
+
+Enumeration (`0x004F83E0`) requires valid event/payload pointers: unlike reset, it does not
+null-check them. Payload `+0x80` provides an object QI'd for `0xEA4FC425`. Failed QI returns
+false, balancing acquired references. Success walks the instance list in order and calls
+callback `+0x0C` with each **instance pointer**, stopping at its first false result. Both
+exhaustion and early callback termination return true. The callback object and QI result are
+released; a callback is not promised a snapshot independent of list mutation.
+
+**Focus and stop-all.** Focus message `0x4348B111` (`0x004F7F00`) requires SndSys and a
+successful message QI for `0x65297976`. It converts QI-view `+0x24` to a boolean and creates
+event `0x6A95CBA2`, payload IID `0x5B523BA4`, data `(boolean,0,0,0)` through SndSys `+0x34`.
+Successful creation dispatches through `+0x20` and returns true; failure returns false.
+The created event and message view are released on both paths as applicable.
+The focus-event helper (`0x004F99F0`) rejects missing event, SndSys or payload; otherwise it
+retains the payload, reads `+0x24`, and walks every instance. Gain calls Resume; loss increments
+its pause count and, only on transition to one for a non-child, disables completion and calls
+holder `+0x24`. Loss sets manager volume to zero. Gain restores the configured volume if
+enabled, otherwise zero; gain also sets the countdown to 50. It returns true after releasing
+the payload. **DoEvent discards this helper's boolean and returns false** for this route.
+
+Public StopAllSounds creates event `0xCAA44CA7` with the same payload IID and four data words
+`(argument,0,0,0)`, dispatches/releases it, and returns creation success; missing SndSys returns
+false. Its event route directly reads payload `+0x24` without a null gate and normalizes to
+boolean. The helper `0x004F9610` repeatedly stops the current first list entry until empty,
+using that boolean. DoEvent returns false after these effects. UpdateAllSounds similarly
+posts `0x4A8C52C8`; its event helper `0x004FA180` rewrites effective volume, updates linked
+positions, applies distance and simulation-pause policies to every instance, and returns true.
+
+**Tick callback.** Update runs on the `this+4` interface. It adds dt modulo 2^32 to manager
+elapsed time. While countdown is nonzero it sets it to signed-min(countdown,50) minus one
+and enumerates SndSys with `(0x004F7FD0,0,manager)`. That callback always returns true; a
+non-null sound successfully QI'd for `0x206077D2` receives `+0x50()` followed by
+`+0x54(0)` then `+0x54(saved value)`, and the QI reference is released. Update brackets its
+list walk with an increment/decrement of `+0x1C` (`0x004F9CAA`–`0x004F9D0F`).
+Per-sound callback `0x004F9690` converts dt as unsigned u32 to f32 and advances the ramp
+at instance `+0x40`. Equal current/target means no work; otherwise it moves toward target
+by dt times signed rate, clamped to the remaining signed difference, and stores f32 current.
+It truncates current to i32 into `+0x18`, multiplies that integer by f32 gain `+0x1C`, truncates
+again, and writes property `0x15(value,0)`. Linked instances then update position. This is
+two truncations, with no integer-volume clamp (`0x004F7C50`–`0x004F7CAA`,
+`0x004F9694`–`0x004F96DF`).
+
+**Start, completion, stop and position.** The word `tSound+0x14` is a retained manager
+reference, initially null in constructor `0x004F8790`, assigned before completion registration;
+it is **not** a play argument. Holder play receives `(instance ID, manager volume,512,0)`.
+Other constructor defaults are zero IDs, null buffers/master, empty child list, zero flags,
+pause count/ramp/radii, gain 1.0 and the position sentinel in all six coordinate fields.
+Radius computation uses signed property `0x38`, x87 multiplication by f32 0.01 then f32 100;
+the inner radius is rounded to f32 by FST, but the still-extended product is multiplied by
+f32 4 before storing the outer radius (`0x004F9FCA`–`0x004F9FEB`). It is not computed
+from the start parameter's low byte, nor from a reload of the rounded inner radius.
+
+Failed sound resolution or failed buffer QI returns false and releases temporary outputs;
+there is no instance insertion. The pool allocator and instance constructor are required to
+produce storage: `0x004F9F3E` dereferences the allocation and `0x004F9F61` dereferences the
+constructor result without a clean null-return path. A failed holder play returns false
+before map/list insertion, dropping local instance and interface references; it does not
+restore any old instance stopped for an ID collision. Completion registration's result does
+not gate play. EnableCompletionNotification (`0x004F8130`) QIs the holder for `0xE9D00A9A`
+and calls its `+0x0C` with manager `+8` when enabling, null when disabling, then releases the
+QI result. Failed QI returns false without registration. Callback `0x004F98F0` QIs its input
+for `0xFD584467`, reads property `0x34` as instance ID, finds/temporarily retains the instance,
+stops it with true, then balances both references. Unknown IDs have no stop effects.
+
+Stop removes the manager's list/hash entry before foreign stop calls. With no children it
+disables completion, checks holder `+0x1C()` and calls `+0x24()` for a true hard-stop argument;
+for false it calls `+0x20()` only if property `0x33` is nonzero. Thus false stop of a one-shot
+does not issue a foreign stop, although it removes the manager record. One-shot counter is
+decremented when property `0x33` is zero; otherwise the independent-loop counter is decremented
+only for a non-child. With children, the first child becomes master (`0x004F9150`) and inherits
+the remaining children and buffer references; removing a child unlinks it from its master
+(`0x004F9100`). Instance buffers are cleared/released, then temporary/container references
+are dropped (`0x004F94C0`–`0x004F960F`).
+
+SetPosition (`0x004FA260`, despite its exported tSound name, takes the manager base) returns
+false for an unknown ID. A found instance is temporarily retained; raw f32 x/y/z are stored
+at `+0x20/+0x24/+0x28`, its position and then its master's position (if any) are updated,
+distance pause policy runs, flag bit 1 is set and the temporary reference released; return true.
+UpdatePosition selects the raw coordinates for a childless instance, averaged coordinates
+otherwise, after the mode-specific linked volume/pan update. Buffer `+0x0C` receives property
+`0x20(trunc(x),1)`, `0x21(trunc(y),1)`, `0x22(trunc(z),0)` in that order
+(`0x004F90B2`–`0x004F90F3`). Foreign property results do not gate the found-ID return value.
+
+**Conformance cases.** Missing SndMgr after successful SndSys acquisition leaves SndSys retained;
+Shutdown releases it. Missing payload rejects reset/volume, but an unknown ID with a payload
+returns true. Enumeration with three instances and false on callback two visits exactly two
+and returns true. Volume -3 with gain 0.5 writes -1, sets bit 0 and retains raw -3. Ramp current
+3.9, target 5, rate 0.01, dt 1 stores about 3.91 then uses integer 3 before gain. Focus gain
+arms 50; 50 subsequent updates run the restore callback 50 times. Focus-event DoEvent returns
+false despite applying gain. Start flags 255 and property 0x38=7 use the property-based radii
+and only flag bit 0's meaning. A failed play leaves no new record. Register then unregister
+completion with `(manager+8)` then null. Soft-stop one-shot removes the entry with no +0x20
+or +0x24 call. SetPosition(unknown) is false; a childless found ID at (-1.8,2.9,3.1) produces
+properties (-1,2,3) with flags (1,1,0) and returns true even if those property calls fail.
+
 ### 8.4 `GenerateNewInstanceId` (`0x004F7BB0`) — answered
 
 ```

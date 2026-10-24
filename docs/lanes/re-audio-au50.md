@@ -7,9 +7,9 @@
 - Goal: close core-audio-close11's six RE questions with prose contracts and conformance cases.
 - Done: bb6273807 initial handoff; debbb740c AU45 vector correction and source-question archive.
 - Current: radius/play corrections and director 11.3 written; AU47 archived on 2026-10-24.
-- AU46/AU49/AA14 patches did not land (heading mismatch, then guard denial).
-- Next: review/complete 11.3, archive AU47 from core-audio-close11, then finish remaining four
-  questions. Regenerate tools/questions.py index; run python tools/doccheck.py check (NOT run).
+- AU46/AU49 now answered in audio.md §8.3.1 and archived; AA14 and AU48 remain.
+- Next: finish AU48 and AA14. Regenerate tools/questions.py index; run
+  python tools/doccheck.py check (NOT run).
 - Sound facts: reset QI BB1BE367 then +30 then QI FD584467, rewrite property15 unchanged.
   Enumeration payload+80 QI EA4FC425, callback+C(instance), false stops but returns true.
   Volume wrapper 4F9D20 reads payload+38 volume/+24 ID; inner4F9AF0 signed volume*gain,
