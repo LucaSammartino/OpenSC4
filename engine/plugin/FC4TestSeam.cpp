@@ -277,6 +277,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamAutomataCapture:
             return fc4::AutomataCaptureTest(static_cast<cIGZUnknown*>(a),
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b)));
+        case kFC4SeamConstructionCapture:
+            return fc4::ConstructionCaptureTest(static_cast<cIGZUnknown*>(a));
         default:
             return 0;
     }
