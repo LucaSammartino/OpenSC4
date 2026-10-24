@@ -14,8 +14,8 @@
 - Slot audit corrected: world position is a longitude/latitude pair with separate base-elevation getter/setter; tests verify independent updates and copied strings.
 - Conformance crate now includes all foundations §14.20–22 header/version and four-deal claiming vectors (four tests total).
 - Focused conformance PASS 4/4 (build-runs/conformance-final.log); final explicit-file fmt PASS 5 files / zero diff lines.
-- Final all gate on source 803244736: Rust PASS 7001/0, clippy PASS zero diagnostics. Native request qbuild-20261024-091216-build-ctest remains outstanding; collect SAME exec session 34762.
-- Next: collect final all, run requested qbuild verify, then report/queue. No code edits pending.
+- Final all gate on source 803244736 completed PASS: Rust 7001/0, clippy zero diagnostics, build 47/47 edges (88.6s), CTest 79/79 (180.8s), total native 271.4s. Label qbuild-20261024-091216-build-ctest; session 34762 terminal PASS.
+- Next: collect explicitly requested qbuild verify, then report/queue. No code edits pending; worktree clean before this documentation update.
 - Question RY7 records literal Read edge-case choices; raw codec round-trip is separate from object Read normalization.
 - q.py Bash wrapper fails CreateFileMapping before execution; direct Cargo works.
 - Required final checks: qbuild all and verify; no game integration in this lane.
