@@ -1,6 +1,6 @@
 # Spec: the hardware 3D driver (`nSGLDX7::cGDriver`, "Maxis 3D GDriver DirectX")
 
-Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD8)**, clean-room input. The
+Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD7)**, clean-room input. The
 83 graphics slots have a contract or an explicit unsupported/no-op classification (§12); the owner inventory
 distinguishes auxiliary interfaces and unresolved format-selection details. This document describes *behaviour*, not code. It was
 written by the analysis team from observing the original program. Implementers must work from this spec, the public
@@ -183,7 +183,7 @@ There is no public "begin frame" slot: a scene is opened by the environment set-
 `BeginScene` does nothing if a scene is already open or there is no device. Otherwise it clears the error code
 and begins a device scene; the scene counts as open on success and on one specific failure code (`0x887602F8`),
 otherwise not, and the error code follows §3. It then resets every texture-stage record to its default
-(§5.4) and, if the "clear colour on begin" flag is set, calls `Clear(0x4000)`.
+(§7 and §10.1) and, if the "clear colour on begin" flag is set, calls `Clear(0x4000)`.
 
 `Flush` is the frame boundary:
 
@@ -915,7 +915,7 @@ claim to have independently specified every byte in the approximate 139 KB owner
 | `cPrimitiveManager` / `cPrimitive` | queue and index scratch `0x00889B60`–`0x0088A380`; queue entries refer to vertex ranges and index storage | §8.3; lifetime/order obligations §13 |
 | `cVertexBuffer` | 0x30-byte value records; copy constructor `0x008895B0`, assignment `0x00889620`, recreation `0x008896B0`, reserve/unlock `0x008899B0` / `0x00889A90` | §14.1; independently exposed buffer-interface operations remain RD7 |
 | `cGDriver::D3DLight` | constructor `0x00883EC0`; auxiliary light operations reach it at `0x00886BC9` / `0x00886CD9` | D3D7 light record; initialization below; auxiliary lighting setters remain RD7 |
-| Presentation context (descriptive name) | allocation `0x0088C5F0`, initialization `0x0088BF50`, surface/device rebuild `0x0088BFC0`, presentation `0x0088C400` | §14.2–§14.3; adapter/device and depth-format selection RD8 |
+| Presentation context (descriptive name) | allocation `0x0088C5F0`, initialization `0x0088BF50`, surface/device rebuild `0x0088BFC0`, presentation `0x0088C400` | §14.2–§14.3, including selector/depth rules |
 | Placeholder device | allocator `0x0088B440`; installed during lost-device handling | inactive-device sink in §4.4; its methods are not graphics-interface slots |
 | Shared vertex-format helpers / vertex copiers | `0x008891C0`, `0x00889280`, `0x0088C680` onward | graphics-formats.md and §8; not independent driver instances |
 | `nRZSimGL`, colour-key blitters, `cGZBufferSimGLCache` | third graphics table `0x00ACC4D8`, distinct from this driver's table | sibling support; see renderer-gdrivers-director-inventory.md §§5–8; no DirectX blit support is implied |
@@ -1045,7 +1045,7 @@ Thus the fourth mode argument requests flipping but does not guarantee a flip ch
 back to a count of zero. When either full-screen or the request is false, the context creates a primary
 surface (caps `0x200`) and a separate width-by-height 3D render target (flags `7`, caps `0x2040`), and windowed
 operation attaches a window clipper to the primary (`0x0088C1A6`–`0x0088C25D`). Device/depth-format selection
-and every selector fallback are still RD8; this section does not prescribe them from inferred names.
+and selector limitations follow below.
 
 **Selector and depth contract (RD8).** `0x0088C024`–`0x0088C0AE` recognizes three selectors. For -1,
 enumerate devices and retain the first device of highest score, adding 1000 each for capability bits
@@ -1162,6 +1162,7 @@ See [questions/renderer-driver.md](questions/renderer-driver.md).
 
 The checklist covers the 83-slot graphics interface, including explicit no-ops. It does not assert full
 coverage of auxiliary interfaces or every pixel conversion. RD6 covers complete internal-format ranking and
-conversion arithmetic; RD7 covers auxiliary lighting and independently exposed buffer APIs; RD8 covers context
-device/depth selection. RD1, RD3 and RD4 retain their specifically listed caller, descriptor and message gaps.
+conversion arithmetic; RD7 covers auxiliary lighting and independently exposed buffer APIs. RD8–RD11 are
+answered in §§2, 4.1, 8.3, 8.6, 10.1 and 14.2 with vectors DX7-19–31. RD1, RD3 and RD4 retain their
+specifically listed caller, descriptor and message gaps.
 No C ABI proposal or implementation behavior is inferred from those open items.
