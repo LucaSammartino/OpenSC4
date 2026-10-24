@@ -15,9 +15,11 @@
 - Formatting PASS: explicit 11 owned .rs files, 0 diffs. qbuild fmt uses paths relative to engine/.
 - Prior failed clippy log preserved at build-runs/qbuild-clippy-r1-failed.log; source fixes already applied by round 1.
 - First full gate terminal FAIL: tests PASS 7070/7070; clippy one field_reassign_with_default in new blur test; native build PASS 256/256 edges, CTest PASS 80/80.
-- Corrected only the test fixture to initialize blur/splash fields in its struct literal. First-gate evidence will be preserved as *-r2-first.log before recheck.
-- Next: fmt closure.rs, then run qbuild all on corrected stable source. Native operation session 41745 collected to terminal exit 1 (native itself PASS).
-- No checks/game requests outstanding. Smoke draft: build-runs/core-vehicles-close11-r2-smoke-20261024-a1.draft; event-based waiter script prepared, no qwait.
-- Full corrected gate and game verification pending. No merge queue yet.
+- Corrected only the test fixture in 7ea565a9a; formatting PASS (1 file, 0 diffs). First-gate evidence preserved as *-r2-first.log.
+- Corrected qbuild all: workspace PASS 7070/7070, clippy PASS 0 diagnostics; native build/CTest still waiting in the SAME running session 59704, job qbuild-20261024-113023-build-ctest. Collect it; do not launch another gate.
+- Prior operation session 41745 collected to terminal exit 1 (native itself PASS). No source changes since 7ea565a9a; later commits document results only.
+- No game requests outstanding. Smoke draft: build-runs/core-vehicles-close11-r2-smoke-20261024-a1.draft; event-based waiter script prepared, no qwait. Unique label checked absent.
+- Next: collect session 59704 terminal result, then enqueue draft by moving with apply_patch to build-runs/game-queue/<label>.req; run build-runs/wait-core-vehicles-close11-r2.ps1 once on its verdict (collect same process).
+- Full native gate and game verification pending. No merge queue yet. docs/runs maximum local run is 481, so smoke record uses run 482.
 - No C ABI/plugin changes. Worktree detached by supervisor; commit normally, never switch/update refs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-vehicles-close11-r2-manifest.json
