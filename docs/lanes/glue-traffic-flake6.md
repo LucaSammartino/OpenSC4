@@ -3,6 +3,7 @@
 | glue-traffic-flake6 (deterministic house traffic and land value) | Codex / `glue-traffic-flake6` | in progress | Trace train166 first differences; reproduce and fix shared input nondeterminism. |
 
 ## Handoff
+STOP: guard reported OVER at150k after029eb1c52 (first exact game record). Resume the already queued t2 request; no watcher has been started for it. No merge-queue file written.
 Goal: deterministic traffic and landvalue house shadows through 2032; repeated exact real-game runs.
 Done: train166 landvalue failure is May2026, traffic first failure June2027: independent.
 Traffic evidence: 2027-06-13 log rejects removed lot211D072C twice immediately before missing counters (8 trips/58 routed commuters); live lists/grids remain exact.
