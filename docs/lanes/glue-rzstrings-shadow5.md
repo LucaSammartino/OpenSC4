@@ -20,9 +20,10 @@
 - Revised fmt PASS; focused ret-channel check: zero unreviewed uses (73 reviewed).
 - Revised qbuild all PASS: 6759 tests, zero clippy diagnostics, native build 52/52, CTest 69/69.
 - Native qbuild-20261024-011602-build-ctest complete; session 73425 terminal PASS.
-- Next: submit prepared build-runs/strings5-2032-20261024-b1.pending, wait with wait-strings-verdict.ps1.
+- Next: collect game wait session 61725 (wait-strings-verdict.ps1), then inspect b1 log and finalize report/queue.
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
-- No outstanding game request; a1 verdict/log and docs/runs record retained.
+- Outstanding game request: strings5-2032-20261024-b1 (rebuilt 0444fd703 source), end_date=2032-02-01.
+- a1 verdict/log and docs/runs record retained; never discard b1's completed unique-label verdict.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
 - Filed RZS8 in docs/specs/questions/rz-strings.md for nonvirtual helper ABI; RZS7 reserved by concurrent lane.
 - Coordinator must regenerate the questions index (engine lane cannot run tools/).
