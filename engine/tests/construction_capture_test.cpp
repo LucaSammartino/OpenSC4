@@ -131,6 +131,9 @@ int main(int argc, char** argv) {
     c.sparks = {effect.Prop()}; c.current = effect.Serial();
     check("T66 derived identity through both views", c, 1);
     if (c.callbacks[2] != effect.Serial() || c.callbacks[3] != effect.Serial()) ++failures;
+    // Per occurrence: writer helper QI, observer QI, reader temporary and
+    // successful field QI. Duplicate identity still has independent lifetimes.
+    if (effect.adds != 8 || effect.releases != 8) ++failures;
     Effect ground, roof, crew;
     ground.fieldIid = roof.fieldIid = kProp;
     ground.cls = roof.cls = 0x2977AA47;
@@ -144,8 +147,10 @@ int main(int argc, char** argv) {
     Effect bare; bare.cls = 0xA9BC9AB6; bare.rejectField = true;
     c.current = bare.Serial();
     check("T69 rejected bare occupant stays mismatched", c, 0);
+    if (bare.adds != 3 || bare.releases != 3) ++failures; // no field acquisition
     c.current = nullptr; c.sparks = {bare.Prop()}; c.crew = {bare.Class()};
     check("T70 rejected list entries remain present", c, 0);
+    if (bare.adds != 9 || bare.releases != 9) ++failures;
     c.sparks.clear(); c.crew.clear(); c.current = effect.Serial();
     c.failCallback = true; check("T71 failed callback balances pins and QIs", c, -1);
     c.failCallback = false; check("T71 successful callback balances pins and QIs", c, 1);

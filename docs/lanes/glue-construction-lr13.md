@@ -10,7 +10,8 @@
 - Done: focused CAPI and core tests pass (1 each); formatting passes on all three owned Rust files.
 - Gate: qbuild all PASS: cargo 6985/6985, clippy 0 diagnostics, queued native build 255/255 and CTest 80/80 (including T66-T73).
 - Native verification label: qbuild-20261024-081024-build-ctest; all invoked the queued verify path, no second build requested.
-- Next: collect game wait session 20481 to its terminal result, inspect verdict and automataowners lines, write run 469 and final report.
+- Diagnostic: review found replay omitted the reader's temporary Serializable acquisition (capture pin was separate but not an equivalent helper sequence). Corrected it and asserted exact successful/rejected acquisition counts in T66/T69/T70.
+- Next: gate corrected source, collect old-source game session 20481, then request a distinct final-source house run and report both.
 - Failed tooling evidence: fmt relative paths rejected; q.py Bash could not CreateFileMapping; direct PowerShell cargo works.
 - Comparison scope: all 15 serialized fields, inherited holder and all reference identities/membership; crane presence explicitly seeded from captured bit, no lifecycle claim.
 - Required: qbuild all plus queued verify; house profile to 2032, unique request label, collect same operation.

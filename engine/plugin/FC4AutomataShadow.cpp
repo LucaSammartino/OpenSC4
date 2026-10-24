@@ -199,9 +199,9 @@ private:
                 if (out != nullptr) *out = fc4_ref{};
                 return true;
             }
-            // LR13: the capture's independent pin represents the temporary
-            // Serializable lifetime; the field owns this successful QI until
-            // HostRelease. Tokens identify objects, never interface addresses.
+            // LR13: the helper released its temporary Serializable; the field
+            // owns this successful QI until HostRelease, independently of the
+            // observer pin. Tokens identify objects, never interface addresses.
             r.token = id;
         }
         if (out != nullptr) *out = r;

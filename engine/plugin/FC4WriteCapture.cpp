@@ -93,9 +93,14 @@ bool WriteCapture::AcquireReplayReference(uint64_t id) {
 bool WriteCapture::AcquireReplayInterface(uint64_t id, uint32_t iid) {
     if (id == 0 || id > refs_.size()) return false;
     auto& ref = refs_[static_cast<size_t>(id - 1)];
+    auto* temporary = static_cast<cIGZSerializable*>(const_cast<void*>(ref.object));
+    // LR13: emulate the reader slot's temporary acquisition separately from
+    // both the observer pin and the successful field-interface acquisition.
+    FC4_ADDREF(temporary);
     void* field = nullptr;
-    if (!static_cast<cIGZSerializable*>(const_cast<void*>(ref.object))->QueryInterface(iid, &field) ||
-        field == nullptr) return false;
+    const bool resolved = temporary->QueryInterface(iid, &field);
+    FC4_RELEASE(temporary);
+    if (!resolved || field == nullptr) return false;
     auto* acquired = static_cast<cIGZUnknown*>(field);
     FC4_ACQUIRED(acquired, "capture replay field QueryInterface");
     ref.replayReferences.push_back(acquired);
