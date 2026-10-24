@@ -204,7 +204,7 @@ impl EffectsBootstrap {
         let Reply::Option(option) = host.call(Call::PackedOption, collection) else {
             panic!("option host reply")
         };
-        let packed = option.map_or(true, |s| s.to_ascii_lowercase() != "off");
+        let packed = option.map_or(true, |s| !s.eq_ignore_ascii_case("off"));
         let main = join(&text(host, collection, Call::MainDirectory), "main.fx");
         host.call(Call::BeginCollection, collection);
         let messages = boolean(host, collection, Call::MessageService);
