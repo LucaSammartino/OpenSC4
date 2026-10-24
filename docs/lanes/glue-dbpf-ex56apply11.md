@@ -10,7 +10,8 @@
 - Review diagnostic: fallback factory temporary needed RELEASE_CREATED on successful teardown; fixed while first native request was still queued. Preserve first operation evidence distinctly; final stable-source gate/verify still needed.
 - Save-transition review: release all pending QI views at PreSave, before game owners can unregister old city segments; later ticks report invalidated samples without touching released views.
 - Ret-channel diagnostic fixed with existing SDK-vs-streaming ABI explanation; focused checker PASS 0 flagged/78 reviewed. q.py wrapper failed Git Bash shared-memory sandbox setup; direct PowerShell Python check succeeded.
-- Next gate: explicit qbuild verify, then repeat final all on stable corrected source (prior operation terminated, no native request remains outstanding).
+- Corrected-source explicit qbuild verify PASS: request qbuild-20261024-132817-build-ctest; build 47/47 edges (4.0 s), CTest 81/81 (98.8 s), total 106.6 s. Logs archived under build-runs/evidence-run4/ex56-verify-{build,ctest}.log; unique build-results verdict retained. Operation 36086 ended exit 0.
+- Next gate: repeat final all on stable corrected source, then submit the prepared house request. All prior operations terminated; no native request currently outstanding.
 - Next: finish all gate, then queued native verify; house profile turbo to 2032, then focused save/re-registration observation.
 - Prepared request: build-runs/dbpf-ex56-house-492.pending (not queued). Use build-runs/wait-dbpf-verdict.ps1 for one blocking wait (task's final instruction says no qwait). Run number 492 was free when prepared.
 - Required: all gate plus queued verify; house profile turbo to 2032, exact shadow and clean shutdown under 1800 seconds.
