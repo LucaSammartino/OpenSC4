@@ -538,7 +538,12 @@ public:
     bool GetUIElementsForBrush(uint32_t, uint32_t*) const override { return false; }  // 63
     void UpdateWaveProducers() override {}                                     // 64  render
     bool IsGoodWaveProducerLocation(float, float, float) const override { return false; }  // 65  render
-    cISTETerrainView* GetView() override { return static_cast<cISTETerrainView*>(f_.view); }  // 66
+    cISTETerrainView* GetView() override {  // 66
+        // terrain.md §15.5.6: +0xE8 holds the object base, while callers
+        // require IID 0x6771477D at base+0x0C (a different vtable).
+        return f_.view == nullptr ? nullptr : reinterpret_cast<cISTETerrainView*>(
+            static_cast<unsigned char*>(f_.view) + 0x0C);
+    }
     void DoLighting(SC4Rect<int32_t> const&) override {}                       // 67  render
     void RedisplayTerrainRect(bool terrain, bool water, SC4Rect<int32_t> const& r,
                               uint32_t data4) override;                        // 68
@@ -1489,6 +1494,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         check(t->LocationIsInBounds(0.0f, 0.0f));
         check(!t->LocationIsInBounds(-1.0f, 0.0f));
         check(t->CellCountX() == t->CellCountX());
+
+        // Slot 66 must preserve null and select the view sub-interface,
+        // rather than handing consumers the five-slot object-base vtable.
+        check(t->GetView() == nullptr);
+        unsigned char viewLayout[0x10]{};
+        t->f_.view = viewLayout;
+        check(reinterpret_cast<void*>(t->GetView()) == viewLayout + 0x0C);
+        t->f_.view = nullptr;  // borrowed test storage, never Release it
 
         // TR18: a host callback from inside a brush must be refused.
         t->Host()->inside = 1;
