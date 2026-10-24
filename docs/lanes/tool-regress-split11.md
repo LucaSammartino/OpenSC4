@@ -20,6 +20,9 @@
 - R2 runs 615/616 both FAIL with watchdog stalls: combined truncated 2027-02-15 (203 s reported wall); split groups truncated 2028-11-02 / 2032-05-11 / 2030-02-17 (276 s reported wall). Python invocation times differ: 210.00 / 496.77 s; never substitute one timing source for the other.
 - Split groups estimated 383.5/367.4/353.2 s. 51/52 partial labels exact; propmgr 150/151 mismatches=1, flammability 36/36. Combined 52/52 partial labels exact, flammability 9/9. No full-horizon parity or speed proof.
 - Next: run python build-runs/retry-combined.py then the same with --split, once each; they preserve unique *-retry evidence and wait for coordinator regress before submitting. If stalls repeat report them, do not weaken watchdogs. Then final tooling suite/native gate and hold queue WIP unless acceptance is met.
+- R2 combined retry run 617 completed: native clean to 2032-01-02, all 52 labels exact (flammability 54/54; propmgr 220/220), but watchdog_stalls=2 => parent regress FAIL. Repeated stalls reported, no watchdog weakening.
+- Timings: queue wall 832 s, legacy regress wall 846 s, complete invocation 971.09 s. Legacy $wall is sampled before summary/delta processing at regress.ps1:299, so only invocation time is end-to-end.
+- Current foreground operation session 14587: combined retry finished; split retry waits for any coordinator regress then runs once; afterwards automatically runs tooling-tests-final.out and qbuild-final.out (one verify only). Collect that SAME session to terminal result, then python build-runs/summarize-r2.py and finish report/queue.
 
 ## Report
 
