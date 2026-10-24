@@ -72,6 +72,10 @@ public:
     cIGZSerializable* SerializableAt(uint32_t id) const {
         return static_cast<cIGZSerializable*>(const_cast<void*>(Object(id)));
     }
+    // Replay references are separate from the capture's lifetime pin. A
+    // malformed/partial reader must never consume the pin or a game reference.
+    bool AcquireReplayReference(uint64_t id);
+    bool ReleaseReplayReference(uint64_t id);
 
     // cIGZUnknown (a static object: the reference count is not kept)
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
@@ -113,6 +117,8 @@ private:
         const void* object;
         void* grid;
         uint32_t classId;
+        cIGZSerializable* retained;
+        size_t replayReferences = 0;
     };
     bool Put(const void* p, size_t n);
     bool PutStr(const char* s, size_t n);

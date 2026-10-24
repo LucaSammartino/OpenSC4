@@ -68,12 +68,35 @@ WriteCapture& WriteCapture::operator=(WriteCapture&& other) noexcept {
 }
 
 void WriteCapture::ClearReferences() {
-    if (holdReferences_) {
-        for (const auto& ref : refs_)
+    for (auto& ref : refs_) {
+        // Release only acquisitions recorded for this entry, including any
+        // replay references abandoned by a partial record. Never infer
+        // ownership from the capture-wide policy or from saved output refs.
+        while (ref.replayReferences != 0) {
+            --ref.replayReferences;
             FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+        }
+        if (ref.retained != nullptr) FC4_RELEASE(ref.retained);
     }
     refs_.clear();
     index_.clear();
+}
+
+bool WriteCapture::AcquireReplayReference(uint64_t id) {
+    if (id == 0 || id > refs_.size()) return false;
+    auto& ref = refs_[static_cast<size_t>(id - 1)];
+    FC4_ADDREF(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    ++ref.replayReferences;
+    return true;
+}
+
+bool WriteCapture::ReleaseReplayReference(uint64_t id) {
+    if (id == 0 || id > refs_.size()) return false;
+    auto& ref = refs_[static_cast<size_t>(id - 1)];
+    if (ref.replayReferences == 0) return false;
+    --ref.replayReferences;
+    FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    return true;
 }
 
 bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
@@ -151,7 +174,8 @@ bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
             obj = static_cast<cIGZSerializable*>(serial);
             FC4_ACQUIRED(obj, "capture reference QueryInterface");
         }
-        refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
+        refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID(),
+                            holdReferences_ ? obj : nullptr});
         // The incoming interface is the writer's identity, even if QI adjusted
         // the pointer. IDs must not alias an unrelated interface address.
         index_.emplace(p, i);

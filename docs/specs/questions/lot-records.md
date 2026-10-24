@@ -23,3 +23,19 @@
   of objects absent from the master list, and required outcomes for unsupported/unspecified prop
   subclasses. [lotrec_shadow deferred; implement and land the independently specified SG3
   simgrid_shadow first, without claiming lot-record coverage]
+
+<!-- from: glue-automata-ctor7 (2026-10-24) -->
+- **LR13 - section 9 construction references, native writer versus reader:** In the train180
+  house-shadow run at 2028-06-01, a construction occupant captured 254 bytes but replay wrote
+  250, first difference at byte 142, consuming all input. Immediately afterward destruction
+  of the retained reference table released the last reference to a bare cSC4Occupant
+  (class 0xA9BC9AB6, serializable vtable 0x00AA41BC). Please specify the full writer-facing
+  pointer/interface and QI ownership contracts for fields 10-13 and 15, especially field 13's
+  pointer+0x10 view: does QI(cIGZSerializable) always return the derived effect record, or can
+  it return an embedded bare occupant which does not answer the reader IID? Does any Write
+  create/release temporary occupants or mutate reference identity? What is the required
+  same-input comparison outcome when the saved reference does not answer its reader IID?
+  Need the documented native identity/ownership contract rather than coercing a reference
+  to a guessed effect interface or preserving a rejected non-null token. [keep the existing
+  literal IID-checked codec and owners shadow default-off; add bounded replay diagnostics
+  and explicit acquisition accounting, then measure the remaining shadows]
