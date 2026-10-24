@@ -66,9 +66,11 @@ allocator/container wrappers are not claimed as portable owner coverage.
 The spec's constructed vectors execute in `engine/conformance/tests` as
 `web_network_cookies.rs`, `web_network_cache.rs`, `web_network_http.rs`,
 `web_network_http_lifetime.rs`, `web_network_www.rs`, and
-`web_network_owner_settings.rs`, with deterministic foreign
+`web_network_owner_settings.rs`, `web_network_settled.rs` and
+`web_network_transport.rs`, with deterministic foreign
 replies, rather than as live HTTP/FTP requests. CK01–CK06, HTTP01–HTTP09 and
-NFC01–NFC12 are labeled at their assertions. WWW vectors map as follows:
+NFC01–NFC12 are labeled at their assertions. The settled tests extend coverage to
+CK13, HTTP35, NFC19 and SUP01–09 (the FTP SUP group is in `ftp.rs`). WWW vectors map as follows:
 
 | Vectors | `web_network_www::tests` test |
 |---|---|

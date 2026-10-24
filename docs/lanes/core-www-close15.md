@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-www-close15 (WWW owner closure) | Codex / `core-www-close15` (engine lane) | in progress; r2 focused 24/24 plus FTP 15/15; fmt 9 files clean; Q19/Q20 filed; no ABI changes | Run all and verify, report partial closure, enqueue if gates pass. |
+| core-www-close15 (WWW owner closure) | Codex / `core-www-close15` (engine lane) | in progress; all PASS cargo 7228/0, clippy clean, CTest 81/81; Q19/Q20 filed; no ABI changes | Run explicit verify, report partial closure, enqueue if it passes. |
 
 ## Handoff
 Goal: apply q17/q18, implement portable WWW contracts, report each owner truthfully.
@@ -17,4 +17,5 @@ Then replace Handoff with final report, commit, write merge-queue/core-www-close
 No ABI/plugin/capi changes or game requests; no shadow/replace key. Main shared refs read-only; packed-refs.lock warnings do not prevent detached commits.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-www-close15-r2-manifest.json.
 New implementation stopped at two-thirds context; only formatting, diagnostics, gates and reporting remain.
+Final all gate terminal PASS: all-r2-fixed.log, cargo 7228/0, clippy diagnostics=0, native qbuild-20261024-151104-build-ctest build 46/46, CTest 81/81. Native logs preserved as fc4verify-build-r2-all-final.log and fc4verify-ctest-r2-all-final.log before explicit verify. No operation outstanding at this commit.
 Gate 1 terminal: cargo 7228/0; clippy failed four field_reassign_with_default fixtures, corrected in c84351463. Native qbuild-20261024-145237-build-ctest PASS build 262/262, CTest 81/81. Evidence all-r2.log plus qbuild-test-r2-initial.log, qbuild-clippy-r2-initial.log, fc4verify-build-r2-initial.log and fc4verify-ctest-r2-initial.log. No operation outstanding. Next rerun all on corrected stable source, then explicit verify.
