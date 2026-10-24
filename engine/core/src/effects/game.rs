@@ -92,6 +92,7 @@ pub struct GameEffect {
     pub timer: f32,
     pub count: u32,
     pub cell: (i32, i32),
+    pub position: [f32; 3],
     /// `+0x58`: the message's data1, initially the record's message data;
     /// parameter 13 replaces it (a host token, e.g. the disaster instance).
     pub data: u64,
@@ -113,6 +114,7 @@ impl GameEffect {
             timer: 0.0,
             count: 0,
             cell: (-1, -1),
+            position: [0.; 3],
             data: u64::from(record.message_data),
             map_applied: false,
             map_token: 0,
@@ -131,6 +133,8 @@ impl GameEffect {
     /// `SetTransform` (§9.2) with an identity local placement (EF7): the cell
     /// is `(floor(x / 16), floor(z / 16))`; a new cell sets `pending`.
     pub fn set_position(&mut self, x: f32, z: f32) {
+        self.position[0] = x;
+        self.position[2] = z;
         let cell = (
             (f64::from(x) / f64::from(CELL_SIZE)).floor() as i32,
             (f64::from(z) / f64::from(CELL_SIZE)).floor() as i32,
@@ -144,7 +148,18 @@ impl GameEffect {
     /// `SetTransform` at the semantic transform boundary (§9.2).
     pub fn set_transform(&mut self, local_offset: [f32; 3], parent: &super::transform::ParentTransform) {
         let position = parent.world_position(local_offset);
+        self.position = position;
         self.set_position(position[0], position[2]);
+    }
+
+    pub fn set_placement(
+        &mut self,
+        local: &super::transform::Placement,
+        parent: &super::transform::Placement,
+        precision: super::transform::Precision,
+    ) {
+        self.position = local.world_position(parent, true, precision);
+        self.set_position(self.position[0], self.position[2]);
     }
 
     pub fn is_active(&self) -> bool {
