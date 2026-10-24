@@ -110,7 +110,7 @@ every `Init` (§8) even after a load.
 | `GetMoistureType(x, z)` | `GetMoistureValue(x, z) >> 4` (0 .. 15). |
 | `SetManualMoistureAddition(x0, z0, x1, z1, v)` | §6.4.1. |
 | `GetHumidity(x, z)` | `baseMoisture + (1 − baseMoisture) × 0.5`. Position and season are ignored *[compat]*; with shipped data 0.6. |
-| `GetAmbientWind(&v)` | Returns `windSpeed`. If the pointer is non-null, `v := windDir × windSpeed`. |
+| `GetAmbientWind(&v)` | Returns `windSpeed`. If the pointer is non-null, copies and rescales `windDir` to that length, subject to the small-vector threshold in §5.1.2. |
 | `GetWindAtCell(x, z, &v)` | `GetAmbientWind(&v)`; x and z are ignored. |
 
 ## 5. Per-message behaviour
@@ -131,6 +131,61 @@ windSpeed := prevWindSpeed + (targetWindSpeed − prevWindSpeed) × t
 
 *[quirk]* `windMonth` is a **season** month (§5.3). In a city whose hemisphere value is not 1 it never equals the
 calendar month, so the daily interpolation never runs there and the wind changes only when the season changes.
+
+#### 5.1.1 Exact daily rounding (WE1) *[compat]*
+
+The formulas above are mathematical summaries. For byte-identical state use the following evaluation contract.
+`R(a)` means round the exact result of **one** operation to a 24-bit significand, nearest-even (foundations §18).
+The normal simulation precision is **24 bits**, not the x87 default 53 bits or its full 64-bit significand.
+Registers retain the x87 exponent range; for ordinary finite weather values every rounded result is exactly a
+binary32 value. A binary64 operand is loaded without first rounding it to binary32. No operation below is fused,
+and keeping the whole expression at double or extended precision until its final store changes the contract.
+This routine does not change the control word; the rules describe the normal simulation setting, not a session
+affected by the unrelated precision leak documented in foundations §18.1.
+
+Let `s₀, D₀` be the previous endpoint and `s₁, D₁` the target endpoint, all binary32. Let `i = dayOfMonth − 1`.
+For either component `j ∈ {x,z}`, the successive rounded quantities are:
+
+| Quantity | Required evaluation |
+|---|---|
+| Fraction `t` | `R(i × C)`, where `C` is binary64 `0x3FA1111111111111` = `0x1.1111111111111p−5`, the nearest binary64 to 1/30 |
+| Endpoint vectors | `pⱼ = R(s₀ × D₀ⱼ)`, `qⱼ = R(s₁ × D₁ⱼ)` |
+| Displacement | `δⱼ = R(qⱼ − pⱼ)`, then `aⱼ = R(δⱼ × t)` |
+| Interpolated vector | `vⱼ = R(pⱼ + aⱼ)` |
+| Squared length | `L² = R(R(v.x × v.x) + R(v.z × v.z))` |
+| Length | `L = R(sqrt(L²))`, correctly rounded square root |
+| Direction if `L > 0` | `r = R(1.0f / L)`, then `windDirⱼ = R(vⱼ × r)` |
+| Direction if `L = 0` | `windDir = v`, the newly interpolated zero vector; the old direction is not retained |
+| Final scalar speed | `windSpeed = R(s₀ + R(R(s₁ − s₀) × t))` |
+
+In particular, normalization uses **one rounded reciprocal and two products**, which can differ by one ULP
+from two component divisions. `t` uses the double constant directly, not its single-precision approximation.
+For calendar days 1–31 its result also equals correctly rounded `(day−1)/30`, but multiplication by a
+pre-rounded single 1/30 differs on days including 4 and 8. The direction is normalized even on day 1 or 31;
+there is no endpoint shortcut. A month mismatch leaves the current direction and speed untouched.
+
+The endpoint products, scaled displacements and interpolated vector components have binary32 stores. `t`, the
+endpoint-x target product before subtraction, squared-length arithmetic, square root and reciprocal remain in
+registers, but their arithmetic still rounds at **each** operation. `L` is briefly stored as the current speed;
+the reciprocal uses the retained rounded `L`. The final scalar interpolation overwrites that temporary speed.
+Thus the final speed is the interpolation of endpoint **speeds**, not `L`. Relevant instruction ranges:
+fraction `0x0072976E–77` (double constant at `0x00AB3678`); interpolation `0x0072977D–E5`;
+squared length/root `0x007297EB–0x00729807`; reciprocal/products `0x0072981A–34`;
+final speed `0x0072983E–52`. Stores add no rounding for these ordinary finite 24-bit results.
+
+#### 5.1.2 Returned wind vector and moisture input (WE1) *[compat]*
+
+`GetAmbientWind` returns the stored scalar speed, including when its output pointer is null. With a non-null
+pointer it copies the stored direction `D`, computes `l = R(sqrt(R(R(D.x²) + R(D.z²))))`, and, **only if**
+`l > 0.01f` (`0x3C23D70A`), returns vector components `R(Dⱼ × R(windSpeed / l))`. At equality, below the
+threshold, or for zero length it leaves the copied vector unscaled. It does not modify the stored direction or
+speed. This rescales to the requested length rather than assuming that stored `D` has length exactly one.
+The factor is the rounded **speed/length**, not a product of speed with a separately rounded reciprocal.
+`GetWindAtCell` has the same behavior. Evidence: `0x00725A00–36`, helper call `0x00725A28`, and
+`ScaleVector2D` `0x005D76D0–0x005D7709` (strict threshold compare `0x005D76E9–F4`).
+
+Moisture uses this accessor once per simulation pass (`0x00727637–4B`), so even a direction just normalized by
+the daily update is measured and rescaled again. This is a separate rounding contract from the daily reciprocal.
 
 ### 5.2 SimNewWeek `0x66956815` — `DoWeeklySimulation`
 
@@ -285,7 +340,8 @@ grown by 2 cells on each side and `A4` grown by 4, both clamped. All buffers sta
    - Every operation is a `float32` operation in exactly this order (the game runs the x87 at 24-bit precision,
      foundations §18); doubling and the multiply by 1/16 are exact. No rounding to integers happens here.
 4. **Local moisture.** Let `b := roundHalfEven(ambientMoisture × 255)`,
-   `high := clamp(roundHalfEven(highMoisture × 255) + b, 0, 255)`, and `w := windDir × windSpeed`. For every cell
+   `high := clamp(roundHalfEven(highMoisture × 255) + b, 0, 255)`, and `w` be the vector returned by
+   `GetAmbientWind` (§5.1.2). For every cell
    of `A2` with `M ≠ 255`:
 
    ```
@@ -304,6 +360,38 @@ grown by 2 cells on each side and `A4` grown by 4, both clamped. All buffers sta
    reflection: first along z for rows in `A2`, then along x; only cells in `A` are written to the **moisture
    grid**.
 6. Post MoistureMapUpdated `0x09B6D58E` (void1 = IGZUnknown = this).
+
+#### 6.5.1 Exact local rounding (WE1 moisture continuation) *[compat]*
+
+Use `R` from §5.1.1 throughout. The smoothing order in step 3 is unchanged: add the two neighbors, add the
+separately doubled center, then (pass 2 only) multiply by the scale; each operation rounds. Both the unrolled
+four-cell path and the remaining-cell path use that order (`0x00727250–63`, `0x007274C5–0x00727521`,
+`0x00727586–9E`). All filtered heights are binary32. No integer rounding occurs until the moisture additions.
+
+The precise curvature is `cₓ = R(R(Sleft + Sright) − R(Scenter + Scenter))`, likewise `c_z`. The threshold
+test uses `R(cₓ + c_z)`; height and sign comparisons use these rounded stored values, with no epsilon
+(`0x007277AD–DF`, `0x00727910–45`). Integer `b` is converted exactly for the slope calculation.
+
+For a finite terrain normal `n`, define `d_z = R(w.z × n.z)`, `d_x = R(w.x × n.x)`, then
+`d = R(R(d_z + d_x) + R(n.y × 0.0f))`, `e = R(d × slopeK)`, and `u = R(b − e)`.
+The original includes the zero vertical product; it is immaterial for finite ordinary normals.
+The addend is `clamp(Q(u), 0, 255)`. This is **not** an unrounded dot product followed by one final conversion.
+The wind components were already rounded by §5.1.2 before the normal is fetched. Slope calculation evidence:
+`0x00727898–D2`; conversion/clamp `0x007278D4–0x00727900`.
+
+Here `Q(v)` describes the original integer conversion: store `R(v + 12582912.0f)` as binary32, reinterpret
+its bits as a 32-bit integer, subtract `0x4B400000` modulo 2³², and interpret that difference as signed32.
+For `−2²² ≤ v ≤ 2²²` this gives nearest-even integer rounding. Outside that range the bit operation remains
+the rule; it is not a general-purpose rounded conversion *[quirk]*. The bias has bits `0x4B400000` at
+`0x00AB3518`. Ambient baseline is `b = Q(R(ambientMoisture × 255.0f))`; high addend is
+`clamp(b + Q(R(highMoisture × 255.0f)), 0, 255)` (integer sum), verified at `0x007275C2–0x00727635`.
+For shipped tuning these agree with the `roundHalfEven` summaries in step 4. The post-addition byte saturation
+and the two integer blur passes introduce no floating arithmetic.
+
+These rules identify two independent omissions in the earlier summary: daily reciprocal multiplication and
+accessor rescaling before moisture. A daily one-ULP change can propagate into weekly integer rounding and
+blurred bytes; it does not establish that every observed later mismatch has that cause. Closing the arithmetic
+question supplies a contract for independent replay, not a byte-exact verdict on runs 374–377 or a new replay.
 
 When `cityCellsPerCell > 1` the original sums the sub-vertex heights in step 1, marks water if any sub-cell has
 water, averages the sub-cell results in step 4 and divides the smoothed height by the sub-cell count; in that
@@ -578,6 +666,48 @@ ambient values are overridden by `Init` (§8.1); square-only grid writer (§10).
     prime-step `current` and `step` are unchanged by the reset. With shuffling, the reset makes 3 `rand()` calls.
 12. **Pass-2 smoothing reads pass-1 values** (§6.5 step 3): a row of pass-1 values `S = [0, 16, 0, 0]` along x
     (interior cells, scale 1/16) → `[·, 2, 1, ·]` for the two interior cells (from the copy), not `[·, 2, 0.125, ·]`.
+13. **WE1 daily rounding:** all hex words below are binary32 bit patterns, not decimal numbers or serialized
+    byte order. Input endpoints are `s₀=41200000` (10), `D₀=(3F800000,00000000)` (1,0),
+    `s₁=41A00000` (20), `D₁=(00000000,3F800000)` (0,1); calendar month equals `windMonth`.
+    Each row is an independent daily delivery with those endpoints. Endpoint vectors are `(10,0)` and `(0,20)`.
+
+    | Day | `t` | `v.x`, `v.z` | `L²` | `L` | Reciprocal `r` | Final `windDir.x`, `windDir.z` | Final speed |
+    |---|---|---|---|---|---|---|---|
+    | 2 | `3D088889` | `411AAAAB`, `3F2AAAAB` | `42BBC71D` | `411B08B7` | `3DD35C2B` | `3F7F64B5`, `3D8CE81D` | `41255555` |
+    | 8 | `3E6EEEEF` | `40F55556`, `40955555` | `42A11C72` | `410F9ABA` | `3DE42EB3` | `3F5AACC1`, `3F051B3D` | `41455555` |
+    | 31 | `3F800000` | `00000000`, `41A00000` | `43C80000` | `41A00000` | `3D4CCCCD` | `00000000`, `3F800000` | `41A00000` |
+
+    Day 2 component division would give x `3F7F64B4`, one ULP below the required product. Day 8 component
+    divisions would give `(3F5AACC2,3F051B3E)`; multiplication by single 1/30 would first give `t=3E6EEEF0`.
+    With equal endpoint speeds 10 and opposite directions `(1,0)` and `(−1,0)`, day 16 instead gives
+    `t=3F000000`, `v=(00000000,00000000)`, `L²=L=00000000`, zero direction, and final speed `41200000`.
+    With a mismatching month, an arbitrary current direction/speed must remain bit-identical.
+14. **WE1 returned vector:** scalar speed is `41200000` (10) for every row. Calls leave stored fields unchanged.
+
+    | Stored direction bits | Measured length | Scale factor if applied | Returned vector bits |
+    |---|---|---|---|
+    | `(3F800000,3F800000)` | `3FB504F3` | `40E24630` | `(40E24630,40E24630)` |
+    | `(3C23D70A,00000000)` | `3C23D70A` | none (threshold equality) | `(3C23D70A,00000000)` |
+    | `(3CA3D70A,00000000)` | `3CA3D70A` | `43FA0000` | `(41200000,00000000)` |
+
+    For day 2 of vector 13, with its final speed `41255555`, the accessor measures direction length
+    `3F800000`, uses scale `41255555`, and returns `(4124F10A,3F360125)`. A null output pointer returns the
+    same scalar without calculating a vector. Zero direction stays zero even with nonzero speed.
+15. **WE1 moisture ties:** supply a crest/slope cell with `H > S`, at least one negative curvature, baseline
+    `b=51` (`ambientMoisture=3E4CCCCD`), `slopeK=3F800000`, and accessor vector `(1,0)`. Finite normals have
+    `n.z=0`; these are local additions **before** byte saturation and blur. The expected intermediate `u`
+    and integer addend are:
+
+    | `n.x` bits | `u` bits | Biased stored float bits | Integer addend |
+    |---|---|---|---|
+    | `3F000000` (+0.5) | `424A0000` (50.5) | `4B400032` | 50 |
+    | `BF000000` (−0.5) | `424E0000` (51.5) | `4B400034` | 52 |
+    | `3EFFFF80` | `424A0001` (next float above 50.5) | `4B400033` | 51 |
+
+    To distinguish accessor rescaling in the moisture path, set stored direction `(1,1)`, speed 10,
+    `n=(0.5,sqrt(0.75),0)` with binary32 components, and retain the other cell conditions above. The local
+    addend is 47 using returned x `40E24630`; assuming `w=direction×speed` would incorrectly give 46.
+    These are instruction-derived arithmetic vectors, not observations from a new game run.
 
 ## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
 

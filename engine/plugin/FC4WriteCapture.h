@@ -44,6 +44,10 @@ public:
     // answered cIGZSerializable.
     bool Capture(cIGZUnknown* obj, bool* answered = nullptr);
 
+    // LR12: isolated payloads sharing one observation-wide reference mapping.
+    // The caller owns QI/Write/release and must check GetError after Write.
+    void BeginRecord() { bytes_.clear(); good_ = true; }
+
     const std::vector<uint8_t>& Bytes() const { return bytes_; }
     // Reference `id` (1-based as written): its cISC4SimGrid identity
     // (borrowed; nullptr if it does not answer) and class ID.

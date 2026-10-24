@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 385 (Traffic removed-lot fix landed with three exact house repeats; PL21, SCR8/SCR9 and LV6 answered; all house shadows exact (run 5).); 381 (Effects subset and overlay, network-tool and Lua RE answers landed; scres constructed checks exact in the house regress; propmgr PL21 flake twice (run 5).); 380 (Automata extension and scres constructed adapter shadow landed (owners shadow held out of the profile pending a crash fix); traffic recovered, propmgr PL21 flake once (run 5).); 375 (Round 2 merged automata/netocc capture paths; full gate Rust 6804/0, clippy clean, native build 207/207, CTest 70/70 including plugin INI tests; combined shadows exact through 2032.); 373 (Strings and network-rules shadows exact in the house regress and credited; nettool, lua, overlays and overlay views landed; traffic flake recurred (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 393 (Simgrid/lotrec, ordinance and lot-configuration shadows landed with weather and effects RE answers; landvalue flake once (run 5).); 392 (ordinance shadow exact 72/72 to 2032, run 374); 389 (Round 3 shared native variant encoder; automata, SG3 and LR12 exact through 2032); 388 (Round 2 SG3/LR12 integration, exact record observations through 2032); 387 (lotconf 73/73 and simulator 73/73 exact on measured fields through 2032, clean native owners). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

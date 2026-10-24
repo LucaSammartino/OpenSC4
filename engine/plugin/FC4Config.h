@@ -624,6 +624,15 @@ std::string IniPath();
 // overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
 // city load and each month. Live records/cells/textures await OV12; no rendering.
 
+// ordinance_shadow = 0 / 1 (default 0): compare original ordinance month
+// deliveries against core copies of its saved records; needs our simulator
+// and the original ordinance simulator. No city writes or original mutators.
+// lotconf_shadow = 0 / 1 (default 0): every original configuration's size,
+// compatibility, slopes and full object lists against independent Rust Load.
+// Capacity and cost comparisons await lot-configuration question GLUE22.
+// simulator_shadow = 0 / 1 (default 0): original Write/core Read bookkeeping
+// and date/speed/time getters; requires disable = simulator. No scheduler replay.
+
 // overlays_fixture = 0 / 1 (default 0): with overlays_shadow, add/move/set/remove
 // one real decal per manager per sample and compare 35 production-core fields.
 // Read-only record observation runs with overlays_shadow alone, including when
