@@ -11,6 +11,7 @@
 - Rust source unchanged. Logger change made during Rust compilation, before native request; final native build must include it.
 - Logger committed as f1b647211. At 18:20 BST, the same gate was still compiling core tests: worktree-specific rustc PID 28804 alive, 3063s elapsed, 106 CPU seconds, 4103 MiB resident. No terminal gate result; no game request outstanding.
 - Final gate Rust stage now PASS: 7376 passed, 0 failed, 0 ignored; clippy exit=0, diagnostics=0. Same session 59094 has queued native build/CTest as `qbuild-20261024-182852-build-ctest`; collect it, do not queue another verify.
+- Full gate completed PASS: native build 47/47 edges (2.7s), CTest 81/81 (89.9s), fc4verify PASS (94.7s), qbuild PASS. Session 59094 terminated exit=0. Next submit `viewutil12-r3-subset-20261024c` to 2032, using the newly built DLL.
 - Next: collect gate, submit unique turbo run to 2032, wait once without qwait; record next free run (currently max 521); finish READY partial queue with full HEAD.
 - No new contracts or questions. Existing runs 520/521 and VU12/VU13/VU17/VU18/VU19 remain as below.
 
@@ -23,6 +24,7 @@ Native calls check the specified PE identity and executable sections, use isolat
 ## Validation
 
 - Final-round `qbuild all` Rust stages passed: **7376/0/0** (passed/failed/ignored), clippy **0 diagnostics**. Logs: `build-runs/all-final-r3.log`, `qbuild-test.log`, `qbuild-clippy.log`. Native build/CTest is pending in request `qbuild-20261024-182852-build-ctest`, launched after the logger commit f1b647211. The prior interrupted gate below is preserved as historical evidence.
+- Final native request completed: build **47/47**, CTest **81/81**, `fc4verify: PASS (94.7s)`, `qbuild: PASS`. Logs are `fc4verify-build.log`, `fc4verify-ctest.log`, and `all-final-r3.log`; matching request `qbuild-20261024-182852-build-ctest`. Engine source remained stable at f1b647211 throughout native validation; later commits changed only this report.
 
 - Owned-file formatting passed. The focused check completed with 47 view_utilities tests passing; this filter does not establish the entire capi test suite.
 - Completed native request `qbuild-20261024-163355-build-ctest`: build **263/263**, CTest **81/81**, `qbuild: PASS`, 755.8 seconds. Evidence: `build-runs/verify-1.log`, `fc4verify-build.log`, `fc4verify-ctest.log`, and the matching build-results verdict. The tree-change notice concerned handoff-only commit 0ca77e027; engine source was stable at b6672b1de.
