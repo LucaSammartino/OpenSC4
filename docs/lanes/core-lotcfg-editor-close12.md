@@ -10,8 +10,9 @@
 - Focused-1 finished: four fixture compile errors on superseded source; preserved build-runs/focused-1.log. All fixed at 259cae3a6 (including direct decoder return and absent-manager Read).
 - Stable engine source: 259cae3a6. fmt PASS, nine owned Rust files (build-runs/fmt-3.log), with subsequent formatting fixes applied as patches.
 - RUNNING: qbuild all, exec session 17878; build-runs/all-1.log and build-runs/qbuild-test.log. Collect THIS operation, do not launch another.
-- RUNNING: explicitly required qbuild verify, exec session 57353; build-runs/verify-1.log. Native queue operation; collect THIS operation, do not launch another.
-- Next: collect both actual terminal results; diagnose only reported failures; report cargo totals/clippy/CTest, then final report and full-tip queue entry.
+- Native verify PASS: qbuild-20261024-171251-build-ctest; 262/262 build edges, CTest 81/81, total 509.3 s. build-runs/verify-1.log, fc4verify-build.log, fc4verify-ctest.log. Terminal result collected.
+- Verify notes tree changed: only docs/lanes/core-lotcfg-editor-close12.md changed at 7e3b4c395 while native build ran; engine source unchanged from 259cae3a6.
+- Next: collect all session 17878 actual terminal result; diagnose only reported failures; report cargo totals/clippy, then final report and full-tip queue entry.
 - Formatting applied through apply_patch; helper build-runs/format-owned.py formats stdin and generates patches, never overwrites source or writes filename headers.
 - Remaining published barriers: LE3/LE4/LE5/LE7 and foreign RZS2.
 - No game requests; portable core-only scope.
