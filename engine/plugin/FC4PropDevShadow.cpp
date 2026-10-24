@@ -25,6 +25,8 @@
 #include "FC4PropDevTranscript.h"
 #include "FC4PropDevSnapshot.h"
 #include "FC4PropDevCreation.h"
+#include "FC4PropDevNight.h"
+#include "FC4Properties.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -82,6 +84,11 @@ bool g_tickRegistered = false;
 const void* g_orig = nullptr;
 cIGZMessageTarget2* g_agent = nullptr;
 const void* g_vtable = nullptr;  // the original's, when identified
+using NativeMessage = bool (__fastcall*)(void*, void*, cIGZMessage2*);
+NativeMessage g_nativeMessage = nullptr;
+void** g_messageTable = nullptr;
+bool InstallNightObserver();
+void RemoveNightObserver();
 
 unsigned U(size_t n) { return static_cast<unsigned>(n); }
 
@@ -114,6 +121,18 @@ PropSelectorReplay* g_selectorReplay = nullptr;
 PropCreationTrace* g_creationTrace = nullptr;
 size_t g_creationCursor = 0;
 bool g_creationValid = true;
+struct CreationTagOutput {
+    uint64_t prop;
+    std::vector<uint32_t> native;
+};
+std::vector<CreationTagOutput> g_creationTags;
+size_t g_tagCursor = 0;
+bool g_tagValid = true;
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
+    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
+    const auto& tag = g_creationTags[g_tagCursor++];
+    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
+}
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
 size_t g_nestedCursor = 0;
@@ -157,11 +176,8 @@ void HookRemove(void*, uint64_t prop) {
 // Replay genuine creation attempts and outcomes, including failures. All
 // remaining writes/dated effects still need independent output comparison.
 uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t id) {
-    ++g_created;
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
-    // Other writes/dated effects still prevent a full-operation exact claim.
-    g_uncertain = true;
     if (!g_creationTrace || g_creationCursor == g_creationTrace->Events().size()) {
         static unsigned extra = 0;
         if (extra++ < 8) Log("propdev creation invalid: extra call lot=%p network=%u index=%u id=%08x",
@@ -169,6 +185,10 @@ uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t 
         g_creationValid = false; return 0;
     }
     const auto& event = g_creationTrace->Events()[g_creationCursor++];
+    // Section 4.4: a null service result has no registration/tag writes.
+    // Successful creations still delegate unobserved effects (PV18).
+    if (event.result) g_uncertain = true;
+    if (event.result) ++g_created;
     if (event.lot != lot || event.network != network || event.index != index || event.id != id ||
         event.depth != 0 || event.nestedBegin != g_nestedCursor || event.nestedEnd > g_nested.size()) {
         static unsigned differences = 0;
@@ -264,6 +284,7 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.ctx->onSelect = &HookSelect;
     b.ctx->hookCtx = b.ctx.get();
     b.host = MakePropHost(b.ctx.get());
+    b.host.set_prop_requester = &CompareRequesterTag;
     PropBlockSnapshot::Bind(b.host);
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
@@ -432,6 +453,7 @@ void Track(cISC4PropDeveloper* orig) {
     Log("propdev shadow: following the original prop developer %p (agent %p, class 0x%08X, raw scanner %s)",
         static_cast<const void*>(orig), static_cast<void*>(g_agent), cls,
         g_vtable ? "readable" : "NOT readable (executable not identified): not compared");
+    if (g_vtable && !InstallNightObserver()) Log("propdev shadow: native night observer unavailable");
 }
 
 // ---- the month's account ----------------------------------------------------------------------------
@@ -443,7 +465,9 @@ struct MonthStats {
     uint32_t messages = 0, ticks = 0;
     uint32_t selectorEvents = 0, selectorZero = 0;
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
-    uint32_t operationsExact = 0, operationsIncomplete = 0;
+    uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
+    uint32_t nights = 0, nightExact = 0, nightDraws = 0;
+    uint32_t creationTags = 0, creationTagsMatched = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -611,6 +635,11 @@ void StepAfter(void* ctx) {
         g_month.d.Add("creation transcript invalid: consumed=%u native=%u", U(g_creationCursor),
                       g_creationTrace ? U(g_creationTrace->Events().size()) : 0);
     }
+    g_month.creationTags += U(g_creationTags.size());
+    if (!g_tagValid || g_tagCursor != g_creationTags.size()) {
+        g_month.d.Add("creation requester tag projection differs: consumed=%u native=%u", U(g_tagCursor),
+                      U(g_creationTags.size()));
+    } else g_month.creationTagsMatched += U(g_creationTags.size());
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
@@ -622,6 +651,7 @@ void StepAfter(void* ctx) {
         uint32_t before;
         bool eligible;
         ~Result() {
+            if (eligible) ++g_month.operationsEligible;
             if (eligible && g_month.d.mismatches == before) {
                 WriteCapture cap;
                 CoreBox native;
@@ -630,7 +660,13 @@ void StepAfter(void* ctx) {
                 else CompareCores(g_run.core, native.core, g_month.d);
             }
             if (eligible && g_month.d.mismatches == before) ++g_month.operationsExact;
-            else ++g_month.operationsIncomplete;
+            else {
+                ++g_month.operationsIncomplete;
+                // Ineligibility is not an exact output. In particular a Day
+                // with no block can still have unobserved dated effects.
+                if (!eligible && g_month.d.mismatches == before)
+                    g_month.d.Add("operation outputs not fully observed (creation/dated effects; PV18)");
+            }
         }
     } result{s, mismatchesBefore, !g_uncertain && complete && s.inputs.valid};
     g_run.ctx->pool.Drain();
@@ -690,12 +726,8 @@ void CallMessage(void* ctx) {
     cIGZMessage2* msg = static_cast<Msg*>(ctx)->msg;
     fc4_prop_message m{};
     if (PropMessageOf(msg, g_run.ctx->pool, &m)) {
-        const auto before = StateOf(g_run.core);
-        // A broadcast listener does not observe the original's scoped CRT
-        // draws. Preserve the independent continuation, but never count an
-        // unobserved shuffle as exact (PV14 sections 5.2/5.3).
-        if ((m.msg_type == 0xC9DA96E9 || m.msg_type == 0xC9DA96E8) && before.night_count > 1)
-            g_month.d.Add("night shuffle CRT input unavailable (PV14)");
+        if (!g_messageTable && (m.msg_type == 0xC9DA96E9 || m.msg_type == 0xC9DA96E8))
+            g_month.d.Add("native night callback observer unavailable");
         fc4_prop_developer_do_message(g_run.core, &m);
         if (m.msg_type == 0x26D31EC1 && !g_run.ctx->lightingAvailable)
             g_month.d.Add("PostCityInit lighting input unavailable (PV15)");
@@ -705,6 +737,8 @@ void CallMessage(void* ctx) {
 
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr || g_run.core == nullptr) return;
+    // PV16-02: replay at callback return, before later broadcast recipients.
+    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9)) return;
     if (msg->GetType() == kMsgAnimationTick) {
         ++g_month.ticks;
     } else {
@@ -720,6 +754,84 @@ void OnMessage(cIGZMessage2* msg) {
         Log("propdev shadow: a fault in a followed message; the shadow core is abandoned (its references leak)");
         g_run.Abandon();
     }
+}
+
+bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
+    const auto original = g_nativeMessage;
+    if (!original) return false;
+    const uint32_t type = msg ? msg->GetType() : 0;
+    if (self != g_agent || !g_run.core || (type != 0xC9DA96E8 && type != 0xC9DA96E9))
+        return original(self, edx, msg);
+    ++g_month.nights;
+    const uint32_t differences = g_month.d.mismatches;
+    uint32_t count = StateOf(g_run.core).night_count;
+    // Validate the independent input list at callback entry, not at a later
+    // AddNotification recipient. Retain duplicate tokens and their ordering.
+    WriteCapture input;
+    CoreBox pre;
+    if (!input.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(g_orig))) || !ReadInto(pre, input, g_orig))
+        g_month.d.Add("night callback input record unavailable");
+    else {
+        count = StateOf(pre.core).night_count;
+        if (TokensOf(ListOf(pre.core, FC4_PROP_LIST_NIGHT)) != TokensOf(ListOf(g_run.core, FC4_PROP_LIST_NIGHT)))
+            g_month.d.Add("night callback input order differs");
+    }
+    // PV16 permits this scope for standard messages with a pure type getter.
+    // Snapshot/replay never dispatches while the native callback is running.
+    PropNightCrt crt;
+    const bool armed = count <= 1 || crt.Begin();
+    const bool result = original(self, edx, msg);
+    crt.Finish();
+    const uint32_t expected = count > 1 ? count - 1 : 0;
+    g_month.nightDraws += crt.count;
+    if (!armed || !crt.valid || crt.count != expected)
+        g_month.d.Add("night CRT capture invalid draws=%u expected=%u", crt.count, expected);
+    if (expected && armed && crt.valid && crt.count == expected) {
+        uint32_t seed = crt.before;
+        if (!fc4_prop_developer_shadow_crt(g_run.core, &seed, true)) g_month.d.Add("night CRT import failed");
+    }
+    fc4_prop_message message{};
+    message.msg_type = type;
+    if (fc4_prop_developer_do_message(g_run.core, &message) != result) g_month.d.Add("night callback return differs");
+    uint32_t after = 0;
+    if (expected && (!fc4_prop_developer_shadow_crt(g_run.core, &after, false) || after != crt.after))
+        g_month.d.Add("night CRT final state differs");
+    // Callback return includes list order, cursor, batch, mode and isNight.
+    // Comparing a fresh native record never replaces the running core.
+    WriteCapture cap;
+    CoreBox native;
+    if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(g_orig))) || !ReadInto(native, cap, g_orig))
+        g_month.d.Add("night callback record unavailable");
+    else CompareCores(g_run.core, native.core, g_month.d);
+    if (differences == g_month.d.mismatches) ++g_month.nightExact;
+    return result;
+}
+
+bool PatchNight(void** table, void* value) {
+    DWORD previous = 0;
+    if (!VirtualProtect(table + 3, sizeof(void*), PAGE_READWRITE, &previous)) return false;
+    InterlockedExchangePointer(table + 3, value);
+    DWORD ignored = 0;
+    VirtualProtect(table + 3, sizeof(void*), previous, &ignored);
+    return true;
+}
+
+bool InstallNightObserver() {
+    const auto* version = compat::IdentifiedVersion();
+    if (!g_agent || !version || version->imageBase != 0x00400000) return false;
+    auto** table = *reinterpret_cast<void***>(g_agent);
+    if (g_messageTable == table) return true;
+    if (g_messageTable) return false;
+    g_nativeMessage = reinterpret_cast<NativeMessage>(table[3]);
+    if (!PatchNight(table, reinterpret_cast<void*>(&NativeNightMessage))) return false;
+    g_messageTable = table;
+    return true;
+}
+
+void RemoveNightObserver() {
+    if (g_messageTable && PatchNight(g_messageTable, reinterpret_cast<void*>(g_nativeMessage)))
+        g_messageTable = nullptr;
+    // Retain original dispatch for a delayed invocation on another thread.
 }
 
 class EventTarget final : public cIGZMessageTarget2 {
@@ -922,6 +1034,20 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     g_nativeOperation = false;
     trace.Finish();
     creations.Finish();
+    // PV17: service insertion precedes requester tagging. Compare the final
+    // native tag projection to the independent developer's requested writes;
+    // never supply that final tag as a replay input. This does not certify
+    // arbitrary virtual holder callbacks or the unobserved registration writes.
+    g_creationTags.clear();
+    g_tagCursor = 0;
+    g_tagValid = true;
+    for (const auto& event : creations.Events()) if (event.result) {
+        CreationTagOutput tag{event.result, {}};
+        auto* prop = static_cast<cISC4PropOccupant*>(FromToken(event.result));
+        cISC4Occupant* occupant = prop->AsOccupant(); // borrowed
+        if (!occupant || !props::GetU32s(occupant->AsPropertyHolder(), 0x89A1C16C, tag.native)) g_tagValid = false;
+        g_creationTags.push_back(std::move(tag));
+    }
     g_creationTrace = &creations;
     g_creationCursor = 0;
     g_creationValid = creationRecording;
@@ -961,7 +1087,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     char date[16];
     propcity::DateText(julian, date);
     if (!mo.compared) {
-        Log("propdev shadow month %s: INCOMPLETE (%s); not compared", date, mo.incomplete ? mo.incomplete : "?");
+        Log("propdev shadow %s: INCOMPLETE (%s); mismatches=1", date, mo.incomplete ? mo.incomplete : "?");
         g_month = MonthStats{};
         return;
     }
@@ -969,7 +1095,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     if (g_month.d.mismatches == 0) ++g_cleanMonths;
     char head[512];
     snprintf(head, sizeof(head),
-             "propdev shadow month %s: followed=%s steps=%u blocks=%u certain=%u raw-compared=%u removed orig/ours "
+             "propdev shadow %s: followed=%s steps=%u blocks=%u certain=%u raw-compared=%u removed orig/ours "
              "%u/%u (not kept %u) created orig/ours %u/%u (not compared) messages=%u ticks=%u message-removals=%u; "
              "record: scan=%d scanner=(%u %d,%d) requesters=%u night=%u tod=%u dated=%u power=%u signs=%u "
              "triggers=%u isNight=%u%s",
@@ -986,8 +1112,14 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " replay-complete=" + std::to_string(g_month.replayComplete) +
                              " replay-invalid=" + std::to_string(g_month.replayInvalid) +
                              " operation-output-matches=" + std::to_string(g_month.operationsExact) +
+                             " operations-eligible=" + std::to_string(g_month.operationsEligible) +
                              " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
+                             " night-callbacks=" + std::to_string(g_month.nights) +
+                             " night-exact=" + std::to_string(g_month.nightExact) +
+                             " night-draws=" + std::to_string(g_month.nightDraws) +
+                             " creation-tags=" + std::to_string(g_month.creationTags) +
+                             " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     g_month = MonthStats{};
@@ -999,6 +1131,7 @@ void PropDevShadowCityShutdown() {
     if (g_months > 0) {
         Log("propdev shadow: city shutdown: %u month lines, %u with mismatches=0", g_months, g_cleanMonths);
     }
+    RemoveNightObserver();
     g_run.Drop();
     Unlisten();
     g_orig = nullptr;

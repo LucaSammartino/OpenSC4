@@ -31,6 +31,7 @@
 #include "cFC4NetworkTool.h"  // the glue29 lane: NetToolRegistry
 #include "cFC4PortDeveloper.h"  // the glue-portdev4 lane: the port action
 #include "cFC4ZoneManager.h"
+#include "cFC4PropDeveloper.h"
 
 #include "SC4Rect.h"
 #include "cISC4City.h"
@@ -665,6 +666,19 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::Tutorial: result = RunTutorial(a, city); break;
         case ScriptOp::Dispatch: result = RunDispatch(a, julian, city); break;
         case ScriptOp::PortProps: result = PortScriptProps(a.x0, a.z0, static_cast<uint32_t>(a.type)); break;
+        case ScriptOp::ClockMode: {
+            // clock24.md section 4.5 / section 8: city slot 86 is borrowed;
+            // slots 29/5 return no meaningful value (never read ST0).
+            auto* clock = AsGame(city ? city->Get24HourClock() : nullptr);
+            if (!clock) { result = "no 24-hour clock"; break; }
+            clock->EnableDayNightTransitionNotifications(true);
+            clock->SetVisualTimeMode(a.speed);
+            result = "transition notifications on; visual mode " + std::to_string(clock->GetVisualTimeMode());
+            break;
+        }
+        case ScriptOp::LightingHour:
+            result = PropDevScriptLightingHour(a.speed);
+            break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";

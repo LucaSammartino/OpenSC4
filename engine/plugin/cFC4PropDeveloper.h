@@ -203,3 +203,8 @@ private:
 // Factories for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4PropDeveloper();
 cIGZUnknown* CreateFC4WealthRequester();
+
+namespace fc4 {
+// Script-only native light producer, using the PV15 borrowed interface path.
+const char* PropDevScriptLightingHour(int hour);
+}

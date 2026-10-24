@@ -159,6 +159,15 @@ void ScriptParseTests() {
     }
     CHECK(One("2000-01-07 speed 0").actions.at(0).speed == 0);
     CHECK(One("2000-01-07 speed 2").actions.at(0).speed == 2);
+    CHECK(One("2000-01-07 clockmode 0").actions.at(0).op == ScriptOp::ClockMode);
+    CHECK(One("2000-01-07 clockmode 2").actions.at(0).speed == 2);
+    CHECK(One("2000-01-07 lightinghour 0").actions.at(0).op == ScriptOp::LightingHour);
+    CHECK(One("2000-01-07 lightinghour 23").actions.at(0).speed == 23);
+    CHECK(ErrorIs("2000-01-07 lightinghour 24", "lightinghour '24' is not 0..23"));
+    CHECK(ErrorIs("2000-01-07 lightinghour -1", "lightinghour '-1' is not 0..23"));
+    CHECK(ErrorIs("2000-01-07 clockmode -1", "clockmode '-1' is not 0, 1 or 2"));
+    CHECK(ErrorIs("2000-01-07 clockmode 3", "clockmode '3' is not 0, 1 or 2"));
+    CHECK(ErrorIs("2000-01-07 clockmode", "clockmode takes 1 argument(s) (0, 1 or 2), not 0"));
     CHECK(One("2000-01-07 pause").actions.at(0).op == ScriptOp::Pause);
     CHECK(One("2000-01-07 resume").actions.at(0).op == ScriptOp::Resume);
     CHECK(One("2000-01-07 digest # now").actions.at(0).op == ScriptOp::Digest);
@@ -259,7 +268,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster, port, tutorial, dispatch)"));
+                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
