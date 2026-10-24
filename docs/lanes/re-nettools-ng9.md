@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-nettools-ng9 (network drag and host inputs) | `Codex` / `re-nettools-ng9` (RE lane, detached HEAD) | in progress: NG8 and NT35 answered in c99d94e82; resuming NT36 from 68f9906d2; ABI unchanged; no new game runs | (1) resolve NT36 occupied-cell/subclass/model boundary; (2) run documentation gates and report |
+| re-nettools-ng9 (network drag and host inputs) | `Codex` / `re-nettools-ng9` (RE lane, detached HEAD) | READY: NG8 and NT35 answered in c99d94e82, NT36 in c02848d27; nine drag, three inventory-boundary and seven host-boundary vectors; doccheck and questions check PASS; ABI unchanged; no new game runs; prior runs 512/513 wide 73/73, narrow 0/73 | (1) implement NG8 observations and repeat narrow-drag matrix; (2) supply NT36 occupied-cell and subclass/model host effects, then repeat placement/cost comparisons |
 
 ## Report
 
@@ -27,7 +27,7 @@ live reconstructed price. Public city prices do not uniquely recover a fixture; 
 110/113, 170/192, 90/93 and 55/61 differences remain explicitly unresolved by this answer.
 
 The first round committed NG8 and NT35 in c99d94e82 and its partial report in 68f9906d2.
-This resumed round answers NT36 in network-tools §8.3.3: ordered occupied-cell classification,
+This resumed round answers NT36 in c02848d27, network-tools §8.3.3: ordered occupied-cell classification,
 last accepted pole/wire selection, manager/QI signatures, interface pointer distinctions, allocator-A
 query-list ownership, and separate pole/wire/model host responsibilities. Seven conformance vectors
 cover list order, capabilities, pole coordinate filtering, reuse and bridge publication failure.
@@ -56,8 +56,8 @@ NT36 retains powerline valid 13/0 and price 65/0, bridge valid 17/0 and price 97
 ## Handoff
 
 - Done: c99d94e82 answers NG8 and NT35; questions index and documentation gates pass.
-- Done this round: NT36 answer and seven vectors; moved to answered archive; both gates pass.
-- Next: commit the final lane report and write the merge-queue JSON with actual full HEAD.
+- Done: c02848d27 answers NT36 with seven vectors; archived; both documentation gates pass.
+- Next: coordinator can land the documentation; no remaining RE question among NG8/NT35/NT36.
 - Engine follow-up: use §3.3.1 public occupant observations and repeat the same draw matrix.
 - Engine follow-up: supply §8.3.3 occupied-cell observations and subclass/model effects, then
   compare fresh placement/cost results; keep current differences visible and default-off.

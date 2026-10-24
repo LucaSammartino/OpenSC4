@@ -115,5 +115,3 @@
   nonzero previously-placed count making intermediate steps pivots, or is another pivot/spacing
   rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
-
-<!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
