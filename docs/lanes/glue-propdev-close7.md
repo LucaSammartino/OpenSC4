@@ -6,7 +6,8 @@
 - Round 2 goal: exercise PV16 through specified lighting producer, implement PV17 live dated walk, retain PV18 ineligibility, finish with READY measured merge entry even when not N/N.
 - Source changes in progress: linked dated nodes; post-callback live next-link read; no occupant hold across callbacks; bounded null creation-result eligibility; script lightinghour 0..23 through SDK SetTimeOfDay(float), PV15 borrowed acquisition.
 - Focused dated_walk test PASS 1/1 (session 69822 terminal). fmt diagnostic corrected in place. q.py failed before cargo because Git Bash mapping denied; direct PowerShell cargo used.
-- Next: collect focused test/fmt, commit milestone, codexguard r2 manifest, full all gate, unique scripted normal-speed native 2032 request without qwait; preserve all completed verdicts; final report and ready queue required.
+- Source milestone 9600542f6; final fmt PASS. Full all gate session 3069 TERMINAL PASS: Rust 6940/0, clippy 0 diagnostics, native 61/61 edges, CTest 78/78; qbuild-20261024-070413-build-ctest, 221.6s native. No source changed during gate.
+- Next: unique scripted normal-speed native 2032 request gpc7-r2-light-normal-2032-a, without qwait; collect its existing or eventual verdict, measure exact coverage/eligible/night counts; final report and READY queue required.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propdev-close7-r2-manifest.json.
 
 ## Round 1 evidence
