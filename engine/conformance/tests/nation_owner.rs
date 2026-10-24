@@ -24,6 +24,7 @@ impl Drop for Region {
     }
 }
 impl NationRegion for Region {
+    type City = City;
     fn directory_name(&self) -> &str {
         &self.directory
     }
@@ -58,7 +59,7 @@ impl NationRegion for Region {
     fn delete(&mut self) {
         record(&self.trace, format!("delete:{}", self.directory));
     }
-    fn move_city(&mut self, _: &mut impl TutorialCity, x: u32, z: u32) -> bool {
+    fn move_city(&mut self, _: &mut City, x: u32, z: u32) -> bool {
         record(&self.trace, format!("move:{}:{x}:{z}", self.directory));
         false
     }

@@ -58,7 +58,7 @@ impl ProcessDirectories {
 /// Game/platform adapter operations. Paths and directory enumeration order are
 /// supplied by this interface; no host filesystem or COM ownership is guessed.
 pub trait NationHost {
-    type Region: NationRegion;
+    type Region: NationRegion<City = Self::City>;
     type City: TutorialCity;
     fn has_app(&self) -> bool;
     fn has_live_city(&self) -> bool;
@@ -102,6 +102,7 @@ pub trait TutorialCity {
 /// Region calls always use its interface. Owned handles release on Drop; borrowed
 /// getters do not take or release references. Callback bools are deliberately ignored.
 pub trait NationRegion {
+    type City: TutorialCity;
     fn directory_name(&self) -> &str;
     fn display_name(&self) -> &[u8];
     fn set_directory_name(&mut self, name: &str);
@@ -111,7 +112,7 @@ pub trait NationRegion {
     fn shutdown(&mut self) -> bool;
     fn has_tutorial_city(&self) -> bool;
     fn delete(&mut self);
-    fn move_city(&mut self, city: &mut impl TutorialCity, x: u32, z: u32) -> bool;
+    fn move_city(&mut self, city: &mut Self::City, x: u32, z: u32) -> bool;
 }
 
 #[derive(Clone, Debug)]
@@ -203,7 +204,7 @@ impl<R: NationRegion> Nation<R> {
         let length = preference.iter().position(|&b| b == 0).unwrap_or(64);
         for (i, region) in self.regions.iter().enumerate() {
             let name = region.display_name();
-            if &name[..name.len().min(64)] == &preference[..length] {
+            if name[..name.len().min(64)] == preference[..length] {
                 *out = i;
                 return true;
             }
