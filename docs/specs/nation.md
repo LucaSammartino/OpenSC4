@@ -93,7 +93,7 @@ fixture supplies the directory enumerator's order rather than relying on a host 
 | Catalog `[A,B]`, active 0; select 0 | No callbacks, index stays 0. |
 | Catalog `[A,B]`, active 0; select 1, both callbacks return false | `A.Shutdown`, then index becomes 1, then `B.Init`; no rollback or retry. |
 | Catalog `[A,B]`, active 0; get/select index 2 | Replacement `InvalidRegionIndex`, no callback or mutation (§7). |
-| Root entries in order: directory B, regular file X, directory Downloads, directory A | Catalog `[B,A]`; region setters/read run in that order. No recursive discovery of Downloads. |
+| Root entries in order: directory B, regular file X, directory dOwNlOaDs, directory A | Catalog `[B,A]`; region setters/read run in that order. No recursive discovery of Downloads. |
 | Regions named `Alpha`, `Beta`; preference bytes `Beta` followed by NUL and junk | Preference method returns true and writes index 1. |
 | Same catalog; preference `beta`, or `BetaX` | False and output index 0: comparison is case sensitive and length sensitive. |
 | No preference match; first region fails Init, second has no tutorial city | Initial candidate remains index 0, not the first region whose Init succeeds; final Init failure requests tutorial reset. |
@@ -125,13 +125,13 @@ creation failures are ignored; the static routine reports true and will not retr
 without an app consumes the guard too *[quirk]*.
 
 `LoadRegions` (`0x00497CF0`) enumerates the immediate root entries in directory-provider order. It accepts
-directory entries (entry kind 4), excludes the `Downloads` directory using the string interface's comparison
-operation with flag 0, and does no further nation-level sorting. Each accepted entry gets a new region,
+directory entries (entry kind 4), excludes `Downloads` by a **case-insensitive, equal-length** string comparison
+(flag 0), and does no further nation-level sorting. Each accepted entry gets a new region,
 appended to the catalog **before** its directory name and initial display name are set from the entry name;
 then region slot 7 (`ReadRegionINIFile`) runs. Its result is ignored. The load result is whether at least one
 entry was accepted, not whether all region INI reads succeeded. No second scan of Downloads is performed.
-The string comparison is the region string API's flag-0 comparison; an adapter must preserve that operation
-rather than silently making all catalog names case insensitive.
+This exclusion lowercases both strings before comparing bytes (`cRZString::IsEqual`, `0x0090EC57`);
+it does not make the separate preference comparison case insensitive.
 
 If discovery accepts nothing, `CopyNewUserRegions` (`0x004985A0`) tries installation templates, then repeats
 discovery. It returns false without copying if the root string is empty or the root directory does not exist.
