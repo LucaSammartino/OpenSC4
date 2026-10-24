@@ -671,6 +671,7 @@ public:
                 FontSysVerify("presave");
                 break;
             case kMsgConnectionsReady:
+                PropLotShadowConnectionsReady(CurrentCity());  // lotconf capacity: after native city-init fill
                 PopupDialogsOnConnectionsReady();
                 // Then (popup dialogs handled first) a held turbo request may
                 // engage (FC4Turbo.h; tooling).

@@ -1005,6 +1005,15 @@ pub unsafe extern "C" fn fc4_lot_configuration_project(
     })
 }
 
+/// Independent GLUE22 capacity projection, building-development §4.7.1.
+/// No native profile values enter this derivation; absent exemplar means zero.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lot_configuration_capacity(exemplar: *const fc4_props) -> u16 {
+    guard(0, || {
+        props_ref(exemplar).map_or(0, |h| fc4_core::development::BuildingProfile::from_exemplar(h).capacity)
+    })
+}
+
 /// `Read` (§B6): false for another version, and then nothing changes. The
 /// references come back through `resolve_ref` with IIDs `0x07813EAE`,
 /// `0x06C66177` and `0x28326F3E`.

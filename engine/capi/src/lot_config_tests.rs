@@ -50,6 +50,30 @@ fn configuration_projection_abi_layout_and_failed_inputs() {
     }
 }
 
+#[test]
+fn configuration_capacity_selects_developer_entry_and_stores_u16() {
+    unsafe {
+        assert_eq!(fc4_lot_configuration_capacity(std::ptr::null()), 0);
+        let h = fc4_props_create();
+        assert_eq!(fc4_lot_configuration_capacity(h), 0);
+        assert!(fc4_props_set_u32s(h, 0x2781_2833, &1, 1)); // residential
+        assert!(fc4_props_set_u32s(h, 0x2781_2832, &2, 1)); // medium wealth
+        let capacities = [0x1010, 17, 0x1020, 0x1_8001, 0x1030, 29];
+        assert!(fc4_props_set_u32s(
+            h,
+            0x2781_2834,
+            capacities.as_ptr(),
+            capacities.len()
+        ));
+        assert_eq!(fc4_lot_configuration_capacity(h), 0x8001);
+        assert!(fc4_props_set_u32s(h, 0x2781_2832, &3, 1));
+        assert_eq!(fc4_lot_configuration_capacity(h), 29);
+        assert!(fc4_props_set_u32s(h, 0x2781_2833, &3, 1)); // no matching entry
+        assert_eq!(fc4_lot_configuration_capacity(h), 0);
+        fc4_props_destroy(h);
+    }
+}
+
 /// One object as the host keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Obj {

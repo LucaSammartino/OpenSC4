@@ -97,6 +97,8 @@ void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorRepl
 // FC4Observer.cpp: PostCityInit, every SimNewMonth, PreSave (0x26C63343) and
 // PreCityShutdown (the totals). No-ops unless a shadow is on.
 void PropLotShadowCityLoaded(cISC4City* city);
+// lotconf's load comparison follows the native manager's PostCityInit fill.
+void PropLotShadowConnectionsReady(cISC4City* city);
 void PropLotShadowMonth(cISC4City* city, int32_t julian);
 void PropLotShadowPreSave(cISC4City* city);
 void PropLotShadowCityShutdown();
