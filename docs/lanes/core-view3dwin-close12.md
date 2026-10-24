@@ -13,3 +13,5 @@
 - Required gates: qbuild all and qbuild verify, foreground logs under build-runs.
 - Formatting: explicit trigger_load_tests.rs and state.rs check passed (2 files, diff_lines=0); evidence build-runs/fmt-close12-final-console.log.
 - Coverage audit: README has 34 owner rows, 19 retain explicit settled implementation/test gaps. Full owner closure is not established; no new spec question is justified by those gaps.
+- First full-gate Rust phase: 590 passed, 2 failed in unchanged capi occupant_manager_tests slot42/slot44 scheduling tests. The latter observed 0 lock waits instead of 1; both rely on B running within 300 ms. Log qbuild-test.log preserved pending full operation completion. Clippy is now running in session 49440.
+- After collecting the current full operation: preserve its logs, then run build-runs/gate-close12-serial.ps1 (RUST_TEST_THREADS=1). This changes test scheduling inputs in response to measured deadline failures, not source. Do not launch this while 49440 remains active.
