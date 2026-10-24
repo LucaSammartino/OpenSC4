@@ -1,6 +1,6 @@
 # sc-resources: answered questions
 
-## SCR10 — Physical file-line observation ABI
+- **SCR10 — Physical file-line observation ABI:**
 
 Section 10.2 identifies `cRZTextFile::ReadLine` at `0x00930833` as the natural
 startup file-input boundary, but section 10.1 does not declare its ECX view,
