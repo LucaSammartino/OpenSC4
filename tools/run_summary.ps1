@@ -88,13 +88,17 @@ Write-Output ""
 Write-Output "problems (all should be 0):"
 $checks = [ordered]@{
     "foreign first-chance exceptions" = "first-chance exception OUTSIDE FreeCity4\.dll"
-    "watchdog stalls"                 = "WATCHDOG: main thread.*stalled"
     "reference warnings"              = "WARNING: (released last reference|over-release)"
     "Rust panics"                     = "Rust PANIC"
     "structured exceptions"           = "structured exception in"
     "shadow INCOMPLETE lines"         = "shadow.*INCOMPLETE"
 }
 foreach ($k in $checks.Keys) { Write-Output ("  {0,-34} {1}" -f $k, (Count $checks[$k])) }
+# Watchdog stalls by episode (each starts at sample 1): only one the watchdog never reported over counts, as in
+# FC4DiagLogic.h, where finished stalls are reported but do not decide. The ones that ended are listed below.
+$stallEpisodes = Count "WATCHDOG: main thread.*stalled.*\[sample 1/"
+$stallsOver = Count "WATCHDOG: stall over after"
+Write-Output ("  {0,-34} {1}" -f "watchdog stalls", [Math]::Max(0, $stallEpisodes - $stallsOver))
 # Only with the terrain shadow on (other runs keep their list); "-" never counts.
 if ($terrain -and $terrain.unfollowed -ne "-") { Write-Output ("  {0,-34} {1}" -f "terrain unfollowed vertices", $terrain.unfollowed) }
 $fpu = @(Select-String -Path $Log -Pattern "WARNING.*(control word changed|not at 24-bit)" -CaseSensitive).Count
@@ -102,6 +106,7 @@ $other = @(Select-String -Path $Log -Pattern "WARNING" -CaseSensitive | Where-Ob
         $_.Line -notmatch "control word changed|not at 24-bit|released last reference|over-release|AUTOTEST VERDICT" })
 Write-Output ("  {0,-34} {1}" -f "other WARNING lines", $other.Count)
 $other | Select-Object -First 5 | ForEach-Object { Write-Output ("    " + (Body $_.Line)) }
+if ($stallsOver -gt 0) { Write-Output ("  (watchdog stalls that ended: {0}; reported, not counted)" -f [Math]::Min($stallsOver, $stallEpisodes)) }
 Write-Output ("  (expected: {0} x87 start-up warning line(s), foundations 18.2; the plugin re-asserts 24-bit)" -f $fpu)
 
 $obs = @(Select-String -Path $Log -Pattern "observe month \S+: date=(\S+) julian=\d+ funds=(-?\d+) income=(-?\d+) expense=(-?\d+)" -CaseSensitive)

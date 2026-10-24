@@ -11,15 +11,3 @@
 - **LR7 - section 7.2 step 3:** when occupant manager slot 33 returns true with `w` null, the update path calls
   `QueryInterface` through null. Is that reachable (does slot 33 ever return true without an occupant)? [treated as a
   host contract violation: the core panics, no null guard is synthesised]
-
-<!-- from: glue-simgrid-lots-shadow5 round 2 (2026-10-23) -->
-- **LR12 - sections 1, 3.1, 14: lotrec_shadow observation inventory:** please define the exhaustive
-  record-only load/month shadow scope and discovery contract. Is the denominator the lot manager's
-  master-list cSC4Lot records (27 fields, including inline trips/properties), or every record class in
-  section 1, including business units, construction, signposts, decals, wild flora and the crime-only
-  lot mentioned in section 14? The master lot list alone cannot establish the latter inventory;
-  section 3.1 explicitly says the lot does not save its occupants. For the intended scope, specify
-  public owner/getter or record enumeration, exact native signatures/reference ownership, treatment
-  of objects absent from the master list, and required outcomes for unsupported/unspecified prop
-  subclasses. [lotrec_shadow deferred; implement and land the independently specified SG3
-  simgrid_shadow first, without claiming lot-record coverage]

@@ -271,7 +271,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 3 | 12 | LR15 | questions/lot-records.md |
+| lot-records | 2 | 12 | LR15 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -288,9 +288,9 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 19 | 27 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 4 | 12 | NR18 | questions/network-rules.md |
+| network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 21 | 12 | NT37 | questions/network-tools.md |
+| network-tools | 18 | 12 | NT37 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -298,7 +298,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 6 | 10 | OV16 | questions/overlay-manager.md |
+| overlay-manager | 5 | 10 | OV16 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 9 | 4 | PT14 | questions/particles.md |
@@ -335,7 +335,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
-| simgrid | 3 | 1 | SG4 | questions/simgrid.md |
+| simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
@@ -364,7 +364,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 3 | 9 | WC12 | questions/watercraft.md |
+| watercraft | 2 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
@@ -373,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **615** | **1502** | | |
+| **total** | **607** | **1502** | | |
