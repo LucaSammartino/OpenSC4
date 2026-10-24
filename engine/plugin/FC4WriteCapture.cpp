@@ -14,6 +14,8 @@
 #include "FC4WriteCapture.h"
 
 #include "FC4Log.h"
+#include "FC4Interfaces.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 
 #include "cGZPersistResourceKey.h"
@@ -117,9 +119,21 @@ bool WriteCapture::WriteResKey(cGZPersistResourceKey const& k) {
     return SetUint32(k.instance);
 }
 
-bool WriteCapture::WriteVariant(cIGZVariant const&) {
-    good_ = false;  // not part of the records read this way
-    return false;
+bool WriteCapture::WriteVariant(cIGZVariant const& value) {
+    if (!variants_) {
+        good_ = false;
+        return false;
+    }
+    // Same foundations §9.2 transport as FC4TrafficShadow, for numeric and
+    // string own properties. Unsupported types still fail the capture.
+    fc4_props* props = fc4_props_create();
+    const bool ok = fc4::props::CopyVariantToCore(AsGame(&value), 1, props) &&
+        fc4_props_write_variant(props, 1, [](void* ctx, const uint8_t* data, size_t len) {
+            static_cast<WriteCapture*>(ctx)->Put(data, len);
+        }, this);
+    fc4_props_destroy(props);
+    if (!ok) good_ = false;
+    return good_;
 }
 
 bool WriteCapture::Put(const void* p, size_t n) {

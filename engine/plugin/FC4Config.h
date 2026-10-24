@@ -241,6 +241,8 @@
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
 #pragma once
+// netocc_shadow = 0 / 1: record-only network occupant load/month comparison,
+// default 0. Documented Read fixups counted separately (NO45 harness decision).
 
 #include <string>
 
