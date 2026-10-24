@@ -5,6 +5,11 @@
 ## Handoff
 
 - Goal: finish owner closure, collect final gate, report and enqueue the actual tip.
+- Round r3 resumed df1b3d5ca; required VW20 merge is already an ancestor.
+- Previous r2 operation cannot be collected: session 13320 is unknown, console
+  log empty and qbuild-test.log ends mid-test. Preserve as incomplete evidence.
+- Current next step: finish the README's settled coverage deficits, focused tests,
+  then one all/verify on final changed source; no ABI/plugin wiring.
 - Guard stopped this round at 150k; write no merge-queue entry this round.
 - Resumed d81c354bf. First merge re-view3dwin-vw20 was already up to date;
   ancestry confirmed. Git emits packed-refs.lock permission errors but commits succeed.
@@ -17,17 +22,9 @@
   CTest 81/81 (503.5 s), total 817.5 s; verify-close12-r2-console.log.
 - Focused operation fully collected: 84 passed/1 failed, old GUI ordering assertion;
   fixed BEFORE final all. Preserve build-runs/focused-close12-r2.log.
-- Final all is ALREADY RUNNING on stable 884472e54 source, RUST_TEST_THREADS=1.
-  Shell session 13320; collector functions cell 53. Do not launch a replacement.
-- Clippy finished clean (15m23s). Workspace tests now running; last observed
-  core grid tests passing. Final totals/verdict remain unknown; no source changed.
-- EXACT NEXT: collect that operation if available; otherwise read its terminal
-  build-runs/all-close12-r2-console.log and qbuild-test.log. Never duplicate it.
-- Summarize totals with build-runs/summarize-close12-r2.py, then commit report,
-  guard status, and READY queue with full HEAD only if passing (partial permitted).
 - README retains 16 settled coverage/audit deficits; full owner closure NOT claimed.
   T29/T33/T34/T36 incomplete. No new questions, ABI/plugin edits, or game requests.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r3-manifest.json.
 
 ## Previous report
 
