@@ -934,6 +934,14 @@ from the supplied record into node+8, and link it immediately before the circula
 (tail insertion). No field-specific copy, AddRef or cleanup is performed. The record is
 copied; pointed-to objects remain shared. Allocation failure is not a recoverable return.
 
+**Admission-to-worker transition (Q20).** This same eight-word record survives
+dequeue: +8 becomes dequeue time, +0xc is the attempt word, +0x10 progress,
++0x14 remains the retained request, +0x18 becomes the distinct response only at
+finalization, and +0x1c remains custom. There is no request-to-response cast.
+[HTTP lifetime §2.1](web-network-http-lifetime.md#21-dequeue-response-creation-and-publication-q20)
+specifies creation/publication, early null-response failures, requeue/stale-response
+effects, missing releases and the callback's two retained objects.
+
 **Cancel 0081cc10 (191 B).** Hold +0xa4 throughout the following search/mutation, releasing
 the lock before each return:
 
@@ -1249,6 +1257,26 @@ contract: sections 1–5 specify wire/retry, framing/storage failure, finalizati
 date acceptance/runtime and destructor cleanup respectively; section 6 supplies
 HTTP10–HTTP35 independent proposed vectors. Q13 is answered; runtime inputs and
 unsafe native-memory domains are explicit dependencies, not unanswered behavior.
+
+### 5.6 HTTP response grammar and worker resources (Q20)
+
+*[compat]* [HTTP wire §1.1–1.2](web-network-http-wire.md#11-status-and-version-tokens-q20-2026-10-24)
+qualifies status/version parsing and proxy destination selection. Status scans
+two whitespace-separated tokens; it does not require literal HTTP syntax or a
+three-digit code. Version recognizes uppercase `HTTP` and independently reads
+digits at byte indices 5 and 7. The worker connects to the request URL's origin
+even when proxy request formatting is enabled; proxy configuration does not
+select another destination or another response grammar.
+
+[HTTP lifetime §2.1](web-network-http-lifetime.md#21-dequeue-response-creation-and-publication-q20)
+qualifies the unchanged eight-word job layout from admission through completion.
+The retained request stays at +0x14. A distinct response is allocated after send
+and published at +0x18 only before finalization. Early failures can leave it null;
+redirect requeues can preserve an earlier response. Metadata is copied from
+request to response before notification, with request then response released
+afterwards. The supplement specifies missing-release paths explicitly.
+WWW20-S1–S13, P1–P4 and R1–R9 are independent proposed/unexecuted vectors. Q20
+is answered without an invented cast, strict status grammar or proxy negotiation.
 
 ## 6. NetworkFileCache — storage and IO contract
 
