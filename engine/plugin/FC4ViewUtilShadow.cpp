@@ -69,6 +69,7 @@ using Packet = std::array<uint32_t, 32>;
 uint32_t Bits(float f) { uint32_t u; std::memcpy(&u, &f, 4); return u; }
 float Float(uint32_t u) { float f; std::memcpy(&f, &u, 4); return f; }
 struct Family { uint32_t va; const char* name; uint32_t exact = 0, total = 0; };
+Family rotationFamily{0x007f6cc0,"rotation"};
 Family localFamilies[] = {
     {0x005d6900,"bounds"}, {0x005d6f10,"cross"},
     {0x007f6550,"min"}, {0x007f65b0,"max"}, {0x007f6ab0,"ground-arithmetic"}, {0x007f6af0,"triangle-pick"},
@@ -117,8 +118,8 @@ void NativeCached(uint32_t op, Owner& owner, const Packet& in, Packet& out) {
     }
 }
 
-bool CompareCached(const fc4_date& date, bool available, const Owner& snapshot) {
-    bool exact = true;
+uint32_t CompareCached(const fc4_date& date, bool available, const Owner& snapshot, uint32_t& totalFields) {
+    uint32_t totalMismatches = 0;
     for (auto& family : cachedFamilies) {
         uint32_t fields = 0, mismatches = 0;
         for (uint32_t sample = 0; available && sample < 32; ++sample) {
@@ -147,9 +148,10 @@ bool CompareCached(const fc4_date& date, bool available, const Owner& snapshot) 
         fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x scope=cached-inputs capture=f32 samples=%u fields=%u resyncs=0 mismatches=%u",
             family.name,date.year,date.month,date.day_of_month,family.va,available?32u:0u,fields,mismatches);
         ++family.total; family.exact += mismatches == 0;
-        exact = exact && mismatches == 0;
+        totalFields += fields;
+        totalMismatches += mismatches;
     }
-    return exact;
+    return totalMismatches;
 }
 
 void NativeLocal(uint32_t op, const Packet& in, Packet& out) {
@@ -199,8 +201,8 @@ void NativeLocal(uint32_t op, const Packet& in, Packet& out) {
     }
 }
 
-bool CompareLocal(const fc4_date& date, bool binding) {
-    bool exact = true;
+uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields) {
+    uint32_t totalMismatches = 0;
     for (auto& family : localFamilies) {
         uint32_t mismatches = 0, fields = 0;
         for (uint32_t sample = 0; binding && sample < 32; ++sample) {
@@ -256,9 +258,10 @@ bool CompareLocal(const fc4_date& date, bool binding) {
         fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x capture=f32 samples=%u fields=%u resyncs=0 mismatches=%u",
             family.name,date.year,date.month,date.day_of_month,family.va,binding?32u:0u,fields,mismatches);
         ++family.total; family.exact += mismatches == 0;
-        exact = exact && mismatches == 0;
+        totalFields += fields;
+        totalMismatches += mismatches;
     }
-    return exact;
+    return totalMismatches;
 }
 
 bool LiveInputs(std::array<Words, 5>& vectors, int32_t& rotation, Owner& snapshot) {
@@ -352,8 +355,11 @@ void Compare(int32_t julian, bool load) {
     // Missing live state or binding is a failed observation, never vacuous exact.
     ++fields;
     mismatches += !available || !base;
-    mismatches += !CompareLocal(date, base != 0);
-    mismatches += !CompareCached(date, available && base != 0, snapshot);
+    fc4::Log("viewutil-rotation shadow %04d-%02d-%02d: body=007f6cc0 samples=%u fields=%u resyncs=0 mismatches=%u",
+        date.year,date.month,date.day_of_month,samples,fields,mismatches);
+    ++rotationFamily.total; rotationFamily.exact += mismatches == 0;
+    mismatches += CompareLocal(date, base != 0, fields);
+    mismatches += CompareCached(date, available && base != 0, snapshot, fields);
     fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-and-cached bodies=36/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", available ? 1u : 0u,
         liveRotation, samples, fields, mismatches);
@@ -366,6 +372,7 @@ namespace fc4 {
 void ViewUtilShadowCityLoaded(cISC4City* city, int32_t julian) {
     active = city && SettingInt("viewutil_shadow", nullptr, 0) != 0;
     lines = clean = 0;
+    rotationFamily.exact = rotationFamily.total = 0;
     for (auto& family : localFamilies) family.exact = family.total = 0;
     for (auto& family : cachedFamilies) family.exact = family.total = 0;
     lastMonth = -1;
@@ -378,6 +385,7 @@ void ViewUtilShadowMonth(int32_t julian) { Compare(julian, false); }
 void ViewUtilShadowCityShutdown() {
     if (active) {
         Log("viewutil: %u/%u exact (36/50 bodies), resyncs=0", clean, lines);
+        Log("viewutil-rotation: %u/%u exact, resyncs=0",rotationFamily.exact,rotationFamily.total);
         for (const auto& family : localFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
         for (const auto& family : cachedFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
     }
