@@ -157,8 +157,11 @@ impl TreeView {
         }
         self.clear_selection(f);
         let old_buffer = self.working_buffer.replace(buffer);
+        let mut drawing = Ok(());
         for (row, h) in copied.iter().enumerate() {
-            let rect = self.nodes[h].text_rect;
+            let node = &self.nodes[h];
+            let saved = [node.text_rect, node.image_rect, node.expander_rect];
+            let rect = saved[0];
             let y = (row as i32).wrapping_mul(self.row_height);
             let text = [
                 rect[0].wrapping_sub(left),
@@ -166,9 +169,49 @@ impl TreeView {
                 rect[2].wrapping_sub(left),
                 y.wrapping_add(self.row_height),
             ];
-            self.render_item(*h, text, [0; 4], [0; 4], f)?;
+            let b = self.raw_style[0] as u32;
+            let c = if self.flags & 4 != 0 {
+                self.image_width.wrapping_sub(b) >> 1
+            } else {
+                0
+            };
+            let root = Some(*h) == self.root;
+            let x = if root {
+                0
+            } else {
+                b.wrapping_add(self.raw_style[1] as u32)
+                    .wrapping_add(c)
+                    .wrapping_mul(self.depth(*h))
+                    .wrapping_add(c) as i32
+            }
+            .wrapping_sub(left);
+            let expander = self.connectors(*h, x, y, buffer, f);
+            let a = if root {
+                0
+            } else {
+                x.wrapping_add(b as i32).wrapping_add(self.raw_style[1])
+            };
+            let image = [
+                a,
+                y,
+                a.wrapping_add(self.image_width as i32),
+                y.wrapping_add(self.row_height),
+            ];
+            let result = self.render_item(*h, text, image, expander, f);
+            // A temporary drag surface must not replace working-buffer hit geometry.
+            let node = self.nodes.get_mut(h).unwrap();
+            [node.text_rect, node.image_rect, node.expander_rect] = saved;
+            if let Err(error) = result {
+                drawing = Err(error);
+                break;
+            }
         }
         self.working_buffer = old_buffer;
+        if let Err(error) = drawing {
+            f.dispose_surface(buffer);
+            f.release(buffer);
+            return Err(error);
+        }
         let session = DragSession {
             nodes: copied.clone(),
             buffer,

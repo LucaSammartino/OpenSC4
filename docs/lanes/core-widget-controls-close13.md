@@ -1,8 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-widget-controls-close13 (partial settled widget owners) | `Codex` / `core-widget-controls-close13` (engine lane, detached HEAD) | WIP: implementation 915505f6a and 1dac37531; focused 26/26, scoped clippy clean, fmt 8 files clean; native 264/264, CTest 81/81; workspace all interrupted without verdict; ABI unchanged; no game runs or new questions | (1) finish remaining owner obligations below; (2) complete workspace all; (3) review closure before READY |
+| core-widget-controls-close13 (partial settled widget owners) | `Codex` / `core-widget-controls-close13` (engine lane, detached HEAD) | in progress: focused widget suite 99/99; fmt 8 files clean; ABI unchanged | (1) collect full all and queued verify; (2) report remaining owner obligations |
 
-## Report
+## Handoff
+
+- Resumed from 3cdd36fe2; requested merge re-widget-controls-wc7 says Already up to date (shared packed-refs lock denied).
+- Goal: settled WC1-WC6 closure in engine/core/src/widget_controls; no plugin/capi/text-edit internals.
+- Next: ListBox residual adapters/bounded bar dispatch/lifetime order; TreeView aliases/layout/image centering/packed drag/helper; literal vector audit; all and queued verify.
+- No outstanding processes or game requests. Prior evidence below remains historical.
+- R2 milestone: signed storage primitives/count quirks, residual color/gutter/skin/output adapters, bounded bar-coordinate dispatch, timer-first destruction; TreeView centered image crops, image-aware ancestor connectors, viewport destination primitive, packed drag drawing with preserved hit geometry.
+- R2 focused cargo 99/99, fmt 8 files clean. Initial focused compile failed from a Foreign/BrowserHost name collision, corrected by naming the primitive destroy_window; evidence retained in focused-r2.log and focused-r2-corrected.log.
+- Next: run all on stable source and collect its actual terminal result; run queued verify if all does not already do so. No new implementation after two-thirds cutoff.
+
+## Previous report
 
 This is a partial implementation checkpoint, not completed owner closure. The
 two-thirds context cutoff was reached before the remaining obligations could

@@ -88,6 +88,15 @@ pub trait TreeForeign: Foreign {
     }
     fn run_drag(&mut self, _tree: &mut TreeView, _session: &DragSession) {}
     fn dispose_surface(&mut self, _buffer: Handle) {}
+    fn draw_subimage(&mut self, image: Handle, _source: Rect, destination: Rect) {
+        self.draw_image(image, destination);
+    }
+    fn blit_viewport(&mut self, buffer: Handle, source: Rect, _destination: Rect) {
+        self.draw(Draw::Blit {
+            source: buffer,
+            rect: source,
+        });
+    }
 }
 
 #[derive(Debug)]

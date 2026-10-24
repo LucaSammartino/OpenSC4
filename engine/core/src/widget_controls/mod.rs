@@ -142,6 +142,17 @@ pub trait Foreign {
     fn color_scan_seed(&mut self) -> [u32; 3] {
         [0; 3]
     }
+    fn color_to_storage(&mut self, _window: Handle, color: u32) -> u32 {
+        color
+    }
+    fn color_from_storage(&mut self, _window: Handle, color: u32) -> u32 {
+        color
+    }
+    fn bar_skin(&mut self, _bar: Handle, _buffer: Handle, _rect: Rect) {}
+    fn buffer_width(&mut self, _buffer: Handle) -> i32 {
+        0
+    }
+    fn destroy_window(&mut self, _window: Handle) {}
 }
 
 pub(crate) fn replace_ref(slot: &mut Option<Handle>, value: Option<Handle>, f: &mut impl Foreign) {

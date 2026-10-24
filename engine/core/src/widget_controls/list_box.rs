@@ -2,6 +2,8 @@
 //! cGZWinListBox, widget-controls §5. Native L slots and W extensions are
 //! separate operations; this safe model does not fabricate unresolved ABIs.
 use super::*;
+#[path = "list_box/adapters.rs"]
+mod adapters;
 
 pub const IID: u32 = 0x4132_242b;
 pub const LIST_OFFSET: u64 = 0xd8;
@@ -54,6 +56,9 @@ pub struct ListBox {
     pub initialized: bool,
     pub stored_count: i32,
     pub bar_tracking: bool,
+    pub bar_gap_y: i8,
+    pub skin_rect: Rect,
+    pub pointer: [i32; 2],
 }
 
 impl ListBox {
@@ -205,6 +210,9 @@ impl ListBox {
             initialized: false,
             stored_count: 0,
             bar_tracking: false,
+            bar_gap_y: 3,
+            skin_rect: [0; 4],
+            pointer: [0; 2],
         }
     }
 
@@ -280,11 +288,12 @@ impl ListBox {
 
     /// Timer/container destruction is distinct from Shutdown's five releases.
     pub fn destroy(&mut self, f: &mut impl Foreign) {
-        self.shutdown(f);
         if let Some(timer) = self.timer.take() {
             f.release(timer);
         }
+        self.shutdown(f);
         self.entries.clear();
+        f.destroy_window(self.window);
     }
 
     pub fn set_font(&mut self, font: Option<Handle>, f: &mut impl Foreign) {
@@ -393,18 +402,31 @@ impl ListBox {
         true
     }
     /// W extension 158: storage removal, deliberately separate from L slot 10.
-    pub fn remove_storage(&mut self, index: usize) -> bool {
-        if index >= self.entries.len() {
+    pub fn remove_storage(&mut self, index: i32) -> bool {
+        if self.stored_count == 0 {
             return false;
         }
-        self.entries.remove(index);
+        let index = if index == -2 || index >= self.stored_count {
+            self.entries.len().checked_sub(1)
+        } else {
+            usize::try_from(index).ok().filter(|i| *i < self.entries.len())
+        };
+        if let Some(index) = index {
+            self.entries.remove(index);
+        }
+        self.stored_count = self.stored_count.wrapping_sub(1);
         true
     }
-    pub fn insert_storage(&mut self, index: usize, entry: Entry) -> bool {
-        if index > self.entries.len() {
-            return false;
+    pub fn insert_storage(&mut self, index: i32, entry: Entry) -> bool {
+        let position = if index == -2 || index >= self.stored_count {
+            Some(self.entries.len())
+        } else {
+            usize::try_from(index).ok().filter(|i| *i <= self.entries.len())
+        };
+        if let Some(position) = position {
+            self.entries.insert(position, entry);
         }
-        self.entries.insert(index, entry);
+        self.stored_count = self.stored_count.wrapping_add(1);
         true
     }
     pub fn remove(&mut self, index: i32, f: &mut impl Foreign) -> Result<bool> {
@@ -412,17 +434,7 @@ impl ListBox {
         if index > count - 1 {
             return Ok(false);
         }
-        if count > 0 {
-            if index >= 0 || index == -2 {
-                let physical = if index == -2 {
-                    self.entries.len() - 1
-                } else {
-                    index as usize
-                };
-                self.remove_storage(physical);
-            }
-            self.stored_count -= 1;
-        }
+        self.remove_storage(index);
         self.set_first(if index < self.first { self.first - 1 } else { self.first }, f);
         if index < self.selected || (index == self.selected && index == count - 1) {
             self.select(self.selected - 1, true, f);
@@ -687,13 +699,18 @@ impl ListBox {
         Ok(true)
     }
     pub fn mouse_up(&mut self, f: &mut impl Foreign) -> Result<bool> {
+        self.mouse_up_at(self.pointer[0], self.pointer[1], f)
+    }
+    pub fn mouse_up_at(&mut self, x: i32, y: i32, f: &mut impl Foreign) -> Result<bool> {
         if !self.captured {
             return Ok(true);
         }
         if self.drop_mode {
-            if let Some(bar) = self.bar.filter(|_| self.bar_tracking) {
-                f.capture(bar, true);
-                let result = f.bar_dispatch(bar, true, 0, 0);
+            if let Some(bar) = self.forward_bar(x, y) {
+                if self.bar_tracking {
+                    f.capture(bar, true);
+                }
+                let result = f.bar_dispatch(bar, true, x - (self.width() - self.bar_width), y);
                 self.bar_tracking = f.capture_owner() != Some(bar);
                 f.capture(self.window, true);
                 return Ok(result);
@@ -709,13 +726,14 @@ impl ListBox {
         self.pending_double_click = false;
         Ok(true)
     }
-    pub fn mouse_move(&mut self, x: i32, y: i32, over_bar: bool, f: &mut impl Foreign) -> Result<bool> {
+    pub fn mouse_move(&mut self, x: i32, y: i32, _over_bar: bool, f: &mut impl Foreign) -> Result<bool> {
+        self.pointer = [x, y];
         if self.drop_mode {
-            if let Some(bar) = self.bar.filter(|_| over_bar || self.bar_tracking) {
+            if let Some(bar) = self.forward_bar(x, y) {
                 if self.bar_tracking {
                     f.capture(bar, true);
                 }
-                let result = f.bar_dispatch(bar, false, x, y);
+                let result = f.bar_dispatch(bar, false, x - (self.width() - self.bar_width), y);
                 self.bar_tracking = f.capture_owner() == Some(bar);
                 f.capture(self.window, true);
                 return Ok(result);
@@ -731,8 +749,7 @@ impl ListBox {
         self.paint_plain_text(f)
     }
 
-    /// Established drawing operations on the plain-text, already-fitting
-    /// subdomain. This is not a substitute for WC1's unproved text preprocessing.
+    /// Temporary color-prefix parsing and font-service fitting (WC1/WC5).
     pub fn paint_plain_text(&mut self, f: &mut impl Foreign) -> Result<()> {
         if let Some(bar) = self.bar {
             self.first = f.bar_value(bar);
@@ -781,7 +798,11 @@ impl ListBox {
                 });
             }
             let mut text = self.entries[row].text.as_slice();
-            let mut color = self.font_colors[usize::from(selected)];
+            let mut color = self.font_colors[if f.window_flag_two(self.window) {
+                usize::from(selected)
+            } else {
+                2
+            }];
             if text.starts_with(b"##") {
                 text = &text[1..];
             } else if text.starts_with(b"#") {

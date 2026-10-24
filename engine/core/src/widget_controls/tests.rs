@@ -10,6 +10,7 @@ struct Recording {
     parent_limit: Option<i32>,
     capture_owner: Option<Handle>,
     dispatch_capture: Option<Handle>,
+    bar_events: Vec<(Handle, bool, i32, i32)>,
     control: bool,
     fail_mode: u32,
     fail_image_slot: Option<usize>,
@@ -790,7 +791,8 @@ impl Foreign for Recording {
     fn capture_owner(&mut self) -> Option<Handle> {
         self.capture_owner
     }
-    fn bar_dispatch(&mut self, _: Handle, _: bool, _: i32, _: i32) -> bool {
+    fn bar_dispatch(&mut self, bar: Handle, up: bool, x: i32, y: i32) -> bool {
+        self.bar_events.push((bar, up, x, y));
         self.capture_owner = self.dispatch_capture;
         true
     }

@@ -118,11 +118,11 @@ This checkpoint applies settled contracts, but does not claim full owner closure
 | Spec section | Implemented code item / module path | Test / remaining work |
 |---|---|---|
 | widget-controls 5.1 identity/inventory | list_box.rs: query_interface, stored fields | wc_l01; residual ABI inventory still needs the complete adapter audit |
-| 5.2 construction/resources | list_box.rs: new/init/shutdown/destroy | wc_l10_l13; wc_l24_l34_l35_l36; destruction ordering still needs audit |
+| 5.2 construction/resources | list_box.rs: new/init/shutdown/destroy | wc_l10_l13; wc_l24_l34_l35_l36; wc_l36_timer_is_destroyed_before_retained_resources |
 | 5.3 entries/selection | list_box.rs: insert/remove/select/next_page/size_drop_height/size_drop_width | wc_l16_l22, wc_l23_l30, wc_l24_l34_l35_l36 |
-| 5.4 messages/capture | list_box.rs: key methods, mouse_move/mouse_up, bar_tracking | wc_l14_l15; wc_l24_l34_l35_l36; bounded bar hit/up dispatch remains to complete |
+| 5.4 messages/capture | list_box.rs: key methods, mouse_move/mouse_up_at, bar_tracking; list_box/adapters.rs: forward_bar | wc_l14_l15; wc_l24_l34_l35_l36; wc_l_residual_outputs_storage_and_bounded_bar_coordinates |
 | 5.5 drawing | list_box.rs: paint/paint_plain_text/scan_rgb; mod.rs: Foreign fitting primitives | wc_l26_l31_l34; wc_l24_l34_l35_l36 |
-| 5.6 residual contracts | list_box.rs: enable_sorting/sort_now/find_text/select_prefix/stored_count/set_intensity | wc_l23_l30, wc_l26_l31_l34; remaining ABI adapters and malformed storage primitives are incomplete |
+| 5.6 residual contracts | list_box.rs: sorting/search/stored_count/intensity, signed storage helpers; list_box/adapters.rs: color/gutter/skin/output adapters | wc_l23_l30, wc_l26_l31_l34; wc_l_residual_outputs_storage_and_bounded_bar_coordinates; full slot-by-slot audit remains |
 | 7 conformance | settled_tests.rs plus tests.rs | grouped WC-L19-L36 scenarios; exhaustive literal vector audit remains |
 | 8 coverage | portable core only | no plugin/game/shadow claim; WC1-WC6 are settled, not open questions |
 
@@ -134,9 +134,9 @@ This checkpoint applies settled contracts, but does not claim full owner closure
 | 6.2 defaults/lifetime | tree_view.rs: new/internal_init/root/shutdown; tree_view/settled.rs: initialize_images | T01-T03, wc_t19_t26, wc_t27_t29_t36; restart retains stale root/init fields |
 | 6.3 nodes/selection | tree_view.rs: insert/insert_at/recalculate/selection | T02-T06, wc_t13_t16, wc_t19_t26 |
 | 6.4 input/messages | tree_view.rs: wheel/keys/activation/messages; tree_view/input.rs: mouse_button | T07-T11, wc_t37_t38, wc_t39_t43 |
-| 6.5 drawing/layout | tree_view/rendering.rs: layout_viewport/cursor_row/content_width/render_item/paint_tree/connectors | T12, wc_t13_t16, wc_t17_t18_t48_t51; automatic buffer/bar recalculation, image centering and ancestor geometry remain incomplete |
+| 6.5 drawing/layout | tree_view/rendering.rs: layout_viewport/cursor_row/content_width/render_item/paint_tree/connectors; tree_view.rs: draw_subimage/blit_viewport primitives | T12, wc_t13_t16, wc_t17_t18_t48_t51; wc_t18_centered_images_and_packed_drag_preserve_hit_geometry; automatic buffer/bar recalculation remains incomplete |
 | 6.6 properties/descriptors/adapters | tree_view/settled.rs: property setters/descriptor/apply_descriptor/move_node/remove_node/images | wc_t19_t26, wc_t27_t29_t36, wc_t30_t35; raw negative property indices and complete ABI enumeration remain to audit |
-| 6.7 input/drag/rendering | tree_view/input.rs: mouse_button/notify_drag/mouse_move/DragHelper; tree_view/rendering.rs: fills/connectors | wc_t37_t38, wc_t39_t43, wc_t44_t47, wc_t17_t18_t48_t51; helper integration, packed drag drawing and exact vector coverage remain incomplete |
+| 6.7 input/drag/rendering | tree_view/input.rs: mouse_button/notify_drag/mouse_move/DragHelper, packed-row drawing with cached-hit preservation; tree_view/rendering.rs: fills/connectors | wc_t37_t38, wc_t39_t43, wc_t44_t47, wc_t17_t18_t48_t51; wc_t18_centered_images_and_packed_drag_preserve_hit_geometry; helper integration and exact vector coverage remain incomplete |
 | 7 conformance | tests.rs and settled_tests.rs | old vectors plus grouped T13-T51 scenarios; not every literal vector is asserted yet |
 | 8 coverage | explicit native preconditions, no WC Open branches | WC2/WC3/WC6 are settled; remaining work is implementation, not unanswered questions |
 

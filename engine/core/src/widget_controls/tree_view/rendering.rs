@@ -127,9 +127,16 @@ impl TreeView {
                 .copied()
                 .ok_or(Unsupported::Precondition("image index within retained image vector"))?;
             if let (Some(buffer), Some(source)) = (self.working_buffer, image_buffer) {
+                let crop = self.image_rectangles[index as usize];
+                let width = crop[2].wrapping_sub(crop[0]) as u32;
+                let height = crop[3].wrapping_sub(crop[1]) as u32;
+                // Native centers with logical halving, including undersized reservations.
+                let x = image[0].wrapping_add((self.image_width.wrapping_sub(width) >> 1) as i32);
+                let y = image[1].wrapping_add(((self.row_height as u32).wrapping_sub(height) >> 1) as i32);
+                let destination = [x, y, x.wrapping_add(width as i32), y.wrapping_add(height as i32)];
                 if f.access_mode(buffer, 0x8010, true) {
-                    f.draw_image(source, image);
-                    self.nodes.get_mut(&h).unwrap().image_rect = image;
+                    f.draw_subimage(source, crop, destination);
+                    self.nodes.get_mut(&h).unwrap().image_rect = destination;
                     f.access_mode(buffer, 0x8010, false);
                 }
             }
@@ -177,7 +184,7 @@ impl TreeView {
             f.access_mode(buffer, 0x8004, false);
         }
     }
-    fn connectors(&mut self, h: i32, x: i32, y: i32, buffer: Handle, f: &mut impl TreeForeign) -> Rect {
+    pub(super) fn connectors(&mut self, h: i32, x: i32, y: i32, buffer: Handle, f: &mut impl TreeForeign) -> Rect {
         if self.flags & 8 == 0 {
             return [0; 4];
         }
@@ -195,8 +202,16 @@ impl TreeView {
             if Some(a) != self.root {
                 if let Some(p) = node.parent {
                     if self.nodes[&p].children.last() != Some(&a) {
-                        let ax = (b.wrapping_add(self.raw_style[1]))
+                        let c = if self.flags & 4 != 0 {
+                            self.image_width.wrapping_sub(b as u32) >> 1
+                        } else {
+                            0
+                        } as i32;
+                        let ax = b
+                            .wrapping_add(self.raw_style[1])
+                            .wrapping_add(c)
                             .wrapping_mul(self.depth(a) as i32)
+                            .wrapping_add(c)
                             .wrapping_add(q);
                         self.stroke(buffer, [ax, y, ax, y.wrapping_add(height)], f);
                     }
@@ -369,15 +384,21 @@ impl TreeView {
             ];
             self.render_item(h, text, image, expander, f)?;
         }
-        f.draw(Draw::Blit {
-            source: buffer,
-            rect: [
+        f.blit_viewport(
+            buffer,
+            [
                 self.horizontal_position,
                 0,
                 self.horizontal_position.wrapping_add(self.viewport[2]),
                 self.viewport[3],
             ],
-        });
+            [
+                self.viewport[0],
+                self.viewport[1],
+                self.viewport[0].wrapping_add(self.viewport[2]),
+                self.viewport[1].wrapping_add(self.viewport[3]),
+            ],
+        );
         Ok(())
     }
 }

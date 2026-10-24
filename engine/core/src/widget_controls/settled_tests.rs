@@ -2,6 +2,105 @@
 use super::*;
 
 #[test]
+fn wc_l_residual_outputs_storage_and_bounded_bar_coordinates() {
+    let (mut l, mut f) = list(true);
+    l.drop_resize = [false; 2];
+    l.area = [0, 0, 80, 42];
+    l.bar_width = 12;
+    l.bar = Some(90);
+    l.captured = true;
+    l.mouse_move(80, 1, true, &mut f).unwrap();
+    assert!(f.bar_events.is_empty()); // half-open list bound
+    l.mouse_move(67, 1, true, &mut f).unwrap();
+    assert!(f.bar_events.is_empty()); // inside list, outside bar
+    f.dispatch_capture = Some(90);
+    l.mouse_move(70, 1, false, &mut f).unwrap();
+    assert_eq!(f.bar_events, [(90, false, 2, 1)]);
+    assert!(l.bar_tracking);
+    l.mouse_up_at(-10, -2, &mut f).unwrap();
+    assert_eq!(f.bar_events[1], (90, true, -78, -2));
+    assert!(!l.bar_tracking);
+    let mut output = b"untouched".to_vec();
+    assert!(!l.copy_text(-1, &mut output));
+    assert_eq!(output, b"untouched");
+    assert!(l.copy_text(0, &mut output));
+    assert_eq!(output, b"row7");
+    let mut index = 99;
+    assert!(l.search_with(&mut index, |text, flag| {
+        assert_eq!(flag, 1);
+        text == b"row9"
+    }));
+    assert_eq!(index, 2);
+    assert!(!l.search_with(&mut index, |_, _| false));
+    assert_eq!(index, 2);
+    let mut colors = [42; 2];
+    assert!(!l.outline_colors(&mut colors, &mut f));
+    assert_eq!(colors, [42; 2]);
+    l.set_outline_colors([7, 8], &mut f);
+    assert!(l.outline_colors(&mut colors, &mut f));
+    assert_eq!(colors, [7, 8]);
+    let old = l.entries.clone();
+    let count = l.stored_count;
+    assert!(l.insert_storage(-3, Entry { text: vec![], id: 99 }));
+    assert_eq!(l.entries, old);
+    assert_eq!(l.stored_count, count + 1);
+    assert!(l.remove_storage(-3));
+    assert_eq!(l.stored_count, count);
+    assert_eq!(l.entries, old);
+}
+
+#[test]
+fn wc_l36_timer_is_destroyed_before_retained_resources() {
+    let (mut l, mut f) = list(false);
+    let timer = l.timer.unwrap();
+    l.border = Some(40);
+    l.background = Some(41);
+    l.services = [Some(42), Some(43)];
+    f.refs.clear();
+    l.destroy(&mut f);
+    assert_eq!(
+        f.refs,
+        [
+            (false, timer),
+            (false, 40),
+            (false, 41),
+            (false, 100),
+            (false, 42),
+            (false, 43)
+        ]
+    );
+    assert!(l.entries.is_empty());
+}
+
+#[test]
+fn wc_t18_centered_images_and_packed_drag_preserve_hit_geometry() {
+    let (mut t, mut f, a, b) = tree();
+    t.flags |= 4;
+    t.image_width = 20;
+    t.set_image(0, Some(80), [2, 3, 8, 11], &mut f);
+    t.nodes.get_mut(&a).unwrap().images = [0, -1, 0, -1];
+    t.draw_item(a, [30, 16, 60, 32], [10, 16, 30, 32], [0; 4], &mut f)
+        .unwrap();
+    assert_eq!(t.nodes[&a].image_rect, [17, 20, 23, 28]);
+    f.fail_mode = 0x8010;
+    t.draw_item(a, [30, 16, 60, 32], [10, 16, 30, 32], [0; 4], &mut f)
+        .unwrap();
+    assert_eq!(t.nodes[&a].image_rect, [0; 4]);
+    assert_eq!(t.nodes[&a].text_rect, [30, 16, 60, 32]);
+    f.fail_mode = 0;
+    t.select(a, true, &mut f);
+    let saved = t.nodes[&a].clone();
+    f.drag_return = true;
+    f.drag_accept = 1;
+    f.drag_target = Some(b);
+    t.mouse_move(-1, -1, 0x10, &mut f).unwrap();
+    assert_eq!(t.nodes[&a].text_rect, saved.text_rect);
+    assert_eq!(t.nodes[&a].image_rect, saved.image_rect);
+    assert_eq!(t.nodes[&a].expander_rect, saved.expander_rect);
+    assert_eq!(f.drag_runs, 1);
+}
+
+#[test]
 fn wc_l16_l22_removal_and_forward_pages() {
     let mut f = Recording::default();
     let mut l = list_box::ListBox::new(1, false, &mut f);
@@ -135,6 +234,7 @@ fn wc_l24_l34_l35_l36_clipping_fitting_capture_and_lifetime() {
     let mut l = ListBox::new(1, true, &mut f);
     l.drop_resize = [false, false];
     l.area = [0, 0, 80, 22];
+    l.bar_width = 12;
     l.whole_rows = 2;
     l.row_height = 10;
     l.y_gutter = 1;
