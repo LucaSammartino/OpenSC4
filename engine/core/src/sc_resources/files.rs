@@ -12,6 +12,7 @@ pub trait Watcher: Send {
 pub trait Files {
     fn open(&mut self, path: &str) -> Option<Box<dyn Lines>>;
     fn watch(&mut self, path: &str, class: u32, iid: u32) -> Option<Box<dyn Watcher>>;
+    fn finished(&mut self, _path: &str, _physical: u32, _result: &Result<u32>) {}
 }
 pub trait ParseHooks {
     fn begin(&mut self, parser: &mut CommandParser) -> Result<()>;
@@ -159,18 +160,34 @@ impl Drop for FileParser {
     }
 }
 fn parse_file(files: &mut impl Files, parser: &mut CommandParser, path: &str) -> Result<()> {
-    let mut lines = files
-        .open(path)
-        .ok_or_else(|| parse_error(2, format!("Cannot open {path}")))?;
+    parse_file_with(files, path, &mut |_, _, _, tokens| parser.dispatch(tokens)).map(|_| ())
+}
+
+/// The production file loop with command execution supplied by the caller.
+/// A passive replay supplies the observed command boundary, not a second
+/// graphics-rule interpreter. Positions are physical, local to this file;
+/// the returned count also includes successfully completed child files.
+pub fn parse_file_with(
+    files: &mut impl Files,
+    path: &str,
+    dispatch: &mut impl FnMut(&str, u32, &[u8], Vec<super::ScriptToken>) -> Result<()>,
+) -> Result<u32> {
+    let Some(mut lines) = files.open(path) else {
+        let result = Err(parse_error(2, format!("Cannot open {path}")));
+        files.finished(path, 0, &result);
+        return result;
+    };
     let mut line_number = 0;
+    let mut inclusive = 0;
     let result = (|| {
         while let Some(line) = lines.read_line() {
             line_number += 1;
+            inclusive += 1;
             let tokens = lexical::split(&line)?;
-            if tokens.is_empty() {
-                continue;
-            }
-            if matches!(tokens[0].bytes.as_slice(), b"include" | b"sinclude") {
+            if tokens
+                .first()
+                .is_some_and(|t| matches!(t.bytes.as_slice(), b"include" | b"sinclude"))
+            {
                 if tokens.len() != 2 {
                     return Err(parse_error(0, "Include requires one argument"));
                 }
@@ -181,19 +198,21 @@ fn parse_file(files: &mut impl Files, parser: &mut CommandParser, path: &str) ->
                     let end = path.rfind(['/', '\\']).map_or(0, |n| n + 1);
                     format!("{}{include}", &path[..end])
                 };
-                if let Err(e) = parse_file(files, parser, &joined) {
-                    match e {
+                match parse_file_with(files, &joined, dispatch) {
+                    Ok(count) => inclusive += count,
+                    Err(e) => match e {
                         Error::Parse { code: 2, .. } if tokens[0].bytes == b"sinclude" => {}
                         Error::Parse { code: 2, message } => return Err(parse_error(3, message)),
                         e => return Err(e),
-                    }
+                    },
                 }
             } else {
-                parser.dispatch(tokens)?;
+                dispatch(path, line_number, &line, tokens)?;
             }
         }
-        Ok(())
+        Ok(inclusive)
     })();
+    files.finished(path, line_number, &result);
     result.map_err(|error| match error {
         Error::Parse { code, message } => parse_error(code, format!("{message}\n{path}:{line_number}")),
         error => error,

@@ -33,6 +33,9 @@ bool ParserCopyString(const char* value, std::string& copy) {
     return true;
 }
 
+#include "FC4SCResFile.inc"
+bool ParserArm(bool install, uintptr_t probe = 0);
+
 void ParserArguments(void* state, const void* vector) {
     auto* frame = g_parserFrame;
     if (!frame || frame->state != state || frame->dispatched) {
@@ -67,6 +70,7 @@ void ParserArguments(void* state, const void* vector) {
 }
 
 void __fastcall ParserLine(void* input, void*, const char* line) {
+    FileCommand(line);
     ParserFrame frame{g_parserFrame, static_cast<uint8_t*>(input) - 0x98, {}};
     if (!ParserCopyString(line, frame.line)) ++g_parserRefused;
     g_parserFrame = &frame;
@@ -90,7 +94,21 @@ void __fastcall ParserLine(void* input, void*, const char* line) {
 int32_t __fastcall ParserFile(void* self, void*, const char* path, const char* context) {
     ++g_parserFiles;
     ++g_parserFileDepth;
-    struct Exit { ~Exit() { --g_parserFileDepth; } } exit;
+    FileFrame file{g_fileFrame, {}};
+    if (g_fileReplay) {
+        if (!ParserCopyString(path, file.path)) ++g_fileRefused;
+        g_fileFrame = &file;
+    }
+    struct Exit {
+        FileFrame& file;
+        ~Exit() {
+            --g_parserFileDepth;
+            if (g_fileReplay) {
+                g_fileFrame = file.parent; // Association ends on normal return and unwind.
+                if (!ParserArm(true, file.parent ? kTextRead : kParserSites[2])) ++g_fileRefused;
+            }
+        }
+    } exit{file};
     fc4::Log("scres: native resource-file depth=%u path=%.240s context=%.120s",
              g_parserFileDepth, path ? path : "<null>", context ? context : "<null>");
     g_parserForwardFile = true;
@@ -100,8 +118,12 @@ int32_t __fastcall ParserFile(void* self, void*, const char* path, const char* c
         // Includes contribute to their parent's total; retain that native total,
         // not a claim of unique physical lines.
         if (lines > 0) g_parserFileLines += static_cast<uint32_t>(lines);
+        if (g_fileReplay) FileFinish(true, static_cast<uint32_t>(lines));
         return lines;
-    } catch (...) { ++g_parserThrows; throw; }
+    } catch (...) {
+        if (g_fileReplay) FileFinish(false, 0);
+        ++g_parserThrows; throw;
+    }
 }
 
 LONG CALLBACK ParserException(EXCEPTION_POINTERS* exception) {
@@ -110,7 +132,7 @@ LONG CALLBACK ParserException(EXCEPTION_POINTERS* exception) {
     auto& c = *exception->ContextRecord;
     const uintptr_t site = c.Eip;
     unsigned index = 0;
-    while (index != 4 && kParserSites[index] != site) ++index;
+    while (index != 4 && (index == 2 ? c.Dr2 : kParserSites[index]) != site) ++index;
     if (index == 4 || !(c.Dr6 & (1u << index))) return EXCEPTION_CONTINUE_SEARCH;
     c.Dr6 &= ~(1u << index);
     // RF permits exactly the original entry instruction to run once. It is
@@ -122,25 +144,32 @@ LONG CALLBACK ParserException(EXCEPTION_POINTERS* exception) {
     } else if (index == 1) {
         ParserArguments(reinterpret_cast<void*>(c.Ecx), *reinterpret_cast<void**>(c.Esp + 4));
     } else if (index == 2) {
+        if (FileProbe(c)) return EXCEPTION_CONTINUE_EXECUTION;
         const auto* stack = reinterpret_cast<const uintptr_t*>(c.Esp);
         ++g_parserPaths;
         fc4::Log("scres: native registered resource-file flags=%u path=%.240s",
                  static_cast<unsigned>(stack[2]), reinterpret_cast<const char*>(stack[1]));
     } else {
         if (g_parserForwardFile) g_parserForwardFile = false;
-        else c.Eip = reinterpret_cast<DWORD>(&ParserFile);
+        else {
+            if (g_fileReplay) c.Dr2 = kTextConstructor;
+            c.Eip = reinterpret_cast<DWORD>(&ParserFile);
+        }
     }
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-struct ParserArmRequest { HANDLE thread; bool install; bool ok = false; };
+struct ParserArmRequest { HANDLE thread; bool install; bool ok; uintptr_t probe; };
 DWORD WINAPI ParserArmThread(void* value) {
     auto& request = *static_cast<ParserArmRequest*>(value);
     if (SuspendThread(request.thread) == static_cast<DWORD>(-1)) return 0;
     CONTEXT c{};
     c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
     if (GetThreadContext(request.thread, &c)) {
-        if (request.install) {
+        if (request.probe) {
+            c.Dr2 = request.probe;
+            request.ok = SetThreadContext(request.thread, &c) != 0;
+        } else if (request.install) {
             if (!(c.Dr7 & 0xFF)) {
                 g_parserSaved = c;
                 c.Dr0 = kParserSites[0]; c.Dr1 = kParserSites[1];
@@ -155,9 +184,9 @@ DWORD WINAPI ParserArmThread(void* value) {
     ResumeThread(request.thread);
     return 0;
 }
-bool ParserArm(bool install) {
+bool ParserArm(bool install, uintptr_t probe) {
     ParserArmRequest request{OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_SET_CONTEXT,
-                                       FALSE, g_parserThread), install};
+                                       FALSE, g_parserThread), install, false, probe};
     if (!request.thread) return false;
     HANDLE helper = CreateThread(nullptr, 0, ParserArmThread, &request, 0, nullptr);
     if (helper) { WaitForSingleObject(helper, INFINITE); CloseHandle(helper); }
@@ -186,6 +215,7 @@ void ParserStop() {
     g_parserHandler = nullptr;
 }
 void ParserReport(const fc4_date& date, const char* event) {
+    FileReport(date, event);
     const uint64_t mismatch = g_parserBad.load() + g_parserRefused.load() +
         (g_parserCalls.load() == 0 ? 1u : 0u);
     fc4::Log("scres shadow %04d-%02d-%02d %s: partial=native_command_tokens calls=%" PRIu64

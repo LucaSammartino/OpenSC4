@@ -1152,3 +1152,4 @@ mod netocc_shadow;
 mod lua_registry_shadow;
 // Private record-only SC token adapter observation replay.
 mod scres_shadow;
+mod scres_file_shadow;

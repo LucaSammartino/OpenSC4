@@ -377,6 +377,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "ordinance_shadow",
                                   // Original configuration and simulator record-only comparisons; default off.
                                   "lotconf_shadow", "simulator_shadow",
+                                  // SCR10 physical file-parser replay, default off.
+                                  "scres_file_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
