@@ -639,6 +639,8 @@ std::string IniPath();
 // observe=0. Original Init/history and image bytes remain unavailable (OV13).
 
 // scres_file_shadow = 0 / 1 (default 0): physical file-parser replay.
+// renderprops_shadow = 0 / 1 (default 0): C-locale ASCII registry counts,
+// names and Find probes. Live configured values await setter-input contract RP7.
 
 // dbpf_shadow = 0 / 1 (default 0): each city load/month, compare public
 // resource-manager packed segments against the production Rust Package reader.

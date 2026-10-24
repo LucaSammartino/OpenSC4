@@ -14,12 +14,12 @@ pub struct WatercraftRecord {
 
 impl WatercraftRecord {
     pub fn write(&self, stream: &mut dyn OutStream) -> bool {
-        stream.put_u16(RECORD_VERSION) && self.base.write(stream)
+        let _ = stream.put_u16(RECORD_VERSION);
+        self.base.write(stream)
     }
 
     /// Read never consults city geometry or allocates runtime resources.
-    /// WC3: no acceptance rule for older/newer versions is published; only
-    /// the documented version is supported rather than guessed compatible.
+    /// Only version 2 delegates to the base reader (watercraft §3).
     pub fn read(stream: &mut dyn InStream) -> Option<Self> {
         if stream.get_u16()? != RECORD_VERSION {
             return None;

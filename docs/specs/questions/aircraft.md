@@ -41,3 +41,17 @@
   target handling. dispatch.md §4.3 lists call sites and state meanings but not the aircraft goal conditions.
   [core does not fabricate dispatch transitions or route them through a foreign AI implementation]
 
+<!-- from: core-helicopter9 (2026-10-24) -->
+- **AF9 - §4.1 rotor preset and post-Read reconstruction (AF4 follow-up):** what are the thirteen initial
+  rotor preset values (exact binary32 bits), and which lifecycle step restores them and the flight phase
+  after Read? The resolved zero-overlay loader requires an existing preset, but §4 does not specify one.
+  [core stores unknown constructor/post-Read fields as None, accepts an explicitly supplied preset, and
+  overlays known nonzero fields; zero/missing records preserve every existing field without inventing defaults]
+
+<!-- from: core-airplane9 (2026-10-24) -->
+- **AF10 - §3.4.1/§3.4.2 non-finite physics inputs:** the velocity-limiter table explicitly covers finite inputs
+  only. What are the comparison/normalization and time-cap results for NaN/infinite velocity, maximum speed,
+  milliseconds and AI multipliers? Should unordered x87 comparisons choose a branch different from ordinary
+  floating comparisons? [finite vectors are implemented; isolated helpers use literal comparisons without
+  sanitization, while the complete flight tick remains Unsupported(AF2); no non-finite native equivalence claimed]
+

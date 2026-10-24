@@ -1,26 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-traffic-drift10: isolate train188 traffic drift | Codex; glue-traffic-drift10 | in progress | Inspect train changes, isolate observer perturbation, gate and two house runs |
+| glue-traffic-drift10: isolate train188 traffic drift | `Codex` / `glue-traffic-drift10` (engine lane) | in progress | Gate merged main, then one final turbo house run with DBPF enabled |
 
 ## Handoff
-- Goal: fix intermittent traffic shadow drift introduced by train188, without weakening comparisons.
-- Worktree reserved, detached HEAD at 91265c0c9; do not switch branches.
-- Diagnostic engine tree projected exactly to merge 28472c808 (construction included, later GZMsg/DBPF excluded); git diff --quiet 28472c808 -- engine confirmed equality.
-- Diagnostic checkpoint d16290ae6: engine exactly at construction merge; later changes temporarily removed.
-- Native verify qbuild-20261024-093759-build-ctest PASS: build 255/255, CTest 80/80. Logs build-runs/fc4verify-{build,ctest}.log. Tree-changed note is the checkpoint commit during build, engine contents unchanged.
-- Run 478 traffic-drift10-b28472-a clean through 2032-01-01: traffic 71/71 exact, 0 resyncs; automata/owners 73/73 including load; landvalue 72/72, all checked house shadow lines exact. 805.234 real seconds, DLL SHA256 65670de3d51694f5c69d59fae5037c2fbc9c17fdef1c78942341f3a3366847b4.
-- Checkpoint d0457aafc: engine exactly GZMsg merge 435df94b5 (before DBPF). Native verify qbuild-20261024-100353-build-ctest PASS: build 48/48, CTest 80/80, no tree-change note.
-- Run 479 traffic-drift10-b435df-a clean through 2032-01-28: traffic 72/72 exact, 0 resyncs; other house totals exact except propmgr 219/220 (queries 2027-01-01, resultsDiffering=0). 927.797 real seconds, DLL c23f3f30e9bcdeee6fe17d1d2feca288ccc369c7dd93861a09dceaeb5b7d0d65.
-- First run ended 2032-01-01 before traffic's delayed January summary (last summary 2031-12-01), hence 71/71. Future requests end 2032-01-27 to capture all 72 traffic monthly lines.
-- Required final validation: qbuild all, coordinator verify, two clean house runs through 2032 with zero traffic resyncs.
-- No game request outstanding. Restored full train188 engine and changed only FC4DbpfNative.cpp: pending deque now constructs in Observe after ini opt-in, with a trivial null pointer before opt-in. Tick and Shutdown safely return without constructing it. Enabled queue operations and acquisitions unchanged.
-- Candidate cause: train188 added a global std::deque, which allocates before DLL startup even when dbpf_shadow is off; pre-DBPF bisects both traffic exact. This is a candidate, not yet proven by two fixed runs. No comparison changes, no ABI export changes, no questions.
-- qbuild all candidate: Rust 6997 passed/0 failed, clippy 0 diagnostics; native build 113/113 but CTest 79/80 failed capi_smoke (linked Rust 98, compiled C++ header 97). Both current source constants are 98; build log only relinked capi_smoke, did not recompile it after historical header restoration. Failed logs preserved in build-runs/evidence-run4/candidate-all-failed-{build,ctest}.log.
-- Corrective verify qbuild-20261024-104741-build-ctest PASS: build 154/154 edges, CTest 80/80 after local CMakeCache FC4_COMPILER_CACHE=OFF input change forced native rebuild (build still reports cache hits). Both source ABI constants unchanged at 98. Overall stable-source gate: cargo 6997/0, clippy 0, corrected CTest 80/80; failed all evidence retained separately.
-- Run 480 traffic-drift10-fix-normal-a: clean normal speed to 2032-01-27, 952.782 real seconds, ref_warnings=0; traffic 72/72 exact, 0 resyncs. All other verdict totals exact EXCEPT landvalue 72/73 (2026-06-14 pass-end sampling, slope cell (5,13), settled=0). Record docs/runs/traffic-drift10-fix-normal-a.md. First fixed traffic run only; do not suppress other-house flake.
-- OUTSTANDING game request traffic-drift10-fix-turbo-a, same DLL SHA256 3bd60f90ba90c42cbfce9eb3715c723e2b6672bca78e0606f2e3abb6174a7754: house turbo to 2032-01-27, seconds 1800, timeout 2100. No other game or build operation outstanding. Do not rebuild or resubmit this unique label.
-- NEXT EXACT STEP: powershell -NoProfile -File build-runs/wait-verdict.ps1 -Path build-runs/game-results/traffic-drift10-fix-turbo-a.verdict (NO qwait); repeat only on 9-minute timeout, collect same exec operation to terminal. Existing verdict for unique label is valid. Then python build-runs/summarize-house.py traffic-drift10-fix-turbo-a and qgrep positive traffic mismatches/resyncs. Need second fixed traffic exact/0-resync run and assessment of every other house shadow before ready. Run record next free after own max 480; grep all docs/runs first.
-- Context near 150000: Handoff committed for restart, state continue, NO merge-queue entry. Candidate source commit 3d2a34205; net engine diff against 91265c0c9 ONLY FC4DbpfNative.cpp (15 additions/8 deletions), all historical source removals restored. No ABI export changes, no questions. Finish full report/commit/ready queue only after validation; tools/coverage files untouched.
-- House profile copied from main build-runs/regress-train188-shadows.ini, excluding autoload path; turbo to 2032-01-01.
-- Original failures: train188 on 2031-02-21 trip splits/3 trip-length cells plus 1 ULP car sum; recheck188 on 2028-06-19 destination map/freeDest after a suspended search. Both resync next day.
-- DBPF observe gates before service lookups when key off; tick returns immediately on empty pending. Construction change retains field QI through replay and canonicalizes references before indexing.
+- Goal: eliminate traffic perturbation from default-off DBPF observer, then verify full current house profile.
+- Detached HEAD: commit normally; do not switch branches or publish refs.
+- Candidate source 3d2a34205 defers global deque construction until DbpfShadowObserve opt-in. Prior pre-DBPF bisects 478/479 had exact traffic. No comparison weakening or ABI export change; no questions.
+- Prior gate cargo 6997/0, clippy 0, corrected CTest 80/80. Stale native ABI object failed evidence preserved in build-runs/evidence-run4/candidate-all-failed-{build,ctest}.log; local FC4_COMPILER_CACHE=OFF corrective build passed.
+- Run 480 traffic-drift10-fix-normal-a clean to 2032-01-27, ref_warnings=0, traffic 72/72 exact, resyncs=0. Other totals exact except landvalue 72/73, unsettled pass-end slope sample; retained in its run record.
+- Round 2 collected existing traffic-drift10-fix-turbo-a without resubmitting: run 491 clean to 2032-01-27, ref_warnings=0, traffic 72/72 exact, resyncs=0, real_seconds=951.438; all house totals exact except propmgr 219/220 (2027-01-01 queries mismatch=1, resultsDiffering=0).
+- Both runs used candidate DLL SHA256 3bd60f90ba90c42cbfce9eb3715c723e2b6672bca78e0606f2e3abb6174a7754; dbpf shadow off.
+- Merging main 655671626 as explicitly requested. Resolved FC4DbpfNative.cpp by retaining main monthly rotation/incremental reads/coverage/reset logic and applying nullable pending pointer to new DbpfShadowPending getter too.
+- Net engine diff versus main is ONLY deferred DBPF deque allocation and nullable queue accesses.
+- NEXT: finish merge commit, guard status, run qbuild.py --wt <WT> all ONCE on this stable merged source; inspect PASS/FAIL lines.
+- Then ONE unique turbo request to 2032-01-27 using main build-runs/regress-train192-shadows.ini (dbpf_shadow=1), omit autoload_city; seconds=1800 timeout=2100. No request outstanding now. Wait with build-runs/wait-verdict.ps1, never qwait or resubmit completed unique label.
+- Final run must have traffic/propmgr and every other house shadow exact plus 0 traffic resyncs/ref warnings, else queue wip with evidence. Next free run number currently 492; recheck docs/runs before assigning.
+- Manifest C:/Users/tlori/FreeCity4/build-runs/run4-glue-traffic-drift10-r2-manifest.json.

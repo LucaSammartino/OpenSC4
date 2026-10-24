@@ -50,6 +50,7 @@
 #include "FC4ParksShadow.h"
 #include "FC4PropDevShadow.h"     // the glue12b1 lane
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane
+#include "FC4CityShadow.h"
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4NetOccShadow.h"
@@ -101,6 +102,7 @@
 #include "FC4LotRecordShadow.h"
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
+#include "FC4RenderPropsShadow.h"
 #include "FC4DbpfNative.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -580,7 +582,7 @@ public:
         DialogsOnTick();
         // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
         NetMgrShadowTick();
-        DbpfShadowTick();  // default off; bounded by file, outside simulator OnTick
+        DbpfShadowTick();  // default off; yields between records, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -669,6 +671,8 @@ public:
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 GZMsgShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                RenderPropsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
@@ -725,6 +729,7 @@ public:
                 LuaShadowCityShutdown();
                 PersistShadowCityShutdown();
                 GZMsgShadowCityShutdown();
+                RenderPropsShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
@@ -777,6 +782,8 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                RenderPropsShadowMonth(julian);
+                CityShadowObserve(CurrentCity(), julian, false);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
                 DbpfShadowObserve(julian);

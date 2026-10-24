@@ -1,57 +1,64 @@
 # Watercraft core
 
-Portable `cSC4Watercraft` storage and owner operations, implemented only from
-`docs/specs/watercraft.md` and its referenced automata contracts. No native boat
-calculation is accepted as a provider. The module is not connected to capi or the
-plugin. Resource creation, terrain queries, berth arbitration, and effect playback
-are foreign services; boat state and decisions belong to Rust.
+Clean-room Rust `cSC4Watercraft` owner at `engine/core/src/watercraft/`, from
+`docs/specs/watercraft.md` and its automata references. No capi/plugin wiring or
+ABI changes. `Fleet` owns state and tow links; foreign services supply terrain,
+resource acquisition and berth arbitration, never native owner calculations.
 
 ## Owner closure
 
-This is an audit, **not a complete-owner coverage claim**. An `open:` entry names
-an unresolved question in `docs/specs/questions/watercraft.md`. Implemented portions
-and their tests are listed even where the containing section remains open. Test
-names below are in `tests.rs` unless noted otherwise.
+**Implementation in progress, not owner closure.** `pending` means specified work
+still to implement, not an Unsupported contract. `open` means the current spec
+itself leaves the behavior unsettled. WC3–WC5 are the only open watercraft
+questions from the original audit; WC1–WC2 and WC6–WC8 have answers in the spec.
+Round 2 adds WC9: §6.2.2's ordered steering prose contradicts WC8-08.
+The implementation follows the literal prose and does not claim that vector.
 
-| Owner | Spec section | Code item | Test / unresolved contract |
+| Owner | Spec section | Code item | Test or remaining work |
 |---|---|---|---|
-| cSC4Watercraft | §0 Summary | `Watercraft`, `Fleet` | Scope only; no extra executable contract. |
-| cSC4Watercraft | §1 Class and fields | `WatercraftRecord::{read,write}`, `Watercraft::class_id`, runtime `Watercraft` fields | `record_only_saves_version_and_base_and_rejects_truncation`; open: WC3 (version acceptance outside documented v2). |
-| cSC4Watercraft | §2 Drive parameters | `DriveParameters::{default,load}`, `Group::drive_parameters` | `absent_list_and_zero_list_have_distinct_dependent_defaults`, `zero_sign_nan_and_supplied_dependent_entries`, `first_present_ancestor_list_wins_even_when_all_zero`. |
-| cSC4Watercraft | §3 Init and Shutdown | `initialize_runtime`, `Fleet::shutdown` | `initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources`, `effect_failure_is_a_gap_not_success_and_shutdown_releases_partial_resources`; open: WC3 (fourth flag, base Init and resource failure policy). |
-| cSC4Watercraft | §4 States | `Fleet::{push_state,pop_state,state_tick,state_tick_with_geometry,end_towing,end_docking}` | `state_entry_exit_and_remove_side_effect_order`, `final_state_pop_preserves_crash_and_adds_disappear`, `geometry_dispatch_pops_completed_docking_and_undocking`; open: WC4, WC5, WC7 (far docking, crash animation, following and blocked-undocking results). |
-| cSC4Watercraft | §5 AI movement | `movement.rs`, `operations.rs` substeps | open: WC4, WC5, WC7; details in §5.1–§5.7 rows. |
-| cSC4Watercraft | §5.1 Animation tick | `animation_budget`, `lifetime_tick`, `update_wakes`, `update_backwards_time`, `still_time_allows_animation` | `animation_early_return_and_two_idle_accumulations`, `lifetime_boundary_manager_order_and_retention_flags`, `parked_lifetime_asks_manager_before_override_and_no_manager_removes`, `lifetime_stack_exclusions_are_not_just_top_state_checks`, `wakes_wait_until_strictly_above_250ms_then_restart_in_order`; open: WC2, WC4 (full inherited/AI/effect/model step contracts, heading metric, caller's false-result handling). |
-| cSC4Watercraft | §5.2 Picking cells | `candidate_directions`, `next_route_cell`, `clamped_frame_time` | `direction_order_excludes_reverse_and_respects_every_mask_bit`, `ferry_reader_skips_used_cells_only_once_and_neighbor_exhaustion_removes`; open: WC4, WC7 (AI motion, position/tilt, direction geometry, wandering/backtracking and route encodings). |
-| cSC4Watercraft | §5.3 Requests and docking | `other_station`, `dock_requests`, `clear_dock_requests`, `docking_tick` | `ferry_public_vector_selects_berth_wait_or_remove_and_preserves_order`, `queued_occupied_berth_never_takes_another_waiting_spot`, `public_docked_vector_and_far_approach_gap`, `docking_final_approach_is_bounded_and_completion_uses_strict_distance`; open: WC4, WC7 (far approach, completion ordering, held-berth assignment, on-land return). |
-| cSC4Watercraft | §5.4 Stations and routes | `set_station_information`, `initialize_current_route`, `set_neighbor_route`, DOCK exit in `pop_state` | `station_selection_is_per_axis_and_route_restart_preserves_used_count`, `ferry_reader_skips_used_cells_only_once_and_neighbor_exhaustion_removes`; open: WC7 (compressed-route format and route coordinates). |
-| cSC4Watercraft | §5.5 Undocking | `undocking_tick`, `state_tick_with_geometry` | `undocking_moves_horizontally_and_does_not_overshoot`, `geometry_dispatch_pops_completed_docking_and_undocking`; open: WC7 (blocked/on-land return and zero away vector). |
-| cSC4Watercraft | §5.6 Can it move? | `movement_possible`, `on_land` | `movement_flag_precedes_bounds_then_bounds_precede_crash_state`. |
-| cSC4Watercraft | §5.7 Collisions | `boat_crash_threshold_exceeded`, `shore_crash_threshold_exceeded`, `determine_crash_case`, `set_state_internal` | `player_collision_public_ratios_are_strict`, `crash_case_angle_and_ai_override_do_not_reap_expired_crashes`; open: WC5 (footprints, size classes, inanimate hits, bump response and full collision dispatch). |
-| cSC4Watercraft | §6 U-Drive-It | `commands.rs`, player substeps in `movement.rs` and `operations.rs` | open: WC4, WC6, WC7, WC8; details in §6.1–§6.3 rows. |
-| cSC4Watercraft | §6.1 Drive tick | `release_tow_ahead`, `coast`, `movement_possible`, `clamped_frame_time` | `player_coasting_cannot_cross_zero_and_uses_unclamped_dt`, `tow_ahead_cancels_only_for_positive_heading_dot_product`; open: WC4, WC5 (inherited tick, position and collision calculations). |
-| cSC4Watercraft | §6.2 Commands | `translate_drive_commands`, `Fleet::player_commands`, `select_gear`, `rudder_angle`, `tow_button` | `commands_brake_before_reversing_and_do_not_overshoot_targets`, `command_steering_countersteers_returns_and_clamps`, `commands_require_aems_and_fire_consumes_only_successful_shots`, `skier_toggle_and_stop_and_command_translation_order`, `exact_gear_gates_and_rudder`; open: WC6, WC8 (effect placement, inherited translation and literal summary choices). |
-| cSC4Watercraft | §6.3 Towing | `following_target`, `end_towing`, tow message and TOWED hooks | `tow_message_uses_owned_nearest_then_group_and_releases_both_links`, `following_target_is_radius_plus_ten_behind_tug`; open: WC7 (following translation rate, radius choice and degenerate geometry). |
-| cSC4Watercraft | §7 Messages | `Fleet::do_message`, `MessageDisposition` | `tow_message_uses_owned_nearest_then_group_and_releases_both_links`, `invalid_tow_pick_disarms_and_unarmed_messages_forward`; open: WC7 (nearest-distance ties). |
-| cSC4Watercraft | §8 Quirks | `state_tick`, `animation_budget` | `idle_is_cumulative_and_strictly_above_sixty_seconds_falls_through`, `animation_early_return_and_two_idle_accumulations`; open: WC5 for actual crash sequence after the fallthrough. |
-| cSC4Watercraft | §9 Debug text | `debug_extra_text` | `debug_text_has_exact_fields_width_and_negative_zero`. |
-| cSC4Watercraft | §10 Open questions | No runtime behavior assigned | WC1–WC8 recorded in question file; WC1 external writer and WC2 external caller are not assigned to this owner. |
-| cSC4Watercraft | §11 Conformance tests | Five public vectors mapped below | All five have core assertions; vector 4's complete collision response remains open: WC5. |
+| cSC4Watercraft | §0 | `Watercraft`, `Fleet` | Scope. |
+| cSC4Watercraft | §1 | `WatercraftRecord`, runtime fields | `record_only_saves_version_and_base_and_rejects_truncation`; pending remaining inherited/runtime fields. |
+| cSC4Watercraft | §2 | `DriveParameters`, `Group` | Existing absent/zero/ancestor parameter tests. |
+| cSC4Watercraft | §3 | `initialize_runtime`, `shutdown` | Init factory failure and repeated-init tests; pending inherited lifecycle integration; open: WC3. |
+| cSC4Watercraft | §3.1 | constructor, codec Write, `erase_travel_point`, `sign` | `wc3_l01_l05_l06_constructor_erase_and_sign`; pending type ID, deletion/release order and interface model. |
+| cSC4Watercraft | §3.2 | endpoints, `maximum_extent`, `Footprint::build` | `wc5_f01_through_f04_model_footprint_builder`; pending outside-corner helper vectors. |
+| cSC4Watercraft | §3.3 | `movement_possible`, docking cleanup, straight integration | Existing movement ordering tests; pending separate reported station-lot position. |
+| cSC4Watercraft | §3.4 | `angular_proximity`, `quantize_heading`, `on_land`, `end_towing` | `wc2_p02_slew_and_wc3_j04_j05_angular_quantization`; pending terrain-at-cell and reentrant tow reference tests. |
+| cSC4Watercraft | §4 | `push_state`, `pop_state`, `state_tick_with_geometry` | Existing state and geometry dispatch tests; pending crash dispatcher and inherited hook results; open: WC3/WC5. |
+| cSC4Watercraft | §5.1 | budget, lifetime, wake and backwards substeps | Existing timer/budget tests; pending complete ordered animation tick; open: WC4 subsidiary animation/effect/model computations. |
+| cSC4Watercraft | §5.1.1 | `physics.rs` | `wc4_m01_m02_*` through `wc4_m07_*`, `wc4_v01_through_v04_*`. |
+| cSC4Watercraft | §5.1.2 | `count_idle_always`, budget accounting | Existing idle tests; manager population writer outside this owner. |
+| cSC4Watercraft | §5.1.3 | `slew_ai_targets` | `wc2_p02_*`; pending explicit caller-removal and shore-contact gate vectors; open: WC4 target selection. |
+| cSC4Watercraft | §5.1.4 | `advance_speed_tween`, `generic_seek`, wake requests | Round 2 covers tween completion and inherited-vector seeking, adjustment bypass, overshoot and zero-time division. Pending full state/flag dispatch and stop-update ordering; open: WC4 subsidiary calculations. |
+| cSC4Watercraft | §5.2 | `candidate_directions`, `fill_route_points`, `backtrack_travel` | Neighbor/ferry fill to ten and WC7-R02 survivor-mask rule. Pending wandering search orchestration; open: WC4 AI target selection. |
+| cSC4Watercraft | §5.3 | `dock_requests`, `docking_tick`, cleanup | Existing berth/queue and final approach tests; pending distinct lot/berth coordinates. |
+| cSC4Watercraft | §5.3.1 | `docking_tick` final approach | Strict pre-motion completion, unclamped time and antiparallel sign implemented; pending all named edge vectors. |
+| cSC4Watercraft | §5.3.2 | Docking entry height flatten/land continuation | Far branch remains open: WC4 AI target selection; pending far-call ordering scaffold. |
+| cSC4Watercraft | §5.4 | station and neighbor setup | Existing station tests; pending nullable neighbor occupant, terrain-water skip point. |
+| cSC4Watercraft | §5.4.1 | `RouteReader`, quantization, reservation cleanup | `wc7_r03_through_r06_*`; pending full route-fill/wrap vectors and null occupant behavior. |
+| cSC4Watercraft | §5.5 | `undocking_tick` | Updated motion/completion test; pending named blocked, on-land, missing-occupant vectors. |
+| cSC4Watercraft | §5.6 | movement gates | Existing flag/bounds/crash-state ordering test; pending inherited FindState order audit. |
+| cSC4Watercraft | §5.7 | `detect_collision` | Outside removal precedes boat/shore scans; boat crash returns early, bumps continue to shore. Focused outside/shore tests; pending comprehensive composed boat/shore vectors. |
+| cSC4Watercraft | §5.7.0 | `Footprint::overlaps`, `find_overlapping_boat`, `respond_to_boat_collision` | SAT contact and size-tie/bump/player-victim tests; pending all scan/size vectors and two-slot AEMS event observation. |
+| cSC4Watercraft | §5.7.1 | Crash state entry/timer prefix | Pending specified dispatcher, double dt, effects and tween reset; open: WC5 crash prerequisites. |
+| cSC4Watercraft | §5.7.2 | `bump_rollback`, `sinking_tick`, `heel_angle_step` | WC5-S01–S07 scalar/height vectors and WC5-K01–K04 sinking orientation/heading feedback. Heel helper is scalar-only; open: WC5 heel/contact composition. |
+| cSC4Watercraft | §5.7.3 | `Footprint::build` | `wc5_f01_through_f04_*`; missing geometry retains caller's explicit scratch validity/axis. |
+| cSC4Watercraft | §5.7.4 | `inanimate_collision` | `wc5_i01_through_i05_*`, all 32 table cells and scan order. |
+| cSC4Watercraft | §6.1 | coast, tow release, movement | Pending complete drive tick; open: WC4 inherited player-drive computations. |
+| cSC4Watercraft | §6.2–§6.2.3 | Float `DriveCommand`, nonlinear/inverse curves, `CommandChannel`, `SpeedTween` | WC8 speed/steering/toggle and WC6 fire/transform/render/tween/cooldown vectors. WC8-08 disputed in WC9; nullable missing-group input unrepresentable (`Arc<Group>` required). Pending tow-effect transform/refresh and complete drive-tick integration. |
+| cSC4Watercraft | §6.3 | `following_tick`, tow hooks | `following_uses_endpoint_gap_and_slack_does_not_publish`; pending named endpoint/negative-time vectors. |
+| cSC4Watercraft | §7 | `do_message`, insertion-order fleet scan | First geometric-match selection; pending explicit rejection-of-first-candidate and radius equality vectors. |
+| cSC4Watercraft | §8 | State/idle fallthrough | Existing idle test; crash continuation pending. |
+| cSC4Watercraft | §9 | `debug_extra_text` | Existing formatting test; pending shared borrowed-string identity/lifetime API. |
+| cSC4Watercraft | §10 | Contract boundary | open: WC3 inherited/tuning, WC4 AI/subsidiary updates, WC5 heel/contact and new WC9 steering contradiction. |
+| cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs`, `round2_tests.rs` | In-progress vector coverage listed above, not all named vectors implemented. |
 
-### Public conformance vectors (§11)
+The record test `record_same_input_round_trip_stabilizes_inherited_loaded_status`
+checks equality of a decoded record and its same-input second round trip, and byte
+stability after the inherited loaded-status normalization.
 
-1. Default entries 21/36 and dependent entry 8: `absent_list_and_zero_list_have_distinct_dependent_defaults`.
-2. Ferry berth/wait/remove at 250 units: `ferry_public_vector_selects_berth_wait_or_remove_and_preserves_order`.
-3. Docking at 0.5 units / 0.5 degrees: `public_docked_vector_and_far_approach_gap`;
-   state-pop consumption: `geometry_dispatch_pops_completed_docking_and_undocking`.
-4. Player relative speeds 0.12/0.18: `player_collision_public_ratios_are_strict`
-   verifies threshold classification only. Applying bump/crash to a second boat
-   is **open: WC5**, so this vector is not claimed as fully closed.
-5. Direction-2 order `2,3,1,4,0,5,7`, excluding 6:
-   `direction_order_excludes_reverse_and_respects_every_mask_bit`.
-
-The explicit `ContractGap` errors must not be treated as successful ticks.
-`BaseCommandTranslation` requests the inherited translation after the owner's
-commands; emitting the event does not implement that inherited calculation.
-The `PlayerEffects` service reports actual fire playback and controls skier
-running state; exact spatial placement remains WC6.
+An in-game shadow is feasible after an adapter exists: capture tuning, positions,
+headings, dt and model/terrain geometry, then compare proposed runtime and visual
+transforms, route coordinates, state transitions and collision decisions. The full
+owner shadow requires pending work and resolution of WC3–WC5. No game run was
+requested for this unwired core module.

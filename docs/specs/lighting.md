@@ -160,7 +160,7 @@ shipped exemplar lacks, with the static's initial value in brackets.
 | `0x29189BF5` | 0.15 | fade strength at midday |
 | `0x29189BF6` | 1e-4 | light change threshold (§2.2); overwritten on `0xC9F775BB` (§6) |
 | `0x29189BF7` | 0.8 | night threshold on the day light's red |
-| `0x085489C8` | `0x69D3BC3B` | decal shadow texture (§5.6) |
+| `0x085489C8` | `0x69D3A23B` | decal shadow texture (§5.6) |
 | `0x085489C9` | — (0, 0) | decal shadow pair (2 floats) |
 | `0x085489CA` | 12.0 | decal shadow value |
 | `0x085489CB` | (0.08, 0.06, 0.23) | shadow colour |
@@ -179,6 +179,16 @@ Then:
   colour;
 - the sun direction := (sin a · cos e, −sin e, −cos a · cos e), a and e the azimuth and elevation in radians
   (× 0.017453292).
+
+**Texture identifier correction (LT15):** the shipped lighting exemplar's `0x085489C8` is the unsigned
+32-bit integer **`0x69D3A23B`** (1775477307). The previous `0x69D3BC3B` table entry was a transcription
+error. ReadProperties reads this property into the shared texture value, and slot 16 with a null holder
+copies that value unchanged; there is no texture-ID translation. A nonnull holder may override it, and
+an absent property retains the previous shared value, initially `0x0917660E`. Evidence: the installed
+GOG `SimCity_1.dat`, exemplar `6534284A/A9189CF0/00000001`, property `085489C8` (read with the read-only
+DBPF reader); unsigned property read `0x007DA92C–0x007DA93A`, integer copy `0x007DA490–0x007DA49E`,
+holder override `0x007DA500–0x007DA507`. The glue lane's initial 46 captures agree with the corrected
+value; that run's 0/46 exact verdict remains a failure of its earlier literal expectation.
 
 ### 1.5 Colour maps *[compat]*
 
@@ -232,6 +242,58 @@ errors are safety policies for these invalid reads, not observed native outcomes
 The **test pattern** (`MakeTestPattern`, `0x007DB570`) is 64×64: opaque, red 255 where x > 32, green 255 where
 y > 32, blue 0 (so the dark half is 33 pixels wide) *[quirk]*.
 
+### 1.6 Independent live-owner input replay (LT14) *[compat]*
+
+**Snapshot boundary:** this owner exposes neither Read/Write nor a serializable interface. Its
+QueryInterface accepts only Unknown, lighting and message-target interfaces (§1.1; instruction evidence
+`0x007D65E0–0x007D6642`). A city save plus a poll of current clock, view and settings is therefore
+**not a complete owner snapshot**. Last-announced colours, cached month, fade gradient, pending dirty
+rectangle and retained shared properties depend on earlier inputs. There is no public operation that
+recovers all of these independently. Whole-owner replay requires a complete ordered input history
+from a known constructor/Init boundary, including the process's earlier shared-property changes, or
+an independently maintained checkpoint built from that history. Starting a monthly observer on an
+already live owner supports only comparisons whose inputs are independently known. It does not
+authorize filling missing expected state from lighting getters. This is the literal answer to LT14;
+the replay record below is a harness contract, not a native serialization format.
+
+Each replay record must identify the owner lifetime, sequence of entry/delivery, event kind, copied
+argument bits and dependency results actually consumed by that event. Preserve binary32 values as
+bits, property presence/type/count as well as values, and interface/resource availability. Borrowed
+message payload pointers and mutable property holders must be copied while valid. A later poll
+cannot supply an earlier dependency result. The input boundary is:
+
+| Input family | Independent source and record | When it matters |
+|---|---|---|
+| Construction and Init | §1.2 constructor state; §1.4 process-initial shared configuration plus all prior property reloads; settings slot 7 with argument `0x0C`; resource lookup success and effective properties of `6534284A/A9189CF0/00000001`; decoded pixels, dimensions/stride and load success of all four §1.5 maps | Init reads settings, exemplar and maps before subscribing to the seven messages in §1.3 order (`0x007DB6B4–0x007DB82D`). Construction/Shutdown do not reset the shared statics. |
+| Time delivery | Exact argument of each lighting slot-6 call; for the normal view driver, clock visual hour and minute read at that delivery (§2.4) | Include calls returning false: time, sampled colours and possibly month still change. On a backwards time step record the city date service's month result (city slot 70, then service slot 15); it is not read on every delivery (`0x007D9DF0–0x007D9E1C`). |
+| Tint/reset | Arguments of lighting slot 7 (RGB and amount), and every slot-8 reset, from the actual caller | These are direct interface calls, not owner message subscriptions. They immediately recompute at stored time (§2.3). Clock messages alone cannot replay tint. |
+| Render settings | Raw result of settings slot 7 (`0x0C`); threshold binary32 at settings member `+0x24`, offset `+0x10C`; fade-suppression byte at settings member `+0x0C`, offset `+0x39C` | Threshold/shadow toggle are consumed at Init or `0xC9F775BB` as specified in §§1.3/6. The byte is consumed by time-dependent recomputation and dawn/dusk handling (§2). Its public named accessor/meaning remains LT1; do not assume the day/night clock preference is this byte. There is no established complete public settings snapshot here. |
+| View and city binding | New zoom/rotation pair carried by `0xA6B79601`; at `0x2B96B3EA` and a shadow-toggle refresh, current view zoom/rotation from view utilities; terrain/city-terrain availability, cell width and cell counts | City-start establishes geometry and grids, then applies the view (§6). A view refresh consumes the fade strength existing at that instant (§3). |
+| Terrain edits | Ordered `0xEA3B0AF1`, `0x278E6003`, `0x6A3B0AFD` deliveries; inclusive incoming rectangle; terrain initialized result and altitude-read results when requested | Long-operation edits accumulate rectangles; heights are read at the eventual copy, not necessarily at each notification. Full view refresh copies all heights when shadows are enabled. Preserve the §§5/6 stride convention. |
+| Exemplar changes | Effective property presence/values from the retained holder at each `0xC53D10AA` delivery | §1.4 reloads retained statics and derived key lists/sun; it is not a constructor or a map reload. Missing properties retain history. |
+| Query-specific dependencies | All query arguments: points, normals, matrices/flags, bounds and per-vertex inputs; holder properties for nonnull slot 16; occupant type/interface answers for model-light queries; terrain height/normal results requested by §§4/5 | These are inputs to the requested comparison, not state recoverable from a lighting output. Capturing owner events alone does not establish foreign terrain/occupant behavior. |
+
+**Ordering and safe use:** preserve delivery order as observed at the owner, including nested entries;
+there is no lighting-wide atomic snapshot or prescribed global ordering between different message
+subscribers. A shadow observer that reads a service at its own earlier/later callback cannot assume
+the lighting callback saw the same value. The view's `0x44778233` callback reads the then-current
+clock, not the event's posted hour/minute payload (§2.4). Do not sort a transcript by simulation date,
+merge repeated time deliveries, or move property/settings reloads to city start. Preserve dirty-operation
+begin/end and view changes interleaved with time/tint. Reproduce emitted dawn/dusk, fraction and terrain
+notification events as expected results; do not feed those owner outputs back as inputs or redispatch
+them to the native game. Replay runs only in the independent model; a read-only comparison must not
+call the native owner's setters, Init/Shutdown, or send synthetic owner messages to create a checkpoint.
+If the chosen observation facilities miss a direct tint call, settings byte, prior shared-property
+history or delivery-time dependency, mark that scope unavailable instead of claiming whole-owner
+exactness. Slots 14 and 16(null) can still be compared from known effective shared parameter history;
+one resource read suffices only while no unrecorded reload/history changes those six properties.
+
+Evidence for history-sensitive ordering: time and tint entries `0x007D9DF0–0x007DA099`,
+`0x007D6AB0–0x007D6B1F`; suppression-byte read `0x007D99BA–0x007D99FA`; property refresh
+`0x007DA7E0–0x007DAE64`; owner messages `0x007DBCF0–0x007DC19C`; see §§3/6 for altitude-copy
+and notification ordering. These requirements close the input-contract question, not an implementation
+or instrumentation completeness claim; inherited numeric environment and NaN encoding remain LT12/LT13.
+
 ## 2. Time of day *[compat]*
 
 ### 2.1 The time-dependent values (`SetTimeDependentLightingValues`, `0x007D9820`)
@@ -284,6 +346,28 @@ Night is decided on the **untinted** day light; the threshold test uses the **ti
 `SetLightingTint(colour, amount)` (slot 7, `0x007D6AB0`) stores the tint and turns it on; `ResetLightingTint`
 (slot 8, `0x007D6B00`) turns it off. Both then call `SetTimeOfDay(current time)` and, when it returns true, the
 global `0x00B43DD0`'s slot 20 *[inferred: a redraw request]*.
+
+### 2.4 Normal view time driver (LT14)
+
+`cSC4View3DWin::UpdateAmbientLightLevel` (`0x007E6E40`) obtains **GetVisualHour (clock slot 12),
+then GetVisualMinute (slot 15)** from the city 24-hour clock (`cISC4City` slot 86; clock24.md §§1/8).
+With a renderer and its lighting interface present it calls lighting slot 6 with
+**binary32(hour + minute × c)**, where c is binary32 `0x3C888889`
+(0.01666666753590107). Multiplication and addition stay in the inherited x87 environment until the
+single binary32 argument store; do not first round the minute product to binary32. It requests renderer
+slot 20 redraw only when SetTimeOfDay returns true. Evidence: reads `0x007E6E54–0x007E6E67`,
+arithmetic/argument store `0x007E6E89–0x007E6EBD`, constant `0x00A94124`, redraw `0x007E6EC0–0x007E6ED2`.
+Seconds and GetVisualTimePercentage are not used by this driver.
+
+The view invokes this at post-city-init (`0x007ED1CD`) and on **VisualTimeTick `0x44778233`**
+(`0x007F5551–0x007F556A`); it reads current visual hour/minute rather than the message payload.
+Clock ticks follow real time even when the simulation date is paused (clock24.md §§3/4), so monthly
+simulation-date sampling loses lighting deliveries. The clock's saved game time is also not its initial
+visual time: visual time starts at noon and follows the loaded game time at a later clock step in
+follow mode (clock24.md §4.9). Replay must preserve the initial noon delivery and subsequent tick,
+not initialize lighting directly from the saved hour. Plugins may call slot 6 directly with other
+arguments; those calls also belong in the transcript. The owner's month is initially zero and only
+refreshes on a backwards time argument (§2.2), not at each simulation-month notification.
 
 ## 3. View changes (`DoZoomAndRotationChange(zoom, rotation)`, `0x007DB840`) *[compat]*
 
@@ -861,6 +945,40 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     storing: **vconst=−16777216**. The complete output rows are **(1,0,1,−16777215)**,
     **(1,0,1,−16777216)**, **(0,0,1,−1)**, **(0,0,0,1)**, stored column-major. Rounding only the final
     sum, or imposing one uniform rounding policy on both fitted rows, fails this vector.
+
+23. **Shipped texture and retention (LT15):** start from §1.4's process-initial configuration. Read
+    the shipped exemplar, then query slot 16 with a null holder: texture **`0x69D3A23B`**, a/b/c are
+    binary32 0.4/0.55/12, pair (0,0), colour binary32 (0.08,0.06,0.23). A subsequent reload with
+    `085489C8` absent retains `0x69D3A23B`; it does not revert to `0x0917660E`. A nonnull holder
+    supplying `085489C8 = 0x12345678` changes only that call's texture result to `0x12345678`;
+    the next null-holder call still returns `0x69D3A23B`. The independent expected value comes from
+    resource properties and retention history, never the getter under test.
+24. **Driver reads current clock, not posted payload (LT14):** under nearest-even arithmetic, deliver
+    VisualTimeTick with posted hour/minute (12,0), but let the clock reads at the view callback return
+    visual hour/minute (12,30). Expected lighting argument is **12.5**, one slot-6 call. Changing
+    visual seconds within that minute does not change the argument. If the renderer's lighting
+    interface is absent there is no slot-6 call. Keep both outcomes distinct from a direct plugin call.
+25. **Loaded time and month history (LT14):** a new owner starts at time 12, cached month 0. A saved
+    game clock of 21:00 does not seed this owner. Let the normal initial visual reads be (12,0),
+    then a follow-mode tick read (21,1): arguments are **12** then binary32(21 + c), with c from
+    §2.4. Neither call reads the city month because neither argument is below stored time. Now deliver
+    (0,1) with the city month service returning 7: the month query occurs once and cached month
+    becomes **6**. A second identical (0,1) delivery does not query month, even if the service now
+    returns 8. Calls returning false still retain their new time/month and recomputed colours.
+26. **Same current inputs, different replay histories (LT14):** use valid geometry W=D=1024,
+    rotation 0, zoom 0 and no fade map, with §1.4's four fade-strength keys and midday strength
+    0.5 (an exact binary32 test input). In history A apply the view at noon (s=0.5), then change
+    time to midnight (s=0). In history B change to midnight first, then apply the same view.
+    Current time, view and properties agree, but the cached z-gradient is **−1/2048** in A and
+    **0** in B. A snapshot of those current inputs cannot reconstruct both. A further identical
+    view refresh makes both gradients 0. Similarly, preserve long-operation begin/edit/end order
+    and copy heights at the deferred end (§6/vector 16), not at the earlier edit notification.
+27. **Shared-state lifetime discriminator (LT14):** from process-initial configuration, deliver a
+    property read setting `085489C8 = 0x12345678`, shut down and destroy that owner, then create
+    and Init a second owner whose exemplar omits that property. Its null-holder slot-16 texture is
+    **`0x12345678`**, whereas a fresh process with the same second exemplar yields **`0x0917660E`**.
+    A replay beginning at the second constructor without prior shared history must report incomplete
+    input coverage. It must not silently select either value or seed the expectation from slot 16.
 
 ## 12. Individual owner and attributed-helper checklist
 
