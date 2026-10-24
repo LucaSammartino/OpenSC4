@@ -9,8 +9,11 @@
 - EF18/EF19 are still open in the permitted specs. No RE sources have been accessed.
 - The task's requested binary investigation/spec rewrite conflicts with its explicit
   clean-room prohibitions; neither questions nor contracts will be falsely marked answered.
-- Next: add independent resource-format checks for opaque placement preservation,
-  complete the resource-owner matrix, then run the final gate once.
+- Done: independent §3 resource-format test passed (1/1; 4453 core unit tests
+  discovered); both owned Rust files passed fmt with zero diff lines.
+- Done: resource/description owners added to the matrix; EF18/EF19 remain explicit.
+- Next: run the final `qbuild all` once on this stable source and collect its
+  native operation to completion; report/enqueue only the tested closed subset.
 - No game request outstanding; no plugin, ABI, or game behavior change planned.
 - Detached HEAD is intentional; the supervisor publishes commits.
 

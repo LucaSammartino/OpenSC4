@@ -29,6 +29,20 @@ C ABI or game replacement is introduced.
 | cSC4EffectsCollection | §18.1 collection slots, §19.4 ID-resolution boundary, §19.9 copy/validation boundary | no published algorithm beyond the component directory | open: EF18 |
 | EffectsParser | §6.1 ParseQueuedFiles; effects-parser §1 exclusion | `effects_parser::bootstrap::EffectsParser::parse_queued_files` | open: EF18; `unspecified_queue_and_bootstrap_do_not_claim_success` |
 | EffectsBootstrap | no algorithm assigned in effects.md | `effects_parser::bootstrap::EffectsBootstrap::initialize` | open: EF18; `unspecified_queue_and_bootstrap_do_not_claim_success` |
+| cSC4EffectsResource | §3 variable-length visual/component records, including opaque 56-byte placement | `directory::{read_effect,read_component,write_effect}` | `section3_variable_component_stride_preserves_all_placement_bytes`: independent binary fixture, two name lengths, all required prefixes rejected when truncated; semantic placement decoding remains EF19 |
+| cSC4EffectsResource | §3 resource tables, name map and section location | `EffectDirectory::{parse,parse_at,to_bytes}` | `directory_round_trip_and_locator`; unknown render sections are located, not decoded |
+| cSC4BrushDescription | §8.1 binary fields; §19.53 description commands | `directory::{BrushRecord,read_brush,write_brush}`; `Commands::anonymous_component` | `directory_round_trip_and_locator`; `ec288_through_ec290_sound_brush_maps_and_stored_length` |
+| cSC4ScrubberDescription | §9.1 binary fields/defaults; §19.54 description commands | `directory::{GameRecord,read_game,write_game}`; `Commands::anonymous_component` | `directory_round_trip_and_locator`; `ec291_through_ec293_scrubber_aliases_crt_and_shape_overrides` |
+
+## Closed subset and remaining boundaries
+
+The resource-format test above closes byte preservation and variable-length
+framing under §3. Its deliberately nonsemantic placement payload does not
+qualify a transform decoder or native numeric order. EF19 is still open.
+EF18 is still open for the queue/bootstrap and collection lifecycle contracts;
+the Unsupported results are boundary tests, not implementations of those
+contracts. No binary sources or analysis-side scripts were used for this audit.
+The rows with open questions do not claim full owner closure.
 
 The full §17 inventory, including manager and particle owners outside these six
 owners, is recorded in the [parser README](../effects_parser/README.md#effectsmd-17-conformance-scope).
