@@ -421,7 +421,8 @@ modal loop with the button ID as the result.
 3. Its window (`bar` slot 3): `SetID(id)`, `SetArea(rect)` (slot 55), `SetFlag(0x800, 0)`, `SetFillColor(c1)`
    (window slot 106); `bar` slot 8 (`c2 & 0xFFFF`, edge colours), slot 18 (`autoSize`), slot 12 (`style`). `c1`, `c2`
    are `WCM.GetColor(0xBB5B2EC6)` and `(0xBB5B2EC7)`, 0 without the manager. `0xBB5B2EC6` is set to (124, 144, 255)
-   at start-up (application.md AP13): the "blue bar".
+   at start-up (application.md AP13): the "blue bar". `GetColor` returns a native (display-format) colour
+   (widget-ctrlmgr.md §2); the `& 0xFFFF` keeps its low 16 bits, which is exact only in a 16-bit display format.
 4. `ChildAdd(bar window)` (window slot 14). On failure: the window manager's `DestroyWindow(bar window)` (manager
    slot 23), release `bar`, return false. On success release `bar` (the child list keeps its own reference) and
    return true.
@@ -558,8 +559,8 @@ destructor, `0x009CD718` `DoMessage`, `0x009CD7B6` slot 17. The slot 7 thunk `0x
 
 `cGZWinGenTitleBar` (23): §13.6.
 
-Not covered: the meaning of draw-context slots 38/39, of the graphics-system colour conversions (WGN1, WGN2) and
-of the font slots the title bar uses (cited by number).
+Not covered: the meaning of draw-context slots 38/39 (WGN1) and of the font slots the title bar uses (cited by
+number). Graphics-system slots 34 and 36 are the RGB → native and native → RGB conversions (WGN2, answered).
 
 ## 13. `cGZWinGenTitleBar` *[compat]*
 
