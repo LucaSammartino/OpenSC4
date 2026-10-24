@@ -1,20 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-watercraft-close14 (complete cSC4Watercraft owner closure) | `Codex` / `core-watercraft-close14` (engine lane) | in progress | (1) Close all settled owner rows; (2) run full and native gates. |
+| core-watercraft-close14 (cSC4Watercraft owner closure, partial batch) | `Codex` / `core-watercraft-close14` (engine lane) | in progress: implementation 113eccaaa; cargo 7448/0, clippy clean, CTest 81/81; ABI unchanged; no game run; no questions; context guard requires restart | (1) Finalize report and enqueue tested partial batch without repeating gates; (2) continue the 28 pending owner rows below. |
 
 ## Handoff
-- Goal: close every settled cSC4Watercraft owner row in engine/core/src/watercraft, with conformance tests; no plugin/C ABI changes.
-- Worktree reused at detached HEAD; clean at restart. Prerequisites already merged: 4ee9852ce (core-watercraft-close12), f075b206b (re-watercraft-wc13).
-- Done 113eccaaa: concrete primary/auxiliary model acquisition, reference/output failure rules, inherited pose/publication; 20 WC10/WC11 vectors and ML01-ML04 fixtures in model_tests.rs.
-- Done 113eccaaa: WC12 identity-banked second-normal contact correction and H11-H13 fixtures; README records these settled rows without claiming whole-owner closure.
-- Formatting PASS: qbuild fmt on six absolute owned .rs paths, diff_lines=0. First relative-path invocation failed because qbuild runs from engine; corrected absolute inputs, no source change.
-- Context checkpoint reached (104431/150000); stop new features and finish formatting, focused result collection and final gates.
-- Focused PASS: cargo watercraft::model_tests, 24 passed / 0 failed, terminal result collected. Log build-runs/wc14-model-tests-1.log. This compilation started before WC12 correction; full gate below covers final source including H11-H13.
-- Native gate PASS: qbuild verify, request qbuild-20261024-195818-build-ctest; 264/264 edges, 81/81 CTest, 561.1 s. Logs: build-runs/fc4verify-build.log and fc4verify-ctest.log.
-- Full gate started once on stable source c19240798: exec session 84393, collected by functions cell 67. Console log build-runs/wc14-all-console-1.log; do not duplicate it.
-- Full gate Rust step PASS: 7448 passed / 0 failed / 0 ignored across 51 result lines, including WC12-H11/H12/H13. Log build-runs/qbuild-test.log.
-- Full gate Clippy PASS: zero diagnostics with -D warnings, log build-runs/qbuild-clippy.log. Final native request qbuild-20261024-220008-build-ctest queued; full operation remains outstanding (same exec session 84393/functions cell 67).
-- q.py failed to start Bash; preserved log build-runs/q/20261024-193645-21364.log. Direct foreground cargo works but compilation is slow under concurrent host load.
-- Next after gates: remaining README pending rows include lifecycle/forwarding, distinct station-lot coordinates, nullable route occupant, end-to-end animation/effects, geometry/collision/towing edge fixtures and borrowed debug text. No new questions: WC1-WC12 are settled.
-- No game request. No plugin/C ABI work; game shadow requires an adapter outside scope.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r2-manifest.json.
+
+Goal: complete cSC4Watercraft owner closure; current partial batch passes every required gate. Exact next step: finalize this report and write the merge-queue JSON with the actual full HEAD; no source changed after passing gates and no gate needs repeating. Context guard stopped finalization; no merge-queue file was written. All asynchronous operations were collected and none remain outstanding. Manifest for this round: C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r2-manifest.json.
+
+Prerequisites merged: 4ee9852ce (core-watercraft-close12), f075b206b (re-watercraft-wc13).
+Implementation 113eccaaa adds primary/auxiliary model acquisition, explicit reference transfers and output failure handling, inherited model positioning and scene publication (§§3.6–3.8). It also corrects WC12 contact to bank identity and use the second terrain-normal sample, preserving the incoming scale only when publishing accepted contact.
+
+All 23 newly settled WC10/WC11/WC12 vectors are covered, together with ML01–ML04. Focused model tests: 24 passed. Final qbuild all on stable final source: 7448 Rust tests passed, zero failures/ignored; Clippy -D warnings had zero diagnostics; queued native build 214/214 edges and CTest 81/81 passed. Explicit qbuild verify also passed (264/264 edges, CTest 81/81). Formatting passed for all six owned changed Rust files. Every operation was collected to its terminal result.
+
+Evidence: build-runs/wc14-model-tests-1.log, qbuild-test.log, qbuild-clippy.log, wc14-verify-console.log and wc14-all-console-1.log. A failed q.py Bash startup is preserved in build-runs/q/20261024-193645-21364.log; direct foreground Cargo was used. Rust compilation was exceptionally slow under host load.
+
+Whole-owner closure is NOT complete. The 28 pending README rows are §§1, 3, 3.1–3.5, 4, 5.1, 5.1.3–5.1.5, 5.1.7, 5.2, 5.3–5.3.2, 5.4–5.4.1, 5.5, 5.6, 5.7–5.7.0, 6.2–6.2.3, 6.3, 7, 9 and 11. Continue inherited lifecycle/forwarding and runtime effect/model execution first, then distinct station-lot coordinates, nullable route occupants/water-level skipping, outstanding geometry/collision/towing/message fixtures, and borrowed debug-text lifetime. These are implementation debt; WC1–WC12 are settled and no new questions were filed.
+
+No plugin/C ABI wiring or export changes. No game request or shadow: the core is unwired and an adapter is outside this task. The context checkpoint ended new feature work; this passing partial batch is ready to land and continue.
