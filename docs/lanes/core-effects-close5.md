@@ -15,8 +15,8 @@
 - Stable-source qbuild all: cargo 6808 passed, 0 failed; clippy exit=0, diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
 - First qbuild all operation reached terminal PASS: native qbuild-20261024-013445-build-ctest, build 223/223 edges, CTest 70/70. Native noted tree changed because handoff-only commits advanced HEAD during the wait; Rust production source was unchanged throughout the attempt.
 - First logs preserved as build-runs/{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.attempt1.log; build-runs/effects-gate-attempt1.txt records results/source boundary.
-- Review diagnostic corrected after first terminal verdict: §8.3 identity parent now returns local translation directly; new regression checks negative-zero bit preservation. Owned-file fmt 2/2 passed. Corrected focused tests pending session 75435.
+- Review diagnostic corrected after first terminal verdict: §8.3 identity parent now returns local translation directly; new regression checks negative-zero bit preservation. Owned-file fmt 2/2 passed. Corrected focused tests: 5/5 passed, 4452 core tests discovered; source commit 06bca609a.
 - effects-parser §13 defines in-memory matrix/offset/scale storage but deliberately excludes renderer row/column convention; EF19 concerns legacy decoding/world-position convention/order, not the already implemented parser rotation stores.
-- Next: collect session 75435 to terminal, then run final qbuild all on committed stable source without intervening edits/commits. All already uses the required coordinator native queue; do not duplicate its verify request. EF18/EF19 prevent claiming complete six-owner closure.
+- Next: final qbuild all on committed stable source without intervening tracked edits/commits; see ignored build-runs/effects-final-operation.txt for the live operation ID. All already uses the required coordinator native queue; do not duplicate its verify request. EF18/EF19 prevent claiming complete six-owner closure.
 - No game requests outstanding; no ABI/plugin/capi edits authorized.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-close5-r1-manifest.json.
