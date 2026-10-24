@@ -45,6 +45,24 @@ pub enum TripSearch {
 /// Foreign transport, path search and mission services. No core traffic writes.
 /// None/Unsupported means the spec does not yet settle this handoff, not success.
 pub trait TripServices {
+    /// Captured foreign model-info kind. Null occupants need no query.
+    fn idle_model_kind(&self, occupant: Option<u64>) -> Option<i32> {
+        occupant.is_none().then_some(-1)
+    }
+    /// None means this adapter lacks the input; Some(false) is a real
+    /// failed road snap. Any location changes are service output inputs.
+    fn snap_to_road(&self, _location: &mut DispatchLocation) -> Option<bool> {
+        None
+    }
+    fn dispatch_idle_fallback(&self, _sim: i32) -> Option<u32> {
+        None
+    }
+    fn apply_model_offset(&self, _occupant: u64, _offset: i32) {}
+    /// Captured foreign occupant position, not inferred from a native output.
+    fn automaton_position(&self, _occupant: u64) -> Option<(f32, f32)> {
+        None
+    }
+    fn release_location_occupant(&self, _occupant: u64) {}
     fn cancel_automaton(&self, _occupant: Option<u64>) -> Option<bool> {
         None
     }

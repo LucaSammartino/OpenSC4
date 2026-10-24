@@ -69,8 +69,7 @@ impl MySimDispatch {
         if st.search.flags & 0x41 == 0x40 {
             tail.state = -1;
         } else if st.search.flags & 1 != 0 {
-            // Idle recovery still needs its snap/model/partition input adapter.
-            return TripOutcome::UnsupportedMs18;
+            return self.idle_recovery(sim, marker, services);
         } else if st.travel_type == 0xFE
             && st.search.flags & 4 == 0
             && !st.current.same_location(&st.search.home)
@@ -173,5 +172,116 @@ impl MySimDispatch {
         }
         self.apply_transport_tail(sim, tail);
         TripOutcome::Accepted
+    }
+
+    fn idle_recovery(&self, sim: i32, marker: RouteData, services: &dyn TripServices) -> TripOutcome {
+        let entry = self.get_state(sim);
+        let mut travel = entry.travel_type;
+        let mut state = entry.search.state;
+        if entry.search.flags & 0x2000 != 0 {
+            self.notify_owner(sim, 0xEBA06BD0, 0, 0);
+        }
+        let Some(kind) = services.idle_model_kind(entry.automata_occupant) else {
+            return TripOutcome::UnsupportedMs18;
+        };
+        let direct = entry.automata_occupant.is_some()
+            && entry.route_marker == 2
+            && kind == 7
+            && matches!(entry.travel_type, 0 | 0xFE);
+        if !direct {
+            let mut snapshot = entry.current;
+            if marker.travel_type != 0xFE {
+                snapshot.set_cell_position(i32::from(marker.x), i32::from(marker.z));
+            }
+            let mut current = entry.current;
+            let Some(first) = services.snap_to_road(&mut current) else {
+                return TripOutcome::UnsupportedMs18;
+            };
+            let snapped = if first {
+                true
+            } else {
+                let Some(second) = services.snap_to_road(&mut snapshot) else {
+                    return TripOutcome::UnsupportedMs18;
+                };
+                second
+            };
+            if !snapped {
+                self.notify_owner(sim, 0xEBA06C12, 0, 0);
+                self.set_state(sim, -1);
+                return TripOutcome::Accepted;
+            }
+            // Literal §4.6.3: current receives the snapshot after either snap
+            // succeeds, including a successful first snap of current itself.
+            self.edit(sim, |st| st.current = snapshot);
+            self.notify_owner(sim, 0xEBA06BD0, 0, 0);
+            let Some(result) = services.dispatch_idle_fallback(sim) else {
+                return TripOutcome::UnsupportedMs18;
+            };
+            if result == 0xFF {
+                self.notify_owner(sim, 0xEBA06C12, 0, 0);
+                state = -1;
+            } else if entry.travel_type != 0xFE {
+                travel = result;
+            }
+        }
+        let mut clear = 0x2002;
+        let mut add = 0;
+        if entry.search.flags & 0x2000 != 0 {
+            let current = self.get_state(sim);
+            if let Some(occupant) = current
+                .automata_occupant
+                .filter(|_| current.current.deadline() >= current.minutes)
+            {
+                let offset = self.model_offset(sim, current.route_marker);
+                if offset > 0 {
+                    services.apply_model_offset(occupant, offset);
+                }
+            } else {
+                self.change_flags(sim, |flags| flags & !1);
+                let near = self.destination_proximity(sim, false);
+                if travel == 0xFE && self.check_flags(sim, 0x20) {
+                    state = 3;
+                    clear = 0xA403;
+                    self.finish_idle_location(sim, near);
+                } else {
+                    let Some(result) = services.dispatch_next_leg(sim, None) else {
+                        return TripOutcome::UnsupportedMs18;
+                    };
+                    if result == 0xFF {
+                        // MS21: the route partition/skip boundary is not yet
+                        // supplied by this adapter. Do not invent a skip.
+                        return TripOutcome::UnsupportedMs18;
+                    }
+                    travel = result;
+                    clear = 0x2437;
+                    add = 0x200;
+                }
+            }
+        }
+        self.apply_transport_tail(
+            sim,
+            TransportTail {
+                travel_type: travel,
+                state,
+                stuck: false,
+                idle: false,
+                clear_flags: clear,
+                set_flags: add,
+            },
+        );
+        TripOutcome::Accepted
+    }
+
+    fn finish_idle_location(&self, sim: i32, near: bool) {
+        let st = self.get_state(sim);
+        let copy = near && self.valid(sim, st.destination);
+        self.edit(sim, |state| {
+            state
+                .current
+                .set_deadline(state.minutes.wrapping_add(state.current.duration()));
+            if copy {
+                state.current = state.destination;
+            }
+        });
     }
 }

@@ -17,6 +17,7 @@
 #include <set>
 
 extern "C" uint32_t fc4_mysimdispatch_shadow_compare(const uint32_t*, uint32_t);
+extern "C" uint32_t fc4_mysimdispatch_shadow_constructor(const uint8_t*, size_t);
 
 namespace fc4 {
 namespace {
@@ -24,8 +25,8 @@ constexpr uint32_t kDispatch = 0xCBC14674, kSerializable = 0xE4FDA3D4;
 int32_t lastMonth = 0;
 uint32_t months = 0, clean = 0;
 
-// Only settled constructor state fields and writer identity are compared.
-// MS20: opaque/tuning/location constructor defaults are not inferred here.
+// MS20 §7.2.3: compare assigned constructor fields, excluding words the
+// native constructor never assigns. Native outputs never seed expected state.
 bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint32_t& differences) {
     WriteCapture capture;
     if (!capture.Capture(object) || capture.Bytes().size() < 77) return false;
@@ -38,6 +39,12 @@ bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint3
         std::memcpy(&values[i + 2], bytes.data() + 5 + (11 + i) * 4, 4);
     fields += constructor ? 7 : 2;
     differences += fc4_mysimdispatch_shadow_compare(values, constructor ? 1 : 0);
+    if (constructor) {
+        const uint32_t result = fc4_mysimdispatch_shadow_constructor(bytes.data(), bytes.size());
+        if (result == UINT32_MAX) return false;
+        fields += 249; // independently predicted assigned payload bytes
+        differences += result;
+    }
     return true;
 }
 }
@@ -81,12 +88,12 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     ++months;
     if (differences == 0 && errors == 0) ++clean;
     Log("mysimdispatch shadow %04d-%02d-%02d: constructor=%u live_headers=%u fields=%u errors=%u "
-        "scope=constructor-and-writer-identity-only live_trip=uncompared(MS20) transport=uncompared(MS18) mismatches=%u",
+        "scope=assigned-constructor-payload-and-writer-identity live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
         date.year, date.month, date.day_of_month, fixtures, live, fields, errors, differences + errors);
 }
 
 void MySimDispatchShadowShutdown() {
-    if (months) Log("mysimdispatch: measured %u/%u exact constructor/header samples; live trip owner remains unverified (MS20/MS18)", clean, months);
+    if (months) Log("mysimdispatch: measured %u/%u exact assigned-constructor/header samples; live trip owner remains unverified (MS20 input-boundary limitation)", clean, months);
     lastMonth = 0;
     months = clean = 0;
 }

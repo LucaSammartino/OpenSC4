@@ -9,6 +9,10 @@
 - Merged answered contracts in 16354d1ef; MS18 §12.29 supplies 21 prose vectors, not executable engine vectors.
 - Added core route-ready ordinary/same-mode/FE/delay decisions, stuck ordering, deterministic model lookup, retry-false quirk and constructor defaults. Focused dispatch suite passed 33/33 (42 unequal pairs inside one test).
 - Failed initial compile was private valid() visibility; fixed. q.py cannot launch Git Bash (CreateFileMapping error); direct cargo works.
-- Next: complete idle/callback/route-partition inputs and executable conformance; extend plugin using only supported interface boundaries. MS20 explicitly forbids claiming live independent replay from snapshots; direct methods have no callable IID slots.
+- Added idle snap/recovery and callbacks 1/2/9 plus mission exit; executable conformance vectors use the public record input boundary. First integration run failed 3 old expectations; corrected them to new MS18 stuck and mask ordering. Corrected integration passed 31/31 before further idle tests.
+- Plugin now predicts 249 assigned constructor payload bytes independently; unassigned constructor words are excluded by spec, not measured differences. Live headers remain bounded; no claim of whole-owner replay.
+- Filed MS21 for exact route partition/index/snap rules; failed-leg skip and callback-5 progression remain unsupported. MS20 explicitly rules out complete public read-only input observation; a controlled/instrumented input boundary is required for live whole-owner credit.
+- Corrected and expanded integration now passes 38/38, including MS18-13/14/15 FE timing and MS18-16 first-vehicle rejection. Removed duplicated core test copies; executable new vectors live only in conformance include.
+- Next: full qbuild all once on stable source, then unique house game request through 2032 (no qwait). No round-2 game request yet.
 - Clean-room prohibition on running tools/ still applies; questions index regeneration delegated to coordinator (incoming index already has answered entries).
 - No round-2 game request outstanding; unique labels required, wait via same exec session without qwait.
