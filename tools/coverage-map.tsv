@@ -740,7 +740,6 @@ cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.
 cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	-
@@ -759,6 +758,8 @@ cGZStringCommandGenerator	command system	framework	command-system.md	core/src/co
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	core/src/commands	-	-
 cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	core/src/commands	-	-
 fn:RZParseDelimitedText	command system	framework	command-system.md	core/src/commands	-	-
+# the GZ catch-all sits below cGZDate and the command-system rows, which it used to hide (first match wins)
+cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZTextOStream	streams	framework	output-streams.md	-	-	-
 cRZNullOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
