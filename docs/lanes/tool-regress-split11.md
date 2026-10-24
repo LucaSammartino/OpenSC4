@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | WIP, coordinator hold: qbuild PASS, ctest 81/81; tooling 141/147 with all six failures reproduced on main; run 617 full combined 52/52 exact but watchdogs; run 618 split 51/52 partial, repeated stalls; ABI unchanged | (1) Investigate watchdog stalls and propmgr query-list divergence; (2) repeat a complete same-DLL 2032 pair and prove >=35% end-to-end speed reduction before READY. |
+| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | in progress: final measured closure; prior qbuild PASS, ctest 81/81; run 617 combined 52/52 exact with watchdogs, run 618 split 51/52 partial; ABI unchanged | Run the final gate once, restore the complete report, commit and enqueue READY with the full HEAD. |
 
 ## Report
 
@@ -45,6 +45,16 @@ verdicts and the ordinary delta output remain as implemented in the preceding ro
 - `python build-runs/summarize-r2.py` exercised actual, unchanged `coverage.read_regress` on all four
   summaries: all **52 labels** parsed each time. `newest_regress` selected reachable main evidence
   `regress-train196.out`, not these unmerged runs. Delta comparisons ran without reader changes.
+
+## Handoff
+
+- Goal: final closure and READY queue entry; no new owners, questions or game retries.
+- Done: grouping/aggregation `3ffd15df6`, sorting fix `c46aa442c`, opt-in safety hold `19f8664cd`, measured rebalance `4ea92f600`; previous closure `7a2e62bbe`.
+- Next: qbuild verify once, focused tests, complete report, commit and enqueue full HEAD.
+- Combined stays default under existing parity hold; `--split` selects three groups, every fourth batch combined.
+- No full-horizon split parity or valid speed proof; preserve failures without coverage credit.
+- Prior tooling 141/147, all six failures reproduced on main. No operation outstanding.
+- Records 611-618 and same-DLL measurements retained below.
 
 ### Real games and timing limits
 
