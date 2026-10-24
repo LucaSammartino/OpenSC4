@@ -74,7 +74,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FN | drawing-fonts |
 | FQ | flora |
 | FR | font-renderer |
-| FS | graphics-formats |
+| FS | freshness, graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GDR | game-data-registry |
@@ -92,6 +92,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GZG | gz-graphics |
 | HD | html-document |
 | HG | foundations |
+| HM | hit-music |
 | HU | html-ui-hooks |
 | HW | history |
 | IN | commercial-industrial |
@@ -146,6 +147,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Q | network-transport, web-network |
 | QR | region-screen |
 | QV | map-view |
+| RA | radio |
 | RB | rigid-body-2d |
 | RC | resource-catalog |
 | RD | renderer-driver |
@@ -171,10 +173,12 @@ generated index: the questions live one file per spec, so read only the file for
 | SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
+| SRN | sound-renderer |
 | SS | sound-system |
 | SSP | system-service-pointer |
 | ST | my-street-sim |
 | SV | foundations, ordinance |
+| SY | sound-framework |
 | TB | texture-bindings |
 | TD | tools-com-director |
 | TDO | text-decal-occupant |
@@ -268,6 +272,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
+| freshness | 5 | 0 | FS6 | questions/freshness.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
@@ -279,6 +284,7 @@ generated index: the questions live one file per spec, so read only the file for
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
 | gz-graphics | 5 | 2 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
+| hit-music | 8 | 0 | HM9 | questions/hit-music.md |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | intro-video | 2 | 0 | IV3 | questions/intro-video.md |
@@ -338,6 +344,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| radio | 4 | 0 | RA5 | questions/radio.md |
 | region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
@@ -361,6 +368,8 @@ generated index: the questions live one file per spec, so read only the file for
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
+| sound-framework | 4 | 0 | SY5 | questions/sound-framework.md |
+| sound-renderer | 3 | 0 | SRN4 | questions/sound-renderer.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
@@ -399,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **640** | **1535** | | |
+| **total** | **664** | **1535** | | |
