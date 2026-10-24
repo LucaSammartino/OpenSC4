@@ -382,6 +382,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "overlays_fixture",
                                   // Physical file-parser replay, default off.
                                   "scres_file_shadow",
+                                  // Read-only cached-key type projection; default off (PR9/SCR11).
+                                  "persist_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

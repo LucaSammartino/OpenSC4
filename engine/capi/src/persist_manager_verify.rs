@@ -244,9 +244,89 @@ pub unsafe extern "C" fn fc4_pm_destroy(session: *mut fc4_pm_session) {
     }));
 }
 
+/// Private static-link observation transport, not a public DLL export.
+/// The unfiltered live list is INPUT to the production type predicate and list
+/// append. The separately acquired native type-filtered list is the oracle.
+/// PR9: this does not reconstruct registration history or verify cache storage.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_pm_filter_snapshot(
+    keys: *const fc4_pm_key,
+    length: usize,
+    ty: u32,
+    output: *mut fc4_pm_key,
+    capacity: usize,
+) -> u32 {
+    catch_unwind(AssertUnwindSafe(|| {
+        if length > 1_000_000 || capacity < length || (length != 0 && (keys.is_null() || output.is_null())) {
+            return u32::MAX;
+        }
+        let mut host = Resources {
+            resources: std::array::from_fn(|_| Resource {
+                key: Key::default(),
+                references: 1,
+            }),
+            unexpected: 0,
+        };
+        let mut list = KeyList::new();
+        for i in 0..length {
+            let key = (*keys.add(i)).into();
+            if Filter::Type(ty).accepts(&mut host, key) {
+                list.insert(key);
+            }
+        }
+        for (i, key) in list.keys().iter().enumerate() {
+            *output.add(i) = fc4_pm_key {
+                ty: key.ty,
+                group: key.group,
+                instance: key.instance,
+            };
+        }
+        list.size()
+    }))
+    .unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn snapshot_filter_preserves_duplicates_order_and_all_key_fields() {
+        let keys = [
+            fc4_pm_key {
+                ty: 7,
+                group: 8,
+                instance: 9,
+            },
+            fc4_pm_key {
+                ty: 3,
+                group: 4,
+                instance: 5,
+            },
+            fc4_pm_key {
+                ty: 7,
+                group: 1,
+                instance: 2,
+            },
+            fc4_pm_key {
+                ty: 7,
+                group: 8,
+                instance: 9,
+            },
+        ];
+        let mut out = [fc4_pm_key::default(); 4];
+        unsafe {
+            assert_eq!(fc4_pm_filter_snapshot(keys.as_ptr(), 4, 7, out.as_mut_ptr(), 4), 3);
+            assert_eq!(
+                out.map(|k| (k.ty, k.group, k.instance)),
+                [(7, 8, 9), (7, 1, 2), (7, 8, 9), (0, 0, 0)]
+            );
+            assert_eq!(fc4_pm_filter_snapshot(keys.as_ptr(), 4, 99, out.as_mut_ptr(), 4), 0);
+            assert_eq!(
+                fc4_pm_filter_snapshot(keys.as_ptr(), 4, 7, out.as_mut_ptr(), 3),
+                u32::MAX
+            );
+        }
+    }
     #[test]
     fn duplicate_ownership_and_failed_query_sentinel() {
         let keys = [fc4_pm_key {
