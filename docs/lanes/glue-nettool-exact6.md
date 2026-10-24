@@ -1,8 +1,11 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | continue; gate passed, shadow 8/14 | Finish retained-height replay and subclass hosts; no READY entry. |
+| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | in progress; round 3 | Trace NT30 inventories; wire resource-backed subclass replay; final gate and 2032 game run. |
 
 ## Handoff
+- Round 3: merged main on detached HEAD; merge completed despite read-only packed-refs cleanup warning.
+- NT30 explicitly disallows interpreting its controlled fixtures as native city inventories; existing tests already cover them.
+- NEXT: add actual per-entry/corner replay trace and resource-backed powerline recording host; preserve uncovered scopes.
 - Goal: exact network tools shadow; six residual probes remain, no READY entry.
 - Detached base 760cf23fd; do not switch branches or update shared refs.
 - 5c93779a6: NT30 corner-refresh populations, controlled price/refresh tests, dated shadow lines.
