@@ -196,17 +196,22 @@ pub fn clip_aircraft_to_world(mut point: Vec3, bounds: AircraftBounds) -> Vec3 {
 /// This phase is independent of the goal stack (automata §6.6). The spec
 /// does not name the three values; do not infer ground/cruise meanings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum FlightPhase {
-    Phase0 = 0,
-    Phase1 = 1,
-    Phase3 = 3,
+pub struct FlightPhase(pub u32);
+
+#[allow(non_upper_case_globals)]
+impl FlightPhase {
+    pub const Phase0: Self = Self(0);
+    pub const Phase1: Self = Self(1);
+    pub const Phase3: Self = Self(3);
+    pub const Phase4: Self = Self(4);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FlightPhaseChange {
     pub previous: Option<FlightPhase>,
     pub current: FlightPhase,
+    pub sounds: Vec<super::SoundRequest>,
+    pub engine_notifications: Vec<super::EngineNotification>,
 }
 
 /// Effect names are established in §3.2, but attachment, probes, cleanup,
@@ -257,18 +262,17 @@ pub struct HelicopterChaseGeometry {
 }
 
 impl HelicopterChaseGeometry {
-    pub fn for_target(target: ChaseTarget, dt_ms: f32) -> Self {
+    pub fn for_target(target: ChaseTarget, dt_seconds: f32) -> Self {
         let mut lead_position = target.position;
         for (value, direction) in lead_position.iter_mut().zip(target.orientation) {
-            // Literal automata §6.6 formula. Frame dt is milliseconds; do
-            // not silently replace its documented ×1000 by ÷1000 (AF3).
-            *value += direction * target.speed * 1000.0 * dt_ms;
+            // aircraft §4.2.2: the caller has already converted to seconds.
+            *value += direction * (target.speed * 1000.0 * dt_seconds);
         }
-        let mut hover_position = target.position;
+        let mut hover_position = lead_position;
         hover_position[1] += 20.0;
         Self {
             lead_position,
-            spotlight_target: target.position,
+            spotlight_target: lead_position,
             hover_position,
         }
     }

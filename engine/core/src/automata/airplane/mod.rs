@@ -73,14 +73,34 @@ impl AirplaneDriveParameters {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Airplane {
     pub record: AircraftPlacementRecord,
     pub drive_parameters: AirplaneDriveParameters,
     pub player_parameters: AirplaneDriveParameters,
     phase: Option<FlightPhase>,
-    ammunition: Option<u32>,
-    loiter_elapsed_ms: Option<f32>,
+    ammunition: Option<i32>,
+    pub loiter_remaining_seconds: f32,
+    pub water_drop_active: bool,
+    pub dispatch_request: Option<u32>,
+    /// Input from the aircraft player-drive flag, independent of the goal stack.
+    pub player_driven: bool,
+}
+
+impl Default for Airplane {
+    fn default() -> Self {
+        Self {
+            record: AircraftPlacementRecord::default(),
+            drive_parameters: AirplaneDriveParameters::default(),
+            player_parameters: AirplaneDriveParameters::default(),
+            phase: None, // Remaining constructor fields are AF4, not guessed.
+            ammunition: Some(3),
+            loiter_remaining_seconds: 0.0,
+            water_drop_active: false,
+            dispatch_request: None,
+            player_driven: false,
+        }
+    }
 }
 
 impl Airplane {
@@ -97,8 +117,11 @@ impl Airplane {
     pub fn phase(&self) -> Option<FlightPhase> {
         self.phase
     }
-    pub fn ammunition(&self) -> Option<u32> {
+    pub fn ammunition(&self) -> Option<i32> {
         self.ammunition
+    }
+    pub fn set_ammunition(&mut self, ammunition: i32) {
+        self.ammunition = Some(ammunition);
     }
 
     /// Parameter and placement portion of Init. AF4 blocks native Init closure.
@@ -108,8 +131,7 @@ impl Airplane {
         self.record.init_placement();
     }
 
-    /// The phase change is returned for an eventual AEMS adapter. No group
-    /// mapping is guessed here (AF4). Repeated phases do not refill ammo.
+    /// aircraft §3.5: same-phase requests have no side effects.
     pub fn set_airplane_state(&mut self, next: FlightPhase) -> Option<FlightPhaseChange> {
         if self.phase == Some(next) {
             return None;
@@ -118,9 +140,23 @@ impl Airplane {
         if next == FlightPhase::Phase1 {
             self.ammunition = Some(3);
         }
+        use super::SoundRequest::{End, Start};
+        let player = self.player_driven;
+        let sounds = if !player {
+            Vec::new()
+        } else {
+            match (next, previous) {
+                (FlightPhase::Phase0, _) => super::aircraft_actions::stopped_sounds(),
+                (FlightPhase::Phase1, Some(FlightPhase::Phase0)) => vec![Start(9)],
+                (FlightPhase::Phase1, Some(FlightPhase::Phase3)) => vec![End(13), Start(13)],
+                _ => Vec::new(),
+            }
+        };
         Some(FlightPhaseChange {
             previous,
             current: next,
+            sounds,
+            engine_notifications: Vec::new(),
         })
     }
 
@@ -133,10 +169,8 @@ impl Airplane {
         let Some(record) = AircraftPlacementRecord::read(inp) else {
             return false;
         };
-        *self = Self {
-            record,
-            ..Self::default()
-        };
+        // §3.3.1: Read does not reset unsaved countdown/drop/ammunition.
+        self.record = record;
         true
     }
 
@@ -148,7 +182,8 @@ impl Airplane {
                 self.base_mut().pop_state();
                 Ok(AircraftGoalOutcome::Popped)
             }
-            Some(50 | 51 | 53 | 57) => Err(AircraftUnsupported::GoalControl),
+            Some(53) => Ok(self.visit_loiter()),
+            Some(50 | 51 | 57) => Err(AircraftUnsupported::GoalControl),
             _ => Ok(AircraftGoalOutcome::NoAircraftHandler),
         }
     }
@@ -157,31 +192,51 @@ impl Airplane {
     /// the separate two-second timer and ammo decrement end it (§6.6).
     pub fn begin_loiter(&mut self) {
         self.base_mut().push_state(53, SetStateArgs::default());
-        self.loiter_elapsed_ms = Some(0.0);
     }
 
     pub fn tick_loiter(&mut self, dt_ms: f32) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
+        self.tick_loiter_with_multiplier(dt_ms, None)
+    }
+
+    /// Countdown stage of animation, before pursuit; this is not a full AF2 tick.
+    pub fn tick_loiter_with_multiplier(
+        &mut self,
+        dt_ms: f32,
+        ai_multiplier: Option<f32>,
+    ) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
+        let player = self.player_driven;
+        let step = physics_seconds(dt_ms, if player { None } else { ai_multiplier });
+        if self.loiter_remaining_seconds > 0.0 {
+            self.loiter_remaining_seconds -= step;
+        }
         if self.base().states.last().map(|s| s.state_type) != Some(53) {
             return Ok(AircraftGoalOutcome::NoAircraftHandler);
         }
-        let Some(elapsed) = self.loiter_elapsed_ms else {
-            // AF3: reconstructing an unsaved timer for a loaded LOITER is
-            // not specified; do not silently treat it as a newly begun one.
-            return Err(AircraftUnsupported::GoalControl);
-        };
-        let next = elapsed + dt_ms;
-        // Literal "after a 2.0 s timer": strictly greater; boundary is AF3.
-        if next <= 2000.0 {
-            self.loiter_elapsed_ms = Some(next);
-            return Ok(AircraftGoalOutcome::Waiting);
+        Ok(self.visit_loiter())
+    }
+
+    fn visit_loiter(&mut self) -> AircraftGoalOutcome {
+        self.dispatch_request = Some(5);
+        if !self.water_drop_active {
+            self.water_drop_active = true;
+            self.loiter_remaining_seconds = 2.0;
+            self.ammunition = self.ammunition.map(|n| n.wrapping_sub(1));
         }
-        let Some(ammunition) = self.ammunition.and_then(|n| n.checked_sub(1)) else {
-            return Err(AircraftUnsupported::GoalControl); // AF3: empty/unknown ammo.
-        };
-        self.ammunition = Some(ammunition);
-        self.loiter_elapsed_ms = None;
-        self.base_mut().pop_state();
-        Ok(AircraftGoalOutcome::Popped)
+        if self.loiter_remaining_seconds <= 0.0 {
+            self.water_drop_active = false;
+            self.base_mut().pop_state();
+            AircraftGoalOutcome::Popped
+        } else {
+            AircraftGoalOutcome::Waiting
+        }
+    }
+
+    pub fn weapon_requests(
+        &mut self,
+        player: &mut super::PlayerWeaponRecord,
+        effects: &mut dyn super::AircraftWeaponEffects,
+    ) -> super::WeaponOutcome {
+        super::aircraft_actions::weapon_requests(player, effects, &["jetbomb"])
     }
 
     /// Full UpdatePhysics remains open under AF2. Use the numerical helpers

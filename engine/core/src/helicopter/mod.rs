@@ -11,6 +11,9 @@ use crate::stream::{InStream, OutStream};
 
 pub use crate::automata::HelicopterChaseGeometry;
 
+mod settled;
+pub use settled::*;
+
 /// Import order from aircraft.md §4.1, not an exemplar-property list.
 pub const DRIVE_FIELDS: [&str; 13] = [
     "Mass",
@@ -114,6 +117,18 @@ pub struct Helicopter {
     pub record: AircraftPlacementRecord,
     pub drive_parameters: DriveParameters,
     phase: Option<FlightPhase>,
+    pub runtime: Option<RuntimeOwnership>,
+    pub controls: Option<RotorControls>,
+    pub engine_enabled: Option<bool>,
+    pub landing_latch: Option<bool>,
+    pub linear_velocity: Option<Vec3>,
+    pub angular_velocity: Option<Vec3>,
+    pub scaled_rotor_position: Option<Vec3>,
+    /// Inputs from the aircraft flag and retained attachment ownership, not guessed native defaults.
+    pub player_driven: bool,
+    pub spotlight_enabled: Option<bool>,
+    pub input_gains: [Option<f32>; 4],
+    pub retained_effects_present: [bool; 4],
 }
 
 impl Helicopter {
@@ -143,14 +158,57 @@ impl Helicopter {
         clip_aircraft_to_world(position, world.bounds())
     }
 
-    /// Phase metadata only. Native rotor sound mapping is open in AF4.
+    /// §4.2.3 repeats side effects even for the current phase.
     pub fn set_helicopter_state(&mut self, next: FlightPhase) -> Option<FlightPhaseChange> {
-        if self.phase == Some(next) {
-            return None;
+        use crate::automata::{EngineNotification, SoundRequest};
+        match next {
+            FlightPhase::Phase0 => {
+                self.engine_enabled = Some(false);
+                self.landing_latch = Some(false);
+                for velocity in [&mut self.linear_velocity, &mut self.angular_velocity]
+                    .into_iter()
+                    .flatten()
+                {
+                    let squared: f64 = velocity.iter().map(|v| f64::from(*v).powi(2)).sum();
+                    if squared > 0.0 {
+                        let scale = 0.0 / squared.sqrt();
+                        *velocity = velocity.map(|v| (f64::from(v) * scale) as f32);
+                    }
+                }
+            }
+            FlightPhase::Phase1 | FlightPhase::Phase4 => self.engine_enabled = Some(true),
+            _ => {}
+        }
+        let sounds = if !self.player_driven {
+            Vec::new()
+        } else {
+            match next {
+                FlightPhase::Phase0 => crate::automata::aircraft_actions::stopped_sounds(),
+                FlightPhase::Phase4 => vec![SoundRequest::Start(9)],
+                _ => Vec::new(),
+            }
+        };
+        let mut engine_notifications = Vec::new();
+        // AF4 leaves the pre-PhysicsInit engine flag unknown. Never invent it.
+        if let Some(engine) = self.engine_enabled {
+            engine_notifications.push(EngineNotification::Base(engine));
+            for (offset, operation, argument) in if engine {
+                [(0x240, 0x18, 0), (0x22C, 0x1C, 1)]
+            } else {
+                [(0x240, 0x1C, 1), (0x22C, 0x18, 0)]
+            } {
+                engine_notifications.push(EngineNotification::Embedded {
+                    offset,
+                    operation,
+                    argument,
+                });
+            }
         }
         Some(FlightPhaseChange {
             previous: self.phase.replace(next),
             current: next,
+            sounds,
+            engine_notifications,
         })
     }
 
@@ -162,12 +220,8 @@ impl Helicopter {
         let Some(record) = AircraftPlacementRecord::read(inp) else {
             return false;
         };
-        // Atomic owner replacement. Unsaved runtime defaults stay unknown
-        // (AF4), rather than inventing a phase or rotor preset after loading.
-        *self = Self {
-            record,
-            ..Self::default()
-        };
+        // Read constructs/restores no runtime, phase, or unsaved parameters.
+        self.record = record;
         true
     }
 
@@ -223,11 +277,56 @@ impl Helicopter {
 
     // Explicit spec gaps. These signatures are core error boundaries, not
     // guessed native argument/slot layouts. No speculative partial mutation.
-    pub fn physics_init(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::EffectsAndLifecycle)
+    pub fn physics_init(&mut self) -> Result<FlightPhaseChange, AircraftUnsupported> {
+        if self.runtime.as_ref().and_then(|r| r.completion_word).is_none() {
+            return Err(AircraftUnsupported::EffectsAndLifecycle);
+        }
+        Ok(self
+            .set_helicopter_state(FlightPhase::Phase0)
+            .expect("setter always returns actions"))
     }
-    pub fn init_instance(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::EffectsAndLifecycle)
+    pub fn init_instance(&mut self) -> Result<(), AllocationFault> {
+        self.init_instance_with(&mut CoreAllocator, None, None)
+    }
+    pub fn init_instance_with(
+        &mut self,
+        allocator: &mut dyn RuntimeAllocator,
+        player: Option<&dyn PlayerParameterSource>,
+        ai: Option<&dyn DriveParameterSource>,
+    ) -> Result<(), AllocationFault> {
+        if let Some(runtime) = &self.runtime {
+            if runtime.completion_word.is_some() {
+                return Ok(());
+            }
+            let missing = if !runtime.parameters {
+                RuntimeResource::Parameters
+            } else {
+                RuntimeResource::Transform(TRANSFORM_OFFSETS[runtime.transforms.iter().position(|v| !*v).unwrap()])
+            };
+            return Err(AllocationFault(missing));
+        }
+        if !allocator.allocate(RuntimeResource::State) {
+            return Err(AllocationFault(RuntimeResource::State));
+        }
+        self.runtime = Some(RuntimeOwnership::default());
+        if !allocator.allocate(RuntimeResource::Parameters) {
+            return Err(AllocationFault(RuntimeResource::Parameters));
+        }
+        self.runtime.as_mut().unwrap().parameters = true;
+        self.drive_parameters = DriveParameters::preset0();
+        // The copied preset makes the speed fallback's yaw maximum known.
+        refresh_player_parameters(&mut self.drive_parameters, &mut self.input_gains, player)
+            .expect("preset yaw maximum exists");
+        self.drive_parameters.load(ai);
+        for (index, offset) in TRANSFORM_OFFSETS.into_iter().enumerate() {
+            let resource = RuntimeResource::Transform(offset);
+            if !allocator.allocate(resource) {
+                return Err(AllocationFault(resource));
+            }
+            self.runtime.as_mut().unwrap().transforms[index] = true;
+        }
+        self.runtime.as_mut().unwrap().completion_word = Some(0);
+        Ok(())
     }
     pub fn update_rotor_sounds(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::EffectsAndLifecycle)
@@ -244,28 +343,171 @@ impl Helicopter {
     pub fn move_y_real(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::FlightModel)
     }
-    pub fn ai_control_reset(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::GoalControl)
+    pub fn ai_control_reset(&mut self, seconds: f32, pitch_factor: f32) -> Result<AngularDemands, AircraftUnsupported> {
+        self.controls
+            .as_mut()
+            .ok_or(AircraftUnsupported::EffectsAndLifecycle)?
+            .reset(seconds, pitch_factor, &self.drive_parameters)
     }
-    pub fn ai_control_hover(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::GoalControl)
+    pub fn ai_control_hover(
+        &mut self,
+        seconds: f32,
+        vertical_velocity: f32,
+        height: f32,
+    ) -> Result<(), AircraftUnsupported> {
+        let y = self.base().vectors[0][1];
+        self.controls
+            .as_mut()
+            .ok_or(AircraftUnsupported::EffectsAndLifecycle)?
+            .hover(seconds, y, vertical_velocity, height);
+        Ok(())
     }
     pub fn ai_control_move_xz(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::GoalControl)
     }
-    pub fn ai_control_lift_over_buildings(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::GoalControl)
+    pub fn ai_control_lift_over_buildings<W: ClearanceWorld>(
+        &mut self,
+        world: &mut W,
+        seconds: f32,
+        velocity: Vec3,
+    ) -> Result<f32, AircraftUnsupported> {
+        if self.controls.is_none() {
+            return Err(AircraftUnsupported::EffectsAndLifecycle);
+        }
+        let height = building_clearance_height(world, self.base().vectors[0], velocity, self.record.home_position[1]);
+        self.ai_control_hover(seconds, velocity[1], height)?;
+        Ok(height)
     }
     pub fn update_spotlight(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::PlayerControls)
     }
-    pub fn on_player_take_over(&mut self) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::PlayerControls)
+    pub fn on_player_take_over(
+        &mut self,
+        provider: Option<&dyn PlayerParameterSource>,
+    ) -> Result<(), AircraftUnsupported> {
+        refresh_player_parameters(&mut self.drive_parameters, &mut self.input_gains, provider)
     }
     pub fn translate_player_drive_commands(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::PlayerControls)
     }
     pub fn do_player_drive_tick(&mut self) -> Result<(), AircraftUnsupported> {
         Err(AircraftUnsupported::PlayerControls)
+    }
+
+    /// Settled chase decisions only. MoveXZ and the remaining complete AI switch are AF3.
+    pub fn pursue_chase_stage(
+        &mut self,
+        targets: &dyn AircraftTargets,
+        seconds: f32,
+        opacity: f32,
+        fade_duration: f32,
+    ) -> Result<Option<ChaseActions>, AircraftUnsupported> {
+        let Some(state) = self.base().states.last() else {
+            return Ok(None);
+        };
+        if state.state_type != state_type::CHASE {
+            return Err(AircraftUnsupported::GoalControl);
+        }
+        let target = match &state.extra {
+            StateExtra::Chase(reference) if !reference.is_null() => targets.chase_target(reference),
+            _ => None,
+        };
+        let Some(target) = target.filter(|t| t.top_state == Some(state_type::PLAYER_DRIVE)) else {
+            self.base_mut().pop_state();
+            return Ok(None);
+        };
+        let actions = chase_actions(self.base().vectors[0], target, seconds, opacity, fade_duration);
+        self.spotlight_enabled = Some(true);
+        if let Some(position) = actions.teleport {
+            self.base_mut().vectors[0] = position;
+        }
+        if let Some(position) = actions.scaled_rotor_position {
+            self.scaled_rotor_position = Some(position);
+        }
+        Ok(Some(actions))
+    }
+
+    pub fn weapon_requests(
+        &mut self,
+        player: &mut crate::automata::PlayerWeaponRecord,
+        effects: &mut dyn crate::automata::AircraftWeaponEffects,
+    ) -> crate::automata::WeaponOutcome {
+        crate::automata::aircraft_actions::weapon_requests(player, effects, &["helicoptermissle", "ufolaser"])
+    }
+
+    pub fn spotlight_activation_stage(
+        &self,
+        effects: &mut dyn SpotlightEffects,
+    ) -> Result<SpotlightStage, AircraftUnsupported> {
+        if !effects.present(0) || !effects.present(1) {
+            return Ok(SpotlightStage::MissingPair);
+        }
+        let player_drive_state_present = self
+            .base()
+            .states
+            .iter()
+            .any(|s| s.state_type == state_type::PLAYER_DRIVE);
+        let environment = effects.environment_mode();
+        let enabled = self.spotlight_enabled.ok_or(AircraftUnsupported::PlayerControls)?;
+        let phase = self.phase.ok_or(AircraftUnsupported::EffectsAndLifecycle)?;
+        let requested = environment == 1 && enabled && phase != FlightPhase::Phase0;
+        for index in 0..2 {
+            let active = effects.active(index);
+            if requested && !active {
+                effects.start(index, 0);
+            }
+            if !requested && active {
+                effects.stop(index, 1);
+            }
+        }
+        Ok(SpotlightStage::NeedsGeometry {
+            player_drive_state_present,
+        })
+    }
+
+    /// Post-base Shutdown only (§4.2.5); pre-base scaling remains AF4.
+    /// Slots marked present represent retained owning references, never borrowed pointers.
+    pub fn shutdown_after_base(&mut self, base_result: bool) -> ShutdownActions {
+        let mut actions = Vec::new();
+        for (present, offset) in self
+            .retained_effects_present
+            .iter_mut()
+            .zip([0x200, 0x204, 0x224, 0x228])
+        {
+            if *present {
+                actions.push(CleanupAction::StopEffect { offset, argument: 1 });
+                *present = false;
+                actions.push(CleanupAction::ReleaseRetainedEffect(offset));
+            }
+        }
+        for offset in [0x22C, 0x240] {
+            actions.push(CleanupAction::Embedded {
+                offset,
+                operation: 0x1C,
+                argument: Some(1),
+            });
+            actions.push(CleanupAction::Embedded {
+                offset,
+                operation: 0x04,
+                argument: None,
+            });
+        }
+        if let Some(runtime) = self.runtime.take() {
+            for (present, offset) in runtime.transforms.into_iter().zip(TRANSFORM_OFFSETS) {
+                if present {
+                    actions.push(CleanupAction::Free(RuntimeResource::Transform(offset)));
+                }
+            }
+            if runtime.parameters {
+                actions.push(CleanupAction::Free(RuntimeResource::Parameters));
+            }
+            actions.push(CleanupAction::Free(RuntimeResource::State));
+            self.drive_parameters = DriveParameters::default();
+        }
+        if self.controls.take().is_some() {
+            actions.push(CleanupAction::Free(RuntimeResource::Controls));
+        }
+        self.phase = None;
+        ShutdownActions { base_result, actions }
     }
 }

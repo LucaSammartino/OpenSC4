@@ -279,7 +279,7 @@ fn phase_changes_are_independent_of_stack_and_mission_loiter_has_6000ms_timeout(
         let change = heli.set_helicopter_state(phase).unwrap();
         assert_eq!(change.current, phase);
         assert_eq!(heli.phase(), Some(phase));
-        assert!(heli.set_helicopter_state(phase).is_none());
+        assert!(heli.set_helicopter_state(phase).is_some());
         assert!(heli.base().states.is_empty());
     }
     assert!(heli.push_mission_loiter());
@@ -356,8 +356,8 @@ fn reads_are_atomic_at_every_truncation_and_reject_bad_nested_versions() {
     let mut out = ByteWriter::new();
     assert!(heli.write(&mut out));
     assert_eq!(out.bytes(), bytes); // concrete writers always emit 1
-    assert_eq!(heli.phase(), None);
-    assert_eq!(heli.drive_parameters.0, [None; 13]); // AF9 reconstruction
+    assert_eq!(heli.phase(), Some(FlightPhase::Phase3));
+    assert_eq!(heli.drive_parameters.0, [Some(23.0); 13]); // Read does not construct/reset a runtime.
 }
 
 struct World;
@@ -403,9 +403,11 @@ fn placement_capture_altitude_and_world_margin_reuse_aircraft_contracts() {
 fn open_rotor_ai_lifecycle_and_player_methods_never_report_success_or_mutate() {
     let mut heli = Helicopter::default();
     let before = heli.record.clone();
-    for result in [heli.physics_init(), heli.init_instance(), heli.update_rotor_sounds()] {
-        assert_eq!(result, Err(AircraftUnsupported::EffectsAndLifecycle));
-    }
+    assert_eq!(heli.physics_init(), Err(AircraftUnsupported::EffectsAndLifecycle));
+    assert_eq!(
+        heli.update_rotor_sounds(),
+        Err(AircraftUnsupported::EffectsAndLifecycle)
+    );
     for result in [
         heli.next_frame(16.0, &World),
         heli.yaw_pitch_roll_slide_real(),
@@ -414,17 +416,9 @@ fn open_rotor_ai_lifecycle_and_player_methods_never_report_success_or_mutate() {
     ] {
         assert_eq!(result, Err(AircraftUnsupported::FlightModel));
     }
-    for result in [
-        heli.ai_control_reset(),
-        heli.ai_control_hover(),
-        heli.ai_control_move_xz(),
-        heli.ai_control_lift_over_buildings(),
-    ] {
-        assert_eq!(result, Err(AircraftUnsupported::GoalControl));
-    }
+    assert_eq!(heli.ai_control_move_xz(), Err(AircraftUnsupported::GoalControl));
     for result in [
         heli.update_spotlight(),
-        heli.on_player_take_over(),
         heli.translate_player_drive_commands(),
         heli.do_player_drive_tick(),
     ] {
