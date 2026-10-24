@@ -9,7 +9,8 @@
 - EF22 read: no native observer API; attachment requires host capabilities absent here. Closed refusal is required, not a missing spec signature; no duplicate EF22 question.
 - EF23 capture fix and named/anonymous/truncation tests implemented; plugin reports exact measured scope and EF22 refusal explicitly. Implementation committed with validation pending; no native payload credit claimed.
 - Done: implementation db988ae7a; focused effects::capture tests 8/8 PASS (including both EF23 tests), owned-file fmt 2 files / 0 diff lines.
-- Next: collect qbuild all terminal result, then city to 2032. No game request outstanding.
+- Next: collect current qbuild all terminal result (exec session 56445), then city to 2032. No game request outstanding.
+- Resume: prior interrupted round left only an incomplete qbuild-test.log, no native verdict or DLL. Current full gate started on unchanged final source; retain its actual terminal result. Run number scan maximum 630 (recheck before recording).
 - Focus log build-runs/effects-focused.log: first compilation completed successfully under heavy shared Rust contention. Session 75954 finished. Initial fmt relative-path invocation failed; absolute-path invocation passed, no source change.
 - q.py cannot start Bash (CreateFileMapping permission error); use local Python foreground runner for focused Cargo. All full gates through qbuild.
 - No tools/ or analysis content read. Do not switch detached HEAD or update shared refs.
