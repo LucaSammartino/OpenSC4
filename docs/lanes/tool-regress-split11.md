@@ -1,14 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | in progress: final measured closure; prior qbuild PASS, ctest 81/81; run 617 combined 52/52 exact with watchdogs, run 618 split 51/52 partial; ABI unchanged | Run the final gate once, restore the complete report, commit and enqueue READY with the full HEAD. |
+| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | READY measured tooling, combined default retained: final qbuild PASS, ctest 81/81, focused tests 17/17; run 617 combined 52/52 exact with watchdogs, run 618 split 51/52 partial with stalls; ABI unchanged | (1) Retain explicit --split pending full-horizon parity; (2) investigate watchdog stalls and propmgr divergence before enabling split by default. |
 
-## Report
+## R2 report (validation hold; final closure below)
 
 Coordinator hold retained. Tooling test failures are proved pre-existing and the groups have measured
 weights, but **strict 2032 parity and a valid >=35% wall-time reduction remain unproved**. Split retries
-stalled before the endpoint. No READY or coverage sign-off is claimed.
+stalled before the endpoint. R2 withheld READY and coverage sign-off; the final-round instruction
+now closes the measured opt-in tooling as READY below, with the validation hold retained.
 
-This round committed the combined-default policy in `19f8664cd` and measured rebalance in `4ea92f600`.
+R2 committed the combined-default policy in `19f8664cd` and measured rebalance in `4ea92f600`.
 `merge-train.py regress` and `run` now use combined unless explicitly passed `--split`; opt-in splitting
 uses three groups except every fourth batch stays combined. `--combined` and `--split` are mutually
 exclusive. Existing train-state/run-record profile fields remain intact. Ops instructions were updated.
@@ -26,7 +27,7 @@ resource/weather readers and overlays/simgrid remain with their state-sharing fa
 switches when tested. Queue submission, concatenated group logs, summed shadow counts, worst-group
 verdicts and the ordinary delta output remain as implemented in the preceding round.
 
-### Final checks
+### R2 checks
 
 - `python <MAIN>/tools/tests/test_laneguard.py WorkflowDryRun -v` ran main's actual source:
   **7 tests, six failures**. All six are the same `WorkflowDryRun` methods as on this lane:
@@ -46,15 +47,83 @@ verdicts and the ordinary delta output remain as implemented in the preceding ro
   summaries: all **52 labels** parsed each time. `newest_regress` selected reachable main evidence
   `regress-train196.out`, not these unmerged runs. Delta comparisons ran without reader changes.
 
-## Handoff
+## Final report
 
-- Goal: final closure and READY queue entry; no new owners, questions or game retries.
-- Done: grouping/aggregation `3ffd15df6`, sorting fix `c46aa442c`, opt-in safety hold `19f8664cd`, measured rebalance `4ea92f600`; previous closure `7a2e62bbe`.
-- Next: qbuild verify once, focused tests, complete report, commit and enqueue full HEAD.
-- Combined stays default under existing parity hold; `--split` selects three groups, every fourth batch combined.
-- No full-horizon split parity or valid speed proof; preserve failures without coverage credit.
-- Prior tooling 141/147, all six failures reproduced on main. No operation outstanding.
-- Records 611-618 and same-DLL measurements retained below.
+READY for the measured tooling under the final-round instruction. This is partial closure:
+the requested automatic three-way split remains held by the committed parity decision
+(`19f8664cd`), because the same-DLL split retries stalled and propmgr diverged. No claim of
+successful full-horizon split parity, seven-minute runtime, or coverage credit is made.
+No new owners, questions, game requests or retries were started in this final round.
+
+### Changes
+
+- `tools/regress.ps1 -ShadowSplit N` accepts 1..5 (default 1). It partitions the existing
+  single house `shadows =` profile and validated `-AddShadows` extras, then submits every
+  group and the replacement run before waiting on the game queue. Combined mode retains
+  the existing execution path; split mode requires `-Queue`.
+- `tools/regress_shadows.ps1` balances state families longest-first using measured costs.
+  Traffic projects to 383.5 s and resources to 367.4 s at the house horizon; residential
+  uses the measured 65 s group, with train196 proxies for the remaining costs. Resource
+  shutdown cost is retained separately from simulation time. The three-way partition is
+  traffic / resources / remaining shadows; isolated timing evidence is run 614.
+- Stateful families stay in one process: occupant/property/city-detail/lot projections;
+  automata and automata owners; weather/scres/scres_file/dbpf; overlays and simgrid.
+  Helper configuration follows its family, while common disable settings are copied.
+- Per-group logs are concatenated under named group headers into one shadows log. The
+  existing summary sums each label; the worst verdict wins, and missing/blocked groups
+  fail. One ordinary `.out` includes the `split N` or `combined` profile. Coverage and
+  delta readers are unchanged.
+- Merge-train records `shadow_split` and `shadow_profile` in state and run JSON. `--split`
+  opts in to three groups; every fourth numbered batch and `--combined` use one. Combined
+  remains the default until the parity hold is resolved. The flags are mutually exclusive.
+- `docs/ops/running-the-game.md` documents the switch, grouping, queue behavior and hold.
+  No engine, ABI, coverage-map or coverage-shadows changes were made.
+
+Implementation milestones: `3ffd15df6` grouping/aggregation, `c46aa442c` PowerShell sorting
+fix after real-queue testing, `19f8664cd` opt-in hold, `4ea92f600` measured rebalance.
+
+### Final verification (2026-10-24)
+
+Ran `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> verify` exactly once in this round,
+in the foreground through `build-runs/split11-final-checks.py`. The first `q.py` wrapper
+attempt failed in Bash before launching qbuild (`CreateFileMapping`, Windows error 5);
+the direct Python invocation submitted one job, `qbuild-20261024-165853-build-ctest`.
+It printed `verdict: pass`, build `PASS 46/46 edges`, ctest `PASS 100% passed, 0 failed
+of 81 (127.1 s)`, `fc4verify: PASS (131.6 s)`, and `qbuild: PASS`.
+Full output: `build-runs/split11-r3-native.out`; native logs are `fc4verify-*.log`.
+Cargo and clippy are not applicable to this tooling change.
+
+Ran `python -m unittest discover -s tools/tests -p test_regress*.py -v` in the same
+foreground helper. It printed `Ran 17 tests in 14.389s` and `OK`; output is retained in
+`build-runs/split11-r3-regress-tests.out`. This includes actual PowerShell 5.1 parsing,
+group completeness/state-family preservation, extras validation, aggregation/worst verdict,
+missing-log failure, merge-train cadence and gated-DLL/profile recording checks.
+Earlier full tooling discovery was 141/147; all six workflow dry-run failures reproduced
+on main (`build-runs/tooling-tests-final.out`, `build-runs/main-workflow-tests.out`).
+They remain separate from the passing final focused check.
+
+The final real `coverage.read_regress` check matched every label/count in all four R2
+recorded summaries against `split11-r2-final.json`; `newest_regress` and the existing
+delta reader need no change. Detailed reader output and exact count comparisons follow.
+
+The final reader check printed:
+
+```text
+split11-r2-c1 FAIL 52/52 labels exact flammability 9/9 propmgr 43/43
+split11-r2-s3 FAIL 51/52 labels exact flammability 36/36 propmgr 150/151
+split11-r2-c1-retry FAIL 52/52 labels exact flammability 54/54 propmgr 220/220
+split11-r2-s3-retry FAIL 51/52 labels exact flammability 16/16 propmgr 68/70
+newest_regress: C:\Users\tlori\FreeCity4\build-runs\regress-train196.out
+reader evidence matches all four recorded summaries
+```
+
+### Questions and remaining work
+
+No questions filed. Full-horizon split validation remains open: diagnose the repeated
+watchdog stalls and propmgr query-list differences, then compare all counts and mismatch
+totals against a completed same-DLL combined run. Only then enable the originally requested
+three-way default and claim the target runtime. This final READY entry lands the measured
+tooling with explicit opt-in and retains that limitation; no further operation is pending.
 
 ### Real games and timing limits
 
