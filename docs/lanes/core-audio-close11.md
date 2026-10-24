@@ -3,6 +3,8 @@
 | core-audio-close11: SC4 audio owner closure | Codex, core-audio-close11 | in progress | Continue remaining SC4 owners; handler milestone gated |
 
 ## Handoff
+- Final round r3: prior session 33201 is gone; its result is unclaimed. No new owners will be started. README now has an explicit per-owner verdict and numbered question for every remaining owner. Next: commit this documentation, run qbuild all once, collect that same operation to termination, fix only diagnosed failures, then final report/ready queue.
+- Active manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-audio-close11-r3-manifest.json. No game requests outstanding; core-only changes have no plugin/ABI wiring.
 - Goal: close every specified cSC4Audio* owner in engine/core/src/audio, without ABI/plugin changes. Family NOT closed; no merge-queue entry.
 - Done: 45593631c implements extended EventHandler §7 lifecycle/radio/settings/dispatch/construction/alternate automata/modal/mouse/callbacks/torch/destruction plus owner/closure tests and README section table. 4dba7adc7 fixes mouse pattern lint.
 - Stable final gate on c2ed86da8: qbuild all PASS, workspace 7065 passed/0 failed/0 ignored, clippy 0 diagnostics, native build 47/47 edges (117.1 s), CTest 80/80 (212.9 s), native total 332.1 s; no tree-change annotation.

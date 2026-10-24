@@ -90,3 +90,33 @@ completed dispatch table's conflict with the older four-operation fixture list.
 The [sound-system owner table](sound_system/README.md) maps the separate HIT,
 freshness, framework sound, director and playlist contracts to code/tests and
 SS1–SS11 open questions.
+
+## Closure verdict by owner
+
+This is a partial closure submission. Implemented stages in the section table
+above do not close an owner whose remaining bodies are listed here. Question
+IDs AU1 and AU5 are in audio.md §15; AU40–AU49 are in
+[audio questions](../../../../docs/specs/questions/audio.md), and AA10–AA14 are in
+[ambience questions](../../../../docs/specs/questions/audio-ambience.md).
+
+| Owner | Verdict | Remaining sections / open question |
+|---|---|---|
+| cSC4AudioEventHandler | Specified bodies implemented | §16 vector 12 conflicts with completed §7.2 dispatch: open: AU45; implementation follows §7.2 |
+| cSC4AudioAmbienceManager | Partial | audio-ambience §3.6 absent creation clock: open: AA10; literal rectangle/removal choices: AA12, AA13 |
+| cSC4AudioAmbienceLayer | Partial | audio-ambience §8.1 lifecycle and uncovered slots, native setup for §10.9–18: open: AA14 |
+| cSC4AudioSoundManager | Partial | §§8.1–8.3, 10.6 owner execution/lifetime: open: AU46, AU49 |
+| cSC4AudioCOMDirector | Partial | §§1.1, 1.3 application lifetime/interleaving: open: AU47 |
+| cSC4AudioAEMSEventSystem | Partial | §§10.7–10.8 / contracts §17 dispatch, lifetime and failure policy: open: AU48 |
+| cSC4AudioAEMSSoundBank | Partial | §10.7 / contracts §17 full lifetime and bank validation: open: AU48, AU1 |
+| cSC4AudioListener | Partial | contracts §§18.1–18.3 geometry, tuning, cheat and failure lifetime: open: AU40 |
+| cSC4AudioSemManager | Partial | contracts §19 construction/registration: open: AU41 |
+| cSC4AudioEmanationModel2D | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
+| cSC4AudioEmanationModel3D | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
+| cSC4AudioEmanationModel3DEffects | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
+| cSC4AudioScapeManager | Partial | contracts §§20.1–20.2 resources and remaining slots: open: AU42 |
+| cSC4AudioEventHandlerDisasterFire | Partial | §7.4 / contracts §20.3 construction, dispatch/removal and lifetime: open: AU44 |
+| cSC4AudioPreferencesWinProc | Partial | contracts §§21.1–21.3 dialog/song/control inventory: open: AU43 |
+| 83 audio leaf classes | Partial | §11 slot 5 behavior: open: AU5 |
+
+Lower sound-system owners remain partial under the SS questions in their linked
+table; this submission does not claim closure of the `cSC4Audio*` family.
