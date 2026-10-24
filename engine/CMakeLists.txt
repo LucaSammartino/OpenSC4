@@ -569,6 +569,9 @@ if(FC4_IS_WIN32_X86)
         # Opt-in partial resource/token adapter observation replay.
         plugin/FC4SCResShadow.cpp
         plugin/FC4SCResShadow.h)
+        # Default-off record-only ordinance monthly shadow.
+        plugin/FC4OrdinanceShadow.cpp
+        plugin/FC4OrdinanceShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
