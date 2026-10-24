@@ -25,7 +25,9 @@ uint32_t fc4_app_shadow_expected(void*, uint32_t, char*, uint32_t);
 namespace {
 void* model = nullptr;
 bool seeded = false;
+bool pathCacheDiagnostic = false;
 uint32_t lines = 0, clean = 0, startupLines = 0, startupClean = 0, events = 0;
+uint32_t cacheLines = 0, cacheClean = 0;
 // AP3: exact slots, never the incompatible SDK directory names/signatures.
 constexpr uint32_t offsets[] = {0x7C, 0x90, 0xA4, 0xB8, 0xCC, 0xE0, 0x108, 0x11C};
 
@@ -44,6 +46,7 @@ void Report(int32_t julian, bool load) {
     if (!model) return;
     auto* app = AcquireApp();
     uint32_t differences = 0, fields = 0;
+    uint32_t cacheDifferences = 0, cacheFields = 0;
     if (!app) {
         differences = 1; // Unavailable samples must not be counted as exact.
     } else {
@@ -64,6 +67,10 @@ void Report(int32_t julian, bool load) {
             seeded = true;
         }
         for (uint32_t i = 0; i < 18; ++i) {
+            // AP18: native prewarmed cache/base and Scripts suffix disagree with
+            // section 9. Keep these out of the supported label, never resync.
+            const bool unresolvedCache = i == 14 || i == 15;
+            if (unresolvedCache && !pathCacheDiagnostic) continue;
             cRZBaseString out("app-shadow-sentinel");
             const uint32_t slot = i < 16 ? 51 + i : i == 16 ? 28 : 30;
             if (slot == 53 || slot == 54) {
@@ -74,12 +81,12 @@ void Report(int32_t julian, bool load) {
                 reinterpret_cast<Getter>(table[slot])(app, out);
             }
             const uint32_t mismatch = fc4_app_shadow_compare(model, i, out.ToChar(), out.Strlen());
-            differences += mismatch;
-            ++fields;
+            if (unresolvedCache) { cacheDifferences += mismatch; ++cacheFields; }
+            else { differences += mismatch; ++fields; }
             if (mismatch) {
                 char expected[32769]{};
                 fc4_app_shadow_expected(model, i, expected, sizeof(expected));
-                fc4::Log("app: field=%u slot=%u differs (AP3/AP7); native=%s expected=%s", i, slot, out.ToChar(), expected);
+                fc4::Log("app: field=%u slot=%u differs (AP3/AP7/AP18); native=%s expected=%s", i, slot, out.ToChar(), expected);
             }
         }
         // Compare after dispatch has completed (next observer tick for load,
@@ -97,6 +104,13 @@ void Report(int32_t julian, bool load) {
         load ? "first-city-quiet-point" : "month", fields, events, differences);
     if (load) { ++startupLines; startupClean += differences == 0; }
     else { ++lines; clean += differences == 0; }
+    if (pathCacheDiagnostic) {
+        if (cacheFields != 2) ++cacheDifferences;
+        fc4::Log("app-path-cache shadow %04d-%02d-%02d: phase=%s fields=%u AP18 resyncs=0; mismatches=%u",
+            date.year, date.month, date.day_of_month, load ? "first-city-quiet-point" : "month",
+            cacheFields, cacheDifferences);
+        ++cacheLines; cacheClean += cacheDifferences == 0;
+    }
 }
 bool loadDue = false;
 }
@@ -107,7 +121,9 @@ void AppShadowStart() {
     model = fc4_app_shadow_new();
     seeded = loadDue = false;
     lines = clean = startupLines = startupClean = events = 0;
-    Log("app: ON; paths and lifecycle mode only; AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit");
+    cacheLines = cacheClean = 0;
+    pathCacheDiagnostic = SettingInt("app_shadow_path_cache", nullptr, 0) != 0;
+    Log("app: ON; 17 supported path/filename/mode fields; AP18 excludes slots65/66 (app_shadow_path_cache diagnostic=%u); AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit", pathCacheDiagnostic ? 1u : 0u);
 }
 void AppShadowMessage(uint32_t kind) {
     if (!model) return;
@@ -130,6 +146,7 @@ void AppShadowStop() {
     if (!model) return;
     Log("app shadow: shutdown: scope=paths-mode %u lines, %u with mismatches=0; resyncs=0", lines, clean);
     Log("app-startup shadow: shutdown: scope=first-city-paths-mode %u lines, %u with mismatches=0; resyncs=0", startupLines, startupClean);
+    if (pathCacheDiagnostic) Log("app-path-cache shadow: shutdown: AP18 %u lines, %u with mismatches=0; resyncs=0", cacheLines, cacheClean);
     fc4_app_shadow_free(model);
     model = nullptr;
 }

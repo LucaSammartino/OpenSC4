@@ -408,6 +408,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
                                   // Application path and message-mode observation, default off (AP17).
                                   "app_shadow",
+                                  // Unresolved native lazy-path cache diagnostics only (AP18).
+                                  "app_shadow_path_cache",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
