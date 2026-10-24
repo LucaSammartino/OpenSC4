@@ -136,9 +136,6 @@ impl Driver {
         self.send_material(host);
         Ok(())
     }
-    pub fn copy_color_buffer(&self) -> Result<()> {
-        Err(Error::Unsupported("RD7"))
-    }
     fn region_live(&self, kind: u32) -> u32 {
         self.auxiliary_surfaces.get(kind as usize).copied().unwrap_or(0)
     }

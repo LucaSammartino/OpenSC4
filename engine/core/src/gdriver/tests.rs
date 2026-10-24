@@ -138,6 +138,19 @@ impl Device for Recorder {
                 }
             }
             Call::LockSurface => out.copy_from_slice(&[0x8000, 256, 32, 0, 0]),
+            Call::GetRenderTarget => {
+                out[0] = self
+                    .calls
+                    .iter()
+                    .rev()
+                    .find(|r| r.call == Call::CreateDevice)
+                    .and_then(|r| r.args.last())
+                    .copied()
+                    .unwrap_or(13)
+            }
+            Call::LockColorSurface => out.copy_from_slice(&[0x9000, 32, 8, 8, 0x40, 32, 0xff0000, 0xff00, 0xff, 0]),
+            Call::ColorBufferInfo => out.copy_from_slice(&[1, 4, 4]),
+            Call::LockColorBuffer if out.len() == 2 => out.copy_from_slice(&[0xa000, 16]),
             Call::AdapterInfo => out.copy_from_slice(&[0x7000, 4, 1, 2, 3, 4, 0x7100, 1, 2, 3, 4]),
             _ => {
                 if !out.is_empty() {
@@ -147,20 +160,6 @@ impl Device for Recorder {
             }
         }
         0
-    }
-    fn unresolved(&mut self, question: &'static str, args: &[u32], out: &mut [u32]) -> Result<()> {
-        // Explicit test inputs at open proof boundaries, never claimed as native defaults.
-        match question {
-            "RD6" => {
-                if args.len() == 1 {
-                    for o in out {
-                        *o = 1;
-                    }
-                }
-            }
-            _ => return Err(Error::Unsupported(question)),
-        }
-        Ok(())
     }
 }
 fn fixture() -> (Driver, Recorder) {
@@ -951,7 +950,6 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
     assert_eq!(light.theta.to_bits(), 0x3f47ae14);
     assert_eq!(light.phi.to_bits(), 0x3fc8f5c3);
     assert_eq!(light.range.to_bits(), 0x5f7fffff);
-    assert_eq!(d.auxiliary_operation(), Err(Error::Unsupported("RD7")));
     let mut untouched = 0xfeed;
     d.pixel_store(0, 123);
     d.get_integer(1, &mut untouched);
@@ -1029,6 +1027,8 @@ fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
 
 #[path = "closure_tests.rs"]
 mod closure_tests;
+#[path = "settled_tests.rs"]
+mod settled_tests;
 
 #[test]
 fn context_failure_does_not_release_borrowed_entry_or_stale_output() {

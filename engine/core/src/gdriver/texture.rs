@@ -307,7 +307,7 @@ impl TextureManager {
         if device == 0 {
             return Ok(true);
         }
-        let chosen = chosen.ok_or(Error::Unsupported("RD6"))?;
+        let chosen = chosen.ok_or(Error::InvalidInput)?;
         let caps2 = if flags & 1 != 0 {
             0x20004
         } else if flags & 2 != 0 {
@@ -335,7 +335,7 @@ impl TextureManager {
             Some(v) => v,
             None => return Ok(false),
         };
-        let available = self.converters.ok_or(Error::Unsupported("RD6"))?;
+        let available = self.converters.ok_or(Error::InvalidInput)?;
         if r.format >= 8 || !available[source][r.format as usize] {
             return Ok(false);
         }
@@ -364,7 +364,7 @@ impl TextureManager {
         let key = self
             .formats
             .and_then(|f| f.get(format).copied())
-            .ok_or(Error::Unsupported("RD6"))?
+            .ok_or(Error::InvalidInput)?
             .words[7];
         let mut out = [0; 5]; // mapped address, pitch, bits, linear-size flag, linear byte size
         loop {
@@ -411,7 +411,7 @@ impl TextureManager {
     }
 }
 
-/// Only the settled arithmetic in §9.6 is implemented; RD6 covers the remaining cells.
+/// All available §9.6 cells, including raw compressed copies and software decoders.
 #[allow(clippy::too_many_arguments)]
 pub fn convert(
     source: u32,
@@ -425,38 +425,153 @@ pub fn convert(
     host: &mut impl Device,
 ) -> Result<()> {
     let raw = matches!((source, key), (10, 9) | (12, 11) | (11 | 13 | 14, 10..=13));
-    if !raw && !(matches!(source, 0 | 5 | 9) && matches!(key, 1 | 2)) {
-        return host.unresolved(
-            "RD6",
-            &[source, key, src, src_pitch, dst, dst_pitch, width, height],
-            &mut [],
-        );
+    if !converter_available(source as usize, key) {
+        return Err(Error::InvalidInput);
+    }
+    if !raw && matches!(source, 10 | 12) {
+        return decode_blocks(source, key, src, dst, dst_pitch, width, height, host);
     }
     for row in 0..height {
         // Section 9.6's compressed byte copier advances rows; expansions walk backward.
         let y = if raw { row } else { height - 1 - row };
         let s = src.wrapping_add(y.wrapping_mul(src_pitch));
         let d = dst.wrapping_add(y.wrapping_mul(dst_pitch));
-        if raw || source == 0 {
-            let mut bytes = vec![0; width as usize * if raw { 1 } else { 4 }];
+        if raw {
+            let mut bytes = vec![0; width as usize];
             host.read(s, &mut bytes)?;
             host.write(d, &bytes)?;
         } else {
             for x in 0..width {
-                let mut bytes = [0; 2];
-                host.read(s.wrapping_add(x.wrapping_mul(2)), &mut bytes)?;
-                let v = u16::from_le_bytes(bytes) as u32;
-                let pixel = if source == 5 {
-                    ((v >> 12) * 17) << 24
-                        | ((v & 15) * 17) << 16
-                        | (((v >> 4) & 15) * 17) << 8
-                        | (((v >> 8) & 15) * 17)
-                } else {
-                    let expand5 = |n: u32| (n << 3) + (n >> 2);
-                    let g = (v >> 5) & 63;
-                    0xff000000 | expand5(v & 31) << 16 | ((g << 2) + (g >> 4)) << 8 | expand5(v >> 11)
+                let size = match source {
+                    0 | 1 => 4,
+                    2 | 3 => 3,
+                    _ => 2,
                 };
-                host.write(d.wrapping_add(x.wrapping_mul(4)), &pixel.to_le_bytes())?;
+                let mut bytes = [0; 4];
+                host.read(s.wrapping_add(x.wrapping_mul(size)), &mut bytes[..size as usize])?;
+                let v = u32::from_le_bytes(bytes);
+                let (mut rgb, bits, alpha, abits) = match source {
+                    0 | 1 => ([(v >> 16) & 255, (v >> 8) & 255, v & 255], [8; 3], v >> 24, 8),
+                    2 | 3 => ([(v >> 16) & 255, (v >> 8) & 255, v & 255], [8; 3], 1, 1),
+                    4 | 5 => ([(v >> 8) & 15, (v >> 4) & 15, v & 15], [4; 3], v >> 12, 4),
+                    6 | 7 => ([(v >> 10) & 31, (v >> 5) & 31, v & 31], [5; 3], v >> 15, 1),
+                    _ => ([(v >> 11) & 31, (v >> 5) & 63, v & 31], [5, 6, 5], 1, 1),
+                };
+                if source & 1 != 0 {
+                    rgb.swap(0, 2);
+                }
+                let (outbits, outalpha, size) = destination_layout(key);
+                for i in 0..3 {
+                    rgb[i] = resize_channel(rgb[i], bits[i], outbits[i]);
+                }
+                let alpha = resize_channel(alpha, abits, outalpha);
+                let pixel = pack_pixel(key, rgb, alpha);
+                host.write(
+                    d.wrapping_add(x.wrapping_mul(size)),
+                    &pixel.to_le_bytes()[..size as usize],
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resize_channel(value: u32, from: u32, to: u32) -> u32 {
+    if to <= from {
+        return value >> (from - to);
+    }
+    // §9.6 repeats high source bits, including 1-bit alpha replication.
+    let mut result = value;
+    let mut bits = from;
+    while bits < to {
+        let take = (to - bits).min(from);
+        result = (result << take) | (value >> (from - take));
+        bits += take;
+    }
+    result
+}
+fn destination_layout(key: u32) -> ([u32; 3], u32, u32) {
+    match key {
+        0 => ([8; 3], 0, 3),
+        1 | 2 => ([8; 3], 8, 4),
+        3 => ([5, 6, 5], 0, 2),
+        4 | 5 => ([5; 3], 1, 2),
+        7 => ([4; 3], 4, 2),
+        _ => unreachable!(),
+    }
+}
+fn pack_pixel(key: u32, rgb: [u32; 3], alpha: u32) -> u32 {
+    let [r, g, b] = rgb;
+    match key {
+        0..=2 => alpha << 24 | r << 16 | g << 8 | b,
+        3 => r << 11 | g << 5 | b,
+        4 | 5 => alpha << 15 | r << 10 | g << 5 | b,
+        7 => alpha << 12 | r << 8 | g << 4 | b,
+        _ => unreachable!(),
+    }
+}
+#[allow(clippy::too_many_arguments)]
+fn decode_blocks(
+    source: u32,
+    key: u32,
+    src: u32,
+    dst: u32,
+    pitch: u32,
+    width: u32,
+    height: u32,
+    host: &mut impl Device,
+) -> Result<()> {
+    let (bits, abits, size) = destination_layout(key);
+    let block_size = if source == 10 { 8 } else { 16 };
+    for by in 0..height / 4 {
+        for bx in 0..width / 4 {
+            let mut block = [0; 16];
+            host.read(
+                src.wrapping_add((by * (width / 4) + bx) * block_size),
+                &mut block[..block_size as usize],
+            )?;
+            let color_offset = if source == 10 { 0 } else { 8 };
+            let c0 = u16::from_le_bytes(block[color_offset..color_offset + 2].try_into().unwrap()) as u32;
+            let c1 = u16::from_le_bytes(block[color_offset + 2..color_offset + 4].try_into().unwrap()) as u32;
+            let mut palette = [[0; 3]; 4];
+            for (i, c) in [c0, c1].into_iter().enumerate() {
+                palette[i] = [
+                    resize_channel(c >> 11, 5, bits[0]),
+                    resize_channel((c >> 5) & 63, 6, bits[1]),
+                    resize_channel(c & 31, 5, bits[2]),
+                ];
+            }
+            for channel in 0..3 {
+                let a = palette[0][channel];
+                let b = palette[1][channel];
+                if c0 > c1 {
+                    let (wa, wb, rounding, shift) = match key {
+                        1 | 2 => (171, 85, 128, 8),
+                        4 | 5 => (21, 11, 16, 5),
+                        _ => (11, 5, 8, 4),
+                    };
+                    palette[2][channel] = (wa * a + wb * b + rounding) >> shift;
+                    palette[3][channel] = (wb * a + wa * b + rounding) >> shift;
+                } else {
+                    palette[2][channel] = (a + b).div_ceil(2);
+                }
+            }
+            let selectors = u32::from_le_bytes(block[color_offset + 4..color_offset + 8].try_into().unwrap());
+            let alpha_bits = u64::from_le_bytes(block[..8].try_into().unwrap());
+            for p in 0..16 {
+                let selector = (selectors >> (p * 2)) & 3;
+                let alpha = if source == 12 {
+                    resize_channel(((alpha_bits >> (p * 4)) & 15) as u32, 4, abits)
+                } else if c0 <= c1 && selector == 3 {
+                    0
+                } else {
+                    (1 << abits) - 1
+                };
+                let pixel = pack_pixel(key, palette[selector as usize], alpha);
+                host.write(
+                    dst.wrapping_add((by * 4 + p / 4) * pitch + (bx * 4 + p % 4) * size),
+                    &pixel.to_le_bytes()[..size as usize],
+                )?;
             }
         }
     }

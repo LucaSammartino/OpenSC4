@@ -98,17 +98,24 @@ pub enum Call {
     EvictManagedTextures,
     PrimitiveRecovery,
     SurfaceLost,
+    /// Owned COM result, unlike the context's borrowed surface getters.
+    GetRenderTarget,
+    /// Whole-surface lock: out = pointer, pitch, width, height, flags, bits, R/G/B/A masks.
+    LockColorSurface,
+    CreateColorBuffer,
+    /// out = initialized, width, height; no reference transfer.
+    ColorBufferInfo,
+    InitColorBuffer,
+    /// args = lock flags; out = pointer, byte pitch.
+    LockColorBuffer,
+    FillColorBuffer,
+    UnlockColorBuffer,
 }
 
 pub trait Device: Host {
     /// HRESULT result. Inputs and outputs are immediate little-endian words;
     /// byte data is copied during the call, never retained as a Rust pointer.
     fn dx(&mut self, target: u32, call: Call, args: &[u32], data: &[u8], out: &mut [u32]) -> u32;
-    /// Only unsettled spec contracts may cross this boundary. Default refuses them.
-    /// RD6: the remaining explicitly unsettled pixel arithmetic only.
-    fn unresolved(&mut self, question: &'static str, _args: &[u32], _out: &mut [u32]) -> Result<()> {
-        Err(Error::Unsupported(question))
-    }
 }
 pub fn dx(host: &mut impl Device, target: u32, op: Call, args: &[u32]) -> u32 {
     host.dx(target, op, args, &[], &mut [])

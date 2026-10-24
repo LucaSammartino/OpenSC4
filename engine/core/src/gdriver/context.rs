@@ -206,6 +206,11 @@ impl Context {
                 if self.target == 0 {
                     return Ok(FAIL);
                 }
+            } else {
+                // §14.2 RD12: zero-back-buffer fallback aliases the primary,
+                // retaining an independent reference for the context target slot.
+                self.target = self.primary;
+                acquire(host, self.target);
             }
             for flag in [1, 4, 8] {
                 dx(host, self.primary, Call::GetColorKey, &[flag]);
@@ -310,7 +315,7 @@ impl Context {
             return dx(host, self.primary, Call::Flip, &[0, flags]);
         }
         // Count-zero primary fallback has no Flip and no separate render target.
-        if self.target == 0 {
+        if self.target == 0 || self.target == self.primary {
             return flags;
         }
         let mut rect = [0; 4];
