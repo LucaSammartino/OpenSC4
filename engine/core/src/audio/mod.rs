@@ -72,18 +72,30 @@
 //! publishes a snapshot behind a `Mutex` for the getters, exactly as the other
 //! cores do.
 
+/// AEMS raw bank IO; full event system remains AU48.
+pub mod aems;
 /// `cSC4AudioAmbienceManager` (`docs/specs/audio-ambience.md`).
 pub mod ambience;
+/// Ambience-layer covered algorithms; constructor and extra-slot gaps: AA14.
+pub mod ambience_layer;
 pub mod automaton;
 pub mod data;
 pub mod director;
 pub mod effect_component;
+/// Emanation identities and settled SEM teardown; numeric transforms: AU41.
+pub mod emanation;
 pub mod event_handler;
 pub mod instance_id;
 pub mod leaf;
+/// Listener settled stages; camera geometry and failure lifetime: AU40.
+pub mod listener;
 pub mod message;
 pub mod pool;
+/// Settled preferences IO; full dialog behavior remains AU43.
+pub mod preferences;
 pub mod save;
+/// Scape/service and fire-handler settled stages; remaining bodies: AU42/AU44.
+pub mod scape;
 pub mod snd_event;
 pub mod sound_manager;
 /// Lower sound owners; behavior source: `docs/specs/sound-system.md`.
