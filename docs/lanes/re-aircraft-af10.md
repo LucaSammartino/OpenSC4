@@ -2,7 +2,22 @@
 |---|---|---|---|
 | re-aircraft-af10 (aircraft owner closure) | Codex / `re-aircraft-af10` | ready: partial AF3/AF4/AF5 behavior; AF9 already answered; doccheck passed | Implement reset/hover, chase gates, LOITER and phase actions; finish remaining broad questions |
 
-## Report
+## Handoff
+
+Final round in progress (2026-10-24). Goal: extend AF3/AF4/AF5 only where
+instruction evidence settles behavior; AF9 is already answered. No new owners or IDs.
+Prior milestones: AF9 `5fa412f30`; controls/chase/phase/weapon `da05bf073`.
+Owner closure table read at main engine/core/src/helicopter/README.md:35–47.
+Final-round spec milestone: §§4.2.4–4.2.5, 4.3.1–4.3.2 and vectors 24–27
+settle building-clearance demand, runtime ownership/cleanup, takeover refresh
+and spotlight activation. Verified main re_query.py instruction bytes and PE constants.
+AF3/AF4/AF5 retain precise residuals in questions/aircraft.md; no false full closure.
+Next: regenerate question index, run doccheck once, inspect diff and finish report/queue.
+Use build-runs/run-doccheck.py (foreground capture). Detached HEAD is intentional.
+Residual broad questions must remain open if full behavior is not established.
+Finish with report, committed HEAD and ready queue entry using full 40-character tip.
+
+## Prior report
 
 Round 2 adds seven conformance vectors (17–23) and instruction-verified rules:
 aircraft §§3.3.1/4.2.1/4.2.2 give reset/hover controls, chase lead and distance/

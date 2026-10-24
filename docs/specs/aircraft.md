@@ -540,6 +540,70 @@ Evidence: request dispatch `0x00533DC0–0x00533E27`, phase-0 velocity operation
 phase write and notifications `0x00533F20–0x00533F96`. This corrects any summary
 that applies the airplane's repeated-phase no-op rule to the helicopter.
 
+#### 4.2.4 Building-clearance height demand (AF3) *[compat]*
+
+`AI_ControlLiftOverBuildings` (`0x00537130`) requests an absolute hover height;
+it does not move the helicopter directly. For finite inputs, take two samples:
+the current world position `P`, then `P + 0.3*V`, where `V` is the runtime
+rotor's linear velocity at +0xD0/+0xD4/+0xD8. The multiplier is binary32
+`3E99999A`; do not multiply it by the supplied frame step. Each predicted
+coordinate is stored as binary32 before querying its height. The original
+obtains the auxiliary height service once before taking either sample.
+
+At each sample, obtain the aircraft-base `GetAltitude` height. If the terrain
+provider accepts that X/Z point, also obtain the auxiliary height at that point
+(the service returned by global `0x00B43D1C` operation +0x24, queried by
+operation +0x18 with arguments **1, X, Z**). The sample height is the greater
+of the two; outside the terrain provider's accepted region it is just
+`GetAltitude`. This specifies the owner-side combination without assigning a
+new physical meaning to the auxiliary service's height.
+
+Let `B` be the greater of both sample heights and the home Y coordinate
+(helicopter +0x1F4). Start with requested height `H = B + 20`. If current
+world Y is greater than H, subtract `min(Y-H,50)` from H. Otherwise leave H
+unchanged. Then call the §4.2.1 hover controller with this H and the original
+frame step. In particular, descending from above the clearance plane can
+request a height **below B+20**; it does not clamp the final demand back to
+that plane. No terrain ray sweep or additional intermediate sample is made.
+Evidence: sampling/maximums `0x0053714A–0x00537277`, home-height floor and
+20-unit offset `0x00537279–0x00537294`, descending adjustment and original-step
+forwarding `0x00537298–0x005372E9`. Constants 20 and 50 are binary32
+`41A00000` and `42480000`.
+
+#### 4.2.5 Runtime allocation and Shutdown cleanup (AF4, partial) *[compat]*
+
+On first `InitInstance`, the rotor runtime owns a 0x1D0-byte state, a separate
+0x7C-byte parameter block and ten separately allocated 0x94-byte transform
+objects. The parameter block receives the §4.1.1 preset and overlays before
+the transforms are allocated. Transform allocation order, expressed as offsets
+of the owning pointer within the runtime state, is +0x94, +0x90, +0xA8,
++0xAC, +0xB0, +0x98, +0x9C, +0xB4, +0xA0, +0xA4. The state word at +0x08
+is cleared before these allocations; +0x1BC is cleared at their completion.
+An existing runtime skips this entire operation. Evidence:
+`0x005385C4–0x0053885D`.
+
+This initialization has **no recoverable allocation-failure result or rollback**.
+Failed allocations are represented as null, but the state, parameter block
+and several transforms are subsequently dereferenced without a null guard.
+Do not infer a successful inert helicopter or a clean false return from these
+allocation branches. This is an original-program failure-path quirk, not a
+requirement to emulate a host access violation.
+
+After the aircraft-base Shutdown call, helicopter cleanup proceeds even when
+that call returned false. In order, each present external effect at helicopter
++0x200, +0x204, +0x224 and +0x228 receives stop operation +0x10(1), then its
+owning field is cleared and the retained object released through +0x08.
+The embedded objects at +0x22C and +0x240 each receive +0x1C(1) then +0x04(),
+in that order. Runtime cleanup frees the ten transforms in the allocation
+order above, then the parameter block, then the runtime state, clearing the
+runtime pointer. The separate control buffer at helicopter +0x258 is also
+freed and cleared when present, independently of runtime presence. The return
+value remains the aircraft-base Shutdown result. Evidence:
+`0x005396D4–0x005397B7`, `0x00533C40–0x00533D44`.
+This settles runtime ownership and the post-base cleanup sequence; attachment
+construction, the pre-base Shutdown scale handling, and the full Init/physics
+phase-trigger contracts remain AF4.
+
 ### 4.3 Named player weapon requests (AF5, partial) *[compat]*
 
 Both aircraft command translators first run the base command translator. They
@@ -562,6 +626,58 @@ here. Cadence comes from base command readiness and effect processing; effect
 attachment, projectile setup and the rest of the player-control contract are
 still AF5. Evidence: airplane `0x0050114C–0x005011ED`, helicopter
 `0x00539A61–0x00539B50`.
+
+#### 4.3.1 Helicopter takeover parameter refresh (AF5) *[compat]*
+
+`OnPlayerTakeOver` (`0x00534270`) uses the current player parameter record,
+preferring the direct record at provider +0x64. Only if it is absent does it
+ask the provider's script object (+0x0C) for its record. Missing provider,
+missing script or failed fallback leaves all five destinations unchanged.
+It does not merge a present direct record field by field with the script.
+
+For a present record, the speed cap in the supplied rotor parameter block
+(+0x68) receives record +0x08 multiplied first by binary32 1000 and then by
+binary32 `40555555` (approximately 3.333333254). If that converted value
+compares equal to zero, use the supplied block's +0x20 yaw-rate maximum.
+The four other destinations are helicopter-owned input gains:
+
+| Player record field | Helicopter destination | Use |
+|---|---|---|
+| +0x60 | +0x260 | pitch-input change rate |
+| +0x64 | +0x264 | yaw-input change rate |
+| +0x68 | +0x268 | collective-input change rate |
+| +0x74 | +0x26C | reversal multiplier for pitch/yaw input |
+
+Each gain replaces its current value only when the source is nonzero. Both
+signs of zero preserve the previous value; negatives and NaNs are copied,
+without validation. The same zero comparison on converted speed falls back
+only for zero, not NaN. Each result is stored as binary32. Repeating takeover
+therefore preserves earlier nonzero gains when a later record supplies zeros;
+this helper is a refresh, not a reset to the initial preset. It makes no
+phase, engine, weapon-use or sound change. The initial allocation calls this
+refresh before the AI overlay (§4.1.1). This specifies the helper itself;
+release scheduling and the full command translator remain AF5.
+Evidence: record selection `0x00534273–0x005342A0`, speed conversion/fallback
+`0x005342A6–0x005342CF`, gain refresh `0x005342D2–0x0053435D`.
+
+#### 4.3.2 Spotlight pair activation (AF5, partial) *[compat]*
+
+`UpdateSpotlight` does nothing unless **both** effect pointers at helicopter
++0x200 and +0x204 exist. With both present it queries PLAYER_DRIVE (state
+0x10), then requests that the pair be active exactly when the environment
+service at `0x00B43DC4` operation +0x58 returns **1**, the helicopter's
+spotlight-enabled byte (+0x220) is nonzero, and the runtime flight phase is
+nonzero. Other environment return values do not enable the pair. This gate
+does not require a chase target or a PLAYER_DRIVE state.
+
+For each effect, in +0x200 then +0x204 order, query active status through
++0x14(). When activation is requested, start with +0x0C(0) only if inactive;
+when deactivation is requested, stop with +0x10(1) only if active. This avoids
+restarting an already active effect. A failed activation gate does **not**
+return from the update: the subsequent transform/aim work still runs for the
+present pair. Geometry and terrain projection are the remaining AF5 spotlight
+contract; this gate alone is not a complete spotlight update.
+Evidence: `0x00537B8A–0x00537C46`.
 
 ## 5. The air dispatch sources *[compat]*
 
@@ -700,3 +816,38 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
     fields. Not-ready command 0 still makes the preliminary +0x14 call but no
     named attempt. Command −1 makes neither call. Successful airplane `jetbomb`
     changes the player use count, not its water-drop ammunition.
+24. Building clearance, finite values: P=(10,100,20), runtime V=(10,0,20)
+    queries current X/Z=(10,20) then predicted X/Z approximately (13,26),
+    irrespective of the hover frame step. Give current/future GetAltitude
+    heights 30/40, auxiliary heights 35/60, both points accepted, and home
+    Y=50. Then B=60 and preliminary H=80; with current Y=100 the descending
+    adjustment requests H=60. With the same service heights and Y=130 it
+    requests 30 (the gap is exactly 50); Y=180 still requests 30. With Y=70
+    it requests 80. Compare requested heights exactly for these inputs.
+    Reject both points at the terrain provider: no auxiliary height queries,
+    B=50 and the preliminary H=70. Feed the resulting demand to the hover
+    controller rather than changing position directly.
+25. First runtime allocation makes one state, one parameter block and ten
+    transforms in §4.2.5 order. Repeating InitInstance makes no allocations
+    and preserves the current parameters. Shutdown with all four effects
+    present stops/releases them in offset order, cleans both embedded objects,
+    frees all runtime allocations and the control buffer, and clears both
+    runtime/control pointers. Force the aircraft-base Shutdown result false:
+    these cleanup actions still occur and the helicopter returns false.
+    Missing external effects are skipped; no runtime but a present control
+    buffer still frees that buffer. Do not treat allocation failure as a
+    successful initialization case.
+26. Takeover with a present direct record whose speed and gains are all zero,
+    supplied yaw-rate maximum 400 and existing gains (10,20,30,4): speed
+    becomes 400 and gains remain (10,20,30,4), even if the fallback script
+    would supply nonzero fields. Refresh with record gains (5,0,−2,3): expect
+    (5,20,−2,3). Refresh with signed-zero gains preserves these values;
+    missing provider preserves speed as well. A nonzero source speed 0.03
+    gives approximately 100 (tolerance 0.00002). No phase or weapon-use change.
+27. Spotlight with either pointer absent: no status/start/stop or geometry
+    calls. With both present, environment result 1, enable byte 1 and phase 4,
+    first inactive/second active: start only the first, argument 0. Repeat:
+    neither restarts. Change the environment result to 2: stop both, argument
+    1. Repeat while inactive: no stop requests. Independently clear the enable
+    byte or set phase 0: same inactive demand. For every both-present case,
+    including those demanding inactive effects, continue to geometry work.

@@ -24,8 +24,12 @@
   timer/ammo persistence and zero ammo. **DIFFERS:** chase dt is already seconds;
   airplane LOITER expires at remaining countdown **≤0**, not strict elapsed >2000.
   Still unknown: airplane steering, takeoff/landing/approach, clearance scoring,
-  approach-box and fire/drop geometry; helicopter MoveXZ/building-lift laws and
+  approach-box and fire/drop geometry; helicopter MoveXZ laws and
   complete non-chase goal/claim/RESCUE transitions and ordering. No full AF3 closure.
+  Final-round addition: aircraft §4.2.4 and vector 24 settle building-lift
+  sampling, height combination, home floor and descending demand, including
+  the below-clearance-plane quirk. The auxiliary height provider's physical
+  interpretation remains unlabelled; its call contract is explicit.
 
 <!-- from: core-aircraft5 (2026-10-23) -->
 - **AF4 - §3.2/§3.4/§4, lifecycle and AEMS:** what are the construction defaults beyond the shared base and
@@ -43,6 +47,12 @@
   physics/collision-driven phase/audio triggers. Airplane Init/Shutdown and
   helicopter Init/Shutdown pseudocode fail in the available class exports;
   settling them requires instruction review. No full AF4 closure.
+  Final-round addition: aircraft §4.2.5 and vector 25 settle first runtime
+  allocation ownership, non-transactional allocation failure, post-base
+  Shutdown cleanup and false-result propagation. Remove those from the
+  residual above. Remaining lifecycle evidence needed: constructor defaults,
+  ray probes, attachment creation, pre-base Shutdown scale handling, full
+  Init/PhysicsInit order and physics/collision-driven phase triggers.
 
 <!-- from: core-aircraft5 (2026-10-23) -->
 - **AF5 - §3.4 and §4, U-Drive-It and spotlight:** please provide player parameter selection/reload behavior,
@@ -55,6 +65,13 @@
   selection/reload and takeover/release, full command/control mapping, base
   readiness/cadence, effect attachment/projectile setup and spotlight cone,
   target smoothing and terrain transforms. No full AF5 closure.
+  Final-round addition: aircraft §§4.3.1–4.3.2 and vectors 26–27 settle the
+  helicopter takeover helper's record selection and five-field refresh, and
+  spotlight pair activation/status/start/stop ordering. Remaining AF5 scope:
+  airplane parameter refresh, takeover/release scheduling, complete command
+  translation and base readiness/cadence, effect/projectile construction,
+  spotlight aiming/transforms/terrain projection. Activation alone must not
+  be reported as a complete spotlight update.
 
 <!-- from: core-aircraft5 (2026-10-23) -->
 - **AF6 - §3.3 and §4, messages and dispatch:** which aircraft-owned messages/callbacks are handled, with
