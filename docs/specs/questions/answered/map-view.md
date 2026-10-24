@@ -1,6 +1,16 @@
 # map-view: answered questions
 
 <!-- from: re-mapview (2026-10-20) -->
+- **QV2 - §4.1:** source 76 (traffic volume): which grid it draws for the kept travel types (`0x6B7C5CDD`) and how.
+  [as read]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv18):** DIFFERS — §4.1 and vectors 36–39 specify fresh
+  cell-sized volume/direction grids, travel-to-network eligibility, unsigned edge records, scale bias/cap,
+  signed balance clamps, the view-0x54 ferry path with wrapping volume and per-point saturation,
+  alternate counts, damaged-road sprite/marked cells, phase animation and final palette overrides.
+  This is a constructed grid, not a direct simulator map; no new question split was needed.
+
+<!-- from: re-mapview (2026-10-20) -->
 - **QV1 - §2, §3.1:** what the terrain (slots 84, 86), zone manager (slots 17, 18) and `0x4A0B47E6` calls display.
   (The 3D view filter a data view installs is occupant-manager.md §13.2.8, re-occfilters 2026-10-21.) [as read]
 

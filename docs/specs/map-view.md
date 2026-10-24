@@ -294,7 +294,7 @@ from the source's grid:
 | 29 | the city slot 70 object (`0x00B43DAC`, the weather simulator *[inferred]*), slot 18 | unsigned 8-bit, own cells |
 | 30 | residential slot 41 (the age map) | unsigned 8-bit |
 | 64–75 | the growth developer of the source's type (below; building development slot 32) | by layer (below) |
-| 76 | the traffic volume of the kept travel types *[summary; QV2]* | — |
+| 76 | fresh volume/direction grids from the kept travel types; ferry view `0x54` uses routes (below) | unsigned 16-bit, with animated bands |
 
 The developer types of sources 64–75 are `0x1010`, `0x1020`, `0x1030` (R), `0x3110`, `0x3120`, `0x3130` (CS),
 `0x3320`, `0x3330` (CO), `0x4100`, `0x4200`, `0x4300`, `0x4400` (I), in that order.
@@ -350,6 +350,93 @@ walk corresponding cells, x outer and z inner. This conversion is independent fo
 the percentage operation (`0x0068C270`, `0x006B4710`; signed/unsigned loads `0x0068C3D8`, `0x006B4878`,
 two arithmetic shifts `0x0068C403`/`0x0068C40A`, `0x006B48A3`/`0x006B48AA`). The resulting grid then uses
 the ordinary signed-16 display path; its palette conversion is separate (QV5).
+
+#### Traffic volume (QV2) *[compat]*
+
+Source 76 is a reconstruction, not a simulator-owned scalar map. Each update creates three zero-filled
+city grids at tract size 1 (shift 0, one value per city cell): unsigned-16 volume `V` and signed-16 directional
+balances `X,Z`. There is no reuse of the preceding update's values. The retained travel-type bytes
+from §2 are an ordered list, including duplicates. The alternate-count flag is true exactly when
+`+0x9AC == 1`; the two traffic buttons set it to 0 or 1 (§3.2).
+Construction and widths: `0x007A3621`–`0x007A376F`; tract-size geometry `0x00465643`–`0x00465699`.
+
+**Ordinary views (current view other than `0x54`).** At each cell, a travel type contributes only when
+traffic slot 23, `GetCapacity(networkType,x,z)`, returns a value strictly greater than zero. Capacity
+is only an eligibility test; there is no division by it. The mapping is:
+
+| Retained travel byte | Capacity network type |
+|---|---|
+| 0 | 0 |
+| 1, 2, 4 | 1 |
+| 3, 5 | 2 |
+| 6 | 3 |
+| 7 | 4 |
+| 8 | 5 |
+| any other byte | 1 |
+
+For an eligible entry, traffic slot 12 `GetTrafficEdgeDensity(x,z,travelByte,alternate)` supplies
+17 unsigned words. Write `h[k]` for its word at byte offset `2k`; these are raw directional counts,
+not signed shorts. The scalar count is `h[16]`. Its two balance contributions are:
+
+- `X = 2(h[2]−h[8])−h[4]−h[9]−h[12]−h[11]+h[3]+h[1]+h[6]+h[14]`.
+- `Z = 2(h[7]−h[13])−h[9]−h[12]−h[1]−h[14]+h[4]+h[3]+h[11]+h[6]`.
+
+Sum each balance across the eligible list in signed 32-bit arithmetic, then saturate each final
+cell balance to `−32768…32767`. Before adding each eligible scalar count, if the scalar accumulator
+is still zero, replace it with `B = low16(((s+383) mod 2^32) >> 8)`. After the list, cap the scalar
+accumulator at `L = low16(((s×255) mod 2^32) >> 8)` and store it in `V`. Here `s` is the stored unsigned
+scale field, including an absent scale's default 256; this bias/cap is independent of the palette
+factors in §4.2. No eligible entry means zero, even when `B` is nonzero. Duplicate entries contribute
+again. The per-cell sums fit signed 32 bits for the eight retained entries; the scale products/addition
+have the explicit unsigned wrapping just stated. Mapping, eligibility and record arithmetic:
+`0x007A3AB2`–`0x007A3D6D`; scale shifts `0x007A371A`–`0x007A373C`.
+
+**Ferry view `0x54`.** The view identity, rather than a travel byte, selects this path. Obtain the
+ordered routes in use from traffic slot 31. For each route, traverse its first compressed path and
+then its second with `cSC4CompressedRouteReader` (`SetData`/`GetNext`). Every returned point adds the
+path's unsigned count to `V` modulo 65536. The first/second counts are the route words at offsets
+`0x14/0x16`, or `0x18/0x1A` with alternate counts. There is no ordinary-path bias, cap, capacity test
+or travel-list filtering. Repeated points, including endpoints, contribute again. Each point's outgoing
+direction byte contributes to one balance: 0 subtracts the count from X, 1 subtracts it from Z,
+2 adds it to X, 3 adds it to Z; any other direction (including the terminal `0xFF`) changes neither.
+Saturate the affected signed balance **after each point**, preserving route/path order, rather than
+saturating a final sum. Coordinates are the reader's signed 16-bit cell coordinates and index the
+grids directly; out-of-city routes are unchecked native inputs, not a clipping policy.
+Evidence: `0x007A3789`–`0x007A3AAD`, direction tables `0x007A4920/30`, reader `0x006D6510`.
+
+**Drawing and animation.** Before drawing V, stamp the damaged-road sprite into the bitmap at every
+cell for which traffic slot 16 is true (`0x0079F4D0`). Load the bitmap key stored at `0x00B0DB80`
+once per update, on the first damaged cell; a null result stops this sprite pass only. Place the
+sprite centred at `(trunc(x×q),trunc(z×q))`, where `q = binary32(bitmapWidth/cityCellWidth)`, rotating
+by the negative camera orientation modulo four, and clip to the bitmap. Sprite blending uses its
+alpha `a`: each RGB channel is `floor((D×(256−a)+S×a+128)/256)` and output alpha is
+`min(255, Da−floor((Da×a+128)/256)+a)`. See `0x0079F509`–`0x0079F5E4`, sprite helper `0x0079E600`.
+
+When the 3D overlay is enabled, collect marked cells **before** animation: every damaged cell is
+included with colour zero; an undamaged cell is included iff V is nonzero, with palette index
+`low16(trunc(V×255/s))`. This index is not clamped; a zero scale or index outside the owned palette
+is an unsafe numeric/access domain, not a native fallback colour. Publish the cells, parallel
+colours and the temporary grid's cell sizes (`0x007A3D8B`–`0x007A3F84`).
+
+A process-wide phase counter increments on each source-76 draw and wraps from 15 to 0. For `V>10`,
+compare `abs(X/V)` with `abs(Z/V)`. Strictly larger X selects coordinate x; ties select z. A selected
+ratio greater than binary64 `0.9` uses that coordinate; less than binary64 `−0.9` uses its bitwise
+complement; otherwise the value is unchanged. If the chosen coordinate's low four bits equal the
+phase, replace V by `low16(s)`. X/V is stored to binary64 before its threshold comparisons; Z/V
+remains in x87, and the magnitude comparison uses the unspilled quotients. Thus ordinary integer
+cases follow the rule above without imposing a binary32 ratio rounding. Values 0…10 never animate
+(`0x007A376F`–`0x007A3789`, `0x007A3FF0`–`0x007A40D4`).
+
+Finally draw the modified V using the standard unsigned-16 conversion (§4.2) and the temporary grid's
+cell sizes. The 3D overlay flag is temporarily disabled for this draw and restored afterwards, so
+the standard draw cannot replace the separately collected marked cells. The view's interpolation
+and lot-block settings still apply. Before drawing, straight palette entry 255 is set to `0xCFFFFFFF`
+and its premultiplied counterpart to `0xFFFFFFFF` (an explicit override, not the usual premultiplication
+of `0xCFFFFFFF`). These two entries persist until a later selection rebuilds them. The conversion
+factor is unchanged: absent scale 256 and explicit valid scale 256 still differ as in §4.2.
+The sprite remains visible where the later palette draw is transparent. All three grids are shut down
+and released. Palette overrides/overlay suppression: `0x007A3FB2`–`0x007A3FC6`,
+`0x007A40ED`–`0x007A415D`; normal factor use `0x007A2BBF`–`0x007A2BE8`.
 
 ### 4.2 Values to palette indices
 
@@ -732,7 +819,7 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV2 (traffic volume source 76), QV3 (panels, group
+See [questions/map-view.md](questions/map-view.md): QV3 (panels, group
 buttons and the toggle `0x8100`/`0x8101`), QV14 (ring precision), and QV15 (missing lot-mean prose).
 QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
 [answered record](questions/answered/map-view.md).
@@ -858,3 +945,24 @@ QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
     E3=1,F1=2 retains level 3/plumbing on/water off while changing only filter options to mode 2.
     Selecting none restores level 1/plumbing off/water on/alpha 96. Applying the same current
     water/alpha bytes again emits no additional setter-side visual refresh.
+36. **Traffic eligibility and counts:** stored scale 256, types `[0,1,1,8,99]`; capacities positive
+    for network 0/1, zero for 5. Type-0 record has `h[16]=3,h[2]=10`; type-1 has
+    `h[16]=5,h[7]=4`; type-99 has `h[16]=7`; all other words zero. Requests use networks
+    `[0,1,1,5,1]`, with three separate network-1 reads. Before animation the cell is
+    `V=22,X=20,Z=16` (bias 2, then 3+5+5+7). Empty list or nonpositive capacities gives zero grids.
+    Scale 1024 with an eligible total 2000 gives `V=1020`; a positive capacity's magnitude has no effect.
+37. **Traffic record width and balance clamp:** one eligible record with `h[2]=65535,h[13]=65535`,
+    total zero and scale 256 gives `V=2,X=32767,Z=−32768`, rather than signed-word input arithmetic.
+    Alternate flag 1 is passed as true to every density request; flag 0 as false. Repeated updates
+    rebuild from zero rather than retaining these values.
+38. **Ferry accumulation order:** view `0x54`, empty travel list; successive visits to one cell with
+    counts/directions `(40000,2),(40000,0),(40000,0)` give `V=54464,X=−32768,Z=0`.
+    A subsequent terminal point with count 7 gives `V=54471` with the same balances. Replacing normal
+    first/second path counts 3/5 by alternate 7/11 gives V=18 instead of 8 for a shared endpoint.
+39. **Traffic animation and draw:** phase before update 0 becomes 1. Cells `(1,4)` with
+    `V=20,X=20,Z=0` and `(14,4)` with `V=20,X=−20,Z=0` become V=256 at scale 256;
+    `V=10` stays 10. A tie `X=Z=20` selects z, so `(4,1)` animates and `(1,4)` does not.
+    The overlay uses the original volumes/colours, with damaged cells colour zero. Final bitmap
+    conversion at explicit scale 256 gives indices 19/255 for V=20/256, while absent scale gives
+    indices 0/1. Straight/premultiplied palette entry 255 becomes `0xCFFFFFFF`/`0xFFFFFFFF`.
+    The overlay flag is restored and all three temporary grids released.
