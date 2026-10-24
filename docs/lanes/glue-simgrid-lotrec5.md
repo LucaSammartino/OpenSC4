@@ -5,9 +5,11 @@
 ## Handoff
 
 - Goal: integrate existing shadows with moving main; no new implementation scope.
-- First required merge started; conflicts in additive lists, WriteCapture, generated questions total and regress profile.
+- First required merge committed as 90fd92058 (main c11352c34); all conflicts resolved.
 - Keep independent native WriteVariant capture from this lane; combine additive module/source/config lists.
-- Next: resolve conflicts, commit merge; qbuild all (stable source) and verify; new unique game label to 2032.
+- Stable qbuild all: cargo 6860/0, clippy 0 diagnostics. Native build/CTest pending, request qbuild-20261024-020014-build-ctest.
+- Collect SAME running exec session 64760; no duplicate build. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
+- Next: collect native terminal result; new unique label lotrec-autumn-integrated to 2032; run 359 collision grep found no matches.
 - Before queue: merge main again and repeat native gate if anything merges.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-simgrid-lotrec5-r2-manifest.json.
 - Detached HEAD intentional; never switch branches or update shared refs.
