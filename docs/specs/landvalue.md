@@ -1094,8 +1094,10 @@ Shipped tuning unless stated; S = 2.
 30. **LV8 shutdown/reuse vector.** Hold an admitted capture between its native return
     and after-copy. Request city shutdown. Under the host contract, complete the copy
     and end that interval before native Shutdown; no new owner reads are admitted.
-    After Shutdown, keep an L/M reference and reuse the same numerical owner address
-    for a later city: old identity/progress/maps must not be reused. For a global route
+    After Shutdown, keep an L/M reference: no retired input may be read even though
+    the allocation survives. After the final references are safely released, reuse
+    that numerical address for a later city: old identity/progress/maps must not be
+    reused. For a global route
     kept across both cities, no per-city executable/table restoration is required, but
     its resources remain resident and the new city requires its own initialization
     and complete first-delivery coverage. Never block inside a callback waiting for
