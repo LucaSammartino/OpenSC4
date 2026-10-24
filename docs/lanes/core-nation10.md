@@ -22,7 +22,9 @@
 - NQ4 filed in questions/nation.md: non-ASCII case-mapping/encoding unspecified; ASCII folding preserves other bytes. README now lists that narrow open contract.
 - Signed tutorial transfer now i32/i32, negative-coordinate fixture added; NQ4 ASCII-fold choice commented in lower_directory.
 - Focused signed-coordinate owner test set: 11/11 PASS. Formatting checked via explicit files.
-- Next: final full gate without any intervening commits/edits; READY queue must list NQ4. No operation outstanding.
+- Final engine source committed 4079ac421 (Git index lock was transient, commit retry succeeded without content changes).
+- Outstanding: final qbuild session 66935, native job qbuild-20261024-114016-build-ctest; Rust 7070 passed, 0 failed/ignored; clippy exit 0, diagnostics 0. Engine source unchanged; only this handoff is updated while waiting.
+- Next: collect that same operation to terminal (do not duplicate); then full report/READY queue with NQ4 and coordinator-only question index regeneration (expected nation 1 open, 3 answered, next NQ5).
 - Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
 - No game request outstanding; portable core has no plugin wiring/shadow.
 - Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.
