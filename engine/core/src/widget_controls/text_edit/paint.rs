@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! TextEdit §9: original byte coordinates, mask-only drawing, pixel selection.
+//! TextEdit Ã‚Â§9: original byte coordinates, mask-only drawing, pixel selection.
 use super::{
     runtime::{Paint, TextHost},
     *,
@@ -7,6 +7,14 @@ use super::{
 use crate::widget_controls::Rect;
 
 impl TextEdit {
+    fn background_area(&self, area: Rect, f: &mut impl TextHost) -> Rect {
+        [
+            area[0],
+            area[1],
+            area[2].wrapping_sub(self.runtime.bars[0].map_or(0, |b| f.bar_dimensions(b).0) as i32),
+            area[3].wrapping_sub(self.runtime.bars[1].map_or(0, |b| f.bar_dimensions(b).1) as i32),
+        ]
+    }
     pub fn horizontal_metrics(&self, line: u32, scroll: u32, f: &mut impl TextHost) -> Result<(u32, u32, i32)> {
         let start = *self
             .lines
@@ -142,27 +150,29 @@ impl TextEdit {
             area[0].wrapping_add(self.gutters[0].wrapping_add(self.runtime.visible[0]) as i32),
             area[1].wrapping_add(self.gutters[1].wrapping_add(self.runtime.visible[1]) as i32),
         ];
-        let background_area = [
-            area[0],
-            area[1],
-            area[2].wrapping_sub(self.runtime.bars[0].map_or(0, |b| f.bar_dimensions(b).0) as i32),
-            area[3].wrapping_sub(self.runtime.bars[1].map_or(0, |b| f.bar_dimensions(b).1) as i32),
-        ];
         if self.flags & 0x20 != 0 {
             if let Some(image) = self.runtime.background {
                 if self.runtime.background_option != 0 {
-                    // TE12: literal true=edge choice; polarity is not specified.
                     let r = f.image_rect(image);
+                    let background_area = self.background_area(area, f);
                     f.draw(Paint::EdgeImage {
                         image,
                         area: background_area,
-                        thirds: [r[2].wrapping_sub(r[0]) / 3, r[3].wrapping_sub(r[1]) / 3],
+                        source: [r[0], r[1], r[2] / 3, r[3] / 3],
+                        mode: 1,
                     });
                 } else {
-                    f.draw(Paint::Image(image, background_area));
+                    let source = f.image_rect(image);
+                    f.draw(Paint::Image {
+                        image,
+                        source,
+                        area,
+                        arguments: [0, 0],
+                    });
                 }
             } else {
                 let color = f.convert_color(self.runtime.fill_color, true);
+                let background_area = self.background_area(area, f);
                 f.draw(Paint::Fill(background_area, color));
             }
         }

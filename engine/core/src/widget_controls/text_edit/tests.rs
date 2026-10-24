@@ -5,8 +5,11 @@ use std::collections::VecDeque;
 #[path = "runtime_tests.rs"]
 mod runtime_tests;
 
+#[path = "closure_tests.rs"]
+mod closure_tests;
+
 #[derive(Default)]
-struct Services {
+pub(super) struct Services {
     reasons: Vec<u32>,
     invalidations: Vec<Handle>,
     notifications: Vec<(Handle, u32)>,
@@ -24,6 +27,8 @@ struct Services {
     bar_success: bool,
     cursor: (i32, i32),
     click: Option<u32>,
+    image_source: Option<crate::widget_controls::Rect>,
+    bar_size: Option<(u32, u32)>,
 }
 
 impl TextForeign for Services {
@@ -49,6 +54,21 @@ impl TextForeign for Services {
     }
     fn notify(&mut self, view: Handle, kind: u32) {
         self.notifications.push((view, kind));
+    }
+}
+
+impl conversion::CodePages for Services {
+    fn system_code_page(&mut self) -> i32 {
+        932
+    }
+    fn multi_byte_to_wide(&mut self, _: i32, _: u32, _: &[u8], _: &mut [u16]) -> usize {
+        panic!("unexpected code-page call")
+    }
+    fn wide_to_multi_byte(&mut self, _: i32, _: u32, _: &[u16], _: &mut [u8], _: u8) -> usize {
+        panic!("unexpected code-page call")
+    }
+    fn composition_tail(&mut self) -> u16 {
+        0
     }
 }
 
