@@ -492,9 +492,11 @@ cGZGimexFactory	2D drawing and fonts	renderer	-	-	-	-
 cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
 cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
+fn:RZDrawBlt*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 fn:*Blt*	2D drawing and fonts	renderer	-	-	-	-
-fn:RZDraw*	2D drawing and fonts	renderer	-	-	-	-
-fn:Draw*	2D drawing and fonts	renderer	-	-	-	-
+fn:RZDraw*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:drr_get_color	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:Draw*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 # ---- ui
 cSC4ViewInputControl	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControlCityScroll	city tools and input	ui	view-input-controls.md	-	-	-
