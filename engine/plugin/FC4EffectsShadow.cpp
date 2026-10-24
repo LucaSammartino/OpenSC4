@@ -20,6 +20,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Diag.h"
+#include "FC4Interfaces.h"
 #include "GZServPtrs.h"
 #include "cIGZCOM.h"
 #include "cGZPersistResourceKey.h"
@@ -340,12 +341,18 @@ void CompareNames(void* context) {
 
 void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
     if (!g_recordEnabled) return;
+    // City load precedes the observer's first published date. Read the live
+    // simulator interface rather than rendering Julian zero as a BC year.
+    if (load && city) {
+        auto* sim = AsGame(city->GetSimulator());
+        if (sim) julian = sim->GetSimDateNumber();
+    }
     NameSample sample{city};
     const bool safe = SehGuard("effects record shadow", CompareNames, &sample);
     const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 ? 0u : 1u;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("effects shadow %04d-%02d-%02d %s: bytes=%u names=%u queries=%u refusal=%u resyncs=0; mismatches=%u",
+    Log("effects shadow %04d-%02d-%02d %s: bytes=%u entries=%u queries=%u refusal=%u resyncs=0; mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month",
         sample.bytes, sample.counts[0], sample.counts[1], refusal, sample.counts[2] + refusal);
 }
