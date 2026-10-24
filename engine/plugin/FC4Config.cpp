@@ -386,6 +386,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "persist_shadow",
                                   // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
                                   "gzmsg_shadow",
+                                  // Independent read-only render-properties registry comparison.
+                                  "renderprops_shadow",
                                   // EX54/EX55 read-only packed-file shadow, default off.
                                   "dbpf_shadow",
                                   // HG8 bounded read-only city geometry (default off).
