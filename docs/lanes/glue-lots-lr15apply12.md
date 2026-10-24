@@ -6,7 +6,7 @@
 Goal: apply LR15 business-unit, base-texture and retaining-wall scoped inventories and extend default-off lotrec_shadow.
 Done: 85f3cc6c3 initialized lane; baseline a150cd2db already contains LR15 and glue-lots-shadow12.
 Done: implemented three default-off scoped shadows, isolated owner codecs and inventory/list validation tests; focused lotrec_lr15 4/4 PASS; fmt 3 files PASS.
-Done: dd547e00c commits the implementation; original qbuild all is running on that stable source. Workspace compilation reached test execution; no overall verdict yet.
+Done: dd547e00c commits the implementation; original qbuild all is running on that stable source. Rust workspace phase finished: 49 result lines, cargo 7377 passed / 0 failed, no failed suites; clippy active, overall/native verdict pending.
 Next: collect the SAME qbuild all operation (exec session 35213) to terminal; log build-runs/qbuild-test.log. Do not launch another all/verify while it is active. Then house-city run to 2032.
 Facts: no game requests outstanding; ABI exports unchanged (private static-link transport only).
 Facts: Bash q wrapper failed CreateFileMapping before Cargo; direct PowerShell cargo test succeeded (build-runs/lr15-focused.log). Initial relative fmt paths failed; absolute paths passed.
