@@ -18,3 +18,9 @@
 
 <!-- from: glue-viewutil-apply12 (2026-10-24) -->
 - **VU18 — cached draw-frustum field offsets:** §1 gives the draw state only as the +228–+3D8 range, and §5 identifies flag +228, rectangle +22C and ground points +2E4. What are the exact offsets of its two boxes, corners, volume, planes and ground lines (including any unused gaps)? [The R-class adapter consumes only the fully published view fields. Leave IsBoundingBoxInDrawFrustum and the draw branch of GetFrustumAABBCityClipped uncompared; do not infer a fixed displacement from the view layout.]
+
+<!-- from: glue-viewutil-apply12 (2026-10-24) -->
+- **VU19 — object-angle zero sign:** §2.1 gives −rotation × π/2, but does not specify whether negation is applied to the integer input or floating result. Stored-float32 native GetObjectYRotationAngle(0) is 0x80000000, while the current portable integer-product adapter gives 0x00000000 (sample 16, every month of clean run viewutil12-r1-turbo-20261024a to 2032). Please specify the zero sign and operation/store order for the full signed-int32 domain. [Retain the existing portable arithmetic until clarified; expose the signed-zero difference without masking it. This body remains default-off and is not credited exact.]
+
+<!-- from: glue-viewutil-apply12 (2026-10-24), measured evidence for existing VU12; not a new copy -->
+VU12 follow-up: run viewutil12-r1-turbo-20261024a is clean/ref_warnings=0 through 2032-01-02. Camera-angle sample 3 (rotation=3, zoom=3), yaw word: native 0x408a3ae6 versus core 0x408a3ae7. City-width sample 1 (width=64, zoom=1), stored-float32 result: native 0x42a73d74 versus core 0x42a73d75; sample 2 (128,2): 0x43273d74 versus 0x43273d75. Every monthly line differs for these two families. These observations do not establish the missing numeric contract; keep both uncompensated and default-off pending VU12.
