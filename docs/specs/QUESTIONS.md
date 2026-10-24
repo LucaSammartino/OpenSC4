@@ -368,9 +368,9 @@ generated index: the questions live one file per spec, so read only the file for
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 14 | 6 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 13 | 7 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **613** | **1507** | | |
+| **total** | **612** | **1508** | | |

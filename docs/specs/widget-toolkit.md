@@ -516,7 +516,7 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), `ChildStepFront`/`ChildStepBack`/`ChildMoveRelative`/`IsWinInChildChain` (§4.3), the `GZOnSetFocus`/`GZOnMouseWheel` defaults, parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. **Still open, so the class is not complete:** the meanings of the draw-context, buffer, graphics-system and colour-manager slots (cited by number only), `create_private_buffer` internals, fields `+0xA0..+0xA4` (WT2), and the questions WT1-WT3, WT5, WT6 |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children and z-order (§§2–4), geometry and hit testing (§5), dispatch and filters (§7), lifecycle and fades (§8), accelerator wiring (§13.4), painting/private buffers (§14), mouse/cursor routing (§15), key equivalents (§16), and the geometry, invalidation, parameter, enumeration, sorting and colour helpers (§17). WT14 closes concrete slot 150, the base-owned graphics calls and ownership boundary in §§14.5.1–14.5.3 and 14.6. Graphics services remain separate owners, not unspecified base-window operations. **Still open, so the class is not complete:** fields `+0xA0..+0xA4` (WT2) and the other open questions in §11. |
 | `cGZFadeTmpWin` (not an owner pattern of this lane; listed for completeness) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
 | `cGZWinGen` | Partial concrete generated-window contract in [widget-generator.md](widget-generator.md): inventory, lifetime, callback dispatch, client layout, capture and drawing boundary. Open helper details are explicitly listed there. |
 | `cGZWinHTML` | Partial window-side contract in [widget-html-window.md](widget-html-window.md); document grammar remains in [html-document.md](html-document.md). |
@@ -681,8 +681,9 @@ testing `IsVisible`). Otherwise bit `0x10000` is **set**, then:
   (slot 55) with the current area.
 
 **Destroy** (`on` false, or forced), only when a buffer exists:
-- if the buffer's slot 39 returns true *[inferred: "holds content"]*, bit `0x20` is set and bit `0x400000` is set,
-  then `0x400000` is cleared; if moreover the window has no parameter `0xE6E998FE` (it is not itself a fade-out
+- buffer slot 39 tests whether the surface is initialized. Only when it returns true **and both existing flag
+  bits** `0x20` and `0x400000` are set is a fade transfer considered. Neither bit is set here. In that case
+  `0x400000` is cleared; if moreover the window has no parameter `0xE6E998FE` (it is not itself a fade-out
   window, §14.7) and every ancestor is visible, a **fade-out window** takes the buffer (§14.7);
 - otherwise, when slot 39 returned true, the buffer's slot 4 is called (release the surface); when slot 39 returned
   false, slot 4 is not called;
@@ -691,12 +692,110 @@ testing `IsVisible`). Otherwise bit `0x10000` is **set**, then:
 Common tail: `SetBufferToDrawToRecursive` (slot 96), `child_private_buffers(IsVisible())` (`0x0099D645`),
 `InvalidateSelfAndParents` (slot 92).
 
+### 14.5.1 Concrete `CreatePrivateBuffer(width, height)` (slot 150, WT14)
+
+This is a destructive surface allocation/reinitialization request, not an atomic replacement. Width and height
+are signed 32-bit values; the caller's area differences are native 32-bit subtractions. The method rejects the
+request **only when both dimensions are ≤ 0**. It then Releases the old `+0x64`, if present, clears the field and
+returns false, without calling surface Shutdown. A single nonpositive dimension is passed unchanged to the
+selected service. Do not clamp dimensions or add a second base-window validity check
+(`0x0099D0F5`–`0x0099D113`, signed greater-than tests).
+
+For every other request the window acquires a temporary draw-system service (class `0xEB2EA3CB`, IID
+`0x4B2EA3B3`; `0x00449720`–`0x00449747`). The following table specifies the window-owned effects in order.
+An existing buffer is denoted B; service calls below use zero-based slots on the **named receiver**.
+
+| Available service / old buffer | Allocation and ownership contract | Result |
+|---|---|---|
+| Draw system present, B present | B.slot4 Shutdown, B.slot2 Release, clear `+0x64`; then draw-system slot5 `(&+0x64, width, height, 1)` | Truth of slot5's byte result |
+| Draw system present, no B | Draw-system slot5 `(&+0x64, width, height, 1)` | Truth of slot5's byte result |
+| No draw system, B present | B.slot4 Shutdown; reuse the same owned object with B.slot3 Init `(width, height, 1, 0)` | True on Init success; otherwise B.slot2 Release, clear `+0x64`, false |
+| No draw system, no B | Ask `RZ::GS()` for its graphics system. If present, its slot3 receives `&+0x64`; examine the output pointer, ignoring the call's byte result. A non-null output receives buffer slot3 Init `(width, height, 1, 0)` | False for absent graphics system or null output; otherwise the Init rule above |
+
+The Init arguments are four dwords: width, height, colour type 1, bits per pixel 0. The last pair is an
+eight-byte by-value format descriptor, not a pointer. The helper at `0x0044A490` is misleadingly labelled as a
+vector operation in the export: it writes type 1 and the result of `0x00449500(1)`, which is zero. The window
+does not choose a screen depth here (`0x0099D181`–`0x0099D198`). The backend resolves that format request.
+
+All acquired draw-service references are released before returning. No AddRef is made on a successful output:
+the output reference becomes the window's owned `+0x64`. On the draw-service path the slot's output effects
+are retained even when it reports failure; the window neither restores B nor adds an extra Release of a failed
+output. On the fallback path Init failure always Releases and nulls the candidate. Existing B is never Released
+before fallback Init, and no extra Shutdown follows failed Init (`0x0099D11D`–`0x0099D1A9`).
+
+Calling slot 150 alone does not set flags, configure transparency, reset geometry, refresh `+0x68`/`+0x6C`,
+invalidate, or visit children. Those are `PrivateBuffer`'s responsibilities (§14.5). In particular it can leave
+borrowed drawing pointers stale until the caller refreshes them. `PrivateBuffer(true)` avoids allocation when
+the existing buffer's slot12 rectangle has the requested size; slot 150 itself has no same-size shortcut.
+Failure from slot 150 skips transparency and SetArea, preserves the already-set `0x10000` bit, and still runs
+the common tail. Successful allocation ignores the transparency helper's result and SetArea's result; the
+common tail's results likewise do not replace the saved success byte (`0x0099EB22`–`0x0099EB6E`,
+`0x0099EC65`–`0x0099EC95`). A size match skips transparency and SetArea too.
+
+### 14.5.2 Graphics dependency boundary (WT14)
+
+The base window owns the selection, arguments, call ordering, reference effects and failure handling in this
+section and §§14.2–14.6, 17.1 and 17.8. Surface pixels, format resolution and graphics engines are service-owned.
+An implementation using Host/NativeOp must expose these requests and their output/result effects; a local
+bitmap allocation with invented success, colour or lock results is not equivalent. There is no further hidden
+base-window allocator or drawing loop behind slot 150.
+
+| Receiver and slots used by the window | Meaning at this boundary |
+|---|---|
+| Buffer 2, 3, 4, 39 | Release owned interface; Init dimensions/format; Shutdown surface; test initialized state. Slot39 is not a dirty/content/visibility test. On the plain buffer (`0x00AC1400`) slot4 frees pixels and clears initialized byte, and slot39 returns that byte (`0x00825CE0`, `0x008264B0`). |
+| Buffer 6/7, 12, 20, 23/26/27, 29, 30/31 | Lock/Unlock; borrowed rectangle pointer; fill native colour; set/get/remove colour key; rectangle blit; RGB/native conversion. In particular slot12 returns a rectangle pointer (`0x008268C0`), whereas slot11 copies a rectangle to caller storage. §§14.4, 17.8 specify the arguments and result handling. |
+| Buffer QI `0xAB300B2B`, interface slots 4/5/6 | Borrow current drawing context; acquire context for presentation; finish presentation. The queried interface is retained only for the operation and Released afterwards; the stored `+0x6C` is borrowed. |
+| Draw system 5; graphics system 3/8/34/36 | Create wrapped private surface with context; create fallback buffer object; obtain screen buffer; map RGB to/from native colour. These are distinct services. |
+| Draw context 3/8/6/4/15/10/19 | PushTransform, OffsetAbsolute, ClipAbsolute, ClipReset, GetTransformStackDepth, PushState, ResetToDefaultState, in the paint setup order already specified in §14.3. |
+| Draw context 22/23/21/43; 42/11/9 | SetAlphaBlend, SetBltModulate, SetColor, Resume; then Suspend, PopState, PopTransform at paint teardown. Slot15 is a getter whose value the window ignores, not an additional state mutation. |
+| Draw context 38; colour manager 32 | Blt source and destination rectangles; resolve theme colour ID `0x08963F6C` for the private surface's colour key. |
+
+For context behavior see [gz-graphics.md §§2–3](gz-graphics.md); the raw buffer route and storage owner are
+described in [span-render-8.md §§10.4–10.7](span-render-8.md). The concrete draw-system slot5 at `0x0082B980`
+creates a raw graphics-system buffer and initializes it before wrapping it with a drawing context. Raw object
+creation failure or Init failure returns false, releases any temporary raw buffer, and does not write the caller's
+output. Thus ordinary backend failure leaves the already-cleared window field null. Success transfers an owned
+wrapper reference; the window does not separately own the wrapper's raw buffer or context. The native service
+assumes the graphics system exists. Exhaustion of the later 0x4C-byte wrapper or 0xC8-byte context allocations
+is **not** a recoverable false: the native code continues to dereference the null allocation
+(`0x0082BA10`–`0x0082BAAC`). Keep that unsafe failure boundary distinct from the two reported failures; the
+base window does not manufacture recovery from it.
+
+### 14.5.3 Allocation and graphics conformance vectors (WT14)
+
+Use a recording graphics host; B and N are distinct owned buffer objects. Unless stated otherwise, only slot
+150 is invoked, so no flag, geometry, drawing-target or invalidation calls follow its recorded effects.
+
+| Vector | Setup / request | Required observations |
+|---|---|---|
+| WT14-A | B present; `(0,-1)` | Release B once, null field, false; no service acquisition, Shutdown or Init. |
+| WT14-B | Draw service present; B present; `(0,20)`; service succeeds with N | Shutdown B, Release B, clear field, service slot5 `(out,0,20,1)`, Release service; true and field N, no AddRef N. |
+| WT14-C | Same as B; service returns false and leaves output untouched | False, field null, B lost; no Init fallback, no restore, no extra buffer Release. |
+| WT14-D | Custom draw-service failure writes N then returns false | False with field N retained; slot150 adds no cleanup for that output. |
+| WT14-E | No draw service; B present; `(30,40)`; Init succeeds | Shutdown B, Init B `(30,40,1,0)`; true, same B, no Release B or graphics-system creation. |
+| WT14-F | Same as E, Init fails | Shutdown B, Init B, Release B, null field, false; no second Shutdown. |
+| WT14-G | No draw service or B; graphics slot3 returns false but writes N; Init succeeds | Init N `(30,40,1,0)` still occurs; true, N owned without extra AddRef. |
+| WT14-H | No draw service or B; graphics absent, or graphics slot3 leaves output null | False and null; no Init. |
+| WT14-I | `PrivateBuffer(true)`, all ancestors visible, B size already matches, transparency requested | Set bit `0x10000`; no slot150, transparency helper or SetArea; common tail once; true. |
+| WT14-J | `PrivateBuffer(true)`, resize required, allocation fails | False, `0x10000` remains set; no transparency/SetArea; target recursion, child-private-buffer pass with current visibility, then invalidation still occur. |
+| WT14-K | `PrivateBuffer(false)`, initialized B, bit `0x20` clear, painted bit set | No fade transfer and no painted-bit clear from this path; Shutdown B, Release B, null; true then common tail. |
+| WT14-L | Same as K but initialized test false | Release B and null; skip Shutdown and fade tests; true then common tail. |
+| WT14-M | No own/ancestor buffer; graphics service absent; old cached target/context non-null | SetBufferToDrawTo clears target/context, leaves `+0x71=1`, then calls area recursion; no Release of old borrowed pointers. |
+| WT14-N | Target QI returns false but writes a non-null interface | Do not call interface slot4; Release that interface; cached context remains null; still call area recursion. |
+
 ### 14.6 `SetBufferToDrawTo()` (slot 95, `0x0099C6F8`)
 
 `+0x68` = own private buffer (slot 101), `+0x71` = 1. If none: walk the parents (slot 11); the first with a private
 buffer supplies it; when **this** window has `0x8000000` the walk stops after the first parent (the child's bit is
 tested, not the parent's). If still none: the graphics system's screen buffer (slot 8) and `+0x71` = 0. Then `+0x6C`
 = the buffer's draw context (interface `0xAB300B2B`, slot 4) or 0, and finally vtable slot 98 is called.
+
+`+0x68` and `+0x6C` are borrowed caches: overwriting either field does not Release the old pointer or AddRef
+the new one. The temporary graphics-service handle and queried buffer interface are owning references and are
+released locally. Context is cleared before QI; only a true QI result triggers interface slot4, but any non-null
+QI output is Released even on false. With no graphics service, both pointers stay null and `+0x71` stays **1**;
+with a service present it becomes **0** even if screen-buffer slot8 returns null. Slot98 runs in all these cases
+(`0x0099C6F8`–`0x0099C7B9`). These choices do not promise safe painting with missing services.
 
 ### 14.7 Fade-out window `cGZFadeTmpWin` (ctor `0x0099EA30`, size `0xD8`)
 
