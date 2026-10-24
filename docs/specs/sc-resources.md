@@ -431,8 +431,9 @@ In particular type 6 is signed integer, not double. Field readers for types
 (`0x0097FE36`, `0x0097FD60`, `0x0098022B`, `0x009802BF`).
 
 A missing field makes a typed getter fail without calling the typed field
-reader. Setters find or create the field and delegate the typed values and
-count. `SetTokenString` requires an existing field. Fields are emitted in
+reader. Setters find or create the field and delegate a reference to one typed
+value and its zero-based element index (not an array length). `SetTokenString`
+requires an existing field. Fields are emitted in
 ascending numeric ID order, with definition before values. Definition, field
 creation, and value failures stop reading/writing; `ReadTokens`
 (`0x00980AC9`) returns false for those failures.
@@ -679,7 +680,7 @@ for an empty stack (`0x00982F1C`).
 | 0–3 | QueryInterface, AddRef, Release, WriteRoot |
 | 4–12 | Scalar bool, s8, u8, s16, u16, s32, u32, f32, f64 |
 | 13–21 | Arrays of the same nine types |
-| 22–24 | RZChar string, GZString, Object |
+| 22–24 | GZString (`RZString` label), RZChar string, Object |
 | 25–29 | Unknown-reference adaptor, Referent-reference, TypeInfo, OutputStream, destructor |
 
 ### 8.2 Output and ordering
@@ -826,3 +827,309 @@ this documentation lane does not assert an existing executable test suite.
 Additional vectors for switch/positional readers and required/optional file
 ordering are normative in the linked specs. Inputs whose exact result is an
 open question must not be promoted into guessed conformance expectations.
+
+## 10. Native observation contracts (SCR8 and SCR9)
+
+### 10.1 x86 arguments, results and interface views
+
+These contracts describe the Windows 1.1.641 entry points, including ones whose
+exported name is misleading. They are for observing an existing native call;
+they do not prescribe a public FreeCity4 ABI. Addresses are executable virtual
+addresses. Member entries use x86 `thiscall`: ECX is the stated object/view,
+the stack contains arguments in the order listed below, and the callee removes
+their bytes. Each pointer/reference occupies four stack bytes. A `bool` result
+is **AL only**; upper EAX bits are not a comparison result. `u32`, `s32` and
+pointers return in EAX. `void` has no result to compare, regardless of the
+value left in EAX. No method below returns a float in the x87 result register.
+For small by-value integers/bools the stack slot is four bytes but only the
+declared low byte/word is meaningful. References to 64-bit integers/doubles
+are one pointer, never a split by-value argument.
+
+Notation: `S` is a `cIGZString` object/interface, not a character pointer;
+`char*` denotes a NUL-terminated byte string. `D` is the eight-byte descriptor
+`{u32 id,u16 type,u16 count}`. `K` is three consecutive u32 words in type,
+group, instance order. `R` is a serial-record interface. `T&` denotes an
+address of one readable/writable T, not a pointer to an array header. Capture
+the contents of strings/references while they are alive, not their addresses
+as replay values. Native STL containers are not portable C arrays.
+
+#### Command and file parser
+
+| Entry | ECX view | Stack arguments in declaration order | Result; stack bytes removed |
+|---|---|---|---|
+| ParseCommand `0x00679450` | parser input view; command state base is ECX−0x98 | `const char* line` | void; 4 |
+| ParseCommandArguments `0x00679120` | command state base | reference to mutable native vector of S | void; 4 |
+| RegisterCommand `0x00676DB0` | command state base | `const char* name`, command object pointer | void; 8 |
+| SetParser `0x00680930` | file main interface | parser input interface pointer | void; 4 |
+| AddInputFilePath `0x00681DA0` | file main interface | `const char* path`, `u32 flags` | void; 8 |
+| ParseFiles `0x006812F0` | file main interface | `s32 start`, `s32 count` | bool; 8 |
+| ParseFiles(all) `0x00680990` | file main interface | none | bool from range call; 0 |
+| SetModified `0x00680900` | file main interface | bool | void; 4 |
+| ErrorString `0x00680910` | file main interface | none | borrowed `const char*`; 0 |
+| GetParser `0x0040CE60` (slot 11 of file table) | file main interface | none | raw parser pointer; 0 |
+| NumInputFiles `0x006809C0` | file main interface | none | s32; 0 |
+| InputFilePath `0x00680A30` | file main interface | `s32 index` | borrowed `const char*`; 4 |
+| Modified `0x00680920` | file main interface | none | bool; 0 |
+| DoParseFile `0x00680EA0`, continuation `0x00681176` | file main interface | `const char* resolvedPath`, `const char* contextName` | s32 accumulated line count on ordinary return; 8; parse failures throw |
+
+The native vector is three pointers (begin, end, allocation end); each S
+element is 20 bytes. It includes the command name at element zero and can be
+changed by variable substitution. The third argument of typed token-record
+accessors below is unrelated to this vector. ParseCommand produces effects
+or a native parse exception, not a bool or an output token array. Observe
+tokenization with SplitIntoArguments (section 2) and dispatch with
+ParseCommandArguments if token-level comparisons are required; a line call
+alone does not expose a returned token list. Borrowed file-parser strings
+must be copied before the parser changes its registration/error state.
+
+The −0x98 adjustment is local to `0x00679450` and the base parser layout; do
+not subtract it from arbitrary derived parser interface pointers. The game's
+derived entry thunks adjust ECX first: `0x007E4FB0` (rule parser),
+`0x0059F400` (effects-side parser), `0x00679640` (base thunk). Preserve those
+thunks when intercepting a vtable call. This avoids treating an input interface
+as the complete derived object. The file main pointer is the object start;
+its message-target view is +4 and its `cRZUnknown` view is +8. Evidence:
+`0x006794DB`–`0x006794E6`, `0x00681706`–`0x00681729`,
+`0x00680A30`–`0x00680A45`, `0x00681F4D`–`0x00681F50`.
+
+#### Token-record object
+
+The `0x00AD9A88` table is at the token object start. It is distinct from both
+stack-local IO adapters. Its scalar getters/setters operate on **one indexed
+element**, with a complete descriptor reference as their first argument.
+
+| Slots / entry | Arguments | Result; stack bytes removed |
+|---|---|---|
+| 3 InitRead `0x009810CD` | `R* record` | bool; 4; consumes cookie itself |
+| 4 InitRead `0x00981052` | `R* record`, `u32 cookie` | bool; 8; cookie already consumed by caller |
+| 5/6 InitWriteText/Binary | `R* record` | bool; 4 |
+| 7 GetKey | `K& out` | bool; 4 |
+| 8 GetCookie | none | u32; 0 |
+| 9 IsText | none | bool; 0 |
+| 10 IsTokenAvailable | `const D& definition` | bool; 4 |
+| 11 SetTokenString | `const D& definition`, `const char* name` | bool; 8 |
+| 12–23 GetFieldT | `const D& definition`, `T& out`, `u32 index` | bool; 12 |
+| 24–35 SetFieldT | `const D& definition`, `const T& value`, `u32 index` | bool; 12 |
+
+T follows the twelve-type slot order in section 5.1. Thus a float64 getter
+receives a pointer to eight writable bytes; a string getter receives an S
+object; a key getter receives twelve writable bytes. None returns its value
+in EAX. The descriptor count selects stored field capacity. An element index
+equal to or greater than that count fails without copying the element; a
+failed getter leaves the output untouched. A setter can create the descriptor
+before discovering an out-of-range index, so failure does not imply that the
+field map is unchanged. A different descriptor at the same ID is not an
+indexed access to the previous field. Shared signed/unsigned machine entries
+do not change the declared element width.
+
+Evidence: descriptor matching `0x0097F1D4`–`0x0097F214`, getters
+`0x0097F2B4` and setters `0x00980881`–`0x009808BE`; the u32 field's
+element accessors `0x0097FC36`–`0x0097FC75` compare the unsigned index with
+the stored u16 count and copy through the value pointer. The apparent void
+setter in pseudocode is an AL-returning tail delegation, not a void API.
+Shutdown `0x00980F87` remains void and can trigger deferred output. It is not
+a passive accessor. There is **no token-record raw-byte getter** in this
+table. The retained serial pointer at object +8 is an implementation capture
+anchor, not another COM interface or a contiguous-data accessor.
+
+#### Token IO adapters, including writes
+
+Both adapters use a 16-byte local object: vptr at +0, borrowed R pointer at
++4, u32 counter at +8, u32 total at +12. The binary initializer
+`0x0097EB78` sets table `0x00AD9978`, obtains total through R offset +0xD0,
+and sets counter to 4. The text constructor `0x0097EE84` performs that
+initialization then installs `0x00AD99E8`. Neither table is a COM interface;
+slot zero is a deleting destructor, not QueryInterface. The misleading
+export name on `0x0097EB78` does not make it an STL erase operation.
+
+| Slots, either table | Arguments | Result; stack bytes removed |
+|---|---|---|
+| 1 ReadTokenDef | `D& out` | bool; 4 |
+| 2–13 ReadT | `T& out` | bool; 4 |
+| 14 WriteTokenDef | `const S& name`, `const D& definition` | bool; 8 |
+| 15–26 WriteT | `const T& value` | bool; 4 |
+
+For slots 2–13 and 15–26 the type order is K, S, f64, f32, s64, u64,
+s32, u32, s16, u16, s8, u8. String input/output is an S reference, not a
+character buffer and length pair. Binary definition writing ignores the name;
+text definition writing obtains its character pointer through S slot 5 and
+formats the descriptor (section 6). Text numeric writers, **including s64,
+u64, f32 and f64**, receive const references. In particular
+`0x0097F8F4`–`0x0097F8FB` loads a double from the address supplied in its
+single stack word. Numeric reference widths are 1/2/4/8 bytes as declared,
+not uniformly four bytes. Key writing `0x0097EEEB` reads three words from
+one key reference and dispatches three u32 writes. Names and reference values
+must be copied at entry, before invoking the original.
+
+Text helper `0x0097F5B7` takes `const S& fragment`, returns bool in AL and
+removes 4 bytes. It calls R raw write at +0xCC with `(const void* bytes,
+u32 length)`, rather than R SetFieldString; this is a useful final-byte
+observation point for token text. It has no output buffer of its own.
+Observe the fragments actually passed to raw write; never call Shutdown or
+WriteTokens a second time to discover output. The text read helper
+`0x00980A41` takes `(S& out, char delimiter)` in two stack words, returns
+bool in AL, and removes 8 bytes. It is a delimiter reader, not a vtable
+string getter. The public string slot supplies its own delimiter.
+
+#### Image/buffer resource and ASCII writer
+
+| Entry/view | Arguments | Result; stack bytes removed |
+|---|---|---|
+| Buffer-resource view +0x18, slot 3, `0x009779C9` | none | EAX buffer pointer, AddRef'd if nonnull; 0 |
+| Same view, slot 4, `0x009BC0BD` | `u32 iid`, `void** out` | bool; 8; forwarded buffer QI |
+| Same view, slot 5, `0x009779DF` | buffer pointer | void; 4; retained replacement |
+| Complete image object, LoadFromRecord `0x00979171` | `R* record`, `u32 option` | bool; 8 |
+| Complete image object, LoadBMPFromRecord `0x00978E35` | `R* record`, `u32 option` | bool; 8 |
+| Complete image object, LoadTGAFromRecord `0x00978A69` | `R* record`, `u32 option` | bool; 8 |
+| Complete image object, LoadFromFile `0x0097878C` | `const S& path`, four u32 option words | bool; 20 |
+| Factory LoadFromFile `0x009790ED` | `const char* path`, buffer output pointer address, four u32 option words | bool; 24 |
+| Factory LoadFromSerialRecord `0x00977ADC` | buffer output pointer address, `R* record`, u32 option word | bool; 12 |
+| Factory SaveToSerialRecord `0x00977E93` | buffer pointer, `R* record`, bool format selector | bool; 12 |
+
+The last three functions do not use ECX as a factory state pointer; treat
+them as callee-cleanup stack functions. Forward all option words unchanged
+when observing an existing call; they are not output addresses or extra
+this pointers. Section 7 defines BMP/TGA decoding behavior. The factory
+serial formats are separate image formats, not token descriptors. LoadBMP/TGA take the second stack
+word even when a pseudocode listing omits it: the wrapper pushes both and the
+BMP routine removes eight bytes (`0x00979177`–`0x009791A2`,
+`0x009790EA`). The file resource entry removes 20 bytes
+(`0x00978A66`); its factory wrapper converts the char path to S and forwards
+the other four words (`0x0097911B`–`0x00979138`).
+
+GetBuffer does not move any serial cursor, serialize, resize or lock pixels;
+it increments buffer reference count, which the observer must balance.
+Reading the already retained pointer at complete object +0x1C avoids even
+that increment for a synchronous observation during the object's lifetime.
+It gives a buffer interface, **not a raw pixel pointer or encoded file bytes**.
+Use an existing successful buffer lock's pixel pointer, dimensions, pitch and
+color type for a passive image comparison. Adding a new lock on the live
+buffer is not guaranteed non-mutating. Preserve the different image-entry
+and embedded-buffer ECX views.
+
+ASCII writer ECX is the writer itself, table `0x00ADA288`:
+
+| Slots / entry | Arguments | Result; stack bytes removed |
+|---|---|---|
+| 3 WriteRoot `0x009835ED` | persistent root-resource pointer, output-stream pointer | void; 8 |
+| 4–11 Write scalar bool/s8/u8/s16/u16/s32/u32/f32 | `const char* fieldName`, T **by value** | void; 8 |
+| 12 WriteFloat64 `0x0098228D` | `const char* fieldName`, f64 **by value** | void; 12 |
+| 13–21 WriteArrayT | `const char* fieldName`, `const T* values`, `u32 count` | void; 12 |
+| 22 WriteString `0x00982819` | `const char* fieldName`, `const S& value` | void; 8 |
+| 23 WriteString `0x0098285F` | `const char* fieldName`, `const char* value` | void; 8 |
+| 24 WriteObject `0x0098298A` | `const char* fieldName`, serializable-object pointer | void; 8 |
+| 25 WriteObjectRef `0x009811C8` | `const char* fieldName`, unknown-interface pointer | void; 8 |
+| 26 WriteObjectRef `0x00982F2B` | `const char* fieldName`, referent-interface pointer | void; 8 |
+| 27 WriteTypeInfo `0x00982A1F` | const reference to type-info record `{S* name,u32 classID,u32 version}` | void; 4 |
+| 28 OutputStream `0x00982F1C` | none | EAX output-stream pointer; 0 |
+| nonvirtual WriteUint32InHex `0x009828A5` / WriteKey `0x009828EA` | u32 by value / `const K&` | void; 4 |
+
+Array T order is the nine-type scalar order in section 8.1. No ASCII writer
+slot accepts a 64-bit integer scalar. These void calls cannot establish
+durable-write success. Evidence for f64 by-value width is
+`0x009822B8`–`0x009822D7`; array pointer/count and 12-byte cleanup are
+`0x0098230B`–`0x00982329`, `0x00982378`. Slots 22/23 have distinct
+`RZString`/`RZChar*` prefixes and stream operations at
+`0x00982823`, `0x0098284C`, `0x00982869`, `0x00982892`; their order in
+section 8.1 is corrected accordingly. Slot 25 queries for a referent and
+releases that temporary after slot 26 (`0x009811D3`–`0x00981202`).
+The type-info argument is a twelve-byte data record, **not** an object with
+a vptr: the first word points to an S, and the following two words are
+read directly (`0x00982A25`, `0x00982A43`, `0x00982A52`, `0x00982A71`).
+
+OutputStream merely forwards the active surveyor's stream getter; it is not
+an output-byte snapshot. Calling it after WriteRoot has popped the surveyor
+is invalid. During an active context it does not write or seek, but there is
+no universal readable-memory or byte-count accessor on this writer. Capture
+the output sink supplied to the existing WriteRoot, or the bytes naturally
+written to its underlying sink. Do not re-run WriteRoot: surveying and
+serialization invoke live objects again. Record the actual stream identity
+and operation order, including nested roots, instead of using one global
+"last stream". Ordinary file/stream sinks need not retain readable bytes.
+
+### 10.2 Natural dispatch and passive capture boundaries
+
+An INI file or a DBPF record is not a token record merely because both contain
+numbers. The token tables are reached only after the token-record read/write
+protocol is selected. Advancing a city date does not itself imply that
+protocol ran. Installing these two tables at OnStart cannot expose a parser
+which does not call them. Static direct-call counts are also not dynamic
+traffic counts: calls through a vtable can have no exported direct callers.
+
+| Natural operation / discriminator | Dispatch actually used | Observation boundary |
+|---|---|---|
+| Startup graphics-rule files `Graphics Rules.sgr`, optional `Graphics Options.sgr`, recursively `Video Cards.sgr` | file parser → `cRZTextFile::ReadLine` `0x00930833`; ordinary lines call parser input slot 5 (+0x14); includes recurse in the file parser | register file/parser observation before config-rule initialization; capture registered paths, line input, tokens and exceptions; section 4 and graphics-rules section 3 |
+| Other users of the shared command parser, including effects | derived parser input thunks → `0x00679450` → direct `0x00679120`; macro/eval expansion also calls the argument entry directly | cover the shared function entry as well as the concrete input vtable; label expanded token dispatch separately from physical file lines |
+| Token-compatible resource read through the factory table at `0x00AD9A54`, slot 10 (`0x0097F439`) | query target for IID `0xA2ACE668`; read cookie through factory slot 12; construct token record; call token slot 4 with record plus consumed cookie; call target slot 3 with token record | token InitRead entries, including explicit-cookie variant, before their first invocation; correlate factory target/record identity |
+| Token-compatible resource write, same factory slot 11 (`0x0097F4C4`) | query target for IID `0xA2ACE668`; target slot 6 selects text/binary; token slot 5/6 initializes; target slot 4 fills token record; final release serializes | observe init/setters and original Shutdown/raw writes; do not infer bytes from the fill callback's result alone |
+| Image resource's factory SerialRead `0x009791B1` | resource type `0x856DDBAC` selects a temporary image and **direct** LoadFromRecord `0x00979171`; that directly tries BMP then TGA | function entry of LoadFromRecord or its factory boundary; capture record bytes and existing buffer writes; token tables never receive this decode |
+| Image factory's `LoadFromSerialRecord` / `SaveToSerialRecord` | direct raw/typed serial operations using its own image format | observe `0x00977ADC` / `0x00977E93`, not token IO adapters |
+| ASCII graph dump | existing caller invokes writer WriteRoot; graph serialization uses writer field methods and its supplied stream | observe WriteRoot before first dump and follow that stream; normal binary city saving does not imply an ASCII dump |
+
+The token read chain above consumes the cookie **before** explicit-cookie
+InitRead. Consequently a trace beginning at slot 4 must include the known
+cookie and the record cursor at entry; prepending another cookie to the live
+record or reading one there changes the operation. The adapter's initial
+counter is still 4. Token adapters are short-lived local objects within the
+token record, not process-wide parser singletons. The text constructor briefly
+uses the binary table during base initialization, then replaces it.
+
+The specific clean natural file route established here is the startup rule
+route, not the shipped pack-1 INI prefix used in the constructed probe.
+Graphics rule setup precedes ordinary city load/month observations. Install
+before that initialization and capture during startup, not just dated city
+callbacks. OnStart installation is useful only if the selected boundary
+covers that route: moving token-table installation earlier does not change
+the route. These static contracts do **not** assert that a particular city
+loads a token-compatible resource or requests an ASCII dump. Those classes
+can legitimately remain unobserved. There is no lifecycle event that forces
+every owner in sections 3–8 to execute naturally.
+
+For passive byte capture, first prefer copying the buffers of **existing**
+raw reads/writes at their original call boundaries. R raw read is offset
++0xC8 `(void* out,u32 length) → bool`; raw write is +0xCC
+`(const void* bytes,u32 length) → bool`; both remove eight stack bytes.
+Keep input bytes before their lifetime ends; record failures without treating
+uninitialized/truncated output as valid input. A high-level operation can
+seek backwards (the BMP/TGA fallback does), so retain offsets and ordering,
+not just concatenated reads. These are byte operations, not string-field
+methods that consume/insert length prefixes.
+
+A read/seek snapshot is a fallback for records supporting it, **not a
+non-mutating accessor**: use the SDK's position/size/raw-read/absolute-seek
+contract, save the exact cursor at the observation boundary, perform the copy
+under a recursion guard, restore that cursor and verify restoration before
+resuming. If copying after the native call, restore the native **post-call**
+cursor, not its entry cursor. Exclude captures on failed read/seek/restore
+and do not attempt snapshots on a write-only stream. Restoring a cursor alone
+does not prove that a nonseekable/side-effecting provider was passive. A
+native typed getter, Shutdown, serialization callback or ASCII OutputStream
+outside an active graph is never a substitute for a raw snapshot API.
+
+Natural coverage requires real nonempty samples associated with these
+boundaries, comparing results, consumed positions, output bytes and relevant
+state. Report owner/route separately. The reported `scres5-r1-2032-a` and
+`scres5-r1-2032-b` (zero calls) establish no equality; the round-2 56/56
+constructed adapter cases establish only those adapter cases, including the
+16-byte INI prefix treated as scalar binary data. They do not establish INI,
+command/file-parser, token-resource, image or graph-writer coverage.
+
+### 10.3 Additional conformance and capture vectors
+
+These are normative spec vectors, not claims of new native game-run results.
+Use section 9's wire/format vectors for payload content as well.
+
+| ID | Input/observation | Required result |
+|---|---|---|
+| SCR-V69 | Typed u32 field descriptor `{42,3,2}`; set index 0 to 11 and index 1 to 22; get index 1 | Both sets succeed; getter writes 22. The last argument is an index, never a request to copy two words |
+| SCR-V70 | Same descriptor; get index 2 into sentinel `0xCAFEBABE`; then set index 2 | Both return false in AL; getter preserves sentinel; existing elements remain 11,22 |
+| SCR-V71 | Missing field `{43,3,2}`; setter receives index 2 | False element result may coexist with newly created field; do not infer rollback |
+| SCR-V72 | Text adapter f64 write with a reference to 1.5; ASCII f64 field `x` with by-value 1.5 | Adapter consumes one pointer word and emits the section-6 fragment; ASCII consumes name plus eight value bytes, emits `      Float64 x = 1.5` and LF using its stream conversion; no void-call EAX comparison |
+| SCR-V73 | ASCII slot 22 with S `hi` versus slot 23 with char pointer `hi`, name `x` | Lines `      RZString x = hi` and `      RZChar* x = hi`, each LF; do not interchange string representations |
+| SCR-V74 | File parser reads ordinary `set x hello` in a real rule file | Parser input receives the line, argument dispatch sees command/name/value tokens; token IO adapter observation is not required and cannot stand in for these calls |
+| SCR-V75 | Factory token read consumes `TKB1`, then explicit-cookie InitRead | InitRead receives cookie by value and record at first descriptor; no second cookie read; local adapter counter starts 4 |
+| SCR-V76 | Image LoadFromRecord rejects BMP, seeks zero and tries TGA | One wrapper observation, ordered BMP/seek/TGA suboperations; no token descriptor traffic implied |
+| SCR-V77 | Native record call ends at position q, observer snapshots via raw read/seek | Resume at q with native result/output unchanged; refuse comparison if copy or restoration fails |
+| SCR-V78 | No token adapter calls during a dated city interval | Zero observations, no natural equality/coverage credit; constructed adapter successes stay a separate verdict |
+| SCR-V79 | ASCII WriteRoot has returned and popped its last surveyor | Do not call OutputStream to capture bytes; use the observed sink transcript from the original active root |
+| SCR-V80 | ASCII WriteTypeInfo record names S `Thing`, classID 42, version 7 | `      TypeName: Thing GZCLSID: 0x0000002a Version: 7` and LF; read the record fields, do not invoke a type-info vtable |

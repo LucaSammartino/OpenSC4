@@ -257,7 +257,7 @@ generated index: the questions live one file per spec, so read only the file for
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
-| landvalue | 3 | 6 | LV8 | questions/landvalue.md |
+| landvalue | 2 | 7 | LV8 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 11 | LC14 | questions/legacy-control.md |
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
@@ -306,7 +306,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 16 | GLUE22, PV16 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 9 | PL24 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
@@ -328,7 +328,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
-| sc-resources | 2 | 7 | SCR10 | questions/sc-resources.md |
+| sc-resources | 0 | 9 | SCR10 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **596** | **1428** | | |
+| **total** | **592** | **1432** | | |

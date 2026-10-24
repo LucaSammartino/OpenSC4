@@ -1,5 +1,5 @@
 tag: automata-crash6-r2-2032-20261024-b
-run: 385
+run: 388
 date: 2026-10-24
 lane: glue-automata-crash6
 dll: ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484

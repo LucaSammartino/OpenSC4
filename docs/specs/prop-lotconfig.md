@@ -325,6 +325,20 @@ false. Convert cell (x1, z1) and cell (x2 + 1, z2 + 1) to world positions (city 
 release every element whose position (occupant slot 8) is not inside `wx1 ≤ px < wx2` and `wz1 ≤ pz < wz2`
 (a NaN coordinate fails). True.
 
+**Cell overload and membership (PL21).** Slot 23 (`0x004A1FD0`) asks the lot manager for the lot at
+`(x, z)` with its third argument zero, then passes the **caller's list** and that lot to slot 24. It does
+not supply an empty list or maintain a per-lot prop collection (`0x004A1FDA`–`0x004A1FFB`). A fresh
+list receives only occupants found in the occupant manager's spatial grid, with occupant type
+`0xA823821E`, a successful prop-interface query and usage byte 2; state, timer bits, chance, lot tag and
+visibility do not select or reject them (filter `0x004A2210`, type test `0x004A2224`, usage comparison
+`0x004A2269`–`0x004A227A`, success `0x004A22F0`). The spatial query and ordering are
+[occupant-manager.md](occupant-manager.md) §8.4 through §8.2; the final position test above still applies.
+A prop merely created or associated with a lot, but absent from that grid, cannot be newly appended.
+Conversely, a pre-existing caller entry inside the lot survives even if it is unregistered or has another
+usage: the final pass checks position only, without reapplying the filter or deduplicating the list
+(`0x004A32FF`–`0x004A3372`). Thus a nonempty output can contain such an entry, or a second occurrence
+of a prop also appended by the query. This is caller-list retention, not an unsaved per-lot collection.
+
 **`GetStreetProps(list, x, z)`** (slot 31, `0x004A3150`, pop 12): usage 4, occupant manager slot 40 on the
 single cell (x, z). When the query succeeds, walk the whole list and remove and release every element whose
 position maps (city slot 95) to a cell other than (x, z). It **always returns false**, even after filling the list
@@ -362,6 +376,27 @@ Record type `0xA990BD10`, version **1**:
 18 bytes. `Write` (`0x004A2430`) and `Read` (`0x004A2470`) return true when the stream has no error. `Read`
 rejects any other version (false). All 421 distinct saves in the sample corpus have this 18-byte record, the
 references naming classes `0x098F964D` and `0x498F9B01`.
+
+**List versus record (PL21).** There is no class of timed or newly added lot props deliberately omitted
+from a prop-manager list record: this 18-byte record contains **no prop entries at all**. Its writer emits
+the version and the two references, with no prop-selection pass (`0x004A243A`–`0x004A2450`). The
+referenced occupant manager writes every node of every nonempty grid cell, in cell-list order, including
+multiple references for an occupant spanning cells; it does not test usage, state, timers or visibility
+(`0x0049EDD0`–`0x0049EE27`; [occupant-manager.md](occupant-manager.md) §13). In a stable state, with an
+initially empty result list and successful serialization/reference resolution, every newly returned
+`GetLotProps` occupant therefore also has a reference in the occupant-manager record. Timed props are
+included on the same terms as other grid occupants; their timing fields belong to their own records
+([lot-records.md](lot-records.md) §10.1), not to a skip rule here. No timed-prop or pending-prop exclusion
+is authorized for a shadow comparison.
+
+The stability qualification matters: neither manager's `Write` takes the occupant-manager lock;
+the underlying spatial query locks only for its own query, and slot 24 performs its position-pruning
+afterward (`0x0049ECF0`–`0x0049EE74`, `0x004A0677`–`0x004A0687`, `0x004A32AD`–`0x004A3313`). A save
+followed by a query is not one atomic snapshot, and writing does not freeze the grid for a later query.
+For example, a successful insertion between the two operations can legitimately appear only in the later
+query. This permitted sequence does **not** establish that concurrent mutation caused PL21's observed
+one-lot mismatches. Retain those failures; an equal manager record alone does not prove that the queried
+live occupant state, list input and referenced records were the same at both observations.
 
 ## A9. Interface slot table (`cISC4PropManager`, vtable `0x00A8F928`) *[compat]*
 
@@ -859,6 +894,9 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
     and leaves the object's lot tag unwritten (§B5.7, PL12).
 19. `FixLotConfiguration` reports a footprint outside the lot (code 4) without moving it, and rebuilds a footprint
     around the record's offset (§B5.7, PL13).
+20. `GetLotProps` has no private per-lot membership list or timed-prop save exclusion. It can retain
+    unregistered caller-supplied entries inside the lot, and save/query operations do not share an atomic
+    snapshot (§A7.2, §A8, PL21).
 
 ## O. Open questions
 
@@ -948,3 +986,20 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
     With no foundation property, no extra record or unspecified foundation ID exists. If unspecified bytes
     happen to be zero and every other byte agrees, that sample is raw-equal; it does not establish a fixed
     native default. No vector authorizes importing native bytes or filtering the raw result.
+17. **Lot-query membership versus persistence (PL21).** These are prose conformance vectors. Unless
+    stated otherwise, use a valid lot, an initialized occupant manager, an initially empty list, successful
+    stream/reference operations, and occupants strictly inside both the spatial-query box and the lot's
+    position bounds. Use distinguishable occupant identities and preserve query order (§A7.2).
+
+    | Vector | Setup / operations | Required result |
+    |---|---|---|
+    | PL21-G | Insert ordinary prop P and timed prop T into the grid, both usage 2; T is currently hidden by its timer. Query, then write without intervening mutation | Both appear in the query and both have occupant-manager record references; hiding T is no exclusion |
+    | PL21-U | Create usage-2 prop U at an interior position, but do not insert it; query and write | Neither operation discovers U; creation or a lot association alone supplies no membership |
+    | PL21-C | Same U, but caller supplies list [U] before slot 23 | U survives the position pass; U remains absent from the occupant-manager grid record. Slot 23 passes the caller list through |
+    | PL21-R | Insert P, usage 2; caller supplies [P] before querying | Result [P, P], with one newly acquired query reference; no list-wide deduplication. One grid node still yields one saved reference in that cell |
+    | PL21-W | Grid occupant S has usage 4; caller supplies [S] before querying | S survives; a fresh list would not receive S. The occupant-manager writer references S regardless of usage |
+    | PL21-S | Write with grid [P]; then successfully insert usage-2 T inside the lot before querying | Query includes T; the earlier grid record does not. Preserve this temporal difference rather than suppressing T |
+
+    Compare grid-record references rather than expecting entries in the 18-byte prop-manager record.
+    With fixed manager references, that record can stay byte-identical across PL21-S. These vectors
+    establish the membership contract; none claims to reproduce the reported intermittent game sample.

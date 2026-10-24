@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-automata-crash6: owners capture reference crash | Codex / `glue-automata-crash6` (engine; detached HEAD) | ready; Rust 6888/0, clippy clean, CTest 73/73; runs 384-386 clean/ref0; automata and owners each 219/219 exact samples | 1. Land queued tip. 2. Add automata_owners_shadow to the house profile. |
+| glue-automata-crash6: owners capture reference crash | Codex / `glue-automata-crash6` (engine; detached HEAD) | ready; gate a2c13e2af Rust 6888/0, clippy clean, CTest 73/73; runs 387-389 clean/ref0; automata and owners each 219/219 exact samples | 1. Land queued tip. 2. Add automata_owners_shadow to the house profile. |
 
 ## Changes
 
@@ -13,7 +13,8 @@ Round 2 validation found that deleting WriteCapture copies also suppressed the m
 - Initial source 204ea940d: Rust 6881 passed and clippy clean, but native requests `qbuild-20261024-023540-build-ctest` and `qbuild-20261024-023814-build-ctest` failed with C2280 at FC4MySimsShadow.cpp:1189. Both failed verdicts remain in `build-runs/build-results/`; these failures are not credited as passing checks.
 - Corrected source 208aa2159: full all passed Rust 6881/0, clippy diagnostics=0, native build 208/208, CTest 73/73 (`qbuild-20261024-024340-build-ctest`). The separately requested queued native verify passed build 46/46 and CTest 73/73 (`qbuild-20261024-024436-build-ctest`).
 - Required main merge: a2c13e2af incorporates main 760cf23fdcf03420d3678f829ed848f93ec933eb cleanly. FC4WriteCapture.cpp/.h and automata plugin code did not change. Main added Rust effects changes, so the full all gate was repeated on the integrated source.
-- Final integrated all: Rust 6888 passed/0 failed/0 ignored (summed across test-result lines), clippy diagnostics=0, native build 47/47, CTest 73/73, including automata_capture_test (`qbuild-20261024-030223-build-ctest`). Collected to terminal PASS. The tree-change note was the lane-record-only 0bb1527f7 commit; engine source stayed identical to a2c13e2af.
+- Full all after the effects merge: Rust 6888 passed/0 failed/0 ignored (summed across test-result lines), clippy diagnostics=0, native build 47/47, CTest 73/73, including automata_capture_test (`qbuild-20261024-030223-build-ctest`). Collected to terminal PASS. The tree-change note was the lane-record-only 0bb1527f7 commit; engine source stayed identical to a2c13e2af.
+- The final mandated prequeue merge subsequently incorporated main 9b5c10647129e09af32b8f2dac03025d9f4efdcc, including the newly landed traffic lane. FC4WriteCapture.cpp/.h and FC4AutomataShadow.cpp/.h remained unchanged, so the round-two conditional capture/native rerun was not triggered. The measured gate above precedes this final main merge; no additional full-gate or game claim is made for the imported traffic changes.
 
 Full build logs are in `build-runs/qbuild-test.log`, `build-runs/qbuild-clippy.log`, `build-runs/fc4verify-build.log`, and `build-runs/fc4verify-ctest.log`. Unique native request verdicts are retained in `build-runs/build-results/`.
 
@@ -23,11 +24,11 @@ All three unique requests enabled automata_shadow and automata_owners_shadow, us
 
 | Run | Label | Final date | Real seconds | Automata bytes compared |
 |---|---|---|---|---|
-| [384](../runs/automata-crash6-r2-2032-20261024-a.md) | automata-crash6-r2-2032-20261024-a | 2032-01-01 | 49.422 | 782013 |
-| [385](../runs/automata-crash6-r2-2032-20261024-b.md) | automata-crash6-r2-2032-20261024-b | 2032-01-01 | 43.547 | 776199 |
-| [386](../runs/automata-crash6-r2-2032-20261024-c.md) | automata-crash6-r2-2032-20261024-c | 2032-01-02 | 45.109 | 779584 |
+| [387](../runs/automata-crash6-r2-2032-20261024-a.md) | automata-crash6-r2-2032-20261024-a | 2032-01-01 | 49.422 | 782013 |
+| [388](../runs/automata-crash6-r2-2032-20261024-b.md) | automata-crash6-r2-2032-20261024-b | 2032-01-01 | 43.547 | 776199 |
+| [389](../runs/automata-crash6-r2-2032-20261024-c.md) | automata-crash6-r2-2032-20261024-c | 2032-01-02 | 45.109 | 779584 |
 
-The game-tested DLL SHA256 was ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484. These runs preceded the mandated main merge; the capture/automata plugin source was unchanged by that merge, and the integrated source passed the full gate afterward. Full logs and verdicts remain under `build-runs/game-results/` with these exact labels. Every wait collected the original operation; the event-based waiter accepted existing completed verdicts and used no qwait. No requests remain outstanding. Run numbers were moved to 384-386 after merging main's concurrent train171 run 381; filenames remain label-only.
+The game-tested DLL SHA256 was ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484. These runs preceded the mandated main merges; capture/automata plugin source was unchanged by both merges. Full logs and verdicts remain under `build-runs/game-results/` with these exact labels. Every wait collected the original operation; the event-based waiter accepted existing completed verdicts and used no qwait. No requests remain outstanding. Run numbers were moved to 387-389 after the final merge revealed concurrent traffic and train172 records; filenames remain label-only.
 
 ## Questions and next steps
 
