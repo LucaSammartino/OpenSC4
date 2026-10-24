@@ -386,6 +386,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "persist_shadow",
                                   // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
                                   "gzmsg_shadow",
+                                  // Dispatch constructor/header scope only; MS20/MS18 remain open.
+                                  "mysimdispatch_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -1157,3 +1157,5 @@ mod scres_file_shadow;
 
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
+// MS20: private constructor/record-header dispatch differential, no live replay.
+mod mysimdispatch_shadow;
