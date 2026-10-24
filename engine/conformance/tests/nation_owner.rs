@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! nation.md §5.1 owner-contract vectors; synthetic interface provider only.
+//! nation.md §§5.1–5.2 owner-contract vectors; synthetic interface provider only.
 use fc4_core::nation::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -83,6 +83,13 @@ impl TutorialCity for City {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+enum Locale {
+    #[default]
+    C,
+    EnUs,
+}
+
 struct Host {
     trace: Trace,
     app: bool,
@@ -102,6 +109,7 @@ struct Host {
     export_fails: BTreeSet<u32>,
     read_fails: BTreeSet<String>,
     tuning: Option<TuningProperties>,
+    locale: Locale,
 }
 impl Default for Host {
     fn default() -> Self {
@@ -124,6 +132,7 @@ impl Default for Host {
             export_fails: Default::default(),
             read_fails: Default::default(),
             tuning: None,
+            locale: Locale::C,
         }
     }
 }
@@ -148,6 +157,20 @@ impl Host {
 }
 impl NationHost for Host {
     type Region = Region;
+    fn lowercase_narrow(&self, byte: u8) -> u8 {
+        record(&self.trace, format!("narrow:{byte:02x}"));
+        byte.to_ascii_lowercase()
+    }
+    fn lowercase_wide(&self, word: u16) -> Option<u16> {
+        record(&self.trace, format!("wide:{word:04x}"));
+        // Pinned Windows en-US fixture values exercised below, not the test
+        // process locale or Rust's Unicode case table. Unknown mappings fail.
+        match word {
+            0x41..=0x5a => Some(word + 0x20),
+            0xc9 if matches!(self.locale, Locale::EnUs) => Some(0xe9),
+            _ => None,
+        }
+    }
     fn has_app(&self) -> bool {
         self.app
     }
@@ -625,4 +648,152 @@ fn recursive_copy_creates_parents_and_continues_after_ignored_results() {
             "writable:U\\target\\region.ini",
         ]
     );
+}
+
+#[test]
+fn nq4_vector1_ascii_in_both_locales() {
+    for locale in [Locale::C, Locale::EnUs] {
+        let host = Host {
+            locale,
+            ..Default::default()
+        };
+        assert_eq!(lower_directory(b"TuToRiAl", &host), b"tutorial");
+        assert!(host.events().iter().all(|event| event.starts_with("narrow:")));
+    }
+}
+
+#[test]
+fn nq4_vector2_c_locale_preserves_accented_capital() {
+    assert_eq!(
+        lower_directory("ÉCOLE".as_bytes(), &Host::default()),
+        "École".as_bytes()
+    );
+}
+
+#[test]
+fn nq4_vector3_en_us_maps_accented_capital() {
+    let host = Host {
+        locale: Locale::EnUs,
+        ..Default::default()
+    };
+    assert_eq!(lower_directory("ÉCOLE".as_bytes(), &host), "école".as_bytes());
+}
+
+#[test]
+fn nq4_vector4_no_normalization() {
+    let host = Host {
+        locale: Locale::EnUs,
+        ..Default::default()
+    };
+    let composed = lower_directory("É".as_bytes(), &host);
+    let decomposed = lower_directory(b"E\xcc\x81", &host);
+    assert_eq!(composed, b"\xc3\xa9");
+    assert_eq!(decomposed, b"e\xcc\x81");
+    assert_ne!(composed, decomposed);
+}
+
+#[test]
+fn nq4_vector5_invalid_utf8_retains_only_prefix() {
+    assert_eq!(lower_directory(b"A\xe9B", &Host::default()), b"a");
+}
+
+#[test]
+fn nq4_vector6_four_byte_character_truncates_to_word() {
+    assert_eq!(lower_directory(b"\xf0\x9f\x98\x80", &Host::default()), b"\xef\x98\x80");
+}
+
+#[test]
+fn nq4_vector7_init_selection_depends_on_active_locale() {
+    for (locale, expected) in [(Locale::EnUs, 1), (Locale::C, 0)] {
+        let mut host = Host {
+            locale,
+            entries: vec![("Other".into(), 4), ("ÉCOLE".into(), 4)],
+            tutorials: BTreeSet::from(["Other".into(), "ÉCOLE".into()]),
+            default_tutorial: "école".into(),
+            ..Default::default()
+        };
+        assert_eq!(fixture(&mut host).get_active_region_index(), Some(expected));
+    }
+}
+
+#[test]
+fn nq4_vector8_reset_retains_first_folded_catalog_match() {
+    for (locale, expected) in [(Locale::EnUs, 0), (Locale::C, 1)] {
+        let mut host = Host {
+            locale,
+            entries: vec![("ÉCOLE".into(), 4), ("école".into(), 4)],
+            registered: vec!["école".into()],
+            default_tutorial: "école".into(),
+            ..Default::default()
+        };
+        let mut nation = fixture(&mut host);
+        nation.reset_tutorial_cities(&mut host).unwrap();
+        assert_eq!(nation.get_active_region_index(), Some(expected));
+        assert_eq!(nation.get_region_count(), 2);
+        assert!(!host
+            .events()
+            .iter()
+            .any(|event| event.starts_with("files:") || event.starts_with("delete:")));
+        let retained = nation.get_active_region().unwrap().directory_name();
+        assert!(host.events().contains(&format!("move:{retained}:-4:6")));
+    }
+}
+
+#[test]
+fn nq4_vector9_init_does_not_fold_registry_default() {
+    let mut host = Host {
+        locale: Locale::EnUs,
+        entries: vec![("Other".into(), 4), ("ÉCOLE".into(), 4)],
+        tutorials: BTreeSet::from(["ÉCOLE".into()]),
+        default_tutorial: "ÉCOLE".into(),
+        reset: true,
+        screen: Some(REGION_SCREEN),
+        ..Default::default()
+    };
+    let mut nation = Nation::new();
+    nation.init(&ProcessDirectories::default(), &mut host).unwrap();
+    assert_eq!(nation.get_active_region_index(), Some(0));
+    assert!(host.events().contains(&"screen:destroy".into()));
+}
+
+#[test]
+fn nq4_vector10_preference_display_names_remain_case_sensitive() {
+    let mut host = Host {
+        locale: Locale::EnUs,
+        entries: vec![("ÉCOLE".into(), 4)],
+        ..Default::default()
+    };
+    let nation = fixture(&mut host);
+    let mut preference = [0; 64];
+    preference[..6].copy_from_slice("école".as_bytes());
+    let mut index = 99;
+    assert!(!nation.get_index_of_current_region_setting_in_preferences(&preference, &mut index));
+    assert_eq!(index, 0);
+    assert!(host.events().is_empty());
+}
+
+#[test]
+fn nq4_reset_registry_key_is_verbatim_even_after_locale_change() {
+    let mut host = Host {
+        entries: vec![("ÉCOLE".into(), 4), ("Other".into(), 4)],
+        registered: vec!["École".into()],
+        ..Default::default()
+    };
+    let mut nation = fixture(&mut host);
+    // A key previously folded in C is not remapped when the host locale changes.
+    host.locale = Locale::EnUs;
+    nation.reset_tutorial_cities(&mut host).unwrap();
+    assert_eq!(nation.get_region_count(), 3);
+    assert_eq!(nation.get_active_region().unwrap().directory_name(), "École");
+    assert!(host.events().contains(&"files:D\\Regions\\École".into()));
+}
+
+#[test]
+fn nq4_del_threshold_wide_prefix_and_failed_mapping() {
+    let host = Host::default();
+    assert_eq!(lower_directory(b"A\x7fB", &host), b"a\x7fb");
+    assert_eq!(host.events(), ["narrow:41", "wide:0061", "wide:007f", "wide:0042"]);
+    assert_eq!(lower_directory("ß".as_bytes(), &host), "ß".as_bytes());
+    assert_eq!(lower_directory(b"A\xc3", &host), b"a");
+    assert_eq!(lower_directory(b"\xffA", &host), b"");
 }
