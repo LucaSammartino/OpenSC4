@@ -11,4 +11,5 @@
 - Filed MS20 in docs/specs/questions/mysims.md. Coordinator must regenerate QUESTIONS index (tools forbidden here).
 - MS18 remains partial: explicitly inventory uncompared methods; do not infer missing native signatures.
 - Milestone cdaea5883: scoped shadow implemented. Focused fc4-capi comparator tests pass 2/2. q.py could not start Git Bash (mapping access denied); direct cargo worked. Applied explicit fmt fix and calendar-month deduplication.
-- No game requests outstanding. Next operation: stable qbuild all, then queued native verify if all does not already dispatch it.
+- Gate milestone: stable qbuild all passed cargo 6986/6986, clippy diagnostics=0; it automatically queued native build+full CTest as qbuild-20261024-084135-build-ctest. Collect SAME running exec session 6200; do NOT duplicate verify. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
+- No game requests outstanding. After queued native terminal PASS, submit unique house game run to 2032. Use build-runs/wait-mysimdispatch-verdict.ps1 for one blocking FileSystemWatcher wait (task forbids qwait).
