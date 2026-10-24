@@ -19,8 +19,9 @@
 - Fix commit dede60ae0; final gate42243 collected exit0 PASS: cargo6935/0/0, clippy0, CMake160/160 (6.8 s), CTest77/77 (77.3 s), total85.9 s.
 - Final gate verdict qbuild-20261024-060405-build-ctest.verdict. Tree-changed notice reflects source commit and lane-file update during gate; engine source was stable throughout.
 - Fixed DLL build-runs/dlls/pl21fix6-r3-fixed.dll SHA256 8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f.
-- Regress operation73784 active: regress-pl21r3fixa-shadows and regress-pl21r3fixa-replace; collect same operation. Next: second fixed pair tag pl21r3fixb.
-- Fixed pair A replace completed clean2032, foreign_exceptions0/ref_warnings0/rtc0/stalls0, real136.843 s; local log/verdict preserved. Shadows remains outstanding.
+- Fixed pair A operation73784 completed exit0 REGRESS PASS0: replace136.843 s, shadows710.672 s; both clean2032, foreign_exceptions0/ref_warnings0/rtc0/stalls0.
+- Pair A shadows propmgr220/220 and lotcfg293/293, mismatched0/incomplete0; record docs/runs/pl21r3fixa-424.md. Baseline record docs/runs/pl21r3-423.md at ab0435a03.
+- Next: second fixed pair tag pl21r3fixb, submitted immediately after this milestone; then final report and ready queue if clean/exact/ref0.
 - q.py Bash wrapper failed Win32 error5 before launching regress; direct local output-filter wrapper then submitted the unique requests once.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
