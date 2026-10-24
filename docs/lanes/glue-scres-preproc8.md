@@ -17,6 +17,7 @@
 - Verifier tree-change note is docs-only checkpoints: engine diff f90a7edfc..HEAD is empty.
 - Prepared event-driven build-runs/wait-verdict.py for the required single blocking game wait without qwait; summarize-scres.py counts dated exact lines.
 - Predecessor run records remain in merged replay7 branch: their 403–406 IDs collide with current main records; do not re-add them with duplicate IDs.
-- Next: submit scres8-raw-2032-maple-449, then default-off scres8-default-2032-oak-450; run numbers449/450 checked free.
-- No game request outstanding. No ABI export additions intended beyond inherited replay branch.
+- Outstanding game: scres8-raw-2032-maple-449 to2032 turbo, wait script session28330. Collect it; do not enqueue another until terminal verdict.
+- Next: count raw/kept exact dated lines, record run449, then default-off scres8-default-2032-oak-450; run numbers449/450 checked free.
+- DLL SHA256 0f40f2a589fad1fe2ca25f3389b52974f723ad88a593044c957c4472a3f45a94. No public C ABI exports changed.
 - Worktree detached by supervisor; commit normally, do not update refs.
