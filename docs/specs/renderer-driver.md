@@ -1,8 +1,8 @@
 # Spec: the hardware 3D driver (`nSGLDX7::cGDriver`, "Maxis 3D GDriver DirectX")
 
-Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD8)**, clean-room input. The
+Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD7)**, clean-room input. The
 83 graphics slots have a contract or an explicit unsupported/no-op classification (§12); the owner inventory
-distinguishes auxiliary interfaces and unresolved format-selection details. This document describes *behaviour*, not code. It was
+distinguishes auxiliary interfaces and unresolved pixel-converter details. This document describes *behaviour*, not code. It was
 written by the analysis team from observing the original program. Implementers must work from this spec, the public
 LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled or disassembled code
 (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
@@ -35,8 +35,9 @@ scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default dev
 35-39, 48, 58-61, the texture-stage records with slots 27-29, 51-57 and 62 (§10), the vertex-format slots 6-10
 (§8.5) and the matrix slots 40-42 (§8.6); slots 67-76 are §11. The remaining graphics slots and the owner inventory
 are §12, cache boundaries are §13, vertex-buffer and presentation support are §14, and independent vectors are
-§15. Auxiliary lighting/buffer interfaces, pixel-converter arithmetic and context device-selection details
-have explicit remaining boundaries (§16); their presence does not add slots to the 83-slot graphics interface.
+§15. Auxiliary lighting/material and buffer-region interfaces are §§12.4–12.5. CopyColorBuffer and the
+remaining pixel-converter arithmetic have explicit boundaries (§16); auxiliary interfaces do not add slots
+to the 83-slot graphics interface.
 
 The separate `cSC4GDriversCOMDirector` registration/lifecycle contract is specified in
 [renderer-gdrivers-director.md](renderer-gdrivers-director.md); it does not extend this driver's scope.
@@ -53,6 +54,11 @@ video mode, error code 0, "initialised" false, "device lost" false, "scene open"
 4×4 matrix at `0x00B542F8` (elements at `0x00B542F8`, `0x00B5430C`, `0x00B54320`, `0x00B54334`) is set to 1.0;
 the rest of it is zero, so it is the identity used by `LoadIdentity` (§8.6). *[inferred]* the 13-dword
 current-mode record (§4) starts with mode index -1.
+
+The current-mode index is explicitly -1, not merely inferred. Clear colour is packed zero, clear depth is
+binary32 1.0 and clear stencil is zero (owner `+0x190`, `+0x194`, `+0x198`). The complete D3D material at
+owner `+0x28C` is zero: diffuse, ambient, specular, emissive RGBA and power, including alpha components
+(`0x0088604C`–`0x00886058`, `0x0088630B`–`0x0088636B`). No conventional white material is implied (RD9).
 
 ## 3. The error channel (`GetError`, slot 50)
 
@@ -88,8 +94,32 @@ the current mode index to -1, then sets the mode count to 0 and:
 4. releases the temporary DirectDraw object.
 
 `Shutdown` does nothing unless initialised; otherwise it clears the flag and: switches to "no mode" (slot 66 with
--1, §4.2), updates the error code through a helper (`0x00886FB0`, open), sets the mode count to 0, unregisters the window class, and releases every held
+-1, §4.2), empties the mode list through a helper (`0x00886FB0`), sets the mode count to 0, unregisters the window class, and releases every held
 DirectX object (the six interface slots at object `+0x218`..`+0x230`).
+
+**Information storage and destruction (RD9).** The `0x00886FB0` helper copies 56-byte mode records and returns
+the new list end; Shutdown passes an empty source range and the list beginning as destination, so the list
+becomes empty. This assignment is to owner `+0x110` (list end), not owner `+0x11C` (sticky error). It does not
+invent a Shutdown error. Driver information is copied/appended into shared static string storage at
+`0x00B54340`; `GetDriverInfo` returns its current character pointer directly (`0x008870A0`), with no allocation,
+AddRef or output argument. The pointer is borrowed and can be invalidated by later initialization/string
+mutation; it does not borrow the temporary identifier buffer (`0x00888D6B`, `0x00888DB6`). Only successful
+`GetDeviceIdentifier` (result exactly zero) adds adapter/version/GUID/vendor lines.
+When both version dwords are zero, `0x00888820` searches the system directory using the path fragments
+`\\`, `\\Drivers\\`, `32\\Drivers\\`, and suffixes empty, `.dll`, `.vxd`, `.sys`, in that nesting order. The
+first matching file supplies file-version MS/LS words from the root version resource; failure to read that
+file's resource ends the search with failure rather than trying later files. No match leaves the zero version.
+The formatted version is MS high16, MS low16, LS high16, LS low16 (`0x00888820`–`0x00888A2B`).
+
+The shared driver's final-reference path calls graphics Shutdown, deletes the driver and returns zero
+(`0x00881E80`). Destruction drops the primitive-manager reference, but calls **texture-manager slot 1**
+(AddRef), after clearing its owner pointer, rather than Release [quirk, `0x00886450`–`0x008864B3`]. Thus a
+driver's destruction must not be claimed to destroy its texture manager. Remaining held context/DirectX
+references and owned arrays/string storage are released/freed. A primitive manager actually reaching final
+destruction does not submit queued primitives; it releases its vertex-buffer records and frees queue,
+index and record storage (`0x00889D40`, `0x0088A140`). A texture manager actually reaching destruction frees
+its record storage, format-list storage and held device interfaces (`0x0088B070`); this is separate from the
+driver's AddRef quirk. Do not add an implicit texture upload or draw flush to these destructors.
 
 ### 4.2 `SetVideoMode(mode, windowProc, show, flag)` (slot 66, `0x00888F50`)
 
@@ -154,7 +184,7 @@ There is no public "begin frame" slot: a scene is opened by the environment set-
 `BeginScene` does nothing if a scene is already open or there is no device. Otherwise it clears the error code
 and begins a device scene; the scene counts as open on success and on one specific failure code (`0x887602F8`),
 otherwise not, and the error code follows §3. It then resets every texture-stage record to its default
-(§5.4) and, if the "clear colour on begin" flag is set, calls `Clear(0x4000)`.
+(§7 and §10.1) and, if the "clear colour on begin" flag is set, calls `Clear(0x4000)`.
 
 `Flush` is the frame boundary:
 
@@ -430,7 +460,8 @@ vertex count, source pointer, index count, index pointer):
 4. Copy the vertices into the reserved space, converting from the source stride to the compact layout
    (`0x00889280`). Supported packed formats: position; position+colour; position+1 or 2 UV sets;
    position+colour+1 UV set; position+colour+2 UV sets (straight copy, only at stride 32). A stride that is not a
-   multiple of 4 or any other format fails: the reservation is released and the queue returns `0x80004005`.
+   multiple of 4 or any other format performs no copy but still reports copy success; it does not release the
+   reservation on that account (`0x00889409`–`0x00889422`) [quirk].
 5. Subtract the minimum index from each index. If the last queued entry has the same primitive and that
    primitive is a triangle, line or point **list**, merge: both unindexed → add the vertex count; both indexed →
    add vertex and index counts and rebase the new indices onto the merged entry's first vertex (this assumes the
@@ -440,6 +471,30 @@ vertex count, source pointer, index count, index pointer):
 **Flush** (`0x00889DE0`, called by every state slot before it changes state): submit every entry in order as
 `DrawPrimitiveVB` (unindexed) or `DrawIndexedPrimitiveVB` from the buffer, clear the queue, reset the index
 scratch. Not started with a non-empty queue: returns failure and **keeps** the queue.
+
+**Exact compact-buffer writes and flush result (RD10).** The destination is always 32 bytes per vertex:
+XYZ at bytes 0–11, diffuse colour at 12–15, UV0 at 16–23, UV1 at 24–31. Position-only writes XYZ and
+`0xFFFFFFFF` diffuse, leaving both UV sets untouched. Position+colour copies bytes 0–15 and leaves both UV
+sets untouched. Position+UV writes XYZ, `0xFFFFFFFF` diffuse and UV0, leaving UV1 untouched; the two-UV
+variant also copies UV1. Position+colour+UV copies the supplied elements and leaves UV1 untouched;
+position+colour+two-UV at stride 32 copies all 32 bytes. These are byte copies, with no float arithmetic or
+colour conversion (`0x0088C680`–`0x0088C81D`). Flush submits all queued entries despite failures and returns
+the HRESULT of the **last submission**, including a last success that hides earlier failures. An empty flush
+returns zero. The index-scratch cursor is reset even when a nonempty, stopped manager returns `0x80004005`
+without clearing its queue (`0x00889BF0`–`0x00889C88`, `0x00889DE0`).
+
+For nonindexed quads the declared index count remains `3*floor(count/2)`, truncated to 16 bits, but the
+generator writes a whole six-index quad for every base `b=0,4,8,... < count`, including an incomplete last
+quad. For positive ordinary counts it therefore writes `6*ceil(count/4)` indices, with pattern
+`b,b+1,b+2,b,b+2,b+3`. For count 6 it declares 9 but writes
+`0,1,2,0,2,3,4,5,6,4,6,7`; the submitted prefix has 9 elements and refers to vertex 6 outside the six
+copied vertices. For count 5 it declares 6 but writes those same 12 elements. These writes may exceed the
+logical scratch reservation; they are not permission to invent readable vertices or stable memory-corruption
+results. Quad strips likewise emit whole groups of six while `b < count-2`, stepping by two, even for odd
+counts (`0x0088B460`–`0x0088B500`). Indexed quads declare the same count, but their generator emits
+`ceil((3*floor(count/2))/6)` groups, reading four caller indices per group. Thus count 5 emits one complete
+group; count 6 emits two and can read beyond the caller's logical list. The 16-bit source helper is
+`0x0088B6C0`–`0x0088B7AA`; the public count truncation and generator count are distinct.
 
 **Index scratch** (`GetIndices(n)`, `0x0088A240`): a growable array of 16-bit indices handed out sequentially;
 when `n` more would exceed its allocated capacity, the queue is flushed first (queued entries point into it),
@@ -527,6 +582,18 @@ convention of Direct3D (element `m[r*4+c]`, translation in row 3).
 
 `SetViewport` (slots 74-75, §11) re-sends the stored projection through `LoadMatrix` with the mode forced to 1, so
 the half-pixel shift follows the new viewport size.
+
+**Floating-point environment (RD11).** `LoadMatrix` uses the caller's current x87 control word; it neither
+loads a control word nor clears/restores exception status (`0x00882AC0`–`0x00882C7C`). For portable finite
+conformance use round-to-nearest/even, 64-significand-bit extended intermediates and masked exceptions:
+form the width/height quotients, round each x87 arithmetic operation at that precision, and round to binary32
+at each stored matrix element. Binary64 intermediates are insufficient. With viewport width 30 and input
+matrix words m0=`3E2F59FF`, m3=`40A4645F`, the corrected m0 is `30888889` (binary64 gives `30888888`).
+The original does not validate finite inputs or nonzero viewport sizes: zeros, infinities, NaNs and unmasked
+exceptions follow the ambient x87 environment, including traps and status flags. There is no driver-defined
+NaN canonicalization or payload policy. Finite bit-exact vectors under the stated environment are required;
+portable core need not emulate host FPU exception flags, traps or NaN payloads unless exposing an explicit
+x87-environment compatibility mode. Ordinary finite examples alone must not excuse the discriminator above.
 
 ## 9. Textures (`nSGLDX7::cTextureManager`, object `+0x18`, `0x0088A380`-`0x0088B2C0`; slots 24-26, 35-39, 58-61)
 
@@ -667,7 +734,7 @@ Below, "current stage" is the stage selected by `TexStage` (§10.1) and "the sta
 - `LoadTextureLevel(name, level, x, y, w, h, srcFormat, type, rowLength, pixels)` (61, `0x00883040`): flushes the
   primitive queue (§8.3), then §9.4; failure → error code 3.
 
-### 9.6 Format-selection boundary
+### 9.6 Format selection and converter contracts
 
 An internal format is a **request**, not a promise that the device surface uses that exact packing. Initialization
 chooses a device-format descriptor for each of the eight requests, and chooses the source converter through that
@@ -678,9 +745,101 @@ without invalidating the texture name.
 Compressed requests 5, 6 and 7 first seek descriptor converter keys 9, 11 and 13 respectively. In the absence of
 the requested key, they enter the ordinary-format selection with requests 3, 2 and 2 respectively
 (`0x0088F8D0`–`0x0088F979`). Thus absence of a compressed format does not itself prove texture creation must fail.
-The ranking of ordinary candidates, complete converter availability matrix and arithmetic of every converter
-remain RD6. The earlier scope description's claim that these were fully specified was too strong. §§9.1–9.5
-specify names, allocation, surface lifetime, lock behavior and upload addressing independently of that ranking.
+#### Ordinary descriptor ranking
+
+For requests 0–4 the target pair (B,A) is respectively (16,0), (24,0), (16,4), (16,1), (32,8).
+B means the descriptor's stored bit count at +0x1C, **including alpha**, not the sum of RGB widths;
+A is its alpha-bit count at +0x20. Requests 5–7 use the fallback pairs already given, only when no matching
+compressed key exists. The first descriptor with that compressed key wins, without ordinary ranking.
+The target lookup tables are instruction-checked at `0x0088BCD0` / `0x0088BD20` and their jump tables
+`0x0088BCF8` / `0x0088BD48`.
+
+Ordinary selection scans the enumerated 40-byte descriptors in order. Classify each by the **highest**
+matching row in this table (higher rank wins); choose the highest rank, then the stated within-rank metric,
+then the earliest enumerated descriptor. This describes the native accumulating candidate-list/state scan:
+no secondary RGB preference is introduced after an alpha rank has won.
+
+| Rank | Condition on descriptor (b,a) versus requested (B,A) | Within-rank preference |
+|---|---|---|
+| 7 | b=B and a=A | first |
+| 6 | A>0 and a=A | first; b is not compared except promotion to rank 7 |
+| 5 | A>0 and a>A | smallest a; b is not compared |
+| 4 | A>0 and 0<a<A | largest a; b is not compared |
+| 3 | b=B | first |
+| 2 | b>B | smallest b |
+| 1 | b<B | largest b |
+
+Thus any excess bit count beats any shortage in the colour-only ranks. Any positive alpha below the target
+beats a no-alpha exact-bit-count descriptor when A>0; excess alpha beats insufficient alpha. For A=0 the
+alpha ranks 4–6 are disabled; exact b with a=0 still promotes to rank 7. Selection is not a weighted distance
+or a test of converter availability. All fields are compared as unsigned dwords, except the positive-target
+test; supported target values are the small nonnegative values above. Empty enumeration produces an all-zero
+40-byte descriptor for every request. The zero descriptor's key is consequently 0; this does not establish
+that DirectDraw can allocate a surface from its otherwise empty pixel format.
+Evidence: rank dispatch and colour comparisons `0x0088F996`–`0x0088FB2E`, alpha comparisons
+`0x0088FB2E`–`0x0088FC8A`, exact-pair rank `0x0088FC8A`–`0x0088FCF1`, zero/first-candidate copy
+`0x0088FD00`–`0x0088FD79`.
+
+#### Complete availability contract for the 15×8 table
+
+Each of the eight **request** columns stores the converter selected by its chosen descriptor's key at
++0x24; the key is not the request number. For each source s and request i, the cell is available exactly
+when the key of descriptor i belongs to the following row. This completely determines all 120 cells for
+any enumeration result, including compressed fallback. There is no fixed device-independent 15×8 Boolean
+matrix indexed directly by request numbers. An absent cell rejects the upload before locking (§9.4).
+
+| Source | Available descriptor keys (all other keys give null) |
+|---|---|
+| 0 | 0, 1, 2, 3, 4, 5, 7 |
+| 1 | 0, 1, 2, 3, 4, 5, 7 |
+| 2 | 0, 1, 2, 3, 4, 5, 7 |
+| 3 | 0, 1, 2, 3, 4, 5, 7 |
+| 4 | 0, 1, 2, 3, 4, 5, 7 |
+| 5 | 0, 1, 2, 3, 4, 5, 7 |
+| 6 | 0, 1, 2, 3, 4, 5, 7 |
+| 7 | 0, 1, 2, 3, 4, 5, 7 |
+| 8 | 0, 1, 2, 3, 4, 5, 7 |
+| 9 | 0, 1, 2, 3, 4, 5, 7 |
+| 10 (DXT1) | 1, 2, 4, 5, 7, 9 |
+| 11 (unproduced) | 10, 11, 12, 13 |
+| 12 (DXT3) | 1, 2, 4, 5, 7, 11 |
+| 13 (unproduced) | 10, 11, 12, 13 |
+| 14 (DXT5) | 10, 11, 12, 13 |
+
+Keys 1/2 share a routine in every row; likewise keys 4/5. In particular DXT5 has **no software decoder to
+an ordinary key** here. Falling back request 7 to an uncompressed descriptor can make creation succeed
+but a DXT5 upload fail. DXT1 supports direct-copy key 9, DXT3 direct-copy key 11. Neither accepts the other's
+key as a direct copy. Uncompressed sources have no encoder to compressed keys. Source rows 11 and 13 are
+initialized but unreachable through §9.4's format/type translator. Evidence: `0x0088F770`–`0x0088F844`,
+`0x0088F310`–`0x0088F737` and their byte/dword switch tables; compressed selectors
+`0x0088D210`–`0x0088D2A2`; per-request installation `0x0088F890`–`0x0088F8C8`.
+
+#### Verified copy and bit-expansion arithmetic; remaining arithmetic boundary
+
+Converter arguments are destination/source pointers, destination/source byte strides, width and height.
+Ordinary conversions below process width pixels per row without copying padding. Their row addresses
+refer to the same logical row on each side; bit-expansion routines visit rows from last to first, then
+pixels left to right (`0x0088F040`–`0x0088F126`, `0x0088F130`–`0x0088F205`). They do not flip the image.
+
+| Source/key | Pixel contract |
+|---|---|
+| 0 → 1 or 2 | Copy each 32-bit pixel unchanged, including alpha; width×4 bytes per row, independent strides (`0x0088C990` → `0x0088C910`). |
+| 5 → 1 or 2 | For the 16-bit source's nibbles from high to low, A,B,G,R, expand each nibble v to 17v. Output dword bytes from high to low are A,R,G,B. Example `1234` → `11443322`. Integer replication, no floating-point scaling (`0x0088F1A0`–`0x0088F1DD`). |
+| 9 → 1 or 2 | Source bits high to low B5,G6,R5. Expand 5-bit v as (v shifted left 3) plus (v shifted right 2); expand 6-bit v as (v shifted left 2) plus (v shifted right 4). Output opaque A,R,G,B. Example `0821` → `FF080408`; no multiplication by 255/31 followed by rounding (`0x0088F0C0`–`0x0088F102`). |
+
+For the compressed direct-copy cells, the routine is a **byte-row copier**, not a DXT codec: copy width
+bytes each row, then advance by the two byte strides (`0x0088C830`–`0x0088C86D`). On a locked surface
+reporting DDSD_LINEARSIZE (`0x80000`), CopyToSurface ignores the upload width, height and source row length:
+with x=y=0 it invokes the selected converter with both strides and width equal to the reported linear byte
+size and height 1 (`0x0088A395`–`0x0088A3B6`). Consequently the direct-copy cells copy exactly that many
+bytes, with no 4×4 rounding, endpoint inspection, alpha processing or partial-block clipping. Caller storage
+must cover that size. Nonzero x/y returns false from the copy helper; LoadTextureLevel ignores this return,
+unlocks and still succeeds. The ordinary-surface path passes the pixel dimensions/strides instead.
+
+RD6 now retains only the arithmetic of the other available non-copy cells: channel packing/quantization
+and expansion outside the three rows above, plus the DXT1/DXT3 software decoders and partial-block/stride
+handling when their destination is ordinary. Availability, request ranking, raw compressed copying and the
+above expansions are settled; they must not be inferred again from an internal request's number.
 
 ## 10. Texture stages (slots 27-29, 51-57, 62; records applied at draw time)
 
@@ -705,6 +864,26 @@ code 2, else current stage := `i`.
 | `+0x44`..`+0x4C` | colour operands 0-2 | slot 55, `SetCombiner` |
 | `+0x50`..`+0x58` | alpha operands 0-2 | slot 55, `SetCombiner` |
 | `+0x5C`, `+0x60` | scale, colour / alpha | slot 54, `SetCombiner` |
+
+The stage constructor (`0x00882090`–`0x008820F8`, RD9) writes the following values; offsets are relative to
+each record, not to the driver. Unlisted padding is not specified.
+
+| Stage fields | Initial values |
+|---|---|
+| dirty / enabled / has-alpha bytes `+0,+1,+2` | 0, 0, 1 |
+| texture name `+4`, coordinate selection `+8` | 0, 0 |
+| magnification/minification `+0x0C,+0x10`; wrap S/T `+0x14,+0x18` | 0, 0; 3, 3 |
+| environment `+0x1C`, applied environment `+0x20` | 0, -1 |
+| colour/alpha combine `+0x24,+0x28` | 0, 0 |
+| all six colour/alpha sources `+0x2C..+0x40` | 3 |
+| three colour operands `+0x44..+0x4C` | 2 |
+| three alpha operands `+0x50..+0x58` | 4 |
+| colour/alpha scales `+0x5C,+0x60` | 0, 0 |
+
+Default-device-state reset does **not** reconstruct these records: it sets global stage-dirty and every
+record's dirty byte to 1, retaining bindings, sampler parameters, combine values and applied-environment cache
+(`0x00887580`–`0x008875B9`). The device calls listed in §7 still occur. Constructor values and reset effects
+are different contracts; the §4.4 reference to default state must be read together with this paragraph.
 
 ### 10.2 Setters
 
@@ -825,11 +1004,11 @@ claim to have independently specified every byte in the approximate 139 KB owner
 |---|---|---|
 | `nSGLDX7::cGDriver` | graphics table `0x00AC4660`, constructor `0x00885F90`; owns managers, window and context | §§2–11, §12.2; auxiliary identities below |
 | `cTextureStageData` | 0x80-byte cached stage records; constructor `0x00882090`, application `0x00884320` / `0x00884500` | §§7, 10, 13 |
-| `cTextureManager` | constructor/lifetime `0x0088A380` onward; 48-byte named records, device surfaces and converters | §9; full selection/converter arithmetic RD6 |
+| `cTextureManager` | surface-copy/lifetime `0x0088A380` onward; 48-byte named records, device surfaces and converters | §9; remaining conversion arithmetic RD6 |
 | `cPrimitiveManager` / `cPrimitive` | queue and index scratch `0x00889B60`–`0x0088A380`; queue entries refer to vertex ranges and index storage | §8.3; lifetime/order obligations §13 |
-| `cVertexBuffer` | 0x30-byte value records; copy constructor `0x008895B0`, assignment `0x00889620`, recreation `0x008896B0`, reserve/unlock `0x008899B0` / `0x00889A90` | §14.1; independently exposed buffer-interface operations remain RD7 |
-| `cGDriver::D3DLight` | constructor `0x00883EC0`; auxiliary light operations reach it at `0x00886BC9` / `0x00886CD9` | D3D7 light record; initialization below; auxiliary lighting setters remain RD7 |
-| Presentation context (descriptive name) | allocation `0x0088C5F0`, initialization `0x0088BF50`, surface/device rebuild `0x0088BFC0`, presentation `0x0088C400` | §14.2–§14.3; adapter/device and depth-format selection RD8 |
+| `cVertexBuffer` | 0x30-byte value records; copy constructor `0x008895B0`, assignment `0x00889620`, recreation `0x008896B0`, reserve/unlock `0x008899B0` / `0x00889A90` | §14.1 internal value records; auxiliary tables do not return independent vertex buffers (§12.4) |
+| `cGDriver::D3DLight` | constructor `0x00883EC0`; auxiliary light operations reach it at `0x00886BC9` / `0x00886CD9` | D3D7 light record; initialization below; public setters §12.4 |
+| Presentation context (descriptive name) | allocation `0x0088C5F0`, initialization `0x0088BF50`, surface/device rebuild `0x0088BFC0`, presentation `0x0088C400` | §14.2–§14.3, including selector/depth rules |
 | Placeholder device | allocator `0x0088B440`; installed during lost-device handling | inactive-device sink in §4.4; its methods are not graphics-interface slots |
 | Shared vertex-format helpers / vertex copiers | `0x008891C0`, `0x00889280`, `0x0088C680` onward | graphics-formats.md and §8; not independent driver instances |
 | `nRZSimGL`, colour-key blitters, `cGZBufferSimGLCache` | third graphics table `0x00ACC4D8`, distinct from this driver's table | sibling support; see renderer-gdrivers-director-inventory.md §§5–8; no DirectX blit support is implied |
@@ -837,8 +1016,12 @@ claim to have independently specified every byte in the approximate 139 KB owner
 
 `D3DLight` initializes a D3D7 light record to type 1, zero colours/position, direction (0, 0, 10), falloff bits
 `0x3F800000`, attenuation zero, theta bits `0x3F47AE14` and phi bits `0x3FC8F5C3`. Range is the square root of
-the double constant at `0x00AC4658`, stored to a single float (`0x00883EC0`–`0x00883F2D`); the decompiler's
-folded range literal is not treated as independently verified. These record fields are floats, not doubles. This record
+the double constant at `0x00AC4658`, stored to a single float (`0x00883EC0`–`0x00883F2D`). The constant's
+binary64 bits are `0x47EFFFFFE0000000`: exactly the largest finite binary32 value, not the largest double.
+The constructor loads that double, evaluates x87 square root and rounds on the single store at `0x00883F2A`.
+With nearest/even rounding the range bits are `0x5F7FFFFF` (18446742974197923840); do not substitute
+`FLT_MAX`, infinity or exactly 2^64. The constructor does not change the ambient x87 control word.
+These record fields are floats, not doubles. This record
 does not establish a public graphics lighting API: none of graphics slots 3–82 is a light setter.
 
 ### 12.2 Identity, getters and unsupported tail slot
@@ -889,6 +1072,119 @@ may use different in-memory offsets; the aliasing and ownership are the contract
 | 63–66 | §§4.2, 6 mode list, getters and selection |
 | 67–76 | §11 bias, unsupported blits and viewport |
 | 77–82 | §§4.1, 12.2 information, lifecycle, readiness and unsupported tail |
+
+### 12.4 Auxiliary dispatch and lighting/material contracts (RD7)
+
+These tables are distinct from the graphics table. Slot numbers below are zero-based **within their own
+table**; they must not be added to the 83 graphics slots. Table addresses and identity adjustments are checked
+against the PE words at `0x00AC47AC`, `0x00AC47DC`, `0x00AC47EC` and the thunks `0x00886390`–`0x00886440`.
+Offsets in the lighting bodies are relative to owner+8: for example material `+0x284`, device `+0x21C` and
+error `+0x114` there mean owner `+0x28C`, `+0x224`, `+0x11C`. They are not additional state objects.
+
+| Identity/table | Public slots beyond QI/AddRef/Release (0–2) |
+|---|---|
+| owner+0, ID `669565FE`, table `00AC47EC` | 3: constant-true stub; 4: NewBufferRegion (`886750`); 5: delete region (`885330`); 6: save region (`8853B0`); 7: restore region (`8855F0`); 8: region predicate (`885790`); 9–10: constant-true stubs |
+| owner+4, ID `E69BFE2A`, table `00AC47DC` | 3: CopyColorBuffer (`883950`); no subsequent public slot is established by this table |
+| owner+8, ID `87E2B87D`, table `00AC47AC` | 3: lighting enable; 4: individual light enable; 5: global ambient; 6–7: light colours; 8–9: no-ops; 10–11: material colours/properties |
+
+The constant-true body (`0x00648F00`) sets only the low return byte to 1, consumes no stack arguments and
+changes no state. It does not manufacture or return a vertex-buffer object. The two lighting no-ops
+(`0x006F7DC0`) consume two argument words, do not dereference output and do not flush or set error.
+An unrelated folded function name is not evidence of a supported vertex-buffer or light-position API.
+QI and reference operations use §12.2's shared driver ownership. The later words after the primary table's
+slot 10 are destruction support, not additional region operations. Internal vertex-buffer value records
+remain §14.1; none of the above functional slots returns an independently refcounted vertex buffer.
+
+All functional lighting/material setters below return void. Unless suppressed by the enable cache, they
+flush the primitive manager, apply §3's HRESULT mapping to a nonzero flush result, then make the specified
+device call **even after a flush failure**, mapping its nonzero result too. Zero results do not clear a
+previous error. No setter checks device readiness or rolls back its cached edits on device failure.
+
+| Auxiliary slot/body | Arguments and exact effect |
+|---|---|
+| 3, `00883F30` | One argument word; compare/store its low byte at auxiliary `+0x2D4`. If unchanged, no flush or device call. Otherwise flush, then SetRenderState(137, zero-extended low byte). Values such as 2 are preserved rather than canonicalized to 1. |
+| 4, `00883FA0` | `(index, enabled)`: always flush then LightEnable(index, zero-extended low byte of enabled). No index validation, allocation or enable cache. |
+| 5, `00884000` | `(r,g,b)` binary32 components: construct opaque packed ambient as below, flush, then SetRenderState(139, packed colour). No cache or clamp. |
+| 6, `00886CA0` | `(index, ambient*, diffuse*, specular*)`: grow the light vector to index+1 with §12.1's default records if needed. Copy each non-null four-float colour into that record; null retains the old colour. Flush then SetLight(index, whole record), including when all pointers are null. |
+| 7, `00886B90` | `(index, property, values*)`: same growth; properties 0/1/2 copy four words to ambient/diffuse/specular respectively. Other properties change nothing but still flush and submit the whole record. Recognized properties require readable values. |
+| 10, `00884200` | `(ambient*, diffuse*, specular*, emissive*, power)`: each non-null colour copies four words into the persistent material. Store power only when its binary32 value compares greater than or equal to zero. Negative and unordered values retain the old power; negative zero is accepted and its bits retained. Flush then SetMaterial(whole record), even for all-null colours and negative power. |
+| 11, `008840D0` | `(property, values*)`: properties 0/1/2/3 copy four words into ambient/diffuse/specular/emissive; property 4 copies one word into power without a numeric test. Other values leave the material unchanged. Always flush and SetMaterial afterward. |
+
+The D3D material's order in memory is diffuse, ambient, specular, emissive, power, despite the public
+argument/property order beginning with ambient. Colours are copied bitwise, not multiplied, clamped,
+premultiplied or normalized. Light edits cannot alter position, direction, type, attenuation, range or cone
+angles through slots 6–7. Vector growth creates default records for skipped indices; enabling a light does
+not perform that growth. Light range is exactly §12.1, not a decompiler-folded literal.
+
+For global ambient, add binary32 49152.0 to each supplied component in x87 and store the sum to binary32.
+Interpret that stored word as unsigned bits and subtract `0x47400000` modulo 2^32; subtract the next byte
+from its low byte modulo 256. That byte is the component. Pack `FF`, r, g, b from high to low byte.
+This is a bit-based conversion, **not** float-to-integer truncation or saturation (`0x00884000`–`0x00884078`).
+With nearest/even, inputs (0, 0.5, 1) produce `FF0080FF`; component 2 produces 254, demonstrating the
+absence of a clamp. Power's comparison/store is instruction-checked at `0x008842AF`–`0x008842C4`;
+bulk/individual light colour writes at `0x00886C13`–`0x00886C51`, `0x00886CFC`–`0x00886D54`.
+
+### 12.5 Buffer-region handles and transfers (RD7)
+
+These are owner+0 slots 4–8, not methods on the internal vertex-buffer value records. A region is a
+28-byte entry in the vector at owner `+0x27C`: zero-based identity/sentinel, type, owned surface pointer,
+two zero reserved words, recorded window width and height. Public handles are entry index+1; zero is failure.
+They have no generation counter or separate AddRef/Release. All offsets here are owner-relative.
+
+NewBufferRegion(type), `0x00886750`, returns zero immediately while lost. Otherwise select the first free
+entry (identity `FFFFFFFF`), or append a cleared entry. Type 0/1/2 selects owner surface `+0x22C`/`+0x230`/
+`+0x234`; another type or missing surface fails. Obtain its pixel format and surface descriptor, failing on
+either negative HRESULT. Create a new surface with descriptor size `7C`, flags `1007`, the source surface's
+dimensions and pixel format; caps include `40` for type 0 or `20000` for types 1/2, plus `4000` when the
+source caps have `4000`, otherwise `800`. A missing DirectDraw object fails. If CreateSurface returns
+`8876017C`, call the device's EvictManagedTextures once and retry that same descriptor once; any final
+negative result nulls the entry's surface and fails (`0x00886970`–`0x008869C4`). No primitive flush or
+driver-error assignment occurs here. Success stores index, type and **current window** dimensions (not
+necessarily the queried surface dimensions), and returns index+1. Failed entries stay free for reuse.
+
+DeleteRegion(handle), `0x00885330`, unsigned-checks handle−1 strictly below the vector count, then verifies
+the stored identity matches. Failure returns false and changes nothing. Success Releases the owned surface
+if present, zeros the other six words, stores identity `FFFFFFFF`, and returns true. A second delete is false;
+a later creation can reuse the handle for a different region. It neither flushes nor checks lost state.
+The predicate at `0x00885790` checks the same identity but uses **less than or equal to count**, an off-by-one
+read (`0x008857B8`–`0x008857C7`). For in-range entries it reports occupancy; handle zero is false. A handle
+equal to count+1 can read outside the logical vector and has no portable Boolean result; do not assert safe
+rejection or dereference it in a conformance harness.
+
+Save/Restore each take `(handle, x, y, width, height, otherX, otherY)`. They return false immediately when
+lost, when x/y are negative, or when the unsigned 32-bit sums x+width or y+height exceed current window
+dimensions. There is no independent positive width/height test, clipping, bottom-up conversion, handle
+range test or occupied-identity check on these transfer paths. A valid live handle and readable entry are
+caller preconditions. Restore additionally signed-compares those two sums against the entry's saved width/
+height. Rejected rectangles do not flush. Accepted rectangles flush primitives and map a nonzero flush
+result into the driver error, but proceed despite failure. Missing region or selected live surface returns
+false; Restore additionally requires owner `+0x230` to be non-null **even when the type selects another
+surface** (`0x0088568C`–`0x008856CC`).
+
+Save, `0x008853B0`, Blts **into the region**: destination `(x,y,x+w,y+h)`, source selected live surface at
+`(otherX,otherY,otherX+w,otherY+h)`. Restore, `0x008855F0`, Blts **from the region**: source `(x,y,x+w,y+h)`,
+destination selected live surface at `(otherX,otherY,otherX+w,otherY+h)`. In both cases flags first
+`01000200`, then a single retry with `01000000` if the first result is negative; FX pointer null.
+Nonnegative results are successes, not just zero. Blt failures themselves do not set the driver's error.
+Coordinates are passed unchanged; the otherX/Y rectangle is not separately checked by the wrapper.
+
+Save's second failure returns false unless it is `887601C2`. On that result it calls Restore on the region,
+then context support slot 11 (owner `+0x258` object's table +`2C`); a negative context result returns false.
+Then it invokes primitive-manager support slot 11. If region Restore did not return exactly zero, retry
+the Blt pair without clearing. If Restore returned zero and the destination covers the full recorded region
+(x=y=0 and w/h equal saved dimensions), also retry without clearing. Otherwise clear the region first:
+zero-initialized 100-byte FX, flags `01000400` for type 0, `03000000` for type 1; type 2 has no clear call.
+The clear result is ignored. Retry afterward, but retain a false result flag: a later successful save still
+returns false because previous saved contents outside this rectangle were discarded. Further lost results
+can repeat this sequence (`0x0088551A`–`0x008855D6`).
+
+Restore has no such recovery loop. If its final Blt result is `887601C2`, call **IsLost** on the region
+surface (table +`6C`), ignore that result, then return false. It does not call Restore or retry after IsLost
+(`0x0088574D`–`0x00885772`). A final nonnegative Blt returns true, every other negative result false.
+
+The remaining RD7 proof boundary is owner+4 CopyColorBuffer (`0x00883950`): its lock-probe cache, destination
+allocation/ownership, clipped copy and pixel-format/failure paths. Its table/identity attribution is settled
+above. No unresolved light/material or region-transfer semantics are included in that remaining boundary.
 
 ## 13. Cache and ordering obligations
 
@@ -959,7 +1255,40 @@ Thus the fourth mode argument requests flipping but does not guarantee a flip ch
 back to a count of zero. When either full-screen or the request is false, the context creates a primary
 surface (caps `0x200`) and a separate width-by-height 3D render target (flags `7`, caps `0x2040`), and windowed
 operation attaches a window clipper to the primary (`0x0088C1A6`–`0x0088C25D`). Device/depth-format selection
-and every selector fallback are still RD8; this section does not prescribe them from inferred names.
+and selector limitations follow below.
+
+**Selector and depth contract (RD8).** `0x0088C024`–`0x0088C0AE` recognizes three selectors. For -1,
+enumerate devices and retain the first device of highest score, adding 1000 each for capability bits
+`0x10000` (hardware rasterization) and `0x80000` (hardware transform/light). Equal scores keep the earlier
+device. A nonzero render-bit-depth word at descriptor `+0x74` is the existing-selection sentinel; if it is
+zero, the next descriptor replaces it regardless of score (`0x0088BDE0`–`0x0088BE3D`). For -4, the preferred
+GUID is `{881949A1-D6F3-11D0-89AB-00A0C9054129}`, fallback
+`{A4665C60-2673-11CF-A31A-00AA00B93356}`. Each preferred descriptor replaces the selection; a fallback
+replaces it only if no nonzero render-bit-depth selection exists or its GUID is not preferred. Other GUIDs
+are ignored (`0x0088BE40`–`0x0088BEB4`).
+Selector -3 uses `{50936643-13E9-11D1-89AA-00A0C9054129}` directly, capabilities zero and render bit-depth
+word `0x10`. It skips device enumeration. Every other value, including concrete nonnegative selectors and
+-2, skips selection rather than indexing an adapter list: GUID/capability stack contents are not initialized
+for a usable choice. There is no defined device-selection result for those values; do not invent fallback.
+
+After surface setup the selected GUID is passed to `EnumZBufferFormats`. Its callback copies exactly the
+first 32-byte pixel-format descriptor and returns cancel (zero); there is **no depth/stencil ranking**, no
+comparison with the requested 16 display bits and no search for a later preferred depth format
+(`0x0088BDC0`). No callback leaves format size zero and returns `0x80004005`. Depth-surface descriptor flags
+are `0x1007`, width/height are context size, caps `0x20000` for a selected device with `0x80000`, otherwise
+`0x20800`. The format is that first descriptor. Create it, attach to render target, query current display mode,
+then create the selected device and set viewport `(0,0,width,height,0.0,1.0)`.
+
+Every negative HRESULT from cooperative level, fullscreen display mode, device enumeration, primary or
+render-target creation, attached-back-buffer enumeration, clipper creation, depth-format enumeration,
+depth-surface creation, depth attachment, display-mode query, CreateDevice and SetViewport ends setup with
+that HRESULT, subject only to the primary back-buffer-count retry already specified. A successful attachment
+enumeration with null back buffer returns `0x80004005`; display RGB bits at most 8 returns `0x88760078`.
+Depth-attachment failure releases that new depth surface, nulls its slot and preserves the attachment HRESULT
+(`0x0088C2E9`–`0x0088C314`). Other acquired resources remain for normal context cleanup; no second device
+or second depth format is attempted after failure. Clipper SetHWnd and primary SetClipper results, and the
+three primary GetColorKey calls after chain creation, are ignored. A nonnegative final SetViewport result is
+normalized to zero (`0x0088C315`–`0x0088C397`).
 
 ### 14.3 Presentation
 
@@ -1023,13 +1352,47 @@ unless the setup column says otherwise. Observe calls, output sentinels, errors,
 | DX7-16 | Lock a vertex-buffer reservation, reserve again before unlock; then reserve across end without/with wrap | Second simultaneous reservation fails; no-wrap overflow fails; allowed wrap resets cursor and uses discard lock `0x2021` instead of `0x1021` |
 | DX7-17 | Cause surface-lost then another HRESULT failure, reading GetError twice after each | Surface-lost maps to 0; other failure maps to 1; every read consumes the stored error |
 | DX7-18 | Inject context creation failure during SetVideoMode; fourth word points to writable sentinel storage | Window/environment cleanup and error 6 precede a `0xFFFFFFFF` write through that fourth word; do not expect a current-mode-index assignment in its place (§4.2) |
+| DX7-19 | Prefill compact destination with `A5`; copy one position-only vertex | XYZ copied, colour `FFFFFFFF`; bytes 16–31 stay `A5` |
+| DX7-20 | Prefill with `A5`; copy position+UV0, then independently position+colour | First: white colour and copied UV0, untouched UV1. Second: copied colour, untouched both UV sets |
+| DX7-21 | Queue two submissions; return failure then success; reverse outcomes | Both submitted; flush returns zero in first trial and final failure in second; empty flush returns zero |
+| DX7-22 | Generate nonindexed quads for count 5 and 6 using physically oversized scratch | Both write `0,1,2,0,2,3,4,5,6,4,6,7`; declared counts 6 and 9 respectively; do not render invalid references |
+| DX7-23 | Indexed quads count 5/6 with extra readable sentinel indices after logical input | Count 5 generates one group; count 6 generates two groups, using the extra inputs; declared counts 6/9 |
+| DX7-24 | Width 30; m0=`3E2F59FF`, m3=`40A4645F`; nearest/even, extended precision | Projection corrected m0=`30888889`; reject binary64-only `30888888` |
+| DX7-25 | Construct driver and stage records before caller setters | Clear colour/depth/stencil = 0/1.0/0; all material words zero; stage values exactly §10.1 |
+| DX7-26 | Mutate stage binding/combine/cache, then default-device-state reset | Values retained; global and per-stage dirty become 1; §7 device calls still occur |
+| DX7-27 | Shutdown initialized driver with existing modes and sticky error sentinel | List end becomes beginning, mode count zero; list helper does not overwrite sticky error |
+| DX7-28 | Selector -1 enumerates scores 1000, 2000, 2000; nonzero render-bit-depth sentinel | First score-2000 descriptor retained; no tie replacement |
+| DX7-29 | Enumerate depth formats 16-bit then 24-bit/stencil; separately return no format | First descriptor accepted and enumeration canceled; no ranking. No format returns `80004005` |
+| DX7-30 | Inject depth-attachment failure, then independently final viewport failure | First releases/nulls depth surface and returns attachment HRESULT; second returns viewport HRESULT; no alternate-device retry |
+| DX7-31 | Destroy driver with externally observed manager references | Primitive manager receives Release; texture manager receives AddRef, not Release; no implicit queued submission |
+| DX7-32 | Create default light under nearest/even x87 rounding | Range bits `5F7FFFFF`; type 1, direction (0,0,10); zero colours; not FLT_MAX or 2^64 |
+| DX7-33 | Lighting slot 3: set low byte 2 twice, then word `00000102`, then 0 | First flush/state(137,2); next two calls suppressed; last flush/state(137,0) |
+| DX7-34 | Lighting slot 4: enable index 17 twice with word `00000102` | Two flushes and two LightEnable(17,2); no vector growth or equality suppression |
+| DX7-35 | Ambient (0,0.5,1), then (2,0,0), nearest/even | Device state(139,`FF0080FF`), then state(139,`FFFE0000`); no clamping |
+| DX7-36 | Set light index 2 with ambient pointer only; then individual property 99 with null pointer | Three default records created; only index 2 ambient changes; both calls flush/SetLight(2); unknown property does not read null |
+| DX7-37 | Set material power via property 4 to -7, then bulk all-null/power -1, then power negative zero | First stores -7; second retains -7; third preserves negative-zero bits. Each call flushes and submits whole material |
+| DX7-38 | Light/material flush returns generic failure, device call returns success; repeat with surface-lost device result | First leaves error 1; second maps last nonzero result to 0. Cache edits and device calls occur in both cases |
+| DX7-39 | Request (16,0), enumerate (b,a)=(15,0), (32,8), (24,8); then add (16,1), then (16,0) | Select (24,8), then (16,1), then (16,0): excess beats shortage; exact-bit count wins; exact pair finally wins |
+| DX7-40 | Request (16,4), enumerate (16,0), (32,1), (24,8), (32,4), (16,4) | Successive winners follow alpha ranks 4/5/6, then exact pair rank 7. Two equal rank/metric descriptors retain first even with different RGB masks |
+| DX7-41 | Empty format enumeration; independently request 7 with only an ordinary fallback descriptor | Empty produces eight zero descriptors, not eight allocation successes. Request 7 can allocate fallback surface but source 14 upload has null converter and fails before lock |
+| DX7-42 | Install descriptor keys `[0,1,3,4,7,9,11,13]` into requests 0–7, respectively; inspect all source rows | Sources 0–9 availability `11111000`; source 10 `01011100`; source 12 `01011010`; sources 11/13/14 `00000011`. This exercises all 120 cells independently of selector ranking |
+| DX7-43 | Source 5 word `1234` and source 9 word `0821`, each to key 1 then 2 | Outputs `11443322` and `FF080408`; key 1 and 2 results identical; destination padding unchanged |
+| DX7-44 | Linear-size surface reports 32 bytes; source 12/key 11; give w=h=1 and rowLength=99 | Copies 32 raw bytes in one row, without decoding or using source pitch. With x=1 copies no bytes but outer load unlocks and succeeds |
+| DX7-45 | Create two regions, delete first twice, create another; predicate only in logical range | Handles 1,2; deletion true then false; next creation reuses 1; shared driver references unchanged |
+| DX7-46 | CreateSurface returns `8876017C`, then success; repeat with another negative result | First evicts managed textures and retries same descriptor exactly once; second has no retry, returns handle 0; no flush/error assignment |
+| DX7-47 | Valid save/restore `(h,10,20,30,40,50,60)`; first Blt fails, retry succeeds | Save region destination (10,20,40,60) from live (50,60,80,100); restore reverses roles. Flags `01000200`, `01000000`; no coordinate flip |
+| DX7-48 | Restore type 0 with owner `+230` null; then restore with both Blts surface-lost | First returns false after accepted-rectangle flush without Blt despite non-null type-0 surface; second calls region IsLost once and returns false without recovery retry |
+| DX7-49 | Partial save loses surface twice; region Restore=0, context recovery succeeds, retry succeeds | Region clear occurs (type 0/1 flags as §12.5), then retry; final Boolean false despite successful copy. Full-region save retries without clear and can return true |
 
 ## 16. Remaining proof boundaries
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).
 
 The checklist covers the 83-slot graphics interface, including explicit no-ops. It does not assert full
-coverage of auxiliary interfaces or every pixel conversion. RD6 covers complete internal-format ranking and
-conversion arithmetic; RD7 covers auxiliary lighting and independently exposed buffer APIs; RD8 covers context
-device/depth selection. RD1, RD3 and RD4 retain their specifically listed caller, descriptor and message gaps.
+coverage of every pixel conversion or CopyColorBuffer. RD6 now retains only the non-copy converter arithmetic
+and DXT1/DXT3 software-decoder cases explicitly excluded in §9.6. RD7 retains only CopyColorBuffer's behavior
+beyond table attribution; auxiliary lighting/materials and buffer regions are specified in §§12.4–12.5.
+RD6/RD7 settled portions have vectors DX7-32–49. RD8–RD11 are
+answered in §§2, 4.1, 8.3, 8.6, 10.1 and 14.2 with vectors DX7-19–31. RD1, RD3 and RD4 retain their
+specifically listed caller, descriptor and message gaps.
 No C ABI proposal or implementation behavior is inferred from those open items.
