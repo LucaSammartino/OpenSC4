@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-pl21fix6: deterministic prop shadow, PL21 | Codex; glue-propmgr-pl21fix6 (detached HEAD) | ready; cargo 6891/6891, clippy clean, CTest 72/72; three house repeats propmgr 220/220 each | Coordinator review, coverage credit and tools profile update if needed |
+| glue-propmgr-pl21fix6: PL21 round 2 crash investigation | Codex; glue-propmgr-pl21fix6 (detached HEAD) | in progress | Audit ownership and shutdown; full gate and two complete house-profile repeats |
+
+## Handoff
+
+- Goal: fix train177/178/179 heap AV and stall, retaining propmgr 220/220.
+- Starting tip: d44eead99c; detached HEAD, do not update refs.
+- Audit: slot-40 hook installed only in PropQueries; replace mode disables prop shadow.
+- Capture/replay each acquire one reference; comparison and input destruction each release one.
+- Current suspects not yet proven causal; no implementation changes or new game requests.
+- Next: inspect replacement activity and heap ownership; implement a diagnosed fix.
+- Required gate: qbuild all on stable final source, then both house profiles twice.
+- Manifest: main build-runs/run4-glue-propmgr-pl21fix6-r2-manifest.json.
+- Prior round report below is historical and does not establish round-2 acceptance.
 
 ## Report
 
