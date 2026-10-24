@@ -1,5 +1,48 @@
 # Answered questions: web-network.md
 
+## Q19 (core-www-close15 r2, 2026-10-24) — FTP initialization and listing helpers
+
+After the correction of `00813d70` to scheduler construction in FTP-control 9.1,
+FTP-control 6 still requires initializing a fresh session before login, but section
+7 specifies only construction/shutdown/destruction. Which actual entry and effects
+implement that initialization? Also confirm that parent 4.15's close-listener
+`00811f00` / close-data `00811f90` replace FTP-control 3's older receive-options
+labels. [Fresh-session initialization stays Unsupported; listing uses the later
+parent 4.15 close contracts literally. No added options or thread join.]
+
+**ANSWERED 2026-10-24 (re-www-q19q20):** DIFFERS — initialization is the inline
+initialized-byte assignment at 008170c6–008170d7 in outer worker 00816ee0. It has
+no fallible dependency, socket/thread work or target retention. Parent §4.13 and
+[FTP-control §7.1](../../web-network-ftp-control.md#71-fresh-session-initialization-q19-2026-10-24)
+specify the supported fresh path and WWW19-1–WWW19-5 vectors. 00811f00 closes the
+listener after accept; 00811f90 closes data before the final reply. Both always
+return true and set no receive options, matching parent §4.15; §3 is corrected.
+
+## Q20 (core-www-close15 r2, 2026-10-24) — HTTP response parsing and worker resources
+
+Wire 1 specifies header delimiter/status-zero handling but does not qualify
+status/version token parsing, proxy connect destination selection, or how the
+admission record `[ID,1,0,1,0,request,0,custom]` transitions into the completion
+record: lifetime 2 calls word +0x14 the internal resource, whereas admission puts
+the request there. Please specify the dequeue/response-resource construction and
+field transition before completion, and malformed status-line behavior. [Portable
+transaction accepts a dequeued timestamp, parses literal `HTTP/major.minor
+decimal-status`, returns body/header outcomes, and reuses the specified
+retry/finalization helpers. Native resource publication and proxy endpoint
+selection remain unconnected; no invented request-to-resource cast.]
+
+**ANSWERED 2026-10-24 (re-www-q19q20):** DIFFERS — parent §4.14/§5.6,
+[HTTP wire §1.1–1.2](../../web-network-http-wire.md#11-status-and-version-tokens-q20-2026-10-24)
+and [HTTP lifetime §2.1](../../web-network-http-lifetime.md#21-dequeue-response-creation-and-publication-q20)
+settle all three boundaries with WWW20-S1–S13, P1–P4 and R1–R9 vectors.
+Status scans two string tokens, truncates the second from byte 1 at the first
+nondigit, and uses wrapping signed 32-bit decimal conversion. Version checks
+uppercase HTTP plus fixed digit positions 5/7, independently of status grammar.
+Proxy mode changes wire formatting but the worker connects to the origin. Dequeue
+preserves request +0x14; a distinct response with its own hold is published at
++0x18 only before finalization. Early failures, requeues, stale responses and
+missing releases are explicit. No residual Q20 split or live-server result is claimed.
+
 ## Q13 (re-www-ww5, 2026-10-23) — remaining HTTP wire and date behavior
 
 Section 5 qualifies progress and synchronous notification, and links existing lifetime/admission
