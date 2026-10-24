@@ -54,6 +54,11 @@ video mode, error code 0, "initialised" false, "device lost" false, "scene open"
 the rest of it is zero, so it is the identity used by `LoadIdentity` (§8.6). *[inferred]* the 13-dword
 current-mode record (§4) starts with mode index -1.
 
+The current-mode index is explicitly -1, not merely inferred. Clear colour is packed zero, clear depth is
+binary32 1.0 and clear stencil is zero (owner `+0x190`, `+0x194`, `+0x198`). The complete D3D material at
+owner `+0x28C` is zero: diffuse, ambient, specular, emissive RGBA and power, including alpha components
+(`0x0088604C`–`0x00886058`, `0x0088630B`–`0x0088636B`). No conventional white material is implied (RD9).
+
 ## 3. The error channel (`GetError`, slot 50)
 
 The driver keeps one sticky error code. `GetError` returns it and resets it to 0 (`0x00882000`). Codes observed:
@@ -88,8 +93,30 @@ the current mode index to -1, then sets the mode count to 0 and:
 4. releases the temporary DirectDraw object.
 
 `Shutdown` does nothing unless initialised; otherwise it clears the flag and: switches to "no mode" (slot 66 with
--1, §4.2), updates the error code through a helper (`0x00886FB0`, open), sets the mode count to 0, unregisters the window class, and releases every held
+-1, §4.2), empties the mode list through a helper (`0x00886FB0`), sets the mode count to 0, unregisters the window class, and releases every held
 DirectX object (the six interface slots at object `+0x218`..`+0x230`).
+
+**Information storage and destruction (RD9).** The `0x00886FB0` helper copies 56-byte mode records and returns
+the new list end; Shutdown passes an empty source range and the list beginning as destination, so the list
+becomes empty. This assignment is to owner `+0x110` (list end), not owner `+0x11C` (sticky error). It does not
+invent a Shutdown error. Driver information is copied into driver-owned string storage and returned through
+the caller's string interface by `GetDriverInfo` (`0x008870A0`); it does not borrow the temporary identifier
+buffer. Only successful `GetDeviceIdentifier` (result exactly zero) adds adapter/version/GUID/vendor lines.
+When both version dwords are zero, `0x00888820` searches the system directory using the path fragments
+`\\`, `\\Drivers\\`, `32\\Drivers\\`, and suffixes empty, `.dll`, `.vxd`, `.sys`, in that nesting order. The
+first matching file supplies file-version MS/LS words from the root version resource; failure to read that
+file's resource ends the search with failure rather than trying later files. No match leaves the zero version.
+The formatted version is MS high16, MS low16, LS high16, LS low16 (`0x00888820`–`0x00888A2B`).
+
+The shared driver's final-reference path calls graphics Shutdown, deletes the driver and returns zero
+(`0x00881E80`). Destruction drops the primitive-manager reference, but calls **texture-manager slot 1**
+(AddRef), after clearing its owner pointer, rather than Release [quirk, `0x00886450`–`0x008864B3`]. Thus a
+driver's destruction must not be claimed to destroy its texture manager. Remaining held context/DirectX
+references and owned arrays/string storage are released/freed. A primitive manager actually reaching final
+destruction stops without submitting queued primitives, releases its vertex-buffer records and frees queue,
+index and record storage (`0x00889D40`, `0x0088A140`). A texture manager actually reaching destruction frees
+its record storage, format-list storage and held device interfaces (`0x0088B070`); this is separate from the
+driver's AddRef quirk. Do not add an implicit texture upload or draw flush to these destructors.
 
 ### 4.2 `SetVideoMode(mode, windowProc, show, flag)` (slot 66, `0x00888F50`)
 
@@ -741,6 +768,26 @@ code 2, else current stage := `i`.
 | `+0x50`..`+0x58` | alpha operands 0-2 | slot 55, `SetCombiner` |
 | `+0x5C`, `+0x60` | scale, colour / alpha | slot 54, `SetCombiner` |
 
+The stage constructor (`0x00882090`–`0x008820F8`, RD9) writes the following values; offsets are relative to
+each record, not to the driver. Unlisted padding is not specified.
+
+| Stage fields | Initial values |
+|---|---|
+| dirty / enabled / has-alpha bytes `+0,+1,+2` | 0, 0, 1 |
+| texture name `+4`, coordinate selection `+8` | 0, 0 |
+| magnification/minification `+0x0C,+0x10`; wrap S/T `+0x14,+0x18` | 0, 0; 3, 3 |
+| environment `+0x1C`, applied environment `+0x20` | 0, -1 |
+| colour/alpha combine `+0x24,+0x28` | 0, 0 |
+| all six colour/alpha sources `+0x2C..+0x40` | 3 |
+| three colour operands `+0x44..+0x4C` | 2 |
+| three alpha operands `+0x50..+0x58` | 4 |
+| colour/alpha scales `+0x5C,+0x60` | 0, 0 |
+
+Default-device-state reset does **not** reconstruct these records: it sets global stage-dirty and every
+record's dirty byte to 1, retaining bindings, sampler parameters, combine values and applied-environment cache
+(`0x00887580`–`0x008875B9`). The device calls listed in §7 still occur. Constructor values and reset effects
+are different contracts; the §4.4 reference to default state must be read together with this paragraph.
+
 ### 10.2 Setters
 
 - `TexParameter(target, pname, v)` (29, `0x00884990`): if the "parameters follow the texture" flag is set, the
@@ -995,6 +1042,39 @@ back to a count of zero. When either full-screen or the request is false, the co
 surface (caps `0x200`) and a separate width-by-height 3D render target (flags `7`, caps `0x2040`), and windowed
 operation attaches a window clipper to the primary (`0x0088C1A6`–`0x0088C25D`). Device/depth-format selection
 and every selector fallback are still RD8; this section does not prescribe them from inferred names.
+
+**Selector and depth contract (RD8).** `0x0088C024`–`0x0088C0AE` recognizes three selectors. For -1,
+enumerate devices and retain the first device of highest score, adding 1000 each for capability bits
+`0x10000` (hardware rasterization) and `0x80000` (hardware transform/light). Equal scores keep the earlier
+device. A nonzero render-bit-depth word at descriptor `+0x74` is the existing-selection sentinel; if it is
+zero, the next descriptor replaces it regardless of score (`0x0088BDE0`–`0x0088BE3D`). For -4, the preferred
+GUID is `{881949A1-D6F3-11D0-89AB-00A0C9054129}`, fallback
+`{A4665C60-2673-11CF-A31A-00AA00B93356}`. Each preferred descriptor replaces the selection; a fallback
+replaces it only if no nonzero render-bit-depth selection exists or its GUID is not preferred. Other GUIDs
+are ignored (`0x0088BE40`–`0x0088BEB4`).
+Selector -3 uses `{50936643-13E9-11D1-89AA-00A0C9054129}` directly, capabilities zero and render bit-depth
+word `0x10`. It skips device enumeration. Every other value, including concrete nonnegative selectors and
+-2, skips selection rather than indexing an adapter list: GUID/capability stack contents are not initialized
+for a usable choice. There is no defined device-selection result for those values; do not invent fallback.
+
+After surface setup the selected GUID is passed to `EnumZBufferFormats`. Its callback copies exactly the
+first 32-byte pixel-format descriptor and returns cancel (zero); there is **no depth/stencil ranking**, no
+comparison with the requested 16 display bits and no search for a later preferred depth format
+(`0x0088BDC0`). No callback leaves format size zero and returns `0x80004005`. Depth-surface descriptor flags
+are `0x1007`, width/height are context size, caps `0x20000` for a selected device with `0x80000`, otherwise
+`0x20800`. The format is that first descriptor. Create it, attach to render target, query current display mode,
+then create the selected device and set viewport `(0,0,width,height,0.0,1.0)`.
+
+Every negative HRESULT from cooperative level, fullscreen display mode, device enumeration, primary or
+render-target creation, attached-back-buffer enumeration, clipper creation, depth-format enumeration,
+depth-surface creation, depth attachment, display-mode query, CreateDevice and SetViewport ends setup with
+that HRESULT, subject only to the primary back-buffer-count retry already specified. A successful attachment
+enumeration with null back buffer returns `0x80004005`; display RGB bits at most 8 returns `0x88760078`.
+Depth-attachment failure releases that new depth surface, nulls its slot and preserves the attachment HRESULT
+(`0x0088C2E9`–`0x0088C314`). Other acquired resources remain for normal context cleanup; no second device
+or second depth format is attempted after failure. Clipper SetHWnd and primary SetClipper results, and the
+three primary GetColorKey calls after chain creation, are ignored. A nonnegative final SetViewport result is
+normalized to zero (`0x0088C315`–`0x0088C397`).
 
 ### 14.3 Presentation
 
