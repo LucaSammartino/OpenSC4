@@ -16,3 +16,5 @@
   reading native tool fields or substituting the observed total? [retain the
   missing extension input and all differences; no narrow-drag exact credit;
   wide-drag public projection remains separately measured, not whole-owner proof]
+  Normal-speed run 513, `nettools-shadow12-draw-normal-2032-20261024-aeaff8388`,
+  is also clean to 2032-01-01 with ref_warnings=0 and reproduces both differences.
