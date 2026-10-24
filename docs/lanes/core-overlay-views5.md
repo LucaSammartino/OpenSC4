@@ -16,8 +16,9 @@
 - Focused conformance turbo_off terminal PASS 2/2, including every vector.
 - Final all terminal PASS on stable source (session 27940, qbuild-20261024-010135-build-ctest): cargo 6758 passed/0 failed, clippy 0 diagnostics; native build 49/49 edges, CTest 69/69, 84.1s. Logs: qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log.
 - Round 2: reviewed Owner closure table against both spec outlines; every normative owner subsection and conformance section has a row. No remaining closure rows or new source changes needed.
-- Round 2: merged main as explicitly requested, without conflicts; Git reported a denied packed-refs maintenance lock after creating the merge. No maintenance or ref changes attempted.
-- Next: run post-merge qbuild all and explicit qbuild verify, collecting each to terminal; then final report/queue.
+- Round 2: merged main as explicitly requested at 20b61b645, without conflicts; Git reported a denied packed-refs maintenance lock after creating the merge. No maintenance or ref changes attempted.
+- Round 2 all: Rust tests PASS 6804/0 failed; clippy PASS, 0 diagnostics. Native queued as qbuild-20261024-011710-build-ctest; operation session 24130 remains outstanding. Source unchanged.
+- Next: collect session 24130 to terminal, then run explicit qbuild verify, collecting to terminal; final report/queue.
 - Formatting uses engine/rustfmt.toml max_width=120; apply_patch applied stdin-generated formatting diffs, no filename headers written.
 - Native verification required; pure core changes need no game run.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-overlay-views5-r2-manifest.json.
