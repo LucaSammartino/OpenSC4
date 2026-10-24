@@ -388,8 +388,12 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "gzmsg_shadow",
                                   // MS20 assigned constructor payload/header scope; live input capture required.
                                   "mysimdispatch_shadow",
+                                  // Independent read-only render-properties registry comparison.
+                                  "renderprops_shadow",
                                   // EX54/EX55 read-only packed-file shadow, default off.
                                   "dbpf_shadow",
+                                  // HG8 bounded read-only city geometry (default off).
+                                  "city_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

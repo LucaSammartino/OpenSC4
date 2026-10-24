@@ -1,5 +1,12 @@
 # Automata core
 
+The airplane owner and parameter implementation now live in
+[`airplane/mod.rs`](airplane/mod.rs). Its current
+[Owner closure table](airplane/README.md) supersedes the airplane rows below:
+aircraft §3.1 and numerical §§3.4.1–3.4.2 now have exact constants and conformance
+vectors. Station-mask overflow follows the settled wrapping rule. The older
+helicopter rows below describe work outside core-airplane9.
+
 `automaton.rs` supplies the shared `AutomatonBase`, state records and stack
 contracts. `codec.rs` supplies vectors, occupant records and checked references.
 The existing controller/script/manager modules and generic `Automaton` wrapper
@@ -86,3 +93,13 @@ Runtime defaults absent from the spec (initial flight phase/ammo) remain
 return Unsupported without moving the owner. Save/load uses the shared stream
 contracts; successful reads replace the owner atomically and clear transient
 phase/parameter state. AF4 asks for native reconstruction/failure details.
+
+## Helicopter owner follow-up (2026-10-24)
+
+The helicopter implementation and current owner closure table now live in
+[`../helicopter/README.md`](../helicopter/README.md). That table supersedes the
+helicopter rows above: aircraft §4.1 is now implemented as the resolved
+thirteen-field preset overlay, including §8 vector 7. The automata namespace
+re-exports the same owner. Unlisted helicopter goals, including CROP_DUST, pop
+per automata §6.2; a valid chase still returns Unsupported(AF3). AF9 records
+the unspecified preset construction/reconstruction defaults.

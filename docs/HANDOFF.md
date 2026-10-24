@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 477 (Construction diagnostics, default-off DBPF shadow, audio spec and owner attribution landed; traffic dropped one month in the house run (run 5).); 471 (final LR13 normal-speed house measurement exact to 2032; turbo LR14 unresolved); 470 (LR13 rejected-reference mismatch reproduced; LR14 open, verification incomplete); 469 (LR13 preliminary house run, all owner records exact to 2032); 468 (Weather and SCRes file replay exact together after the debug-register fix; PV18 answered (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 490 (Widget grid contracts, DBPF monthly rotation in the house profile, the implemented-column audit and the partial renderprops shadow landed (run 5).); 489 (renderprops registry and owned-fixture 73/73 exact to 2032, clean, partial owner scope, run 492); 488 (renderprops registry 73/73 exact to 2032, clean; RP7 leaves whole-owner verification open, run 491); 482 (WG, LT and WC answers and the airplane core landed; 25 audited owners count as implemented (run 5).); 481 (City geometry shadow, regional city and watercraft core, RP7 and MS18/MS20 answers landed; one replace crash that did not repeat (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

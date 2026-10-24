@@ -189,8 +189,9 @@ extern "C" {
  * 95 = merge-train batch train181 (glue-effects-capture8, glue-landvalue-capture7): merged (no C ABI history entry of its own)
  * 96 = merge-train batch train183 (glue-scres-preproc8, glue-nettool-close7, re-effects-ef21): merged (no C ABI history entry of its own)
  * 97 = merge-train batch train186 (re-gzmsg-gz11, glue-lotconf-capacity7, glue-propdev-close7): merged (no C ABI history entry of its own)
- * 98 = merge-train batch train188 (re-audio9, glue-construction-lr13, glue-gzmsg-close9, glue-dbpf-close8, re-other-attribution9): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 98u
+ * 98 = merge-train batch train188 (re-audio9, glue-construction-lr13, glue-gzmsg-close9, glue-dbpf-close8, re-other-attribution9): merged (no C ABI history entry of its own)
+ * 99 = merge-train batch train192 (core-gzwingrid9, glue-dbpf-sample10, audit-impl-column11, glue-renderprops-shadow9): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 99u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)

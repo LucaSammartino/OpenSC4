@@ -97,6 +97,13 @@ recalculation hook remains unimplemented, including its no-change call sites.
 | 5.14 formats | `set_cell_format_state` default/per-cell cases | `grid_delete_axis_modes_and_default_per_cell_format_ownership`; open: axis copy-size words WG6, SetCellFont and hooks |
 | 6 conformance | All six vectors | `grid_vectors_1_to_6_and_literal_selection_modes` |
 
+Grid runtime progress update (core-gzwingrid9): the live input, scroll-bar,
+layout and painting gaps listed in the earlier Grid progress table are now
+implemented in `grid/runtime.rs` and `grid/paint.rs`. The current section-by-section
+owner closure table, test names and explicit remaining spec gaps are in
+[`grid/README.md`](grid/README.md). Cell-window lookup uses an independent
+handle-keyed set, preserving the documented no-op move behavior.
+
 ### FileBrowser incorporated specification progress
 
 | win-filebrowser section | Code item | Test or remaining work |

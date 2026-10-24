@@ -1117,6 +1117,11 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4MySimDispatchShadow.cpp plugin/FC4MySimDispatchShadow.h)
 endif()
 
+# Read-only render-properties registry differential; opt-in only.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RenderPropsShadow.cpp plugin/FC4RenderPropsShadow.h)
+endif()
+
 # LR13 T66-T73: actual DLL construction capture and literal-IID replay.
 if(TARGET FreeCity4)
     add_executable(fc4_construction_capture_test tests/construction_capture_test.cpp)
@@ -1125,3 +1130,16 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_construction_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME construction_capture_test COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# Isolated original-owner render-properties fixture; opt-in shadow only.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RenderPropsFixture.cpp plugin/FC4RenderPropsFixture.h)
+endif()
+
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4CityShadow.cpp plugin/FC4CityShadow.h)
+endif()
+# DBPF shadow: every rolling year covers all deterministically sorted files.
+add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
+target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
+add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
