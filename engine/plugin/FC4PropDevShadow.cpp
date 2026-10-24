@@ -138,6 +138,7 @@ void HookRemove(void*, uint64_t prop) {
 // the original's would after a successful CreateLotProp.
 uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t) {
     ++g_created;
+    if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
     return 1;
 }
@@ -151,11 +152,12 @@ uint32_t HookSelect(void* user, uint64_t r, const uint32_t* ids, size_t count, i
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;
     if (ids == nullptr || count == 0) return 0;
+    g_pendingUncertain = true;
     if (count == 1) {
         // `user` is the shadow context (hookCtx): the host's own getter (slot 4).
         const fc4_prop_host& h = RunHost();
         const uint32_t sat = h.requester_satisfaction != nullptr ? h.requester_satisfaction(user, r) : 0;
-        if (sat != kCrimeSatisfaction || CrimeIncidentOf(ids[0]) != 0) g_pendingUncertain = true;
+        g_pendingUncertain = sat != kCrimeSatisfaction || CrimeIncidentOf(ids[0]) != 0;
     }
     return ids[0];
 }
@@ -293,9 +295,7 @@ void CompareCores(fc4_prop_developer* ours, fc4_prop_developer* rec, Diff& d) {
     }
     {
         std::vector<uint64_t> x = TokensOf(ListOf(rec, FC4_PROP_LIST_NIGHT)), y = TokensOf(ListOf(ours, FC4_PROP_LIST_NIGHT));
-        std::sort(x.begin(), x.end());
-        std::sort(y.begin(), y.end());
-        if (x != y) d.Add("night list %u/%u (as sets)", U(x.size()), U(y.size()));
+        if (x != y) d.Add("night list %u/%u (in order)", U(x.size()), U(y.size()));
     }
     const struct {
         uint32_t which;
@@ -393,7 +393,6 @@ struct MonthStats {
 };
 MonthStats g_month;
 uint32_t g_months = 0, g_cleanMonths = 0;
-bool g_needResync = false;
 WriteCapture g_capture;
 
 void Follow(const char* how) {
@@ -407,7 +406,31 @@ bool StartFromOriginal(const void* orig, const char* how) {
     if (!ReadInto(g_run, g_capture, orig)) return false;
     StartRun();
     Follow(how);
-    g_needResync = false;
+    return true;
+}
+
+// PV14: read only at the original operation's quiescent boundary. Rebuild
+// the next-word index rather than retaining the original generator's pointer.
+bool ObserveRandom(const void* original) {
+    const auto* version = compat::IdentifiedVersion();
+    if (!version || !g_vtable || !g_run.core) return false;
+    const uintptr_t expected = version->imageBase + (0x00AB29F8u - 0x00400000u);
+    if (reinterpret_cast<uintptr_t>(g_vtable) != expected) return false;
+    for (unsigned wealth = 0; wealth != 2; ++wealth) {
+        const auto* base = wealth
+            ? reinterpret_cast<const uint8_t*>(version->imageBase + (0x00B4A5C0u - 0x00400000u))
+            : static_cast<const uint8_t*>(original) + 0x38;
+        uint32_t words[624];
+        std::memcpy(words, base, sizeof(words));
+        const uintptr_t pointer = At<uint32_t>(base, 0x9C0);
+        const int32_t remaining = At<int32_t>(base, 0x9C4);
+        const uintptr_t start = reinterpret_cast<uintptr_t>(base);
+        if (pointer < start || pointer > start + 0x9C0 || (pointer - start) % 4 ||
+            remaining < 0 || remaining > 624) return false;
+        const uint32_t index = static_cast<uint32_t>((pointer - start) / 4);
+        if (!fc4_prop_developer_shadow_random(g_run.core, words, index,
+                                              static_cast<uint32_t>(remaining), wealth != 0)) return false;
+    }
     return true;
 }
 
@@ -459,14 +482,18 @@ struct Step {
 
 void StepBefore(void* ctx) {
     Step& s = *static_cast<Step*>(ctx);
-    if (g_run.core == nullptr || g_run.orig != s.orig || g_needResync) {
-        const char* how = g_run.core == nullptr || g_run.orig != s.orig ? "first" : "resynced";
-        if (!StartFromOriginal(s.orig, how)) {
+    if (g_run.core == nullptr || g_run.orig != s.orig) {
+        if (!StartFromOriginal(s.orig, "first")) {
             s.incomplete = "the original's record could not be captured or read";
             return;
         }
     }
     const fc4_prop_state st0 = StateOf(g_run.core);
+    if (!ObserveRandom(s.orig)) {
+        g_month.d.Add("random input unavailable (PV14)");
+        s.incomplete = "random input unavailable (PV14)";
+        return;
+    }
     fc4_prop_message m{};
     if (!PropMessageOf(s.msg, g_run.ctx->pool, &m)) {
         s.incomplete = "the message could not be read";
@@ -505,7 +532,6 @@ void StepAfter(void* ctx) {
         if (!ScannerEqual(r, st)) {
             g_month.d.Add("step %u: scanner orig flag %d (%u %d,%d) ours flag %d (%u %d,%d)", g_month.steps, r.flag,
                           r.state, r.v[0], r.v[1], st.scan_flag, st.scanner_state, st.scanner_x, st.scanner_z);
-            g_needResync = true;
         }
     }
     if (!s.block) return;
@@ -521,7 +547,10 @@ void StepAfter(void* ctx) {
     const size_t step5 = std::min<size_t>(s.blk.removed, g_removed.size());
     const size_t notKept = g_removed.size() - step5;
     g_month.notKept += U(notKept);
-    if (g_uncertain) return;
+    if (g_uncertain) {
+        g_month.d.Add("selector input unavailable (PV14 transcript not captured)");
+        return;
+    }
     ++g_month.certain;
     if (removed.size() != g_removed.size()) {
         g_month.d.Add("block (%d,%d) removed orig %u ours %u", s.blk.bx, s.blk.bz, U(removed.size()),
@@ -544,7 +573,17 @@ struct Msg {
 void CallMessage(void* ctx) {
     cIGZMessage2* msg = static_cast<Msg*>(ctx)->msg;
     fc4_prop_message m{};
-    if (PropMessageOf(msg, g_run.ctx->pool, &m)) fc4_prop_developer_do_message(g_run.core, &m);
+    if (PropMessageOf(msg, g_run.ctx->pool, &m)) {
+        const auto before = StateOf(g_run.core);
+        // A broadcast listener does not observe the original's scoped CRT
+        // draws. Preserve the independent continuation, but never count an
+        // unobserved shuffle as exact (PV14 sections 5.2/5.3).
+        if ((m.msg_type == 0xC9DA96E9 || m.msg_type == 0xC9DA96E8) && before.night_count > 1)
+            g_month.d.Add("night shuffle CRT input unavailable (PV14)");
+        fc4_prop_developer_do_message(g_run.core, &m);
+        if (m.msg_type == 0x26D31EC1 && !g_run.ctx->lightingAvailable)
+            g_month.d.Add("PostCityInit lighting input unavailable (PV15)");
+    }
     g_run.ctx->pool.Drain();
 }
 
@@ -666,15 +705,9 @@ void MonthCompare(void* ctx) {
         mo.incomplete = "the original's record could not be read";
         return;
     }
-    const uint32_t before = g_month.d.mismatches;
     CompareCores(g_run.core, rec.core, g_month.d);
     mo.compared = true;
-    if (g_month.d.mismatches != before) {
-        g_run.Swap(rec);  // ours continues from the original's record
-        StartRun();
-        mo.resynced = true;
-        g_needResync = false;
-    }
+    // Comparison never replaces the independent running state.
     mo.st = StateOf(g_run.core);
 }
 

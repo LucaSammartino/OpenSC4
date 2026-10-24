@@ -12896,6 +12896,9 @@ uint32_t fc4_network_rules_snapshot(const fc4_network_rules* r, uint32_t type, u
 int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint32_t index,
                                 const fc4_network_rules_capture* capture,
                                 fc4_network_rules_output* out, uint32_t cap);
+/* PV14 observation only: copy 624 MT words, validating index + remaining = 624. */
+bool fc4_prop_developer_shadow_random(fc4_prop_developer* p, const uint32_t* words,
+                                     uint32_t index, uint32_t remaining, bool wealth);
 #ifdef __cplusplus
 }
 #endif

@@ -560,7 +560,7 @@ pub struct PropDeveloper {
     token: Cell<u64>,
     s: RefCell<PropState>,
     member: RefCell<Box<dyn PropRandom>>,
-    wealth_rng: SharedRandom,
+    wealth_rng: RefCell<SharedRandom>,
     crt: Cell<CrtRand>,
     requesters: RefCell<Vec<Requester>>,
     managers: Cell<[PropRef; 3]>,
@@ -600,7 +600,7 @@ impl PropDeveloper {
             token: Cell::new(token),
             s: RefCell::new(PropState::default()),
             member: RefCell::new(member),
-            wealth_rng,
+            wealth_rng: RefCell::new(wealth_rng),
             crt: Cell::new(CrtRand::default()),
             requesters: RefCell::new(Vec::new()),
             managers: Cell::new([PropRef::default(); 3]),
@@ -652,6 +652,10 @@ impl PropDeveloper {
     /// Replaces the member generator (tests, replays).
     pub fn set_member_random(&self, r: Box<dyn PropRandom>) {
         *self.member.borrow_mut() = r;
+    }
+    /// Observation replay: isolate the file generator in shadow-owned storage.
+    pub fn set_wealth_random(&self, r: SharedRandom) {
+        *self.wealth_rng.borrow_mut() = r;
     }
     /// The C `rand()` state of the night shuffle.
     pub fn crt(&self) -> CrtRand {
@@ -868,7 +872,7 @@ impl PropDeveloper {
         if kept.is_empty() {
             return 0;
         }
-        let k = self.wealth_rng.borrow_mut().uniform_u32(kept.len() as u32) as usize;
+        let k = self.wealth_rng.borrow().borrow_mut().uniform_u32(kept.len() as u32) as usize;
         kept.get(k).copied().unwrap_or(0)
     }
 

@@ -571,12 +571,8 @@ pub unsafe extern "C" fn fc4_prop_developer_create(
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_prop_host>() => {
             let c = Rc::new(CHost { h: *h });
-            let sim = PropDeveloper::new(
-                c,
-                Box::new(member_generator(session_seed)),
-                wealth_rng(session_seed),
-                token,
-            );
+            let wealth = wealth_rng(session_seed);
+            let sim = PropDeveloper::new(c, Box::new(member_generator(session_seed)), wealth, token);
             Box::into_raw(Box::new(Handle { sim })) as *mut fc4_prop_developer
         }
         _ => std::ptr::null_mut(),
@@ -870,6 +866,34 @@ fn no_core_objects(_: u32, _: *mut c_void) -> Option<Rc<dyn SaveObject>> {
     None
 }
 
+/// PV14: import a coherent observed generator into independent storage.
+/// `words` points to exactly 624 words; no native pointer is retained.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_prop_developer_shadow_random(
+    p: *mut fc4_prop_developer,
+    words: *const u32,
+    index: u32,
+    remaining: u32,
+    wealth: bool,
+) -> bool {
+    if words.is_null() || index > 624 || remaining != 624 - index {
+        return false;
+    }
+    let mut table = [0; 624];
+    table.copy_from_slice(std::slice::from_raw_parts(words, 624));
+    let Some(random) = fc4_core::rng::RzRandomSuper::from_state(table, index as usize) else {
+        return false;
+    };
+    with_p(p, false, |h| {
+        if wealth {
+            h.sim.set_wealth_random(Rc::new(RefCell::new(random)));
+        } else {
+            h.sim.set_member_random(Box::new(random));
+        }
+        true
+    })
+}
+
 /// `Read` (§7): false below version 4 or for a short record (nothing
 /// changes). A requester reference of class `0x89C49986` becomes a wealth
 /// requester with that token.
@@ -885,4 +909,32 @@ pub unsafe extern "C" fn fc4_prop_developer_read(p: *mut fc4_prop_developer, inp
             decode: no_core_objects,
         })
     })
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+
+    #[test]
+    fn observed_wealth_is_copied_and_invalid_snapshot_preserves_continuation() {
+        unsafe {
+            let mut host: fc4_prop_host = std::mem::zeroed();
+            host.struct_size = std::mem::size_of::<fc4_prop_host>() as u32;
+            let p = fc4_prop_developer_create(&host, 7, 0);
+            assert!(!p.is_null());
+            let mut words = [0u32; 624];
+            words[623] = 0x8000_0000;
+            let mut expected = fc4_core::rng::RzRandomSuper::from_state(words, 623).unwrap();
+            assert!(fc4_prop_developer_shadow_random(p, words.as_ptr(), 623, 1, true));
+            words.fill(0); // caller storage is no longer retained
+            let candidates = [11, 22, 33, 44];
+            let first = with_p(p, 0, |h| h.sim.wealth_select(&candidates, 0, 0));
+            assert_eq!(first, candidates[expected.uniform_u32(4) as usize]);
+            assert!(!fc4_prop_developer_shadow_random(p, words.as_ptr(), 624, 1, true));
+            let next = with_p(p, 0, |h| h.sim.wealth_select(&candidates, 0, 0));
+            assert_eq!(next, candidates[expected.uniform_u32(4) as usize]);
+            assert!(!fc4_prop_developer_shadow_random(p, std::ptr::null(), 0, 624, false));
+            fc4_prop_developer_destroy(p);
+        }
+    }
 }

@@ -689,18 +689,20 @@ void ReadNight(void* p) {
     r->read = true;
 }
 
-// §3.3 PostCityInit: the lighting manager's slot 9. [choice] (question PV15)
-// Reached through the city view's renderer (slot 9); false without a view.
-bool LightingIsNight(void*) {
+// §8.5 (PV15): both pointer-return getters are borrowed. Only View3D's
+// acquired view reference is released; renderer and manager are not released.
+bool LightingIsNight(void* u) {
+    Ctx(u)->lightingAvailable = false;
     cISC4View3DWin* v = fc4::propcity::View3D();
     if (v == nullptr) return false;
     NightRead r{v, false, false};
     if (!fc4::SehGuard("propdev lighting manager IsNight", &ReadNight, &r)) r.read = false;
     fc4::propcity::Drop(reinterpret_cast<cIGZUnknown*>(v));
+    Ctx(u)->lightingAvailable = r.read;
     static bool noted = false;
     if (!r.read && !noted) {
         noted = true;
-        fc4::Log("propdev: the lighting manager could not be read; IsNight reads as false (question PV15)");
+        fc4::Log("propdev: lighting input unavailable (PV15); shadow cannot count it as exact");
     }
     return r.night;
 }

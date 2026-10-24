@@ -182,6 +182,10 @@ void WeatherShadowCityLoaded(cISC4City* city) {
     }
     auto* original = city->GetWeatherSimulator();
     if (original == nullptr) return;
+    if (compat::IdentifiedVersion() == nullptr) {
+        Log("weather shadow: INACTIVE (executable identity unavailable; no native observation installed)");
+        return;
+    }
     g_original = reinterpret_cast<cIGZUnknown*>(original);
     // Weather section 4 slots 16/20: preserve public terrain-tool inputs as
     // well as scheduled messages. Forward each native call exactly once.
