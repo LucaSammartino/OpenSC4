@@ -1,17 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | in progress: r3 resumed from `3abcadb76`; previous final gate PASS (cargo 7431, clippy clean, CTest 81/81), owned suites 50/50. AF2-AF6, AF10, AF11 open. | Audit current settled owner contracts against code/tests, finish gaps, collect required gates, report actual HEAD. |
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | in progress: r3 settled stages and force sum covered; full qbuild all PASS on `009941660`: cargo 7432/0/0, clippy clean, native build 214/214, CTest 81/81; owned suites 51/51. AF2-AF6, AF10, AF11 open. | Finalize the report and enqueue the actual detached HEAD for coordinator review. |
 
 ## Handoff
 
 - Goal: close every settled airplane/helicopter core contract, preserving spec-open rows.
 - Done: inherited implementation `5d59a8396`, fixture fix `4ba6b67cd`, clippy fix `32e3f34b2`; prior report `3abcadb76` below.
-- r3: audited settled aircraft §§2–5/§8 and automata §§6.4–6.6; added `ForceScalars::force_with_lift` and an independent ground/airborne/tilted-lift fixture; corrected stale helicopter comments.
+- r3 `009941660`: audited settled aircraft §§2–5/§8 and automata §§6.4–6.6; added `ForceScalars::force_with_lift` and an independent ground/airborne/tilted-lift fixture; corrected stale helicopter comments.
 - Focused suites PASS 51/51 (aircraft 16, settled 10, airplane 11, helicopter 14); fmt PASS for all 3 changed Rust files. Log: `build-runs/aircraft-r3-focused.log`.
-- Next: run the stable-source full gate with `build-runs/aircraft-r3-gates.ps1`, collect that same operation to terminal, then finish the report/queue.
+- Next: replace this Handoff with the final report, commit it, then update `build-runs/merge-queue/core-aircraft13b.json` with the actual full HEAD and state ready.
 - No operation or game request outstanding. Still intentionally detached; do not publish refs.
 - Bash q.py failed before Cargo launch (`build-runs/q/20261024-214849-13088.log`); native PowerShell focused run passed. Only this lane's Cargo/compiler processes were restored from BelowNormal to Normal.
-- Prior full gate is evidence for prior source only; r3 final gate remains pending.
+- r3 final full gate terminal PASS: cargo 7432 passed / 0 failed / 0 ignored across 52 result lines; clippy 0 diagnostics; native build 214/214 (191.7 s); CTest 81/81 (274.0 s); native total 467.8 s.
+- Evidence: `build-runs/aircraft-r3-all.log`, `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; native queue label `qbuild-20261024-221517-build-ctest`. No tree-change warning; no operation remains outstanding.
 - No ABI/plugin/capi work; no game run needed for the portable core.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r3-manifest.json`.
 
