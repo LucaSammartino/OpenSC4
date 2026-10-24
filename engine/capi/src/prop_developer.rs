@@ -921,6 +921,26 @@ pub unsafe extern "C" fn fc4_prop_developer_shadow_random(
     })
 }
 
+/// PV16 tooling: copy the independent night CRT state, never native storage.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_prop_developer_shadow_crt(
+    p: *mut fc4_prop_developer,
+    state: *mut u32,
+    restore: bool,
+) -> bool {
+    if state.is_null() {
+        return false;
+    }
+    with_p(p, false, |h| {
+        if restore {
+            h.sim.set_crt(fc4_core::rng::CrtRand::new(*state));
+        } else {
+            *state = h.sim.crt().state();
+        }
+        true
+    })
+}
+
 /// `Read` (§7): false below version 4 or for a short record (nothing
 /// changes). A requester reference of class `0x89C49986` becomes a wealth
 /// requester with that token.
@@ -941,6 +961,27 @@ pub unsafe extern "C" fn fc4_prop_developer_read(p: *mut fc4_prop_developer, inp
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+
+    #[test]
+    fn night_crt_copy_preserves_lists_and_does_not_retain_caller_storage() {
+        unsafe {
+            let mut host: fc4_prop_host = std::mem::zeroed();
+            host.struct_size = std::mem::size_of::<fc4_prop_host>() as u32;
+            let p = fc4_prop_developer_create(&host, 7, 0);
+            let mut state = 0xA123_4567;
+            assert!(fc4_prop_developer_shadow_crt(p, &mut state, true));
+            state = 0;
+            assert!(fc4_prop_developer_shadow_crt(p, &mut state, false));
+            assert_eq!(state, 0xA123_4567);
+            assert_eq!(
+                fc4_prop_developer_list(p, FC4_PROP_LIST_NIGHT, std::ptr::null_mut(), 0),
+                0
+            );
+            assert!(!fc4_prop_developer_shadow_crt(p, std::ptr::null_mut(), true));
+            assert!(!fc4_prop_developer_shadow_crt(std::ptr::null_mut(), &mut state, true));
+            fc4_prop_developer_destroy(p);
+        }
+    }
 
     #[test]
     fn observed_wealth_is_copied_and_invalid_snapshot_preserves_continuation() {

@@ -32,14 +32,17 @@
 //   - selectors validate identity, purpose, depth, ordered candidates, x/z
 //     and complete event count; zero and out-of-list returns are preserved;
 //   - eligible operations compare every removal identity and saved projection.
-// Creation attempts/failures and dated effects remain incomplete. Output
+// Native night callbacks capture the invoking thread's genuine CRT input,
+// validate the complete draw count and final CRT, then compare the saved
+// ordered list/cursor/batch/mode outputs before another recipient runs (PV16).
+// Creation attempts/failures and dated effects remain incomplete (PV18). Output
 // matches are not full-operation exactness. At each SimNewMonth
 // the original's record is read into a second core and its state and lists
 // compared with the running shadow core; differences never resync it.
 //
 // Log lines (always written):
 //   propdev shadow: ON (...) | requested but INACTIVE (...)                  game start
-//   propdev shadow month YYYY-MM-DD: followed=first|yes|resynced steps=.. blocks=.. certain=.. removed orig/ours ..;
+//   propdev shadow YYYY-MM-DD: followed=first|yes|resynced steps=.. blocks=.. certain=.. removed orig/ours ..;
 //     created orig/ours .. (not compared); record ...; mismatches=N[; differences: ...]
 //   propdev shadow: city shutdown: N month lines, M with mismatches=0
 #pragma once

@@ -25,6 +25,7 @@
 #include "FC4PropDevTranscript.h"
 #include "FC4PropDevSnapshot.h"
 #include "FC4PropDevCreation.h"
+#include "FC4PropDevNight.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -82,6 +83,11 @@ bool g_tickRegistered = false;
 const void* g_orig = nullptr;
 cIGZMessageTarget2* g_agent = nullptr;
 const void* g_vtable = nullptr;  // the original's, when identified
+using NativeMessage = bool (__fastcall*)(void*, void*, cIGZMessage2*);
+NativeMessage g_nativeMessage = nullptr;
+void** g_messageTable = nullptr;
+bool InstallNightObserver();
+void RemoveNightObserver();
 
 unsigned U(size_t n) { return static_cast<unsigned>(n); }
 
@@ -432,6 +438,7 @@ void Track(cISC4PropDeveloper* orig) {
     Log("propdev shadow: following the original prop developer %p (agent %p, class 0x%08X, raw scanner %s)",
         static_cast<const void*>(orig), static_cast<void*>(g_agent), cls,
         g_vtable ? "readable" : "NOT readable (executable not identified): not compared");
+    if (g_vtable && !InstallNightObserver()) Log("propdev shadow: native night observer unavailable");
 }
 
 // ---- the month's account ----------------------------------------------------------------------------
@@ -444,6 +451,7 @@ struct MonthStats {
     uint32_t selectorEvents = 0, selectorZero = 0;
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
     uint32_t operationsExact = 0, operationsIncomplete = 0;
+    uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -690,12 +698,8 @@ void CallMessage(void* ctx) {
     cIGZMessage2* msg = static_cast<Msg*>(ctx)->msg;
     fc4_prop_message m{};
     if (PropMessageOf(msg, g_run.ctx->pool, &m)) {
-        const auto before = StateOf(g_run.core);
-        // A broadcast listener does not observe the original's scoped CRT
-        // draws. Preserve the independent continuation, but never count an
-        // unobserved shuffle as exact (PV14 sections 5.2/5.3).
-        if ((m.msg_type == 0xC9DA96E9 || m.msg_type == 0xC9DA96E8) && before.night_count > 1)
-            g_month.d.Add("night shuffle CRT input unavailable (PV14)");
+        if (!g_messageTable && (m.msg_type == 0xC9DA96E9 || m.msg_type == 0xC9DA96E8))
+            g_month.d.Add("native night callback observer unavailable");
         fc4_prop_developer_do_message(g_run.core, &m);
         if (m.msg_type == 0x26D31EC1 && !g_run.ctx->lightingAvailable)
             g_month.d.Add("PostCityInit lighting input unavailable (PV15)");
@@ -705,6 +709,8 @@ void CallMessage(void* ctx) {
 
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr || g_run.core == nullptr) return;
+    // PV16-02: replay at callback return, before later broadcast recipients.
+    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9)) return;
     if (msg->GetType() == kMsgAnimationTick) {
         ++g_month.ticks;
     } else {
@@ -720,6 +726,84 @@ void OnMessage(cIGZMessage2* msg) {
         Log("propdev shadow: a fault in a followed message; the shadow core is abandoned (its references leak)");
         g_run.Abandon();
     }
+}
+
+bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
+    const auto original = g_nativeMessage;
+    if (!original) return false;
+    const uint32_t type = msg ? msg->GetType() : 0;
+    if (self != g_agent || !g_run.core || (type != 0xC9DA96E8 && type != 0xC9DA96E9))
+        return original(self, edx, msg);
+    ++g_month.nights;
+    const uint32_t differences = g_month.d.mismatches;
+    uint32_t count = StateOf(g_run.core).night_count;
+    // Validate the independent input list at callback entry, not at a later
+    // AddNotification recipient. Retain duplicate tokens and their ordering.
+    WriteCapture input;
+    CoreBox pre;
+    if (!input.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(g_orig))) || !ReadInto(pre, input, g_orig))
+        g_month.d.Add("night callback input record unavailable");
+    else {
+        count = StateOf(pre.core).night_count;
+        if (TokensOf(ListOf(pre.core, FC4_PROP_LIST_NIGHT)) != TokensOf(ListOf(g_run.core, FC4_PROP_LIST_NIGHT)))
+            g_month.d.Add("night callback input order differs");
+    }
+    // PV16 permits this scope for standard messages with a pure type getter.
+    // Snapshot/replay never dispatches while the native callback is running.
+    PropNightCrt crt;
+    const bool armed = count <= 1 || crt.Begin();
+    const bool result = original(self, edx, msg);
+    crt.Finish();
+    const uint32_t expected = count > 1 ? count - 1 : 0;
+    g_month.nightDraws += crt.count;
+    if (!armed || !crt.valid || crt.count != expected)
+        g_month.d.Add("night CRT capture invalid draws=%u expected=%u", crt.count, expected);
+    if (expected && armed && crt.valid && crt.count == expected) {
+        uint32_t seed = crt.before;
+        if (!fc4_prop_developer_shadow_crt(g_run.core, &seed, true)) g_month.d.Add("night CRT import failed");
+    }
+    fc4_prop_message message{};
+    message.msg_type = type;
+    if (fc4_prop_developer_do_message(g_run.core, &message) != result) g_month.d.Add("night callback return differs");
+    uint32_t after = 0;
+    if (expected && (!fc4_prop_developer_shadow_crt(g_run.core, &after, false) || after != crt.after))
+        g_month.d.Add("night CRT final state differs");
+    // Callback return includes list order, cursor, batch, mode and isNight.
+    // Comparing a fresh native record never replaces the running core.
+    WriteCapture cap;
+    CoreBox native;
+    if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(g_orig))) || !ReadInto(native, cap, g_orig))
+        g_month.d.Add("night callback record unavailable");
+    else CompareCores(g_run.core, native.core, g_month.d);
+    if (differences == g_month.d.mismatches) ++g_month.nightExact;
+    return result;
+}
+
+bool PatchNight(void** table, void* value) {
+    DWORD previous = 0;
+    if (!VirtualProtect(table + 3, sizeof(void*), PAGE_READWRITE, &previous)) return false;
+    InterlockedExchangePointer(table + 3, value);
+    DWORD ignored = 0;
+    VirtualProtect(table + 3, sizeof(void*), previous, &ignored);
+    return true;
+}
+
+bool InstallNightObserver() {
+    const auto* version = compat::IdentifiedVersion();
+    if (!g_agent || !version || version->imageBase != 0x00400000) return false;
+    auto** table = *reinterpret_cast<void***>(g_agent);
+    if (g_messageTable == table) return true;
+    if (g_messageTable) return false;
+    g_nativeMessage = reinterpret_cast<NativeMessage>(table[3]);
+    if (!PatchNight(table, reinterpret_cast<void*>(&NativeNightMessage))) return false;
+    g_messageTable = table;
+    return true;
+}
+
+void RemoveNightObserver() {
+    if (g_messageTable && PatchNight(g_messageTable, reinterpret_cast<void*>(g_nativeMessage)))
+        g_messageTable = nullptr;
+    // Retain original dispatch for a delayed invocation on another thread.
 }
 
 class EventTarget final : public cIGZMessageTarget2 {
@@ -961,7 +1045,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     char date[16];
     propcity::DateText(julian, date);
     if (!mo.compared) {
-        Log("propdev shadow month %s: INCOMPLETE (%s); not compared", date, mo.incomplete ? mo.incomplete : "?");
+        Log("propdev shadow %s: INCOMPLETE (%s); mismatches=1", date, mo.incomplete ? mo.incomplete : "?");
         g_month = MonthStats{};
         return;
     }
@@ -969,7 +1053,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     if (g_month.d.mismatches == 0) ++g_cleanMonths;
     char head[512];
     snprintf(head, sizeof(head),
-             "propdev shadow month %s: followed=%s steps=%u blocks=%u certain=%u raw-compared=%u removed orig/ours "
+             "propdev shadow %s: followed=%s steps=%u blocks=%u certain=%u raw-compared=%u removed orig/ours "
              "%u/%u (not kept %u) created orig/ours %u/%u (not compared) messages=%u ticks=%u message-removals=%u; "
              "record: scan=%d scanner=(%u %d,%d) requesters=%u night=%u tod=%u dated=%u power=%u signs=%u "
              "triggers=%u isNight=%u%s",
@@ -988,6 +1072,9 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " operation-output-matches=" + std::to_string(g_month.operationsExact) +
                              " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
+                             " night-callbacks=" + std::to_string(g_month.nights) +
+                             " night-exact=" + std::to_string(g_month.nightExact) +
+                             " night-draws=" + std::to_string(g_month.nightDraws) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     g_month = MonthStats{};
@@ -999,6 +1086,7 @@ void PropDevShadowCityShutdown() {
     if (g_months > 0) {
         Log("propdev shadow: city shutdown: %u month lines, %u with mismatches=0", g_months, g_cleanMonths);
     }
+    RemoveNightObserver();
     g_run.Drop();
     Unlisten();
     g_orig = nullptr;
