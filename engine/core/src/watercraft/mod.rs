@@ -9,7 +9,9 @@ pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, Ground
 mod following;
 mod inherited;
 mod math;
+mod models;
 mod movement;
+pub use models::{acquire_model, ModelHandle, ModelServices, ModelStorage};
 mod operations;
 mod owner;
 mod physics;
@@ -37,6 +39,8 @@ pub use states::CrashCase;
 mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
+#[cfg(test)]
+mod model_tests;
 #[cfg(test)]
 mod physics_tests;
 #[cfg(test)]

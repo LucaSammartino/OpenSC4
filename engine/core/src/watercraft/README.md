@@ -9,8 +9,8 @@ resource acquisition and berth arbitration, never native owner calculations.
 
 **Implementation in progress, not owner closure.** `pending` means specified work
 still to implement, not an Unsupported contract. `open` means the current spec
-itself leaves the behavior unsettled. WC3–WC5 and WC9 now have scoped answers;
-WC10/WC11 carry the remaining model acquisition/publication boundaries.
+itself leaves the behavior unsettled. WC1–WC12 are answered in the current spec;
+there are no remaining spec-side owner questions.
 Settled work still marked `pending` below is implementation debt, not a spec gap.
 The implemented column uses module paths relative to `engine/core/src/watercraft/`.
 
@@ -25,7 +25,9 @@ The implemented column uses module paths relative to `engine/core/src/watercraft
 | cSC4Watercraft | §3.3 | `movement_possible`, docking cleanup, straight integration | Existing movement ordering tests; pending separate reported station-lot position. |
 | cSC4Watercraft | §3.4 | `angular_proximity`, `quantize_heading`, `on_land`, `end_towing` | `wc2_p02_slew_and_wc3_j04_j05_angular_quantization`; pending terrain-at-cell and reentrant tow reference tests. |
 | cSC4Watercraft | §3.5 | `mod.rs::DriveParameters`, `owner.rs` lifecycle prefix | Parameter tests; pending complete inherited lifecycle work; open: WC10 model initialization. |
-| cSC4Watercraft | §3.6 | pending `LoadModels` owner control | ML01–ML04 not implemented; acquisition/auxiliary internals open: WC10. |
+| cSC4Watercraft | §3.6 | `models.rs::load_models` | `model_tests.rs::wc3_ml01_*` through `wc3_ml04_*`: primary setup, radius, partial failure/retry, auxiliary filtering and reference transfer. |
+| cSC4Watercraft | §3.7 | `models.rs::acquire_model`, `add_model_instance`, `load_auxiliary_model` | `model_tests.rs::wc10_r01_*` through `wc10_r04_*`, `wc10_a01_*` through `wc10_a05_*`. |
+| cSC4Watercraft | §3.8 | `models.rs::position_model_instance`, `publish_models`, `remove_models` | `model_tests.rs::wc11_p01_*` through `wc11_p04_*`, `wc11_u01_*` through `wc11_u07_*`. |
 | cSC4Watercraft | §4 | `states.rs`, `runtime.rs::runtime_state_tick`, `crash.rs::crash_state_tick` | `common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once`, `crash_dispatch_double_time_outside_and_effect_order`; inherited enter result remains pending. |
 | cSC4Watercraft | §5.1 | `runtime.rs::animation_tick_core`, `operations.rs`, `subsidiary.rs` | Ordered core dispatch added; dedicated end-to-end animation fixture and effect-command execution remain pending; open: WC11 model publication. |
 | cSC4Watercraft | §5.1.1 | `physics.rs` | `wc4_m01_m02_*` through `wc4_m07_*`, `wc4_v01_through_v04_*`. |
@@ -47,17 +49,17 @@ The implemented column uses module paths relative to `engine/core/src/watercraft
 | cSC4Watercraft | §5.7 | `detect_collision` | Outside removal precedes boat/shore scans; boat crash returns early, bumps continue to shore. Focused outside/shore tests; pending comprehensive composed boat/shore vectors. |
 | cSC4Watercraft | §5.7.0 | `Footprint::overlaps`, `find_overlapping_boat`, `respond_to_boat_collision` | SAT contact and size-tie/bump/player-victim tests; pending all scan/size vectors and two-slot AEMS event observation. |
 | cSC4Watercraft | §5.7.1 | `crash.rs::crash_sequence_tick`, `crash_state_tick`, `CrashEffectSet`, `runtime.rs::runtime_state_tick` | `crash_dispatch_double_time_outside_and_effect_order`, `crash_effect_refresh_orders_transform_before_start_and_requires_gated_effects`, `common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once`. |
-| cSC4Watercraft | §5.7.2 | `collision.rs::bump_rollback`, `crash.rs` | WC5-S01–S07 and WC5-K01–K04; current heel endpoint follows newer §5.7.5, discrepancy filed as WC12. |
+| cSC4Watercraft | §5.7.2 | `collision.rs::bump_rollback`, `crash.rs` | WC5-S01–S07, WC5-K01–K04 and `closure_tests.rs::wc12_h11_*` implement the settled p[24] heel endpoint. |
 | cSC4Watercraft | §5.7.3 | `Footprint::build` | `wc5_f01_through_f04_*`; missing geometry retains caller's explicit scratch validity/axis. |
 | cSC4Watercraft | §5.7.4 | `inanimate_collision` | `wc5_i01_through_i05_*`, all 32 table cells and scan order. |
-| cSC4Watercraft | §5.7.5 | `crash.rs::heel_tick` | `wc5_h01_through_h05_heel_axes_time_and_boundaries`, `wc5_h06_through_h10_contact_order_and_strict_gates`; WC12 records contradictory endpoint/contact-basis prose. |
+| cSC4Watercraft | §5.7.5 | `crash.rs::heel_tick` | `wc5_h01_through_h05_heel_axes_time_and_boundaries`, `wc5_h06_through_h10_contact_order_and_strict_gates`, `wc12_h11_*` through `wc12_h13_*`; contact banks identity and samples a fresh terrain normal before reading the owner transform. |
 | cSC4Watercraft | §6.1 | `runtime.rs::player_drive_tick`, `movement.rs::coast`, `operations.rs::release_tow_ahead`, `physics.rs` | `wc6_10_full_drive_ignores_base_false_and_uses_two_times`; inherited channel saturation/sentinel vector. |
 | cSC4Watercraft | §6.2–§6.2.3 | Float `DriveCommand`, nonlinear/inverse curves, `CommandChannel`, `SpeedTween` | WC8 speed/steering/toggle and WC6 fire/transform/render/tween/cooldown vectors. WC8-08 disputed in WC9; nullable missing-group input unrepresentable (`Arc<Group>` required). Pending tow-effect transform/refresh and complete drive-tick integration. |
 | cSC4Watercraft | §6.3 | `following_tick`, tow hooks | `following_uses_endpoint_gap_and_slack_does_not_publish`; pending named endpoint/negative-time vectors. |
 | cSC4Watercraft | §7 | `do_message`, insertion-order fleet scan | First geometric-match selection; pending explicit rejection-of-first-candidate and radius equality vectors. |
 | cSC4Watercraft | §8 | `runtime.rs::runtime_state_tick` | `common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once`. |
 | cSC4Watercraft | §9 | `debug_extra_text` | Existing formatting test; pending shared borrowed-string identity/lifetime API. |
-| cSC4Watercraft | §10 | Contract boundary | open: WC10 model acquisition, WC11 model publication; WC12 asks to reconcile conflicting heel prose/vectors. |
+| cSC4Watercraft | §10 | Contract boundary | WC1–WC12 answered. Remaining `pending` rows are implementation debt, not spec gaps. |
 | cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs`, `round2_tests.rs`, `closure_tests.rs`, `runtime_tests.rs` | In-progress vector coverage listed above, not all named vectors implemented. |
 
 The record test `record_same_input_round_trip_stabilizes_inherited_loaded_status`
@@ -67,5 +69,5 @@ stability after the inherited loaded-status normalization.
 An in-game shadow is feasible after an adapter exists: capture tuning, positions,
 headings, dt and model/terrain geometry, then compare proposed runtime and visual
 transforms, route coordinates, state transitions and collision decisions. The full
-owner shadow requires pending integration and resolution of WC10–WC12. No game run was
+owner shadow requires pending lifecycle/runtime integration. No game run was
 requested for this unwired core module.

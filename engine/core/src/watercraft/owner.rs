@@ -179,6 +179,7 @@ pub struct PlayerState {
 /// Runtime-only data is deliberately separate from the saved base record.
 #[derive(Debug)]
 pub struct Watercraft {
+    pub models: super::ModelStorage,
     pub crash_direction: [u8; 2],
     pub occupant_bounds: [Vec3; 2],
     pub model_geometry: Option<super::ModelGeometry>,
@@ -242,8 +243,11 @@ impl Watercraft {
 
     /// Constructs portable storage. This is not a claim about the unreported
     /// native constructor's 79-method inventory (WC3).
-    pub fn new(record: WatercraftRecord, group: Arc<Group>, radius: f32) -> Self {
+    pub fn new(mut record: WatercraftRecord, group: Arc<Group>, radius: f32) -> Self {
+        record.base.occupant.flags |= 0x10;
+        record.base.occupant.occupant_type = 0x897F_7EC2;
         Self {
+            models: super::ModelStorage::default(),
             crash_direction: [0; 2],
             occupant_bounds: [[0.0; 3]; 2],
             model_geometry: None,

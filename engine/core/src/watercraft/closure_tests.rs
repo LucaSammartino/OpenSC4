@@ -231,7 +231,7 @@ fn wc5_h06_through_h10_contact_order_and_strict_gates() {
         b.shore_contact = true;
         b.speed = 1.0;
         b.drive.0[23] = 0.5;
-        // The contact direction must come from C, not terrain normal.
+        // WC12: incoming C must not affect the banked second terrain normal.
         b.transform.basis[2] = [0.0, -1.0, 0.0];
         b.transform.scale = 2.0;
         assert!(b.heel_tick(10.0, &g));
@@ -254,6 +254,116 @@ fn wc5_h06_through_h10_contact_order_and_strict_gates() {
     assert!(!b.heel_tick(10.0, &ground()));
     assert_eq!(publications(&b), 1);
     vector(b.position, [10.0, 22.0, 31.0]);
+}
+
+#[test]
+fn wc12_h11_endpoint_depends_only_on_p24() {
+    for endpoint in [1.0, 2.0] {
+        let mut b = heeling();
+        b.crash_elapsed = 3200.0;
+        b.drive.0[24] = endpoint;
+        b.drive.0[25] = 2.0;
+        assert!(!b.heel_tick(10.0, &ground()));
+        assert_eq!(b.crash_angle, endpoint);
+        assert_eq!(publications(&b), 0);
+    }
+}
+
+#[test]
+fn wc12_h12_contact_ignores_incoming_rotation_and_preserves_scale() {
+    for rotation in [
+        Transform::default().basis,
+        [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]],
+    ] {
+        let mut b = heeling();
+        b.crash_elapsed = 0.0;
+        b.shore_contact = true;
+        b.speed = 1.0;
+        b.drive.0[23] = 0.5;
+        b.transform.basis = rotation;
+        b.transform.scale = 3.0;
+        let revision = b.transform.revision;
+        let g = ground();
+        assert!(b.heel_tick(10.0, &g));
+        let first = b
+            .events
+            .iter()
+            .find_map(|e| match e {
+                Event::Publish(Publication::Transform(t)) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(first.basis, Transform::default().basis);
+        assert_eq!(first.scale, 3.0);
+        assert_eq!(first.revision, revision.wrapping_add(2));
+        assert_eq!(g.samples.get(), 4); // two normals, conversion, heel normal
+    }
+}
+
+struct ChangingNormal {
+    ground: Ground,
+    calls: Counter<u32>,
+}
+impl Terrain for ChangingNormal {
+    fn contains(&self, c: Cell) -> bool {
+        self.ground.contains(c)
+    }
+    fn cell_at(&self, p: Vec3) -> Cell {
+        self.ground.cell_at(p)
+    }
+    fn terrain_height(&self, p: Vec3) -> f32 {
+        self.ground.terrain_height(p)
+    }
+    fn sea_level(&self) -> f32 {
+        self.ground.sea_level()
+    }
+    fn water_height(&self, p: Vec3) -> f32 {
+        self.ground.water_height(p)
+    }
+    fn navigable(&self, c: Cell, r: u32, lot: Option<&Resource>) -> bool {
+        self.ground.navigable(c, r, lot)
+    }
+}
+impl GroundingTerrain for ChangingNormal {
+    fn normal(&self, _: Vec3) -> Vec3 {
+        let call = self.calls.get();
+        self.calls.set(call + 1);
+        if call == 0 {
+            [0.0, 1.0, 0.0]
+        } else {
+            [0.0, 0.0, 1.0]
+        }
+    }
+    fn world_inside(&self, p: Vec3) -> bool {
+        self.ground.world_inside(p)
+    }
+    fn cell_height(&self, c: Cell) -> f32 {
+        self.ground.cell_height(c)
+    }
+}
+#[test]
+fn wc12_h13_second_normal_parallel_to_heading_keeps_unguarded_basis() {
+    let mut b = heeling();
+    b.crash_elapsed = 0.0;
+    b.shore_contact = true;
+    b.speed = 1.0;
+    b.drive.0[23] = 0.5;
+    let g = ChangingNormal {
+        ground: ground(),
+        calls: Counter::new(0),
+    };
+    assert!(b.heel_tick(10.0, &g));
+    let first = b
+        .events
+        .iter()
+        .find_map(|e| match e {
+            Event::Publish(Publication::Transform(t)) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    assert!(first.basis[0].iter().all(|x| x.is_nan()));
+    assert_eq!(g.calls.get(), 3);
+    assert_eq!(b.position, [10.0, 22.0, 31.0]);
 }
 
 #[derive(Default)]
