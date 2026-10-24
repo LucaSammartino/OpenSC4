@@ -142,6 +142,7 @@ cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolitio
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4AdvisorUIAdvisorWinProc	windows and panels	ui	advisor-window.md	-	-	-
+cSC4AdvisorUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
 cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
 cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors

@@ -22,3 +22,11 @@
   **ANSWERED 2026-10-23 (re-advlist7):** the advice list posts it when the player toggles a row: data1 = the advice's
   advisor ID (slot 11), data2 = the advice's slot 6, the same value the window uses as the mood (advice-list.md §4).
   advisor-window.md §6.2 updated.
+
+<!-- from: re-advwin7 (2026-10-23) -->
+- ~~**AW5 - §3:** the face proc (`cSC4AdvisorUIImageWinProc`, constructor `0x00420B70`) slots 6, 7 and 8 as used
+  here: visibility, a toggle value forwarded from `0x287259F8`, and the mood. [inferred]~~
+  **ANSWERED 2026-10-24 (re-gzadvface7):** slot 6 `SetVisible(on)` (registers with the animation tick manager and
+  loads or drops the head models), slot 7 stores `+0xF0`, the pressed offset that shifts the head and narrows its
+  viewport in `DoPaint`, and slot 8 `SetMood(m)` (remapped, then the models for that mood are loaded). advisor-face.md
+  §1; advisor-window.md's scope note updated.
