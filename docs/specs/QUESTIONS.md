@@ -300,7 +300,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 6 | 8 | QV15 | questions/map-view.md |
+| map-view | 4 | 12 | QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -333,7 +333,7 @@ generated index: the questions live one file per spec, so read only the file for
 | particles | 9 | 4 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
-| pedestrians | 3 | 0 | PN4 | questions/pedestrians.md |
+| pedestrians | 2 | 1 | PN4 | questions/pedestrians.md |
 | persistence | 8 | 1 | PR14 | questions/persistence.md |
 | persistence-manager | 4 | 1 | PR10 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
@@ -381,7 +381,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
-| text-edit | 6 | 10 | TE13 | questions/text-edit.md |
+| text-edit | 0 | 12 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
@@ -404,8 +404,8 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 4 | 0 | Q21 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-toolkit | 13 | 7 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
-| win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
+| win-filebrowser | 3 | 3 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **671** | **1551** | | |
+| **total** | **660** | **1560** | | |
