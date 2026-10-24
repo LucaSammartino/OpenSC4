@@ -68,6 +68,19 @@ pub enum Draw {
         colors: [u32; 2],
         three_d: bool,
     },
+    FittedText {
+        font: Handle,
+        text: Vec<u8>,
+        count: usize,
+        rect: Rect,
+        color: u32,
+        flags: u32,
+    },
+    Line {
+        points: [i32; 4],
+        color: u32,
+        style: u32,
+    },
 }
 
 /// The base window, COM and individual service operations. No owner algorithm
@@ -104,6 +117,31 @@ pub trait Foreign {
     fn begins_with(&mut self, text: &[u8], prefix: &[u8], argument: u32) -> bool;
     fn text_equal(&mut self, left: &[u8], right: &[u8]) -> bool;
     fn draw(&mut self, operation: Draw);
+    fn compare_text(&mut self, left: &[u8], right: &[u8]) -> std::cmp::Ordering {
+        left.cmp(right)
+    }
+    fn measure_bytes(&mut self, _font: Handle, text: &[u8]) -> u32 {
+        text.len() as u32
+    }
+    fn fit_bytes(&mut self, _font: Handle, text: &[u8], _width: i32) -> usize {
+        text.len()
+    }
+    fn parent_height(&mut self, _window: Handle) -> i32 {
+        i32::MAX
+    }
+    fn capture_owner(&mut self) -> Option<Handle> {
+        None
+    }
+    fn bar_dispatch(&mut self, _bar: Handle, _up: bool, _x: i32, _y: i32) -> bool {
+        false
+    }
+    fn window_flag_two(&mut self, _window: Handle) -> bool {
+        true
+    }
+    /// Uninitialized native scan words are explicit host inputs, never invented colors.
+    fn color_scan_seed(&mut self) -> [u32; 3] {
+        [0; 3]
+    }
 }
 
 pub(crate) fn replace_ref(slot: &mut Option<Handle>, value: Option<Handle>, f: &mut impl Foreign) {
