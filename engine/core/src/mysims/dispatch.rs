@@ -40,6 +40,7 @@ mod callbacks;
 mod ready;
 mod record;
 pub mod scripted;
+mod selection;
 mod transport;
 mod trip;
 pub use ready::model_selection;
@@ -561,6 +562,7 @@ pub struct DispatchState {
     pub tuning: DispatchTuning,
     pub auxiliary_flag: bool,
     pub opaque_28: u32,
+    /// Persisted +2C exclusive end, +30 inclusive start (signed index bits).
     pub path_indices: (u32, u32),
     pub change_counter: u32,
     pub previous_change_counter: u32,
@@ -624,7 +626,12 @@ impl MySimDispatch {
     /// job-search pathfinder is created here once and kept for the
     /// dispatch's lifetime (§4.7.1).
     pub fn init(&self, sim: i32) -> bool {
-        self.sims.write().unwrap().entry(sim).or_default();
+        self.edit(sim, |st| {
+            if !st.read_pending {
+                // MS22: normal setup clears +10; Read-provided state survives.
+                st.auxiliary_flag = false;
+            }
+        });
         self.pathfinders
             .borrow_mut()
             .entry(sim)

@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::list_box::*;
 use super::*;
+#[path = "settled_tests.rs"]
+mod settled;
 
 #[derive(Default)]
 struct Recording {
+    compare_calls: usize,
+    parent_limit: Option<i32>,
+    capture_owner: Option<Handle>,
+    dispatch_capture: Option<Handle>,
+    bar_events: Vec<(Handle, bool, i32, i32)>,
+    control: bool,
+    fail_mode: u32,
+    fail_image_slot: Option<usize>,
+    image_attempts: Vec<usize>,
+    access_calls: Vec<(u32, bool)>,
+    drag_accept: u8,
+    drag_return: bool,
+    drag_target: Option<i32>,
+    drag_runs: usize,
     owner: grid_owner_tests::Events,
     refs: Vec<(bool, Handle)>,
     messages: Vec<(Delivery, Message)>,
@@ -696,7 +712,9 @@ impl Foreign for Recording {
         self.invalidations += 1;
     }
     fn show(&mut self, _: Handle, _: bool) {}
-    fn capture(&mut self, _: Handle, _: bool) {}
+    fn capture(&mut self, h: Handle, take: bool) {
+        self.capture_owner = if take { Some(h) } else { None };
+    }
     fn convert_payload(&mut self, _: Handle, value: i32) -> i32 {
         value
     }
@@ -759,6 +777,24 @@ impl Foreign for Recording {
     }
     fn draw(&mut self, draw: Draw) {
         self.draws.push(draw);
+    }
+    fn compare_text(&mut self, a: &[u8], b: &[u8]) -> std::cmp::Ordering {
+        self.compare_calls += 1;
+        a.cmp(b)
+    }
+    fn fit_bytes(&mut self, _: Handle, text: &[u8], _: i32) -> usize {
+        self.fit_counts.pop_front().unwrap_or(text.len())
+    }
+    fn parent_height(&mut self, _: Handle) -> i32 {
+        self.parent_limit.unwrap_or(i32::MAX)
+    }
+    fn capture_owner(&mut self) -> Option<Handle> {
+        self.capture_owner
+    }
+    fn bar_dispatch(&mut self, bar: Handle, up: bool, x: i32, y: i32) -> bool {
+        self.bar_events.push((bar, up, x, y));
+        self.capture_owner = self.dispatch_capture;
+        true
     }
 }
 
@@ -953,6 +989,27 @@ fn list_mouse_timer_strictness_and_no_font_background() {
 }
 
 impl tree_view::TreeForeign for Recording {
+    fn access_mode(&mut self, _: Handle, mode: u32, take: bool) -> bool {
+        self.access_calls.push((mode, take));
+        !take || self.fail_mode != mode
+    }
+    fn initialize_image(&mut self, _: Handle, slot: usize, _: [u32; 2]) -> bool {
+        self.image_attempts.push(slot);
+        self.fail_image_slot != Some(slot)
+    }
+    fn control_down(&mut self) -> bool {
+        self.control
+    }
+    fn drag_request(&mut self, _: Handle, accept: &mut u8) -> bool {
+        *accept = self.drag_accept;
+        self.drag_return
+    }
+    fn run_drag(&mut self, t: &mut tree_view::TreeView, _: &tree_view::DragSession) {
+        self.drag_runs += 1;
+        if let Some(h) = self.drag_target {
+            t.select(h, true, self);
+        }
+    }
     fn convert_color(&mut self, _: Handle, color: u32) -> u32 {
         color
     }
@@ -1147,7 +1204,7 @@ fn wc_t12_missing_image_does_not_suppress_text() {
 }
 
 #[test]
-fn tree_font_growth_shutdown_and_open_ordering() {
+fn tree_font_growth_shutdown_and_settled_ordering() {
     let (mut tree, mut f, a, _) = tree();
     f.font_height = 30;
     f.refs.clear();
@@ -1159,11 +1216,8 @@ fn tree_font_growth_shutdown_and_open_ordering() {
     assert_eq!(tree.row_height, 30);
     assert_eq!(tree.insert(descriptor(999, b"missing"), &mut f), Ok(-1));
     let count = tree.nodes.len();
-    assert!(matches!(
-        tree.insert(descriptor(0, b"open"), &mut f),
-        Err(Unsupported::Open(_))
-    ));
-    assert_eq!(tree.nodes.len(), count);
+    assert!(tree.insert(descriptor(0, b"settled"), &mut f).unwrap() >= 0);
+    assert_eq!(tree.nodes.len(), count + 1);
     tree.images = vec![Some(400), None, Some(401)];
     tree.horizontal_bar = Some(301);
     tree.vertical_bar = Some(302);

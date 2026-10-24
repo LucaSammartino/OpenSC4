@@ -1,97 +1,84 @@
 # Native lot configuration editor questions
 
-**LE3 — Complete object geometry, fences and numeric edge cases**
+LE3/LE4/LE5/LE7 are archived with measured partial answers. LE9–LE18 replace
+their unresolved scope; retiring the broad entries does not close the owner.
+LE6/LE8 remain answered and are not reopened.
 
-Round-2 resolved subsets: §9.2–§9.4 now specify exact duplicate candidates,
-signed fence filtering, full-containment cleanup (correcting the old intersection
-claim), containment/cleanup unordered tests, texture append/selection order,
-record-allocation null dereferences and the type-7 three-element/four-store
-discrepancy. These are no longer requests to retrace.
-Final-round §9.5–§9.6 resolves both ToggleFence overloads for ordinary finite
-conversions, first-foundation query/insertion/removal, pixel conversion spill
-order and every bounds-mover unordered comparison. Remaining scope is invalid/
-overflow integer conversion, movement/hit-test and rectangle conversions outside
-those helpers, plus physical payload allocation/copy effects.
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3/LE5 -->
+**LE9 — Hit-test coordinate conversion and fallback geometry**
 
-Resolve physical type-7 payload allocation/copy and failure consequences of
-`0x00484850`, remaining movement and hit-test conversions (`0x00485040`,
-`0x004851B0`, `0x00483DC0`, `0x0047B310`, `0x0047B390`), invalid/overflow
-integer conversions and water/terrain creation helpers (`0x0047C8D0`,
-`0x0047C930`). Do not assign NaN expectations from finite-only rules.
-The exact final residual inventory is spec §18 and its companion; PARK at 3/3.
+Resolve 0x00483DC0 numeric conversion, invalid/overflow inputs, and
+inside/grid/resize fallback after the established selected/forward/popup
+priority. Include edge boundary examples and masked-x87 invalid behavior;
+do not extrapolate finite-only comparison rules.
 
-**LE4 — Family/texture/foundation dialogs and complete object popup**
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3 -->
+**LE10 — Rectangle conversions and invalid integer results**
 
-Round-2 resolved subsets: §12 gives all four selector control IDs, enumeration
-sources/flags, displayed row contents, preselection, accepted ID parsing/append,
-empty selection, cancel/missing-control cleanup and raw sort calls. Remaining
-selector work is the semantic interpretation of sort options/collation and
-name-helper fallbacks; the other dialogs/object-menu branches below remain open.
+Resolve 0x0047B310 and 0x0047B390 coordinate/rectangle widths, conversion
+order and invalid/overflow results, including the shared _ftol2 dependency
+used by pixel fence paths. §25 closes both movement overloads, payload
+request/copy extent and water/terrain modes; §9.5–§9.6 closes finite fence
+toggles and bounds-mover comparisons. No deterministic heap-corruption
+outcome is promised for the §25.1 overrun.
 
-Final-round §16 resolves the lot-name, lot-size UI wrapper, slope and
-network-path dialogs, including accepted missing-control results, slope
-unordered/validation ordering and payload growth; §16.2 proves the fence-options
-popup is a native placeholder. SetLotSize's own arithmetic, retaining-wall and
-foundation dialogs and remaining selected-object menu branches are still open.
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE11 — Retaining-wall and foundation selector bodies**
 
-Resolve semantic sort/collation and name-helper fallback dependencies of the
-four selectors (`0x004827D0`, `0x004832E0`, `0x00482DC0`, `0x0047CC30`);
-their existing control/row/accept/cancel rules need no retrace. Reconcile row
-schemas, enumeration/filtering, preselection, empty selection and accepted/
-missing-control behavior of retaining-wall `0x00480910` and foundation
-`0x00485D60`. Complete SetLotSize `0x00486080`, foundation/outside menus
-`0x00486930`/`0x00485B00`, object-menu `0x00487B30` types 3/5 and exact
-detail markers, edge table `0x00A8E6C8`, and the open add/select wrappers
-listed in the companion. PARK at 3/3; no fourth round.
+Resolve 0x00480910 and 0x00485D60 row schemas, enumeration/filtering,
+preselection, empty selection, acceptance, missing-control and cancel/failure
+behavior. Foundation popup dispatch is §26.2; the dialog itself remains open.
 
-**LE5 — Remaining lifecycle, input, rendering and attribution**
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE12 — SetLotSize arithmetic and refresh**
 
-Round-2 resolved subsets: §12.1 specifies callback adjustment, sort-control
-dispatch and prop-only first-byte letter search. §13 establishes reverse object
-draw order, type-3 marker path and height-label zero/unordered/sign behavior.
-The record constructor is an editor dependency (§9.4); exclusive ownership is
-not proved. Remaining lifecycle/input/hit-test/render/attribution work below
-continues to block complete-owner credit.
+Resolve 0x00486080 scale selection, rectangle sizing, integer/float widths,
+byte truncation, degenerate dimensions and dirty/refresh order. The size
+dialog wrapper in §16 is already resolved.
 
-Final-round §17–§17.1 resolves cursor-resource mapping/replacement, mode 4/8
-switches, condition-byte cycling, drawing-style output bytes, and hit-test
-selected/forward-vector/popup priority. Hit-test numeric/fallback behavior,
-other lifecycle/input/render phases and shared-helper ownership remain open.
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE13 — Selected-object popup remainder and add/select wrappers**
 
-2026-10-23 window integration addendum (§§19–22): raw Init flag requests,
-static-resource once timing/section names, destructor storage/reference effects,
-mouse wrapper region/fallback dispatch, draw acquisition/lock/Release boundaries
-and trigger ordering are now specified. These are resolved subsets, not an
-answer to the entire LE5 entry.
+Resolve 0x00487B30 types 3/5, exact detail markers, edge table 0x00A8E6C8
+and add/select wrappers still marked non-C in the inventory companion.
+Separate command effects from dialog implementations. Foundation/outside
+popups are §26.2, including their differing confirmation result IDs.
 
-Reconcile remaining static family path/name resources; PostInit view/alpha setup;
-other keyboard/mouse/capture state;
-hit-test numeric conversion and grid/resize/inside fallback; drawing,
-title/name helpers, 3D preparation and refresh. Callback adjustment and
-sort/scroll dispatch themselves are resolved (§12.1), while sort semantics
-remain LE4. The exact non-C methods/bytes are in spec §18 and the companion.
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4/LE7 -->
+**LE14 — Shared grid sort/search semantics and selector name fallbacks**
 
-<!-- from: core-lotconfig-editor4 (2026-10-22) -->
-- **LE6 — Portable integration boundaries:** §9 calls record offsets +0x10/+0x14 minima and +0x18/+0x1C maxima, whereas the existing published lot-configuration record dependency uses the opposite named fields. Is that an owner-specific interpretation? [Editor uses its literal published raw-offset convention; shared decoder remains unchanged.] What are the exact constructor defaults for compatibility logical lengths, minimum byte and ignored numeric field, and the identity path splitter/extension convention and non-ASCII lowercase rules? [Unpublished initial fields are represented as empty/zero placeholders with no claim of constructor completeness; non-ASCII path comparison and unsupported path syntax are blocked. Verification prompt wording/options, text formatting for slope/path initialization and native fence placeholder text are only paraphrased in the spec; portable strings are literal descriptions pending exact contracts.] Fully implementing Read requires a typed bridge to the already-published LotConfigManager::fix, not a host-supplied reconciliation outcome; that bridge remains unsupported.
-Shared attribution is exactly five current bodies/427 bytes: `0x00478360`,
-`0x00604920`, `0x006049BF`, `0x006049C6`, `0x006049CD`; historical
-`0x006049D4`/`0x00604A67` are interior fragments. Direct callers prove reach,
-not exclusive ownership. The 109-entry/52,646-byte arithmetic stays resolved.
-PARK at 3/3; no owner-complete claim or fourth round.
+Establish direction/collation for grid +0x20C and flag/range meaning for
++0x214 in selector/chooser calls. Determine whether row zero can match;
+raw start arguments are not a semantic exclusion. Resolve name-helper
+fallbacks for selectors 0x004827D0, 0x004832E0, 0x00482DC0 and 0x0047CC30.
+Callback dispatch, prop letter-search byte handling and raw arguments are
+already specified. Malformed hex parsing remains RZAtoUint32HexA.
 
-**LE7 — Chooser service and grid dependencies**
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE15 — Static family resources and PostInit view/alpha setup**
 
-The chooser's owner contracts, methods, constructor, messages, list rows,
-selection/key lookup, edit registration, cancelable/forced close and delete
-failure ordering are specified in §§19–22 (2026-10-23, re-lotcfg-editor5).
-Remaining dependency questions: identify the interfaces enumerated by PostInit
-`0x00480460` through IID `0x856C8CF7`, verify their acquisition/retention
-contract and purpose; identify the backing-store interface used by deletion
-`0x0047ED90` at virtual `+0x6C` and exact database item scope. Establish grid
-sort direction/collation and text search flag/range meaning for `+0x20C` and
-`+0x214`; raw calls alone must not become an assumption that row zero is
-unsearchable. Malformed hexadecimal row parsing belongs to `RZAtoUint32HexA`.
-The complete-owner label remains unsupported while these and LE3–LE6 remain.
+Resolve static family path/name-resource parsing and PostInit view, alpha
+and model setup, using the inventory companion's exact non-C methods.
+Init once timing/section names and LE8 Shutdown field mapping are closed.
 
-<!-- from: core-lotcfg-editor5 (2026-10-23) -->
-- **LE8 — Window addendum text and integration boundaries:** §20.5 specifies a native non-existent/write-protected error and the spelling `non-existant`, but does not publish the complete text. What is the exact message? [Emit a typed `FileUnavailableError` with title `No can do`; do not invent its text.] §7 describes Shutdown's font/view/service releases without their exact field list/order; does it leave the seven cursor references for the destructor (§21.1)? [Release explicitly identified font/view/service slots 134/138/13C, chooser and manager, retaining cursors until destruction; this field mapping/order remains an open integration boundary.] Please confirm that the staged chooser begin/finish Open and live-set Close dispatch boundaries may consume results from the corresponding core editor methods while those methods retain their published LE4/LE5/LE6 barriers; no foreign service is permitted to decide editor policy.
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE16 — Edit input, capture and cycling remainder**
+
+Resolve keyboard/mouse/capture and cycling interiors beyond §11, §17 and
+§21 wrapper dispatch. Hit numeric/fallback geometry is LE9; water/terrain
+mode commands and both movement overloads are closed in §25.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE17 — Rasterization, name/help and 3D preparation**
+
+Resolve ordinary drawing interiors, remaining object-name/help helpers,
+3D preparation and refresh. Preserve acquisition/lock/release, reverse
+draw order, marker and height-label contracts. SetTitle is closed in §25.3.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE18 — Shared constructor/decoder attribution**
+
+Resolve source ownership separately from reachability for the five shared
+bodies/427 bytes listed in §18. Editor dependency is established; exclusive
+ownership is not. Historical interior fragments are not additional bodies.
+

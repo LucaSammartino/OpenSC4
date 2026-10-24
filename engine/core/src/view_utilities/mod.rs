@@ -6,6 +6,7 @@
 //! SC4ViewUtilities result, geometry test, picking or frustum computation is
 //! delegated to a host. Getters use ordinary shared references, never RefCell.
 
+mod cached_shadow;
 mod frustum;
 mod math;
 mod picking;

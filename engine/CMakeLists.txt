@@ -582,7 +582,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4OrdinanceShadow.h
         # Read-only persistence cache type projection (PR9/SCR11 gaps).
         plugin/FC4PersistShadow.cpp
-        plugin/FC4PersistShadow.h)
+        plugin/FC4PersistShadow.h
+        # LR14/T79 default-off live construction getters.
+        plugin/FC4ConstructionShadow.cpp
+        plugin/FC4ConstructionShadow.h
+        # Default-off public network-tool draw projection (private native tools).
+        plugin/FC4NetToolDragShadow.cpp
+        plugin/FC4NetToolDragShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1148,3 +1154,8 @@ endif()
 add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
 target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
 add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
+
+# VU16: read-only partial view utility shadow; no speculative native signatures.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ViewUtilShadow.cpp plugin/FC4ViewUtilShadow.h)
+endif()

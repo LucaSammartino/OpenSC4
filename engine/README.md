@@ -2429,7 +2429,7 @@ It uses the same complete master-lot capture and full Rust re-encoding as
 when their entire containing lot compares byte-for-byte. Inventory/capture/reader
 failures remain mismatches even when no trip count can be recovered. `empty=1`
 supplies no nonempty trip evidence. Off-list trips are outside this inventory.
-Business-unit/base-texture/wall discovery remains unspecified (LR15).
+LR15's separate scoped owner inventories are described below.
 
 `netrules_shadow = 1` enables the default-off, record-only network tile-rule
 observer (NR16/NR17). It requires the published GOG fingerprint, fixed image
@@ -2503,3 +2503,27 @@ The flag is local to each file. Suppressed reads still count, EOF in an active
 block succeeds, and markers in quotes or ordinary comments participate. Raw
 replay compares these decisions without native suppression inputs or resyncs;
 the earlier foreign-preprocessing control replay has been removed.
+
+### Construction occupant getter shadow
+
+`construction_shadow = 1` (default off; `FC4_CONSTRUCTION_SHADOW` also works)
+samples initialized construction occupants on city load and each month through
+the documented typed occupant iterator. It compares native position bitwise with
+the Rust construction owner using only native bounds as input, and checks the
+construction class and occupant type (lot-records §9.2/§9.3, T79).
+`construction shadow` lines report occupants, compared fields, skipped
+uninitialized instances, empty samples and mismatches. An empty sample alone is
+not evidence for the owner. This is partial getter coverage: no native Write,
+Read, Init, Shutdown, tick, Draw, schedule or rendering probe is performed.
+`lotunit_shadow = 1`, `lotbasetexture_shadow = 1`, and `lotwall_shadow = 1`
+enable independent LR15 record observations at load/month boundaries (all default
+to `0`; environment variables `FC4_LOTUNIT_SHADOW`, `FC4_LOTBASETEXTURE_SHADOW`,
+and `FC4_LOTWALL_SHADOW`). Units are the distinct nonnull GetUnit results from
+the complete master-lot walk; empty/off-master-only units are outside this scope.
+Textures and walls are the registered occupants selected by full inclusive
+world-grid queries (0,0)…(191,191), including padding and objects outside lots.
+Neither inventory establishes an all-allocation census or replacement coverage.
+The `lotunit shadow`, `lotbasetexture shadow`, and `lotwall shadow` lines report
+discovery completeness, capture/exact counts, failures and successful empty
+inventories separately. Full record comparisons preserve reference identities,
+saved texture frames and unnamed bytes; wall-mask growth on Read is a mismatch.

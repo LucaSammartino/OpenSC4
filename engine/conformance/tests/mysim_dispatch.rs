@@ -13,6 +13,8 @@ use std::rc::Rc;
 
 #[path = "support/mysim_dispatch_ms18.rs"]
 mod closure;
+#[path = "support/mysim_dispatch_ms21.rs"]
+mod selection;
 
 #[derive(Default)]
 struct Foreign {
@@ -283,7 +285,7 @@ impl TripServices for TransportForeign {
         self.cells.borrow_mut().push(cell);
         self.automata.borrow().clone()
     }
-    fn dispatch_next_leg(&self, _: i32, automaton: Option<u64>) -> Option<u32> {
+    fn basic_dispatch(&self, _: i32, _: &std::collections::VecDeque<RouteData>, automaton: Option<u64>) -> Option<u32> {
         self.attempts.borrow_mut().push(automaton);
         self.next.get()
     }
@@ -442,6 +444,13 @@ fn ms18_05_wait_boundary() {
         st.minutes = 100;
         st.current = loc(3, true);
         st.current.set_deadline(deadline);
+        st.search.route = [RouteData {
+            x: 3,
+            z: 3,
+            travel_type: 3,
+        }; 2]
+            .into();
+        st.path_indices = (2, 0);
         restore(&f, &st);
         let got = f.d.transit_stop_update(
             1,
@@ -525,6 +534,13 @@ fn ms18_stop_groups_boarding_order_success_and_missing_stop() {
         let mut st = f.d.get_state(1);
         st.search.state = 2;
         st.search.flags = 0x436;
+        st.search.route = [RouteData {
+            x: 1,
+            z: 2,
+            travel_type: target,
+        }; 2]
+            .into();
+        st.path_indices = (2, 0);
         st.current = point(1, 1);
         st.minutes = 100;
         restore(&f, &st);

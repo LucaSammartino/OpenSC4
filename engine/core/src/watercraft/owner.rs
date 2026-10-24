@@ -213,6 +213,7 @@ pub struct Watercraft {
     pub docking_in_progress: bool,
     pub being_towed: bool,
     pub tow_armed: bool,
+    pub ai_turn_latch: bool,
     pub player: PlayerState,
     pub travel: Vec<TravelPoint>,
     pub stations: [Option<Arc<Station>>; 2],
@@ -277,6 +278,7 @@ impl Watercraft {
             docking_in_progress: false,
             being_towed: false,
             tow_armed: false,
+            ai_turn_latch: false,
             player: PlayerState::default(),
             travel: vec![
                 TravelPoint {

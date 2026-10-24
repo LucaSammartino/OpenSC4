@@ -20,6 +20,20 @@ itself is [docs/harness.md](../harness.md).
   (`priority = high`: they jump the lanes' requests and run side by side), turbo to 2032-01-01 on Konradshohe by
   default (`-NormalSpeed` for the old timed runs), and prints one table, `REGRESS <tag>: PASS/FAIL`, and a delta
   against the previous PASS of the same pacing (`-Baseline <tag>`; the original's results depend on days/s, DG31).
+  `-ShadowSplit N` (1..5, default 1) partitions the current single house shadow profile and any `-AddShadows`
+  extras into N groups; N > 1 requires `-Queue`. All groups and the replacement request are submitted before
+  waiting. Longest-first balancing uses isolated traffic/demand/pollution/resource timings projected to the
+  actual 2032 horizon, the measured residential group, and train196 proxies for remaining shadows.
+  Probe dates can overshoot during shutdown: project the simulation interval to the end-date event and
+  retain the measured shutdown tail separately. Helper keys stay with their owner.
+  Occupant/property/lot readers, automata/owners, resource-cache/weather readers, and overlay/simgrid readers
+  each stay together. Per-group logs remain as evidence; `regress-<tag>-shadows.log` concatenates them with
+  named headers. The ordinary summary sums shadow lines and uses the worst group verdict (missing or blocked
+  groups fail). The `profile:` line records `shadows combined` or `shadows split N`; coverage and delta readers
+  use the same summary format. `merge-train.py regress` and `run` keep the combined profile by default
+  pending strict parity proof. `--split` opts in to 3 groups, except every fourth batch still uses 1;
+  `--combined` forces 1. These flags are mutually exclusive. The train state and
+  `build-runs/regress-<tag>.json` record the chosen profile.
   Read the shadow column, not only the verdict. `-Parallel` (direct slots 1 and 2) only when the queue is stopped.
   Queue status: `tools/game_queue.ps1 -Status`; check a request without running it: `-Check <file>.req`. The queue
   runs with `-Slots 6` (measured safe; slots 8-9 would be E-cores); restart it with care: stop the queue, its `ingame_run` children and their games together (runs in

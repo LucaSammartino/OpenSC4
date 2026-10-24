@@ -304,8 +304,10 @@ A FreeCity4 replacement must therefore run its scan after every package, plugins
   registry's `GetTutorialRegionDefaultDirName` (`0x004B6F60`), which picks a directory name by pack number from the
   `default_regions` table of the shipped Lua script `tutorial_registry` (`SimCity_1.dat`, type `0xCA63E2A3`, group
   `0x4A5E8EF6`, instance `0xFF7D91E7`). The script registers packs 0 and 1, both as `timbuktu`; the registry's
-  compiled fallback for pack 0 is `maxisland`. So the shipped game uses `timbuktu` *[inferred: the key the script's
-  registration uses was not traced byte by byte]*.
+  compiled fallback for pack 0 is `maxisland`. `add_default_region(n, dir)` writes `default_regions[n]`, and the
+  registry stores each entry under its numeric key, so pack 1 maps to `timbuktu` through key 1 and the script's key 0
+  overwrites `maxisland`. The shipped game therefore uses `timbuktu` for every pack (an unknown pack falls back to
+  key 0; tutorial-registry.md §3.2, §4.2).
 - `cSC4Nation::ResetTutorialCities` (`0x00498D82`) asks the application for the manager itself (slot 32) and makes
   the same `GetCurrentExpansionPack()` → `GetTutorialRegionDefaultDirName` call.
 - **No caller of slots 5 and 6** was found *[inferred]* (FM1). Two scans of the whole code section: (a) every read of
@@ -352,8 +354,9 @@ shutdown callback `0x0046FA20`; static constructor and destructor of the feature
 - **FM1:** is `IsFeatureEnabled` or `IsExpansionPackInstalled` called anywhere in the shipped executable through a
   pointer the static scan of §6 cannot see? An in-game probe that counts calls to slots 5 and 6 (with return
   addresses) over a session would settle it. Until then a replacement must answer them exactly as §4 states.
-- **FM2:** the exact key the `tutorial_registry` script's `add_default_region(n, dir)` writes, and so whether pack 1
-  maps to `timbuktu` through key 1 (§6). Belongs with the tutorial registry's spec.
+- ~~**FM2:** the exact key the `tutorial_registry` script's `add_default_region(n, dir)` writes, and so whether pack 1
+  maps to `timbuktu` through key 1 (§6). Belongs with the tutorial registry's spec.~~ **ANSWERED 2026-10-23
+  (re-tutreg7):** key `n` itself; pack 1 maps to `timbuktu` through key 1 (§6, tutorial-registry.md §3.2).
 
 ## 10. Conformance tests
 
