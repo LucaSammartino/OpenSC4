@@ -9,7 +9,11 @@
 - Focused cargo session 53019 TERMINATED: 48/49 passed; only DX7-12 failed because the new depth CreateSurface was counted as a flip attempt. Filter corrected; subsequent helper tests/source changes NOT yet compiled.
 - Formatting applied through apply_patch; corrected UTF-8/CRLF handling in ignored helper. qbuild fmt: PASS 9 absolute paths, diff_lines=0 (earlier failed 2918 diff lines retained).
 - Focused cargo session 62683 TERMINATED: PASS 54/54 gdriver tests on formatted source, includes all newly added lifecycle helpers. First run was 48/49; corrected flip test filter distinguishes depth allocation.
-- Next: collect required qbuild all launched after this milestone; if absent run it once on this stable source. Then qbuild verify queue, address actual diagnostics, finish report.
+- Done: implementation 176b9100a; formatting/focused-test milestone 446ff9a35.
+- qbuild all on 446ff9a35: workspace tests PASS 7086/7086; clippy FAIL (six source diagnostics, seven log entries including build warning). Full logs: build-runs/qbuild-test.log and qbuild-clippy.log.
+- OUTSTANDING ORIGINAL operation: exec session 10254, qbuild all, native queue label qbuild-20261024-113022-build-ctest. It reports queued behind a game regression; no terminal native verdict yet. Collect THIS SAME operation with write_stdin (60s), never launch a duplicate for progress.
+- Next after collecting: inspect bounded clippy diagnostics. Fix texture.rs precedence line448, context.rs needless Ok(...?) line118, primitive.rs manual div_ceil line384 twice, mod.rs manual div_ceil lines820/822 (line numbers current formatted source).
+- Audit raw converter row traversal: spec explicitly says expansions last-to-first; raw byte copier advances rows. Current convert reverses all rows; resolve literally before stable final gate.
 - Final required once stable: qbuild all; qbuild verify (coordinator native queue); update/commit report and merge queue only after successful gates.
 - First focused compile failed (missing recorder variable), corrected; q.py unavailable (Git Bash CreateFileMapping error); direct cargo works (cargo test --manifest-path engine/Cargo.toml -p fc4-core gdriver:: -- --test-threads=1, ~3 min compile).
 - README owner table updated with DX7-19–49 + lifecycle helper test names; audit it against actual tests. Additional helpers after 48/49 run are untested. No ABI/plugin changes.
