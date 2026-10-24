@@ -367,6 +367,18 @@ fn nt31_empty_land_recording_placement_and_retained_price() {
     assert_eq!(tool.cost_of_solution(), 65);
     tool.release_pole_infos(&mut w);
     assert_eq!(tool.cost_of_solution(), 65);
+    // NT32: repeated structural release preserves both counters; a new
+    // too-short slot-53 placement resets them before doing any selection.
+    assert_eq!((tool.counted_poles, tool.wire_cells), (3, 10));
+    tool.release_pole_infos(&mut w);
+    assert_eq!((tool.counted_poles, tool.wire_cells), (3, 10));
+    run.dragged_count = 1;
+    run.cells.truncate(1);
+    assert!(do_network_specific_placement(&mut state, &mut tool, &mut w, &mut run, 0, true).unwrap());
+    assert_eq!(
+        (tool.counted_poles, tool.wire_cells, tool.cost_of_solution()),
+        (0, 0, 0)
+    );
 }
 
 #[test]
