@@ -72,6 +72,8 @@ Coordinator: land this bounded change and retain that scope in coverage reports.
 ## Handoff
 
 - Final requested main merge introduced traffic-engine changes, not just documentation. Initial gate and run above remain measurements of runtime source c9a62c9b1.
-- Next: full qbuild all on merged runtime source, then another unique 2032 run; do not reuse the first DLL or verdict for the merged source.
-- Initial native/game operations fully complete. No requests outstanding at this merge milestone.
+- Merged runtime source f36681776: qbuild all PASS, workspace 6891/0/0, clippy 0 diagnostics; native request qbuild-20261024-031454-build-ctest PASS, build 203/203 (127.1 s), CTest 72/72 (185.3 s), verify PASS (314.5 s). Operation session 16633 collected to exit 0; no tree-change note.
+- First gate full build/ctest/workspace/clippy logs preserved as build-runs/initial-*.log. Merged gate uses ordinary log names.
+- New unique game request: lua-replay6-f36681776-turbo-2032-20261024b, Konradshohe turbo to 2032. DLL SHA256 3D64BD56E6A000EA16B2AFDED6DF6CCD5242E4EFAD43F81C5AAD0A54DDC516B4. Only request outstanding; initial game/native operations fully complete.
+- Next: collect the unique verdict with build-runs/wait-lua-verdict.ps1 (no qwait), measure exact lua counts, record run 383+ after checking docs/runs. Final report and final main merge immediately before actual-HEAD READY queue.
 - Preserve the two source/gate/run measurements separately; the final queue must use actual full detached HEAD.
