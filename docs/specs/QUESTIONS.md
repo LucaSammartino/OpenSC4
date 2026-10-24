@@ -207,7 +207,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 10 | 6 | AP17 | questions/application.md |
-| audio | 10 | 9 | AU50 | questions/audio.md |
+| audio | 11 | 9 | AU51 | questions/audio.md |
 | audio-ambience | 4 | 11 | AA15 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
@@ -279,7 +279,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 2 | 20 | MS23 | questions/mysims.md |
+| mysims | 0 | 22 | MS23 | questions/mysims.md |
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
@@ -323,7 +323,7 @@ generated index: the questions live one file per spec, so read only the file for
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
-| renderer-driver | 6 | 8 | RD13 | questions/renderer-driver.md |
+| renderer-driver | 6 | 11 | RD13 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
@@ -348,7 +348,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
-| text-edit | 2 | 10 | TE13 | questions/text-edit.md |
+| text-edit | 6 | 10 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
@@ -362,15 +362,15 @@ generated index: the questions live one file per spec, so read only the file for
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
-| view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
+| view3d-window | 1 | 18 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 2 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 12 | 6 | WT13, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 14 | 6 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1502** | | |
+| **total** | **613** | **1507** | | |
