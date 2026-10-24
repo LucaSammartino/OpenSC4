@@ -184,7 +184,7 @@ generated index: the questions live one file per spec, so read only the file for
 | VP | video-preferences |
 | VU | view-utilities |
 | VW | view3d-window |
-| WC | watercraft, widget-controls |
+| WC | watercraft |
 | WE | weather |
 | WG | win-grid |
 | WR | water-ripples |
@@ -201,7 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 8 | 3 | AF12 | questions/aircraft.md |
+| aircraft | 7 | 4 | AF12 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -273,7 +273,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 12 | 2 | QV15 | questions/map-view.md |
+| map-view | 6 | 8 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
@@ -283,7 +283,7 @@ generated index: the questions live one file per spec, so read only the file for
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
-| network-geometry | 0 | 7 | NG8 | - |
+| network-geometry | 1 | 7 | NG9 | questions/network-geometry.md |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 19 | 27 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
@@ -362,15 +362,15 @@ generated index: the questions live one file per spec, so read only the file for
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 13 | VU17 | questions/view-utilities.md |
-| view3d-window | 1 | 18 | VW20 | questions/view3d-window.md |
+| view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 2 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 4 | 0 | Q21 | questions/web-network.md |
-| widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
+| widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-toolkit | 13 | 7 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **609** | **1519** | | |
+| **total** | **599** | **1527** | | |
