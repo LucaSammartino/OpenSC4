@@ -120,10 +120,10 @@ No coverage map or regression profile was edited.
 
 ## Real-city results
 
-- [scres5-r1-2032-a, run 349](../runs/scres5-r1-2032-a-349.md): clean to
+- [scres5-r1-2032-a, run 349](../runs/scres5-r1-2032-a-376.md): clean to
   **2032-01-19**, ref_warnings=0; exact summary **`scres 0/73`**. Installed
   before PreAppInit; calls=0, bytes=0, refused=0. Ini/date diagnostics later fixed.
-- [scres5-r1-2032-b, run 350](../runs/scres5-r1-2032-b-350.md): clean to
+- [scres5-r1-2032-b, run 350](../runs/scres5-r1-2032-b-379.md): clean to
   **2032-01-05**, ref_warnings=0, all problem counts and other warnings zero;
   exact summary **`scres 0/73`**. Installed at OnStart; still calls=0, bytes=0,
   refused=0. Correct load date 2026-01-27; load plus 72 monthly lines.

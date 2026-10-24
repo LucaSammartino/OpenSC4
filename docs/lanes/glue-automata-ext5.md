@@ -32,7 +32,7 @@ Merged main with `git merge --no-edit main` in merge commit `ee9db8e59`. Resolve
 
 Stable final source `ee9db8e59`: `qbuild all` PASS, **6804 Rust tests passed, 0 failed, 0 ignored**, clippy **0 diagnostics**. Its coordinator native verification request `qbuild-20261024-010820-build-ctest` completed with **build 207/207, CTest 70/70**. This is the full native verify path, including every plugin INI test; no duplicate check was launched. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; terminal verdict `build-runs/build-results/qbuild-20261024-010820-build-ctest.verdict`.
 
-[Run 349](../runs/automata-ext5-r2-2032-20261024-a-349.md): Konradshohe, turbo through **2032-01-01**, **clean**, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, other WARNING lines=0. All three shadows enabled together. DLL SHA256 `3c1d8d7050131323febcac27293cafa7a42b48a39ff4b25bff86e75bc505128d`. Unique request collected by one blocking filesystem-watcher wait to terminal clean; no qwait or duplicate request. Evidence: `build-runs/game-results/automata-ext5-r2-2032-20261024-a.{log,verdict}`.
+[Run 349](../runs/automata-ext5-r2-2032-20261024-a-375.md): Konradshohe, turbo through **2032-01-01**, **clean**, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, other WARNING lines=0. All three shadows enabled together. DLL SHA256 `3c1d8d7050131323febcac27293cafa7a42b48a39ff4b25bff86e75bc505128d`. Unique request collected by one blocking filesystem-watcher wait to terminal clean; no qwait or duplicate request. Evidence: `build-runs/game-results/automata-ext5-r2-2032-20261024-a.{log,verdict}`.
 
 ```text
 automata-ext5-r2-2032-20261024-a automata 72/72
