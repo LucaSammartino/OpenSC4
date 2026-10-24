@@ -283,8 +283,10 @@ void CollectKey(void* context, uint32_t type, uint32_t group, uint32_t instance)
 // The independent Rust handle opens only GENERIC_READ with normal sharing:
 // no exclusive lock, changed sharing policy, factory replacement or registration.
 void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPackedFile* packed, Counts& c) {
+    // Only currently open packed files are in scope; a retained closed segment
+    // is not an unreadable open file and must never be opened by this probe.
+    if (!segment->IsOpen()) return;
     ++c.files;
-    if (!segment->IsOpen()) { ++c.refusal; return; }
     cRZBaseString path;
     packed->GetPath(path);
     // Public SDK paths use the Windows ANSI code page; Rust paths are UTF-8.
@@ -380,7 +382,8 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
 }
 
 void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, Counts& c) {
-    if (!segment || !visited.insert(segment).second) return;
+    if (!segment) { ++c.refusal; return; }
+    if (!visited.insert(segment).second) return;
     if (!Interface(segment, 30)) { ++c.refusal; return; }
     cIGZDBSegmentPackedFile* packed = nullptr;
     if (segment->QueryInterface(GZIID_cIGZDBSegmentPackedFile, reinterpret_cast<void**>(&packed)) && packed) {
