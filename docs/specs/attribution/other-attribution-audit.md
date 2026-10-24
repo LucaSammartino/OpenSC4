@@ -10,11 +10,11 @@ This is an attribution ledger, not a new behavior contract or a claim of impleme
 
 ## Evidence and confidence
 
-Sources are the main checkout's `ghidra/export/windows`, `re/names_windows.tsv`, RTTI/vtable tables consumed by `re_query.py`, and the corresponding class files in `decomp/`. The initial ranked inventory was generated using `tools/coverage.py --owners`. Export queries preceded decompilation reads. No REA session was needed, and no numeric behavior is inferred from pseudocode.
+Sources are the main checkout's `ghidra/export/windows`, `re/names_windows.tsv`, RTTI/vtable tables consumed by `re_query.py`, and the corresponding class files in `decomp/`. The initial ranked inventory was generated using the main checkout's `tools/coverage.py --owners`; rerunning the worktree's tool/map independently produced identical final-catch-all rows. Export queries preceded decompilation reads. No REA session was needed, and no numeric behavior is inferred from pseudocode.
 
 - **high:** high-confidence named symbol, or independently identified class-vtable slot. Small forwarding bodies are only upgraded where their class table corroborates them.
 - **medium:** medium-confidence name transfer, an unnamed dependency reached exclusively by an owner under the current coverage algorithm, a neighboring body, or a named folded thunk without evidence of exclusive class identity. Such dependencies are proposed accounting ownership, not invented method names. The table deliberately retains this weaker grade.
-- `Named` in an evidence phrase refers to the symbol ledger, not a claimed particular name-transfer algorithm. `A`, `B0`, etc. are not inferred from method names.
+- `Named` in an evidence phrase refers to the symbol ledger, not a claimed particular name-transfer algorithm.
 
 Important cross-checks:
 

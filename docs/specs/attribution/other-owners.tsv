@@ -117,7 +117,7 @@ address	bytes	proposed owner	evidence	confidence
 0063bf50	31	(anonymous_namespace)::cParser	exclusive reach from bridge parser component	medium
 00734d00	31	cSTEChangeTerrainUI	Named Release; vtable 00ab3868 slot 2	high
 00734df0	31	cSTEChangeTerrainUI	vtable 00ab3884 slot 2	high
-00735100	31	cSTEChangeTerrainUI	vtable 00ab38a4 slot 3	high
+00735100	31	cSTEChangeTerrainUI	vtable 00ab38a4 slot 2	high
 007623b0	31	cSTEWaterWave	Named GetMeanWaveOrientation symbol	medium
 007c1850	31	SC43DGridElement	exclusive reach from grid-element component	medium
 0093a1a1	31	cSourceFileDebugInfo	Named OffsetFromLineNum symbol	medium
