@@ -15,9 +15,11 @@
 - Run record docs/runs/scres6-native-2032-cobalt-386.md. No request outstanding.
 - Diagnostic: shutdown summary mislabeled combined observations as adapter_reads.
   Corrected summary and added file/other route sample attribution (section 10 requires route separation).
-- Next: full gate on corrected source, then a unique corrected-source real-city run to 2032.
+- Corrected-source qbuild all: workspace tests 6890 passed, 0 failed/ignored; clippy 0 diagnostics.
+  Native request qbuild-20261024-033751-build-ctest queued; collect session 64012 to terminal.
+- Next: collect corrected-source native gate, then a unique corrected-source real-city run to 2032.
 - SCR10 asks for missing physical ReadLine ABI, needed for complete file-parser replay.
 - Measured scope planned: command-line tokenization before substitution; expanded/standalone
   dispatch separately counted, no macro/variable/custom-command state equivalence claim.
 - Preserve constructed adapter coverage; default-off shadows; no public ABI changes planned.
-- No game/build request outstanding.
+- No game request outstanding; native request qbuild-20261024-033751-build-ctest outstanding.
