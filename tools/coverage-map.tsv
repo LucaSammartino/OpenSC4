@@ -107,8 +107,8 @@ cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/s
 # listed before the cSC4Network* catch-all, which would otherwise file them under network occupants
 cSC4NetworkLot	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
 cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	-
-cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
-cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
+cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	terrain
+cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	terrain
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
 cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	citydetail_shadow	citydetail
 cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
