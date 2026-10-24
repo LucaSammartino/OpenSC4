@@ -10,9 +10,10 @@
 - Blocker: LV8 filed. Spec explicitly says safe interceptor installation/exclusion remains unproved after LV6 layout closure. No native hook enabled or guessed.
 - Source milestone: a2457893c (progress decoder/tests, LV8, diagnostic).
 - Gate: qbuild all stable source: workspace 6889 passed/0 failed/0 ignored; clippy 0 diagnostics.
-- Native queued by that same all operation: qbuild-20261024-032012-build-ctest; process session 39722 outstanding. Do not queue a second verify.
+- Native queued by that same all operation: qbuild-20261024-032012-build-ctest; terminal PASS, build 235/235, CTest 73/73 (including progress decoder). qbuild all PASS. No redundant verify submitted.
 - Focused q.py attempt failed before compiling: sandbox denies Git Bash CreateFileMapping; log build-runs/q/20261024-031625-27428.log. Native CTest will execute the focused test.
-- Next: collect session 39722 to terminal result, then measured house runs to 2032.
+- Next: first unique house request lvstep6-20261024-house-t1 to 2032; wait with build-runs/wait-game.ps1 (notification-based; no qwait/polling).
+- Prepared helper build-runs/summarize-landvalue.py prints exact clean/total output counts; raw verdict/log stay in game-results.
 - Required: full qbuild all and queued verify; three unique house-profile runs to 2032 with 72/72 exact.
 - LV2/LV7 remain open; no guesses. No tools/ reads or edits.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-landvalue-step6-r1-manifest.json
