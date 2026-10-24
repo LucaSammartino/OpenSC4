@@ -64,7 +64,8 @@ New section 10.1 vectors are in `base/closure_tests.rs`.
 | cGZWin | 14.4 PlotPresent | `plot_present` | `wt12_overlay_queue_and_present`, `transparency_native_colors_and_draw_context` |
 | cGZWin | 14.5 PrivateBuffer | `paint.rs`: `private_buffer` | `wt14_fade_temporary`, `private_buffer_failure_and_absent_draw_service`, `ineligible_fade_releases_surface_without_temporary`; concrete allocation internals open: WT14 |
 | cGZWin | 14.6 buffer selection | `set_buffer`, `set_buffer_recursive` | `wt17_draw_rectangles_and_converters` |
-| cGZFadeTmpWin | 14.7 constructor, StealBuffer, Plot; 10 vector 14 | `paint.rs`: `steal_fade_buffer`, temporary branch of `plot`; `mod.rs` and `tree.rs`: inherited lifetime | `wt14_fade_temporary`; derived destructor expressly unspecified by §12, open: WT13 |
+| cGZFadeTmpWin | 14.7 constructor, StealBuffer, Plot; 10 vector 14 | `paint.rs`: `steal_fade_buffer`, temporary branch of `plot`; `mod.rs` and `tree.rs`: inherited lifetime | `wt14_fade_temporary` |
+| cGZFadeTmpWin | 12 derived destructor coverage | inherited base teardown only; no invented derived body | open: WT13 |
 | cGZWin | 15.1 cursor routing / mouse-window transitions | `process_cursor`, `set_mouse_window` | `wt15_cursor_disabled_click_and_move` |
 | cGZWin | 15.2 cursor | `update_cursor` | `wt15_cursor_disabled_click_and_move` |
 | cGZWin | 16 key equivalents | `make_key_equivalent`, `check_key_equivalent`, `child_key_equivalent` | `wt16_key_equivalents` |
