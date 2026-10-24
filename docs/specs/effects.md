@@ -2374,10 +2374,23 @@ slots alias one object or there is no name-map entry.
 | 3 brush / 34 | u32 brush ID 0C; f32 rate 10, length 14; u8 apply/one-shot 18; padding 19..1B excluded; s32 level 1C; f32 strength endpoints 20,24, width endpoints 28,2C, target height 30. §8.1, §19.55 |
 | 4 attractor / 1C | S at 0C; u8 group selector 18; padding 19..1B excluded. Preserve original string spelling. §19.55 |
 | 5 scrubber / 50 | u32 flags 0C, word 10, integer radius 14, demolition flags 18; f32 limits 1C,20; u32 burn/toxic/extinguish 24,28,2C; u32 message and data 30,34; u32 shape kind 38; f32 shape values 3C,40,44,48 and duration 4C. §9.1, §19.55 |
-| 6 sequence / 18 | V(sequence element) at 0C; stride 14, f32 duration endpoints +00,+04, S name +08. §19.14 and §19.29 |
+| 6 sequence / 1C | V(sequence element) at 0C; stride 14, f32 duration endpoints +00,+04, S name +08; u32 flags at 18. §19.14 and §19.29 |
 | 7 sound / 1C | u32 word 0C, u32 sound ID 10; f32 interval 14 and length 18. §19.55 |
 | 8 camera / 18 | u32 flags 0C; u8 zoom/rotation storage 10, u8 11; padding 12..13 excluded; f32 attach radius 14. Zoom and rotation options both write 10; do not split them into invented independent fields. §19.55 |
 | 9,10,11,12,13,14,15 | Reserved directory slots, not seven additional built-in description classes. Native resource Read has sections/constructors for 3..8, then version-4 dynamic particles, then visual records; it has no 9..15 payload sections. Empty vectors and empty name maps are complete values for these buckets. |
+
+**EF23 — sequence extent correction:** the native sequence description is
+`1C` hex bytes, including its u32 flags at `D+18`; `18` was the end of the
+vector header, not the object extent. The constructor initializes the vector
+and flags to zero (`005BDF32–005BDF3B`), and sequence entry allocates `1C`
+bytes (`0059E69E–0059E6AE`). Capture the full retained u32 flags alongside
+every named or anonymous sequence vector. Stream Read retains the incoming
+word AND `00000007` (`005BE2C4–005BE2D5`); stream Write emits the stored word
+without that mask (`005BD6FB–005BD706`). Thus stream normalization is not a
+capture mask. The three script switches OR bits 1,2,4 for loop, noOverlap,
+hardStart (§19.14); an empty element vector does not imply zero flags. No
+payload lies beyond `D+1B`, and identity/reference-count words at 00..0B
+remain excluded as for the other component descriptions.
 
 The generic AddComponentDescription interface nevertheless accepts a caller's
 description, asks its slot 0 for the type, and selects bucket (type−3) with
@@ -2427,6 +2440,17 @@ snapshot-only scheme can retrospectively reconstruct a completed bootstrap.
 | EF21-11 | Type-9..15 directories empty, then a foreign type-12 description is registered | empty case fully represented; later type-12 slot/name framing retained but private payload unsupported and whole-payload sample uncredited |
 | EF21-12 | Same final directory after two natural parses with different watch flags | final snapshot may match; trace retains both parses and original flags; diagnostic/modified state compared separately |
 | EF21-13 | Resource cache hit publishes without stream Read; another request reads unsupported root version | first records absence of a new Read, not empty input; second records failure and actual post-state, not synthetic successful publication |
+
+Additional static conformance vectors for EF23 (proposed, unexecuted; no native
+or executable-conformance result is implied):
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF23-1 | Fresh sequence, readable object interval D..D+1B | empty element vector and flags 0; no read at D+1C |
+| EF23-2 | Anonymous sequence with empty vector, loop/noOverlap/hardStart present | flags 7 retained despite empty vector and absent name |
+| EF23-3 | Sequence stream flags FFFFFFFA, successful primitive reads | retained flags 2; writing that loaded description emits 00000002 |
+| EF23-4 | Stipulated native retained flags 80000005, same elements as a description with flags 5 | payload mismatch; capture preserves 80000005; Write emits 80000005, a subsequent Read retains 5 |
+| EF23-5 | Only D..D+17 readable, valid vector header | refuse complete sequence payload; do not substitute zero flags or credit vector-only equality |
 
 ## 19. Effects-script command contracts *[compat]*
 

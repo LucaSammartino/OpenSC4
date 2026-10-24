@@ -1,5 +1,10 @@
 # effects: answered questions (archive)
 
+<!-- from: glue-effects-whole9 (2026-10-24) -->
+- **EF23 - section 18.8.3 sequence payload extent:** EF21 lists sequence extent 0x18 and only the vector at +0x0C, while the existing sequence stream contract retains a flags word after the element vector. Is that word part of the native description payload, and if so what is its offset/extent and mask? [Copy only the EF21-listed vector; sequence flags and complete sequence-owner credit unavailable, rather than guessing an out-of-extent field.]
+
+  **ANSWERED 2026-10-24 (re-effects-ef24):** DIFFERS — effects.md §18.8.4: extent is 0x1C, including the u32 flags at +0x18. Fresh flags are zero; script switches OR bits 1,2,4. Stream Read masks with 7, Write emits the full stored word, and capture must retain the full memory value, including anonymous/empty-vector sequences. Five proposed conformance vectors are unexecuted.
+
 <!-- from: glue-effects-shadow7 (2026-10-24); copied from its reserved worktree -->
 - **EF20 - sections 2, 6.1/6.2 and 18.6 native record-only capture:** Please specify the collection getter return types, exact argument types/ownership and description enumeration/count access, the resource collection-reader IID/signature, and a read-only queue/bootstrap state capture protocol. The slot tables identify methods but their ABI rows say eax-or-void, and section 2 does not define list/description container framing. How can a shadow capture all published descriptions, bindings, triggers, camera state and retained file queue without mutating the native manager or guessing signatures/layouts? [Compare only section 3 directory name decoding against native section 4 HasVisualEffect, through the public SDK raw record and manager interfaces. No native collection getters, private container reads, queue hooks, publication/placement equivalence or full-owner coverage claimed until this contract is provided.]
 
