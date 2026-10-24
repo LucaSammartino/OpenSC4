@@ -1,5 +1,33 @@
 # sc-resources: answered questions
 
+## SCR10 — Physical file-line observation ABI
+
+Section 10.2 identifies `cRZTextFile::ReadLine` at `0x00930833` as the natural
+startup file-input boundary, but section 10.1 does not declare its ECX view,
+stack argument types/order, return channel, stack cleanup or output lifetime.
+Please publish those and the open/path association needed to correlate reads
+with nested `DoParseFile` calls, including EOF versus read failure and newline
+handling. An engine observer cannot infer these from the entry address.
+
+glue-scres-native6 implements the already specified shared ParseCommand and
+ParseCommandArguments boundaries, registered paths and nested DoParseFile
+calls. It compares physical command-line tokenization before substitution,
+separately counting expanded/standalone dispatch. Complete file-parser replay
+(including include directives, blank lines, EOF/failure and physical line
+positions) remains default-off pending this input/output contract. The command
+token comparison does not claim macro/variable/custom-command state parity.
+
+**ANSWERED 2026-10-24 (re-scres-scr10):** DIFFERS — section 11 specifies
+complete-text-file ECX, one writable S reference, AL bool and callee cleanup
+of four bytes, caller-owned output lifetime, constructor/open path association,
+nested file identities and physical versus inclusive line counts. Both CRLF
+and LFCR collapse; identical adjacent newlines do not. False conflates EOF
+and failure; a later chunk failure can return true with a partial line. The
+wide-mode byte/unit-count quirk is explicit, including limits on deterministic
+replay. SCR-V81–92 cover the contract. The question was read from the unmerged
+glue-scres-native6 worktree because it is not yet present in this base's open
+question file; the merge must retain this answered entry rather than reopen it.
+
 <!-- from: glue-scres-shadow5 (2026-10-24) -->
 - **SCR8 - native capture ABI for sections 3-8:** Please publish complete x86 signatures (including return channels and concrete versus interface views) for command/file parser input and output tokens, token-record initialization and typed getters/setters, text-adapter string/definition writes, buffer-resource read/write and buffer access, and ASCII writer fields/graph/stream access. The behavior/slot inventories do not establish these argument types. In particular the text numeric writers have only one stack word even for f64/s64: are these const references? What non-mutating accessor can capture the original raw record bytes and ASCII output without changing its cursor or invoking serialization again? [Keep those capture paths off; implement only the specified adapter numeric/descriptor/key reads, with SDK read/seek operations restoring the original position. Partial adapter coverage must not credit the whole subsystem.]
 
