@@ -1,5 +1,21 @@
 # Standard window controls: answered questions
 
+## WC1 — ListBox residual adapters, rendering and malformed inputs
+
+In sections 5.1–5.5, settle folded aliases, suppression nesting, clear/removal,
+comparisons, style/gutter/bar setters, delivery ABI, malformed removal,
+allocation and destruction, color/ellipsis/intensity and bar capture.
+
+**ANSWERED 2026-10-24 (re-widget-controls-wc7):** DIFFERS — Section 5.6
+and vectors L27–L36 specify all residual slots. Suppression was a mistaken
+interpretation of sorting adapters. Some negative removals decrement count
+without removing storage. NaN intensity survives, fractional intensity draws
+no fill, short color prefixes erase temporary text and failed scans reuse
+uninitialized/prior RGB words. Font fitting receives the original prefix;
+the owner appends no ellipsis. Move and left-up use opposite capture tests.
+Shutdown and destruction have separate resource domains; allocation failure
+has no graceful owner return or rollback contract.
+
 ## WC4 — ListBox removal, drop sizing and next page
 
 Filed by core-widgets5 on 2026-10-23: does removing the selected row retain

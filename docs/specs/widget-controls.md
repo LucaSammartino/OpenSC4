@@ -198,25 +198,25 @@ native executable words at `00AE1678`–`00AE177C`.
 | 7–8 | `009C9F12` / `009C8B24` | Insert text at index with ID / replace text at index |
 | 9 | `009C8A7E` | Resize height to whole lines |
 | 10–13 | `009C8CEE` / `009C9C82` / `009D8564` / `009C9E41` | Select index / select ID / get selected index / get selected ID |
-| 14–18 | `009C8F3C` / `009CEC4A` / `009CB16A` / `009C88D4` / `009C88DE` | Update suppression and associated adapters; WC1 |
+| 14–18 | `009C8F3C` / `009CEC4A` / `009CB16A` / `009C88D4` / `009C88DE` | Enable sorting / get sorting byte / sort now / set drop byte / get drop byte; section 5.6 |
 | 19 | `009C9AEB` | Text-area output rectangle |
 | 20–21 | `009C8E72` / `009C8E9D` | Previous/next selection without notification |
 | 22–23 | `009C8E29` / `009C8E46` | First/last navigation adapters; WC1 |
 | 24–25 | `009C8EC4` / `009C8EF3` | Page navigation; previous page in section 5.3 |
 | 26–29 | `009C8D71` / `009C8D8F` / `009C9CFA` / `009C8DD1` | Is row visible / make row visible / select first prefix match / set first visible row |
-| 30–33 | `009C8F69` / `009CDC27` / `009D858F` / `009CDC23` | Count and state accessors used by owner; full alias/signature audit WC1 |
+| 30–33 | `009C8F69` / `009CDC27` / `009D858F` / `009CDC23` | Get count / row height / whole visible rows / first row (signed 32-bit) |
 | 34 | `009C8F99` | Row hit test; x does not affect row calculation |
-| 35–36 | `009C912B` / `009C913E` | Service/notification-target adapters; WC1 |
+| 35–36 | `009C912B` / `009C913E` | Set/get two drop-sizing policy bytes; section 5.6 |
 | 37–38 | `009C88E2` / `009C8934` | Background buffer / font reference setters |
 | 39–40 | `009C8969` / `009C89A4` | Indexed font-color set/get |
-| 41 | `009C89CB` | Font-color adapter; WC1 |
+| 41 | `009C89CB` | Reset indexed font color to sentinel through slot 39 |
 | 42–43 | `009C89DF` / `009C8A09` | Selection color conversion/set and companion adapter |
-| 44–46 | `009C8A31` / `009C8A3B` / `009C8A3F` | Selection-highlight enable set/get / intensity setter (numeric edge cases WC1) |
-| 47–50 | `009C900F` / `009C9D3B` / `009C9EBB` / `009C9BD7` | Drop sizing/scrollbar adapters; WC1 |
+| 44–46 | `009C8A31` / `009C8A3B` / `009C8A3F` | Selection-highlight enable set/get / binary32 intensity setter; section 5.6 |
+| 47–50 | `009C900F` / `009C9D3B` / `009C9EBB` / `009C9BD7` | Resize drop height / width; copy indexed text / search using caller string comparator |
 | 51–54 | `009C8783` / `009C879F` / `009C87A3` / `009C87BF` | Flat-outline set/get / 3D-outline set/get |
-| 55–60 | `009C87C3` / `009C87FE` / `009C8848` / `009C8877` / `009C888E` / `009C88BD` | Style/gutter adapters; WC1 |
-| 61–63 | `009C8F70` / `009C98BD` / `0093877E` | Minimum row-height byte setter / adapter / shared stub; WC1 |
-| 64–65 | `009C919E` / `009C91AD` | Notification delivery mode adapters; WC1 |
+| 55–60 | `009C87C3` / `009C87FE` / `009C8848` / `009C8877` / `009C888E` / `009C88BD` | Set/get outline colors, bar-gap bytes, text-gutter bytes; section 5.6 |
+| 61–63 | `009C8F70` / `009C98BD` / `0093877E` | Set minimum row-height byte / scrollbar skin and rectangle / false stub taking two words |
+| 64–65 | `009C919E` / `009C91AD` | Set/get notification delivery byte; section 5.6 |
 
 W uses the common 0–150 window slot numbering. Owner overrides are
 0 QueryInterface, 4 Init, 5 Shutdown, 68 SetFlag, 88 GZPaint, 130/131 key
@@ -285,7 +285,7 @@ both invalidate even when assigned the existing byte (`009C8783/009C87A3`).
 Shutdown hides the window, then releases/nulls border, background, font and
 the references at W+`0x134/0x138`, in that order, then delegates to base
 (`009C85EE`). Timer/container destruction belongs to destruction, not these
-five releases. Allocation failure recovery for construction remains WC1.
+five releases. See section 5.6 for destruction and allocation domains.
 
 ### 5.3 Entries, selection and geometry *[compat]*
 
@@ -299,7 +299,7 @@ otherwise −2 or an index at/above count means last, other negatives mean first
 It changes the entry's text, updates drop sizing when enabled, invalidates and
 returns true. Public removal (`009C93D7`) rejects indices above the last;
 it adjusts scroll origin and selection, then updates/removes the vertical bar
-and invalidates. Negative removal indices and allocation failure are WC1.
+and invalidates. Negative removal indices and allocation failure follow section 5.6.
 
 Selecting an index (`009C8CEE`) preserves −1 as no selection; other values clamp
 to [0,count−1], with empty count yielding −1. A changed nonnegative selection
@@ -419,7 +419,7 @@ to a scrollbar. Drop mouse-move otherwise changes the hovered row with
 notify=false; ordinary mouse-move does not change selection (`009C9769`).
 Scrollbar forwarding converts coordinates into the bar window, uses base
 message 10 for left-up and 13 for move, and reacquires list capture after
-dispatch. The exact asymmetric bar-capture tracking is WC1.
+dispatch. The asymmetric bar-capture byte is specified in section 5.6.
 
 | Event | Delivery (`009C91EE/009C924E/009C91B4`) |
 |---|---|
@@ -439,15 +439,15 @@ the bar width and gap, reads bar value as first visible row, fills with base
 fill when no background buffer exists or blits that buffer otherwise. A drop
 border buffer is rendered with the edge helper. A visible selected row is
 highlighted only when enabled and intensity is nonzero; the solid fill branch
-requires intensity exactly 1.0. Do not assume arbitrary fractional intensity
-produces a blend: its pixel result is unresolved WC1.
+requires intensity exactly 1.0. Fractional intensity produces no selection
+fill; the selected text-color policy still applies.
 
 Text drawing starts at first visible row, advances by cached row height,
 clips the last row to the drawing bottom and emits through the font interface.
 Normal/selected/alternate font colors are independent of selection fill.
 Strings beginning with the color escape are interpreted for drawing rather
-than changing stored text; malformed-prefix treatment,
-ellipsis fitting and fractional intensity remain WC1. Flat or 3D outline is
+than changing stored text; malformed prefixes and fitting follow section 5.6.
+Flat or 3D outline is
 drawn after rows when a font exists. With no font, the row text/outline branch
 is skipped; background work still occurs. No filesystem/clipboard IO belongs
 to this control. Missing bar/resource pointers skip the guarded owner work;
@@ -471,8 +471,119 @@ With that flag disabled it still strips the prefix but keeps the alternate
 font-color policy. Prefix recognition and slicing modify only the temporary
 paint string. Constants at `00A9F354` and `00AA6DDC` are respectively `#`
 and `##`; calls/length checks are at `009CA457`–`009CA508`, with the
-alternate-color counterpart starting at `009CA534`. Malformed scan outcomes
-remain within WC1; a '#' prefix is recognized even when its suffix is not hex.
+alternate-color counterpart starting at `009CA534`. A '#' prefix is recognized
+even when its suffix is not hex; see section 5.6 for failed conversion.
+
+### 5.6 Residual ABI, malformed inputs and quirks (WC1) *[compat]*
+
+These are L-view calls (W+`0xD8`). Each argument occupies one native stack
+word, including bytes and binary32 values; boolean results promise AL only.
+Output arguments below require valid writable pointers. Folded target names
+are not API names: slots 30–33 return W+`0x164`, `0x104`, `0xFC`, `0x100`;
+slot 12 returns selection W+`0xF8`. No extra AddRef or notification accompanies
+these getters (`009C8F69`, `009CDC23/27`, `009D8564/858F`).
+
+| L slot | Arguments and observable behavior |
+|---:|---|
+| 5 | C-string pointer: creates a temporary string, invokes W151 find-and-remove, returns its boolean |
+| 6 | No arguments: clears entry storage, count=0, selection=−1, first=0; recomputes metrics, removes bars with both removal flags true, invalidates; no explicit boolean result |
+| 14–16 | No arguments: enable sorting once / return sorting byte / sort now. Enable sets W+0x10C only on the first call and invokes slot 16; it is not a nesting counter or update-suppression API |
+| 17–18 | One byte / none: store/get drop-mode byte W+0x10F without resource setup, sizing or invalidation |
+| 22 | No arguments: false for count<=0; otherwise set first row to zero and return true; does not select |
+| 23 | No arguments: set first row to zero if wholeRows>=count, otherwise count−wholeRows, when count>0; always returns true, including empty |
+| 35–36 | Two bytes / two byte-output pointers: store/get W+0x130/131 drop height/width policies; setter/getter true, no immediate sizing/invalidation |
+| 41 | One integer color index: forwards sentinel 0xDEADBEEF to slot 39, including its unusual equal-value invalidation rule |
+| 43 | One color-output pointer: false and untouched output for sentinel selection color; otherwise convert stored color through W127, write it, true |
+| 49 | Signed row index, output string interface: copy via W154 into a temporary then assign through output-string slot 14 on success; false leaves output untouched |
+| 50 | Index-output pointer, caller string interface: scan in list order, calling caller string slot 10 with entry text and comparison flag 1; write first match and return true, otherwise false without writing |
+| 55–56 | Two color words / two word-output pointers: convert colors through W128 and store W+0x124/128, invalidate; getter fails without writes if either sentinel, otherwise converts both through W127, writes both, true |
+| 57–58 | Two bytes / two byte-output pointers: store/get W+0x12C/12D (bar gaps); setter recalculates metrics and invalidates, true |
+| 59–60 | Two bytes / two byte-output pointers: store/get W+0x12E/12F (text gutters); setter recalculates metrics and invalidates, true |
+| 61 | One byte, zero-extended into minimum-height word W+0x108; recalculate metrics and invalidate, true |
+| 62 | Buffer interface, rectangle pointer: AddRef incoming before Release old W+0x134, copy four rectangle words to W+0x13C; if a bar and buffer exist, set its skin with the supplied rectangle, or full buffer rectangle if empty; true |
+| 63 | Two words: false stub, no effects |
+| 64–65 | One byte / none: store/get W+0x160; setter true, no invalidation; zero means Send, any nonzero means Post |
+
+The table is instruction-verified at its listed inventory addresses. Slots 55
+and 14/16 have no independent boolean guarantee. Sort-now saves selected text,
+sorts entry values through the language-manager comparison at service slot 22
+with flag 1, writes the sorted values back, then selects the first matching
+saved text with notify=true when selection was not −1. Duplicate labels can
+therefore change the selected caller ID. Sorting is an immediate operation;
+ordinary insertion still follows the requested index. Locale comparison is a
+service dependency, not byte ordering (`009CB16A`, `009C8F4C`).
+
+W155 takes index-output and concrete string pointers and compares complete
+byte sequences, including equal lengths, case sensitively (`0043AB70`). W151
+uses that first matching index for L4 removal; absent text returns false.
+L28 instead takes a **character byte**, compares exactly one leading byte
+case sensitively, selects the first match with notify=true, and returns false
+if absent. This is not a variable-length or case-folded prefix search
+(`009C9C20`, `009C9CFA`, `0090E443`).
+
+Negative public removal is a native inconsistency, not clamping: L4 rejects
+only index>count−1, then calls W158. W158 returns false if stored count=0;
+for nonempty storage, zero removes first, −2 or index>=count removes last,
+and another negative traverses without finding a row but **still decrements
+the stored count** and returns true. L4 ignores W158's return and proceeds
+with its normal origin/selection/bar updates and true result. Thus −1 on an
+empty list passes the public bound check and returns true, and −3 on a
+nonempty list can desynchronize count from actual storage. W159 has the
+analogous count increment after an unmatched negative traversal, though L7
+normalizes its index before invoking it (`009C93D7`, `009CA0DF`, `009CAC56`).
+Do not make malformed calls into an atomic validated operation.
+
+There is no suppression nesting in these adapters. Repeated Shutdown releases
+each still-present retained resource once and nulls it; entries and timer
+survive until destruction. Destruction frees the timer, invokes Shutdown,
+destroys entry strings/list storage and delegates to base destruction; the
+deleting wrapper frees the object only for flag bit 0. Destruction itself is
+single-use (`009CAA15`, `009CAC3A`). Storage allocation returns are used by
+the list-link helper without a null guard (`009560FE`, `009CAA5C`); constructor
+also requires WCM. Allocation failure has no owner false/rollback contract.
+
+Intensity L46 takes binary32, stores it, clamps values greater than 1 to 1
+and less than 0 to +0, then invalidates. NaNs survive both comparisons;
+negative zero remains negative zero; infinities clamp to the corresponding
+endpoint. x87 comparison/status tests are at `009C8A3F`–`009C8A6D`. Paint
+has no fractional blend call: only exactly 1 produces fill, and NaN does not
+produce fill (`009CA2AC`–`009CA359`).
+
+An unescaped leading '#' shorter than seven bytes clears the temporary paint
+string, so that row emits no text. For length>=7 in the enabled flag-2 path,
+three uninitialized stack words are supplied to the C scan `#%02x%02x%02x`;
+the conversion count is ignored and all three words go to RGB conversion.
+Failed fields retain prior stack contents (including values from a preceding
+row in the same paint). There is no deterministic fallback color. Seven bytes
+are removed even after a partial/failed scan. Flag-2-disabled drawing strips
+seven bytes without scanning. These quirks do not change stored strings
+(`009CA4AF`–`009CA4F4`, `009CA5A6`–`009CA5E3`). Paint asks font slot 42 for
+the number of bytes fitting the available text width with final argument zero,
+then draws that prefix through slot 51 with flags `0x08000000`, two zero
+trailing arguments and the chosen color. The owner neither appends dots nor
+rewrites the string to add an ellipsis (`009CA5EE`–`009CA640`); font fitting
+and glyph pixels belong to the font service.
+
+After forwarded bar move, tracking becomes **captureOwner==bar**; after
+forwarded bar left-up, it becomes **captureOwner!=bar**. Both read capture
+before retaking list capture, and return the bar dispatch result. A true
+tracking byte lets later events bypass list/bar hit bounds and explicitly
+restores bar capture before dispatch. With false tracking, the pointer must
+be inside the list and then inside the bar's half-open local bounds. Preserve
+the opposite tests (`009C9861`–`009C986E`, `009C971B`–`009C9728`).
+
+| Vector | Setup / operation | Required result |
+|---|---|---|
+| WC-L27 | Enable sorting twice with recording comparator | First call sorts, second does nothing; no suppression depth |
+| WC-L28 | Entries ['Alpha','alpha']; search exact 'alpha'; character navigation 'A' | Exact search returns 1; character selects 0, case sensitively |
+| WC-L29 | Nonempty three-row list; public removal −3 | Physical rows unchanged, stored count 2; normal public repair/invalidation still runs |
+| WC-L30 | Three rows; public removal −2; empty list public removal −1 | First removes last; second returns true even though storage removal failed |
+| WC-L31 | Set intensity −infinity, 0.5, +infinity, NaN | Stored +0, 0.5, 1, NaN respectively; only 1 produces highlight fill |
+| WC-L32 | Paint '#bad' and '##bad' | First emits no text; second displays '#bad'; storage unchanged |
+| WC-L33 | Paint '#123456A' then '#12xxxxB' with enabled flag 2 | First sets RGB 0x12/0x34/0x56; second scan replaces red only, retains green/blue from first row; suffixes A/B draw |
+| WC-L34 | Font fit returns 3 for six-byte text | Draw receives original pointer, count 3 and flags 0x08000000; owner adds no dots |
+| WC-L35 | Bar dispatch leaves bar capturing, first move then left-up | Tracking true after move, false after left-up; list retakes capture each time |
+| WC-L36 | Shutdown twice then deleting destructor | Five retained resources released once total; timer and entry storage disposed during destructor only |
 
 ## 6. TreeView
 

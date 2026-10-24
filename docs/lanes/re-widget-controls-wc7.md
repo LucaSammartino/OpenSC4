@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widget-controls-wc7: control behavior questions | Codex; detached reserved worktree re-widget-controls-wc7 | ready: partial closure WC4/WC5/WC6; doccheck passed | Implement settled rules; continue RE on WC1-WC3. |
+| re-widget-controls-wc7: control behavior questions | Codex; detached reserved worktree re-widget-controls-wc7 | in progress: round 2, WC1-WC3; prior WC4/WC5/WC6 doccheck passed | Verify remaining adapters, lifecycle and input against export; extend specs and vectors. |
 
 ## Report
 
@@ -54,6 +54,9 @@ for owner tests. Grid, TextEdit and FileBrowser rows receive no new closure.
 
 ## Handoff
 
+- Round 2 resumed 2026-10-24; WC1/WC2/WC3 are open, WC4/WC5/WC6 archived.
+- Round 2 milestone: WC1 answered in section 5.6 and L27-L36, archive/index updated; next WC2 descriptor/property/lifecycle audit.
+- Read only the expressly requested engine README closure table: TreeView 6.1-6.5/8 still cite WC2/WC3/WC6; no engine edits.
 - Goal remaining: close WC1-WC3; no question was left open because of odd original behavior.
 - Completed: WC6 2cc7327cc; WC4/WC5 819363eb7; doccheck passed.
 - Investigation stopped near the prescribed two-thirds context cutoff; ready applies to committed partial work.

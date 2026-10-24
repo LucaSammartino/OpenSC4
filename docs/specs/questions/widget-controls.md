@@ -3,18 +3,6 @@
 Existing Grid, TextEdit and FileBrowser questions stay with their owner specs.
 Target: Windows GOG 1.1.641. Filed 2026-10-23 by re-widgets-wg5.
 
-## WC1 — ListBox residual adapters, rendering and malformed inputs
-
-In [widget-controls.md](../widget-controls.md), sections 5.1–5.5: settle the
-slots marked WC1, including folded count/selection aliases, suppression nesting,
-clear-all/removal wrappers, exact prefix comparison, style/gutter/bar setters
-and notification-mode setter ABI. Determine negative removal index behavior,
-failed allocations and repeated Shutdown/destruction domains. Inspect
-`009CA19A` color-prefix/ellipsis behavior, fractional highlight intensity and
-`009C8A3F` NaN/limit behavior using instructions. Resolve the asymmetric bar
-capture tracking in `009C9623/009C9769`. Do not rely on exported method names:
-native W slots 158/159 remove/insert storage, while L slots 10/11 select.
-
 ## WC2 — TreeView property/node ABI and lifecycle residuals
 
 In [widget-controls.md](../widget-controls.md), sections 6.1–6.3: give exact
