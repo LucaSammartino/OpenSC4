@@ -1006,6 +1006,11 @@ if(TARGET FreeCity4)
     add_test(NAME advisors_shadow_test COMMAND fc4_advisors_shadow_test "$<TARGET_FILE:FreeCity4>")
 endif()
 
+# Read-only overlay contracts and OV12 native observation diagnostics.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4OverlaysShadow.cpp plugin/FC4OverlaysShadow.h)
+    target_sources(FreeCity4 PRIVATE plugin/FC4OverlaysObservation.cpp plugin/FC4OverlaysObservation.h)
+endif()
 # PL23: raw evidence and the narrower defined-field shadow comparison.
 add_executable(fc4_prop_lot_compare_test tests/prop_lot_compare_test.cpp)
 target_include_directories(fc4_prop_lot_compare_test PRIVATE plugin capi/include)
@@ -1026,4 +1031,11 @@ endif()
 # Opt-in record-only Lua collector/registration shadow (LH6-LH7 bound scope).
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4LuaShadow.cpp plugin/FC4LuaShadow.h)
+# OV12 observer safeguards run against the same native adapter as the plugin.
+if(TARGET FreeCity4)
+    add_executable(fc4_overlays_observation_test tests/overlays_observation_test.cpp)
+    target_include_directories(fc4_overlays_observation_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_overlays_observation_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_overlays_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME overlays_observation_test COMMAND fc4_overlays_observation_test)
 endif()

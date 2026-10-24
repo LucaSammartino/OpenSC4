@@ -18,6 +18,7 @@
 #include "FC4AdvisorsShadow.h"
 #include "FC4StringsShadow.h"
 #include "FC4LuaShadow.h"
+#include "FC4OverlaysShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -580,6 +581,7 @@ public:
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
+        OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
         if (saveDue_) {
             saveDue_ = false;
@@ -639,6 +641,7 @@ public:
                 fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
                 fc4::Span8CityLoaded();
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
+                OverlaysShadowCityLoaded(CurrentCity());
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -690,6 +693,7 @@ public:
                 DispatchShadowCityShutdown();
                 PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
+                OverlaysShadowCityShutdown();
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
                 AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
@@ -763,6 +767,7 @@ public:
                 PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
                 fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
                 DatesProbe(CurrentCity(), "month");
+                OverlaysShadowMonth(CurrentCity(), julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

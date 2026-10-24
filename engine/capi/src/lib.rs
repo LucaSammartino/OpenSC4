@@ -1141,6 +1141,8 @@ pub mod feature_manager;
 // Resource-only public-manager verification transport; actual production core.
 pub mod persist_manager_verify;
 
+// Private overlay getter-contract comparison and OV12 observation diagnostics.
+mod overlays_verify;
 // Private record-only network occupant verification transport.
 mod netocc_shadow;
 
