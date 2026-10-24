@@ -64,7 +64,7 @@ pub fn configuration_fields(h: &PropertyHolder) -> Option<ConfigurationFields> {
     }
     let size = byte_vector(h, 0x88ED_C790);
     let (width, depth) = if size.len() >= 2 {
-        (size[0] as u8, size[1] as u8)
+        (size[0], size[1])
     } else {
         (0, 0)
     };
