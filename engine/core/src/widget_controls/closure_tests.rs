@@ -107,6 +107,14 @@ fn wc_t17_t24_literal_geometry_and_descriptor_children() {
     assert_eq!(f.refs.len(), refs);
     assert_eq!(value.font, t.nodes[&a].font);
     assert!(value.visible);
+    let mut output = value.clone();
+    output.children = vec![100, 200, 300];
+    assert!(t.descriptor_into(a, &mut output));
+    assert_eq!(output, value);
+    let saved = output.clone();
+    assert!(!t.descriptor_into(999, &mut output));
+    assert_eq!(output, saved);
+    assert_eq!(f.refs.len(), refs);
     assert_eq!((child8, child3), (8, 3));
     // WC-T17's literal textWidth=20 comes from the font service.
     t.flags &= !4;
@@ -192,6 +200,255 @@ fn tree_negative_property_aliases_preserve_raw_side_effects() {
     t.set_stored_pair([10, 20]);
     assert_eq!((t.default_color(-2), t.default_color(-1)), (Ok(10), Ok(20)));
     assert_eq!(t.base_color(&mut f), 0x123456);
+}
+
+#[test]
+fn tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data() {
+    let mut t = tree_view::TreeView::new(1);
+    let mut f = Recording {
+        font_height: 10,
+        ..Recording::default()
+    };
+    let mut text = b"image node".to_vec();
+    let a = t.insert_images(0, -3, &text, [4, 5, 6, 7], &mut f).unwrap();
+    text[0] = b'X';
+    let n = t.node(a).unwrap();
+    assert_eq!(n.text, b"image node");
+    assert_eq!(
+        (n.data, n.images, n.font, n.colors, n.expanded),
+        (0, [4, 5, 6, 7], Some(100), [0, 0xffffff, 0xffffff, 0], false)
+    );
+    assert_eq!((n.parent, n.reference), (Some(0), -3));
+    let refs = f.refs.clone();
+    let b = t.insert_text(0, -2, b"data node", 0xabcdef, &mut f).unwrap();
+    assert_eq!(t.node(b).unwrap().images, [0, 1, 2, 3]);
+    assert_eq!(t.data(b), 0xabcdef);
+    assert_eq!(t.nodes[&0].children, [b, a]);
+    assert_eq!(f.refs, refs); // nodes borrow their default font
+    assert_eq!(t.insert_text(0, 999, b"abandoned", 42, &mut f), Ok(-1));
+    assert_eq!(t.abandoned.last().unwrap().data, 42);
+    assert_eq!(t.abandoned.last().unwrap().text, b"abandoned");
+    let next = t.next_handle;
+    assert_eq!(t.insert_images(999, -3, b"bad parent", [0; 4], &mut f), Ok(-1));
+    assert_eq!(t.next_handle, next);
+    assert!(t.clear_root(&mut f));
+    assert_eq!(t.root, Some(0));
+    assert_eq!(t.nodes.len(), 1);
+    assert!(t.nodes[&0].children.is_empty());
+    // O24 is independently lazy, including the default color conversions.
+    let mut lazy = tree_view::TreeView::new(2);
+    let b = lazy.insert_text(0, -3, b"lazy", 7, &mut f).unwrap();
+    assert_eq!(lazy.node(b).unwrap().colors, [0, 0xffffff, 0xffffff, 0]);
+}
+
+#[test]
+fn tree_selection_output_and_borrowed_adapter_inventory() {
+    let (mut t, mut f, a, b) = tree();
+    assert_eq!(t.copy_selection(None), Ok(true));
+    t.flags |= 0x10;
+    t.select(a, false, &mut f);
+    t.select(b, false, &mut f);
+    let before = (f.refs.len(), f.invalidations, f.messages.len());
+    let mut output = [999; 3];
+    assert_eq!(t.copy_selection(Some(&mut output)), Ok(true));
+    assert_eq!(output, [a, b, 999]);
+    assert_eq!(t.selected_handles().len(), 2); // O53
+    assert_eq!(t.first_selected(), a); // O54, distinct from navigation anchor
+    assert!(t.copy_selection(None).is_err());
+    assert!(t.copy_selection(Some(&mut [0])).is_err());
+    for h in [a, b] {
+        assert_eq!(t.parent(h), 0);
+        assert_eq!(t.insertion_reference(h), -2);
+        assert!(t.nodes[&h].selected);
+        assert_eq!(t.nodes[&h].font, Some(100));
+        assert!(!t.nodes[&h].expanded);
+        assert_eq!(t.nodes[&h].children.len(), 0);
+    }
+    assert_eq!((t.parent(999), t.insertion_reference(999), t.data(999)), (-1, -1, 0));
+    assert_eq!((f.refs.len(), f.invalidations, f.messages.len()), before);
+}
+
+#[test]
+fn tree_property_setters_and_raw_resource_aliases_have_literal_side_effects() {
+    let (mut t, mut f, a, _) = tree();
+    // All changed layout properties invalidate once; identical writes do not.
+    let start = f.invalidations;
+    for _ in 0..2 {
+        t.set_margins(8, 9, &mut f);
+        t.set_spacing(7, &mut f);
+        t.set_row_height(0, &mut f); // no lower-bound validation
+        t.set_expander_size(u32::MAX, &mut f); // unsigned clamp to flags, not h
+        t.set_base_color(42, &mut f);
+    }
+    assert_eq!(f.invalidations, start + 5);
+    assert_eq!(
+        (&t.raw_style[..4], t.row_height, t.base_color(&mut f)),
+        (&[11, 7, 8, 9][..], 0, 42)
+    );
+    t.raw_style[4] = 3;
+    let start = f.invalidations;
+    t.set_style_bits(3, false, &mut f);
+    t.set_style_bits(3, false, &mut f);
+    assert!(!t.style_bits(3));
+    assert_eq!(f.invalidations, start + 1);
+    t.set_stored_pair([20, 30]);
+    t.set_selection_color(50, &mut f);
+    assert_eq!(f.invalidations, start + 1); // no selection
+    t.set_row_height(16, &mut f);
+    t.select(a, true, &mut f);
+    let start = f.invalidations;
+    t.set_selection_color(60, &mut f);
+    t.set_selection_color(60, &mut f);
+    assert_eq!(f.invalidations, start + 1);
+    t.layout_dirty = false;
+    let before = (f.invalidations, f.messages.len());
+    f.refs.clear();
+    t.set_default_font(Some(500), &mut f);
+    t.set_default_font(Some(500), &mut f);
+    assert_eq!(f.refs, [(true, 500), (false, 100)]);
+    assert_eq!(t.nodes[&a].font, Some(100)); // existing borrowed font unchanged
+    for (index, word) in [(-24, 600), (-10, 601), (-9, 602), (-8, 603)] {
+        t.set_default_color(index, word).unwrap();
+        assert_eq!(t.default_color(index), Ok(word));
+    }
+    assert_eq!(
+        (t.default_font, t.working_buffer, t.horizontal_bar, t.vertical_bar),
+        (Some(600), Some(601), Some(602), Some(603))
+    );
+    assert_eq!(f.refs, [(true, 500), (false, 100)]); // raw words never retain/release
+    assert_eq!((f.invalidations, f.messages.len()), before);
+    assert!(!t.layout_dirty);
+    t.set_default_color(-22, 0xfa_80_02_03).unwrap();
+    assert_eq!(t.default_color(-22), Ok(0xfa_80_02_03));
+    t.layout_dirty = false;
+    assert_eq!(t.default_color(-22), Ok(0xfa_80_00_03));
+}
+
+#[test]
+fn tree_internal_init_failures_do_not_retry_resources() {
+    for (no_graphics, fail_working_buffer, no_default_font) in
+        [(false, true, false), (true, false, false), (false, false, true)]
+    {
+        let mut f = Recording {
+            no_graphics,
+            fail_working_buffer,
+            no_default_font,
+            ..Recording::default()
+        };
+        let mut t = tree_view::TreeView::new(1);
+        assert!(t.init(&mut f)); // ignores base Init's false result
+        assert!(t.internal_initialized);
+        let before = (f.defaults.clone(), f.image_attempts.clone(), f.refs.clone());
+        assert_eq!(t.working_buffer.is_none(), no_graphics || fail_working_buffer);
+        assert_eq!(t.default_font.is_none(), no_default_font);
+        f.no_graphics = false;
+        f.fail_working_buffer = false;
+        f.no_default_font = false;
+        assert!(t.init(&mut f));
+        assert_eq!((f.defaults.clone(), f.image_attempts.clone(), f.refs.clone()), before);
+        assert_eq!(t.working_buffer.is_none(), no_graphics || fail_working_buffer);
+    }
+}
+
+#[test]
+fn list_primary_bytes_and_exact_search_preserve_outputs_without_effects() {
+    let (mut l, f) = list(false);
+    let before = (f.invalidations, f.refs.len(), f.messages.len(), l.area);
+    l.set_drop_byte(0x80);
+    assert_eq!(l.drop_byte(), 0x80);
+    assert!(l.drop_mode);
+    assert!(l.set_drop_policy_bytes([0xff, 0x80]));
+    assert_eq!(l.drop_policy_bytes(), [0xff, 0x80]);
+    assert!(l.set_delivery(0xfe));
+    assert_eq!(l.delivery_byte(), 0xfe);
+    assert_eq!(l.delivery, Delivery::Post);
+    assert_eq!((f.invalidations, f.refs.len(), f.messages.len(), l.area), before);
+    l.entries[0].text = b"Alpha".to_vec();
+    l.entries[1].text = b"alpha".to_vec();
+    let mut index = 99;
+    assert!(l.find_exact(b"alpha", &mut index));
+    assert_eq!(index, 1);
+    assert!(!l.find_exact(b"alph", &mut index));
+    assert_eq!(index, 1);
+    assert!(!l.find_exact(b"ALPHA", &mut index));
+    assert_eq!(index, 1);
+    l.set_drop_byte(0);
+    l.set_drop_policy_bytes([0, 0]);
+    l.set_delivery(0);
+    assert_eq!(
+        (l.drop_byte(), l.drop_policy_bytes(), l.delivery_byte()),
+        (0, [0, 0], 0)
+    );
+}
+
+#[test]
+fn list_residual_slot_adapters_colors_gutters_skin_and_base_flags() {
+    let (mut l, mut f) = list(false);
+    let mut color = 99;
+    assert!(!l.selection_color(&mut color, &mut f));
+    assert_eq!(color, 99);
+    l.set_selection_color(0x123456, &mut f);
+    assert!(l.selection_color(&mut color, &mut f));
+    assert_eq!(color, 0x123456);
+    let count = f.invalidations;
+    assert!(l.reset_font_color(0, &mut f));
+    assert_eq!(l.font_colors[0], SENTINEL);
+    assert_eq!(f.invalidations, count + 1); // sentinel was already present
+    assert!(!l.reset_font_color(3, &mut f));
+    assert!(l.set_bar_gaps(0xfe, 0x80, &mut f));
+    assert_eq!((l.bar_gap, l.bar_gap_y), (-2, -128));
+    assert!(l.set_text_gutters(0xff, 2, &mut f));
+    assert_eq!((l.x_gutter, l.y_gutter), (-1, 2));
+    assert!(l.set_minimum_height(0xff, &mut f));
+    assert_eq!((l.minimum_height, l.row_height), (255, 255));
+    l.bar = Some(300);
+    l.services[0] = Some(500);
+    f.refs.clear();
+    assert!(l.set_bar_skin(Some(500), [1, 2, 7, 9], &mut f));
+    assert_eq!(f.refs, [(true, 500), (false, 500)]);
+    assert_eq!(l.skin_rect, [1, 2, 7, 9]);
+    assert_eq!(f.skins, [(300, 500, [1, 2, 7, 9])]);
+    f.buffer_height = 20;
+    assert!(l.set_bar_skin(Some(500), [0; 4], &mut f));
+    assert_eq!(f.skins.last(), Some(&(300, 500, [0, 0, 0, 20])));
+    assert!(l.set_bar_skin(None, [5; 4], &mut f));
+    assert_eq!(l.services[0], None);
+    assert!(!l.false_stub(1, 2));
+    f.base_flags = 0x8903;
+    assert_eq!(l.set_flag(2, 0, &mut f), Ok(0x8901));
+    assert_eq!(l.set_flag(2, 0x80, &mut f), Ok(0x8903));
+    assert_eq!(f.base_flag_calls, [(l.window, 2, 0), (l.window, 2, 0x80)]);
+}
+
+#[test]
+fn wc_t40_literal_icon_click_and_t49_failed_access_has_no_release() {
+    let (mut t, mut f, a, _) = tree();
+    t.flags |= 4;
+    t.set_image(0, Some(80), [0, 0, 6, 8], &mut f);
+    t.set_node_image(a, 0, 0, &mut f);
+    t.paint([0, 0, 200, 100], &mut f).unwrap();
+    let r = t.nodes[&a].image_rect;
+    assert_ne!(r, [0; 4]);
+    f.messages.clear();
+    t.mouse_button(r[0] + 3, r[1] + 3, true, &mut tree_view::ClickState::default(), &mut f)
+        .unwrap();
+    assert_eq!(t.selection, [a]);
+    assert_eq!(
+        f.messages.iter().map(|(_, m)| m.words).collect::<Vec<_>>(),
+        [
+            [tree_view::SELECTION as i32, 0, 0, 0],
+            [0x1af5a13e, a, 0, 0],
+            [0x1af5a13f, a, 0, 0]
+        ]
+    );
+    f.access_calls.clear();
+    f.draws.clear();
+    f.fail_mode = 0x8001;
+    t.draw_item(a, [10, 16, 40, 32], [0; 4], [0; 4], &mut f).unwrap();
+    assert!(f.access_calls.contains(&(0x8001, true)));
+    assert!(!f.access_calls.contains(&(0x8001, false)));
+    assert!(!f.draws.iter().any(|d| matches!(d, Draw::Fill { .. })));
+    assert!(f.draws.iter().any(|d| matches!(d, Draw::Text { .. })));
 }
 
 #[test]

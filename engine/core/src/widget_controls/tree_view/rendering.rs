@@ -3,9 +3,7 @@ use super::*;
 
 impl TreeView {
     /// RecalculateAll's owner work, given base-window geometry. The bar
-    /// requirements provisionally use literal content overflow (WC7); the
-    /// spec does not settle exact resize/range/order policy. Solve the two
-    /// coupled axes before issuing resource operations.
+    /// requirements use content overflow, solving both coupled axes first.
     pub fn recalculate_all(&mut self, area: Rect, f: &mut impl TreeForeign) -> Result<()> {
         self.require_live_root()?;
         self.recalculate();
@@ -19,6 +17,7 @@ impl TreeView {
             (area[2].wrapping_sub(area[0]) as u32).wrapping_sub((self.raw_style[2] as u32).wrapping_mul(2)),
             (area[3].wrapping_sub(area[1]) as u32).wrapping_sub((self.raw_style[3] as u32).wrapping_mul(2)),
         ];
+        // SPEC-GAP: exact buffer/bar allocation policy is silent; use content size and overflow.
         let mut need = [false; 2];
         for _ in 0..3 {
             need = [

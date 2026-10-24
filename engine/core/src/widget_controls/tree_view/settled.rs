@@ -123,10 +123,8 @@ impl TreeView {
             -19 => self.row_height as u32,
             -20 => self.base_color,
             -22 => {
-                let raw = *self
-                    .raw_property_words
-                    .get(&index)
-                    .ok_or(Unsupported::Precondition("readable packed TreeView property word"))?;
+                // SPEC-GAP: the unused fourth byte is zero unless supplied by the host.
+                let raw = self.raw_property_words.get(&index).copied().unwrap_or(0);
                 let mut word = raw & 0xff00_0000;
                 for (shift, flag) in [
                     (0, self.internal_initialized),

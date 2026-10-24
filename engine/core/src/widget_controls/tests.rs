@@ -13,6 +13,12 @@ struct Recording {
     tree_resizes: Vec<[u32; 2]>,
     measure_override: Option<i32>,
     base_init_ok: bool,
+    fail_working_buffer: bool,
+    no_graphics: bool,
+    no_default_font: bool,
+    base_flag_calls: Vec<(Handle, u32, u8)>,
+    base_flags: u32,
+    skins: Vec<(Handle, Handle, Rect)>,
     compare_calls: usize,
     parent_limit: Option<i32>,
     capture_owner: Option<Handle>,
@@ -707,6 +713,18 @@ impl Foreign for Recording {
     fn base_init(&mut self, _: Handle) -> bool {
         self.base_init_ok
     }
+    fn base_set_flag(&mut self, window: Handle, mask: u32, on: u8) -> Result<u32> {
+        self.base_flag_calls.push((window, mask, on));
+        self.base_flags = if on != 0 {
+            self.base_flags | mask
+        } else {
+            self.base_flags & !mask
+        };
+        Ok(self.base_flags)
+    }
+    fn bar_skin(&mut self, bar: Handle, buffer: Handle, rect: Rect) {
+        self.skins.push((bar, buffer, rect));
+    }
     fn base_shutdown(&mut self, _: Handle) {}
     fn base_query(&mut self, _: Handle, _: u32, _: &mut Option<Handle>) -> bool {
         false
@@ -740,7 +758,7 @@ impl Foreign for Recording {
     }
     fn default_interface(&mut self, key: u32) -> Option<Handle> {
         self.defaults.push(key);
-        Some(100)
+        (!self.no_default_font).then_some(100)
     }
     fn default_color(&mut self, key: u32) -> Option<u32> {
         self.defaults.push(key);
@@ -996,6 +1014,9 @@ fn list_mouse_timer_strictness_and_no_font_background() {
 }
 
 impl tree_view::TreeForeign for Recording {
+    fn graphics_available(&mut self) -> bool {
+        !self.no_graphics
+    }
     fn tree_area(&mut self, _: Handle) -> Option<Rect> {
         self.tree_area
     }
@@ -1030,7 +1051,7 @@ impl tree_view::TreeForeign for Recording {
         color
     }
     fn initialize_buffer(&mut self, _: Handle) -> bool {
-        true
+        !self.fail_working_buffer
     }
     fn buffer_access(&mut self, _: Handle, _: bool) -> bool {
         true

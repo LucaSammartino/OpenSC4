@@ -2,6 +2,8 @@
 //! cGZWinTreeView, widget-controls §6. Node handles, visible rows and selection
 //! positions are distinct. Native memory/lifetime preconditions stay explicit.
 use super::*;
+#[path = "tree_view/adapters.rs"]
+mod adapters;
 #[path = "tree_view/input.rs"]
 mod input;
 #[path = "tree_view/rendering.rs"]
@@ -353,9 +355,7 @@ impl TreeView {
         Ok(self.insert_at(descriptor, position, f))
     }
 
-    /// Semantic ordered-list primitive, not a native sentinel-to-position map.
-    /// Callers binding native InsertNode must first resolve WC2, not guess an
-    /// ordering. Tests use this to construct valid hierarchies independently.
+    /// Ordered-list primitive; `insert` implements the native sentinel mapping.
     pub fn insert_at(&mut self, descriptor: Descriptor, position: usize, f: &mut impl TreeForeign) -> NodeHandle {
         self.insert_at_inner(descriptor, position, true, f)
     }

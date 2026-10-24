@@ -59,6 +59,7 @@ pub struct ListBox {
     pub bar_gap_y: i8,
     pub skin_rect: Rect,
     pub pointer: [i32; 2],
+    raw_bytes: [u8; 4],
 }
 
 impl ListBox {
@@ -213,6 +214,7 @@ impl ListBox {
             bar_gap_y: 3,
             skin_rect: [0; 4],
             pointer: [0; 2],
+            raw_bytes: [u8::from(drop_mode), 1, 0, 0],
         }
     }
 

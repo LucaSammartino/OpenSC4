@@ -2,6 +2,19 @@
 use super::*;
 
 impl ListBox {
+    pub fn set_flag(&mut self, mask: u32, on: u8, f: &mut impl Foreign) -> Result<u32> {
+        // SPEC-GAP: W68's extra owner policy is unspecified; delegate to the base window.
+        f.base_set_flag(self.window, mask, on)
+    }
+    /// W155 uses a complete case-sensitive byte match and preserves the output
+    /// on failure, unlike L50's caller-supplied comparison.
+    pub fn find_exact(&self, text: &[u8], output: &mut i32) -> bool {
+        let Some(index) = self.entries.iter().position(|entry| entry.text == text) else {
+            return false;
+        };
+        *output = index as i32;
+        true
+    }
     pub(super) fn forward_bar(&self, x: i32, y: i32) -> Option<Handle> {
         self.bar.filter(|_| {
             self.bar_tracking
@@ -9,8 +22,33 @@ impl ListBox {
         })
     }
     pub fn set_drop_policies(&mut self, height: bool, width: bool) -> bool {
-        self.drop_resize = [height, width];
+        self.set_drop_policy_bytes([u8::from(height), u8::from(width)])
+    }
+    /// L17/18 and L35/36 preserve the stored bytes, including noncanonical true.
+    pub fn set_drop_byte(&mut self, byte: u8) {
+        self.raw_bytes[0] = byte;
+        self.drop_mode = byte != 0;
+    }
+    pub fn drop_byte(&self) -> u8 {
+        Self::stored_byte(self.raw_bytes[0], self.drop_mode)
+    }
+    pub fn set_drop_policy_bytes(&mut self, bytes: [u8; 2]) -> bool {
+        self.raw_bytes[1..3].copy_from_slice(&bytes);
+        self.drop_resize = bytes.map(|byte| byte != 0);
         true
+    }
+    pub fn drop_policy_bytes(&self) -> [u8; 2] {
+        [
+            Self::stored_byte(self.raw_bytes[1], self.drop_resize[0]),
+            Self::stored_byte(self.raw_bytes[2], self.drop_resize[1]),
+        ]
+    }
+    fn stored_byte(raw: u8, enabled: bool) -> u8 {
+        if (raw != 0) == enabled {
+            raw
+        } else {
+            u8::from(enabled)
+        }
     }
     pub fn reset_font_color(&mut self, index: usize, f: &mut impl Foreign) -> bool {
         self.set_font_color(index, SENTINEL, f)
@@ -88,8 +126,12 @@ impl ListBox {
         false
     }
     pub fn set_delivery(&mut self, byte: u8) -> bool {
+        self.raw_bytes[3] = byte;
         self.delivery = if byte == 0 { Delivery::Send } else { Delivery::Post };
         true
+    }
+    pub fn delivery_byte(&self) -> u8 {
+        Self::stored_byte(self.raw_bytes[3], self.delivery == Delivery::Post)
     }
     pub fn false_stub(&self, _a: u32, _b: u32) -> bool {
         false

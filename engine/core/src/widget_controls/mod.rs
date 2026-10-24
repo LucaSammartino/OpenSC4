@@ -153,6 +153,9 @@ pub trait Foreign {
         0
     }
     fn destroy_window(&mut self, _window: Handle) {}
+    fn base_set_flag(&mut self, _window: Handle, _mask: u32, _on: u8) -> Result<u32> {
+        Err(Unsupported::Precondition("base window SetFlag service"))
+    }
 }
 
 pub(crate) fn replace_ref(slot: &mut Option<Handle>, value: Option<Handle>, f: &mut impl Foreign) {
