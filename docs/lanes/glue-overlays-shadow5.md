@@ -8,7 +8,9 @@
 - Implemented native bounded copies of all three arenas/free queues, live IDs/groups/placement, scalar/placement getters, ordered static lists, texture binding metadata/sharing and source implementation tokens. Rust diagnostic parser checks graphs/membership/getters, with no native answers seeded into OverlayManager.
 - Focused Rust OV12 A-L plus corruption test: 13/13 PASS. Initial J fixture index typo failed 12/13; corrected and rerun. q.py shell bootstrap failed before Cargo; direct PowerShell Cargo worked.
 - Filed OV13 (capture boundary for future full independent history replay); current snapshots explicitly report unavailable replay and image bytes per OV12.
-- Next: format transport addition; merge main immediately before final all gate; then game under a unique label to 2032. Native observer safeguards target added to CTest.
+- Implementation commit: f2bdcff61. Required pre-gate main merge was already up to date.
+- Full gate in progress: workspace 6818/0/0; clippy 0 diagnostics. Native queue label qbuild-20261024-012924-build-ctest; same qbuild operation remains outstanding (exec session 33815).
+- Next: collect terminal full gate, fix only diagnosed failures; game overlays-shadow5-r2-2032a through 2032. Event-based build-runs/wait-verdict.ps1 avoids qwait as requested.
 - Merge main again immediately before final all gate.
 - No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.
