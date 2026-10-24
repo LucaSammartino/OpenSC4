@@ -1,5 +1,9 @@
 # text-edit: answered questions
 
+<!-- from: re-textedit4 (2026-10-22) -->
+- **TE8 - section 12; text-edit-inventory.md:** Generated-action copy/allocation failure/unwind; foreign base/font/drawing/bar/timer/dispatch/clipboard outcomes beyond documented call sites; lib::_strncpy padding and search primitives 004427F0/005C23E0 edge/error behavior. Attribution remains 150 bodies / 19,999B; inventory counts alone establish no complete-owner or widget-family credit.
+  **ANSWERED 2026-10-24 (re-widget-controls-te13b):** DIFFERS — section 6 specifies owned-string copy, growth capacity, commit ordering and absent local unwind/rollback, including unsafe null-allocation behavior. The adapters supplement specifies fixed-count NUL padding and exact forward/reverse byte search, overlapping matches and owner rejection of end-position empty matches. Sections 5 and 8–10 define foreign services as controlled inputs, without inventing their implementations or recovery. Seven vectors distinguish the new rules. The attribution denominator and conservative P/B classifications are unchanged; TE5 is separately answered.
+
 <!-- from: re-textedit4 (2026-10-22); residual narrowed in round 1 -->
 - **TE5 - sections 7–8 and encoding/layout/adapters supplements:** Exact conversion selectors/malformed-input results, Thai context levels and composed lengths?
   **ANSWERED 2026-10-24 (re-widget-controls-te13b):** DIFFERS — text-edit-encoding.md now specifies conversion counts, alias behavior, prefix/error handling, Windows call parameters, intermediate conversion, Thai classes/levels and both composed-length directions. Quirks include low-16 truncation of long UTF8 forms, consumed-but-unwritten UTF16 units, forward/backward 0E33 asymmetry and the unguarded fourth-word read. New vectors distinguish each; Windows code-page tables remain explicit environment inputs rather than unresolved owner behavior.

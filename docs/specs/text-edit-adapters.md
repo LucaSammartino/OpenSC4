@@ -112,7 +112,15 @@ chunks. A chunk whose **first byte is LF** is omitted, adding its helper
 length to the removed count; all other chunks, including CR, are retained.
 If anything was removed it calls lib::_strncpy(destination, temporaryBegin,
 the original supplied count), then writes the temporary length back to the
-count. Buffer termination/padding belongs to that copy primitive; there is
+count. The copy writes exactly the original supplied count: bytes before
+the first NUL are copied, and that NUL and the rest of the destination range
+are zero filled. If no NUL occurs in that count, none is appended. A zero
+count writes nothing. Thus filtering `a LF b` with count 3 writes `61 62 00`,
+while filtering `a NUL LF b` with count 4 writes `61 00 00 00` even though
+the reported retained length is 3. This embedded-NUL truncation is a copy
+quirk, not another removed-character test. Source and destination must be
+valid nonoverlapping ranges; neither layer validates them. Instructions at
+`009F101C–108F` and `009F1095–1113` establish copying and padding. There is
 no separate owner terminator store. It returns removed byte count
 (`0x009BF39F-3DF`). Malformed helper lengths are not capped to remaining
 input; source-range safety remains the caller's obligation.
@@ -230,5 +238,20 @@ position and a Boolean. True calls string find `0x004427F0`; false calls
 only if unsigned result<text byte length, otherwise 0xFFFFFFFF. Thus a
 helper returning exactly text length is converted to not-found. There is
 no owner null-pointer, case-folding, character or selection adjustment.
-Exact search primitive empty-pattern/direction/malformed-buffer semantics
-are parked, not inferred from a typical editor or the helper's label.
+For valid byte ranges and nonoverflowing positions/counts, true searches
+forward from the supplied position for the first exact byte match; false
+searches backward for the last match whose start is at most that position.
+Overlapping matches count. NUL is an ordinary byte; there is no encoding or
+case test. Forward search returns not-found if position+count exceeds text
+length; reverse search returns not-found if count exceeds length, otherwise
+caps the candidate start to min(position,length-count). An empty pattern's
+primitive result is position on the forward path when position<=length,
+and min(position,length) on the reverse path. The owner rejects either
+result equal to length. Thus an empty pattern in empty text always returns
+not-found; an empty reverse search from 0xFFFFFFFF in nonempty text also
+returns not-found. These are quirks, not selection/caret operations.
+Evidence: `004427F0–2842`, `004426C0–2756`, `005C23E0–2467`,
+`005C2380–23D4`, `009BE96A`.
+The forward position+count check uses wrapping 32-bit addition without an
+independent position guard. Wrapped sums and invalid pointers are outside
+the valid-call domain, not promised benign not-found or repaired input.
