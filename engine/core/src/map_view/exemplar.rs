@@ -26,10 +26,7 @@ pub fn exemplar_key(view: u32) -> Result<ExemplarKey, Unsupported> {
     Ok(ExemplarKey {
         resource_type: 0x6534_284a,
         group: 0x690f_693f,
-        // QV6: no native overflow result is invented.
-        instance: 0x4a0b_6800u32
-            .checked_add(view)
-            .ok_or(Unsupported::ResourceKeyOverflow)?,
+        instance: 0x4a0b_6800u32.wrapping_add(view),
     })
 }
 
@@ -75,12 +72,8 @@ pub struct SelectionFields {
 
 impl RawExemplar {
     pub(super) fn find(&self, id: u32) -> Result<Option<&RawValue>, Unsupported> {
-        let mut matches = self.0.iter().filter(|p| p.id == id);
-        let first = matches.next().map(|p| &p.value);
-        if matches.next().is_some() {
-            return Err(Unsupported::DuplicateProperty(id));
-        }
-        Ok(first)
+        // The adapter supplies the property-holder lookup result, not duplicate assignments.
+        Ok(self.0.iter().find(|p| p.id == id).map(|p| &p.value))
     }
 
     pub fn raw_field(&self, id: u32) -> Result<&RawValue, Unsupported> {
@@ -90,6 +83,10 @@ impl RawExemplar {
     pub fn u32_field(&self, id: u32) -> Result<u32, Unsupported> {
         match self.raw_field(id)? {
             RawValue::U32(v) => Ok(*v),
+            RawValue::U8(v) => Ok(u32::from(*v)),
+            RawValue::Bool(v) => Ok(u32::from(*v)),
+            RawValue::Uninterpreted(v) if v.len() >= 4 => Ok(u32::from_le_bytes([v[0], v[1], v[2], v[3]])),
+            // Pointer payloads are not dereferenced by the portable core.
             _ => Err(Unsupported::MalformedProperty(id)),
         }
     }
@@ -97,6 +94,8 @@ impl RawExemplar {
     pub fn bool_field(&self, id: u32) -> Result<bool, Unsupported> {
         match self.raw_field(id)? {
             RawValue::Bool(v) => Ok(*v),
+            RawValue::U8(v) => Ok(*v != 0),
+            RawValue::U32(v) => Ok(*v as u8 != 0),
             _ => Err(Unsupported::MalformedProperty(id)),
         }
     }
@@ -109,21 +108,20 @@ impl RawExemplar {
     }
 
     pub(super) fn optional_u32(&self, id: u32) -> Result<Option<u32>, Unsupported> {
-        match self.find(id)? {
-            Some(RawValue::U32(v)) => Ok(Some(*v)),
-            Some(_) => Err(Unsupported::MalformedProperty(id)),
-            None => Ok(None),
+        if self.find(id)?.is_some() {
+            self.u32_field(id).map(Some)
+        } else {
+            Ok(None)
         }
     }
 
     pub fn selection_fields(&self) -> Result<SelectionFields, Unsupported> {
-        let source = self.u32_field(SOURCE)?;
-        let ramp = self.u32_list(RAMP)?;
-        // QV6/QV8: pairs are retained exactly; no stop ordering, clipping,
-        // endpoint extension or interpolation is inferred.
-        if ramp.is_empty() || ramp.len() % 2 != 0 {
-            return Err(Unsupported::MalformedProperty(RAMP));
-        }
+        let source = self.optional_u32(SOURCE)?.unwrap_or(0);
+        let ramp = if self.find(RAMP)?.is_some() {
+            self.u32_list(RAMP)?
+        } else {
+            &[]
+        };
         let scale = match self.optional_u32(SCALE)? {
             Some(s) if s > 1 && s < (1 << 24) => s,
             _ => 256,
@@ -132,10 +130,10 @@ impl RawExemplar {
             source,
             scale,
             layer: self.optional_u32(LAYER)?.unwrap_or(1),
-            interpolate: self.bool_field(INTERPOLATE)?,
+            interpolate: self.bool_or(INTERPOLATE, false)? || self.find(BLOCK_BY_LOT)?.is_some(),
             // Presence, including argument zero, is significant (Â§2).
             block_by_lot: self.optional_u32(BLOCK_BY_LOT)?,
-            highlight_kind: self.u32_field(HIGHLIGHT)?,
+            highlight_kind: self.optional_u32(HIGHLIGHT)?.unwrap_or(0),
             ramp_pairs: ramp.to_vec(),
         })
     }
@@ -155,11 +153,16 @@ impl RawExemplar {
         if property != TERRAIN_MODE && property != TERRAIN_MODE_SECOND {
             return Err(Unsupported::MalformedProperty(property));
         }
-        match self.u32_field(property)? {
-            0 => Ok(1),
-            1 => Ok(3),
-            2 => Ok(2),
-            _ => Err(Unsupported::MalformedProperty(property)),
+        let entering = if property == TERRAIN_MODE_SECOND {
+            self.terrain_mode(TERRAIN_MODE)?
+        } else {
+            1
+        };
+        match self.optional_u32(property)? {
+            Some(0) => Ok(1),
+            Some(1) => Ok(3),
+            Some(2) => Ok(2),
+            _ => Ok(entering),
         }
     }
 
@@ -168,9 +171,10 @@ impl RawExemplar {
     /// This never selects or renders the traffic volume grid (QV2).
     pub fn travel_types(&self) -> Result<Vec<u8>, Unsupported> {
         let list = self.u32_list(TRAVEL_TYPES)?;
-        if list.len() > 8 || list.iter().any(|v| *v > 255) {
-            return Err(Unsupported::MalformedProperty(TRAVEL_TYPES));
-        }
-        Ok(list.iter().map(|v| *v as u8).collect())
+        Ok(list
+            .iter()
+            .take((list.len() as u8).min(8) as usize)
+            .map(|v| *v as u8)
+            .collect())
     }
 }
