@@ -9,6 +9,7 @@
 #include "compat/FC4Compat.h"
 #include "cISC4City.h"
 #include "cISC4LightingManager.h"
+#include "cIGZVariant.h"
 #include "cS3DVector2.h"
 #include "cS3DVector3.h"
 #include "fc4.h"
@@ -117,12 +118,20 @@ void CompareQueries(int32_t julian) {
         for (uint32_t i = 0; i < 6; ++i) {
             if (!(mask & (1u << i))) continue;
             if (i == 0) {
-                ready = fc4::props::SetU32s(holder.AsSdk(), ids[i], {overrides[1]}) && ready;
+                // §1.6 includes property type/count in the independent input.
+                // The expected Inputs record models scalar u32/f32 values:
+                // a one-element array is not an interchangeable native input.
+                ready = fc4::props::SetTyped(holder.AsSdk(), ids[i], cIGZVariant::Uint32,
+                    false, &overrides[1], 1) && ready;
+                ready = fc4::props::TypeOf(holder.AsSdk(), ids[i]) == cIGZVariant::Uint32 && ready;
             } else {
                 std::vector<float> values(counts[i]);
                 for (uint32_t j = 0; j < counts[i]; ++j)
                     std::memcpy(&values[j], &overrides[offsets[i] + j], sizeof(float));
-                ready = fc4::props::SetF32s(holder.AsSdk(), ids[i], values) && ready;
+                ready = fc4::props::SetTyped(holder.AsSdk(), ids[i], cIGZVariant::Float32,
+                    counts[i] > 1, values.data(), counts[i]) && ready;
+                const auto type = counts[i] == 1 ? cIGZVariant::Float32 : cIGZVariant::Float32Array;
+                ready = fc4::props::TypeOf(holder.AsSdk(), ids[i]) == type && ready;
             }
         }
         uint32_t native[9]{}, expected[9]{};
