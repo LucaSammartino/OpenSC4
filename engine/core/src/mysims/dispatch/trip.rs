@@ -16,9 +16,11 @@ impl Default for DispatchTuning {
         Self {
             approach_distance: 10,
             proximity: 10,
-            idle_minimum: 1,
+            idle_minimum: 5,
+            // §7.2.3: +20 is unassigned by the native constructor. This
+            // deterministic placeholder is not a native-default promise.
             location_minimum: 1,
-            switch_minimum: 1,
+            switch_minimum: 5,
         }
     }
 }
@@ -87,7 +89,7 @@ impl Default for DispatchState {
             path_indices: (0, 0),
             change_counter: 0,
             previous_change_counter: 0,
-            tracking_value: 0,
+            tracking_value: u32::MAX,
             minutes: 0,
             travel_type: 0xFF,
             wait_timestamp: 0,
@@ -99,7 +101,7 @@ impl Default for DispatchState {
             owner: None,
             simulation_service: None,
             models: BTreeMap::new(),
-            route_marker: 0,
+            route_marker: -1,
             read_pending: false,
             read_succeeded: false,
         }
@@ -351,7 +353,7 @@ impl MySimDispatch {
         self.change_flags(sim, |f| f & !RESET_PATH_FLAGS);
     }
 
-    fn valid(&self, sim: i32, location: DispatchLocation) -> bool {
+    pub(super) fn valid(&self, sim: i32, location: DispatchLocation) -> bool {
         location.is_valid(&SimWorld { host: &*self.host, sim })
     }
 

@@ -36,10 +36,14 @@ use crate::traffic_network::NetworkModel;
 
 use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 
+mod ready;
+#[cfg(test)]
+mod ready_tests;
 mod record;
 pub mod scripted;
 mod transport;
 mod trip;
+pub use ready::model_selection;
 pub use record::DispatchRecordRefs;
 pub use transport::{BoardingAutomaton, TransitStop, TransportTail};
 pub use trip::{DispatchTuning, TripOutcome, TripSearch, TripServices};
