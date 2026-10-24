@@ -191,6 +191,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TK | animation-tick-manager |
 | TM | timers |
 | TN | traffic-network |
+| TOD | tip-of-the-day |
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
@@ -396,6 +397,7 @@ generated index: the questions live one file per spec, so read only the file for
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
+| tip-of-the-day | 1 | 0 | TOD2 | questions/tip-of-the-day.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 94 | TG27, TS69 | questions/traffic-simulator.md |
@@ -426,4 +428,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **670** | **1567** | | |
+| **total** | **671** | **1567** | | |
