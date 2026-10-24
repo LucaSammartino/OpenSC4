@@ -77,7 +77,7 @@ New section 10.1 vectors are in `base/closure_tests.rs`.
 | cGZWin | 17.6 enumeration/sort | `enum_children`, `sort_children`, `sort_children_by_id` | `snapshot_enumeration_and_busy_destruction`, `wt19_sort_and_reorder` |
 | cGZWin | 17.7 placement | `center`, `fit_rect` | `wt20_placement` |
 | cGZWin | 17.8 colours/transparency | colour fields, `packed_to_native`, `native_to_packed`, `set_transparency`, `fill_transparent` | `transparency_native_colors_and_draw_context` |
-| cGZWin | ui-windows.md 2 interfaces/tree/ChildDelete forward | existing `win` facade; `base` provides full toolkit behavior | existing `win`/conformance tests; `snapshot_enumeration_and_busy_destruction` |
+| cGZWin | ui-windows.md 2 interfaces/tree/ChildDelete forward | `mod.rs`: `query_interface`; `tree.rs`: tree and `child_delete`; `dispatch.rs`: slot-16 byte boundary | `wt12_query_interface_outputs_and_zero_constructor_count`, `wt11_type_one_propagates_manager_and_override_bytes`, `snapshot_enumeration_and_busy_destruction` |
 
 The wildcard `cGZWin*` must not mark other widget owners implemented. Generated,
 custom, HTML, control, manager and title-bar owners have separate contracts and
