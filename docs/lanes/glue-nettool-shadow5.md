@@ -10,9 +10,9 @@
 - Implemented: NT29 retained network corners with live terrain, tests for inventory/shared vertices/markers/repeat charge; NT27 replacement copy/count getters corrected.
 - Focused cargo geometry tests: 46/46 pass. q.py Bash unavailable (CreateFileMapping error); direct cargo works. fmt requires absolute file arguments; final formatting pending.
 - Contract implementation committed as 1c9f287c8; final six-file fmt PASS.
-- First qbuild all: cargo stopped at 807 passed/1 failed (conformance turbo_off: two old diagonal fixtures), clippy clean; native qbuild-20261024-004526-build-ctest still queued in session 14919. Collect that operation; no duplicate verify.
+- First qbuild all terminal FAIL: cargo 807 passed/1 failed (two old diagonal fixtures); clippy clean; native build 188/188 PASS, CTest 68/69 (capi_smoke expected raw reason rather than public Boolean). Session 14919 collected to exit 1. Full logs preserved as build-runs/r2-initial-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
 - Updated ng18_03/ng18_04 conformance footprints/descriptions to NT28; these input changes justify one corrected full gate after the queued operation terminates. Preserve initial logs before rerun.
-- Next: collect session 14919, preserve gate logs, corrected qbuild all, then unique 2032 request. Prior report below remains round-1 evidence only.
+- Corrected native smoke expectation to public Boolean; next: corrected qbuild all, then unique 2032 request. Prior report below remains round-1 evidence only.
 - No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
 - Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
