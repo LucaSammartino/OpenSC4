@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Public packed-segment projection (data-formats Â§2.6.1â€“2.6.2, EX54/EX55).
+//! Public packed-segment projection (data-formats §2.6.1–2.6.2, EX54/EX55).
 use super::{Package, Source, DIR_TGI};
 use crate::Tgi;
 
