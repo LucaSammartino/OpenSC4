@@ -226,7 +226,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 2 | 58 | EX56 | questions/data-formats.md |
+| data-formats | 3 | 58 | EX57 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -267,7 +267,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 3 | 11 | LR14 | questions/lot-records.md |
+| lot-records | 4 | 11 | LR15 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -368,4 +368,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **602** | **1453** | | |
+| **total** | **604** | **1453** | | |
