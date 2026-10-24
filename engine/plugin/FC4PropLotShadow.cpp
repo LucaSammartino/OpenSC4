@@ -64,6 +64,7 @@
 #include "cSC4LotConfigurationObject.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -72,6 +73,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <Windows.h>
 
 namespace fc4 {
 namespace {
@@ -531,6 +533,133 @@ PropCtx* PC(void* u) { return static_cast<PropCtx*>(u); }
 
 cISC4OccupantManager* PropOm(void* u) { return PC(u)->city ? PC(u)->city->GetOccupantManager() : nullptr; }
 
+// PL21: a Write and two live queries are not a shared input snapshot. Capture
+// the dependency's slot-40 result BEFORE the native prop manager prunes it,
+// then replay that ordered input to Rust. Never copy GetLotProps's output.
+// The native owner's filter is independently checked on every invocation.
+struct LotQueryInput {
+    struct Entry { uint64_t token; float pos[3]; };
+    cISC4OccupantManager* manager = nullptr;
+    fc4_cell_rect rect{};
+    std::vector<Entry> entries;
+    unsigned calls = 0, errors = 0, filterChecks = 0, replays = 0;
+    bool result = false, replay = false;
+    ~LotQueryInput() {
+        for (const auto& e : entries) HostRelease(nullptr, e.token);
+    }
+};
+thread_local LotQueryInput* t_lotInput = nullptr;
+std::unique_ptr<LotQueryInput> g_lotInput;
+
+class ObservedLotFilter final : public cISC4OccupantFilter {
+public:
+    cISC4OccupantFilter* original;
+    LotQueryInput& input;
+    PropUsageFilter expected;
+    ObservedLotFilter(cISC4OccupantFilter* f, LotQueryInput& i) : original(f), input(i) {
+        expected.usage = 2;
+    }
+    bool QueryInterface(uint32_t iid, void** out) override {
+        if (out == nullptr) return false;
+        *out = nullptr;
+        if (iid != GZIID_cISC4OccupantFilter && iid != GZIID_cIGZUnknown) return false;
+        *out = static_cast<cISC4OccupantFilter*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool IsOccupantIncluded(cISC4Occupant* occ) override {
+        const bool actual = original->IsOccupantIncluded(occ);
+        ++input.filterChecks;
+        if (actual != expected.IsOccupantIncluded(occ)) ++input.errors;
+        return actual;
+    }
+    bool IsOccupantTypeIncluded(uint32_t type) override {
+        const bool actual = original->IsOccupantTypeIncluded(type);
+        ++input.filterChecks;
+        if (actual != expected.IsOccupantTypeIncluded(type)) ++input.errors;
+        return actual;
+    }
+    bool IsPropertyHolderIncluded(cISCPropertyHolder* holder) override {
+        const bool actual = original->IsPropertyHolderIncluded(holder);
+        ++input.filterChecks;
+        if (actual != expected.IsPropertyHolderIncluded(holder)) ++input.errors;
+        return actual;
+    }
+};
+
+using PropCellsFn = bool(__fastcall*)(void*, void*, SC4List<cISC4Occupant*>&,
+                                    const SC4Point<int>*, const SC4Point<int>*, cISC4OccupantFilter*, uint32_t);
+std::atomic<PropCellsFn> g_propCellsForward{nullptr};
+void** g_propCellsEntry = nullptr;
+void* g_propCellsOriginal = nullptr;
+
+bool __fastcall ObserveLotCells(void* self, void* edx, SC4List<cISC4Occupant*>& list,
+                               const SC4Point<int>* mn, const SC4Point<int>* mx,
+                               cISC4OccupantFilter* filter, uint32_t limit) {
+    const auto forward = g_propCellsForward.load();
+    LotQueryInput* input = t_lotInput;
+    if (input == nullptr || input->replay || input->manager != self) {
+        return forward(self, edx, list, mn, mx, filter, limit);
+    }
+    ++input->calls;
+    if (input->calls != 1 || mn == nullptr || mx == nullptr || filter == nullptr || limit != UINT32_MAX) {
+        ++input->errors;
+        return forward(self, edx, list, mn, mx, filter, limit);
+    }
+    input->rect = {mn->x, mn->y, mx->x, mx->y};
+    ObservedLotFilter observed(filter, *input);
+    input->result = forward(self, edx, list, mn, mx, &observed, limit);
+    for (auto* occ : list) {
+        if (occ == nullptr || input->entries.size() >= kMaxList) {
+            ++input->errors;
+            continue;
+        }
+        const uint64_t token = TokenOf(occ);
+        HostAddRef(nullptr, token);
+        cS3DVector3 pos;
+        occ->GetPosition(&pos);
+        input->entries.push_back({token, {pos.fX, pos.fY, pos.fZ}});
+    }
+    return input->result;
+}
+
+// Scoped to this read-only probe. Other threads always forward untouched;
+// TLS only arms capture for our one native GetLotProps call.
+void ResetLotQueryProbe() {
+    t_lotInput = nullptr;
+    if (g_propCellsEntry != nullptr) {
+        DWORD before = 0;
+        if (VirtualProtect(g_propCellsEntry, sizeof(void*), PAGE_READWRITE, &before)) {
+            InterlockedCompareExchangePointer(g_propCellsEntry, g_propCellsOriginal,
+                                              reinterpret_cast<void*>(&ObserveLotCells));
+            DWORD ignored = 0;
+            VirtualProtect(g_propCellsEntry, sizeof(void*), before, &ignored);
+            g_propCellsEntry = nullptr;
+        }
+    }
+    g_lotInput.reset();
+}
+
+class LotQueryProbe {
+public:
+    explicit LotQueryProbe(cISC4OccupantManager* manager) {
+        if (manager == nullptr || IsOurObject(manager)) return;
+        if (g_propCellsEntry != nullptr) return;
+        void** candidate = *reinterpret_cast<void***>(manager) + 40; // OM §8.4; SDK filter overload
+        DWORD before = 0;
+        if (!VirtualProtect(candidate, sizeof(void*), PAGE_READWRITE, &before)) return;
+        g_propCellsOriginal = *candidate;
+        g_propCellsForward.store(reinterpret_cast<PropCellsFn>(g_propCellsOriginal));
+        InterlockedExchangePointer(candidate, reinterpret_cast<void*>(&ObserveLotCells));
+        DWORD ignored = 0;
+        VirtualProtect(candidate, sizeof(void*), before, &ignored);
+        g_propCellsEntry = candidate;
+    }
+    bool Installed() const { return g_propCellsEntry != nullptr; }
+    ~LotQueryProbe() { ResetLotQueryProbe(); }
+};
+
 void PropPost(void* u, uint64_t, uint32_t data2) {
     PC(u)->posted = true;
     PC(u)->postedData2 = data2;
@@ -594,6 +723,15 @@ void PropSetBox(void* u, uint64_t, const float* mn, const float* mx) {
 void PropPosition(void*, uint64_t occ, float* pos3) {
     pos3[0] = pos3[1] = pos3[2] = 0.0f;
     if (occ == 0 || Odd(occ)) return;
+    if (t_lotInput != nullptr && t_lotInput->replay) {
+        for (const auto& e : t_lotInput->entries) {
+            if (e.token != occ) continue;
+            std::copy(e.pos, e.pos + 3, pos3);
+            return;
+        }
+        ++t_lotInput->errors;
+        return;
+    }
     cS3DVector3 v;
     reinterpret_cast<cISC4Occupant*>(FromToken(occ))->GetPosition(&v);  // slot 8
     pos3[0] = v.fX;
@@ -634,6 +772,22 @@ bool PropInBox(void* u, const float* mn, const float* mx, uint32_t usage, fc4_to
 bool PropInCells(void* u, const fc4_cell_rect* r, uint32_t usage, fc4_token_callback found, void* ctx) {
     cISC4OccupantManager* om = PropOm(u);
     if (om == nullptr || r == nullptr) return false;
+    if (t_lotInput != nullptr && t_lotInput->replay) {
+        auto& input = *t_lotInput;
+        ++input.replays;
+        if (input.calls != 1 || input.replays != 1 || usage != 2 ||
+            r->x1 != input.rect.x1 || r->z1 != input.rect.z1 ||
+            r->x2 != input.rect.x2 || r->z2 != input.rect.z2) {
+            ++input.errors;
+            return false;
+        }
+        for (const auto& e : input.entries) {
+            if (found == nullptr) continue;
+            HostAddRef(nullptr, e.token);
+            found(ctx, e.token);
+        }
+        return input.result;
+    }
     PC(u)->filter.usage = usage;
     const SC4Point<int> mn(r->x1, r->z1);
     const SC4Point<int> mx(r->x2, r->z2);
@@ -884,9 +1038,11 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
         return -1;
     }
     cISC4LotManager* lm = r.city->GetLotManager();
+    LotQueryProbe lotProbe(r.city->GetOccupantManager());
     uint32_t seed = Seed(r.julian, 0x50524F50u);
     FirstList first;
     uint32_t calls = 0, props = 0, resultDiff = 0, listDiff = 0, lots = 0;
+    unsigned inputErrors = lotProbe.Installed() ? 0u : 1u, captured = 0, filterChecks = 0;
     auto compare = [&](const char* what, int32_t x, int32_t z, bool ro, SC4List<cISC4Occupant*>& ol, bool rs,
                        std::vector<uint64_t>& us) {
         std::vector<uint64_t> os;
@@ -974,16 +1130,32 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             lz = static_cast<int32_t>(NextRandom(seed) % static_cast<uint32_t>(cz));
         }
         {
+            // Heap ownership also lets the outer SEH boundary clean up when
+            // Windows does not unwind this C++ frame.
+            g_lotInput = std::make_unique<LotQueryInput>();
+            auto& input = *g_lotInput;
+            input.manager = r.city->GetOccupantManager();
+            t_lotInput = &input;
             SC4List<cISC4Occupant*> ol;
             const bool ro = pm->GetLotProps(ol, lx, lz);
+            input.replay = true;
             std::vector<uint64_t> us;
             const bool rs = fc4_prop_manager_get_props_at(s, 2, lx, lz, nullptr, 0, &Collect, &us);
+            t_lotInput = nullptr;
+            if (input.calls != input.replays) ++input.errors;
+            evidence.Pair(input.errors == 0);
+            inputErrors += input.errors;
+            captured += input.calls;
+            filterChecks += input.filterChecks;
             compare("lot", lx, lz, ro, ol, rs, us);
+            g_lotInput.reset();
         }
     }
-    const intptr_t m = static_cast<intptr_t>(resultDiff + listDiff);
+    const intptr_t m = static_cast<intptr_t>(resultDiff + listDiff + inputErrors);
     AppendF(body, "calls=%u cells=%ld lotCells=%u props=%u resultsDiffering=%u listsDiffering=%u first: %s", calls,
             g_cells, lots, props, resultDiff, listDiff, first.Str());
+    AppendF(body, " lotInput=slot40-before-prune captured=%u filterChecks=%u inputErrors=%u",
+            captured, filterChecks, inputErrors);
     NativeReport(evidence, "cSC4PropManager", "live-city-ordered-queries-record-bootstrap", pm);
     Log("proplot live_inputs owner=cSC4PropManager date=%s event=%s lot_cells=%u returned_props=%u "
         "record_bootstrap=1 independent_evolution=0 natural_calls=0", r.date, r.event, lots, props);
@@ -2005,6 +2177,7 @@ void RunAll(cISC4City* city, int32_t julian, const char* event) {
     if (g_prop && !SehGuard("propmgr shadow", &PropRunStep, &r)) {
         Line("propmgr", g_propTotals, r, "run", -1, "structured exception; comparison abandoned");
     }
+    ResetLotQueryProbe(); // also when SEH skipped the probe's destructor
     g_liveCore.Reset();  // also when the step was abandoned mid-way
     if (g_lcm && !SehGuard("lotcfg shadow", &LcmRunStep, &r)) {
         Line("lotcfg", g_lcmTotals, r, "run", -1, "structured exception; comparison abandoned");
