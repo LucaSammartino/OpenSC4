@@ -32,10 +32,10 @@ an implementation must reproduce it for byte-exact parity.
 | cGZWWWSystem (includes reached FTP bodies) | 34049 | partial, section 4; body checklist controls credit |
 | cRZHTTPClient | 15133 | partial, section 5 and linked lifetime contract |
 | cRZURL | 9498 | **yes, section 2** |
-| cRZCookieManager | 8137 | partly, section 3 (parse, add, lookup, eviction; file format and capacity open) |
-| NetworkFileCache | 6699 | partial, section 6; persistence/admission residuals Q11 |
+| cRZCookieManager | 8137 | section 3 (parse, add, lookup, eviction, capacity and persistence) |
+| NetworkFileCache | 6699 | bounded storage/IO behavior, section 6 including persistence/admission |
 | cRZNetSocket, cRZNetStreamSocket, cRZNetCommandGenerator, cRZNameLookup | 11671 | transport contract linked; command-generator boundary section 7 |
-| HTTPMessage | 957 | no |
+| HTTPMessage | 957 | separated-string splitter, section 3.2 |
 
 ## 2. cRZURL — URL parser and resolver
 
@@ -272,8 +272,23 @@ Under the manager lock; now = `time(NULL)`. Reset every field to the defaults ab
 most 40 items with surrounding blanks trimmed; each item splits at its first `=` into name and value (no `=`: the item
 is the name, the value is empty). Then walk the pairs and apply the attribute column above. `Port`: split the value at
 `,` (at most 16); with no items the list becomes { request URL port, or 80 when there is no URL or its port is 0 };
-with n items the first **n-1** are stored as `atol` values and entry n-1 is set to 0 *[quirk or list-function
-convention, see Q1]*.
+with n items the first **n-1** are stored as `atol` values and entry n-1 is set to 0.
+This really drops the final item: the splitter returns an item count, not count plus one
+(`00819448`, `008195b2–008195c0`; consumer `008f94f9`). A single explicit port
+therefore produces an unrestricted list, whereas an empty Port value selects the URL port/80.
+
+The splitter (`00819290`) trims only space and tab, not CR/LF or other ASCII whitespace.
+For nonempty input, each delimiter completes an item even if empty; the final item is counted
+only if it has bytes **before** trimming. Thus `a;;` has two items, `a; ` has two, empty
+input has zero, and all-space input has one empty item. Stop at the capacity (40 for cookies,
+16 for ports). Cookie splitting enables double-quote grouping: quote bytes toggle grouping
+and are consumed; semicolons inside quotes remain data. Port splitting disables grouping,
+so quotes are ordinary bytes. After whole-item trimming, splitting at the first equals sign
+does not separately trim name/value: `a = b` has name `a ` and value ` b`.
+The decimal conversions use the shipped 32-bit `atol`: locale-classified leading whitespace,
+optional sign, digits until the first nondigit, zero without digits; accumulation and final
+negation wrap modulo 2^32, with no overflow error or saturation (`009ef7c2`, arithmetic
+`009ef834–009ef847`).
 
 Derived defaults, only when the attribute is absent:
 - domain: with a URL, take its server, then drop characters from the front one at a time until the text starts with
@@ -311,6 +326,8 @@ A stored cookie matches a URL when all hold, checked in store order:
 
 GetCookieDataForURL(url, out, k) returns the k-th match (0-based). The string-URL overloads (008f71ff, 008f7240) build
 an allowRelative URL from the string first; 008f8947 copies the match out with CookieData assignment.
+On a copying-lookup miss it returns false and leaves the entire supplied output record unchanged
+(`008f896d–008f8982`). A miss is not a reset-to-default operation.
 
 Cookie header text (GetCookieTextForURL): clear the output; for k = 0..999 while a k-th match exists, for each of its
 pairs in order:
@@ -325,6 +342,9 @@ pairs in order:
 
 Return true when the output is non-empty. Example: stored `a=1; Version=1; Path=/` and `b=2; Path=/x`, both matching
 -> `$Version=1; a=1; $Path=/; b=2; $Path=/x`.
+The separator test uses original cookie and pair indices, not the number of pairs emitted.
+Consequently a skipped first attribute can leave a leading `; `, e.g. a matching record with
+pairs `Comment=x; a=1` emits `; a=1` (`008f7507`).
 
 ### 3.5 Eviction (008f9a92, called as evict(4, no domain filter))
 
@@ -334,9 +354,9 @@ now *[inferred from the selection loop; the removal step was not re-read]*.
 
 ### 3.6 Persistence and settings (bounded persistence contract)
 
-WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
-`Binary` and `Admin` settings (strings at 00accca4, 00accdc0, 00a86de8, 00accdb0); SetShouldEncryptCookieDataFile
-selects an encrypted form. The record layout on disk and encryption remain open (Q3).
+WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under the `CookieData` section with
+`Admin`/`Binary` mode marker. SetShouldEncryptCookieDataFile selects hexadecimal text storage;
+despite the method name there is **no encryption**.
 
 Capacity (Q2 answered 2026-10-22): the constructor reached from WWWSystem sets the manager's +0x10
 capacity to **0x4000 = 16,384 records** (008f9bc5). Init does not assign that field: on its first call it
@@ -350,7 +370,7 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
 - Constructor `008f9bad–008f9bec`: initialized=false (+4), reference count=0 (+8), binary
   selection=false (+0xc), capacity=16384 (+0x10), critical section +0x14, empty cookie vector
   +0x1c..+0x24, and path +0x28 constructed from global pointer `00b16134`. That pointer's literal
-  remains unqualified here. Shutdown `008f9dda` writes then clears records and initialized only
+  is `CookieData.ini` (PE pointer `00b16134` → `00acccb0`). Shutdown `008f9dda` writes then clears records and initialized only
   when initialized; returns true. EnumCookies `008f8bc7` copies the first min(requested count,
   stored count) records in store order, writes that count back and returns true under the lock.
 - Writer `008f7784` takes the manager lock and calls ClearCookieDataFile first, including for
@@ -359,8 +379,13 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
   from `CookieData00000`, independent of their old indices (`008f7880–008f78a5`). Plain mode
   writes the stored cookie text through the string conversion, rather than serializing the
   in-memory 0x94-byte record. Binary mode writes an `Admin`/`Binary` marker, then passes text
-  through helper `008f7752` to WriteBinaryEntry. No secure encryption algorithm has been
-  established: that helper contains string-copy/assignment calls, not an established cipher.
+  through helper `008f7752` to WriteBinaryEntry. The marker value is the string `1` (`00abb31c`).
+  Helper `008f7752` is an identity copy through a temporary byte string (`00408a20`, `00408c40`),
+  including for aliased input/output. WriteBinaryEntry `0091c722` encodes each stored text byte
+  as two uppercase hexadecimal digits, high nibble first (`0090fef4`), without a trailing NUL
+  in the payload. There are no lengths, timestamps, pair counts or record fields in that payload.
+  For text `a=1`, the INI value is `613D31`. Plain-mode conversions `0090fbe5`/`0090f31b`
+  copy length-bearing byte ranges; they do not transcode or interpret UTF-8.
 - Reader `008f9e2b` clears all stored records before checking file existence. A missing file
   therefore leaves an empty store and still returns true. Presence of an `Admin`/`Binary`
   entry selects binary reads; the read's success boolean selects the mode, not a parsed
@@ -370,7 +395,16 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
   helper `008f7752`. Each obtained text is admitted through AddCookie(text, null URL), with
   its return value ignored (`008f9ef8–008f9f86`). Read returns true after cleanup, not a count
   of successfully accepted records. These are text re-admissions: do not restore raw pointers,
-  locks or absolute record layouts from disk. Exact encoding and helper semantics remain Q3.
+  locks or absolute record layouts from disk. Binary reads decode pairs of hex digits, accepting
+  upper/lowercase A–F (`0090ff33`), up to the first 32768 encoded characters into the 16384-byte
+  buffer; invalid digits cause a zero read result and end the sequence. Odd-length encoded
+  input is outside the safe paired-input domain (the converter consumes two characters per byte).
+
+SetShouldEncryptCookieDataFile is a plain byte assignment, without rewriting the current file
+(`008f6809`). SetCookieDataFilePath is **not** merely an assignment: under the lock, if the
+new length-bearing path differs byte-for-byte, assign it then call ReadCookieDataFile (slot 18),
+discarding that call's result; equal paths do nothing. It returns true either way and performs
+no path normalization (`008f80aa–008f80ef`). A changed path to a missing file clears the store.
 
 ### 3.7 Cookie-manager dispatch inventory and distinguishing vectors
 
@@ -395,6 +429,13 @@ to WWW/HTTP and persists through INI IO. Proposed/unexecuted vectors:
 | CK04 | Three records; enumeration request count=2 | first two copied; count=2, true |
 | CK05 | Three records; enumeration request count=5 | first three copied; count=3, true |
 | CK06 | Empty store; WriteCookieDataFile | clear-file operation still occurs; true |
+| CK07 | Parse `a=1; Port=80,81,82` | ports 80,81,0; port 82 dropped |
+| CK08 | Parse `a=1; Port=81` / `a=1; Port=` without URL | unrestricted ports / 80,0 |
+| CK09 | Parse ` a = b\t;\rPath=/x; ` | first name `a `, value ` b`; CR-prefixed name is not Path; final empty pair retained |
+| CK10 | Copying lookup miss with prefilled output | false; all output fields preserved |
+| CK11 | Binary writer with live text `a=1` | Admin/Binary=`1`; CookieData/CookieData00000=`613D31` |
+| CK12 | Change path to missing file / assign equal path | first clears records through read; second preserves them |
+| CK13 | `atol` values `4294967297`, `2147483648`, `-4294967297` | 1, signed -2147483648, -1 respectively |
 
 ## 4. cGZWWWSystem — front end and owned helper boundary
 
@@ -526,6 +567,27 @@ header storage (008f9273–008f93d9). A foreign zero ID returns zero without rel
 reference acquired by the public overload. There is no WWW-level
 retry loop in admission. Redirects, HTTP parsing, sockets and timeouts belong to the foreign client.
 
+**Cookie record construction (Q9 qualification).** Cookie use disabled means no cookie lookup
+and a null array/count zero. Otherwise call the cookie manager's header lookup once with the
+full URL and a fresh temporary output string. A false result still submits the HTTP request
+with no headers. A true result constructs exactly one 24-byte record: a length-bearing byte
+string named `Cookie` followed by a length-bearing copy of the entire returned value. The
+count is one even for an empty value; do not split, trim, prefix with `Cookie:`, or merge it
+with other headers. The 28-byte allocation includes a four-byte array count preceding the
+record. The two strings are initialized separately by `008f7195`; their assignments are
+ordinary string operations despite misleading export names (`008f91c3–008f9217`,
+`008f92db–008f9324`; copy helper `00408c40–00408c61`). HTTP submission copies these records
+before WWW destroys the temporary array. Allocation failure after a successful lookup
+dereferences null during assignment; it is outside the qualified successful-allocation
+domain, not a request-without-cookies fallback.
+
+Proposed/unexecuted vectors WWW-22a–c: with no cached hit or duplicate and controlled cookie
+lookup, disabled cookie use makes zero lookups and submits count zero; enabled lookup false
+submits count zero; enabled lookup true with `a=1; b=2` submits one pair
+(`Cookie`, `a=1; b=2`). Repeat the last fixture with an empty output: count remains one,
+value remains empty. Check that the submission dependency copies the value before temporary
+destruction. These fixtures specify calls and values, not a live-server observation.
+
 ### 4.5 Live status and cancellation
 
 GetDocumentLoadStatus locks and searches active then waiting lists; it returns **2** for a matching ID and
@@ -588,8 +650,22 @@ active entry is examined. Waiting jobs receive no progress forwarding through th
 The HTTP terminal handler obtains foreign-job information and incoming success, then locks and finds an
 active entry by its foreign ID. It copies the Job into a local temporary and removes the live entry before
 unlocking. A missing foreign pointer or absent match causes no callback; it still returns true. A matched
-job without a target similarly skips delivery. No source/type discriminator is tested during the ID scan
+job without a target skips the entire suffix described below. No source/type discriminator is tested during the ID scan
 (008f8c5a).
+
+**Matched null-target quirk (Q10).** The active entry has already been copied and erased,
+but the null-target test branches directly to local Job destruction/true return
+(`008f8d0f–008f8d14` → `008f8fea`). It performs no representation conversion, cache insertion,
+cookie processing, original notification, waiting-job selection/fan-out, or foreign-resource
+flag/data clearing. The waiting list remains unchanged and the foreign resource retains its
+bytes and file-data flag, whether the incoming completion succeeded or failed. This is a
+normal true return with the active entry removed, not an unsupported native outcome.
+
+Proposed/unexecuted distinguishing vector WWW-21: an active matched Job with null target,
+a same-URL waiting Job and a foreign resource containing file-data=true and filename `x.tmp`;
+complete with incoming success=true. Expect true, active ID absent, waiting Job still queued,
+resource unchanged, and zero conversion/cache/cookie/notification calls. Repeat with false
+incoming success: the same suffix omissions apply.
 
 Success requires both incoming success and a nonnull foreign resource pointer. Otherwise form result=0,
 progress=0 and attach the foreign-job pointer. On success, preserve the underlying resource's bytes or
@@ -798,9 +874,11 @@ Observe cache-call count, E and flags through an interface test double, not a li
 
 See [the FTP native contracts](web-network-ftp.md) for 00812de0's complete selector table,
 RETR/STOR entry/command/file/notification ordering, reached transport helpers, and independent
-distinguishing vectors. Q7 remains open for login, listing acquisition, outer scheduling and
-shutdown. The companion records unsafe native input domains explicitly and claims no live
-network observations.
+distinguishing vectors. [FTP control and scheduling](web-network-ftp-control.md) additionally
+qualifies login, listing acquisition, outer scheduling, session shutdown, the remaining
+seven commands, scheduler construction and admission. Q7 remains open for the residual
+scheduler controls/lifecycle/containers in the owner checklist. Both companions record
+unsafe native input domains explicitly and claim no live network observations.
 
 ### 4.14 Reached HTTP admission and cancellation (Q9 partly resolved)
 
@@ -835,8 +913,11 @@ zero (+0xc..+0x10), or URL byte length is zero (+0x20..+0x24). Before taking the
 resolve method with 00817bd0; when request+0x4c is nonempty and its record range +0x58..+0x5c
 is empty, invoke 0081acf0 on that string and then erase the string. When the resolved method
 is neither zero nor OPTIONS, the record range is nonempty, and its first record's byte
-range +0xc..+0x10 is empty, call 0081ac20 on that first record. Those normalization helpers
-are dependency boundaries, not newly specified parsers here (0081cac8–0081cb17).
+range +0xc..+0x10 is empty, erase that first record, shifting later records forward in
+order and destroying the vacated last pair. Only one record is tested/erased: empty values
+later in the list survive. OPTIONS and unknown methods preserve the first empty value.
+See the normalization contract below (`0081cac8–0081cb17`, `0081ac20–0081ac74`,
+pair-copy helper `0081a880`).
 
 Increment the request reference count at +4 **before** the lock. Form an eight-word job
 record: [ID,1,0,1,0,request,0,custom]. Lock client critical section +0xa4, increment the
@@ -866,8 +947,9 @@ the lock before each return:
 Active cancellation does not join the old thread, close its socket, free its record, or
 release its request here. Activation can allocate/start a successor while the old worker is
 still alive. Consequently this cancellation return alone is not a guarantee of quiescence
-or callback suppression. Exact worker handling of flags and final request/resource release
-remains Q9; do not synthesize it from WWW's late-completion lookup behavior (§4.7).
+or callback suppression. The bounded worker flag and request/resource release contract is
+in [HTTP lifetime](web-network-http-lifetime.md); wire/retry/redirect behavior remains Q13.
+Do not synthesize worker behavior from WWW's late-completion lookup (§4.7).
 The reached activation dependency 0081c9d0 was checked: it locks +0xa4, allocates worker
 context when +0xac is null, clears its stop byte +5, and, if its running byte +4 is zero,
 sets that byte, AddRefs the client and starts StaticWorkerThreadFunction. The static wrapper
@@ -896,6 +978,163 @@ thread activation and existing objects, not a live HTTP endpoint:
 | Unknown cancellation ID | False after unlock, without notification |
 | Request count 2 versus 1 on 00817790 | Return 1 without destruction versus deleting destructor and return 0 |
 
+**Request text normalization (shared WWW/HTTP Q9).** The raw string at request+0x4c is
+converted to ordered name/value byte-string pairs only when nonempty and the existing pair
+list is empty. The raw string is then cleared, including on a parse that produces no pairs.
+With an existing pair, raw text is preserved and parsing is skipped. This applies to every
+admitted method; it is not restricted to the wrapper's PUT method. Admission still proceeds
+after a parse producing zero pairs. Parsing itself neither resolves URLs nor validates HTTP
+header names, sorts, case-folds, or combines duplicate names (`0081ca90`, `0081acf0`).
+
+The text parser preserves encounter order and byte spelling. A name begins at the start of
+a fresh line. A colon encountered while the accumulated value is empty is consumed and
+switches to value text, skipping the following spaces/tabs. Consequently `X:: v` has value
+`v`, while `X:a:b` has value `a:b`. Whitespace before a colon belongs to the name; trailing
+value whitespace survives. Leading spaces/tabs switch to value text and are discarded.
+Runs of CR and LF act as one line break. A following **space**, but not tab, continues the
+current pair without adding a separator: `X:a\r\n b` yields (`X`,`ab`). With a tab the old
+pair ends; the following tab-led text has no name and is discarded. Line-terminated pairs
+are appended whenever their name is nonempty, even if the value is empty. At end of input
+without a line break, both name and value must be nonempty for the final append. Nameless
+text is ignored. The result is the total pair count. These quirks are literal byte-parser
+behavior, not RFC header normalization (`0081ad70–0081ae54`, `0081afab–0081b079`).
+
+Proposed/unexecuted conformance fixtures NORM01–NORM08 use valid requests with a nonempty
+URL and method. Observe the request immediately after admission, before worker execution:
+
+| ID | Input | Expected normalized pairs / raw text |
+|---|---|---|
+| NORM01 | GET, no pairs, raw `X: a\r\nX: b` | (`X`,`a`), (`X`,`b`); raw empty |
+| NORM02 | GET, preexisting (`A`,`v`), raw `X: a` | only (`A`,`v`); raw unchanged |
+| NORM03 | GET, raw `X:\r\nY: z` | only (`Y`,`z`); first empty-valued pair erased |
+| NORM04 | OPTIONS or unknown `WAT`, raw `X:\r\nY: z` | (`X`,empty), (`Y`,`z`); no erasure |
+| NORM05 | GET, raw `X:` versus `X:\r\n` | zero pairs in both; parser alone produces zero versus one before GET erasure |
+| NORM06 | GET, raw `X : a \t` | (`X `,`a \t`), preserving trailing bytes |
+| NORM07 | GET, raw `X:a\r\n b\r\nY:c` versus `X:a\r\n\tb\r\nY:c` | (`X`,`ab`), (`Y`,`c`) versus (`X`,`a`), (`Y`,`c`) |
+| NORM08 | GET, preexisting (`A`,empty), (`B`,empty), (`C`,`v`) | (`B`,empty), (`C`,`v`); one erasure only |
+
+### 4.15 Residual support contracts (Q7/Q9 closure)
+
+Added 2026-10-24, re-www-q18. These rules finish the remaining 46 owner-attributed
+bodies (2517 bytes) in the [body checklist](web-network-www-bodies.md). They supplement
+the FTP control, HTTP lifetime and request-normalization contracts; they do not imply
+live-server equivalence. The folded export names are not reliable type descriptions.
+
+**FTP identity and listener lifetime.** QueryInterface `00812080` accepts ID 1 or
+`0x452294aa`, returns the same pointer and AddRefs it; failure preserves the output.
+Listener setter `008120b0` does nothing for the identical pointer; otherwise AddRefs
+the incoming nonnull listener before releasing the old one and storing the new one.
+The HTTP-side setter `00817a40` performs that retain/release even for an identical
+pointer. FTP final release `00811c90` decrements an unsigned count at +4 only when
+greater than one; otherwise invokes virtual destruction (+0x10) and returns zero,
+including for count zero. Shutdown/destruction entry `00812050` clears initialized
+before releasing/nulling the listener, only if initialized, then always invokes the
+deleting destructor with flag 1. Scheduler destructor `00813e10` similarly releases
+its listener only when initialized, destroys its owned session if present, then its
+critical section, base synchronization helper, queued two-string records and stored
+strings. Queue record destruction frees strings/nodes, with no target Release or
+completion synthesized. No join is introduced by any of these small bodies.
+
+**Socket setup and close.** `00811e10` succeeds immediately for an already-open
+control socket. Otherwise it creates and binds an unspecified-address/zero-port
+socket; failed bind closes it and returns false. `00811f00` and `00811f90` close the
+respective open socket at session +0xf0/+0x150 and return true even when already closed.
+They do not reset unrelated session state. The drain-and-close helper `00817af0`
+does nothing for a closed socket. For an open socket it switches blocking mode on,
+then repeatedly checks connection and readability with timeout zero and receives
+at most 1024 bytes, stopping on failed checks/receive or zero bytes. Each nonzero
+receive increments the 32-bit receive counter by the actual returned count and,
+when logging is enabled, logs that buffer/count. Finally it closes the socket.
+The special count -1 is measured as a NUL-terminated string for logging only; the
+counter still adds the returned 32-bit count (`00817b73–00817bae`). This helper
+does not wait for EOF or promise to drain bytes arriving after its readiness check.
+
+**Progress quirk.** `00812300` always returns true. It only forwards message
+`0x5738692f` when the listener, current-job pointer and current-job recipient are
+all nonnull. It extracts the two source words from message slots +0x38/+0x4c.
+The third word is 50 for a zero second word, otherwise **1**, independent of the
+first word: unsigned division divides the second word by itself. The following
+cap at 100 cannot change that result (`00812335–00812355`). Helper `00812210`
+synchronously sends message `0xc4eccd8d`: pointer slot +0x30 is this session,
+pointer slot +0x44 is the supplied three-word progress record, and integer slot
++0x58 is the supplied recipient/job value. The listener receives it through slot
++0xc before the temporary message is released (`00812249–00812276`). It neither
+copies nor retains that progress pointer for later use; allocation failure is unsafe.
+
+**Containers and formatting.** FTP queue-record copy `008129c0` copies the two
+leading words, both string values and three trailing words; string reference
+counts are reset for the new string objects. It does not AddRef pointer-valued
+words. Range erasure `00812a50` unlinks each node in [first,last), frees its first
+string buffer and node, and returns last; it does not free the second string
+buffer, run the full two-string record destructor or release a target. Formatter
+`00812aa0` uses a 1024-byte
+temporary and native bounded printf formatting. A result 0 through 1023 assigns
+exactly that many bytes; a negative or at-least-1024 result clears the destination
+and returns the formatter result unchanged (`00812ac8–00812afe`). Worker-reference
+adjuster `00817a70` holds the scheduler critical section, returns zero for no
+worker, otherwise increments or decrements its word +8 according to the boolean
+argument and returns the new 32-bit value. It does not clamp at zero or create a worker.
+
+WWW Job copy/assignment (`008f72fd`, `008f80f2`) copy all scalar/pointer fields and
+both owned string values, including the byte flag at +0x2c. Pointer fields are
+shallow copies: no target/resource retain/release occurs. The apparently vector-named
+calls at `008f7344`/`008f8135` are string construction/assignment. Empty-list
+construction `008f6d78` allocates a 0x58-byte circular sentinel. Node allocation
+`008f7fd1` copies the Job into node+8; insertion `008f86cd` links before the supplied
+position and returns the new node. `008f8a7a` uses that insertion before the sentinel
+(tail append). Clear `008f747b` destroys Jobs and frees nodes in forward order, then
+self-links the sentinel; `008f7fba` additionally frees the sentinel. Destruction uses
+the existing Job destructor contract, without an added callback or target release.
+`008f714a` is a deleting wrapper for 24-byte elements: flag bit 1 selects an array
+whose element count precedes the first element; elements are destroyed in reverse
+order. Flag bit 0 frees the scalar allocation or the array allocation including its
+count prefix. With no free bit it only destroys. No network action occurs here.
+
+**Name/address support.** C-string lookup wrapper `0081e640` constructs a temporary
+owned string, calls DoLookup with the other arguments unchanged, destroys the string
+and returns DoLookup result. Null/unterminated input is outside its safe domain.
+Name-lookup constructor `0081d8d0` starts uninitialized, refcount/state word zero, settings
+10 and 1800 and an empty ID tree. `0081da90` locks the global name-lookup critical
+section, visits the supplied ID tree in ascending order, calls RemoveLookupEntry
+once per ID, unlocks and returns the number of true results. It does not erase the
+supplied tree. Shutdown `0081dc60` does that removal and clears its own ID tree only
+when initialized, then clears initialized; it always returns true. Destructor
+`0081dd70` calls shutdown, clears any remaining tree and frees its sentinel.
+Release `0081d7d0` decrements the unsigned +8 count above one, otherwise deletes with
+flag 1 and returns zero; deleting wrapper `0081ddc0` frees only on flag bit 0.
+Address getters `0081e740`/`0081e770` expose indexed bytes in native little-endian
+storage order of the address dword / zero-extended port word; they perform no
+byte-order conversion or bounds check. Only address indices 0–3 and port indices
+0–1 are part of the address API domain (port indices 2–3 return zero from the
+zero-extended temporary; larger indices read outside it). `0081e760` returns the raw
+16-bit stored port. `0090ce99` returns false without mutation.
+
+**Interface adapters.** The following are pointer-adjusting tail calls, with exactly
+the destination contract and return value; they add no reference operation themselves.
+
+| Entry | Incoming interface pointer adjustment | Destination |
+|---|---:|---|
+| 008f8a32 / 008f8a3a | -4 | QueryInterface / AddRef |
+| 008f8a42 / 008f8a4a | -8 | QueryInterface / AddRef |
+| 008f8a52 / 008f8a5a | -4 | Init / Shutdown |
+| 008f8a62 / 008f8a6a / 008f8a72 | -12 | QueryInterface / AddRef / destructor |
+| 009cd02a | -4 | Release at 009cc22d |
+
+**Constructed conformance fixtures (unexecuted).** Record dependency calls and their
+order; these are reference expectations from instructions, not native run results.
+
+| ID | Setup / action | Expected observation |
+|---|---|---|
+| SUP01 | Set the identical listener via FTP then HTTP helper | FTP: no ref calls; HTTP: AddRef then Release |
+| SUP02 | Forward progress words (900,1000), then (900,0) | Third word 1, then 50; synchronous borrowed record |
+| SUP03 | Drain an open socket returning 7 bytes then zero | Log 7 bytes, counter +7, close; no further receive |
+| SUP04 | Copy/assign a Job with two strings and target T | String values survive source mutation; zero AddRef/Release on T |
+| SUP05 | Erase a queued FTP record containing target T | Unlink/free; no callback and no Release(T) |
+| SUP06 | Formatter returns 1023, 1024, -1 | Assign 1023 bytes, clear, clear; return each result unchanged |
+| SUP07 | Stored address 0x04030201, port 0x3412 | Indexed address bytes 1,2,3,4; port bytes 0x12,0x34 |
+| SUP08 | Release with count zero / worker decrement from zero | Final destruction and zero / wrapping 0xffffffff |
+| SUP09 | Three lookup IDs, removal results true,false,true | Ascending calls; return 2; caller ID tree remains |
+
 ## 5. cRZHTTPClient — bounded client contract
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
@@ -910,20 +1149,30 @@ HTTP objects, not a second independent WWW implementation. The raw table `00abfc
 mislabelled as a particle simulator by the export: its six entries are slot 0 `00811cb0`,
 1 `004bdf00` (folded AddRef), 2 `0048c920` (folded Release), 3 `0081d030`,
 4 `008179f0` (Init association), 5 `0081cd40` (shutdown). Only the linked contract's
-qualified effects may be inferred from these entries; names alone do not qualify slots 0/3.
+qualified effects may be inferred from these entries. Byte-checked slot 0 is QueryInterface:
+only ID 1 succeeds, writing this to the caller's output, calling virtual AddRef +4 and
+returning true; other IDs return false without touching the output. A null success-output
+pointer is unsafe (`00811cb0–00811ccb`). Slot 3 always calls destructor `0081cee0`,
+then frees this with GlobalHeapFree only if deleting flag bit 0 is set, returning this
+(`0081d030–0081d04d`). It is not another interface query. The destructor's complete
+dependency cleanup remains Q13; qualifying the wrapper does not imply a worker join.
+
+Proposed/unexecuted HTTP-SLOT01–02: slot 0 ID 2 preserves a sentinel output and performs
+no AddRef; ID 1 writes this and AddRefs once. With a controlled destructor dependency,
+slot 3 flags 0/2 call it without a free, flags 1/3 call it before one GlobalHeapFree.
 
 Named nonvirtual inventory:
 
 | Entry | Method / role | Qualified behavior |
 |---|---|---|
 | `00817d80` | TimeToSeconds | conversion boundary below |
-| `00817df0` | WeekdayStringToInteger | date helper; full input contract remains Q13 |
+| `00817df0` | WeekdayStringToInteger | HTTP wire supplement section 4 |
 | `00817ed0` | SendNotification | section 5.2 |
 | `00818020` | DoJobUpdate | section 5.3 |
-| `00818490`, `00818680`, `00818bd0` | GetDateTypeFromString, ParseDateTimeString, TimeStringToSeconds | date parsing residual Q13 |
+| `00818490`, `00818680`, `00818bd0` | GetDateTypeFromString, ParseDateTimeString, TimeStringToSeconds | HTTP wire supplement section 4 |
 | `008196e0` | DoJobCompletion | linked HTTP lifetime section 2 |
-| `00819800` | ReadMessage | body framing/spill residual Q13 |
-| `0081a470` | DoJobFinalization | residual Q13 |
+| `00819800` | ReadMessage | HTTP wire supplement section 2 |
+| `0081a470` | DoJobFinalization | HTTP wire supplement section 3 |
 | `0081ba80`, `0081c9b0` | WorkerThreadFunction, static wrapper | bounded stop/completion/exit ordering in linked HTTP lifetime |
 
 Constructor defaults include timeout=15, suffix `.tmp`, null target and worker, empty request
@@ -935,8 +1184,8 @@ notification payloads; drawing/layout belongs to HTML specs.
 TimeToSeconds takes weekday/day/month/year/yearday/hour/minute/second, creates runtime calendar
 fields with month/year offsets -1/-1900, weekday/yearday offsets -1, **tm_isdst=1**, and returns
 32-bit mktime result minus the global word at `00b18ba8` (`00817d80–00817de5`). Do not replace
-this with an unconditional UTC conversion: the runtime timezone and global adjustment are
-dependencies, still Q13. TimeStringToSeconds returns zero on parser failure (`00818bd0`).
+this with an unconditional UTC conversion: the HTTP wire supplement section 4 specifies
+the runtime timezone dependency. TimeStringToSeconds returns zero on parser failure (`00818bd0`).
 
 ### 5.2 Notifications are synchronous borrowed-payload calls
 
@@ -976,10 +1225,27 @@ IMUL/DIV at `00818058–0081805d`, unsigned threshold at `00818075–0081807a`.
 | HTTP08 | target null; arbitrary valid notification arguments | no message allocation or temporary object hold |
 | HTTP09 | notification with non-null object and target | object AddRef; message delivery; message Release; object Release in that order |
 
-These vectors qualify helper behavior, not an entire HTTP transaction. Redirect limits,
-wire request generation, informational replies, chunk extensions/trailers, connection-close
-framing, body spill failures and finalization remain Q13. Do not silently substitute a browser's
-HTTP policy or claim full-client conformance from progress/lifetime tests.
+These vectors qualify helper behavior, not an entire HTTP transaction. The
+[HTTP wire, framing, finalization and dates](web-network-http-wire.md) supplement
+closes Q13, including the date/runtime and destructor dependencies listed in 5.1.
+Its contracts supersede the Q13 residual labels in that inventory. Do not claim
+live transport equivalence from progress/lifetime tests.
+
+### 5.5 HTTP Q13 closure
+
+*[compat]* Request building preserves URL fragments and header record order. Response
+framing recognizes only exact lowercase `chunked`, removes chunk suffix bytes without
+validating CRLF, and spills only after an append crosses 16384 bytes. Finalization
+follows at most five redirects: GET/HEAD read response Location and resolve relative
+URLs; POST reads request Location without that resolution. Date parsing uses fixed
+positions, a 50-year pivot and forced daylight input to CRT mktime, then subtracts
+the runtime timezone word with 32-bit wrapping, including on mktime failure.
+
+The [HTTP wire supplement](web-network-http-wire.md) is part of this section's
+contract: sections 1–5 specify wire/retry, framing/storage failure, finalization,
+date acceptance/runtime and destructor cleanup respectively; section 6 supplies
+HTTP10–HTTP35 independent proposed vectors. Q13 is answered; runtime inputs and
+unsafe native-memory domains are explicit dependencies, not unanswered behavior.
 
 ## 6. NetworkFileCache — storage and IO contract
 
@@ -1013,7 +1279,7 @@ Constructor defaults (`008fd38c–008fd3d5`): initialized=false (+4), reference 
 empty directory string (+0xc), INI-name string (+0x20) from global pointer `00b16144`,
 empty map (+0x34), file-size setting=3,000,000 (+0x48), RAM-size setting=500,000 (+0x4c),
 default lifetime=432,000 seconds (+0x50), two operation counters=0 (+0x54/+0x58).
-The INI name's pointed-to literal is not qualified here. Setters for the three numeric settings
+The INI name is `FileCache.ini` (PE `00b16144` → `00acd3d4`). Setters for the three numeric settings
 store their entire 32-bit argument and return true; they perform no immediate trim, validation
 or IO (`00945ed0`, `00945edc`, `0096c3cb`). No capacity-enforcement promise follows from their names.
 
@@ -1081,7 +1347,7 @@ not a no-op (`008fd998–008fda27`).
 For non-null, nonempty data, create a holder. With copy=true allocate/copy the bytes; otherwise
 store the passed buffer pointer. Do not treat the latter as a const borrowed slice with automatic
 caller ownership: native holder destruction/allocator compatibility must be supplied by the
-adapter (Q11). Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
+adapter. Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
 after substitution, any negative lifetime gives expiration `0x7fffffff`; otherwise expiration is
 32-bit now+lifetime, with creation=access=now. No saturation is performed
 (`008fda4b–008fda8d`). Insert the new entry and return true. Failed allocations are outside the
@@ -1100,8 +1366,69 @@ Persistence inventory: writer `008fc9b1` rebuilds section `Cache Entries` with s
 `CacheEntry%05u` keys. Its value format is `%s,%s,%u,%u,%u,%d,%d,%d`: key, filename,
 length, attribute, lifetime, creation, access, expiration. It attempts to materialize RAM-only
 entries first and omits those still lacking filenames. Writer returns true without aggregating
-individual write failures. Delimiter escaping, loader acceptance, source-file admission and
-filename allocation/collision behavior remain Q11; do not assume a CSV library or an LRU policy.
+individual write failures. It deletes the old INI file before rebuilding it. It does **not** call
+the public file getter: no per-read expiration test, counter increment or access-time update occurs
+(`008fc9b1`, direct reserve/write calls at `008fca6e`/`008fca80`). Even an expired named record
+can be written. Enumeration is native hash-table order: ascending bucket index, each bucket's
+linked chain from head to tail (`0097c081`, `008fc653`, `008fc5e4`); it is not byte-key order.
+The hash starts at zero and, for each key byte interpreted as signed 8-bit, doubles the previous
+32-bit value then XORs the sign-extended byte, wrapping at 32 bits (`008fc450`). Bucket number
+is unsigned hash modulo bucket count (`008fc477`). File ordinals follow this traversal and are
+dense only over records with filenames.
+
+### 6.4.1 File admission, naming and persisted entry acceptance (Q11/Q15 closure)
+
+The source-file overload (`008fd76c`) rejects an empty key without effects; otherwise counters,
+periodic maintenance and destructive same-key removal occur just as for byte admission, before
+the source is inspected. It takes the source basename, not a RAM hold; sets attribute from the
+byte argument, substitutes lifetime -1 and computes creation/access/expiration as for bytes.
+With copy requested, reserve a generated cache filename then copy source to directory+filename
+with overwrite enabled. Without copy requested, compare the lowercased source directory with
+the lowercased cache directory; differing directories force copying. Equal directories retain
+the basename and do not copy. Source is never moved/deleted by admission. Copy failure returns
+false after old-entry removal, without undoing any reserved file. A reservation failure falls
+through to the file-length check using the last candidate name, rather than guaranteeing false.
+Finally obtain length from directory+stored filename: zero or 0xffffffff rejects; other lengths
+insert the file-only record and return true. These failure paths do not restore the old record.
+
+Filename and full-path helpers (`008fcd49`, `008fceeb`) start with the current 32-bit time,
+printed as signed decimal. Take the suffix from the key's final dot only when that suffix,
+including dot, is 2..8 bytes long. Remove every suffix byte except ASCII letters, digits and dot,
+then append `.cache` (`00b1614c` → `00accc9c`). Format candidate as `%d%s` (`00acd40c`).
+Thus key `a.html` at time 100 starts with `100.html.cache`; absent/long extensions give
+`100.cache`. Try up to 10000 candidates, subtracting one from the 32-bit time after each failure.
+Each attempt opens write-only with CREATE_NEW and shared-read, then closes immediately on success
+(`00919b00`, disposition mapping `00919b52–00919b89`). This reserves an empty file and refuses
+existing names; it is not an existence-only check. On exhaustion return false and leave the final
+attempted candidate in the output. The full-path variant takes an optional directory (null means
+the cache directory), concatenates directly, and returns the full path; the name variant returns
+only the basename while reserving in the cache directory.
+
+The INI loader (`008fdb0d`) ignores empty values and values with fewer than seven commas.
+Split from the **rightmost** seven commas: the remaining prefix is the key, followed by filename,
+length, attribute, lifetime, creation, access, expiration. No quoting, escaping or trimming is
+applied by this callback. A key may contain commas; a filename cannot round-trip a comma.
+The entry label is not used as a key or a `CacheEntry%05u` validation test. All six numbers use
+the wrapping decimal conversion in §3.2; nondigit/empty fields become zero. Length must be
+unsigned <=4,000,000. Creation/access values greater than unsigned now are clamped to now.
+Expiration must be unsigned >now. A rejected length/expiration attempts deletion of the named
+file; other syntax failures simply skip. An accepted record requires directory+filename to
+exist, but does not verify its actual length against the persisted length. The loader inserts a
+file-only record; it does not read bytes or enforce the configured file/RAM capacities
+(`008fdc21–008fdcb9`). Those settings have no size-eviction enforcement in this owner; the
+periodic sweep is expiration-only.
+
+Orphan cleanup (`008fc6e0`) enumerates files matching `*.cache` (`00b16150` → `00acd3bc`)
+in the cache directory and removes a file only when no map record has a byte-for-byte equal
+filename (`0043ab70`). It does not fold case or delete every unrelated file in the directory.
+It returns true even when enumeration fails or a deletion fails.
+
+RAM holders have a 16-bit reference count. Release decrements counts >1; otherwise it frees
+the buffer pointer and holder with GlobalHeapFree (`008fc3c3`, calls `005e5620` at
+`008fc3de`/`008fc3e4`). The no-copy byte overload transfers this allocator-compatible buffer
+ownership; callers retaining access must hold a native reference. Clearing the map releases
+its holds, not independently retained ones. Allocation failure and reference-count overflow
+remain outside the qualified input domain.
 
 ### 6.5 Independent conformance vectors (PROPOSED / UNEXECUTED)
 
@@ -1122,6 +1449,13 @@ game observations. AL is the boolean channel; upper return bits are not asserted
 | NFC10 | now=`80000000`, expiry=`7fffffff` | individual presence sees live; periodic maintenance removes the same record |
 | NFC11 | Set directory to empty | false; stored directory remains empty |
 | NFC12 | Init; create-directory and INI-read both fail | initialized=true, result=true; second Init makes no retry |
+| NFC13 | Reserve key `a.html`, now=100; first candidate exists | reserve empty `99.html.cache`; leave existing `100.html.cache` untouched |
+| NFC14 | Source outside cache, copy=false; forced copy fails | false; old same-key entry removed; source preserved |
+| NFC15 | Writer on expired named record, counters 9/10, access 50 | record emitted; counters/access unchanged |
+| NFC16 | Loader value `a,b,f.cache,3,1,-2,200,300,500`, now=100, file exists | key `a,b`; filename `f.cache`; creation/access=100; expiration=500 |
+| NFC17 | Loader length 4000001 / expiration equal now | reject and attempt named-file deletion |
+| NFC18 | Orphans `a.cache`, `A.cache`, `keep.txt`; only map filename `a.cache` | preserve `a.cache` and `keep.txt`; attempt deletion of `A.cache` |
+| NFC19 | Writer fixture bucket 0 contains key Z, bucket 1 contains A | ordinal 00000 is Z, 00001 is A; no lexical sorting |
 
 ## 7. cRZNetSocket and cRZNetCommandGenerator
 

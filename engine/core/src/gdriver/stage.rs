@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Deferred texture/sampler state and separate environment cache (§10).
 use super::{backend::*, texture::TextureManager};
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Stage {
     pub dirty: bool,
     pub enabled: bool,
     pub alpha: bool,
     pub name: u32,
+    pub coordinates: u32,
     pub parameters: [u32; 4],
     pub environment: u32,
     pub applied: Option<u32>,
@@ -15,25 +16,28 @@ pub struct Stage {
     pub operands: [[u32; 3]; 2],
     pub scale: [u32; 2],
 }
-impl Stage {
-    pub fn reset(&mut self, host: &mut impl Device) -> Result<()> {
-        // §4.4 points to §5.4 for defaults but gives no constructor field values.
-        // RD9: refuse to guess; use an explicit resolved-default fixture.
-        let mut v = [0; 24];
-        host.unresolved("RD9-stage-defaults", &[], &mut v)?;
-        self.dirty = true;
-        self.enabled = v[0] != 0;
-        self.alpha = v[1] != 0;
-        self.name = v[2];
-        self.parameters.copy_from_slice(&v[3..7]);
-        self.environment = v[7];
-        self.applied = None;
-        self.function.copy_from_slice(&v[8..10]);
-        for i in 0..2 {
-            self.sources[i].copy_from_slice(&v[10 + 3 * i..13 + 3 * i]);
-            self.operands[i].copy_from_slice(&v[16 + 3 * i..19 + 3 * i]);
+impl Default for Stage {
+    fn default() -> Self {
+        Self {
+            dirty: false,
+            enabled: false,
+            alpha: true,
+            name: 0,
+            coordinates: 0,
+            parameters: [0, 0, 3, 3],
+            environment: 0,
+            applied: None,
+            function: [0; 2],
+            sources: [[3; 3]; 2],
+            operands: [[2; 3], [4; 3]],
+            scale: [0; 2],
         }
-        self.scale.copy_from_slice(&v[22..24]);
+    }
+}
+impl Stage {
+    pub fn reset(&mut self, _host: &mut impl Device) -> Result<()> {
+        // §10.1: device defaults invalidate dirtiness, not the cached record.
+        self.dirty = true;
         Ok(())
     }
     pub fn invalidate(&mut self) {

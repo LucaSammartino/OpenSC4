@@ -51,6 +51,7 @@ pub struct DisplayState {
     pub texts: Vec<CursorText>,
     pub rating_column: i32,
     pub mission_panel: Option<u32>,
+    pub fade_origin: (i32, i32),
 }
 
 /// Window drawing, localization, widget rectangles and simulation queries remain
@@ -123,7 +124,7 @@ impl View3DWin {
     pub fn update_date(&self, host: &mut impl WidgetHost) {
         let data = host.status_snapshot();
         let mut date = data.date;
-        // Literal years-since-start; nonpositive years remain open as VW13.
+        // §6k: zero and negative year differences pass through unchanged.
         let year = i64::from(date[0]) - i64::from(data.start_year);
         date[0] = if year > 10000 {
             ((year - 1) % 10000 + 1) as i32
@@ -137,11 +138,7 @@ impl View3DWin {
         let funds = host.funds();
         host.widget(WidgetCall::Funds(
             funds,
-            if funds < 0 {
-                [0x77, 0, 0]
-            } else {
-                [0x44, 0x55, 0x66]
-            },
+            if funds < 0 { [0x77, 0, 0] } else { [0x44, 0x55, 0x66] },
         ));
         if self.owner.display.cost.colour == [255, 40, 40] {
             self.update_budget_cost(host);
@@ -196,9 +193,12 @@ impl View3DWin {
             cost.mode = CostMode::Fading;
             cost.colour = [255, 255, 255];
             cost.fade_left_ms = 1500.0;
+            self.owner.display.fade_origin = self.owner.display.cursor;
+            cost.position = self.owner.display.cursor;
         } else {
             cost.mode = CostMode::Hidden;
             cost.alpha = 0;
+            cost.fade_left_ms = 0.0;
         }
         host.draw_cost(*cost);
     }
@@ -206,11 +206,18 @@ impl View3DWin {
     pub fn update_cost_indicator(&mut self, host: &mut impl StatusHost, dt: f32) {
         let cost = &mut self.owner.display.cost;
         if cost.mode == CostMode::Fading {
-            cost.fade_left_ms = (cost.fade_left_ms - dt * 1000.0).max(0.0);
-            // The spec states a falling alpha but not its rounding/range (VW13).
-            cost.alpha = (150.0 * cost.fade_left_ms / 1500.0) as u8;
-            if cost.fade_left_ms <= 0.0 {
+            let remaining = f64::from(cost.fade_left_ms) - f64::from(dt) * 1000.0;
+            cost.fade_left_ms = remaining as f32;
+            if remaining <= 0.0 {
                 cost.mode = CostMode::Hidden;
+                cost.alpha = 0;
+            } else {
+                cost.alpha = (remaining * f64::from(0.17_f32)) as u8;
+                let origin = self.owner.display.fade_origin;
+                cost.position = (
+                    origin.0,
+                    (f64::from(origin.1) - (1500.0 - remaining) * f64::from(0.133_333_34_f32)) as i32,
+                );
             }
             host.draw_cost(*cost);
         }
@@ -225,11 +232,16 @@ impl View3DWin {
 
     pub fn set_cursor_text(&mut self, host: &mut impl StatusHost, entry: CursorText) {
         let texts = &mut self.owner.display.texts;
-        texts.retain(|old| old.id != entry.id);
-        if !entry.text1.is_empty() || !entry.text2.is_empty() {
-            texts.push(entry);
-            // Literal ascending priority, stable ties; ordering direction is VW13.
-            texts.sort_by_key(|entry| entry.priority);
+        if let Some(old) = texts.iter_mut().find(|old| old.id == entry.id) {
+            let priority = old.priority;
+            *old = entry;
+            old.priority = priority;
+        } else {
+            let index = texts
+                .iter()
+                .position(|old| (old.priority as u32) <= (entry.priority as u32))
+                .unwrap_or(texts.len());
+            texts.insert(index, entry);
         }
         self.refresh_cursor_text(host);
     }
@@ -262,11 +274,7 @@ impl View3DWin {
     }
 
     pub fn update_24hour_clock(&self, host: &mut impl StatusHost, hour: u32, minute: u32) {
-        let (hour, minute) = if hour > 23 {
-            host.clock_time()
-        } else {
-            (hour, minute)
-        };
+        let (hour, minute) = if hour > 23 { host.clock_time() } else { (hour, minute) };
         host.clock_widgets(hour, minute, 2 * hour + u32::from(minute > 29));
         self.update_clock_hover(host, Some((hour, minute)));
     }
@@ -283,13 +291,7 @@ impl View3DWin {
         host.rating_widgets(column, 7 * delta);
     }
 
-    pub fn update_alert_border(
-        &self,
-        host: &mut impl StatusHost,
-        disaster: bool,
-        situation: bool,
-        paused: bool,
-    ) {
+    pub fn update_alert_border(&self, host: &mut impl StatusHost, disaster: bool, situation: bool, paused: bool) {
         host.alert_picture(if disaster {
             Some(0x1431_5E60)
         } else if situation {
@@ -302,10 +304,7 @@ impl View3DWin {
     }
 
     pub fn update_speed_buttons(&self, host: &mut impl StatusHost, speed: u32, paused: bool) {
-        for (index, id) in [0x6A4F_BB31, 0x4A4F_BB60, 0x8998_BBDF]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, id) in [0x6A4F_BB31, 0x4A4F_BB60, 0x8998_BBDF].into_iter().enumerate() {
             host.speed_button(id, index as u32 == speed, paused);
         }
     }
@@ -322,12 +321,7 @@ impl View3DWin {
         }
     }
 
-    pub fn update_mission_status_panel(
-        &self,
-        host: &mut impl StatusHost,
-        seconds: u32,
-        progress: &str,
-    ) {
+    pub fn update_mission_status_panel(&self, host: &mut impl StatusHost, seconds: u32, progress: &str) {
         if let Some(panel) = self.owner.display.mission_panel {
             let time = format!("{:02}:{:02}", seconds / 60, seconds % 60);
             let red = seconds < 60 && (seconds > 20 || seconds % 2 == 1);

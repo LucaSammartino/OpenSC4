@@ -40,6 +40,54 @@ fn url(text: &[u8]) -> RzUrl {
     RzUrl::from_text(text)
 }
 #[test]
+fn copying_lookup_does_not_alias_store_and_miss_preserves_output() {
+    let mut io = Io {
+        now: 100,
+        ..Io::default()
+    };
+    let mut manager = Manager::new(Vec::new());
+    let request = url(b"http://www.simcity.com/x");
+    manager.add_text(b"a=1; Path=/", Some(&request), &mut io).unwrap();
+    manager.add_text(b"b=2; Path=/", Some(&request), &mut io).unwrap();
+    let mut out = Cookie::default();
+    assert!(manager.lookup_into(&request, &mut out, 1, 100));
+    assert_eq!(out.pairs[0], (b"b".to_vec(), b"2".to_vec()));
+    out.pairs[0].1 = b"changed".to_vec();
+    assert_eq!(manager.records[1].pairs[0].1, b"2");
+    let before = out.clone();
+    assert!(!manager.lookup_into(&request, &mut out, 2, 100));
+    assert_eq!(out, before); // Literal Q16 choice, not a qualified native miss effect.
+    manager.remove_all();
+    assert_eq!(out, before);
+}
+
+#[test]
+fn persistence_read_cap_and_init_nonempty_guard() {
+    let mut io = Io {
+        now: 100,
+        exists: true,
+        ..Io::default()
+    };
+    // Repeated names keep the store small while distinguishing 9999 from 10000.
+    for n in 0..=10000 {
+        io.entries
+            .insert(format!("CookieData{n:05}").into_bytes(), b"a=1".to_vec());
+    }
+    io.entries.insert(b"CookieData10000".to_vec(), b"outside=cap".to_vec());
+    let mut manager = Manager::new(Vec::new());
+    assert_eq!(manager.read(&mut io), Ok(true));
+    assert_eq!(io.reads.len(), 10000);
+    assert_eq!(io.reads.last().unwrap(), b"CookieData09999");
+    assert_eq!(manager.records.len(), 1);
+    assert_eq!(manager.records[0].pairs[0].0, b"a");
+    assert!(manager.init(&mut io));
+    assert_eq!(io.reads.len(), 10000); // Nonempty store prevents initialization reload.
+    io.exists = false;
+    assert_eq!(manager.read(&mut io), Ok(true));
+    assert!(manager.records.is_empty()); // Missing file still clears the old store.
+}
+
+#[test]
 fn parse_defaults_attributes_and_literal_port_rule() {
     let mut io = Io {
         now: 100,

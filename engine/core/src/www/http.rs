@@ -1,6 +1,6 @@
 //! Reached HTTP admission/cancel bodies and bounded FOREIGN lifetime evidence.
 //! No HTTP worker transport, resource parser, normalization or destructor algorithm.
-use super::{Contract, Unsupported};
+use super::{directory, Contract, Unsupported};
 use std::collections::{BTreeMap, VecDeque};
 
 const METHODS: [&[u8]; 10] = [
@@ -105,6 +105,9 @@ pub struct Client {
     pub suffix: Vec<u8>,
     pub timeout: u32,
     pub strings: [Vec<u8>; 6],
+    /// Logical settings from §4.9; no unqualified native string-offset mapping.
+    pub directory: Vec<u8>,
+    pub cache_setting: Vec<u8>,
     pub lookup: Option<u32>,
     pub address: super::ftp::Address,
     pub queue: VecDeque<Job>,
@@ -127,6 +130,8 @@ impl Client {
             suffix: b".tmp".to_vec(),
             timeout: 15,
             strings: Default::default(),
+            directory: Vec::new(),
+            cache_setting: Vec::new(),
             lookup: allocated_lookup,
             address: Default::default(),
             queue: VecDeque::new(),
@@ -141,6 +146,14 @@ impl Client {
         let id = self.next_identity;
         self.next_identity = id.wrapping_add(1);
         id
+    }
+    /// 00819650: copy and normalize only a nonempty directory.
+    pub fn set_directory(&mut self, path: &[u8]) {
+        self.directory = directory(path);
+    }
+    /// 008196b0: length-bearing assignment, without path normalization.
+    pub fn set_cache_setting(&mut self, value: &[u8]) {
+        self.cache_setting = value.to_vec();
     }
     /// 00817790: zero and one both invoke deleting destructor; no zero guard.
     pub fn release_request(&mut self, host: &mut impl Host, id: u32) -> Contract<u32> {

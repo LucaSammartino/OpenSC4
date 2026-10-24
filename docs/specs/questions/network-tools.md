@@ -116,47 +116,6 @@
   rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
 
-<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-23) -->
-- **NT27 - same-process scripted placement result observation:** specify a public-interface
-  observation contract for native solved cells with network types, piece IDs and orientation
-  after slot 7, and confirm slots 23/25/26/27 expose the ordered dragged cells and current
-  valid/straight/total step counts after real placement, before Shutdown. Section 2 names
-  internal offsets but does not define a public solved-record getter or its ownership/layout.
-  [compare only public drag/status/cost getters; never invent class-method signatures or
-  read undocumented object storage; solved piece/type coverage remains unverified]
-  The existing plugin host also leaves bridge types/models and powerline-specific placement
-  unwired. The diagnostic replay uses the existing adapter's literal zero underground Init
-  values, shipped geometry parameters and zero demolition cost: its differences in these
-  paths are recorded, not suppressed or credited as exact whole-owner coverage.
-
-<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
-- **NT28 - observed public result differences in Konradshohe:** run
-  nettool-shadow5-r1-20261024-a is clean through 2032-01-02, but the original road
-  (20,4)-(28,12) getter returns 17 dragged cells where the core returns 9 (both
-  total=9, straight=0, valid=9). Avenue (4,28)-(16,28) returns 26 cells in a
-  different order from the core's 26. What is the ordered slot-23 projection
-  relative to geometry's drag cells/extra cells, including width ordering?
-  Rail (4,24)-(16,24) and avenue (4,28)-(16,28) return false, failure=1,
-  valid=0; the core returns true, failure=0, valid=0. Which failure path yields
-  literal 1 (rather than the section 5.3 F000xxxx codes), and what rule is
-  missing from the documented validation contract? The lowered-strip bridge
-  attempt has native valid=17 versus core 0; powerline has 13 versus 0
-  (known unwired adapter paths). [retain all differences, no exact owner credit;
-  costs are sampled against post-commit terrain in subsequent source so that
-  pre/post terrain phases are not mistaken for an engine cost difference]
-
-<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
-- **NT29 - cost/height replay observations:** corrected-source turbo run
-  nettool-shadow5-r1-20261024-b is clean to 2032-01-02. Both cost getters now
-  read the live post-commit terrain, yet road (4,4)-(14,4) costs original/core
-  110/113, and street (64,8)-(74,8) costs 55/61; a repeat of the first road
-  costs 110/110. The two diagonal road runs cost 170/102 and 90/54 (native
-  slot 23 has additional cells, NT28). Which retained height/terrain records
-  must the post-commit GetCostOfSolution sample, and is the extra-cell
-  projection also the cost-cell inventory? [retain earthwork/cell-cost
-  differences; no tolerance or compensating cost is applied; bridge and
-  powerline costs remain explicitly uncovered by the existing host]
-
 <!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
 - **NT35 - live piece/plane/support inputs beyond NT34:** the NT34 nonflat A/B/C
   solve/grading/refresh fixtures pass. Applying network-geometry §9.1's SGI bucket/chain

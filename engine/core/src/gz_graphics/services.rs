@@ -159,6 +159,14 @@ impl GraphicSystem {
     pub fn driver_count(&self) -> usize {
         self.drivers.len()
     }
+    /// Literal named setter; consuming the preference during discovery is GZG3.
+    pub fn set_default_driver_class_id(&mut self, id: u32) {
+        self.default_driver_class = id;
+    }
+    /// Literal stored path; driver INI precedence/resolution remains GZG3.
+    pub fn set_driver_settings_ini_file_path(&mut self, path: &str) {
+        self.driver_ini = path.to_owned();
+    }
     pub fn driver_by_index(&self, index: usize) -> Option<&Arc<dyn Driver>> {
         self.drivers.get(index)
     }
@@ -303,20 +311,19 @@ impl<D: AlphaDelegate> AlphaBlt<D> {
         mask: bool,
         io: &mut dyn AlphaFileIo,
     ) -> Result<Option<Arc<dyn Buffer>>> {
-        if !io.open(path) {
-            return Ok(None);
-        }
-        // Row reversal, type-2 output and successful-lock Unlock are known;
-        // their input quantization and malformed-file contract remain GZG5.
-        // Do not emit incorrectly quantified pixels just because open succeeded.
-        io.close();
-        let _ = mask;
-        Err(Error::Unsupported("GZG5"))
+        super::alpha::load_surface(path, if mask { None } else { Some(32) }, io)
     }
-}
-pub trait AlphaFileIo {
-    fn open(&mut self, path: &str) -> bool;
-    fn close(&mut self);
+    pub fn alpha_surface_from_file(
+        &mut self,
+        path: &str,
+        levels: u32,
+        io: &mut dyn AlphaFileIo,
+    ) -> Result<Option<Arc<dyn Buffer>>> {
+        super::alpha::load_surface(path, Some(levels), io)
+    }
+    pub fn mask_surface_from_file(&mut self, path: &str, io: &mut dyn AlphaFileIo) -> Result<Option<Arc<dyn Buffer>>> {
+        super::alpha::load_surface(path, None, io)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

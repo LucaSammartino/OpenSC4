@@ -26,6 +26,13 @@ pub use shadows::LightingMessage;
 use std::sync::Arc;
 pub use types::*;
 
+/// §2.4: delivery-time visual reads, not the posted tick payload or saved time.
+/// The view calls slot 6 only if its renderer and lighting interface exist.
+pub fn visual_time_argument(hour: u32, minute: u32, precision: RegisterPrecision) -> f32 {
+    let number = |value| register::Number::new(value, precision);
+    (number(hour as f32) + number(minute as f32) * number(f32::from_bits(0x3c88_8889))).store()
+}
+
 pub const CLASS_ID: u32 = 0x681b_d52b;
 pub const LIGHTING_IID: u32 = 0x681b_d52a;
 pub const MESSAGE_TARGET_IID: u32 = 0x4522_94aa;

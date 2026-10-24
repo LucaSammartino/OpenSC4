@@ -28,11 +28,7 @@ pub trait ReferenceHost: LifecycleHost {
 }
 
 impl View3DWin {
-    pub fn save_object_record(
-        &self,
-        host: &mut impl ReferenceHost,
-        body_available: bool,
-    ) -> Option<ObjectRecord> {
+    pub fn save_object_record(&self, host: &mut impl ReferenceHost, body_available: bool) -> Option<ObjectRecord> {
         if !body_available {
             return None;
         }
@@ -46,22 +42,11 @@ impl View3DWin {
         Some(ObjectRecord {
             header: View3DSave::header(),
             identities,
-            // Logical pairs only: byte bucket order remains open as VW12.
-            triggers: self
-                .owner
-                .view
-                .triggers
-                .iter()
-                .map(|(&t, &n)| (t, n))
-                .collect(),
+            triggers: self.owner.view.triggers.iter().map(|(t, &n)| (t, n)).collect(),
         })
     }
 
-    pub fn load_object_record(
-        &mut self,
-        host: &mut impl ReferenceHost,
-        record: &ObjectRecord,
-    ) -> Result<(), String> {
+    pub fn load_object_record(&mut self, host: &mut impl ReferenceHost, record: &ObjectRecord) -> Result<(), String> {
         let expected = View3DSave::header();
         if record.header.0 != expected.0
             || record.header.1 != expected.1
@@ -81,7 +66,7 @@ impl View3DWin {
                 self.owner.lifecycle.objects.insert(field, object);
             }
         }
-        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        self.owner.view.triggers = super::state::load_triggers(&record.triggers);
         self.owner.view.not_loaded = false;
         Ok(())
     }

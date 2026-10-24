@@ -8,8 +8,6 @@
 <!-- from: re-widgets4 (2026-10-21) -->
 - **WT3 - section 3:** default flag bits 0x100 and 0x8000 are set by the constructor but not tested by cGZWin itself; which subclass or manager code reads them? [unknown; keep them set]
 <!-- from: re-widgets4 (2026-10-21) -->
-- **WT5 - section 4.2:** cGZWin::ChildDeleteAll 0x0099DD6F loops on the current front child until the list is empty; does cIGZWinMgr::DestroyWindow (slot 23) always detach the child from its parent synchronously, also when the manager is busy and defers the destroy? If not, the loop would not terminate. [assume it detaches synchronously]
-<!-- from: re-widgets4 (2026-10-21) -->
 - **WT6 - section 8.1:** what is the initial value of the window manager's instance-ID counter (manager +0x194) assigned by registration (manager slot 20, 0x009DC586)? [unknown; first ID may be 0 or 1]
 
 <!-- from: core-key-accelerator4 (2026-10-22) -->
@@ -26,4 +24,19 @@
 
 <!-- from: re-gzwin-spec9 (2026-10-24) -->
 - **WTH1 - widget-html-window.md sections 1, 3 and 4:** finish constructor/defaults and both secondary vtables; WWW request flags, refresh identity and stale completion handling; completion record/error transitions; option masks, key/link notifications, full scrollbar ranges, background phase and HTML drawing metrics. Primary window dispatch is inherited, while 008FBFE5 is the completion-target handler. [keep owner partial; implement the documented status/scroll and parse replacement boundaries only]
+
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT10 - sections 7.2 and 14.3 filter mutation:** what does RemoveMessageFilter do during nested iteration, and are additions visible to the running pass? The deferred list is named but its insertion/removal/ownership rules are not published. [snapshot each pass; defer removals until the outermost pass exits; additions appear on the next pass, including a nested pass]
+
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT11 - section 7.3 type 1:** DoMessage dispatches to the void ChildDelete slot, but what byte return does it expose afterwards? [perform the deletion and return false; do not invent a handled value from a void slot]
+
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT12 - sections 1, 2, 4 and 8 lifetime boundaries:** please specify cGZWin QueryInterface output/ref effects, initial reference count, final Release/deleting-destructor coupling, manager destruction while old COW blocks retain references, and invalid/self/cyclic parenting inputs. [model valid acyclic registered UI trees with a caller-owned creation reference; implement ordinary wrapping reference arithmetic separately from explicit manager destruction; do not claim native lifetime/ABI closure]
+
+<!-- from: core-uiwin-close13 (2026-10-24) -->
+- **WT13 - sections 12 and 14.7 cGZFadeTmpWin destructor:** section 12 explicitly leaves this derived destructor unspecified. Does it add any teardown beyond the settled base destructor and deleting-wrapper flag contract in section 8.1? Please publish any derived reference effects and deleting-wrapper behavior. [implement the specified constructor, StealBuffer and Plot plus inherited base lifetime; leave derived destructor closure open]
+
+<!-- from: core-uiwin-close13 (2026-10-24) -->
+- **WT14 - sections 12 and 14.5 opaque graphics and slot 150:** section 12 explicitly leaves graphics slot meanings and create_private_buffer internals unsettled. Please publish the allocation/replacement/failure and ownership contract of concrete slot 150 and any further base-owned operations hidden by the opaque graphics calls. [execute the specified ordered calls via Host/NativeOp, propagate allocation failure as specified; do not invent concrete allocation or opaque service implementation]
 

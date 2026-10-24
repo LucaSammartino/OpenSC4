@@ -3,6 +3,9 @@ use super::*;
 use crate::automata::{SetStateArgs, State, StateExtra, Vec3};
 use crate::stream::{ByteReader, ByteWriter, RefValue};
 
+mod closure;
+mod routing;
+
 struct World {
     calls: Vec<String>,
     intersection: (u32, f32),
@@ -14,6 +17,10 @@ struct World {
     traffic: u32,
     controller: bool,
     fail_look_ahead: Option<RouteStep>,
+    families: Vec<u32>,
+    animation: Option<(f32, f32, f32)>,
+    controller_handled: bool,
+    range_result: Option<f64>,
 }
 impl Default for World {
     fn default() -> Self {
@@ -28,6 +35,10 @@ impl Default for World {
             traffic: 0,
             controller: true,
             fail_look_ahead: None,
+            families: Vec::new(),
+            animation: None,
+            controller_handled: false,
+            range_result: None,
         }
     }
 }
@@ -73,6 +84,36 @@ impl TrafficWorld for World {
     }
 }
 impl VehicleWorld for World {
+    fn automata_range(&mut self, lower: f64, upper: f64) -> f64 {
+        self.calls.push(format!("rng:{lower}:{upper}"));
+        self.range_result.unwrap_or((lower + upper) * 0.5)
+    }
+    fn controller_tick(&mut self, _: &RefValue, kind: u32, dt: f32) -> bool {
+        self.calls.push(format!("controller:{kind}:{dt}"));
+        self.controller_handled
+    }
+    fn added_model(&mut self, _: crate::stream::ResKey) -> RefValue {
+        if self.allow {
+            RefValue::Host {
+                token: 77,
+                class_id: 0xA818EDD8,
+            }
+        } else {
+            RefValue::Null
+        }
+    }
+    fn select_animation(&mut self, _: &RefValue, selector: u16) {
+        self.calls.push(format!("selector:{selector}"));
+    }
+    fn animation_value(&mut self, _: &RefValue, mode: u32, value: f32) {
+        self.calls.push(format!("animation:{mode}:{value}"));
+    }
+    fn animation_status(&mut self, _: &RefValue) -> Option<(f32, f32, f32)> {
+        self.animation
+    }
+    fn attach_tuning_ms(&mut self) -> f32 {
+        1000.0
+    }
     fn in_city(&mut self, _: Vec3) -> bool {
         self.inside
     }
@@ -97,6 +138,9 @@ impl VehicleWorld for World {
     }
     fn destroy_effect(&mut self, effect: u64) {
         self.calls.push(format!("destroy:{effect}"));
+    }
+    fn release_blur(&mut self, model: u64) {
+        self.calls.push(format!("blur_release:{model}"));
     }
     fn post_message(&mut self, id: u32) {
         self.calls.push(format!("message:{id}"));
@@ -156,9 +200,6 @@ fn route_consumes_first_and_stops_failed_lookahead() {
     a.owner().set_route_info(&[[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1.0);
     a.owner().begin_route(&mut w).unwrap();
     assert_eq!(a.record.route.len(), 2);
-    w.fail_look_ahead = Some([7, 8, 9]);
-    a.owner().fill_look_ahead(5, &mut w);
-    assert_eq!(a.runtime.look_ahead.len(), 1);
     a.owner().set_route_info(&[[1, 2, 3]], 1.0);
     a.owner().begin_route(&mut w).unwrap();
     assert!(a.runtime.look_ahead.is_empty());
@@ -296,7 +337,7 @@ fn collision_final_timeout_disappears_and_train_minimum() {
     v.enter_collision([1.0, 0.0, 0.0], &mut w).unwrap();
     assert_eq!(v.record.traffic.base.states[0].state_type, 20);
     assert_eq!(v.set_state(0, SetStateArgs::default(), &mut w), Ok(false));
-    v.collide_tick(5000.0, &mut w);
+    v.state_tick(5001.0, movement(), &mut w).unwrap();
     assert_eq!(v.record.traffic.base.states.last().unwrap().state_type, 1);
     assert!(v.state_tick(1.0, movement(), &mut w).unwrap());
     assert_ne!(v.record.traffic.base.automata_flags & REMOVE, 0);
@@ -344,7 +385,6 @@ fn splash_survives_until_timer_then_releases_exactly_once() {
     };
     v.record.traffic.base.states.push(state);
     v.record.traffic.base.vectors[0] = [0.0, 2.0, 0.0];
-    v.splash_seconds = Some(1.0);
     v.plummet_tick(1.0, &mut w).unwrap();
     assert_eq!(v.splash_effect, Some(42));
     assert_eq!(v.record.traffic.base.automata_flags & REMOVE, 0);
@@ -396,29 +436,25 @@ fn record_roundtrip_and_every_truncation_atomic_before_init() {
 }
 
 #[test]
-fn train_shutdown_owns_cars_and_copies_measured_speed() {
+fn train_shutdown_owns_cars() {
     let mut t = Train {
-        cars: vec![TrainCar::default(), TrainCar::default()],
+        cars: vec![TrainCarSlot::owned(RefValue::Null, TrainCar::default()); 2],
         ..Train::default()
     };
     let mut w = World::default();
-    t.vehicle.measured_speed = 0.75;
-    t.enter_collision(&[[1.0, 0.0, 0.0]; 3], &mut w).unwrap();
-    assert!(t.cars.iter().all(|c| c.vehicle.measured_speed == 0.75));
-    t.cars[0].vehicle.splash_effect = Some(42);
+    t.cars[0].runtime.as_mut().unwrap().vehicle.splash_effect = Some(42);
     t.shutdown(&mut w);
     assert!(t.cars.is_empty());
     assert_eq!(w.calls.iter().filter(|c| c.as_str() == "destroy:42").count(), 1);
 }
 
 #[test]
-fn unresolved_train_records_touch_neither_stream_nor_owner() {
+fn train_records_have_two_exact_version_wrappers() {
     let mut train = Train::default();
-    let before = train.clone();
     let mut out = ByteWriter::new();
-    assert_eq!(train.write(&mut out), Err(Unsupported::TrainRecordVh3));
-    assert!(out.into_bytes().is_empty());
-    assert_eq!(train.read(&mut ByteReader::new(&[])), Err(Unsupported::TrainRecordVh3));
-    assert_eq!(train, before);
-    assert_eq!(train.init(), Err(Unsupported::TrainCompositionVh5));
+    assert!(train.write(&mut out));
+    let bytes = out.into_bytes();
+    assert_eq!(&bytes[..4], &[2, 0, 2, 0]);
+    assert!(train.read(&mut ByteReader::new(&bytes)));
+    assert!(!train.read(&mut ByteReader::new(&[2, 0, 3, 0])));
 }

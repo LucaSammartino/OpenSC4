@@ -122,6 +122,9 @@ def write_text(path, text):
     path.write_bytes(text.encode("utf-8"))
 
 
+STRUCK_ID_RE = re.compile(r"~~\*\*([A-Z]+[0-9]+) ")
+
+
 def entry_id(line):
     m = ENTRY_RE.match(line)
     return m.group(2) if m else None
@@ -474,10 +477,14 @@ def cmd_check(_args):
             continue
         rel = path.relative_to(SPECS).as_posix()
         lines = read_text(path).replace("\r\n", "\n").split("\n")
+        # A union merge can bring back the open copy of a question that answered/ already strikes through
+        struck = set(STRUCK_ID_RE.findall(read_text(f["answered"]))) if f["answered"] else set()
         seen = {}
         for n, ln in enumerate(lines, 1):
             i = entry_id(ln)
             if i:
+                if i in struck:
+                    problems.append(f"{rel}:{n}: {i} is open here but answered in answered/{path.name}")
                 if i in seen:
                     problems.append(f"{rel}:{n}: duplicate ID {i} (first at line {seen[i]})")
                 else:

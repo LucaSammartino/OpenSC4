@@ -33,9 +33,11 @@ impl Default for Texture {
 pub struct Format {
     /// alpha, red, green, blue masks, flags, FourCC, bits, converter key.
     pub words: [u32; 8],
+    pub alpha_bits: u32,
+    pub size: u32,
 }
-/// The specified compressed preference precedes the still-open ordinary ranking.
-pub fn select_format(request: u32, candidates: &[Format], host: &mut impl Device) -> Result<Format> {
+/// §9.6: compressed preference, then stable rank/metric selection.
+pub fn select_format(request: u32, candidates: &[Format], _host: &mut impl Device) -> Result<Format> {
     let request = match request {
         5..=7 => {
             let key = [9, 11, 13][(request - 5) as usize];
@@ -47,17 +49,45 @@ pub fn select_format(request: u32, candidates: &[Format], host: &mut impl Device
         0..=4 => request,
         _ => return Err(Error::InvalidInput),
     };
-    let mut selected = [0];
-    let mut args = vec![request];
-    args.extend(candidates.iter().flat_map(|f| f.words));
-    host.unresolved("RD6-ranking", &args, &mut selected)?;
-    candidates
-        .get(selected[0] as usize)
-        .copied()
-        .ok_or(Error::Unsupported("RD6-ranking"))
+    let (bits, alpha) = [(16, 0), (24, 0), (16, 4), (16, 1), (32, 8)][request as usize];
+    let mut best = Format::default();
+    let mut score = (0, 0);
+    for f in candidates {
+        let (b, a) = (f.words[6], f.alpha_bits);
+        let next = if b == bits && a == alpha {
+            (7, 0)
+        } else if alpha > 0 && a == alpha {
+            (6, 0)
+        } else if alpha > 0 && a > alpha {
+            (5, u32::MAX - a)
+        } else if alpha > 0 && a > 0 {
+            (4, a)
+        } else if b == bits {
+            (3, 0)
+        } else if b > bits {
+            (2, u32::MAX - b)
+        } else {
+            (1, b)
+        };
+        if next > score {
+            best = *f;
+            score = next;
+        }
+    }
+    Ok(best)
+}
+pub fn converter_available(source: usize, key: u32) -> bool {
+    match source {
+        0..=9 => matches!(key, 0..=5 | 7),
+        10 => matches!(key, 1 | 2 | 4 | 5 | 7 | 9),
+        12 => matches!(key, 1 | 2 | 4 | 5 | 7 | 11),
+        11 | 13 | 14 => matches!(key, 10..=13),
+        _ => false,
+    }
 }
 #[derive(Default, Debug)]
 pub struct TextureManager {
+    pub refs: u32,
     pub records: Vec<Texture>,
     pub freed: Vec<u32>,
     pub dd: u32,
@@ -97,6 +127,13 @@ pub fn source_format(format: u32, kind: u32) -> Option<(usize, u32)> {
     })
 }
 impl TextureManager {
+    pub fn destroy(&mut self, host: &mut impl Device) {
+        self.shutdown(host);
+        self.records = Vec::new();
+        self.freed = Vec::new();
+        self.formats = None;
+        self.converters = None;
+    }
     pub fn get(&self, name: u32) -> Option<&Texture> {
         self.records.get(name as usize).filter(|r| r.used)
     }
@@ -154,16 +191,18 @@ impl TextureManager {
         acquire(host, device);
         self.dd = dd;
         self.device = device;
-        // RD6 explicitly leaves ranking and availability open. Supply resolved tables
-        // at the boundary, not an algorithm based on guessed native formats.
         if self.formats.is_none() {
             let mut count = [0];
             host.dx(device, Call::TextureFormats, &[], &[], &mut count);
             let mut candidates = Vec::new();
             for i in 0..count[0] {
-                let mut words = [0; 8];
-                host.dx(device, Call::TextureFormats, &[i], &[], &mut words);
-                candidates.push(Format { words });
+                let mut values = [0; 10];
+                host.dx(device, Call::TextureFormats, &[i], &[], &mut values);
+                candidates.push(Format {
+                    words: values[..8].try_into().unwrap(),
+                    alpha_bits: values[8],
+                    size: values[9],
+                });
             }
             let mut formats = [Format::default(); 8];
             for (i, format) in formats.iter_mut().enumerate() {
@@ -172,27 +211,42 @@ impl TextureManager {
             self.formats = Some(formats);
         }
         if self.converters.is_none() {
-            let mut words = [0; 15 * 8];
-            let keys: Vec<_> = self.formats.unwrap().iter().map(|f| f.words[7]).collect();
-            host.unresolved("RD6-converters", &keys, &mut words)?;
-            self.converters = Some(std::array::from_fn(|i| std::array::from_fn(|j| words[i * 8 + j] != 0)));
+            let formats = self.formats.unwrap();
+            self.converters = Some(std::array::from_fn(|s| {
+                std::array::from_fn(|i| converter_available(s, formats[i].words[7]))
+            }));
         }
         let name = self.new_name();
         self.create(name, 0, 4, 1, 1, 1, host)?;
         // The known white pixel is an immediate value, not a foreign address.
-        let mut white = [0];
-        host.unresolved(
-            "RD6",
-            &[
-                0xffff_ffff,
-                self.surface(name),
-                0,
-                self.formats.unwrap()[4].words[7],
-                1,
-                1,
-            ],
-            &mut white,
-        )?;
+        // The foreign allocator supplies temporary readable storage; it is never retained.
+        let pixel = host.alloc(4, crate::gdrivers_director::Allocation::Heap);
+        if pixel == 0 {
+            return Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite));
+        }
+        let result = host
+            .write(pixel, &u32::MAX.to_le_bytes())
+            .map_err(Error::from)
+            .and_then(|()| {
+                self.load(
+                    Upload {
+                        name,
+                        level: 0,
+                        x: 0,
+                        y: 0,
+                        width: 1,
+                        height: 1,
+                        format: 3,
+                        kind: 0,
+                        row_length: 0,
+                        pixels: pixel,
+                    },
+                    host,
+                )
+                .map(|_| ())
+            });
+        host.free(pixel, crate::gdrivers_director::Allocation::Heap);
+        result?;
         Ok(())
     }
     pub fn lose(&mut self, host: &mut impl Device) {
@@ -262,7 +316,8 @@ impl TextureManager {
             0x20000
         };
         let mut args = vec![0x7c, 0x21007, width, height, levels.max(1), 0x401008, caps2];
-        args.extend(chosen.words);
+        args.push(chosen.size);
+        args.extend(&chosen.words[..7]);
         let mut out = [0];
         let hr = host.dx(dd, Call::CreateSurface, &args, &[], &mut out);
         if failed(hr) {
@@ -334,24 +389,76 @@ impl TextureManager {
                     .wrapping_add(u.y.wrapping_mul(out[1]))
                     .wrapping_add(u.x.wrapping_mul(out[2] / 8))
             };
-            host.unresolved(
-                "RD6",
-                &[
-                    source,
-                    key,
-                    u.pixels,
-                    pitch,
-                    destination,
-                    out[1],
-                    u.width,
-                    u.height,
-                    out[3],
-                    out[4],
-                ],
-                &mut [],
+            let (width, height, src_pitch, dst_pitch) = if out[3] != 0 {
+                (out[4], 1, out[4], out[4])
+            } else {
+                (u.width, u.height, pitch, out[1])
+            };
+            convert(
+                source,
+                key,
+                u.pixels,
+                destination,
+                src_pitch,
+                dst_pitch,
+                width,
+                height,
+                host,
             )
         };
         dx(host, surface, Call::UnlockSurface, &[]);
         result.map(|()| true)
     }
+}
+
+/// Only the settled arithmetic in §9.6 is implemented; RD6 covers the remaining cells.
+#[allow(clippy::too_many_arguments)]
+pub fn convert(
+    source: u32,
+    key: u32,
+    src: u32,
+    dst: u32,
+    src_pitch: u32,
+    dst_pitch: u32,
+    width: u32,
+    height: u32,
+    host: &mut impl Device,
+) -> Result<()> {
+    let raw = matches!((source, key), (10, 9) | (12, 11) | (11 | 13 | 14, 10..=13));
+    if !raw && !(matches!(source, 0 | 5 | 9) && matches!(key, 1 | 2)) {
+        return host.unresolved(
+            "RD6",
+            &[source, key, src, src_pitch, dst, dst_pitch, width, height],
+            &mut [],
+        );
+    }
+    for row in 0..height {
+        // Section 9.6's compressed byte copier advances rows; expansions walk backward.
+        let y = if raw { row } else { height - 1 - row };
+        let s = src.wrapping_add(y.wrapping_mul(src_pitch));
+        let d = dst.wrapping_add(y.wrapping_mul(dst_pitch));
+        if raw || source == 0 {
+            let mut bytes = vec![0; width as usize * if raw { 1 } else { 4 }];
+            host.read(s, &mut bytes)?;
+            host.write(d, &bytes)?;
+        } else {
+            for x in 0..width {
+                let mut bytes = [0; 2];
+                host.read(s.wrapping_add(x.wrapping_mul(2)), &mut bytes)?;
+                let v = u16::from_le_bytes(bytes) as u32;
+                let pixel = if source == 5 {
+                    ((v >> 12) * 17) << 24
+                        | ((v & 15) * 17) << 16
+                        | (((v >> 4) & 15) * 17) << 8
+                        | (((v >> 8) & 15) * 17)
+                } else {
+                    let expand5 = |n: u32| (n << 3) + (n >> 2);
+                    let g = (v >> 5) & 63;
+                    0xff000000 | expand5(v & 31) << 16 | ((g << 2) + (g >> 4)) << 8 | expand5(v >> 11)
+                };
+                host.write(d.wrapping_add(x.wrapping_mul(4)), &pixel.to_le_bytes())?;
+            }
+        }
+    }
+    Ok(())
 }

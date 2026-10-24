@@ -15,3 +15,24 @@
   resolved history-limit and preferred-X values;
   no native constructor default is inferred. This does not reopen the parked
   TE5/TE8 foreign-helper research or request another owner research round.]
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE10 - section 1 runtime constructor defaults:** what are the initial caret,
+  highlight-fill and outline color words, four sound IDs, horizontal byte/pixel
+  offsets, visible metrics and line-height words? [The portable runtime uses
+  explicit zero placeholders pending caller resolution or layout calculation;
+  these are not asserted native defaults. Six cleared font colors and the
+  white fill follow the specified constructor. No new RE round requested.]
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE11 - section 8 shared automatic-reflow counter:** what exact counter
+  comparison limits automatic scrollbar recursion, and which calls increment
+  and decrement it? [Literal shared guard permits one active automatic check
+  and skips nested checks, with exception-safe reset. The stated shared scope
+  is preserved; no larger unspecified recursion threshold is inferred.]
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE12 - section 9 background image mode:** which Boolean option chooses
+  direct blit versus edge drawing? [The spec names both choices and thirds,
+  but does not assign polarity. Portable drawing uses false=direct, true=edge
+  as a literal provisional choice; no pixel/native conformance claimed.]

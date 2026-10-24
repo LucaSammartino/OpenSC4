@@ -132,7 +132,9 @@ def codex_command(m, schema, final, env):
             '-c', 'features.multi_agent=false', '-c', 'web_search="disabled"',
             '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000',
             '-c', 'shell_environment_policy.set={GIT_CONFIG_COUNT="2",GIT_CONFIG_KEY_0="gc.auto",'
-                  'GIT_CONFIG_VALUE_0="0",GIT_CONFIG_KEY_1="maintenance.auto",GIT_CONFIG_VALUE_1="false"}']
+                  'GIT_CONFIG_VALUE_0="0",GIT_CONFIG_KEY_1="maintenance.auto",GIT_CONFIG_VALUE_1="false",'
+                  # 6 of 20 cores per lane's cargo, so a dozen lanes leave the train gate a CPU share
+                  'CARGO_BUILD_JOBS="6"}']
     options = codex_defaults() | m.get('codex', {})
     if options.get('sandbox', 'workspace-write') != 'workspace-write':
         raise ValueError('Codex lanes require the scoped workspace permission profile')
@@ -190,8 +192,10 @@ def run_codex(m):
     env = codex_environment()
     command = codex_command(m, schema, final, env)
     with prompt.open('rb') as inp, events.open('wb') as out:
+        # Below normal (children inherit it): the train gate and the game queue run at normal and win the CPU
+        below = subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == 'nt' else 0
         proc = subprocess.Popen(command, cwd=m['worktree'], stdin=inp, stdout=out,
-                                env=env, creationflags=NOWIN)
+                                env=env, creationflags=NOWIN | below)
         while proc.poll() is None:
             if manifest.with_suffix('.fatal.json').exists():
                 proc.terminate()

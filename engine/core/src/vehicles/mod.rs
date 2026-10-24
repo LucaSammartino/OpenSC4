@@ -2,10 +2,17 @@
 //! Vehicle owners from vehicles.md and automata.md. See README.md for closure gaps.
 //! City services remain foreign interfaces; no game vehicle implements these owners.
 
+mod effects;
+mod init;
+mod routing;
+mod states;
 mod traffic;
 mod train;
 mod vehicle;
 
+pub use effects::*;
+pub use init::*;
+pub use routing::*;
 pub use traffic::*;
 pub use train::*;
 pub use vehicle::*;
@@ -19,19 +26,12 @@ use crate::automata::Vec3;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsupported {
     PlayerDrivingVh1,
-    NeighborRankingVh2,
-    TrainRecordVh3,
-    InitializationVh4,
     TrainCompositionVh5,
     TrainFollowingVh5,
     TrainTripVh5,
-    DamageModelsVh6,
-    MotionBlurVh6,
-    CollisionDirectionVh6,
     RouteGeometryVh7,
-    PlummetEntryVh8,
-    SplashDurationVh8,
     BaseStateVh9,
+    InitVh10,
 }
 
 pub type Result<T> = std::result::Result<T, Unsupported>;

@@ -38,8 +38,8 @@ pub enum StateChange {
     Modulation(u8),
     Antialias(u8),
     Thickness(f32),
-    /// Raw transform is forwarded without inventing GZG1 fixed-point conversion.
-    Gradient(Option<Vec<u32>>, i32, i32),
+    /// Twelve binary32 words, with binary32 anchor coordinates (§4.2).
+    Gradient(Option<Vec<u32>>, f32, f32),
     Tiling(Option<[u32; 4]>),
 }
 #[derive(Clone)]
@@ -72,6 +72,10 @@ pub trait RenderEngine: Send + Sync {
     /// Generic geometry algorithms are GZG1. Explicit routes keep the settled
     /// result-code protocol independent of future tessellation/coverage rules.
     fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()>;
+    /// Slot 22: clipped, half-open spans in destination coordinates.
+    fn spans(&mut self, _spans: &[PixelSpan]) -> Result<()> {
+        Err(Error::Unsupported("GZG2"))
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeometryRoute {
@@ -195,7 +199,7 @@ impl DrawContext {
             self.notify(StateChange::Antialias(self.attributes.aa))?;
             self.notify(StateChange::Thickness(self.attributes.thickness))?;
             self.engine_mut()?.bind(BlitBinding::clear())?;
-            self.notify(StateChange::Gradient(None, 0, 0))?;
+            self.notify(StateChange::Gradient(None, 0., 0.))?;
             self.canvas = self.engine_mut()?.canvas();
             self.active = false;
             self.tiling = false;
@@ -218,6 +222,9 @@ impl DrawContext {
         self.colours[index] = colour;
         self.native_colours[index] = t.native_rgb(colour);
         self.optional_notify(StateChange::Colours(self.colours))
+    }
+    pub fn set_primary_colour(&mut self, colour: u32) -> Result<()> {
+        self.set_colour(0, colour)
     }
     pub fn set_alpha(&mut self, v: i32) -> Result<()> {
         if self.attributes.alpha != v {
@@ -251,7 +258,7 @@ impl DrawContext {
         }
         Ok(())
     }
-    pub fn gradient(&mut self, words: Option<Vec<u32>>, x: i32, y: i32) -> Result<()> {
+    pub fn gradient(&mut self, words: Option<Vec<u32>>, x: f32, y: f32) -> Result<()> {
         self.notify(StateChange::Gradient(words, x, y))
     }
     pub fn push_state(&mut self) {
@@ -274,7 +281,7 @@ impl DrawContext {
         self.set_thickness(1.)?;
         self.clear_blit()?;
         self.clear_tiling()?;
-        self.gradient(None, 0, 0)
+        self.gradient(None, 0., 0.)
     }
     pub fn offset(&mut self, x: i32, y: i32) {
         self.origin[0] += x as f32;
@@ -391,7 +398,7 @@ impl DrawContext {
         match e.draw(kind, points)? {
             2 => e.generic(GeometryRoute::Rasterize, kind, points),
             1 if kind == 7 || kind == 8 => e.generic(GeometryRoute::Tessellate, kind, points),
-            1 if kind == 3 => Err(Error::Unsupported("GZG1")),
+            1 if kind == 3 => e.generic(GeometryRoute::Tessellate, kind, points),
             _ => Ok(()),
         }
     }
@@ -413,18 +420,87 @@ impl DrawContext {
     pub fn clear(&mut self) -> Result<()> {
         self.draw_no_transform(3, &self.clip.points())
     }
-    pub fn convenience_blit(&mut self) -> Result<()> {
-        Err(Error::Unsupported("GZG1"))
+    pub fn convenience_blit(&mut self, source: Arc<dyn Target>, src: Rect, dest: Rect) -> Result<()> {
+        if src.width() <= 0 || src.height() <= 0 || dest.width() <= 0 || dest.height() <= 0 {
+            return Ok(());
+        }
+        self.set_blit(
+            source,
+            [dest.0.wrapping_sub(src.0) as f32, dest.1.wrapping_sub(src.1) as f32],
+            [
+                (dest.width() as f64 / src.width() as f64) as f32,
+                (dest.height() as f64 / src.height() as f64) as f32,
+            ],
+        )?;
+        self.clear_tiling()?;
+        let drawing = self.fill(dest);
+        let cleanup = self.clear_blit();
+        drawing.and(cleanup)
     }
-    pub fn ellipse(&mut self) -> Result<()> {
-        Err(Error::Unsupported("GZG1"))
+    pub fn blit_tiled(&mut self, source: Arc<dyn Target>, tile: Rect, dest: Rect, offset: [i32; 2]) -> Result<()> {
+        if tile.width() <= 0 || tile.height() <= 0 || dest.width() <= 0 || dest.height() <= 0 {
+            return Ok(());
+        }
+        self.set_blit(
+            source,
+            [
+                dest.0.wrapping_add(offset[0]) as f32,
+                dest.1.wrapping_add(offset[1]) as f32,
+            ],
+            [1.; 2],
+        )?;
+        self.set_tiling([tile.0 as u32, tile.1 as u32, tile.2 as u32, tile.3 as u32])?;
+        let drawing = self.fill(dest);
+        let tiling = self.clear_tiling();
+        let cleanup = self.clear_blit();
+        drawing.and(tiling).and(cleanup)
+    }
+    pub fn ellipse(&mut self, x0: i32, y0: i32, x1: i32, y1: i32) -> Result<()> {
+        self.draw(5, &[[x0 as f32, y0 as f32], [x1 as f32, y1 as f32]])
+    }
+    pub fn filled_ellipse(&mut self, x0: i32, y0: i32, x1: i32, y1: i32) -> Result<()> {
+        self.ellipse(x0, y0, x1, y1)
     }
 }
 impl Drop for DrawContext {
     fn drop(&mut self) {
-        // Literal §2.1 destruction: Release engine and target independently.
-        // Shutdown is stated for replacement, not destruction (GZG6).
+        // §2.1 / V45: shutdown precedes vector frees and independent releases.
+        if let Some(engine) = self.engine.as_mut() {
+            engine.shutdown();
+        }
+        self.transforms = Vec::new();
+        self.states = Vec::new();
         drop(self.engine.take());
         drop(self.target.take());
+    }
+}
+
+#[cfg(test)]
+mod lifetime_tests {
+    use super::*;
+    struct TargetStub;
+    impl Target for TargetStub {
+        fn area(&self) -> Rect {
+            Rect::default()
+        }
+        fn native_rgb(&self, colour: u32) -> u32 {
+            colour
+        }
+        fn buffer(&self) -> Option<Arc<dyn Buffer>> {
+            None
+        }
+        fn supports_simgl(&self) -> bool {
+            false
+        }
+    }
+    #[test]
+    fn gzg_v46_null_engine_still_releases_retained_target() {
+        let target: Arc<dyn Target> = Arc::new(TargetStub);
+        let mut context = DrawContext::new([0; 4]);
+        // Native destruction fixture, independent of safe detached-on-failure API.
+        context.target = Some(target.clone());
+        assert_eq!(Arc::strong_count(&target), 2);
+        drop(context);
+        assert_eq!(Arc::strong_count(&target), 1);
     }
 }

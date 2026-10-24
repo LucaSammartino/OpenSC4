@@ -37,7 +37,7 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x00` | 4 | vtable | `0x00ADC8D8` | ctor |
 | `+0x04` | 4 | window manager (`cIGZWinMgr*`) | `RZ::WM()` | ctor; `SetWindowManager` `0x0099CA0B` writes it |
 | `+0x08` | 4 | keyboard object | manager slot 38 result | ctor; `SetKeyboard` `0x0099BF01` |
-| `+0x0C` | 4 | (unnamed) | 0 | ctor |
+| `+0x0C` | 4 | reference count (section 8.1) | **0** | ctor; `0x0094C47C`, `0x0099B7A3` |
 | `+0x10` | 4 | window ID (`GetID`/`SetID`) | 0 | `0x0099BE66`, `0x0099BE5C` |
 | `+0x14..+0x20` | 16 | **absolute (screen) rectangle** L,T,R,B | 0 | `CalcAbsoluteArea` `0x0099DCE4` |
 | `+0x24..+0x30` | 16 | **draw area** (§17.1) | 0 | ctor; `SetAreaToDrawTo` `0x0099CF6A` |
@@ -162,9 +162,21 @@ modal-dialogs.md); Release the extra reference. Returns true only if both the re
 `ChildDelete` (slot 16) is the forward in ui-windows.md §2.3.
 
 `ChildDeleteAll` (slot 18, `0x0099DD6F`): repeatedly takes the **current front child** and passes it to the manager's
-`DestroyWindow`, until the list is empty; returns true only if every destroy returned true. *[inferred]* the loop
-terminates because `DestroyWindow` removes the child from this list; if it did not, the loop would not end (open,
-WT5).
+`DestroyWindow`, until the list is empty; returns true only if every destroy returned true. Immediate destruction
+requests normally detach through `ChildDeleteAbsolute`; a busy manager only queues the request and does not detach
+it (section 8.1). Consequently a nonempty list with a persistently busy manager can make this loop nonterminating:
+the same front child is requested repeatedly, even though each request returns true. This corrects the former
+synchronous-detach assumption associated with WT5 (`0x0099DD76–A6`, `0x009DC4B3–DA`).
+
+**Parenting boundary (WT12):** `SetParentWin` has no manager-validity, self, or ancestor-cycle test. On an
+unparented window, setting the parent to itself or to an arbitrary non-null pointer stores that pointer and
+returns true; no reference is acquired for it. A later reparent through an old invalid pointer can dereference
+it. `ChildAdd` rejects a null/unregistered child via the manager and rejects an existing list member, but has no
+separate self/ancestor-cycle rejection (`0x0099E207–63`). Self or cyclic additions can reach recursive geometry,
+buffer or lifecycle work without returning; there is no specified benign false result for them. The ordinary
+tree operations require live registered windows with acyclic parent relations. A portable API may enforce that
+domain, but such validation is additional behavior. Direct SetParentWin does not insert into the new parent's
+list, and setting null does not itself remove an old list entry (`0x0099B7F2–32`).
 
 ### 4.3 Reordering
 
@@ -256,6 +268,29 @@ list order, as `filter->slot3(this, msg)`. The first filter that returns true st
 If any filter returned true, `DoMessage` returns true without dispatching. `AddMessageFilter` (slot 116) appends to
 the end of the list and AddRefs the filter; it always returns true.
 
+**Mutation and nesting (WT10).** The active list is live, not a snapshot: each callback is followed by reading
+its node's current successor. Appending during a callback can therefore expose the new filter later in the
+**same** pass, even when the appending callback was originally last. A nested message or paint pass starts at
+the current list head and can see those additions too. Duplicate registrations are allowed and each owns one
+reference. RemoveMessageFilter (slot 117, `0x0099D865`) finds the first equal pointer; no match returns false.
+Outside filter iteration it erases that one entry and Releases its reference, returning true. While `+0x90` is
+set it instead appends that pointer to `+0x8C`, acquiring a separate owning reference, and returns true without
+changing the active list. Thus pending filters can still receive this pass and nested passes. The flag is a saved
+Boolean, restored after each pass, not a nesting counter. **DoMessage never drains pending removals**, even on
+outermost return. Only a PlotComposite filter pass entered with the flag clear drains them, after restoring
+the flag and before testing whether paint was consumed; an early visibility/fade rejection never reaches that
+pass. Each pending entry removes one first matching active registration, then the pending list is cleared and
+its references Released. Shutdown also clears both lists when initialized. Evidence: live traversal
+`0x0099CD18–38`, `0x0099E69E–C1`; append/remove `0x0099D832–F2`; paint-only drain `0x0099E6C3–0x0099E733`.
+
+Deferred removal is not deduplicated: repeated removal of a singleton while iterating reports true repeatedly
+and retains a reference for every request. The drain has an original quirk: its guard compares the pending-node
+address with the active-list sentinel, rather than checking the find result (`0x0099E6FB–0x0099E70D`). If a
+queued pointer has no remaining active occurrence, it attempts to erase the active sentinel. This is list
+corruption, not a supported harmless repeat; no stable subsequent callback/return behavior is promised. Safe
+mutation vectors below keep at least one active occurrence per queued removal. Clearing lists through Shutdown
+inside a callback likewise is not covered by deferred-removal safety.
+
 ### 7.3 Dispatch table (jump table at `0x0099CEF9`, 20 entries, type 1–20)
 
 | Type | Handler slot | Handler | Arguments passed |
@@ -289,6 +324,14 @@ and its result returned; if the key handler returned true, true is returned.
 The return value is a byte (`AL`); for unhandled types the upper bytes of EAX hold `type − 1` with the low byte
 cleared.
 
+**Type 1 return (WT11):** after calling slot 16, DoMessage returns the **AL left by that call**, with no false
+assignment or handled-value normalization (`0x0099CE8F–9A`, `0x0099CEF2–F8`). The base ChildDelete is a tail
+forward to manager DestroyWindow (`0x0099B833–3A`), so its ordinary result byte propagates: for example a busy
+manager queues the request and returns true, while an immediate request for an invalid window returns false
+(section 8.1). A void-typed custom ChildDelete override that leaves an arbitrary AL has no defined Boolean result
+from its declaration alone; the dispatcher exposes that byte. A portable callback boundary must supply that
+byte explicitly if it aims to reproduce native return behavior.
+
 ### 7.4 Send and post
 
 `SendMsg(target, msg)` (slot 145, `0x0099BFEC`): if the manager says `target` is valid, returns
@@ -314,6 +357,46 @@ Releases every parameter value and empties the parameter map. Always returns tru
 
 Destructor (`0x0099E1A2`): `ChildDeleteAll`, `Shutdown`, then manager slot 22 (drop focus/capture references) and
 manager slot 21 (unregister), then frees the child-list block and members.
+
+**Interface and reference lifetime (WT12).** Base QueryInterface accepts IIDs `1`, `0x22BA0121` and
+`0xE98B2F57`: it stores the same primary window pointer through the supplied output, calls virtual AddRef,
+then returns true. Failure returns false with **output untouched**, without AddRef; there is no output-pointer
+validation on success (`0x0099B774–A2`). Both constructors explicitly start the reference count at **zero**
+(`0x0099D948`, `0x0099DA69`); manager registration does not establish a creation reference. Callers needing
+ownership must acquire one. Base AddRef increments the 32-bit count with wrapping arithmetic and returns the
+new word (`0x0094C47C–82`), without saturation or atomic synchronization. Base Release (`0x0099B7A3–BC`, also
+reached through inherited wrappers) treats the word as **unsigned**: above 1 it stores and returns count minus
+one; at **0 or 1** it calls virtual slot 148 (offset +0x250) with argument **1**, then returns zero. The final
+branch does not first store a decremented count. In particular zero is a destruction request, not underflow to
+`0xFFFFFFFF`, whereas AddRef at `0xFFFFFFFF` wraps to zero.
+
+Slot 148 is the concrete deleting destructor: it completes derived teardown including the base destructor,
+and frees allocation storage when argument bit 0 is set; with bit 0 clear it tears down without freeing.
+Other argument bits do not select an array path in the verified concrete wrappers cGZWinGen `0x0099B485–A0`
+and cGZWinTextEdit `0x009BFF52–6D`. The base vtable's own full inventory remains WT1; these wrappers and the
+shared Release call establish the lifetime contract for ordinary concrete windows without inventing an
+unpublished base deleting-wrapper address. Directly invoking a deleting destructor bypasses reference counting
+and is not a supported way to preserve live references.
+
+**Manager requests and retained child blocks (WT12).** DestroyWindow (`0x009DC4AC`) with a positive signed
+manager busy depth (+0x18C) only queues a raw pointer at +0x190 unless the window or one of its ancestors is
+already covered by the queue, and returns true. It does not AddRef, Shutdown, detach, or free in that branch
+(`0x009DBAA4` tests queue coverage). With depth at most zero it calls the immediate routine `0x009DB0FD`:
+an invalid window returns false; a valid window with a valid parent delegates to that parent's
+ChildDeleteAbsolute; a valid root receives temporary AddRef, Shutdown, Release and returns true. For ordinary
+parented windows ChildDeleteAbsolute likewise holds a temporary reference, shuts down and detaches the child,
+then makes another manager request on the now-detached child and finally Releases the temporary reference
+(`0x0099E344–A7`). Thus successful DestroyWindow is **not forced deletion regardless of references**.
+
+An old read-locked COW child block retains its references after a replacement block is installed (section 4.1,
+`0x0099E08F–D5`). A child detached and shut down by immediate manager destruction can remain allocated and
+registered because that old block or a caller still owns it. The old iteration still contains the child pointer;
+no tombstone is inserted into that block. The last unlock of a retired block Releases its entries
+(`0x0099D3D2–0x0099D40A`); only final Release reaches destruction/unregistration when no other owner remains.
+This is a reference-lifetime guarantee, not a guarantee that a retained child is still initialized or attached.
+The parent object itself must outlive its active passes: base destruction frees its current child block without
+waiting for its reader count (`0x0099E1CA–DE`). Neither self-destruction during a pass nor arbitrary dangling
+parents become valid through COW.
 
 ### 8.2 Fade-in
 
@@ -401,6 +484,28 @@ private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x
 20. `FitRectToWindow((−10,0,30,20), 4)` in a 100×100 window: `(4,0,30,20)`, returns 1; `CenterWindowInRect((0,0,10,10))`
     for a 13×10 window: area `(−1,0,12,10)` (§17.7).
 21. `SetParam(5, A)`, `GetParam(5, &x)` → true and A's count +1; `SetParam(5, null)` → `GetParam(5, &x)` false (§17.5).
+
+### 10.1 Filter, return and lifetime vectors (WT10–12)
+
+Callbacks below mutate only once and otherwise return false. Reference observations exclude caller ownership.
+
+| Setup and action | Required observation |
+|---|---|
+| Filters A,B; A appends C during an outer DoMessage | Callback order A,B,C; C owns one list reference immediately |
+| A removes B while filtering, then makes one nested DoMessage | Nested pass can still call B; outer pass can still call B; both returns leave B active and a queued owning reference |
+| After the previous message, run an outer visible PlotComposite | Paint filter pass still offers B, then removes B and clears its queued reference before proceeding to paint |
+| A removes itself during an outer paint pass and returns true | Paint is consumed, but A's active and pending references are still released by the drain before return |
+| Remove absent pointer, then add B twice and remove B once outside a pass | Absent removal false; duplicate adds true with two owning entries; removal true leaves one entry/reference |
+| Remove singleton B twice during a pass, then drain | Both removals return true; second drain lookup has no active B and reaches the sentinel-erasure quirk; no benign-repeat guarantee |
+| Type 1, base ChildDelete, busy manager, initially unqueued child | Child queued without detachment; DoMessage returns true |
+| Type 1 with instrumented slot 16 leaving AL 0x7E | Dispatcher returns byte 0x7E unchanged, not forced zero or normalized one |
+| QI supported IID with output sentinel and count 0; then QI unsupported IID | First stores primary pointer and changes count to 1; second returns false, retaining pointer and count 1 |
+| AddRef at count 0xFFFFFFFF; Release at count 0 or count 1 | AddRef wraps to 0; either Release invokes slot 148(1) and returns 0 without a pre-call count store |
+| Release at count 0x80000000 | Stores/returns 0x7FFFFFFF; unsigned comparison does not treat it as a final release |
+| Registered child C owned only by parent's list; hold old read block, detach/destroy C through immediate manager | New active list omits C; C is shut down, still allocated/registered and still in old block; last old-block unlock triggers final Release/destruction |
+| Same retained block, but caller also owns C | Last old-block unlock releases that reference but does not destroy C; caller's final Release does |
+| Unparented live W; direct SetParentWin(W), without subsequent traversal | Returns true and stores self as parent/notification target; no cycle rejection or reference acquisition |
+| ChildAdd(null) or unregistered pointer; existing valid list member | Returns false; no child Init or insertion; cycles are a separate unsafe domain |
 
 ## 11. Open questions
 
@@ -513,8 +618,8 @@ In order:
    invisible **and** no fade is running (`fade_in_progress` `0x0099C20D`: `0x20` and `0x10000` set and the period
    parameter non-zero); otherwise advance the fade (`fade_advance`, §8.2), also for an invisible window whose fade
    still runs.
-2. **Paint filters.** A record `{type 0x16, 0, 0, 0}` is offered to the `+0x88` filter list exactly as `DoMessage`
-   does (§7.2, with the `+0x90` nesting flag and the deferred-removal pass over `+0x8C` when not nested). If a filter
+2. **Paint filters.** A record `{type 0x16, 0, 0, 0}` is offered to the live `+0x88` filter list as in `DoMessage`
+   (§7.2), but **only this paint path** drains `+0x8C` when entered non-nested. If a filter
    returns true: return **true** without painting.
 3. **Clean-window shortcut.** If `+0x70` is 0: `EnumChildren(0x22BA0121, cb, winMgr)` (slot 32) with callback
    `0x0099B9AC`, then return true. Per child the callback skips an invisible child; for an overlay child

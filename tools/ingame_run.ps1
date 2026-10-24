@@ -197,8 +197,18 @@ function Ctl([string]$cmdline) {
     else { $parts = @($cmdline.Trim() -split '\s+' | Where-Object { $_ }) }
     # PowerShell 5.1 turns a native command's stderr into terminating errors under "Stop"; a failed action must
     # not end the run.
-    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-    try { $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $Ctl @parts 2>&1 } finally { $ErrorActionPreference = $old }
+    # Each call gets 60 s: PrintWindow on a game window that has stopped responding never returns (slot 4,
+    # 2026-10-24: the end snap blocked the run, and its game slot, for 25 minutes after the timeout).
+    $psi = New-Object System.Diagnostics.ProcessStartInfo "powershell.exe"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Ctl`" " + (($parts | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join " ")
+    $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.CreateNoWindow = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $proc.StandardOutput.ReadToEndAsync(); $stderr = $proc.StandardError.ReadToEndAsync()
+    if (-not $proc.WaitForExit(60000)) {
+        try { $proc.Kill() } catch { }
+        return "sc4ctl $($parts[0]) timed out after 60 s"
+    }
+    $out = @(($stdout.Result + $stderr.Result) -split "\r?\n" | Where-Object { $_ })
     return ($out | ForEach-Object { "$_" }) -join " | "
 }
 function MainCheckout {
@@ -433,7 +443,7 @@ if ($Slot -gt 0) { $env:FC4_NO_REAL_INPUT = "1" }
 $start = Get-Date
 $loadedAt = $null
 $hpSeen = $null; $frozenDate = $null; $frozenCount = 0; $lastBeatCount = 0; $rounds = 0; $clicked = 0
-$minimized = $false; $everMinimized = $false; $minTries = 0; $heldSince = $null; $heldDate = $null; $heldNote = $null; $heldMax = 0
+$stallSeen = $null; $minimized = $false; $everMinimized = $false; $minTries = 0; $heldSince = $null; $heldDate = $null; $heldNote = $null; $heldMax = 0
 
 while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     Start-Sleep -Seconds 3
@@ -441,7 +451,14 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
     $text = ReadShared $Log
     if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0]; break }
     if ($text -match "first-chance exception OUTSIDE FreeCity4\.dll[^\r\n]*") { $verdict = "corrupt (fallback): " + $Matches[0] }
-    if ($text -match "WATCHDOG: main thread[^\r\n]*stalled[^\r\n]*") { $verdict = "stalled (fallback): " + $Matches[0]; Start-Sleep -Seconds 5; break }
+    # A stall the watchdog reports as over ("stall over after") does not decide (FC4DiagLogic.h: finished stalls are
+    # reported only; the plugin itself turns a stall past kAutotestStallMs into the verdict). The fallback is for a
+    # plugin that cannot write one: a stall still not over 30 s after this loop first saw it.
+    $stalls = [regex]::Matches($text, "WATCHDOG: main thread[^\r\n]*stalled[^\r\n]*")
+    if ($stalls.Count -gt 0 -and $text.IndexOf("WATCHDOG: stall over", $stalls[$stalls.Count - 1].Index) -lt 0) {
+        if (-not $stallSeen) { $stallSeen = Get-Date }
+        elseif ((Get-Date) - $stallSeen -gt [TimeSpan]::FromSeconds(30)) { $verdict = "stalled (fallback): " + $stalls[$stalls.Count - 1].Value; Start-Sleep -Seconds 5; break }
+    } else { $stallSeen = $null }
     if (-not $loadedAt -and $text -match "config \(city load: budget Init\)") { $loadedAt = Get-Date }
     if (-not $loadedAt) { if ($p.HasExited) { break }; continue }
 

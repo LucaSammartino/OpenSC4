@@ -151,6 +151,11 @@ pub struct PrimitiveManager {
     device: u32,
 }
 impl PrimitiveManager {
+    pub fn destroy(&mut self, host: &mut impl Device) {
+        self.stop(host);
+        self.entries = Vec::new();
+        self.scratch_capacity = 0;
+    }
     pub fn init(&mut self, dd: u32, d3d: u32, device: u32, host: &mut impl Device) -> u32 {
         self.stop(host);
         self.dd = dd;
@@ -181,6 +186,7 @@ impl PrimitiveManager {
         self.buffer.discard = false;
     }
     pub fn flush(&mut self, host: &mut impl Device) -> u32 {
+        self.scratch_used = 0;
         if !self.started && !self.entries.is_empty() {
             return FAIL;
         }
@@ -207,9 +213,7 @@ impl PrimitiveManager {
                 &bytes,
                 &mut [],
             );
-            if failed(hr) {
-                result = hr;
-            }
+            result = hr;
         }
         self.scratch_used = 0;
         result
@@ -255,7 +259,6 @@ impl PrimitiveManager {
         if self.entries.is_empty() || self.buffer.cursor.saturating_add(count) > self.buffer.capacity {
             self.flush(host);
         }
-        let old_cursor = self.buffer.cursor;
         let (first, destination) = match self.buffer.reserve(count, true, self.dd, self.d3d, host) {
             Some(v) => v,
             None => return Ok(0),
@@ -267,37 +270,42 @@ impl PrimitiveManager {
                 0x80000001 | 0x80000101 | 0x80004001 | 0x80008001 | 0x80004101 | 0x80008101
             )
             || (f == 0x80008101 && stride != 32)
-            || stride < vertex::stride(f)
         {
-            self.buffer.cursor = old_cursor;
             self.buffer.unlock(self.dd, self.d3d, host);
-            return Ok(FAIL);
-        }
-        // Missing destination elements are not specified (RD10); never manufacture
-        // UV/colour values. Copy only the elements the source actually supplies.
-        for n in 0..count {
-            let mut bytes = vec![0; vertex::stride(f) as usize];
-            let read = host.read(
-                source.wrapping_add((minimum.wrapping_add(n)).wrapping_mul(stride)),
-                &mut bytes,
-            );
-            if let Err(error) = read {
-                self.buffer.unlock(self.dd, self.d3d, host);
-                return Err(error.into());
-            }
-            let mut cursor = 0;
-            for (kind, offset, size) in [(0, 0, 12), (5, 12, 4), (7, 16, 8), (7, 24, 8)] {
-                let present = match (kind, offset) {
-                    (7, 24) => vertex::elements(f, 7)? > 1,
-                    _ => vertex::elements(f, kind)? > 0,
-                };
-                if present {
-                    let write = host.write(destination.wrapping_add(n * 32 + offset), &bytes[cursor..cursor + size]);
-                    if let Err(error) = write {
-                        self.buffer.unlock(self.dd, self.d3d, host);
-                        return Err(error.into());
+            // §8.3: unsupported layouts still consume the reservation and queue.
+        } else {
+            for n in 0..count {
+                let mut bytes = vec![0; vertex::stride(f) as usize];
+                let read = host.read(
+                    source.wrapping_add((minimum.wrapping_add(n)).wrapping_mul(stride)),
+                    &mut bytes,
+                );
+                if let Err(error) = read {
+                    self.buffer.unlock(self.dd, self.d3d, host);
+                    return Err(error.into());
+                }
+                let mut cursor = 0;
+                for (kind, offset, size) in [(0, 0, 12), (5, 12, 4), (7, 16, 8), (7, 24, 8)] {
+                    let present = match (kind, offset) {
+                        (7, 24) => vertex::elements(f, 7)? > 1,
+                        _ => vertex::elements(f, kind)? > 0,
+                    };
+                    if present {
+                        let write =
+                            host.write(destination.wrapping_add(n * 32 + offset), &bytes[cursor..cursor + size]);
+                        if let Err(error) = write {
+                            self.buffer.unlock(self.dd, self.d3d, host);
+                            return Err(error.into());
+                        }
+                        cursor += size;
+                    } else if kind == 5 {
+                        if let Err(error) =
+                            host.write(destination.wrapping_add(n * 32 + offset), &u32::MAX.to_le_bytes())
+                        {
+                            self.buffer.unlock(self.dd, self.d3d, host);
+                            return Err(error.into());
+                        }
                     }
-                    cursor += size;
                 }
             }
         }
@@ -330,12 +338,29 @@ impl PrimitiveManager {
     }
 }
 pub fn expanded(mode: u32, input: &[u16]) -> Result<(u32, Option<Vec<u16>>)> {
-    let n = input.len();
+    let (primitive, indices, declared) = expanded_writes(mode, input, input.len(), true)?;
+    Ok((
+        primitive,
+        indices.map(|mut v| {
+            v.truncate(declared);
+            v
+        }),
+    ))
+}
+/// The complete scratch writes and the separately declared submission count.
+/// `input` may include readable sentinel indices after the logical `count`.
+pub fn expanded_writes(
+    mode: u32,
+    input: &[u16],
+    count: usize,
+    indexed: bool,
+) -> Result<(u32, Option<Vec<u16>>, usize)> {
+    let n = count;
     if mode > 7 {
         return Err(Error::InvalidInput);
     }
     if matches!(mode, 0 | 3 | 4 | 5) {
-        return Ok(([4, 5, 6, 1, 2, 3, 4, 4][mode as usize], None));
+        return Ok(([4, 5, 6, 1, 2, 3, 4, 4][mode as usize], None, n as u16 as usize));
     }
     let mut out = Vec::new();
     match mode {
@@ -355,38 +380,40 @@ pub fn expanded(mode: u32, input: &[u16]) -> Result<(u32, Option<Vec<u16>>)> {
             }
         }
         6 => {
-            for q in (0..n.saturating_sub(3)).step_by(4) {
-                out.extend([
-                    input[q],
-                    input[q + 1],
-                    input[q + 2],
-                    input[q],
-                    input[q + 2],
-                    input[q + 3],
-                ]);
+            let declared = (3 * (n / 2)) as u16 as usize;
+            let groups = if indexed { declared.div_ceil(6) } else { n.div_ceil(4) };
+            for q in (0..groups * 4).step_by(4) {
+                for i in [q, q + 1, q + 2, q, q + 2, q + 3] {
+                    out.push(if indexed {
+                        *input.get(i).ok_or(Error::InvalidInput)?
+                    } else {
+                        i as u16
+                    });
+                }
             }
+            return Ok((4, Some(out), declared));
         }
         7 => {
             if n < 2 {
                 return Err(Error::InvalidInput);
             }
-            if n % 2 != 0 {
-                return Err(Error::InvalidInput);
-            }
             for i in (0..n - 2).step_by(2) {
-                out.extend([
-                    input[i],
-                    input[i + 1],
-                    input[i + 3],
-                    input[i],
-                    input[i + 3],
-                    input[i + 2],
-                ]);
+                for k in [i, i + 1, i + 3, i, i + 3, i + 2] {
+                    out.push(if indexed {
+                        *input.get(k).ok_or(Error::InvalidInput)?
+                    } else {
+                        k as u16
+                    });
+                }
             }
         }
         _ => unreachable!(),
     }
     // Native interface truncates the generated count, not each queue allocation.
-    out.truncate(out.len() as u16 as usize);
-    Ok((4, Some(out)))
+    let declared = if mode == 7 {
+        (3 * n.saturating_sub(2)) as u16 as usize
+    } else {
+        out.len() as u16 as usize
+    };
+    Ok((4, Some(out), declared))
 }

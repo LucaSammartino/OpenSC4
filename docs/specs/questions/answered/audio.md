@@ -1,5 +1,70 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU48: audio.md §10.7.1 specifies AEMS
+views/defaults, latched lifetime, backend calls/results, bank/file ownership and failure
+quirks. The raw reader uses two unchecked sizes; resource success also depends on Close.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
+  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
+  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
+  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
+  them, plus AddBank result convention, file reference ownership, allocation/read failures and
+  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
+  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
+  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]
+
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU46: audio.md §8.3.1 supplies the
+payload gates, reset/enumeration/volume/focus/stop-all calls, tick arithmetic, defaults and
+nontransactional Init/Shutdown. Focus and stop-all DoEvent return false after their effects.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU46 — sound-manager missing owner bodies:** sections 8.1–8.3 inventory a focus flag,
+  service pointers, Update callbacks and event routes, but do not define the payload gates,
+  state transitions, return values or foreign slot calls for reset (`0x4A4D35E0`), enumeration
+  (`0x4A4FE6F6`), volume (`0x4A451915`), focus (`0x6A95CBA2` and focus message), and the
+  `0xCAA44CA7` stop-all helper. What are those algorithms, the per-sound update callback
+  (`0x004F9690`), completion/registration lifetime, constructor flag defaults, and Init/Shutdown
+  failure ordering? Section 10.6 supplies lookup/start facts, not these contracts.
+  [Retain existing instance-table fixture; do not guess these missing owner bodies or claim
+  full SoundManager closure. Implement settled routing/state/IO separately while awaiting answers.]
+
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU49: audio.md §8.3.1 specifies the
+property-based x87 radius calculation, manager-volume play argument, completion lifetime,
+allocation failure limits, hard/soft stop differences and foreign position writes.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU49 — start/position/stop instance completion:** §8.3 derives pause radius from the start
+  parameter's low byte, but §10.6 step 4 assigns it from buffer property 0x38. What is the exact
+  order and final value? Supply the tSound+14 constructor word passed to play(+14), buffer/QI and
+  allocation failure paths, completion registration/unregistration calls, stop +20/+24 handle
+  operations, and SetPosition's state fields/property calls/return semantics. The existing local
+  fixture has no foreign position effect; the new resolve/play stages cannot close these bodies
+  without those contracts. [Keep local fixture separate; implement known get-sound/QI/property/
+  play operations as explicit stages, never assume missing word+14 or successful native dispatch.]
+
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU47: §11.3 specifies the nine named
+registrations before all 83 leaves, unconditional five-child start sequence, cumulative
+PostAppInit failure result without rollback, and distinct shutdown/destructor orders.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU47 — SC4 director complete lifetime and ordering:** §§1.1/1.3/11 give the five-director
+  add/start order and 92 registrations, but not the constructor interleaving of the nine named
+  classes with the 83 leaves, OnStart return/failure policy, or full PostAppInit service creation,
+  initialization, failure unwind and shutdown/destruction ordering. What are those contracts?
+  [Execute the settled add/start sequence; register the measured class set in literal table order.
+  Leave unspecified application lifetime unsupported rather than invent service success.]
+
+**ANSWERED 2026-10-24 (re-audio-au50):** MATCHES — AU45: §7.2's completed table is authoritative.
+Conformance vector §16.12 now includes the fifth accepted, effect-free type `0x49E64801`;
+the legacy four-operation fixture is a subset, not a dispatch whitelist.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU45 — completed dispatch versus vector 12:** section 7.2's completed dispatch table routes
+  `0x49E64801` to HandleAutomataMessages as an accepted no-op, while section 16 vector 12 says only
+  four other types may reach that helper. Should vector 12 include this fifth no-op type?
+  [Implement the completed section 7.2 table literally; keep the legacy four-operation fixture list.]
+
 Original questions and implementation-gap notes are retained below; their proposed fallbacks are
 superseded by the cited spec sections, checked against 1.1.641 instructions.
 

@@ -67,7 +67,11 @@ struct HeldSample {
 };
 // Main-thread only. Retain only references explicitly acquired by QI, never
 // borrowed manager/index pointers. Both readers run together for each file.
-std::deque<HeldSample> pending;
+// An empty deque allocates too. Keep the default-off observer out of DLL
+// initialization: allocating its queue there perturbs the game's allocation
+// order even when no DBPF sample was requested. The pointer borrows the
+// function-local queue below, whose lifetime still extends to DLL shutdown.
+std::deque<HeldSample>* pending = nullptr;
 bool shadowLoaded = false;
 uint64_t shadowMonth = 0, completedFiles = 0, completedRecords = 0;
 uint64_t coverageCycle = 0;
@@ -470,8 +474,10 @@ void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& v
 
 void DbpfShadowObserve(int32_t julian) {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
-    pending.emplace_back();
-    auto& sample = pending.back();
+    static std::deque<HeldSample> samples;
+    pending = &samples;
+    pending->emplace_back();
+    auto& sample = pending->back();
     sample.julian = julian;
     sample.full = !shadowLoaded;
     shadowLoaded = true;
@@ -528,8 +534,8 @@ void HeldSummary(const HeldSample& sample) {
 }
 
 void DbpfShadowTick() {
-    if (pending.empty()) return;
-    auto& sample = pending.front();
+    if (pending == nullptr || pending->empty()) return;
+    auto& sample = pending->front();
     if (!sample.full && coverageCycle != sample.month / 12 + 1) {
         coverageCycle = sample.month / 12 + 1;
         rotationCovered.clear();
@@ -575,22 +581,23 @@ void DbpfShadowTick() {
     sample.maxSliceMs = (std::max)(sample.maxSliceMs, static_cast<unsigned>(GetTickCount() - started));
     if (sample.next == sample.files.size()) {
         HeldSummary(sample);
-        pending.pop_front();
+        pending->pop_front();
     }
 }
 
-bool DbpfShadowPending() { return !pending.empty(); }
+bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
 
 void DbpfShadowShutdown() {
     // Never silently discard an unfinished monthly sample. A deadline that
     // interrupts it is explicitly non-exact, while all acquired QIs are released.
-    for (auto& sample : pending) {
+    if (pending == nullptr) return;
+    for (auto& sample : *pending) {
         ++sample.counts.refusal;
         for (size_t i = sample.next; i < sample.files.size(); ++i)
             FC4_RELEASE(sample.files[i].packed);
         HeldSummary(sample);
     }
-    pending.clear();
+    pending->clear();
     shadowLoaded = false;
     shadowMonth = completedFiles = completedRecords = coverageCycle = 0;
     covered.clear();

@@ -1,6 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-viewutil-shadow11: view utility shadow | `Codex` / `glue-viewutil-shadow11` (engine lane) | Ready, partial scope: source 16bdc1dc8; ABI unchanged; cargo 7141/0, clippy clean, CTest 81/81; run 510 clean, viewutil 73/73 exact, resyncs=0; runs 508/509 failed and retained; VU16 filed. | 1. Review and land measured rotation-only shadow. 2. Resolve VU16 before extending to remaining 49 bodies. 3. Coordinator reviews profile addition and regenerates question/coverage indexes; no whole-owner credit. |
+| glue-viewutil-shadow11: view utility shadow | `Codex` / `glue-viewutil-shadow11` (engine lane) | in progress: merge current main and repeat gate; prior source 16bdc1dc8, ABI unchanged; run 510 clean, viewutil 73/73 exact, resyncs=0; VU16 filed. | 1. Preserve additive registrations while merging main. 2. Run final gate once. 3. Refresh ready queue with full HEAD. |
+
+## Handoff
+
+- Goal: repair the merge-train conflict only; no new owners, questions or game runs.
+- Done: prior measured rotation-only work and report committed at 76760254f.
+- Next: merge main d1f26eca7, preserve both additive module registrations, run qbuild all, commit report and refresh queue.
+- Facts: run 510 (`viewutil11-r1-on2-20261024-1424`) remains valid, clean 73/73; partial scope 1/50, VU16 blocks other bodies; no outstanding operations.
 
 ## Changes and scope
 

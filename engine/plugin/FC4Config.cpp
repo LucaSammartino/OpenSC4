@@ -390,6 +390,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "mysimdispatch_shadow",
                                   // Independent read-only render-properties registry comparison.
                                   "renderprops_shadow",
+                                  // Read-only exemplar lighting parameter comparison (LT14).
+                                  "lighting_shadow",
                                   // EX54/EX55 read-only packed-file shadow, default off.
                                   "dbpf_shadow",
                                   // HG8 bounded read-only city geometry (default off).

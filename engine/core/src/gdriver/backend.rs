@@ -82,6 +82,22 @@ pub enum Call {
     PostMessage,
     PlaceholderDevice,
     TextureFormats,
+    RestoreContext,
+    SystemDirectory,
+    FindVersionFile,
+    FileVersion,
+    EnumerateDevices,
+    EnumerateDepthFormats,
+    AttachDepth,
+    CurrentDisplayMode,
+    CreateDevice,
+    GetColorKey,
+    LightEnable,
+    Light,
+    SurfaceDescriptor,
+    EvictManagedTextures,
+    PrimitiveRecovery,
+    SurfaceLost,
 }
 
 pub trait Device: Host {
@@ -89,8 +105,7 @@ pub trait Device: Host {
     /// byte data is copied during the call, never retained as a Rust pointer.
     fn dx(&mut self, target: u32, call: Call, args: &[u32], data: &[u8], out: &mut [u32]) -> u32;
     /// Only unsettled spec contracts may cross this boundary. Default refuses them.
-    /// RD6: descriptor/converter selection and pixel arithmetic; RD8: device/depth
-    /// selection; RD9: stage constructor defaults and unnamed lifecycle helper.
+    /// RD6: the remaining explicitly unsettled pixel arithmetic only.
     fn unresolved(&mut self, question: &'static str, _args: &[u32], _out: &mut [u32]) -> Result<()> {
         Err(Error::Unsupported(question))
     }
