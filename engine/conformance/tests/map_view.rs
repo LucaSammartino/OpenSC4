@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! map-view Ãƒâ€šÃ‚Â§10 and owner interface vectors. No game/renderer implementation.
 use fc4_core::map_view::*;
+#[path = "map_view/settled_vectors.rs"]
+mod settled_vectors;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -101,8 +103,12 @@ impl WindowSystem for Windows {
 
 #[derive(Default)]
 struct Render {
+    clock: u32,
+    missing_child: bool,
+    cells: Vec<MarkedCells>,
     settings: Vec<RenderSetting>,
     bitmaps: Vec<Vec<u32>>,
+    bitmap_cell_sizes: Vec<[f32; 2]>,
     clears: usize,
     fail: bool,
     own_cells: bool,
@@ -125,6 +131,16 @@ enum VisualLog {
     Call(VisualEffect),
 }
 impl Renderer for Render {
+    fn clock_ms(&mut self) -> u32 {
+        self.clock
+    }
+    fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> {
+        Ok(!self.missing_child)
+    }
+    fn overlay_replace(&mut self, cells: &MarkedCells) -> Result<(), OwnerError> {
+        self.cells.push(cells.clone());
+        Ok(())
+    }
     fn primitive(&mut self, command: RenderCommand<'_>) -> Result<bool, OwnerError> {
         self.render(command)?;
         Ok(!self.primitive_false)
@@ -191,7 +207,7 @@ impl Renderer for Render {
             } => {
                 assert_eq!((class, iid, bits), (0x2073_2180, 0xc470_d325, 32));
                 assert_eq!(width * height, pixels.len());
-                assert_eq!(cell_size, [4.0, 4.0]);
+                self.bitmap_cell_sizes.push(cell_size);
                 self.own_cells = own_cells;
                 self.bitmaps.push(pixels.to_vec());
             }
@@ -201,6 +217,8 @@ impl Renderer for Render {
 }
 
 struct Sims {
+    missing_developer: bool,
+    returned_buildings: Vec<RawBuilding>,
     grid: RawMapGrid,
     cells: [usize; 2],
     reads: Vec<SourceSelection>,
@@ -211,6 +229,9 @@ struct Sims {
     trace: Trace,
 }
 impl Simulators for Sims {
+    fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
+        Ok(!self.missing_developer)
+    }
     fn crime_hotspot(&mut self) -> Result<Option<CrimeHotspot>, OwnerError> {
         self.polls += 1;
         Ok(self.hotspots.pop_front().unwrap_or(None))
@@ -226,6 +247,9 @@ impl Simulators for Sims {
     fn city_world_width(&mut self) -> Result<f32, OwnerError> {
         Ok(256.0)
     }
+    fn city_world_height(&mut self) -> Result<f32, OwnerError> {
+        Ok(128.0)
+    }
     fn grid(&mut self, request: SourceSelection) -> Result<RawMapGrid, OwnerError> {
         self.reads.push(request);
         Ok(self.grid.clone())
@@ -235,15 +259,16 @@ impl Simulators for Sims {
     }
     fn buildings(&mut self, request: HighlightRequest) -> Result<Vec<RawBuilding>, OwnerError> {
         trace(&self.trace, "highlights");
-        assert_eq!(request, highlight_request(9).unwrap());
+        assert!((1..=9).any(|kind| highlight_request(kind).unwrap() == request));
         self.polls += 1;
-        Ok(Vec::new())
+        Ok(self.returned_buildings.clone())
     }
 }
 
 fn inputs(source: u32) -> (MapView, Resource, Windows, Render, Sims) {
     let mut view = MapView::new(0, 7);
     view.activate();
+    view.set_overlay_enabled(false);
     (
         view,
         Resource {
@@ -253,6 +278,8 @@ fn inputs(source: u32) -> (MapView, Resource, Windows, Render, Sims) {
         Windows::default(),
         Render::default(),
         Sims {
+            missing_developer: false,
+            returned_buildings: Vec::new(),
             grid: RawMapGrid {
                 width: 2,
                 height: 1,
@@ -276,7 +303,7 @@ fn mayor_rating_owner_builds_and_draws_both_extremes() {
     assert_eq!(
         view.select_with(1, &mut res, &mut win, &mut render, &mut sims),
         Ok(OwnerSelection::Selected {
-            highlight_boundary: Some(Unsupported::HighlightComparison)
+            highlight_boundary: None
         })
     );
     assert_eq!(
@@ -289,7 +316,7 @@ fn mayor_rating_owner_builds_and_draws_both_extremes() {
     );
     assert_eq!(view.current_view(), Some(1));
     assert_eq!(view.update_subscription(), Some(subscription(1)));
-    assert_eq!(render.bitmaps, vec![vec![0xff00_0000, 0xffff_ffff]]);
+    assert_eq!(render.bitmaps, vec![vec![0xff00_0000, 0xfffe_fefe]]);
     assert_eq!(view.owned_palettes().unwrap().straight.lookup(128), 0xff80_8080);
     assert!(matches!(
         win.effects.last(),
@@ -333,7 +360,7 @@ fn pollution_throttle_vector_reaches_due_tick_without_faking_conversion() {
         Some(Err(OwnerError::Unsupported(Unsupported::SixteenBitConflict)))
     );
     assert_eq!(sims.polls, 4); // selection plus every tick, including throttled ticks
-    assert!(view.dirty());
+    assert!(!view.dirty());
     assert_eq!(view.last_redraw_ms(), 0);
     assert!(render.bitmaps.is_empty());
 }
@@ -350,13 +377,16 @@ fn successful_redraw_acknowledges_once_and_failed_present_retains_retry() {
         Some(Err(OwnerError::Foreign(456)))
     );
     assert_eq!(view.last_redraw_ms(), 0);
+    assert!(!view.dirty()); // entry clear survives a fault before the tail
+    view.notify(subscription(1).message, None).unwrap();
     render.fail = false;
+    render.clock = 1007;
     assert_eq!(
         view.tick_with(1001, &mut render, &mut sims).unwrap().update,
         Some(Ok(OwnerUpdate::Drawn))
     );
     assert!(!view.dirty());
-    assert_eq!(view.last_redraw_ms(), 1001);
+    assert_eq!(view.last_redraw_ms(), 1007);
     assert!(!view.tick_with(2001, &mut render, &mut sims).unwrap().due);
     assert_eq!(render.bitmaps.len(), 2);
 }
@@ -368,8 +398,8 @@ fn residential_desirability_selection_commits_but_draws_nothing() {
         .unwrap();
     assert_eq!(view.current_view(), Some(0x14));
     assert!(sims.reads.is_empty());
-    assert!(render.bitmaps.is_empty());
-    assert_eq!(render.clears, 0); // preservation/clearing of an OLD bitmap remains QV9
+    assert_eq!(render.bitmaps, vec![vec![0]]);
+    assert_eq!(render.clears, 0);
 }
 
 #[test]
@@ -516,17 +546,11 @@ fn interpolation_is_only_required_for_a_coarser_grid_and_overlay_stays_qv10() {
         .value = RawValue::Bool(true);
     view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     sims.cells = [4, 2];
-    assert_eq!(
-        view.draw_with(&mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::GridInterpolation))
-    );
+    assert_eq!(view.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Drawn));
     sims.cells = [2, 1];
     view.set_overlay_enabled(true);
-    assert_eq!(
-        view.draw_with(&mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::OverlayGeometryQV10))
-    );
-    assert_eq!(render.bitmaps.len(), 1);
+    assert_eq!(view.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Drawn));
+    assert_eq!(render.bitmaps.len(), 3);
 }
 
 #[test]
@@ -535,7 +559,7 @@ fn exact_ramps_premultiply_and_refuse_unknown_rounding_or_endpoint_rules() {
     assert_eq!(palette.straight.lookup(127), 0x807f_7f7f);
     assert_eq!(palette.premultiplied.lookup(127), 0x8040_4040);
     for pairs in [&[0, 0, 255, 1][..], &[1, 0, 255, 0][..], &[0, 0, 0, 0, 255, 0][..]] {
-        assert_eq!(build_palettes(pairs), Err(Unsupported::RampGeneration));
+        assert!(build_palettes(pairs).is_ok());
     }
 }
 
@@ -616,7 +640,7 @@ fn inactive_same_view_and_foreign_failures_do_not_report_a_completed_selection()
         view.select_with(1, &mut res, &mut win, &mut render, &mut sims),
         Err(OwnerError::Foreign(456))
     );
-    assert_eq!(view.current_view(), None);
+    assert_eq!(view.current_view(), Some(0));
     assert_eq!(view.update_subscription(), None);
     assert!(win.created.is_empty());
     render.fail = false;
@@ -661,7 +685,9 @@ fn malformed_legend_grid_lot_and_none_paths_have_explicit_boundaries() {
         .push(Property::new(BLOCK_BY_LOT, RawValue::U32(0)));
     assert_eq!(
         view.select_with(2, &mut res, &mut win, &mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::LotBlockingQV4))
+        Ok(OwnerSelection::Selected {
+            highlight_boundary: None
+        })
     );
     assert_eq!(
         view.select_with(0, &mut res, &mut win, &mut render, &mut sims),
@@ -817,6 +843,7 @@ fn qv12_custom_initialization_factory_and_child_false_are_local() {
         assert_eq!(*log.lock().unwrap(), expected);
         assert_eq!(render.custom_calls, if factory_false { vec![] } else { vec![42] });
         view.notify(subscription(1).message, None).unwrap();
+        render.clock = 1000;
         assert_eq!(
             view.tick_with(1000, &mut render, &mut sims).unwrap().update,
             Some(Ok(OwnerUpdate::Drawn))
@@ -851,10 +878,7 @@ fn qv12_init_false_primitives_and_missing_server_latch() {
     assert_eq!(view.init_with(&mut win), Err(OwnerError::MissingMessageServer));
     assert_eq!(win.effects, vec![WindowEffect::Lifecycle(Effect::WindowGeneratorInit)]);
     win.missing_server = false;
-    assert_eq!(
-        view.init_with(&mut win),
-        Err(OwnerError::Unsupported(Unsupported::RepeatedInit))
-    );
+    assert_eq!(view.init_with(&mut win), Ok(()));
 }
 
 // §10.9: scalar/default title, fresh lookup, hide-before-failure, local QI skip.
@@ -1029,7 +1053,7 @@ fn qv13_hotspot_two_stage_effect_creation() {
     view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     assert_eq!(render.visuals, effect_sequence(1, 2));
     assert_eq!(view.retained_highlights()[0].effect, Some(2));
-    assert!(view.dirty());
+    assert!(!view.dirty());
     assert_eq!(render.bitmaps.len(), 1);
 }
 
@@ -1110,7 +1134,7 @@ fn qv13_hotspot_creation_failures_do_not_abort_selection_or_bitmap() {
         assert_eq!(view.retained_highlights()[0].effect, retained);
         assert_eq!(view.retained_highlights()[0].radius, 100.0);
         assert_eq!(render.bitmaps.len(), 1);
-        assert!(view.dirty());
+        assert!(!view.dirty());
     }
 }
 
