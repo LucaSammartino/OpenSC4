@@ -156,3 +156,14 @@
   projection also the cost-cell inventory? [retain earthwork/cell-cost
   differences; no tolerance or compensating cost is applied; bridge and
   powerline costs remain explicitly uncovered by the existing host]
+
+<!-- from: glue-nettool-exact6 (engine lane, 2026-10-24) -->
+- **NT32 - retained counted poles after structural release:** NT31 §8.3.1
+  requires price 65 after endpoint references are released. Power-line-tool
+  §1 says ReleasePoleInfos also structurally clears the records, and §2's
+  wrapper calls it before returning. Older network-geometry §11 equates
+  `+0x388` with the current pole-vector size. Should the getter consume the
+  count retained by DeterminePolePositions rather than overwrite it with
+  the now-empty vector size? [literal newest NT31 contract: retain counted
+  poles=3 and wire cells=10 through ReleasePoleInfos; controlled recording
+  placement returns valid=13/failure=0/price=65; reset still zeros counts]

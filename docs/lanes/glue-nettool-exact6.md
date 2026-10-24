@@ -21,6 +21,14 @@
   bridge 974/0 valid17/0. New NT30 refresh/overlay did not change these city projections.
 - No request outstanding. Next: trace retained replay cell/corner inputs for four costs;
   finish subclass resource/host replay. No exactness claimed, no READY queue entry.
+- Follow-up diagnostic: f64 multiplication can cross an integer boundary; fixed using
+  exact uint32 × float32 significand multiplication/truncation, with a discriminating test.
+- NT31 controlled bridge selection/index and span-price fixture passes. Synthetic
+  powerline recording placement now passes valid13/failure0/poles3/wires10/price65.
+- Getter previously erased retained counted_poles after structural record release;
+  corrected per literal NT31, older NG §11 wording questioned as NT32.
+- New source after run382: final gate/game repeat pending. Focused NT31 tests 3/0;
+  failed constructor/record-vector test evidence retained under build-runs/nt31-fixture-*.
 - q.py Bash failed CreateFileMapping access (log build-runs/q/20261024-025713-33616.log);
   direct PowerShell cargo succeeded. fmt requires absolute file paths; fixes applied.
 - Full native gate and unique 2032 city run required; no request outstanding.

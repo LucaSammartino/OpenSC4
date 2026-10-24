@@ -320,6 +320,14 @@ fn nt31_retained_powerline_price_precision() {
     assert_eq!(extras::power_line_cost(2, 16_777_217, 0, 1.0), 16_777_217);
     // Unsigned input must also remain exact above the signed boundary.
     assert_eq!(extras::power_line_cost(2, 4_294_967_295, 0, 0.25), 1_073_741_823);
+    // f64 rounds this product up to the next integer; x87's 64-bit
+    // significand retains the fractional difference until truncation.
+    let below_one = f32::from_bits(0x3f7f_ffff);
+    assert_eq!(extras::power_line_cost(2, 2_147_483_649, 0, below_one), 2_147_483_520);
+    assert_eq!(extras::power_line_cost(2, 2_147_483_649, 0, -below_one), -2_147_483_520);
+    assert_eq!(extras::power_line_cost(2, 3, 0, f32::INFINITY), 0);
+    assert_eq!(extras::power_line_cost(2, 3, 0, f32::NAN), 0);
+    assert_eq!(extras::power_line_cost(2, u32::MAX, 0, f32::MAX), 0);
     assert_eq!(extras::power_line_cost(1, u32::MAX, 15, 2.0), 0);
 }
 
