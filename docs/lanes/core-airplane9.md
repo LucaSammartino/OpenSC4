@@ -5,8 +5,9 @@
 ## Handoff
 
 - Goal: merge main, retain airplane and helicopter owners, remove duplicate AF9, run final gate.
-- Done: main merge started; two textual conflicts resolved; airplane question is now AF10.
-- Next: regenerate question index (explicit task exception permits tools/questions.py), format explicit files, commit merge, run final all gate.
+- Done: merge f6da6ee6d retains both owners; airplane question is AF10; index/check and three-file absolute-path fmt pass.
+- Gate in progress: qbuild all session 47450, native label qbuild-20261024-094908-build-ctest. Rust tests pass 7021/0/0; clippy fails on shared aircraft.rs unused state_type/SetStateArgs imports.
+- Next: collect SAME gate operation to terminal; preserve failed-source logs, remove unused imports, format and rerun final all.
 - Owners: airplane in engine/core/src/automata/airplane; helicopter in engine/core/src/helicopter; shared aircraft storage/helpers retained.
 - No game request outstanding; core-only airplane has no native observation adapter.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-airplane9-r2-manifest.json.
