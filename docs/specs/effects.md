@@ -1947,6 +1947,231 @@ failure is not transactional: there is no owner undo of earlier copies or calls.
 | EF18-10 | Two triggers with the same message ID; End then Begin with message service | End's lookup selects second trigger; two subscribe calls then two unsubscribe calls; trigger/binding lists cleared; descriptions retained |
 | EF18-11 | Publish effect with one missing component; add that component afterwards; inspect stored effect | index remains unresolved until the effect is republished; no implicit validation/republication |
 
+### 18.7 Native collection and queue observation (EF20) *[compat]*
+
+**DIFFERS from treating the collection getters as enumeration or the resource
+reader as a read-only iterator.** This section describes the Windows 1.1.641
+observation boundary. Offsets below are native capture facts, not requirements
+that a replacement use the same containers internally. A snapshot and a trace
+of publication calls answer different questions: a snapshot describes retained
+state; a trace also describes overwritten definitions and bootstrap choices.
+
+#### 18.7.1 Getter call and ownership contract
+
+Use the collection sub-object as the receiver: manager primary pointer plus
+`94` hex, or resource primary pointer plus `4`. Windows calls are `__thiscall`:
+ECX is that receiver, explicit arguments occupy successive four-byte stack
+slots, and the callee removes them. All seven named getters below return a C++
+**bool in AL**, not a pointer, index, HRESULT, or a defined whole-EAX value.
+The upper 24 bits of EAX are unspecified. The two-argument getters pop 8 bytes;
+the component getter pops 12. Slot numbering starts at QueryInterface = 0.
+
+| Slot | Method/address | Explicit arguments in declaration order | Successful nonnull output |
+|---|---|---|---|
+| 6 | GetEffectDescription `0058B500` | nonnull NUL-terminated byte name, `cSC4EffectDescription*` destination or null | assigns a value copy of the selected record |
+| 8 | GetParticleDescription `00588DD0` | name, `cSC4ParticlesDescription*` destination or null | assigns a value copy, including owned members |
+| 10 | GetDynamicParticleDescription `00588E50` | name, `cSC4DynamicParticleDescription*` destination or null | assigns a value copy |
+| 12 | GetDecalDescription `00588ED0` | name, `cSC4DecalDescription*` destination or null | assigns a value copy |
+| 14 | GetShakeDescription `00588F50` | name, `cSC4ShakeDescription*` destination or null | assigns a value copy |
+| 16 | GetLightDescription `00588FD0` | name, light-description destination or null | copies the vector of three-float values, vector of floats, and final word |
+| 18 | GetComponentDescription `00589070` | name, 32-bit component type, component-description **pointer-to-pointer** or null | writes the stored object pointer and retains it through that object's slot 4 (`+10` hex) |
+
+All fold a copy of the input name bytewise with the CRT lowercase operation
+before searching the appropriate dictionary. A miss returns false without
+writing the output. A hit with null output returns true without making a
+description copy or acquiring a component reference. A value destination must
+already be a valid constructed object of the right type; it is not an untyped
+byte buffer or an out-pointer to native storage. Its allocations remain the
+caller's responsibility. A component output instead owns one acquired reference;
+release it with the component-description interface's slot 5 (`+14` hex), not
+with a guessed COM slot 2. Component types 3 through 15 select separate buckets;
+there is no bounds check for an invalid type. Null name is not an enumeration
+request and is outside the getter's valid domain. See effects-parser §11.1 for
+the separate null-name **registration** rule.
+
+The visual getter uses the first matching dictionary entry, not the manager's
+maximum-allowed-priority selection. Consequently one lookup per unique folded
+name cannot recover the other priorities. Nor can named component lookup recover
+anonymous descriptions. There are **no count, index-getter, or enumeration slots**
+in this 24-slot interface; slot 23 is a deleting-destructor thunk, not a count.
+
+Even a null-output getter overwrites the collection's scratch string at `+10C`.
+It can allocate and is not strictly read-only or reentrant. An observation that
+promises no native mutation must use the container framing below rather than
+call these getters. Evidence: `00588DD4–00588E41`,
+`00588E96–00588EC1`, `00588F1D–00588F43`, `00588FA0–00588FCA`,
+`00589020–0058905F`, `00589078–005890F8`, `0058B546–0058B573`;
+slot 23 `0058FE10` adjusts the receiver and enters destructor `00590080`.
+
+#### 18.7.2 Retained description and name framing
+
+Let **C** mean the collection sub-object, never the primary manager. All offsets
+in this subsection are relative to C. Pointers and scalar words are 32 bits,
+little endian. A vector is three words: begin, logical end, allocation end.
+Only the half-open interval [begin, logical end) contains records. Equal begin
+and end means empty, including the all-null representation; spare capacity is
+not a record. Divide the byte difference by the element stride, checking exact
+divisibility. Strings here are three-word byte sequences (begin, end, capacity),
+with length end minus begin; exclude capacity, allocation addresses and the
+terminating byte from the recorded value. These are not on-disk strings.
+
+| C offset | Retained sequence | Element stride / interpretation |
+|---|---|---|
+| `+18` | visual descriptions | `38` hex, inline; §3 memory record |
+| `+38` | particle descriptions | 4, each element is a pointer to its description object |
+| `+58` | dynamic/model particle descriptions | 4, pointers |
+| `+78` | decal descriptions | `64` hex, inline |
+| `+98` | shake descriptions | `28` hex, inline |
+| `+B8` | light descriptions | `1C` hex, inline; vector triples at record +0 and +C, final word +18 |
+| `+C4` | component directories | `20` hex per directory, types 3 through 15 in ascending order |
+| `+F0` | effect ID bindings | `14` hex: string at +0, group word +C, instance word +10 |
+| `+FC` | message triggers | `10` hex: message ID word +0, string at +4 |
+
+Each component directory has its name dictionary at +0 and a vector of
+description pointers at +14. The normal constructed directory count is 13;
+the actual vector end still defines the readable interval. Record the slot
+index even for an anonymous component or a component with no incoming visual
+reference. Pointer arrays are not arrays of inline objects. Neither a null
+pointer nor a description's first word is a string or a description count.
+
+Name dictionaries begin at C+4 (visual), +24 (particle), +44 (dynamic particle),
++64 (decal), +84 (shake), +A4 (light), and at each component-directory start.
+A dictionary header occupies `14` hex bytes: its bucket vector is at header+4
+and its element-count word at header+10. The bucket vector uses the same
+three-word framing and has four-byte bucket-head pointers. Visit buckets in
+ascending index, following each nonnull node's next pointer at node+0 until
+null. A node holds the three-word name at +4 and the description-index word
+at +10. Count nodes, not distinct names; visual priorities can share a name.
+Preserve both the description vector and the sequence of (name,index) entries.
+The header count is a consistency check, not permission to read that many
+contiguous nodes. Detect cycles, repeated nodes, unreadable spans and out-of-range
+indices and reject an incomplete capture rather than silently truncate it.
+Evidence: lookup `0051C9F0–0051CA50`, publication `0058D560`, collection merge
+`0058CA50`, callback traversal `00587230`, constructor `0058C580–0058C6DA`.
+
+For a visual record, follow its component vector at +8 with stride `6C` hex,
+its parameter-binding vector at +14 with stride `18` hex, and its string at
++2C. Each parameter binding is flags at +0, a three-word string at +4, a float
+word at +10, and an index word at +14. Preserve the component's **memory**
+transform as specified in §3.1; never feed it to the legacy file decoder.
+Exclude padding and pointer/capacity words from value comparisons. Copy float
+bits, including signed zero and NaNs, without conversion through decimal text.
+For the other description families, record the typed value fields and their
+owned sequences using their description contracts (§§8–9, §19 and the referenced
+component specs); the four-byte vector element above is only the route to that
+payload, not its serialized representation. Record family, stable vector index,
+all names referring to that index, and payload separately. Counting/name
+equivalence alone must be labelled as such; it is not payload equivalence.
+
+Camera presence is a **byte at C+D0**. The camera value at C+D4 is a float-vector
+triple followed by four scalar words at C+E0, +E4, +E8, +EC. Capture both the
+presence byte and the stored value: Begin can clear presence while leaving old
+values intact. End copies that value to manager primary +CB4 (C+C20), with its
+four scalars at primary +CC0 through +CCC, independently of whether it is newly
+present. Capture this retained manager copy separately if comparing End's
+publication. Evidence: `00588819–00588849`, `0058BF25`, `005900AE–005900D7`.
+
+The derived ID dictionary is at manager primary +D00 (C+C6C); the derived
+message dictionary is at primary +D14 (C+C80). Both have the same header/bucket
+framing. ID nodes are next pointer, group, instance, description index, each
+one word; message nodes are next pointer, message ID, trigger-vector index.
+Keep these derived tables separate from the ordered source bindings/triggers:
+duplicates and unresolved bindings make their counts differ (§18.6).
+Evidence: `0058F699–0058F719`, `005901E7–0059021D`, `0058F263–0058F2AA`.
+
+#### 18.7.3 Resource reader is publication, not inspection
+
+Resource IID **CA51189B** returns the resource's primary interface, whose vtable
+is `00AA0AC0`. Slot 5 (`+14` hex, `005A3BC0`) has one explicit argument: a
+nonnull destination effects-collection pointer. It is a **void** operation,
+callee pop 4, passing resource+4 as the source collection to `0058D0E0`.
+It does not take a stream, an IID, an output collection pointer, a Boolean
+flag or an enumeration callback. Resource IID **C97CF5CE** instead returns
+resource+4, with the ordinary collection vtable `00AA0A60`. Both successful
+QI paths acquire a reference; balance that acquisition through the returned
+interface. These are distinct from the resource's stream Read at primary slot 7
+(`005A51E0`). Evidence: `005A3B40–005A3B85`, `005A3BC0–005A3BC7`,
+constructor `005A4CC0` and the two vtable images.
+
+The collection reader changes the destination and can change the source.
+In particular, when the destination visual vector is empty, it swaps the
+description dictionaries/vectors, component directories, binding vector and
+trigger vector between the two collections. If source camera-present is true,
+it copies the source camera value to the destination; this path does not set
+the destination camera-present byte. For a nonempty destination, source byte
+C+108 selects callback publication when nonzero, or the direct merge when zero.
+That byte is initialized to zero. The reader itself does not supply the
+manager's Begin/End bracket. Observe the game's bracket and its post-call state;
+do not add a second bracket or invoke the reader to populate a capture sink.
+Evidence: empty test and swaps `0058D0E0–0058D475`, camera copy
+`0058D475–0058D4AE`, branch `0058D4B1–0058D4C9`.
+
+#### 18.7.4 Read-only queue/bootstrap capture protocol
+
+Capture on the owning thread at a quiescent boundary after the naturally
+executed collection End/bootstrap/parse call has returned, before another owner
+operation. Borrow already-held native identities for this interval; do not
+retain description pointers for later dereference. Copy readable value spans
+into capture-owned memory before returning. Do not call getters, Begin, End,
+resource publication, ParseFiles, SetParser, AddInputFilePath, flag setters,
+Start/Stop or reload to manufacture a snapshot. Do not turn a twice-read header
+into a synchronization guarantee: if a concurrent mutation cannot be excluded,
+refuse that sample. Preserve a validity result and exact compared scope.
+
+For the queue, read manager primary +C78 as a borrowed file-parser pointer and
++C7C as the command-parser identity. A null file parser means absent, not an
+empty ready queue. With a file parser **F**, its installed command parser is at
+F+10; input vector at F+14 has stride `2C` hex. Each input contains a parent
+directory string object at +0, path string object at +14, and required byte at
++28. These string objects include a vptr: byte begin/end/capacity are at
+string-object +4/+8/+C. Capture strings by length without calling their vtables.
+The required byte retains original flag bit 0; watch-request bit 1 is not saved
+in that byte. Capture ordered duplicates. Read filesModified at F+34 (one byte)
+and diagnostic string object at F+20. Parsing leaves the input vector retained,
+even on success. Evidence: `00680BE0`, `006809C0–006809D9`,
+`00680A30–00680A47`, `00681E10–00681E65`, `00680900–00680923`.
+
+For clients allowing pure accessor calls rather than a strictly no-write memory
+snapshot, file-parser slot 12 returns the 32-bit input count in EAX (no args),
+slot 13 takes a 32-bit zero-based index and returns a **borrowed const char***
+in EAX (pop 4), slot 10 returns the borrowed diagnostic const char* (no args),
+and slot 14 returns filesModified in AL (no args). Index must be below count;
+slot 13 does not check it. These accessors do not dequeue, parse, clear errors or
+clear filesModified. Copy borrowed characters within the same quiescent interval;
+never free them. Slot 9 is the flag setter and is excluded from observation.
+
+There is no independent EffectsBootstrap object or persistent success/packed-mode
+latch to poll. For bootstrap **history**, observe the natural `005945B0` call and
+record its input option/resulting packed choice, requested resource keys and
+outcomes in order, collection bracket, file registrations (including original
+flags), parse outcomes/diagnostics, and C9F775BB sends. A post-bootstrap snapshot
+alone cannot recover failed resource attempts, overwritten descriptions, the
+original watch-request bit per file, or how many successful parses occurred.
+Mark this history unavailable if observation began late; do not infer it from an
+empty queue or filesModified=false. This is a capture-format rule, not a new
+native state field. Use §6.2 for the behavior of each observed operation.
+An observer needing tick framing also records primary +1B8 (u32 time), +1BC
+(float bits), +C84/+C8C (LOD/offset), and the new and active index vectors at
++BA0/+BAC (stride 4); no list-node traversal is involved in those vectors (§2).
+
+#### 18.7.5 Conformance vectors (proposed, unexecuted)
+
+These are spec vectors for an implementation/capture lane; no native game run
+or engine test execution is claimed here.
+
+| ID | Fixture/operation | Required observation |
+|---|---|---|
+| EF20-1 | Two visual records named `smoke`, priorities 1 and 3; query `SMOKE` with null output | AL true, scratch name changed, no copied record; enumerate two indices and both name nodes, regardless of unique-name count |
+| EF20-2 | Missing particle name; valid destination prefilled with sentinel fields | AL false; destination unchanged; whole EAX must not be tested as a Boolean |
+| EF20-3 | Existing type-6 component; lookup once with null output, once with object-pointer output | first acquires no reference; second writes stored pointer and retains once; caller balances through description slot 5 |
+| EF20-4 | Type-6 vector has one named entry and two anonymous registrations; capacity exceeds logical size | snapshot has three indices and one name node; no capacity entries or generated anonymous names |
+| EF20-5 | Two duplicate ID bindings, one unresolved name, and two triggers with one message ID; End | preserve all source records; derived ID first-wins and derived message points to last trigger; derived counts are not source counts |
+| EF20-6 | Camera value published, End, then Begin | collection presence false, old collection value and manager End-copy still recorded separately; snapshot must not zero them |
+| EF20-7 | Resource slot 5 naturally publishes into an empty visual collection | source/destination description storage exchanged; observer records post-state without invoking reader again; no Boolean return or implicit Begin/End inferred |
+| EF20-8 | Queue two identical paths, required bytes 0 and 1; successful parse | two retained inputs in original order, same paths and parent directories, filesModified false; successful parse does not imply queue count zero |
+| EF20-9 | Same final queue produced by different watch flags or repeated parses; observer attaches afterwards | snapshots can match; original per-input watch flags and parse count are unavailable, not reconstructed as false/one |
+| EF20-10 | Empty vector with spare allocation, or malformed end/cycle while sampling | first records zero elements; malformed/unreadable sample is refused and never counted exact |
+
 ## 19. Effects-script command contracts *[compat]*
 
 This section concerns text-description commands, separate from the binary

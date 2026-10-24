@@ -1,5 +1,21 @@
 # effects: answered questions (archive)
 
+<!-- from: glue-effects-shadow7 (2026-10-24); copied from its reserved worktree -->
+- **EF20 - sections 2, 6.1/6.2 and 18.6 native record-only capture:** Please specify the collection getter return types, exact argument types/ownership and description enumeration/count access, the resource collection-reader IID/signature, and a read-only queue/bootstrap state capture protocol. The slot tables identify methods but their ABI rows say eax-or-void, and section 2 does not define list/description container framing. How can a shadow capture all published descriptions, bindings, triggers, camera state and retained file queue without mutating the native manager or guessing signatures/layouts? [Compare only section 3 directory name decoding against native section 4 HasVisualEffect, through the public SDK raw record and manager interfaces. No native collection getters, private container reads, queue hooks, publication/placement equivalence or full-owner coverage claimed until this contract is provided.]
+
+  **ANSWERED 2026-10-24 (re-effects-ef20):** DIFFERS — effects.md §18.7:
+  named getters return bool in AL; six copy into constructed caller-owned value
+  objects, while the component getter returns a retained description pointer.
+  No count/enumeration interface exists, and even null-output getters mutate
+  scratch state. Native vector/hash framing supplies retained indices, names,
+  bindings, triggers, camera copies and queue records. Resource IID CA51189B
+  slot 5 is void publication to a collection, with a storage-swap fast path;
+  it must not be called for inspection. Capture at a quiescent owner boundary,
+  preserving typed values and refusing incomplete samples. Bootstrap history
+  requires observing natural operations; it cannot be reconstructed from final
+  state. Ten proposed conformance vectors, unexecuted; no coverage expansion
+  or payload equivalence is inferred from names/counts alone.
+
 - **EF15 — Effects-script command owner contracts missing from effects.md:**
   The requested owner family is `(anonymous_namespace)::c*Command`, including
   effect-description parser commands. Which exact classes belong to that family,
