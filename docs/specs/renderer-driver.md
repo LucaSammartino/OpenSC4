@@ -923,8 +923,12 @@ claim to have independently specified every byte in the approximate 139 KB owner
 
 `D3DLight` initializes a D3D7 light record to type 1, zero colours/position, direction (0, 0, 10), falloff bits
 `0x3F800000`, attenuation zero, theta bits `0x3F47AE14` and phi bits `0x3FC8F5C3`. Range is the square root of
-the double constant at `0x00AC4658`, stored to a single float (`0x00883EC0`–`0x00883F2D`); the decompiler's
-folded range literal is not treated as independently verified. These record fields are floats, not doubles. This record
+the double constant at `0x00AC4658`, stored to a single float (`0x00883EC0`–`0x00883F2D`). The constant's
+binary64 bits are `0x47EFFFFFE0000000`: exactly the largest finite binary32 value, not the largest double.
+The constructor loads that double, evaluates x87 square root and rounds on the single store at `0x00883F2A`.
+With nearest/even rounding the range bits are `0x5F7FFFFF` (18446742974197923840); do not substitute
+`FLT_MAX`, infinity or exactly 2^64. The constructor does not change the ambient x87 control word.
+These record fields are floats, not doubles. This record
 does not establish a public graphics lighting API: none of graphics slots 3–82 is a light setter.
 
 ### 12.2 Identity, getters and unsupported tail slot
@@ -975,6 +979,57 @@ may use different in-memory offsets; the aliasing and ownership are the contract
 | 63–66 | §§4.2, 6 mode list, getters and selection |
 | 67–76 | §11 bias, unsupported blits and viewport |
 | 77–82 | §§4.1, 12.2 information, lifecycle, readiness and unsupported tail |
+
+### 12.4 Auxiliary dispatch and lighting/material contracts (RD7)
+
+These tables are distinct from the graphics table. Slot numbers below are zero-based **within their own
+table**; they must not be added to the 83 graphics slots. Table addresses and identity adjustments are checked
+against the PE words at `0x00AC47AC`, `0x00AC47DC`, `0x00AC47EC` and the thunks `0x00886390`–`0x00886440`.
+Offsets in the lighting bodies are relative to owner+8: for example material `+0x284`, device `+0x21C` and
+error `+0x114` there mean owner `+0x28C`, `+0x224`, `+0x11C`. They are not additional state objects.
+
+| Identity/table | Public slots beyond QI/AddRef/Release (0–2) |
+|---|---|
+| owner+0, ID `669565FE`, table `00AC47EC` | 3: constant-true stub; 4: NewBufferRegion (`886750`); 5: delete region (`885330`); 6: save region (`8853B0`); 7: restore region (`8855F0`); 8: region predicate (`885790`); 9–10: constant-true stubs |
+| owner+4, ID `E69BFE2A`, table `00AC47DC` | 3: CopyColorBuffer (`883950`); no subsequent public slot is established by this table |
+| owner+8, ID `87E2B87D`, table `00AC47AC` | 3: lighting enable; 4: individual light enable; 5: global ambient; 6–7: light colours; 8–9: no-ops; 10–11: material colours/properties |
+
+The constant-true body (`0x00648F00`) sets only the low return byte to 1, consumes no stack arguments and
+changes no state. It does not manufacture or return a vertex-buffer object. The two lighting no-ops
+(`0x006F7DC0`) consume two argument words, do not dereference output and do not flush or set error.
+An unrelated folded function name is not evidence of a supported vertex-buffer or light-position API.
+QI and reference operations use §12.2's shared driver ownership. The later words after the primary table's
+slot 10 are destruction support, not additional region operations. Internal vertex-buffer value records
+remain §14.1; none of the above functional slots returns an independently refcounted vertex buffer.
+
+All functional lighting/material setters below return void. Unless suppressed by the enable cache, they
+flush the primitive manager, apply §3's HRESULT mapping to a nonzero flush result, then make the specified
+device call **even after a flush failure**, mapping its nonzero result too. Zero results do not clear a
+previous error. No setter checks device readiness or rolls back its cached edits on device failure.
+
+| Auxiliary slot/body | Arguments and exact effect |
+|---|---|
+| 3, `00883F30` | One argument word; compare/store its low byte at auxiliary `+0x2D4`. If unchanged, no flush or device call. Otherwise flush, then SetRenderState(137, zero-extended low byte). Values such as 2 are preserved rather than canonicalized to 1. |
+| 4, `00883FA0` | `(index, enabled)`: always flush then LightEnable(index, zero-extended low byte of enabled). No index validation, allocation or enable cache. |
+| 5, `00884000` | `(r,g,b)` binary32 components: construct opaque packed ambient as below, flush, then SetRenderState(139, packed colour). No cache or clamp. |
+| 6, `00886CA0` | `(index, ambient*, diffuse*, specular*)`: grow the light vector to index+1 with §12.1's default records if needed. Copy each non-null four-float colour into that record; null retains the old colour. Flush then SetLight(index, whole record), including when all pointers are null. |
+| 7, `00886B90` | `(index, property, values*)`: same growth; properties 0/1/2 copy four words to ambient/diffuse/specular respectively. Other properties change nothing but still flush and submit the whole record. Recognized properties require readable values. |
+| 10, `00884200` | `(ambient*, diffuse*, specular*, emissive*, power)`: each non-null colour copies four words into the persistent material. Store power only when its binary32 value compares greater than or equal to zero. Negative and unordered values retain the old power; negative zero is accepted and its bits retained. Flush then SetMaterial(whole record), even for all-null colours and negative power. |
+| 11, `008840D0` | `(property, values*)`: properties 0/1/2/3 copy four words into ambient/diffuse/specular/emissive; property 4 copies one word into power without a numeric test. Other values leave the material unchanged. Always flush and SetMaterial afterward. |
+
+The D3D material's order in memory is diffuse, ambient, specular, emissive, power, despite the public
+argument/property order beginning with ambient. Colours are copied bitwise, not multiplied, clamped,
+premultiplied or normalized. Light edits cannot alter position, direction, type, attenuation, range or cone
+angles through slots 6–7. Vector growth creates default records for skipped indices; enabling a light does
+not perform that growth. Light range is exactly §12.1, not a decompiler-folded literal.
+
+For global ambient, add binary32 49152.0 to each supplied component in x87 and store the sum to binary32.
+Interpret that stored word as unsigned bits and subtract `0x47400000` modulo 2^32; subtract the next byte
+from its low byte modulo 256. That byte is the component. Pack `FF`, r, g, b from high to low byte.
+This is a bit-based conversion, **not** float-to-integer truncation or saturation (`0x00884000`–`0x00884078`).
+With nearest/even, inputs (0, 0.5, 1) produce `FF0080FF`; component 2 produces 254, demonstrating the
+absence of a clamp. Power's comparison/store is instruction-checked at `0x008842AF`–`0x008842C4`;
+bulk/individual light colour writes at `0x00886C13`–`0x00886C51`, `0x00886CFC`–`0x00886D54`.
 
 ## 13. Cache and ordering obligations
 
@@ -1155,6 +1210,13 @@ unless the setup column says otherwise. Observe calls, output sentinels, errors,
 | DX7-29 | Enumerate depth formats 16-bit then 24-bit/stencil; separately return no format | First descriptor accepted and enumeration canceled; no ranking. No format returns `80004005` |
 | DX7-30 | Inject depth-attachment failure, then independently final viewport failure | First releases/nulls depth surface and returns attachment HRESULT; second returns viewport HRESULT; no alternate-device retry |
 | DX7-31 | Destroy driver with externally observed manager references | Primitive manager receives Release; texture manager receives AddRef, not Release; no implicit queued submission |
+| DX7-32 | Create default light under nearest/even x87 rounding | Range bits `5F7FFFFF`; type 1, direction (0,0,10); zero colours; not FLT_MAX or 2^64 |
+| DX7-33 | Lighting slot 3: set low byte 2 twice, then word `00000102`, then 0 | First flush/state(137,2); next two calls suppressed; last flush/state(137,0) |
+| DX7-34 | Lighting slot 4: enable index 17 twice with word `00000102` | Two flushes and two LightEnable(17,2); no vector growth or equality suppression |
+| DX7-35 | Ambient (0,0.5,1), then (2,0,0), nearest/even | Device state(139,`FF0080FF`), then state(139,`FFFE0000`); no clamping |
+| DX7-36 | Set light index 2 with ambient pointer only; then individual property 99 with null pointer | Three default records created; only index 2 ambient changes; both calls flush/SetLight(2); unknown property does not read null |
+| DX7-37 | Set material power via property 4 to -7, then bulk all-null/power -1, then power negative zero | First stores -7; second retains -7; third preserves negative-zero bits. Each call flushes and submits whole material |
+| DX7-38 | Light/material flush returns generic failure, device call returns success; repeat with surface-lost device result | First leaves error 1; second maps last nonzero result to 0. Cache edits and device calls occur in both cases |
 
 ## 16. Remaining proof boundaries
 
