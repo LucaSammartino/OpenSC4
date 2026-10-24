@@ -10,8 +10,9 @@
 - Existing PL24 records native-only props exactly on upper boundaries; retain core half-open contract.
 - Done: 424731910 removed all three shared-slot patches and all capture/replay state; comparison remains strict.
 - Diagnostic verify qbuild-20261024-203951-build-ctest PASS: build 168/168, CTest 81/81. This was to build unpatched diagnostic DLL, not final all gate.
-- Next: inspect diagnostic house result; final gate once; two exact house runs if specification permits.
-- Game request outstanding: propmgr-race13-r3-readonly-a (turbo to 2032). No new owners or questions this round.
+- Done: runs 735/736 both clean through 2032, propmgr 220/220, zero resyncs/reference warnings; DLL 39ab9efd. PL24 updated to retract unsafe capture assumptions.
+- Next: collect the already running final qbuild all operation (session 27222, functions cell 39); write final report and ready queue entry.
+- No game request outstanding. No new owners or questions this round. Earlier mismatch cause remains unproven; do not claim a general boundary fix.
 
 ## Previous round (superseded safety evidence)
 
