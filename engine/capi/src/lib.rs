@@ -1162,3 +1162,5 @@ mod mysimdispatch_shadow;
 // Private production-core render-properties registry expectations.
 mod renderprops_shadow;
 mod city_shadow;
+// VU16: private partial view-utilities comparison transport.
+mod viewutil_shadow;
