@@ -14,7 +14,8 @@
 - Gate 1 on 5739fb9f1: Rust 6999/6999, clippy clean, native 221/221; CTest 78/80 (ret-channel falsely associated fixture Destroy with Lua Destroy; capi_smoke cached train-integration ABI97 object linked Rust98).
 - Gate 1 logs preserved as build-runs/renderprops-r2-gate1-{test,clippy,build,ctest}.log; queue qbuild-20261024-094717-build-ctest terminal fail.
 - Diagnostic fixes: specific fixture termination name; capi_smoke mismatch includes source provenance and forces a current-source rebuild. Header and Rust are both ABI98; no version edit.
-- Next: repeat full qbuild after these diagnosed changes, then unique-label house request through 2032.
+- Gate 2 on 1d55acf7c PASS: Rust 6999/6999, clippy zero diagnostics, native 49/49 edges (2.1s), CTest 80/80 (79.9s); queue qbuild-20261024-095420-build-ctest terminal pass.
+- Next: submit unique label renderprops-shadow9-r2-fixture2032-20261024a, house profile to 2032, collect watcher operation to terminal result. No source edits after gate.
 - Constructor is specified at render-properties.md §1.3: 0x007E3650, complete object 0x30 bytes.
 - No new game request outstanding; previous evidence below is historical round 1.
 - tools/questions.py index is excluded by non-bending clean-room tools rule; coordinator must regenerate index.
