@@ -18,9 +18,8 @@
 // It records only; EF20 limits collection/queue/placement capture and coverage.
 // The native path has no ticking mirror, message target or host writes.
 //
-// With the replacement enabled, a second fc4_effects core runs beside it.
-// A second fc4_effects core runs in the same process beside whichever effects
-// manager the city is using, over an EffectsHostContext in shadow mode: its
+// With the replacement enabled, a second fc4_effects core runs beside it,
+// over an EffectsHostContext in shadow mode: its
 // reads come from the game and every write is recorded in the context instead
 // of being made (FC4EffectsHost.h). It is ticked with the same microseconds as
 // the animation tick and finishes through the same §7 sweep, so its end

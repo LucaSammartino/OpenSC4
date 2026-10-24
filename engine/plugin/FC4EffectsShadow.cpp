@@ -315,6 +315,8 @@ bool CaptureDirectory(std::vector<uint8_t>& bytes) {
 
 uint32_t NativeHasName(void* user, const char* name) {
     // Borrowed city manager: no AddRef/Release and no mutation.
+    // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
+    // public SDK declares bool. Compare that boolean only, never an index.
     return static_cast<cISC4EffectsManager*>(user)->HasVisualEffect(name) ? 1u : 0u;
 }
 
