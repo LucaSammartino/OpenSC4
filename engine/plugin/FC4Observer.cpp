@@ -66,6 +66,7 @@
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4NetToolDragShadow.h"
+#include "FC4QueryToolShadow.h"
 #include "FC4NetRulesShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
@@ -633,6 +634,7 @@ public:
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
                 NetRulesShadowCityLoaded();
                 NetToolDragShadowLoaded(CurrentCity());
+                QueryToolShadowObserve(CurrentCity(), 0, true);
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
@@ -816,6 +818,7 @@ public:
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 NetRulesShadowMonth(julian);
                 NetToolDragShadowMonth(CurrentCity(), julian);
+                QueryToolShadowObserve(CurrentCity(), julian, false);
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)

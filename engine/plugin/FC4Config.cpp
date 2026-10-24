@@ -406,6 +406,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_drag_shadow", "nettool_wide_drag_shadow",
                                   // LR15 scoped record inventories, independently default off.
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
+                                  "querytool_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

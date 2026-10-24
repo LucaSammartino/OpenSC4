@@ -653,4 +653,6 @@ std::string IniPath();
 // No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
+// querytool_shadow = 0 / 1 (default 0): live hover/describe pick predicates
+// only. Display, selected target and highlight capture require CT27 / CT13.
 }  // namespace fc4
