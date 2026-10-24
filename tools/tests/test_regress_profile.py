@@ -77,7 +77,7 @@ class ReplacementProfileTests(unittest.TestCase):
         rec, run = self.invoke()
         self.assertTrue(rec["ok"])
         self.assertEqual(rec["replace"], "aura,occmgr")
-        run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr")
+        run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr", None, shadow_split=3)
 
     def test_invalid_retry_cannot_retain_an_earlier_pass(self):
         rec, run = self.invoke(profile_error=ValueError("invalid defaults"))

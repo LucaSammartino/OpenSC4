@@ -30,7 +30,7 @@ is part of every verdict):
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-EndDate 2032-01-01] [-Only shadows|replace] [-Replace "landvalue, weather"]
            [-City <path to .sc4>] [-Dll <path to FreeCity4.dll>] [-Parallel | -Queue [-QueueWait 3600]]
-           [-NormalSpeed [-Seconds 150]] [-Baseline <tag or .out path>]
+           [-NormalSpeed [-Seconds 150]] [-Baseline <tag or .out path>] [-ShadowSplit 1..5]
 
 -Dll stages that DLL (and the .pdb next to it, if any) as Plugins\FreeCity4.dll first; it refuses while the game
 runs. Every run prints the staged DLL's SHA-256 prefix, so the record names the build it tested.
@@ -87,6 +87,7 @@ param(
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
     [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev, traffic, automata, netmgr, netlot, nettool, demolition, occmgr, propmgr, lotcfg, citysit, propdev, simgrids, citydetail, ports",
     [string]$AddShadows = "",
+    [ValidateRange(1,5)][int]$ShadowSplit = 1,
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
     [string]$Dll = "",
     [switch]$Parallel,
@@ -101,6 +102,7 @@ param(
     [switch]$AnyPacing
 )
 $ErrorActionPreference = "Continue"
+. (Join-Path $PSScriptRoot "regress_shadows.ps1")
 function Add-RegressShadowKeys([string]$Ini, [string]$Keys) {
     if (-not $Keys) { return $Ini }
     foreach ($item in ($Keys -split ',')) {
@@ -120,6 +122,7 @@ $wallStart = Get-Date
 $Plugins = Join-Path $env:USERPROFILE "Documents\SimCity 4\Plugins"
 if ($Dll -and -not (Test-Path -LiteralPath $Dll)) { Write-Output "REGRESS: no such DLL: $Dll"; exit 2 }
 if ($Queue -and $Parallel) { Write-Output "REGRESS: give -Queue or -Parallel, not both"; exit 2 }
+if ($ShadowSplit -gt 1 -and -not $Queue) { Write-Output "REGRESS: -ShadowSplit greater than 1 requires -Queue"; exit 2 }
 if ($Turbo -and $NormalSpeed) { Write-Output "REGRESS: give -Turbo (the default) or -NormalSpeed, not both"; exit 2 }
 if ($NormalSpeed -and ($PSBoundParameters.ContainsKey("EndDate") -or $TurboFrom)) { Write-Output "REGRESS: -EndDate and -TurboFrom belong to the turbo profile, not -NormalSpeed"; exit 2 }
 if (-not $NormalSpeed -and -not $Turbo -and $PSBoundParameters.ContainsKey("Seconds")) { $NormalSpeed = [switch]$true; Write-Output "note: -Seconds without -Turbo: the normal-speed profile (-NormalSpeed)" }
@@ -176,7 +179,7 @@ $hash = if (Test-Path -LiteralPath $staged) { (Get-FileHash -Algorithm SHA256 -L
 Write-Output "staged DLL: $staged (sha256 $hash)"
 $runProfile = if ($Turbo) { "turbo to $EndDate$(if ($TurboFrom) { " from $TurboFrom" }), timeout $TurboTimeout s" } else { "normal, $Seconds s after load" }
 $mode = if ($Parallel) { "parallel (slots 1 and 2)" } elseif ($Queue) { "queue ($(if ($queuePrio) { 'priority high, at the same time' } else { 'the running queue predates priority: one after the other' }))" } else { "serial" }
-Write-Output ("profile: {0}; {1}" -f $runProfile, $mode)
+Write-Output ("profile: {0}; {1}; shadows {2}" -f $runProfile, $mode, $(if ($ShadowSplit -eq 1) { 'combined' } else { "split $ShadowSplit" }))
 $Run = Join-Path $PSScriptRoot "ingame_run.ps1"
 $Sum = Join-Path $PSScriptRoot "run_summary.ps1"
 $Out = Join-Path $PSScriptRoot "..\build-runs"
@@ -187,6 +190,17 @@ $runs = [ordered]@{
     replace = "enable = $Replace"
 }
 $runs.shadows = Add-RegressShadowKeys $runs.shadows $AddShadows
+$shadowNames = @('shadows')
+if ($ShadowSplit -gt 1 -and $Only -ne 'replace') {
+    $groups = @(Split-RegressShadows $runs.shadows $ShadowSplit)
+    $splitRuns = [ordered]@{}; $shadowNames = @()
+    for ($i=0; $i -lt $groups.Count; $i++) {
+        $name = "shadows$($i+1)"; $shadowNames += $name
+        $splitRuns[$name] = $groups[$i].Ini
+        Write-Output ("shadow group {0}: estimated {1:N1} s; {2}" -f $name, $groups[$i].Cost, $groups[$i].Families)
+    }
+    $splitRuns['replace'] = $runs.replace; $runs = $splitRuns
+}
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }
 
 # Start the runs (all at once with -Parallel, else one after the other) and collect each one's output.
@@ -194,7 +208,7 @@ $results = [ordered]@{}
 $jobs = [ordered]@{}
 $slot = 0
 foreach ($name in $runs.Keys) {
-    if ($Only -and $Only -ne $name) { continue }
+    if ($Only -and $Only -ne ($name -replace '^shadows\d+$','shadows')) { continue }
     $slot++
     $label = "regress-$Tag-$name"
     $ini = $runs[$name] + "`nautotest_unpause = 2`nautotest_end = quit`npopup_dialogs = 0`nautoload_city = $City"
@@ -283,6 +297,13 @@ foreach ($name in $jobs.Keys) {
     Remove-Job $jobs[$name]
 }
 $wall = [int]((Get-Date) - $wallStart).TotalSeconds
+$shadowVerdict = $null
+if ($ShadowSplit -gt 1 -and $Only -ne 'replace') {
+    $shadowVerdict = Join-RegressShadowLogs $Out $Tag $shadowNames $results $queueInfo
+    $combinedResults = [ordered]@{ 'shadows' = @($shadowNames | ForEach-Object { $results[$_] }) }
+    if ($results.Contains('replace')) { $combinedResults['replace'] = $results['replace'] }
+    $results = $combinedResults
+}
 
 # The terrain shadow's totals, from run_summary's "terrain queries" / "terrain vertices" lines (also read back from an
 # .out, where they carry two more spaces): per query [exact, total], and the vertex counts (strings; "-" when unknown).
@@ -318,6 +339,9 @@ foreach ($name in $results.Keys) {
     $r | Select-Object -Skip 3 | Where-Object { $_ -match "^\s+(game:|sc4mutex:|HELD:|simulator: turbo month)" } | ForEach-Object { Write-Output "  $_" }
     $log = Join-Path $Out "$label.log"
     $s = & powershell -ExecutionPolicy Bypass -File $Sum -Log $log -Width 160 2>&1
+    if ($name -eq 'shadows' -and $null -ne $shadowVerdict) {
+        $s = @($s | ForEach-Object { if ($_ -match '^verdict:') { "verdict:   AUTOTEST VERDICT: $shadowVerdict (worst of $ShadowSplit groups)" } else { $_ } })
+    }
     $s | ForEach-Object { Write-Output "  $_" }
 
     $verdict = ($s | Select-String "^verdict:\s+AUTOTEST VERDICT: ([a-z]+)" | Select-Object -First 1)
