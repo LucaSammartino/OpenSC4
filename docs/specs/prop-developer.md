@@ -160,6 +160,62 @@ leftover frame time (simulator.md §5.4), also while the game is paused, so the 
 on the frame rate. *[choice]* FreeCity4 delivers Idle as its simulator does; the **order** of blocks and every
 outcome for a given sequence of block steps are *[compat]*.
 
+### 3.3.1 Dated-prop transitions and delivery order (PV17) *[compat]*
+
+The Day delivery finishes its block step first, obtains the simulator date once, then ticks the dated list
+in its current order. Each non-null entry's slot 16 returns completely before the next entry is read; null
+entries are skipped, not erased. The walk uses the live linked list, not a copied list, and does not take a
+temporary reference to each entry (`0x006F512F`–`0x006F516B`). The list's own held references remain in force.
+
+For the ordinary `cSC4PropOccupant`, a date range has recurrence interval I, active duration L, next start S
+and end E. I and L are the first two arguments of `SetSimulatorDateRange` (§4.6); L defaults to 1 when zero.
+Slot 16 has these effects, using the passed date D and timer mask 2:
+
+| State at this tick | Effect, in order |
+|---|---|
+| No date-range storage, or I = 0 | Nothing, including no timer setter call |
+| Mask 2 clear and D ≥ S | Set mask 2 on; advance S once; return without testing E |
+| Mask 2 clear and D < S | Nothing |
+| Mask 2 set and D ≥ E | Set mask 2 off; replace E with current S + L |
+| Mask 2 set and D < E | Nothing |
+
+Advancing S means adding I days, except I = 365 means the same month/day in the following calendar year,
+using the date library's month/day/year setter. It is not a loop that catches up missed recurrences.
+On activation E is left unchanged; on deactivation S is left unchanged. Thus a date beyond both endpoints
+still activates an inactive prop on one call and can deactivate it only on a later call, even at the same D
+*[quirk]*. Comparisons include equality and compare unsigned day numbers. Evidence: range guards and activation
+`0x005EE236`–`0x005EE288`; annual/interval advancement `0x005EE28B`–`0x005EE2DB`; deactivation and end-date copy
+`0x005EE2E9`–`0x005EE353`; date comparison `0x009129E7`–`0x00912A07`, day addition `0x00912AA6`–`0x00912AB8`.
+
+**Timer and state effects.** `SetPropTimerState` first writes the byte mask. Only a change in whether all low
+four bits are set has a state effect. Leaving that condition calls `SetState(1)`. Entering it consumes one
+`RandomUint32Uniform(100)` from the separate prop-occupant generator at `0x00B231B0`; a result strictly below
+the prop's u8 random chance calls `SetState(0)`, otherwise state is unchanged. Even chance 0 or 100 consumes
+the draw. Changes that leave the aggregate condition unchanged consume no draw and call no state setter
+(`0x005ECA50`–`0x005ECABC`). This is neither the developer member generator nor the night CRT. Date advancement
+does not depend on whether chance accepted activation. State 0 is the active/display state on this timer path;
+an inactive timer produces state 1, as the initial timed-registration state in §4.6 also shows.
+
+`SetState` writes the state byte only when the requested state differs. If the occupant is placed, it then
+**posts**, rather than synchronously sends, `0xE9C86DDB`: data1 = prop token, data2 = requested state,
+data3/data4 = 0, IGZUnknown = the prop (held by the message). It next updates any available model state
+interfaces and releases its temporary model-list references, before returning to the date callback. If not
+placed there is no posted message; model-state work still follows the separate model-availability test.
+An unchanged state produces neither message nor model update (`0x005ED29B`–`0x005ED3EA`; message constructor
+`0x009134D6`–`0x009134FE`, held unknown setter `0x0091346B`). Posting enqueues the message (`0x0092D0BB`–
+`0x0092D0F3`); later pumping sends queued messages (`0x0092E078`–`0x0092E0B5`). The posted message's receivers
+do not run merely because the date callback has posted it. In particular they need not run before the next
+dated prop is ticked. They can observe already advanced dates, rather than dates at the state write.
+
+**Lifetime and lists.** Expiring the active date range turns a timer off; it does not delete the occupant.
+Neither the ordinary date callback nor its timer/state setters directly inserts/removes occupants, sends
+`0x99EF1142`/`0x99EF1143`, or edits the developer's dated/night lists. The held dated-list entry remains.
+Actual insertion/removal notifications still follow §§4.6–4.7. Calls through custom prop/model interfaces and
+receivers invoked by an explicit nested pump are external effects, not a promise of atomicity for arbitrary
+plugins. If such a call mutates the live list, record its nesting and lifetime effects; the original walk
+does not snapshot or protect its current node against reentrant removal. Do not invent a safe deferred-removal
+rule for that case or classify a stale-node walk as ordinary dated expiry. §12 supplies bounded transcripts.
+
 ## 4. Behaviour
 
 ### 4.1 Requesters
@@ -292,6 +348,16 @@ For free entry `(x, z, objs, i)` and requester r:
 
 The new prop announces itself with `0x99EF1142` and is registered by §4.6 like any other prop.
 
+**Creation/tag boundary (PV17).** Registration and any nested callbacks performed by the creation service
+finish before its return. A successful return is followed by a null test, occupant AddRef, retrieval of its
+property holder, writing `0x89A1C16C`, then Release (`0x006F1887`–`0x006F18EF`). There is no developer message
+send, queue pump, or dated-list tick between service return and tagging. Ordinary queued notifications cannot
+spontaneously run in that interval. It is nevertheless not a callback-free interval for an arbitrary returned
+object: AddRef, property-holder access and property operations are virtual calls. A wrapper that invokes an
+observer before returning to the developer also lies before tagging. Capture those effects at their actual
+nesting boundary rather than treating every post-return callback as a creation-service child. Insertion
+observers within the service see the pre-requester-tag occupant; registration does not wait for this tag.
+
 ### 4.5 Worked examples
 
 **A. First visit.** A block holds one livable lot with occupancy 0.5 and four optional prop objects, no props yet.
@@ -367,6 +433,21 @@ removed from it when the view is gone at its removal, and stays held *[quirk]*.
 
 **Sweep start** (`0xC9DA96E9` / `0xC9DA96E8`): set the mode and `isNight` (§3.3); `random_shuffle` the night list
 (C `rand()`, n − 1 calls, foundations §12.3); `batch := ⌈n / 8⌉`; cursor := 0.
+
+**Native callback boundary (PV16).** In the ordinary slot-3 delivery, after reading the message type,
+the dawn/dusk branch writes mode/isNight, shuffles, computes batch and clears cursor, then returns true.
+It calls no prop method, notification receiver, queue pump or other random-consuming helper; in particular
+it does not run the first light batch. All n − 1 CRT draws are inside the shuffle. There is no native
+reentrant night-list mutation on this branch (`0x006F535C`–`0x006F53F4`); the shuffle itself calls only
+`rand`, then swaps pointer-sized list tokens (`0x006DB010`–`0x006DB058`). CRT first-use thread-data setup is
+inside `rand`, not a prop callback. This guarantee concerns this branch, not an entire broadcast.
+Message-server SendMessage builds its recipient sequence, then invokes recipients' slot 3 one after another
+(`0x0092EA85`–`0x0092EAF8`, `0x0092EAFC`–`0x0092EB10`). Another receiver between the developer and a later
+AddNotification observer can consume the same thread's CRT, explicitly dispatch nested messages, and thereby
+insert/remove night props. Merely registering a later observer does not put it immediately after the developer
+or freeze earlier receiver effects. Equal late list lengths establish neither matching order nor membership.
+The bounded worked transcript in §12 identifies the usable scope; it is an instruction-derived fixture,
+not a measured game execution trace.
 
 **Batch** (animation tick, mode ≠ 0; `0x006F0EC0`): `acc := acc + ms`; if `acc ≤ 200` stop; `acc := 0`.
 `on := (mode = 1)`, read **before** the end test (`0x006F0EF6`–`0x006F0F04`). `end := cursor + batch`; if `end > n`
@@ -541,6 +622,16 @@ thread, or use observation that suspends execution while copying. The observer i
 invoke native getters with side effects, or dispatch messages into the simulation.
 
 ### 5.3 Return-value transcripts and selectors
+
+**PV16 capture scope.** Capture the ordered native night-list tokens at the real shuffle entry
+`0x006DB010` reached from `0x006F53A6`; capture same-thread CRT pre-state at the first actual draw as in §5.2,
+or all actual draw results. At return `0x006F53AB` the shuffled list is complete and no other recipient has
+run since shuffle entry; callback return additionally includes the batch/cursor writes. For n ≤ 1 there is
+no draw. A developer slot-3 entry/exit scope also works for a standard message whose type getter has no
+side effects, provided the capture wrapper itself does not dispatch or consume CRT. Pair entry and exit by
+thread and nesting. A later broadcast observer supplies no equivalent guarantee; to use it, capture every
+intervening receiver's effects explicitly. These are read-only observation contracts *[choice]*, not permission
+to reseed, overwrite the native list, or invoke a selector again.
 
 A documented alternative to cloning any generator is to record the random inputs actually consumed by the
 original operation, then replay them into an independent shadow. Each event belongs to an operation sequence,
@@ -902,6 +993,57 @@ Pointer labels V, R and L denote distinct synthetic objects with the primary int
 28. **PV15-06, equal saved byte:** with saved `isNight = 1`, live input 1, powered A in state 0, mode 2 and
     cursor 7, PostCityInit still switches A to 1 and clears mode/cursor to 0. Equal saved and live night values
     do not skip switch-all. Sampling the getter and IsNight alone leaves all those developer fields unchanged.
+
+The following PV16/PV17 vectors are instruction-derived specification fixtures with synthetic tokens and
+explicit initial state, not live-game verdicts. They belong in this document; no engine fixture files are
+required to consume the rules.
+
+29. **PV16-01, bounded dusk transcript:** begin the developer callback with night list [A, B, C, D], CRT
+    state 1, and deliver `0xC9DA96E9`. Mode/isNight become 1/1. The three draws and resulting lists are:
+
+    | Shuffle index | CRT state after draw | Return | Swap index | Ordered list after swap |
+    |---|---|---|---|---|
+    | 1 | `0x0029E2C0` | 41 | 1 | [A, B, C, D] |
+    | 2 | `0xC823F683` | 18467 | 2 | [A, B, C, D] |
+    | 3 | `0x18BE873A` | 6334 | 2 | [A, B, D, C] |
+
+    Shuffle return and callback return both have CRT `0x18BE873A` and [A, B, D, C]; callback return has
+    batch 1, cursor 0, true return. No prop state call, message or intervening callback occurs inside this
+    branch. Dawn gives the same permutation and CRT from the same input, with mode/isNight = 2/0.
+30. **PV16-02, intervening recipient:** recipient sequence is [developer, R, observer]. Reuse PV16-01.
+    After developer return, R draws once, removes D with `0x99EF1143` (data1 = D, data3 = `0xA823821E`)
+    and inserts E with `0x99EF1142` (data1 = E, same data3). These are explicit synchronous nested deliveries;
+    take E to pass the night-list join conditions and not be timed. After R returns the later observer sees
+    [A, B, C, E] and a CRT advanced by four draws total, despite length still being 4. The developer's own
+    shuffle comparison uses [A, B, D, C] and three draws. Do not charge R's draw or list changes to the shuffle.
+31. **PV16-03, short lists:** [] and [A], with arbitrary CRT s, draw nothing and preserve s and order.
+    Callback returns true, cursor 0, batch respectively 0 and 1. No native CRT getter needs to be invoked.
+32. **PV17-01, activation then expiry:** placed ordinary prop A, I = 10, L = 2, S = day 100, E = day 102,
+    mask byte `0x0D`, state 1, chance 100; next dated entry B has no date storage. At D = 100, A's calls/effects
+    are mask-2 getter false, D ≥ S true, timer setter (2, true), mask `0x0F`, one occupant-generator U(100),
+    state setter (0), state byte 0, post `0xE9C86DDB` with (data1 A, data2 0, data3 0, data4 0, unknown A),
+    available model updates, then S := 110. E stays 102. A returns; B is ticked with the same D and returns
+    without effects. No message receiver has run in this fixture; later pumping delivers the queued state
+    notification. A remains in both the dated list and any previously joined night list. At D = 102, A's
+    mask-2 getter is true, D ≥ E true, timer setter (2, false) gives mask `0x0D`, state setter (1), state 1,
+    a second queued `0xE9C86DDB` with data2 1, then E := 112. S stays 110. No random draw on expiry, no
+    insertion/removal messages and no occupant deletion. Each posted message holds A until its own release;
+    the dated-list hold also continues. Model updates precede the next dated entry, queued delivery need not.
+33. **PV17-02, independent gates/chance:** with PV17-01's dates but mask `0x09`, activation produces `0x0B`,
+    S = 110, E = 102; there is no U(100), state setter or state message. With initial mask `0x0D`, chance 0,
+    state 1, activation produces `0x0F` and S = 110 and consumes one U(100), but leaves state 1 and queues
+    nothing. The date timer is on even though random chance rejected display. With I = 0 or no date storage,
+    even a date far beyond the endpoints causes no timer setter, draw or date change.
+34. **PV17-03, missed and annual boundaries:** initial I = 10, L = 2, S = 100, E = 102, mask `0x0D`,
+    chance 100, state 1. At D = 150 the first call activates and moves S only to 110, leaving E = 102; a
+    second call at D = 150 deactivates and moves E to 112. It does not catch up S to 160 in either call.
+    Separately, I = 365, S = 2023-03-01 advances on activation to 2024-03-01, not 2024-02-29 (365 days later).
+35. **PV17-04, creation/tag boundaries:** a creation service synchronously announces insertion of P;
+    registration and insertion observers run with P's preexisting requester-property value, and the service
+    returns P. The developer then holds P, gets its property holder, writes requester r, releases P and
+    succeeds. No developer pump or date tick intervenes. A deliberately instrumented AddRef or holder getter
+    that calls an observer invokes it before the property write, outside the service's completed span;
+    capture this as a separate nested effect. A null service return performs none of the hold/holder/tag steps.
 
 ## 13. How `CreateProp` actually gets an occupant (GLUE21-2 — DIFFERS, answered 2026-10-16 by re-answers31)
 
