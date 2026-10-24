@@ -1807,6 +1807,13 @@ The Mac build agrees independently: `cSC4EffectsManager` has exactly five non-vi
 identity is pinned. The draw-pass `Update(SC4DrawContext*)` (`0x00593120`, §7) is slot 3 of `0x00A9F250`, so
 the draw-pass sub-object is **`+0x04`** and the `+4` experiment had the right offset.
 
+**EF22 clarification:** slot 3 contains `00594120` itself, not a separate
+adjustor thunk. This body accepts ECX=M+8 and accounts for that bias internally
+(for example `005941BD` forms M by subtracting 8 before a primary-method call).
+A slot interceptor forwards the original M+8 unchanged to `00594120`.
+Subtracting 8 before forwarding would apply the adjustment twice. The adjacent
+QI/AddRef/Release entries are actual adjustor thunks; see §18.8.6.
+
 ### 18.2 What `QueryInterface` hands out
 
 `cSC4EffectsManager::QueryInterface` is `0x0058D9E0`. It returns a **sub-object pointer**, never the primary,
@@ -2451,6 +2458,193 @@ or executable-conformance result is implied):
 | EF23-3 | Sequence stream flags FFFFFFFA, successful primitive reads | retained flags 2; writing that loaded description emits 00000002 |
 | EF23-4 | Stipulated native retained flags 80000005, same elements as a description with flags 5 | payload mismatch; capture preserves 80000005; Write emits 80000005, a subsequent Read retains 5 |
 | EF23-5 | Only D..D+17 readable, valid vector header | refuse complete sequence payload; do not substitute zero flags or credit vector-only equality |
+
+#### 18.8.6 Native attachment limits and validated instruction boundaries (EF22)
+
+**DIFFERS from a native installation API or a callback that locks every owner.**
+The original offers neither. Vtable substitution alone cannot observe the
+direct bootstrap, parse-wrapper and reload/tick calls, nor a resource Read
+which occurs before the requesting caller receives R. No public effects
+observer facility in §§11,18.1–18.7 supplies the missing events. Installation,
+thread exclusion and exception-transparent forwarding are host capabilities,
+not additional manager behaviour. The tables below settle executable identity,
+instruction boundaries and receiver bias; they are not a claim that writing a
+jump alone makes an arbitrary hook library safe. A host lacking any required
+capability refuses attachment and retains the unavailable-history/payload
+status in §18.8.5. This is a closed refusal rule, not permission to guess hooks.
+
+**Version gate.** Addresses below are preferred-image VAs for the observed GOG
+1.1.641 executable, image base `00400000`, PE timestamp `4C12BFB7`, SizeOfImage
+`007C8000`, file length 7,524,352 bytes, SHA-256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+The fingerprint identifies the inspected working copy, not all files bearing
+the same version string. This fixed-address recipe requires that image base;
+a different file, rebased image, conflicting patch or mismatching expected
+bytes/table pointer is unsupported by this recipe. Check the loaded bytes as
+well as the disk identity before changing anything. Do not accept a matching
+five-byte prefix as a substitute for the complete span or image identity.
+
+The following are **whole-instruction entry intervals**, half-open at the
+continuation address. Hex byte strings are version guards, not implementation
+source. For an entry detour requiring five bytes, each interval contains at
+least five bytes and no partial instruction. Except the publication tail jump,
+these intervals contain no relative control transfer: replay their effects
+once, with the incoming machine state, before continuing at the listed address.
+The absolute operand in Begin refers to the fixed-image global `00B43CCC`.
+The exported instruction stream has no direct branch/call into the interior
+of these intervals or the three call-site intervals below; this static check
+does not exclude a foreign runtime patch or computed jump. Write's normal
+return sets AL=1 at `005A46D1`; do not compare its upper EAX residue.
+
+| Observed entry | Expected bytes in interval | Continuation | Incoming ECX; explicit stack arguments; semantic return |
+|---|---|---|---|
+| Init `00594A30` | `83 EC 20 53 56` | `00594A35` | M; none; AL Boolean |
+| Bootstrap `005945B0` | `83 EC 64 53 55` | `005945B5` | M; none; void |
+| Reload/effects tick `00593D00` | `83 EC 10 56 8B F1` | `00593D06` | M; none; void |
+| Animation tick `0058E580` | `83 EC 24 53 55` | `0058E585` | M; one four-byte tick argument, retain original bits; void, pop 4 |
+| Message target `00594120` | `83 EC 54 53 55` | `00594125` | M+8; message pointer; AL Boolean, pop 4 |
+| Manager Begin `0058F690` | `53 8B 1D CC 3C B4 00` | `0058F697` | C=M+94; none; void |
+| Manager End `005900A0` | `83 EC 34 53 55` | `005900A5` | C=M+94; none; void |
+| Parse wrapper `0058E4E0` | `56 8B F1 8B 8E 78 0C 00 00` | `0058E4E9` | M; none; void, not parse AL |
+| Resource Read `005A51E0` | `81 EC BC 00 00 00` | `005A51E6` | R; stream pointer; AL Boolean, pop 4 |
+| Resource Write `005A3FC0` | `53 55 56 8B 74 24 10` | `005A3FC7` | R; stream pointer; AL Boolean, pop 4 |
+| Resource QI `005A3B40` | `8B 44 24 04 3D CE F5 7C C9` | `005A3B49` | R; u32 IID, output-cell pointer; AL Boolean, pop 8 |
+| Resource AddRef `005A3BA0` | `81 C1 1C 01 00 00` | `005A3BA6` | R; none; forwards to persist reference operation |
+| Resource Release `005A3BB0` | `81 C1 1C 01 00 00` | `005A3BB6` | R; none; forwards to persist reference operation |
+| Resource publication `005A3BC0` | `83 C1 04 E9 18 95 FE FF` | tail destination `0058D0E0` | R; destination C; void, pop 4 at destination |
+| Shared persist AddRef `009753B7` | `83 C1 04 6A 01` | `009753BC` | persist sub-object P; none; increment result in EAX |
+| Shared persist Release `009753C5` | `56 8B F1 8D 46 04` | `009753CB` | P; none; preserve full machine return state; may destroy R |
+
+All entries use the native x86 ECX receiver convention; argument counts above
+exclude the return address. No-argument rows pop zero explicit argument bytes.
+Resource AddRef/Release first change ECX to P=R+11C, then tail-dispatch to the
+shared persist bodies. Observe shared-body events only for positively known
+effects-resource identities: these functions serve other resource classes as
+well. A primary call followed by its shared-body call is one reference
+operation with nested forwarding, not two independent acquisitions/releases.
+Entry observation records identity before Release; no traversal of R is
+permitted after its final release, even if its numeric address is unchanged.
+
+Publication's complete span includes a relative tail jump. A relocated replay
+must retain destination `0058D0E0` and ECX=R+4; the original displacement is
+relative to `005A3BC8` and cannot be copied unchanged to another address.
+There is no fall-through continuation at `005A3BC8`. A host may instead observe
+the common publication body `0058D0E0` with ECX=source C, but must then retain
+whether it came from the resource wrapper; C alone is not an arbitrary R.
+Avoid installing overlapping or double-counted hooks at both forwarding layers.
+
+Some needed events are **indirect call sites**, not known service-class entry
+addresses. The intervals below include the call and the following AL test.
+Replay the original dynamic target exactly once, record its normal-return AL,
+then preserve the original test's flags at the continuation (the conditional
+branch immediately following). An entry detour and a call-site detour have
+different stack layouts; do not treat the latter as a thiscall function entry.
+At the original call instruction the first argument is at ESP, with no callee
+return address yet. A target call pushes that address in the normal way.
+
+| Event / original site | Expected bytes / continuation | Original call ABI |
+|---|---|---|
+| Fixed resource request `0059475A` | `FF 50 10 84 C0` / `0059475F` | ECX=service; target from EAX vtable slot 4; five arguments in §18.8.1; callee pop 14 hex, AL result |
+| Enumerated resource request `00594861` | `FF 52 10 84 C0` / `00594866` | same ABI; target from EDX vtable slot 4 |
+| Actual file parse `0058E4EB` | `FF 50 20 84 C0` / `0058E4F0` | ECX=file parser; target from EAX vtable slot 8; no arguments; AL result |
+
+These indirect calls need no relative-target relocation, but their dispatch
+registers, receiver, arguments and original call/return behaviour must survive
+instrumentation. Never replace a three-byte call alone with a five-byte jump.
+Entry spans above deliberately avoid displaced relative calls and branches;
+they do not authorize relocating an arbitrary larger prefix. Do not resume at
+an address inside a stolen instruction or install a detour over another host's
+patch. The ordinary parse diagnostic and C9F775BB send remain the events in
+§18.8.1: wrapper return is not proof that the parser succeeded.
+
+**Virtual receiver guards.** Validate each used table cell against the original
+value before substituting it, and keep the saved original callable, not just
+its apparent class name. A replacement of one slot observes only dispatches
+through that slot. The relevant identities are:
+
+| Interface / table | Slots and callable entries | Receiver passed to the saved callable |
+|---|---|---|
+| Manager primary `00A9F264` | slot 3 Init `00594A30` | M |
+| Manager message target `00A9F240` | slots 0..3: `0058FE30`, `0058FD80`, `0058FD90`, `00594120` | M+8; first three thunks subtract 8 and tail-dispatch to primary QI/AddRef/Release; DoMessage does not |
+| Manager collection `00A9F198` | slots 3,4: `0058F690`, `005900A0` | M+94 directly; do not pre-subtract 94 |
+| Resource primary `00AA0AC0` | slots 0,1,2,5,6,7: `005A3B40`, `005A3BA0`, `005A3BB0`, `005A3BC0`, `005A3FC0`, `005A51E0` | R |
+| Resource collection `00AA0A60` | slots 0..2: `005A4D60`, `005A4D70`, `005A4D80` | R+4; thunks subtract 4 before primary QI/AddRef/Release |
+| Resource persist `00AA0AE4` | slots 0..2: `005A4DA0`, `005A4DB0`, `005A4DC0` | R+11C; thunks subtract 11C before primary QI/AddRef/Release |
+
+The persist thunks subsequently reach the primary reference wrappers, which
+add 11C again. Forward the saved thunk with its original receiver; normalize
+only the observer's identity key to R. Merely storing R in place of a borrowed
+persist or collection pointer changes the interface. These table cells were
+checked against the executable; manager-message bias is independently visible
+at `005941BD–005941C0`, resource collection/persist adjustments at
+`005A4D60–005A4DCA`. The message-target slot value is direct even though the
+Mac symbol grouping describes non-virtual thunks (§18.1).
+
+**Host installation, continuation and removal requirements.** Attach before
+the first natural Init, with execution excluded from every changing span,
+gateway and affected table. Verify all guards before publishing any changes;
+on failure publish none (or restore the host's own completed changes before
+resuming execution), mark capture unavailable and run the original normally.
+Instruction-cache synchronization and writable/executable page handling are
+host responsibilities. Keep original bytes/table cells and gateway lifetimes
+until no thread, saved return continuation or unwind can enter them. Removal
+requires the same exclusion and zero in-flight observer/forwarding frames;
+restore only bytes/cells still owned by this attachment. Unloading an observer
+while a native call can return into it is invalid. No such exclusion protocol
+is implemented by Begin/End, the calendar notifications or a COM AddRef.
+
+The forwarded operation must run once with its original inputs and produce
+its original outputs and side effects. Observer-local failures invalidate only
+the record; they must not escape into the game or cause a retry. Preserve the
+original stack/cleanup, registers, flags and x87/SSE state (including precision
+and exception controls), and capture only the specified semantic return
+widths. For a native exception, retain native propagation/unwinding and record
+an exceptional exit rather than a normal-return/post-publication event. Do not
+convert it into parse failure, success, End, rollback or another call. In
+particular, a gateway that replaces a return address needs independently
+validated native unwind/SEH handling; the byte spans do not supply it. If the
+host cannot preserve exceptional paths, this attachment is unsupported. The
+original does not provide an exception-safe interceptor trampoline or an
+installation/removal success Boolean.
+
+**Writer exclusion is a separate precondition.** These hooks expose events,
+not a global lock. Depth zero in only the hooked functions does not establish
+that all writers are absent: collection mutators, command handlers, live-effect
+lifecycle, message/draw callbacks, shutdown and resource-service loading can
+write outside bootstrap/reload. Reference operations themselves use the
+shared atomic-count helper (`009753BD`, `009753CE`); an atomic reference count
+is not a payload lock. The host must establish the single-owner/no-reentry
+condition of §18.8.2 for *all* captured owners and foreign publishers, or an
+equivalent independently proven exclusion interval. Suspending an arbitrary
+writer midway through a mutation is not a consistent boundary. Hooks cannot
+establish the absence of unobserved writers. Copy synchronously after outer
+Init or the appropriate outer tick has normally returned and while that
+exclusion still holds; borrowed R still requires its own live-reference
+interval. If either condition cannot be established, refuse that payload or
+combined snapshot. No calendar label, matching headers or successful parse
+message relaxes this rule. This resolves the requested universal-lock issue
+negatively; it does not defer a hidden native lock to a future question.
+
+#### 18.8.7 Attachment conformance vectors (EF22, proposed, unexecuted)
+
+These are host-contract predictions, not evidence of installed native hooks
+or whole-owner equivalence. Run both the original operation and the observer
+case with the same stipulated foreign replies; count every original operation.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF22-1 | Matching version string, but different image hash/base or one changed guard byte | refuse before any attachment is published; no partial native call trace credited |
+| EF22-2 | Detour validation only covers first five bytes of the nine-byte parse-wrapper interval | reject incomplete span; continuation is 0058E4E9, not the middle of its displacement |
+| EF22-3 | Resource publication gateway relocated away from original address; empty destination | original target remains 0058D0E0 with ECX=R+4; one publication; pre-swap source retained; no return to 005A3BC8 |
+| EF22-4 | Natural service request succeeds, then another fails; both guarded call sites used | five original arguments and callee pop 14 hex preserved; capture actual AL; success copies output, failure does not dereference it; following conditional branch unchanged |
+| EF22-5 | Message slot 3 invoked with M+8 and message Q | saved 00594120 receives M+8 and Q; observer identity is M; no extra subtract-8 forwarding |
+| EF22-6 | Collection and persist interfaces each AddRef then Release the same R | original receivers R+4/R+11C forwarded through saved thunks; normalized identity R; nested primary/shared forwarding is not counted as extra ownership |
+| EF22-7 | Resource Read runs during service request, before R output is returned; next request is a cache hit | early Read captured by already-installed entry observation; cache hit has request/publication but no invented Read |
+| EF22-8 | Observer logging fails, then native parse or publication throws | original invoked once; observer error stays local; native exception propagates with original cleanup; no normal return, End or successful post-state fabricated |
+| EF22-9 | Parse AL=0, wrapper later returns with nonzero EAX residue | record failed parse; wrapper is void; no inferred success |
+| EF22-10 | Removal requested with a native frame returning through a gateway, or another host changed a patched cell | no unloading/freeing gateway or overwriting the other host's change; defer/refuse removal until ownership and exclusion hold |
+| EF22-11 | All observed depths zero, but a foreign publisher or worker cannot be excluded | refuse payload/combined snapshot; no whole-owner credit from matched names or repeated headers |
+| EF22-12 | Native final Release destroys R while its old pointer value remains in a trace | entry/lifetime event retained; no post-release payload read or invented lease renewal |
 
 ## 19. Effects-script command contracts *[compat]*
 

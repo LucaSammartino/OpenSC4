@@ -5,8 +5,9 @@
 ## Handoff
 
 - Goal: settle EF22 safe native interception and EF23 sequence payload extent for glue-effects-whole9.
-- Done: initial handoff bfdcd9f3a; EF23 corrected in spec and archived; five proposed unexecuted conformance vectors.
-- Next: finish EF22 attachment span/ABI tables, conformance cases and archive; doccheck.
+- Done: initial handoff bfdcd9f3a; EF23 fcc39606a; EF22 spec and archive added, twelve proposed unexecuted attachment conformance vectors.
+- Done: doccheck check PASS; 19 expected-byte guards match inspected executable; question index regenerated. No engine/game tests apply.
+- Next: complete instruction-boundary/direct-target validation, commit EF22; final report and queue.
 - EF23 evidence: constructor 005BDF3B sets +18=0; allocation 0059E69E size 1C; Read 005BE2D2 masks 7; Write 005BD703 emits full u32.
 - EF22 key fact: M+8 slot 3 contains 00594120 directly; body expects M+8, no additional adjustor thunk.
 - Executable fingerprint and selected vtable/span measurements: build-runs/read-evidence.py (local helper; uncommitted).
