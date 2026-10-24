@@ -4,27 +4,29 @@
 
 ## Handoff
 
-- Resumed from d81c354bf; VW19 implementation 18db8cb78 is already present.
-- First merge re-view3dwin-vw20: Already up to date, with packed-refs.lock
-  permission error. No shared refs changed.
-- Goal: complete the settled owner gaps identified below, then run all/verify.
-- Next: collect final all operation, report measured results and enqueue its tip.
-- Added required city fallbacks/reuse/graphics QI; GUI extras and parent-owned
-  overlay lifetime; settled landscape/transport/menu routing; cost visibility.
-- Focused operation collected: 84 passed/1 failed (old GUI-order assertion).
-  Failure preserved in focused-close12-r2.log; corrected before final all started.
-- Implementation checkpoint 85f92ba7e. Formatting now passes for seven files
-  (fmt-close12-r2-final-console.log); applied check diffs with apply_patch.
-- Owner table updated with concrete paths/tests; full closure is still incomplete.
-- Context guard measured 107152/150000 at first checkpoint; no new feature work
-  after the two-thirds threshold. Finish diagnostic fixes and all/verify only.
-- Native verify qbuild-20261024-191649-build-ctest PASS: build 162/162 edges
-  (311.8 s), CTest 81/81 (503.5 s), total 817.5 s. Evidence:
-  build-runs/verify-close12-r2-console.log. Full logs fc4verify-{build,ctest}.log.
-- Final all started on stable 884472e54 source with RUST_TEST_THREADS=1;
-  session 13320, all-close12-r2-console.log. Lock released; Rust compiling.
-- No game request outstanding. No plugin/C ABI wiring permitted.
-- Bash q.py fails CreateFileMapping; use PowerShell.
+- Goal: finish owner closure, collect final gate, report and enqueue the actual tip.
+- Guard stopped this round at 150k; write no merge-queue entry this round.
+- Resumed d81c354bf. First merge re-view3dwin-vw20 was already up to date;
+  ancestry confirmed. Git emits packed-refs.lock permission errors but commits succeed.
+- Code 85f92ba7e, final formatting/coverage checkpoint 884472e54; latest docs c52c50af8.
+- Implemented required city fallbacks/reuse/graphics QI, GUI panel extras/MySim,
+  parent-owned overlay base teardown, resolved menu routes/caller IDs/null memory,
+  bus/pipe command dispatch, explicit cost visibility; tests in closure_tests.rs.
+- Seven-file fmt PASS: build-runs/fmt-close12-r2-final-console.log.
+- Native verify qbuild-20261024-191649-build-ctest PASS: build 162/162 (311.8 s),
+  CTest 81/81 (503.5 s), total 817.5 s; verify-close12-r2-console.log.
+- Focused operation fully collected: 84 passed/1 failed, old GUI ordering assertion;
+  fixed BEFORE final all. Preserve build-runs/focused-close12-r2.log.
+- Final all is ALREADY RUNNING on stable 884472e54 source, RUST_TEST_THREADS=1.
+  Shell session 13320; collector functions cell 53. Do not launch a replacement.
+- Clippy finished clean (15m23s). Workspace tests now running; last observed
+  core grid tests passing. Final totals/verdict remain unknown; no source changed.
+- EXACT NEXT: collect that operation if available; otherwise read its terminal
+  build-runs/all-close12-r2-console.log and qbuild-test.log. Never duplicate it.
+- Summarize totals with build-runs/summarize-close12-r2.py, then commit report,
+  guard status, and READY queue with full HEAD only if passing (partial permitted).
+- README retains 16 settled coverage/audit deficits; full owner closure NOT claimed.
+  T29/T33/T34/T36 incomplete. No new questions, ABI/plugin edits, or game requests.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.
 
 ## Previous report
