@@ -18,7 +18,8 @@ Clean room: no RE sources, forbidden tools/, game executables or main checkout e
 No game run records or exactness counts yet; last observed free run number was 644 (rescan before use). Terrain remains default-off; C ABI exports unchanged.
 Worktree intentionally detached. Sandbox rejected taskkill of own gate; original session interrupt successfully returned terminal exit 1.
 Resume round r2: final-source qbuild all launched once; workspace/doc tests: 7484 passed, 0 failed; clippy: exit=0 diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
-Native explicit verify queued as qbuild-20261024-225556-build-ctest (session 5782); all subsequently queued qbuild-20261024-230142-build-ctest (session 41130). This redundant overlap was an error; collect BOTH in this round, do not start another gate. First build linked DLL; CTest ongoing. No game request outstanding.
+Native explicit verify qbuild-20261024-225556-build-ctest: PASS 267/267 build, CTest 81/81, qbuild PASS, session 5782 terminal exit 0. Tree-change note is documentation commits only, no engine source changes.
+All subsequently queued qbuild-20261024-230142-build-ctest (session 41130). This redundant overlap was an error; collect it in this round, do not start another gate. No game request outstanding yet.
 Spec audit: section 15.5.1 step 5 requires direct view Init(terrain); section 15.5.3 publishes no Init slot. Native addresses are not a supported game interface. Do not guess a slot.
 Spec audit: section 15.5.11 requires live terrain+0x6C and water+0x18 arrays; current plugin does not populate either. No replacement safety claim from the pointer correction alone.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-terrain-replace14-r2-manifest.json.
