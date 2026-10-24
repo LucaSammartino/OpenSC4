@@ -1,55 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-watercraft-wc9: watercraft behavior contracts | Codex / re-watercraft-wc9 (detached HEAD) | in progress | Round 2: audit AI targets and shared tween; narrow any transitive model/effect residual. |
+| re-watercraft-wc9: watercraft behavior contracts | Codex / re-watercraft-wc9 (detached HEAD) | ready | Land completed WC5/WC9 and scoped WC3/WC4 answers; remaining model-only audit is WC10/WC11. |
 
 ## Report
 
-This round answers WC9 and WC5 and narrows WC3/WC4. The requested four-question
-closure is incomplete; no whole-owner or runtime equivalence claim is made.
+Round 2 delivers reviewable spec text; it does not claim complete watercraft owner closure.
 
-- `e3904bdd8`: confirmed ordered steering sign gates at 0056EC87–0056ECF2;
-  corrected WC8-08 to T=-0.1 and L=R=100; archived WC9.
-- `809ce4b06`: §5.7.5 grounding/contact/heel matrix, axes, strict boundaries,
-  retained speed reduction, publication and feedback; archived WC5. Added
-  §3.5 tuning/lifecycle, §5.1.5 subsidiary animation/effect/light boundaries,
-  §5.2.1 AI midpoint/consumption gates, and 19 new conformance vectors.
-- Remaining WC3/WC4: complete AI target-production formulas, shared tween
-  sampling arithmetic and transitive model-loading/effect-controller contracts.
-  No original owner calculation may be accepted as a provider input.
+- Prior-round commits e3904bdd8 and 809ce4b06 answer WC9 ordered steering and WC5 grounding/contact/heel. Those answers remain included.
+- 562a56ff9 adds §5.2.2 AI target production and direct publication, plus §5.1.6 common tween sampling. Turning toward the first midpoint produces an absolute turn target; turning toward the second preserves its sign. Translation includes water height, uses the supplied time without a clamp, and selects speed by the used allowance fraction. Tween ratio alone is explicitly rounded to float; nonpositive/NaN duration returns target, whereas unordered ratio survives.
+- c862e2a84 adds §3.6 LoadModels control, result and partial-failure/retry behavior, and §5.1.7's explicit binding to graphics-formats §3.11 for shared effect-controller arithmetic/lifecycle. An already nonempty model vector returns false from LoadModels; a failed later acquisition leaves earlier models installed.
+- Added 19 unique conformance vectors: four tween, eight AI target/publication, four model loading and three effect binding vectors. They are authored spec vectors, not executed game tests.
+- WC3/WC4 original entries and progress provenance are archived with scoped DIFFERS answers dated 2026-10-24. Exactly scoped remaining work is in docs/specs/questions/watercraft.md: WC10 covers animated-resource acquisition, auxiliary loading and model positioning; WC11 covers slot-100 model publication and the positioning/heading-basis helpers. §10.2 carries the same boundary. No remaining AI-target, common-tween or shared effect-controller gap is asserted.
+- Existing attribution remains 75 functions / 38,073 bytes, rather than historical 79 / 38,556. No new owner count was claimed.
 
-Measured validation on substantive commit 809ce4b06 and final report 3156d5ee0:
-doccheck check PASS; questions check PASS; diff whitespace check PASS.
-Cargo/clippy/CTest: n/a (specs only). Game runs:
-none; shadow: n/a. No pending game requests, ABI exports or proposed ABI rows.
+Validation at substantive commit c862e2a84: doccheck check PASS; questions check PASS; git diff whitespace check PASS; the 19 new vector IDs are unique. Final report is documentation only. Cargo, clippy and CTest: n/a. Game runs: none; shadow: n/a. No pending game requests, ABI exports or proposed ABI rows.
 
-Evidence: main-checkout re_query export/instructions with bytes, bounded decomp
-reads, and a read-only PE constant/vtable inspection helper retained only under
-ignored build-runs/. No REA call: the supplied session has no binary open.
-No engine/, plugin or capi files read or changed. The engine lane report was
-read; its Owner table apparently requires an engine/ read forbidden by this
-task, so the report and spec §10.2 supplied the residual list instead.
-Existing attribution is 75 entries / 38,073 bytes, not historical 79 / 38,556.
+Evidence: main-checkout re_query export/instructions with bytes, bounded decomp reads, the prior ignored PE constant/vtable helper, and the existing graphics-formats §3.11 numerical audit. No REA query or fallback this round. No engine/ files read or changed; no decompiled text, game assets or external files committed.
 
-Git reported packed-refs.lock permission errors during commits, but each
-detached-HEAD commit completed successfully. No refs/config/hooks changed and
-no maintenance run. Supervisor publication of the actual final tip is required.
+An initial archive edit failed because shell output used the wrong encoding; it made no changes. The corrected UTF-8 read succeeded. A subsequent whitespace check detected CRLF conversion in the archive; it was normalized and the repeated check passed. Git again emitted packed-refs.lock permission errors while successfully creating detached-HEAD commits. No shared refs/config/hooks or maintenance operations were changed.
 
-## Handoff
-
-- Round 2 active (2026-10-24): reuse detached HEAD 198b9cd62; WC5/WC9 already answered.
-- Done round 2: 562a56ff9, §5.2.2 AI targets/publication and §5.1.6 shared tween, 12 vectors; first-branch absolute turn versus second-branch signed turn and NaN-preserving angle cap.
-- Done round 2: §3.6 LoadModels control/results, §5.1.7 shared effects binding and seven more vectors; scoped WC3/WC4 answers archived, exact model-only residuals filed as WC10/WC11.
-- Next: run final docs/questions/whitespace checks, replace this old report/handoff with round-2 READY report, commit, write ready re queue using full actual HEAD.
-- Required endpoint: READY re queue for certified spec additions; retain exactly scoped unresolved model/effect questions if necessary.
-- Goal: answer WC9, WC3, WC4, WC5 with prose and conformance vectors; no engine reads or edits.
-- Worktree reused at detached HEAD; main/export are read only.
-- Read core-watercraft9's lane report in its worktree: WC9 exists there but has not reached this worktree.
-- Owner closure table is apparently in engine's module README, which this task expressly forbids reading. Use the engine lane report's remaining-work list and spec §10.2 instead.
-- Current measured owner attribution in spec: 75 entries / 38,073 bytes, not historical 79 / 38,556.
-- Done: WC9 sign gates verified at 0056EC87–0056ECF2; corrected WC8-08 to T=-0.1, L=R=100 and recorded answer.
-- Done: §5.7.5 grounds/heels with explicit quaternion matrix, axes, contact/publication ordering; WC5 moved to answered. Nineteen new vectors added.
-- Done: §3.5 tuning/lifecycle, §5.1.5 subsidiary animation/publication and required rope effect, §5.2.1 AI midpoint/consumption gates.
-- WC3/WC4 remain open: full AI target formulas, shared tween sampling and transitive model/effect internals were not completely audited. Do not claim whole-owner closure.
-- Final doccheck/questions/whitespace checks passed; changes committed. Queue is WIP because WC3/WC4 remain unresolved. No more RE queries this round.
-- Successor: start with Engine_AIBoatMotion 00571880 turning branches/target signs, then common TweenStruct GetCurrent and transitive LoadModels 0050E8B0/effect-controller internals. Read questions/watercraft.md and spec §10.2 first.
-- No game requests, ABI changes, or REA calls.
+No ABI-rows file is needed. The READY queue uses kind re, the reserved branch name and the full actual detached HEAD. Supervisor publication is required. Follow-up RE should start at WC11's 0x00508610 and 0x005094A0/0x0080B830, then WC10's resource and auxiliary helpers; these residuals do not hold the completed spec additions.
