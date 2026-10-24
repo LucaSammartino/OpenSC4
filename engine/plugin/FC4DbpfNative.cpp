@@ -91,8 +91,10 @@ std::string NormalPath(std::string path) {
 void ReleaseHeld(HeldFile& file) {
     if (!file.packed) return;
     // Only our fallback reader may be closed. Live game segments are untouched.
-    if (file.owned) file.segment->Close();
-    FC4_RELEASE(file.packed);
+    if (file.owned) {
+        file.segment->Close();
+        FC4_RELEASE_CREATED(file.packed);
+    } else FC4_RELEASE(file.packed);
     file.packed = nullptr;
 }
 bool Stable(const HeldFile& file) {
