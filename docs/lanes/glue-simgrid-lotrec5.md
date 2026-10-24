@@ -7,9 +7,10 @@
 - Goal: integrate existing shadows with moving main; no new implementation scope.
 - First required merge committed as 90fd92058 (main c11352c34); all conflicts resolved.
 - Keep independent native WriteVariant capture from this lane; combine additive module/source/config lists.
-- Stable qbuild all: cargo 6860/0, clippy 0 diagnostics. Native build/CTest pending, request qbuild-20261024-020014-build-ctest.
-- Collect SAME running exec session 64760; no duplicate build. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
-- Next: collect native terminal result; new unique label lotrec-autumn-integrated to 2032; run 359 collision grep found no matches.
+- First qbuild all terminal: cargo 6860/0, clippy 0 diagnostics; native FAIL 211/213, CTest skipped, request qbuild-20261024-020014-build-ctest.
+- Diagnostic C2512: main's explicit opt-in WriteCapture constructor conflicts with aggregate initialization of LR12 Sample.
+- Fixed LR12 member to capture{true}; retained main's variants_ guard with the independent native encoder.
+- Next: repeat full gate after this source fix; unique label lotrec-autumn-integrated to 2032; run 359 collision grep found no matches.
 - Before queue: merge main again and repeat native gate if anything merges.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-simgrid-lotrec5-r2-manifest.json.
 - Detached HEAD intentional; never switch branches or update shared refs.

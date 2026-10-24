@@ -26,7 +26,7 @@ struct Sample {
     safelots::Block* block = nullptr;
     safelots::FreeFn freeNode = nullptr, freeBlock = nullptr;
     int removed = -1;
-    WriteCapture capture;
+    WriteCapture capture{true};
     cIGZUnknown* lot = nullptr;
     cIGZSerializable* serializable = nullptr;
     bool captured = false;

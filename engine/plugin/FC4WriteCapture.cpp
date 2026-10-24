@@ -121,6 +121,10 @@ bool WriteCapture::WriteResKey(cGZPersistResourceKey const& k) {
 }
 
 bool WriteCapture::WriteVariant(cIGZVariant const& value) {
+    if (!variants_) {
+        good_ = false;
+        return false;
+    }
     // foundations 9.2: encode the native value through its published interface,
     // independently of the Rust record/variant writer being compared (LR12).
     const auto* v = AsGame(&value);
