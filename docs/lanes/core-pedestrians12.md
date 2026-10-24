@@ -1,21 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-pedestrians12: pedestrian owners | Codex / core-pedestrians12 | in progress | Implement core pedestrian and one-shot owners, test and gate |
+| core-pedestrians12: pedestrian owners | `Codex` / `core-pedestrians12` (engine lane) | ready; cargo 7383/0/0, clippy clean, all and verify PASS, CTest 81/81; PN1 consumer open, PN3 filed; ABI unchanged | (1) Coordinator review and land; (2) spec writers resolve PN1 and PN3 |
 
-## Handoff
-- Goal: close cSC4Pedestrian and cSC4PedestrianOneShot in engine/core/src/pedestrians using automata records.
-- Done: bf0b16ff6 initial handoff; 7c2648fdf both core owners, shared records/traffic and Owner closure README. Ten pedestrian tests, including route installation, empty path, version rejection, inherited one-shot serialization and crowd push consumption. All ten passed inside the full workspace run.
-- Next: round 2 is collecting its foreground qbuild all to terminal completion (console build-runs/pedestrians-all-r2-console.log), then must run explicit qbuild verify. Round 1 operation 82150 is gone and must not be collected. Source is unchanged.
-- PN1 initial-parameter operation is now specified in pedestrian PR conformance; play-count consumer remains open. PN2 belongs to fire crew outside these owners.
-- No game requests; no ABI or plugin wiring planned.
-- PN3 appended for literal summary choices (cadence, crowd, strike inset, riot randomness); these paths execute. Inherited vehicles VH errors remain inherited, not newly settled.
-- Focused logs: build-runs/pedestrians-focused-2.log (syntax error, terminal failure, fixed); pedestrians-focused-3.log (obsolete snapshot, interrupted after >14 min compilation; terminal exit 1). q.py Bash wrapper failed with Windows mapping access denied.
-- Shared occupant Read marks status 2: round-trip expectations now explicitly include that documented transformation. Production source unchanged since 1fea61697.
-- Full gate started 16:45 local; at 17:09 it was still compiling workspace crates, no diagnostics. Console: build-runs/pedestrians-all-1-console.log; test log: build-runs/qbuild-test.log. All remains in the current turn for terminal collection.
-- Rust milestone: workspace tests finished with 7,383 passed, 0 failed, 0 ignored across 48 suite summaries; all ten `pedestrians::tests::*` passed. Formats sweeps and doc tests completed. Clippy is checking core/conformance; native result not yet available. The same all operation (82150) is still active.
-- Latest: clippy progressed to formats/capi with no diagnostics. Native verify has not reported. Do not enqueue READY before the all operation reaches its actual result and native verification passes; do not duplicate this all run. Full logs remain under build-runs. No game run is needed for this unwired core module; ABI unchanged.
-- Round 2 all: capi test phase terminal FAILED, 591 passed / 1 failed / 0 ignored, 657.87 s. slot44_holds_the_lock_across_threads at capi/src/occupant_manager_tests.rs:714 observed lock_waits 0, expected 1. Its worker has only a 300 ms scheduling window. Clippy still running; collect same operation to terminal. Diagnostic follow-up: RUST_TEST_THREADS=1 for the next all to reduce competing test threads; preserve this failed result separately. No source changes.
-- Round 2 milestone: clippy exit 0, diagnostics 0, completed in 15m12s. The same all operation now waits on native queue request qbuild-20261024-182658-build-ctest. Next collect terminal native result, then diagnostic all with RUST_TEST_THREADS=1 and CARGO_BUILD_JOBS=1, then explicit verify. Console retains failure summary separately from overwritten standard qbuild logs.
-- Round 2 first all terminal FAIL: cargo 591/1, clippy clean, native build PASS 262/262 edges and CTest PASS 81/81 (queue qbuild-20261024-182658-build-ctest). Console build-runs/pedestrians-all-r2-console.log preserves failed evidence. Diagnostic rerun uses RUST_TEST_THREADS=1 and CARGO_BUILD_JOBS=1; output build-runs/pedestrians-all-r2-serial-console.log. Then explicit verify required.
-- Diagnostic rerun milestone: workspace cargo PASS 7383/0/0, clippy exit 0 diagnostics 0. Native queue qbuild-20261024-183724-build-ctest remains active; collect same foreground operation to terminal, then explicit qbuild verify. The earlier capi lock-wait assertion passes with serial test scheduling.
-- Diagnostic all terminal PASS: cargo 7383/0/0, clippy clean, native build PASS 161/161 edges, CTest PASS 81/81 (111.4 s), queue qbuild-20261024-183724-build-ctest. Next run explicit verify; console build-runs/pedestrians-verify-r2-console.log.
+## Report
+
+Implemented column: `engine/core/src/pedestrians`. The module implements `cSC4Pedestrian` and `cSC4PedestrianOneShot`, reusing `automata::AutomatonBase`, `PedestrianRecord`, shared stacks/serialization and `vehicles` traffic movement. Its README contains the per-owner, per-section Owner closure table.
+
+Implemented construction and initialization, first parameter draw, animation transitions, state entry/dispatch, collision cadence and movement, crowd reaction/push consumption, queue/strike/riot/ignite behavior, one-shot instance parameters and play-count draw, and inherited record read/write. Ten module tests cover those behaviors plus empty paths, route installation, unsupported record versions and one-shot record inheritance. Shared occupant Read's documented status-2 transformation is included in round-trip expectations.
+
+PN1 remains open only for the one-shot play-count consumer (pedestrians sections 3 and 7); `Unsupported::PlayCountConsumerPn1` is the module's sole explicit Unsupported behavior. The first-Init operation is implemented under the spec's PR clarification. PN2 concerns fire crew sections 4.2–4.4, outside these owners. PN3 was filed in `docs/specs/questions/pedestrians.md` for summary-level cadence, crowd selection, strike inset and riot randomness; those paths execute literal implementations and are documented in code and the README. Inherited vehicles VH limitations remain owned by the shared traffic module.
+
+## Validation
+
+- Final `qbuild all`: PASS; workspace totals 7,383 passed, 0 failed, 0 ignored, including all ten pedestrian tests; clippy exit 0, diagnostics 0. Native build PASS 161/161 edges; CTest PASS 81/81 (111.4 s). Queue label `qbuild-20261024-183724-build-ctest`. Console: `build-runs/pedestrians-all-r2-serial-console.log`.
+- Explicit `qbuild verify`: PASS; native build 46/46 edges (1.8 s), CTest 81/81 (129.3 s), total 131.2 s. Queue label `qbuild-20261024-185820-build-ctest`. Console: `build-runs/pedestrians-verify-r2-console.log`. Standard logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Initial round-2 all: FAIL, cargo 591 passed / 1 failed, clippy clean, native build PASS 262/262 and CTest 81/81. The scheduling-sensitive capi `slot44_holds_the_lock_across_threads` assertion at line 714 observed lock_waits 0 instead of 1 after a 300 ms worker window. Failure evidence remains in `build-runs/pedestrians-all-r2-console.log` and commits `7301e48f1` / `c7e388658`. A diagnostic rerun with `RUST_TEST_THREADS=1` and `CARGO_BUILD_JOBS=1` passed the complete workspace without source changes.
+
+No game requests or shadow measurements: this is an unwired portable core module. Plugin and capi wiring were deliberately excluded; C ABI exports and ABI version are unchanged. Round 2 changed only this report and gate inputs; implementation and Owner closure README were completed in round 1.
+
+Next: coordinator review/landing; spec writers resolve PN1's consumer and PN3's summary choices. No gate operation remains outstanding.
