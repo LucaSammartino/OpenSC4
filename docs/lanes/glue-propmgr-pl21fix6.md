@@ -21,11 +21,11 @@
 - Fixed DLL build-runs/dlls/pl21fix6-r3-fixed.dll SHA256 8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f.
 - Fixed pair A operation73784 completed exit0 REGRESS PASS0: replace136.843 s, shadows710.672 s; both clean2032, foreign_exceptions0/ref_warnings0/rtc0/stalls0.
 - Pair A shadows propmgr220/220 and lotcfg293/293, mismatched0/incomplete0; record docs/runs/pl21r3fixa-424.md. Baseline record docs/runs/pl21r3-423.md at ab0435a03.
-- Next: second fixed pair tag pl21r3fixb, submitted immediately after this milestone; then final report and ready queue if clean/exact/ref0.
+- Pair B operation94349 active: replace clean2032/ref0/foreign0/stalls0/rtc0; shadows outstanding. Collect same operation, then final report and ready queue if clean/exact/ref0.
 - q.py Bash wrapper failed Win32 error5 before launching regress; direct local output-filter wrapper then submitted the unique requests once.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No build outstanding. WriteCapture and automata owners unchanged. First focused cmd path spelling failed; corrected focused test passed.
+- No build outstanding. Profiles compare identical for baseline/A/B. Pair A:73 query lines,1694 captures,64166 filter checks,0 input errors. WriteCapture/automata unchanged.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
 - Historical round-2 and original implementation evidence follows; it used an older base.
 
