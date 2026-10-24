@@ -969,7 +969,8 @@ mis-attributions**: `0x004F7BA0` is `inc [ecx+0x10]` (this class's own refcount)
 stopped first (`_StopSound(this, id, 1)`); if the caller passed id 0 a fresh one is taken from
 `GenerateNewInstanceId`; the sample is resolved through `cIGZSndMgr` (`+0x60`) slot `0x48` with
 `kGZIID_cIGZSndDataSourceHolder` `0x206077D2`; a `tSound` is allocated with `+0x08` = instance id, `+0x04` =
-sound id, `+0x34 = (param & 0xFF) * 0.01 * 100.0`, `+0x38 = x 4`; it is stored in the `+0x38` hashtable and
+sound id, `+0x34 = signedProperty38 * 0.01f * 100.0f`, `+0x38 = x 4`; start-parameter bit 0 sets
+instance flag `0x20` and does not supply either radius. It is stored in the `+0x38` hashtable and
 the `+0x48` list.
 
 **`_StopSound` (`0x004F94C0`, `ret 8`).** On an **unknown instance id it returns false and does nothing**
@@ -1335,7 +1336,9 @@ record.
 3. `QueryInterface(0xFD584467, …)` on the returned object;
 4. stores two `cRZAutoRefCount<cIGZBuffer>` at `tSound+0x0C` and `+0x10`, reads property `0x38` from the
    second buffer and derives `+0x34 = value`, `+0x38 = value * 4.0` (the pause-for-distance radii);
-5. plays via vtable `+0x14 (instanceId, +0x14, 0x200, 0)`.
+5. sets property `0x10` to 3 with third argument 0, then plays the holder via vtable
+   `+0x14(instanceId, managerMasterVolume, 0x200, 0)`. The volume is **manager** `+0x14`, not
+   instance `+0x14` (which holds the manager reference). See §8.6 for the instruction-checked correction.
 
 Instance lookup in general is the same idiom: hash bucket `id % bucketCount`, chain on `+0x04`
 (`tSound::SetPosition` `0x004FA260`).
@@ -1652,6 +1655,72 @@ Format: `CLSID ← factory`. Vtable address is in §11.1's families by factory b
 `0x2A9D6690←0x004EBE30`, `0xAA9D6694←0x004EBE60`, `0x2A9D6697←0x004EBE90`.
 
 ---
+
+### 11.3 Director execution and lifetime (AU47)
+
+The constructor (`0x004EC710`) registers the nine named classes first, in this order:
+`AA355871`, `29E2797F`, `BDB6171E`, `69E500BC`, `6A12F51C`, `4A47DC0D`, `CA4A66B9`,
+`5CFBDBBF`, `5CFBDBD5`. The 83 leaf registrations then follow §11.2's literal table order.
+There is no interleaving with the nine named registrations. This constructs registration records,
+not instances of those classes. Service holders `+0x4C` through `+0x68` start null; the base
+director is constructed first (`0x004EC713`–`0x004EC748`).
+
+OnStart (`0x004EB1B0`) first registers the director's `this+4` framework hook using framework
+slot `+0x1C`. It then performs §16.16's five add/start pairs, passing the original OnStart
+argument to every child. Neither AddDirector nor child OnStart results gate the next pair.
+It returns true after all five pairs. The framework and child directors are required pointers;
+there is no checked null-service failure path here.
+
+PostAppInit (`0x004EBF40`) begins with result false. It obtains the Hit configuration resource
+with group `0x8A5971C5`, instance `0xEA8A1115`, and constructs the Hit INI reader on the returned
+file. Failed resource acquisition or failed default-entry enumeration returns false, releases
+the temporary file reference and creates no services. The reader is destroyed when constructed.
+After successful enumeration, the following operations occur:
+
+| Order | Operation and ownership |
+|---|---|
+| 1 | Create radio `0x5CFBDBBF`, IID `0x287FB697`, into a temporary reference; call its `+0x20`, then framework `+0x0C(radio)` only when each preceding operation succeeded |
+| 2 | Create SEM `0xAA355871`, same IID, into director holder `+0x58` |
+| 3 | Create scape `0x29E2797F`, IID `0x29E39DB4`, into `+0x64` |
+| 4 | Create handler `0xBDB6171E`, IID `0xBB523BB2`, into `+0x48` relative to this callback's interface view |
+| 5 | Create second handler `0x69E500BC`, IID `0xBB523BB2`, into `+0x4C` relative to that view |
+| 6 | Create ambience manager `0x6A12F51C`, same IID, into `+0x50` relative to that view |
+| 7 | Create sound manager `0x4A47DC0D`, same IID, into `+0x5C` |
+| 8 | Create listener `0xCA4A66B9`, same IID, into `+0x60` |
+| 9 | Call first handler `+0x0C`, ambience manager `+0x20`, SoundManager Init, Listener Init, then SEM initialization `0x004EDAA0` |
+| 10 | QI second handler then ambience manager for `0x89E51472`; on each successful QI call `+0x0C`, balancing each temporary reference |
+
+The mixed offsets in this table are deliberate: PostAppInit executes on the director's secondary
+view; its handler holders are four bytes above those addresses in the base object. Do not use the
+decompiler's negative-array object expressions as ownership rules.
+
+Only successful radio creation **and** radio initialization **and** framework registration sets
+the result true (`0x004EBF58`, `0x004EBFE1`–`0x004EC005`). Any later failed creation or initialization
+clears it. A failed optional QI in order 10 does not clear it. Remaining creations and initializers
+are still attempted: this is not a first-failure transaction and there is no unwind. In particular,
+a failed creation followed by an unconditional initializer dereferences its output; the original
+does not promise a clean false return for a null output. Before replacing any retained service,
+the old reference is cleared and released. Temporary radio and hook references are released on exit.
+The result is loaded back after reader/file cleanup (`0x004EC286`–`0x004EC2A4`), rather than being
+the destructor's result as the pseudocode suggests.
+
+PreAppShutdown (`0x004EC2B0`) visits second handler, first handler, SEM, listener, sound manager,
+ambience manager, scape, in that order. Handlers are queried for `0x89E51472` and receive `+0x10`
+only on successful QI; SEM uses its teardown (misnamed Init), listener and sound manager use
+Shutdown, ambience uses `+0x24`, scape `+0x10`. Each existing holder is then cleared and released;
+the temporary handler hook is balanced. It returns true and skips null holders. Destruction is
+different: `0x004EBEC0` releases holders in descending order `+0x68, +0x64, +0x60, +0x5C, +0x58,
++0x54, +0x50, +0x4C`, then destroys the base director. It does not perform PreAppShutdown.
+Deleting destructor `0x004EC680` frees outer storage only when deletion flag bit 0 is set.
+
+**Conformance cases.** Record the 92 AddCls calls and require the nine-class prefix above before
+the 83 leaves; make every child OnStart return false and still require all five pairs and true
+from the parent. Deny the configuration file and require false with no service creation. Let
+radio registration fail but every later initializer succeed: the final result remains false.
+Let radio registration succeed and a later initializer fail: require later initializers to run,
+false at exit, and no automatic shutdown. With all required outputs valid, deny either optional
+hook QI: it skips only that hook initialization. Check shutdown order separately from destructor
+reference-release order, including a second shutdown with cleared holders.
 
 ## 12. Save behaviour
 
