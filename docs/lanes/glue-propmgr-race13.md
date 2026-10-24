@@ -7,7 +7,9 @@ Goal: eliminate intermittent lot-list mismatch without weakening comparison; two
 Done: prior round captured native slot-40 and slot-8 inputs (88730ab68), gated and measured two runs (731/732), filed PL24; final prior report 0832fe666.
 Resumed: spec A7.2 still requires half-open bounds; PL24 remains open. Added native city slot-96 observation/replay to close the remaining bounds-input gap. Corner count/order/arguments are strictly checked; mismatch diagnostics now print actual native world bounds. Existing slot-40 rectangle replay is already validated.
 Gate: full qbuild all on c5d532838: cargo 7389/0, clippy clean, native 161/161 build edges; CTest 80/81. plugin_autotest_test failed its internal ms<15000 check (end-date quit child 15656 ms). Same DLL/executable passed focused --autotest with that child at 172 ms, proving the timing diagnostic. Failed native logs moved to fc4verify-r2-first-{build,ctest}.log; focused evidence propmgr-r2-autotest-focused.log.
-Next: collect two new house runs with exact bounds replay, then rerun queued verify after the demonstrated scheduler-delay failure. If bounds disagree with the contract, append evidence to PL24 and preserve measured partial closure.
+Measured: propmgr-race13-house2032-c-bounds 220/220, clean to 2032-01-04, ref_warnings=0 (run 733, DLL 6da5598c).
+Outstanding: propmgr-race13-house2032-d-bounds-normal; wait session 23940 is collecting its verdict via wait-propmgr-verdict.ps1 (filesystem event, no qwait or polling loop).
+Next: finish normal-speed run, then rerun queued verify after the demonstrated scheduler-delay failure. Investigate whether exact bounds replay resolves PL24 or merely changes the failure timing.
 Facts: prior labels propmgr-race13-house2032-a and propmgr-race13-house2032-b-normal, both 219/220, no resyncs, clean/ref_warnings=0. No request outstanding.
 
 ## Prior measured report
