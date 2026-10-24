@@ -235,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 26 | EF22, EFP7 | questions/effects.md |
+| effects | 2 | 26 | EF24, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -263,11 +263,11 @@ generated index: the questions live one file per spec, so read only the file for
 | legacy-control | 1 | 11 | LC14 | questions/legacy-control.md |
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
-| lot-configuration | 1 | 1 | GLUE23 | questions/lot-configuration.md |
+| lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 3 | 10 | LR13 | questions/lot-records.md |
+| lot-records | 4 | 11 | LR14 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -301,7 +301,7 @@ generated index: the questions live one file per spec, so read only the file for
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 8 | 1 | PR14 | questions/persistence.md |
-| persistence-manager | 3 | 1 | PR9 | questions/persistence-manager.md |
+| persistence-manager | 4 | 1 | PR10 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
@@ -329,7 +329,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
-| sc-resources | 0 | 11 | SCR12 | questions/sc-resources.md |
+| sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 3 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
@@ -368,4 +368,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **596** | **1446** | | |
+| **total** | **600** | **1448** | | |
