@@ -221,8 +221,8 @@ bool OrdinanceShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMe
     if (month.errors == 0) ++g_clean;
     fc4_date date{};
     fc4_date_from_julian(static_cast<int32_t>(julian), &date);
-    Log("ordinance shadow %04d-%02u-%02u: records=%u checks=%u effects=%u captured=%u mismatches=%u months=%u clean=%u",
-        date.year, date.month, date.day, static_cast<unsigned>(month.records.size()), month.checks,
+    Log("ordinance shadow %04d-%02d-%02d: records=%u checks=%u effects=%u captured=%u mismatches=%u months=%u clean=%u",
+        date.year, date.month, date.day_of_month, static_cast<unsigned>(month.records.size()), month.checks,
         static_cast<unsigned>(month.effects.size()), captured ? 1u : 0u, month.errors, g_months, g_clean);
     return true;
 }
