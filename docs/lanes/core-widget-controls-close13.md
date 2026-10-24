@@ -1,99 +1,97 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-widget-controls-close13 (partial settled widget owners) | `Codex` / `core-widget-controls-close13` (engine lane, detached HEAD) | in progress: focused widget suite 99/99; fmt 8 files clean; ABI unchanged | (1) collect full all and queued verify; (2) report remaining owner obligations |
+| core-widget-controls-close13 (partial settled widget owners) | `Codex` / `core-widget-controls-close13` (engine lane, detached HEAD) | READY partial milestone 0fede2816: cargo 7405 passed/0 failed; clippy clean; native 47/47; CTest 81/81; focused widgets 99/99; fmt 8 files clean; ABI unchanged; no game runs or new questions | (1) finish remaining ListBox adapter/conformance audit; (2) complete TreeView layout, raw-property aliases and helper integration; (3) audit all literal vectors before claiming owner closure |
 
-## Handoff
+## Report
 
-- Resumed from 3cdd36fe2; requested merge re-widget-controls-wc7 says Already up to date (shared packed-refs lock denied).
-- Goal: settled WC1-WC6 closure in engine/core/src/widget_controls; no plugin/capi/text-edit internals.
-- Next: ListBox residual adapters/bounded bar dispatch/lifetime order; TreeView aliases/layout/image centering/packed drag/helper; literal vector audit; all and queued verify.
-- No outstanding processes or game requests. Prior evidence below remains historical.
-- R2 milestone: signed storage primitives/count quirks, residual color/gutter/skin/output adapters, bounded bar-coordinate dispatch, timer-first destruction; TreeView centered image crops, image-aware ancestor connectors, viewport destination primitive, packed drag drawing with preserved hit geometry.
-- R2 focused cargo 99/99, fmt 8 files clean. Initial focused compile failed from a Foreign/BrowserHost name collision, corrected by naming the primitive destroy_window; evidence retained in focused-r2.log and focused-r2-corrected.log.
-- Next: run all on stable source and collect its actual terminal result; run queued verify if all does not already do so. No new implementation after two-thirds cutoff.
-
-## Previous report
-
-This is a partial implementation checkpoint, not completed owner closure. The
-two-thirds context cutoff was reached before the remaining obligations could
-be implemented. The merge-queue entry is WIP because the required workspace
-gate has no completed verdict.
+The committed improvements are ready to land under the standing cutoff rule,
+which permits passing partial closure. **The requested complete owner closure
+is not achieved.** The README still records settled implementation obligations;
+they have not been relabeled as spec questions or unsupported open contracts.
+New implementation stopped at the two-thirds budget point, then the same full
+gate operation was collected to its terminal exit 0.
 
 The requested first merge of `re-widget-controls-wc7` reported Already up to
-date, and its ancestor check succeeded at initial HEAD
-`193b315e2e5fd9e07d121229b3ab82c7cbc59e8b`. Git reported a denied shared
-packed-refs lock while merging/committing, but detached HEAD commits succeeded;
-no shared refs/configuration were changed.
+date; its ancestor check succeeded. Git also reports a denied shared
+packed-refs lock, but detached HEAD commits succeed. No shared refs were changed.
 
-Implemented module paths (the README implemented column names these paths):
+### Implemented module paths
 
-- `engine/core/src/widget_controls/list_box.rs`: settled next-page arithmetic,
-  removal selection repair, persistent drop sizing, sorting enable/sort-now,
-  exact byte search/character navigation, malformed public removal count,
-  intensity, color-prefix paint, fitting and bar tracking.
-- `engine/core/src/widget_controls/tree_view.rs` and `tree_view/settled.rs`:
-  insertion ordering/failure state, property setters, distinct descriptors,
-  move/removal, retained images, one-shot resource initialization and flattened
-  root membership. Native unsafe domains have explicit Precondition results.
-- `engine/core/src/widget_controls/tree_view/input.rs`: cached page navigation,
-  host-shared click state, mouse selection/notifications, collapse selection
-  repair, drag negotiation/target/drop, borrowed helper state.
-- `engine/core/src/widget_controls/tree_view/rendering.rs`: viewport/page/hit
-  formulas, content measurement, guarded fills, flat insertion-side colors,
-  connectors/expanders and text drawing.
-- `engine/core/src/widget_controls/settled_tests.rs`: 12 grouped new scenarios
-  alongside 14 existing ListBox/TreeView tests. These use the new vectors as
-  their source; they do not yet assert every literal one of the 57 new vectors.
-- `engine/core/src/widget_controls/mod.rs`: additional primitive foreign-service
-  and drawing operations. No algorithm is wired into plugin/capi.
+The implemented column in `engine/core/src/widget_controls/README.md` names
+these paths relative to that directory:
+
+- `list_box.rs`: signed storage insertion/removal preserve native count changes
+  after unmatched negative traversal. Public removal delegates to that storage
+  primitive. Destruction releases the timer before Shutdown's five retained
+  interfaces, then disposes entries and invokes the base-destruction primitive.
+  Drop bar move/up dispatch uses half-open list/bar bounds, converts coordinates
+  to bar-local space, preserves the opposite capture-tracking comparisons and
+  bypasses bounds only when tracking. `mouse_up_at` accepts current coordinates;
+  the existing `mouse_up` convenience method uses the last pointer position.
+  Flag-2-disabled paint uses the alternate font color.
+- `list_box/adapters.rs`: color conversion/getters with untouched failure
+  outputs, font-color reset, drop policies, signed gutter/bar-gap bytes,
+  minimum height, retained bar skin and empty/full rectangle handling,
+  indexed string copying, caller comparison with flag 1, delivery mode and
+  false stub. Plain stored fields retain the thin accessor state.
+- `tree_view/rendering.rs`: selected image source crops are centered by logical
+  halving in the reserved image area. Image hit rectangles reflect the actual
+  destination only after successful access. Ancestor continuation coordinates
+  include image-dependent indentation. Viewport blitting supplies both source
+  and destination rectangles to a primitive in `tree_view.rs`.
+- `tree_view/input.rs`: temporary drag drawing emits packed text/image and
+  connector/expander rows, restores cached working-buffer hit rectangles and
+  restores the working buffer before running the borrowed session. A bounded
+  rendering error cleans up the temporary surface/reference.
+- `mod.rs`: additive primitive color conversion, skin, buffer-width and base
+  destruction hooks. No control algorithms are delegated to these primitives.
+- `settled_tests.rs` and `tests.rs`: recording assertions for bar coordinates
+  and bounds, untouched output arguments, malformed storage counts, timer-first
+  release order, image centering/access failure and preserved drag hit geometry.
+
+Earlier implementation milestones `915505f6a` and `1dac37531` remain included.
+This round's implementation commit is `0fede2816`.
 
 ### Measured checks
 
-Final-source isolated harness compiles the actual owner files and extracts the
-existing fixture and owner tests: **26 passed, 0 failed**, 0.01s. Final-source
-clippy-driver `--test -D clippy::all` is clean (harness-only dead-code/unused-import
-warnings suppressed). Evidence: `build-runs/owner-tests-final-result.log` and
-`owner-tests-final-clippy.log`. These are focused checks, not workspace cargo or
-workspace clippy. qbuild fmt: **8 explicit owned files, exit 0, diff_lines 0**,
-`build-runs/fmt-final-absolute.log` (the initial relative-path invocation failed
-to locate files; its evidence is retained).
-
-Queued qbuild verify **PASS**, terminal exit 0, request
-`qbuild-20261024-175346-build-ctest`: build **264/264 edges**, 232.7s; CTest
-**81/81**, 412.5s; total 650.5s. Logs: `build-runs/verify-final.log`,
-`fc4verify-build.log`, `fc4verify-ctest.log`. It reports `[the tree changed during
-the run]`: source corrections preceded the request, while documentation and
-commit state changed during the run. No game/shadow comparison was performed.
-
-Workspace gate: **incomplete, no PASS claimed**. Focused cargo operation 81749
-and first all operation 49012 were interrupted to terminal exit 1; the first
-all preceded two scoped clippy source corrections. Corrected all operation
-11550 was then run on final source and collected after interruption to terminal
-exit 1 at wind-down. Its log reached `Compiling fc4-core`, without a test result
-or workspace clippy verdict. Evidence remains distinct in
-`build-runs/focused-list.log`, `all-final.log`, `all-corrected.log` and
-`qbuild-test.log`. No lane tool operation remains outstanding.
+- Focused real-crate cargo test: **99 passed, 0 failed**, 4789 filtered out.
+  Evidence: `build-runs/focused-r2-corrected.log`. The initial compile exposed
+  a trait-name collision with BrowserHost; the new primitive was renamed to
+  `destroy_window`. Failed evidence remains `build-runs/focused-r2.log`.
+- Scoped qbuild fmt: **8 explicit owned Rust files, exit 0, diff_lines 0**.
+  Evidence: `build-runs/fmt-r2-corrected.log`; original formatting findings
+  remain in `fmt-r2.log` and `fmt-diff-r2.log`.
+- Required stable-source `qbuild all`: **PASS**, actual terminal exit 0.
+  Cargo **7405 passed, 0 failed, 0 ignored**, summed over 50 result blocks;
+  clippy **exit 0, diagnostics 0** with the gate's warnings policy.
+- The same all operation submitted native build/CTest through the coordinator
+  queue as `qbuild-20261024-183548-build-ctest`. **verdict: pass**; build
+  **47/47 edges**, 180.5s; CTest **81/81**, 270.3s; verification **PASS**, 453.0s.
+  No duplicate standalone verify was launched. Evidence: `build-runs/all-r2.log`,
+  `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`,
+  `fc4verify-ctest.log`. Source stayed fixed throughout this gate.
 
 ### Remaining owner obligations
 
-The README closure table records implementation work rather than reopening
-answered WC questions. Complete these settled obligations before claiming
-owner closure:
+These are settled implementation work, not unanswered WC questions:
 
-1. ListBox sections 5.1/5.6: finish residual ABI adapters and malformed storage
-   primitive accounting; section 5.2: audit exact destruction ordering;
-   section 5.4: complete bounded bar hit/up dispatch. Audit alternate paint
-   color policy and every literal section 7 vector.
-2. TreeView sections 6.1/6.6: finish ABI enumeration/raw negative property-word
-   alias behavior. Sections 6.2/6.5: complete automatic buffer/bar recalculation,
-   exact image initialization/centering and ancestor connector geometry.
-3. TreeView section 6.7: complete helper integration and exact packed drag
-   rendering; audit all input/drawing side effects and each literal vector,
-   especially WC-T17/T18/T24/T47/T50/T51 rather than only related scenarios.
-4. Finish the full workspace cargo/clippy gate, then review native evidence and
-   closure. Existing Grid mapping and separate TextEdit/FileBrowser question
-   boundaries were retained; their internals were not modified in this round.
+1. ListBox sections **5.1/5.3/5.6/7**: finish the complete slot-by-slot adapter
+   and count/geometry audit and assert every literal L vector. The new
+   adapters and grouped tests do not establish the full native inventory.
+2. TreeView sections **6.1/6.2/6.5/6.6**: complete raw negative default-color
+   index aliases and enumeration adapters; connect automatic content
+   measurement, working-buffer/bar requirements and viewport recalculation
+   to dirty visibility queries/painting. Resource initialization still needs
+   the complete owner-side audit.
+3. TreeView sections **6.7/7**: complete enclosing helper integration and
+   audit all packed rendering/input effects against every literal vector,
+   particularly descriptor enumeration T24, exact T17 dimensions and T47
+   reselection ordering. The present grouped tests are not an exhaustive
+   assertion of all 57 added conformance vectors.
+4. The incorporated TextEdit and FileBrowser open boundaries in their own
+   specs remain recorded in the README. Their internals were not changed.
+   Grid's existing section mapping was retained.
 
-No new questions were filed: WC1-WC6 are answered and remaining gaps above are
-implementation work. No ABI exports/version changes, plugin/capi wiring,
-legacy_control edits, text-edit internal edits or game requests.
+No new questions: WC1-WC6 are settled. No plugin/capi wiring, ABI exports,
+ABI version, legacy_control internals or text-edit internals changed. No
+game request or shadow comparison was performed; no pixel equality is claimed.
