@@ -504,6 +504,26 @@ through the set writer of §6.3, so they take the same temporary-file route as r
 written, so a city with a default thumbnail has two pictures. If either data record is missing the function returns
 false and writes nothing. The default pictures are `128 · size` wide, not `128 · size + 2`.
 
+### 6.6 The render helpers *[compat]*
+
+Added 2026-10-24 (re-thumbs7): the five helpers of `SC4WriteCityRegionViewThumbnail` (§6.4) that the owner
+`fn:SC4WriteCityRegionViewThumbnail` holds besides the renderer itself.
+
+- **Opaque bounds** (`0x005DCAD0(&rect)`, buffer in a register): under lock `0x8080`, every pixel whose low three
+  bytes OR to more than 3 (any colour channel above 3) gets alpha `0xFF` (slots 21, 22) and grows the bounding box,
+  which is returned half-open (`(0, 0, 0, 0)` when no pixel qualifies). True unless the lock fails.
+- **Crop** (`0x005DCC00`): when the rectangle is the whole buffer, the buffer itself (with a reference); otherwise a
+  new buffer of the rectangle's size and the same colour type (surface service `0x00B43C9C` slot 3), cleared to 0
+  (slot 12) and filled with that part of the source by one blit (slot 29) under lock `0x8010`; null on failure.
+- **Average of four** (`0x005DD180(&buffers[4])`): a new 32-bit buffer (colour type 9) of the first buffer's size whose
+  every pixel is the per-channel mean of the four sources' pixels, `(a + b + c + d + 2) / 4` on each of the three
+  colour bytes (the alpha byte becomes 0); all five buffers are locked meanwhile (`0x40`, `0x8040`); null on failure.
+  The renderer uses it to combine four captures.
+- **Foreground test** (`0x005F85F0`): Win32 `GetActiveWindow() == GetForegroundWindow()`; the renderer checks it
+  before and after capturing.
+- **Capture call** (`0x005F9510(a, b, c, d)`): the graphics layer (`0x00B43CA4`) as interface `0xE69BFE2A`, its slot 3
+  `(a, b, c, d, 0)`, released; 0 without the layer or the interface.
+
 ## 7. What was checked against the shipped files
 
 On the 417 city files of the six shipped regions (DBPF index, QFS decompression where flagged, then the layouts above):

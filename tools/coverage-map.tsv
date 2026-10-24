@@ -266,6 +266,9 @@ cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
 cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
+fn:SC4WriteCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
+fn:SC4ReadCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
+fn:SC4RenderRegionBorderMasks	region	region	regional-city-records.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
