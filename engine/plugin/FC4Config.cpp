@@ -386,6 +386,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "persist_shadow",
                                   // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
                                   "gzmsg_shadow",
+                                  // EX54/EX55 read-only packed-file shadow, default off.
+                                  "dbpf_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

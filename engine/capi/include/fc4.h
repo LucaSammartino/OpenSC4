@@ -13000,6 +13000,12 @@ bool fc4_prop_developer_shadow_crt(fc4_prop_developer* p, uint32_t* state, bool 
 extern "C" {
 #endif
 uint16_t fc4_lot_configuration_capacity(const fc4_props* exemplar);
+/* EX54/EX55 public packed-file projection; raw buffer covers *size bytes. */
+uint32_t fc4_dbpf_packed_count(const fc4_dbpf* p, bool filtered);
+uint32_t fc4_dbpf_packed_keys(const fc4_dbpf* p,
+    void (*emit)(void*, uint32_t, uint32_t, uint32_t), void* ctx);
+uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
+    uint32_t instance, uint8_t* buffer, uint32_t* size);
 #ifdef __cplusplus
 }
 #endif
