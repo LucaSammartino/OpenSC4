@@ -110,6 +110,67 @@ fn manager(dynamic: bool) -> OverlayManager {
     manager
 }
 
+#[test]
+fn ov15_full_flags_suffix_modes_and_preservation() {
+    struct Binding([u32; 2]);
+    impl TextureBinding for Binding {
+        fn size(&self) -> [u32; 2] {
+            self.0
+        }
+    }
+    for dynamic in [false, true] {
+        for water in [false, true] {
+            for quality in [0, 5] {
+                for dimensions in [[64, 64], [128, 64]] {
+                    let mut m = OverlayManager::new();
+                    m.init(view(quality), dynamic, water).unwrap();
+                    let h = m
+                        .add_decal_binding(Some(Arc::new(Binding(dimensions))), [128., 128.], 32., 0.)
+                        .unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+                    m.set_position(h, [144., 160.]).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+                    m.set_alpha(h, 0.5).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+                    m.set_color(h, [0.25, 0.5, 0.75]).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+                    m.set_draw_state(h, 3).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().draw_state, 3);
+                    m.enable_self_lighting(h, 1).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0xD1);
+                    m.enable_self_lighting(h, 0).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0xD1);
+                    let mut placement = Placement([144., 160., 32., 0., 1., 2., 1., 0., 0.]);
+                    m.set_placement(h, placement).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0xD3);
+                    placement.0[5] = 1.;
+                    m.set_placement(h, placement).unwrap();
+                    assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0xD1);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ov15_ordinary_source_and_key_creation_flags() {
+    let mut m = manager(false);
+    let source = m.add_decal_source(Arc::new(Texture), [32., 32.], 16., 0.).unwrap();
+    let mut handles = vec![source];
+    for lookup in [BindingLookup::Slot5, BindingLookup::Slot6] {
+        handles.push(m.add_decal_key(7, [32., 32.], 16., 0., lookup).unwrap());
+    }
+    for h in handles {
+        assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0x91);
+        m.enable_self_lighting(h, 1).unwrap();
+        assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0xD1);
+    }
+    let counts = (m.overlays.iter().count(), m.handles.iter().count());
+    assert_eq!(m.add_decal_binding(None, [32., 32.], 16., 0.), Ok(Handle::NONE));
+    assert_eq!((m.overlays.iter().count(), m.handles.iter().count()), counts);
+}
+
 fn rect(min: [i32; 2], max: [i32; 2]) -> CellRect {
     CellRect { min, max }
 }
