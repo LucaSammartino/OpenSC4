@@ -16,6 +16,8 @@
 - Native DLL now exists. Next: corrected full gate once, keep HEAD and tracked files fixed throughout verification; then unique2032 game run.
 - Corrected all session70320 terminal PASS: Rust6927/0, clippy0, native47/47 incremental edges, CTest74/74; qbuild-20261024-054305-build-ctest. Tracked files/HEAD held fixed during this gate.
 - Next: submit reserved nettool-close7-r1-20261024-f31a; wait with build-runs/wait-verdict.ps1, measure counts and shutdown, file remaining numbered gaps.
+- Game request nettool-close7-r1-20261024-f31a IS OUTSTANDING. Event-based wait session91141 is active; collect the same session. Initial watcher failed before starting because game-results directory was absent; .keep created, watcher restarted for SAME request (no duplicate game).
+- Tested DLL SHA256 1F06468E5CCB1B4E2E90A50FA1EFD570AB8C0ABE50AC9E24249AD05159B1465C; source milestone f2ed3a386. Gate complete, no native operation pending.
 - Reserved docs/runs/nettool-close7-r1-20261024-f31a-410.md (max existing run was409). Submit label nettool-close7-r1-20261024-f31a only after native PASS; no request is currently outstanding.
 - Use build-runs/wait-verdict.ps1 for one event-based wait (no qwait), then build-runs/summarize-nettool.py on the run log. Both scripts were created with apply_patch.
 - Ownership: no vtable writes in exact6/close7. Script factory tool AddRef -> Shutdown -> RELEASE_CREATED; SC4Vector uses game allocator; resources/DB records scoped, no cached game objects. Renderer QI is scoped to selection; borrowed terrain/zone/lot/occupant services and borrowed lot lookup are never released.
