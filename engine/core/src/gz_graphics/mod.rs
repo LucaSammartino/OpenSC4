@@ -2,10 +2,14 @@
 //! Widget-facing GZ graphics, from gz-graphics.md. See README.md for closure.
 //! Arc owns foreign references; getters borrow them. No native layouts or ABI.
 mod context;
+mod alpha;
 mod engine;
+mod geometry;
 mod services;
 pub use context::*;
+pub use alpha::{clipped_alpha_rectangles, generic_buffer_clip, generic_buffer_clip_stretch, AlphaFileIo};
 pub use engine::*;
+pub use geometry::{cubic_segments, fixed_point, polygon_spans, PixelSpan};
 pub use services::*;
 use std::sync::Arc;
 

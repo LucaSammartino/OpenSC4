@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+#[path = "closure_tests.rs"]
+mod closure_tests;
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc, Mutex,
@@ -16,6 +18,7 @@ enum Event {
     Resume,
     Draw(u32, Vec<Point>),
     Generic(GeometryRoute, u32, Vec<Point>),
+    Spans(Vec<PixelSpan>),
     Lock(u32),
     Unlock(u32),
     Graphics(GraphicsCall),
@@ -150,6 +153,10 @@ impl RenderEngine for Recorder {
         push(&self.log, Event::Generic(route, k, p.to_vec()));
         Ok(())
     }
+    fn spans(&mut self, spans: &[PixelSpan]) -> Result<()> {
+        push(&self.log, Event::Spans(spans.to_vec()));
+        Ok(())
+    }
 }
 struct Factory {
     log: Log,
@@ -215,7 +222,7 @@ fn gzg_v03_v04_attachment_and_same_pointer() {
             Event::State(StateChange::Antialias(0)),
             Event::State(StateChange::Thickness(1.)),
             Event::Bind([0.; 2], [1.; 2], false),
-            Event::State(StateChange::Gradient(None, 0, 0))
+            Event::State(StateChange::Gradient(None, 0., 0.))
         ]
     );
     let count = Arc::strong_count(&t);
@@ -580,10 +587,13 @@ impl AlphaDelegate for Delegate {
 }
 struct FileIo(bool);
 impl AlphaFileIo for FileIo {
+    fn create_buffer(&mut self) -> Result<Arc<dyn Buffer>> { Ok(buffer(&log(),2,true)) }
     fn open(&mut self, _: &str) -> bool {
         self.0
     }
     fn close(&mut self) {}
+    fn read_at(&mut self, _: usize, _: &mut [u8]) -> usize { 0 }
+    fn initialize(&mut self, _: &Arc<dyn Buffer>, _: u32, _: u32, _: u32, _: u32) -> bool { true }
 }
 #[test]
 fn gzg_v33_v34_v35_alpha_stateless_forwarding_and_open_failure() {
@@ -632,7 +642,7 @@ fn gzg_v33_v34_v35_alpha_stateless_forwarding_and_open_failure() {
             .is_none());
         assert!(matches!(
             a.surface_from_file("present", mask, &mut FileIo(true)),
-            Err(Error::Unsupported("GZG5"))
+            Err(Error::InvalidInput)
         ));
     }
 }
@@ -679,7 +689,7 @@ fn canvas(log: &Log) -> CanvasW32 {
 }
 
 #[test]
-fn context_replacement_failure_stacks_and_release_only_destruction() {
+fn gzg_v45_v46_context_replacement_failure_stacks_and_shutdown_destruction() {
     let (mut c, t, mut f) = setup();
     c.clip_absolute(Rect(1, 2, 5, 6)).unwrap();
     c.push_transform();
@@ -704,7 +714,7 @@ fn context_replacement_failure_stacks_and_release_only_destruction() {
     c.set_target(Some(&t), &mut f).unwrap();
     take(&f.log);
     drop(c);
-    assert!(take(&f.log).is_empty());
+    assert_eq!(take(&f.log), vec![Event::Shutdown]);
     assert_eq!(Arc::strong_count(&t), 1);
 }
 #[test]

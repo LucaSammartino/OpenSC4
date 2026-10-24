@@ -63,7 +63,7 @@ pub struct EngineState {
     pub aa: u8,
     pub thickness: f32,
     pub gradient: Option<Vec<u32>>,
-    pub gradient_origin: [i32; 2],
+    pub gradient_origin: [f32; 2],
     pub tiling: Option<[u32; 4]>,
     pub dirty: bool,
     pub transform_dirty: bool,
@@ -81,7 +81,7 @@ impl Default for EngineState {
             aa: 0,
             thickness: 1.,
             gradient: None,
-            gradient_origin: [0; 2],
+            gradient_origin: [0.; 2],
             tiling: None,
             dirty: false,
             transform_dirty: false,
@@ -123,6 +123,39 @@ impl EngineState {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GradientCoefficients {
+    pub constant: [i32; 4],
+    pub x: [i32; 4],
+    pub y: [i32; 4],
+}
+impl GradientCoefficients {
+    pub fn convert(words: &[u32], anchor: Point) -> Result<Self> {
+        if words.len() != 12 || anchor.iter().any(|v| !v.is_finite()) {
+            return Err(Error::InvalidInput);
+        }
+        // Rust 1.75: spell out default x87 nearest-even, without round_ties_even.
+        fn integer(word: u32) -> Result<i32> {
+            let v = (f32::from_bits(word) as f64 * 16_711_680.) as f32;
+            let v = v as f64;
+            if !v.is_finite() || v < i32::MIN as f64 || v > i32::MAX as f64 {
+                return Err(Error::InvalidInput);
+            }
+            let floor = v.floor();
+            let fraction = v - floor;
+            Ok(if fraction < 0.5 || (fraction == 0.5 && (floor as i64) & 1 == 0) { floor as i32 } else { (floor + 1.) as i32 })
+        }
+        let mut out = Self::default();
+        for i in 0..4 {
+            let c = integer(words[i])?;
+            out.x[i] = integer(words[4+i])?;
+            out.y[i] = integer(words[8+i])?;
+            out.constant[i] = (c.wrapping_add(0x8000) as f64 - (out.x[i] as f64 * anchor[0] as f64 + out.y[i] as f64 * anchor[1] as f64)) as i32;
+        }
+        Ok(out)
+    }
+}
+
 pub struct BufferEngine {
     buffer: Option<Arc<dyn Buffer>>,
     record: Option<BufferRecord>,
@@ -130,6 +163,7 @@ pub struct BufferEngine {
     pub state: EngineState,
     pub native_colours: [u32; 4],
     pub source: Option<Arc<dyn Target>>,
+    pub gradient: GradientCoefficients,
     locked: bool,
     /// Fault injection models the specified native success-with-null outcome.
     pub renderer_allocation_available: bool,
@@ -143,6 +177,7 @@ impl Default for BufferEngine {
             state: EngineState::default(),
             native_colours: [0; 4],
             source: None,
+            gradient: GradientCoefficients::default(),
             locked: false,
             renderer_allocation_available: true,
         }
@@ -200,13 +235,10 @@ impl BufferEngine {
         Ok(())
     }
     /// Already clipped packed spans. No duplicated pixel kernels: the selected
-    /// existing software module performs all writes. Gradient conversion and
-    /// source binding remain the explicit GZG1/GZG2 boundary of this spec.
+    /// existing software module performs all writes. Source binding remains GZG2.
     pub fn draw_preclipped_spans(&self, spans: &[(u32, u32)]) -> Result<()> {
+        if spans.is_empty() { return Ok(()); }
         let route = self.span_route()?;
-        if matches!(route, SpanRoute::Gradient | SpanRoute::AlphaGradient) {
-            return Err(Error::Unsupported("GZG1"));
-        }
         if route == SpanRoute::Blit {
             return Err(Error::Unsupported("GZG2"));
         }
@@ -215,6 +247,7 @@ impl BufferEngine {
         let format = self.renderer.ok_or(Error::Foreign)?;
         let native = self.native_colours[0];
         let argb = self.state.colours[0];
+        let g = self.gradient;
         buffer.pixels(record, &mut |bytes, origin| {
             macro_rules! runs {
                 ($module:ident) => {
@@ -233,7 +266,10 @@ impl BufferEngine {
                         stride: record.stride,
                     };
                     let spans = runs!(span_render8);
-                    if route == SpanRoute::Alpha {
+                    if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
+                        let g = k::Gradient { start: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
+                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                    } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
                         k::render_solid(&spans, &mut dest, native)
@@ -247,7 +283,10 @@ impl BufferEngine {
                         stride: record.stride,
                     };
                     let spans = runs!(span_render565);
-                    if route == SpanRoute::Alpha {
+                    if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
+                        let g = k::Gradient { c: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
+                        if route == SpanRoute::Gradient { k::render_gradient(bytes,&spans,&dest,&g) } else { k::render_alpha_gradient(bytes,&spans,&dest,&g) }
+                    } else if route == SpanRoute::Alpha {
                         k::render_alpha(bytes, &spans, &dest, native, argb)
                     } else {
                         k::render_solid(bytes, &spans, &dest, native)
@@ -262,7 +301,10 @@ impl BufferEngine {
                         stride: record.stride,
                     };
                     let spans = runs!(span_render1555);
-                    if route == SpanRoute::Alpha {
+                    if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
+                        let g = k::GradientRecord { c: g.constant, dx: g.x, dy: g.y };
+                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                    } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
                         k::render_solid(&spans, &mut dest, native)
@@ -277,7 +319,10 @@ impl BufferEngine {
                         stride: record.stride,
                     };
                     let spans = runs!(span_render4444);
-                    if route == SpanRoute::Alpha {
+                    if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
+                        let g = k::Gradient { start: g.constant, dx: g.x, dy: g.y };
+                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                    } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
                         k::render_solid(&spans, &mut dest, native)
@@ -291,7 +336,10 @@ impl BufferEngine {
                         stride: record.stride,
                     };
                     let spans = runs!(span_render8888);
-                    if route == SpanRoute::Alpha {
+                    if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
+                        let g = k::Gradient { start: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
+                        if route == SpanRoute::Gradient { k::render_gradient(&spans,bytes,dest,&g) } else { k::render_alpha_gradient(&spans,bytes,dest,&g) }
+                    } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, bytes, dest, native, argb)
                     } else {
                         k::render_solid(&spans, bytes, dest, native)
@@ -350,8 +398,8 @@ impl RenderEngine for BufferEngine {
         if let StateChange::Colours(colours) = c {
             return self.set_colours(0, &colours);
         }
-        if matches!(&c, StateChange::Gradient(Some(_), _, _)) {
-            return Err(Error::Unsupported("GZG1"));
+        if let StateChange::Gradient(Some(words), x, y) = &c {
+            self.gradient = GradientCoefficients::convert(words, [*x,*y])?;
         }
         self.state.apply(c, false);
         Ok(())
@@ -397,8 +445,16 @@ impl RenderEngine for BufferEngine {
         }
         Ok(plan.result)
     }
-    fn generic(&mut self, _: GeometryRoute, _: u32, _: &[Point]) -> Result<()> {
-        Err(Error::Unsupported("GZG1"))
+    fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
+        let state = self.state.clone();
+        super::geometry::execute(self,route,kind,points,&state)
+    }
+    fn spans(&mut self, spans: &[PixelSpan]) -> Result<()> {
+        let packed: Vec<_> = spans.iter().map(|s| {
+            let start = ((s.y as u32) << 16) | u32::from(s.left as u16);
+            (start,start.wrapping_add(s.right.wrapping_sub(s.left) as u32))
+        }).collect();
+        self.draw_preclipped_spans(&packed)
     }
 }
 // Deliberately no Drop->Shutdown: final native Release does not unlock (§4.2).
@@ -508,8 +564,9 @@ impl RenderEngine for HardwareEngine {
         self.device.submit(kind, points, &self.state)?;
         Ok(0)
     }
-    fn generic(&mut self, _: GeometryRoute, _: u32, _: &[Point]) -> Result<()> {
-        Err(Error::Unsupported("GZG1"))
+    fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
+        let state = self.state.clone();
+        super::geometry::execute(self,route,kind,points,&state)
     }
 }
 
@@ -581,7 +638,8 @@ impl RenderEngine for SimGlEngine {
         // Neither specialized subdivision nor fallback delegation is settled.
         Err(Error::Unsupported("GZG2"))
     }
-    fn generic(&mut self, _: GeometryRoute, _: u32, _: &[Point]) -> Result<()> {
-        Err(Error::Unsupported("GZG1"))
+    fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
+        let state = self.base.state.clone();
+        super::geometry::execute(self,route,kind,points,&state)
     }
 }
