@@ -7,7 +7,7 @@
 - Goal: finish owner closure and all/verify; guard OVER at 151k, no queue entry.
 - r4 resumed 5dfaa9c60, detached HEAD. First required merge: already up to date;
   VW20 is an ancestor. Do not change shared refs. Prior evidence is below.
-- This checkpoint adds literal zone/network/fixed-lot command dispatch with city
+- Commit bc7427d27 adds literal zone/network/fixed-lot command dispatch with city
   guards, fixes double UI toggle, initializes city animation/model-maker objects,
   enforces required main-panel lookup, balances replaced GUI image/surface refs.
 - Adds tutorial follow-up including inert buttons, settled catalog identities,
