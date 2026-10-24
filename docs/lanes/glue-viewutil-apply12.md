@@ -12,6 +12,7 @@
 - Logger committed as f1b647211. At 18:20 BST, the same gate was still compiling core tests: worktree-specific rustc PID 28804 alive, 3063s elapsed, 106 CPU seconds, 4103 MiB resident. No terminal gate result; no game request outstanding.
 - Final gate Rust stage now PASS: 7376 passed, 0 failed, 0 ignored; clippy exit=0, diagnostics=0. Same session 59094 has queued native build/CTest as `qbuild-20261024-182852-build-ctest`; collect it, do not queue another verify.
 - Full gate completed PASS: native build 47/47 edges (2.7s), CTest 81/81 (89.9s), fc4verify PASS (94.7s), qbuild PASS. Session 59094 terminated exit=0. Next submit `viewutil12-r3-subset-20261024c` to 2032, using the newly built DLL.
+- Run 522 completed clean to 2032-01-13, ref_warnings=0: `viewutil12-r3-subset-20261024c 73/73` for viewutil-subset; all 33 included families each 73/73. Three differing families and full aggregate remain 0/73. DLL 4a19a8f0. Completed verdict accepted after event wait missed its notification; only wait helper stopped, no repeat game. Next replace this Handoff with final READY report and enqueue full HEAD.
 - Next: collect gate, submit unique turbo run to 2032, wait once without qwait; record next free run (currently max 521); finish READY partial queue with full HEAD.
 - No new contracts or questions. Existing runs 520/521 and VU12/VU13/VU17/VU18/VU19 remain as below.
 
