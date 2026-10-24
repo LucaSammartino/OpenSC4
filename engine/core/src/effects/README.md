@@ -11,7 +11,7 @@ C ABI or game replacement is introduced.
 |---|---|---|---|
 | cSC4BrushEffect | §8.1 description input | `directory::BrushRecord`; `effects_parser::script::commands::Commands::anonymous_component` | `directory_round_trip_and_locator`; `ec288_through_ec290_sound_brush_maps_and_stored_length` |
 | cSC4BrushEffect | §8.2 creation | `BrushEffect::new` | `brush_draws_twice_even_for_constant_ranges_and_start_resets_stroke` |
-| cSC4BrushEffect | §8.3 Start, IsActive, Update, Stop, Apply | `BrushEffect::{start,is_active,update,stop,apply}` | `t01_brush_stroke_count`, `t04_one_shot_crater`, `t05_out_of_bounds`, `brush_bounds_and_repeated_stop` (see tests.rs for bounds/repeated-stop coverage) |
+| cSC4BrushEffect | §8.3 Start, IsActive, Update, Stop, Apply | `BrushEffect::{start,is_active,update,stop,apply}` | `t01_brush_stroke_count`, `t04_one_shot_crater`, `t05_out_of_bounds`, `volcano_finishes_in_the_draw_pass_or_the_hook` (includes repeated Stop) |
 | cSC4BrushEffect | §8.3 SetTransform | `BrushEffect::set_transform`, `transform::ParentTransform::world_position` | `semantic_transform_rotates_scales_then_translates_both_owners`; open: EF19 for legacy placement decoding and native numeric order |
 | cSC4BrushEffect | §8.4 shipped descriptions | `shipped::BRUSHES` | `shipped_tables`, `t01_brush_stroke_count`, `t04_one_shot_crater` |
 | cSC4BrushEffect | §17.1,2,4,5 conformance | component update via manager | `ef17_01_brush_stroke`, `ef17_02_dilation`, `ef17_04_one_shot_crater`, `ef17_05_out_of_bounds` in engine/conformance/vectors |

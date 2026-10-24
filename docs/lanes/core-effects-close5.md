@@ -8,7 +8,10 @@
 - Audit: parser commands EC1–EC305 and component directory DI1–DI5 already implemented with per-section tests.
 - Added semantic component transforms, game map host calls with retained map identity, uint32 parameter-13 truncation, and focused owner tests.
 - Added owner closure matrix in engine/core/src/effects/README.md; EF18 blocks queue/bootstrap/full collection closure, EF19 blocks native legacy transform/numeric qualification. EF17 left alone.
-- Initial focused check failed on test RNG API use (missing SeedSource and PartialEq); fixed tests. Second focused operation outstanding: exec session 83600.
-- Next: collect focused tests, finish explicit-file formatting, then run qbuild all and queued verify on stable source.
+- Implementation milestone: ae1f3b323 (semantic transforms, map lifecycle, parameter width, open boundaries and matrix).
+- Initial focused check failed on test RNG API use (missing SeedSource and PartialEq); fixed tests. Corrected focused tests: 4/4 passed (4451 core tests discovered).
+- Explicit owned-file fmt: 8 files, exit=0, diff_lines=0. Relative fmt paths initially failed; absolute paths work.
+- q.py could not launch Git Bash (CreateFileMapping permission denied); focused cargo ran directly in the worktree.
+- Full stable-source qbuild all outstanding: exec session 47146. Next: collect that operation, then qbuild verify if native queue verification has not already run.
 - No game requests outstanding; no ABI/plugin/capi edits authorized.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-close5-r1-manifest.json.
