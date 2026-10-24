@@ -377,7 +377,7 @@ impl Client {
         self.release_request(host, id)?;
         result
     }
-    /// 0081ca90. Normalization helper calls are explicit owned O barriers.
+    /// 0081ca90: raw-header parsing and first-empty-value erasure precede queueing.
     pub fn admit(&mut self, host: &mut impl Host, request: Option<u32>, custom: u32) -> Contract<u32> {
         let Some(id) = request else {
             return Ok(0);

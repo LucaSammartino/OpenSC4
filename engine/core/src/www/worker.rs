@@ -30,8 +30,12 @@ pub struct Record {
     pub suspend: i32,
     pub current: Option<Job>,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Scheduler {
+    pub initialized: bool,
+    pub references: u32,
+    pub counter: u32,
+    pub lookup: Option<u32>,
     pub queue: VecDeque<Job>,
     pub record: Option<Record>,
     pub default_directory: Vec<u8>,
@@ -56,6 +60,7 @@ pub enum Effect {
     ReleaseMessage,
     DestroyLocalStrings,
     DestroyUrl,
+    AllocateQueueNode,
 }
 pub trait Host: ftp::Io {
     fn worker_effect(&mut self, effect: Effect);
@@ -68,7 +73,51 @@ pub enum Step {
     Exited,
 }
 
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
 impl Scheduler {
+    /// 00813d70 is scheduler construction, not session initialization.
+    pub fn new(lookup: Option<u32>) -> Self {
+        Self {
+            initialized: false,
+            references: 0,
+            counter: 0,
+            lookup,
+            queue: VecDeque::new(),
+            record: None,
+            default_directory: Vec::new(),
+            timeout: 15,
+            target: None,
+        }
+    }
+    pub fn admit(&mut self, host: &mut impl Host, url: &[u8], destination: Option<&[u8]>, custom: u32) -> u32 {
+        if url.is_empty() {
+            return 0;
+        }
+        let destination = destination
+            .filter(|d| !d.is_empty())
+            .map_or_else(|| self.default_directory.clone(), super::directory);
+        host.worker_effect(Effect::Lock);
+        self.counter = self.counter.wrapping_add(1);
+        let id = self.counter;
+        self.queue.push_back(Job {
+            id,
+            status: 1,
+            url: url.to_vec(),
+            destination,
+            time: 0,
+            progress: 0,
+            custom,
+        });
+        host.worker_effect(Effect::AllocateQueueNode);
+        host.worker_effect(Effect::Unlock);
+        self.start(host);
+        host.worker_effect(Effect::DestroyLocalStrings);
+        id
+    }
     /// 00817580: no rollback if thread startup fails; caller owns the acquired hold.
     pub fn start(&mut self, host: &mut impl Host) {
         host.worker_effect(Effect::Lock);
