@@ -15,10 +15,11 @@
 - First request: lvstep6-20261024-house-t1 returned no-load at ~04:00:50; no city/comparison, retained as run386. No panic/SEH logged, startup-only log. Mis-spelled neighbors_shadow ignored; supported key is neighbours_shadow.
 - Retry lvstep6-20261024-house-t1-r2 also returned no-load, wall1111s, slot2, no city/comparisons; retained as run387. No source change or duplicate build.
 - Measured run388: lvstep6-20261024-isolated-t1 72/73; clean/ref0, end2032-01-10, real28.829s/wall40s. Pass2 at2026-02-06 differs intrinsic6/total3/mean1 (10 mismatches); LV2 evidence appended. No exactness waiver or native capture claim.
-- Outstanding: lvstep6-20261024-isolated-normal; same isolated LV settings, turbo0/end2032/seconds900/timeout1100. Collect its current wait or completed verdict; never resend same label.
-- Next: normal verdict/count, then house-style t2/t3 drafts. Both failed full-profile logs stop at optional EffectsShadowStartup before next startup log; omit effects probe (effects_shadow=0) for those diagnostics. This is a request-only diagnostic, not a source fix or assertion that it matches the coordinator's exact profile.
+- Normal run389: lvstep6-20261024-isolated-normal 73/73, every mismatches=0; clean/ref0, end2032-01-01, real110.469s/wall121s. Same DLL as turbo, native capture0, LV2 still open.
+- Outstanding: lvstep6-20261024-house-t2, original shadows with effects_shadow=0, turbo/end2032/seconds900/timeout1100. Collect current wait or existing verdict; do not resend same label.
+- Next: house t2 verdict/count, then t3 draft. Both failed full-profile logs stop during optional EffectsShadowStartup before next startup log; omit effects probe for this diagnostic. Request-only change, not a source fix or assertion that it matches the coordinator's exact profile.
 - DLL SHA256: 863F529E12DEC6F3B196B1F1B39DA1EF6CFDEB03ED517360E79FC4D322B7EC55.
-- t2/t3 drafts prepared in build-runs/; not submitted. One request outstanding at a time.
+- t3 draft prepared in build-runs/; not submitted. One request outstanding at a time.
 - Prepared helper build-runs/summarize-landvalue.py prints exact clean/total output counts; raw verdict/log stay in game-results.
 - Required: full qbuild all and queued verify; three unique house-profile runs to 2032 with 72/72 exact.
 - LV2/LV7 remain open; no guesses. No tools/ reads or edits.

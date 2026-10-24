@@ -37,3 +37,5 @@ or acceptance adjustment was made; landvalue stays blocked on LV6.
 
 <!-- from: glue-landvalue-step6 (2026-10-24), measured LV2 evidence -->
 LV2 evidence: `lvstep6-20261024-isolated-t1` reached2032-01-10 clean/ref0 with72/73 exact output comparisons (isolated landvalue, turbo; not house). Pass2 at2026-02-06 has intrinsic6/total3/slope0/types0 differences, mean270.05667/270.05804, mismatches10. No SimNewDay sample among9 reproduces native inputs; closest day1 still differs in3 intrinsic tracts. SHA256863F529E12DEC6F3B196B1F1B39DA1EF6CFDEB03ED517360E79FC4D322B7EC55, run388. Native capture remains0 per sections6.1.2-3/LV8; no algorithm, sampling or acceptance adjustment. The two prior multi-shadow requests never loaded a city and contribute no output/fidelity evidence.
+
+Normal-speed counterpart: `lvstep6-20261024-isolated-normal`, same DLL, reached2032-01-01 clean/ref0,73/73 comparisons with mismatches=0 (run389, real110.469s). This fulfills the normal-speed check for this turbo difference without claiming that all historical LV2/LV7 failures are turbo-only. Native capture remains0 and no acceptance or algorithm change was made.
