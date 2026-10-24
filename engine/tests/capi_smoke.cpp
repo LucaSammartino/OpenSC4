@@ -580,6 +580,7 @@ int main() {
     const uint32_t actualAbi = fc4_abi_version();
     if (actualAbi != FC4_ABI_VERSION) {
         std::fprintf(stderr, "ABI mismatch: linked Rust=%u, compiled header=%u\n", actualAbi, FC4_ABI_VERSION);
+        std::fprintf(stderr, "Check stale native objects and header dependencies before changing the ABI version.\n");
     }
     CHECK(actualAbi == FC4_ABI_VERSION);
     CHECK(fc4_sim_create(nullptr) == nullptr);

@@ -207,7 +207,14 @@ impl MySimDispatch {
             };
             if !snapped {
                 self.notify_owner(sim, 0xEBA06C12, 0, 0);
-                self.set_state(sim, -1);
+                self.apply_transport_tail(sim, TransportTail {
+                    travel_type: entry.travel_type,
+                    state: -1,
+                    stuck: false,
+                    idle: false,
+                    clear_flags: 0x2002,
+                    set_flags: 0,
+                });
                 return TripOutcome::Accepted;
             }
             // Literal §4.6.3: current receives the snapshot after either snap

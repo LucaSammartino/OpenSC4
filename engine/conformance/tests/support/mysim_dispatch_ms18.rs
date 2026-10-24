@@ -364,6 +364,19 @@ fn edit(f: &D, change: impl FnOnce(&mut DispatchState)) {
 }
 
 #[test]
+fn state_change_counter_increments_at_each_synchronous_notice() {
+    let f = D::new();
+    let weak = Rc::downgrade(&f.d);
+    let counters = Rc::new(RefCell::new(Vec::new()));
+    let seen = counters.clone();
+    *f.w.on_notify.borrow_mut() = Some(Rc::new(move |sim, _, _, _| {
+        seen.borrow_mut().push(weak.upgrade().unwrap().get_state(sim).change_counter);
+    }));
+    f.d.set_state(1, 3);
+    assert_eq!(*counters.borrow(), vec![1, 2]);
+}
+
+#[test]
 fn ms18_13_inclusive_fe_equality_copies_active_timing() {
     let f = fixture(1, 0x20);
     edit(&f, |st| {

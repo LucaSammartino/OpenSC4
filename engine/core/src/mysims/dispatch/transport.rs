@@ -128,6 +128,7 @@ impl MySimDispatch {
                 return TripOutcome::UnsupportedMs18;
             };
             let Some(stop) = stops.into_iter().find(|stop| stop.purpose == purpose) else {
+                self.set_state(sim, self.get_state(sim).search.state);
                 self.set_stuck(sim);
                 return TripOutcome::Rejected;
             };
