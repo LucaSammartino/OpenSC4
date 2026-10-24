@@ -9,5 +9,7 @@
 - Focused capacity test passed (1/1): developer selection, missing entry, unsigned truncation; fmt passed on both owned Rust files. q.py failed to launch Bash (Win32 error 5); direct native cargo test succeeded.
 - Implementation commit: 71083c856.
 - Final-source qbuild all PASS: cargo 6980 passed/0 failed/0 ignored; clippy zero diagnostics; queued native build PASS 252/252 edges, CTest 79/79. Native job qbuild-20261024-070559-build-ctest (all uses the same coordinator verify queue).
-- Next: unique turbo game run lotconf-capacity7-2032-20261024a to 2032-01-01, inspect dated comparisons and safety counts, record and finish.
-- No game request outstanding yet. Detached HEAD is intentional; commit without moving refs.
+- Run lotconf-capacity7-2032-20261024a: clean to 2032, ref_warnings=0, foreign_exceptions=0; lotconf 72/73 exact, every monthly line exact with capacity (107845 pairs). Failed load comparison during PostCityInit precedes native manager fill; evidence recorded as run 454.
+- Diagnostic correction: defer only lotconf's initial comparison to ConnectionsReady, after native PostCityInit recipients (foundations §11.6). No native output chooses expected values. No missing spec contract/question.
+- Next: repeat final-source gate after lifecycle correction, then unique run lotconf-capacity7-2032-20261024b.
+- No game request outstanding. Detached HEAD is intentional; commit without moving refs.

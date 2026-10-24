@@ -2390,7 +2390,10 @@ void RunAll(cISC4City* city, int32_t julian, const char* event) {
         Line("tutorial", g_tutTotals, r, "run", -1, "structured exception; comparison abandoned");
     }
     g_liveCore.Reset();
-    if (g_lotconf && !SehGuard("lotconf shadow", &ConfigurationRunStep, &r)) {
+    // §4's manager-written capacities are not ready inside PostCityInit's
+    // dispatch. The initial configuration comparison runs at ConnectionsReady
+    // (foundations §11.6: a few frames later), after every init recipient ran.
+    if (g_lotconf && !r.load && !SehGuard("lotconf shadow", &ConfigurationRunStep, &r)) {
         Log("lotconf shadow %s: event=%s mismatches=-1 reason=structured-exception", r.date, r.event);
         g_lotconfTotals.Note(-1);
     }
@@ -2460,6 +2463,22 @@ void PropLotShadowStartup(bool propmgrReplaced, bool lotcfgReplaced, bool tutori
 }
 
 void PropLotShadowCityLoaded(cISC4City* city) { RunAll(city, CityJulian(city), "load"); }
+
+void PropLotShadowConnectionsReady(cISC4City* city) {
+    if (!g_lotconf || city == nullptr) return;
+    Run r;
+    r.city = city;
+    r.julian = CityJulian(city);
+    r.event = "load";
+    r.load = true;
+    fc4_date d{};
+    fc4_date_from_julian(r.julian, &d);
+    _snprintf_s(r.date, sizeof(r.date), _TRUNCATE, "%04d-%02d-%02d", d.year, d.month, d.day_of_month);
+    if (!SehGuard("lotconf shadow", &ConfigurationRunStep, &r)) {
+        Log("lotconf shadow %s: event=load mismatches=-1 reason=structured-exception", r.date);
+        g_lotconfTotals.Note(-1);
+    }
+}
 
 void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorReplaced) {
     g_lotconf = SettingInt("lotconf_shadow", nullptr, 0) != 0 && !lotcfgReplaced;
