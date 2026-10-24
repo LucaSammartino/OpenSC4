@@ -184,7 +184,7 @@ private:
     fc4::EffectsHostContext ctx_;
     fc4_effects_host host_ = {};
     // Director factories return refcount zero; QueryInterface owns the first reference.
-    uint32_t refs_ = 0;
+    uint32_t refs_;
     bool inited_ = false;
     std::map<uint32_t, cFC4VisualEffect*> wrappers_;
 };

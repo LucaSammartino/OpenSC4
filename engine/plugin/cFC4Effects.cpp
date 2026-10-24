@@ -289,7 +289,7 @@ static bool WritableSlot(void* q) {
 }
 // ---- the manager ----------------------------------------------------------------------------------
 
-cFC4EffectsManager::cFC4EffectsManager() {
+cFC4EffectsManager::cFC4EffectsManager() : refs_(0) {
     ctx_.shadow = false;
     host_ = fc4::MakeEffectsHost(&ctx_);
 }
