@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#![allow(clippy::excessive_precision)] // Retain the spec's decimal conformance vectors verbatim.
 use super::tests::{boat, Water};
 use super::*;
 use crate::automata::{State, Vec3};

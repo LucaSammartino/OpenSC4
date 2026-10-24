@@ -11,9 +11,11 @@
 - Formatting: seven owned files pass (`build-runs/fmt-r2-final.log`).
 - Checkpoint commit: `5e9b9abae` adds this round's implementation and six tests.
 - Focused native cargo operation 49453 was cancelled and collected to terminal exit 1 because source advanced after its compilation started; `build-runs/focused-r2-1.log` is retained, not a test verdict.
-- Stable-source required `qbuild.py all` operation 10089 is outstanding; `build-runs/all-r2-final-1.log`, detailed `build-runs/qbuild-test.log`. Same operation must be collected; do not duplicate it.
+- First all operation 10089: test FAIL 7142/1 (stale wake-stop fixture); clippy FAIL two excessive-precision spec-vector literals. Corrected the fixture to include six specified refreshes; documented verbatim decimal vectors with a scoped lint allowance.
+- Failed logs archived as `build-runs/failed-r2-1-qbuild-test.log` and `failed-r2-1-qbuild-clippy.log`; summary `all-r2-final-1.log` retained.
+- Both original all and explicit verify are waiting on native queue: operations 10089 / 56577, labels `qbuild-20261024-182755-build-ctest` / `qbuild-20261024-182822-build-ctest`. Collect both to terminal; do not duplicate them.
 - Guard reached two-thirds at context 101135/150000: stop new feature work, finish validation/corrections and report partial closure honestly.
-- Next: collect all operation to terminal; correct diagnostics; collect queued verify, then commit final report and queue entry.
+- Next: collect both original native waits, then repeat all on corrected stable source (real test/clippy diagnostics justify it), commit final report and queue entry.
 - WC12 already filed; inspect current answers before adding questions.
 - No game request. No plugin/capi/ABI changes. WC12 remains open; README's other pending rows remain implementation debt.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close12-r2-manifest.json`.
