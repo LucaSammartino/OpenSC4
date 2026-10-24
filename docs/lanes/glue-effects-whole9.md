@@ -12,5 +12,6 @@
 - Focused core test first attempt 5/6: corrected a test that incorrectly rejected spare capacity. Transport Bash failures retained in build-runs/q.
 - Focused results: core 6/6 PASS; EF21 conformance 13/13 PASS after correcting Json::Str compilation error. Failed evidence retained in build-runs/q.
 - Added alias and foreign-name framing assertions; explicit fmt six files PASS, 0 diff lines; diff --check clean.
-- Next: qbuild all on stable source, queued verify if not included, real-city names-only measurement to 2032.
-- No native build or game request outstanding. Detached HEAD; do not update shared refs.
+- qbuild all on 3dd46ce91: Rust 6954/0; Clippy failed collapsible_match at observation.rs PublishAfter. Do not repeat before collecting operation.
+- Outstanding native operation qbuild-20261024-061303-build-ctest, session 32496; still queued behind game regression. Next: collect it, preserve failed Clippy log, fix guard, repeat all after source change.
+- No game request outstanding. Detached HEAD; do not update shared refs. Highest observed run number 433 (recheck before writing record).
