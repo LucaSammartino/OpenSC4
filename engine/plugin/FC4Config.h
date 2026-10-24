@@ -653,4 +653,11 @@ std::string IniPath();
 // No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
+// querytool_shadow = 0 / 1 (default 0): live hover/describe pick predicates
+// only. Display, selected target and highlight capture require CT27 / CT13.
+
+// viewutil_shadow = 0 / 1 (default 0): bit-exact cdecl rotation helper on
+// live cached view inputs and fixed vectors; 1/50 bodies only. VU16 blocks
+// min/max and other native signatures. No whole-owner verification claim.
+
 }  // namespace fc4

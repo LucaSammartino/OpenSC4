@@ -1,4 +1,15 @@
 # budget-window: answered questions (archive)
+
+<!-- from: core-budgetwindow-ownership4 (2026-10-22); narrowed by re-budget-window-bw22 -->
+- **BW17 - sections 1, 4, 4.1, 5.2, 5.6 and 8 whole-owner inventory / omitted bodies:** please publish the full method/slot inventory for `cSC4SubBudgetWindow` and the owned budget-panel paths, and the non-layout algorithms still omitted: ordinance enumeration/filtering, A/B counts and row-map construction in `initOrdinanceBudget`; proposed-deal enumeration, section/count rules and `+0x50` selection edits in `initNeighborBudget`/combo handling; occupant enumeration and the exact creation/ownership of `+0x44` individual restore records; all four per-mode refreshes (including group row reuse on scroll), empty/popup window creation and failure reference rules, and the panel loan-display/balance-sheet bodies. Which public external interface calls and arguments supply their raw inputs? [unimplemented: existing same-class populate/refresh host callbacks remain explicit gaps, not core coverage; no native own-class result may count as an external input. BW14/BW15 ownership and BW16 visibility are implemented from their settled text; the documented BW13 null-content divergence is retained. No whole-owner completion claimed.]
+
+  **ANSWERED 2026-10-24 (re-budget-window-bw22):** DIFFERS — partial closure, with remaining paths split into BW22–BW25, not a whole-owner proof. Companion §1 gives the method inventory; §2 now adds period scale (zero→1, any nonzero→12), ordinance refresh, positional edit/map reuse, signed B formatting and vectors. Existing §3 settles six neighbour scans/counts/edits; §5 settles occupant enumeration and +0x44 record acquisition/references, leaving per-service float production BW23; §6 proves the bounded group-A slice, leaving BW24. Panel balance-sheet/formatting/loan bodies are §4.2–§4.3 and §8–§10, with their summary gaps still BW18. BW22 covers neighbour remainder; BW25 covers setup/property/popup/widget ownership. No same-owner populated row/refresh result becomes an external input through this split. Main §8 and companion §7 carry this boundary.
+
+<!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
+- **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.
+
+  **ANSWERED 2026-10-24 (re-budget-window-bw22):** DIFFERS — §1.1 specifies a no-explicit-argument thiscall constructor, ECX storage/EAX same pointer, GlobalHeapAlloc(0x140)/GlobalHeapFree, and the deleting-destructor flags word. Population can avoid DoModalWin but still needs generated windows, normal init, providers/resources, a valid parent and balanced pause/teardown; there is no window-free native calculation API. Counts, offsets and reference vectors are fields; +0x90/+0x94 is reused section scratch and strings live in child controls, with no primary-vtable result getter. Static lifecycle vectors are in §9; no native off-screen run is claimed.
+
 <!-- Archive for [budget-window.md](../../budget-window.md). Lanes do not read this file. Open questions are in ../budget-window.md. -->
 
 <!-- from: re-panels4 (2026-10-21) -->
@@ -87,3 +98,15 @@
 <!-- from: re-budget-slider-ownership4 (2026-10-22) -->
 - **BW16 - section 4.1 row-visibility ID test direction (static):** §4.1 rule 2 says an item is shown if `GetID() > 100` or its amount is non-zero. The bytes at all four sites (count A `0x007880D3`, count B `0x00788147`, build A `0x007886ED`, build B `0x00788F33`) are `CMP EAX,0x64; JBE <shown>`, then for ID > 100 a 64-bit amount test (`OR EAX,EDX; JZ <hidden>`): i.e. ID ≤ 100 is always shown (subject to display flag bit 0) and ID > 100 is hidden when its amount is zero. Is slot 3 really `GetID`, and should §4.1 (and its worked example) be inverted? [open: needs a reviewer of §4.1; BW15 tests avoid the case]
   **ANSWERED 2026-10-22 (re-budget-slider-ownership4):** DIFFERS — slot 3 is GetID: line item primary vtable 0x00AB0F58 slot 3 = 0x006AAEB0 returns object +0x54, which the department line-item factory FUN_006AB040 sets from its first argument (0x006AB076) and uses as the key of the department map +0x4C (0x006AB0A8). At all four sites (0x007880D3, 0x00788147, 0x007886ED, 0x00788F33) CMP ID,0x64 / JBE goes to "shown"; only ID > 100 reaches the 64-bit amount test, zero hides. Rule: a flagged item is shown if ID <= 100 or its amount is non-zero. Spec section 4.1 rule 2 and worked example corrected; tests 26-27.
+
+<!-- from: re-budgetwin (2026-10-22) -->
+- ~~**BW18 - budget-window-bodies.md §8, §10, the panel's summary parts:** the construction (`0x007658A0`) and
+  `InitBalanceSheet` (`0x00764DF0`) labels, the rest of `Init` (`0x00766E10`), the loan slider's limits in
+  `DisplayLoanWindow` (`0x00765C30`) and the row drawing of `UpdateLoanDisplay` (`0x00766680`). [summary]~~
+  **ANSWERED 2026-10-23 (re-budgetui7):** budget-window-bodies.md §11, read on the bytes. §11.1 gives the
+  construction order and the 18 label captions with their monthly and yearly strings; the yearly set is never used,
+  because construction is the only caller and runs in the monthly view *[quirk]*. §11.2 gives the 72 notification
+  targets and the initial period toggles. §11.3 gives the slider's limits: range `(increment, min(room, bond limit))`,
+  ties to the limit, 32-bit; zero room gives `(0, 0)` and Accept off. §11.4 gives the row cells, the payment total
+  and the scroll-button tests. The list redraw drops the bond-limit cap *[quirk]*. §11.5 identifies `DoMessage`'s
+  dirty byte with slot 8's `+0x19E`.

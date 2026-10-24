@@ -41,6 +41,7 @@ fn wc5_s01_through_s07_ramps_heights_and_endpoints() {
     b.drive.0[21] = 8000.0;
     b.drive.0[22] = 1.0;
     b.drive.0[25] = 1.0;
+    b.drive.0[24] = 1.0; // Completion section §5.7.5 / WC5-H10.
     b.crash_elapsed = 2000.0;
     b.transform.translation = [1.0, 7.0, 3.0];
     assert!(b.sinking_tick(&terrain));

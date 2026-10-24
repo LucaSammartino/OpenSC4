@@ -272,6 +272,8 @@ const void* CommercialSimulatorVtable();
 // §1), or nullptr (logged once; the same checks). For the parks shadow's raw
 // read of the latch and the threshold (§2).
 const void* ParkManagerVtable();
+// city-tools-input 8.8 / occupant-manager 13.2.6: borrowed stack filters.
+bool QueryToolFilterVtables(const void** hover, const void** describe, const void** record);
 
 // The disaster shadow (disasters_shadow): the vtable entry of `which` and the
 // original function it must hold, or false (logged once per hook) if the

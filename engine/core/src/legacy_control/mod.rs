@@ -20,6 +20,7 @@ use crate::variant::{Elem, Variant};
 use std::collections::BTreeMap;
 
 mod interpreters;
+pub mod observation;
 mod parse;
 mod serialize;
 mod vocabulary;
