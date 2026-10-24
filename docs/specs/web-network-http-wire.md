@@ -72,6 +72,101 @@ complete that requeued job in the same iteration. Header/body failure with resul
 still 1 becomes 6 when retry is unavailable. See `0081bfa0–0081bfff`,
 `0081c2a0–0081c310`, `0081c4d0–0081c75d` and the lifetime contract.
 
+### 1.1 Status and version tokens (Q20, 2026-10-24)
+
+Status and version are **independent interpretations of the first parsed record's
+name bytes**. Neither searches for a later well-formed status line. Header splitting
+and record construction still follow parent §4.14. The status helper 00817f60 uses
+the name's C-string representation, while the version helper 00818140 also uses its
+stored byte length. These helpers do not require a reason phrase.
+
+**Status.** An empty record list, first name length at least 384, or fewer than two
+whitespace-separated nonempty tokens returns zero. Otherwise scan two tokens with
+CRT `%s%s` (literal at 00abfc98); ignore the first token and everything after the
+second. Whitespace is the runtime CRT scanner's whitespace (in the C locale:
+space, tab, CR, LF, vertical tab and form feed). Starting at the **second byte of
+the second token**, retain consecutive ASCII digits and truncate at the first
+nondigit. Its first byte is left untouched. Apply native signed 32-bit decimal
+conversion to that truncated token: an initial sign is allowed, no leading digit
+after that sign yields zero, and accumulation/negation wraps modulo 2^32 rather
+than clamping. Thus `garbage 200suffix` yields 200, `HTTP/1.1 +200` yields 200,
+`HTTP/1.1 -200` yields -200, and `HTTP/1.1 2x00` yields 2. There is no check for
+`HTTP`, a slash/dot, exactly three status digits, or the HTTP status range.
+Evidence: 00817f6c–00817f86 (length), 00817fc9–00818002 (scan, truncation, convert),
+009ef7c2–009ef849 (CRT decimal conversion, especially 009ef834–009ef847).
+
+A zero result is a failed header read. A nonzero signed result, including a
+negative or wrapped value, passes the reader's status test unless cancel/stop is
+observed. The worker applies the existing framing, retry and finalization rules;
+nonzero does not itself mean success. With worker skip-informational=false, a
+status 100 is returned as that response, not automatically followed by another
+header (0081b9cb–0081ba65). A zero status without timeout/cancel leaves the pending
+job result for the existing transport-failure/retry policy to resolve.
+
+**Version.** A resource starts with both cached version words +0x44/+0x48 equal
+to -1. Only when major is -1 does the helper derive a version, first setting both
+words to zero. A first-record name of at least eight bytes must begin with the
+exact uppercase four bytes `HTTP`. If so, byte index 5 supplies major and byte
+index 7 supplies minor, independently, when each is an ASCII digit; nondigits
+leave the corresponding zero. Byte indices 4 and 6 are not validated. Remaining
+bytes, including multi-digit extensions, are ignored. `HTTPx1y1` therefore gives
+1.1, `HTTP/12.34` gives 1.0, and lowercase `http/1.1` gives 0.0. A cached major
+other than -1 bypasses parsing and returns both stored words unchanged. The helper returns
+true even when no version is recognized (00818143–008181da; `HTTP` at 00abfca0).
+The worker disables reusable-connection retry for major 0, or major 1 with minor 0;
+recognized 1.1 and major greater than 1 enable it (0081c2ed–0081c315).
+
+The bounded-status rejection at 384 is fully decided by the code. Allocation
+failure is a separate unsafe native domain, described in the lifetime supplement;
+it is not a malformed-status outcome. Locale-sensitive whitespace follows the
+injected CRT locale; no guessed Unicode whitespace or stricter protocol grammar
+is part of this contract.
+
+### 1.2 Proxy mode and actual connect destination (Q20)
+
+Proxy mode in the request builder changes the request-line form and header
+handling in section 1. **The worker still selects the origin endpoint.** It parses
+the retained request URL at +0x1c, obtains that URL's server and port before
+building the header, and uses those values for reuse, numeric-address conversion,
+name lookup and connection. It does not substitute the client's proxy address
+or proxy port, negotiate CONNECT, or parse a separate proxy status grammar.
+Evidence: 0081bba1–0081bc81, 0081bca7–0081bd9d, 0081be4d–0081be75. The proxy
+configuration therefore can produce an absolute-form request sent to the origin.
+
+Use the low 16 bits of the URL port. Zero selects port 80 for connection; nonzero
+is converted to network byte order. The remembered reuse key remains the URL
+port, so URL port zero and explicit 80 are different keys even if both connect
+to port 80. Reuse also requires an open connected socket and case-insensitive
+origin-server equality. A different origin closes/drains before fresh resolution;
+names require lookup return exactly 1, while numeric strings bypass lookup.
+No port is inferred from proxy settings (0081bccb–0081bd9d). Any response received
+on this connection uses section 1.1, regardless of the proxy flag.
+
+**Constructed conformance vectors (PROPOSED / UNEXECUTED).** Status/version rows
+inject the specified first-record name into a fresh resource, without transport
+failure. S9/S10 vary only the stored name length. P rows observe a fake resolver
+and socket, avoiding live external endpoints.
+
+| ID | Input / boundary | Required result |
+|---|---|---|
+| WWW20-S1 | `HTTP/1.1 200 OK` | status 200; version 1.1; reusable retry enabled |
+| WWW20-S2 | `garbage 200suffix` | status 200; version 0.0; reusable retry disabled |
+| WWW20-S3 | `HTTPx1y1 200` | status 200; version 1.1 despite absent slash/dot |
+| WWW20-S4 | `http/1.1 200` | status 200; version 0.0 |
+| WWW20-S5 | `HTTP/12.34 200` | status 200; version 1.0 |
+| WWW20-S6 | second tokens `+200`, `-200`, `2x00`, `x200` | statuses 200, -200, 2, 0 respectively |
+| WWW20-S7 | `HTTP/1.1`, or empty record list | status zero; header-read failure |
+| WWW20-S8 | `HTTP/1.1\t200 ignored 500` in C locale | status 200; later tokens ignored |
+| WWW20-S9 | `HTTP/1.1 200 ` padded with spaces to 383 name bytes | status 200 |
+| WWW20-S10 | same name padded to 384 bytes | status zero before token scan |
+| WWW20-S11 | second tokens `4294967496`, `4294967296` | status 200, zero respectively (32-bit wrap) |
+| WWW20-S12 | `HTTP/1.1 100 Continue`, worker skip flag false | reader returns 100; no implicit second header read |
+| WWW20-S13 | cached version 3.7, then replace first name with lowercase HTTP | helper returns cached 3.7 unchanged |
+| WWW20-P1 | proxy configured as `proxy.test:3128`; request URL `http://origin.test:8080/a` | resolve/connect origin.test:8080; request line uses absolute origin URL |
+| WWW20-P2 | numeric origin, proxy enabled | no name lookup; connect numeric origin; same response grammar |
+| WWW20-P3 | inject origin port zero followed by explicit 80, otherwise same server | both destination ports 80; reuse key mismatch closes/reconnects |
+| WWW20-P4 | only proxy endpoint changes, same origin and live connected socket | reuse test remains satisfied; no connect to the new proxy |
+
 ## 2. Response body framing
 
 The worker initializes length to zero, uses decimal runtime `atol` on

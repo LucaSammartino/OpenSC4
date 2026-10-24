@@ -22,6 +22,11 @@ Instruction evidence: 00818216–008183f0; suffix-pointer bytes independently re
 
 ## 2. Final completion: callback before releasing resources
 
+Terminology correction (Q20, 2026-10-24): job +0x14 is the retained **request**,
+and +0x18 is the separately allocated **response**. The older internal/external
+resource labels below describe these two holds, not a request-to-response cast.
+Section 2.1 specifies how they reach completion.
+
 At worker final boundary 0081c821–0081c8bd, cancel (+6) or stop (+5) clears cancel and
 sets job status=7; stop is then checked separately. If stop is false, call completion
 008196e0. Cancellation alone therefore still permits a failed completion callback.
@@ -46,6 +51,89 @@ At worker exit, lock client +0xa4, unconditionally clear client worker pointer +
 close the record socket through 00817af0, destroy that socket, free the record, unlock,
 destroy local buffers, return zero (0081c92a–0081c9a4). The static wrapper 0081c9b0 saves
 owner, runs worker and Releases owner. No thread join occurs in these bodies.
+
+### 2.1 Dequeue, response creation and publication (Q20)
+
+The eight-word admission value is not a different completion-record type. Its
+offsets remain stable for the entire job:
+
+| Offset | Meaning / initial admission value |
+|---|---|
+| +0x00 | Job ID |
+| +0x04 | Result, initially 1 (pending) |
+| +0x08 | Dequeue time, initially zero |
+| +0x0c | Attempt word, initially 1; incremented on retry/redirect |
+| +0x10 | Progress, initially zero; reset on retry/redirect; 100 at completion |
+| +0x14 | Retained request pointer supplied to admission |
+| +0x18 | Response pointer, initially null |
+| +0x1c | Caller custom word |
+
+Under client lock +0xa4, dequeue copies all eight words from the first queued
+node into a worker-local record, unlinks/frees only the node, publishes the local
+record's address in worker +0x6c, overwrites job +8 with the current 32-bit time,
+then unlocks. No request/response reference changes accompany that shallow copy
+(0081bb33–0081bb9e). URL parsing, header construction and connect/send use the
+request still at +0x14. Early builder, resolution or connection failure therefore
+can reach completion with response null; the request is still released there.
+
+After send has finished, and provided cancellation is not already set, allocate
+a **new** 0x78-byte resource and construct it with 0081a910. This is the same
+resource layout as requests, but a distinct object. Constructor reference count
+is zero; worker increments it to one. Initial strings +8 (method), +0x1c (URL),
++0x30 (original URL), +0x4c (raw header), +0x68 (body) are empty; header-record
+range +0x58..+0x60 is empty, versions +0x44/+0x48 are -1, file-data byte +0x64
+is false and redirect count +0x74 is zero. The initialized response's raw-header
+buffer first receives the worker's carried receive bytes, then header acquisition
+and parsing operate on that object (0081c0c3–0081c0f0, 0081c292–0081c2ca;
+constructor 0081a910–0081a9f2). Allocation returning null is subsequently
+dereferenced; there is no recoverable out-of-memory result to infer.
+
+Header acquisition separates initial body bytes into response +0x68, keeps the
+header in +0x4c and populates its record list. Status/version use this response,
+as specified in [HTTP wire §1.1](web-network-http-wire.md#11-status-and-version-tokens-q20-2026-10-24).
+Body acquisition and representation/file handling also use this response. Only
+when the worker reaches finalization does it **store the response pointer in job
++0x18**, immediately before calling 0081a470 (0081c597–0081c5d7; accounting for
+six pushed arguments, store at stack +0x60 is local job base +0x30 plus +0x18).
+The original request pointer in +0x14 is never replaced by this store.
+
+Terminal completion copies the request's method, current URL, original URL and
+redirect count to the response, when both pointers exist. Response headers,
+version, body and file flag remain the response's own values. Both objects stay
+held during notification; afterwards Release request, then response, according
+to section 2. The callback's job pointer is borrowed and is cleared from worker
++0x6c after completion/stop bypass. A caller needing either resource afterwards
+must obtain its own reference while valid.
+
+The publication boundary also matters on failure and requeue. Header failure or
+body-read failure before finalization leaves +0x18 unchanged, even though a local
+response may have been allocated and partially filled. The worker does not
+publish or Release that local response on those paths. This is a native missing
+release, not a usable partial-response result. Transport retries shallow-copy
+the existing eight words, without completion or new resource holds. Redirect
+finalization requeues with the published response pointer; it likewise neither
+releases it nor resets it to null (0081a470–0081a847, append 008180c0). On a later
+attempt an early failure can therefore complete with that earlier response;
+successful new publication overwrites it without releasing the old pointer.
+Completion releases only the pointers then present in the record. Stop bypass
+still skips completion and its two releases, as section 2 states. None of these
+leaks or stale values authorizes converting the request into a response.
+
+**Constructed conformance vectors (PROPOSED / UNEXECUTED).** Observe pointer
+identity, fake reference counts and call order, with a non-stopped worker unless
+specified. The values here concern native ownership; no live network was used.
+
+| ID | Setup / boundary | Required observation |
+|---|---|---|
+| WWW20-R1 | Admission then first dequeue at time 1000 | Same request pointer and custom word; +8=1000, +0x18=null; no AddRef on dequeue |
+| WWW20-R2 | First-attempt lookup failure | result 3; callback response null; request Release after callback |
+| WWW20-R3 | Valid 200 response with one body byte, just before finalization | distinct request and response, +0x14=request, +0x18=response, response hold=1 |
+| WWW20-R4 | R3 with request method/URL/original URL/redirect count set | response metadata copied before callback; response headers/body retained; request Release precedes response Release afterwards |
+| WWW20-R5 | First-attempt header status zero, retry unavailable | failed completion still has +0x18=null; allocated local response is not released/published by this path |
+| WWW20-R6 | Body-read failure before finalization, retry allowed | requeued record keeps request and old/null response; new local response not published or released; no completion |
+| WWW20-R7 | Redirect publishes response A, next attempt fails lookup | queued/current +0x18 remains A; completion metadata comes from current request; Release request then A |
+| WWW20-R8 | Redirect response A, next attempt reaches finalization with B | +0x18=B; overwrite does not Release A; terminal completion releases current request and B |
+| WWW20-R9 | Stop observed at final boundary with both pointers populated | status 7; neither completion callback nor either completion Release |
 
 ## 3. Reached shutdown and queue drain boundaries (foreign evidence)
 
