@@ -79,6 +79,74 @@ fn construction_shadow_keeps_crane_state_and_releases_partial_reads() {
     }
 }
 
+/// LR13 reference-helper rejection is independent of the stream error flag.
+#[test]
+fn lr13_t69_t70_rejected_helpers_continue_and_never_keep_rejected_tokens() {
+    use fc4_core::lot_records::construction::CrewEntry;
+    use fc4_core::lot_records::{construction::ConstructionRecord, OccupantRecord};
+    use fc4_core::stream::RefValue;
+
+    // A native helper can fail without setting the stream error. It has
+    // already consumed and released its temporary Serializable (LR13).
+    unsafe extern "C" fn rejected_reference(u: *mut c_void, iid: u32, out: *mut fc4_ref) -> bool {
+        let input = &mut *(u as *mut In<'_>);
+        let native = istream(input).get_ref.unwrap();
+        if !native(u, iid, out) {
+            return false;
+        }
+        if (*out).token == 99 {
+            *out = fc4_ref::default();
+            return false;
+        }
+        true
+    }
+
+    unsafe {
+        for list_rejections in [false, true] {
+            let mut record = ConstructionRecord::new();
+            let bare = RefValue::Host {
+                token: 99,
+                class_id: 0xA9BC_9AB6,
+            };
+            record.current_effect = bare.clone();
+            if list_rejections {
+                record.effects = vec![bare.clone(), RefValue::Null];
+                record.crew = vec![CrewEntry {
+                    first: true,
+                    second: false,
+                    automaton: bare,
+                }];
+            }
+            // A tail sentinel proves consumption continues past rejected refs.
+            record.scalars.crane_type = 0xA5;
+            let source = write_with(|s| record.write(&mut crate::stream::COut(&*s)));
+            let mut input = In::new(&source);
+            let mut stream = istream(&mut input);
+            stream.get_ref = Some(rejected_reference);
+            let log = RefCell::new(Log::default());
+            let mut output = Out::default();
+            assert!(fc4_automata_construction_roundtrip(
+                &stream,
+                &ostream(&mut output),
+                &ref_host(&log)
+            ));
+            assert_eq!(input.pos, source.len());
+            assert_ne!(output.bytes, source, "rejection must never be reported exact");
+            assert!(log.borrow().releases.is_empty(), "rejected/null fields acquire nothing");
+            record.current_effect = RefValue::Null;
+            if list_rejections {
+                record.effects = vec![RefValue::Null, RefValue::Null];
+                record.crew[0].automaton = RefValue::Null;
+            }
+            let expected = write_with(|s| record.write(&mut crate::stream::COut(&*s)));
+            assert_eq!(
+                output.bytes, expected,
+                "preserve list counts, nulls, bools, order and all tail scalars"
+            );
+        }
+    }
+}
+
 /// What a fake host saw.
 #[derive(Default)]
 struct Log {

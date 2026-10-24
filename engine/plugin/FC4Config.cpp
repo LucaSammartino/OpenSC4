@@ -388,6 +388,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "gzmsg_shadow",
                                   // Dispatch constructor/header scope only; MS20/MS18 remain open.
                                   "mysimdispatch_shadow",
+                                  // EX54/EX55 read-only packed-file shadow, default off.
+                                  "dbpf_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
