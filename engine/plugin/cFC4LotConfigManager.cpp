@@ -20,6 +20,7 @@
 #include "FC4Config.h"
 #include "FC4GameList.h"
 #include "FC4Log.h"
+#include "FC4ProcessHashState.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4CityDetail.h"
@@ -977,31 +978,7 @@ uint32_t NextGameHashPrime(uint32_t hint) {
 // both keep LcmHashNode-shaped nodes and a flag says whether a Release is
 // owed per node. The nodes are walked (and freed) through the buckets, so
 // the state keeps no separate list.
-struct GameHashState {
-    GameHashTable table{};
-    void** buckets = nullptr;      // the bucket buffer (used slots)
-    uint32_t used = 0;             // the table's bucket count (end - begin) / 4
-    uint32_t nodeCount = 0;
-    bool ownsValues = false;       // true: each map node's value is a reference
-
-    void Clear() {
-        if (buckets != nullptr && used != 0) {
-            for (uint32_t i = 0; i < used; ++i) {
-                for (LcmHashNode* n = static_cast<LcmHashNode*>(buckets[i]); n != nullptr;) {
-                    LcmHashNode* next = n->next;
-                    if (ownsValues && n->value != nullptr) n->value->Release();  // the map's reference
-                    delete n;
-                    n = next;
-                }
-                buckets[i] = nullptr;
-            }
-        }
-        nodeCount = 0;
-        table.count = 0;
-    }
-
-    ~GameHashState() { Clear(); }
-};
+using GameHashState = ProcessHashState<GameHashTable, LcmHashNode>;
 
 GameHashState* ConfigMapState() {
     static GameHashState s;
@@ -1032,7 +1009,7 @@ bool Grow(GameHashState& s, uint32_t n) {
                 node = next;
             }
         }
-        delete[] reinterpret_cast<uint8_t*>(s.buckets);
+        delete[] s.buckets;
     }
     s.buckets = fresh;
     s.used = prime;
@@ -1116,8 +1093,10 @@ void RebuildFamilyIDSet(fc4_lot_config_manager* core) {
 }
 
 void FreeGameHashTables() {
-    delete ConfigMapState();
-    delete FamilySetState();
+    // These pointers refer to static state, not objects allocated with new.
+    // B4.2 keeps the catalogue until process shutdown; free only its contents.
+    ConfigMapState()->Reset();
+    FamilySetState()->Reset();
 }
 
 void* ConfigurationMapTable() { return &ConfigMapState()->table; }

@@ -9,14 +9,18 @@
 - Gate: qbuild all PASS; cargo6935/0/0, clippy0 diagnostics, CMake226/226, CTest76/76 (143.7 s), native total222.2 s.
 - Gate verdict: build-runs/build-results/qbuild-20261024-054612-build-ctest.verdict; full logs in build-runs.
 - DLL: build-runs/dlls/pl21fix6-r3-gated.dll, SHA256 5306a43087f651c5eaa8e34d941a930f259e1117c6619e5eddbf0b96a03b67b8.
-- First regress operation73963 remains active; regress-pl21r3-shadows outstanding, replace verdict retained locally.
+- First regress operation73963 completed exit0, REGRESS FAIL2; both logs/verdicts retained under build-runs/game-results.
 - Replace: corrupt at app shutdown, foreign_exceptions1/ref_warnings0, real112.609 s; turbo reached2032 before quitting.
 - Own PDB resolves stack: free/operator delete/GameHashState scalar deleting destructor/FreeGameHashTables/LotConfigManagerAppShutdown.
 - Found concrete bug: FreeGameHashTables deletes ConfigMapState/FamilySetState pointers, but both point to function-local static objects.
-- Next: fix static hash-table cleanup (retain state objects, release owned allocations), focused lifecycle test, gate changed source and run final house profiles twice.
+- Shadows: corrupt at same shutdown stack (identical six plugin offsets), real660.078 s, foreign_exceptions1/ref_warnings0; propmgr220/220, lotcfg293/293 exact.
+- Fix: ProcessHashState Reset frees nodes/buckets without deleting static state; destructor Reset is safe after app cleanup; corrected bucket delete[] element type.
+- Focused x86 MSVC lifecycle test passed: stable static address, Clear/repeated Reset, map releases, family borrowed values, repopulation and destructor cleanup.
+- Gate operation42243 running on changed stable source; collect it to terminal completion. First focused invocation failed only on cmd forward-slash script spelling; corrected invocation passed.
+- Next: collect final gate, snapshot fixed DLL, regress tags pl21r3fixa and pl21r3fixb (both profiles twice), preserving baseline failures.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No build outstanding; no implementation changes yet. WriteCapture and automata owners remain out of scope.
+- No game outstanding; final build running. WriteCapture and automata owners unchanged.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
 - Historical round-2 and original implementation evidence follows; it used an older base.
 

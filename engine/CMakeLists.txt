@@ -1091,3 +1091,8 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_propdev_snapshot_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME propdev_snapshot_test COMMAND fc4_propdev_snapshot_test)
 endif()
+
+# Process hash state survives app shutdown; only nodes and buckets are freed.
+add_executable(fc4_process_hash_state_test tests/process_hash_state_test.cpp)
+target_include_directories(fc4_process_hash_state_test PRIVATE plugin)
+add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
