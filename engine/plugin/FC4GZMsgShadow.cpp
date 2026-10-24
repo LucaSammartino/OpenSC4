@@ -25,8 +25,12 @@ constexpr uint32_t service = 0x64FA8434, iid = 0x652294BC;
 bool Capture(std::vector<Entry>& entries) {
     auto* fw = RZGetFrameWork(); // borrowed
     cIGZUnknown* manager = nullptr;
-    if (!fw || !fw->GetSystemService(service, iid, reinterpret_cast<void**>(&manager)) || !manager)
+    const bool found = fw && fw->GetSystemService(service, iid, reinterpret_cast<void**>(&manager));
+    if (!found || !manager) {
+        fc4::Log("gzmsg: native manager unavailable framework=%u lookup=%u pointer=%u service=%08X iid=%08X (GZ12)",
+            fw ? 1u : 0u, found ? 1u : 0u, manager ? 1u : 0u, service, iid);
         return false;
+    }
     FC4_ACQUIRED(manager, "GetSystemService");
     // GZ11 diagnostic domain, not a claimed enumeration of the 32-bit ID space.
     for (uint32_t n = 0; n < 259; ++n) {
@@ -35,8 +39,8 @@ bool Capture(std::vector<Entry>& entries) {
         // §3 slot 3: bool GetQueue(uint32_t, queue**), AddRef'd on success.
         using Lookup = bool (__thiscall*)(void*, uint32_t, cIGZUnknown**);
         auto lookup = reinterpret_cast<Lookup>((*reinterpret_cast<void***>(manager))[3]);
-        const bool found = lookup(manager, id, &queue);
-        entries.push_back({ id, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(queue)), found ? 1u : 0u });
+        const bool queued = lookup(manager, id, &queue);
+        entries.push_back({ id, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(queue)), queued ? 1u : 0u });
         if (queue) {
             FC4_ACQUIRED(queue, "GetQueue");
             FC4_RELEASE(queue);

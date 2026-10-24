@@ -380,6 +380,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotconf_shadow", "simulator_shadow",
                                   // Controlled live native overlay actions; independent of observe.
                                   "overlays_fixture",
+                                  // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
+                                  "gzmsg_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
