@@ -1,5 +1,5 @@
-tag: propmgr-race13-house2032-a-521
-run: 521
+tag: propmgr-race13-house2032-a-731
+run: 731
 date: 2026-10-24
 lane: glue-propmgr-race13
 dll: FreeCity4-glue-propmgr-race13 513fde7b (source 88730ab68)

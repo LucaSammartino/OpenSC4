@@ -1,17 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-race13: prop query capture race | Codex / glue-propmgr-race13 | in progress | Trace capture, fix, gate, two house runs to 2032 |
+| glue-propmgr-race13: exact native prune-input capture | Codex / glue-propmgr-race13 | ready for measured capture work: cargo 7389/0, clippy clean, CTest 81/81; turbo and normal both 219/220, PL24 open | Answer PL24, apply the corrected bounds contract, then require two 220/220 house runs before restoring verified credit |
 
-## Handoff
-- Goal: eliminate intermittent propmgr lot-list mismatch without comparison tolerance.
-- Done: initial handoff committed 611ca106e; source now captures native slot-8 positions rather than reading them early after slot 40. Strict sequence/count validation; comparison unchanged.
-- Evidence: train200 failure native extra at pos Z=624; train195 extra Z=976; train190 extra Z=592 (all exact cell boundaries). This suggests checking A7.2 upper-Z contract as well as timing; do not change the core without a spec answer.
-- Initial qbuild all TERMINATED exit 1: workspace test aborted in pollution getter timeout; clippy passed; queued native build passed 262/262 edges and full CTest 81/81. Original logs moved to qbuild-initial-{test,clippy}.log and fc4verify-initial-{build,ctest}.log under build-runs.
-- Current serial-input qbuild all: RUST_TEST_THREADS=1, exec session 42745. Collect this operation to terminal; no duplicate. It repeats only because the timeout diagnostic passed alone (changed scheduling input).
-- Games TERMINATED: propmgr-race13-house2032-a 219/220 (turbo), propmgr-race13-house2032-b-normal 219/220 (normal). Both clean through 2032, ref_warnings=0, inputErrors=0, no propmgr resync lines. Records 521/522 committed with this milestone. No outstanding game request.
-- Cause measured: native retained upper-X boundary 144 in a and upper-Z boundary 944 in b even with identical observed slot-8 values and all ordered reads present. Not a position timing race for these failures. PL24 filed in docs/specs/questions/prop-manager.md requesting corrected A7.2 bounds contract; core remains literal half-open, no tolerance. Exact 220/220 target NOT achieved; measured instrumentation is ready once gate passes, contract fix remains open/default-off.
-- Required: two house runs through 2032, exact 220/220 and no resyncs if possible; otherwise numbered question and measured partial result.
-- build-runs/wait-game.ps1 waits on filesystem notifications without qwait.
-- Focused cargo command through q.py failed before execution: Git Bash CreateFileMapping Win32 error 5, evidence build-runs/q/20261024-163426-34100.log. Full qbuild uses its own supported path.
-- Full initial test evidence: build-runs/qbuild-initial-test.log, pollution_tests::getters_answer_from_another_thread_during_a_main_thread_call hit its 20-second receive timeout, causing non-unwinding panic / 0xc0000409. No Rust changes in this lane. Same built test binary passes alone with --exact --test-threads=1 in 0.00s (build-runs/pollution-getters-focused.log). Serial gate input change already applied; collect session 42745 to terminal before final reporting.
-- Prior failure excerpts preserved at build-runs/propmgr-prior-failures.md. Verified DLL is engine/build-x86/FreeCity4.dll from source 88730ab68.
+The shadow now observes occupant slot 8 at the native pruning call and replays those exact position values to Rust, alongside the ordered pre-prune slot-40 list. It no longer independently samples positions early. Thread-local capture, locked forwarding addresses, reference ownership, and scoped restoration keep other callers forwarded to native methods. Strict call-order/count validation and the full result/list comparison remain enabled; nothing is skipped or tolerated. Source milestone: `88730ab68`.
+
+This isolates a bounds-contract discrepancy rather than fixing the verified-credit failure. With the same slot-40 list and exact native slot-8 inputs, native retained X=144 on the expected upper-X boundary in the turbo run and Z=944 on the expected upper-Z boundary in the normal run. Each failure has inputErrors=0 and all native position reads accounted for. The core follows prop-lotconfig.md A7.2's literal half-open bounds and rejects those entries. PL24 in [questions/prop-manager.md](../specs/questions/prop-manager.md) requests the exact native bounds/NaN contract. No guessed rule or signature was implemented. The 220/220 objective remains open; this is a READY entry for the measured capture/diagnostic work under the task's partial-closure rule.
+
+Final stable-source gate: `qbuild.py --wt <WT> all` PASS with `RUST_TEST_THREADS=1`: **7389 passed, 0 failed**, summed across every test-result line; clippy with warnings denied passed; queued native build **160/160 edges**, full CTest **81/81**. All asynchronous operations were collected to terminal results. No Rust files changed, so no Rust formatting operation was needed. No C ABI exports changed.
+
+The initial full gate failed at a pollution C ABI getter test's 20-second receive timeout/non-unwinding panic (`0xc0000409`); clippy and queued native build/CTest passed in that gate. The same built test passed alone with `--exact --test-threads=1` in 0.00 s. This diagnostic justified changing scheduling input for the full rerun. Initial evidence is preserved in `build-runs/qbuild-initial-{test,clippy}.log`, `fc4verify-initial-{build,ctest}.log`, and `pollution-getters-focused.log`; final logs use the normal qbuild/fc4verify names. The initial q.py focused cargo command failed before execution because Git Bash CreateFileMapping returned Win32 error 5; its separate log remains under `build-runs/q/`.
+
+Exact shadow lines, computed from every propmgr observation in the logs:
+
+```text
+propmgr-race13-house2032-a 219/220
+propmgr-race13-house2032-b-normal 219/220
+```
+
+Both ordinary Konradshohe runs used `propmgr_shadow=1`, cells=32, with the existing default-off setting unchanged. Both reached 2032 clean, ref_warnings=0, input-error lines=0, and propmgr resync lines=0. Turbo reached 2032-01-04 in 31.328 s; normal reached 2032-01-01 in 111.781 s. Each sole list difference is PL24. DLL SHA prefix `513fde7b`, engine source `88730ab68`. Run records: [731, turbo](../runs/propmgr-race13-house2032-a-731.md), [732, normal](../runs/propmgr-race13-house2032-b-normal-732.md). IDs were moved away from the initial 521/522 allocation after those numbers were taken by concurrent integration work. Game logs/verdicts remain in `build-runs/game-results/`; no request remains outstanding.
+
+No coverage tables or regress scripts were edited. The existing house profile already enables propmgr_shadow, but these runs do not qualify for verified credit. Next: resolve PL24 into the behavior spec (including upper X, upper Z and NaN handling), update the core and meaningful boundary tests to that contract, then gate and repeat two house runs at 220/220. The question index regeneration belongs to the coordinator; engine lanes cannot run tools/questions.py.
