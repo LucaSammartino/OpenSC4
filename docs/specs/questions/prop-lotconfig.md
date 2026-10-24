@@ -64,15 +64,6 @@
   FC4GameList.h). Please confirm the hasher (and whether resize rehashes with the same function), and
   add it to allocators.md.
 
-- **PL21:** (§A7.2 slot 23 `GetLotProps`, §A8 persistence) the propmgr shadow (originals in, FreeCity4's
-  core loaded from the original's own record each SimNewMonth) differs intermittently in one GetLotProps
-  sample per run, never the same lot: glue21-r4-3 (turbo) 2028-10-01 lot (10,46) original 3 props, core 2,
-  first 0C3079EC/0C3075E0; glue21-r4-5 (normal speed) 2027-11-01 lot (9,51) original 1, core 0; glue21-r4-4
-  (turbo, same build) 220/220 exact. Every other query and the record compare exact. Can the original's
-  per-lot prop list hold a prop that its saved record (§A8) does not carry at the moment of a SimNewMonth
-  Write (for example a prop added to a lot but not yet in the city's prop table, or a timed prop that the
-  record skips)? If so, which props, so the shadow can exclude them.
-
 <!-- from: glue-lotcfg-detail4 (2026-10-22) -->
 - **PL22 - §B3.1 steps 1-2, in-game catalogue reload on a detail change:** the lotcfg host now reads `d` from the
   preferences (`videoPreferences.cityDetail`) at each `StaticInit` and each slot-5 load. A harness slot runs one city

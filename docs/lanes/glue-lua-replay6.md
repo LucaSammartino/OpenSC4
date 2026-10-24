@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree; supervisor publishes reserved branch) | ready: lua 73/73 exact to 2032; full gate passed | Land bounded registration changes; no full-VM verification credit. |
+| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree; supervisor publishes reserved branch) | in progress: initial lua 73/73 and full gate passed; main merge changed engine inputs | Repeat full gate and game check on merged source before READY. |
 
 ## Changes and verification scope
 
@@ -68,3 +68,10 @@ other owners and unsampled VMs remain outside the bounded comparison, never
 counted as matches. A complete replay would require a separately justified
 capture and side-effect/identity contract. No native/game requests outstanding.
 Coordinator: land this bounded change and retain that scope in coverage reports.
+
+## Handoff
+
+- Final requested main merge introduced traffic-engine changes, not just documentation. Initial gate and run above remain measurements of runtime source c9a62c9b1.
+- Next: full qbuild all on merged runtime source, then another unique 2032 run; do not reuse the first DLL or verdict for the merged source.
+- Initial native/game operations fully complete. No requests outstanding at this merge milestone.
+- Preserve the two source/gate/run measurements separately; the final queue must use actual full detached HEAD.
