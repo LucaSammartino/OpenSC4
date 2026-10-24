@@ -147,7 +147,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RN | foundations |
 | RND | render3d |
 | RP | render-properties |
-| RQ | region |
+| RQ | region, region-model |
 | RR | regional-city-records |
 | RS | residential |
 | RY | regional-city |
@@ -315,7 +315,7 @@ generated index: the questions live one file per spec, so read only the file for
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
-| region-model | 13 | 1 | RM15 | questions/region-model.md |
+| region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
@@ -371,4 +371,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1469** | | |
+| **total** | **606** | **1474** | | |

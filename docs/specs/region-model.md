@@ -212,6 +212,16 @@ the field alone.
 
 There is no check that `Water Min <= Water Max`. The values are stored as 32-bit integers.
 
+**RM15 — hexadecimal prefixes.** This is prefix conversion, not validation of the whole token.
+After the `#`, skip leading whitespace, accept an optional `0x` or `0X`, and consume at most
+eight consecutive ASCII hex digits. Stop at the first other character; signs are not accepted.
+The value of the consumed digits is an unsigned 32-bit integer. Extra digits and trailing text
+are ignored, even if they are not hex. No digits, or a consumed value of zero, preserves the
+entire original name literally; a nonzero value selects LTEXT even when the suffix is junk.
+Evidence: `RZAtoUint32HexA` at `0x0090FD02–0x0090FD27` (whitespace/prefix),
+`0x0090FD28–0x0090FD68` (digit limit and stopping), `0x0090FD6A–0x0090FD89`
+(32-bit accumulation), called by `LoadConfig` at `0x004A6EB3`.
+
 ### 3.2 Writing: `Shutdown` (§6.2) *[compat]*
 
 `Shutdown` writes the four keys, in this order, with `WriteEntry` / `WriteNumber` (framework-rz-files.md §3.6):
@@ -352,6 +362,14 @@ holds, in load order:
   object itself lives on while anyone else holds it. Cells are erased by key, so a rectangle that overlaps cells of
   another city would erase those too; the cell map normally prevents that.
 
+**RM17 — invalidated boxes.** Removal does not clear the caller's box variable: the box is
+freed at `0x004A4C07` with no replacement store. Its city can still live through other counted
+references, but those do not keep the box alive. Dereferencing or removing that old box again
+has no defined original result. A safe adapter retains the stale opaque box ID in the caller's
+variable, invalidates its resolution (`None`), and rejects further operations through it without
+touching another city. IDs must not become valid again merely because storage was reused.
+This is a FreeCity4 safety choice, not an original null-result guarantee.
+
 ### 5.6 Rectangle: `GetBoundingRect(rect*)` (`0x004A45A0`) *[compat]*
 
 `rect` is four `s32`: `{ minX, minY, maxX, maxY }`. Start with `{ INT_MAX, INT_MAX, INT_MIN, INT_MIN }`; for every
@@ -425,6 +443,12 @@ the object, even when the folder cannot be created.
 The region does not read the file back; its first `Init` does. With `N = 0` the folder has no `config.bmp` and
 `Init` uses the built-in default picture (§4.1).
 
+**RQ3 — folder suffixes.** The unsuffixed directory is tested first. The counter starts at 1
+(`0x004A6879`) and is incremented **before** formatting the first collision alternative
+(`0x004A6927–0x004A6934`), so alternatives begin at ` (2)`, not ` (1)`. This rule and the
+MoveCity/reset result contracts in §§7.3 and 7.6 supersede the conflicting older summaries
+in region.md §6.
+
 *[quirk]* `CreateStarterRegion` (called by the nation when no region exists and none could be copied) calls
 `CreateRegion` with an **empty** name. The sanitised name is empty, the candidate `Regions\` + `""` + `\` is the
 Regions folder itself and exists, so the first free candidate is `" (2)"`. The starter region's folder is therefore
@@ -453,6 +477,13 @@ city (§5.1 step 2). If that succeeded: the new city gets `SetFilePath(path)`, i
 `*(&box)` is set to `GetCity(position)` of the new city (a fresh box). If the read failed the city is **gone** from
 the map and the argument is left pointing at the freed box *[quirk]*. The neighbours simulator calls this for every
 adjacent established city in its `Init` (foundations.md §11.1).
+
+For RM17, a failed read does not restore the old map entry or clear the argument; the only
+replacement store is on the successful path (`0x004A509D–0x004A50E4`). The adapter keeps
+that stale ID unresolved. On success it replaces the caller's ID with the newly found box;
+other aliases of the old ID remain stale. A successful read whose city occupies no cells can
+still yield a null box through `GetCity`; success of the file read alone does not guarantee a
+usable replacement.
 
 ### 7.2 `DeleteCity(&box)` (slot 14, `0x004A5120`) *[compat]*
 
@@ -502,6 +533,15 @@ Consequences *[inferred]*:
 - Any failure leaves `ok` false, but the shut-down regions stay shut down (this region is re-initialised in every
   case).
 
+**RQ3 — result contract.** Except for the already-at-target shortcut, false means that the
+rename failed or that reading the renamed regional-city record failed. The second case leaves
+the renamed file in place; there is no rollback. If rename and read succeeded, a failed
+`SC4WriteRegionalCity` does **not** change the true result. Destination `Init` is still attempted
+and its result does not change this bool either. Evidence: rename/test at
+`0x004A73F7–0x004A7401`, read/test at `0x004A7422–0x004A742C`, ignored write result at
+`0x004A745B–0x004A7469`, common false assignment and reinitialisation at
+`0x004A7477–0x004A747F`. This supersedes region.md's older “true unless rename failed” summary.
+
 ### 7.4 The file name of a city: `SaveFileFor(name, serial)` (`0x005DC790`, helper `0x005DC400`) *[compat]*
 
 Used by `MoveCity` (active region) and `MoveOverflowCitiesToDownloadDirectory` (the Downloads folder). The helper
@@ -513,6 +553,22 @@ Used by `MoveCity` (active region) and `MoveOverflowCitiesToDownloadDirectory` (
    as a regional city (§5.1) and its serial is `serial` **or 0**, return the same path (it is this city's file; it
    will be overwritten). Otherwise `n := n + 1` and the candidate becomes `base` with ` (n)` inserted before the
    last `.`.
+
+**RM18 — a missing extension is not repaired.** The insertion position is the last dot in
+the **whole resolved path**, computed once from the unsuffixed path (`0x005DC614–0x005DC625`);
+it is not restricted to the filename. Each retry starts from that same base. If truncation has
+removed `.sc4`, a dot retained inside the city name (or even in a parent directory) is used.
+If there is no dot anywhere, the search returns `0xFFFFFFFF`; on the first collision requiring
+a suffix, passing that position to string insertion raises an out-of-range `basic_string`
+exception. It does **not** append ` (n)`. No collision, or an existing file reusable by the
+serial rule above, needs insertion and therefore does not raise this exception. The suffix is
+not sanitized or truncated again, so an ordinary suffixed filename can exceed 256 bytes.
+Evidence: insertion at `0x005DC6F5–0x005DC706`, `cRZString::Insert` at
+`0x0090F0B0–0x0090F0CF`, unsigned position-versus-length check at
+`0x0090E8BF–0x0090E8C5`, and the `basic_string` out-of-range path at
+`0x00407C40–0x00407C45`, `0x009DD10A–0x009DD11B`. A portable adapter must expose a
+filename-position failure here, without fabricating an appended-suffix path; it need not
+throw a C++ exception across its API.
 
 The wrapper `0x005DC790(name, serial, out)` first sets `directory` to the nation's region directory joined with
 the **active region's** directory name. Shipped files follow the rule: `City - New City (10).sc4`.
@@ -546,6 +602,18 @@ Rebuilds a tutorial city from the pristine copy in the game data.
    reset worked) *[inferred]*: the polarity is read from the bytes and looks inverted (RM8). The caller in the
    nation (`ResetTutorialCities`) is outside this spec.
 
+**RM17 / RQ3 — reset failure boundary.** After a successful export, the original calls
+`ReloadCity` and then dereferences its box argument without checking whether reload replaced
+it (`0x004A5574–0x004A5580`). If reload failed, this is a use-after-free; no return value,
+tutorial-ID write, or registry activation can be guaranteed for that original execution. The
+safe adapter skips the tutorial-ID write when the resulting ID resolves to no city, then still
+reactivates the tutorial after the successful export and returns false. When reload succeeds,
+the tutorial ID is written to the replacement city. An export failure skips reload and
+reactivation and returns true. No match (including ID −1) returns false. The export compares
+its result with −1 at `0x004A5536–0x004A553D`; the final equality test at
+`0x004A559E–0x004A55A7` proves the inverted bool. This settles the literal polarity in §7.6;
+whether the nation uses that bool is still RM8.
+
 ## 8. Terrain type, base height and water
 
 ### 8.1 Base terrain type and height
@@ -561,6 +629,18 @@ Rebuilds a tutorial city from the pristine copy in the game data.
 Until that read has happened the table is all zeros, so `GetBaseTerrainHeight()` returns 0 *[inferred]*. There is no
 range check: a type outside 0..1 reads whatever follows the table in memory (the next dword is the byte that `Init`
 sets, §6.1) *[quirk]*. The unit and the use of the height are not known to this spec (RM9).
+
+**RM16 — invalid terrain type contract.** The setter preserves all 32 bits, including negative
+values (`0x004A4CB0–0x004A4CB7`). The original height getter performs a dword load from
+`0x00B217B0 + 4*t`, with 32-bit address arithmetic and no bounds check
+(`0x004A4CA0–0x004A4CAA`); an invalid type can read unrelated memory or fault. In particular,
+type 2 addresses `0x00B217B8`, whose low byte `Init` sets to 1 at `0x004A6C99`; this is
+not a third terrain height. There is no portable height value for types outside 0 and 1.
+FreeCity4's defined contract is to store and return the type unchanged, but report
+`Unsupported::BaseTerrainType` from height lookup for every such type, without a memory read,
+clamp, wrap to a valid index, or fallback height. Valid types still return the unsigned table
+entry, including zero before tuning. This closes the unsafe-input contract; tuning meanings
+and shipped values remain RM9.
 
 ### 8.2 Water preferences
 
@@ -673,6 +753,75 @@ each folder (§2.1), `Init` on the region that becomes active and `Shutdown` on 
    `City - New City.sc4`.
 8. **Terrain map.** For a region whose rectangle is `{0,0,3,5}`: dx = 4, dz = 6, the map is 64 x 96 cells, the
    vertex index of cell (2, 3) is 3 * 65 + 2 = 197, and every height is 270.0.
+
+### 12.1 Owner closure vectors (RM15–RM18, RQ3)
+
+These are deterministic specification vectors, not observations from a running game. File
+and export outcomes can be supplied by a host fixture. Unsafe original executions are
+tested against the explicitly defined adapter contract instead of dereferencing process memory.
+
+**Name tokens (RM15).** Supply LTEXT group `0x6A231EAA` with instance 1 = `One`,
+`0x12` = `Twelve`, `0x12345678` = `Eight`, and `0xFFFFFFFF` = `Max`.
+
+| INI Name text | Selected instance / resulting name |
+|---|---|
+| `# 0X1tail` | 1 / `One` |
+| `#12g34` | `0x12` / `Twelve` |
+| `#123456789` | `0x12345678` / `Eight` (ninth digit ignored) |
+| `#FFFFFFFF0` | `0xFFFFFFFF` / `Max` |
+| `#000000001` | zero / literal `#000000001` |
+| `#0x`, `#zz`, `#-1`, `#+1` | zero / each complete literal name |
+| `#2junk` with instance 2 absent | 2 / empty name |
+
+**Terrain heights (RM16).** With table entries `{60, 100}`, types 0 and 1 return 60 and
+100. With the initial zero table they both return 0. For each of `2`, `−1`, `INT_MIN`,
+`INT_MAX`, and `0x40000000`, the setter/getter round-trip the same 32-bit type and the
+height operation reports `Unsupported::BaseTerrainType`. The table and stored type stay
+unchanged by the failed lookup; do not expect the `Init` flag as a height for type 2.
+
+**Boxes and tutorial reload (RM17).** Start with city A occupying `(0,0)` in box B and
+another counted reference to A. Removing B removes its rectangle and shuts A down; A
+remains alive through that other reference. The caller's B and all its aliases are stale,
+and resolve to no city. In a fresh setup, a failed reload gives the same map/box outcome
+and leaves the old file in place. A successful reload with replacement C at `(1,1)` makes
+the caller's variable the box found at `(1,1)`; an alias of B stays stale. For a matching
+tutorial with successful export followed by failed reload, the adapter performs no tutorial-ID
+write, reactivates the tutorial and returns false. On export failure it leaves B and the
+map intact, does not reactivate, and returns true. No matching ID returns false with no export.
+
+**Truncated filenames (RM18).** Use ASCII names, directory `C:\\Regions\\R\\`, and
+serial 0 so every existing candidate requires a suffix. `A^n` below means n repetitions
+of `A`, not a literal caret expression. The prefix `City - ` occupies seven bytes.
+
+| City name and existing files | Expected path or failure |
+|---|---|
+| `A^249`, no existing base | `C:\\Regions\\R\\City - ` + `A^249` (256-byte filename, no extension) |
+| `A^249`, that base exists | filename-position failure; original raises out-of-range before testing a suffixed path |
+| `A^248`, base exists | base ends in `.`; insert before it: `City - ` + `A^248` + ` (2).` (260 bytes) |
+| `A^100` + `.` + `A^148`, base exists | `City - ` + `A^100` + ` (2).` + `A^148` (260 bytes) |
+| `A^249`, base exists, directory changed to `C:\\Regions\\R.v1\\` | candidate `C:\\Regions\\R (2).v1\\City - ` + `A^249`; the parent-directory dot receives the suffix |
+
+The last vector checks candidate construction, not successful filesystem creation. For a
+nonzero supplied serial and an existing base whose regional-city serial matches or is zero,
+return the base unchanged, including the dotless case. Two ordinary collisions at
+`City - New City.sc4` and `City - New City (2).sc4` give `City - New City (3).sc4`,
+not a suffix appended to the previous candidate.
+
+**Creation and result polarity (RQ3).** Existing folders `Berlin` and `Berlin (2)` produce
+`Berlin (3)` even if `Berlin (1)` is absent. For MoveCity, an occupant identical to the
+incoming city returns true without rename. Otherwise use this outcome matrix; `Init` is
+attempted after every listed case and its false result does not alter the returned bool.
+
+| Rename | Regional-city read | Regional-city write | MoveCity result |
+|---|---|---|---|
+| fails | not attempted | not attempted | false |
+| succeeds | fails | not attempted | false; renamed target remains |
+| succeeds | succeeds | fails | true |
+| succeeds | succeeds | succeeds | true |
+
+Reset's export-failed → true / export-succeeded → false cases are in the RM17 vectors
+above; include ID −1 as another false/no-export case. The successful-export/failed-reload
+case asserts the adapter choice only, since the original dereferences freed storage.
 
 ## 13. Open
 

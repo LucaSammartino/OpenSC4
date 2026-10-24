@@ -130,17 +130,19 @@ has one heap **holder** (a reference to the city); every cell of its rectangle (
   5. The renamed file is made writable *[inferred]*, read (`SC4ReadRegionalCity`), given the serial number
      (regional-city slot 28) and the position `(x, z)` with rearrange (slot 6, so `moved` is set), written back
      (`SC4WriteRegionalCity`), shut down and released.
-  6. This region's `Init` runs again. True unless step 4 failed.
+  6. This region's `Init` runs again. False if step 4's rename or step 5's regional-city read failed;
+     true otherwise. The write result and the result of `Init` are ignored (RQ3; region-model.md §7.3).
 - **`Delete`** (`0x004A65A0`): every city is deleted (`DeleteCity`, files included) until the map is empty; then
   `config.bmp` and `region.ini` are deleted, the folder is removed (`0x0091BF93`), and `Shutdown` runs.
 - **`ResetTutorialCity(id)`** (`0x004A5400`): false for −1. Among all cities, the first whose tutorial ID (its slot
   65) is `id` has its file overwritten with the built-in tutorial city (record `0x6A5B7BF5 / 0x6A5B7B57 / id`,
   `SC4ReadBinaryRecord`); when that works, the city is reloaded (`ReloadCity` of the holder at its position) and
   given the tutorial ID again (slot 66), the application's slot 49 runs, and the tutorial is made active again
-  (`cSC4TutorialRegistry::SetActive(id, 1)`, tutorial.md). The result is whether the record was written
-  *[inferred]*.
+  (`cSC4TutorialRegistry::SetActive(id, 1)`, tutorial.md). The result is true exactly on export failure,
+  false on successful export or no match (RQ3; region-model.md §7.6). A failed reload leaves a stale box
+  which the original dereferences; the safe adapter handling is defined in region-model.md §7.6 (RM17).
 - **`CreateRegion(name)`** (`0x004A67B0`, a static function; `cSC4Nation::AddNewRegion`): a new region; the folder
-  name is the sanitized name (`SC4SanitizeFileName`), and `"<name> (n)"` with n = 1, 2, … while that folder exists;
+  name is the sanitized name (`SC4SanitizeFileName`), and `"<name> (n)"` with n = 2, 3, … while that folder exists;
   the region's name and directory name are set and the folder is created. The game's layouts
   `0x856DDBAC / 0x6A1EED2C / 0x6C3568C4 + i` are counted for i = 0, 1, … while the resource manager has them (its slot
   14), and one of them, chosen with `RandomUint32Uniform(count)`, is written as `<folder>config.bmp`. The new region
