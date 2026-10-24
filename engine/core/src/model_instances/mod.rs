@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Published operations of the eight-owner subset in model-instances §0.1.
 //! Excludes animated convenience slots 0–8, processor assignment, generic
-//! persistence and sprite-instance binding/rendering. No whole-owner claim.
+//! persistence and sprite-instance binding/rendering algorithms. Resource-side
+//! sprite creation delegates those algorithms through SpriteInstanceBinding.
+//! See README.md for owner closure within the published scope.
 mod animation;
 mod geometry;
 mod instance;

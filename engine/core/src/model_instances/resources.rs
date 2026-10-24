@@ -191,6 +191,39 @@ impl Interfaces for SpriteResource {
     }
 }
 
+/// Foreign sprite-instance allocation and resource binding (§6). Binding and
+/// rendering belong to animated-sprite, not the resource owner. Allocation must
+/// succeed: the spec does not establish a safe native allocation-failure path.
+pub trait SpriteInstanceBinding {
+    type Instance: ReferenceTarget;
+    fn allocate(&mut self) -> Self::Instance;
+    fn bind(&mut self, instance: &Reference<Self::Instance>, resource: &Reference<SpriteResource>) -> bool;
+}
+
+impl Reference<SpriteResource> {
+    /// Resource-side CreateModelInstance: keep a temporary counted instance
+    /// through binding, retain the successful result, then drop the temporary.
+    pub fn create_model_instance<B: SpriteInstanceBinding>(
+        &self,
+        binding: &mut B,
+        output: &mut Option<Reference<B::Instance>>,
+    ) -> bool {
+        // [choice] Tables do not expose this native slot; reject that portable
+        // enum misuse rather than inventing a table-to-sprite binding.
+        if self.read().resource_type() != SPRITE_ANIMATION_TYPE {
+            *output = None;
+            return false;
+        }
+        let temporary = Reference::new(binding.allocate());
+        if !binding.bind(&temporary, self) {
+            *output = None;
+            return false;
+        }
+        *output = Some(temporary.clone());
+        true
+    }
+}
+
 pub struct SpriteAnimationFactory;
 impl SpriteAnimationFactory {
     pub fn create_instance_into(

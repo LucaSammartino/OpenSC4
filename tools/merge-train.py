@@ -1411,6 +1411,12 @@ def cmd_land(args):
     touches = batch_touches_engine(wt)
     blockers = land_blockers(cur, head, touches, load_gate_record(cur["id"]) if touches else None,
                              main_moved_under(head))
+    # Two lanes editing the one shadows profile line can merge into two `shadows =` hash keys, which only the
+    # NEXT regress trips over (train164 landed one; train165's regress then failed to parse).
+    profile = git(["show", f"{head}:tools/regress.ps1"], check=False).stdout
+    n_shadows = len(re.findall(r"(?m)^\s*shadows\s*=", profile))
+    if n_shadows != 1:
+        blockers.append(f"tools/regress.ps1 has {n_shadows} 'shadows =' profile lines (must be exactly 1)")
     if blockers:
         die("refusing to land " + cur["id"] + ":\n  - " + "\n  - ".join(blockers)
             + "\nThere is no override: fix the tree on the integration branch, commit, `gate` again.")
