@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-overlays-live6: live terrain overlays | Codex; detached HEAD | continue: measured subset passes; latest main merge unverified | qbuild all on current HEAD, new unique city run, final merge/report/queue |
+| glue-overlays-live6: live terrain overlays | Codex; detached HEAD | in progress: final source gate passes | 2032 read-only shadow run, fixture run, report and queue |
 
 ## Handoff
 
@@ -23,4 +23,6 @@
 - Diagnostic source761836e97 full gate terminal PASS:6900 tests,0 failures/ignored,clippy0; native48/48 edges,CTest73/73,total85.6s. capi_smoke recompilation resolved ABI equality without ABI changes. Tree-change note reflects handoff docs only. Next unique c request, then final main merge/report/queue; if budget OVER commit handoff, no queue.
 - c finished clean2032-01-14, ref_warnings=0, all harness problems0; overlays73/73, overlayrecords292/292, overlayreplay0/292 all OV15. No outstanding operation or game request. Latest required main merge3b19ef279 added automata/Lua/CMake inputs: NOT verified yet. a/b/c numbered400/401/402 after merged main max399, avoiding collisions; label-only run files committed9473ca08b.
 - CONTINUATION: context149604/150000 before this handoff. Exact next: qbuild all on current source (new main inputs justify repeat), then unique ovlive6-2032-20261024d request and event wait (no qwait), grep counts/questions; final main merge again, report and queue only if verified. Last gate6900/clippy0/build48/48/CTest73/73 applies to761836e97, NOT latest merge. Preserve failed CTest log; never bump ABI. No merge-queue file written. Question OV15 needs coordinator index regeneration. This handoff commit is the actual tip.
-- Worktree reserved and detached; do not change refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-live6-r1-manifest.json.
+- Round 2: reused clean detached HEAD618ca267a; no pending work. Final-source full qbuild all terminal PASS:6902 tests/0 failures/0 ignored, clippy0 diagnostics, native216/216 edges44.1s, CTest74/74 in97.9s, native total143.8s. Logs qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log retained under build-runs. No source changes this round.
+- Next: unique read-only ovlive6-r2-ro-2032-20261024d request (overlays_shadow=1, fixture absent), then fixture ovlive6-r2-fixture-2032-20261024e if budget permits; event wait without qwait, collect actual terminal operations. No outstanding request.
+- Worktree reserved and detached; do not change refs or merge main. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-live6-r2-manifest.json.
