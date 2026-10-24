@@ -9,7 +9,7 @@ Done: 69cd3b6be requests factory IID 0x6771477D and stores base per §15.5.1; ac
 Measured: qbuild all began before the companion edit; workspace tests and doc-tests completed, summed 7484 passed / 0 failed.
 Gate: clippy still compiling after a long contended build; interrupted for requested context wind-down. Original session 67957 collected terminal exit 1. No native verify or game request outstanding.
 Evidence: build-runs/qbuild-initial-test.log and qbuild-initial-clippy.log preserve this incomplete check, separate from future final-source checks.
-Next exact step: collect game wait session 98432 for gtr14-r2-shadow-2032-a; no other game request outstanding.
+Next exact step: measure terrain-only replacement with unique label gtr14-r2-replace-2032-a; no game request outstanding.
 Then: shadow on originals (terrain_shadow=1, turbo, end_date=2032-01-01), replacement trial and house profile; choose unique labels, one outstanding request.
 Waiting helper: build-runs/wait-terrain-verdict.ps1 uses one filesystem-event wait and accepts an already completed verdict; no qwait per transport instruction.
 Question: TR44 in docs/specs/questions/terrain.md requests the reported crash receiver/slot and slot 54 render-object identity/lifecycle.
@@ -20,7 +20,7 @@ Worktree intentionally detached. Sandbox rejected taskkill of own gate; original
 Resume round r2: final-source qbuild all launched once; workspace/doc tests: 7484 passed, 0 failed; clippy: exit=0 diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
 Native explicit verify qbuild-20261024-225556-build-ctest: PASS 267/267 build, CTest 81/81, qbuild PASS, session 5782 terminal exit 0. Tree-change note is documentation commits only, no engine source changes.
 Final-source all: PASS; qbuild-20261024-230142-build-ctest passed build 46/46 (incremental), CTest 81/81, qbuild PASS; session 41130 terminal exit 0. No gate outstanding. The redundant overlap was an error; do not repeat either gate without changed source/inputs.
-Game: gtr14-r2-shadow-2032-a requested, original terrain plus terrain_shadow=1, turbo to 2032-01-01; waiter session 98432. Next run number choice 14644 is free in this checkout (535 records, maximum 643), rescan before recording.
+Game: gtr14-r2-shadow-2032-a clean through 2032-01-03, ref_warnings=0; 97/97 exact. Record docs/runs/gtr14-r2-shadow-2032-a.md, run 14644. Waiter 98432 terminal exit 1/timeout after missed event; completed valid verdict retained, no resend.
 Spec audit: section 15.5.1 step 5 requires direct view Init(terrain); section 15.5.3 publishes no Init slot. Native addresses are not a supported game interface. Do not guess a slot.
 Spec audit: section 15.5.11 requires live terrain+0x6C and water+0x18 arrays; current plugin does not populate either. No replacement safety claim from the pointer correction alone.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-terrain-replace14-r2-manifest.json.
