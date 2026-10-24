@@ -133,10 +133,8 @@ impl Observation {
                 }
                 self.publications.push(r);
             }
-            Event::PublishAfter(r) => {
-                if self.publications.pop() != Some(r) {
-                    self.invalid = true;
-                }
+            Event::PublishAfter(r) if self.publications.pop() != Some(r) => {
+                self.invalid = true;
             }
             _ => {}
         }
