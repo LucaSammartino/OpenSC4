@@ -4,8 +4,11 @@
 #include "FC4SCResShadow.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Observer.h"
+#include "FC4Interfaces.h"
 #include "compat/FC4Compat.h"
 #include "cIGZPersistDBSerialRecord.h"
+#include "cISC4City.h"
 #include "fc4.h"
 #include <windows.h>
 #include <atomic>
@@ -154,6 +157,18 @@ void SCResShadowStart() {
 }
 void SCResShadowLine(const char* event, int32_t julian) {
     if (!g_enabled) return;
+    // The observer's published date is not initialized in the city-load notice.
+    // Use the city's borrowed simulator, as the clock/history shadows do.
+    if (julian <= 0) {
+        auto* city = CurrentCity();
+        auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+        if (sim) julian = sim->GetSimDateNumber();
+    }
+    if (julian <= 0) {
+        ++g_refused;
+        Log("scres: %s date unavailable; observation refused", event);
+        return;
+    }
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
     // Never credit an empty observation set as an exact differential.

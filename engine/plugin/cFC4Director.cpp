@@ -233,6 +233,7 @@ public:
                  simulatorReplaced_ ? "replacement" : "PASSTHROUGH (simulator disabled, original simulator in use)",
                  fc4::ModulePath(), fc4::LogPath());
         fc4::FpuLog("OnStart");
+        fc4::SCResShadowStart(); // before framework initialization can consume resource files
         cIGZFrameWork* fw = RZGetFrameWork();
         FC4_LOGV("OnStart: framework=%p state=%d", static_cast<void*>(fw), fw ? static_cast<int>(fw->GetState()) : -1);
         if (fw != nullptr) {

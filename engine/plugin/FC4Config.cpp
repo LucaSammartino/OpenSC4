@@ -356,6 +356,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
                                   "netocc_shadow",
+                                  // Partial SC token adapter read observations (default off).
+                                  "scres_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
