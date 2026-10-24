@@ -8,6 +8,8 @@
 - Worktree is reserved and detached; commit normally without changing refs.
 - Read the requested engine README owner table only; no engine edits.
 - LE6 and LE8 already answered; record the README rows they settle in final report.
-- Done: §25 documents type-7 allocation/copy extent, water/terrain mode commands, both movement overloads and full title composition; LER01–06 added.
-- Next: finish LE7 acquisition/store; trace selected LE4 dialogs/menus and split remaining parents into narrow questions.
+- Done: `a8c8748da` adds §25 type-7 allocation/copy extent, water/terrain modes, movement arithmetic and titles, LER01–06.
+- Done pending commit: §26 identifies chooser directory-file acquisition/retention, leaks and keyed deletion, foundation/outside popups; LER07–12.
+- Broad LE3/LE4/LE5/LE7 archived as partial answers; remaining scope is LE9–LE18. No whole-owner credit or body-byte reclassification.
+- Next: regenerate/check questions, run doccheck, commit; finish report and queue actual detached HEAD.
 - No game runs, ABI changes or REA calls planned.
