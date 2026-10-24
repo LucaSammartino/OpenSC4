@@ -180,7 +180,7 @@ mod tests {
     fn controlled_suffix_replays_placement_and_mutations() {
         for dynamic in [0, 1] {
             let r = replay_decal([64, 64, 16.0_f32.to_bits(), 64, 64, dynamic, 0]).unwrap();
-            assert_eq!(r[0], 81); // shown | ordinary PART | self-lit
+            assert_eq!(r[0], 0xD1); // shown | ordinary PART | snapshot | self-lit (OV15)
             assert_eq!(r[1], 3);
             assert_eq!(r[2..6], [8, 9, 10, 11]);
             assert_eq!(r[22], 0.5_f32.to_bits());

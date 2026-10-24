@@ -1,0 +1,9 @@
+tag: ovflags7-fixture-2032-20261024a
+run: 410
+date: 2026-10-24
+lane: glue-overlays-flags7
+dll: 2ffcbac8e0fa35f904f8f84b157d0521b71b1a2bf29912f62ed5c819065bab7e
+pacing: turbo
+verdict: clean
+switches: overlays_shadow=1, overlays_fixture=1, observe=0, digest=0; Konradshohe; end_date=2032-01-01
+result: ovflags7-fixture-2032-20261024a 73/73 (overlays); clean through2032-01-01, ref_warnings=0, all harness problems0;37.109 game seconds/51 harness seconds, slot2. All73 dated overlays shadow lines exact,7300/7300 sentinel fields;292/292 overlayrecords lines exact,12264/12264 checks,0 incomplete;292/292 overlayreplay lines exact,10220/10220 full-word fields,0 mismatches. All three shadow keys have0 resynced lines. Totals292 live overlays/handles/bindings,584 entries,0 groups/sources/unknown bindings. Full flags now match OV15. Original history/Init and image bytes unavailable (OV13); no complete rendering claim. Two expected x87 startup warnings; other warnings0. Waiter94521 collected to terminal; unique verdict retained.
