@@ -577,6 +577,7 @@ cGZWinSlider	widget toolkit	ui	widget-slider.md	-	-	-
 cGZWinScrollbar	widget toolkit	ui	widget-slider.md	-	-	-
 cGZWinSpinner	widget toolkit	ui	widget-spinner.md	-	-	-
 cGZWinOptGrp	widget toolkit	ui	widget-optgrp.md	-	-	-
+cGZWinCombo	widget toolkit	ui	widget-combo.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
