@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-terrain-replace14 (terrain replacement interface audit) | `Codex` / `glue-terrain-replace14` (engine lane) | in progress: commits 2e7504714, 69cd3b6be; cargo 7484 passed / 0 failed; clippy interrupted; native/game pending; TR44 filed; ABI unchanged | (1) Run final stable-source all and queued verify; (2) measure replacement and shadow to 2032; (3) resolve remaining terrain contracts. |
+| glue-terrain-replace14 (terrain replacement interface audit) | `Codex` / `glue-terrain-replace14` (engine lane) | in progress: commits 2e7504714, 69cd3b6be; cargo 7484 passed / 0 failed; clippy clean; CTest 81/81; game pending; TR44 filed; ABI unchanged | (1) Collect shadow gtr14-r2-shadow-2032-a; (2) measure replacement to 2032; (3) resolve remaining terrain contracts. |
 
 ## Handoff
 Goal: make terrain replacement pass the house replace run through 2032 and retain exact shadows.
@@ -9,7 +9,7 @@ Done: 69cd3b6be requests factory IID 0x6771477D and stores base per §15.5.1; ac
 Measured: qbuild all began before the companion edit; workspace tests and doc-tests completed, summed 7484 passed / 0 failed.
 Gate: clippy still compiling after a long contended build; interrupted for requested context wind-down. Original session 67957 collected terminal exit 1. No native verify or game request outstanding.
 Evidence: build-runs/qbuild-initial-test.log and qbuild-initial-clippy.log preserve this incomplete check, separate from future final-source checks.
-Next exact step: run python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/glue-terrain-replace14 all on stable source; use queued qbuild verify for native build/CTest, never direct fc4verify.
+Next exact step: collect game wait session 98432 for gtr14-r2-shadow-2032-a; no other game request outstanding.
 Then: shadow on originals (terrain_shadow=1, turbo, end_date=2032-01-01), replacement trial and house profile; choose unique labels, one outstanding request.
 Waiting helper: build-runs/wait-terrain-verdict.ps1 uses one filesystem-event wait and accepts an already completed verdict; no qwait per transport instruction.
 Question: TR44 in docs/specs/questions/terrain.md requests the reported crash receiver/slot and slot 54 render-object identity/lifecycle.
@@ -19,7 +19,8 @@ No game run records or exactness counts yet; last observed free run number was 6
 Worktree intentionally detached. Sandbox rejected taskkill of own gate; original session interrupt successfully returned terminal exit 1.
 Resume round r2: final-source qbuild all launched once; workspace/doc tests: 7484 passed, 0 failed; clippy: exit=0 diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
 Native explicit verify qbuild-20261024-225556-build-ctest: PASS 267/267 build, CTest 81/81, qbuild PASS, session 5782 terminal exit 0. Tree-change note is documentation commits only, no engine source changes.
-All subsequently queued qbuild-20261024-230142-build-ctest (session 41130). This redundant overlap was an error; collect it in this round, do not start another gate. No game request outstanding yet.
+Final-source all: PASS; qbuild-20261024-230142-build-ctest passed build 46/46 (incremental), CTest 81/81, qbuild PASS; session 41130 terminal exit 0. No gate outstanding. The redundant overlap was an error; do not repeat either gate without changed source/inputs.
+Game: gtr14-r2-shadow-2032-a requested, original terrain plus terrain_shadow=1, turbo to 2032-01-01; waiter session 98432. Next run number choice 14644 is free in this checkout (535 records, maximum 643), rescan before recording.
 Spec audit: section 15.5.1 step 5 requires direct view Init(terrain); section 15.5.3 publishes no Init slot. Native addresses are not a supported game interface. Do not guess a slot.
 Spec audit: section 15.5.11 requires live terrain+0x6C and water+0x18 arrays; current plugin does not populate either. No replacement safety claim from the pointer correction alone.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-terrain-replace14-r2-manifest.json.
