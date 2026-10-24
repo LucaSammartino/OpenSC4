@@ -44,6 +44,7 @@
 #include "cISC4DisasterManagerFire.h"
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
+#include "cISC4OccupantManager.h"
 #include "cISCPropertyHolder.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -206,6 +207,8 @@ struct Shadow {
     int32_t reportMonth = 0;
     bool scripted = false, restoreTurbo = false;
     uint32_t scriptStage = 0;
+    bool scriptCleared = false;
+    std::set<uint64_t> scriptRemovedLeaders;  // owned holds through both ending ticks
     uint64_t unfollowable = 0, radiusCalls = 0, cellFallbacks = 0, extinguishCalls = 0;
 };
 Shadow g;
@@ -1466,6 +1469,7 @@ void EndCity() {
     }
     DisasterHostReleaseAll(&g.ctx);
     ReleaseRiots();
+    DropAll(g.scriptRemovedLeaders);
     DropAll(g.targets);
     DropAll(g.origLocked);
     if (g.fireInst != nullptr) FC4_RELEASE(g.fireInst);
@@ -1594,6 +1598,7 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.differences = g.failures = 0;
     g.reportMonth = 0;
     g.scriptStage = 0;
+    g.scriptCleared = false;
     g.restoreTurbo = false;
     g.scripted = SettingInt("disasters_scripted", "FC4_DISASTERS_SCRIPTED", 0) != 0;
     g.dirty = false;
@@ -1670,12 +1675,38 @@ void ResyncTick() {
 
 // The schedule is harness policy, not disaster behaviour. Wait for a new month
 // after load, then run one fire and one riot serially. Animation ticks use wall
-// time even during the disaster's emergency pause. Never force a phase or resume
-// the simulator behind the layer's back. Other disaster types remain off (DS28).
+// time even during the disaster's emergency pause. After 200 riot samples remove
+// its leader occupants through the game interface: section 6.5 then ends them at
+// stage -1 on both sides. Never force a phase or resume the simulator behind the
+// layer's back. Other disaster types remain off (DS28, DS47).
 void ScriptedDisasters(const fc4_date& date) {
     if (!g.scripted || g.scriptStage == 3) return;
     cISC4DisasterLayer* layer = Layer();
-    if (!layer || layer->IsADisasterOngoing() || g.dirty) return;
+    if (!layer) return;
+    if (g.scriptStage == 2 && !g.scriptCleared) {
+        uint64_t samples = 0;
+        for (const auto& [canon, rt] : g.riots) samples = std::max(samples, rt.updates);
+        if (samples >= 200) {
+            // The original tick releases its leader before the mirror reads the
+            // removed flag. Own a hold until teardown, independent of either
+            // instance. Remove without Shutdown; the normal riot ending path
+            // detaches controllers and releases its leader (section 6.5).
+            g.scriptCleared = true;
+            for (const auto& [canon, rt] : g.riots)
+                for (uint64_t t : rt.leaders) Keep(g.scriptRemovedLeaders, t);
+            uint32_t removed = 0;
+            cISC4OccupantManager* om = g.city->GetOccupantManager();  // borrowed
+            for (uint64_t t : g.scriptRemovedLeaders) {
+                cISC4Occupant* o = AsOcc(t);
+                if (!o || !o->IsFlagSet(1)) continue;
+                if (om && om->RemoveOccupant(o, false, 0)) ++removed;
+                else ++g.failures;
+            }
+            Log("disasters scripted: after %llu riot samples removed %u leader occupants; held until teardown",
+                (unsigned long long)samples, removed);
+        }
+    }
+    if (layer->IsADisasterOngoing() || g.dirty) return;
     if (g.scriptStage == 0) {
         if (date.year < 2026 || (date.year == 2026 && date.month < 2)) return;
         g.restoreTurbo = TurboConfig().on;
@@ -1704,13 +1735,14 @@ void MonthlyLine(const fc4_date& date) {
     const uint64_t mismatches = g.differences + g.failures + g.calls.lines + g.resyncs +
                                 g.unfollowable + g.ctx.leadersMissing;
     Log("disasters shadow %04d-%02d-%02d: fire=%llu/%llu riot=%llu/%llu quiet=%llu/%llu "
-        "%s script=%u resyncs=%llu unfollowable=%llu failures=%llu mismatches=%llu",
+        "%s script=%u resyncs=%llu unfollowable=%llu failures=%llu mismatches=%llu%s%s",
         date.year, date.month, date.day_of_month,
         (unsigned long long)g.fire.clean, (unsigned long long)g.fire.lines,
         (unsigned long long)g.riot.clean, (unsigned long long)g.riot.lines,
         (unsigned long long)g.quietLines.clean, (unsigned long long)g.quietLines.lines,
         layer, g.scriptStage, (unsigned long long)g.resyncs, (unsigned long long)g.unfollowable,
-        (unsigned long long)g.failures, (unsigned long long)mismatches);
+        (unsigned long long)g.failures, (unsigned long long)mismatches,
+        d.text.empty() ? "" : "; differences: ", d.text.c_str());
 }
 
 void DisastersShadowOnTick() {
