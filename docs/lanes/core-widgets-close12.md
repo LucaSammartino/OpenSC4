@@ -26,5 +26,6 @@
 - Final qbuild fmt passed for the two corrected test files (exit=0 files=2 diff_lines=0).
 - Round 3: prior session 93629 gone; coordinator explicitly requested one new final all/verify gate, with no new implementation. Stable source remains 5d68621c7.
 - FINAL ALL running: session 93471, build-runs/final-gates-r3.py; collect that operation to terminal. Output: build-runs/final-r3-all.log; detailed logs: build-runs/qbuild-*.log. No game requests.
-- Next: collect 93471; inspect PASS/FAIL and summed cargo/CTest totals. all includes native verify; do not duplicate it. Preserve failures; fix only diagnostics. Commit full owner-by-owner partial closure report, then READY queue with actual full HEAD.
+- Round 3 test result: 6859 passed/1 failed/0 ignored; Clippy passed with zero diagnostics. Native queue qbuild-20261024-122431-build-ctest is pending; collect session 93471 before editing source. Diagnosis/evidence: build-runs/final-r3-failure.md.
+- Next: after 93471 terminates, fix runtime_tests.rs:331 expected caret x=25 to x=20 (fixture gutters zero, mask prefix length two at 10px/byte); no production behavior change. Run final-gates-r3-corrected.py (preserves initial detailed logs), collect to terminal, inspect totals, commit full partial closure report and READY queue with actual full HEAD.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r3-manifest.json.
