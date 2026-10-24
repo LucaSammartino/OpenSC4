@@ -185,3 +185,5 @@ pub mod gz_framework;
 pub mod widget_controls;
 pub mod helicopter;
 pub mod nation;
+pub mod city_geometry;
+pub mod regional_city;

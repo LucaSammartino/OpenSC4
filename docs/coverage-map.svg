@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 78.0% · implemented 52.1% · verified 27.0% · replaced in game 19.1%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 537cbd548, regress-train189.out.</text>
-<rect x="18.0" y="146.0" width="74.8" height="112.1" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="18.0" y="258.1" width="74.8" height="105.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 78.0% · implemented 53.8% · verified 27.0% · replaced in game 19.1%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 9f1616ce4, regress-train190.out.</text>
+<rect x="18.0" y="146.0" width="74.8" height="112.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="18.0" y="258.1" width="74.8" height="105.3" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.8" y="146.0" width="95.6" height="80.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="188.4" y="146.0" width="63.8" height="80.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.8" y="226.4" width="48.7" height="74.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -1393,7 +1393,7 @@
 <rect x="1418.3" y="524.4" width="165.7" height="264.6" fill="none" stroke="#1d2320" stroke-width="2"/>
 <text x="1424.3" y="543.4" font-size="16" font-weight="700" fill="#1d2320">SHARED  3.4%</text>
 <rect x="1225.5" y="815.0" width="79.4" height="66.6" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1225.5" y="881.6" width="79.4" height="54.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1225.5" y="881.6" width="79.4" height="54.4" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1304.9" y="815.0" width="45.5" height="46.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1350.3" y="815.0" width="43.4" height="46.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1304.9" y="861.3" width="37.3" height="53.5" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>

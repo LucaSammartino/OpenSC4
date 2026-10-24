@@ -29,7 +29,7 @@ impl Fleet {
         let Some(station) = boat.other_station() else {
             return Ok(());
         };
-        if math::length(math::sub(boat.position, station.position)) > boat.drive.0[36] {
+        if math::length(math::sub(boat.inherited_position, station.position)) >= boat.drive.0[36] {
             return Ok(());
         }
         let queued = boat.top_state() == Some(state::QUEUE);
@@ -63,19 +63,17 @@ impl Fleet {
     pub fn clear_dock_requests(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let boat = self.boat(id)?;
         if boat.held_berth
-            && boat
-                .current_station
-                .as_ref()
-                .is_some_and(|station| math::length(math::sub(boat.position, station.position)) > boat.drive.0[36])
+            && boat.current_station.as_ref().is_some_and(|station| {
+                math::length(math::sub(boat.inherited_position, station.position)) > boat.drive.0[36]
+            })
         {
-            // §5.3 clears only these two flags; unlike EndDocking, it does
-            // not say to clear docking_in_progress.
             let boat = self.boat_mut(id)?;
+            boat.docking_in_progress = false;
             if let Some(service) = manager.as_deref_mut() {
                 service.done_docking(&boat.current_station.as_ref().unwrap().lot, id);
+                boat.held_berth = false;
+                boat.record.base.automata_flags &= !0x1000_0000;
             }
-            boat.held_berth = false;
-            boat.record.base.automata_flags &= !0x1000_0000;
         }
         Ok(())
     }
@@ -91,32 +89,46 @@ impl Fleet {
     ) -> Result<bool> {
         if self.boat(id)?.on_land(terrain) {
             self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
-            // WC7: the on-land return value is not published.
-            return Err(ContractGap::DockingReturnWc7);
         }
         let boat = self.boat_mut(id)?;
         let station = boat.other_station().ok_or(ContractGap::MissingStationWc7)?;
-        let distance = math::length(math::sub(station.position, boat.position));
-        let heading = math::unit(math::flat(boat.heading)).ok_or(ContractGap::DegenerateDirection)?;
+        let distance = math::length(math::sub(station.position, boat.inherited_position));
+        if boat.inherited_heading[1] != 0.0 {
+            boat.inherited_heading = math::normalize(math::flat(boat.inherited_heading));
+        }
         if distance > boat.drive.0[37] {
             return Err(ContractGap::AiMotionWc4);
         }
-        let target = math::unit(math::flat(station.direction)).ok_or(ContractGap::DegenerateDirection)?;
-        let angle = math::angle(heading, target).ok_or(ContractGap::DegenerateDirection)?;
-        if angle.to_degrees() < 1.0 && distance < 1.0 {
-            boat.heading = heading;
+        let heading = math::normalize(boat.inherited_heading);
+        let target = math::normalize(station.direction);
+        let angle = math::dot(heading, target).acos().to_degrees();
+        let angle = if angle.is_nan() { 0.0 } else { angle };
+        if angle < 1.0 && distance < 1.0 {
             return Ok(false);
         }
-        let heading = math::turn(heading, target, (dt * boat.drive.0[38]).to_radians())
-            .ok_or(ContractGap::DegenerateDirection)?;
-        let position = math::approach(boat.position, station.position, dt * boat.drive.0[39]);
+        let amount = angle.min(dt * boat.drive.0[38]);
+        let sign = super::sign(target[0] * heading[2] - target[2] * heading[0]);
+        let heading = math::yaw(heading, sign * amount * 0.017_453_292);
+        let position = if distance == 0.0 {
+            boat.inherited_position
+        } else {
+            math::add(
+                boat.inherited_position,
+                math::scale(
+                    math::sub(station.position, boat.inherited_position),
+                    distance.min(dt * boat.drive.0[39]) / distance,
+                ),
+            )
+        };
+        boat.events
+            .push(super::Event::Publish(super::Publication::MoveTo(position, heading)));
+        boat.previous_position = boat.position;
+        boat.previous_heading = boat.heading;
         boat.heading = heading;
         boat.position = position;
-        // WC4: literal "docked when" is evaluated after moving/turning too;
-        // the specification does not give the native instruction order.
-        let remaining_angle = math::angle(heading, target).ok_or(ContractGap::DegenerateDirection)?;
-        let remaining_distance = math::length(math::sub(position, station.position));
-        Ok(remaining_angle.to_degrees() >= 1.0 || remaining_distance >= 1.0)
+        boat.inherited_position = position;
+        boat.inherited_heading = heading;
+        Ok(true)
     }
 
     pub fn undocking_tick(
@@ -129,31 +141,42 @@ impl Fleet {
     ) -> Result<bool> {
         if self.boat(id)?.on_land(terrain) {
             self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
-            return Err(ContractGap::UndockBlockedWc7);
         }
         if !self.movement_possible(id, rectangle, terrain, manager)? {
-            return Err(ContractGap::UndockBlockedWc7);
+            return Ok(false);
         }
         let boat = self.boat_mut(id)?;
-        let route = boat.neighbor.as_ref().ok_or(ContractGap::MissingRouteWc7)?;
+        let Some(route) = boat.neighbor.as_ref() else {
+            return Ok(false);
+        };
         if !terrain.navigable(terrain.cell_at(boat.position), 2, Some(&route.occupant)) {
-            return Err(ContractGap::UndockBlockedWc7);
+            return Ok(false);
         }
         let away = math::flat(math::sub(boat.position, route.position));
-        let distance = math::length(away);
+        let mut origin = route.position;
+        origin[1] = terrain.water_height(origin);
+        let distance = math::length(math::sub(boat.position, origin));
         if distance >= 2.0 * boat.radius {
             return Ok(false);
         }
-        let direction = math::unit(away).ok_or(ContractGap::DegenerateDirection)?;
+        let direction = math::normalize(away);
         let amount = dt * boat.drive.0[39];
-        if amount >= 1.0 {
-            let mut target = math::add(route.position, math::scale(direction, 2.0 * boat.radius));
-            target[1] = boat.position[1];
-            let mut position = math::approach(boat.position, target, amount);
-            position[1] = boat.position[1];
-            boat.position = position;
+        let target = math::add(origin, math::scale(direction, 2.0 * boat.radius));
+        let delta = math::flat(math::sub(target, boat.position));
+        let length = math::length(delta);
+        if length < 1.0 {
+            return Ok(false);
         }
-        Ok(math::length(math::flat(math::sub(boat.position, route.position))) < 2.0 * boat.radius)
+        let mut position = math::add(boat.position, math::scale(delta, amount.min(length) / length));
+        position[1] = terrain.water_height(position);
+        boat.previous_position = boat.position;
+        boat.position = position;
+        boat.inherited_position = position;
+        boat.events.push(super::Event::Publish(super::Publication::MoveTo(
+            position,
+            boat.heading,
+        )));
+        Ok(true)
     }
 }
 
