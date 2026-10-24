@@ -6,9 +6,10 @@
 
 - Goal: resolve the skipped READY tip against current origin/main, then gate and confirm in game.
 - Previous ready tip: 25e148fcdf7722d1ffabbaa69a950a6acb3f5f93; shadow11 and MI14 already implemented and measured below.
-- Current merge: origin/main b5f3bb118b66601e8898bfb4545716c287cc27f3; preserve construction_shadow and modelinst_shadow modules and every ini key.
-- Next: commit merge, run qbuild.py all once with foreground output under build-runs/, collect to terminal, then one unique confirming game run to 2032.
-- No new owner, spec question, ABI export, or coverage claim. No outstanding check or game request yet.
+- Merge committed: a907efa2d77f809ad96645dba321ab661ef5f06f incorporates origin/main b5f3bb118b66601e8898bfb4545716c287cc27f3; preserves construction_shadow and modelinst_shadow modules and every ini key.
+- Running: qbuild.py all session 53110, started on stable engine source a907efa2d; collect THAT SAME session with write_stdin until terminal. Output pipe: build-runs/modelinst-r3-final-all.log; current Rust progress in build-runs/qbuild-test.log.
+- Next: finish collecting all gate (no duplicate), then request unique modelinst-mi14-merge-2032-r3 to 2032 and wait without qwait. Prior run numbers max 631; recheck before reserving a new number.
+- No new owner, spec question, ABI export, or coverage claim. No outstanding game request yet. Engine source is frozen during gate; only this record changed.
 - Detached HEAD is intentional; supervisor publishes commits. Do not change branch refs.
 
 ## Change and load diagnosis
