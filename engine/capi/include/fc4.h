@@ -12937,6 +12937,18 @@ typedef struct fc4_lot_configuration_fields {
 bool fc4_lot_configuration_project(const fc4_props* exemplar, uint32_t detail,
                                   fc4_lot_configuration_fields* out,
                                   fc4_lotdev_cfg_object_callback visit, void* ctx);
+/* Record-only effects name lookup: counts[3] = names, queries, differences.
+ * Callback receives a temporary NUL-terminated name and returns 0 or 1.
+ * Failure clears counts; caller must count failure as a capture refusal. */
+bool fc4_effects_verify_names(const uint8_t* data, size_t len,
+                             uint32_t (*has_name)(void*, const char*), void* user,
+                             uint32_t* counts);
+/* EF20 retained visual payload: owner-thread quiescent interval required.
+ * read copies native address spans; counts[3] = records, fields, differences.
+ * False means incomplete/refused, never exact. No native owner call is made. */
+bool fc4_effects_verify_visuals(const uint8_t* data, size_t len, uint32_t collection,
+                               bool (*read)(void*, uint32_t, uint8_t*, size_t),
+                               void* user, uint32_t* counts);
 #ifdef __cplusplus
 }
 #endif

@@ -349,6 +349,106 @@ fn filter_to_c(f: &DemolishFilter) -> fc4_effects_demolish_filter {
     }
 }
 
+/// Record-only effects.md sections 3/4 name-membership comparison. `counts`
+/// receives directory names, native queries and field differences, in order.
+/// No native answer is used to build or modify the parsed directory.
+///
+/// # Safety
+/// `data` spans `len` readable bytes; `counts` spans three writable u32s.
+/// The callback accepts a temporary NUL-terminated name and returns 0 or 1.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_effects_verify_names(
+    data: *const u8,
+    len: usize,
+    has_name: Option<unsafe extern "C" fn(U, *const c_char) -> u32>,
+    user: U,
+    counts: *mut u32,
+) -> bool {
+    guard(false, || {
+        if counts.is_null() {
+            return false;
+        }
+        let counts = std::slice::from_raw_parts_mut(counts, 3);
+        counts.fill(0);
+        let has_name = match has_name {
+            Some(f) if !data.is_null() => f,
+            _ => return false,
+        };
+        let directory = match EffectDirectory::parse(std::slice::from_raw_parts(data, len)) {
+            Ok(d) if !d.names.is_empty() => d,
+            _ => return false,
+        };
+        let mut probes = Vec::new();
+        for (name, _) in &directory.names {
+            for variant in [name.clone(), name.to_ascii_uppercase(), name.to_ascii_lowercase()] {
+                match std::ffi::CString::new(variant) {
+                    Ok(name) => probes.push(name),
+                    Err(_) => return false,
+                }
+            }
+        }
+        // Literal section 4 membership only; retained payload has a separate check.
+        for name in ["", "end", "__fc4_effects_shadow_absent__"] {
+            probes.push(std::ffi::CString::new(name).unwrap());
+        }
+        counts[0] = directory.names.len() as u32;
+        for name in probes {
+            let expected = u32::from(directory.find(name.to_str().unwrap(), u32::MAX).is_some());
+            let native = has_name(user, name.as_ptr());
+            counts[1] += 1;
+            counts[2] += u32::from(native != expected);
+        }
+        true
+    })
+}
+
+/// Retained visual payload comparison; counts = records, fields, differences.
+/// # Safety
+/// Data spans len bytes and counts spans three writable words. The callback
+/// copies a native 32-bit readable address into the supplied writable span.
+/// Caller guarantees an owner-thread quiescent interval (effects §18.7.4).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_effects_verify_visuals(
+    data: *const u8,
+    len: usize,
+    collection: u32,
+    read: Option<unsafe extern "C" fn(U, u32, *mut u8, usize) -> bool>,
+    user: U,
+    counts: *mut u32,
+) -> bool {
+    guard(false, || {
+        if counts.is_null() {
+            return false;
+        }
+        let counts = std::slice::from_raw_parts_mut(counts, 3);
+        counts.fill(0);
+        let Some(read) = read else {
+            return false;
+        };
+        if data.is_null() || collection == 0 {
+            return false;
+        }
+        let Ok(directory) = EffectDirectory::parse(std::slice::from_raw_parts(data, len)) else {
+            return false;
+        };
+        struct Memory {
+            read: unsafe extern "C" fn(U, u32, *mut u8, usize) -> bool,
+            user: U,
+        }
+        impl fc4_core::effects::capture::Memory for Memory {
+            fn read(&mut self, address: u32, bytes: &mut [u8]) -> bool {
+                unsafe { (self.read)(self.user, address, bytes.as_mut_ptr(), bytes.len()) }
+            }
+        }
+        let Some(result) = fc4_core::effects::capture::compare_visuals(Memory { read, user }, collection, &directory)
+        else {
+            return false;
+        };
+        counts.copy_from_slice(&[result.records, result.fields, result.differences]);
+        true
+    })
+}
+
 // ---- the directory ----------------------------------------------------------------------------------
 
 fn dir_ref<'a>(d: *const fc4_effects_directory) -> Option<&'a Rc<EffectDirectory>> {
@@ -500,7 +600,9 @@ pub unsafe extern "C" fn fc4_effects_destroy(fx: *mut fc4_effects) {
 /// may destroy its handle).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_effects_set_directory(fx: *mut fc4_effects, d: *const fc4_effects_directory) -> bool {
-    let Some(d) = dir_ref(d).cloned() else { return false };
+    let Some(d) = dir_ref(d).cloned() else {
+        return false;
+    };
     with_fx(fx, false, |m, _| {
         m.set_directory(d);
         true

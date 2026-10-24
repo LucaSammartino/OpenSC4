@@ -34,6 +34,7 @@
 //! child is also on the active list (EF9).
 
 pub mod brush;
+pub mod capture;
 pub mod collection;
 pub mod dilation;
 pub mod directory;
