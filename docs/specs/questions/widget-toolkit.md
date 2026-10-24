@@ -37,5 +37,3 @@
 <!-- from: core-uiwin-close13 (2026-10-24) -->
 - **WT13 - sections 12 and 14.7 cGZFadeTmpWin destructor:** section 12 explicitly leaves this derived destructor unspecified. Does it add any teardown beyond the settled base destructor and deleting-wrapper flag contract in section 8.1? Please publish any derived reference effects and deleting-wrapper behavior. [implement the specified constructor, StealBuffer and Plot plus inherited base lifetime; leave derived destructor closure open]
 
-<!-- from: core-uiwin-close13 (2026-10-24) -->
-

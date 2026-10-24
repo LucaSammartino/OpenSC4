@@ -681,7 +681,8 @@ testing `IsVisible`). Otherwise bit `0x10000` is **set**, then:
   (slot 55) with the current area.
 
 **Destroy** (`on` false, or forced), only when a buffer exists:
-- buffer slot 39 tests whether the surface is initialized. Only when it returns true **and both existing flag
+- buffer slot 39 supplies the surface-readiness gate (plain buffer: initialized byte; draw-service wrapper:
+  constant true, §14.5.2). Only when it returns true **and both existing flag
   bits** `0x20` and `0x400000` are set is a fade transfer considered. Neither bit is set here. In that case
   `0x400000` is cleared; if moreover the window has no parameter `0xE6E998FE` (it is not itself a fade-out
   window, §14.7) and every ancestor is visible, a **fade-out window** takes the buffer (§14.7);
@@ -742,9 +743,9 @@ base-window allocator or drawing loop behind slot 150.
 
 | Receiver and slots used by the window | Meaning at this boundary |
 |---|---|
-| Buffer 2, 3, 4, 39 | Release owned interface; Init dimensions/format; Shutdown surface; test initialized state. Slot39 is not a dirty/content/visibility test. On the plain buffer (`0x00AC1400`) slot4 frees pixels and clears initialized byte, and slot39 returns that byte (`0x00825CE0`, `0x008264B0`). |
+| Buffer 2, 3, 4, 39 | Release owned interface; Init dimensions/format; Shutdown surface; surface-readiness gate. Slot39 is not a dirty/content/visibility test. On the plain buffer (`0x00AC1400`) slot4 frees pixels and clears initialized byte, and slot39 returns that byte (`0x00825CE0`, `0x008264B0`). On the draw-service wrapper (`0x00AC1550`), slots4 and 39 both return true without changing state (`0x00648F00`), and slot3 always returns false (`0x00735290`). Thus fallback reuse of an existing wrapper fails Init and Releases it. |
 | Buffer 6/7, 12, 20, 23/26/27, 29, 30/31 | Lock/Unlock; borrowed rectangle pointer; fill native colour; set/get/remove colour key; rectangle blit; RGB/native conversion. In particular slot12 returns a rectangle pointer (`0x008268C0`), whereas slot11 copies a rectangle to caller storage. §§14.4, 17.8 specify the arguments and result handling. |
-| Buffer QI `0xAB300B2B`, interface slots 4/5/6 | Borrow current drawing context; acquire context for presentation; finish presentation. The queried interface is retained only for the operation and Released afterwards; the stored `+0x6C` is borrowed. |
+| Buffer QI `0xAB300B2B`, interface slots 4/5/6 | Borrow current drawing context; begin presentation access; finish presentation. The queried interface is retained only for the operation and Released afterwards; the stored `+0x6C` is borrowed. On the wrapper, slot4 attaches the raw target and resumes the context if it is detached (`0x0082AF20`); slot5 requests buffer Lock `0x8010` and returns the borrowed context without checking Lock's result (`0x0082AF50`); slot6 requests Unlock `0x8010` (`0x0082ABE0`). These slots do not transfer an owning context reference. |
 | Draw system 5; graphics system 3/8/34/36 | Create wrapped private surface with context; create fallback buffer object; obtain screen buffer; map RGB to/from native colour. These are distinct services. |
 | Draw context 3/8/6/4/15/10/19 | PushTransform, OffsetAbsolute, ClipAbsolute, ClipReset, GetTransformStackDepth, PushState, ResetToDefaultState, in the paint setup order already specified in §14.3. |
 | Draw context 22/23/21/43; 42/11/9 | SetAlphaBlend, SetBltModulate, SetColor, Resume; then Suspend, PopState, PopTransform at paint teardown. Slot15 is a getter whose value the window ignores, not an additional state mutation. |
