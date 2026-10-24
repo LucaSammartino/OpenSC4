@@ -6,7 +6,8 @@
 
 - Goal: round 3 integration only; no new implementation scope.
 - Done: merged main content; retained both automata construction and netrules C declarations. lib.rs merged automatically with strings_shadow; exactly one regress shadows line, main keys plus automata_owners_shadow.
-- Next: commit merge, run qbuild all on stable source, game through 2032 with new unique label (no qwait), merge main again immediately before queue and repeat native gate if merged.
+- Gate: source 8d2fa3027 qbuild all PASS: cargo 6854/0/0, clippy zero diagnostics, native build 198/198, CTest 71/71; request qbuild-20261024-015855-build-ctest terminal pass. Logs build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log.
+- Next: game through 2032 label automata-ext5-r3-2032-20261024-a (no qwait), merge main again immediately before queue and repeat native gate if merged. Run 359 free when checked.
 - Detached HEAD intentionally; do not switch branches or update refs. ABI true from round 1 export.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-automata-ext5-r3-manifest.json.
 - No outstanding game/build request. Previous rounds' evidence below remains valid for those source revisions.
