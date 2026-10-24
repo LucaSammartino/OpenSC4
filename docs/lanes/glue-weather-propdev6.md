@@ -14,13 +14,13 @@ The existing propdev scope remains limited: actual creation attempts/failures an
 
 Prior measured evidence: run 382 `gwp6-r2-normal-replay-2032-a` was clean through 2032-01-01, ref_warnings=0, weather 1/73, propdev 23739/23768 matching selector events, 45018 complete streams, 447 invalid streams, 42507 eligible output matches out of 45465 operations. Full prior details are retained in history and docs/runs/gwp6-r2-normal-replay-2032-a-382.md. Earlier runs 374–377 confirmed the WE1 divergence at normal and turbo speeds. These are prior-source results, not results for round 3.
 
-Round 3 gate: workspace 6905 passed/0 failed/0 ignored; clippy zero diagnostics. Full native stage queued as `qbuild-20261024-035627-build-ctest`; pending. Logs remain in this worktree's build-runs. No ABI exports added by round 3; the inherited lane adds weather CRT/prop MT shadow APIs and property clone/propdev preparation APIs, so the complete lane's queue must retain abi=true. FC4_ABI_VERSION unchanged; generated ABI entries untouched.
+Round 3 gate: `qbuild-20261024-035627-build-ctest` PASS: workspace 6905 passed/0 failed/0 ignored; clippy zero diagnostics; native 226/226 edges (92.3s); CTest 75/75 (144.3s), total native 240.3s. Session 20902 collected to terminal. Logs remain in this worktree's build-runs. No ABI exports added by round 3; the inherited lane adds weather CRT/prop MT shadow APIs and property clone/propdev preparation APIs, so the complete lane's queue must retain abi=true. FC4_ABI_VERSION unchanged; generated ABI entries untouched.
 
 ## Handoff
 
 - Goal: weather 73/73 exact with zero resynchronizations through 2032; diagnose propdev 29 unmatched events, ~3000 incomplete outputs, 447 invalid streams, fix capture bugs and file precise spec questions.
-- Done: main merged 6708f0d3a; implementation 1b9ed3f39; Rust gate milestone 5662ffcda. Native gate is the same still-running session 20902 (currently being collected); do not launch another gate for progress.
-- Next: collect session 20902 to terminal; fix any diagnostic failure and preserve failed logs. Once built, submit unique combined turbo 2032 request, then wait with build-runs/wait-verdict-r3.py (never qwait). No game request outstanding.
+- Done: main merged 6708f0d3a; implementation 1b9ed3f39; final gate PASS 6905/0, clippy clean, CTest 75/75; session 20902 terminal.
+- Next: wait for unique combined turbo 2032 request `gwp6-r3-we1-propdiag-2032-turbo-a` with build-runs/wait-verdict-r3.py (never qwait). This is the one outstanding request; completed unique verdict remains valid.
 - Inspect weather all-byte comparisons and propdev `propdev replay invalid` / `propdev replay args` lines. New native snapshot fixture and strengthened transcript test must pass. Behavioral questions use next free PV16 / WE2 if needed; coordinator regenerates index (tools/ prohibited).
 - Worktree intentionally detached; commit normally, no branch/ref/config changes. Supervisor publishes commits. Merge-queue entry must use actual final full HEAD and state ready only after required results.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-weather-propdev6-r3-manifest.json; budget 150000/calls150. Check guard after milestone commits.
