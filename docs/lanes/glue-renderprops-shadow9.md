@@ -7,8 +7,9 @@
 - Done: default-off registry shadow implemented: 3 counts, 77 names, 462 core-derived Find probes (542 fields/sample), no native output seeds. RP7 filed for live setter inputs/view acquisition; no whole-owner claim.
 - Focused gate: fmt PASS for capi/src/renderprops_shadow.rs; cargo test -p fc4-capi renderprops_shadow PASS 1/1 (579 filtered).
 - Full gate terminal PASS: workspace cargo 6985/6985; clippy zero diagnostics; native build 254/254 edges (238.3 s), CTest 79/79 (224.0 s), qbuild PASS. Logs build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log. Queue label qbuild-20261024-083622-build-ctest. Only lane documentation changed during gate; source stable at aa6a2508b.
-- Outstanding: game request renderprops-shadow9-20261024-r1 submitted; turbo house switches through 2032-01-01, 600 s city budget/900 s timeout. Exactly one request; never resubmit this label.
-- Waiter session 28153 expired after 540 s with no verdict (not a game verdict). Original request remains active in slot 1 since 08:44:42 local; no resend.
-- Next: collect SAME second waiter exec session 78823 to terminal. Script build-runs/wait-renderprops-verdict.ps1 watches game-results/renderprops-shadow9-20261024-r1.verdict without qwait/polling. If context lost, completed verdict is valid; otherwise rerun only waiter, not request.
+- Game r1 terminal CLEAN: renderprops-shadow9-20261024-r1 43/43 exact, 542 fields/sample, no duplicate months; ended at 2029-07-11 after 602.094 s, before 2032 target. foreign_exceptions=0, ref_warnings=0. Run record docs/runs/renderprops-shadow9-20261024-r1-469.md; unique evidence retained.
+- Diagnostic: unknown-key warning despite active shadow; appended renderprops_shadow to FC4Config.cpp known-key list. This real source fix requires repeat all gate. No game outstanding.
+- Graphics-rules spec sections 1/5/8 confirm startup/preferences ordered writes and persistence, but no read-only history/observation service; RP7 remains valid.
+- Next: final all gate on corrected source, then new unique r2 game label with seconds=1800 timeout=2100 to reach 2032; wait script supports label-independent verdict path. Never resend r1.
 - Initial fmt invocation used wrong relative path; retry with capi/src/renderprops_shadow.rs. q.py Bash failed CreateFileMapping (Win32 5); use PowerShell cargo directly.
 - Constraints: no native signatures may be inferred; questions go in render-properties questions file. No DR registers without shared protocol.
