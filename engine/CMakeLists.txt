@@ -1044,3 +1044,9 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_overlays_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME overlays_observation_test COMMAND fc4_overlays_observation_test)
 endif()
+
+# LV6 published progress: record-only interval decoding, independent of native
+# installation (LV8). Never substitutes sampled inputs or advances simulation.
+add_executable(fc4_landvalue_progress_test tests/landvalue_progress_test.cpp)
+target_include_directories(fc4_landvalue_progress_test PRIVATE plugin)
+add_test(NAME landvalue_progress_test COMMAND fc4_landvalue_progress_test)
