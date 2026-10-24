@@ -12,7 +12,8 @@ Focused cargo traffic_simulator operation37931 completed exit0; all selected tes
 Final qbuild all Rust gate:6840 passed/0 failed, clippy0 diagnostics. Logs build-runs/qbuild-test.log and qbuild-clippy.log. Native half queued through the coordinator build queue.
 Final qbuild all/native gate PASS: build223/223 edges (104.1s), CTest70/70 (169.0s), total276.7s. Verdict build-runs/build-results/qbuild-20261024-014257-build-ctest.verdict. Operation2046 terminal exit0. No duplicate verify.
 Next: collect traffic-flake6-637a-house-t1 verdict, inspect traffic/landvalue/refaudit; repeat fresh labels including normal speed as needed.
-Outstanding: unique game request traffic-flake6-637a-house-t1, turbo house profile to2032-01-01; no wait operation started yet. No build operation outstanding.
+Outstanding: unique game request traffic-flake6-637a-house-t1, turbo house profile to2032-01-01, claimed01:52:45 (2026-10-24); seconds900/timeout1100. First watcher session57431 timed out terminal exit1 after9min; no verdict existed02:01:53. Second watcher session21296 is active; collect THAT operation with write_stdin60sec. No functions cell or build operation outstanding.
+DLL SHA256561DDEE7F4CA1984790215A9D44B131C321230261703B751FA5DCC292D199B39. No game result or run record yet; max local run350 at02:01:53. No merge-queue entry.
 First q.py focused attempt failed Bash CreateFileMapping Win32 error5; preserved build-runs/q/20261024-013630-2352.log. Direct cargo operation is the replacement, not a duplicate.
 Wait helper build-runs/wait-game.ps1 uses one FileSystemWatcher wait, accepts existing completed unique verdicts; do not use qwait per transport. House request matches main/build-runs/regress-train166-shadows.ini (excludes harness-owned autoload path).
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-traffic-flake6-r1-manifest.json.
