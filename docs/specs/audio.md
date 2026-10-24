@@ -1828,9 +1828,11 @@ their foreign services are recording fixtures, so they do not require an audio d
     (`+0xF8`) with the same field under the same guard. A state whose `+0x18` is 0 must never reach either.
     (`0x00511450`, `0x0050E3F0`)
 12. **Handler routing, and only while a city is loaded.** `cSC4AudioEventHandler::DoMessage` must route
-    `0x8A385DD8`, `0xA9E3B6E3`, `0xAA396960` and `0xEA3ADA33` to `HandleAutomataMessages` and no other type
-    there. `0x26D31EC1` must subscribe those four (with seven more) to the handler main target and
-    `0x26D31EC2` must unsubscribe exactly that set, so outside a city the messages are not heard.
+    `0x8A385DD8`, `0xA9E3B6E3`, `0xAA396960`, `0xEA3ADA33` and `0x49E64801` to
+    `HandleAutomataMessages`. The fifth type is accepted with return 1 and no operation; the four
+    operation cases in older fixtures remain valid, but are not an exhaustive dispatch test (AU45).
+    Use §7.2's complete subscription table for city entry/exit rather than deriving subscriptions
+    from the four operation cases.
     (`0x004EF810`, `0x004EE970`)
 13. **Rate limiting.** On a play whose payload slot 9 is `0xA9F14C47`, if the handler timer at `+0x30` is
     running and the elapsed time is below the threshold at `+0x48`, the play must be dropped. Otherwise the

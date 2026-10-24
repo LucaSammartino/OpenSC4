@@ -1,5 +1,15 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** MATCHES — AU45: §7.2's completed table is authoritative.
+Conformance vector §16.12 now includes the fifth accepted, effect-free type `0x49E64801`;
+the legacy four-operation fixture is a subset, not a dispatch whitelist.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU45 — completed dispatch versus vector 12:** section 7.2's completed dispatch table routes
+  `0x49E64801` to HandleAutomataMessages as an accepted no-op, while section 16 vector 12 says only
+  four other types may reach that helper. Should vector 12 include this fifth no-op type?
+  [Implement the completed section 7.2 table literally; keep the legacy four-operation fixture list.]
+
 Original questions and implementation-gap notes are retained below; their proposed fallbacks are
 superseded by the cited spec sections, checked against 1.1.641 instructions.
 
