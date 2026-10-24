@@ -152,6 +152,13 @@ pub struct AudioEventHandler {
     pub radio_present: bool,
     /// Whether this handler has registered with the foreign sound system.
     pub sound_registered: bool,
+    /// Constructor-zero words at +0x20, +0x24 and +0x28 (§7.1.1).
+    pub reference_count: u32,
+    pub reserved_words: [u32; 2],
+    /// Front is the most recently begun modal window (§7.2.3).
+    pub modal_windows: Vec<u64>,
+    /// Timer constructor selector, independent of runtime elapsed time.
+    pub timer_clock_selector: u32,
 }
 
 impl Default for AudioEventHandler {
@@ -177,6 +184,10 @@ impl AudioEventHandler {
             capability_present: false,
             radio_present: false,
             sound_registered: false,
+            reference_count: 0,
+            reserved_words: [0; 2],
+            modal_windows: Vec::new(),
+            timer_clock_selector: 4,
         }
     }
 

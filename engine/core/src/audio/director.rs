@@ -12,8 +12,8 @@
 //!
 //! The five directors are boundaries in this spec (§2): Hit, radio and
 //! freshness are named so an implementer can see the edge and are left to a
-//! later spec (**AU8**). This module records the identities and the
-//! registration order only.
+//! later spec (**AU8**). Sub-director startup executes the specified order;
+//! full application teardown/service-failure contracts remain AU47.
 
 /// The director id `GetDirectorID` (`0x004EB1A0`) returns.
 pub const DIRECTOR_ID: u32 = 0xFDB5_CA17;
@@ -113,9 +113,88 @@ pub const SERVICE_IDS: [(u32, &str); 4] = [
     (0x1D07_B39F, "kRZRadioDefaultServiceId"),
 ];
 
+/// Foreign single-operation boundary; each getter returns a borrowed director.
+pub trait AudioDirectorHost {
+    fn get_director(&mut self, name: &'static str) -> u64;
+    fn add_director(&mut self, director: u64);
+    fn start_director(&mut self, director: u64);
+    fn add_class(&mut self, clsid: u32, factory: u32);
+}
+
+/// §1.1: add and immediately start each director before getting the next one.
+/// Return/failure policy and application lifetime beyond this sequence: AU47.
+pub fn on_start(host: &mut impl AudioDirectorHost) {
+    for name in ON_START_ORDER {
+        let director = host.get_director(name);
+        host.add_director(director);
+        host.start_director(director);
+    }
+}
+
+/// The nine named registrations (§1.2), paired with the §11 leaf records.
+pub const NAMED_CLASSES: [(u32, u32); 9] = [
+    (0xAA35_5871, 0x004E_D700),
+    (0x29E2_797F, 0x004E_B120),
+    (0xBDB6_171E, 0x004E_B0A0),
+    (0x69E5_00BC, 0x004E_B100),
+    (0x6A12_F51C, 0x004E_B0C0),
+    (0x4A47_DC0D, 0x004E_B080),
+    (0xCA4A_66B9, 0x004E_B0E0),
+    (0x5CFB_DBBF, 0x004E_B150),
+    (0x5CFB_DBD5, 0x004E_B180),
+];
+
+/// Registers the measured set. [choice: AU47] The spec gives no interleaving
+/// between the named and leaf lists; use their literal table order here.
+pub fn register_classes(host: &mut impl AudioDirectorHost) {
+    for (clsid, factory) in NAMED_CLASSES.into_iter().chain(crate::audio::leaf::LEAF_REGISTRATIONS) {
+        host.add_class(clsid, factory);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn executable_startup_interleaves_add_start_and_registers_92_classes() {
+        #[derive(Default)]
+        struct Host {
+            operations: Vec<(u8, u64)>,
+            names: Vec<&'static str>,
+            classes: Vec<(u32, u32)>,
+        }
+        impl AudioDirectorHost for Host {
+            fn get_director(&mut self, name: &'static str) -> u64 {
+                self.names.push(name);
+                let id = self.names.len() as u64;
+                self.operations.push((0, id));
+                id
+            }
+            fn add_director(&mut self, id: u64) {
+                self.operations.push((1, id));
+            }
+            fn start_director(&mut self, id: u64) {
+                self.operations.push((2, id));
+            }
+            fn add_class(&mut self, clsid: u32, factory: u32) {
+                self.classes.push((clsid, factory));
+            }
+        }
+        let mut host = Host::default();
+        on_start(&mut host);
+        assert_eq!(host.names, ON_START_ORDER);
+        for (index, operations) in host.operations.chunks_exact(3).enumerate() {
+            let id = index as u64 + 1;
+            assert_eq!(operations, [(0, id), (1, id), (2, id)]);
+        }
+        register_classes(&mut host);
+        assert_eq!(host.classes.len(), 92);
+        let mut ids: Vec<_> = host.classes.iter().map(|entry| entry.0).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 92);
+    }
 
     /// Conformance test 16: the `OnStart` order of §1.1.
     #[test]
