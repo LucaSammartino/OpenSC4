@@ -293,7 +293,9 @@ void OverlaysObservationSample(cISTEOverlayManager* manager, uint32_t type, cons
     if (!manager || !capture.Run(manager) || !fc4_overlays_observe(capture.wire.data(), static_cast<uint32_t>(capture.wire.size()), r.data())) {
         ++g_incomplete;
         ++g_checks; ++g_differences;
-        Log("overlays records shadow: 0/1 mismatches=1 incomplete=1 type=%u phase=%s julian=%d stage=%s scope=observation-invariants", type, phase, julian, capture.stage);
+        Log("overlays records shadow: 0/1 mismatches=1 incomplete=1 type=%u phase=%s julian=%d stage=%s dynamic=%u shift=%u nx=%d nz=%d overlay_slots=%u handle_slots=%u group_slots=%u scope=observation-invariants", type, phase, julian, capture.stage,
+            (capture.header[5] >> 8) & 255, capture.header[0xe4 / 4], capture.header[0xe8 / 4], capture.header[0xec / 4],
+            static_cast<uint32_t>(capture.overlays.live.size()), static_cast<uint32_t>(capture.handles.live.size()), static_cast<uint32_t>(capture.groups.live.size()));
         return;
     }
     g_checks += r[0]; g_differences += r[1];

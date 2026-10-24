@@ -11,7 +11,7 @@
 - Implementation commit: f2bdcff61. Required pre-gate main merge was already up to date.
 - Full gate PASS: workspace 6818/0/0; clippy 0 diagnostics; native build 212/212 (145.2s), CTest 71/71 (181.1s), gate total 330.2s. Queue qbuild-20261024-012924-build-ctest collected to terminal PASS.
 - Run 349 overlays-shadow5-r2-2032a collected: clean through 2032-01-09, ref_warnings=0; getter 73/73 exact, record invariants 146/292 exact (146 incomplete dynamic samples). Log/verdict retained under build-runs/game-results. No game request outstanding.
-- Diagnosis: validator applies static-grid count/shift constraints even to dynamic managers (OV12-I says N/A); correct and test inactive sentinel headers, then merge main and repeat final all gate before new label 2032b.
+- Corrected dynamic N/A validation and added poisoned inactive header regression (OV14); focused 13/13 PASS. Added incomplete diagnostics with raw mode/grid header values. Next: merge main and repeat final all gate, then overlays-shadow5-r2-2032b.
 - Merge main again immediately before final all gate.
 - No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.

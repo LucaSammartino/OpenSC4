@@ -123,9 +123,12 @@ pub fn inspect(words: &[u32]) -> Option<Report> {
     }
     let dynamic = input.word()? != 0;
     let shift = input.word()?;
-    let nx = input.count()?;
-    let nz = input.count()?;
-    if shift > 30 {
+    let nx = input.word()? as usize;
+    let nz = input.word()? as usize;
+    // OV12-I / §2.6: dynamic managers have no applicable static grid. Literal
+    // reading: retain inactive header words but never validate/use them as a
+    // grid. Their exact sentinel values are not specified; see OV14.
+    if !dynamic && (shift > 30 || nx > LIMIT || nz > LIMIT) {
         return None;
     }
     let mut report = Report::default();
@@ -260,7 +263,7 @@ pub fn inspect(words: &[u32]) -> Option<Report> {
     }
     report.observed_words = words.len() as u32;
     report.digest = words.iter().enumerate().fold(0xcbf2_9ce4_8422_2325, |hash, (i, word)| {
-            let word = if (9..9 + overlays.records.len() * 45).contains(&i) && (i - 9) % 45 == 2 {
+        let word = if (9..9 + overlays.records.len() * 45).contains(&i) && (i - 9) % 45 == 2 {
             *word & 0xffff_00ff
         } else {
             *word
@@ -422,6 +425,11 @@ mod tests {
         let empty = snapshot(&[], &[], &[], None);
         assert_eq!(inspect(&empty).unwrap().overlays, 0);
         assert_eq!(inspect(&snapshot(&[record(45)], &[], &[], None)).unwrap().cells, 0);
+        let mut inactive = snapshot(&[record(45)], &[], &[], None);
+        inactive[2..5].fill(u32::MAX);
+        assert_eq!(inspect(&inactive).unwrap().cells, 0);
+        inactive[1] = 0;
+        assert!(inspect(&inactive).is_none());
     }
     #[test]
     fn ov12_j_known_unknown_metadata_not_pixel_bytes() {
