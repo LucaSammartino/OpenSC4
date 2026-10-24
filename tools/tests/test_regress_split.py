@@ -58,6 +58,8 @@ $missing=Join-RegressShadowLogs $Out 'missing' @('shadows1','shadows2','shadows3
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             actual = json.loads(result.stdout)
         original = actual['ini'].splitlines()
+        self.assertTrue(all(g['Cost'] > 100 for g in actual['groups']), actual['groups'])
+        self.assertLess(max(g['Cost'] for g in actual['groups']), 250)
         grouped = [line for group in actual['groups'] for line in group['Ini'].splitlines()]
         self.assertEqual(sorted(x for x in original if not x.startswith('disable')),
                          sorted(x for x in grouped if not x.startswith('disable')))

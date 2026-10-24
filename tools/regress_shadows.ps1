@@ -35,7 +35,7 @@ function Split-RegressShadows([string]$Ini, [int]$Count) {
     if ($Count -gt $units.Count) { throw "-ShadowSplit $Count exceeds $($units.Count) independent shadow families" }
     $groups = @(for ($i=0; $i -lt $Count; $i++) { @{ index=$i; cost=0.0; lines=@($common); families=@() } })
     foreach ($u in ($units.Values | Sort-Object @{Expression={$_.cost};Descending=$true}, @{Expression={$_.name}})) {
-        $g = $groups | Sort-Object cost,index | Select-Object -First 1
+        $g = $groups | Sort-Object @{Expression={$_.cost}}, @{Expression={$_.index}} | Select-Object -First 1
         $g.lines += $u.lines; $g.cost += $u.cost; $g.families += $u.name
     }
     foreach ($g in $groups) { [pscustomobject]@{ Ini=($g.lines -join "`n"); Cost=$g.cost; Families=($g.families -join ',') } }

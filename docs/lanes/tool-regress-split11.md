@@ -9,7 +9,11 @@
 - Tests: 17 regression-profile tests passed on PowerShell 5.1, including grouping and summed summaries.
 - Native gate: qbuild verify PASS, build 262/262 edges, ctest 81/81; 353.2 s (queued behind train197).
 - Broader tooling tests: 141/147 passed; six untouched test_laneguard WorkflowDryRun tests fail on gate ERROR.
-- Next: run build-runs/validate-split.py in foreground; compare split/combined games and document measured parity.
+- First real run split11-s3 exposed PS hashtable Sort-Object property lookup bug: all keys in group 3;
+  empty groups stalled on shutdown. Failed evidence retained, not a timing claim.
+- Fixed with explicit sort expressions; all 17 tests pass, now asserting nonempty balanced groups (<250 s proxy).
+- Next: collect corrected split11-s3-fixed (session 49372), then original validator (session 27531),
+  which also runs the valid split11-c1 combined profile; compare fixed split against combined only.
 - Cost source: train196 timestamp gaps before shadow log lines; residential 198.290 s, development 66.596 s,
   demand 59.856 s. Cost proxies, not CPU profiling; measured run will validate balancing.
 - Coordinator train197 completed clean (885.953 s game time); own DLL built from unchanged main engine at ffb8f38c2.
