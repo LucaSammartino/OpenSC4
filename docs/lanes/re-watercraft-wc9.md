@@ -9,5 +9,6 @@
 - Read core-watercraft9's lane report in its worktree: WC9 exists there but has not reached this worktree.
 - Owner closure table is apparently in engine's module README, which this task expressly forbids reading. Use the engine lane report's remaining-work list and spec §10.2 instead.
 - Current measured owner attribution in spec: 75 entries / 38,073 bytes, not historical 79 / 38,556.
-- Next: verify WC9 at 0056E5C0; add the missing question locally and resolve it. Trace remaining contracts using export and decomp only.
+- Done: WC9 sign gates verified at 0056EC87–0056ECF2; corrected WC8-08 to T=-0.1, L=R=100 and recorded answer.
+- Next: finish inherited lifecycle/animation helpers, AI target selection and grounding basis; trace remaining contracts using export and decomp only.
 - No game requests, ABI changes, or REA calls.

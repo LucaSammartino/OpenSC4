@@ -1,5 +1,9 @@
 # watercraft: answered questions
 
+<!-- from: core-watercraft9 round 2 (2026-10-24) -->
+- **WC9 - section 6.2.2 ordered steering versus WC8-08:** with L=R=100, T=0, dt=10, does the second response return toward zero and clear L?
+  **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §6.2.2's two ordered predicates are correct. The original leaves T=-0.1 and L=R=100; the second response does not run either branch. WC8-08 now specifies that result. Instructions 0056EC87–0056ECF2 confirm the sign gates; simultaneous active inputs alone do not clear a channel.
+
 
 <!-- from: core-watercraft4 (2026-10-22) -->
 - **WC7 - sections 5.2-5.5 routes and docking:** publish the direction-to-cell/heading convention, compressed route reader format and errors, backtracking tried-bit choice, ferry exhaustion, station-vs-berth distance coordinates, initial station dock-request acquisition, and queued-with-occupied-berth behavior. When undocking cannot move/is not navigable, or docking pushes 72 on land, what does its tick return? What happens for zero-length/antiparallel heading or away vectors, including a boat exactly at the route occupant? Which station owns a newly acquired berth when current crossing still starts at the other station; when is held-berth set? For towing, which radius determines following distance, what is its translation rate, and what breaks nearest-boat distance ties? Does exiting 77 clear being_towed (not stated in section 4)? [decoded network cells only; occupied queued branch retains state; zero/antiparallel/tied cases explicitly unsupported; no guessed held-berth assignment; being_towed not cleared on exit]

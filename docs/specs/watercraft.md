@@ -1230,6 +1230,16 @@ Simultaneous channels do **not** select a separate neutral-steering case: the or
 decides the result. The timer-rebasing terms have different signs and must be preserved.
 Evidence: `0x0056EBAE–0x0056ED5A`, `0x0056EEC2–0x0056EF1F`.
 
+**Simultaneous steering correction (WC9).** Each response tests the steering value
+left by the preceding response. In particular, with default tuning, L=R=100,
+T=0 and dt=10, the left response writes T=-0.1; the right response then fails
+both its nonnegative-T direct-input test and its strictly-positive-T return
+test. Final T is -0.1 and both channels remain 100. There is no counter-steer
+return or channel clearing in this case. The earlier WC8-08 expectation of
+-0.05 was incorrect; the ordered prose above is confirmed by the instruction
+predicates at `0x0056EC87–0x0056ECF2`. Counter-steer clearing occurs only in
+the opposite-sign return branch, not merely because both channels are active.
+
 For group membership 0x4409 with a skier effect, a nonzero toggle byte at drive-state +0xEB
 stops an already running effect, or starts a stopped one only when v > 0. After this toggle
 step a running effect is stopped whenever v <= 0; a running effect with v > 0 has its
@@ -1473,7 +1483,7 @@ flags, channels assigned from parameters, and unchanged values.
 | WC8-05 | F=3000, R=-1, v=0.3, dt=100 | Keep v=0.3; replace F with the inverse-speed curve (approximately 3000), rather than decelerating. |
 | WC8-06 | L=100, R=-1, T=0, dt=10 | Negative response yields T=-0.1. |
 | WC8-07 | L=-1, R=100, T=0, dt=10 | Positive response yields T=0.1. |
-| WC8-08 | L=100, R=100, T=0, dt=10 | First response T=-0.1; second response returns toward zero by 0.05 and clears L: T=-0.05. This is not neutral. |
+| WC8-08 | Default tuning; L=100, R=100, T=0, dt=10 | First response T=-0.1; both right-response predicates fail. Final T=-0.1, L=R=100 (WC9 correction). |
 | WC8-09 | L=-1, R=-1, T=-0.2, dt=10 | Return step r=0.01: T=-0.19. |
 | WC8-10 | L=0, R=-1, T=-0.2, dt=10 | Rebase L to 190, then T=-0.19. With mirrored R=0, L=-1, T=0.2, R becomes 210 and T=0.21. |
 | WC8-11 | Group 0x4409, stopped skier, toggle=1, v=0 | Effect stays stopped; owner does not clear toggle. Next call with toggle=1 and v>0 can start it. |
