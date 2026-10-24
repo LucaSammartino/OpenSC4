@@ -1,5 +1,5 @@
 tag: glue-varfeat-lines5-2032-20261024a-342
-run: 342
+run: 349
 date: 2026-10-24
 lane: glue-varfeat-lines5
 dll: FreeCity4-glue-varfeat-lines5; sha256 prefix 38a09e75; implementation 640b40342
