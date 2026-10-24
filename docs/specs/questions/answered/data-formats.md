@@ -1,5 +1,11 @@
 # data-formats: answered questions (archive)
 
+## EX57 (2026-10-24)
+
+<!-- from: glue-dbpf-ex56apply11 (2026-10-24) -->
+- **EX57 - section 8.3 transient packed-file coverage:** which public interfaces/messages expose temporary load/save, obliteration and regional-city segment open/close lifecycles, with typed signatures, reference ownership and a callback at which indexed reads are stable? Section 8.3 proves these files escape resource-manager traversal but does not specify an observation contract. [shadow covers registered packed roots, multi-packed children and the current city backing path; transient files remain explicitly unobserved, no all-open-files credit]
+  **ANSWERED 2026-10-24 (re-dbpf-ex57):** DIFFERS — §8.3.1 specifies ordinary synchronous load/save payloads and typed segment ownership, but no common public callback covers all these lifetimes. Load handlers provide readable intervals; save notifications precede completion, and PostSave does not set void1. Obliteration and regional helpers do not broadcast the ordinary messages; their typed inputs/results and conditional teardown quirks are documented. Existing scope remains valid; all-open-files credit needs additional lifecycle instrumentation. Nine vectors EX57-1–EX57-9 are in §10.9. Static export/instruction evidence only; no runtime coverage claim.
+
 ## EX56 (2026-10-24)
 
 - **EX56 - section 8 public held packed-file traversal and reads:** Are resource-manager GetSegmentByIndex and multi-packed GetSegmentByIndex pointers borrowed, and does recursively visiting those roots cover every open packed file (including any city save backing file)? Does public cIGZPersistDBSegment::ReadRecord preserve existing open-record cursors/lifetimes and segment state when called on a game-held readable packed segment, and what is its exact return/in-out-size contract? [Filed by glue-dbpf-close8, 2026-10-24: default-off shadow treats index pointers as borrowed, owns only QI references, compares payload bytes/size without interpreting the return, and claims resource-manager-packed scope only.]

@@ -1,7 +1,5 @@
 # data-formats: open questions
 
-<!-- from: glue-dbpf-ex56apply11 (2026-10-24) -->
-- **EX57 - section 8.3 transient packed-file coverage:** which public interfaces/messages expose temporary load/save, obliteration and regional-city segment open/close lifecycles, with typed signatures, reference ownership and a callback at which indexed reads are stable? Section 8.3 proves these files escape resource-manager traversal but does not specify an observation contract. [shadow covers registered packed roots, multi-packed children and the current city backing path; transient files remain explicitly unobserved, no all-open-files credit]
 <!-- Questions about [data-formats.md](../data-formats.md). Append new entries at the END; when one is answered, move it to answered/data-formats.md. Rules: README.md. -->
 
 - **EX50 - section 4.4 GetPropertyList, callers:** which game paths call `GetPropertyList` (holder slot 4) on an exemplar or cohort object made by the resource factory (not an occupant's own `cSCExemplarPropertyHolder`), and what in-city action reaches one? In game runs gex4-r1-turbo, gex4-r2-normal and gex4-r4-build (Konradshohe, 6 zone/2 network script actions, growth to 2030) the replacement's counter stayed at 0, so the EX49 workaround (the game factory's own object builds the list) is unexercised in game. [no test drives it; the workaround stays behind enable=exemplars]
