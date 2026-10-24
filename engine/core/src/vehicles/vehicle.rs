@@ -10,6 +10,13 @@ pub const COLLISION_MESSAGE: u32 = 0x49E6_4802;
 /// Terrain, controllers, renderer and effects are foreign. These methods
 /// never run a vehicle, train or traffic owner in the host.
 pub trait VehicleWorld: TrafficWorld {
+    fn automata_range(&mut self, lower: f64, upper: f64) -> f64;
+    fn controller_tick(&mut self, _controller: &crate::stream::RefValue, _kind: u32, _dt_ms: f32) -> bool { false }
+    fn added_model(&mut self, _key: crate::stream::ResKey) -> crate::stream::RefValue { crate::stream::RefValue::Null }
+    fn select_animation(&mut self, _model: &crate::stream::RefValue, _selector: u16) {}
+    fn animation_value(&mut self, _model: &crate::stream::RefValue, _mode: u32, _value: f32) {}
+    fn animation_status(&mut self, _model: &crate::stream::RefValue) -> Option<(f32, f32, f32)> { None }
+    fn attach_tuning_ms(&mut self) -> f32 { 1.0 }
     fn in_city(&mut self, position: Vec3) -> bool;
     fn heights(&mut self, position: Vec3) -> (f32, f32);
     fn road_height(&mut self, position: Vec3) -> f32;
@@ -33,12 +40,15 @@ pub struct Vehicle {
     /// Derived speed (+0x94), not the speed tween, not serialized.
     pub measured_speed: f32,
     pub splash_effect: Option<u64>,
-    /// Known externally supplied fade tuning, in seconds. VH8: source absent.
-    pub splash_seconds: Option<f32>,
     /// The two PullOver vectors are transient and never added to its record.
     pub pull_heading: Vec3,
     pub pull_sideways: Vec3,
     pub crash_elapsed_ms: f32,
+    pub runtime_vectors: [Vec3; 3],
+    pub sound_identity: u32,
+    pub drive_parameters: [f32; 24],
+    pub blur_models: [Option<u64>; 4],
+    pub blur_index: usize,
 }
 
 impl Default for Vehicle {
@@ -48,10 +58,14 @@ impl Default for Vehicle {
             traffic: TrafficRuntime::default(),
             measured_speed: 0.0,
             splash_effect: None,
-            splash_seconds: None,
             pull_heading: [1.0, 0.0, 0.0],
             pull_sideways: [0.0, 0.0, 1.0],
             crash_elapsed_ms: 0.0,
+            runtime_vectors: [UNSET_POINT, UNSET_POINT, [0.0; 3]],
+            sound_identity: 0,
+            drive_parameters: [0.0; 24],
+            blur_models: [None; 4],
+            blur_index: 0,
         }
     }
 }
@@ -64,10 +78,18 @@ impl Vehicle {
         }
     }
 
-    /// This is a record-backed portable owner, not a claim that unspecified
-    /// native constructor flags equal zero (VH4).
-    pub fn init(&mut self) -> Result<()> {
-        Err(Unsupported::InitializationVh4)
+    pub fn init(&mut self, tuning: Initialization, world: &mut impl InitWorld) -> bool {
+        if self.traffic.initialized {
+            return true;
+        }
+        self.record.traffic.base.automata_flags =
+            (self.record.traffic.base.automata_flags & !COLLISION) | if tuning.collision { COLLISION } else { 0 };
+        world.load_drive_parameters();
+        let success = super::init::init_traffic(&mut self.record.traffic, &mut self.traffic, world);
+        if tuning.city_lights || tuning.force_lights {
+            world.enable_lights(true, 0);
+        }
+        success
     }
 
     /// Read before Init: no city calls or world-size allocations. Atomic on
@@ -84,6 +106,8 @@ impl Vehicle {
         }
         *self = Self {
             record,
+            pull_heading: self.pull_heading,
+            pull_sideways: self.pull_sideways,
             ..Self::default()
         };
         true
@@ -114,9 +138,6 @@ impl Vehicle {
         {
             return Ok(false);
         }
-        if kind == 14 {
-            return Err(Unsupported::PlummetEntryVh8);
-        }
         if let Some(old) = self.record.traffic.base.states.last() {
             world.effects(EffectAction::ExitState(old.state_type));
         }
@@ -132,15 +153,27 @@ impl Vehicle {
         if kind == 0 && args.controller == 0 {
             return self.set_state(kind, args, world);
         }
-        if kind == 14 {
-            return Err(Unsupported::PlummetEntryVh8);
-        }
         self.record.traffic.base.push_state(kind, args);
         self.enter_state(kind, world);
         Ok(true)
     }
 
     fn enter_state(&mut self, kind: u32, world: &mut impl VehicleWorld) {
+        if kind == 14 {
+            let centre = self.record.traffic.base.vectors[2][1];
+            if let Some(state) = self.record.traffic.base.states.last_mut() {
+                state.extra = StateExtra::T0E {
+                    descent: f32::from_bits(0xBB88_888A), roll_rate: 0.5, roll_centre: centre,
+                    tumble_ms: (world.automata_range(1.0, 2.5) * 1000.0) as f32, post_splash_ms: 0.0,
+                };
+            }
+        }
+        if kind == 15 {
+            let floor = self.record.traffic.base.vectors[0][1];
+            if let Some(state) = self.record.traffic.base.states.last_mut() {
+                state.extra = StateExtra::T0F([floor, world.automata_range(30.0, 50.0) as f32 * SPEED_UNIT]);
+            }
+        }
         if kind == 30 {
             tween_speed(&mut self.record.traffic.base, 0.0, 0.5);
         }
@@ -206,6 +239,12 @@ impl Vehicle {
     }
 
     pub fn state_tick(&mut self, dt_ms: f32, movement: Movement, world: &mut impl VehicleWorld) -> Result<bool> {
+        self.countdown(dt_ms, world);
+        if self.record.traffic.base.states.is_empty() { return Ok(true); }
+        let top = self.record.traffic.base.states.last().expect("nonempty");
+        if !top.base.controller.is_null() && world.controller_tick(&top.base.controller, top.state_type, dt_ms) {
+            return Ok(true);
+        }
         let kind = self
             .record
             .traffic
@@ -248,14 +287,14 @@ impl Vehicle {
                 if tween_value(&self.record.traffic.base.f3[..4]) > 0.0 {
                     self.path_tick(dt_ms, movement, world)?;
                 }
-                self.countdown(dt_ms, world);
                 Ok(true)
             }
             // These handlers belong to the automaton base but have insufficient
             // portable controller/model details here (VH9), not default seeks.
-            11 | 15 | 18 | 19 => Err(Unsupported::BaseStateVh9),
+            15 => Ok(self.plop_jump_tick(dt_ms, world)),
+            19 => Ok(self.attach_tick(dt_ms, world)),
+            11 | 18 => Err(Unsupported::BaseStateVh9),
             _ => {
-                self.countdown(dt_ms, world);
                 Ok(false)
             }
         }
@@ -265,7 +304,7 @@ impl Vehicle {
         let expired = if let Some(top) = self.record.traffic.base.states.last_mut() {
             if top.base.countdown_ms > 0.0 {
                 top.base.countdown_ms -= dt_ms;
-                top.base.countdown_ms <= 0.0
+                top.base.countdown_ms < 0.0
             } else {
                 false
             }
@@ -294,14 +333,10 @@ impl Vehicle {
             world.event(9, 0);
             self.crash_elapsed_ms = 0.0;
         }
-        self.countdown(dt_ms, world);
     }
 
     /// The direction distribution is open (VH6). It is never replaced with a
     /// made-up RNG algorithm. A resolved direction can enter the known crash.
-    pub fn handle_collision(&mut self) -> Result<()> {
-        Err(Unsupported::CollisionDirectionVh6)
-    }
 
     pub fn enter_collision(&mut self, direction: Vec3, world: &mut impl VehicleWorld) -> Result<bool> {
         world.post_message(COLLISION_MESSAGE);
@@ -318,15 +353,6 @@ impl Vehicle {
         )
     }
 
-    pub fn update_after_damage(&mut self, world: &mut impl VehicleWorld) -> Result<()> {
-        world.create_accident(self.record.traffic.base.vectors[0]);
-        self.record.traffic.base.automata_flags |= 0x08000000;
-        // [spec gap VH6] Event ID and damaged resource mapping are not supplied.
-        Err(Unsupported::DamageModelsVh6)
-    }
-    pub fn update_motion_blur(&self) -> Result<()> {
-        Err(Unsupported::MotionBlurVh6)
-    }
     pub fn player_drive(&self) -> Result<()> {
         Err(Unsupported::PlayerDrivingVh1)
     }
@@ -338,7 +364,7 @@ impl Vehicle {
         if self.record.traffic.base.automata_flags & 2 != 0 && world.in_city(position) {
             let (terrain, water) = world.heights(position);
             if (position[1] - terrain.max(water)).abs() > 5.0 {
-                return Err(Unsupported::PlummetEntryVh8);
+                return self.push_state(14, SetStateArgs::default(), world);
             }
         }
         Ok(false)
@@ -393,16 +419,14 @@ impl Vehicle {
             let (terrain, water) = world.heights(next);
             if terrain.max(water) >= next[1] && *post_splash_ms <= 0.0 && !remove {
                 if terrain < next[1] {
-                    let Some(seconds) = self.splash_seconds else {
-                        return Err(Unsupported::SplashDurationVh8);
-                    };
-                    *descent = 0.0002777778;
+                    let seconds = world.automata_range(0.0, 1.0) as f32;
+                    *descent = SPEED_UNIT;
                     self.splash_effect = world.splash(next);
                     *post_splash_ms = seconds * 1000.0;
                     let opacity = tween_value(&self.record.traffic.base.f3[4..]);
                     self.record.traffic.base.f3[4..].copy_from_slice(&[opacity, 0.0, seconds, 0.0]);
                 } else {
-                    *descent = 0.0002777778;
+                    *descent = SPEED_UNIT;
                     *post_splash_ms = 0.0;
                     remove = true;
                 }
@@ -429,7 +453,7 @@ impl Vehicle {
         let position = self.record.traffic.base.vectors[0];
         if elapsed == 0.0 {
             tween_speed(&mut self.record.traffic.base, f32::from_bits(0x3B88888A), 1.0);
-            self.pull_heading = self.record.traffic.base.vectors[2];
+            self.pull_heading = super::unit(self.record.traffic.base.vectors[2]);
             self.pull_sideways = [-self.pull_heading[2], self.pull_heading[1], self.pull_heading[0]];
             let delta = super::sub(position, world.controller_point());
             if delta.iter().zip(self.pull_sideways).map(|(a, b)| a * b).sum::<f32>() < 0.0 {

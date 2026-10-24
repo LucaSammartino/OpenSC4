@@ -5,10 +5,17 @@
 mod traffic;
 mod train;
 mod vehicle;
+mod init;
+mod states;
+mod effects;
+mod routing;
 
 pub use traffic::*;
 pub use train::*;
 pub use vehicle::*;
+pub use init::*;
+pub use effects::*;
+pub use routing::*;
 
 #[cfg(test)]
 mod tests;
@@ -19,18 +26,11 @@ use crate::automata::Vec3;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsupported {
     PlayerDrivingVh1,
-    NeighborRankingVh2,
-    TrainRecordVh3,
-    InitializationVh4,
     TrainCompositionVh5,
     TrainFollowingVh5,
     TrainTripVh5,
-    DamageModelsVh6,
-    MotionBlurVh6,
     CollisionDirectionVh6,
     RouteGeometryVh7,
-    PlummetEntryVh8,
-    SplashDurationVh8,
     BaseStateVh9,
 }
 
