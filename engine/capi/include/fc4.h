@@ -13011,4 +13011,14 @@ uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
 }
 #endif
 
+/* AF10 partial metadata shadow: fresh Rust helicopter record, class ID or 0.
+ * Only the four leading u16 version fields are comparison targets. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_helicopter_shadow_fixture(const fc4_ostream* output);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

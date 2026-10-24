@@ -2107,3 +2107,21 @@ pub unsafe extern "C" fn fc4_automata_fire_shutdown(f: *mut fc4_automata_fire) -
 pub unsafe extern "C" fn fc4_automata_fire_target(f: *const fc4_automata_fire) -> u64 {
     with_fire(f, 0, |k, _| k.target())
 }
+
+/// Independent metadata fixture for the partial helicopter shadow (AF10).
+/// Writes a fresh owner's record, returning its class ID on success, zero on
+/// failure. Only the four nested version fields are constructor-independent;
+/// all other default fields are deliberately NOT native comparison targets.
+/// No native record, parameter or goal outputs enter this owner.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_helicopter_shadow_fixture(output: *const fc4_ostream) -> u32 {
+    let Some(out) = out_stream(output) else { return 0 };
+    guard(0, || {
+        let owner = fc4_core::helicopter::Helicopter::default();
+        if owner.write(&mut COut(out)) {
+            owner.class_id()
+        } else {
+            0
+        }
+    })
+}

@@ -33,6 +33,9 @@
 #include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
 #include "cISC4City.h"
+#include "GZServPtrs.h"
+#include "cRZCOMDllDirector.h"
+#include "cIGZCOM.h"
 
 #include <cinttypes>
 #include <cstdarg>
@@ -49,6 +52,9 @@ namespace {
 
 bool g_enabled = false;
 bool g_ownersEnabled = false;
+bool g_helicopterEnabled = false;
+int32_t g_helicopterMonth = 0;
+uint64_t g_helicopterLines = 0, g_helicopterClean = 0;
 uint64_t g_ownerLines = 0;
 uint64_t g_ownerCleanLines = 0;
 bool g_loggedNoRecord = false;
@@ -263,6 +269,71 @@ private:
 
     fc4_ostream s_{};
 };
+
+// AF10: this is intentionally a metadata projection, not a record roundtrip
+// masquerading as an independent simulation. Native outputs never seed Rust.
+void HelicopterCompare(int32_t julian) {
+    if (!g_helicopterEnabled || !g_city) return;
+    fc4_date date{};
+    if (julian <= 0) return;
+    fc4_date_from_julian(julian, &date);
+    const int32_t month = date.year * 12 + date.month;
+    if (month == g_helicopterMonth) return;
+    g_helicopterMonth = month;
+    RecordOut expected;
+    const uint32_t cls = fc4_helicopter_shadow_fixture(expected.Get());
+    uint32_t bad = (cls == 0 || expected.bytes.size() < 8) ? 1u : 0u;
+    uint32_t samples = 0, fields = 0, reachable = 0, fixtures = 0;
+    auto compare = [&](cIGZSerializable* native) {
+        ++samples;
+        ++fields;
+        bad += native->GetGZCLSID() != cls;
+        WriteCapture record(false, true);
+        const bool captured = record.Capture(native);
+        // Count each unavailable or different version separately, never just
+        // one whole-record boolean. The remaining bytes are NOT compared.
+        for (size_t offset = 0; offset < 8; offset += 2) {
+            ++fields;
+            if (!captured || record.Bytes().size() < offset + 2 ||
+                expected.bytes.size() < offset + 2 ||
+                std::memcmp(record.Bytes().data() + offset, expected.bytes.data() + offset, 2) != 0)
+                ++bad;
+        }
+    };
+    WriteCapture manager(false, true);
+    if (!manager.Capture(reinterpret_cast<cIGZUnknown*>(g_city->GetAircraftManager()))) {
+        ++bad;
+    } else {
+        std::unordered_set<const void*> seen;
+        for (uint32_t id = 1; manager.SerializableAt(id); ++id) {
+            auto* object = manager.SerializableAt(id);
+            if (manager.ClassOf(id) == 0x8BA98EDA && seen.insert(object).second) {
+                ++reachable;
+                compare(object);
+            }
+        }
+    }
+    if (reachable == 0) {
+        // AF10: no specified live-spawn scenario/group contract. A private
+        // factory object is safe for identity/Write only; never Init or tick it,
+        // add it to a manager, or claim it is a spawned city helicopter.
+        cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+        cIGZSerializable* object = nullptr;
+        if (com && com->GetClassObject(0x8BA98EDA, 0xE4FDA3D4,
+                                      reinterpret_cast<void**>(&object)) && object) {
+            ++fixtures;
+            compare(object);
+            FC4_RELEASE_CREATED(object);
+        } else {
+            ++bad;  // An empty sample must never be reported as exact.
+        }
+    }
+    Log("helicopter shadow %s: partial=AF10 reachable=%u fixtures=%u samples=%u fields=%u "
+        "uncompared=parameters,home,goals,physics,lifecycle,enumeration[AF2-AF6/AF9/AF10] mismatches=%u",
+        DateText(julian).c_str(), reachable, fixtures, samples, fields, bad);
+    ++g_helicopterLines;
+    if (!bad) ++g_helicopterClean;
+}
 
 // Each successful whole-record comparison covers the inherited base record as
 // well. These are record checks, not independent movement/lifecycle simulations.
@@ -546,6 +617,7 @@ uint32_t ComparePart(Part& p, std::string& out, OwnerScan* owners) {
 }
 
 void RunCompare(const char* what, int32_t julian) {
+    HelicopterCompare(julian);
     if (!g_enabled || g_city == nullptr) return;
     std::string line;
     OwnerScan owners;
@@ -591,6 +663,9 @@ void AutomataShadowStartup(bool automataReplaced) {
     const char* src = "ini";
     g_enabled = SettingInt("automata_shadow", "FC4_AUTOMATA_SHADOW", 0) != 0;
     g_ownersEnabled = SettingInt("automata_owners_shadow", "FC4_AUTOMATA_OWNERS_SHADOW", 0) != 0;
+    g_helicopterEnabled = SettingInt("helicopter_shadow", "FC4_HELICOPTER_SHADOW", 0) != 0 && !automataReplaced;
+    if (g_helicopterEnabled) Log("helicopter shadow: ON; partial metadata only [AF10], "
+        "class and four record versions independently from a fresh Rust owner; no flight claim");
     g_enabled = g_enabled || g_ownersEnabled;
     if (g_enabled) Setting("automata_shadow", "FC4_AUTOMATA_SHADOW", &src);
     if (!g_enabled) return;
@@ -618,17 +693,23 @@ void AutomataShadowStart() {}
 void AutomataShadowStop() {
     g_enabled = false;
     g_ownersEnabled = false;
+    g_helicopterEnabled = false;
     g_city = nullptr;
 }
 
 void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
     g_city = city;
-    if (!g_enabled || city == nullptr) return;
+    g_helicopterMonth = 0;
+    if (city == nullptr) return;
     g_loggedNoRecord = false;
     RunCompare("load", julian);
 }
 
 void AutomataShadowCityShutdown() {
+    if (g_helicopterLines) Log("helicopter shadow: shutdown: %llu lines, %llu with mismatches=0; partial AF10",
+        static_cast<unsigned long long>(g_helicopterLines), static_cast<unsigned long long>(g_helicopterClean));
+    g_helicopterLines = g_helicopterClean = 0;
+    g_helicopterMonth = 0;
     if (g_lines == 0) {
         g_city = nullptr;
         return;

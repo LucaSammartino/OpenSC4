@@ -48,3 +48,14 @@
   [core stores unknown constructor/post-Read fields as None, accepts an explicitly supplied preset, and
   overlays known nonzero fields; zero/missing records preserve every existing field without inventing defaults]
 
+<!-- from: glue-helicopter-shadow10 (2026-10-24) -->
+- **AF10 - §4 native read-only shadow adapter:** specify the native interface IDs, exact signatures and
+  ownership for reading the thirteen rotor fields and named Lua inputs, home/phase and complete goal records;
+  specify a complete live-helicopter enumeration (including objects omitted by manager Write) and a safe
+  deterministic scenario/group/exemplar creation and cleanup sequence. Which independent input history
+  reconstructs saved home and goal transitions without seeding expected values from native outputs?
+  [partial shadow compares only class identity and the four nested record version fields against a fresh
+  Rust owner; scans saved manager references and uses a private uninitialized COM object as a metadata
+  fixture, not a spawned city helicopter. Parameters, home, goals and live-enumeration completeness remain
+  uncompared; no guessed vtable slots, memory offsets, presets or scenario group IDs]
+
