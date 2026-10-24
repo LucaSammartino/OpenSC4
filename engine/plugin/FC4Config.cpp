@@ -380,6 +380,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotconf_shadow", "simulator_shadow",
                                   // Controlled live native overlay actions; independent of observe.
                                   "overlays_fixture",
+                                  // Read-only cached-key type projection; default off (PR9/SCR11).
+                                  "persist_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
