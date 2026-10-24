@@ -1,5 +1,5 @@
 tag: proplot5-defined-2032-20261024-r1
-run: 341
+run: 347
 date: 2026-10-24
 lane: glue-proplot-shadow5
 dll: FreeCity4-glue-proplot-shadow5; SHA256 709727b9c95d525032855e1e792ca48084ef18a4d438925fac0a4b248cce0561
