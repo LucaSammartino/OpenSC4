@@ -99,9 +99,11 @@ DirectX object (the six interface slots at object `+0x218`..`+0x230`).
 **Information storage and destruction (RD9).** The `0x00886FB0` helper copies 56-byte mode records and returns
 the new list end; Shutdown passes an empty source range and the list beginning as destination, so the list
 becomes empty. This assignment is to owner `+0x110` (list end), not owner `+0x11C` (sticky error). It does not
-invent a Shutdown error. Driver information is copied into driver-owned string storage and returned through
-the caller's string interface by `GetDriverInfo` (`0x008870A0`); it does not borrow the temporary identifier
-buffer. Only successful `GetDeviceIdentifier` (result exactly zero) adds adapter/version/GUID/vendor lines.
+invent a Shutdown error. Driver information is copied/appended into shared static string storage at
+`0x00B54340`; `GetDriverInfo` returns its current character pointer directly (`0x008870A0`), with no allocation,
+AddRef or output argument. The pointer is borrowed and can be invalidated by later initialization/string
+mutation; it does not borrow the temporary identifier buffer (`0x00888D6B`, `0x00888DB6`). Only successful
+`GetDeviceIdentifier` (result exactly zero) adds adapter/version/GUID/vendor lines.
 When both version dwords are zero, `0x00888820` searches the system directory using the path fragments
 `\\`, `\\Drivers\\`, `32\\Drivers\\`, and suffixes empty, `.dll`, `.vxd`, `.sys`, in that nesting order. The
 first matching file supplies file-version MS/LS words from the root version resource; failure to read that
@@ -113,7 +115,7 @@ The shared driver's final-reference path calls graphics Shutdown, deletes the dr
 (AddRef), after clearing its owner pointer, rather than Release [quirk, `0x00886450`–`0x008864B3`]. Thus a
 driver's destruction must not be claimed to destroy its texture manager. Remaining held context/DirectX
 references and owned arrays/string storage are released/freed. A primitive manager actually reaching final
-destruction stops without submitting queued primitives, releases its vertex-buffer records and frees queue,
+destruction does not submit queued primitives; it releases its vertex-buffer records and frees queue,
 index and record storage (`0x00889D40`, `0x0088A140`). A texture manager actually reaching destruction frees
 its record storage, format-list storage and held device interfaces (`0x0088B070`); this is separate from the
 driver's AddRef quirk. Do not add an implicit texture upload or draw flush to these destructors.
@@ -488,8 +490,10 @@ quad. For positive ordinary counts it therefore writes `6*ceil(count/4)` indices
 copied vertices. For count 5 it declares 6 but writes those same 12 elements. These writes may exceed the
 logical scratch reservation; they are not permission to invent readable vertices or stable memory-corruption
 results. Quad strips likewise emit whole groups of six while `b < count-2`, stepping by two, even for odd
-counts (`0x0088B460`–`0x0088B500`). Indexed quads use the corresponding four caller indices per generated
-quad, so an incomplete group can read beyond the caller's logical list (`0x008825D0`–`0x0088268A`).
+counts (`0x0088B460`–`0x0088B500`). Indexed quads declare the same count, but their generator emits
+`ceil((3*floor(count/2))/6)` groups, reading four caller indices per group. Thus count 5 emits one complete
+group; count 6 emits two and can read beyond the caller's logical list. The 16-bit source helper is
+`0x0088B6C0`–`0x0088B7AA`; the public count truncation and generator count are distinct.
 
 **Index scratch** (`GetIndices(n)`, `0x0088A240`): a growable array of 16-bit indices handed out sequentially;
 when `n` more would exceed its allocated capacity, the queue is flushed first (queued entries point into it),
@@ -1138,6 +1142,19 @@ unless the setup column says otherwise. Observe calls, output sentinels, errors,
 | DX7-16 | Lock a vertex-buffer reservation, reserve again before unlock; then reserve across end without/with wrap | Second simultaneous reservation fails; no-wrap overflow fails; allowed wrap resets cursor and uses discard lock `0x2021` instead of `0x1021` |
 | DX7-17 | Cause surface-lost then another HRESULT failure, reading GetError twice after each | Surface-lost maps to 0; other failure maps to 1; every read consumes the stored error |
 | DX7-18 | Inject context creation failure during SetVideoMode; fourth word points to writable sentinel storage | Window/environment cleanup and error 6 precede a `0xFFFFFFFF` write through that fourth word; do not expect a current-mode-index assignment in its place (§4.2) |
+| DX7-19 | Prefill compact destination with `A5`; copy one position-only vertex | XYZ copied, colour `FFFFFFFF`; bytes 16–31 stay `A5` |
+| DX7-20 | Prefill with `A5`; copy position+UV0, then independently position+colour | First: white colour and copied UV0, untouched UV1. Second: copied colour, untouched both UV sets |
+| DX7-21 | Queue two submissions; return failure then success; reverse outcomes | Both submitted; flush returns zero in first trial and final failure in second; empty flush returns zero |
+| DX7-22 | Generate nonindexed quads for count 5 and 6 using physically oversized scratch | Both write `0,1,2,0,2,3,4,5,6,4,6,7`; declared counts 6 and 9 respectively; do not render invalid references |
+| DX7-23 | Indexed quads count 5/6 with extra readable sentinel indices after logical input | Count 5 generates one group; count 6 generates two groups, using the extra inputs; declared counts 6/9 |
+| DX7-24 | Width 30; m0=`3E2F59FF`, m3=`40A4645F`; nearest/even, extended precision | Projection corrected m0=`30888889`; reject binary64-only `30888888` |
+| DX7-25 | Construct driver and stage records before caller setters | Clear colour/depth/stencil = 0/1.0/0; all material words zero; stage values exactly §10.1 |
+| DX7-26 | Mutate stage binding/combine/cache, then default-device-state reset | Values retained; global and per-stage dirty become 1; §7 device calls still occur |
+| DX7-27 | Shutdown initialized driver with existing modes and sticky error sentinel | List end becomes beginning, mode count zero; list helper does not overwrite sticky error |
+| DX7-28 | Selector -1 enumerates scores 1000, 2000, 2000; nonzero render-bit-depth sentinel | First score-2000 descriptor retained; no tie replacement |
+| DX7-29 | Enumerate depth formats 16-bit then 24-bit/stencil; separately return no format | First descriptor accepted and enumeration canceled; no ranking. No format returns `80004005` |
+| DX7-30 | Inject depth-attachment failure, then independently final viewport failure | First releases/nulls depth surface and returns attachment HRESULT; second returns viewport HRESULT; no alternate-device retry |
+| DX7-31 | Destroy driver with externally observed manager references | Primitive manager receives Release; texture manager receives AddRef, not Release; no implicit queued submission |
 
 ## 16. Remaining proof boundaries
 
