@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow11 | Codex / glue-modelinst-shadow11 | in progress; context handoff; cargo 7141, clippy PASS, CTest 81/81; game pending | Collect existing game wait session 22617; preserve label modelinst-static-2032-20261024-a. |
+| glue-modelinst-shadow11 | Codex / glue-modelinst-shadow11 | in progress; cargo 7141, clippy PASS, CTest 81/81; game pending | Collect existing game wait session 55162; preserve label modelinst-static-2032-20261024-a. |
 
 ## Handoff
 - Goal: default-off modelinst_shadow, deterministic original/core comparisons at load and monthly; real-city turbo to 2032.
@@ -17,7 +17,7 @@
 - Game request activated: modelinst-static-2032-20261024-a, turbo to 2032-01-01, train193 house switches plus modelinst_shadow=1. At most this one request outstanding. No game measurements or merge-queue entry yet.
 - First blocking wait (session 79080) terminated with timeout after 9 minutes, no verdict. This is only a wait timeout, not a game failure; keep the same request/label and wait again. Do not resend.
 - Second blocking wait (session 41855) also terminated with timeout at about 14:22 local, no verdict. Both wait operations are complete; the game request remains outstanding. Next wait must target the same existing verdict file, never enqueue a replacement solely for a wait timeout.
-- CONTEXT HANDOFF: third blocking wait is ACTIVE in exec session 22617. Collect THAT operation with write_stdin (30-60s); do not launch another wait until it ends. Slot 4 assigned since 2026-10-24 14:03:53, queue pid 27484. Request timeout=1200s; still no verdict around 14:25. No merge-queue entry. Preserve a completed verdict for this unique label if it arrives after this handoff.
+- Resume 2026-10-24 14:26: session 22617 was unavailable (Unknown process id); no duplicate game request sent. Existing request still marked slot 4 since 14:03:53, queue pid 27484; no verdict at 14:28. New blocking wait session 55162 targets the SAME verdict; collect it to terminal before any further wait. No merge-queue entry.
 - Next: python build-runs/wait-verdict.py build-runs/game-results/modelinst-static-2032-20261024-a.verdict, collect same operation to terminal; then python build-runs/summarize-modelinst.py modelinst-static-2032-20261024-a. An existing completed verdict for this unique label is valid; do not discard or re-enqueue it.
 - Gate: fmt PASS (owned file absolute path). Initial q.py Bash transport failed CreateFileMapping access denied (build-runs/q/20261024-124722-31960.log); direct cargo worked. Native DLL built (20,934,656 bytes; 2026-10-24 13:46:33 local).
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r1-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r2-manifest.json.
