@@ -4,6 +4,16 @@
 
 ## Implementation
 
+## Handoff
+
+- Final round: full `qbuild all` is running as session 59094, output `build-runs/all-final-r3.log`; collect this operation only.
+- Added `viewutil-subset` accounting for 33 bodies, explicitly excluding object-angle/camera-angles/city-width. Original all-36 and individual family lines remain intact.
+- Rust source unchanged. Logger change made during Rust compilation, before native request; final native build must include it.
+- Next: collect gate, submit unique turbo run to 2032, wait once without qwait; record next free run (currently max 521); finish READY partial queue with full HEAD.
+- No new contracts or questions. Existing runs 520/521 and VU12/VU13/VU17/VU18/VU19 remain as below.
+
+## Prior implementation
+
 Merged `glue-viewutil-shadow11` at d7befe3aa before implementing VU15/VU16 contracts. Commit 9189e7185 extends the default-off `viewutil_shadow` observer to 36/50 bodies: rotation, 17 local helpers, and 18 read-only cached-input operations. Commit b6672b1de retains a separate rotation-family summary and includes all compared fields in aggregate accounting. Engine source has remained unchanged since that commit.
 
 Native calls check the specified PE identity and executable sections, use isolated local storage, and observe scalar returns through float32 stores. Private static-link transport adds no public C ABI exports. The cached-input adapter tests arithmetic using published native input fields; it does not validate camera or frustum construction.

@@ -29,7 +29,7 @@ static_assert(sizeof(Vector) == 12, "spec float32 triple");
 using Words = std::array<uint32_t, 3>;
 bool active = false;
 int32_t lastMonth = -1;
-uint32_t lines = 0, clean = 0;
+uint32_t lines = 0, clean = 0, subsetClean = 0;
 
 // VU16 section 13: private machine contracts, never declarations of game COM
 // methods. Each scalar call consumes one ST(0) result through a float32 store.
@@ -201,7 +201,8 @@ void NativeLocal(uint32_t op, const Packet& in, Packet& out) {
     }
 }
 
-uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields) {
+uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields,
+    uint32_t& subsetFields, uint32_t& subsetMismatches) {
     uint32_t totalMismatches = 0;
     for (auto& family : localFamilies) {
         uint32_t mismatches = 0, fields = 0;
@@ -260,6 +261,12 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields)
         ++family.total; family.exact += mismatches == 0;
         totalFields += fields;
         totalMismatches += mismatches;
+        // Keep VU19 and VU12 observations visible in their family lines and the
+        // all-body aggregate; the explicitly named subset excludes these bodies.
+        if (family.va != 0x007f6cb0 && family.va != 0x007f7780 && family.va != 0x007f8300) {
+            subsetFields += fields;
+            subsetMismatches += mismatches;
+        }
     }
     return totalMismatches;
 }
@@ -358,8 +365,16 @@ void Compare(int32_t julian, bool load) {
     fc4::Log("viewutil-rotation shadow %04d-%02d-%02d: body=007f6cc0 samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year,date.month,date.day_of_month,samples,fields,mismatches);
     ++rotationFamily.total; rotationFamily.exact += mismatches == 0;
-    mismatches += CompareLocal(date, base != 0, fields);
-    mismatches += CompareCached(date, available && base != 0, snapshot, fields);
+    uint32_t subsetFields = fields, subsetMismatches = mismatches;
+    mismatches += CompareLocal(date, base != 0, fields, subsetFields, subsetMismatches);
+    const uint32_t beforeCached = fields;
+    const uint32_t cachedMismatches = CompareCached(date, available && base != 0, snapshot, fields);
+    mismatches += cachedMismatches;
+    subsetFields += fields - beforeCached;
+    subsetMismatches += cachedMismatches;
+    fc4::Log("viewutil-subset shadow %04d-%02d-%02d: bodies=33/50 excluded=object-angle,camera-angles,city-width fields=%u resyncs=0 mismatches=%u",
+        date.year, date.month, date.day_of_month, subsetFields, subsetMismatches);
+    subsetClean += subsetMismatches == 0;
     fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-and-cached bodies=36/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", available ? 1u : 0u,
         liveRotation, samples, fields, mismatches);
@@ -371,7 +386,7 @@ void Compare(int32_t julian, bool load) {
 namespace fc4 {
 void ViewUtilShadowCityLoaded(cISC4City* city, int32_t julian) {
     active = city && SettingInt("viewutil_shadow", nullptr, 0) != 0;
-    lines = clean = 0;
+    lines = clean = subsetClean = 0;
     rotationFamily.exact = rotationFamily.total = 0;
     for (auto& family : localFamilies) family.exact = family.total = 0;
     for (auto& family : cachedFamilies) family.exact = family.total = 0;
@@ -385,6 +400,7 @@ void ViewUtilShadowMonth(int32_t julian) { Compare(julian, false); }
 void ViewUtilShadowCityShutdown() {
     if (active) {
         Log("viewutil: %u/%u exact (36/50 bodies), resyncs=0", clean, lines);
+        Log("viewutil-subset: %u/%u exact (33/50 bodies; excludes object-angle,camera-angles,city-width), resyncs=0", subsetClean, lines);
         Log("viewutil-rotation: %u/%u exact, resyncs=0",rotationFamily.exact,rotationFamily.total);
         for (const auto& family : localFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
         for (const auto& family : cachedFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
