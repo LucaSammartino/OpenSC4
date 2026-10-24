@@ -800,6 +800,26 @@ suspended adds 1 to `processed`; a found one also adds 1 to pass counter 1, the 
   resumes from the previous open set (`continueSearch := true`); otherwise `continueSearch := false`;
 * not found: status 5, `continueSearch := false`.
 
+**Continuation lifetime (TS68, compat).** `continueSearch` is a simulator-owned byte (`+0x881`, context
+`+0x83C + 0x45`), not a local of WorkOnFullTrips. A split sets it true (`0x0071D785`); a completed search
+without a split, including failure, clears it (`0x0071D78E`–`0x0071D792`). It survives an unfinished call,
+another slice in the same delivery, and a day/delivery boundary while the same source is held: neither a
+deadline exit (`0x0071D7AC`–`0x0071D803`) nor the suspended-search exit (`0x0071D870`) clears it. Thus a
+deadline between a split and its remainder leaves it true; the next call walks the held list from its head,
+skips the now-status-3 original, and searches the status-0 remainder with flag 4. Taking a new source clears
+the byte in both 17 and 18 (`0x0071D152`, `0x0071D571`), even if the new source is taken in the same call.
+Entering a trip phase resets the separate search-state word `+0x884` and arms taking a source, but does not
+itself clear `+0x881` (`0x007210B0`–`0x007210D3`); the first source take supplies that reset. A network
+change through DoConnectionsChanged clears continuation immediately (`0x0071A900`, again `0x0071B902`)
+and marks the context for reset (`+0x888 := 1`, `0x0071B909`): on the next source-loop visit both
+pathfinders reset and search state becomes idle (`0x0071D578`–`0x0071D5A2`; same rule in 17). If the
+remainder's own search suspends, continuation remains true and `+0x884` holds outbound/return state 1/2;
+the next call skips SetupTrip while that state is nonzero (`0x0071D622`–`0x0071D63B`), refreshes both
+work-time limits, and resumes that search. It does not reissue flag 4 or restart the outbound search when
+the return leg is suspended. When SetupTrip does run for an idle commuter search, its flag-4 decision
+reads this stored byte (`0x0070EDE4`–`0x0070EDF7`). This confirms retaining the bool across slices; it
+does not establish the cause of the normal-speed density mismatch reported with TS68.
+
 Counters (TS21): each search that is not suspended adds 1 to `processed`. Each split adds 1 to `toSearch`, to the
 phase's `total` and to pass counter 9 (`0x0071D75A`). The day shares of the running phase (§3.3) therefore stretch
 with the splits: `total` was `toSearch` on entering 18 and grows as copies are made.
@@ -2142,6 +2162,25 @@ Shipped tuning unless stated. Exact values are float32 bit patterns where given.
     each connection's reference count rises by 1). Remove one connection from the neighbour simulator: its count
     stays raised and `GetNext` still yields it. `Shutdown`: both counts drop by 1. A `Read` between the `Reset` and
     the `Shutdown` changes neither count.
+
+18. **Split continuation across returns (TS68, §4.4).** Script a commuter trip of count 10 whose first
+    search arrives with 3, leaving `[status 3 ×3, status 0 ×7]`. That completed search adds 1 to processed;
+    the split adds 1 each to toSearch, total and pass counter 9. Use these conformance cases (pathfinder
+    outcomes are fixtures, not measured game routes):
+
+    | Case | Interleaving after the split | Required observation |
+    |---|---|---|
+    | TS68-a | Deadline before the remainder; another call the same day | Continuation true across return; revisit list head and skip the status-3 trip; SetupTrip for count 7 sets flag 4. No source completion before the remainder. |
+    | TS68-b | Same deadline, then next daily delivery | Same outcome as a; the day boundary does not clear continuation. |
+    | TS68-c | Remainder's outbound search suspends, then resume | Status/count stay 0/7, continuation true, search state 1, processed unchanged by suspension; no second SetupTrip on resume, both work-time limits refreshed. |
+    | TS68-d | Remainder's outbound succeeds but return leg suspends, then resume | Search state 2 and continuation true; destination/flags change as TS65 specifies, count/status stay 7/0, no processed increment yet; resume return leg without SetupTrip or another outbound search. |
+    | TS68-e | Network change while the remainder is pending or suspended | Continuation false immediately; next source-loop visit resets both pathfinders and search state to 0; any ensuing idle commuter SetupTrip omits flag 4. |
+
+    After a successful unsplit remainder, or a failed remainder, continuation is false. Also test two
+    sources in one call: taking the second clears continuation before its first SetupTrip. For a phase
+    transition, the entry action arms source-taking and clears search state; the first source starts
+    with continuation false. These cases specify the original's return boundaries even when the
+    replacement chooses atomic searches (§3.4).
 
 ## 12. Calibration (counters for the observer in the original)
 

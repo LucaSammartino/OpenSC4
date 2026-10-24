@@ -1,0 +1,658 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! cGZWinTreeView, widget-controls §6. Node handles, visible rows and selection
+//! positions are distinct. Open native adapters are never assigned signatures.
+use super::*;
+use std::collections::BTreeMap;
+
+pub const IID: u32 = 0x3ae8_bad2;
+pub const WINDOW_OFFSET: u64 = 4;
+pub const PRIMARY_SLOTS: usize = 60;
+pub const WINDOW_SLOTS: usize = 151;
+pub const SELECTION: u32 = 0x1af5_a13a;
+pub const ACTIVATION: u32 = 0x1af5_a13b;
+pub const EXPAND: u32 = 0x1af5_a13c;
+pub const COLLAPSE: u32 = 0x1af5_a13d;
+
+pub type NodeHandle = i32;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Descriptor {
+    pub parent: NodeHandle,
+    pub reference: i32,
+    pub text: Vec<u8>,
+    pub data: u32,
+    pub images: [i32; 4],
+    pub font: Option<Handle>,
+    pub colors: [u32; 4],
+    pub expanded: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Node {
+    pub handle: NodeHandle,
+    pub reference: i32,
+    pub text: Vec<u8>,
+    pub data: u32,
+    pub images: [i32; 4],
+    pub font: Option<Handle>,
+    pub colors: [u32; 4],
+    pub expanded: bool,
+    pub force_branch: bool,
+    pub selected: bool,
+    pub flattened: bool,
+    pub visible_index: Option<usize>,
+    pub parent: Option<NodeHandle>,
+    pub children: Vec<NodeHandle>,
+    pub text_rect: Rect,
+    pub image_rect: Rect,
+    pub expander_rect: Rect,
+}
+
+/// Only individual graphics/font resource operations cross this boundary.
+pub trait TreeForeign: Foreign {
+    fn convert_color(&mut self, window: Handle, color: u32) -> u32;
+    fn initialize_buffer(&mut self, buffer: Handle) -> bool;
+    fn buffer_access(&mut self, buffer: Handle, acquire: bool) -> bool;
+    fn measure_text(&mut self, font: Handle, text: &[u8]) -> i32;
+    fn draw_image(&mut self, image: Handle, rect: Rect);
+    fn set_bar_value(&mut self, bar: Handle, value: i32);
+}
+
+#[derive(Debug)]
+pub struct TreeView {
+    pub primary: Handle,
+    pub nodes: BTreeMap<NodeHandle, Node>,
+    pub visible: Vec<NodeHandle>,
+    pub selection: Vec<NodeHandle>,
+    pub next_handle: NodeHandle,
+    pub root: Option<NodeHandle>,
+    pub default_font: Option<Handle>,
+    pub flags: u32,
+    pub internal_initialized: bool,
+    pub layout_dirty: bool,
+    pub selection_dirty: bool,
+    pub row_height: i32,
+    pub base_color: u32,
+    pub colors: [u32; 4],
+    pub raw_style: [i32; 6],
+    pub working_buffer: Option<Handle>,
+    pub horizontal_bar: Option<Handle>,
+    pub vertical_bar: Option<Handle>,
+    pub first: i32,
+    pub horizontal_position: i32,
+    pub viewport_rows: u32,
+    pub images: Vec<Option<Handle>>,
+}
+
+impl TreeView {
+    pub fn new(primary: Handle) -> Self {
+        Self {
+            primary,
+            nodes: BTreeMap::new(),
+            visible: Vec::new(),
+            selection: Vec::new(),
+            next_handle: 0,
+            root: None,
+            default_font: None,
+            flags: 0xb,
+            internal_initialized: false,
+            layout_dirty: false,
+            selection_dirty: false,
+            row_height: 16,
+            base_color: SENTINEL,
+            colors: [SENTINEL; 4],
+            raw_style: [9, 3, 3, 3, 44, 1],
+            working_buffer: None,
+            horizontal_bar: None,
+            vertical_bar: None,
+            first: 0,
+            horizontal_position: 0,
+            viewport_rows: 0,
+            images: Vec::new(),
+        }
+    }
+
+    pub fn window(&self) -> Handle {
+        self.primary + WINDOW_OFFSET
+    }
+
+    /// Own-IID null output is a native caller precondition, unlike ListBox.
+    pub fn query_interface(&self, iid: u32, output: Option<&mut Option<Handle>>, f: &mut impl Foreign) -> Result<bool> {
+        if iid == IID {
+            let output = output.ok_or(Unsupported::Precondition("TreeView own-IID output"))?;
+            *output = Some(self.primary);
+            f.add_ref(self.window());
+            Ok(true)
+        } else if let Some(output) = output {
+            Ok(f.base_query(self.window(), iid, output))
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn internal_init(&mut self, f: &mut impl TreeForeign) {
+        if self.internal_initialized {
+            return;
+        }
+        self.internal_initialized = true;
+        if self.base_color == SENTINEL {
+            self.base_color = f.convert_color(self.window(), u32::MAX);
+        }
+        let window = self.window();
+        for (slot, color) in self.colors.iter_mut().zip([0, 0xff_ffff, 0xff_ffff, 0]) {
+            if *slot == SENTINEL {
+                *slot = f.convert_color(window, color);
+            }
+        }
+        if self.default_font.is_none() {
+            let font = f.default_interface(0x6896_3c4c);
+            replace_ref(&mut self.default_font, font, f);
+        }
+        // WC3: resource IDs and image-list load/failure are not specified.
+        // No synthetic image references are fabricated here.
+        self.create_root();
+        if self.working_buffer.is_none() {
+            self.working_buffer = f.create(Resource::Buffer);
+            if let Some(buffer) = self.working_buffer {
+                if !f.initialize_buffer(buffer) {
+                    f.release(buffer);
+                    self.working_buffer = None;
+                }
+            }
+        }
+    }
+
+    pub fn init(&mut self, f: &mut impl TreeForeign) -> bool {
+        f.base_init(self.window());
+        self.internal_init(f);
+        self.recalculate();
+        true
+    }
+
+    pub fn create_root(&mut self) {
+        if self.root.is_some() {
+            return;
+        }
+        let root = Node {
+            handle: 0,
+            reference: -1,
+            text: Vec::new(),
+            data: 0,
+            images: [0, 1, 2, 3],
+            font: self.default_font,
+            colors: self.colors,
+            expanded: true,
+            force_branch: true,
+            selected: false,
+            flattened: false,
+            visible_index: None,
+            parent: None,
+            children: Vec::new(),
+            text_rect: [0; 4],
+            image_rect: [0; 4],
+            expander_rect: [0; 4],
+        };
+        self.nodes.insert(0, root);
+        self.root = Some(0);
+        self.next_handle += 1;
+        self.layout_dirty = true;
+    }
+
+    pub fn shutdown(&mut self, f: &mut impl Foreign) {
+        self.visible.clear();
+        self.selection.clear();
+        self.nodes.clear();
+        for image in self.images.drain(..).flatten() {
+            f.release(image);
+        }
+        replace_ref(&mut self.default_font, None, f);
+        replace_ref(&mut self.working_buffer, None, f);
+        replace_ref(&mut self.horizontal_bar, None, f);
+        replace_ref(&mut self.vertical_bar, None, f);
+        f.base_shutdown(self.window());
+        // WC2: no invented restart protocol; internal_initialized is preserved.
+    }
+
+    pub fn node(&self, handle: NodeHandle) -> Option<&Node> {
+        self.nodes.get(&handle)
+    }
+    pub fn parent(&self, handle: NodeHandle) -> NodeHandle {
+        self.nodes.get(&handle).and_then(|node| node.parent).unwrap_or(-1)
+    }
+    pub fn insertion_reference(&self, handle: NodeHandle) -> i32 {
+        self.nodes.get(&handle).map_or(-1, |node| node.reference)
+    }
+
+    /// Native insertion's sentinel/reference ordering is explicitly open WC2.
+    /// The mutation after a *resolved* child-list position is implemented below.
+    pub fn insert(&mut self, descriptor: Descriptor, f: &mut impl TreeForeign) -> Result<NodeHandle> {
+        self.internal_init(f);
+        if !self.nodes.contains_key(&descriptor.parent) {
+            return Ok(-1);
+        }
+        if !matches!(descriptor.reference, -4..=-2)
+            && !self.nodes[&descriptor.parent].children.contains(&descriptor.reference)
+        {
+            return Ok(-1);
+        }
+        Err(Unsupported::Open("WC2: native insertion ordering"))
+    }
+
+    /// Semantic ordered-list primitive, not a native sentinel-to-position map.
+    /// Callers binding native InsertNode must first resolve WC2, not guess an
+    /// ordering. Tests use this to construct valid hierarchies independently.
+    pub fn insert_at(&mut self, descriptor: Descriptor, position: usize, f: &mut impl TreeForeign) -> NodeHandle {
+        self.internal_init(f);
+        let Some(parent) = self.nodes.get(&descriptor.parent) else {
+            return -1;
+        };
+        if position > parent.children.len() {
+            return -1;
+        }
+        let handle = self.next_handle;
+        self.next_handle += 1;
+        let font = descriptor.font.or(self.default_font);
+        if let Some(font) = font {
+            self.row_height = self.row_height.max(f.font_height(font));
+        }
+        self.nodes.insert(
+            handle,
+            Node {
+                handle,
+                reference: descriptor.reference,
+                text: descriptor.text,
+                data: descriptor.data,
+                images: descriptor.images,
+                font,
+                colors: descriptor.colors,
+                expanded: descriptor.expanded,
+                force_branch: false,
+                selected: false,
+                flattened: false,
+                visible_index: None,
+                parent: Some(descriptor.parent),
+                children: Vec::new(),
+                text_rect: [0; 4],
+                image_rect: [0; 4],
+                expander_rect: [0; 4],
+            },
+        );
+        self.nodes
+            .get_mut(&descriptor.parent)
+            .unwrap()
+            .children
+            .insert(position, handle);
+        self.dirty(f);
+        handle
+    }
+
+    fn dirty(&mut self, f: &mut impl Foreign) {
+        self.layout_dirty = true;
+        f.invalidate(self.window());
+    }
+    pub fn emit(&self, id: u32, handle: NodeHandle, f: &mut impl Foreign) {
+        let payload = f.convert_payload(self.window(), handle);
+        f.deliver(
+            self.window(),
+            Delivery::Send,
+            Message {
+                kind: 3,
+                words: [id as i32, payload, 0, 0],
+            },
+        );
+    }
+    pub fn set_expanded(&mut self, handle: NodeHandle, expanded: bool, f: &mut impl Foreign) -> bool {
+        let Some(node) = self.nodes.get_mut(&handle) else {
+            return false;
+        };
+        if node.expanded != expanded {
+            node.expanded = expanded;
+            self.dirty(f);
+            self.emit(if expanded { EXPAND } else { COLLAPSE }, handle, f);
+        }
+        true
+    }
+    pub fn set_font(&mut self, handle: NodeHandle, font: Option<Handle>, f: &mut impl TreeForeign) -> bool {
+        let font = font.or(self.default_font);
+        let Some(node) = self.nodes.get_mut(&handle) else {
+            return false;
+        };
+        if node.font != font {
+            node.font = font;
+            if let Some(font) = font {
+                self.row_height = self.row_height.max(f.font_height(font));
+            }
+            self.dirty(f);
+        }
+        // No per-node AddRef is observed (§6.3).
+        true
+    }
+
+    pub fn recalculate(&mut self) {
+        for node in self.nodes.values_mut() {
+            node.flattened = false;
+            node.visible_index = None;
+        }
+        self.visible.clear();
+        if let Some(root) = self.root {
+            // Literal hierarchy walk: includes the root. Root-hiding flags are
+            // not defined by §6.5; WC6 requests their effect on flattening.
+            let mut pending = vec![root];
+            while let Some(handle) = pending.pop() {
+                let Some(node) = self.nodes.get_mut(&handle) else {
+                    continue;
+                };
+                node.flattened = true;
+                node.visible_index = Some(self.visible.len());
+                self.visible.push(handle);
+                if node.expanded {
+                    pending.extend(node.children.iter().rev().copied());
+                }
+            }
+        }
+        self.layout_dirty = false;
+    }
+    pub fn get_visible(&mut self, handle: NodeHandle) -> bool {
+        if self.layout_dirty {
+            self.recalculate();
+        }
+        self.nodes
+            .get(&handle)
+            .and_then(|node| node.visible_index)
+            .is_some_and(|row| {
+                row as i64 >= i64::from(self.first)
+                    && (row as i64) < i64::from(self.first) + i64::from(self.viewport_rows)
+            })
+    }
+    pub fn make_visible(&mut self, handle: NodeHandle, f: &mut impl TreeForeign) -> bool {
+        if !self.nodes.contains_key(&handle) {
+            return false;
+        }
+        if self.layout_dirty {
+            self.recalculate();
+        }
+        let mut parent = self.nodes[&handle].parent;
+        while let Some(ancestor) = parent {
+            parent = self.nodes[&ancestor].parent;
+            if !self.nodes[&ancestor].expanded {
+                self.set_expanded(ancestor, true, f);
+            }
+        }
+        self.recalculate();
+        let Some(row) = self.nodes[&handle].visible_index else {
+            return false;
+        };
+        if let Some(bar) = self.vertical_bar {
+            if (row as i64) < i64::from(self.first) {
+                self.first = row as i32;
+            } else if row as i64 >= i64::from(self.first) + i64::from(self.viewport_rows) {
+                self.first = row as i32 - self.viewport_rows as i32 + 1;
+            }
+            f.set_bar_value(bar, self.first);
+        }
+        true
+    }
+
+    pub fn select(&mut self, handle: NodeHandle, replacement: bool, f: &mut impl TreeForeign) -> bool {
+        if !self.nodes.contains_key(&handle) {
+            return false;
+        }
+        let mut changed = false;
+        if replacement || self.flags & 0x10 == 0 {
+            for other in self.selection.clone() {
+                if other != handle {
+                    if let Some(node) = self.nodes.get_mut(&other) {
+                        node.selected = false;
+                    }
+                    self.selection.retain(|&item| item != other);
+                    changed = true;
+                }
+            }
+        }
+        if !self.nodes[&handle].selected {
+            self.make_visible(handle, f);
+            self.nodes.get_mut(&handle).unwrap().selected = true;
+            self.selection.push(handle);
+            changed = true;
+        }
+        if changed {
+            f.invalidate(self.window());
+            self.emit(SELECTION, 0, f);
+        }
+        true
+    }
+    pub fn deselect(&mut self, handle: NodeHandle, f: &mut impl Foreign) -> bool {
+        let Some(index) = self.selection.iter().position(|&item| item == handle) else {
+            return false;
+        };
+        self.selection.remove(index);
+        if let Some(node) = self.nodes.get_mut(&handle) {
+            node.selected = false;
+        }
+        f.invalidate(self.window());
+        self.emit(SELECTION, 0, f);
+        true
+    }
+    pub fn clear_selection(&mut self, f: &mut impl Foreign) -> bool {
+        if !self.selection.is_empty() {
+            for handle in self.selection.drain(..) {
+                if let Some(node) = self.nodes.get_mut(&handle) {
+                    node.selected = false;
+                }
+            }
+            f.invalidate(self.window());
+            self.emit(SELECTION, 0, f);
+        }
+        true
+    }
+    /// Semantic descriptor transfer. Native descriptor output/child-copy ABI
+    /// remains WC2; this value has no claimed native memory layout.
+    pub fn set_descriptor(
+        &mut self,
+        handle: NodeHandle,
+        value: Descriptor,
+        visible: bool,
+        selected: bool,
+        f: &mut impl TreeForeign,
+    ) -> bool {
+        let Some(node) = self.nodes.get_mut(&handle) else {
+            return false;
+        };
+        node.text = value.text;
+        node.data = value.data;
+        node.images = value.images;
+        node.colors = value.colors;
+        self.set_font(handle, value.font, f);
+        self.set_expanded(handle, value.expanded, f);
+        if visible {
+            self.make_visible(handle, f);
+        }
+        if selected {
+            self.select(handle, false, f);
+        } else {
+            self.deselect(handle, f);
+        }
+        self.dirty(f);
+        true
+    }
+
+    pub fn do_message(&mut self, message: Message, f: &mut impl Foreign) -> Result<bool> {
+        if message.kind == 3 && message.words[0] as u32 == 0x8871_13a3 {
+            match message.words[1] as u32 {
+                0x1756_bac7 => {
+                    let bar = self.horizontal_bar.ok_or(Unsupported::Precondition("horizontal bar"))?;
+                    self.horizontal_position = f.bar_value(bar);
+                }
+                0x1756_bac6 => {
+                    let bar = self.vertical_bar.ok_or(Unsupported::Precondition("vertical bar"))?;
+                    self.first = f.bar_value(bar);
+                }
+                _ => {}
+            }
+        }
+        Ok(f.base_message(self.window(), message))
+    }
+    pub fn wheel(&mut self, delta: i32, f: &mut impl TreeForeign) -> bool {
+        if let Some(bar) = self.vertical_bar {
+            // Native comparisons are unsigned. Zero takes the upward branch.
+            let first = self.first as u32;
+            if delta < 0 {
+                if first.wrapping_add(self.viewport_rows) < self.visible.len() as u32 {
+                    self.first = first.wrapping_add(1) as i32;
+                    f.set_bar_value(bar, self.first);
+                }
+            } else if first > 0 {
+                self.first = first.wrapping_sub(1) as i32;
+                f.set_bar_value(bar, self.first);
+            }
+        }
+        true
+    }
+    fn activate(&mut self, handle: NodeHandle, f: &mut impl Foreign) {
+        self.emit(ACTIVATION, handle, f);
+        if let Some(node) = self.nodes.get(&handle) {
+            if node.force_branch || !node.children.is_empty() {
+                self.set_expanded(handle, !node.expanded, f);
+            }
+        }
+    }
+    pub fn key_up(&self, _key: u32, _modifiers: u32) -> bool {
+        false
+    }
+    pub fn key_down(&mut self, key: u32, f: &mut impl TreeForeign) -> Result<bool> {
+        match key {
+            0x1b => {
+                self.clear_selection(f);
+                return Ok(true);
+            }
+            0x0d => {
+                for handle in self.selection.clone() {
+                    self.activate(handle, f);
+                }
+                return Ok(true);
+            }
+            0x21 | 0x22 => return Err(Unsupported::Open("WC3: page arithmetic")),
+            0x23..=0x28 => {}
+            _ => return Ok(true),
+        }
+        if self.layout_dirty {
+            self.recalculate();
+        }
+        if self.visible.is_empty() {
+            return Err(Unsupported::Open("WC3: zero-node navigation"));
+        }
+        let current = self.selection.first().copied();
+        let index = current
+            .and_then(|handle| self.nodes.get(&handle)?.visible_index)
+            .unwrap_or(0);
+        let target = match key {
+            0x24 => self.visible[0],
+            0x23 => *self.visible.last().unwrap(),
+            0x26 => self.visible[index.saturating_sub(1)],
+            0x28 => self.visible[(index + 1).min(self.visible.len() - 1)],
+            0x25 => {
+                let handle = self.visible[index];
+                if self.nodes[&handle].expanded {
+                    self.set_expanded(handle, false, f);
+                    return Ok(true);
+                }
+                self.nodes[&handle].parent.unwrap_or(handle)
+            }
+            0x27 => {
+                let handle = self.visible[index];
+                if !self.nodes[&handle].expanded {
+                    self.set_expanded(handle, true, f);
+                    return Ok(true);
+                }
+                self.visible[(index + 1).min(self.visible.len() - 1)]
+            }
+            _ => unreachable!(),
+        };
+        self.select(target, true, f);
+        Ok(true)
+    }
+    pub fn mouse_down(&mut self, x: i32, y: i32, f: &mut impl Foreign) -> Result<bool> {
+        let hit = self
+            .visible
+            .iter()
+            .copied()
+            .find(|handle| contains(self.nodes[handle].expander_rect, x, y));
+        if let Some(handle) = hit {
+            self.set_expanded(handle, !self.nodes[&handle].expanded, f);
+            return Ok(true);
+        }
+        Err(Unsupported::Open("WC3: text/image modifier and double-click policy"))
+    }
+
+    /// Established DrawItem interface contract for already resolved hit areas.
+    /// Expander/connector/gradient/layout pixels stay WC3, rather than guessed.
+    pub fn draw_item(
+        &mut self,
+        handle: NodeHandle,
+        text_rect: Rect,
+        image_rect: Rect,
+        expander_rect: Rect,
+        f: &mut impl TreeForeign,
+    ) -> Result<bool> {
+        let Some(node) = self.nodes.get_mut(&handle) else {
+            return Ok(false);
+        };
+        node.text_rect = text_rect;
+        node.image_rect = image_rect;
+        node.expander_rect = expander_rect;
+        let image_slot = usize::from(node.expanded) + if node.selected { 2 } else { 0 };
+        let image_index = node.images[image_slot];
+        if image_index >= 0 {
+            if let Some(Some(image)) = self.images.get(image_index as usize) {
+                f.draw_image(*image, image_rect);
+            }
+        }
+        if let Some(font) = node.font {
+            f.measure_text(font, &node.text);
+            if node.selected {
+                return Err(Unsupported::Open("WC3: selected gradient"));
+            }
+            f.draw(Draw::Fill {
+                rect: text_rect,
+                color: node.colors[2],
+            });
+            f.draw(Draw::Text {
+                font,
+                text: node.text.clone(),
+                rect: text_rect,
+                color: node.colors[0],
+            });
+        }
+        Ok(true)
+    }
+    /// Full paint needs WC3's unresolved hit-area/layout and gradient contracts.
+    /// The independently testable guarded buffer operations remain explicit.
+    pub fn paint(&mut self, viewport: Rect, f: &mut impl TreeForeign) -> Result<()> {
+        if self.layout_dirty {
+            self.recalculate();
+        }
+        let Some(buffer) = self.working_buffer else {
+            return Ok(());
+        };
+        if f.buffer_access(buffer, true) {
+            if self.flags & 0x20 != 0 {
+                f.draw(Draw::Fill {
+                    rect: viewport,
+                    color: self.base_color,
+                });
+            }
+            if self.selection_dirty {
+                self.selection
+                    .retain(|handle| self.nodes.get(handle).is_some_and(|node| node.selected));
+                self.selection_dirty = false;
+            }
+            f.buffer_access(buffer, false);
+            return Err(Unsupported::Open("WC3: tree layout/gradient paint"));
+        }
+        Ok(())
+    }
+}
+
+fn contains(rect: Rect, x: i32, y: i32) -> bool {
+    x >= rect[0] && x < rect[2] && y >= rect[1] && y < rect[3]
+}

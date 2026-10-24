@@ -36,3 +36,29 @@ and image-list resource failures. Anchors: `009D1031`, `009D135A`, `009D14BF`,
 `009D2577`, `009D17A8`, `009D0CB1`, `009D0888`, helper `009CFD89`–`009D14BE`.
 Current drawing section defines interface calls and model dependence, not
 pixel-exact rendering. No game comparison has been requested or run.
+
+<!-- from: core-widgets5 (2026-10-23) -->
+- **WC4 - ListBox section 5.3 removal and drop sizing:** after removing the
+  selected row, does selection move to the previous row or retain its index
+  when a following entry exists? What is the exact scroll-origin adjustment?
+  Please specify drop-mode sizing on insertion, text replacement and Init,
+  plus next-page arithmetic (only previous-page arithmetic is given).
+  [Literal provisional removal decrements selection at/after the removed row
+  and origin after the removed row; next-page/drop sizing remain open under
+  WC1's adapter boundary. No host-control behavior is assumed.]
+
+<!-- from: core-widgets5 (2026-10-23) -->
+- **WC5 - ListBox section 5.5 color escape recognition:** which leading byte
+  sequence identifies a color escape? WC1 leaves parsing/ellipsis unresolved,
+  but even distinguishing ordinary text from the escape branch requires the
+  introducer. [Only a plain-text drawing subdomain can be claimed until WC1
+  supplies this predicate; no escape byte is inferred.]
+
+<!-- from: core-widgets5 (2026-10-23) -->
+- **WC6 - TreeView sections 6.3/6.5 root visibility and geometry:** which flags
+  include or hide the root in the flattened sequence, and what are the precise
+  indentation, viewport-count, image-enable and hit-rectangle rules? Which
+  selection entry anchors keyboard navigation when several nodes are selected?
+  [Literal hierarchy flattening includes root and follows child-list order;
+  viewport count is explicit input, first selection anchors navigation.
+  Pixel/layout and native insertion mapping remain open under WC2/WC3.]

@@ -13,6 +13,9 @@ parts of NR1 and NR2 answered (§10.9, §11.1); NR6 and NR7 filed (§14).
 
 Amended 2026-10-21 (re-netrules-boundary4): NR13 answered, the solver family's interoperability boundary (§2.4).
 
+Amended 2026-10-23 (re-netrules-nr16): NR16 answered: native record-only observation contracts (§2.5), with
+conformance vectors 36–44 (§15). These are instruction-derived contracts, not a live shadow verification.
+
 Tags:
 
 - *[compat]*: observable; a replacement must match it.
@@ -216,12 +219,13 @@ only supported places where a replacement can take over their behaviour are the 
 | Owner | Kind | Calling convention and shape | Created / destroyed |
 |---|---|---|---|
 | `cSC4TileEvaluator` | plain C++ object, 0x10 bytes | `+0x00` vtable `0x00AA8338`; `+0x04` the rule tree's header node (0x34 bytes from the global allocator `0x0090CF54`); `+0x08` the rule count; `+0x0C` not written by the constructor. The vtable has **one** slot, the scalar deleting destructor `0x00622AE0` (flag bit 0 = free); the dword before it (`0x00010203`) is not an RTTI locator, so there is no RTTI, no QueryInterface, no reference count. | Only `cSC4NetworkTypeInfo::LoadEvaluator` (`0x0063D360`, thiscall on the type record, pops 12) allocates it (`GlobalHeapAlloc(0x10)`, `0x0063D367`), runs the constructor `0x00622A90` (its only caller, `0x0063D375`), calls `AddRulesFromResource(key*, 0)` (`0x00623020`, thiscall, pops 8) and appends it to the record's vector `+0x24`, even on failure (§2.3). `cSC4NetworkTypeInfo::Clear` (`0x006421D0`) pops the vector from the back, calling slot 0 with 1. The vtable address is stored only by the constructor and destructor (`0x00622A95`, `0x00622AE9`; no other reference in the image). |
-| `cSC4TileRule` | plain struct, 7 dwords, no vtable | the centre key and two 3-dword vectors (conditions, outputs); `Read(tokenizer*)` `0x00622870` is thiscall, pops 4 | built on `AddRulesFromResource`'s stack (zeroed at `0x0062308F`–`0x006230A7`), read, copied into the evaluator's tree; its only caller is `0x006230AB` |
+| `cSC4TileRule` | plain struct, 0x20 bytes, no vtable | centre key, two 3-dword vectors (conditions, outputs), transform eligibility byte at +0x1C and padding (§2.5.2); `Read(tokenizer*)` `0x00622870` is thiscall, pops 4 | built on `AddRulesFromResource`'s stack (vectors zeroed at `0x0062308F`–`0x006230A7`), read, copied into the evaluator's tree; its only caller is `0x006230AB` |
 | `cSC4TileInfo` | not an object: free functions over static tables | `ConvertMetaToRelativePos` `0x00620D80` is cdecl (plain `RET`) and reads the byte tables `0x00B0B3D8`/`0x00B0B3F4`; `GetRotationalEquivalent` `0x00621F30` and `…OfMetaPos` `0x00621680` pop 8 | no lifecycle |
 | `nSC4Networks::cIntRule` | plain value class in the process-global hash map `0x00B452B0` (bucket vector `0x00B452B4`/`0x00B452B8`) | `Test` `0x00609A00` and `DoAutoComplete` `0x006097E0` thiscall, pop 12 | filled by `ReloadRules` (§2.1 step 4), destroyed by the CRT exit handler `0x00A7C170` |
 
-`Evaluate` (`0x006220D0`) is a thiscall on the evaluator with two stack arguments (the neighbourhood and the output
-list) and pops 8; its callers are `ApplyNetworkRules` (`0x006341EA`) and `SolveMultiTypeSeparation` (`0x0063401A`),
+`Evaluate` (`0x006220D0`) is a thiscall on the evaluator with two stack arguments (the neighbourhood pointer and the
+address of a pointer receiving a borrowed output-vector descriptor) and pops 8; it returns a boolean in **AL**,
+not a vector or a pointer in EAX (§2.5). Its callers are `ApplyNetworkRules` (`0x006341EA`) and `SolveMultiTypeSeparation` (`0x0063401A`),
 reached by a direct call, never through the vtable.
 
 #### 2.4.2 Who reaches them (the complete caller set)
@@ -270,6 +274,200 @@ so a replacement must not invent one (no stub `CreateClass` for these owners). T
    map `0x00B452B0` stays **empty** for the original puzzle-piece control, which then finds no rule (§2.1: an empty
    table means "nothing applies"). A host that replaces the network tool must also own that control's catalogue
    command, or keep the original rules loaded.
+
+---
+
+### 2.5 Native observation contract (NR16, GOG 1.1.641)
+
+This section describes a private, version-specific observation boundary, not a new GZCOM interface. All offsets
+are byte offsets, pointers and unsigned words are 32 bits, and padding is not part of a comparison. Addresses are
+preferred image addresses (image base `0x00400000`); the supported observation reference requires that exact loaded
+base (§2.5.6), with RVA equal to address minus `0x00400000`.
+The table layouts below must not be replaced with the host compiler’s STL layouts.
+
+#### 2.5.1 Evaluate arguments, result and ownership
+
+`0x006220D0`: thiscall; ECX = original evaluator base; arguments in declaration order are neighbourhood pointer,
+then pointer to a writable 4-byte result-pointer slot; callee pops 8. AL is 0 or 1; the upper 24 bits of EAX are
+unspecified. The result slot is set to null before any search (`0x006220DB`). On success it points to the matched
+rule’s output-vector **descriptor**, not its first element (`0x006220B3`–`0x006220BC`). No match returns AL=0 and
+null. A match with zero outputs returns AL=1 and a non-null descriptor whose begin equals end. Testing pointer
+truth, vector length, or the whole EAX instead of AL loses one of these distinctions.
+
+The descriptor contains `{begin, end, storageEnd}` (three pointers). Elements occupy 8 bytes: piece id u32 at +0,
+metaposition u8 at +4, packed orientation u8 at +5 (rotation low 7 bits, flip bit 7), padding at +6/+7. Preserve
+element order and the orientation byte verbatim. The descriptor and its elements belong to the evaluator; the
+caller neither destroys nor frees them. Copy semantic fields before returning from an observation. Reload,
+type-record clearing and evaluator destruction invalidate borrowed pointers. The caller owns only its result slot.
+Evidence: `0x00622088`–`0x006220BC`, `0x00622177`–`0x00622188`, native consumers at `0x0063401A` and `0x006341EA`.
+
+#### 2.5.2 Evaluator tree and rule records
+
+The type-record vector at +0x24 has begin/end/storageEnd at +0x24/+0x28/+0x2C and contains 4-byte evaluator
+pointers in load order (§2.3). Do not traverse beyond end or past its first null evaluator pointer.
+The evaluator’s +4 is header H and +8 is node count. H is an allocated 0x34-byte sentinel; it is not a rule.
+The ordinary nodes have this layout:
+
+| Node offset | Field |
+|---|---|
+| +0 | red/black colour byte; remaining bytes are padding |
+| +4, +8, +0xC | parent, left child, right child pointers |
+| +0x10 | unsigned map key (centre edge word) |
+| +0x14 | rule’s own centre edge word |
+| +0x18, +0x1C, +0x20 | condition vector begin, end, storageEnd |
+| +0x24, +0x28, +0x2C | output vector begin, end, storageEnd |
+| +0x30 | transform eligibility byte; remaining bytes are padding |
+
+H+4 is the root (null when empty); H+8 is the leftmost node and H+0xC the rightmost. Empty H+8 and H+0xC both
+point to H. Root’s parent is H; missing ordinary children are null, not H. Enumerate in-order from H+8 until H,
+using the child and parent links; never parse the sentinel’s payload. Keys compare **unsigned**. Evaluate considers
+the half-open interval from lower_bound(centre) to upper_bound(centre), in that same in-order traversal. Tree shape,
+colour and allocation addresses are not semantic output. The rule record at node+0x14 is **0x20 bytes** including
+its final eligibility byte and padding. Its key and two vectors occupy the first 7 dwords.
+
+Each condition is 12 bytes: metaposition u8 at +0, padding +1..+3, expected edge word u32 at +4, mask u32 at +8.
+Conditions and outputs retain vector order. All three vector pointers can be null for an empty vector; an empty
+vector can also have allocated capacity. Read only [begin,end), never [end,storageEnd). Evidence: constructor
+`0x00622AB1`–`0x00622ACA`, node copies `0x00622205`–`0x0062222F` and `0x006224B9`–`0x006224EB`, tests
+`0x00622060`–`0x006220AF`, bounds and successor walk `0x006220E1`–`0x00622175`.
+
+Equal keys are significant. Bulk insertion descends right on equality, so a new equal-key rule follows the
+existing equal-key rules in traversal order (`0x00622560`–`0x0062257F`). Rebalancing does not change that order.
+The transformed temporary tree has the same equality policy (`0x00622EB0`–`0x00622ED4`); its in-order entries are
+then appended to the destination (`0x00622F32`–`0x00622F4A`). Compare the resulting sequence, including duplicate
+keys, rather than reducing it to one rule per key or sorting equal keys by output id. The raw input duplicate-key
+rejection of §3 is a separate stage and does not imply uniqueness of the expanded evaluator.
+
+#### 2.5.3 The live neighbourhood
+
+The original network neighbourhood is 0x28 bytes. It is a temporary object on the solver’s stack, not a reference-
+counted interface and not `cSC4TileNeighborhoodCompact` (the latter is only one edge word).
+
+| Offset | Field |
+|---|---|
+| +0 | vtable `0x00AA8700` |
+| +4 | centre edge word for this type |
+| +8, +0xC, +0x10 | edge-cache vector begin, end, storageEnd |
+| +0x14, +0x18 | signed 32-bit centre x, z |
+| +0x1C | original network tool base pointer |
+| +0x20 | network type index |
+| +0x24 | invalid-other-type mask: typebit XOR `0x1FFF`, or zero when the override argument is true |
+
+The constructor-like initializer `0x00627080` is thiscall with x, z, tool-base pointer, type, override-bool (five
+4-byte slots, ret 20), returns this in EAX, installs that vtable and starts an empty cache. Ordinary solving passes
+override=false; separation preview passes true. Centre key is obtained from the tool’s cell info (edge array
+at cell-info +0x18 + 4×type), or zero for no info. See `0x00627096`–`0x006270F1`, `0x00634150`,
+`0x00633FFD`–`0x00634009`.
+
+The two neighbourhood virtual entries are slot 0 at `0x00623F40`, valid(m): thiscall, one metaposition in a
+4-byte slot (low byte meaningful), ret 4, boolean 0/1 in EAX; and slot 1 at `0x00623EE0`, read-edges(m,outWord):
+thiscall, ret 8, writes the unsigned edge word through outWord; no usable return value. Slot 1 computes the target
+position using §1.3’s signed byte offsets and asks the tool for its cell info; slot 0 uses the same position and
+tests cell-info flags at +8 against the invalid-other-type mask. Neither is a destructor. Do not AddRef/Release it.
+
+Cached edge access `0x00621D30` is thiscall on the neighbourhood, arguments m and outWord, ret 8; use outWord,
+not EAX. Cache entries are the same 12-byte shape as conditions, but only metaposition and word at +4 carry the
+cached result; +8 is not a rule mask. A first request calls slot 1 and appends, including a zero result; subsequent
+requests with the same metaposition byte reuse that word. Validity is tested through slot 0, without this cache.
+The cache buffer is game-owned temporary storage and is freed by the original caller after Evaluate. Never keep
+the neighbourhood, its tool or its cache pointer after the observation returns. Evidence: `0x00621D30`–`0x00621DDF`,
+`0x00623EE0`–`0x00623F38`, `0x00623F40`–`0x00623F97`, cleanup `0x006341F9`–`0x0063420A`.
+
+#### 2.5.4 Intersection map observation
+
+The global map at `0x00B452B0` has bucket begin at +4, bucket end at +8, capacity end at +0xC, element count at
++0x10. Buckets are 4-byte node pointers; bucket count is (end−begin)/4. A node is 0x104 bytes: next pointer at +0,
+unsigned id at +4, a 0xFC-byte cIntRule value at +8. Lookups use unsigned id modulo bucket count, followed by the
+next chain until null; zero buckets means empty and must not cause division. Read-only observers must not call
+insert-or-find `0x0062C2F0`: an unknown id creates a rule. Allocation and linking evidence: `0x0062C171`–`0x0062C1D2`;
+lookup evidence: `0x0062C2F0`–`0x0062C337` and the puzzle-piece control’s inline lookup (§2.4.2).
+
+For a structural snapshot enumerate buckets in increasing index and each next chain in order, retaining ids and
+the semantic value fields in §10. Do not mistake chain order for catalogue ordering: the four ring ids in §10.8
+define that. No duplicate map ids exist; repeated sections find and modify the existing value. Snapshot values
+by id for parsed-table comparisons. Vector fields use three pointers as above, with strides given in §10; raw
+pointer values, capacity, allocator fields, string vtables and padding are excluded. The map owns each value and
+its subordinate storage; reload, clear or process exit invalidates them. Tile/tag submaps inside a value are
+separate containers, not aliases of the global buckets. A shadow that compares only tile evaluators must report
+the intersection tables as unobserved, not claim their exactness from an evaluator match.
+
+#### 2.5.5 Observation, readiness and replay limits
+
+For this executable, a record-only observer may wrap the direct Evaluate entry and preserve the original call
+exactly once. Capture evaluator identity (type and vector ordinal), centre/type/mask, cached words, actual edge
+queries, actual validity queries, AL, and a deep copy of the result’s semantic output fields. Restore the original
+return state and result slot to its caller. The entry’s first two instructions occupy exactly 5 bytes and contain
+no relative operand (`0x006220D0`–`0x006220D4`); this is a whole-instruction detour span, with continuation
+`0x006220D5`. The only original direct call sites are `0x0063401A` and `0x006341EA` (continuations `0x0063401F`,
+`0x006341EF`). These facts permit an entry observer without inventing a solver vtable slot. They do not authorize
+calling a replacement instead of the original in record-only mode.
+
+An observation must not prefetch extra positions by calling native accessors. In particular GetCellInfo
+`0x00633220` calls ComputeAndStoreCellInfo when its world-cache lookup misses (`0x00633231`–`0x00633238`), so even
+the apparently read-only neighbourhood getters can change tool caches. Capture actual slot-1 and slot-0 requests
+and their completed outputs within the dynamic extent of Evaluate, together with any pre-existing edge-cache
+entries; do not issue extra native queries or call live Evaluate a second time. Replay the replacement against
+these copied inputs. A replacement request absent from that capture is **incomplete input**, not an exact result;
+record it separately from a mismatch and from no match. Compare boolean success and ordered output fields
+separately. An uncalled evaluator or a centre that bypassed Evaluate is not a tested sample.
+
+All capture, tree traversal and deep copying must finish synchronously on the original calling thread, with no
+tool/solver reentry, reload or application cleanup in between. There is no reference-count pin or locking protocol
+for these objects. This is a lifetime restriction, not a finding that arbitrary background traversal is safe.
+Only detached semantic copies may be sent to another thread. Preserve all native ABI state around observation,
+including return registers and floating-point state; instrumentation failures must leave the original operation
+and its return value intact. No patch or live replay was tested by this RE lane.
+
+Readiness is an **epoch**, not “city loaded” or “nonempty table”. The process byte `0x00B452A8` is written to 1
+**before** ReloadRules is called (normal Init `0x006269F9` then call `0x00626A0D`; PowerLine `0x006269A1` then
+call `0x006269B5`). It is not a completion flag. Observe entry/normal return of ReloadRules `0x006253D0` to invalidate
+the old snapshot and then mark the new epoch complete; its return value is not a loading-success status. Missing
+resources may legitimately leave empty tables. The entry’s first instruction occupies 6 bytes (continuation
+`0x006253D6`), a whole-instruction span without a relative operand. Static cleanup callback `0x006232F0` clears the
+byte and invalidates readiness; the next tool initialization reloads. Do not retain pointers across that boundary.
+For a late observer, take the first snapshot only at a serialized original tool Init return with flag set, or after
+an observed ReloadRules completion; merely polling the byte from another thread is insufficient. A live Evaluate
+proves its own evaluator is in use, not that a complete catalogue comparison has occurred.
+
+Before using any of these addresses require a verified GOG 1.1.641 image and check the exact observation-site
+instruction bytes against that image; fail closed for another build or a conflicting detour. The working executable
+examined here has SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` (whole file,
+2026-10-23); an exact file match is a sufficient build check, with loaded-site checks still required. This does not
+make a version string alone sufficient. Native interoperability facts, including the exact entry bytes and
+relocation restrictions, are published in [the observation ABI](../abi/network-rules-observation.md).
+
+#### 2.5.6 Validated observation boundaries and cleanup quirk (NR17)
+
+*[compat]* The GOG file identified above has stripped base relocations and no base-relocation directory. The
+supported observer therefore requires loaded base `0x00400000`; another base is unsupported even if the file
+fingerprint matches. [The observation ABI](../abi/network-rules-observation.md) publishes exact byte strings,
+RVAs/file offsets, whole-instruction lengths and continuations for Evaluate (5 bytes, continuation `0x006220D5`),
+ReloadRules (6 bytes, continuation `0x006253D6`) and cleanup (5 bytes, continuation `0x006232F5`). None of these
+spans has a relative operand. Cleanup's span contains an absolute address of the process flag, not a displacement
+from the instruction: copying that span to a trampoline at the supported game base retains the address unchanged.
+No bytes are wildcarded or adjusted for an imagined loader relocation. This supplies an engine-readable validation
+reference without asking an implementer to inspect the executable.
+
+*[compat]* Static cleanup is deliberately small and oddly named: for an incoming flag of zero it does not write
+the flag; for **any nonzero byte** it writes zero. In both cases it returns AL=1, not the old flag or a success
+report, and it does not free evaluators, clear rule tables, or destroy the intersection map. Thus cleanup can leave
+allocated native tables present while the lazy-load flag says unloaded. An observer must invalidate readiness on
+cleanup **entry**, even if the byte was already zero, and cannot revalidate the old epoch from the callback's
+return or the continued presence of tables. The next tool initialization supplies the normal reload/completion
+boundary from §2.5.5. Evidence is the complete callback `0x006232F0`–`0x00623302`; its address operand begins at
+`0x006232F1` and the later flag-write operand is at `0x006232FD`. This is a flag reset callback, not proof that
+borrowed objects were destroyed at that instant; the lifetime restriction still forbids carrying native pointers
+across the invalidation boundary.
+
+*[choice]* A record-only observer treats the three sites as one required observation set. Before installation,
+require both the fingerprint and the exact loaded-site bytes in the ABI table; PE timestamp, size and executable
+page membership alone are insufficient. Serialize validation and installation with original execution and any
+other patching so the checked bytes cannot change before use. A mismatch at any site, an unsupported base or a
+conflicting detour leaves this observer disabled and gives no exactness credit. On instrumentation failure,
+preserve the original operation and result and report observation unavailable. Installing hooks, preserving the
+displaced instruction effects and returning to the published continuations remain implementer responsibilities;
+this specification supplies their boundary, not a tested hook. Original-thread capture, loading epochs and
+detached replay remain as in §2.5.5.
 
 ---
 
@@ -1548,3 +1746,66 @@ and the evaluator; the others drive the named function directly.
     in this pass, the old piece/orientation retained, height/edge/flag updates still performed and one local Release.
     A setter unconditionally applied to found occupants fails this vector. With both control bytes zero there is
     no underground second pass.
+36. **Native success channel** (§2.5.1; synthetic native-layout vector). An evaluator has one passing rule whose
+    output descriptor has begin=end=storageEnd=null. Initialize the caller’s result slot to a non-null canary.
+    Evaluate must give AL=1 and a pointer to that descriptor, although the descriptor contains no outputs. With a
+    centre key absent from the evaluator, the same call gives AL=0 and a null result slot. High EAX bits and vector
+    capacity are excluded from comparison. A shadow returning “no match” for both calls fails.
+37. **Output copy boundaries** (§2.5.1–§2.5.2). A matched vector contains two 8-byte records: `(id=0x2600,m=0,
+    orientation=0x81)` and `(id=0x200,m=1,orientation=0x03)`, with distinct nonzero padding and unused capacity
+    holding a third canary record. The semantic copy has exactly those two records, in that order; changing padding
+    or the unused record does not change equality. The observer must not free the descriptor or elements.
+38. **Tree header and unsigned order** (§2.5.2). An empty tree has count=0, H.parent=null and H.left=H.right=H;
+    enumeration produces no rule. A tree containing keys `0xFFFFFFFF`, `0`, `0x80000000` enumerates keys `0`,
+    `0x80000000`, `0xFFFFFFFF`, regardless of allocation order or balanced shape. H’s uninitialized payload is never
+    inspected. Three distinct nodes and three rules are copied; no header rule is invented.
+39. **Equal-key precedence** (§2.5.2, §5.2). Insert three rules with key K using the native bulk-insertion order:
+    A fails a condition, B passes with no outputs, C passes with one output id `0x2600`. Native in-order traversal
+    retains A,B,C, and Evaluate returns success with B’s empty descriptor. Swapping B and C changes the selected
+    result to C. A snapshot keyed only by K, or an unstable sort of equal keys, fails this vector.
+40. **Cache and validity differ** (§2.5.3). Begin with an empty neighbourhood cache. Two condition queries for the
+    same metaposition whose slot-1 result is zero produce one slot-1 call, one cached entry and two zero words;
+    zero is a cached value, not “missing”. Two output checks at that position produce two slot-0 calls. For another
+    network’s bit present at cell-info +8, the normal invalid mask rejects; override=true gives mask zero and
+    accepts. A missing cell gives edges zero and valid=true.
+41. **Record-only capture completeness** (§2.5.5). Original evaluation reads condition m=2, which fails, then
+    selects a later rule with no conditions and no outputs. The capture includes that completed edge request and
+    successful empty result; it includes no validity request. If replacement replay needs edges at m=7 and those
+    edges were neither in the initial neighbourhood cache nor actually queried by the original, report incomplete
+    input, not exact, no-match, or a fabricated zero. The observer makes no new GetCellInfo call and invokes native
+    Evaluate only once.
+42. **Loading epoch** (§2.5.5). Start with flag=0. During original Init, flag becomes 1 before ReloadRules entry;
+    this does not mark the snapshot ready. Reload entry invalidates the previous snapshot; its normal return marks
+    the new epoch complete, even with missing resources and empty trees. Static cleanup clears the flag and makes
+    the snapshot unavailable; the next initialization completes another epoch. City-load notification without an
+    original tool Init or observed reload completion does not satisfy readiness.
+43. **Intersection collisions and lookup** (§2.5.4). A synthetic map has three buckets and nodes for ids 1 and 4
+    in bucket 1, in chain order 4→1→null. Structural enumeration copies 4 then 1; a comparison normalized by id
+    copies two distinct values, and lookup(1) finds the second node. Looking up 7 for observation yields absent
+    without inserting anything. An empty zero-bucket map is empty without division. Ring traversal remains governed
+    by the values’ ring ids, not that bucket chain.
+44. **Build and lifetime rejection** (§2.5.5). A matching version string with a failing executable fingerprint,
+    changed observation-site bytes, or a conflicting detour yields no native-address observation and no exactness
+    credit. In a matching epoch, copy a result’s two semantic records before returning; after reload, only that copy
+    may be compared or queued to another thread. Retaining a node, descriptor or neighbourhood pointer fails.
+45. **Three-site reference** (§2.5.6; ABI validation fixture). For the fingerprinted file loaded at `0x00400000`,
+    provide all three exact entry strings from the observation ABI. Validation accepts the reference, with
+    Evaluate/ReloadRules/cleanup span lengths 5/6/5 and continuations `0x006220D5`/`0x006253D6`/`0x006232F5`.
+    A fixture that displaces only five bytes of ReloadRules fails: that truncates its six-byte first instruction.
+    Acceptance is installation eligibility, not a live shadow result or permission to bypass capture completeness.
+46. **Site checks cannot be replaced by identity** (§2.5.6). Keep the correct disk fingerprint, PE fields and
+    executable-page membership, but change one loaded byte at Evaluate, then independently at ReloadRules and at
+    cleanup. Each case disables the entire observation set, produces unavailable status and earns no exactness
+    credit. Replacing an entry with a jump is also rejected; an existing hook is not silently chained.
+47. **Absolute cleanup operand** (§2.5.6). Copy the published cleanup span to a synthetic trampoline at a different
+    address while the game remains based at `0x00400000`. The copied operand still names `0x00B452A8`; no adjustment
+    for the trampoline location is permitted. Mutate only one of its four operand bytes in the loaded site: validation
+    rejects it. No relocation mask may hide that difference. This is a byte/operand fixture, not execution of a hook.
+48. **Unsupported module base** (§2.5.6). Supply the correct file fingerprint and reference strings but claim loaded
+    base `0x00500000`. Observation is unavailable: the reference image has no loader base relocations. Computing
+    base+RVA or adjusting cleanup's operand does not make this a supported image.
+49. **Cleanup with retained tables** (§2.5.6). Independently start the original callback with flag bytes 0, 1 and
+    `0x7F`, and a nonempty native rule table. All three return AL=1 and finish with flag=0; the zero case does not
+    write the flag. The table is unchanged by this callback in every case. At callback entry the observer invalidates
+    its epoch, including the zero case; neither return AL=1 nor the retained table restores readiness. Only a later
+    observed reload completion or the serialized Init-return condition in §2.5.5 can establish a new ready snapshot.

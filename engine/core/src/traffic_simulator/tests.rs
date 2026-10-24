@@ -2353,7 +2353,9 @@ fn ts20_source_iterator_walk() {
     assert_eq!(it.next_lot(vec![1, 3, 4]), Some(3));
     // The last lot returned is removed: its successor still comes.
     assert_eq!(it.next_lot(vec![1, 4]), Some(4));
-    assert_eq!(it.next_lot(vec![1, 4, 5]), Some(5));
+    // Yielding 4 already advanced to the sentinel. An append now belongs
+    // to the next pass, even before the caller asks for another source.
+    assert!(it.lots_done);
     assert_eq!(it.next_lot(vec![1, 4, 5]), None);
     // Past the end the walk is in the connections.
     assert_eq!(it.next_lot(vec![1, 4, 5, 6]), None);
@@ -3605,7 +3607,10 @@ fn ts20_source_iterator_fast_path_is_the_rule() {
             };
             self.seen = lots.to_vec();
             match next {
-                Some(l) => self.last = Some(l),
+                Some(l) => {
+                    self.last = Some(l);
+                    self.done = lots.iter().position(|&x| x == l) == Some(lots.len() - 1);
+                }
                 None => self.done = true,
             }
             next

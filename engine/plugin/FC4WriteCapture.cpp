@@ -15,6 +15,7 @@
 
 #include "FC4Log.h"
 #include "FC4Interfaces.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 
 #include "cGZPersistResourceKey.h"
@@ -119,6 +120,18 @@ bool WriteCapture::WriteResKey(cGZPersistResourceKey const& k) {
 }
 
 bool WriteCapture::WriteVariant(cIGZVariant const& v) {
+    if (variants_) {
+        // Preserve netocc's opt-in property capture path. The default path
+        // below independently encodes native values for automata comparisons.
+        fc4_props* props = fc4_props_create();
+        const bool ok = fc4::props::CopyVariantToCore(AsGame(&v), 1, props) &&
+            fc4_props_write_variant(props, 1, [](void* ctx, const uint8_t* data, size_t len) {
+                static_cast<WriteCapture*>(ctx)->Put(data, len);
+            }, this);
+        fc4_props_destroy(props);
+        if (!ok) good_ = false;
+        return good_;
+    }
     // foundations §§9.1–9.2, 17.1: capture native variant values through the
     // verified interface, independently of the Rust variant writer being
     // checked by the automaton/construction record shadow.

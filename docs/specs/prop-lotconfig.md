@@ -140,6 +140,16 @@ address** and an eighth and ninth its arguments (exemplar, ID): the original cra
 *[choice]* FreeCity4 copies at most three values, sets the size dwords the property does not give to 0, and keeps
 the upper bytes of +0x14 at 0. Unreachable with shipped data.
 
+**Raw comparison contract (PL23).** With an absent or three-value OccupantSize, profile bytes +0x15..+0x17
+retain the reader's prior stack contents; neither a missing wealth property nor wealth 0 clears them. They
+are copied into the catalogue along with the defined fields: the byte default is at `0x004A3E52`, the byte
+property read at `0x004A3E5A`, and the seven-dword copy at `0x004A3FDE`–`0x004A3FE7`. Thus there is no
+deterministic native value for these three bytes as a function of the exemplar, and no guaranteed raw equality
+with FreeCity4's zero choice. A raw profile comparison must retain these differences. A separately reported
+comparison of defined fields may agree, but earns only that scope, not raw-profile or whole-owner exactness;
+do not copy native padding into the replacement or change its zero default to chase a sample. The six-value
+case in test 13 remains the specified overflow quirk, not evidence that ordinary padding has a fixed value.
+
 ### A3.3 Families
 
 For each value `f` of the exemplar's family property `0x27812870`, in order: create an empty entry for `f` in the
@@ -491,6 +501,18 @@ The same reader builds the object lists of network lot configurations, always wi
 city-detail.md §3.1). The other details of the record (fixed-point offsets, the tag, the generated serial number
 for configurations of version < 2 at `0x00B2166C`) are in lot-developer.md §17.1. The configuration's version is
 property `0x88EDC789`; every shipped configuration has version 2.
+
+**Appended foundation and raw arrays (PL23).** After the retained objects have their positions corrected, a
+present foundation property `0x88FCD877` appends the type-3 object specified in
+[lot-configuration.md §3.7](lot-configuration.md#37-the-foundation-object), even at low detail. Its +0x24 object
+ID retains prior stack contents; this is distinct from its defined +0x20 foundation type. The loader writes
+the surrounding fields at `0x0047A59E`–`0x0047A609`, leaving +0x24 unwritten, and the object copy preserves
+that dword (`0x0047892B`–`0x00478931`). No exemplar-derived deterministic raw ID can be required;
+FreeCity4 keeps its explicit zero choice. Retain every raw-array mismatch and withhold whole-array and
+whole-owner exact credit. A diagnostic may separately identify an appended foundation's +0x24 difference
+and compare all defined fields, but must not suppress the raw difference or assume that the rest of an array
+matches from its first differing record alone. This exception does not apply to object IDs of ordinary
+property-derived records, nor to a foundation's +0x20 type, geometry, flags, order or empty ID list.
 
 **Shipped data** (`SimCity_1.dat` … `SimCity_5.dat`: 1908 lot configurations, all in group `0xA8FBD372`, all
 version 2; 73,832 object properties with at least 10 values). Count by type and LOD:
@@ -864,7 +886,8 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
 1. **Profile defaults.** Catalogue an exemplar with instance `0x1234`, `ExemplarType` 0x1E and no other
    property: slot 8(`0x1234`) true; slot 14 gives `{0x2977AA47, 0, 0, 0, 0, 0, 0}`; slot 15 creates a plain prop
    occupant with prop type `0x1234` and bounding box (0,0,0)–(1,1,1). With OccupantSize (2, 6, 3) the box is
-   (0,0,0)–(2,6,3) and profile +0x04..+0x0C = 2, 6, 3.
+   (0,0,0)–(2,6,3) and profile +0x04..+0x0C = 2, 6, 3. The all-zero wealth dword is FreeCity4's choice:
+   only its low byte is a native default; the upper three bytes are unspecified (§A3.2, PL23).
 2. **Unknown profile.** Slot 14(`0x9999`) → null; slot 13(`0x9999`) → a zero profile; slot 14(`0x9999`) → non-null;
    slot 8(`0x9999`) → false; slot 15(`0x9999`) → false.
 3. **Families.** Exemplars A (families F, G), then B (family F), then A again: family F = [A, B], G = [A].
@@ -910,3 +933,18 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
     record with offset (31.5, 0, 12) and footprint (30.5, 11)–(32.5, 13), ID list [P'] with P' size (2, 1, 2): no
     rebuild; 32.5 > 31.95 + 0.001 → code 4; offset inside → result 4, record unchanged. Walls [W1, X, Y] where W1
     is a catalogued wall type and X, Y are not: X is erased, Y stays; with no earlier problem the result is 6.
+16. **Raw comparisons versus defined fields (PL23).** These are prose conformance vectors; supplied native
+    bytes below illustrate allowed observations, not values a native run is required to produce. Compare the
+    entire profile or complete ordered array first and retain every raw difference. Then report field-level
+    findings separately:
+
+    | Vector | Input / observed native result | FreeCity4 result and required verdict |
+    |---|---|---|
+    | PL23-P | Three-value size (2,6,3), wealth 2; native bytes +0x14..+0x17 = `02 11 22 33`; every other profile byte agrees | `02 00 00 00`; raw mismatch, defined profile fields agree; no raw exact credit |
+    | PL23-Z | Same size, wealth absent; native bytes +0x14..+0x17 = `00 11 22 33` | `00 00 00 00`; same verdict; defaulting wealth does not default padding |
+    | PL23-F | A configuration with property-derived objects followed by foundation type `0x890B7314`; all fields agree except the appended object's native +0x24 = `0x11223344` | Appended +0x20 = `0x890B7314`, +0x24 = 0; raw mismatch, defined array fields agree only after all records and fields are checked |
+    | PL23-D | PL23-F plus a differing earlier prop ID, or differing foundation +0x20 | Raw mismatch **and** defined-field mismatch; the final foundation's unspecified ID cannot explain away the additional difference |
+
+    With no foundation property, no extra record or unspecified foundation ID exists. If unspecified bytes
+    happen to be zero and every other byte agrees, that sample is raw-equal; it does not establish a fixed
+    native default. No vector authorizes importing native bytes or filtering the raw result.

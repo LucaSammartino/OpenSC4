@@ -253,6 +253,252 @@ is separate from the underlying number conversion; `-` cancels zero padding and
 wide-conversion and `%n` quirks remain RZS5. The finite formatting vectors below
 specify the settled subset and are not a complete printf equivalence claim.
 
+### 5.1 Numeric conversion and assembly (RZS6)
+
+These rules describe the bundled runtime in the original executable, with its
+ordinary `.` decimal separator and successful allocations. They are not a request
+to delegate the complete format to a host printf. The owner passes only `%`,
+optional `#`, optional nonnegative precision, and the conversion letter to the
+floating converter (`0x0090F83F`–`0x0090F8CA`). Width, alignment, zero padding and
+positive signs belong to the owner. A floating argument is an IEEE binary64;
+the instructions load, compare and store a double, not a binary32
+(`0x0090F870`–`0x0090F89E`). Ordinary negative values are converted as magnitudes
+and receive an outer minus sign, even when rounding produces zero.
+
+| Conversion | Default / explicit precision | Digits and alternate form |
+|---|---|---|
+| `f` | Default 6; precision counts fractional digits | Fixed decimal notation, with a leading `0` below one; exactly that many fractional digits. At precision zero the point is absent unless `#` is present. |
+| `e`, `E` | Default 6; precision counts fractional digits | One digit before the point; exactly that many after it. Exponent is `e` or `E`, always a sign and **three** decimal digits, including leading zeros. Zero uses exponent `+000`. At precision zero the point is absent unless `#` is present. |
+| `g`, `G` | Default 6 significant digits; explicit zero means 1 | Round to the requested significant digits first. Use exponential notation when the resulting decimal exponent is below -4 or at least the precision, otherwise fixed notation. Remove trailing fractional zeros and then an empty point unless `#` is present. `#` retains the point and the significant-digit zeros. `G` changes the exponent letter, not the spelling of special-value letters. |
+
+The runtime caps floating precision at **512**. Precision above 163 uses a
+separate runtime allocation; if that allocation fails, the converter falls back
+to 163. This is distinct from the owner's output-buffer growth. Defaults, the
+zero-to-one `g` rule, cap and fallback are visible at `0x009F9572`–`0x009F96C6`;
+alternate-point insertion and zero trimming at `0x009F96F5`–`0x009F9721`.
+The `g` notation decision uses the exponent **after rounding**, including a
+carry to a new power of ten (`0x009F6B86`–`0x009F6BBE`). Exponent construction
+uses a three-digit template (`0x009F697F`–`0x009F69D6`).
+
+Decimal conversion has a **17-significant-digit intermediate**, not an unlimited
+exact expansion or shortest-round-trip spelling. The bundled legacy converter
+scales the binary value using its 12-byte extended arithmetic, generates 17
+significant decimal digits and a guard digit, and rounds the magnitude upward
+when the guard is at least 5. Trailing zeros in that intermediate can be omitted;
+they are supplied again when requested by the format. The requested decimal
+rounding is then applied to that intermediate: retain precision+1 significant
+digits for `e`, precision significant digits for `g`, or the digits through the
+requested fractional place for `f`; pad missing digits with zeros. A first
+discarded byte at least ASCII `5` increments the retained magnitude with decimal
+carry. Thus decimal halfway cases round away from zero, not to even. Rounding
+at a place wholly before the first significant digit produces zero, except when
+that first digit is the guard and is at least 5. More than 17 requested significant
+digits expose zero padding of the intermediate, not further binary64 expansion.
+This two-stage rounding, including legacy extended scaling at the last digit,
+is the numeric primitive's compatibility contract; a modern host's correctly
+rounded arbitrary-precision or shortest converter is not an equivalent primitive.
+Evidence: 17-digit request at `0x00A0279E`–`0x00A027AE`, intermediate rounding at
+`0x00A04B63`–`0x00A04B89`, and final guard/carry and decimal-position adjustment
+at `0x00A02687`–`0x00A026A8`.
+
+#### 5.1.1 Finite decimal primitive (RZS7)
+
+For every finite nonzero binary64 magnitude, the following defines the decimal
+digits and decimal position consumed by §5.1. It uses integer arithmetic; no
+host floating-point rounding mode, logarithm or decimal conversion is implicit.
+The result is a digit string `D` and decimal position `d`, representing
+`integer(D) × 10^(d-length(D))`. This is the legacy intermediate, before the
+requested format precision is applied. Negative input uses its magnitude here;
+the owner supplies its sign as already specified. Zero and non-finite inputs
+remain governed by §5.1 above.
+
+**Representation and exact input widening.** A working extended value is
+`(M,E)`, with an unsigned **80-bit significand**, including an explicit leading
+one, and a biased 15-bit exponent, bias 16383. Its magnitude is
+`M × 2^(E-16383-79)`. The 12-byte storage holds little-endian `M` in bytes 0–9
+and sign/exponent in bytes 10–11. This is software arithmetic, not x87's 64-bit
+significand stored in a padded 12-byte slot. Initially the binary64 is widened
+exactly to a 64-bit explicit significand and then extended with 16 zero low
+bits. Equivalently, if its binary64 exponent field is `b` and fraction is `F`:
+
+- Normal input: `M=(2^52+F) × 2^27`, `E=b+15360`.
+- Subnormal input: let `L` be the bit length of nonzero `F`;
+  `M=F × 2^(80-L)`, `E=15308+L`. Do not flush subnormals to zero.
+
+Exact widening and subnormal normalization: `0x00A026C1`–`0x00A02772`;
+insertion of the extra 16 low bits: `0x00A04A4D`, `0x00A04A67`–`0x00A04A80`.
+
+**Legacy multiply.** All multiplications below use this same operation, rounding
+after **each** multiplier. For the positive normal operands reached here,
+split each significand into five unsigned 16-bit limbs, least significant first:
+`A=sum(a_i × 2^(16i))`, `B=sum(b_j × 2^(16j))`. Form the 96-bit integer
+
+`P = sum(a_i × b_j × 2^(16(i+j-4)))`, over exactly the pairs `i+j >= 4`.
+
+There are fifteen such products. Products with `i+j < 4` are omitted entirely:
+their carry is **not** added to `P`. Thus this is not generally
+`floor(A×B / 2^64)`, nor an exact extended multiplication. Set the provisional
+exponent to `E_A+E_B-16382`. Normalize `P` by left shifts until bit 95 is set,
+subtracting one from the exponent for each shift. Split normalized `P` into
+an 80-bit upper part and a 16-bit remainder. Increment the upper part when the
+remainder exceeds `0x8000`, or equals `0x8000` and the upper part is odd.
+This local rounding is nearest, ties to even, **on the truncated product**;
+there is no sticky bit from omitted products. If incrementing carries beyond
+80 bits, use `M=2^79` and increment the exponent. Otherwise the upper part is
+the new `M`. All operands and products reached by finite binary64 extraction
+are normal in this extended range; extended underflow/overflow branches are
+not needed for this primitive. Evidence: fifteen-product accumulation
+`0x00A04E42`–`0x00A04EB4`, normalization `0x00A04EB6`–`0x00A04EE7`, rounding
+and storage `0x00A04F22`–`0x00A04F8C`. The later **decimal** guard rounding
+remains half-up, a separate operation.
+
+**Scaling constants.** The table gives the raw stored `(E,M)`, in hexadecimal,
+for the powers needed by binary64 extraction. All significands contain exactly
+20 hex digits; the leading integer bit is included. They are data constants,
+not powers to regenerate using host arithmetic. Before using a selected table
+entry, if its low 16 bits are at least `0x8000`, decrement its 32-bit field in
+bits 16–47 by one, leaving the other fields unchanged. For every listed entry
+to which this applies, this is simply `M := M-0x10000`. This adjustment occurs
+on a temporary copy and does not change the table. Do not apply it to the
+separate correction constant below. The argument preserving the low 16 bits of
+the current value is enabled on this path (`0x00A04A75`, `0x00A04FE5`–`0x00A04FED`).
+
+| k | Raw `10^k`: E : M | Raw `10^-k`: E : M |
+|---|---|---|
+| 1 | `4002:A0000000000000000000` | `3FFB:CCCCCCCCCCCCCCCDCCCD` |
+| 2 | `4005:C8000000000000000000` | `3FF8:A3D70A3D70A3D70A3D71` |
+| 3 | `4008:FA000000000000000000` | `3FF5:83126E978D4FDF3B645A` |
+| 4 | `400C:9C400000000000000000` | `3FF1:D1B71758E219652CD3C3` |
+| 5 | `400F:C3500000000000000000` | `3FEE:A7C5AC471B4784230FD0` |
+| 6 | `4012:F4240000000000000000` | `3FEB:8637BD05AF6C69B6A640` |
+| 7 | `4016:98968000000000000000` | `3FE7:D6BF94D5E57A42BC3D33` |
+| 8 | `4019:BEBC2000000000000000` | `3FE4:ABCC77118461CEFDFDC2` |
+| 16 | `4034:8E1BC9BF040000000000` | `3FC9:E69594BEC44DE15B4C2F` |
+| 24 | `404E:D3C21BCECCEDA1000000` | `3FAF:9ABE14CD44753B53C492` |
+| 32 | `4069:9DC5ADA82B70B59EF020` | `3F94:CFB11EAD453994BA67DE` |
+| 40 | `4083:EB194F8E1AE525FD5DD0` | `3F7A:8B61313BBABCE2C62324` |
+| 48 | `409E:AF298D050E4395D79671` | `3F5F:BB127C53B17EC1595561` |
+| 56 | `40B9:82818F1281ED44A0BFF9` | `3F44:FB158592BE068D2FEED7` |
+| 64 | `40D3:C2781F49FFCFA6D53CBF` | `3F2A:A87FEA27A539E9A53F24` |
+| 128 | `41A8:93BA47C980E98CE0C66F` | `3E55:DDD0467C64BCE4A1AC7D` |
+| 192 | `427C:E070F78D3927556B85BC` | `3D81:91FF83775423CC067B63` |
+| 256 | `4351:AA7EEBFB9DF9DE8EDDBC` | `3CAC:C0314325637A193AFA91` |
+| 320 | `4426:81842F29F2CCE376E6A1` | `3BD7:FD00B897478238D18921` |
+
+The first seven positive entries occupy `0x00B19D00`–`0x00B19D48`, the next
+seven start at `0x00B19D54`, and the 64-power group starts at `0x00B19DA8`;
+negative groups start at `0x00B19E60`, `0x00B19EB4`, `0x00B19F08`. Entries
+are 12 bytes apart. Selection, temporary adjustment and multiply are confirmed
+at `0x00A04FF7`–`0x00A05031`.
+
+**Decimal position and order of operations.** For the widened input, set `H`
+to its top significand byte, `floor(M/2^72)`. The initial decimal-position
+estimate is the signed integer
+
+`d = floor((E×0x4D10 + 0x4D×(floor(E/256)+2H) - 0x134312F4) / 65536)`.
+
+The division rounds toward negative infinity, as an arithmetic right shift
+does; do not replace it with truncation toward zero. These integer operations
+do not overflow signed 32 bits for finite binary64 inputs. Scale the working
+value by `10^-d`, decomposing `abs(d)` in base eight. Visit the base-eight
+digits from least significant to most significant. A nonzero digit `r` in
+position `j` selects the table power `k=r×8^j`; select `10^-k` for positive
+`d`, `10^k` for negative `d`. Apply its adjustment, then the legacy multiply,
+before visiting the next digit. A zero digit performs no multiplication;
+`d=0` performs none. Do not combine constants or reverse their order.
+
+If the scaled exponent is at least `0x3FFF`, increment `d` once and apply one
+additional legacy multiply with the fixed constant
+`E=0x3FFB, M=0xCCCCCCCCCCCCCCCCCCCC`. This constant is slightly below one tenth
+and differs from the table's raw and adjusted `10^-1`. There is no reciprocal
+correction for a value just below a decimal boundary. Estimate and one-step
+correction: `0x00A04A42`–`0x00A04AA2`; fixed constant:
+`0x00A0496B`–`0x00A04997`.
+
+**Digit extraction and decimal rounding.** Convert the final scaled `(M,E)`
+to the unsigned fixed-point integer
+`R = floor((M×2^8) / 2^(16382-E))`. Here `E <= 16382`; this conversion
+discards low bits without rounding. Obtain eighteen successive digits: each
+digit is the integer part of `10R / 2^88`, and the new residue is `10R modulo
+2^88`. This is exact integer extraction from that fixed-point value, with no
+further extended or binary64 rounding. Retain the first seventeen characters,
+then increment their decimal magnitude if the eighteenth is at least `5`.
+Propagate carry through `9`s; carry past the first character leaves `1` and
+increments `d`. Omit trailing zeros in the resulting seventeen-character
+field; missing digits at subsequent requested precision mean zeros. Extraction
+can begin with `0` just below a boundary: do not insert a normalization step
+that would change which eighteen digits are generated. The guard rounding
+itself can correct that leading zero. Fixed-point setup:
+`0x00A04AC9`–`0x00A04B07`; digit extraction:
+`0x00A04B09`–`0x00A04B61`; guard, carry and trimming:
+`0x00A04B63`–`0x00A04BC9`. The caller requests seventeen digits with the
+fractional-mode flag off (`0x00A0279E`–`0x00A027AE`).
+
+For example, exact binary64 `1000000000000000.25` (bits `430C6BF526340002`)
+has estimate `d=15`. Its scaling uses adjusted `10^-7`, then adjusted
+`10^-8`, then the separate correction constant, incrementing `d` to 16.
+After those multiplies the significand is `CCCCCCCCCCCCDB362616`, exponent
+`0x3FFB`. Its eighteen extracted characters are `100000000000000024`, so the
+intermediate is `D=10000000000000002, d=16`. Exact rational conversion rounded
+half-up directly to seventeen digits would instead end in `3`. At `%.2f`,
+the legacy result is therefore `1000000000000000.20`, not `.25` or `.30`.
+Even input `1.0` takes the correction multiply: its eighteen characters are
+`099999999999999999`, which guard-round and trim to `D=1, d=1`. These quirks
+are observable at requested precisions beyond the intermediate's digit count.
+
+RZ41–RZ50 below are static deductions from the instructions and stored
+constants, checked by integer reconstruction and exact rational comparison;
+they are not native execution measurements.
+
+#### 5.1.2 Signs, special values and owner field assembly
+
+Both signs of input zero produce unsigned zero digits: the runtime normalizes
+zero's sign (`0x00A04BBB`–`0x00A04BC9`) and the owner's less-than-zero test does
+not extract a minus from negative zero. The owner's `+` or space flag can still
+add its requested sign. A negative nonzero value that rounds to zero keeps the
+owner's minus. The floating primitives do not emit C99 `inf`/`nan`: their
+intermediate text is `1#INF` for infinity, `1#QNAN` for a quiet NaN, or `1#IND`
+for the canonical negative indefinite NaN (binary64 `FFF8000000000000`).
+The runtime also has `1#SNAN` for a signaling NaN, but the owner's x87 double
+load/comparison can quiet signaling inputs before conversion; this is not a
+payload-preserving stringification interface. Special text has decimal position
+1 and passes through the same precision, point, rounding and zero-trimming rules
+as digits, so default `f` gives `1.#INF00`, default `e` gives
+`1.#INF00e+000`, and default `g` gives `1.#INF`. Precision can truncate or even
+increment the letters: `%.2f` of positive infinity gives `1.#J` because the
+discarded `N` exceeds ASCII `5` and increments retained `I`. Case conversion
+letters do not lowercase these markers. Negative infinity uses the outer minus;
+negative NaNs retain the runtime's inner minus because unordered comparison does
+not extract it. Consequently `%+g` of canonical negative indefinite gives
+`+-1.#IND`. These are compatibility quirks, not errors to normalize. Special
+markers and sign classification: `0x00A049C1`–`0x00A04A40`; outer comparison:
+`0x0090F875`–`0x0090F89A`; final runtime sign: `0x009F9722`–`0x009F972C`.
+
+`p` consumes one 32-bit pointer value and produces exactly **eight uppercase
+hexadecimal digits**, including `00000000` for null, without `0x`. The owner
+calls the runtime with bare `%p`; its precision, `#`, `+` and space flags do not
+change the pointer digits or add a prefix/sign. Width and `-`/`0` still apply to
+the eight digits. Evidence: pointer dispatch `0x0090F97A`–`0x0090F984`, runtime
+eight-digit precision and hexadecimal selection `0x009F97B5`–`0x009F97CA`.
+
+Integer digits are obtained without forwarding precision, width or `#` to the
+runtime (`0x0090F7B6`–`0x0090F824`, `0x0090F99F`–`0x0090FA16`). Consequently
+zero with zero precision is still `0`, for every integer radix. Integer
+precision is a minimum **digit count** and inserts leading zeros; it never
+suppresses digits. Alternate `o` unconditionally adds one extra `0`; alternate
+`x`/`X` unconditionally adds `0x`/`0X`, including for zero and even when octal
+precision already supplies a leading zero. Prefix bytes do not count toward
+the precision. Unlike conventional printf, numeric precision does **not**
+disable `0` field padding. Width accounts for digits, precision zeros, prefix
+and sign. With right alignment, field padding precedes the prefix, then come
+precision zeros and digits; zero field padding can therefore occur **before**
+`0x`. A sign precedes zero field padding, but follows space field padding.
+With `-`, zero padding is disabled and any width deficit becomes trailing spaces.
+Only signed integer/floating families acquire the `+`/space sign.
+Evidence: precision/prefix selection `0x0090FA42`–`0x0090FA8A`, sign and width
+accounting `0x0090FA8C`–`0x0090FAFE`, and prefix/precision/digit emission
+`0x0090FB03`–`0x0090FB78`.
+
 ## 6. cSCStringDetokenizer: state, interface and lifetime *[compat]*
 
 The base object holds a vptr at +0x00, unsigned reference count at +0x04, a
@@ -434,6 +680,36 @@ are part of the expected result.
 | RZ18 | Nonempty; Sprintf(`x=%s %%`, `ok`); then Sprintf(empty) | `x=ok %`; then empty; both return receiver |
 | RZ19 | Sprintf(`%04u`,7); Sprintf(`%-4s`, `ab`) | `0007`; `ab  ` |
 | RZ20 | [41 00 58].BeginsWith([41 00],2); EndsWith([00 59],2) | true; false |
+| RZ21 | Sprintf separately with `%.0d`, `%.0u`, `%.0o`, `%.0x`, `%.0X`, argument zero | `0` in every case |
+| RZ22 | Sprintf `%#o`, `%#x`, `%#X`, argument zero | `00`; `0x0`; `0X0` |
+| RZ23 | Sprintf `%#.3o`, 1; `%#.3x`, 1; `%#.3X`, 1 | `0001`; `0x001`; `0X001` |
+| RZ24 | Sprintf `%08.3u`, 7; `%#08.3x`, 1; `%#8.3x`, 1 | `00000007`; `0000x001`; `   0x001` |
+| RZ25 | Sprintf `%+08.3d`, 7; `%-08.3u`, 7 | `+0000007`; `007     ` |
+| RZ26 | Sprintf `%p`, pointer bits 0 / 0x12AB / 0xFFFFFFFF | `00000000`; `000012AB`; `FFFFFFFF` |
+| RZ27 | Sprintf `%#+.2p`, pointer 0x12AB; `%010p`, same; `%-10p`, same | `000012AB`; `00000012AB`; `000012AB  ` |
+| RZ28 | Sprintf `%f`, 1.25; `%e`, 1.25; `%E`, 1.25; `%g`, 1.25 | `1.250000`; `1.250000e+000`; `1.250000E+000`; `1.25` |
+| RZ29 | Sprintf `%.0f`, 0.5; `%.0f`, 2.5; `%.2f`, 0.125; `%.2f`, -0.125 | `1`; `3`; `0.13`; `-0.13` |
+| RZ30 | Sprintf `%.2f`, binary64 bits 0x4005666666666666 (nearest 2.675); `%.20f`, bits 0x3FB999999999999A (nearest 0.1) | `2.67`; `0.10000000000000001000` |
+| RZ31 | Sprintf `%.2e`, 12.5; `%.2E`, 0.125; `%.0e`, 0.0 | `1.25e+001`; `1.25E-001`; `0e+000` |
+| RZ32 | Sprintf `%.0f`, 1.0; `%#.0f`, 1.0; `%#.0e`, 1.0 | `1`; `1.`; `1.e+000` |
+| RZ33 | Sprintf `%.4g`, 0.000125; `%.4g`, 0.0000125; `%.4G`, 10000.0 | `0.000125`; `1.25e-005`; `1E+004` |
+| RZ34 | Sprintf `%.4g`, 9999.5; `%.0g`, 12.5; `%#.4g`, 12.5; `%#.4G`, 10000.0 | `1e+004`; `1e+001`; `12.50`; `1.000E+004` |
+| RZ35 | Sprintf `%+010.2f`, 1.25; `%010.2f`, -1.25; `%-010.2f`, 1.25 | `+000001.25`; `-000001.25`; `1.25      ` |
+| RZ36 | Sprintf `%f`, negative zero bits 0x8000000000000000; `%+g`, same; `%.0f`, -0.125 | `0.000000`; `+0`; `-0` |
+| RZ37 | Sprintf `%f`, `%e`, `%G` separately, positive infinity bits 0x7FF0000000000000 | `1.#INF00`; `1.#INF00e+000`; `1.#INF` |
+| RZ38 | Sprintf `%f`, quiet NaN bits 0x7FF8000000000000; `%g`, same; `%+g`, negative indefinite bits 0xFFF8000000000000 | `1.#QNAN0`; `1.#QNAN`; `+-1.#IND` |
+| RZ39 | Sprintf `%.0f`, `%.2f`, `%.3f` separately, positive infinity | `1`; `1.#J`; `1.#IO` |
+| RZ40 | Sprintf `%.513f`, 1.0; `%#.0g`, 1.0 | `1.` followed by 512 zeros (length 514, successful allocation); `1.` |
+| RZ41 | Magnitude bits `0000000000000001` (smallest positive subnormal); Sprintf `%.20e` | Raw eighteen digits `494065645841246544`; `D=49406564584124654, d=-323`; `4.94065645841246540000e-324` |
+| RZ42 | Magnitude bits `7FEFFFFFFFFFFFFF` (largest finite); Sprintf `%.20e` | Raw `179769313486231570`; `D=17976931348623157, d=309`; `1.79769313486231570000e+308` |
+| RZ43 | Magnitude bits `000FFFFFFFFFFFFF` (largest subnormal); Sprintf `%.16e` | Raw `222507385850720088`; `D=22250738585072009, d=-307`; `2.2250738585072009e-308` |
+| RZ44 | Magnitude bits `0010000000000000` (smallest normal); Sprintf `%.16e` | Raw `222507385850720138`; `D=22250738585072014, d=-307`; `2.2250738585072014e-308` |
+| RZ45 | Bits `430C6BF526340002`, exact `1000000000000000.25`; Sprintf `%.2f` | Raw `100000000000000024`; `D=10000000000000002, d=16`; `1000000000000000.20`; direct exact-to-17-digit half-up would give `D=10000000000000003` |
+| RZ46 | Bits `430C6BF526340006`, exact `1000000000000000.75`; Sprintf `%.2f`; repeat with sign bit set (`C30C6BF526340006`) | Raw magnitude `100000000000000074`; `D=10000000000000007, d=16`; `1000000000000000.70` / `-1000000000000000.70`; exact-to-17-digit half-up would end `8` |
+| RZ47 | Bits `42D6BCC41E900008`, exact `100000000000000.125`; Sprintf `%.3f` | Raw `100000000000000124`; `D=10000000000000012, d=15`; `100000000000000.120`; exact-to-17-digit half-up would end `3` |
+| RZ48 | Bits `3FB999999999999A` (binary64 nearest to 0.1); Sprintf `%.20e` | Raw `100000000000000005`; `D=10000000000000001, d=0`; `1.00000000000000010000e-001` |
+| RZ49 | Bits `3FF0000000000000` (1.0); Sprintf `%.20e` | Raw `099999999999999999`; `D=1, d=1`; `1.00000000000000000000e+000` |
+| RZ50 | Bits `4415AF1D78B58C40` (exact 10^20); Sprintf `%.16e` | Raw `999999999999999999`; guard carry gives `D=1, d=21`; `1.0000000000000000e+020` |
 | DT01 | Fresh base instance; literal `a<b` -> distinct output | true, `a<b`, no callbacks; HTML byte zero |
 | DT02 | Set value `City`=`Oak`; parse `Hi # city #!` | true, `Hi Oak!` |
 | DT03 | Set same key `CITY`=`Elm`; also named callback for `city` | true, `Elm` for `#City#`; callback not invoked |

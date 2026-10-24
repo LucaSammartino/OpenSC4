@@ -361,6 +361,62 @@ fn shadow_follows_any_pacing() {
     }
 }
 
+/// The native safe iterator advances before yielding the last lot (zones
+/// §8.3.1). A frame can append a lot while that source is still being worked;
+/// the exhausted cursor must not visit it in the current phase.
+#[test]
+fn shadow_follows_append_after_last_source_yield() {
+    for phase in [cycle_state::CONFIRM_TRIPS, cycle_state::FULL_TRIPS] {
+        let w = World::new();
+        ten_sources(&w);
+        let orig = sim(&w);
+        orig.set_traffic_units_per_slice(1);
+        orig.enter_cycle_state(phase);
+        orig.update_state(|s| s.shadow_lazy = true);
+        let mut live = Live::default();
+        let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+        let mut reached_last = false;
+        for step in 0..80 {
+            let r0 = capture(&orig, &mut live);
+            sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+            orig.shadow_day_start();
+            orig.shadow_slice();
+            // Stand in for the native cursor independently of SourceIter:
+            // the final node's next pointer was the sentinel when yielded.
+            reached_last = orig.read_state(|s| s.iter.last_lot == Some(109));
+            if reached_last {
+                orig.update_state(|s| s.iter.lots_done = true);
+            }
+            let r1 = capture(&orig, &mut live);
+            let out = sh.after(Some(r1), &live);
+            assert_eq!(out.mismatches, 0, "phase {phase} step {step}: {:?}", out.lines);
+            if reached_last {
+                break;
+            }
+        }
+        assert!(reached_last);
+        assert_eq!(orig.cycle_state(), phase);
+        w.add_lot(110, Lot::new(CellRect::new(4, 5, 4, 5), 610));
+        w.set_trips(Source::Lot(110), vec![TripData::new(1, 0, 0, 0, status::SEARCH)]);
+        // The rest of this phase ignores the new lot, including when the
+        // clock retries the unfinished day before advancing to another day.
+        for step in 0..8 {
+            let r0 = capture(&orig, &mut live);
+            sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+            orig.shadow_day_start();
+            orig.shadow_slice();
+            let r1 = capture(&orig, &mut live);
+            let out = sh.after(Some(r1), &live);
+            assert_eq!(out.mismatches, 0, "phase {phase} retry {step}: {:?}", out.lines);
+            if orig.cycle_state() != phase {
+                break;
+            }
+        }
+        assert_ne!(orig.cycle_state(), phase);
+        assert_eq!(sh.stats.resyncs, 0);
+    }
+}
+
 /// A trip list and a grid value the original left differently from the
 /// copy are reported.
 #[test]

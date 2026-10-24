@@ -12,11 +12,16 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   ellipse spans, result-1 filled-ellipse subdivision/repeated-first-pair quirk,
   curve grouping and line input conversion. §3.3 settles Blt/BltTiled arguments
   and cleanup; §4.2 settles buffer gradient conversion. Remaining: complete
-  outline subdivision, integer-line diagonal ties and clipping, polygon closure
-  and exact coverage/tessellation. This question is not yet fully answered.
-  Evidence next: helpers around `0x0082CC60`,
-  `0x0082D040`–`0x0082E130`, `0x0082F970`–`0x0082FC30`; verify float widths,
-  rounding and intermediate precision against instruction bytes.
+  non-AA result-1 outline subdivision and integer-line diagonal ties/clipping.
+  This question is not yet fully answered.
+  **Round-2 partial evidence 2026-10-24 (re-gzgraphics-gzg5b):**
+  §§3.2.2–3.2.5 settle directional integer endpoint examples, ordered-chain
+  polygon closure/coverage, the direct triangle fan, outline-to-cubic conversion
+  and exact adaptive cubic subdivision including its N+1-segment overshoot.
+  V79–V86 preserve these contracts; the earlier both-endpoints example is corrected.
+  Evidence next: non-AA outline helper `0x0082DB00` and general integer-line
+  helper `0x0082D040`; include diagonal ties, thin clips and clipping phase.
+  Verify float widths, rounding and intermediate precision against instruction bytes.
 - **GZG2 — section 4, hardware/SimGL and AA geometry:** finish the
   hardware extension-slot inventory, hardware base defaults/Shutdown, exact
   source bounds and texture/gradient subdivision, buffer AA edge coverage,
@@ -35,14 +40,6 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   Remaining audit includes folded driver slots
   17/20. Relevant owners are `cGZGraphicSystem` and `cGZGraphicSystemW32`,
   including unnamed helpers in region `0x00980000`.
-- **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
-  primary slots and subinterface thunk mappings; settle HWND ownership, window
-  creation/reconfiguration failure cleanup, event pump ordering and every
-  Windows keyboard/mouse/focus/resize/quit translation. Confirm names/units of
-  the two words set by message `0xFA0C6390`, IID `0x1A0C615F`, subtype 13.
-  Evidence next: `0x0098C690`, `0x0098CDB0`, `0x0098D080`, `0x0098D230`,
-  `0x0098D9C0`, `0x0098DC40`–`0x0098DD70`; instructions are needed where
-  adjusted-this and message locals are incorrectly typed in the export.
 - **GZG5 — section 6, standalone alpha operations and loader details:** settle
   GenericBufferClip's exact rectangle/output mutation and all clipped versus
   NoClip alpha/shade/shadow/bright/stretch/half-source formulas, supported
@@ -56,5 +53,8 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   GenericBufferClip mutation and low-byte return, the ordinary AlphaBlt wrapper's
   local rectangle copies, and legacy loader argument widths, two-division
   quantization, raw mask bytes, unchecked reads, reference leaks and invalid
-  lock-failure free. Remaining: stretch clipping and the standalone pixel
-  kernels/formats/lock contracts. This question is not yet fully answered.
+  lock-failure free. **Round-2 partial evidence 2026-10-24
+  (re-gzgraphics-gzg5b):** §6.3.1 now settles stretch clipping, delayed source
+  mutation, half-scale single-pixel rejection, x87 truncation and collapsed-axis
+  repair, with V87–V90. Remaining: standalone pixel kernels/formats/lock
+  contracts. This question is not yet fully answered.

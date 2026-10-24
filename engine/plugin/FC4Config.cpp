@@ -357,6 +357,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "advisors_shadow",
                                   // Inherited automata and construction record comparison (default off).
                                   "automata_owners_shadow",
+                                  "netocc_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
