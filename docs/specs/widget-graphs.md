@@ -5,7 +5,8 @@ Scope: the graph owners as tools/coverage.py assigns them on `bb641878`:
   ticks and labels, title, drawing helpers, dynamic decoration objects;
 - `cGZBarGraph` (5 functions, 467 bytes), `cGZLineGraph` (2, 188), `cGZScatterGraph` (3, 169) (§7): what those
   owners hold (constructors, hit test, redraw);
-- `cGZPieGraph`: §8 (lane re-gzpie7).
+- `cGZPieGraph` (78 functions, 7,833 bytes, §8): the pie graph, plus point-series code of the scatter graph that
+  folding put in this owner (lane re-gzpie7).
 
 Most of the drawing (axes, grids, ticks, labels, title, series) is in folded functions that tools/coverage.py
 attributes to `<shared>` and that are out of this scope; they are cited by their window slot (§5.2).
@@ -219,6 +220,160 @@ Left down: `GZSetCapture`, true. Left up: release when capturing, true. Move whi
   (`0x009BA033`): `cGZGraph`'s, the vtables, `+0x230` := 1, `+0x234`…`+0x24C` := 0, `+0x250` := `0x80000000`;
   tick text on for both axes.
 
+## 8. `cGZPieGraph` and the folded scatter-data code *[compat]*
+
+The `cGZPieGraph` owner (78 functions, 7,833 bytes) holds the pie graph and, by folding, the point-series code the
+scatter graph's vtables call (§8.6). Pie object `0x28C` bytes; data interface `cIGZPieGraph` (IID `0x42CF2351`) at
+`+0x22C`.
+
+### 8.1 Identity and fields
+
+- **`QueryInterface`** (window slot 0, `0x009B2BEF`): `0x42CF2351` → `+0x22C`; else `cGZGraph`'s. Thunks
+  `0x009BA307` (G 0), `0x009BA312` (data slot 0).
+- **Overrides**: window 4 `Init` (`0x009B28C9` = `cGZGraph::Init`), 5 `Shutdown` (`0x009B6557`), 148 destructor
+  (`0x009BAB87`, body `0x009BA349`), 151 default fonts (`0x009B946F`), 157 `DrawGraphData` (`0x009B6AE5`); G 12
+  `SetGraphArea` (`0x009B2F92`), G 14 (`0x009B2935`, the base redraw).
+- **Constructor** (`0x009BA216`): `cGZGraph`'s, the three vtables, then the values below; it also turns off every
+  tick, grid and tick text of both axes (`+0x14C`…`+0x156` := 0).
+
+| Offset | Meaning | Constructor value |
+|---|---|---|
+| `+0x230` | style: 0 flat disc, 1 3D (masks) | 0 |
+| `+0x234` | percentage texts on (byte) | 1 |
+| `+0x238..+0x240` | the values (`vector<float>`) | empty |
+| `+0x244` | percentage decimal places | 0 |
+| `+0x248..+0x250` | series info (`vector`, 0x1C-byte records: `+0` colour, `+4` text colour, `+8` name) | empty |
+| `+0x254` | minimum fraction shown with a text | 0.0 |
+| `+0x258`, `+0x25C` | percentage font (counted), colour | null, `0x80000000` |
+| `+0x260`, `+0x264` | shading mask and shape mask (`cIGZBuffer`, counted) | null |
+| `+0x268..+0x274` | disc rectangle | `0x7FFFFFFF`, `0x7FFFFFFF`, `0x80000000`, `0x80000000` |
+| `+0x278..+0x284` | the shape mask's opaque bounding box (min x, min y, max x + 1, max y + 1) | 0 |
+| `+0x288` | 3D depth (pixels) | 0 |
+
+`Shutdown`: release both masks and the percentage font, then `cGZGraph::Shutdown`. Destructor body: vtables,
+`Shutdown`, the info and value vectors, the base body.
+
+### 8.2 The `cIGZPieGraph` slots
+
+Vtable `0x00ADF188`, 31 slots. 1/2 are AddRef/Release thunks (`0x009B9EC8`, `0x009B9ED3`, `this − 0x22C`), 3/4
+the `Init`/`Shutdown` thunks (`0x009BA31D`, `0x009BA333`), 29 `AsIGZWin` (`0x009B9EF4`). "Index `−1`" means the last
+or all, as stated.
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 5 `SetStyle(s)` | `0x009B2C1C` | `+0x230` (a shared dword setter) |
+| 6 `Set3DViewMaskBuffers(shade, shape)` | `0x009B2C77` | §8.3 |
+| 7 `GetLineFromCenterOfDiskToEdge(f, &centre, &edge)` | `0x009B2DEB` | §8.3 |
+| 8 `GetPositionForPercentageText(f0, f1, &out)` | `0x009B2F12` | §8.3 |
+| 9 `GetPositionForPercentageText(i, &out)` | `0x009B69A6` | normalise (slot 10), `f0` = the sum of fractions before `i`, slot 8 `(f0, f0 + fᵢ, out)` |
+| 10 `MakeNormalizedDataArray(&values, &out)` | `0x009B952D` | `out[i] = |vᵢ| / max(Σ|v|, 0.0001)` |
+| 11 | `0x009BA0D0` | G 14 through the graph interface (`this − 0x154`) |
+| 12 `DrawGraphData(buffer)` | `0x009BA33E` | thunk to window slot 157 |
+| 13 | `0x009BA328` | G 12 `SetGraphArea` through the graph interface |
+| 14 `SetPercentageTextDecimalPlaces(n)` | `0x009B2C26` | `min(n, 9)` (unsigned) |
+| 15 `SetPercentageTextFont(font, colour)` | `0x009B28FB` | as the base font setters |
+| 16 `SetMinPercentageToDisplay(f)` | `0x009B2C38` | below 0 → 0; above 1 it is read as a percentage (× 0.01) and then capped at 1 |
+| 17 `SetSeriesCount(n)` | `0x009BBF9B` | resize the info vector to `n`; every record with an empty name takes the default record `i & 7` of the table at `[0x00BAC08C]` (8 records). The values are not resized |
+| 18 `InsertSeries(i)` | `0x009BB7E1` | `−1`: append value 1.0 and a default info record; `i <` count: insert both at `i` |
+| 19 `RemoveSeries(i)` | `0x009BB86A` | `−1`: drop the last value and info record; `i <` count: erase both |
+| 20 `RemoveAllSeries` | `0x009B581D` | slot 19 `(−1)` count times |
+| 21 `SetSeriesColor(colour, i, textColour)` | `0x009B583D` | `−1`: all records; `i <` info count: that one |
+| 22 `SetSeriesName(name, i)` | `0x009BA3B2` | `−1`: all; else that one |
+| 23 `SetSeriesInfo(info*, i)` | `0x009BA41A` | copy the record (colour, text colour, name) |
+| 24 `InsertSeriesInfo(info*, i)` | `0x009BB8B8` | `−1`: append; `i <` count: insert |
+| 25 `RemoveSeriesInfo(i)` | `0x009BB8F7` | `−1`: drop the last; `i <` count: erase |
+| 26 `InsertData(v, i)` | `0x009B96D4` | only for `−1` or `i <` value count. `−1` → `i := count`; with `n = i + 1`, grow the info (slot 17) and the values to `n` when shorter; then slot 28 `(v, i)`. So an existing index is overwritten, not inserted |
+| 27 `RemoveData(i)` | `0x009B65A0` | `−1` with exactly one value → 0; `i <` count: erase |
+| 28 `SetData(v, i)` | `0x009B58AB` | `−1` with exactly one value → 0; `i <` count: store |
+| 30 `AsIGZGraph` | `0x009BA2F4` | `this − 0x22C + 0xD8`, null-safe |
+
+### 8.3 Geometry
+
+- **`SetGraphArea(rect)`** (G 12): store the plot area, then the disc rectangle `:=` the mask bounding box offset by
+  the plot area's left and top.
+- **`Set3DViewMaskBuffers(shade, shape)`** (slot 6): hold both (AddRef new, release old). With `shade` set: no
+  `shape` → return; else style := 1. With `shape` and `Lock(0x8080)`: the key colour is its pixel (0, 0) (buffer
+  slot 21); the bounding box of every other pixel goes to `+0x278..+0x284` (max + 1). No such pixel: disc rectangle
+  `{0, 0, W, H}` and depth 0. Otherwise the disc rectangle is the box offset by the plot area's left and top, and
+  depth `:= shade.H − (max y + 1)`. Unlock.
+- **`GetLineFromCenterOfDiskToEdge(f, &c, &e)`** (slot 7): `θ = 2π·f + π/2`; `c` = the disc centre (`(l + r) / 2`,
+  `(t + b) / 2`, integer); `e.x = c.x + ftol(cos θ · w / 2)`, `e.y = c.y − ftol(sin θ · h / 2)` with `w`, `h` the
+  disc's size. Style 1 computes the second term as `sin θ · w/2 · (h / w)`. Other styles leave `e` unwritten.
+  So fraction 0 points straight up and the slices run counter-clockwise.
+- **`GetPositionForPercentageText(f0, f1, &out)`** (slot 8): slot 7 at `(f0 + f1) / 2`; `k = 0.6`, or 0.8 when
+  `f1 − f0 ≤ 0.1`; `out = c + ftol((e − c) · k)` per coordinate.
+
+### 8.4 Drawing (`DrawGraphData(buffer)`, window slot 157)
+
+Normalise the values (slot 10). Let `fᵢ` be the fractions, `s` the running start, `cᵢ`/`tᵢ` the record's colour and
+text colour, and "radial(s, colour)" a G 43 line from the centre to slot 7's edge point (width 1); the last slice
+closes on the first edge point.
+
+**Style 0 (flat):**
+1. Disc := the plot area inset by 1 on each side, made square (the longer side shortened).
+2. Lock `0x8100`: `FillEllipse(buffer, disc, 0xEEEEEEEE)`, unlock.
+3. Each slice: lock `0x8004`, radial(s) and radial(s + fᵢ) in `cᵢ`, unlock; `p :=` slot 8 `(s, s + fᵢ)`; unless `p`
+   equals the slice's end point, lock `0x8400` and flood-fill from `p` with `cᵢ` (`0x008DA370`), unlock.
+4. Lock `0x8200`: `RZDrawDrawCircle(buffer, disc, 0, 1)` (black outline), unlock.
+5. Each slice again: the two radials in black (locked with `0x8200`, unlocked with `0x8004`); then, with texts on,
+   a percentage font and `fᵢ ≥` the minimum: the text `sprintf("%.Nf%%", fᵢ · 100)` (`N` the decimal places, the
+   format `0x00ADE17C` with its digit patched), centred on `p` (font slots 37 line height and 49 width), drawn with
+   font slot 51 in `tᵢ` (`0x8000000` when unset).
+
+**Style 1 (3D):**
+1. Lock `0x8010`: blit the shape mask (G 46) at the disc rectangle `depth + 1` times, moving down one pixel each
+   time (the extruded side); unlock.
+2. Each slice: the two radials in `cᵢ`; for an edge point below the centre, also a vertical line of length `depth`
+   from it (buffer slot 28 for the first, G 43 for the second); then the flood fill as in style 0.
+3. `SaturationMaskBlt(buffer, shade, its rectangle, plot-area origin, 0)` (`0x009B58DE`: clip with
+   `GenericBufferClip`, then `SaturationMaskBltNoClip`) shades the disc.
+4. The percentage texts as in style 0 step 5, **without** the minimum check.
+
+### 8.5 Fonts
+
+Window slot 151 (`0x009B946F`): without a percentage font, the font service's `"arial"` (or `"helvetica"`) at 12 into
+slot 15 (colour `0x80000000`); then the base default fonts (§5.1).
+
+### 8.6 Folded scatter and line code in this owner
+
+Called from the scatter graph's vtables (window `0x00ADEA90`, data `0x00ADED58`); the scatter keeps point series at
+`+0x234` (12-byte records, each a `vector` of 8-byte `(x, y)` float points), series info at `+0x240` (0x24-byte
+records: `+0x08` colour, `+0x0C` name, `+0x20` "connect the points" byte) and a marker font at `+0x24C`.
+
+| Function | Reached as | Behaviour |
+|---|---|---|
+| `0x009B625F` | scatter window 5 | release the marker font, `cGZGraph::Shutdown` |
+| `0x009B9226` | scatter window 151 (also data 29 via `0x009BA107`) | marker font `"windings"`, else `"dingbats"`, size 12, into data slot 3; then the base fonts |
+| `0x009B63F8` | scatter window 157 (data 28 via `0x009BA0F1`) | with the marker font's slot 55 `(buffer)` true: each series, each point mapped by window slot 160 `(axis, value, 1)`; with "connect", a G 43 line from the previous point in the record colour; then data slot 30 `(buffer, &point, series)` (the marker); finally font slot 56 `(buffer)` |
+| `0x009B6280` / `0x009B633C` | data 25 / 26 (via `0x009BA0DB`, `0x009BA0E6`) | the largest / smallest x (axis 0) or y (axis 1) over all points (starting from ∓`FLT_MAX`) |
+| `0x009B92E4` | data 22 (via `0x009BA0FC`) | the plot rectangle (`<shared>` `0x009B799D`) made square by shortening its longer side |
+| `0x009B932A` / `0x009B9385` | data 16 / 15 | insert point `(x, y)` into series `s` at index `i` (`i = −1` appends; `s = −1` with one series → 0) |
+| `0x009B93A9` / `0x009B93F1` | data 20 / 19 | set point `i` of series `s` (`i = −1` appends) |
+| `0x009B9415` | data 21 | append every point of a given vector to series `s` (`−1` with one series → 0) |
+| `0x009BA183` / `0x009BA1EB` | data 10 / 12 | set a series name (`−1`: all) / copy a series info record |
+| `0x009BA112` | scatter destructor body | vtables, `0x009B625F`, the two vectors, the base body |
+| `0x009B29FC`, `0x009B9EDE`, `0x009B9EE9` | bar data 31/30 | forward to data slot 32; bar G 14 |
+
+Container helpers of the same owner (vector copy, insert and erase for the 8-, 12-, 0x1C- and 0x24-byte element
+types): `0x009B356F`, `0x009B5948`, `0x009B5965`, `0x009B679A`, `0x009B68F8`, `0x009B692A`, `0x009B6A0F`,
+`0x009B6A2C`, `0x009B73E5`, `0x009B741E`, `0x009B9606`, `0x009B99EF`, `0x009B9D4B`, `0x009BA152`, `0x009BA38F`.
+
+### 8.7 Pie quirks and cases
+
+Quirks:
+1. `InsertData` with an existing index overwrites; `SetData`/`RemoveData` with `−1` act only when there is exactly
+   one value.
+2. The 3D style shows every percentage text, ignoring the minimum.
+3. The second radial pass locks with `0x8200` and unlocks with `0x8004`.
+4. Slices are filled by flood fill from the text point, so a slice too thin to hold that point bleeds or stays
+   unfilled.
+
+Cases:
+1. Values 1, 1, 2 (flat): fractions 0.25, 0.25, 0.5; texts `"25%"`, `"25%"`, `"50%"` at 60% of the radius; the
+   first slice spans from straight up a quarter turn counter-clockwise.
+2. `SetMinPercentageToDisplay(5)` stores 0.05; `(0.5)` stores 0.5; `(250)` stores 1.0.
+3. `InsertData(7, −1)` on an empty pie: one value 7 and one info record, filled from default record 0.
+
 ## 9. Function inventory
 
 `cGZGraph` (64): `0x009B1E4A` `Init`, `0x009B1E73` QI, `0x009B1EA0` `GZPaint`, `0x009B1EB0`/`0x009B1EBA`/
@@ -231,6 +386,9 @@ G 48/47, `0x009B7526` constructor, `0x009B771E` QI thunk, `0x009B7729` destructo
 
 `cGZBarGraph` (5): `0x009B2943`, `0x009B2A0A`, `0x009B4E24`, `0x009B9DED`, `0x009B9EB2`. `cGZLineGraph` (2):
 `0x009BA988`, `0x009BBCB7`. `cGZScatterGraph` (3): `0x009B2A38`, `0x009BA033`, `0x009BA0A4`.
+
+`cGZPieGraph` (78): every address is listed in §8.1–§8.6 (including the folded scatter code and the container
+helpers).
 
 Not covered: the `<shared>` drawing slots 153–177, the data interfaces of the bar, line and scatter graphs, and the
 decoration objects' own classes, cited by slot.

@@ -572,6 +572,7 @@ cGZGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZBarGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZLineGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZScatterGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZPieGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZ*Graph	widget toolkit	ui	-	-	-	-
 cHTMLDocument	widget toolkit	ui	html-document.md	core/src/html_document	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
