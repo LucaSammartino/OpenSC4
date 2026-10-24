@@ -1,15 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-helicopter-shadow10: partial helicopter metadata shadow | Codex, glue-helicopter-shadow10 (reserved detached HEAD) | in progress: round 2 merge and ID fix-up | Re-gate merged source; retain clean helicopter 73/73 verdict; resolve AF11 adapter/live-spawn contract later. |
+| glue-helicopter-shadow10: partial helicopter metadata shadow | Codex, glue-helicopter-shadow10 (reserved detached HEAD) | ready: round 2 merged main; cargo 7065/0, clippy clean, CTest 80/80; retained clean helicopter 73/73 through 2032 | Resolve AF11 adapter/live-spawn contract; AF2-AF6/AF9 remain uncompared. |
 
-## Handoff
+## Round 2 fix-up
 
-- Goal: round 2 fix-up only; merge main, unique AF/run IDs, re-gate, READY queue.
-- Done: main merge conflicts resolved additively; helicopter adapter question is AF11; run 10480 becomes max+1 = 10481.
-- Next: regenerate question index, commit merge, run stable-source qbuild all (test, clippy, verify).
-- Prior clean acceptance: helicopter10-r2-20261024, helicopter 73/73 through 2032, ref_warnings=0. No game request outstanding.
-- Main AF10 belongs to airplane non-finite physics; preserve it. Detached HEAD must stay detached.
-- Full report below retains earlier measured evidence; replace this handoff with final round 2 results.
+Merged main c1599eda5 in **b5050c80d**. Resolved the question collision by retaining airplane AF10 and renumbering this lane's helicopter adapter question to **AF11**, including plugin diagnostic strings, comments and report references. Kept both city and helicopter shadow config entries. Ran the explicitly requested `python tools/questions.py index`; `check` passes. Renumbered the clean run record from 10480 to **10481** (highest existing run 10480 plus one), including filename, tag and lane link. No new implementation scope or game request.
+
+Stable merged-source `qbuild all` **PASS**: **7065 Rust tests passed, 0 failed, 0 ignored; clippy 0 diagnostics**. Its single native operation **qbuild-20261024-110902-build-ctest** completed **216/216 build edges** (115.0 s), **CTest 80/80** (214.7 s), overall verify 333.9 s. Logs remain in build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log. No duplicate operation was launched.
+
+Retained completed unique-label acceptance **helicopter10-r2-20261024** as explicitly allowed by the fix-up brief: verdict clean, ref_warnings=0, metadata exact 73/73. Historical logs use the former AF10 label; the run record explains the AF11 renumbering. Failed r1 evidence remains separate. No game/build request outstanding. Detached HEAD remains detached; supervisor publishes the commits. READY queue uses the actual full 40-character final HEAD.
 
 ## Delivered scope
 
