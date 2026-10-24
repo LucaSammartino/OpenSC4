@@ -13,8 +13,9 @@
 - Focused diagnostic terminated: build-runs/focused-resume.log, 69 passed / 2 failed, both new queue fixture errors fixed in d084e399b. Compiled before latest fixtures/date/graph additions; preserve as failed evidence, not final verification. Session 27274 is complete.
 - Sessions 46408/42276 from previous round are gone per coordinator; do not wait on them. Earlier evidence remains in all-final.log, focused-1.log and build-queue/.
 - Running all: session 14828, build-runs/all-resume.log. Rust PASS: 7,155 passed / 0 failed / 0 ignored over 45 summaries, all 74 view3d tests pass; clippy PASS, zero diagnostics. Native request qbuild-20261024-141439-build-ctest is queued; full operation not yet terminal.
-- Running verify: session 64643, build-runs/verify-resume.log, request qbuild-20261024-135533-build-ctest. No native source changed in this round.
-- Next: collect these same operations to terminal results. Final all must cover corrected queue fixtures; then report and READY queue.
+- Explicit verify terminal PASS: build 46/46 edges, CTest 81/81, zero failures (90.5 s total); build-runs/verify-resume.log and build-results/qbuild-20261024-135533-build-ctest.verdict. Session 64643 is complete.
+- Older request qbuild-20261024-131859-build-ctest also passed 81/81 but is marked tree-changed; supporting evidence only, not the final native gate.
+- Next: collect ONLY all session 14828 to its terminal result (native queue qbuild-20261024-141439-build-ctest), then final report and READY queue. No source edits remain; subsequent commits only record verification/report.
 - qbuild fmt passes for lifecycle.rs, owner_tests.rs and resolved_tests.rs (3 files, zero differences).
 - VW19 already filed in docs/specs/questions/view3d-window.md: unspecified trigger reconstruction; literal stream insertion documented in code.
 - Remaining work is not relabeled Unsupported: see README, especially GUI/fallbacks, dormant helper/panel extras, mission/advice/background vectors, coverage/graph owner integration.
