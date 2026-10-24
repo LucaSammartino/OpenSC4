@@ -27,8 +27,10 @@ itself is [docs/harness.md](../harness.md).
   each stay together. Per-group logs remain as evidence; `regress-<tag>-shadows.log` concatenates them with
   named headers. The ordinary summary sums shadow lines and uses the worst group verdict (missing or blocked
   groups fail). The `profile:` line records `shadows combined` or `shadows split N`; coverage and delta readers
-  use the same summary format. `merge-train.py regress` uses 3 groups, except every fourth batch uses 1;
-  `--combined` forces 1. The train state and `build-runs/regress-<tag>.json` record the chosen profile.
+  use the same summary format. `merge-train.py regress` and `run` keep the combined profile by default
+  pending strict parity proof. `--split` opts in to 3 groups, except every fourth batch still uses 1;
+  `--combined` forces 1. These flags are mutually exclusive. The train state and
+  `build-runs/regress-<tag>.json` record the chosen profile.
   Read the shadow column, not only the verdict. `-Parallel` (direct slots 1 and 2) only when the queue is stopped.
   Queue status: `tools/game_queue.ps1 -Status`; check a request without running it: `-Check <file>.req`. The queue
   runs with `-Slots 6` (measured safe; slots 8-9 would be E-cores); restart it with care: stop the queue, its `ingame_run` children and their games together (runs in

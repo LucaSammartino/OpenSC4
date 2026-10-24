@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | Ready partial tooling: qbuild PASS, ctest 81/81, regress tests 17/17; run 612 PASS 664 s, 51/52 labels exact; run 613 incomplete FAIL 455 s; performance and strict parity targets unmet; ABI unchanged | (1) Isolate group-3 shadow costs and rebalance; (2) repeat split and combined to 2032, resolve flammability 53/54 and prove count/mismatch parity. |
+| tool-regress-split11 (parallel house shadows) | `tool-regress-split11` / tooling lane | in progress | Resolve six tooling failures, rebalance measured costs, prove same-DLL parity and speed. |
+
+## Handoff
+
+- Goal: all tooling tests pass or prove failures on main; split >=35% faster; identical shadow counts/mismatches to 2032 on one DLL.
+- Done: prior implementation `3ffd15df6`, sorting fix `c46aa442c`, prior report `a7e057034`; details retained below.
+- Next: restore combined default until explicit --split; reproduce main failures; isolated cost probes, then rebalance and repeat split/combined.
+- Prior gate qbuild PASS, ctest 81/81; regress tests 17/17; broader suite 141/147.
+- Prior runs 611 FAIL bad grouping; 612 PASS 664 s 51/52 exact; 613 combined stalled/truncated FAIL 455 s.
+- Snapshot build-runs/split11-main.dll SHA256 0a67d38e6a8c1fbf969f7e483132fa17ead29076f3a0d248d8ddff2037ede82c.
+- No ABI changes, questions, coverage-map edits or newly enabled shadow keys.
+- R2 milestone: combined is merge-train default; --split explicitly enables 3 groups with fourth-batch combined cadence. CLI flags mutually exclusive.
+- R2 tests: python build-runs/check-main-tooling.py printed main WorkflowDryRun 7 tests, six failures; lane all tooling 147 tests, same six failures (141 pass). Logs main-workflow-tests.out and tooling-tests-r2.out prove pre-existing failures against main's source.
+- R2 timing probe is waiting for train199 to clear, then snapshots coordinator integration DLL to split11-r2-main.dll and submits four independent families to 2026-07-01. qwait session 41038 waits for split11-r2-costs.json.
 
 ## Report
 

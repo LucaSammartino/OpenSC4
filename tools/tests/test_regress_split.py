@@ -16,9 +16,11 @@ spec.loader.exec_module(mt)
 
 class SplitTests(unittest.TestCase):
     def test_cadence(self):
-        self.assertEqual([mt.regress_shadow_split(f'train{n}') for n in range(195, 201)],
+        self.assertEqual([mt.regress_shadow_split(f'train{n}', split=True) for n in range(195, 201)],
                          [3, 1, 3, 3, 3, 1])
         self.assertEqual(mt.regress_shadow_split('train197', True), 1)
+        self.assertEqual(mt.regress_shadow_split('train197'), 1)
+        self.assertEqual(mt.regress_shadow_split('train197', True, True), 1)
 
     @unittest.skipUnless(sys.platform == 'win32', 'PowerShell 5.1')
     def test_groups_preserve_keys_and_helpers_and_merge_worst_verdict(self):
