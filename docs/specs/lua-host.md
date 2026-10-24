@@ -29,7 +29,7 @@ PUC-Rio $`; 5.0 or 5.0.1 *[inferred]*) behind three GZCOM interfaces, plus a sma
 scripts from DBPF resources and registering C functions.
 
 It is **not** a simulator. It has no agent, no messages, no city component slot, no tuning exemplar, no curves and no
-random draws. It has no save record (§2.2).
+simulation-owned random draws. Lua library randomness remains available (§3.5). It has no save record (§2.2).
 
 ### 1.2 Classes and interfaces
 
@@ -74,7 +74,8 @@ function dereferences null *[quirk]*.
 
 ### 1.4 Instances in the running game
 
-There is no single Lua VM. Each `CreateInstance` makes a new, independent state:
+There is no single Lua VM. Each `CreateInstance` makes a new Lua state; some native process/thread
+state remains shared (§3.5):
 
 | # | Owner and creation | Open flags | Lifetime | Used for |
 |---|---|---|---|---|
