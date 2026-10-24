@@ -1,23 +1,42 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-helicopter-shadow10: helicopter shadow | Codex, glue-helicopter-shadow10 | in progress | Inspect contracts and implement supported shadow comparisons. |
+| glue-helicopter-shadow10: partial helicopter metadata shadow | Codex, glue-helicopter-shadow10 (reserved detached HEAD) | ready: helicopter 73/73 through 2032; broader owner open | Resolve AF10 adapter/live-spawn contract; AF2-AF6/AF9 remain uncompared. |
 
-## Handoff
-- Goal: default-off helicopter shadow, measured through 2032 with house switches.
-- Done: independent class/four-version projection, default-off ini key, saved-manager scan, private COM metadata fallback; AF10 filed.
-- Focused C ABI test: 1 passed (null/short/failing stream and exact nested versions); explicit-file fmt passed; diff check clean.
-- Implementation commit: d3f449106.
-- Stable-source qbuild all: cargo 7012 passed/0 failed/0 ignored; clippy 0 diagnostics.
-- Native queue qbuild-20261024-101914-build-ctest terminal PASS: build 255/255 edges (140.5 s), CTest 80/80 (223.1 s); qbuild PASS. Same all operation performs the coordinated verify; no duplicate native request.
-- Gate logs: build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log. Checker tree-change note was only lane-doc commit f057e228a; implementation source unchanged.
-- First game helicopter10-r1-20261024: stalled at 2027-02-20, helicopter 13/13, 39 reference warnings, foreign exceptions 0; run record docs/runs/helicopter10-r1-20261024-10479.md. Evidence retained.
-- Diagnostic fixes: audit acquired COM factory reference before created release; use simulator date at PostCityInit when PublishedJulian is zero. Source changed after the first gate and run.
-- Corrected implementation f23e231fb: full qbuild all PASS, 7012 Rust tests/0 failed/0 ignored; clippy 0 diagnostics; queued native qbuild-20261024-103348-build-ctest PASS 47/47 edges, CTest 80/80 (88.1 s); no tree-change warning.
-- Outstanding game request helicopter10-r2-20261024, submitted after corrected full gate; city Konradshohe, house ini plus helicopter_shadow=1, turbo to 2032, 2400 s limit. Do NOT resubmit or discard an existing verdict.
-- Next: collect existing blocking wait (exec session 79551), or run build-runs/wait-helicopter.ps1 against game-results/helicopter10-r2-20261024.verdict; on its 9-minute timeout wait again without resubmitting. Then run build-runs/measure-helicopter.ps1 -Label helicopter10-r2-20261024, record free run number, finalize READY partial report/queue if clean.
-- Blocking waiter uses FileSystemWatcher, not qwait or polling. First wait on r1 failed on absent results directory; fixed before actual wait. Analysis helper is read-only and prints bounded output.
-- Scope: no parameter/home/goal/physics/lifecycle comparison or complete live enumeration (AF2-AF6/AF9/AF10).
-- Fallback is NOT a live spawn; no specified safe scenario group/exemplar creation sequence (AF10).
-- Initial fmt invocation used engine-relative paths from engine cwd and failed; absolute paths passed. q.py Bash launch failed Win32 access 5; direct cargo test passed.
-- Restrictions: clean room; no tools/ reads or execution; no agents; native build through qbuild verify.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-helicopter-shadow10-r1-manifest.json.
+## Delivered scope
+
+Default-off `helicopter_shadow` (environment fallback `FC4_HELICOPTER_SHADOW`) adds an independent metadata comparison to the automata observer, also usable without the other automata shadows. One dated `helicopter shadow YYYY-MM-DD: ... mismatches=N` summary appears at city load and once per later month. Every compared field contributes separately to mismatches.
+
+A fresh Rust `helicopter::Helicopter` writes the expected record through the additive `fc4_helicopter_shadow_fixture` export. No native output enters that owner. Comparisons cover class identity and four nested u16 versions: helicopter 1, aircraft 1, automaton 8, occupant 4. All remaining bytes are excluded; this is not a record roundtrip or rotor simulation.
+
+The adapter scans the aircraft manager's saved references with retained capture pins. This does not prove complete live enumeration. With no helicopter in those references, a private COM factory object supplies metadata only: never Init, tick, manager insertion or a claim of live city spawning. Factory acquisition is audited before FC4_RELEASE_CREATED; capture acquisitions are separately balanced. No hardware debug registers are armed. The simulator date getter supplies the load date before PublishedJulian is populated.
+
+## Open owner coverage and questions
+
+New **AF10**, [questions/aircraft.md](../specs/questions/aircraft.md), requests native adapter IDs/signatures/ownership, complete enumeration, independent reconstruction inputs and a safe deterministic live-spawn scenario/group/exemplar contract. No native signature or group ID was guessed. Only `Helicopter::class_id` and the four version fields of `write` are compared. Uncompared owner methods/outputs:
+
+- Drive-record import/ancestor selection, all thirteen load_drive_parameters fields and presets (AF10 native adapter; AF9/AF4 defaults).
+- All remaining serialized base/goal/home fields, read, init_placement, phase getters and state reconstruction; native outputs are never seeded into expected values.
+- get_altitude, clip_to_world, set_helicopter_state, pursue_goal, push_mission_loiter, chase geometry and state transitions.
+- physics_init, init_instance, next_frame, yaw/pitch/roll/slide, MoveXZ/MoveY and integration (AF2/AF4).
+- AI reset/hover/move-XZ/building-lift, complete goal/chase/dispatch handling and messages (AF3/AF6).
+- Rotor sounds, spotlight, takeover, player drive tick/commands and weapons (AF4/AF5).
+
+**READY is for measured metadata work, not full cSC4Helicopter verification. AF2-AF6/AF9/AF10 stay uncompared.** Regression profiles and coverage maps were not edited: this clean-room detached lane cannot read/edit tools or merge main, and full owner coverage remains open. Coordinator review decides any profile append after landing.
+
+## Gate
+
+Final implementation source **f23e231fb** (initial d3f449106). Focused C ABI test passed: exact versions, null/short stream rejection and write-failure propagation. Explicit owned Rust-file fmt passed; diff check clean. Stable corrected-source `qbuild all` PASS: **7012 tests passed, 0 failed, 0 ignored; clippy 0 diagnostics**. The same operation handed native verification to queue **qbuild-20261024-103348-build-ctest**, terminal PASS: **47/47 build edges, CTest 80/80** (95.9 s overall, CTest 88.1 s). No duplicate verify request. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log.
+
+The pre-fix gate also passed 7012 Rust tests and CTest 80/80 (qbuild-20261024-101914-build-ctest); the game diagnostic below justified the corrected-source repeat. Its tree-change note was a lane-doc commit only. Initial relative fmt paths failed; absolute paths passed. q.py Bash launch hit Win32 access error 5; direct focused cargo passed. One additive C ABI export; **ABI changed**, version not bumped; generated abi_entries.inc untouched.
+
+## Game results
+
+**`helicopter 73/73`** — **helicopter10-r2-20261024**, [run 10480](../runs/helicopter10-r2-20261024-10480.md). Main build-runs/regress-train189-shadows.ini house switches plus helicopter_shadow=1; Konradshohe, turbo through **2032-01-01**, full quit/shutdown. Clean: **foreign_exceptions=0, watchdog_stalls=0, ref_warnings=0, rtc=0, overruns=0**. City time 827.937 s / wall 844 s; DLL SHA256 prefix c6befc64. First sample **2026-01-27**, last **2032-01-01**: 73 unique monthly summaries, **365 fields exact**, zero resynced lines. Every line has reachable=0, fixtures=1: no saved-manager helicopter observed; every sample used the private metadata fixture, not a live city spawn. Shutdown reports 73/73 exact. No turbo difference, so no normal-speed repeat required. Counts come from retained logs and the harness summary; tools/coverage.py cannot be run in this clean-room lane.
+
+Failed evidence: **helicopter10-r1-20261024**, [run 10479](../runs/helicopter10-r1-20261024-10479.md): `helicopter 13/13`, stalled at 2027-02-20, foreign exceptions 0, reference warnings 39, one recovered watchdog stall (6469 ms), no clean shutdown. Warnings identified missing factory acquisition audit bookkeeping; that and the missing load-date observation were fixed in f23e231fb. R1 is not acceptance evidence. Both unique logs/verdicts remain under build-runs/game-results/.
+
+Requests were sequential. The blocking FileSystemWatcher wait used no qwait or polling; its nine-minute timeout resumed the same r2 verdict wait without resubmission. The initial r1 wait needed its results directory created. No game/build request remains outstanding.
+
+## Next
+
+Resolve AF10 and existing AF2-AF6/AF9 before claiming native parameter/full-record/goal or live-spawn coverage. Keep the metadata key default-off; coordinator reviews the partial READY entry and any eventual profile append.
