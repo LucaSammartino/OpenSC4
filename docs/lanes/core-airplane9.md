@@ -7,8 +7,9 @@
 - Goal: merge main, retain airplane and helicopter owners, remove duplicate AF9, run final gate.
 - Done: merge f6da6ee6d retains both owners; airplane question is AF10; index/check and three-file absolute-path fmt pass.
 - First gate terminal FAIL: qbuild-20261024-094908-build-ctest; Rust tests 7021/0/0, clippy unused imports, native build PASS 216/216, CTest 79/80 (capi_smoke cached ABI97 while both sources specify ABI98). Full logs preserved in build-runs/r2-before-unused-import-fix/.
-- Fix: unused imports removed; absolute-path fmt PASS for five files. Focused capi_smoke recache diagnostic running as session 24439; script build-runs/refresh-r2-smoke.cmd.
-- Next: collect diagnostic, then run qbuild all once on corrected stable source. Do not commit while final gate runs (HEAD change invalidates its verdict).
+- Fix: unused imports removed; absolute-path fmt PASS for five files. Standalone recache diagnostic session 24439 hit sccache startup timeout and was interrupted/collected as exit 1; no final-source PASS claimed from it.
+- Build input correction: compile-r2-smoke.cmd compiled ONLY the generated smoke-test object directly with MSVC (exit 0), bypassing the stale ABI97 cache entry; local header/Rust both ABI98. Final queue relinks and tests it.
+- Next: run qbuild all once on corrected stable source. Do not commit while final gate runs (HEAD change invalidates its verdict).
 - Owners: airplane in engine/core/src/automata/airplane; helicopter in engine/core/src/helicopter; shared aircraft storage/helpers retained.
 - No game request outstanding; core-only airplane has no native observation adapter.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-airplane9-r2-manifest.json.
