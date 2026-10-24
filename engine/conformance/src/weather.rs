@@ -29,6 +29,61 @@ use crate::scalar::{
     self, arg, arr, bool_of, check_expect, check_state, f32_of, i64_of, jf, ji, opt, str_of, u32_of, EventLog, Saved, R,
 };
 
+#[test]
+fn we1_daily_and_accessor_bit_patterns() {
+    let w = World::new();
+    let s = WeatherSim::new(w.clone() as Rc<dyn WeatherHost>, 1, w.rng(None).unwrap());
+    {
+        let mut d = s.data_mut();
+        d.wind_month = 3;
+        d.prev_wind_speed = 10.0;
+        d.prev_wind_dir = [1.0, 0.0];
+        d.target_wind_speed = 20.0;
+        d.target_wind_dir = [0.0, 1.0];
+    }
+    // Weather §14.13: exact bits distinguish reciprocal products from division.
+    for (day, direction, speed) in [
+        (2, [0x3F7F_64B5, 0x3D8C_E81D], 0x4125_5555),
+        (8, [0x3F5A_ACC1, 0x3F05_1B3D], 0x4145_5555),
+        (31, [0, 0x3F80_0000], 0x41A0_0000),
+    ] {
+        s.do_daily(julian_from_civil(2001, 3, day));
+        let d = s.snapshot();
+        assert_eq!(d.wind_dir.map(f32::to_bits), direction);
+        assert_eq!(d.wind_speed.to_bits(), speed);
+        if day == 2 {
+            assert_eq!(s.ambient_wind().1.map(f32::to_bits), [0x4124_F10A, 0x3F36_0125]);
+        }
+    }
+    // §14.14: strict threshold, rescale measured length, no mutation.
+    for (direction, expected) in [
+        ([0x3F80_0000, 0x3F80_0000], [0x40E2_4630, 0x40E2_4630]),
+        ([0x3C23_D70A, 0], [0x3C23_D70A, 0]),
+        ([0x3CA3_D70A, 0], [0x4120_0000, 0]),
+        ([0, 0], [0, 0]),
+    ] {
+        {
+            let mut d = s.data_mut();
+            d.wind_dir = direction.map(f32::from_bits);
+            d.wind_speed = 10.0;
+        }
+        assert_eq!(s.ambient_wind().1.map(f32::to_bits), expected);
+        assert_eq!(s.wind_at_cell(0, 0).1.map(f32::to_bits), expected);
+        assert_eq!(s.snapshot().wind_dir.map(f32::to_bits), direction);
+    }
+    {
+        let mut d = s.data_mut();
+        d.target_wind_speed = 10.0;
+        d.target_wind_dir = [-1.0, 0.0];
+    }
+    s.do_daily(julian_from_civil(2001, 3, 16));
+    assert_eq!(s.snapshot().wind_dir.map(f32::to_bits), [0, 0]);
+    let before = s.snapshot();
+    s.do_daily(julian_from_civil(2001, 4, 2));
+    assert_eq!(s.snapshot().wind_dir, before.wind_dir);
+    assert_eq!(s.snapshot().wind_speed, before.wind_speed);
+}
+
 /// A scripted generator: queued values, the last one repeating.
 struct Stub {
     world: Weak<World>,

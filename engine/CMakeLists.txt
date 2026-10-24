@@ -1073,3 +1073,12 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_propdev_transcript_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME propdev_transcript_test COMMAND fc4_propdev_transcript_test)
 endif()
+
+# Frozen block inputs preserve each lot's lists once, including empty configurations.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_snapshot_test tests/propdev_snapshot_test.cpp)
+    target_include_directories(fc4_propdev_snapshot_test PRIVATE plugin capi/include)
+    target_compile_definitions(fc4_propdev_snapshot_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_propdev_snapshot_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME propdev_snapshot_test COMMAND fc4_propdev_snapshot_test)
+endif()

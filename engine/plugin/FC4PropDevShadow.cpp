@@ -571,6 +571,21 @@ void StepAfter(void* ctx) {
         ++g_month.replayInvalid;
         g_month.d.Add("selector replay invalid: consumed=%u matched=%u native=%u", U(replay.Consumed()),
                       U(replay.Matched()), U(s.trace->Events().size()));
+        // Bounded independent diagnostics: monthly mismatch lists can be full
+        // before the first selector divergence is reached.
+        static uint32_t diagnosed = 0;
+        if (diagnosed++ < 24) {
+            const auto* e = replay.Expected();
+            const auto& a = replay.Actual();
+            Log("propdev replay invalid: reason=%s type=%08x block=%d,%d consumed=%u matched=%u native=%u frozen=%u",
+                replay.Failure(), s.type, s.blk.bx, s.blk.bz, U(replay.Consumed()), U(replay.Matched()),
+                U(s.trace->Events().size()), s.inputs.valid ? 1u : 0u);
+            if (e) Log("propdev replay args: native/ours requester=%p/%p purpose=%u/%u xy=%d,%d/%d,%d count=%u/%u first=%08x/%08x result=%08x depth=%u",
+                reinterpret_cast<void*>(e->requester), reinterpret_cast<void*>(a.requester),
+                static_cast<unsigned>(e->purpose), static_cast<unsigned>(a.purpose), e->x, e->z, a.x, a.z,
+                U(e->candidates.size()), U(a.candidates.size()), e->candidates.empty() ? 0 : e->candidates.front(),
+                a.candidates.empty() ? 0 : a.candidates.front(), e->result, e->depth);
+        }
     }
     if (!s.inputs.valid) g_month.d.Add("frozen block input missing");
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");

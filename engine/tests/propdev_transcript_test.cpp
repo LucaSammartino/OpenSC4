@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4PropDevTranscript.h"
 #include <cstdio>
+#include <cstring>
 
 namespace {
 struct Requester { void** vtable; uint32_t calls; uint32_t result; };
@@ -42,7 +43,7 @@ int main() {
     recorded[0].purpose = Purpose::Kept;
     fc4::PropSelectorReplay replay(recorded);
     // Current trace has one genuine call after reuse, including duplicates.
-    if (replay.Complete()) return 9;
+    if (replay.Complete() || std::strcmp(replay.Failure(), "missing-call")) return 9;
     if (replay.Select(reinterpret_cast<uintptr_t>(&requester), Purpose::Kept, ids, 3, 0, 0) != 23 ||
         !replay.Complete() || replay.Matched() != 1 || requester.calls != 4) return 10;
     recorded[0].result = 0;
@@ -65,9 +66,14 @@ int main() {
         fc4::PropSelectorReplay invalid(changed);
         if (invalid.Select(reinterpret_cast<uintptr_t>(&requester),Purpose::Kept,ids,3,0,0) != 0 ||
             invalid.Complete()) return 13;
+        const char* reasons[]{"requester", "purpose", "coordinates", "coordinates", "depth",
+                              "candidate-count", "candidate-order"};
+        if (std::strcmp(invalid.Failure(), reasons[mismatch]) || !invalid.Expected() ||
+            invalid.Actual().candidates != std::vector<uint32_t>({17,23,17})) return 15;
     }
     if (outside.Select(reinterpret_cast<uintptr_t>(&requester),Purpose::Kept,ids,3,0,0) != 0 ||
         outside.Complete()) return 14;
+    if (std::strcmp(outside.Failure(), "extra-call")) return 16;
     std::puts("propdev transcript: duplicate order, coordinates, zero return, once-only call and restoration PASS");
     return 0;
 }

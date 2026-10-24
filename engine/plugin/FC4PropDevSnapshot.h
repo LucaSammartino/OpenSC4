@@ -181,12 +181,18 @@ public:
                 lot_livableValues.Put(base.lot_livable(u,lot),lot);
                 lot_building_typeValues.Put(base.lot_building_type(u,lot),lot);
                 lot_occupancyValues.Put(base.lot_occupancy(u,lot),lot);
+                const bool first = configs.find(lot) == configs.end();
                 c=&configs[lot];
-                c->available=base.lot_config_objects(u,lot,&Config::Sink,c);
-                auto& props=lotProps[lot]; base.lot_props(u,lot,&U64s,&props); Props(u,props);
+                // A lot may be returned for several cells. Snapshot its ordered
+                // lists once, rather than appending another copy for each cell.
+                if (first) {
+                    c->available=base.lot_config_objects(u,lot,&Config::Sink,c);
+                    auto& props=lotProps[lot]; base.lot_props(u,lot,&U64s,&props); Props(u,props);
+                }
             } else if (net) {
+                const bool first = netConfigs.find(net) == netConfigs.end();
                 c=&netConfigs[net];
-                if (c->objects.empty()) c->available=base.network_lot_objects(u,net,&Config::Sink,c);
+                if (first) c->available=base.network_lot_objects(u,net,&Config::Sink,c);
                 auto& props=streetProps[{cx,cz}]; base.street_props(u,cx,cz,&U64s,&props); Props(u,props);
             }
             if (c) for (const auto& ids : c->ids) for (auto id : ids) Profile(u,id);

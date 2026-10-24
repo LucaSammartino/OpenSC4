@@ -143,22 +143,39 @@ public:
     explicit PropSelectorReplay(const std::vector<PropSelectorTrace::Event>& events) : events_(events) {}
     uint32_t Select(uintptr_t requester, PropSelectorTrace::Purpose purpose,
                     const uint32_t* ids, size_t count, int32_t x, int32_t z) {
-        if (cursor_ == events_.size()) { valid_ = false; return 0; }
+        if (cursor_ == events_.size()) { Fail("extra-call"); return 0; }
         const auto& e = events_[cursor_++];
-        if (e.requester != requester || e.depth != 0 || e.purpose != purpose || e.x != x || e.z != z ||
-            e.candidates.size() != count || (count && !ids)) {
-            valid_ = false; return 0;
+        const char* reason = e.requester != requester ? "requester" : e.depth != 0 ? "depth" :
+            e.purpose != purpose ? "purpose" : e.x != x || e.z != z ? "coordinates" :
+            e.candidates.size() != count ? "candidate-count" : count && !ids ? "null-candidates" : nullptr;
+        if (!reason) for (size_t i=0; i<count; ++i)
+            if (ids[i] != e.candidates[i]) { reason = "candidate-order"; break; }
+        if (reason) {
+            if (!failure_) {
+                expected_ = &e;
+                actual_ = {requester, 0, purpose, x, z, {}, 0};
+                if (count && ids) actual_.candidates.assign(ids, ids+count);
+            }
+            Fail(reason); return 0;
         }
-        for (size_t i=0; i<count; ++i) if (ids[i] != e.candidates[i]) { valid_ = false; return 0; }
         ++matched_;
         return e.result;
     }
     bool Complete() const { return valid_ && cursor_ == events_.size(); }
     size_t Matched() const { return matched_; }
     size_t Consumed() const { return cursor_; }
+    const char* Failure() const { return failure_ ? failure_ : cursor_ < events_.size() ? "missing-call" : "none"; }
+    const PropSelectorTrace::Event* Expected() const {
+        return expected_ ? expected_ : cursor_ < events_.size() ? &events_[cursor_] : nullptr;
+    }
+    const PropSelectorTrace::Event& Actual() const { return actual_; }
 private:
+    void Fail(const char* reason) { valid_ = false; if (!failure_) failure_ = reason; }
     const std::vector<PropSelectorTrace::Event>& events_;
     size_t cursor_ = 0, matched_ = 0;
     bool valid_ = true;
+    const char* failure_ = nullptr;
+    const PropSelectorTrace::Event* expected_ = nullptr;
+    PropSelectorTrace::Event actual_{};
 };
 }
