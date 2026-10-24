@@ -640,4 +640,9 @@ std::string IniPath();
 
 // scres_file_shadow = 0 / 1 (default 0): physical file-parser replay.
 
+// dbpf_shadow = 0 / 1 (default 0): each city load/month, compare public
+// resource-manager packed segments against the production Rust Package reader.
+// No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
+// All-open-files completeness and ReadRecord noninterference: data-formats EX56.
+
 }  // namespace fc4

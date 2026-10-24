@@ -11,7 +11,7 @@
 // copy of the license along with this program (see LICENSE at the repository
 // root); if not, see <https://www.gnu.org/licenses/>.
 
-//! DBPF packages and exemplars read by `fc4_formats` (data-formats Â§2, Â§4),
+//! DBPF packages and exemplars read by `fc4_formats` (data-formats Ã‚Â§2, Ã‚Â§4),
 //! for the plug-in's formats shadow: it opens a shipped package itself and
 //! compares each exemplar's own properties, as the core parses them, with the
 //! ones the game's resource manager loaded for the same key.
@@ -35,7 +35,7 @@ unsafe fn pkg_ref<'a>(p: *const fc4_dbpf) -> Option<&'a Package<FileSource>> {
 
 /// Opens the package at `path` (UTF-8 bytes, no terminator). NULL when the
 /// file cannot be read or its header or index fail the checks of
-/// data-formats Â§2.1-Â§2.3.
+/// data-formats Ã‚Â§2.1-Ã‚Â§2.3.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_dbpf_open(path: *const u8, len: usize) -> *mut fc4_dbpf {
     let Some(bytes) = slice_arg(path, len) else {
@@ -263,6 +263,17 @@ mod transport_tests {
             let pkg = fc4_dbpf_open(text.as_ptr(), text.len());
             assert!(!pkg.is_null());
             assert_eq!(fc4_dbpf_entry_count(pkg), 5);
+            assert_eq!(fc4_dbpf_packed_count(pkg, false), 4);
+            assert_eq!(fc4_dbpf_packed_count(pkg, true), 3);
+            assert_eq!(fc4_dbpf_packed_keys(pkg, None, std::ptr::null_mut()), 3);
+            let mut raw = [0xcc; 6];
+            let mut size = 6;
+            assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 1, raw.as_mut_ptr(), &mut size), 4);
+            assert_eq!(size, 4);
+            assert_eq!(raw, [65, 66, 67, 68, 0xcc, 0xcc]);
+            size = 99;
+            assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 3, std::ptr::null_mut(), &mut size), 4);
+            assert_eq!(size, 0);
             let mut words = [0u32; 7];
             assert!(fc4_dbpf_entry(pkg, 2, words.as_mut_ptr()));
             assert_eq!(words, [1, 2, 3, 100, 15, 4, 1]);
@@ -323,7 +334,7 @@ fn typed(values: &Values) -> Option<(u16, Vec<u8>, usize)> {
 
 /// Reads entry (`type_id`, `group`, `instance`) (the first one in index
 /// order, data-formats Q3) and parses it as an exemplar or cohort
-/// (data-formats Â§4, `Exemplar::parse_record`): a new fc4_props with its OWN
+/// (data-formats Ã‚Â§4, `Exemplar::parse_record`): a new fc4_props with its OWN
 /// properties, each with the variant type and shape the game holds
 /// (`fc4_props_set_typed`), Empty and kind-1 resource properties left out.
 /// `parent` (may be NULL) receives the parent cohort key (type, group,
@@ -390,8 +401,8 @@ unsafe fn props_of(list: &[Property]) -> *mut fc4_props {
 }
 
 /// A set of packages combined as the resource manager combines them
-/// (data-formats Â§3: each package added registered at the front, so a later
-/// one wins) and resolved with parents and the effective list (Â§4.4), by
+/// (data-formats Ã‚Â§3: each package added registered at the front, so a later
+/// one wins) and resolved with parents and the effective list (Ã‚Â§4.4), by
 /// `fc4_formats::exemplar::ExemplarStore`.
 #[repr(C)]
 pub struct fc4_exstore {
@@ -433,7 +444,7 @@ pub unsafe extern "C" fn fc4_exstore_destroy(p: *mut fc4_exstore) {
 
 /// Adds the package at `path` (UTF-8, no terminator) at the front of the
 /// store (`ExemplarStore::load_package`). False, nothing added, when the core
-/// does not open it as a DBPF package (Â§2.1-Â§2.3). `counts` (may be NULL)
+/// does not open it as a DBPF package (Ã‚Â§2.1-Ã‚Â§2.3). `counts` (may be NULL)
 /// receives exemplar records read, cohort records read, records that failed.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_exstore_add_package(
@@ -460,7 +471,7 @@ pub unsafe extern "C" fn fc4_exstore_add_package(
 }
 
 /// Loads every record of the store (`ExemplarStore::load_all`: parents
-/// resolved, effective lists built, Â§4.4) and returns how many loaded; the
+/// resolved, effective lists built, Ã‚Â§4.4) and returns how many loaded; the
 /// keys are then indexed 0..n in key order. `failed` (may be NULL) receives
 /// how many did not load.
 #[no_mangle]
@@ -491,7 +502,7 @@ pub unsafe extern "C" fn fc4_exstore_key(p: *const fc4_exstore, index: usize, ke
     }
 }
 
-/// Loaded record `index`: a new fc4_props of its effective list (Â§4.4) when
+/// Loaded record `index`: a new fc4_props of its effective list (Ã‚Â§4.4) when
 /// `effective`, else of its own properties, in the game's variant types
 /// (Empty and kind-1 resource properties left out). `total` (may be NULL)
 /// receives the list's full length, those left out included; `parent` (may be
@@ -568,10 +579,10 @@ pub unsafe extern "C" fn fc4_exstore_failure(
 }
 
 /// One exemplar or cohort record parsed for the plug-in factory (data-formats
-/// Â§4.1, Â§4.2, Â§8.1 SerialRead): the record bytes as the manager hands them
+/// Ã‚Â§4.1, Ã‚Â§4.2, Ã‚Â§8.1 SerialRead): the record bytes as the manager hands them
 /// (position 0, already decompressed; no QFS here), checked against the type
 /// it is stored under. Unlike `fc4_dbpf_read_exemplar` every property is kept,
-/// in record order (duplicates included: the holder's add replaces, Â§4.5),
+/// in record order (duplicates included: the holder's add replaces, Ã‚Â§4.5),
 /// with Empty and kind-1 resource-key properties reported by kind.
 #[repr(C)]
 pub struct fc4_exrec {

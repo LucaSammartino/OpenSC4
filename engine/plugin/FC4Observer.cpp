@@ -101,6 +101,7 @@
 #include "FC4LotRecordShadow.h"
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
+#include "FC4DbpfNative.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -641,6 +642,7 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
+                fc4::DbpfShadowObserve(static_cast<int32_t>(PublishedJulian()));
                 fc4::FeatureShadowLoaded();
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
@@ -769,6 +771,7 @@ public:
                 GZMsgShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
+                DbpfShadowObserve(julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
