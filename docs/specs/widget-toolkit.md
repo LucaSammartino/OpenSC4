@@ -168,7 +168,8 @@ modal-dialogs.md); Release the extra reference. Returns true only if both the re
 requests normally detach through `ChildDeleteAbsolute`; a busy manager only queues the request and does not detach
 it (section 8.1). Consequently a nonempty list with a persistently busy manager can make this loop nonterminating:
 the same front child is requested repeatedly, even though each request returns true. This corrects the former
-synchronous-detach assumption associated with WT5 (`0x0099DD76–A6`, `0x009DC4B3–DA`).
+synchronous-detach assumption associated with WT5 (`0x0099DD76–A6`, `0x009DC4B3–DA`; the manager's busy count and
+deferred destruction: widget-winmgr.md §4.1).
 
 **Parenting boundary (WT12):** `SetParentWin` has no manager-validity, self, or ancestor-cycle test. On an
 unparented window, setting the parent to itself or to an arbitrary non-null pointer stores that pointer and
@@ -348,7 +349,8 @@ always returns true.
 
 Construction (§2) registers the window with the manager (manager slot 20). Registration *[compat, measured in the
 manager `0x009DC586`]*: if the window is not yet in the manager's set it is added, and if its instance ID is 0 it is
-given the manager's next serial (`SetInstanceID(counter++)`, counter at manager `+0x194`).
+given the manager's next serial (`SetInstanceID(counter++)`, counter at manager `+0x194`, which the manager's
+constructor sets to 1, so the first ID is 1; widget-winmgr.md §1, WT6 answered).
 
 `Init()` (slot 4, `0x0099C2C3`): once only (guarded by flag `0x4000`): sets `0x4000`; if bits `0x10000` and `0x1` are
 both set, creates the private buffer; then `SetBufferToDrawToRecursive`. Always returns true.
@@ -449,7 +451,7 @@ private buffer: a temporary `cGZFadeTmpWin` takes it and fades it down over `+0x
 
 ## 10. Conformance tests
 
-1. New window: flags `0x8903`, fade periods 500/500, shade `FFFFFFFF`, instance ID assigned by the manager's registration counter (start value open, WT6).
+1. New window: flags `0x8903`, fade periods 500/500, shade `FFFFFFFF`, instance ID assigned by the manager's registration counter (1 for the first window).
 2. Add A then B to P: hit test at a point both cover returns B; `ChildToBack(B)` → returns A.
 3. `ChildAdd` of a child already present returns false and leaves the order unchanged.
 4. Child whose `Init` returns false: `ChildAdd` false, child's parent null afterwards.
@@ -512,7 +514,8 @@ Callbacks below mutate only once and otherwise return false. Reference observati
 ## 11. Open questions
 
 Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (unset fields), WT3 (bits `0x100`,
-`0x8000`), WT5 (`ChildDeleteAll` termination), WT6 (instance-ID counter start).
+`0x8000`; the manager's `SetFocus` reads `0x8000`, widget-winmgr.md §6.3), WT5 (`ChildDeleteAll` termination) and
+WT6 (instance-ID counter start), both answered.
 
 ## 12. Coverage of owner patterns (honest)
 

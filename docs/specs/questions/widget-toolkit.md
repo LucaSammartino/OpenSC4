@@ -5,8 +5,6 @@
 - **WT1 - section 1:** the cGZWin own vtable 0x00ADC8D8 (written by both constructors and the destructor) has no rows in docs/abi/vtables.tsv; how many slots does it have and which are pure stubs? [assume the cIGZWin 148-slot layout plus slots 148-151 as on cGZWinGen]
 <!-- from: re-widgets4 (2026-10-21) -->
 - **WT3 - section 3:** default flag bits 0x100 and 0x8000 are set by the constructor but not tested by cGZWin itself; which subclass or manager code reads them? [unknown; keep them set]
-<!-- from: re-widgets4 (2026-10-21) -->
-- **WT6 - section 8.1:** what is the initial value of the window manager's instance-ID counter (manager +0x194) assigned by registration (manager slot 20, 0x009DC586)? [unknown; first ID may be 0 or 1]
 
 <!-- from: core-key-accelerator4 (2026-10-22) -->
 - **WT7 - section 13.1 complete accelerator lifetime inventory:** please publish the constructor/initial reference count, slot 0 QueryInterface success AddRef and failure output effects, shared AddRef overflow/Release-at-zero behavior, and slot 15 deleting-destructor argument bits, cleanup order and nondeleting behavior. Section 13 names all 16 vtable slots but does not specify these owner bytes/method effects or any nonvirtual constructor/destructor helpers. Is there additional owner behavior outside this inventory? [implement only IID membership, caller-supplied nonzero live count, checked ordinary AddRef/Release and final Shutdown plus Rust-owned map cleanup; no native constructor/QI side-effect/deleting-flag or full-owner claim]
