@@ -16,6 +16,7 @@
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
 #include "FC4AdvisorsShadow.h"
+#include "FC4StringsShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -737,6 +738,7 @@ public:
                 AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 AdvisorsShadowMonth(julian);
                 fc4::NetOccShadowMonth(julian);
+                StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

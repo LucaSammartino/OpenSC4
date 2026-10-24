@@ -358,6 +358,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "netocc_shadow",
                                   // NR16/NR17 record-only evaluator observation (default off).
                                   "netrules_shadow",
+                                  // Constructed original string comparisons (default off).
+                                  "strings_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

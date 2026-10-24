@@ -2406,3 +2406,19 @@ inputs, unavailable observations and evaluated sample counts. `exact=1`
 requires tested samples and zero problems. Intersection tables and solver
 paths that bypass Evaluate remain explicitly unobserved. No native result,
 cache query, reference ownership or saved-city state is replaced.
+`strings_shadow = 1` (default off) records monthly constructed same-process
+`cRZString` comparisons. A live city-name prefix (at most 96 bytes), two ASCII
+witnesses, a counted interior-NUL witness and an empty witness exercise assignment,
+copy, resize, append, insert, replace, erase, sensitive/ASCII-insensitive equality,
+ordering and forward/reverse search, plus integer/string Sprintf. Each sample logs
+hex inputs and both outputs; `strings shadow YYYY-MM-DD ...; mismatches=N` sums
+every comparison, including core refusals. Only private strings are mutated.
+There are at most 78 comparisons per month. This measures constructed native
+calls, not interception of natural call traffic. CompareTo uses equal-prefix
+length differences; other return magnitudes remain RZS9. Alternate hexadecimal
+zero padding (RZS10) and empty-haystack Find (RZS11) remain open after native
+differences; plain zero-padded integer formatting and empty RFind are measured.
+Finite decimal extraction (RZS7), pointer formatting, nonvirtual substring/case
+helpers, detokenizer and language owners remain open for this shadow. Non-ASCII
+case/format probes are excluded and counted (RZS2/RZS5); other operations retain
+their counted bytes. The shadow never changes locale or replacement dispatch.
