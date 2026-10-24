@@ -13,7 +13,8 @@
 - Diagnostic: SimCity_3.dat 5203 ms tripped 5157 ms watchdog; another file reached 5421 ms. Rotation alone is insufficient on this host.
 - Changed source to retain the independent Rust reader and next index entry, yielding after ~800 ms between records. No native record object or cursor is retained.
 - Autotest quit drains the final pending sample through normal framework ticks; wall deadline/watchdog/external timeout remain active. Other shutdowns explicitly report unfinished work non-exact.
-- Next: final qbuild all on corrected source, then a new unique R2 house run to 2032. No operation outstanding.
+- Corrected source commit 3c2f8c290. Its qbuild all has Rust 6988/0/0 and clippy clean; native job qbuild-20261024-092912-build-ctest is queued. Collect original exec session 59934 to terminal result; never duplicate it.
+- Next: collect gate, then submit prepared build-runs/gdbs10-r2-house2032-20261024b.draft as a new request. No game outstanding.
 - DLL SHA256: 1BA53DB4F8BE377D45F3B34651FF3CC566B3B03BB59BB962BA2EE0BF383046BE.
 - Game request: train187 house ini plus dbpf_shadow=1; Konradshohe, turbo to 2032-01-01, seconds=1800/timeout=2100.
 - Wait for game via build-runs/wait-dbpf-game.ps1, a single filesystem event wait without qwait or polling loops.
