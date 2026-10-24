@@ -9,6 +9,9 @@ Done: cookie splitter, hex persistence, constructor default and changed-path rel
 Done: HTTP NORM01-08, WWW null-target Q10 and Cookie-header construction implemented.
 Done: HTTP fixed-position date parser, builder, framing selector, retry/finalization helpers and constructed fixtures added.
 Tests: initial cookie fixture 6/7; wrong test expectation for derived / fixed. Evidence build-runs/cookie-initial-result.txt.
-Next: collect focus-www.py result; implement HTTP stream/framing worker, slots/destructor; FTP commands/support; cache Q11/Q15.
+Done: HTTP body framing/spill, QueryInterface/deleting wrapper/destructor helpers and WWW-21/22 fixtures implemented.
+Tests: focus-www-3.log PASS 33/33 (7 cookie, 2 HTTP notification, 5 lifetime, 5 settled, 14 WWW).
+Failed evidence: focus-www-1.log obsolete Unsupported PUT assertion; focus-www-2.log fixture method-name typo; both corrected.
+Next: implement HTTP wire worker/header reader integrating http_wire helpers; FTP commands/support; cache Q11/Q15. Update README closure rows.
 Formatting: format-patch.py applies bounded rustfmt diffs via apply_patch; use absolute paths for qbuild fmt (relative paths resolve under engine).
 Facts: no ABI/plugin/capi changes; no game requests; manifest build-runs/run4-core-www-close15-r1-manifest.json in main.

@@ -138,6 +138,7 @@ pub enum Effect {
     Lock,
     Unlock,
     ConstructRequest(u32),
+    CopyHeaders(Vec<(Vec<u8>, Vec<u8>)>),
     AddRequest(u32),
     ReleaseRequest(u32),
     DeleteRequest(u32),
@@ -155,6 +156,15 @@ pub enum Effect {
     CloseSocket(u32),
     DestroySocket(u32),
     FreeWorker(u32),
+    AddTarget(u32),
+    ReleaseTarget(u32),
+    RestoreVtable,
+    LogIsOpen(u32),
+    CloseLog(u32),
+    DestroyLog(u32, u32),
+    DeleteLookup(u32, u32),
+    DestroyMember(&'static str),
+    FreeClient,
 }
 pub trait Host {
     fn effect(&mut self, effect: Effect);
@@ -165,6 +175,9 @@ pub trait Host {
 /// 00818210 logical state. Native table/address offsets are not portable pointers.
 #[derive(Clone, Debug)]
 pub struct Client {
+    pub references: u32,
+    pub receive_log: Option<(u32, bool)>,
+    pub send_log: Option<(u32, bool)>,
     pub initialized: bool,
     pub target: Option<u32>,
     pub counter: u32,
@@ -190,6 +203,9 @@ impl Client {
     }
     pub fn new(allocated_lookup: Option<u32>) -> Self {
         Self {
+            references: 0,
+            receive_log: None,
+            send_log: None,
             initialized: false,
             target: None,
             counter: 0,
@@ -206,6 +222,62 @@ impl Client {
             requests: BTreeMap::new(),
             resources: BTreeMap::new(),
             next_identity: 1,
+        }
+    }
+    pub fn query_interface(&mut self, host: &mut impl Host, identity: u32, iid: u32, output: &mut u32) -> bool {
+        if iid != 1 {
+            return false;
+        }
+        *output = identity;
+        self.references = self.references.wrapping_add(1);
+        host.effect(Effect::AddClient);
+        true
+    }
+    /// HTTP setter deliberately retains/releases even an identical target.
+    pub fn set_target(&mut self, host: &mut impl Host, target: Option<u32>) {
+        if let Some(target) = target {
+            host.effect(Effect::AddTarget(target));
+        }
+        if let Some(old) = self.target {
+            host.effect(Effect::ReleaseTarget(old));
+        }
+        self.target = target;
+    }
+    /// Open-state booleans are foreign IsOpen replies for the two supplied handles.
+    pub fn destroy(&mut self, host: &mut impl Host, flags: u32) {
+        host.effect(Effect::RestoreVtable);
+        self.shutdown(host);
+        if let Some(target) = self.target.take() {
+            host.effect(Effect::ReleaseTarget(target));
+        }
+        for log in [self.receive_log.take(), self.send_log.take()].into_iter().flatten() {
+            host.effect(Effect::LogIsOpen(log.0));
+            if log.1 {
+                host.effect(Effect::CloseLog(log.0));
+            }
+            host.effect(Effect::DestroyLog(log.0, 1));
+        }
+        if let Some(lookup) = self.lookup.take() {
+            host.effect(Effect::DeleteLookup(lookup, 1));
+        }
+        for member in [
+            "proxy +c8",
+            "queue +b0",
+            "critical-section +a4",
+            "thread +9c",
+            "string +80",
+            "string +6c",
+            "string +54",
+            "string +40",
+            "string +28",
+            "string +14",
+        ] {
+            host.effect(Effect::DestroyMember(member));
+        }
+        self.queue.clear();
+        self.strings = Default::default();
+        if flags & 1 != 0 {
+            host.effect(Effect::FreeClient);
         }
     }
     fn identity(&mut self) -> u32 {
@@ -297,6 +369,9 @@ impl Client {
         }
         request.records.extend_from_slice(records);
         request.headers.extend_from_slice(headers);
+        if !headers.is_empty() {
+            host.effect(Effect::CopyHeaders(request.headers.clone()));
+        }
         self.requests.insert(id, request);
         let result = self.admit(host, Some(id), custom);
         self.release_request(host, id)?;

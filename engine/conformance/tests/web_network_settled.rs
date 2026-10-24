@@ -182,3 +182,161 @@ fn http10_through_http14_and_http22_through_http25() {
         assert_eq!(job.0[1], result); // HTTP25
     }
 }
+#[test]
+fn http15_through_http21_body_framing() {
+    use fc4_core::www::http_wire::*;
+    use std::collections::VecDeque;
+    #[derive(Default)]
+    struct Io {
+        reads: VecDeque<ReadStep>,
+        allocation: bool,
+        opened: usize,
+        writes: Vec<u8>,
+        closed: usize,
+        removed: usize,
+    }
+    impl ReadHost for Io {
+        fn now(&mut self) -> u32 {
+            100
+        }
+        fn cancel(&mut self) -> bool {
+            false
+        }
+        fn clear_cancel(&mut self) {}
+        fn connected(&mut self) -> bool {
+            true
+        }
+        fn receive(&mut self, capacity: usize, poll: u32) -> ReadStep {
+            assert_eq!((capacity, poll), (1024, 1000));
+            self.reads.pop_front().unwrap_or(ReadStep::Failed)
+        }
+        fn temp_path(&mut self, ext: &[u8]) -> Option<Vec<u8>> {
+            assert_eq!(ext, b".html.tmp");
+            self.allocation.then(|| b"temp".to_vec())
+        }
+        fn open_temp(&mut self, _: &[u8], args: (u32, u32, u32)) -> bool {
+            assert_eq!(args, (2, 3, 1));
+            self.opened += 1;
+            true
+        }
+        fn write_temp(&mut self, bytes: &[u8]) -> bool {
+            self.writes.extend(bytes);
+            true
+        }
+        fn trim_temp(&mut self, n: u32) {
+            self.writes.truncate(self.writes.len() - n as usize);
+        }
+        fn close_temp(&mut self) {
+            self.closed += 1;
+        }
+        fn remove_temp(&mut self, _: &[u8]) {
+            self.removed += 1;
+        }
+        fn progress(&mut self, _: u32, _: u32) {}
+    }
+    let mut body = Body::default();
+    let mut io = Io::default();
+    let mut overflow = b"old".to_vec();
+    let mode = Framing {
+        length: 3,
+        chunked: false,
+    };
+    assert_eq!(
+        body.read_message(&mut io, mode, b"abcXY", b".html.tmp", 100, 15, &mut overflow),
+        5
+    );
+    assert_eq!(body.bytes, b"abcXY");
+    assert_eq!(overflow, b"XY"); // HTTP15
+    io.reads.push_back(ReadStep::Data(b"bcXY".to_vec()));
+    assert_eq!(
+        body.read_message(&mut io, mode, b"a", b".html.tmp", 100, 15, &mut overflow),
+        3
+    );
+    assert_eq!(body.bytes, b"abc");
+    assert_eq!(overflow, b"XY");
+    assert_eq!(body.received, 4); // HTTP16
+    let chunks = Framing {
+        length: 0,
+        chunked: true,
+    };
+    for (wire, count, expected) in [
+        (b"1garbage\r\naXY0\r\n\r\n".as_slice(), 1, b"a".as_slice()),
+        (b"0\r\n\r\n", 0, b""),
+        (b"1\r\na\r\n0\r\nX: y\r\n\r\nNEXT", 1, b"a"),
+    ] {
+        assert_eq!(
+            body.read_message(&mut io, chunks, wire, b".html.tmp", 100, 15, &mut overflow),
+            count
+        );
+        assert_eq!(body.bytes, expected);
+        assert!(overflow.is_empty()); // HTTP17-19
+    }
+    io.allocation = true;
+    io.reads = VecDeque::from([ReadStep::Data(vec![b'x']), ReadStep::Data(vec![b'y'])]);
+    let mode = Framing {
+        length: 16385,
+        chunked: false,
+    };
+    assert_eq!(
+        body.read_message(&mut io, mode, &vec![b'a'; 16383], b".html.tmp", 100, 15, &mut overflow),
+        16385
+    );
+    assert!(body.file);
+    assert_eq!(body.bytes, b"temp");
+    assert_eq!(io.opened, 1);
+    assert_eq!(io.closed, 1);
+    assert_eq!(io.writes.len(), 16385); // HTTP20
+    io.allocation = false;
+    io.reads.push_back(ReadStep::Data(vec![b'z']));
+    assert_eq!(
+        body.read_message(&mut io, mode, &vec![b'a'; 16384], b".html.tmp", 100, 15, &mut overflow),
+        0
+    );
+    assert!(!body.file);
+    assert!(body.bytes.is_empty()); // HTTP21
+}
+#[test]
+fn http_slot01_slot02_and_http35() {
+    use fc4_core::www::http::*;
+    #[derive(Default)]
+    struct Recorder(Vec<Effect>);
+    impl Host for Recorder {
+        fn effect(&mut self, e: Effect) {
+            self.0.push(e);
+        }
+        fn notify(&mut self, _: &mut Client, _: Job, _: bool) {}
+    }
+    let mut client = Client::new(Some(7));
+    let mut host = Recorder::default();
+    let mut output = 99;
+    assert!(!client.query_interface(&mut host, 42, 2, &mut output));
+    assert_eq!(output, 99);
+    assert!(host.0.is_empty());
+    assert!(client.query_interface(&mut host, 42, 1, &mut output));
+    assert_eq!(output, 42);
+    assert_eq!(client.references, 1);
+    for flags in 0..4 {
+        client = Client::new(Some(7));
+        client.target = Some(9);
+        client.receive_log = Some((10, true));
+        client.send_log = Some((11, false));
+        host.0.clear();
+        client.destroy(&mut host, flags);
+        assert_eq!(
+            &host.0[..9],
+            &[
+                Effect::RestoreVtable,
+                Effect::ReleaseTarget(9),
+                Effect::LogIsOpen(10),
+                Effect::CloseLog(10),
+                Effect::DestroyLog(10, 1),
+                Effect::LogIsOpen(11),
+                Effect::DestroyLog(11, 1),
+                Effect::DeleteLookup(7, 1),
+                Effect::DestroyMember("proxy +c8")
+            ]
+        );
+        assert_eq!(host.0.contains(&Effect::FreeClient), flags & 1 != 0);
+        assert!(!host.0.iter().any(|e| matches!(e, Effect::Notify(..))));
+    }
+}

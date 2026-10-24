@@ -1,4 +1,4 @@
-//! Cookie owner, web-network §3. IO is foreign; binary text conversion remains Q3.
+//! Cookie owner, web-network §3. IO and CRT calendar conversion are foreign.
 use super::{Contract, Unsupported};
 use crate::rzurl::{url_type, RzUrl};
 
