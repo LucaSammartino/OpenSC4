@@ -37,7 +37,7 @@ Construction is the sole explicitly mapped implemented owner, so the mapped-owne
 
 ## Game evidence
 
-[Run 512](../runs/occprops12-t79-20261024-a-512.md), label `occprops12-t79-20261024-a`, Konradshohe, turbo, requested end date 2032-01-01. Verdict **clean**, actual final date **2032-01-19**, `ref_warnings=0`, foreign exceptions/stalls/RTC/overruns all zero. DLL SHA256 prefix `52a20570`; 30.750 simulation seconds, 42 seconds including queue/load.
+[Run 512](../runs/occprops12-t79-20261024-a-524.md), label `occprops12-t79-20261024-a`, Konradshohe, turbo, requested end date 2032-01-01. Verdict **clean**, actual final date **2032-01-19**, `ref_warnings=0`, foreign exceptions/stalls/RTC/overruns all zero. DLL SHA256 prefix `52a20570`; 30.750 simulation seconds, 42 seconds including queue/load.
 
 Exact summary lines:
 

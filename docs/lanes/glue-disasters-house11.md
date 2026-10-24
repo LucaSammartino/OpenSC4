@@ -4,7 +4,7 @@
 
 ## Final result
 
-**READY for measured partial landing, not qualified for the house profile.** Exact countable result: `disasters 73/73` in [run494](../runs/house11-fire-riot-final-03-494.md), label `house11-fire-riot-final-03`. All dated summaries through2032-01-01 have mismatches0, resyncs0, unfollowable0, failures0. Episode comparisons1071/1071 exact: fire65/65, riot941/941, quiet65/65; original/ours steps55/55; no numbered or unexplained differences. Wait session57705 was collected to terminal; no request remains outstanding.
+**READY for measured partial landing, not qualified for the house profile.** Exact countable result: `disasters 73/73` in [run494](../runs/house11-fire-riot-final-03-523.md), label `house11-fire-riot-final-03`. All dated summaries through2032-01-01 have mismatches0, resyncs0, unfollowable0, failures0. Episode comparisons1071/1071 exact: fire65/65, riot941/941, quiet65/65; original/ours steps55/55; no numbered or unexplained differences. Wait session57705 was collected to terminal; no request remains outstanding.
 
 Reached2032-01-02 and PostSystemServiceShutdown in **1019.469s**, queue wall1042s, below1800s. Verdict `clean`; foreign exceptions, watchdog stalls, rtc, overruns, Rust panics and structured exceptions zero. **ref_warnings=1 remains, and propmgr is219/220.** These are outstanding qualification failures; monthly exactness does not waive them. Both switches remain default-off. No tools/ file or coverage TSV was read or edited.
 
@@ -16,7 +16,7 @@ One final-source `qbuild all` passed: Rust7119/0, clippy0 diagnostics; queued na
 
 ### Measured limits
 
-Fire(9,70), riot(40,33), nine leaders removed after200 samples, schedule completed at fire58/riot202 with resync0. DLL SHA prefix0311f5eb. Request retained in game-queue/done; terminal log/verdict in `build-runs/game-results/house11-fire-riot-final-03.*`. Earlier [run493](../runs/house11-fire-riot-final-02-493.md), final-02, completed both episodes exactly but stalled outside the plugin at2026-02-28 after283.047s, ref0. Its separate verdict is preserved. Final-03 is one unchanged-source retry, not a replacement verdict.
+Fire(9,70), riot(40,33), nine leaders removed after200 samples, schedule completed at fire58/riot202 with resync0. DLL SHA prefix0311f5eb. Request retained in game-queue/done; terminal log/verdict in `build-runs/game-results/house11-fire-riot-final-03.*`. Earlier [run493](../runs/house11-fire-riot-final-02-522.md), final-02, completed both episodes exactly but stalled outside the plugin at2026-02-28 after283.047s, ref0. Its separate verdict is preserved. Final-03 is one unchanged-source retry, not a replacement verdict.
 
 Remaining warning: `PruneGone:275`, class0x2977AA47, object187DDAE8, at15:37:22.930. It releases an AddRef-held observed occupant after manager removal; investigate lifetime rather than suppressing the warning. Previous run492's additional warnings remain documented below.
 
@@ -38,7 +38,7 @@ Everything below is historical run492 evidence, superseded by the current result
 
 ## Previous round result (run 492; retained evidence)
 
-**WIP, not qualified for house inclusion.** Exact countable result: `disasters 3/73` in [run 492](../runs/house11-fire-riot-01-492.md), label `house11-fire-riot-01`. The request was submitted once and its existing terminal verdict was collected from wait session 98875. No game request remains outstanding. The user's resume instruction calls for WIP when the disaster lines are non-exact; this is a measured failure, not a stop on the short-form spec questions.
+**WIP, not qualified for house inclusion.** Exact countable result: `disasters 3/73` in [run 492](../runs/house11-fire-riot-01-521.md), label `house11-fire-riot-01`. The request was submitted once and its existing terminal verdict was collected from wait session 98875. No game request remains outstanding. The user's resume instruction calls for WIP when the disaster lines are non-exact; this is a measured failure, not a stop on the short-form spec questions.
 
 The game reached 2032-01-03 and PostSystemServiceShutdown in 1200.343 real seconds (queue wall 1220s), within 1800s. Verdict word `clean`; foreign exceptions, stalls, rtc, overruns, Rust panics and structured exceptions all zero. **Reference warnings were 3**, so the run does not meet the required ref0 qualification despite its verdict word. DLL SHA prefix `afc115f5`.
 
