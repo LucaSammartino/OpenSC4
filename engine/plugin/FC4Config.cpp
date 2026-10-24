@@ -394,6 +394,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "dbpf_shadow",
                                   // HG8 bounded read-only city geometry (default off).
                                   "city_shadow",
+                                  // AF11 partial helicopter metadata observation, default off.
+                                  "helicopter_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -28,6 +28,25 @@ const AIRCRAFT_MANAGER: u32 = 0xC98F_9D4A;
 const WATERCRAFT_MANAGER: u32 = 0xA98F_9D28;
 
 #[test]
+fn helicopter_shadow_fixture_is_independent_and_propagates_stream_failure() {
+    unsafe extern "C" fn refuse(_: *mut c_void, _: u16) -> bool {
+        false
+    }
+    unsafe {
+        assert_eq!(fc4_helicopter_shadow_fixture(std::ptr::null()), 0);
+        let mut bytes = Out::default();
+        let mut stream = ostream(&mut bytes);
+        assert_eq!(fc4_helicopter_shadow_fixture(&stream), 0x8BA9_8EDA);
+        // Concrete helicopter, aircraft, automaton and occupant versions.
+        assert_eq!(&bytes.bytes[..8], &[1, 0, 1, 0, 8, 0, 4, 0]);
+        stream.put_u16 = Some(refuse);
+        assert_eq!(fc4_helicopter_shadow_fixture(&stream), 0);
+        stream.struct_size = 0;
+        assert_eq!(fc4_helicopter_shadow_fixture(&stream), 0);
+    }
+}
+
+#[test]
 fn construction_shadow_keeps_crane_state_and_releases_partial_reads() {
     use fc4_core::lot_records::{construction::ConstructionRecord, OccupantRecord};
     use fc4_core::stream::RefValue;
