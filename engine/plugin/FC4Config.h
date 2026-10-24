@@ -646,7 +646,9 @@ std::string IniPath();
 
 // scres_file_shadow = 0 / 1 (default 0): physical file-parser replay.
 // renderprops_shadow = 0 / 1 (default 0): C-locale ASCII registry counts,
-// names and Find probes. Live configured values await setter-input contract RP7.
+// names and Find probes plus isolated values/setters/registry stability/lifetime.
+// RP7 live configured values require a complete independent input/copy observer;
+// the current late attach reports that observer and private view as unavailable.
 
 // dbpf_shadow = 0 / 1 (default 0): each city load/month, compare public
 // resource-manager packed segments against the production Rust Package reader.
