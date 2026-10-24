@@ -369,15 +369,15 @@ outside this owner) frees them.
 
 ## 8. Quirks and cases
 
-Task slots as this window uses them *[inferred]*:
+Task slots as this window uses them (confirmed by tutorial-task.md §1; TUW5, answered):
 
 | Slot | Use |
 |---|---|
 | 3 | build from `tutorialtasks[i]` |
-| 5 | type-0x10 hint action |
+| 5 | the task's area (the window ignores the result) |
 | 7 | is window ID `k` allowed |
 | 8 | instruction text |
-| 9 | text after event 1 |
+| 9 | the try-again message, shown after event 1 |
 | 11 | hint window ID |
 | 12 | hint window |
 | 14 | start |
@@ -424,5 +424,5 @@ All 19 functions (7,407 bytes):
 - §6: `0x00444160`, `0x00441EE0`;
 - §7: `0x00441B50`, `0x00441BD0`, `0x00442C80`.
 
-Not covered: the HTML control (out of scope, ui-windows.md), `cSC4TutorialTask` (TUW5), the message target's
+Not covered: the HTML control (out of scope, ui-windows.md), `cSC4TutorialTask` (tutorial-task.md), the message target's
 `DoMessage` and the click filter (owner `cSC4TutorialSystem`).

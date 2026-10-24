@@ -18,8 +18,3 @@
 - **TUW4 - §4, §8:** `DoSpecialDocumentProcessing` never returns for a text with a `<!--` after its first `-->`.
   Does any shipped tutorial text (the `tutorialtasks` tasks' slot 8 and slot 9 texts) have two comments, or a
   comment after a `-->`? [unknown: needs the shipped scripts]
-
-<!-- from: re-tutwin7 (2026-10-23) -->
-- **TUW5 - §8:** the `cSC4TutorialTask` slot uses are read only from this window (3 build, 7 allowed ID, 8 and 9
-  texts, 11 and 12 hint window, 14 start, 16 end, 19 value, 20 type, 22 zoom, 23 and 24 offset). Do the task's own
-  bodies confirm them, and what are task types 1, 4, 8, 0xB–0xD and 0x10? [inferred]
