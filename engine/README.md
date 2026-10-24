@@ -2394,3 +2394,12 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
   through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
   ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.
+
+- `lua_shadow = 1` (default off) records the original Lua extension collector
+  and app VM's registered callback identities at city load and monthly. The
+  `lua-registry shadow YYYY-MM-DD` lines compare all 47 ordered names/flags,
+  replay core `register_api(true/false)` with the recorded native callback
+  bindings, and compare globals, `game` fields and `_tf_`, preserving the native
+  stack. No nondeterministic values are excluded. This is bounded registration
+  verification: full chunk/global/table/call recording and VM replay remain
+  open under lua-host LH6-LH7 and receive no full Lua coverage credit.

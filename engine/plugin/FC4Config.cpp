@@ -356,6 +356,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
                                   "netocc_shadow",
+                                  // Bounded original Lua registry comparison; default off.
+                                  "lua_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
