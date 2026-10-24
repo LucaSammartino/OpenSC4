@@ -12,6 +12,8 @@
 - Initial focused check failed on test RNG API use (missing SeedSource and PartialEq); fixed tests. Corrected focused tests: 4/4 passed (4451 core tests discovered).
 - Explicit owned-file fmt: 8 files, exit=0, diff_lines=0. Relative fmt paths initially failed; absolute paths work.
 - q.py could not launch Git Bash (CreateFileMapping permission denied); focused cargo ran directly in the worktree.
-- Full stable-source qbuild all outstanding: exec session 47146. Next: collect that operation, then qbuild verify if native queue verification has not already run.
+- Stable-source qbuild all: cargo 6808 passed, 0 failed; clippy exit=0, diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
+- Same qbuild all operation (exec session 47146) has queued native build/CTest as qbuild-20261024-013445-build-ctest; waiting behind game regression. Do not launch duplicate verify: all already uses the required coordinator native queue.
+- Next: collect session 47146 to its terminal native result, then finalize report and wip queue (EF18/EF19 prevent claiming complete owner closure).
 - No game requests outstanding; no ABI/plugin/capi edits authorized.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-close5-r1-manifest.json.
