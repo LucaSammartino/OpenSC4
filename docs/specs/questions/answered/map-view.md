@@ -1,5 +1,36 @@
 # map-view: answered questions
 
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV7 - §5: highlight comparison and collection:** what fields, ordering, duplicates and radius equality does
+  0x007A1390 compare? What radius data belongs to kinds 6-8 (dash rather than kind 9's explicit none), what is
+  kind 0's behavior, and how are collection failures handled? [collect raw matching building records and the
+  documented coverage radii for kinds 1-4; kinds 6-8 retain unspecified radius, kind 9 has none; no equality,
+  deduplication, ordering or dirty-change decision claimed, including on repeated identical inputs]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §5.0 specifies a pointer-keyed ordered multiset,
+  retained equal non-null records without radius/position comparison, zero radius for kinds 6–9, empty
+  kind-0 collection, and producer-result versus unsafe allocation-failure behavior; vectors 17–18.
+
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV8 - §2, §4.3: owned palette and resampling algorithms:** what are the ramp endpoint, duplicate-stop,
+  ordering, interpolation and rounding rules of InterpolateRampToPalette, and the coarse-grid resampling
+  algorithm/boundary rules of SC4InterpolateGrid? [nonzero SetDataView stops at ramp generation; raw supplied
+  256-entry palettes exercise lookup/emission helpers only; interpolation Unsupported, not delegated]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §4.3 specifies supplied-order stops, endpoint
+  extension, duplicate advancement, 8-bit fixed-point channel weights, division-by-256 premultiplication
+  and centre-aligned, edge-clamped 16-bit fixed-point separable grid resampling; vectors 19–21.
+
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV10 - §4.2-§4.3: out-of-domain floats and overlay cells:** what happens for nonfinite or truncated float
+  indices outside 0-255, which colours count as coloured cells, and what origin/extent/depth transformation
+  maps the grid to marked cells? [refuse unsupported float indices; overlay helper plans only explicitly
+  supplied coloured cells with complete raw geometry, without inferring inclusion, depth or transforms]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §4.2.1 specifies signed-qword truncation and low
+  byte wrap, with zero on masked invalid conversion. §4.3 specifies straight-palette alpha inclusion,
+  grid coordinates and world cell sizes, and the marked-cell terrain/water/depth contract; vectors 22–23.
+
 <!-- from: core-map-view5 (2026-10-23) -->
 - **QV12 - §§1-3, §6-7: interface execution and summary edges:** what rollback/return behavior applies when
   a foreign window/renderer/simulator primitive fails, what initialization/attachment follows creation of the

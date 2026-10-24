@@ -93,7 +93,7 @@ shut down and released, the update subscriptions dropped (`UnhookUpdateMessages`
   cells cleared; source, block and highlight state cleared; `UpdateHighlights`, `Update`.
 - **otherwise**: the exemplar is loaded (none → return false) and its properties stored as in §2; the palette is
   built (`InterpolateRampToPalette`, 256 entries) together with a copy whose colour channels are multiplied by
-  their alpha (`c × a / 255`, rounded); the city view gets the filter and the terrain the view mode; then
+  their alpha (`floor((c × a + 128) / 256)`); the city view gets the filter and the terrain the view mode; then
   `UpdateHighlights`, `Update`, the child `0x4203` flag, the current view := `n`, `HookUpdateMessages` (§7).
 
 #### Selection completion and foreign failures *[compat]*
@@ -207,10 +207,20 @@ Sources 11, 13–23 and 31–63 draw nothing *[quirk: the shipped zones and the 
 | signed 8-bit | value + 128 |
 | unsigned 16-bit | `min((v × ⌊0xFFFF00 / s⌋) >> 16, 255)` |
 | signed 16-bit | `128 + ((v × ⌊0x7FFF00 / s⌋) >> 16)` (64-bit, arithmetic shift), clamped to 0–255 |
-| float | the truncated value |
+| float | low byte of the signed-64-bit truncation; see §4.2.1 |
 
 With the default scale 256 the factors are 256 (so an unsigned 16-bit value is divided by 256). Each index selects
 the alpha-multiplied palette entry (`MakeMapColorBuffer`).
+
+### 4.2.1 Float conversion outside the byte domain (QV10) *[compat]*
+
+The float path loads each binary32 sample, calls `_ftol2`, and stores **AL**, with no range test or clamp
+(`0x007A2ED9`–`0x007A2EE4`). For finite samples whose truncation is representable as signed 64-bit, truncate
+toward zero and take the result modulo 256. Thus −1.75 gives 255, 256.75 gives 0 and 511.75 gives 255.
+Under the native masked x87 invalid-operation exception, NaN, either infinity and samples outside the
+signed-64-bit conversion domain give the integer-indefinite result and hence index **0**. This is the
+qword conversion in `_ftol2` (`0x009EEF04`–`0x009EEF78`), not a saturating float-to-u8 operation. With
+unmasked invalid exceptions the conversion can trap; the map owner provides no exception recovery.
 
 ### 4.3 Interpolation, lots and the 3D overlay
 
@@ -220,6 +230,60 @@ the alpha-multiplied palette entry (`MakeMapColorBuffer`).
   with the property's argument) *[summary]*.
 - While the 3D overlay is on (`+0x140`), the marked-cell view is added once to the renderer (slot 32, layer 5,
   priority 1000) and every coloured cell is also marked in the city at the grid's cell size.
+
+#### Owned palettes and cell resampling (QV8) *[compat]*
+
+The ramp is a flat list of unsigned `(index, ARGB)` pairs in **supplied order**, not a sorted map
+(`0x0078D520`). Fill entries before the first stop with its colour. At each palette index, advance past
+every next stop whose index is less than or equal to that index; duplicate stops therefore use the last
+such supplied stop, without dividing by their zero separation. After the final stop, fill with the last
+colour. Between successive stops a,b, use integer weight `w=floor(256×(i−a.index)/(b.index−a.index))`.
+Each of the four straight-colour channels is `a.channel + floor(((b.channel−a.channel)×w+128)/256)`;
+halfway channel results round toward positive infinity, including descending channels. There is no
+floating-point interpolation (`0x0078D59A`–`0x0078D62F`, integer multiply/divide, packed channel arithmetic).
+No sorting, stop clamping, even-list validation or zero-length-list validation is performed. Descending
+stops already passed by the monotonically increasing palette cursor are skipped; an odd list uses its
+final scalar as the tail colour and can read beyond its logical end when attempting an incomplete pair.
+Empty/inaccessible lists have no defined successful palette. Do not turn these unsafe inputs into a
+native validation failure. For unusual unsigned indices, numerator arithmetic wraps at 32 bits before
+unsigned division. The premultiplied copy retains alpha and replaces each RGB byte c with
+`floor((c×alpha+128)/256)` (`0x007A4F45`–`0x007A50EC`); even opaque white becomes `0xFFFEFEFE`.
+
+Resampling is centre-aligned, separable fixed-point bilinear interpolation, **before palette lookup**.
+For a positive source axis length S and destination length D, the step is integer
+`q=trunc(S×65536/D)` and destination coordinate j samples fixed coordinate
+`q/2−32768+j×q`. Clamp beyond either source end to that end sample. Otherwise use the lower source
+index and fractional low 16 bits f. Interpolate two values with
+`L(a,b,f)=a+floor(((b−a)×f+32768)/65536)`. Interpolate the inner (z) axis on both adjacent x rows first,
+then interpolate those **rounded integer** results on x. This is not one final rounding of a four-corner
+weighted sum. The u8 helper emits that byte; the signed-byte helper sign-extends source bytes, performs
+the same calculation, then adds 128 to make an unsigned palette index (`0x0079EB40`, `0x0079EFD0`;
+rounding/width instructions `0x0079ECA7`–`0x0079ED31`, `0x0079F137`–`0x0079F18E`). No extrapolation,
+wraparound neighbour or averaging of palette colours is used. Empty/jagged grids and size products that
+overflow the native 32-bit arithmetic are unsafe inputs, not a new boundary sampling convention.
+The owner upsamples to the city's x/z cell counts if interpolation is enabled and **either** source
+dimension is smaller (`0x007A23EC`–`0x007A23FE`); destination cell sizes then become the city's world
+width/height divided by its respective cell counts (16 m for an ordinary city).
+Block-property presence forces interpolation on, even when its mask is zero.
+
+#### Marked-cell inclusion and geometry (QV10) *[compat]*
+
+For the ordinary u8 path, scan the final grid in x-then-z order. Include a coordinate iff the
+**straight** palette entry's alpha byte is nonzero; RGB zero with nonzero alpha still counts, and
+nonzero RGB with zero alpha does not. Each included coordinate gets that straight ARGB entry, not the
+premultiplied bitmap colour (`0x007A1020`). The signed path first adds 128 modulo 256 to the signed
+sample before looking up the same straight palette (`0x007A1120`); both owner calls pass zero as the
+helper's optional minimum-index threshold, so negative samples are not excluded. The owner replaces the marked-cell
+coordinate and colour arrays (including replacing them with empty arrays) and supplies the grid's
+two world cell sizes; after resampling these are 16,16 (`0x007A2680`–`0x007A26DD`).
+
+Coordinates are grid coordinates with origin (0,0), independent of minimap pixel scaling/rotation.
+A cell (x,z) spans world `[x×w,(x+1)×w] × [z×h,(z+1)×h]`. Height, terrain clipping, corner order,
+diagonal, water-max and depth offset are the marked-cell view's rules in
+[overlay-views.md §2](overlay-views.md#2-the-marked-cell-view-sc4markedcellview-compat), including its
+exact §2.2 corrections. This owner initializes ignoreDepth=true and useWater=true and leaves useLots
+at the marked-cell constructor's false default. There is no owner-supplied vertical scale or origin
+offset. Overlay registration occurs before child lookup; it does not imply that new cells were produced.
 
 ## 5. Highlights (`UpdateHighlights`, `0x007A1A00`) *[compat]*
 
@@ -232,12 +296,37 @@ By the highlight kind, each building of a kind is collected with its coverage ra
 | 3 | fire stations (fire slot 22) | fire slot 21 at level 0.5 |
 | 4 | police stations (police slot 21) | police slot 20 at level 0.5 |
 | 5 | crime hotspot (crime slot 8 `GetCrimeHotspot`), §5.1 | 100 world units |
-| 6 | garbage buildings (pollution slot 46) | — |
-| 7 | power plants (power slot 25) | — |
-| 8 | water producers (plumbing slot 28) | — |
-| 9 | transit switches (traffic simulator slot 28) | none |
+| 6 | garbage buildings (pollution slot 46), plus §5.0 zone occupants | zero |
+| 7 | power plants (power slot 25) | zero |
+| 8 | water producers (plumbing slot 28) | zero |
+| 9 | transit switches (traffic simulator slot 28) | zero |
 
-The result is compared with the previous set (`0x007A1390`); a change marks the map dirty.
+The result is compared with the previous collection (`0x007A1390`); a change marks the map dirty.
+
+### 5.0 Building collection and reconciliation (QV7) *[compat]*
+
+The two collections are ordered **multisets**, keyed only by the occupant interface pointer, compared as
+signed 32-bit addresses. Insertion retains duplicates; enumeration order does not determine comparison order
+(`0x007A0AE0`, `0x0079FBD0`). An equal non-null key preserves the old record, effect, position and radius:
+**radius and position are not compared or refreshed**. Thus moving a still-listed building or changing its
+coverage alone does not dirty this view. Adding or removing a key occurrence does dirty it, even if all the
+other occurrences have the same pointer. A removed record has its highlight flag cleared and its effect
+removed; a newly retained record gets the normal effect creation from §5.1. After reconciliation the temporary
+collection is emptied. Evidence: pointer-only comparisons at `0x007A13DA`–`0x007A13E8`, `0x007A149D`,
+`0x007A1505`–`0x007A1621`; there is no float/radius comparison in `0x007A1390`.
+
+Kinds 6, 7, 8 and 9 all pass **binary32 zero radius**, rather than an unknown radius. Kind 6 includes both
+pollution slot 46's garbage buildings and occupants found in cells whose zone byte is `0x0E`: it scans the
+zone grid in x-then-z order, asks occupant-manager slot 32 for the matching occupant, and includes each
+non-null result with radius zero. It does not deduplicate a building found through both routes or through
+multiple cells (`0x007A1DE6`–`0x007A1F2A`). Kind 0 and unrecognized kinds collect no new building records;
+comparison therefore removes any previous building highlights. The separate hotspot-name behavior is §5.1.
+The collection/coverage callbacks' boolean results are not used to abort reconciliation: the entries actually
+returned are consumed, so an empty returned list removes old entries even if its producer reports false.
+The temporary occupant list is released with occupant-manager slot 48. Null services or allocation failure
+have no owner-level recovery/rollback contract; unchecked dereferences and container failures are native
+failure behavior, not a successful empty collection. The special null-occupant record follows the hotspot
+replacement rule in §5.1, rather than this equal-non-null retention rule.
 
 ### 5.1 Named effects and the crime hotspot *[compat]*
 
@@ -257,7 +346,7 @@ record's references; building highlights are cleared with occupant slot 17 (`+0x
 Adding a building marks it highlighted with that slot's arguments true, 0. The owner does not attach the
 visual effect to the occupant through visual-effect slot 9
 (`0x0079F620`–`0x0079F74E`, `0x007A1266`–`0x007A12A7`, `0x007A13EE`–`0x007A1408`,
-`0x007A1650`–`0x007A166B`). General building-set comparison remains QV7.
+`0x007A1650`–`0x007A166B`). General building comparison is specified in §5.0.
 
 For kind 5, the crime query returns a success flag and three optional outputs: a byte of hotspot strength
 and two signed 32-bit **cell coordinates**, x and z. The simulator reports false when its stored strength
@@ -324,7 +413,8 @@ buffer. A candidate pixel `(i,j)` has distance error
 Only `e < 2` is blended, with weight `b = 255−floor(128×e)`. This is a soft ring, not a filled disk.
 The native square roots and intermediate arithmetic use x87 precision between the stated binary32 stores
 (`0x0079E156`–`0x0079E3B3`; constants 0.5, 1, 2, 128 at `0x00A84D2C`, `0x00A81228`,
-`0x00A8825C`, `0x00AB7E10`). Invalid float/conversion domains remain QV10.
+`0x00A8825C`, `0x00AB7E10`). Ring-helper invalid geometric inputs are unsafe numeric inputs;
+the float-grid conversion rule is separately specified in §4.2.1. Exact ring precision remains QV14.
 
 Both passes share the pixel blend (`0x0079DC00`–`0x0079DCD8`). For source RGB `S`, destination ARGB `D`
 and weight `b`, each output RGB byte is `floor((Dchannel×(256−b)+Schannel×b+128)/256)`;
@@ -402,7 +492,9 @@ policy.
 
 See [questions/map-view.md](questions/map-view.md): QV1 (the 3D view filter options and the terrain and zone display
 calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels, the group buttons and the toggle
-`0x8100`/`0x8101`), QV4 (`BlockMapByLot` and the crime and traffic markers).
+`0x8100`/`0x8101`), QV4 (`BlockMapByLot` and the crime and traffic markers), QV5 (16-bit conversions),
+QV6 (raw properties/resources), QV9 (construction and update commits), QV11 (developer layers), and
+QV14 (ring precision). QV7, QV8 and QV10 are answered in §§4.2.1, 4.3 and 5.0.
 
 ## 10. Conformance tests
 
@@ -451,3 +543,29 @@ calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels
 16. **Ring blend:** ring arguments `(u=4.5,v=4.5,r=2)` in a sufficiently large clip: pixel `(7,5)` has
     `e=0`, weight 255; pixel `(5,5)` is untouched (`e=2`). EE `0x000000FF` over `0xFF000000` at `(7,5)`
     produces `0xFF0000FE`, demonstrating both the ignored source alpha and the division by 256.
+17. **Building retention:** collect A(radius 10, position P), then collect the same non-null A with
+    radius 20 and position Q. First reconciliation changes; second does not. Retained radius/position
+    remain 10/P. Reordering distinct A/B inputs does not change comparison or recreate their effects.
+18. **Building multiplicity and empty:** previous `[A,A,B]`, new `[B,A]` removes one A occurrence and
+    reports changed. Kind 0 after a nonempty collection removes all building records; repeating empty
+    returns unchanged. Kinds 6–9 supply radius +0.0. A false producer result with an empty list follows
+    the same empty reconciliation; it is not an allocation-failure simulation.
+19. **Ramp endpoints and duplicate:** stops `(2,0x00000000),(4,0xFFFFFFFF),(4,0xFF000000),
+    (6,0xFF0000FF)` give palette[0..2]=0, [3]=`0x80808080`, [4]=`0xFF000000`,
+    [5]=`0xFF000080`, [6..255]=`0xFF0000FF`. No sorting or duplicate averaging.
+20. **Channel rounding/premultiplication:** stops `(0,0),(2,0x01010101)` give [1]=`0x01010101`;
+    reverse the colours and [1] is still `0x01010101`. Straight `0xFFFFFFFF` premultiplies to
+    `0xFFFEFEFE`; straight `0x80808080` premultiplies to `0x80404040`.
+21. **Resampling:** a 1×2 unsigned grid `[0,100]` resampled to 1×4 gives `[0,25,75,100]`.
+    The same shape with signed `[-100,100]` gives palette indices `[28,78,178,228]`.
+    A constant 1×1 grid fills the entire destination. For source x rows `[0,1]`, `[1,2]`,
+    resampling 2×2 to 3×3 gives centre value 2 (inner-axis halfway results 1 and 2, then 2),
+    discriminating two-stage rounding from the unrounded bilinear centre value 1.
+22. **Float index wrap:** samples `[-1.75,-0.75,255.75,256.75,511.75,NaN,+Inf,-Inf,2^63]`
+    give `[255,0,255,0,255,0,0,0,0]` under masked invalid exceptions. These cases must not be
+    implemented as clamping or finite-domain rejection.
+23. **Overlay cells:** final grid x rows `[0,1]`, `[2,3]`, straight colours
+    `[0x00FFFFFF,0x01000000,0xFF000000,0x00000000]` gives coordinates `[(0,1),(1,0)]`
+    and corresponding colours `[0x01000000,0xFF000000]`. With sizes 32×16, the first spans
+    world x=[0,32], z=[16,32], with terrain/water height from overlay-views §2.2, independent
+    of minimap rotation. With all palette alphas zero the replacement cell and colour arrays are empty.

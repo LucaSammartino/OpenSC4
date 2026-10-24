@@ -27,31 +27,12 @@
   consumed fields explicitly Unsupported; raw lists retained without inventing ramp or travel conversions]
 
 <!-- from: core-map-view4 (2026-10-23) -->
-- **QV7 - §5: highlight comparison and collection:** what fields, ordering, duplicates and radius equality does
-  0x007A1390 compare? What radius data belongs to kinds 6-8 (dash rather than kind 9's explicit none), what is
-  kind 0's behavior, and how are collection failures handled? [collect raw matching building records and the
-  documented coverage radii for kinds 1-4; kinds 6-8 retain unspecified radius, kind 9 has none; no equality,
-  deduplication, ordering or dirty-change decision claimed, including on repeated identical inputs]
-
-<!-- from: core-map-view4 (2026-10-23) -->
-- **QV8 - §2, §4.3: owned palette and resampling algorithms:** what are the ramp endpoint, duplicate-stop,
-  ordering, interpolation and rounding rules of InterpolateRampToPalette, and the coarse-grid resampling
-  algorithm/boundary rules of SC4InterpolateGrid? [nonzero SetDataView stops at ramp generation; raw supplied
-  256-entry palettes exercise lookup/emission helpers only; interpolation Unsupported, not delegated]
-
-<!-- from: core-map-view4 (2026-10-23) -->
 - **QV9 - §1, §3.1, §7: state outside the specified prefix:** what are the constructor's initial current view,
   notification value and last-redraw clock, repeated Init/Hook behavior, tick clock width/wrap semantics, and
   the timestamp/dirty commit points after empty sources, failed/partial updates or filter-reset calls? Does
   draw-nothing clear or preserve an existing bitmap? [portable construction takes explicit clock/notification
   baselines and an unknown current view; no native defaults claimed; clock regression and repeated Init/Hook
   refused; none stops at QV1 reset boundary; partial redraw intents retain dirty and last-redraw state]
-
-<!-- from: core-map-view4 (2026-10-23) -->
-- **QV10 - §4.2-§4.3: out-of-domain floats and overlay cells:** what happens for nonfinite or truncated float
-  indices outside 0-255, which colours count as coloured cells, and what origin/extent/depth transformation
-  maps the grid to marked cells? [refuse unsupported float indices; overlay helper plans only explicitly
-  supplied coloured cells with complete raw geometry, without inferring inclusion, depth or transforms]
 
 <!-- from: core-map-view4 (2026-10-23) -->
 - **QV11 - §4.1: developer layers:** which raw grid does the documented default layer 1 select? Are layers 3
