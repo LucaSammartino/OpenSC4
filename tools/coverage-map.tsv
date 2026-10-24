@@ -539,6 +539,12 @@ cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
 cSC4WinCatalogView	windows and panels	ui	catalog-view.md	-	-	-
 cSC4WinAdviceList	windows and panels	ui	advice-list.md	-	-	-
 cSC4WinIntroVideoScreen	windows and panels	ui	intro-video.md	-	-	-
+cSC4WinAlertBorder	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinAdviceListCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinAlertBorderCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinAuraBarCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinTextCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:SC4GetSC4ScriptedWindowCOMDirector	windows and panels	ui	scripted-window-director.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
@@ -584,6 +590,7 @@ cGZWin32COMDirector	widget toolkit	ui	widget-winmgr.md	-	-	-
 cGZWinDragAndDropManager	widget toolkit	ui	widget-dragdrop.md	-	-	-
 cGZWinOutline	widget toolkit	ui	widget-outline.md	-	-	-
 cGZWinKeyAcceleratorResFactory	widget toolkit	ui	widget-accelres.md	-	-	-
+cGZWinKnob	widget toolkit	ui	scripted-window-director.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
@@ -601,7 +608,7 @@ cGZUIScriptService	widget toolkit	ui	ui-script-service.md	-	-	-
 cGZUIScriptCOMDirector	widget toolkit	ui	ui-script-service.md	-	-	-
 cGZScriptableControlSet	widget toolkit	ui	ui-script-service.md	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
-cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
+cSC4ScriptedWindowCOMDirector	widget toolkit	ui	scripted-window-director.md	-	-	-
 cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-
 cRZWinKeyAcceleratorRes	widget toolkit	ui	widget-accelres.md	-	-	-
 cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
