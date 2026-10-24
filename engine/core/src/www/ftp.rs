@@ -35,6 +35,8 @@ pub enum Effect {
     DestroyScheduler,
     FreeScheduler,
     BorrowedPwdReply(Vec<u8>),
+    ConstructLookupString,
+    DestroyLookupString,
 }
 
 /// Slots are the seven arguments of 008120e0, not smart pointers. Borrowed objects
@@ -47,6 +49,7 @@ pub struct Message {
 
 pub trait Io {
     fn now(&mut self) -> u32;
+    fn lookup(&mut self, host: &[u8]) -> Option<[u8; 4]>;
     fn is_open(&mut self, socket: Socket) -> bool;
     fn create(&mut self, socket: Socket) -> bool;
     fn close(&mut self, socket: Socket);
@@ -217,6 +220,21 @@ pub fn ensure_listener(io: &mut impl Io) -> bool {
     }
     true
 }
+pub fn ensure_control(io: &mut impl Io) -> bool {
+    if io.is_open(Socket::Control) { return true; }
+    if !io.create(Socket::Control) { return false; }
+    if !io.bind(Socket::Control, Address::default()) {
+        io.close(Socket::Control);
+        return false;
+    }
+    true
+}
+pub fn lookup(io: &mut impl Io, host: &[u8]) -> Option<[u8; 4]> {
+    io.effect(Effect::ConstructLookupString);
+    let result = io.lookup(host);
+    io.effect(Effect::DestroyLookupString);
+    result
+}
 /// 00811f30, independently callable without control/listener work.
 pub fn ensure_data(io: &mut impl Io) -> bool {
     if io.is_open(Socket::Data) {
@@ -243,6 +261,7 @@ pub struct Deferred {
 /// explicitly. Owning a Vec in this portable model does not retain a native target.
 #[derive(Clone, Debug)]
 pub struct Session {
+    pub references: u32,
     pub selector: u32,
     pub requested_type: u32,
     pub current_type: u32,
@@ -275,6 +294,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
+            references: 0,
             selector: 310,
             requested_type: 203,
             current_type: 201,
@@ -312,7 +332,27 @@ impl Default for Session {
 
 impl Session {
     pub fn initialize(&mut self) -> Contract<()> {
-        Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
+        // 00813d70 was corrected to scheduler construction, not this operation.
+        // The actual session-initialization contract is still absent (WWW Q19).
+        Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
+    }
+    pub fn query_interface(&mut self, io: &mut impl Io, identity: u32, iid: u32, output: &mut u32) -> bool {
+        if !matches!(iid, 1 | 0x452294aa) { return false; }
+        *output = identity;
+        self.references = self.references.wrapping_add(1);
+        io.effect(Effect::AddTarget(identity));
+        true
+    }
+    pub fn set_target(&mut self, io: &mut impl Io, target: Option<u32>) {
+        if target == self.target { return; }
+        if let Some(target) = target { io.effect(Effect::AddTarget(target)); }
+        if let Some(old) = self.target { io.effect(Effect::ReleaseTarget(old)); }
+        self.target = target;
+    }
+    pub fn release(&mut self, io: &mut impl Io) -> Contract<u32> {
+        if self.references > 1 { self.references -= 1; return Ok(self.references); }
+        self.destroy(io, 1)?;
+        Ok(0)
     }
 
     /// Body 00812290: short sends resubmit the whole original command, not its suffix.
@@ -547,15 +587,27 @@ impl Session {
         }
         self.state = 1;
         self.login_stage = 401;
-        if !io.is_open(Socket::Control) {
-            return Err(Unsupported::OwnedBody("00811e10 control socket creation"));
+        if !ensure_control(io) {
+            self.state = 0;
+            self.login_stage = 400;
+            self.event(io, 0x57386938, false);
+            self.work = false;
+            return Ok(false);
         }
         if !self.pending_host.is_empty() {
             if let Some(host) = numeric_host(&self.pending_host) {
                 self.address.host = host;
                 self.pending_host.clear();
             } else {
-                return Err(Unsupported::OwnedBody("0081e640 named lookup"));
+                let Some(address) = lookup(io, &self.pending_host) else {
+                    self.state = 0;
+                    self.login_stage = 400;
+                    self.event(io, 0x57386938, false);
+                    self.work = false;
+                    return Ok(false);
+                };
+                self.address.host = address;
+                self.pending_host.clear();
             }
         } else if self.address.host == [0; 4] {
             self.state = 0;
@@ -822,6 +874,10 @@ impl Session {
                 "acquisition needs a live borrowed list, not an identity",
             ));
         }
+        self.acquire_listing_into(io, path, None)
+    }
+    pub fn acquire_listing_into(&mut self, io: &mut impl Io, path: &[u8], output: Option<&mut Vec<listing::Entry>>) -> Contract<bool> {
+        if self.state != 2 { self.work = false; return Ok(false); }
         if path.is_empty() {
             return Err(Unsupported::NativeInputDomain("008163d0 empty path last-byte read"));
         }
@@ -850,7 +906,12 @@ impl Session {
             self.finish_listing(io, false, &[]);
             return Ok(false);
         }
-        Err(Unsupported::OwnedBody("00811f00 data receive options"))
+        // Latest parent section 4.15 qualifies 00811f00 as closing +0xf0,
+        // superseding the older receive-options label in the companion.
+        Self::close_if_open(io, Socket::Listener);
+        let bytes = self.listing_bytes(io)?;
+        Self::close_if_open(io, Socket::Data);
+        self.finish_listing_bytes(io, &bytes, output)
     }
     /// Supported interior of 008163d0, on a snapshot AFTER the O receive-option
     /// helper. This does not implement or bypass that helper at the entry point.
@@ -1043,6 +1104,7 @@ mod tests {
         }
     }
     impl Io for Fake {
+        fn lookup(&mut self, _: &[u8]) -> Option<[u8; 4]> { None }
         fn now(&mut self) -> u32 {
             77
         }
@@ -1133,6 +1195,50 @@ mod tests {
             },
             ..Session::default()
         }
+    }
+    #[test]
+    fn sup01_sup04_sup05_sup08_and_scheduler_destruction() {
+        use super::super::{http, worker::{Scheduler, Record, Job, Effect as W}};
+        let mut io = Fake::default();
+        let mut s = Session { target: Some(9), ..Session::default() };
+        s.set_target(&mut io, Some(9));
+        assert!(io.effects.is_empty());
+        struct Http(Vec<http::Effect>);
+        impl http::Host for Http {
+            fn effect(&mut self, e: http::Effect) { self.0.push(e); }
+            fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
+        }
+        let mut recorder = Http(Vec::new());
+        let mut client = http::Client::new(None);
+        client.target = Some(9);
+        client.set_target(&mut recorder, Some(9));
+        assert_eq!(recorder.0, [http::Effect::AddTarget(9), http::Effect::ReleaseTarget(9)]);
+        let mut output = 123;
+        assert!(!s.query_interface(&mut io, 7, 2, &mut output));
+        assert_eq!(output,123);
+        assert!(s.query_interface(&mut io, 7, 0x452294aa, &mut output));
+        assert_eq!((output,s.references),(7,1));
+        s.references = 0;
+        assert_eq!(s.release(&mut io), Ok(0));
+        assert_eq!(io.effects.last(),Some(&Effect::DeleteSession));
+        let mut scheduler = Scheduler { record: Some(Record::default()), initialized: true, target: Some(9), ..Scheduler::default() };
+        assert_eq!(scheduler.adjust_worker_reference(&mut io,false),u32::MAX);
+        let mut job = Job { id: 1, status: 1, url: b"u".to_vec(), destination: b"d".to_vec(), time: 2, progress: 3, custom: 9 };
+        let copy = job.clone();
+        job.url[0] = b'x'; job.destination[0] = b'y';
+        assert_eq!((copy.url.as_slice(),copy.destination.as_slice()),(b"u".as_slice(),b"d".as_slice()));
+        scheduler.queue.push_back(copy);
+        io.effects.clear(); io.worker_effects.clear();
+        assert_eq!(scheduler.erase_range(&mut io,0,1),0);
+        assert!(io.effects.is_empty() && io.worker_callbacks.is_empty());
+        assert_eq!(io.worker_effects,[W::UnlinkQueueNode,W::EraseFirstString,W::DestroyQueueNode]);
+        scheduler.destroy(&mut io,1).unwrap();
+        assert_eq!(io.effects,[Effect::ReleaseTarget(9)]);
+        assert_eq!(io.worker_effects.last(),Some(&W::FreeScheduler));
+        assert!(ensure_control(&mut io));
+        assert!(io.open[0]);
+        assert!(lookup(&mut io,b"host").is_none());
+        assert_eq!(&io.effects[io.effects.len()-2..], [Effect::ConstructLookupString,Effect::DestroyLookupString]);
     }
     #[test]
     fn ftpc01_through_ftpc06() {
@@ -1321,7 +1427,7 @@ mod tests {
         let mut io = Fake::default();
         assert_eq!(
             worker.process_current(&mut io),
-            Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
+            Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
         );
         let mut s = Session {
             initialized: true,

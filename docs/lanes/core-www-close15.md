@@ -6,7 +6,10 @@
 Round r2: merge q17/q18 commands both already up to date (shared packed-refs lock warning; refs are read-only).
 Round r2: cache Q11/Q15 implemented: atomic filename reservation, source files, rightmost-seven loader, orphans, writer topology and default INI name.
 Round r2: build-runs/cache-r2.log terminal PASS 6/6 including NFC13-19; q.py unavailable (bash CreateFileMapping access denied), use PowerShell output capture.
-Round r2 next: HTTP header/worker orchestration and FTP residual helpers, update README, all + verify gates.
+Round r2: HTTP transport/header reader, FTP settled support, Name/address/progress/drain helpers implemented; transport/cache/WWW focused 24/24 pass in transport-r2-fixed.log.
+Round r2: initial transport fixture failed Client::default (transport-r2.log); corrected to Client::new. SUP fixtures added; final FTP run being collected in this turn.
+Round r2: Q19/Q20 filed for fresh FTP initialization, conflicting listing helper labels, HTTP response parsing/resource transition and proxy endpoint selection.
+Round r2 next: stop new implementation at 100k measured context; format explicit files, update closure README, run all and verify, report partial owner closure with full-tip ready only if gates pass.
 Goal: merge re-www-q17 then re-www-q18 and close the five WWW owners in core only.
 Done: merged q17 at b8ded3ec5 and q18 at 8a66a839c; resolved overlapping indexes.
 Done: cookie splitter, hex persistence, constructor default and changed-path reload implemented; CK07-CK13 fixtures added.

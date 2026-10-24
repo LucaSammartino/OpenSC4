@@ -68,11 +68,9 @@ pub enum Incoming<'a> {
     Unknown,
 }
 pub trait Host: http::Host {
-    /// FTP scheduler remains the open Q7 dependency; the WWW admission sequence
-    /// itself is specified. No adapter is silently replaced by a failed transfer.
-    fn ftp_submit(&mut self, _url: &[u8], _a: u32, _b: u32) -> Contract<u32> {
-        Err(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
-    }
+    /// Adapter dispatches to worker::Scheduler::admit; the owned implementation
+    /// is in this module family, rather than an unresolved Q7 dependency.
+    fn ftp_submit(&mut self, url: &[u8], a: u32, b: u32) -> Contract<u32>;
     fn effect(&mut self, effect: Effect);
     fn now(&mut self) -> u32;
     fn file_exists(&mut self, path: &[u8]) -> bool;
