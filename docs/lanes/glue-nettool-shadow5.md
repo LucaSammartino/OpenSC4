@@ -1,130 +1,129 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-nettool-shadow5: scripted network tool shadow | Codex / glue-nettool-shadow5 (detached reserved lane) | in progress: round 2 contracts merged | Implement NT27-NT29; gate and new 2032 run |
+| glue-nettool-shadow5: scripted network tool shadow, round 2 | Codex / `glue-nettool-shadow5` (detached reserved engine lane) | **ready: measured partial shadow**; NT27-NT29 merged; source `65082c135`; ABI exports unchanged; cargo 6760/0, clippy clean, native 50/50, CTest 69/69; runs 342-345 clean to 2032, refs=0, all 8/14 exact; NT30-NT31 filed | 1. Resolve four retained-height cost probes (NT30). 2. Wire powerline/bridge replay inputs (NT31). 3. Rerun to 2032; enable profile only at 14/14 exact. |
 
-## Handoff
-- Goal: correct nine inexact public-result probes using NT27-NT29, measure all 14 through 2032, READY queue either way.
-- Done: merged re-nettool-nt27 as af12f558f; successful merge printed packed-refs permission error; no ref repair attempted.
-- Prior results below: 5/14 exact at turbo and normal, clean refs=0; source 5b266ce51.
-- Implemented: NT28 staircase rows/width order, Boolean failure; host callback now preserves refused-pass reasons; failed smooth clears solved price inventory.
-- Implemented: NT29 retained network corners with live terrain, tests for inventory/shared vertices/markers/repeat charge; NT27 replacement copy/count getters corrected.
-- Focused cargo geometry tests: 46/46 pass. q.py Bash unavailable (CreateFileMapping error); direct cargo works. fmt requires absolute file arguments; final formatting pending.
-- Contract implementation committed as 1c9f287c8; final six-file fmt PASS.
-- First qbuild all terminal FAIL: cargo 807 passed/1 failed (two old diagonal fixtures); clippy clean; native build 188/188 PASS, CTest 68/69 (capi_smoke expected raw reason rather than public Boolean). Session 14919 collected to exit 1. Full logs preserved as build-runs/r2-initial-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
-- Updated ng18_03/ng18_04 conformance footprints/descriptions to NT28; these input changes justify one corrected full gate after the queued operation terminates. Preserve initial logs before rerun.
-- Corrected qbuild all terminal PASS: cargo 6760/0, clippy clean; native 50/50 edges, CTest 69/69 (89.5s), qbuild-20261024-010417-build-ctest. Session 72769 collected to exit 0. DLL relinked as 28231e1b (first two runs used bc85eb39).
-- Round-2 game nettool-shadow5-r2-20261024-a: clean through 2032-01-04, refs=0, DLL bc85eb39, 8/14 exact (record 342). All ordered footprints exact; rail/avenue/crossing failures exact. Six remaining probes: costs 110/113,170/192,90/98,55/61; powerline and bridge adapters.
-- Normal run nettool-shadow5-r2-20261024-b: clean through 2032-01-01, refs=0, 8/14 exact (record 343); all fourteen comparison lines identical to turbo. Both game waits collected to exit 0; no request outstanding.
-- NT30 appended for the four residual retained-corner cost fixtures; NT31 for concrete powerline/bridge replay inputs. Coordinator must regenerate question index (no tools/ access).
-- Artifact confirmation c: clean through 2032-01-07, refs=0, 8/14 exact, all comparison lines identical to a/b; record 344, DLL 28231e1b.
-- Final review: newly implemented replacement count getters reached geometry RefCell. Corrected to atomic publication after Init/Reset/draw/place/Shutdown; getters only load atomics. Existing other replacement getters are outside this publication change.
-- Final stable source 65082c135: qbuild all PASS, cargo 6760/0, clippy clean, native build 50/50, CTest 69/69 (108.6s), request qbuild-20261024-011752-build-ctest. Session 42992 collected to terminal exit 0.
-- Next: final artifact confirmation d, then final report and READY queue. Prior report below remains round-1 evidence only.
-- No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
-- Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
+## Changes
 
-## Implementation and scope
+Merged the answered contracts from `re-nettool-nt27` as `af12f558f`.
+Implementation `1c9f287c8`, conformance fixtures `39c26e615`, native smoke
+expectation `6ef6c766d`, and mutation-thread count publication `65082c135`
+are committed. Round 1 measured 5/14 exact; round 2 measures 8/14.
 
-`nettool_shadow=1` opts into one comparison for every scripted `network` action;
-the default is off and there is no environment override. `FC4Script.cpp` runs
-the production tool/geometry cores against the pre-placement city through a
-whitelist of read callbacks. Terrain setters, occupant insertion/removal,
-messages and commit callbacks are absent. The original tool then performs the
-scripted real placement; public getters are sampled before Shutdown. Native
-references retain the existing audited private-tool ownership path.
+- NT28: draw every axis-aligned staircase position, group major-axis rows,
+  widen intervals with the two type widths, and emit increasing minor
+  coordinates within each row. All fourteen ordered footprints now match.
+- Normalize the public failure getter to 0/1, retaining internal reason
+  codes in state. The plugin's validation callback now returns transport
+  success even for a refused pass, preserving the supplied failure reason.
+  Failed smoothing clears the solved price inventory while retaining the
+  public footprint. Rail, avenue and crossing refusal probes are exact.
+- NT29: retain network corners after successful smoothing and price the
+  retained solved inventory against live terrain at each stored vertex ID.
+  Placed state does not waive the cell charge; the intersection marker does.
+  No additive corrections, fitted tolerances or native totals are used.
+- NT27: the replacement coordinate getter replaces caller contents with
+  its copy. Replacement step-count getters publish atomic values after
+  mutation rather than entering the geometry RefCell on a query thread.
+  These replacement-only paths are built/tested; the city runs select the
+  original tools for the same-process shadow.
+- Added focused tests for staircase rows/width ordering, retained heights,
+  live terrain, intersection versus placed state, shared-vertex charging,
+  solved-only inventory, maximum type charge, appended neighbours and repeat
+  road charge. Updated two old conformance footprints and the native Boolean
+  failure expectation to the answered contracts.
 
-The compared outputs are ordered dragged cells, AL placement validity,
-failure code, valid/straight/total step counts and integer solution cost.
-Both cost getters read post-commit terrain. The script has 14 drags and two
-terrain preparations, exercising straight/reversed/diagonal runs, a shared
-endpoint bend, T-junction, single cell, clamping, rail/avenue conflicts,
-powerline, a water/bridge attempt and a late-2031 placement.
+## Final gate
 
-This covers a **public result projection of cSC4NetworkTool**, exercising its
-network_geometry core. The cSC4PowerLineTool probe compares inherited public
-results against the current generic tool adapter; its pole/wire algorithms
-are not compared. Solved network types/piece IDs/orientations, bridge models,
-tunnels, slot-8 placement, masked extension and UI paths remain uncovered.
-No entire owner is verified. The existing host has no bridge types/model
-wiring and no powerline-specific placement wiring. NT27 requests the missing
-native solved-result observation contract rather than inventing signatures.
+Final engine source: `65082c135`. `qbuild.py all` **PASS**:
+workspace **6760 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**;
+native build **50/50**, CTest **69/69**, total native check **108.6 s**.
+Request `qbuild-20261024-011752-build-ctest`, session 42992, collected to
+terminal exit 0. Six explicitly owned Rust files pass formatting.
+Final DLL SHA256:
+`a980ec0bd6c0c529a5e4c0f724cf29f0650fb487cc24427769aa06b68229654c`.
+Logs: `build-runs/qbuild-{test,clippy}.log` and
+`build-runs/fc4verify-{build,ctest}.log`.
 
-## Gate
-
-Final C++ source is commit `5b266ce51`; subsequent commits change records only.
-`qbuild.py all` PASS: cargo workspace **6694 passed, 0 failed, 0 ignored**;
-clippy **0 diagnostics**; queued native build **47/47**, CTest **69/69**, 78.9s.
-Native request `qbuild-20261024-001410-build-ctest` completed in the same
-operation (session 27094, exit 0); no duplicate standalone verify was launched.
-Logs: `build-runs/qbuild-{test,clippy}.log`, `build-runs/fc4verify-{build,ctest}.log`.
-The earlier full gate also passed (220/220 build, 69/69 CTest).
+The first full attempt stopped at cargo 807/1 because two diagonal fixtures
+encoded the superseded footprint; its native build passed 188/188 and CTest
+68/69 exposed the superseded raw-failure smoke expectation. Its complete
+logs remain under `build-runs/r2-initial-*.log`. After those input fixes a
+full gate passed 6760/0 and 69/69; its logs remain under
+`build-runs/r2-before-publication-*.log`. The final repeat above follows the
+real diagnostic that new count getters must avoid RefCell access.
+All asynchronous checks were collected; no duplicate request was launched.
 
 ## Real-city evidence
 
-All requests used Konradshohe, the original network tools, the shipped
-`engine/tests/nettool-shadow.script`, and end_date=2032-01-01. All finished
-clean with foreign_exceptions=0 and ref_warnings=0; no request remains open.
+All runs used Konradshohe, original network tools, and
+`engine/tests/nettool-shadow.script`, with end_date=2032-01-01. Every verdict
+is **clean**, foreign_exceptions=0, ref_warnings=0. No request is outstanding.
 
-| Label | Pacing | Last date | Seconds | Exact/total | Record |
-|---|---|---|---|---|---|
-| nettool-shadow5-r1-20261024-a | turbo | 2032-01-02 | 30.860 | 2/14 | [337](../runs/nettool-shadow5-r1-20261024-a-337.md) |
-| nettool-shadow5-r1-20261024-b | turbo | 2032-01-02 | 37.938 | 5/14 | [338](../runs/nettool-shadow5-r1-20261024-b-338.md) |
-| nettool-shadow5-r1-20261024-c | normal | 2032-01-01 | 115.984 | 5/14 | [339](../runs/nettool-shadow5-r1-20261024-c-339.md) |
+| Label suffix (`nettool-shadow5-r2-20261024-`) | Pacing | Last date | Seconds | DLL | Exact/total | Record |
+|---|---|---|---|---|---|---|
+| a | turbo | 2032-01-04 | 50.172 | bc85eb39 | 8/14 | [342](../runs/nettool-shadow5-r2-20261024-a-342.md) |
+| b | normal | 2032-01-01 | 133.250 | bc85eb39 | 8/14 | [343](../runs/nettool-shadow5-r2-20261024-b-343.md) |
+| c | turbo | 2032-01-07 | 72.734 | 28231e1b | 8/14 | [344](../runs/nettool-shadow5-r2-20261024-c-344.md) |
+| d | turbo, final artifact | 2032-01-15 | 40.468 | a980ec0b | 8/14 | [345](../runs/nettool-shadow5-r2-20261024-d-345.md) |
 
-Run a preserves the initial diagnostic source: cached pre-commit replay cost
-was compared with post-commit native cost. Commit `5b266ce51` corrects the
-sampling phase. Runs b/c use the same DLL, sha256 prefix `a796132d`, and have
-identical comparison lines after removing log timestamps/thread prefixes.
-Remaining differences therefore persist at normal speed.
-
-Exact log-derived count lines (the forbidden tools/ coverage scripts were
-not run by this engine lane; the coordinator must perform its own credit audit):
+All fourteen comparison lines are identical across a/b/c/d after stripping
+timestamps/thread prefixes. Each final relink was confirmed in game; run d
+uses the final gated artifact. The differences persist at normal speed.
+Exact log-derived count lines (the coordinator must perform its own coverage
+audit; this lane did not access tools/ coverage scripts):
 
 ```text
-nettool-shadow5-r1-20261024-b 5/14
-nettool-shadow5-r1-20261024-c 5/14
+nettool-shadow5-r2-20261024-a 8/14
+nettool-shadow5-r2-20261024-b 8/14
+nettool-shadow5-r2-20261024-c 8/14
+nettool-shadow5-r2-20261024-d 8/14
 ```
 
-One exact line, verbatim from both corrected runs:
+One exact line, verbatim in all four runs:
 
 ```text
-nettool shadow (type=3 drag=(14,6)-(4,6) scope=drag/status/cost): mismatches=0 cells=11/11 cell_diffs=0 ok=1/1 failure=00000000/00000000 valid=11/11 straight=11/11 total=11/11 cost=55/55 uncovered=pieces,bridges,poles,wires question=NT27
+nettool shadow (type=6 drag=(4,28)-(16,28) scope=drag/status/cost): mismatches=0 cells=26/26 cell_diffs=0 ok=0/0 failure=00000001/00000001 valid=0/0 straight=13/13 total=13/13 cost=0/0 uncovered=pieces,bridges,poles,wires contract=NT27-NT29
 ```
 
-All 14 outcomes, in script order, are identical at both speeds:
+## Six remaining probes
 
-| Probe | Mismatches | Native/core difference | Question |
-|---|---|---|---|
-| road (4,4)-(14,4) | 1 | cost 110/113 | NT29 |
-| reverse street (14,6)-(4,6) | 0 | exact | — |
-| diagonal road (20,4)-(28,12) | 10 | cells 17/9; cost 170/102 | NT28, NT29 |
-| bend road (14,4)-(18,8) | 6 | cells 9/5; cost 90/54 | NT28, NT29 |
-| T-junction (9,4)-(9,12) | 0 | exact | — |
-| single road (32,4) | 0 | exact | — |
-| clamped street (4095,16)-(4095,20) | 0 | exact | — |
-| rail (4,24)-(16,24) | 2 | ok 0/1; failure 1/0 | NT28 |
-| avenue (4,28)-(16,28) | 28 | 26 ordered-cell differences; ok 0/1; failure 1/0 | NT28 |
-| powerline (4,32)-(16,32) | 2 | valid 13/0; cost 65/13 | NT27 |
-| rail crossing (9,20)-(9,30) | 2 | ok 0/1; failure 1/0 | NT28 |
-| repeated road (4,4)-(14,4) | 0 | exact | — |
-| bridge attempt (42,43)-(58,43) | 2 | valid 17/0; cost 974/0 | NT27 |
-| late street (64,8)-(74,8) | 1 | cost 55/61 | NT29 |
+All rows below are original/core, identical at normal speed and turbo.
+Per-probe mismatch counts in script order are
+`1,0,1,1,0,0,0,0,0,4,0,0,4,1`.
 
-Full per-drag log lines and native verdicts remain in
-`build-runs/game-results/<label>.{log,verdict}`. Run numbers 337-339 were
-allocated from this checkout's highest existing run 336.
+| Probe | Remaining difference | Question |
+|---|---|---|
+| road (4,4)-(14,4) | cost 110/113 | NT30 |
+| road (20,4)-(28,12) | cost 170/192; footprint now 17/17, ordered exact | NT30 |
+| road (14,4)-(18,8) | cost 90/98; footprint now 9/9, ordered exact | NT30 |
+| powerline (4,32)-(16,32) | ok 1/0, failure 0/1, valid 13/0, cost 65/0 | NT31 |
+| bridge attempt (42,43)-(58,43) | ok 1/0, failure 0/1, valid 17/0, cost 974/0 | NT31 |
+| street (64,8)-(74,8) | cost 55/61 | NT30 |
 
-## Questions and next steps
+NT30 and NT31 were appended to
+[questions/network-tools.md](../specs/questions/network-tools.md). NT30 asks
+for admitted retained per-entry/corner fixtures, including commit-added
+neighbours and refreshes; public totals cannot reveal those native inputs.
+NT31 asks for concrete subclass resource/host fixtures. Existing bridge-type
+enumeration and separate powerline placement wiring remain absent from the
+generic replay. The coordinator must regenerate the question index.
 
-NT27-NT29 appended to `docs/specs/questions/network-tools.md`: solved-result
-observation and adapter limitations; ordered cell/failure=1 contract; cost
-and retained height inputs. The coordinator must regenerate the question
-index (engine lanes cannot execute tools/ scripts).
+## Owners, limits and landing
 
-READY is for the measured, default-off diagnostics, as instructed for partial
-work with missing contracts. The shadow is **not exact**. No coverage tables
-or regression profile were edited; do not enable it in the shadows profile
-until every line is exact. Next: answer the questions, complete the missing
-adapters and resolve the measured differences, then rerun through 2032 and
-let the coordinator audit coverage. No C ABI exports/version changed.
+The comparison covers a **public result projection of cSC4NetworkTool**:
+ordered coordinates, placement Boolean, public failure Boolean, valid,
+straight and total step counts, and integer solution cost. It exercises
+the network_geometry core. The cSC4PowerLineTool probe observes inherited
+public results but replays the generic adapter; it does not compare the
+powerline pole/wire implementation. Solved type masks, piece IDs,
+orientations, bridge models, tunnels, UI, slot-8 and masked placement remain
+outside this observation. **No entire owner is verified.** NT27 explicitly
+provides no public solved-record getter, and none was invented.
+
+READY is for this measured partial work, as requested. `nettool_shadow`
+remains default-off. The shadows profile and coverage maps were not edited
+because 14/14 is not exact. No C ABI exports or version changed. Next work
+is the six probes above, followed by a new exact 2032 run before profile
+enablement or coverage credit. The supervisor publishes the detached HEAD
+to the reserved branch; this lane did not switch branches, update shared
+refs, merge into main or push.
