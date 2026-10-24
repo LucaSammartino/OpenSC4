@@ -34,6 +34,9 @@ pub enum Effect {
     DeleteSession,
     DestroyScheduler,
     FreeScheduler,
+    BorrowedPwdReply(Vec<u8>),
+    ConstructLookupString,
+    DestroyLookupString,
 }
 
 /// Slots are the seven arguments of 008120e0, not smart pointers. Borrowed objects
@@ -46,6 +49,7 @@ pub struct Message {
 
 pub trait Io {
     fn now(&mut self) -> u32;
+    fn lookup(&mut self, host: &[u8]) -> Option<[u8; 4]>;
     fn is_open(&mut self, socket: Socket) -> bool;
     fn create(&mut self, socket: Socket) -> bool;
     fn close(&mut self, socket: Socket);
@@ -216,6 +220,25 @@ pub fn ensure_listener(io: &mut impl Io) -> bool {
     }
     true
 }
+pub fn ensure_control(io: &mut impl Io) -> bool {
+    if io.is_open(Socket::Control) {
+        return true;
+    }
+    if !io.create(Socket::Control) {
+        return false;
+    }
+    if !io.bind(Socket::Control, Address::default()) {
+        io.close(Socket::Control);
+        return false;
+    }
+    true
+}
+pub fn lookup(io: &mut impl Io, host: &[u8]) -> Option<[u8; 4]> {
+    io.effect(Effect::ConstructLookupString);
+    let result = io.lookup(host);
+    io.effect(Effect::DestroyLookupString);
+    result
+}
 /// 00811f30, independently callable without control/listener work.
 pub fn ensure_data(io: &mut impl Io) -> bool {
     if io.is_open(Socket::Data) {
@@ -242,6 +265,7 @@ pub struct Deferred {
 /// explicitly. Owning a Vec in this portable model does not retain a native target.
 #[derive(Clone, Debug)]
 pub struct Session {
+    pub references: u32,
     pub selector: u32,
     pub requested_type: u32,
     pub current_type: u32,
@@ -265,6 +289,7 @@ pub struct Session {
     pub buffer: Vec<u8>,
     pub responses: Responses,
     pub extra: Vec<u8>,
+    pub stored_directory: Vec<u8>,
     pub async_preference: bool,
     pub work: bool,
     pub deferred: Deferred,
@@ -273,6 +298,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
+            references: 0,
             selector: 310,
             requested_type: 203,
             current_type: 201,
@@ -296,6 +322,7 @@ impl Default for Session {
             buffer: vec![0; 2048],
             responses: Responses::default(),
             extra: Vec::new(),
+            stored_directory: Vec::new(),
             async_preference: false,
             work: false,
             deferred: Deferred {
@@ -309,7 +336,38 @@ impl Default for Session {
 
 impl Session {
     pub fn initialize(&mut self) -> Contract<()> {
-        Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
+        // 00813d70 was corrected to scheduler construction, not this operation.
+        // The actual session-initialization contract is still absent (WWW Q19).
+        Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
+    }
+    pub fn query_interface(&mut self, io: &mut impl Io, identity: u32, iid: u32, output: &mut u32) -> bool {
+        if !matches!(iid, 1 | 0x452294aa) {
+            return false;
+        }
+        *output = identity;
+        self.references = self.references.wrapping_add(1);
+        io.effect(Effect::AddTarget(identity));
+        true
+    }
+    pub fn set_target(&mut self, io: &mut impl Io, target: Option<u32>) {
+        if target == self.target {
+            return;
+        }
+        if let Some(target) = target {
+            io.effect(Effect::AddTarget(target));
+        }
+        if let Some(old) = self.target {
+            io.effect(Effect::ReleaseTarget(old));
+        }
+        self.target = target;
+    }
+    pub fn release(&mut self, io: &mut impl Io) -> Contract<u32> {
+        if self.references > 1 {
+            self.references -= 1;
+            return Ok(self.references);
+        }
+        self.destroy(io, 1)?;
+        Ok(0)
     }
 
     /// Body 00812290: short sends resubmit the whole original command, not its suffix.
@@ -377,6 +435,139 @@ impl Session {
     fn command_class(&mut self, io: &mut impl Io, command: &[u8], class: i32) -> Contract<bool> {
         Ok(self.command_reply(io, command)? && self.responses.class == class)
     }
+    /// The seven state-2 commands from FTP control §9. PWD output identities are
+    /// borrowed by asynchronous dispatch; Rust never dereferences a saved identity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn simple_command(
+        &mut self,
+        io: &mut impl Io,
+        operation: u32,
+        first: &[u8],
+        second: &[u8],
+        output: Option<&mut Vec<u8>>,
+        output_identity: Option<u32>,
+    ) -> Contract<bool> {
+        let (verb, kind) = match operation {
+            108 => (b"PWD".as_slice(), 0x57386931),
+            109 => (b"CWD".as_slice(), 0x57386932),
+            110 => (b"CDUP".as_slice(), 0x57386933),
+            112 => (b"MKD".as_slice(), 0x57386934),
+            113 => (b"RMD".as_slice(), 0x57386935),
+            105 => (b"DELE".as_slice(), 0x57386936),
+            106 => (b"RNFR".as_slice(), 0x57386937),
+            _ => return Err(Unsupported::NativeInputDomain("FTP command operation")),
+        };
+        if self.state != 2 {
+            self.work = false;
+            return Ok(false);
+        }
+        if self.async_preference && !self.work && self.target.is_some() {
+            if operation == 108 {
+                self.deferred.borrowed_argument = output_identity;
+            } else if operation == 106 {
+                self.deferred.first = second.to_vec();
+            } else {
+                self.deferred.first = first.to_vec();
+            }
+            self.work = true;
+            self.state = 4;
+            self.operation = operation;
+            self.start(io);
+            return Ok(true);
+        }
+        self.state = 4;
+        self.operation = operation;
+        self.transfer_stage = 504;
+        self.start_time = io.now();
+        self.remote = first.to_vec();
+        if matches!(operation, 109 | 112 | 113) {
+            if self.remote.is_empty() {
+                return Err(Unsupported::NativeInputDomain("empty FTP path final-byte read"));
+            }
+            if self.remote.last().is_some_and(|b| matches!(b, b'/' | b'\\')) {
+                self.remote.pop();
+            }
+        }
+        if operation == 106 {
+            self.extra = second.to_vec();
+        }
+        let wire = |verb: &[u8], arg: Option<&[u8]>| {
+            let mut bytes = verb.to_vec();
+            if let Some(arg) = arg {
+                bytes.push(b' ');
+                bytes.extend(arg.split(|b| *b == 0).next().unwrap_or_default());
+            }
+            bytes.extend(b"\r\n");
+            bytes
+        };
+        let command = wire(
+            verb,
+            if matches!(operation, 108 | 110) {
+                None
+            } else {
+                Some(&self.remote)
+            },
+        );
+        let mut success = false;
+        if self.send_command(io, &command) {
+            self.transfer_stage = 507;
+            success = self.responses.completed(io, self.timeout)?
+                && self.responses.class == if operation == 106 { 3 } else { 2 };
+            if success && operation == 106 {
+                self.transfer_stage = 505;
+                if self.send_command(io, &wire(b"RNTO", Some(&self.extra))) {
+                    self.transfer_stage = 507;
+                    success = self.responses.completed(io, self.timeout)? && self.responses.class == 2;
+                } else {
+                    success = false;
+                }
+            }
+        }
+        if operation == 108 {
+            if success {
+                let reply = &self.responses.reply;
+                let quote = reply.iter().position(|b| *b == b'"');
+                if let Some(start) = quote.filter(|i| (*i as u32) < (reply.len() as u32).wrapping_sub(2)) {
+                    let Some(end) = reply[start + 1..]
+                        .iter()
+                        .position(|b| *b == b'"')
+                        .map(|i| start + 1 + i)
+                    else {
+                        return Err(Unsupported::NativeInputDomain("PWD missing closing quote"));
+                    };
+                    self.responses.reply = reply[start + 1..end].to_vec();
+                    self.stored_directory = self.responses.reply.clone();
+                    if let Some(output) = output {
+                        *output = self.responses.reply.clone();
+                    }
+                } else {
+                    success = false;
+                }
+            }
+            if !success {
+                self.responses.reply.clear();
+            }
+        }
+        self.state = 2;
+        self.operation = 100;
+        self.transfer_stage = 500;
+        self.work = false;
+        if operation == 108 && self.target.is_some() {
+            io.effect(Effect::BorrowedPwdReply(self.responses.reply.clone()));
+            // Nonzero logical identities denote this session and its borrowed reply.
+            self.message(
+                io,
+                Message {
+                    kind,
+                    words: [0, 1, 0, 1, u32::from(success), 0],
+                },
+                None,
+            );
+        } else {
+            self.event(io, kind, success);
+        }
+        Ok(success)
+    }
     /// 00816af0: forced route preserves work, nonforced clears it AFTER callback.
     pub fn disconnect(&mut self, io: &mut impl Io, force: bool) -> Contract<bool> {
         if self.state == 0 {
@@ -411,15 +602,27 @@ impl Session {
         }
         self.state = 1;
         self.login_stage = 401;
-        if !io.is_open(Socket::Control) {
-            return Err(Unsupported::OwnedBody("00811e10 control socket creation"));
+        if !ensure_control(io) {
+            self.state = 0;
+            self.login_stage = 400;
+            self.event(io, 0x57386938, false);
+            self.work = false;
+            return Ok(false);
         }
         if !self.pending_host.is_empty() {
             if let Some(host) = numeric_host(&self.pending_host) {
                 self.address.host = host;
                 self.pending_host.clear();
             } else {
-                return Err(Unsupported::OwnedBody("0081e640 named lookup"));
+                let Some(address) = lookup(io, &self.pending_host) else {
+                    self.state = 0;
+                    self.login_stage = 400;
+                    self.event(io, 0x57386938, false);
+                    self.work = false;
+                    return Ok(false);
+                };
+                self.address.host = address;
+                self.pending_host.clear();
             }
         } else if self.address.host == [0; 4] {
             self.state = 0;
@@ -686,6 +889,18 @@ impl Session {
                 "acquisition needs a live borrowed list, not an identity",
             ));
         }
+        self.acquire_listing_into(io, path, None)
+    }
+    pub fn acquire_listing_into(
+        &mut self,
+        io: &mut impl Io,
+        path: &[u8],
+        output: Option<&mut Vec<listing::Entry>>,
+    ) -> Contract<bool> {
+        if self.state != 2 {
+            self.work = false;
+            return Ok(false);
+        }
         if path.is_empty() {
             return Err(Unsupported::NativeInputDomain("008163d0 empty path last-byte read"));
         }
@@ -714,7 +929,12 @@ impl Session {
             self.finish_listing(io, false, &[]);
             return Ok(false);
         }
-        Err(Unsupported::OwnedBody("00811f00 data receive options"))
+        // Latest parent section 4.15 qualifies 00811f00 as closing +0xf0,
+        // superseding the older receive-options label in the companion.
+        Self::close_if_open(io, Socket::Listener);
+        let bytes = self.listing_bytes(io)?;
+        Self::close_if_open(io, Socket::Data);
+        self.finish_listing_bytes(io, &bytes, output)
     }
     /// Supported interior of 008163d0, on a snapshot AFTER the O receive-option
     /// helper. This does not implement or bypass that helper at the entry point.
@@ -798,7 +1018,11 @@ impl Session {
                 let path = self.deferred.first.clone();
                 self.acquire_listing(io, &path, self.deferred.borrowed_argument)?;
             }
-            105 | 106 | 108..=110 | 112 | 113 => return Err(Unsupported::OwnedBody("Q7 dispatcher command body")),
+            105 | 106 | 108..=110 | 112 | 113 => {
+                let first = self.deferred.first.clone();
+                let second = self.deferred.second.clone().unwrap_or_default();
+                self.simple_command(io, operation, &first, &second, None, self.deferred.borrowed_argument)?;
+            }
             _ => {}
         }
         Ok(0)
@@ -903,6 +1127,9 @@ mod tests {
         }
     }
     impl Io for Fake {
+        fn lookup(&mut self, _: &[u8]) -> Option<[u8; 4]> {
+            None
+        }
         fn now(&mut self) -> u32 {
             77
         }
@@ -992,6 +1219,177 @@ mod tests {
                 port_word: 0,
             },
             ..Session::default()
+        }
+    }
+    #[test]
+    fn sup01_sup04_sup05_sup08_and_scheduler_destruction() {
+        use super::super::{
+            http,
+            worker::{Effect as W, Job, Record, Scheduler},
+        };
+        let mut io = Fake::default();
+        let mut s = Session {
+            target: Some(9),
+            ..Session::default()
+        };
+        s.set_target(&mut io, Some(9));
+        assert!(io.effects.is_empty());
+        struct Http(Vec<http::Effect>);
+        impl http::Host for Http {
+            fn effect(&mut self, e: http::Effect) {
+                self.0.push(e);
+            }
+            fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
+        }
+        let mut recorder = Http(Vec::new());
+        let mut client = http::Client::new(None);
+        client.target = Some(9);
+        client.set_target(&mut recorder, Some(9));
+        assert_eq!(recorder.0, [http::Effect::AddTarget(9), http::Effect::ReleaseTarget(9)]);
+        let mut output = 123;
+        assert!(!s.query_interface(&mut io, 7, 2, &mut output));
+        assert_eq!(output, 123);
+        assert!(s.query_interface(&mut io, 7, 0x452294aa, &mut output));
+        assert_eq!((output, s.references), (7, 1));
+        s.references = 0;
+        assert_eq!(s.release(&mut io), Ok(0));
+        assert_eq!(io.effects.last(), Some(&Effect::DeleteSession));
+        let mut scheduler = Scheduler {
+            record: Some(Record::default()),
+            initialized: true,
+            target: Some(9),
+            ..Scheduler::default()
+        };
+        assert_eq!(scheduler.adjust_worker_reference(&mut io, false), u32::MAX);
+        let mut job = Job {
+            id: 1,
+            status: 1,
+            url: b"u".to_vec(),
+            destination: b"d".to_vec(),
+            time: 2,
+            progress: 3,
+            custom: 9,
+        };
+        let copy = job.clone();
+        job.url[0] = b'x';
+        job.destination[0] = b'y';
+        assert_eq!(
+            (copy.url.as_slice(), copy.destination.as_slice()),
+            (b"u".as_slice(), b"d".as_slice())
+        );
+        scheduler.queue.push_back(copy);
+        io.effects.clear();
+        io.worker_effects.clear();
+        assert_eq!(scheduler.erase_range(&mut io, 0, 1), 0);
+        assert!(io.effects.is_empty() && io.worker_callbacks.is_empty());
+        assert_eq!(
+            io.worker_effects,
+            [W::UnlinkQueueNode, W::EraseFirstString, W::DestroyQueueNode]
+        );
+        scheduler.destroy(&mut io, 1).unwrap();
+        assert_eq!(io.effects, [Effect::ReleaseTarget(9)]);
+        assert_eq!(io.worker_effects.last(), Some(&W::FreeScheduler));
+        assert!(ensure_control(&mut io));
+        assert!(io.open[0]);
+        assert!(lookup(&mut io, b"host").is_none());
+        assert_eq!(
+            &io.effects[io.effects.len() - 2..],
+            [Effect::ConstructLookupString, Effect::DestroyLookupString]
+        );
+    }
+    #[test]
+    fn ftpc01_through_ftpc06() {
+        let mut io = Fake::default();
+        let mut s = session();
+        s.state = 4;
+        s.work = true;
+        for operation in [105, 106, 108, 109, 110, 112, 113] {
+            assert_eq!(
+                s.simple_command(&mut io, operation, b"old", b"new", None, None),
+                Ok(false)
+            );
+            assert!(!s.work);
+            assert_eq!(s.state, 4);
+        }
+        assert!(io.sends.is_empty() && io.events.is_empty()); // FTPC01
+        s = session();
+        s.async_preference = true;
+        s.deferred.second = Some(b"untouched".to_vec());
+        assert_eq!(s.simple_command(&mut io, 106, b"old", b"new", None, None), Ok(true));
+        assert_eq!(s.deferred.first, b"new");
+        assert_eq!(s.deferred.second.as_deref(), Some(b"untouched".as_slice()));
+        s.dispatch(&mut io).unwrap();
+        assert!(io.sends.is_empty());
+        assert_eq!(s.state, 4); // FTPC02
+        for (operation, verb) in [(109, b"CWD".as_slice()), (112, b"MKD"), (113, b"RMD")] {
+            s = session();
+            io = Fake::default();
+            io.replies.push_back(b"250 okay\r\n".to_vec());
+            assert_eq!(s.simple_command(&mut io, operation, b"a//", b"", None, None), Ok(true));
+            assert_eq!(io.sends, vec![[verb, b" a/\r\n"].concat()]);
+            assert_eq!((s.state, s.operation, s.transfer_stage), (2, 100, 500));
+            assert_eq!(io.events[0].1, 2); // FTPC03
+        }
+        for (class, expected, sends) in [(b"250 first\r\n".as_slice(), false, 1), (b"350 first\r\n", true, 2)] {
+            s = session();
+            io = Fake::default();
+            io.replies.extend([class.to_vec(), b"250 renamed\r\n".to_vec()]);
+            assert_eq!(s.simple_command(&mut io, 106, b"old", b"new", None, None), Ok(expected));
+            assert_eq!(io.sends.len(), sends); // FTPC04
+        }
+        s = session();
+        io = Fake::default();
+        io.replies.push_back(b"257 \"/a b\" ready\r\n".to_vec());
+        let mut out = b"old".to_vec();
+        assert_eq!(
+            s.simple_command(&mut io, 108, b"", b"", Some(&mut out), Some(42)),
+            Ok(true)
+        );
+        assert_eq!(out, b"/a b");
+        assert_eq!(s.stored_directory, out);
+        assert_eq!(s.responses.reply, out); // FTPC05
+        s = session();
+        io = Fake::default();
+        io.partial.push_back(Err(IoFailure));
+        out = b"old".to_vec();
+        assert_eq!(
+            s.simple_command(&mut io, 108, b"", b"", Some(&mut out), Some(42)),
+            Ok(false)
+        );
+        assert_eq!(out, b"old");
+        assert!(s.responses.reply.is_empty());
+        assert!(io.replies.is_empty()); // FTPC06
+    }
+    #[test]
+    fn ftpc07_ftpc08_scheduler_admission() {
+        use super::super::worker::{Effect as W, Scheduler};
+        let mut io = Fake::default();
+        let mut scheduler = Scheduler::new(Some(9));
+        assert_eq!(scheduler.timeout, 15);
+        assert_eq!(scheduler.lookup, Some(9));
+        scheduler.counter = u32::MAX;
+        scheduler.default_directory = b"default".to_vec();
+        assert_eq!(scheduler.admit(&mut io, b"url", Some(b"x"), 42), 0);
+        assert_eq!(scheduler.queue[0].id, 0);
+        assert_eq!(scheduler.queue[0].destination, b"x\\");
+        assert_eq!(
+            (
+                scheduler.queue[0].status,
+                scheduler.queue[0].time,
+                scheduler.queue[0].progress,
+                scheduler.queue[0].custom
+            ),
+            (1, 0, 0, 42)
+        );
+        assert_eq!(&io.worker_effects[..3], &[W::Lock, W::AllocateQueueNode, W::Unlock]);
+        assert!(io.worker_effects.contains(&W::StartWorker)); // FTPC07
+        io.worker_effects.clear();
+        assert_eq!(scheduler.admit(&mut io, b"", None, 0), 0);
+        assert!(io.worker_effects.is_empty());
+        for destination in [None, Some(b"".as_slice())] {
+            scheduler.admit(&mut io, b"url", destination, 0);
+            assert_eq!(scheduler.queue.back().unwrap().destination, b"default");
+            // FTPC08
         }
     }
 
@@ -1086,7 +1484,7 @@ mod tests {
         let mut io = Fake::default();
         assert_eq!(
             worker.process_current(&mut io),
-            Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
+            Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
         );
         let mut s = Session {
             initialized: true,

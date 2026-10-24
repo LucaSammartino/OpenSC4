@@ -40,6 +40,57 @@ fn url(text: &[u8]) -> RzUrl {
     RzUrl::from_text(text)
 }
 #[test]
+fn ck07_through_ck13_settled_edges() {
+    let mut io = Io {
+        now: 100,
+        ..Io::default()
+    };
+    let parsed = Cookie::parse(b"a=1; Port=80,81,82", None, &mut io).unwrap();
+    assert_eq!(&parsed.ports[..4], &[80, 81, 0, 0]); // CK07
+    assert_eq!(Cookie::parse(b"a=1; Port=81", None, &mut io).unwrap().ports[0], 0);
+    assert_eq!(Cookie::parse(b"a=1; Port=", None, &mut io).unwrap().ports[0], 80); // CK08
+    let parsed = Cookie::parse(b" a = b\t;\rPath=/x; ", None, &mut io).unwrap();
+    assert_eq!(
+        parsed.pairs,
+        vec![
+            (b"a ".to_vec(), b" b".to_vec()),
+            (b"\rPath".to_vec(), b"/x".to_vec()),
+            (Vec::new(), Vec::new())
+        ]
+    ); // CK09
+    assert_eq!(parsed.path, b"/");
+    assert_eq!(split(b"a;;", b';', 40, true), vec![b"a".to_vec(), vec![]]);
+    assert_eq!(
+        split(b"a=\"x;y\";b=z", b';', 40, true),
+        vec![b"a=x;y".to_vec(), b"b=z".to_vec()]
+    );
+    let mut manager = Manager::default();
+    assert_eq!(manager.path, b"CookieData.ini");
+    let sentinel = Cookie {
+        text: b"sentinel".to_vec(),
+        ..Cookie::default()
+    };
+    let mut out = sentinel.clone();
+    assert!(!manager.lookup_into(&url(b"http://h/x"), &mut out, 0, 100));
+    assert_eq!(out, sentinel); // CK10
+    io.write_binary(b"p", b"k", b"a=1").unwrap();
+    assert_eq!(io.writes.last().unwrap().1, b"613D31"); // CK11
+    io.entries.insert(b"k".to_vec(), b"613d31".to_vec());
+    assert_eq!(io.read_binary(b"p", b"k", 16384).unwrap(), b"a=1");
+    io.entries.insert(b"k".to_vec(), b"XX".to_vec());
+    assert!(io.read_binary(b"p", b"k", 16384).unwrap().is_empty());
+    manager.records.push(sentinel.clone());
+    manager.set_file_path(&mut io, b"missing");
+    assert!(manager.records.is_empty());
+    manager.records.push(sentinel);
+    manager.set_file_path(&mut io, b"missing");
+    assert_eq!(manager.records.len(), 1); // CK12
+    assert_eq!(
+        [decimal(b"4294967297"), decimal(b"2147483648"), decimal(b"-4294967297")],
+        [1, i32::MIN, -1]
+    ); // CK13
+}
+#[test]
 fn copying_lookup_does_not_alias_store_and_miss_preserves_output() {
     let mut io = Io {
         now: 100,
@@ -233,5 +284,5 @@ fn ck01_through_ck06_and_lifecycle() {
     assert!(m.records.is_empty());
     m.binary = true;
     m.add_text(b"x=v; Max-Age=20", None, &mut io).unwrap();
-    assert!(m.write(&mut io).is_err()); // Q3 stays explicit
+    assert_eq!(m.write(&mut io), Ok(true)); // Q3: hexadecimal byte text, no encryption.
 }

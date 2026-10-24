@@ -1,5 +1,5 @@
 //! HTTP §5.2–5.3 synchronous borrowed notifications and the §5.1 runtime boundary.
-use super::{http::Client, Contract, Unsupported};
+use super::{http::Client, Contract};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Payload<'a> {
@@ -105,6 +105,6 @@ pub fn time_to_seconds(runtime: &mut impl Runtime, mut calendar: Calendar) -> u3
         .mktime(RuntimeCalendar { calendar, is_dst: 1 })
         .wrapping_sub(runtime.adjustment())
 }
-pub fn time_string_to_seconds(_text: &[u8]) -> Contract<u32> {
-    Err(Unsupported::OwnedBody("Q13 HTTP date parser acceptance"))
+pub fn time_string_to_seconds(runtime: &mut impl Runtime, text: &[u8]) -> Contract<u32> {
+    super::http_date::seconds(runtime, text)
 }

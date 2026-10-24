@@ -68,11 +68,9 @@ pub enum Incoming<'a> {
     Unknown,
 }
 pub trait Host: http::Host {
-    /// FTP scheduler remains the open Q7 dependency; the WWW admission sequence
-    /// itself is specified. No adapter is silently replaced by a failed transfer.
-    fn ftp_submit(&mut self, _url: &[u8], _a: u32, _b: u32) -> Contract<u32> {
-        Err(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
-    }
+    /// Adapter dispatches to worker::Scheduler::admit; the owned implementation
+    /// is in this module family, rather than an unresolved Q7 dependency.
+    fn ftp_submit(&mut self, url: &[u8], a: u32, b: u32) -> Contract<u32>;
     fn effect(&mut self, effect: Effect);
     fn now(&mut self) -> u32;
     fn file_exists(&mut self, path: &[u8]) -> bool;
@@ -407,15 +405,17 @@ impl Www {
             return Ok(id);
         }
         effect(host, Effect::Unlock);
-        if self.cookies != 0 && host.request_cookies(&job.url).is_some() {
-            // Cookie header construction reaches still-O HTTP record support. No
-            // opaque host submission is allowed to stand in for that owned body.
-            return Err(Unsupported::OwnedBody("Q9 HTTP header record construction"));
-        }
+        let headers = if self.cookies != 0 {
+            host.request_cookies(&job.url)
+                .map(|value| vec![(b"Cookie".to_vec(), value)])
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         // Section 4.4's outer admission helper spans WWW insertion, in addition
         // to the HTTP client's own queue/activation locks (section 4.14).
         effect(host, Effect::EnterHttpAdmission);
-        let foreign = match self.http.submit(host, 2, &job.url, None, 0, &[], 0) {
+        let foreign = match self.http.submit_headers(host, 2, &job.url, &headers, 0) {
             Ok(id) => id,
             Err(error) => {
                 effect(host, Effect::LeaveHttpAdmission);
@@ -530,9 +530,7 @@ impl Www {
             return Ok(true);
         };
         if job.target.is_none() {
-            // Q10: no delivery is specified, but this exceptional snapshot's
-            // conversion/cache/fanout/cleanup suffix is not distinguished.
-            return Err(Unsupported::OwnedBody("Q10 HTTP completion without target suffix"));
+            return Ok(true);
         }
         let mut resource = resource;
         job.foreign_pointer = Some(foreign);

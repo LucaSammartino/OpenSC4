@@ -1,5 +1,5 @@
 //! web-network section 6: cache vectors with deterministic clock/file replies.
-use fc4_core::www::{cache::*, Contract};
+use fc4_core::www::cache::*;
 #[derive(Default)]
 struct Io {
     now: u32,
@@ -14,6 +14,11 @@ struct Io {
     attempts: Vec<&'static str>,
     ini: Vec<(Vec<u8>, Vec<u8>)>,
     clears: usize,
+    collisions: usize,
+    values: Vec<Vec<u8>>,
+    files: Vec<Vec<u8>>,
+    buckets: Option<Vec<Vec<Vec<u8>>>>,
+    length: u32,
 }
 impl Host for Io {
     fn now(&mut self) -> u32 {
@@ -40,9 +45,25 @@ impl Host for Io {
         self.writes += 1;
         self.write
     }
-    fn reserve_filename(&mut self, _: &[u8]) -> Contract<Vec<u8>> {
+    fn create_new(&mut self, _: &[u8]) -> bool {
         self.reserves += 1;
-        Ok(b"x.tmp".to_vec())
+        self.reserves > self.collisions
+    }
+    fn copy_file(&mut self, _: &[u8], _: &[u8], overwrite: bool) -> bool {
+        assert!(overwrite);
+        self.write
+    }
+    fn file_length(&mut self, _: &[u8]) -> u32 {
+        self.length
+    }
+    fn read_ini_values(&mut self, _: &[u8], _: &[u8]) -> Option<Vec<Vec<u8>>> {
+        Some(self.values.clone())
+    }
+    fn cache_files(&mut self, _: &[u8]) -> Option<Vec<Vec<u8>>> {
+        Some(self.files.clone())
+    }
+    fn map_buckets(&mut self) -> Vec<Vec<Vec<u8>>> {
+        self.buckets.clone().unwrap_or_else(|| vec![vec![b"K".to_vec()]])
     }
     fn clear_ini_section(&mut self, _: &[u8], section: &[u8]) {
         assert_eq!(section, b"Cache Entries");
@@ -163,7 +184,7 @@ fn holders_loading_failures_paths_settings_and_persistence() {
     c.write_ini(&mut io).unwrap();
     assert_eq!(
         io.ini,
-        [(b"CacheEntry00000".to_vec(), b"K,x.tmp,3,255,1,100,100,101".to_vec())]
+        [(b"CacheEntry00000".to_vec(), b"K,100.cache,3,255,1,100,100,101".to_vec())]
     );
     c.entries.get_mut(b"K".as_slice()).unwrap().ram = None;
     io.read = None;
@@ -171,7 +192,7 @@ fn holders_loading_failures_paths_settings_and_persistence() {
     assert!(!c.data(&mut io, b"K", Some(&mut out)));
     assert_eq!(out, saved);
     assert!(c.entries.is_empty());
-    assert_eq!(io.deleted.last().unwrap(), b"x.tmp");
+    assert_eq!(io.deleted.last().unwrap(), b"100.cache");
     assert!(c.set_ram_size(u32::MAX));
     assert!(c.set_file_size(0));
     assert!(c.set_default_lifetime(-2));
@@ -184,6 +205,70 @@ fn holders_loading_failures_paths_settings_and_persistence() {
     c.initialized = true;
     assert!(c.shutdown(&mut io));
     assert!(!c.initialized);
+}
+
+#[test]
+fn nfc13_through_nfc19() {
+    let mut io = Io {
+        now: 100,
+        collisions: 1,
+        exists: true,
+        ..Io::default()
+    };
+    let mut c = Cache::default();
+    assert_eq!(c.ini_name(), b"FileCache.ini");
+    assert_eq!(
+        c.reserve_filename(&mut io, b"a.html", None, false),
+        (true, b"99.html.cache".to_vec())
+    );
+    assert_eq!(io.reserves, 2); // CREATE_NEW refuses the occupied candidate.
+    c.add(&mut io, b"K", Some(vec![1]), false, 0, 1);
+    assert!(!c.add_source_file(&mut io, b"K", b"outside\\source", false, 1, -1));
+    assert!(c.info(b"K").is_none());
+    assert!(!io.deleted.iter().any(|p| p == b"outside\\source"));
+    io.values = vec![
+        b"a,b,f.cache,3,1,-2,200,300,500".to_vec(),
+        b"bad,x.cache,4000001,0,0,0,0,500".to_vec(),
+        b"bad,y.cache,1,0,0,0,0,100".to_vec(),
+    ];
+    c.read_ini(&mut io).unwrap();
+    let e = c.info(b"a,b").unwrap();
+    assert_eq!((e.length, e.creation, e.access, e.expiration), (3, 100, 100, 500));
+    assert!(e.ram.is_none());
+    assert!(io.deleted.contains(&b"x.cache".to_vec()));
+    assert!(io.deleted.contains(&b"y.cache".to_vec()));
+    c.entries.clear();
+    let entry = Entry {
+        filename: b"a.cache".to_vec(),
+        ram: None,
+        length: 3,
+        attribute: 0,
+        lifetime: 1,
+        creation: 0,
+        access: 50,
+        expiration: 1,
+    };
+    c.entries.insert(b"Z".to_vec(), entry.clone());
+    c.entries.insert(b"A".to_vec(), entry);
+    io.files = vec![b"a.cache".to_vec(), b"A.cache".to_vec(), b"keep.txt".to_vec()];
+    io.deleted.clear();
+    c.remove_unused_files(&mut io).unwrap();
+    assert_eq!(io.deleted, [b"A.cache".to_vec()]);
+    c.operations = 9;
+    c.since_maintenance = 10;
+    io.buckets = Some(vec![vec![b"Z".to_vec()], vec![b"A".to_vec()]]);
+    c.write_ini(&mut io).unwrap();
+    assert_eq!(
+        (c.operations, c.since_maintenance, c.info(b"Z").unwrap().access),
+        (9, 10, 50)
+    );
+    assert_eq!(
+        io.ini[0],
+        (b"CacheEntry00000".to_vec(), b"Z,a.cache,3,0,1,0,50,1".to_vec())
+    );
+    assert!(io.ini[1].1.starts_with(b"A,"));
+    assert_eq!(io.deleted.last().unwrap(), b"FileCache.ini");
+    assert_eq!(hash(&[0xff]), u32::MAX);
 }
 
 #[test]
