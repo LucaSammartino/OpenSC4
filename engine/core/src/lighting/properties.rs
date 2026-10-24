@@ -89,7 +89,7 @@ impl Parameters {
             change_threshold: 1e-4,
             night_threshold: 0.8,
             decal: DecalShadowParams {
-                texture: 0x69d3_bc3b,
+                texture: 0x69d3_a23b, // LT15: corrected shipped exemplar value.
                 a: 0.4,
                 b: 0.55,
                 c: 12.0,

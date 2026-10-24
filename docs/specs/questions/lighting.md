@@ -33,3 +33,4 @@
   64-byte result contract? The arithmetic schedule establishes propagation/classification but does not
   specify those encodings. [Core returns true and propagates quiet NaN values without a finite fallback;
   its integer register primitive canonicalizes payloads. NaN bit-pattern equivalence is not claimed.]
+

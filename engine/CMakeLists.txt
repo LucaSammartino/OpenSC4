@@ -1122,6 +1122,11 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4RenderPropsShadow.cpp plugin/FC4RenderPropsShadow.h)
 endif()
 
+# LT14: default-off read-only lighting parameter getter comparison.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4LightingShadow.cpp plugin/FC4LightingShadow.h)
+endif()
+
 # LR13 T66-T73: actual DLL construction capture and literal-IID replay.
 if(TARGET FreeCity4)
     add_executable(fc4_construction_capture_test tests/construction_capture_test.cpp)

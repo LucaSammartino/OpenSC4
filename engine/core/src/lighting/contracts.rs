@@ -5,6 +5,104 @@ use super::tests::{city, manager};
 use super::*;
 use std::sync::Mutex;
 
+struct TextureProperty(u32);
+struct NoProperties;
+impl PropertyHolder for NoProperties {}
+impl PropertyHolder for TextureProperty {
+    fn unsigned(&self, id: u32) -> Option<u32> {
+        (id == 0x0854_89c8).then_some(self.0)
+    }
+}
+
+#[test]
+fn vector23_corrected_shipped_texture_reload_retention_and_query_override() {
+    let mut parameters = Parameters::initial();
+    parameters.read(&TextureProperty(0x69d3_a23b));
+    assert_eq!(parameters.decal.texture, 0x69d3_a23b);
+    parameters.read(&NoProperties);
+    let m = LightingManager::new(LightingStatics::new(parameters), RegisterPrecision::Bits24);
+    assert_eq!(
+        m.get_decal_shadow_params(&TextureProperty(0x1234_5678)).texture,
+        0x1234_5678
+    );
+    assert_eq!(m.get_decal_shadow_params(&NoProperties).texture, 0x69d3_a23b);
+    assert_eq!(Parameters::shipped().decal.texture, 0x69d3_a23b);
+}
+
+#[test]
+fn vector24_driver_uses_delivery_time_visual_reads() {
+    for precision in [
+        RegisterPrecision::Bits24,
+        RegisterPrecision::Bits53,
+        RegisterPrecision::Bits64,
+    ] {
+        // Posted payload (12,0) is deliberately not an argument of this driver.
+        assert_eq!(visual_time_argument(12, 30, precision), 12.5);
+        assert_eq!(visual_time_argument(12, 0, precision), 12.0);
+    }
+}
+
+#[test]
+fn vector25_loaded_clock_does_not_seed_time_or_month() {
+    let mut m = manager();
+    assert_eq!(m.get_time_of_day(), 12.0);
+    assert_eq!(m.month(), 0);
+    for (hour, minute, month, wanted_month) in [(12, 0, 7, 0), (21, 1, 7, 0), (0, 1, 7, 6), (0, 1, 8, 6)] {
+        let argument = visual_time_argument(hour, minute, RegisterPrecision::Bits53);
+        m.set_time_of_day(argument, month, false, &mut Vec::new()).unwrap();
+        assert_eq!(m.get_time_of_day(), argument);
+        assert_eq!(m.month(), wanted_month);
+    }
+}
+
+#[test]
+fn vector26_same_snapshot_different_ordered_view_time_history() {
+    fn at_noon() -> LightingManager {
+        let mut m = manager();
+        m.statics.update(|p| p.fade_strength = 0.5);
+        m.read_properties();
+        m.set_time_of_day(12.0, 1, false, &mut Vec::new()).unwrap();
+        city(&mut m, 64); // 1024 by 1024 metres.
+        m
+    }
+    let mut a = at_noon();
+    let mut b = at_noon();
+    a.set_time_of_day(0.0, 1, false, &mut Vec::new()).unwrap();
+    b.set_time_of_day(0.0, 1, false, &mut Vec::new()).unwrap();
+    b.do_zoom_and_rotation_change(0, 0).unwrap();
+    assert_eq!(a.get_time_of_day(), b.get_time_of_day());
+    assert_eq!(a.fade_gradient[2], -1.0 / 2048.0);
+    assert_eq!(b.fade_gradient[2], 0.0);
+    a.do_zoom_and_rotation_change(0, 0).unwrap();
+    assert_eq!(a.fade_gradient, b.fade_gradient);
+}
+
+#[test]
+fn vector27_shared_property_history_survives_owner_lifetime() {
+    let statics = LightingStatics::new(Parameters::initial());
+    let mut first = LightingManager::new(statics.clone(), RegisterPrecision::Bits24);
+    first
+        .init(
+            0,
+            Some(Arc::new(TextureProperty(0x1234_5678))),
+            &mut EmptyResources,
+            &mut Vec::new(),
+        )
+        .unwrap();
+    first.shutdown(&mut Vec::new());
+    drop(first);
+    let mut second = LightingManager::new(statics, RegisterPrecision::Bits24);
+    second
+        .init(0, Some(Arc::new(NoProperties)), &mut EmptyResources, &mut Vec::new())
+        .unwrap();
+    assert_eq!(second.get_decal_shadow_params(&NoProperties).texture, 0x1234_5678);
+    let mut fresh = LightingManager::new(LightingStatics::new(Parameters::initial()), RegisterPrecision::Bits24);
+    fresh
+        .init(0, Some(Arc::new(NoProperties)), &mut EmptyResources, &mut Vec::new())
+        .unwrap();
+    assert_eq!(fresh.get_decal_shadow_params(&NoProperties).texture, 0x0917_660e);
+}
+
 struct EmptyResources;
 impl Resources for EmptyResources {
     fn image(&mut self, _: u32, _: u32) -> Option<Box<dyn TexturePixels>> {
