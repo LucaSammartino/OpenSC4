@@ -61,7 +61,7 @@ fn shutdown_releases_each_deferred_queue_reference_once() {
         changed: false,
         ..Host::default()
     };
-    for kind in [0xAA5C_F1E3, 0xAC08_3D7D, 0xAA5C_F1E3] {
+    for kind in [0xAA5C_F1E3, 0xAA5C_F1E3] {
         v.notification(
             &mut h,
             Notification {
@@ -70,6 +70,14 @@ fn shutdown_releases_each_deferred_queue_reference_once() {
             },
         );
     }
+    // Only BudgetFailure is enqueued by notification dispatch. Seed a second
+    // owned queue entry to exercise shutdown independently of that producer.
+    let second = Notification {
+        kind: 0xAC08_3D7D,
+        ..Notification::default()
+    };
+    h.deferred_reference(&second, true);
+    v.owner.deferred.push(second);
     assert_eq!(v.owner.deferred.len(), 2);
     v.shutdown_tail(&mut h);
     v.shutdown_tail(&mut h);
@@ -98,13 +106,12 @@ fn vw_t19_safe_but_disabled_modal_drops_one_message_without_repost() {
         ..Host::default()
     };
     for kind in [0xAA5C_F1E3, 0xAC08_3D7D] {
-        v.notification(
-            &mut h,
-            Notification {
-                kind,
-                ..Notification::default()
-            },
-        );
+        let message = Notification {
+            kind,
+            ..Notification::default()
+        };
+        h.deferred_reference(&message, true);
+        v.owner.deferred.push(message);
     }
     h.changed = true; // Modal state is safe when the paint tail begins.
     h.deferred_enabled = Some(false); // Recheck after unlink forbids repost.
