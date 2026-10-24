@@ -188,6 +188,9 @@ generated index: the questions live one file per spec, so read only the file for
 | WG | win-grid |
 | WR | water-ripples |
 | WT | widget-toolkit |
+| WTC | widget-toolkit |
+| WTG | widget-toolkit |
+| WTH | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
 | ZT | zone-tool |
@@ -197,7 +200,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 5 | 3 | AF9 | questions/aircraft.md |
+| aircraft | 6 | 3 | AF10 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -267,7 +270,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 4 | 11 | LR15 | questions/lot-records.md |
+| lot-records | 3 | 12 | LR15 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -363,9 +366,9 @@ generated index: the questions live one file per spec, so read only the file for
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
+| widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **604** | **1453** | | |
+| **total** | **606** | **1455** | | |
