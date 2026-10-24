@@ -14,7 +14,7 @@ Implementation: `971d183e3` owner replay/transport/hooks; `021be6fe6` opaque Que
 
 Final stable-source `qbuild.py --wt <WT> all` completed PASS: cargo 7375/0, clippy 0 diagnostics, native 159/159 edges, CTest 81/81. Coordinator queue: `qbuild-20261024-184451-build-ctest`. Evidence: `build-runs/legacyctl-final-all-console.log`, `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Focused tests 2/0; explicit owned Rust fmt passed. No source changed after that gate, so no duplicate gate launched. Pre-QI-fix evidence remains in `build-runs/legacyctl-pre-qi-fix/`.
 
-Run [520](../runs/legacyctl12-owner-2032-971d183e3-r1-520.md): `legacyctl12-owner-2032-971d183e3-r1`, Konradshohe, turbo to 2032-01-01, enable empty, legacyctl_shadow=1. Existing completed verdict collected without duplicate request. Clean, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Final date 2032-01-01, 28.875 real seconds; DLL SHA256 prefix `0c53e5ea`.
+Run [520](../runs/legacyctl12-owner-2032-971d183e3-r1-640.md): `legacyctl12-owner-2032-971d183e3-r1`, Konradshohe, turbo to 2032-01-01, enable empty, legacyctl_shadow=1. Existing completed verdict collected without duplicate request. Clean, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Final date 2032-01-01, 28.875 real seconds; DLL SHA256 prefix `0c53e5ea`.
 
 Exact line: `legacyctl12-owner-2032-971d183e3-r1 72/72` (shadow label `legacyctl 72/72`). All monthly lines, 2026-02-01 through 2032-01-01, end mismatches=0. Final cumulative compared=7976, builds=775, build_getters=775, addref=3270, own=775, control=1564, qi=2367. No normal-speed diagnostic needed. Counts computed directly from log; coverage tools were not opened or run.
 
