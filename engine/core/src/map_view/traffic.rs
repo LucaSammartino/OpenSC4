@@ -212,11 +212,14 @@ impl MapView {
         if self.overlay_enabled {
             renderer.overlay_replace(&marks)?;
         }
-        let phase = PHASE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |p| Some(p.wrapping_add(1) & 15))
-            .unwrap_or_else(|p| p)
-            .wrapping_add(1)
-            & 15;
+        let mut previous = PHASE.load(Ordering::Relaxed);
+        let phase = loop {
+            let next = previous.wrapping_add(1) & 15;
+            match PHASE.compare_exchange_weak(previous, next, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break next,
+                Err(current) => previous = current,
+            }
+        };
         grids.animate(phase, scale);
         let palettes = self.palettes.as_mut().ok_or(Unsupported::RampGeneration)?;
         palettes.straight.0[255] = 0xcfff_ffff;

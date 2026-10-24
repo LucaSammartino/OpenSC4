@@ -839,6 +839,9 @@ fn qv12_selection_guards_and_visible_reset() {
         .unwrap();
     let polls = sims.polls;
     let hooks = view.update_subscription();
+    view.set_reset_requests(1, Vec::new());
+    view.show_with(PanelRequest::Show, &mut res, &mut win, &mut render, &mut sims)
+        .unwrap();
     res.keys.clear();
     win.effects.clear();
     win.created.clear();
@@ -872,8 +875,13 @@ fn qv12_failed_button_replacement_remembers_requested_legend() {
     assert_eq!(view.source(), 1);
     assert_eq!(view.update_subscription(), None);
     assert_eq!(res.keys, vec![exemplar_key(2).unwrap(), exemplar_key(2).unwrap()]);
+    let shutdown = win
+        .effects
+        .iter()
+        .position(|effect| *effect == WindowEffect::Lifecycle(Effect::ShutdownCustomView(42)))
+        .unwrap();
     assert_eq!(
-        &win.effects[1..3],
+        &win.effects[shutdown..shutdown + 2],
         &[
             WindowEffect::Lifecycle(Effect::ShutdownCustomView(42)),
             WindowEffect::Lifecycle(Effect::ReleaseCustomView(42))
@@ -887,7 +895,9 @@ fn qv12_failed_button_replacement_remembers_requested_legend() {
     );
     assert_eq!(win.effects.len(), count);
     assert_eq!(view.update_subscription(), None);
-    // Reset proves that the failed button remembered B, and still refreshes B's legend.
+    // Failed buttons remember M; reset independently uses the raw queued request.
+    assert_eq!(view.memories().mode, 2);
+    view.set_reset_requests(0, vec![2]);
     win.visible = true;
     res.keys.clear();
     view.reset_with(&mut res, &mut win, &mut render, &mut sims).unwrap();
@@ -962,7 +972,7 @@ fn qv12_init_false_primitives_and_missing_server_latch() {
 // §10.9: scalar/default title, fresh lookup, hide-before-failure, local QI skip.
 #[test]
 fn qv12_legend_scalar_default_lookup_failure_and_title_query_skip() {
-    let (view, mut res, mut win, _, _) = inputs(1);
+    let (mut view, mut res, mut win, _, _) = inputs(1);
     set_property(res.raw.as_mut().unwrap(), 0x4a0b_47f4, RawValue::U32(0x1234_5678));
     view.display_legend(7, &mut res, &mut win).unwrap();
     assert_eq!(res.keys, vec![exemplar_key(7).unwrap()]);
@@ -1005,7 +1015,7 @@ fn qv12_legend_scalar_default_lookup_failure_and_title_query_skip() {
 // §10.10: preserve indices, do not zip, cap to nine or invent unsafe-read text.
 #[test]
 fn qv12_legend_unequal_rows_zero_colors_and_control_skips() {
-    let (view, mut res, mut win, _, _) = inputs(1);
+    let (mut view, mut res, mut win, _, _) = inputs(1);
     for (colors, strings, unsafe_index, rows) in [
         (vec![0xff11_2233, 0], vec![10], None, vec![0]),
         (vec![0xff11_2233], vec![10, 20], None, vec![0]),

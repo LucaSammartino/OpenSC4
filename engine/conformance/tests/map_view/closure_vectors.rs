@@ -394,7 +394,7 @@ fn ring_pixel(args: [f32; 3], precision: RingPrecision, rounding: RingRounding) 
         RingContext { precision, rounding },
     )
     .unwrap();
-    pixels[4]
+    pixels[4 * 8] // bitmap helper pixel (x=0, y=4), row-major buffer
 }
 #[test]
 fn v45_ring_pc24_differs_from_pc53_and_pc64() {

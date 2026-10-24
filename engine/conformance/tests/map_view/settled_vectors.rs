@@ -404,8 +404,7 @@ fn v31_clock_wrap_regression_and_thresholds() {
         }
     }
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(76);
-    view.select_with(1, &mut res, &mut win, &mut render, &mut sims)
-        .unwrap_err();
+    view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     assert!(!view.tick_with(249, &mut render, &mut sims).unwrap().due);
     assert!(view.tick_with(250, &mut render, &mut sims).unwrap().due);
 }

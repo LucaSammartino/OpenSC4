@@ -290,13 +290,21 @@ impl ClipRect {
 }
 
 pub fn blend_highlight(destination: u32, source: u32, weight: u32) -> u32 {
-    let inverse = 256 - weight;
-    let alpha = 255 - (((255 - (destination >> 24)) * inverse + 128) / 256);
-    let mut result = alpha << 24;
+    // Caller-modified RC can produce weights outside 0..255. Preserve native
+    // unsigned channel arithmetic, including the low-byte result.
+    let inverse = 256u32.wrapping_sub(weight);
+    let alpha = 255u32.wrapping_sub((255 - (destination >> 24)).wrapping_mul(inverse).wrapping_add(128) / 256);
+    let mut result = (alpha & 255) << 24;
     for shift in [0, 8, 16] {
         let d = (destination >> shift) & 255;
         let s = (source >> shift) & 255;
-        result |= ((d * inverse + s * weight + 128) / 256) << shift;
+        result |= ((d
+            .wrapping_mul(inverse)
+            .wrapping_add(s.wrapping_mul(weight))
+            .wrapping_add(128)
+            / 256)
+            & 255)
+            << shift;
     }
     result
 }

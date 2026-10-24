@@ -24,7 +24,7 @@ pub struct RingContext {
 }
 
 /// Exact signed dyadic value; each arithmetic result has at most PC significant bits.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct F {
     sig: u64,
     exp: i32,
@@ -119,7 +119,7 @@ impl RingContext {
             neg,
         }
     }
-    pub fn add(self, a: F, b: F) -> F {
+    pub(super) fn add(self, a: F, b: F) -> F {
         if a.sig == 0 {
             return self.round(u128::from(b.sig), b.exp, b.neg, false, self.bits());
         }
@@ -151,11 +151,11 @@ impl RingContext {
         };
         self.round(raw, exp, neg, false, self.bits())
     }
-    pub fn sub(self, a: F, mut b: F) -> F {
+    pub(super) fn sub(self, a: F, mut b: F) -> F {
         b.neg = !b.neg;
         self.add(a, b)
     }
-    pub fn mul(self, a: F, b: F) -> F {
+    pub(super) fn mul(self, a: F, b: F) -> F {
         self.round(
             u128::from(a.sig) * u128::from(b.sig),
             a.exp + b.exp,
@@ -164,7 +164,7 @@ impl RingContext {
             self.bits(),
         )
     }
-    pub fn sqrt(self, v: F) -> F {
+    pub(super) fn sqrt(self, v: F) -> F {
         if v.sig == 0 {
             return v;
         }
@@ -198,13 +198,13 @@ impl RingContext {
             self.round(lo, exp, false, rem != 0, self.bits())
         }
     }
-    pub fn store(self, v: F) -> F {
+    pub(super) fn store(self, v: F) -> F {
         let rounded = self.round(u128::from(v.sig), v.exp, v.neg, false, 24);
         // Ordinary bitmap geometry fits binary32's exponent range (QV14 boundary).
         let value = (rounded.sig as f64) * 2f64.powi(rounded.exp);
         F::float(if rounded.neg { -(value as f32) } else { value as f32 })
     }
-    pub fn integer(self, z: F, ceil: bool) -> i32 {
+    pub(super) fn integer(self, z: F, ceil: bool) -> i32 {
         let bias = F::float(if ceil { 0.5 } else { -0.5 });
         let value = self.store(self.add(self.add(z, bias), F::int(12582912)));
         let f = (value.sig as f64) * 2f64.powi(value.exp) * if value.neg { -1.0 } else { 1.0 };
