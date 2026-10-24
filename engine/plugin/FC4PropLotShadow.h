@@ -91,6 +91,9 @@ namespace fc4 {
 // whether each shadow can run (each compares an ORIGINAL class).
 void PropLotShadowStartup(bool propmgrReplaced, bool lotcfgReplaced, bool tutorialReplaced);
 
+// Default-off independent configuration derivation and simulator record/getter probes.
+void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorReplaced);
+
 // FC4Observer.cpp: PostCityInit, every SimNewMonth, PreSave (0x26C63343) and
 // PreCityShutdown (the totals). No-ops unless a shadow is on.
 void PropLotShadowCityLoaded(cISC4City* city);

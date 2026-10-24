@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 90;
+pub const FC4_ABI_VERSION: u32 = 92;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1140,6 +1140,8 @@ pub mod feature_manager;
 
 // Resource-only public-manager verification transport; actual production core.
 pub mod persist_manager_verify;
+// LR12 private record-only observation transport.
+mod lotrec_verify;
 
 // Private overlay getter-contract comparison and OV12 observation diagnostics.
 mod overlays_verify;
@@ -1148,3 +1150,5 @@ mod netocc_shadow;
 
 // Private collector/registration snapshot transport; no public DLL exports.
 mod lua_registry_shadow;
+// Private record-only SC token adapter observation replay.
+mod scres_shadow;

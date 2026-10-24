@@ -70,6 +70,7 @@
 #include <cstring>
 #include "FC4CmdLineProbe.h"  // opt-in public, read-only command-line probe
 #include "FC4PersistManagerVerify.h"
+#include "FC4SCResShadow.h"
 
 #ifndef FC4_VERSION_STRING
 #define FC4_VERSION_STRING "0.1.0"
@@ -233,6 +234,7 @@ public:
                  simulatorReplaced_ ? "replacement" : "PASSTHROUGH (simulator disabled, original simulator in use)",
                  fc4::ModulePath(), fc4::LogPath());
         fc4::FpuLog("OnStart");
+        fc4::SCResShadowStart(); // before framework initialization can consume resource files
         cIGZFrameWork* fw = RZGetFrameWork();
         FC4_LOGV("OnStart: framework=%p state=%d", static_cast<void*>(fw), fw ? static_cast<int>(fw->GetState()) : -1);
         if (fw != nullptr) {
@@ -306,6 +308,7 @@ public:
 
     bool PreAppInit() override {
         FC4_LOGV("hook PreAppInit");
+        fc4::SCResShadowStart(); // default-off capture before application resource loading
         // The first hook after the game's PreFrameWorkInit has run.
         fc4::FpuSetReference("hook PreAppInit");
         return true;
@@ -367,6 +370,7 @@ public:
         fc4::Span8Start();
         fc4::PersistManagerVerify(); // Opt-in scoped fixtures, all removed before city load.
         fc4::NetRulesShadowStart(); // before original network tools initialize
+        fc4::SCResShadowStart(); // also covers late director attachment; start is idempotent
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -397,6 +401,7 @@ public:
         fc4::ObserverStop();
         fc4::ExemplarFactoryRestore();  // the game's factories back (data-formats §8.1)
         fc4::Span565Restore();  // the native 565 entries back, counter lines (glue-span565-impl4)
+        fc4::SCResShadowStop();
         return true;
     }
 

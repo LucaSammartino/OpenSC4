@@ -302,3 +302,29 @@
   outward, then root. Wrappers forward simple +0C, block enter +14 and exit +18;
   StartBlock pushes, end invokes the exit before popping. Only nested-selected
   commands get the post-handler unexpected-switch check. Six independent vectors.
+
+<!-- from: core-effects-close5 (2026-10-24) -->
+- ~~**EF18 - §6.1 EffectsParser queue wrapper, EffectsBootstrap, collection lifecycle:** what are the queue/file processing and bootstrap lifecycle contracts for the separate `EffectsParser` and `EffectsBootstrap` owners, and any `cSC4EffectsCollection` behavior beyond the component directory in effects-parser §11.1? §6.1 only names `ParseQueuedFiles` in the manager's reload sequence; effects-parser §1 expressly excludes that wrapper, and effects.md supplies no bootstrap algorithm. [Queue processing/bootstrap return explicit Unsupported; the settled component directory remains implemented. EF17 is reserved by the coordinating brief and is not duplicated here.]~~
+
+  **ANSWERED 2026-10-24 (re-effects-ef18):** DIFFERS — effects.md §§6.2, 18.6:
+  queue/bootstrap are supported manager operations, not independent extra COM
+  owners. Retained inputs parse synchronously; success clears UI error and sends
+  C9F775BB, failure reports the diagnostic. Bootstrap orders base resource,
+  optional packed main.fx, extra resources, then unpacked files when selected.
+  Collection Begin retains descriptions but clears bindings/triggers; publication
+  copies and fixes references without rejecting unresolved names; End rebuilds
+  ID and trigger indices. Twelve proposed conformance vectors, including optional
+  file exception suppression (flag bit 0 clear).
+
+<!-- from: core-effects-close5 (2026-10-24) -->
+- ~~**EF19 - §§3, 8.3, 9.2 component transform decoding and numeric order:** what is the mapping from the 56-byte `S3DTransformLegacyLoad` placement to rotation/scale/translation, and the intermediate operation/store order for component world positions? [Implement the literal semantic parent translation + parent rotation/scale of local offset using binary32 products and left-to-right sums, with direct parent translation for a zero local offset. Do not decode the opaque placement bytes or claim native numeric equivalence. Manager legacy placement decoding remains outside this component API.]~~
+
+  Clarification: effects-parser §13 already settles the parser's in-memory matrix/offset/scale storage and rotation stores, without requiring a renderer row/column convention. EF19 concerns the legacy resource-load mapping and component world-position convention/order, not those settled parser stores. An identity parent returns local translation directly, including its original binary32 bits.
+
+  **ANSWERED 2026-10-24 (re-effects-ef18):** DIFFERS — effects.md §3.1:
+  legacy placement is nine row-ordered float words, translation xyz, uniform
+  scale, and a revision word whose low byte is retained. Loading sets rotation
+  and translation flags even for numeric identity. Component shortcuts test
+  flag bytes, not zero offsets. Dot products sum z,x,y with caller x87 precision;
+  brush and game have the separately documented binary32 spill boundaries.
+  Six proposed conformance vectors include cancellation and signed-zero cases.

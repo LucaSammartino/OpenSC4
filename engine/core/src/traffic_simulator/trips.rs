@@ -393,7 +393,7 @@ impl Run<'_, '_> {
         }
         let old = std::mem::take(&mut self.st.iter.conns);
         self.st.iter.reset(conns);
-        self.st.current = None;
+        self.hold_source(None);
         for c in old {
             NetworkHost::release(self.h, c);
         }
@@ -417,6 +417,23 @@ impl Run<'_, '_> {
         match src {
             Source::Lot(l) => self.h.lot_location(l),
             Source::Connection(c) => self.h.connection_cell(c),
+        }
+    }
+
+    /// The native iterator hands out a counted source (§4.1). Keep it
+    /// usable if the city removes it between slices, until its list ends.
+    pub(crate) fn hold_source(&mut self, source: Option<Source>) {
+        if source == self.st.current {
+            return;
+        }
+        let token = |s| match s {
+            Source::Lot(t) | Source::Connection(t) => t,
+        };
+        if let Some(s) = source {
+            NetworkHost::add_ref(self.h, token(s));
+        }
+        if let Some(s) = std::mem::replace(&mut self.st.current, source) {
+            NetworkHost::release(self.h, token(s));
         }
     }
 
@@ -580,7 +597,7 @@ impl Run<'_, '_> {
                         return true;
                     };
                     self.take_source(s);
-                    self.st.current = Some(s);
+                    self.hold_source(Some(s));
                     s
                 }
             };
@@ -662,7 +679,7 @@ impl Run<'_, '_> {
             merge_search(&mut trips);
         }
         self.h.set_trip_list(src, trips);
-        self.st.current = None;
+        self.hold_source(None);
         self.st.source_pos += 1;
         self.st.trip_pos = 0;
     }
@@ -687,7 +704,7 @@ impl Run<'_, '_> {
                         return true;
                     };
                     self.take_source(s);
-                    self.st.current = Some(s);
+                    self.hold_source(Some(s));
                     s
                 }
             };

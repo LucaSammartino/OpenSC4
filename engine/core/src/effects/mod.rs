@@ -42,6 +42,7 @@ mod manager;
 pub mod particle_owners;
 pub mod particles;
 pub mod shipped;
+pub mod transform;
 
 #[cfg(test)]
 mod tests;
@@ -173,6 +174,14 @@ pub trait EffectsHost {
     fn extinguish_cell(&mut self, _x: i32, _z: i32, _amount: i32) {}
     /// A queued post (`MessagePost`).
     fn post(&mut self, msg: EffectPost);
+    /// Render service boundary for game-effect maps (§9.3). Shape fields stay
+    /// in the description; rasterization and rectangle geometry are foreign.
+    /// Returns an opaque host map identity, retained by the component.
+    fn apply_effect_map(&mut self, _record: &GameRecord, _cell: (i32, i32)) -> u64 {
+        0
+    }
+    /// Remove the map with the supplied opaque host identity.
+    fn remove_effect_map(&mut self, _map: u64) {}
     /// `IsActive` of a render component (the finish test, §7), by effect,
     /// component index and type. False by default: render components do
     /// not hold an effect [choice, EF1].

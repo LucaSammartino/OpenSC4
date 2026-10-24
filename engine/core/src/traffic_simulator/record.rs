@@ -1181,6 +1181,7 @@ impl Run<'_, '_> {
         // The running source iterator's connection references (§9.1 TG19)
         // go with the state the record replaces.
         let old_conns = std::mem::take(&mut self.st.iter.conns);
+        self.hold_source(None);
         *self.st = p.s;
         self.st.loaded = true;
         let s = &mut *self.cx.s;

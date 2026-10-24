@@ -8,3 +8,6 @@
 
 <!-- re-effects14-4 (2026-10-21) answered EF14; it moved to answered/effects.md. No open questions remain. -->
 No open questions. EF15 and EF16 are archived in answered/effects.md.
+
+<!-- re-effects-ef18 (2026-10-24) answered EF18 and EF19; moved to answered/effects.md.
+     EF17 remains reserved by the coordinating brief. No open questions remain. -->

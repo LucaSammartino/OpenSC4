@@ -27,6 +27,58 @@ const PEDESTRIAN_MANAGER: u32 = 0xC98F_9D17;
 const AIRCRAFT_MANAGER: u32 = 0xC98F_9D4A;
 const WATERCRAFT_MANAGER: u32 = 0xA98F_9D28;
 
+#[test]
+fn construction_shadow_keeps_crane_state_and_releases_partial_reads() {
+    use fc4_core::lot_records::{construction::ConstructionRecord, OccupantRecord};
+    use fc4_core::stream::RefValue;
+
+    unsafe {
+        let mut record = ConstructionRecord::new();
+        record.has_crane = true;
+        record.lot = RefValue::Host {
+            token: 17,
+            class_id: 0xC9BD_5D4A,
+        };
+        record.building = RefValue::Host {
+            token: 18,
+            class_id: BUILDING_CLASS,
+        };
+        record.scalars.state = 3;
+        record.scalars.next_day = 1234;
+        record.scalars.crane_target = 0.75;
+        let bytes = write_with(|s| record.write(&mut crate::stream::COut(&*s)));
+        let log = RefCell::new(Log::default());
+        let host = ref_host(&log);
+        let mut input = In::new(&bytes);
+        let mut output = Out::default();
+        assert!(fc4_automata_construction_roundtrip(
+            &istream(&mut input),
+            &ostream(&mut output),
+            &host
+        ));
+        assert_eq!(input.pos, bytes.len());
+        assert_eq!(output.bytes, bytes);
+        assert_eq!(log.borrow().releases, [17, 18]);
+
+        log.borrow_mut().releases.clear();
+        let mut truncated = In::new(&bytes[..bytes.len() - 1]);
+        // The shared fake stream normally reports no error even on failed
+        // reads. CaptureIn (the actual shadow input) latches a stream error.
+        unsafe extern "C" fn truncated_error(user: *mut c_void) -> i32 {
+            let input = &*(user as *const In<'_>);
+            i32::from(input.pos + 4 > input.bytes.len())
+        }
+        let mut input_stream = istream(&mut truncated);
+        input_stream.error = Some(truncated_error);
+        assert!(!fc4_automata_construction_roundtrip(
+            &input_stream,
+            &ostream(&mut Out::default()),
+            &host
+        ));
+        assert_eq!(log.borrow().releases, [17, 18]);
+    }
+}
+
 /// What a fake host saw.
 #[derive(Default)]
 struct Log {

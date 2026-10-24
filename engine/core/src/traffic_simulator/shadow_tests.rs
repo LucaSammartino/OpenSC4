@@ -417,6 +417,54 @@ fn shadow_follows_append_after_last_source_yield() {
     }
 }
 
+/// A current source removed between deliveries is still owned and completed.
+#[test]
+fn shadow_retains_removed_current_source_until_completion() {
+    let w = World::new();
+    ten_sources(&w);
+    let orig = sim(&w);
+    orig.set_traffic_units_per_slice(1);
+    orig.enter_cycle_state(cycle_state::FULL_TRIPS);
+    orig.update_state(|s| s.shadow_lazy = true);
+    let mut live = Live::default();
+    let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+    let r0 = capture(&orig, &mut live);
+    sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+    orig.shadow_day_start();
+    orig.shadow_slice();
+    let out = sh.after(Some(capture(&orig, &mut live)), &live);
+    assert_eq!(out.mismatches, 0, "{:?}", out.lines);
+    let src = orig.read_state(|s| s.current).unwrap();
+    assert_eq!(src, Source::Lot(100));
+    assert_eq!(sh.copy().read_state(|s| s.current), Some(src));
+    // One native reference and one independent shadow reference. Without
+    // the latter the glue used to reject this token at the next delivery.
+    assert_eq!(w.refs.borrow().get(&100).copied(), Some(2));
+    let lot = w.lot(100).unwrap();
+    w.retired_lots.borrow_mut().insert(100, lot);
+    w.lots.borrow_mut().retain(|(id, _)| *id != 100);
+    assert!(!w.lots().contains(&100));
+    for day in 1..80 {
+        assert_eq!(
+            deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day),
+            0,
+            "removed held source, day {day}"
+        );
+        if orig.cycle_state() != cycle_state::FULL_TRIPS {
+            break;
+        }
+    }
+    assert_ne!(orig.cycle_state(), cycle_state::FULL_TRIPS);
+    assert_eq!(w.refs.borrow().get(&100).copied(), Some(0));
+    assert_eq!(sh.stats.resyncs, 0);
+    // Destruction also balances a still-held source on early shutdown.
+    let r0 = capture(&orig, &mut live);
+    sh.before(delivery(msg::DAY, 2_460_100), Some(r0), &live);
+    drop(sh);
+    orig.shutdown();
+    assert!(w.refs.borrow().values().all(|&n| n == 0));
+}
+
 /// A trip list and a grid value the original left differently from the
 /// copy are reported.
 #[test]
