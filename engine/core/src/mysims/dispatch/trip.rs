@@ -16,9 +16,11 @@ impl Default for DispatchTuning {
         Self {
             approach_distance: 10,
             proximity: 10,
-            idle_minimum: 1,
+            idle_minimum: 5,
+            // §7.2.3: +20 is unassigned by the native constructor. This
+            // deterministic placeholder is not a native-default promise.
             location_minimum: 1,
-            switch_minimum: 1,
+            switch_minimum: 5,
         }
     }
 }
@@ -43,6 +45,24 @@ pub enum TripSearch {
 /// Foreign transport, path search and mission services. No core traffic writes.
 /// None/Unsupported means the spec does not yet settle this handoff, not success.
 pub trait TripServices {
+    /// Captured foreign model-info kind. Null occupants need no query.
+    fn idle_model_kind(&self, occupant: Option<u64>) -> Option<i32> {
+        occupant.is_none().then_some(-1)
+    }
+    /// None means this adapter lacks the input; Some(false) is a real
+    /// failed road snap. Any location changes are service output inputs.
+    fn snap_to_road(&self, _location: &mut DispatchLocation) -> Option<bool> {
+        None
+    }
+    fn dispatch_idle_fallback(&self, _sim: i32) -> Option<u32> {
+        None
+    }
+    fn apply_model_offset(&self, _occupant: u64, _offset: i32) {}
+    /// Captured foreign occupant position, not inferred from a native output.
+    fn automaton_position(&self, _occupant: u64) -> Option<(f32, f32)> {
+        None
+    }
+    fn release_location_occupant(&self, _occupant: u64) {}
     fn cancel_automaton(&self, _occupant: Option<u64>) -> Option<bool> {
         None
     }
@@ -87,7 +107,7 @@ impl Default for DispatchState {
             path_indices: (0, 0),
             change_counter: 0,
             previous_change_counter: 0,
-            tracking_value: 0,
+            tracking_value: u32::MAX,
             minutes: 0,
             travel_type: 0xFF,
             wait_timestamp: 0,
@@ -99,7 +119,7 @@ impl Default for DispatchState {
             owner: None,
             simulation_service: None,
             models: BTreeMap::new(),
-            route_marker: 0,
+            route_marker: -1,
             read_pending: false,
             read_succeeded: false,
         }
@@ -351,7 +371,7 @@ impl MySimDispatch {
         self.change_flags(sim, |f| f & !RESET_PATH_FLAGS);
     }
 
-    fn valid(&self, sim: i32, location: DispatchLocation) -> bool {
+    pub(super) fn valid(&self, sim: i32, location: DispatchLocation) -> bool {
         location.is_valid(&SimWorld { host: &*self.host, sim })
     }
 

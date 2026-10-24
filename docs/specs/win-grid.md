@@ -1,6 +1,6 @@
 # Widget toolkit: the `cGZWinGrid` spreadsheet window (behaviour spec)
 
-Status: round 1 of at most 3 (lane re-wingrid4, 2026-10-21). Owner scope is exactly the 198 functions
+Status: owner-body follow-up (lane re-wingrid-wg9, 2026-10-23; WG5–WG9). Owner scope is exactly the 198 functions
 (32735 bytes) the run-4 owner inventory attributes to `cGZWinGrid`; the appendix (§A) lists every one with its
 spec section or `pending`. No blanket credit: a function counts as specified only when its row names a section.
 Base-window behaviour (`cGZWin`) is in `widget-toolkit.md` and is not repeated here.
@@ -63,7 +63,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x27C..+0x298 | | 0 | *[unknown]* |
 | +0x29C..+0x2A4 | 3 x u32 | 0 | sound ids (§5.6) |
 | +0x2A8 / +0x2B4 | map<u32,cRZString> | empty | column / row headings (§5.5) |
-| +0x2C0 | IUnknown* | | released in Shutdown *[purpose pending]* |
+| +0x2C0 | format font* | | header-format font; released in Shutdown (§5.15) |
 
 ## 3. The `cIGZWinGrid` slot table *[compat]*
 
@@ -167,8 +167,8 @@ meaning is measured so far:
   list +0x194 start empty.
 - **Init()** 0x009AF121 always returns true. Only when the embedded window is not yet initialised: run
   `cGZWin::Init`, store at +0xE0 the language manager's slot-7 value (1 when there is no language manager),
-  then SetDefaultFormatting 0x009A5CEE and RecalculateAll 0x009AEE63 (both pending). A second Init is a no-op.
-- **Shutdown()** 0x009ABED4: DisposeOfAllCellData (pending), then Release and null each of +0x164, +0x168,
+  then SetDefaultFormatting 0x009A5CEE (§5.15) and RecalculateAll 0x009AEE63 (§5.10). A second Init is a no-op.
+- **Shutdown()** 0x009ABED4: DisposeOfAllCellData (§5.11), then Release and null each of +0x164, +0x168,
   +0x208, +0x2C0, +0x26C, +0x270, +0x274, +0x278 that is non-null (in that order), then `cGZWin::Shutdown`.
 - **Release()** 0x009A7650: the reference count is the window's (grid +0x10). Above 1 it is decremented and the
   new count returned; at 1 or below FinalRelease 0x009A5CD7 runs and 0 is returned. FinalRelease calls Shutdown
@@ -353,7 +353,7 @@ the same observable result):
 | 0x009A90F8 | `equal_range` on a `map<u32, void*>`: (lower_bound 0x0066E2F0, upper_bound) |
 | 0x009A9A09 / 0x009A9A4C | begin / end iterator of one line of a sparse matrix: find the outer key (0x009A94A6); missing: iterator {matrix, null, null}; present: {matrix, inner map, first node} / {matrix, inner map, header} |
 
-**Stable-sort machinery** (SortColumn / SortRow, §pending, sort an array of 4-byte value pointers with a stable
+**Stable-sort machinery** (SortColumn / SortRow, §5.16, sort an array of 4-byte value pointers with a stable
 merge sort; an implementation may use any stable sort with the same predicate, the result is identical):
 
 | Address | Behaviour |
@@ -691,7 +691,9 @@ origin. "No colour" is the sentinel 0x40000000 in every colour field below. Orde
    (RZDrawRectangleOutline), width 1.
 
 Paint record passed to the helpers and the owner-draw target: +0x0C cell rect*, +0x10 clip rect*, +0x18 draw
-context, +0x20 format* (+0x00 font, +0x08 background, +0x10 text colour, +0x18 selected colour, +0x1D horizontal
+context, +0x14 whole cell-area rect*, +0x20 format* (+0x00 font, +0x08 enabled background,
++0x04 enabled text, +0x0C disabled text, +0x10 disabled background, +0x14 selected text,
++0x18 selected background, +0x1D horizontal
 alignment byte: 3 centre, 4 right; +0x1E vertical alignment: 6 centre, 7 bottom), +0x24 cell record*, +0x28
 selected, +0x29 enabled.
 
@@ -701,13 +703,14 @@ selected, +0x29 enabled.
 - **Default cell drawer** 0x009A7E52: the same background step unless flag 0x20000 (already painted in pass 6).
   Content rect = cell rect shrunk by the cell gutters (+0x100..+0x10C). Window cells draw nothing (the child
   paints itself). Text: alignment and colour from 0x009A5FE3 (vertical centre = (top + bottom) / 2 - lineH / 2;
-  colour +0x18 when selected, else +0x08 or +0x10 by the enabled byte); with flag 0x20000 the right edge is
+  selected text colour +0x14, else +0x04 when enabled or +0x0C when disabled); with flag 0x20000 the right edge is
   taken from the paint record +0x14; with flag 0x80000 and a colour, each wrapped line (font slot +0xA4 breaks
   at the content width) is filled as a selection band; then font slot +0xD0 draws the string. Bitmap: image
   size from slot +0x2C; placed at the content left/top, centred (3/6) or right/bottom aligned (4/7); with flag
   0x20000 the clip right edge from the record +0x14; drawn with capability 0x8010 enabled (context slot +0x74).
-  *[pending]* the horizontal text position computed by 0x009A5FE3 for alignments 3/4/5 is lost in the
-  decompilation and not yet read from the instructions.
+  Horizontal text alignment is supplied to the font as a draw flag, not as a measured x coordinate: 3 gives
+  flag 1 (centre), 4 gives flag 2 (right), and every other value, including 5, gives flag 0. The content's
+  left/right coordinates are unchanged by 0x009A5FE3. See §5.15 for the vertical-alignment quirk.
 
 ### 5.13 Cell rectangles, deleting and copying rows and columns
 
@@ -740,16 +743,192 @@ alignment fields).
   AddRef the new font, Release the old one, copy; returns 1 without dirty or hook. (-1, row) / (col, -1): the
   row entry (+0x1C0 at (0, row)) / column entry (+0x19C at (col, 0)) is found or inserted, the font AddRef'd and
   the old one Released, and 40 bytes built from the format by 0x009A5C4A are copied over the entry
-  *[pending: what 0x009A5C4A writes into the size words +0x24/+0x26]*; returns 1 without dirty or hook. (col, row):
+  with both size words +0x24/+0x26 reset to -1 by 0x009A5C4A (§5.7); returns 1 without dirty or hook. (col, row):
   out of bounds (slot 54) returns 0. No cell record: a new empty record (type 0) with a copy of the format is
   inserted (changed). Existing record: AddRef the new font; no format yet -> one is allocated (changed); else the
   old font is Released (changed when it was non-null); the 36 bytes are copied. A non-null new font also counts
   as a change. Change -> layout-dirty = 1; hook 0x009A5FAA always. Returns 1.
 - **SetCellFont(col, row, font)** slot 90, 0x009AC741: out of bounds (slot 54) returns 0. AddRef font; a missing
   record is created (type 0, default-constructed format) and inserted; a record without format gets one; an old
-  font is Released. Hook 0x009A5FAA when the new font is non-null or an old font was released (no layout-dirty).
-  Returns 1. *[the store of the font into the format is not visible in the decompilation; its absence would make
-  the call a no-op, so the store is assumed at format +0x00]*
+  font is Released. The font is stored at format +0x00 (0x009AC7D9–0x009AC7E1, new record:
+  0x009AC832). When the new font is non-null or an old font was released, set layout-dirty and call hook
+  0x009A5FAA (0x009AC845–0x009AC856). Returns 1.
+
+### 5.15 Dependency contracts and initialization (WG5, WG6, WG7, WG9)
+
+**Bounds and used range.** IsColumnWithinBounds 0x009A66FC and IsRowWithinBounds 0x009A6722 return true
+for **every signed index** when the corresponding limit is 0 or -1. Otherwise the predicate is
+`0 <= index < limit`. They do not inspect fixed-range flags. IsCellWithinBounds 0x009A6748 requires both
+predicates. Thus a limit of -2 admits no index; an unlimited limit admits -2. GetCellUsedRange 0x009A97CE
+reports inclusive extrema of entries in the cell-data matrix +0x1E4, including format-only records, independently
+of limits, visibility and selection. An empty matrix writes (0,0,0,0) and returns false; a nonempty matrix
+returns true. Evidence: 0x009A6702–0x009A671E and 0x009A97D3–0x009A9830.
+
+**Selection membership.** GetCellIsSelected 0x009A8809 does not check bounds. Mode +0x18C = 0 matches any
+selection entry with the requested column, ignoring row; mode 1 matches row, ignoring column; every other mode
+requires both coordinates. An empty selection returns false. This applies to the stored selection list as it
+stands, without synthesizing new entries (0x009A8809–0x009A8865).
+
+**Relative scrolling.** ScrollCellsHorizontally 0x009AD817 and ScrollCellsVertically 0x009AE48F always return
+true. Add the signed delta to the stored position using 32-bit integer arithmetic. With an unlimited (0/-1)
+limit and flag 0x8000 (horizontal) or 0x10000 (vertical), only clamp the result at zero. Otherwise choose a total
+count: the axis limit, replaced by usedRange.maxAxis + 1 when flag **0x10000 is clear**, for either axis.
+The horizontal method deliberately tests the vertical flag for this replacement (0x009AD859).
+Clamp the position to at most count - 1, then at least zero. If it is positive, back it up until the sum of
+internal sizes from it to the end reaches the cell-area pixel extent or position reaches zero. This fills the
+viewport near the end, unlike ScrollToColumn/Row. A zero/negative pixel extent does not cause backing up.
+Finally clamp at zero; only a changed position calls the hook and marks layout dirty. These methods do not call
+ScrollTo. Evidence: 0x009AD88D–0x009AD90F and 0x009AE4F1–0x009AE59E.
+
+**Effective formatting.** GetCellFormat 0x009AA5CE always returns true, without a bounds check. Begin with the
+36-byte default format +0x208, then merge row format (slot 88), column format (slot 87), then the cell's format
+if it exists. Thus precedence is **cell > column > row > default**, independently per field. A null font inherits;
+each of the six colour words +0x04..+0x18 and border colour +0x20 inherits only at 0x40000000; wrapping byte
++0x1C inherits at 0xFF; the alignment bytes +0x1D/+0x1E and border byte +0x1F inherit at zero. Other values,
+including colour zero and wrapping zero, override. The result is a borrowed-font value copy: no AddRef/Release,
+and no cached size words. Evidence: 0x009AA5E0–0x009AA7DD; row is merged before column.
+
+**SetDefaultFormatting** 0x009A5CEE fills sentinel fields, retaining explicit caller choices. Both normal
+(+0x208) and header (+0x2C0) fonts, when null, acquire font 0x68963C4C from WCM and AddRef it if found.
+Colours below are obtained through the window's RGB conversion, not by assuming a particular pixel layout.
+
+| Format field | Sentinel | Normal replacement | Header replacement |
+|---|---|---|---|
+| +0x04, +0x08 | 0x40000000 | black, white | black, white |
+| +0x0C, +0x10 | 0x40000000 | RGB(192,192,192), white | RGB(128,128,128), RGB(220,220,220) |
+| +0x14, +0x18 | 0x40000000 | white, black | black, RGB(220,220,255) |
+| +0x1C wrapping | 0xFF | 1 | 1 |
+| +0x1D horizontal | 0 | 2 | 2 |
+| +0x1E vertical | 0 | 5 | 6 |
+| +0x1F border | 0 | 0 | 0 |
+| +0x20 border colour | 0x40000000 | black | black |
+
+Independently, grid outline +0x148 is reset to converted black, and both line colours +0x14C/+0x150 to
+0xFF000000 on every call. No dirty flag or change hook is emitted by this initializer. Byte writes, colour
+sentinels and literal line colours are confirmed at 0x009A5D4B–0x009A5E16 and 0x009A5EA0–0x009A5F1B.
+
+**Text placement** 0x009A5FE3 uses the horizontal flags specified in §5.12. Let h be font slot +0x94's line
+height. Vertical alignment 6 replaces top with `trunc((top+bottom)/2) - trunc(h/2)` and bottom with top+h.
+Otherwise it leaves top unchanged when **horizontal** alignment is 5; for every other horizontal value it
+sets top = bottom-h, regardless of the vertical byte. This odd cross-field test is literal
+(0x009A603E–0x009A6075). The integer halves truncate toward zero separately. Selected text uses colour +0x14
+and selection fill +0x18; otherwise enabled text/fill use +0x04/+0x08, disabled use +0x0C/+0x10
+(0x009A6078–0x009A60B4). These correct the abbreviated paint-record colour description above.
+
+**Editable editor allocation failure.** In SetCellTextValue's editable branch, a missing allocation or null
+constructor result produces a null text interface and an immediate null dereference while setting its text;
+there is no successful return or recoverable false result. Any old incompatible cell window was already
+cleared. Do not infer a rollback or a retry from this path (0x009AE958–0x009AE99E). If the new editor exists
+but its subsequent window QueryInterface fails, the method instead returns true without attaching it
+(0x009AE9A4–0x009AE9B9); that is a separate failure case.
+
+**Header rectangles** (slots 72/73, 0x009A683D / 0x009A68E2) use local window coordinates and return false
+when their header flag is clear. For a particular column, obtain GetCellRect(col,0), retaining left/right,
+then replace top/bottom with gutterTop and gutterTop+headerHeight. For a particular row, obtain
+GetCellRect(0,row), retaining top/bottom, then replace left/right with gutterLeft and gutterLeft+headerWidth.
+A failed GetCellRect propagates false. Index -1 asks for the whole band: column =
+(gutterLeft, gutterTop, windowWidth-gutterRight, gutterTop+headerHeight); row =
+(gutterLeft, gutterTop, gutterLeft+**headerHeight**, windowHeight-gutterBottom).
+The whole-row band's use of header height +0x110, rather than width +0x114, is a quirk
+(0x009A6936–0x009A694A). No scroll-bar subtraction, outline inset, or extra separator pixel is applied here.
+
+**Paint record +0x14** is a pointer to the whole cell-area rectangle in drawing coordinates, not an integer
+edge or the per-cell clip. The cell-area rect comes from slot 9, translated by window origin. A cell's +0x10
+clip points to its intersection with that area. With flag 0x20000, text content.right and its clip.right are
+replaced with (+0x14)->right; bitmaps replace clip.right only. Thus text can extend across later cells while
+retaining the row's vertical clip. Evidence: 0x009AFA29–0x009AFA34, 0x009AFA78–0x009AFA87,
+0x009A8054–0x009A805A and 0x009A80D6–0x009A80E2.
+
+### 5.16 Remaining owner methods and sort semantics (WG8)
+
+**Partial cell-format setters** SetCellColors 0x009AC866, SetCellWrapping 0x009AC960,
+SetCellAlignment 0x009ACA52 and SetCellBorder 0x009ACB56 first require IsCellWithinBounds; false means
+return false without changing the cell. Otherwise ensure a cell record and its format exist. A new cell is
+type 0 with all other record words initially zero; its sparse-matrix key is the supplied coordinate. A new
+format has null font, all seven colour words 0x40000000, wrapping 0xFF and alignment/border bytes zero
+(constructor 0x009A5BF2). Preserve existing fields except the requested writes:
+
+| Setter | Writes |
+|---|---|
+| Colors(col,row,index,colour) | 32-bit word at format +4+4*index |
+| Wrapping(col,row,value) | low byte of value at +0x1C |
+| Alignment(col,row,horizontal,vertical) | low bytes at +0x1D/+0x1E |
+| Border(col,row,style,colour) | low style byte at +0x1F, colour word at +0x20 |
+
+These setters call the change hook and return true even if the supplied value equals the previous value;
+they do **not** set layout-dirty. Colors does not validate index (unlike SetDefaultFontColor): valid colour
+indices are 0..5; other indices address other format/storage bytes, with no false-result safeguard. Do not
+silently impose default-colour validation here. Evidence: 0x009AC935, 0x009AC9D4–0x009AC9D7,
+0x009ACAC6–0x009ACAD4, 0x009ACBCA–0x009ACBD8 and each method's hook/true epilogue.
+
+**SetCellExtraData** 0x009ACE2F sets extra-data mode +0x188 to 1 before checking bounds. Out of bounds
+returns false. A missing cell with zero data succeeds without insertion; nonzero data creates a zero/type-0
+record with the value at +0x14. An existing non-null record receives that value, including zero; a matrix
+entry containing a null record returns false. No refcount operation, dirty flag or change hook occurs.
+
+**ResizeColumnToFitCellWindows(start,count)** 0x009ADD09 has no bounds validation. Count zero does
+nothing; otherwise visits consecutive columns, scanning only type-1 records with non-null child windows.
+For each, take the greatest child GetW (slot +0xA4); no gutters, text widths or bitmap widths are included.
+No qualifying child leaves that column unchanged. Otherwise ensure the column's format-extra entry exists
+and increase cached actual size +0x26 only when it was -1 or is less than that maximum. This compares the
+old word as signed 16-bit against a signed 32-bit width and stores the low 16 bits (0x009ADDF4–0x009ADE05).
+It never shrinks an existing larger cache. If any cache was written, invalidate all row actual-size caches
+with SetSizeCachedActualForRow(0,0x7FFFFFFF,-1), mark layout-dirty and call the hook. No recalculation is
+performed here. Count is a decrement-to-zero counter, not a validated positive range; a negative count
+does not mean a no-op.
+
+**SortColumn(column,direction,wholeGrid,compare)** 0x009ACED6 and
+**SortRow(row,direction,wholeGrid,compare)** 0x009AD1E8 operate on sparse cell records, not on headings,
+axis formats, extra-data maps or child-window rectangles. Direction zero is ascending; nonzero reverses
+the comparator arguments. A null comparator selects 0x009A6E59. Gather non-null records on the key column
+or row in their existing axis order and stably sort their original opposite-axis coordinates by comparing
+the associated record pointers. Equal keys retain that order. Missing entries are not added to this key
+sequence; a type-0 format-only record is an entry. No bounds or key-type validation precedes sorting.
+
+SortColumn reassigns row indices: a record whose old row occurs in the sorted key sequence receives its
+zero-based rank there. Other records are packed after the key sequence, in their original row order, with
+the trailing counter restarting in each affected column. WholeGrid false affects only the key column;
+true affects every column in the pre-sort inclusive used range. SortRow transposes this rule, packing
+column indices within each affected row. The new indices start at zero even if the old used range began
+elsewhere. Records are relocated without disposing their payloads or losing their per-cell format/extra
+data. Axis headings, sizes and formats stay attached to the old axis indices.
+
+Selection entries are processed in existing list order. SortColumn changes the row for entries in the key
+column (or every entry when wholeGrid is true), using its sorted old-row sequence; unmatched entries get
+successive trailing row indices starting at key count. Other entries retain their pair. SortRow changes the
+column for entries in the key row (or every entry for wholeGrid), but **looks up the entry's old row, not
+its old column**, in the sorted old-column sequence (0x009AD43D–0x009AD46D). This is a compatibility
+quirk, not the intuitive transpose. Both replace the selection list, invalidate actual row-height caches
+over the union of old/new used-row ranges, mark dirty and call the hook even for an empty/no-change sort.
+Neither reports a boolean success result.
+
+The default comparator compares two records only when their types match, both payloads are non-null,
+and type is 2. It compares the payload strings at +4 using CRT `_stricmp`; every other pair compares equal.
+These are NUL-terminated **narrow byte strings**, not UTF-16, UTF-8 Unicode case folding, or natural/numeric
+sorting. The CRT uses its current thread CTYPE locale: default/C locale selects the ASCII comparison path;
+other locales lowercase individual unsigned bytes using that locale and return the first difference
+(0x00A04487–0x00A044EF, ASCII helper 0x009FFF40). The grid neither selects nor changes a locale. Thus
+non-ASCII results depend on host CRT locale; an implementer must supply the matching byte/locale behavior,
+not infer a Unicode collator. Mixed types can violate transitivity of equivalence; the stable-sort machinery
+in §5.7 is the literal reference for such inputs, rather than an assumed total ordering.
+
+The remaining formerly pending owner helpers have container behavior only. They add no UI notifications or
+layout changes of their own. The following contracts close their appendix rows without requiring a particular
+replacement container:
+
+| Addresses | Observable contract |
+|---|---|
+| 0x009AABC6 | Assign a coordinate list, retaining source order and both coordinate words; self-assignment is a no-op; destination length becomes source length |
+| 0x009AAD55 | Destroy the nested ordered-map record; release its allocated header; bit 0 of deleting-destructor argument also frees the containing allocation; return its address |
+| 0x009AAD74, 0x009AB01D | Stable insertion sorting of a range / consecutive runs; equal elements retain their original order |
+| 0x009AADB3, 0x009AAEC3 | Stable merge of adjacent sorted ranges, without / with temporary storage; an equal left element precedes an equal right element |
+| 0x009AB08B, 0x009AB10E, 0x009AB37E | Stable range sorting by recursive merging / buffered passes / adaptive splitting, under §5.7's predicate |
+| 0x009AB613, 0x009AB7E6 | Stable-sort entry and wrapper; allocate temporary storage when possible; allocation failure falls back to the in-place sort, preserving the same stable-order contract |
+| 0x009AB25C, 0x009AB310 | Erase one outer-map entry (destroy its nested map, free node, decrement count) / recursively erase a subtree |
+| 0x009AB57D, 0x009AB66B | Erase a half-open iterator range / all entries equal to a supplied key; the latter returns the removed count |
+| 0x009AB5C1 | Clear the ordered map, restoring empty header links and zero size; already empty is a no-op |
+| 0x009AB80B, 0x009AB822 | Clear and destroy the map, including its header; separate instances for nested format/cell-data maps; cell payload ownership stays with §5.11 disposal methods |
+| 0x009AB9AB, 0x009AB9C5 | If matrix initialized byte +0x20 is set, clear its map, reset cached count +0x0C and initialized byte; always return true; format/cell-data instances respectively |
 
 ## 6. Conformance (planned vectors)
 
@@ -760,6 +939,30 @@ alignment fields).
 5. PauseRecalculations(true), (true), (false) return 1, 2, 1; a further (false), (false) return 0, -1.
 6. GetColumnExtraData(7) on a fresh grid returns 0 and SetColumnExtraData(7, x) on an out-of-bounds column
    returns false.
+
+The following vectors are static contracts, not claims of game execution:
+
+| ID | Setup / action | Required observation |
+|---|---|---|
+| WG5-a | Column limit 0, row limit 3; test (-9,2), (-9,3); repeat with column limit 2 | true, false; then (-9,2) is false regardless of fixed-range flags |
+| WG5-b | Empty matrix; GetCellUsedRange; then create only a format record at (4,7) | false and (0,0,0,0); then true and (4,7,4,7) |
+| WG5-c | Selection contains (2,3); query (2,99), (99,3), (2,3) | mode 0: true/false/true; mode 1: false/true/true; mode 2: false/false/true |
+| WG5-d | Ten rows of height 20, cell area height 60, flag 0x10000, limit 10, position 0; relative +9 | position 7, since rows 7..9 fill 60 pixels; ScrollToRow(9) instead gives 9 |
+| WG5-e | Row font R and red text; column font C and inherited text; cell null font and blue background | resolved font C, red text, blue background; setting cell wrapping 0 overrides inherited wrapping 1 |
+| WG6-a | Sentinel normal/header formats; run SetDefaultFormatting with an RGB conversion stub | normal wrapping/horizontal/vertical = 1/2/5, header = 1/2/6; normal disabled pair = grey192/white; header selected pair = black/RGB(220,220,255) |
+| WG6-b | Replace axis format whose cached words were 12 and 34 | copied 36 format bytes, both size words become -1 |
+| WG6-c | Content (10,20,110,60), h=9; horizontal 3/4/5, vertical 7 | horizontal flags 1/2/0; top = 51/51/20, left/right remain 10/110 |
+| WG6-d | Same rect/h, vertical 6 | top = 40-4 = 36, bottom = 45 for every horizontal alignment |
+| WG7-a | Existing incompatible child; editable text; inject null editor allocation | old cell cleared, then null-interface fault, no boolean result or rollback |
+| WG9-a | W=300,H=200, gutters (3,5,7,11), header height 20,width 40; whole bands | column (3,5,293,25); row (3,5,23,189), deliberately width 20 |
+| WG9-b | Cell rect (43,25,93,45); query column header / row header | column (43,5,93,25); row (3,25,43,45) |
+| WG9-c | Per-cell clip right 93, whole translated cell-area right 293; flag 0x20000 | text content and clip right 293; bitmap clip right 293; bitmap destination remains cell aligned |
+| WG8-a | Empty in-bounds cell; wrapping 0, alignment (3,7), border (1,0x12345678), colour index 2 = 0 | one type-0 cell with those fields; all other format fields retain inheritance sentinels; hook per call, no dirty write |
+| WG8-b | Child widths 40 and 80 in a column, old actual width 100; resize; repeat with old width -1 | remains 100 with no change hook; then becomes 80, invalidates row caches, dirty and hook |
+| WG8-c | Key column records at rows 4="b",9="A",12="a"; direction 0, wholeGrid false | rows 0="A",1="a",2="b"; case-insensitive tie retains 9 before 12; other columns unchanged |
+| WG8-d | Same sort, wholeGrid true; second column entries at rows 4,6,9,12,15 | new rows 2,3,0,1,4 respectively; unmatched rows 6 and 15 follow the three keys |
+| WG8-e | SortRow(5,0,false) with key columns 2="b",8="a"; selection (2,5),(8,5) | sorted cells at columns 0="a",1="b"; selected columns become 2 and 3, since old row 5 is absent from key-column sequence |
+| WG8-f | C-locale default comparator: "Z" vs "a", "A" vs "a", "10" vs "2"; compare text vs bitmap | positive, zero, negative, zero; no numeric or Unicode ordering |
 
 ## 7. Open questions
 
@@ -784,13 +987,13 @@ See `questions/win-grid.md`.
 | 009a5c9f | 22 | FUN_009a5c9f | 5.7 |
 | 009a5cb5 | 34 | QueryInterface | 1 |
 | 009a5cd7 | 23 | FinalRelease | 5.1 |
-| 009a5cee | 560 | SetDefaultFormatting | pending |
+| 009a5cee | 560 | SetDefaultFormatting | §5.15 |
 | 009a5f1e | 5 | GZOnCharacter | 5.1 |
 | 009a5f23 | 37 | FUN_009a5f23 | 5.1 |
 | 009a5f48 | 40 | FUN_009a5f48 | 5.1 |
 | 009a5f70 | 13 | MakeDropDown [slot 139] | 5.6 |
 | 009a5f7d | 28 | GZOnMouseWheel | 5.1 |
-| 009a5fe3 | 216 | FUN_009a5fe3 | pending |
+| 009a5fe3 | 216 | FUN_009a5fe3 | §5.15 |
 | 009a60bb | 228 | FUN_009a60bb | 5.12 |
 | 009a619f | 133 | SetArea | 5.1 |
 | 009a6224 | 96 | SetFlag | 5.1 |
@@ -896,32 +1099,32 @@ See `questions/win-grid.md`.
 | 009aa991 | 320 | PlaceAllCellWindows | 5.11 |
 | 009aaad1 | 48 | GetCellExtraData [slot 120] | 5.5 |
 | 009aab01 | 197 | DisposeOfCellData | 5.11 |
-| 009aabc6 | 116 | FUN_009aabc6 | pending |
-| 009aad55 | 31 | FUN_009aad55 | pending |
-| 009aad74 | 63 | FUN_009aad74 | pending |
-| 009aadb3 | 272 | FUN_009aadb3 | pending |
-| 009aaec3 | 346 | FUN_009aaec3 | pending |
-| 009ab01d | 110 | FUN_009ab01d | pending |
-| 009ab08b | 131 | FUN_009ab08b | pending |
-| 009ab10e | 138 | FUN_009ab10e | pending |
+| 009aabc6 | 116 | FUN_009aabc6 | §5.16 |
+| 009aad55 | 31 | FUN_009aad55 | §5.16 |
+| 009aad74 | 63 | FUN_009aad74 | §5.16 |
+| 009aadb3 | 272 | FUN_009aadb3 | §5.16 |
+| 009aaec3 | 346 | FUN_009aaec3 | §5.16 |
+| 009ab01d | 110 | FUN_009ab01d | §5.16 |
+| 009ab08b | 131 | FUN_009ab08b | §5.16 |
+| 009ab10e | 138 | FUN_009ab10e | §5.16 |
 | 009ab198 | 68 | SetColumnExtraData [slot 121] | 5.5 |
 | 009ab1dc | 30 | GetColumnExtraData [slot 122] | 5.5 |
 | 009ab1fa | 68 | SetRowExtraData [slot 123] | 5.5 |
 | 009ab23e | 30 | GetRowExtraData [slot 124] | 5.5 |
-| 009ab25c | 61 | FUN_009ab25c | pending |
-| 009ab310 | 55 | FUN_009ab310 | pending |
-| 009ab37e | 178 | FUN_009ab37e | pending |
+| 009ab25c | 61 | FUN_009ab25c | §5.16 |
+| 009ab310 | 55 | FUN_009ab310 | §5.16 |
+| 009ab37e | 178 | FUN_009ab37e | §5.16 |
 | 009ab46a | 275 | CopyCellData | 5.11 |
-| 009ab57d | 68 | FUN_009ab57d | pending |
-| 009ab5c1 | 41 | FUN_009ab5c1 | pending |
-| 009ab613 | 88 | FUN_009ab613 | pending |
-| 009ab66b | 73 | FUN_009ab66b | pending |
-| 009ab7e6 | 37 | FUN_009ab7e6 | pending |
-| 009ab80b | 23 | FUN_009ab80b | pending |
-| 009ab822 | 23 | FUN_009ab822 | pending |
+| 009ab57d | 68 | FUN_009ab57d | §5.16 |
+| 009ab5c1 | 41 | FUN_009ab5c1 | §5.16 |
+| 009ab613 | 88 | FUN_009ab613 | §5.16 |
+| 009ab66b | 73 | FUN_009ab66b | §5.16 |
+| 009ab7e6 | 37 | FUN_009ab7e6 | §5.16 |
+| 009ab80b | 23 | FUN_009ab80b | §5.16 |
+| 009ab822 | 23 | FUN_009ab822 | §5.16 |
 | 009ab897 | 103 | ClearCell | 5.11 |
-| 009ab9ab | 26 | FUN_009ab9ab | pending |
-| 009ab9c5 | 26 | FUN_009ab9c5 | pending |
+| 009ab9ab | 26 | FUN_009ab9ab | §5.16 |
+| 009ab9c5 | 26 | FUN_009ab9c5 | §5.16 |
 | 009abaef | 116 | DisposeOfAllCellData | 5.11 |
 | 009abc95 | 567 | cGZWinGrid | 5.1 |
 | 009abecc | 8 | __ZThn4_N10cGZWinGridD0Ev | 5.7 |
@@ -931,33 +1134,33 @@ See `questions/win-grid.md`.
 | 009ac43b | 111 | SetColumnWidth [slot 65] | 5.8 |
 | 009ac4aa | 111 | SetRowHeight [slot 67] | 5.8 |
 | 009ac519 | 552 | SetCellFormat | 5.14 |
-| 009ac741 | 293 | SetCellFont [slot 90] | pending |
-| 009ac866 | 250 | SetCellColors [slot 91] | pending |
-| 009ac960 | 242 | SetCellWrapping [slot 92] | pending |
-| 009aca52 | 260 | SetCellAlignment [slot 93] | pending |
-| 009acb56 | 260 | SetCellBorder [slot 94] | pending |
+| 009ac741 | 293 | SetCellFont [slot 90] | §5.14 |
+| 009ac866 | 250 | SetCellColors [slot 91] | §5.16 |
+| 009ac960 | 242 | SetCellWrapping [slot 92] | §5.16 |
+| 009aca52 | 260 | SetCellAlignment [slot 93] | §5.16 |
+| 009acb56 | 260 | SetCellBorder [slot 94] | §5.16 |
 | 009acc5a | 233 | SetSizeCachedActualForRow | 5.10 |
 | 009acd43 | 236 | SetSizeCachedActualForColumn | 5.10 |
-| 009ace2f | 167 | SetCellExtraData [slot 119] | pending |
-| 009aced6 | 786 | SortColumn | pending |
-| 009ad1e8 | 810 | SortRow | pending |
+| 009ace2f | 167 | SetCellExtraData [slot 119] | §5.16 |
+| 009aced6 | 786 | SortColumn | §5.16 |
+| 009ad1e8 | 810 | SortRow | §5.16 |
 | 009ad512 | 370 | CopyCellData | 5.11 |
 | 009ad684 | 118 | GetColumnWidthInternal | 5.10 |
 | 009ad6fa | 285 | CalculateCellHeight | 5.10 |
-| 009ad817 | 282 | ScrollCellsHorizontally | pending |
+| 009ad817 | 282 | ScrollCellsHorizontally | §5.15 |
 | 009ad931 | 45 | GetRowHeading [slot 80] | 5.5 |
 | 009ad95e | 40 | SetRowHeading [slot 81] | 5.5 |
 | 009ad986 | 45 | GetColumnHeading [slot 78] | 5.5 |
 | 009ad9b3 | 40 | SetColumnHeading [slot 79] | 5.5 |
 | 009ad9db | 407 | CopyColumns | 5.13 |
 | 009adb72 | 407 | CopyRows | 5.13 |
-| 009add09 | 315 | ResizeColumnToFitCellWindows | pending |
+| 009add09 | 315 | ResizeColumnToFitCellWindows | §5.16 |
 | 009ade44 | 1086 | MakeRoom | 5.11 |
 | 009ae282 | 109 | MakeRoomForRow | 5.11 |
 | 009ae2ef | 109 | MakeRoomForColumn | 5.11 |
 | 009ae35c | 43 | GetColumnWidth | 5.4 |
 | 009ae387 | 264 | GetRowHeightInternal | 5.10 |
-| 009ae48f | 285 | ScrollCellsVertically | pending |
+| 009ae48f | 285 | ScrollCellsVertically | §5.15 |
 | 009ae5ac | 307 | DeleteColumns | 5.13 |
 | 009ae6df | 308 | DeleteRows | 5.13 |
 | 009ae813 | 184 | GetCellRect | 5.13 |

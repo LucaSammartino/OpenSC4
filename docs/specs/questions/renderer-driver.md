@@ -22,35 +22,17 @@
   result and retry flags. Still open: the `0xAACB92A3` handler.*
 
 <!-- from: re-gdriver5 (2026-10-23) -->
-- **RD6 - section 9.6:** complete the ordinary internal-format ranking of `0x0088F8D0`, the 15×8 converter
-  availability matrix and per-converter rounding, bit expansion and compressed-block handling. Compressed-key
-  preference and fallback requests are specified; full arithmetic is not. [needs: instruction-checked format
-  selector and converter families; distinguish texture descriptor enumeration from surface allocation]
-- **RD7 - sections 12.1 and 14.1:** complete the auxiliary interfaces at owner +0x0/+0x4/+0x8: individual light
-  enable/property calls, material operations, independently exposed vertex buffers and buffer regions. Establish
-  exact range constant evaluation for D3DLight. These are outside the 83 graphics slots. [needs: per-table
-  dispatch attribution; instruction checks of numeric setters; public call/return ownership]
-- **RD8 - section 14.2:** complete context device-selector choices (-1/-3/-4 and concrete values), depth-format
-  enumeration/ranking and every CreateDevice/depth-attachment failure path in `0x0088BFC0`. Current spec covers
-  cooperative flags, flip-count fallback, separate surfaces, clipper and presentation. [needs: callbacks
-  `0x0088BDE0`, `0x0088BE40`, `0x0088BDC0` and all remaining setup instruction pages]
-
-<!-- from: core-gdriver5 (2026-10-23) -->
-- **RD9 - sections 2, 4.1, 4.4 and 10.1:** specify the complete texture-stage constructor/default-reset values,
-  initial material/clear state, the Shutdown error helper, adapter-info storage and zero-version fallback,
-  and driver/manager final-release destruction behavior. Section 4.4 refers to 5.4 for stage defaults, but
-  that section only specifies capability setters. [current: explicit Unsupported boundary for unknown
-  reset/helper/info operations; test defaults are supplied fixtures, not native claims]
-- **RD10 - section 8.3:** when compacting position-only, position+colour or position+UV into the format-11
-  buffer, what values are written to missing colour/UV elements? What are the exact generated index count
-  and buffer contents for incomplete quads and the result selected when several queued submissions fail?
-  [current: copy only specified source elements, leave missing destination bytes untouched; complete quads
-  only; retain the last failing submission HRESULT; these choices require confirmation]
-- **RD11 - section 8.6:** must portable core match x87 projection conversion bit-for-bit for all possible
-  float matrices/viewport sizes, including non-finite inputs and double-rounding cases, or are ordinary
-  finite conformance vectors sufficient? [current: f64 intermediates with single output rounding; exact
-  x87 quotient/extended accumulator emulation is pending clarification]
-  *Implementation follow-up 2026-10-23:* a rational discriminator (width 30, matrix words `3e2f59ff`
-  and `40a4645f`) proves f64 produces `30888888` versus x87 `30888889`. Core now uses a software
-  64-significand-bit accumulator and correctly rounds finite operations; the remaining question is the
-  FPU control-word assumptions and NaN-payload/exception behavior, which the spec does not prescribe.
+- **RD6 - section 9.6 (remaining arithmetic only):** instruction-check the pixel arithmetic of available
+  non-copy converters other than source 5 → keys 1/2 and source 9 → keys 1/2: the remaining uncompressed
+  channel pack/quantization/expansion cells, and DXT1/source 10 or DXT3/source 12 → ordinary keys 1/2, 4/5, 7,
+  including endpoint interpolation, alpha and partial-block/stride handling. Source 0 → keys 1/2 is an
+  established bitwise copy. Ordinary ranking, all 120 descriptor-dependent availability cells, compressed
+  preference/fallback, direct compressed byte copying and the two named expansions are answered and archived
+  (2026-10-23, re-gdriver-rd11); do not reopen them. [needs: converter bodies selected by 0088F310–0088F737,
+  0088D210/0088D270, with shared decode helpers 0080A6A0/0080A6D0]
+- **RD7 - section 12.5 (CopyColorBuffer only):** establish the behavior of owner+4 slot 3 (`0x00883950`):
+  lock-probe cache lifetime, destination allocation/refcount ownership, clipping/orientation, pixel-format
+  conversion and every failure return. Table/identity attribution, all light/material operations, exact
+  D3DLight range, constant/no-op slots, absence of independently returned vertex buffers in these tables,
+  and region handles/transfers/recovery are answered and archived (2026-10-23, re-gdriver-rd11).
+  [needs: instruction checks of 00883950–00883EB7; decompiler has unreliable pointer/stack aliases]

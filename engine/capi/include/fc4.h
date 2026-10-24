@@ -189,8 +189,10 @@ extern "C" {
  * 95 = merge-train batch train181 (glue-effects-capture8, glue-landvalue-capture7): merged (no C ABI history entry of its own)
  * 96 = merge-train batch train183 (glue-scres-preproc8, glue-nettool-close7, re-effects-ef21): merged (no C ABI history entry of its own)
  * 97 = merge-train batch train186 (re-gzmsg-gz11, glue-lotconf-capacity7, glue-propdev-close7): merged (no C ABI history entry of its own)
- * 98 = merge-train batch train188 (re-audio9, glue-construction-lr13, glue-gzmsg-close9, glue-dbpf-close8, re-other-attribution9): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 98u
+ * 98 = merge-train batch train188 (re-audio9, glue-construction-lr13, glue-gzmsg-close9, glue-dbpf-close8, re-other-attribution9): merged (no C ABI history entry of its own)
+ * 99 = merge-train batch train192 (core-gzwingrid9, glue-dbpf-sample10, audit-impl-column11, glue-renderprops-shadow9): merged (no C ABI history entry of its own)
+ * 100 = merge-train batch train195 (glue-mysimdispatch-shadow9, glue-helicopter-shadow10): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 100u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -13007,6 +13009,16 @@ uint32_t fc4_dbpf_packed_keys(const fc4_dbpf* p,
     void (*emit)(void*, uint32_t, uint32_t, uint32_t), void* ctx);
 uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
     uint32_t instance, uint8_t* buffer, uint32_t* size);
+#ifdef __cplusplus
+}
+#endif
+
+/* AF11 partial metadata shadow: fresh Rust helicopter record, class ID or 0.
+ * Only the four leading u16 version fields are comparison targets. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_helicopter_shadow_fixture(const fc4_ostream* output);
 #ifdef __cplusplus
 }
 #endif

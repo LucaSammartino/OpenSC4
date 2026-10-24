@@ -19,6 +19,12 @@
 //
 //   automata_shadow = 1             (env FC4_AUTOMATA_SHADOW)
 //   automata_owners_shadow = 1      (env FC4_AUTOMATA_OWNERS_SHADOW)
+//   helicopter_shadow = 1          (env FC4_HELICOPTER_SHADOW)
+// The helicopter switch is an independent, partial AF11 metadata comparison:
+// class and four nested record versions only; private COM fixture when no
+// saved aircraft-manager reference names a helicopter. It does not tick or
+// initialize that fixture. Parameters, home, goals, physics and complete live
+// enumeration remain uncompared under AF2-AF6/AF9/AF11.
 // The latter also compares referenced automaton/controller records recursively
 // and construction records from the occupant manager's saved references. Its
 // automataowners shadow lines report each inherited owner's record counts;

@@ -112,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NM | network-manager |
 | NO | network-occupants |
 | NOV | network-overlay-views |
+| NQ | nation |
 | NR | network-rules |
 | NRT | network-routines |
 | NT | network-tools |
@@ -147,7 +148,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RN | foundations |
 | RND | render3d |
 | RP | render-properties |
-| RQ | region |
+| RQ | region, region-model |
 | RR | regional-city-records |
 | RS | residential |
 | RY | regional-city |
@@ -200,7 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 6 | 3 | AF10 | questions/aircraft.md |
+| aircraft | 8 | 3 | AF12 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -245,7 +246,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
@@ -278,7 +279,8 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 1 | 18 | MS20 | questions/mysims.md |
+| mysims | 2 | 20 | MS23 | questions/mysims.md |
+| nation | 0 | 3 | NQ4 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -313,15 +315,15 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
-| region | 2 | 0 | RQ3 | questions/region.md |
+| region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
-| region-model | 13 | 1 | RM15 | questions/region-model.md |
+| region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
-| regional-city | 6 | 0 | RY7 | questions/regional-city.md |
+| regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
-| render-properties | 3 | 3 | RP7 | questions/render-properties.md |
+| render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
-| renderer-driver | 9 | 2 | RD12 | questions/renderer-driver.md |
+| renderer-driver | 5 | 8 | RD12 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
@@ -362,13 +364,13 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 3 | 5 | WC9 | questions/watercraft.md |
+| watercraft | 3 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
 | widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
-| win-grid | 4 | 2 | WG7 | questions/win-grid.md |
+| win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1457** | | |
+| **total** | **607** | **1483** | | |

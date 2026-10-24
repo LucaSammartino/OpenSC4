@@ -90,3 +90,14 @@
   oracle was incorrect. Keep the old 28 failures as historical measurements; preserve logical storage
   count1 for existing consumers, and compare the actual production native GetCount path instead.
   HG4-HG6 remain unresolved; this correction establishes no conversion/serialization/return-channel contract.
+
+<!-- from: glue-city-shadow9 (2026-10-24) -->
+- **HG8 - section 3.6 city owner and persistence:** Please publish the complete cSC4City scalar payload
+  (versions 8..12), field update rules and public getter/setter contracts, including a read-only capture
+  route for the city serializable interface that cannot write other records. Section 3.6 explicitly defers
+  the other city fields; save-records section 2 says the city-written auxiliary record is unspecified.
+  The brief names core/src/save.rs as a city implementation but it implements the simulator v4 record.
+  [No city persistence oracle or whole-owner credit. Measure only PositionToCell on eight fixed caller inputs
+  per load/month (budget round-2 errata item 6: floor, 16 m origin) and CellWidthX/Z (terrain section 2.1).
+  All other cISC4City methods, serialized fields, 53 component references and auxiliary records remain
+  uncompared. No native output is used to populate independent expected values; no Write or mutators called.]

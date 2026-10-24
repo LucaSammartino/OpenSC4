@@ -386,10 +386,18 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "persist_shadow",
                                   // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
                                   "gzmsg_shadow",
+                                  // MS20 assigned constructor payload/header scope; live input capture required.
+                                  "mysimdispatch_shadow",
+                                  // Independent read-only render-properties registry comparison.
+                                  "renderprops_shadow",
                                   // Read-only exemplar lighting parameter comparison (LT14).
                                   "lighting_shadow",
                                   // EX54/EX55 read-only packed-file shadow, default off.
                                   "dbpf_shadow",
+                                  // HG8 bounded read-only city geometry (default off).
+                                  "city_shadow",
+                                  // AF11 partial helicopter metadata observation, default off.
+                                  "helicopter_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

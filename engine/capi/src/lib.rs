@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 98;
+pub const FC4_ABI_VERSION: u32 = 100;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1157,6 +1157,10 @@ mod scres_file_shadow;
 
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
-
+// MS20: private constructor/record-header dispatch differential, no live replay.
+mod mysimdispatch_shadow;
+// Private production-core render-properties registry expectations.
+mod renderprops_shadow;
+mod city_shadow;
 // Read-only exemplar lighting parameter comparison; private static-link transport.
 mod lighting_shadow;

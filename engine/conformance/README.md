@@ -6,8 +6,13 @@ The eight MS17 dispatch specification vectors in mysims.md §12 are executable
 integration tests in `tests/mysim_dispatch.rs`, named `ms17_01` through `ms17_08`.
 They use the public dispatch API with foreign scripted services and real record
 streams. Vector 06 covers the dispatch request portion; MySim-owned state/sound
-handling remains outside this owner's closure. MS18 transport and MS19's missing
-comparison precedence/teleport effects are explicit open boundaries, not arrivals.
+handling remains outside this owner's closure. MS18's new executable vectors
+live in `tests/support/mysim_dispatch_ms18.rs`, included by the same integration
+test. They cover all 42 unequal ordinary mode pairs, switch fallback, sentinels,
+strict delay expiry, stuck ordering, idle recovery, callback identity, approach
+equality, pending player entry, mission exit and assigned constructor defaults.
+Route partition/current-marker capture remains MS21; public live-input capture
+is the observation limitation specified by MS20, not an invented interface slot.
 
 MySim owner closure adds `mysim_location_arithmetic` (float32 `bits` as hex
 strings, target `cell`; returns converted cells, world position and preservation
