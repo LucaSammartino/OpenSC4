@@ -1,8 +1,8 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-pl21fix6: PL21 round 2 crash investigation | Codex; glue-propmgr-pl21fix6 (detached HEAD) | in progress | Audit ownership and shutdown; full gate and two complete house-profile repeats |
+| glue-propmgr-pl21fix6: PL21 round 2 crash investigation | Codex; glue-propmgr-pl21fix6 (detached HEAD) | blocked; no root cause established; cargo6891 passed, clippy clean, CTest72/72 | Authorize a main merge or provide train179-based inputs; reproduce before fixing; queue held WIP |
 
-## Handoff
+## Round 2 report
 
 - Goal: fix train177/178/179 heap AV and stall, retaining propmgr 220/220.
 - Starting tip: d44eead99c; detached HEAD, do not update refs.
@@ -19,13 +19,24 @@
 - Main has train176 observer/write-capture changes absent from reserved HEAD; train179 included them.
 - Both build caches are Debug/FC4_CHECKED=OFF (configuration difference ruled out).
 - Async permission requested to merge main into detached HEAD to reproduce actual failing inputs; pending.
-- Gate operation 10802 active: cargo6891 passed, clippy0; native build/CTest queued as qbuild-20261024-053124-build-ctest.
-- Next: collect gate to terminal, then reproduce on newer base if authorized; no speculative fix.
+- Gate operation10802 collected to terminal exit0: qbuild PASS, cargo6891 passed/0 failed/0 ignored, clippy0 diagnostics, CMake202/202, CTest72/72.
+- Native build13.6 s, CTest90.9 s, total108.3 s; sccache185 hits/0 misses. Verdict: build-runs/build-results/qbuild-20261024-053124-build-ctest.verdict.
+- Full gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. No tree-change warning found.
+- Gated DLL SHA256 f926c2dac765027f6ca5dc821bdefd4136c820cd07c9d7c191fdd1100813003c, saved as build-runs/dlls/pl21fix6-r2-gated.dll; not game-tested.
+- Next: reproduce on the newer base if authorized; no speculative fix. No build or game operation outstanding.
 - Required gate: qbuild all on stable final source, then both house profiles twice.
 - Manifest: main build-runs/run4-glue-propmgr-pl21fix6-r2-manifest.json.
 - Prior round report below is historical and does not establish round-2 acceptance.
 
-## Report
+No engine implementation changed in round 2, and no root fix is claimed. The reserved checkout predates train176's observer and write-capture changes; train179 tested those changes combined with this lane. The existing rule forbids merging main without instruction. An asynchronous request to authorize that merge into detached HEAD remains unanswered. The old diagnostic DLL ignores newer keys lotconf_shadow, lotrec_shadow, ordinance_shadow, simgrid_shadow and weather_shadow. The missing summaries and landvalue71/72 result (six mismatches on an unsettled September2026 pass) are preserved, not waived. This diagnostic is not final acceptance, and the required two repetitions of both complete final-source house profiles have not been performed.
+
+The three-suspect audit found no normal-path reference imbalance: capture retains each entry, replay retains another reference for the core, pruning/comparison releases the replay reference, and snapshot destruction releases the capture reference. Native list entries have separate references that are released and nulled before the SDK destructor. Replacement mode disables the prop shadow before any probe installation or snapshot allocation, so the null global owner cannot release host objects in that mode. Scope cleanup and outer SEH cleanup restore slot40 with conditional exchange. No recorded evidence establishes a restoration failure. These findings do not prove every exceptional or concurrent path safe and do not identify the first corrupting operation. The supplied heap AV occurs after PostAppShutdown without a DLL return address on the recorded stack; that establishes detection, not causation.
+
+The explicitly requested regress script submitted both diagnostic profiles concurrently; its original session96006 was collected to terminal exit0, without qwait or resubmission. The result is recorded in [run390](../runs/pl21fix-r2-diag-20261024a-390.md); full logs/verdicts are local under build-runs/game-results. The full gate ran once on stable unchanged engine source to check the reserved source/artifact inputs. Cached compiler diagnostics mention train-integration filenames, but the build command and CMake home directory point to this lane. Keep the historical diagnostic DLL and the newly gated DLL distinct.
+
+Questions filed: none; no new behavioral interpretation was implemented. ABI exports changed: no. No shared ref was switched or published. The queue remains WIP; this lane is not ready. Next: supervisor authorize merging main into detached HEAD or supply exact train179-based inputs (failing DLL hash prefix83c80323; the train-integration artifact has since been replaced by train180). Reproduce, diagnose the first corrupting operation, implement its root fix, then gate changed source and run both full house profiles twice before marking ready.
+
+## Round 1 historical report (not round-2 acceptance)
 
 PL21 is applied to the shadow's input boundary. The prop-manager record has no prop entries and does not freeze the occupant grid. Two separate live queries therefore did not establish equal query inputs. `FC4PropLotShadow.cpp` now observes the occupant manager's public slot 40 during the native lot query, retaining its ordered result and positions before the prop manager's final position-pruning pass. Rust receives that same dependency input and performs its own complete lot-query algorithm. Native `GetLotProps` output is never replayed.
 
