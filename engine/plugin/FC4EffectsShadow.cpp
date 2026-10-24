@@ -18,7 +18,19 @@
 #include "FC4Config.h"
 #include "FC4EffectsHost.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
+#include "FC4Diag.h"
+#include "FC4Interfaces.h"
 #include "GZServPtrs.h"
+#include "cIGZCOM.h"
+#include "cGZPersistResourceKey.h"
+#include "cIGZPersistResourceManager.h"
+#include "cIGZPersistDBRecord.h"
+#include "cIGZPersistDBSerialRecord.h"
+#include "cIGZDBSerialRecordAsIGZFile.h"
+#include "cIGZFile.h"
+#include "cISC4City.h"
+#include "cISC4EffectsManager.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZMessage2Standard.h"
@@ -34,6 +46,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace fc4 {
 namespace {
@@ -101,6 +114,7 @@ ShadowTarget* TheTarget() {
 }
 
 Shadow g;
+bool g_recordEnabled = false;
 
 void NoteDifference(const char* what) {
     ++g.counts.differences;
@@ -121,6 +135,14 @@ void EffectsShadowStartup(bool effectsReplaced) {
     g.enabled = on != 0;
     g.effectsReplaced = effectsReplaced;
     if (!g.enabled) return;
+    // The old replacement-call mirror is separate from native evidence.
+    // Native runs use no ticking core, message subscription or host writes.
+    g_recordEnabled = !effectsReplaced;
+    if (g_recordEnabled) {
+        g.enabled = false;
+        Log("effects shadow: enabled native record-only names (EF20 limits collection capture)");
+        return;
+    }
     Log("effects shadow: enabled (%s; the mirror records every write)",
         effectsReplaced ? "our effects manager is live" : "the original's effects manager is live");
     if (g.core == nullptr) {
@@ -149,6 +171,7 @@ void EffectsShadowStartup(bool effectsReplaced) {
 }
 
 void EffectsShadowStop() {
+    g_recordEnabled = false;
     if (g.enabled && g.core != nullptr) {
         char buf[512] = {};
         Log("%s", EffectsShadowSummary(buf, sizeof(buf)));
@@ -245,6 +268,93 @@ const char* EffectsShadowSummary(char* buf, unsigned cap) {
                   static_cast<unsigned long long>(g.counts.differences),
                   g.counts.differences == 0 ? "" : "  <-- see docs/lanes/glue22.md");
     return buf;
+}
+
+namespace {
+
+// Public SDK raw-record path; never requests a decoded resource or invokes
+// its collection reader. OpenDBRecord's borrowed record is closed via rm.
+bool CaptureDirectory(std::vector<uint8_t>& bytes) {
+    cIGZPersistResourceManagerPtr rm;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    if (!rm || !com) return false;
+    cGZPersistResourceKey key(0xEA5118B0, 0xEA5118B1, 1);
+    cIGZPersistDBRecord* rec = nullptr;
+    (void)rm->OpenDBRecord(key, &rec, false);
+    if (!rec) return false;
+    cIGZPersistDBSerialRecord* serial = nullptr;
+    cIGZFile* file = nullptr;
+    cIGZDBSerialRecordAsIGZFile* binding = nullptr;
+    bool ok = rec->QueryInterface(GZIID_cIGZPersistDBSerialRecord, reinterpret_cast<void**>(&serial)) && serial;
+    if (serial) FC4_ACQUIRED(serial, "effects raw serial QI");
+    ok = ok && com->GetClassObject(GZCLSID_cIGZDBSerialRecordAsIGZFile,
+        GZIID_cIGZFile, reinterpret_cast<void**>(&file)) && file;
+    if (file) FC4_ACQUIRED(file, "effects raw file adapter");
+    ok = ok && file->QueryInterface(GZIID_cIGZDBSerialRecordAsIGZFile,
+        reinterpret_cast<void**>(&binding)) && binding;
+    if (binding) {
+        FC4_ACQUIRED(binding, "effects raw binding QI");
+        (void)binding->SetDBSerialRecord(serial);
+        FC4_RELEASE(binding);
+    }
+    if (ok) {
+        ok = file->IsOpen() || file->Open(cIGZFile::AccessMode::Read,
+            cIGZFile::CreationMode::OpenExisting, cIGZFile::ShareMode::Read);
+        const uint32_t n = file->Length();
+        ok = ok && n > 0 && n <= 16u * 1024u * 1024u && file->SeekToBegin() == 0;
+        if (ok) {
+            bytes.resize(n);
+            ok = file->Read(bytes.data(), n);
+        }
+        if (file->IsOpen()) ok = file->Close() && ok;
+    }
+    if (file) FC4_RELEASE_CREATED(file);
+    if (serial) FC4_RELEASE(serial);
+    rm->CloseDBRecord(key, &rec);
+    return ok;
+}
+
+uint32_t NativeHasName(void* user, const char* name) {
+    // Borrowed city manager: no AddRef/Release and no mutation.
+    // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
+    // public SDK declares bool. Compare that boolean only, never an index.
+    return static_cast<cISC4EffectsManager*>(user)->HasVisualEffect(name) ? 1u : 0u;
+}
+
+struct NameSample {
+    cISC4City* city;
+    uint32_t counts[3] = {};
+    uint32_t bytes = 0;
+    bool captured = false;
+};
+
+void CompareNames(void* context) {
+    auto& s = *static_cast<NameSample*>(context);
+    auto* manager = s.city ? s.city->GetEffectsManager() : nullptr;
+    std::vector<uint8_t> bytes;
+    if (!manager || !CaptureDirectory(bytes)) return;
+    s.bytes = static_cast<uint32_t>(bytes.size());
+    s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, manager, s.counts);
+}
+
+} // namespace
+
+void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
+    if (!g_recordEnabled) return;
+    // City load precedes the observer's first published date. Read the live
+    // simulator interface rather than rendering Julian zero as a BC year.
+    if (load && city) {
+        auto* sim = AsGame(city->GetSimulator());
+        if (sim) julian = sim->GetSimDateNumber();
+    }
+    NameSample sample{city};
+    const bool safe = SehGuard("effects record shadow", CompareNames, &sample);
+    const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 ? 0u : 1u;
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("effects shadow %04d-%02d-%02d %s: bytes=%u entries=%u queries=%u refusal=%u resyncs=0; mismatches=%u",
+        date.year, date.month, date.day_of_month, load ? "load" : "month",
+        sample.bytes, sample.counts[0], sample.counts[1], refusal, sample.counts[2] + refusal);
 }
 
 }  // namespace fc4
