@@ -71,14 +71,6 @@ title/name helpers, 3D preparation and refresh. Callback adjustment and
 sort/scroll dispatch themselves are resolved (§12.1), while sort semantics
 remain LE4. The exact non-C methods/bytes are in spec §18 and the companion.
 
-<!-- from: core-lotconfig-editor4 (2026-10-22) -->
-- **LE6 — Portable integration boundaries:** §9 calls record offsets +0x10/+0x14 minima and +0x18/+0x1C maxima, whereas the existing published lot-configuration record dependency uses the opposite named fields. Is that an owner-specific interpretation? [Editor uses its literal published raw-offset convention; shared decoder remains unchanged.] What are the exact constructor defaults for compatibility logical lengths, minimum byte and ignored numeric field, and the identity path splitter/extension convention and non-ASCII lowercase rules? [Unpublished initial fields are represented as empty/zero placeholders with no claim of constructor completeness; non-ASCII path comparison and unsupported path syntax are blocked. Verification prompt wording/options, text formatting for slope/path initialization and native fence placeholder text are only paraphrased in the spec; portable strings are literal descriptions pending exact contracts.] Fully implementing Read requires a typed bridge to the already-published LotConfigManager::fix, not a host-supplied reconciliation outcome; that bridge remains unsupported.
-Shared attribution is exactly five current bodies/427 bytes: `0x00478360`,
-`0x00604920`, `0x006049BF`, `0x006049C6`, `0x006049CD`; historical
-`0x006049D4`/`0x00604A67` are interior fragments. Direct callers prove reach,
-not exclusive ownership. The 109-entry/52,646-byte arithmetic stays resolved.
-PARK at 3/3; no owner-complete claim or fourth round.
-
 **LE7 — Chooser service and grid dependencies**
 
 The chooser's owner contracts, methods, constructor, messages, list rows,
@@ -91,5 +83,6 @@ contract and purpose; identify the backing-store interface used by deletion
 sort direction/collation and text search flag/range meaning for `+0x20C` and
 `+0x214`; raw calls alone must not become an assumption that row zero is
 unsearchable. Malformed hexadecimal row parsing belongs to `RZAtoUint32HexA`.
-The complete-owner label remains unsupported while these and LE3–LE6 remain.
+The complete-owner label remains unsupported while these and LE3–LE5 remain;
+LE6/LE8 integration answers are in the spec and answered file.
 
