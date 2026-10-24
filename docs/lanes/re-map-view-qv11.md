@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-map-view-qv11: map-view owner questions | `Codex` / `re-map-view-qv11` (RE lane, detached HEAD) | ready; round 1 ac706d691, c04bcb9b0; round 2 QV4/QV6/QV9 answered; doccheck passed; ABI unchanged; no game runs | 1. Land docs. 2. Implement the six answered closure rows using the spec vectors. |
+| re-map-view-qv11: map-view owner questions | `Codex` / `re-map-view-qv11` (RE lane, detached HEAD) | ready; round 1 ac706d691, c04bcb9b0; round 2 d574134ea; QV4/QV6/QV9 answered; doccheck passed; ABI unchanged; no game runs | 1. Land docs. 2. Implement the six answered closure rows using the spec vectors. |
 
 ## Report
 
@@ -46,6 +46,6 @@ Unrelated questions QV1/QV2/QV3/QV5/QV11/QV14 remain open.
 
 - Goal: six requested owner questions; all six now answered with rules and vectors.
 - Done round 1: ac706d691 and c04bcb9b0, QV7/QV8/QV10, vectors 17–23.
-- Done round 2: QV4/QV6/QV9, vectors 24–33; questions moved, index regenerated; doccheck passed.
+- Done round 2: d574134ea, QV4/QV6/QV9, vectors 24–33; questions moved, index regenerated; doccheck passed.
 - Next: coordinator lands detached-HEAD work; implementers consume the updated spec.
 - No outstanding game requests, ABI proposals or implementation changes.
