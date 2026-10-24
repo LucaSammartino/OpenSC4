@@ -271,7 +271,7 @@ private:
     fc4_ostream s_{};
 };
 
-// AF10: this is intentionally a metadata projection, not a record roundtrip
+// AF11: this is intentionally a metadata projection, not a record roundtrip
 // masquerading as an independent simulation. Native outputs never seed Rust.
 void HelicopterCompare(int32_t julian) {
     if (!g_helicopterEnabled || !g_city) return;
@@ -321,7 +321,7 @@ void HelicopterCompare(int32_t julian) {
         }
     }
     if (reachable == 0) {
-        // AF10: no specified live-spawn scenario/group contract. A private
+        // AF11: no specified live-spawn scenario/group contract. A private
         // factory object is safe for identity/Write only; never Init or tick it,
         // add it to a manager, or claim it is a spawned city helicopter.
         cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
@@ -336,8 +336,8 @@ void HelicopterCompare(int32_t julian) {
             ++bad;  // An empty sample must never be reported as exact.
         }
     }
-    Log("helicopter shadow %s: partial=AF10 reachable=%u fixtures=%u samples=%u fields=%u "
-        "uncompared=parameters,home,goals,physics,lifecycle,enumeration[AF2-AF6/AF9/AF10] mismatches=%u",
+    Log("helicopter shadow %s: partial=AF11 reachable=%u fixtures=%u samples=%u fields=%u "
+        "uncompared=parameters,home,goals,physics,lifecycle,enumeration[AF2-AF6/AF9/AF11] mismatches=%u",
         DateText(julian).c_str(), reachable, fixtures, samples, fields, bad);
     ++g_helicopterLines;
     if (!bad) ++g_helicopterClean;
@@ -672,7 +672,7 @@ void AutomataShadowStartup(bool automataReplaced) {
     g_enabled = SettingInt("automata_shadow", "FC4_AUTOMATA_SHADOW", 0) != 0;
     g_ownersEnabled = SettingInt("automata_owners_shadow", "FC4_AUTOMATA_OWNERS_SHADOW", 0) != 0;
     g_helicopterEnabled = SettingInt("helicopter_shadow", "FC4_HELICOPTER_SHADOW", 0) != 0 && !automataReplaced;
-    if (g_helicopterEnabled) Log("helicopter shadow: ON; partial metadata only [AF10], "
+    if (g_helicopterEnabled) Log("helicopter shadow: ON; partial metadata only [AF11], "
         "class and four record versions independently from a fresh Rust owner; no flight claim");
     g_enabled = g_enabled || g_ownersEnabled;
     if (g_enabled) Setting("automata_shadow", "FC4_AUTOMATA_SHADOW", &src);
@@ -714,7 +714,7 @@ void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
 }
 
 void AutomataShadowCityShutdown() {
-    if (g_helicopterLines) Log("helicopter shadow: shutdown: %llu lines, %llu with mismatches=0; partial AF10",
+    if (g_helicopterLines) Log("helicopter shadow: shutdown: %llu lines, %llu with mismatches=0; partial AF11",
         static_cast<unsigned long long>(g_helicopterLines), static_cast<unsigned long long>(g_helicopterClean));
     g_helicopterLines = g_helicopterClean = 0;
     g_helicopterMonth = 0;

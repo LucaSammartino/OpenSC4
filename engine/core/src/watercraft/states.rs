@@ -131,9 +131,9 @@ impl Fleet {
                 boat.docking_in_progress = false;
                 if let Some(manager) = manager.as_deref_mut() {
                     manager.done_docking(&station.lot, id);
+                    boat.held_berth = false;
+                    boat.record.base.automata_flags &= !0x1000_0000;
                 }
-                boat.held_berth = false;
-                boat.record.base.automata_flags &= !0x1000_0000;
             }
         }
         Ok(())

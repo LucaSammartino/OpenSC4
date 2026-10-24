@@ -1,5 +1,12 @@
 # Automata core
 
+The airplane owner and parameter implementation now live in
+[`airplane/mod.rs`](airplane/mod.rs). Its current
+[Owner closure table](airplane/README.md) supersedes the airplane rows below:
+aircraft §3.1 and numerical §§3.4.1–3.4.2 now have exact constants and conformance
+vectors. Station-mask overflow follows the settled wrapping rule. The older
+helicopter rows below describe work outside core-airplane9.
+
 `automaton.rs` supplies the shared `AutomatonBase`, state records and stack
 contracts. `codec.rs` supplies vectors, occupant records and checked references.
 The existing controller/script/manager modules and generic `Automaton` wrapper

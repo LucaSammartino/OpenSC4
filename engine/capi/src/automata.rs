@@ -2108,7 +2108,7 @@ pub unsafe extern "C" fn fc4_automata_fire_target(f: *const fc4_automata_fire) -
     with_fire(f, 0, |k, _| k.target())
 }
 
-/// Independent metadata fixture for the partial helicopter shadow (AF10).
+/// Independent metadata fixture for the partial helicopter shadow (AF11).
 /// Writes a fresh owner's record, returning its class ID on success, zero on
 /// failure. Only the four nested version fields are constructor-independent;
 /// all other default fields are deliberately NOT native comparison targets.

@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-helicopter-shadow10: partial helicopter metadata shadow | Codex, glue-helicopter-shadow10 (reserved detached HEAD) | ready: helicopter 73/73 through 2032; broader owner open | Resolve AF10 adapter/live-spawn contract; AF2-AF6/AF9 remain uncompared. |
+| glue-helicopter-shadow10: partial helicopter metadata shadow | Codex, glue-helicopter-shadow10 (reserved detached HEAD) | in progress: round 2 merge and ID fix-up | Re-gate merged source; retain clean helicopter 73/73 verdict; resolve AF11 adapter/live-spawn contract later. |
+
+## Handoff
+
+- Goal: round 2 fix-up only; merge main, unique AF/run IDs, re-gate, READY queue.
+- Done: main merge conflicts resolved additively; helicopter adapter question is AF11; run 10480 becomes max+1 = 10481.
+- Next: regenerate question index, commit merge, run stable-source qbuild all (test, clippy, verify).
+- Prior clean acceptance: helicopter10-r2-20261024, helicopter 73/73 through 2032, ref_warnings=0. No game request outstanding.
+- Main AF10 belongs to airplane non-finite physics; preserve it. Detached HEAD must stay detached.
+- Full report below retains earlier measured evidence; replace this handoff with final round 2 results.
 
 ## Delivered scope
 
@@ -12,16 +21,16 @@ The adapter scans the aircraft manager's saved references with retained capture 
 
 ## Open owner coverage and questions
 
-New **AF10**, [questions/aircraft.md](../specs/questions/aircraft.md), requests native adapter IDs/signatures/ownership, complete enumeration, independent reconstruction inputs and a safe deterministic live-spawn scenario/group/exemplar contract. No native signature or group ID was guessed. Only `Helicopter::class_id` and the four version fields of `write` are compared. Uncompared owner methods/outputs:
+New **AF11**, [questions/aircraft.md](../specs/questions/aircraft.md), requests native adapter IDs/signatures/ownership, complete enumeration, independent reconstruction inputs and a safe deterministic live-spawn scenario/group/exemplar contract. No native signature or group ID was guessed. Only `Helicopter::class_id` and the four version fields of `write` are compared. Uncompared owner methods/outputs:
 
-- Drive-record import/ancestor selection, all thirteen load_drive_parameters fields and presets (AF10 native adapter; AF9/AF4 defaults).
+- Drive-record import/ancestor selection, all thirteen load_drive_parameters fields and presets (AF11 native adapter; AF9/AF4 defaults).
 - All remaining serialized base/goal/home fields, read, init_placement, phase getters and state reconstruction; native outputs are never seeded into expected values.
 - get_altitude, clip_to_world, set_helicopter_state, pursue_goal, push_mission_loiter, chase geometry and state transitions.
 - physics_init, init_instance, next_frame, yaw/pitch/roll/slide, MoveXZ/MoveY and integration (AF2/AF4).
 - AI reset/hover/move-XZ/building-lift, complete goal/chase/dispatch handling and messages (AF3/AF6).
 - Rotor sounds, spotlight, takeover, player drive tick/commands and weapons (AF4/AF5).
 
-**READY is for measured metadata work, not full cSC4Helicopter verification. AF2-AF6/AF9/AF10 stay uncompared.** Regression profiles and coverage maps were not edited: this clean-room detached lane cannot read/edit tools or merge main, and full owner coverage remains open. Coordinator review decides any profile append after landing.
+**READY is for measured metadata work, not full cSC4Helicopter verification. AF2-AF6/AF9/AF11 stay uncompared.** Regression profiles and coverage maps were not edited by this lane; full owner coverage remains open. Round 2 explicitly authorizes merging main and running the question index generator. Coordinator review decides any profile append after landing.
 
 ## Gate
 
@@ -31,7 +40,7 @@ The pre-fix gate also passed 7012 Rust tests and CTest 80/80 (qbuild-20261024-10
 
 ## Game results
 
-**`helicopter 73/73`** — **helicopter10-r2-20261024**, [run 10480](../runs/helicopter10-r2-20261024-10480.md). Main build-runs/regress-train189-shadows.ini house switches plus helicopter_shadow=1; Konradshohe, turbo through **2032-01-01**, full quit/shutdown. Clean: **foreign_exceptions=0, watchdog_stalls=0, ref_warnings=0, rtc=0, overruns=0**. City time 827.937 s / wall 844 s; DLL SHA256 prefix c6befc64. First sample **2026-01-27**, last **2032-01-01**: 73 unique monthly summaries, **365 fields exact**, zero resynced lines. Every line has reachable=0, fixtures=1: no saved-manager helicopter observed; every sample used the private metadata fixture, not a live city spawn. Shutdown reports 73/73 exact. No turbo difference, so no normal-speed repeat required. Counts come from retained logs and the harness summary; tools/coverage.py cannot be run in this clean-room lane.
+**`helicopter 73/73`** — **helicopter10-r2-20261024**, [run 10481](../runs/helicopter10-r2-20261024-10481.md). Main build-runs/regress-train189-shadows.ini house switches plus helicopter_shadow=1; Konradshohe, turbo through **2032-01-01**, full quit/shutdown. Clean: **foreign_exceptions=0, watchdog_stalls=0, ref_warnings=0, rtc=0, overruns=0**. City time 827.937 s / wall 844 s; DLL SHA256 prefix c6befc64. First sample **2026-01-27**, last **2032-01-01**: 73 unique monthly summaries, **365 fields exact**, zero resynced lines. Every line has reachable=0, fixtures=1: no saved-manager helicopter observed; every sample used the private metadata fixture, not a live city spawn. Shutdown reports 73/73 exact. No turbo difference, so no normal-speed repeat required. Counts come from retained logs and the harness summary; tools/coverage.py cannot be run in this clean-room lane.
 
 Failed evidence: **helicopter10-r1-20261024**, [run 10479](../runs/helicopter10-r1-20261024-10479.md): `helicopter 13/13`, stalled at 2027-02-20, foreign exceptions 0, reference warnings 39, one recovered watchdog stall (6469 ms), no clean shutdown. Warnings identified missing factory acquisition audit bookkeeping; that and the missing load-date observation were fixed in f23e231fb. R1 is not acceptance evidence. Both unique logs/verdicts remain under build-runs/game-results/.
 
@@ -39,4 +48,4 @@ Requests were sequential. The blocking FileSystemWatcher wait used no qwait or p
 
 ## Next
 
-Resolve AF10 and existing AF2-AF6/AF9 before claiming native parameter/full-record/goal or live-spawn coverage. Keep the metadata key default-off; coordinator reviews the partial READY entry and any eventual profile append.
+Resolve AF11 and existing AF2-AF6/AF9 before claiming native parameter/full-record/goal or live-spawn coverage. Keep the metadata key default-off; coordinator reviews the partial READY entry and any eventual profile append.

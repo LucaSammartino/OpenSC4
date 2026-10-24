@@ -260,7 +260,7 @@ cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	-	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	-	-	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	-	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
@@ -350,20 +350,20 @@ cGroupLayer	audio	audio	-	-	-	-
 nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
-cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	renderer-gdrivers-director.md,renderer-gdrivers-director-inventory.md	-	-	-
+cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	renderer-gdrivers-director.md,renderer-gdrivers-director-inventory.md	core/src/gdrivers_director	-	-
 cS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecSC4CameraControl	camera and projection	renderer	camera.md	core/src/camera	-	-
 fn:IntersectWithGroundPlane	camera and projection	renderer	camera.md	-	-	-
 cS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
-cS3DTextureBinding	textures and materials	renderer	texture-bindings.md	-	-	-
-cS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
-cS3DMaterial	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DTextureBinding	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
+cS3DMaterialManager	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
+cS3DMaterial	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
 fn:GZCOM_CreatecS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
-fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
 fn:GZCOM_CreatecS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
-fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
-fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
+fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	core/src/textures_materials	-	-
 cS3DModelInstanceAnimatedSprite	animated sprites	renderer	animated-sprite.md	core/src/animated_sprite	-	-
 fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
@@ -408,7 +408,7 @@ cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/
 # overlays_shadow + overlays_fixture (glue-overlays-flags7 applying OV15; fixture in the house profile from train184) adds, moves, restyles and removes ordinary decal overlays through native interfaces in the regress city and compares all 35 fields: controlled replay 292/292 (10220 fields), record observation 292/292, sentinels 73/73 in regress train184. cSTEVertBufExtn and the path/cell view owners are not compared
 cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain_overlays	overlays_shadow	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	core/src/terrain_ripples	-	-
-cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
+cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	core/src/overlay_views	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 SC4ViewUtilities	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
 fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
@@ -544,12 +544,12 @@ cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
 cRZCursorManager	widget toolkit	ui	-	-	-	-
 cGZClipboardManager*	widget toolkit	ui	-	-	-	-
 cGZCheatCodeManager	widget toolkit	ui	-	-	-	-
-cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
-cSCUint8ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
-cSCUint32SpinnerEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
-cSC16ColumnGridEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
-cSCColorSequenceEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
-cSCResKeyTableEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
+cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
+cSCUint8ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
+cSCUint32SpinnerEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
+cSC16ColumnGridEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
+cSCColorSequenceEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
+cSCResKeyTableEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSC*EntryView	resource and exemplar editor	ui	-	-	-	-
 cSC*View	resource and exemplar editor	ui	-	-	-	-
 cSCEditValueDlg	resource and exemplar editor	ui	-	-	-	-
@@ -575,15 +575,15 @@ cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	
 cGZPersistResource	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResourceFactory	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResourceKeyList	persistence and resources	framework	persistence.md	-	-	-
-cRZDirectoryEntry	paths and directories	framework	paths.md	-	-	-
-fn:IsPathSeparator	paths and directories	framework	paths.md	-	-	-
-fn:IsASCIILetter	paths and directories	framework	paths.md	-	-	-
-fn:IsFullPath	paths and directories	framework	paths.md	-	-	-
-fn:Fullpath	paths and directories	framework	paths.md	-	-	-
-fn:ResolvePath	paths and directories	framework	paths.md	-	-	-
-fn:Splitpath	paths and directories	framework	paths.md	-	-	-
-fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
-fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
+cRZDirectoryEntry	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:IsPathSeparator	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:IsASCIILetter	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:IsFullPath	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:Fullpath	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:ResolvePath	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:Splitpath	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:SplitDirectory	paths and directories	framework	paths.md	core/src/paths	-	-
+fn:RZFileFind*	paths and directories	framework	paths.md	core/src/paths	-	-
 cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	core/src/persistence_manager	-	-
 cGZPersistBufferResource	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 cGZPersistASCIIWriter	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
@@ -636,8 +636,8 @@ cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_file
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	-
 cRZNullIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	-
-cRZPath	paths and directories	framework	paths.md	-	-	-
-cRZDirectory	framework services (RZ)	framework	framework-rz-files.md	-	-	-
+cRZPath	paths and directories	framework	paths.md	core/src/paths	-	-
+cRZDirectory	framework services (RZ)	framework	framework-rz-files.md	core/src/paths,core/src/rz_files	-	-
 cSC4FeatureManager	feature manager	framework	feature-manager.md	-	feature_shadow	-
 cRZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cGZDate	dates and times	framework	dates.md	core/src/dates	-	-

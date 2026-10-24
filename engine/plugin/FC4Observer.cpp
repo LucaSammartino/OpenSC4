@@ -50,6 +50,7 @@
 #include "FC4ParksShadow.h"
 #include "FC4PropDevShadow.h"     // the glue12b1 lane
 #include "FC4CityDetailShadow.h"  // the glue12b1 lane
+#include "FC4CityShadow.h"
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4NetOccShadow.h"
@@ -669,6 +670,7 @@ public:
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 GZMsgShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
@@ -777,6 +779,7 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                CityShadowObserve(CurrentCity(), julian, false);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
                 DbpfShadowObserve(julian);
