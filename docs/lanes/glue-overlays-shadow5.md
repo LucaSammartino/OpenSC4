@@ -11,7 +11,9 @@
 - Implementation commit: f2bdcff61. Required pre-gate main merge was already up to date.
 - Full gate PASS: workspace 6818/0/0; clippy 0 diagnostics; native build 212/212 (145.2s), CTest 71/71 (181.1s), gate total 330.2s. Queue qbuild-20261024-012924-build-ctest collected to terminal PASS.
 - Run 349 overlays-shadow5-r2-2032a collected: clean through 2032-01-09, ref_warnings=0; getter 73/73 exact, record invariants 146/292 exact (146 incomplete dynamic samples). Log/verdict retained under build-runs/game-results. No game request outstanding.
-- Corrected dynamic N/A validation and added poisoned inactive header regression (OV14); focused 13/13 PASS. Added incomplete diagnostics with raw mode/grid header values. Next: merge main and repeat final all gate, then overlays-shadow5-r2-2032b.
+- Corrected dynamic N/A validation at dd3e4c626 and added poisoned inactive header regression (OV14); focused 13/13 PASS; formatting PASS. Added incomplete diagnostics with raw mode/grid header values.
+- Merged latest main at 506ccfe2c before the repeated gate; only conflict was generated QUESTIONS.md totals, resolved to main's generated row without regenerating. Source inputs were merged before qbuild started; only documentation conflict completion happened during the check.
+- Repeated all gate running, same exec session 59410; next collect terminal result, then overlays-shadow5-r2-2032b. New main has run 350; use 351 for next game record if still free locally.
 - Merge main again immediately before final all gate.
 - No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.
