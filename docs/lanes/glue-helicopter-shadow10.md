@@ -13,8 +13,9 @@
 - First game helicopter10-r1-20261024: stalled at 2027-02-20, helicopter 13/13, 39 reference warnings, foreign exceptions 0; run record docs/runs/helicopter10-r1-20261024-10479.md. Evidence retained.
 - Diagnostic fixes: audit acquired COM factory reference before created release; use simulator date at PostCityInit when PublishedJulian is zero. Source changed after the first gate and run.
 - Corrected implementation f23e231fb: full qbuild all PASS, 7012 Rust tests/0 failed/0 ignored; clippy 0 diagnostics; queued native qbuild-20261024-103348-build-ctest PASS 47/47 edges, CTest 80/80 (88.1 s); no tree-change warning.
-- Next: submit build-runs/helicopter10-r2.pending as game-queue/helicopter10-r2.req and block for helicopter10-r2-20261024 to 2032 (2400 s limit; house run previously ~17 s/month). Record exact counts and clean shutdown.
-- No outstanding game request. Blocking waiter build-runs/wait-helicopter.ps1 uses FileSystemWatcher, not qwait or polling. First wait failed on absent results directory; fixed before actual wait.
+- Outstanding game request helicopter10-r2-20261024, submitted after corrected full gate; city Konradshohe, house ini plus helicopter_shadow=1, turbo to 2032, 2400 s limit. Do NOT resubmit or discard an existing verdict.
+- Next: collect existing blocking wait (exec session 79551), or run build-runs/wait-helicopter.ps1 against game-results/helicopter10-r2-20261024.verdict; on its 9-minute timeout wait again without resubmitting. Then run build-runs/measure-helicopter.ps1 -Label helicopter10-r2-20261024, record free run number, finalize READY partial report/queue if clean.
+- Blocking waiter uses FileSystemWatcher, not qwait or polling. First wait on r1 failed on absent results directory; fixed before actual wait. Analysis helper is read-only and prints bounded output.
 - Scope: no parameter/home/goal/physics/lifecycle comparison or complete live enumeration (AF2-AF6/AF9/AF10).
 - Fallback is NOT a live spawn; no specified safe scenario group/exemplar creation sequence (AF10).
 - Initial fmt invocation used engine-relative paths from engine cwd and failed; absolute paths passed. q.py Bash launch failed Win32 access 5; direct cargo test passed.
