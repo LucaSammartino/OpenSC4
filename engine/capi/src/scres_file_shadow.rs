@@ -17,6 +17,7 @@ pub struct FileEvent {
     pub position: i32, // logical file position; never a buffered OS handle offset
 }
 
+#[derive(Clone)]
 struct Event {
     kind: u32,
     path: String,
@@ -29,6 +30,9 @@ struct Event {
 struct Replay {
     events: VecDeque<Event>,
     bad: u32,
+    foreign_preprocessing: bool,
+    opaque: bool,
+    opaque_count: u32,
 }
 impl Replay {
     fn take(&mut self, kind: u32, path: &str) -> Option<Event> {
@@ -70,7 +74,18 @@ impl files::Lines for Lines {
             r.bad += 1;
         }
         self.position = e.position;
-        success.then_some(e.line)
+        r.opaque = false;
+        if success && r.foreign_preprocessing && !r.events.front().is_some_and(|e| matches!(e.kind, 0 | 3)) {
+            // SCR11: block-comment preprocessing is unspecified. In the
+            // separately labeled partial replay only, its observed decision is
+            // an explicit foreign input. Do not infer a #< / #> grammar.
+            // The strict raw replay below still reports every difference.
+            r.opaque = true;
+            r.opaque_count += 1;
+            Some(Vec::new())
+        } else {
+            success.then_some(e.line)
+        }
     }
 }
 impl files::Files for Source {
@@ -103,14 +118,22 @@ impl files::Files for Source {
         }
     }
 }
-fn compare(events: VecDeque<Event>) -> u32 {
+fn compare(events: VecDeque<Event>, foreign_preprocessing: bool) -> (u32, u32) {
     let Some(root) = events.front().map(|e| e.path.clone()) else {
-        return 1;
+        return (1, 0);
     };
-    let replay = Rc::new(RefCell::new(Replay { events, bad: 0 }));
+    let replay = Rc::new(RefCell::new(Replay {
+        events,
+        foreign_preprocessing,
+        ..Replay::default()
+    }));
     let mut source = Source(replay.clone());
     let _result = files::parse_file_with(&mut source, &root, &mut |path, physical, line, _| {
         let mut r = replay.borrow_mut();
+        if r.opaque {
+            r.opaque = false;
+            return Ok(());
+        }
         let Some(e) = r.take(3, path) else {
             r.bad += 1;
             return Ok(());
@@ -123,14 +146,20 @@ fn compare(events: VecDeque<Event>) -> u32 {
         Ok(())
     });
     let r = replay.borrow();
-    r.bad + u32::from(!r.events.is_empty())
+    (r.bad + u32::from(!r.events.is_empty()), r.opaque_count)
 }
 
 /// Private static-link transport; not a public C ABI export.
 /// # Safety
 /// All event arrays and spans must remain readable until this call returns.
+/// A non-null opaque_count must point to writable u32 storage.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_scres_file_compare(events: *const FileEvent, count: usize) -> u32 {
+pub unsafe extern "C" fn fc4_scres_file_compare(
+    events: *const FileEvent,
+    count: usize,
+    foreign_preprocessing: u32,
+    opaque_count: *mut u32,
+) -> u32 {
     unsafe fn bytes<'a>(b: &ParserBytes) -> Option<&'a [u8]> {
         if b.length > 1024 * 1024 || (b.length != 0 && b.bytes.is_null()) {
             None
@@ -158,7 +187,11 @@ pub unsafe extern "C" fn fc4_scres_file_compare(events: *const FileEvent, count:
             position: e.position,
         });
     }
-    compare(copies)
+    let (bad, opaque) = compare(copies, foreign_preprocessing != 0);
+    if !opaque_count.is_null() {
+        *opaque_count = opaque;
+    }
+    bad
 }
 
 #[cfg(test)]
@@ -195,7 +228,8 @@ mod tests {
     }
     #[test]
     fn physical_blank_nested_optional_failure_and_totals() {
-        assert_eq!(compare(tree()), 0);
+        assert_eq!(compare(tree(), false), (0, 0));
+        assert_eq!(compare(tree(), true), (0, 0));
     }
     #[test]
     fn wrong_physical_position_total_and_missing_read_never_resync() {
@@ -210,10 +244,21 @@ mod tests {
             if index == 4 {
                 t[index].path.push('x');
             }
-            assert_ne!(compare(t), 0, "index {index}");
+            assert_ne!(compare(t, false).0, 0, "index {index}");
         }
         let mut t = tree();
         t.remove(7);
-        assert_ne!(compare(t), 0);
+        assert_ne!(compare(t, false).0, 0);
+    }
+
+    #[test]
+    fn opaque_preprocessing_is_a_labeled_foreign_input_not_a_guessed_grammar() {
+        let mut t = tree();
+        t[1].line = b"include must-not-be-opened".to_vec();
+        t.remove(2); // Native supplied no command or include boundary here.
+        assert_ne!(compare(t.clone(), false).0, 0);
+        assert_eq!(compare(t.clone(), true), (0, 1));
+        t.back_mut().unwrap().value += 1;
+        assert_ne!(compare(t, true).0, 0); // Inclusive totals still compared.
     }
 }

@@ -2479,3 +2479,12 @@ verify graphics-rule state, arbitrary command exceptions or ReadLine's byte
 decoder. False reads are labeled EOF-or-failure, as their native bool cannot
 distinguish the two. Wide-mode samples are refused. The existing command-token
 and constructed-adapter measurements remain independent.
+
+SCR11 currently blocks complete raw file replay: the game suppresses a physical
+block beginning with `#<`, whose grammar is absent from the supplied spec. The
+raw replay keeps and counts its differences (`question=SCR11`). A separate
+`partial=file_control_replay` uses observed preprocessing decisions as explicit
+foreign inputs and checks the remaining production file loop. It reports their
+count and makes no block-comment or whole-owner parity claim. Neither path
+resynchronizes the event stream; do not promote this key into the house profile
+or credit full file-parser verification until the raw replay is exact.

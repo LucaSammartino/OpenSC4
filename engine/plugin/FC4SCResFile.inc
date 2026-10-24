@@ -10,7 +10,7 @@ struct FileEvent {
 };
 static_assert(sizeof(FileEvent) == 32 && offsetof(FileEvent, physical) == 20,
               "Rust repr(C) physical-file observation alignment");
-extern "C" uint32_t fc4_scres_file_compare(const FileEvent*, size_t);
+extern "C" uint32_t fc4_scres_file_compare(const FileEvent*, size_t, uint32_t, uint32_t*);
 struct FileCopy {
     uint32_t kind;
     std::string path, line;
@@ -33,6 +33,7 @@ std::atomic<uint64_t> g_fileRoots{0}, g_fileReplays{0}, g_fileBad{0}, g_fileRefu
 std::atomic<uint64_t> g_fileReads{0}, g_fileFalse{0}, g_fileBlanks{0}, g_fileOpens{0}, g_fileOpenFailed{0};
 std::atomic<uint64_t> g_fileCommands{0}, g_fileIncludes{0}, g_filePhysical{0}, g_fileTotals{0};
 std::atomic<uint64_t> g_fileUndispatched{0};
+std::atomic<uint64_t> g_fileControlBad{0}, g_fileOpaque{0};
 
 void FileUndispatched() {
     auto* f = g_fileFrame;
@@ -138,17 +139,29 @@ void FileFinish(bool success, uint32_t count) {
         {reinterpret_cast<const uint8_t*>(e.path.data()), e.path.size()},
         {reinterpret_cast<const uint8_t*>(e.line.data()), e.line.size()},
         e.physical, e.value, e.position});
-    const uint32_t bad = fc4_scres_file_compare(events.data(), events.size());
+    const uint32_t bad = fc4_scres_file_compare(events.data(), events.size(), 0, nullptr);
+    uint32_t opaque = 0;
+    const uint32_t controlBad = fc4_scres_file_compare(events.data(), events.size(), 1, &opaque);
+    g_fileControlBad += controlBad;
+    g_fileOpaque += opaque;
     g_fileBad += bad;
     ++g_fileReplays;
-    fc4::Log("scres: physical file replay path=%.240s events=%zu physical=%u native_total=%u returned=%u differences=%u",
-             f->path.c_str(), events.size(), f->physical, count, success ? 1u : 0u, bad);
+    fc4::Log("scres: physical file replay path=%.240s events=%zu physical=%u native_total=%u returned=%u differences=%u control_differences=%u foreign_preprocessing=%u question=SCR11",
+             f->path.c_str(), events.size(), f->physical, count, success ? 1u : 0u, bad, controlBad, opaque);
     g_fileCopies.clear();
 }
 void FileReport(const fc4_date& date, const char* event) {
     if (!g_fileReplay) return;
     const uint64_t mismatch = g_fileBad.load() + g_fileRefused.load() + (g_fileReads.load() ? 0u : 1u);
-    fc4::Log("scres shadow %04d-%02d-%02d %s: file_parser_replay roots=%" PRIu64
+    const uint64_t controlMismatch = g_fileControlBad.load() + g_fileRefused.load() + (g_fileReads.load() ? 0u : 1u);
+    fc4::Log("scres shadow %04d-%02d-%02d %s: partial=file_control_replay foreign_preprocessing=%" PRIu64
+             " reads=%" PRIu64 " false_eof_or_failure=%" PRIu64 " includes=%" PRIu64
+             " inclusive_totals=%" PRIu64 " resyncs=0; mismatches=%" PRIu64,
+             date.year, date.month, date.day_of_month, event, g_fileOpaque.load(), g_fileReads.load(),
+             g_fileFalse.load(), g_fileIncludes.load(), g_fileTotals.load(), controlMismatch);
+    ++g_lines;
+    if (!controlMismatch) ++g_clean;
+    fc4::Log("scres shadow %04d-%02d-%02d %s: partial=raw_file_parser_replay question=SCR11 roots=%" PRIu64
              " replays=%" PRIu64 " reads=%" PRIu64 " blank=%" PRIu64 " false_eof_or_failure=%" PRIu64
              " opens=%" PRIu64 " open_failed=%" PRIu64 " commands=%" PRIu64 " includes=%" PRIu64
              " physical=%" PRIu64 " inclusive_totals=%" PRIu64 " undispatched=%" PRIu64

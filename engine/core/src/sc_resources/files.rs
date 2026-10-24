@@ -183,6 +183,8 @@ pub fn parse_file_with(
         while let Some(line) = lines.read_line() {
             line_number += 1;
             inclusive += 1;
+            // SCR11: literal section-2 # line comments only. The physical
+            // file parser's block-comment grammar is not yet specified.
             let tokens = lexical::split(&line)?;
             if tokens
                 .first()

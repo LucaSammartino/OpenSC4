@@ -13,7 +13,10 @@
 - Game ash (run 403) clean to 2032-01-04, ref0; exact existing 76/76, overall scres 76/149 because 73 file replay lines each mismatches=72, resyncs=0, refused=0.
 - Captured 1107 physical reads, 122 empty, two false reads, 3 opens (one failed), 1061 commands, one include. Inclusive totals 1530.
 - Diagnostic gate PASS: Rust6904, clippy0, native47/47 (2.5s), CTest74/74 (75.2s), queue qbuild-20261024-042645-build-ctest (79.3s), terminal collected.
-- Next: collect unique scres7-physical-2032-birch and inspect bounded raw inputs without command/include. No rule has been inferred/changed.
+- Birch run404 clean/ref0 to2032-01-15; scres76/149, same raw72 differences; 45 reads skipped starting at physical216 (#<). SCR11 filed for unspecified block grammar.
+- Added separate partial file-control replay with observed preprocessing as explicit foreign input; strict raw replay still reports its differences (no suppression/resync).
+- Focused tests now8/8, fmt PASS. Next: stable-source final full gate, then unique scres7-control-2032-cedar to2032.
 - Keep new observation default-off behind ini; no public C ABI changes planned.
-- Game birch being enqueued. Native none. Prior ash evidence retained in build-runs/game-results/.
+- No game/native operations outstanding. Prior ash/birch evidence retained in build-runs/game-results/; records403/404.
+- Whole cFileParser verification remains blocked on SCR11; do not credit that owner row or append the new key to house profile unless raw replay becomes exact.
 - Current house-profile string is in prohibited tools/regress.ps1; do not read/edit it or merge main. Coordinator must append exact new key after review.
