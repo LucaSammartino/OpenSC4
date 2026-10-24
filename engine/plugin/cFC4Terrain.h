@@ -32,8 +32,8 @@
 // call the flora and the surface water by design; the glue never drives them,
 // and if a future caller does, that work must run outside the borrow.
 //
-// TR9 (§2.3, quirk 13): the default brush level is the view's zoom index. The
-// view-update message 0xA6B79602 carries it and is applied here. The initial
+// TR9/TR23 (§2.3, quirk 13): the default brush level is the view's zoom index.
+// The view-update message 0xA6B79602 carries it at *GetVoid2(). The initial
 // copy the original makes in DoPostCityInit from the 3D camera (global
 // 0x00B43DD8, +0xC) is NOT reproduced: the plugin has no camera interface (see
 // the numbered question in the lane report). Until the first view message the

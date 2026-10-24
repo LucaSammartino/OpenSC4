@@ -842,7 +842,8 @@ void cFC4STETerrain::Unsubscribe() {
 
 void cFC4STETerrain::DoPostCityInit() {
     Enter();
-    if (core_ != nullptr) {
+    if (core_ != nullptr && f_.postCityInit == 0) {
+        f_.postCityInit = 1;  // §2.3 / §15.5.1: mark before any collaborator call
         // TR9 (§2.3): the original copies the 3D camera's zoom (global
         // 0x00B43DD8, +0xC) into +0xBC here. The plugin has no camera
         // interface, so the level keeps its constructor value 0 until the
@@ -879,25 +880,14 @@ void cFC4STETerrain::DoPostCityInit() {
     Leave();
 }
 
-// TR9 (§2.3): "each view-update message 0xA6B79602 whose first data word
-// differs from it stores that word". [choice] the literal reading is data1.
-// zones.md / cFC4ZoneDeveloper read the same message's *void2 (a pointer to a
-// u32); the lane run logs both so the difference can be settled. A word above
-// the five brush levels is not stored: the level is an index 0-4 (§9.2).
+// TR23 (§2.3): the zoom index is the u32 pointed to by GetVoid2, not data1.
 void cFC4STETerrain::OnViewUpdate(cIGZMessage2Standard* s) {
     if (s == nullptr || core_ == nullptr) return;
-    const uint32_t d1 = static_cast<uint32_t>(s->GetData1());
-    uint32_t viaPtr = 0;
-    bool havePtr = false;
-    if (s->GetVoid2() != nullptr) {
-        std::memcpy(&viaPtr, s->GetVoid2(), sizeof(viaPtr));
-        havePtr = true;
-    }
-    const int32_t want = (d1 <= 4) ? static_cast<int32_t>(d1) : 0;
-    if (havePtr && viaPtr != d1) {
-        Log("terrain: TR9 view update 0xA6B79602 data1=%u *void2=%u -> brush level %d (was %d)", d1, viaPtr,
-            want, f_.defaultBrushLevel);
-    }
+    const void* zoom = s->GetVoid2();
+    // SPEC-GAP: a missing zoom payload leaves the current level unchanged.
+    if (zoom == nullptr) return;
+    int32_t want = 0;
+    std::memcpy(&want, zoom, sizeof(want));
     if (want != f_.defaultBrushLevel) {
         f_.defaultBrushLevel = want;
         fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
@@ -1517,6 +1507,36 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         // A change: one message posted per RedisplayTerrain (§8.1 posts three,
         // of which the simulation reads 0x278E6003 / 0x678E6E3A).
         t->DoPostCityInit();
+        check(t->f_.postCityInit == 1);
+        // A second post must not repeat core/view initialization. A distinct
+        // field value makes an unintended core default-level write visible.
+        const int32_t originalLevel = fc4_terrain_default_brush_level(core);
+        t->f_.defaultBrushLevel = originalLevel + 1;
+        t->DoPostCityInit();
+        check(fc4_terrain_default_brush_level(core) == originalLevel);
+        t->f_.defaultBrushLevel = originalLevel;
+
+        // Exercise the actual message-target/QI path. Data1 deliberately
+        // disagrees with the pointed-to zoom; neither value nor pointer is
+        // owned by the terrain. An unaligned payload is also legal here.
+        auto* zoomMessage = cFC4Message2Standard::New();
+        zoomMessage->AddRef();
+        zoomMessage->SetType(kMsgViewUpdate);
+        zoomMessage->SetData1(1);
+        unsigned char payload[sizeof(uint32_t) + 1]{};
+        zoomMessage->SetVoid2(payload + 1);
+        for (uint32_t zoom : {3u, 3u, 7u, 0u}) {
+            std::memcpy(payload + 1, &zoom, sizeof(zoom));
+            check(t->Target()->DoMessage(zoomMessage));
+            check(static_cast<uint32_t>(t->f_.defaultBrushLevel) == zoom);
+            check(static_cast<uint32_t>(fc4_terrain_default_brush_level(core)) == zoom);
+        }
+        zoomMessage->SetVoid2(nullptr);
+        zoomMessage->SetData1(4);
+        check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.defaultBrushLevel == 0);
+        check(fc4_terrain_default_brush_level(core) == 0);
+        zoomMessage->Release();
         SC4Rect<int32_t> r(0, 0, 1, 1);
         t->SetAltitudeRect(r, 123.0f, true, 3);
 

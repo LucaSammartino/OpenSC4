@@ -85,7 +85,7 @@ int TerrainShadowIniTest(const std::string& dll, const std::string& ini, const s
         FC4TerrainGlueTestInput glue{};
         glue.struct_size = sizeof(glue);
         CHECK(seam(kFC4SeamTerrainGlue, &glue, nullptr) == 0);
-        CHECK(glue.mismatches == 0 && glue.slotsChecked >= 10);
+        CHECK(glue.mismatches == 0 && glue.slotsChecked >= 27);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
