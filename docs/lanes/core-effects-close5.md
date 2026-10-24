@@ -14,6 +14,8 @@
 - q.py could not launch Git Bash (CreateFileMapping permission denied); focused cargo ran directly in the worktree.
 - Stable-source qbuild all: cargo 6808 passed, 0 failed; clippy exit=0, diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
 - Same qbuild all operation (exec session 47146) has queued native build/CTest as qbuild-20261024-013445-build-ctest; waiting behind game regression. Do not launch duplicate verify: all already uses the required coordinator native queue.
-- Next: collect session 47146 to its terminal native result, then finalize report and wip queue (EF18/EF19 prevent claiming complete owner closure).
+- Review diagnostic: §8.3 explicitly returns local translation directly for an identity parent. Current semantic arithmetic can lose signed-zero bits; after collecting pending gate, add regression and direct-parent-identity fast path, then final stable-source check. This is a real diagnostic authorizing a repeated full check after correction.
+- effects-parser §13 defines in-memory matrix/offset/scale storage but deliberately excludes renderer row/column convention; EF19 concerns legacy decoding/world-position convention/order, not the already implemented parser rotation stores.
+- Next: collect session 47146 to terminal, correct identity-parent path/test, and run final stable gate. EF18/EF19 prevent claiming complete six-owner closure.
 - No game requests outstanding; no ABI/plugin/capi edits authorized.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-close5-r1-manifest.json.
