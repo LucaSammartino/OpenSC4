@@ -692,7 +692,7 @@ impl AudioEventHandler {
         host.control(HandlerCall::RetainObject(window));
         let mut accepted = true;
         if message.query_payload(0x1A0C_615F) {
-            if matches!(message.mouse_subtype(), 7 | 8 | 9) {
+            if matches!(message.mouse_subtype(), 7..=9) {
                 let [left, top, right, bottom] = host.control(HandlerCall::WindowRectangle(window)).rectangle;
                 let [x, y] = message.mouse_point();
                 if x < left || x > right || y < top || y > bottom {
