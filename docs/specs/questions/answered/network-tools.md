@@ -1,5 +1,19 @@
 # network-tools: answered questions
 
+<!-- copied from: glue-nettool-exact6 (engine lane, 2026-10-24); unmerged source branch -->
+- **NT32 - retained counted poles after structural release:** NT31 §8.3.1
+  requires price 65 after endpoint references are released. Power-line-tool
+  §1 says ReleasePoleInfos also structurally clears the records, and §2's
+  wrapper calls it before returning. Older network-geometry §11 equates
+  `+0x388` with the current pole-vector size. Should the getter consume the
+  count retained by DeterminePolePositions rather than overwrite it with
+  the now-empty vector size? [literal newest NT31 contract: retain counted
+  poles=3 and wire cells=10 through ReleasePoleInfos; controlled recording
+  placement returns valid=13/failure=0/price=65; reset still zeros counts]
+  **ANSWERED 2026-10-24 (re-nettool-nt32):** MATCHES — network-tools §8.3.1,
+  test 38: the getter reads retained counts; structural release clears records,
+  not the counts. The next slot-53 placement resets both counts before selection.
+
 <!-- from: core-powerline4 (engine lane, 2026-10-21) -->
 - **NT19 - network-geometry §11, the power-line parameter defaults:** only `+0x3A4` has a stated default (20). What
   are the defaults of `+0x3A8` (`0x098B27D0`), `+0x3AC` (`0x4A5F5953`) and `+0x3B0` (`0x0A5F596B`) when the exemplar

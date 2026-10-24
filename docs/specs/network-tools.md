@@ -679,6 +679,16 @@ float32 store between multiply and truncation**. This qualifies the `r24` shorth
 do not insert that rounding. With wire count=16777217, wire price=1.0, poles=2 and pole price=0 the result is
 16777217, not 16777216. The getter does not add the base tool's demolition or earthwork terms.
 
+**Retained counts after release (NT32).** The getter consumes the counted poles at `+0x388`, not the
+current generated-vector length. DeterminePolePositions snapshots that length into the count at completion;
+ReleasePoleInfos releases saved endpoints and structurally clears the vector without touching either cost
+counter (`0x006505D0`–`0x00650628`). Thus the wrapper's final release leaves poles=3, wire cells=10 and price=65
+available after return. Calling release again changes none of those values. The next slot-53 placement clears
+both counters before selection (`0x00652983`–`0x00652997`); a placement too short to select poles consequently
+prices zero. Do not resynchronise the saved count with the empty vector. This corrects the older shorthand in
+network-geometry §11 equating the cost count with the vector size at getter time; equality holds when selection
+finishes, not after release. The getter reads the saved count directly at `0x0064F0F5`.
+
 #### 8.3.2 Bridge
 
 For a shipped road resource fixture enumerate **nine**, not zero, bridge types, in INI key order:
@@ -1209,3 +1219,6 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
 37. **NT31 bridge scopes.** The 16-step selection vector chooses index 1, or index 0 when explicitly
     preferred. The independent retained bridge record in §8.3.2 costs 900. Neither check certifies model
     construction, native city span/elevations, nor the observed city total 974.
+38. **NT32 release and reset.** Complete test 35, release all generated records, then release again:
+    vector length=0, retained poles=3, wire cells=10, price=65 after both releases. Start a new slot-53
+    placement with dragged=1: valid=0 (empty generated vector), both cost counts=0, price=0.
