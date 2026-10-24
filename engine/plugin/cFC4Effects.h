@@ -183,7 +183,8 @@ private:
     fc4_effects_directory* dir_ = nullptr;
     fc4::EffectsHostContext ctx_;
     fc4_effects_host host_ = {};
-    uint32_t refs_ = 1;
+    // Director factories return refcount zero; QueryInterface owns the first reference.
+    uint32_t refs_ = 0;
     bool inited_ = false;
     std::map<uint32_t, cFC4VisualEffect*> wrappers_;
 };
