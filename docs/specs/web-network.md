@@ -1010,6 +1010,128 @@ URL and method. Observe the request immediately after admission, before worker e
 | NORM07 | GET, raw `X:a\r\n b\r\nY:c` versus `X:a\r\n\tb\r\nY:c` | (`X`,`ab`), (`Y`,`c`) versus (`X`,`a`), (`Y`,`c`) |
 | NORM08 | GET, preexisting (`A`,empty), (`B`,empty), (`C`,`v`) | (`B`,empty), (`C`,`v`); one erasure only |
 
+### 4.15 Residual support contracts (Q7/Q9 closure)
+
+Added 2026-10-24, re-www-q18. These rules finish the remaining 46 owner-attributed
+bodies (2517 bytes) in the [body checklist](web-network-www-bodies.md). They supplement
+the FTP control, HTTP lifetime and request-normalization contracts; they do not imply
+live-server equivalence. The folded export names are not reliable type descriptions.
+
+**FTP identity and listener lifetime.** QueryInterface `00812080` accepts ID 1 or
+`0x452294aa`, returns the same pointer and AddRefs it; failure preserves the output.
+Listener setter `008120b0` does nothing for the identical pointer; otherwise AddRefs
+the incoming nonnull listener before releasing the old one and storing the new one.
+The HTTP-side setter `00817a40` performs that retain/release even for an identical
+pointer. FTP final release `00811c90` decrements an unsigned count at +4 only when
+greater than one; otherwise invokes virtual destruction (+0x10) and returns zero,
+including for count zero. Shutdown/destruction entry `00812050` clears initialized
+before releasing/nulling the listener, only if initialized, then always invokes the
+deleting destructor with flag 1. Scheduler destructor `00813e10` similarly releases
+its listener only when initialized, destroys its owned session if present, then its
+critical section, base synchronization helper, queued two-string records and stored
+strings. Queue record destruction frees strings/nodes, with no target Release or
+completion synthesized. No join is introduced by any of these small bodies.
+
+**Socket setup and close.** `00811e10` succeeds immediately for an already-open
+control socket. Otherwise it creates and binds an unspecified-address/zero-port
+socket; failed bind closes it and returns false. `00811f00` and `00811f90` close the
+respective open socket at session +0xf0/+0x150 and return true even when already closed.
+They do not reset unrelated session state. The drain-and-close helper `00817af0`
+does nothing for a closed socket. For an open socket it switches blocking mode on,
+then repeatedly checks connection and readability with timeout zero and receives
+at most 1024 bytes, stopping on failed checks/receive or zero bytes. Each nonzero
+receive increments the 32-bit receive counter by the actual returned count and,
+when logging is enabled, logs that buffer/count. Finally it closes the socket.
+The special count -1 is measured as a NUL-terminated string for logging only; the
+counter still adds the returned 32-bit count (`00817b73–00817bae`). This helper
+does not wait for EOF or promise to drain bytes arriving after its readiness check.
+
+**Progress quirk.** `00812300` always returns true. It only forwards message
+`0x5738692f` when the listener, current-job pointer and current-job recipient are
+all nonnull. It extracts the two source words from message slots +0x38/+0x4c.
+The third word is 50 for a zero second word, otherwise **1**, independent of the
+first word: unsigned division divides the second word by itself. The following
+cap at 100 cannot change that result (`00812335–00812355`). Helper `00812210`
+synchronously sends message `0xc4eccd8d`: pointer slot +0x30 is this session,
+pointer slot +0x44 is the supplied three-word progress record, and integer slot
++0x58 is the supplied recipient/job value. The listener receives it through slot
++0xc before the temporary message is released (`00812249–00812276`). It neither
+copies nor retains that progress pointer for later use; allocation failure is unsafe.
+
+**Containers and formatting.** FTP queue-record copy `008129c0` copies the two
+leading words, both string values and three trailing words; string reference
+counts are reset for the new string objects. It does not AddRef pointer-valued
+words. Range erasure `00812a50` unlinks each node in [first,last), frees its first
+string buffer and node, and returns last; it does not free the second string
+buffer, run the full two-string record destructor or release a target. Formatter
+`00812aa0` uses a 1024-byte
+temporary and native bounded printf formatting. A result 0 through 1023 assigns
+exactly that many bytes; a negative or at-least-1024 result clears the destination
+and returns the formatter result unchanged (`00812ac8–00812afe`). Worker-reference
+adjuster `00817a70` holds the scheduler critical section, returns zero for no
+worker, otherwise increments or decrements its word +8 according to the boolean
+argument and returns the new 32-bit value. It does not clamp at zero or create a worker.
+
+WWW Job copy/assignment (`008f72fd`, `008f80f2`) copy all scalar/pointer fields and
+both owned string values, including the byte flag at +0x2c. Pointer fields are
+shallow copies: no target/resource retain/release occurs. The apparently vector-named
+calls at `008f7344`/`008f8135` are string construction/assignment. Empty-list
+construction `008f6d78` allocates a 0x58-byte circular sentinel. Node allocation
+`008f7fd1` copies the Job into node+8; insertion `008f86cd` links before the supplied
+position and returns the new node. `008f8a7a` uses that insertion before the sentinel
+(tail append). Clear `008f747b` destroys Jobs and frees nodes in forward order, then
+self-links the sentinel; `008f7fba` additionally frees the sentinel. Destruction uses
+the existing Job destructor contract, without an added callback or target release.
+`008f714a` is a deleting wrapper for 24-byte elements: flag bit 1 selects an array
+whose element count precedes the first element; elements are destroyed in reverse
+order. Flag bit 0 frees the scalar allocation or the array allocation including its
+count prefix. With no free bit it only destroys. No network action occurs here.
+
+**Name/address support.** C-string lookup wrapper `0081e640` constructs a temporary
+owned string, calls DoLookup with the other arguments unchanged, destroys the string
+and returns DoLookup result. Null/unterminated input is outside its safe domain.
+Name-lookup constructor `0081d8d0` starts uninitialized, refcount/state word zero, settings
+10 and 1800 and an empty ID tree. `0081da90` locks the global name-lookup critical
+section, visits the supplied ID tree in ascending order, calls RemoveLookupEntry
+once per ID, unlocks and returns the number of true results. It does not erase the
+supplied tree. Shutdown `0081dc60` does that removal and clears its own ID tree only
+when initialized, then clears initialized; it always returns true. Destructor
+`0081dd70` calls shutdown, clears any remaining tree and frees its sentinel.
+Release `0081d7d0` decrements the unsigned +8 count above one, otherwise deletes with
+flag 1 and returns zero; deleting wrapper `0081ddc0` frees only on flag bit 0.
+Address getters `0081e740`/`0081e770` expose indexed bytes in native little-endian
+storage order of the address dword / zero-extended port word; they perform no
+byte-order conversion or bounds check. Only address indices 0–3 and port indices
+0–1 are part of the address API domain (port indices 2–3 return zero from the
+zero-extended temporary; larger indices read outside it). `0081e760` returns the raw
+16-bit stored port. `0090ce99` returns false without mutation.
+
+**Interface adapters.** The following are pointer-adjusting tail calls, with exactly
+the destination contract and return value; they add no reference operation themselves.
+
+| Entry | Incoming interface pointer adjustment | Destination |
+|---|---:|---|
+| 008f8a32 / 008f8a3a | -4 | QueryInterface / AddRef |
+| 008f8a42 / 008f8a4a | -8 | QueryInterface / AddRef |
+| 008f8a52 / 008f8a5a | -4 | Init / Shutdown |
+| 008f8a62 / 008f8a6a / 008f8a72 | -12 | QueryInterface / AddRef / destructor |
+| 009cd02a | -4 | Release at 009cc22d |
+
+**Constructed conformance fixtures (unexecuted).** Record dependency calls and their
+order; these are reference expectations from instructions, not native run results.
+
+| ID | Setup / action | Expected observation |
+|---|---|---|
+| SUP01 | Set the identical listener via FTP then HTTP helper | FTP: no ref calls; HTTP: AddRef then Release |
+| SUP02 | Forward progress words (900,1000), then (900,0) | Third word 1, then 50; synchronous borrowed record |
+| SUP03 | Drain an open socket returning 7 bytes then zero | Log 7 bytes, counter +7, close; no further receive |
+| SUP04 | Copy/assign a Job with two strings and target T | String values survive source mutation; zero AddRef/Release on T |
+| SUP05 | Erase a queued FTP record containing target T | Unlink/free; no callback and no Release(T) |
+| SUP06 | Formatter returns 1023, 1024, -1 | Assign 1023 bytes, clear, clear; return each result unchanged |
+| SUP07 | Stored address 0x04030201, port 0x3412 | Indexed address bytes 1,2,3,4; port bytes 0x12,0x34 |
+| SUP08 | Release with count zero / worker decrement from zero | Final destruction and zero / wrapping 0xffffffff |
+| SUP09 | Three lookup IDs, removal results true,false,true | Ascending calls; return 2; caller ID tree remains |
+
 ## 5. cRZHTTPClient — bounded client contract
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
