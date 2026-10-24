@@ -94,7 +94,8 @@ pub trait NationHost {
 
 pub trait TutorialCity {
     fn set_save_path(&mut self, path: &str);
-    fn position(&self) -> (u32, u32);
+    /// Signed region cells, including negative positions (foundations §11.2).
+    fn position(&self) -> (i32, i32);
     fn shutdown(&mut self) -> bool;
 }
 
@@ -111,7 +112,7 @@ pub trait NationRegion {
     fn shutdown(&mut self) -> bool;
     fn has_tutorial_city(&self) -> bool;
     fn delete(&mut self);
-    fn move_city(&mut self, city: &mut Self::City, x: u32, z: u32) -> bool;
+    fn move_city(&mut self, city: &mut Self::City, x: i32, z: i32) -> bool;
 }
 
 #[derive(Clone, Debug)]
@@ -119,6 +120,11 @@ pub struct DirectoryEntry {
     pub name: String,
     /// Provider entry kind 4 is a directory; other kinds are ignored.
     pub kind: u32,
+}
+
+fn lower_directory(name: &str) -> String {
+    // NQ4: literal byte-preserving ASCII fold pending the non-ASCII case-map contract.
+    name.to_ascii_lowercase()
 }
 
 fn path(root: &str, suffix: &str) -> String {
@@ -278,8 +284,7 @@ impl<R: NationRegion> Nation<R> {
             let default = host.default_tutorial_directory();
             for (index, region) in self.regions.iter_mut().enumerate() {
                 if region.init() {
-                    let preferred =
-                        region.has_tutorial_city() && region.directory_name().to_ascii_lowercase() == default;
+                    let preferred = region.has_tutorial_city() && lower_directory(region.directory_name()) == default;
                     region.shutdown();
                     if preferred {
                         selected = index;
@@ -297,7 +302,7 @@ impl<R: NationRegion> Nation<R> {
         let has_default = self
             .regions
             .iter()
-            .any(|r| r.directory_name().to_ascii_lowercase() == default);
+            .any(|r| lower_directory(r.directory_name()) == default);
         if !activated || (!has_default && host.should_reset_tutorials()) {
             self.reset_tutorial_cities(host)?;
         }
@@ -380,7 +385,7 @@ impl<R: NationRegion> Nation<R> {
             let existing = self
                 .regions
                 .iter()
-                .position(|r| r.directory_name().eq_ignore_ascii_case(&name));
+                .position(|r| lower_directory(r.directory_name()) == lower_directory(&name));
             let mut retained = existing;
             if let Some(index) = existing {
                 if !host.directory_exists(&directory)

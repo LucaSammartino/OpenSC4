@@ -59,7 +59,7 @@ impl NationRegion for Region {
     fn delete(&mut self) {
         record(&self.trace, format!("delete:{}", self.directory));
     }
-    fn move_city(&mut self, _: &mut City, x: u32, z: u32) -> bool {
+    fn move_city(&mut self, _: &mut City, x: i32, z: i32) -> bool {
         record(&self.trace, format!("move:{}:{x}:{z}", self.directory));
         false
     }
@@ -74,8 +74,8 @@ impl TutorialCity for City {
     fn set_save_path(&mut self, path: &str) {
         record(&self.0, format!("city:path:{path}"));
     }
-    fn position(&self) -> (u32, u32) {
-        (4, 6)
+    fn position(&self) -> (i32, i32) {
+        (-4, 6)
     }
     fn shutdown(&mut self) -> bool {
         record(&self.0, "city:shutdown");
@@ -459,7 +459,7 @@ fn template_copy_order_paths_overwrite_and_starter_fallback() {
 }
 
 #[test]
-fn tutorial_retention_exports_failures_and_screen_lifecycle() {
+fn tutorial_retention_exports_signed_positions_failures_and_screen_lifecycle() {
     let mut host = Host::default();
     let mut nation = fixture(&mut host);
     host.registered = vec!["a".into()];
@@ -476,10 +476,10 @@ fn tutorial_retention_exports_failures_and_screen_lifecycle() {
     assert!(!events.iter().any(|s| s.starts_with("files:")));
     assert!(events.contains(&"active:1:false".into()));
     assert!(events.contains(&"active:2:false".into()));
-    let moved = events.iter().position(|s| s == "move:A:4:6").unwrap();
+    let moved = events.iter().position(|s| s == "move:A:-4:6").unwrap();
     assert_eq!(
         &events[moved..moved + 4],
-        ["move:A:4:6", "city:shutdown", "city:drop", "active:3:true"]
+        ["move:A:-4:6", "city:shutdown", "city:drop", "active:3:true"]
     );
     host.clear();
     host.city = true;
