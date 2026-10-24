@@ -128,8 +128,9 @@ The handler (vtable `0x00AD43FC`):
 - **End element** (`0x00940C5B`): the counter is decremented and the element is skipped only when it reaches 0;
   it starts at 0 and nothing increments it, so every end element is processed *[quirk]*. key :=
   `RZAtoUint32HexA(key text)`, type := `RZAtoUint32HexA(type text)`; by type: string → the value text;
-  s32 / u32 → `RZConvertToUint32A(value text)`; f32 → `RZAtofA`; bool → the value text compared with `true`
-  (string slot 12, flag 1); other → the handler fails. The value is stored with `SetValue`.
+  s32 / u32 → `RZConvertToUint32A(value text)`; f32 → `RZAtofA`; bool → true only when the value text is
+  exactly `true` (a case-sensitive `CompareTo`, rz-strings.md §4); other → the handler fails. The value is stored
+  with `SetValue`.
 - Consequences *[quirk]*: the root's own end element stores the last entry a second time (same key, type and text,
   so no change); a document with no entries fails at the root's end (type 0).
 
