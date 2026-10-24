@@ -13,10 +13,6 @@
   slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
   OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list
   persistence (`0x004F2A70`–`0x004F5120`). Existing ui-windows coverage is framework inventory only.
-- **AU44 — fire-handler complete owner contract:** audio §7.4 currently gives identity and corrects
-  torch ownership, rather than specifying the full fire handler. Supplement §20.3 adds some lifecycle
-  and scape IO facts. Recover construction/defaults, all interface views, message dispatch and group
-  registration/removal contracts at `0x004F0240`–`0x004F132F` before calling this owner complete.
 
 <!-- from: core-audio-close11 (2026-10-24) -->
 - **AU45 — completed dispatch versus vector 12:** section 7.2's completed dispatch table routes

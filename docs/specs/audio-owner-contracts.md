@@ -245,7 +245,9 @@ service using `(0x49E50BA1, 0x29E39DB4)`. Shutdown removes subscriptions, releas
 scape reference and clears its initialized state. It also removes its city-init subscription.
 Fire occupants are handed to the scape interface with sound identifier `0x49E4CE85`
 (`IterateFireOccupantCallback`, `0x004F0480`); the callback ignores a null occupant.
-Full method inventory, message dispatch, construction/defaults and removal behavior remain AU44.
+Full method inventory, message dispatch, construction/defaults and removal behavior are specified
+in [audio §7.4.1](audio.md#741-fire-handler-owner-contract-au44). In particular, Shutdown does
+not remove the scape group, and failed initialization does not roll back subscriptions.
 Section 7.4 establishes that the separate torch methods belong to the main event handler.
 
 ## 21. Audio preferences window

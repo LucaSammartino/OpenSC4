@@ -803,6 +803,96 @@ service IID `0xBB523BB2` by `cSC4AudioCOMDirector::PostAppInit` (`0x004EBF40`). 
 (`0x004EF100`) belong to **`cSC4AudioEventHandler`**, whose `DoEvent` calls them with the outer base
 and whose sound-system member they read at `+0x14`. They do not belong to DisasterFire.
 
+#### 7.4.1 Fire-handler owner contract (AU44)
+
+Use the outer message-target base B for all offsets here; Init/Shutdown receive B+4.
+Factory `0x004EB100` allocates 52 bytes, constructs at `0x004F0510`, and returns B+4;
+allocation failure returns null. Construction initializes outer refcount B+0x1C and embedded
+filter count B+0x10 to zero, initialized byte B+0x18 false, scape B+0x20 null, and four
+words B+0x24 through B+0x30 zero. There is no initial scape registration or occupant scan.
+
+| View / table | Slots and behavior |
+|---|---|
+| B / `0x00A941E8` | 0 QI `0x004F0270`; 1 AddRef `0x004F0240`; 2 Release `0x004F0250`; 3 DoMessage `0x004F05D0`. |
+| B+4 / `0x00A941D4` | 0–2 adjust to B and share QI/refcount; 3 Init `0x004F0740`; 4 Shutdown `0x004F03A0`. |
+| Embedded filter B+8 / `0x00A941B8` | 0–2 adjust to B for QI/refcount; 3 fire predicate `0x004F0440`; 4/5 return true without inspecting their one argument (`0x004FC900`); 6 deleting destructor adjusts to B (`0x004F0330`). |
+| Filter persistence B+0x0C / `0x00A941A0` | 0–2 adjust to B; 3/4 inherited Write/Read `0x005E97C0`/`0x005E97E0`; 5 inherited class ID getter `0x005E95B0`, returns `0xA9C74DC9`. |
+| Service B+0x14 / `0x00A94190` | 0–2 adjust to B; 3 returns false without work (`0x005DEB40`). |
+
+QI accepts `1` and lifecycle IID `0x89E51472` as B+4, message-target IID `0x452294AA`
+as B, and service IID `0xBB523BB2` as B+0x14. Each success increments the same outer
+refcount. Other IDs return false without clearing the output. In particular, filter views are
+embedded addresses used directly, not additional accepted QI IDs. AddRef increments a 32-bit
+word; Release tests the old count as signed: >1 decrements, otherwise invokes the deleting
+destructor through embedded-filter slot 6 and returns zero. Destruction releases a non-null
+scape and destroys the embedded filter; it does not call Shutdown or remove subscriptions/groups.
+
+The inherited persistence view writes a 16-bit version 3 through stream slot 7 and returns
+the inverse of stream slot 18's error byte. Read obtains a 16-bit version through stream
+slot 7, rejects versions other than 3, then returns the inverse error byte. Neither serializes
+the handler's state. Stream pointers are unchecked.
+
+Init is idempotent and returns true when already initialized. Otherwise obtain the message
+server `(0x04FA845B,0x652294C7)`; missing server returns false with no subscriptions.
+Subscribe B to occupant insertion `0x99EF1142`, removal `0x99EF1143`, then city init
+`0x26D31EC1`, ignoring subscription results. Obtain scape `(0x49E50BA1,0x29E39DB4)`
+and retain it at B+0x20 with normal AddRef-before-old-Release assignment. Missing scape returns
+false **without removing the subscriptions**. With scape present, call slot 5
+`("Fires",0x49E4CE85,0,100.0f)`. A false return also leaves subscriptions and retained scape
+in place, with initialized still false. A successful registration is followed by these three
+slot 16 calls, whose results are ignored (`0x004F082E`–`0x004F08CA`):
+
+| Group | Sound | Remaining arguments in order |
+|---|---|---|
+| `0x49E4CE85` | `0x29DC19EF` | 1, 0, 1, 9 |
+| `0x49E4CE85` | `0x09DC19A2` | 1, 0, 10, 49 |
+| `0x49E4CE85` | `0x09DC1982` | 1, 0, 50, `0x7FFFFFFF` |
+
+Then set initialized true, release temporary services and return true. There is no scan during
+Init itself and no rollback after partial failure. A retry can subscribe again and encounter an
+already registered group. Shutdown when uninitialized is a true-return no-op, even after failed
+Init. When initialized, reacquire message server and, if available, unsubscribe city init,
+insertion, removal in that order. Regardless of server availability, clear/release retained scape,
+clear initialized and return true. It does **not** call a scape group-removal method, clear existing
+fire instances or subscribe/unsubscribe city shutdown (`0x004F03A0`–`0x004F0436`). *[quirk]*
+
+DoMessage always returns true, including null input, QI failure, missing occupant, non-fire
+occupant and unrelated types (`0x004F0734`). For non-null input QI `0x65297976` is required
+before dispatch; a false QI skips dispatch and releases any non-null returned view. On success
+get payload void1 (slot 32) and temporarily AddRef it if non-null, **even for unrelated types**.
+Read type from the original message. Dispatch is:
+
+| Type | Effect |
+|---|---|
+| `0x99EF1142`, `0x99EF1143` | Non-null void1 must QI `0x26BB767E`. Test that position interface through embedded filter slot 3: QI `0x69D25C60` must succeed (the fire predicate); release its returned view. If accepted, get position through position slot 8 even on removal. Insertion calls scape slot 13(`0x49E4CE85`, position-interface pointer, &position, 0.0f); removal calls slot 14(`0x49E4CE85`, position-interface pointer). Release position QI afterward. |
+| `0x26D31EC1` | Call global renderer slot 44 (`+0xB0`) with `(callback 0x004F04D0, B, 0, 0, B+8)`, supplying the embedded fire filter. No renderer null gate. |
+| other | No owner action. |
+
+Finally release temporary void1 and payload. No initialized/scape gate is checked before scape
+calls. The insertion/removal key is the acquired position interface, not the payload's raw void1.
+The fire predicate accepts solely on successful fire IID QI, releasing any non-null QI output
+even on failure; it does not inspect a burning flag (`0x004F0440`).
+
+The enumeration callback (`0x004F04D0`) returns false if occupant or B is null. Otherwise
+AddRef B, call `IterateFireOccupantCallback`, Release B and return true. That member helper
+ignores null occupant, obtains position via occupant slot 8 and calls scape slot 13 with
+`(0x49E4CE85, occupant pointer, &position, 0.0f)`. It does not repeat the fire filter or acquire
+an occupant reference; renderer enumeration supplies filtering. There is no bulk removal callback.
+The position scratch vector is initially zero (global `0x00B21A1C`); the getter result is ignored.
+
+#### AU44 conformance vectors
+
+| ID | Input/action | Expected |
+|---|---|---|
+| AU44-01 | Construct; QI 1, message-target, lifecycle, service and an unrelated IID | Zero counts/flags/dependencies initially; successful views B+4, B, B+4, B+0x14 increment outer count; failure preserves output. Factory returns B+4. |
+| AU44-02 | Init with server absent, then with server present/scape absent | First false with no subscriptions; second false after three subscriptions. Shutdown afterward is a no-op because initialized remains false. |
+| AU44-03 | Group registration returns false | Retained scape and subscriptions remain; no slot 16 calls; false result and initialized false. |
+| AU44-04 | Successful Init, repeated Init, Shutdown | One group registration, three literal slot 16 calls, no initial scan; repeated Init adds nothing. Shutdown unsubscribes city/insertion/removal, releases scape, never removes group. |
+| AU44-05 | Insert then remove fire with distinct raw occupant O and position view P | Fire QI checked both times; position fetched both times; slot 13 uses key P and radius 0, slot 14 removes key P. Both return true regardless of scape result. |
+| AU44-06 | Null message, failed payload QI, null void1, rejected fire predicate | Always true; no scape call. Acquired views released in each applicable case. |
+| AU44-07 | City init with valid payload; renderer visits occupant O | Enumerate with filter B+8; callback brackets owner with AddRef/Release; slot 13 uses O directly. Null callback occupant/owner returns false. |
+| AU44-08 | Destroy initialized handler without Shutdown | Release scape and embedded filter only; no unsubscribe or scape group-removal call. |
+
 ### 7.5 Sound-system callbacks and torch state (AU16)
 
 `DoEvent` (`0x004EF490`) returns **true immediately** if member sound system is null. With it present,

@@ -1,5 +1,16 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU44: audio.md §7.4.1 specifies all
+five views, defaults, registration, filtering, dispatch, enumeration and lifetime. Failed Init
+retains subscriptions; Shutdown releases scape but never removes its group. Insertion/removal
+uses the acquired position-interface key, while enumeration uses the visited occupant key.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU44 — fire-handler complete owner contract:** audio §7.4 currently gives identity and corrects
+  torch ownership, rather than specifying the full fire handler. Supplement §20.3 adds some lifecycle
+  and scape IO facts. Recover construction/defaults, all interface views, message dispatch and group
+  registration/removal contracts at `0x004F0240`–`0x004F132F` before calling this owner complete.
+
 **ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU40: audio.md §18.4 and supplement
 §18 specify camera-centered geometry, sea-plane correction, x87 rounding, tuning sizes and
 literal failure lifetime. Notifications measure camera movement; absent server and null
