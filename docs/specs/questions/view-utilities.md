@@ -24,3 +24,6 @@
 
 <!-- from: glue-viewutil-apply12 (2026-10-24), measured evidence for existing VU12; not a new copy -->
 VU12 follow-up: run viewutil12-r1-turbo-20261024a is clean/ref_warnings=0 through 2032-01-02. Camera-angle sample 3 (rotation=3, zoom=3), yaw word: native 0x408a3ae6 versus core 0x408a3ae7. City-width sample 1 (width=64, zoom=1), stored-float32 result: native 0x42a73d74 versus core 0x42a73d75; sample 2 (128,2): 0x43273d74 versus 0x43273d75. Every monthly line differs for these two families. These observations do not establish the missing numeric contract; keep both uncompensated and default-off pending VU12.
+
+<!-- from: glue-viewutil-apply12 (2026-10-24), normal-speed confirmation -->
+Run viewutil12-r1-normal-20261024b reached 2032-01-01 clean with ref_warnings=0 and the identical family counts: object-angle (VU19), camera-angles and city-width (VU12) each 0/73 exact; the other 33 exercised bodies each 73/73 exact. These differences are not turbo-specific.
