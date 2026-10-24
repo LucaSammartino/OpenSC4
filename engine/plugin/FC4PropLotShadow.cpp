@@ -549,11 +549,15 @@ cISC4OccupantManager* PropOm(void* u) { return PC(u)->city ? PC(u)->city->GetOcc
 struct LotQueryInput {
     struct Entry { uint64_t token; };
     struct Position { uint64_t token; float pos[3]; };
+    struct Corner { int32_t x, z; float wx, wz; };
     cISC4OccupantManager* manager = nullptr;
+    cISC4City* city = nullptr;
     fc4_cell_rect rect{};
     std::vector<Entry> entries;
     std::vector<Position> positions;
+    std::vector<Corner> corners;
     size_t positionReplay = 0;
+    size_t cornerReplay = 0;
     unsigned calls = 0, errors = 0, filterChecks = 0, replays = 0;
     bool result = false, replay = false, pruning = false;
     ~LotQueryInput() {
@@ -562,6 +566,26 @@ struct LotQueryInput {
 };
 thread_local LotQueryInput* t_lotInput = nullptr;
 std::unique_ptr<LotQueryInput> g_lotInput;
+
+// A7.2 converts both lot corners through city slot 96. Observe that dependency
+// as well as slot 8: a boundary discrepancy is only comparable when the native
+// and replayed prune passes consume identical bounds, not a later conversion.
+using PropCornerFn = void(__fastcall*)(void*, void*, int, int, float&, float&);
+std::atomic<PropCornerFn> g_propCornerForward{nullptr};
+void** g_propCornerEntry = nullptr;
+void* g_propCornerOriginal = nullptr;
+
+void __fastcall ObserveLotCorner(void* self, void* edx, int x, int z, float& wx, float& wz) {
+    g_propCornerForward.load()(self, edx, x, z, wx, wz);
+    LotQueryInput* input = t_lotInput;
+    if (input != nullptr && input->pruning && !input->replay && input->city == self) {
+        if (input->corners.size() >= 2) {
+            ++input->errors;
+        } else {
+            input->corners.push_back({x, z, wx, wz});
+        }
+    }
+}
 
 using PropPositionFn = bool(__fastcall*)(void*, void*, cS3DVector3*);
 std::mutex g_propPositionMutex;
@@ -699,6 +723,16 @@ void ResetLotQueryProbe() {
     }
     g_propPositionEntries.clear();
     t_lotInput = nullptr;
+    if (g_propCornerEntry != nullptr) {
+        DWORD before = 0;
+        if (VirtualProtect(g_propCornerEntry, sizeof(void*), PAGE_READWRITE, &before)) {
+            InterlockedCompareExchangePointer(g_propCornerEntry, g_propCornerOriginal,
+                                              reinterpret_cast<void*>(&ObserveLotCorner));
+            DWORD ignored = 0;
+            VirtualProtect(g_propCornerEntry, sizeof(void*), before, &ignored);
+            g_propCornerEntry = nullptr;
+        }
+    }
     if (g_propCellsEntry != nullptr) {
         DWORD before = 0;
         if (VirtualProtect(g_propCellsEntry, sizeof(void*), PAGE_READWRITE, &before)) {
@@ -714,9 +748,10 @@ void ResetLotQueryProbe() {
 
 class LotQueryProbe {
 public:
-    explicit LotQueryProbe(cISC4OccupantManager* manager) {
-        if (manager == nullptr || IsOurObject(manager)) return;
-        if (g_propCellsEntry != nullptr) return;
+    explicit LotQueryProbe(cISC4City* city) {
+        auto* manager = city ? city->GetOccupantManager() : nullptr;
+        if (manager == nullptr || IsOurObject(manager) || IsOurObject(city)) return;
+        if (g_propCellsEntry != nullptr || g_propCornerEntry != nullptr) return;
         void** candidate = *reinterpret_cast<void***>(manager) + 40; // OM §8.4; SDK filter overload
         DWORD before = 0;
         if (!VirtualProtect(candidate, sizeof(void*), PAGE_READWRITE, &before)) return;
@@ -726,8 +761,15 @@ public:
         DWORD ignored = 0;
         VirtualProtect(candidate, sizeof(void*), before, &ignored);
         g_propCellsEntry = candidate;
+        candidate = *reinterpret_cast<void***>(city) + 96; // A7.2; SDK CellCornerToPosition
+        if (!VirtualProtect(candidate, sizeof(void*), PAGE_READWRITE, &before)) return;
+        g_propCornerOriginal = *candidate;
+        g_propCornerForward.store(reinterpret_cast<PropCornerFn>(g_propCornerOriginal));
+        InterlockedExchangePointer(candidate, reinterpret_cast<void*>(&ObserveLotCorner));
+        VirtualProtect(candidate, sizeof(void*), before, &ignored);
+        g_propCornerEntry = candidate;
     }
-    bool Installed() const { return g_propCellsEntry != nullptr; }
+    bool Installed() const { return g_propCellsEntry != nullptr && g_propCornerEntry != nullptr; }
     ~LotQueryProbe() { ResetLotQueryProbe(); }
 };
 
@@ -900,6 +942,18 @@ void PropLotRect(void*, uint64_t lot, fc4_cell_rect* out) {
 }
 
 void PropCellToWorld(void* u, int32_t x, int32_t z, float* wx, float* wz) {
+    if (t_lotInput != nullptr && t_lotInput->replay) {
+        auto& input = *t_lotInput;
+        const auto i = input.cornerReplay++;
+        if (i < input.corners.size()) {
+            const auto& corner = input.corners[i];
+            if (x != corner.x || z != corner.z) ++input.errors;
+            *wx = corner.wx;
+            *wz = corner.wz;
+            return;
+        }
+        ++input.errors;
+    }
     float fx = 0.0f, fz = 0.0f;
     if (cISC4City* c = PC(u)->city) c->CellCornerToPosition(x, z, fx, fz);  // slot 96
     *wx = fx;
@@ -1111,7 +1165,7 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
         return -1;
     }
     cISC4LotManager* lm = r.city->GetLotManager();
-    LotQueryProbe lotProbe(r.city->GetOccupantManager());
+    LotQueryProbe lotProbe(r.city);
     uint32_t seed = Seed(r.julian, 0x50524F50u);
     FirstList first;
     uint32_t calls = 0, props = 0, resultDiff = 0, listDiff = 0, lots = 0;
@@ -1132,6 +1186,11 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             first.Add("%s(%d,%d) %s", what, x, z, ListDiff(os, us).c_str());
             if (g_lotInput != nullptr) {
                 const auto& input = *g_lotInput;
+                for (const auto& corner : input.corners) {
+                    Log("propmgr lot bounds input date=%s cell=(%d,%d) "
+                        "nativeSlot96=(%d,%d)->(%.9g,%.9g)",
+                        r.date, x, z, corner.x, corner.z, corner.wx, corner.wz);
+                }
                 for (const auto& p : input.positions) {
                     Log("propmgr lot prune input date=%s cell=(%d,%d) rect=(%d,%d,%d,%d) "
                         "occupant=%p nativeSlot8=(%.9g,%.9g,%.9g)",
@@ -1217,6 +1276,7 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             g_lotInput = std::make_unique<LotQueryInput>();
             auto& input = *g_lotInput;
             input.manager = r.city->GetOccupantManager();
+            input.city = r.city;
             t_lotInput = &input;
             SC4List<cISC4Occupant*> ol;
             const bool ro = pm->GetLotProps(ol, lx, lz);
@@ -1228,6 +1288,8 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             if (input.calls != input.replays) ++input.errors;
             if (input.positionReplay != input.positions.size() ||
                 (input.result && input.positions.size() != input.entries.size())) ++input.errors;
+            if (input.cornerReplay != input.corners.size() ||
+                (input.result && input.corners.size() != 2)) ++input.errors;
             evidence.Pair(input.errors == 0);
             inputErrors += input.errors;
             captured += input.calls;
@@ -1239,7 +1301,7 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
     const intptr_t m = static_cast<intptr_t>(resultDiff + listDiff + inputErrors);
     AppendF(body, "calls=%u cells=%ld lotCells=%u props=%u resultsDiffering=%u listsDiffering=%u first: %s", calls,
             g_cells, lots, props, resultDiff, listDiff, first.Str());
-    AppendF(body, " lotInput=slot40-and-native-slot8 captured=%u filterChecks=%u inputErrors=%u",
+    AppendF(body, " lotInput=slot40-native-slot8-slot96 captured=%u filterChecks=%u inputErrors=%u",
             captured, filterChecks, inputErrors);
     NativeReport(evidence, "cSC4PropManager", "live-city-ordered-queries-record-bootstrap", pm);
     Log("proplot live_inputs owner=cSC4PropManager date=%s event=%s lot_cells=%u returned_props=%u "

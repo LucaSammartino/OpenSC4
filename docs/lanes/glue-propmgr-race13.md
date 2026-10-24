@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-race13: exact native prune-input capture | Codex / glue-propmgr-race13 | ready for measured capture work: cargo 7389/0, clippy clean, CTest 81/81; turbo and normal both 219/220, PL24 open | Answer PL24, apply the corrected bounds contract, then require two 220/220 house runs before restoring verified credit |
+| glue-propmgr-race13: exact native prune-input capture | Codex / glue-propmgr-race13 | in progress; resumed from 0832fe666; prior cargo 7389/0, clippy clean, CTest 81/81; turbo and normal both 219/220, PL24 open | Audit remaining bounds inputs before deciding whether further implementation is authorized by the spec |
+
+## Handoff
+Goal: eliminate intermittent lot-list mismatch without weakening comparison; two house runs to 2032.
+Done: prior round captured native slot-40 and slot-8 inputs (88730ab68), gated and measured two runs (731/732), filed PL24; final prior report 0832fe666.
+Resumed: spec A7.2 still requires half-open bounds; PL24 remains open. Added native city slot-96 observation/replay to close the remaining bounds-input gap. Corner count/order/arguments are strictly checked; mismatch diagnostics now print actual native world bounds. Existing slot-40 rectangle replay is already validated.
+Next: run stable-source full gate, then two new house runs with the exact bounds replay. If bounds truly disagree with the contract, append evidence to PL24 and preserve measured partial closure.
+Facts: prior labels propmgr-race13-house2032-a and propmgr-race13-house2032-b-normal, both 219/220, no resyncs, clean/ref_warnings=0. No request outstanding.
+
+## Prior measured report
 
 The shadow now observes occupant slot 8 at the native pruning call and replays those exact position values to Rust, alongside the ordered pre-prune slot-40 list. It no longer independently samples positions early. Thread-local capture, locked forwarding addresses, reference ownership, and scoped restoration keep other callers forwarded to native methods. Strict call-order/count validation and the full result/list comparison remain enabled; nothing is skipped or tolerated. Source milestone: `88730ab68`.
 
