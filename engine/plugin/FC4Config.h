@@ -160,6 +160,8 @@
 //   disasters_shadow = 0 / 1     the disaster layer shadow (default 0; needs the ORIGINAL
 //                                 disaster layer: do not enable disasters; fire and riot;
 //                                 FC4DisasterShadow.h)
+//   disasters_scripted = 0 / 1   deterministic fire then riot house schedule (default 0;
+//                                 requires disasters_shadow; restores configured turbo)
 //   citysit_shadow = 0 / 1        the city situation manager shadow (default 0; needs the
 //                                 ORIGINAL manager: do not enable citysit; FC4CitySitShadow.h)
 //   demolition_shadow = 0 / 1     the demolition utility shadow (default 0; needs the ORIGINAL

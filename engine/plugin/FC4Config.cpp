@@ -398,6 +398,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "city_shadow",
                                   // AF11 partial helicopter metadata observation, default off.
                                   "helicopter_shadow",
+                                  // Deterministic fire/riot house regression schedule (default off).
+                                  "disasters_scripted",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
