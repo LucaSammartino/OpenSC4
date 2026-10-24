@@ -10,7 +10,8 @@
 - Focused cargo tests: 3/3 passed (numeric/status/counter byte differences, text narrowing/descriptor, strict binary cutoff). Removed unused-import warning before final gate.
 - Gate PASS on 16f94847c source: qbuild all, workspace tests 6806 passed, 0 failed/ignored; clippy 0 diagnostics. Same operation queued native verification as qbuild-20261024-011518-build-ctest: build 224/224 edges, CTest 70/70, terminal PASS. Logs build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log. No duplicate verify needed.
 - Game scres5-r1-2032-a completed clean to 2032-01-19, ref_warnings=0, but scres 0/73: no natural adapter reads. Record docs/runs/scres5-r1-2032-a-349.md. No game outstanding.
-- Diagnostic changes: register scres_shadow key, resolve load date through borrowed simulator, install at OnStart (earlier than PreAppInit). SCR9 asks for natural/direct capture dispatch. Next: re-gate changed source, run unique scres5-r1-2032-b; if still empty, WIP only (nothing measured).
+- Diagnostic changes committed 77c1e6c05: register scres_shadow key, resolve load date through borrowed simulator, install at OnStart (earlier than PreAppInit). SCR9 asks for natural/direct capture dispatch.
+- Corrected-source qbuild all: Rust 6806/6806, clippy 0 diagnostics. Native queue qbuild-20261024-012626-build-ctest outstanding; collect SAME exec session 93319. Next: unique game scres5-r1-2032-b to 2032; if still empty, WIP only (nothing measured). No game outstanding.
 - Evidence: first q.py invocation failed because sandbox denies Bash CreateFileMapping; direct cargo focused test completed successfully. fmt requires absolute file path and passes.
 - Clean room: no tools/ or reverse-engineering sources may be read; lane wrappers allowed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-scres-shadow5-r1-manifest.json.
