@@ -1,8 +1,47 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | wip: VH9/VH10/VH11 answered; VH1/VH5/VH7 open; questions/doccheck/diff checks pass | 1. Complete VH7, VH5 and VH1; 2. validate and enqueue ready |
+| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | ready: partial answers may land; VH9/VH10/VH11 answered; VH1/VH5/VH7 remain open | Land accumulated spec answers; resolve narrowed VH7 load mapping, then VH5/VH1 |
 
 ## Report
+
+Final round, 2026-10-24: **ready to land the partial specification**, as requested.
+VH9/VH10/VH11 remain answered and archived from earlier commits. This round adds
+188 lines to vehicles.md §12.9, with 16 additional conformance vectors, and
+narrows VH7 to specific unresolved evidence. **VH7 is not fully answered; VH5
+was not attempted in this round; VH1 remains open with a precise missing-evidence
+note.** No full engine-owner closure is asserted.
+
+New measured contracts: route X/Z handling and preserved third byte; live path
+key fields; masked equality OR for leader lane matching; reattachment failure
+and placement protocols; Read's absence of geometry queries; endpoint and
+leader-gap thresholds; route-end removal/hold behavior; network, turn and signed
+slope speed factors. Signed downhill asin with ordinary positive tunings clamps
+to zero rather than producing a downhill bonus. Record receiver offsets are
+reported separately from live layout: the network reference is serialized at
+receiver +0x1E4, while live placement uses +0x1EC. The Read thunk subtracts four,
+and Vehicle::Read forwards its receiver unchanged. These observations alone do
+not establish a save defect or an eight-byte layout adjustment.
+
+Verification: questions index regenerated; `python tools/questions.py check`,
+`python tools/doccheck.py check`, and `git diff --check` all passed (terminal
+exit 0). Vectors are requirements in prose, not executed engine tests.
+Cargo/clippy/CTest n/a; game runs/shadows n/a. ABI exports unchanged; no proposed
+ABI rows. No engine/plugin/capi/coverage-map edits. Sources were the local export,
+bounded decomp windows and read-only working-PE displacement checks; no REA
+request was made because the session has no binary open.
+
+Research stopped at measured context 95449/150000, within the requested
+two-thirds bound. The final third is reserved for validation and handoff. Source
+lookup failures were corrected: q.py could not start Git Bash (Win32 error 5),
+so subsequent commands used PowerShell; source-window initially received a 0x
+prefix it does not accept; re_query search does not support --skip. These were
+lookup failures, separate from the passing documentation gates.
+
+Queue destination: `build-runs/merge-queue/re-vehicles-vh11.json`, kind `re`,
+state `ready`, actual full detached-HEAD tip. The supervisor publishes that tip
+to the reserved lane branch; this round does not switch branches or update refs.
+
+## Previous continuation report
 
 This continuation closes **VH9** at `944898267`, following VH10/VH11 at
 `28fe893ed`. Vehicles.md §12.6 now specifies RANDOM_WALK, MAGNET/controller
@@ -82,18 +121,14 @@ The queue is therefore **wip**, rather than asserting all six were answered.
 
 ## Handoff
 
-- Goal: finish VH1/VH5/VH7 without engine reads/edits; VH9/VH10/VH11 closed.
-- Done: `28fe893ed` VH10/VH11; `944898267` VH9; `024f179a7` partial VH7 §12.9 and regenerated index; questions/doccheck/diff PASS.
-- Next exact step: establish Traffic Read's adjusted this pointer from 00554D20 entry before naming record fields; finish VH7 reconstruction, then VH5/VH1. Partial geometry is now §12.9.
-- Main source root C:/Users/tlori/FreeCity4. Existing decomp `_unnamed/region_00500000.c` lines 4997–5162 holds RANDOM_WALK; ZOT candidate 00508E10 is at line 2617 (confirm state mapping before naming).
-- VH5: Train animation source cSC4Train.c starts line 402, StartTrip line 679; unnamed region_00550000.c composition helper 00558510 starts line 4103. These were only inspected, not closed or numerically certified.
-- VH1: cSC4Vehicle.c PlayerDriveUpdateSpeed line 1321, off-road 1406, full tick 2003; cSC4Train.c derail 208 and full tick 911; cSC4Tank.c commands 330. Numeric instruction verification remains essential.
-- VH7: slot 131 Traffic 0054E920 / Vehicle 0055D210; slot 132 Traffic 00550760 / Vehicle 0055D5A0. Advancement 005504E0; tick 0054FDC0; gaps 00551300/0055D9D0; speed modifier 0055DF50. Remaining: record names, route third byte, lane equality, bridge/slope factors and complete transitions.
-- Read uses EDI+1E4 for serialized network ref, while live methods use +1EC. Verify interface adjustment before inferring a contradiction. Helper build-runs/source-window.py uses UTF-8 function-relative windows, max 60 lines/4 KB; default PowerShell decoding shifted line counts.
-- TrainCar placement override 00557320 is at unnamed region_00550000.c line 3864. cSC4TrainCar.c lacks its body.
-- Initial capped output misleadingly appeared to show an orphaned VH9 tail; actual question file retains all four originals; do not rewrite them.
-- Worktree starts detached at 0490d3c97; commit normally, never update refs.
-- Source root: C:/Users/tlori/FreeCity4; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-vehicles-vh11-r2-manifest.json.
-- No ABI changes or game runs planned. Date for answers: 2026-10-24.
-- Key evidence: slot 134 = 00550B60 (table A9C068 + 218); slot 158 = 0055B690. Shared car reference helpers 005D96C0/005D9730; append 0055AB50–0055ABB0.
-- Ignored build-runs/pe-values.py reads PE words/constants; no source content generated or committed. All public spec evidence is address citations and prose.
+- Goal: land the ready partial answers; remaining research must not delay this queue entry.
+- Done: `28fe893ed` VH10/VH11; `944898267` VH9; `024f179a7` initial geometry; final round extends §12.9 and narrows VH7/VH1.
+- Next exact research step: trace serialization interface receivers into 005552E0/00554D20 and compare their semantic field ownership with live 00550760; locate later load-to-live reattachment.
+- Verified: Read body does not adjust receiver; known thunk subtracts 4; Vehicle::Read passes receiver unchanged. Read/Write access +1E4 for network ref and +224 for deque, live placement +1EC and +22C. Do not invent a +8 correction or claim a save defect.
+- Route cells are X/Z plus preserved byte; inspected geometry ignores byte 3; producer-side meaning still missing.
+- VH5 source pointers: cSC4Train.c animation line 402, StartTrip line 679; unnamed region_00550000.c helper 00558510 line 4103. TrainCar placement override 00557320 is in that unnamed file line 3864.
+- VH1 source pointers: cSC4Vehicle.c speed line 1321, off-road 1406, full tick 2003; cSC4Train.c derail 208/tick 911; cSC4Tank.c commands 330. Confirm UTF-8 line numbering and instruction widths.
+- Source root C:/Users/tlori/FreeCity4; helper build-runs/source-window.py expects address without 0x, UTF-8, capped windows. No REA binary open.
+- Manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-vehicles-vh11-r3-manifest.json; research stopped at measured 95449/150000.
+- Detached HEAD: commit normally, never switch branches/update refs. Queue must use actual full HEAD and state ready, kind re, ABI false, game_runs [].
+- Questions/doccheck/diff PASS; no engine tests or game runs; no ABI changes/proposals.

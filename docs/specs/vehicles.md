@@ -805,3 +805,191 @@ were checked in instructions at `0x0055D435–0x0055D54E`.
 | Path points (0,0,0), (10,0,0); index 0; start zero; step −2 | True; output (−2,0,0); index 0; remainder 0 |
 | Same path; step 10, then a separate call starting at endpoint with index 0 and step 1 | First returns true at endpoint with index 0; second exhausts path, returns false at (11,0,0), remainder 1 |
 | Vehicle front anchor (10,0,0), facing (1,0,0), radius 4 | Centre (8,0,0), not (6,0,0) |
+
+#### Lane matching and live path representation
+
+The route-cell deque and the selected network path are different representations.
+A route cell occupies three bytes: unsigned cell X, unsigned cell Z, and a byte
+preserved by serialization. BeginRoute and the route-following helper use the first
+two bytes to find the cell and derive the next exit; they do not use the third byte
+as a lane mask or a path-point coordinate. A decreasing Z selects exit 1, increasing
+Z exit 3; at equal Z, decreasing X selects exit 0 and nondecreasing X exit 2.
+This includes equal consecutive cells, which select 2 rather than rejecting the
+route. The final cell has no following-cell exit and uses the network's available
+path selection. Evidence: `0x00554B43–0x00554BA6`, `0x00552824–0x00552844`,
+`0x00552925–0x00552A15`. This establishes the third byte's treatment by these
+consumers, not a meaning for that byte in the pathfinder that produced it.
+
+The **live path key** at `+0x1F4` is a separate u32. Its low byte is the exit,
+the next byte the entry, and the low nibble of its high byte is the network/path
+type passed to the network service. Do not reinterpret the route's three bytes as
+this key. The live network occupant is `+0x1EC`, its retained path interface
+`+0x1F0`, the selected point collection `+0x1F8`, and the current segment index
+`+0x1FC`. The lateral offset is f32 `+0x200`. The point collection contains vec3
+f32 points; it is borrowed from the path service, rather than serialized as route
+cells. Evidence: key getter `0x00504F70`, offset getter `0x00504F80`,
+`0x0054E951–0x0054E960`, `0x00550768–0x005509C7` and
+`0x00550F40–0x005510CF` (the latter packs exit, entry and type).
+
+For FindLeaderInTile, let K be the candidate's live path key, Q the requested
+key, and M1/M2 the two caller-supplied masks. The path test accepts
+`(K & M1) == (Q & M1)` **or** `(K & M2) == (Q & M2)`. It does not require both
+equalities and does not test nonzero intersection. A candidate with flag `0x2000`
+bypasses this path test, after the earlier candidate eligibility tests. An all-zero
+mask therefore makes its equality true, including when the keys have no common
+bits. Default masks used by FindLeader are `0x0FFF00FF` and `0x0FFFFF00`.
+Within the eligible candidates, planar X/Z distance is used; an equal-distance
+later candidate replaces the earlier one. Evidence: `0x0054FCD9–0x0054FD1D`,
+`0x0054FD3B–0x0054FD87`, caller `0x00551C20`.
+
+#### Reattachment, placement and load boundary
+
+Slot 131 takes a network occupant, a u32 path key and a bool allowing fallback
+path selection. It requires that occupant's path interface, an available selected
+path and at least two points. With fallback disabled it requests that exact path
+with secondary argument zero; with fallback enabled it first requests the same
+exact path and, only when absent, asks the network service for another path using
+the key's type and the owner's current point. Failure returns false without
+calling slot 132 or registering the selected path. Success passes occupant, key,
+points and the bool to slot 132 and registers the selected path with the traffic
+service, clearing the returned registration's first dword. Evidence:
+`0x0054E920–0x0054EA22`; vehicle's additional front-anchor handling is above.
+Null occupant is not checked by this routine before its first interface call;
+callers must not treat it as a supported false-return input.
+
+Traffic slot 132 retains the new occupant and obtains its path interface. It
+uses the supplied points, or requests points for the key when omitted. Without
+an interface or points it clears the selected point collection, releases the
+retained path interface and resets the segment index. On a usable selection it
+retains the interface, stores the key and point collection and resets the index.
+Ordinary placement transforms the first two points with slot 157, obtains their
+height from the occupant when the path does not supply its own height, and places
+the owner at the first point facing the normalized difference. Preparation-only
+placement instead clears flag 4. Network changes also perform the traffic
+service's old-occupant removal/new-occupant insertion notifications; they are not
+an implicit rollback boundary. Evidence: `0x00550760–0x00550B54`.
+
+**Read does not reconstruct path points.** The traffic version-2 reader restores
+references/scalars and a deque of three-byte entries. It never calls slot 131,
+slot 132, the point-advancement helper or a network path selector. A successful
+Read is consequently not evidence that a usable point collection now exists.
+Explicit reattachment must satisfy the slot-131 protocol above before consumers
+may use that collection. The animation dispatcher chooses its straight-line
+handler when any of the live occupant, path interface or point collection is
+missing, or flag `0x2000` is set. Evidence: `0x00554D20–0x00554E9C`,
+`0x0054E0F9–0x0054E139`.
+
+**Unresolved record-layout distinction (VH7 remains open).** The literal version-2
+stream order in automata.md §6.3 has these instruction-verified native accesses:
+
+| Field following the base record | Read destination / Write source |
+|---|---|
+| Automaton reference, IID `0xA9B40F05` | `+0xA8` |
+| First u32 | `+0x1DC` |
+| u8 | `+0x1E0` |
+| Network reference, IID `0xA821EF94` | `+0x1E4` |
+| Next u32 | `+0x1EC` |
+| Last scalar u32 | `+0x1F4` |
+| Count and three-byte route entries | deque rooted at `+0x224` |
+
+These are offsets from the receiver of `Read`/`Write`, not confirmed semantic
+aliases of the live fields listed above. In particular, naming the serialized
+network reference as live `+0x1EC` or calling the following u32 the live path key
+would contradict these accesses. Read's known serialization thunk subtracts four
+from its interface receiver; Vehicle::Read forwards its receiver unchanged.
+The Read body makes no further receiver adjustment. The working PE independently
+contains the displacements `0x1E0` at `0x00554DA0` and `0x1E4` at
+`0x00554DB4`/`0x00551E3A`. Evidence: `0x005552E0–0x005552E7`,
+`0x0055BD20–0x0055BD28`, `0x00554D9A–0x00554E11`,
+`0x00551E17–0x00551E64`. The remaining question is the semantic receiver/layout
+relationship and the later load-to-live binding, not whether Read itself selects
+points. Until established, implementations must not infer an eight-byte adjustment
+or silently rename the stream fields. These observations do not yet establish a
+native save/load defect.
+
+#### Available distance and route end
+
+The traffic and vehicle slot-151 gap calculations each start with two limits of
+16 and return the lesser. The path-end limit changes only when a path exists
+and flag `0x10` is set. Traffic uses 3D distance from centre to the last point,
+minus its radius; a result strictly below 1 becomes zero. Vehicle instead uses
+3D distance from its front anchor to the last point, with no radius subtraction;
+again, strictly below 1 becomes zero. Exactly 1 survives in either case.
+Evidence: `0x00551300–0x005513DD`, `0x0055D9D0–0x0055DA7D`.
+
+The leader limit changes only for an existing leader when slot 150 allows it.
+Traffic uses distance from its centre to the leader's slot-66 point, minus its
+own radius and 3. Vehicle forms the leader's rear point as leader centre minus
+leader direction times leader radius. Let R be front-anchor-to-rear distance
+and C front-anchor-to-leader-centre distance. If C is strictly less than R, the
+leader limit is C minus 3; otherwise it is R minus 1. Subtract half the follower's
+radius after that choice. Equality therefore selects R minus 1. There is no
+final zero clamp: the result can be negative. Evidence:
+`0x005513DD–0x0055147F`, `0x0055DA7D–0x0055DBD2`; the vehicle comparison,
+subtractions and half-radius multiplication are verified at
+`0x0055DB82–0x0055DBAE`.
+
+The traffic path tick requests f32 distance from speed times speed modifier
+times tick delta, then caps it by this available distance. Only a positive
+result calls the advancement helper; its false return sets route-finished flag
+4 and sends event 4 with zero data. Nonpositive motion sets flag `0x20`; a gap
+strictly below minus the radius removes a nonpersistent owner (flag `0x40`
+exempts it). Once route, look-ahead and movement are exhausted, the default
+route-end path requests the finished-route action. At animation dispatch, a
+finished route removes the owner unless slot 85 or slot 165 holds it; held
+owners survive. Evidence: `0x0054FDF6–0x0054FE62`,
+`0x0054FEB4–0x0054FF0D`, `0x0055004C–0x0055008B`,
+`0x0054E141–0x0054E174`.
+
+#### Vehicle speed factors
+
+`GetSpeedModifier` starts with the inherited modifier rounded to f32: tuning
+`0x00B09964`, except flag `0x80` converts a strictly positive tuning to 1 and
+all other ordinary finite tunings to 0. Without a live network occupant it
+returns this value. With one, define E as: occupant supports type 12, or it
+supports type 2 and the network manager's elevated-position test succeeds and
+world Y exceeds terrain height by **strictly more than 5**. These tests are
+literal; do not apply the elevation test to every network type.
+
+Unless flag `0x1000` is set or state equals 16, multiply by the network-type
+factor table (`0x00B21CA8`): entry 2 when E, otherwise the first supported type
+in ascending order 0 through 12. No supported type leaves the value unchanged.
+Each such multiplication stores f32. E or state 16 then bypasses turn and slope
+factors, even when flag `0x1000` prevented the network factor. That flag alone
+does not bypass turn or slope factors.
+
+For remaining owners, equal entry/exit bytes multiply by turn tuning
+`0x00B21C88` and f32 `0.6`, in that order. Otherwise entry equal to
+`(exit + 1) mod 4` has no turn factor. Any other entry applies the turn tuning
+only when a point collection with **more than three** points exists. The turn
+result is stored as f32. Flag `0x40` bypasses the slope factor. Otherwise let
+Yd be direction Y, A the slope-angle tuning `0x00B21CF8`, and T the slope tuning
+`0x00B21CFC`. Compute asin(Yd), multiply by T, divide by A, and clamp the result
+to [0,T]. For Yd positive return modifier times (1 minus that value); for Yd
+negative return modifier times (1 plus that value); for zero return modifier.
+The division is not protected against zero A. **Quirk:** asin uses signed Yd,
+not its absolute value, so ordinary positive A/T produce a zero clamped value
+on a downhill direction, rather than a downhill speed bonus. Evidence:
+`0x00505AB0–0x00505AE5`, `0x0055DF50–0x0055E1E5`; numeric instruction checks
+at `0x0055DFF8–0x0055E009`, `0x0055E027–0x0055E0EC` and
+`0x0055E0FD–0x0055E1C9`. Runtime tuning values are inputs, not values read from
+the PE's zero-initialized globals.
+
+| Additional geometry conformance setup | Required observation |
+|---|---|
+| Route cells (4,7,b), (4,7,c), with differing preserved third bytes | Derived next exit 2 for both b/c choices |
+| K=1, Q=3, M1=3, M2=3; eligible candidate without flag `0x2000` | Reject despite shared bit 1 |
+| K=1, Q=3, M1=3, M2=1; otherwise eligible | Accept through the second equality |
+| Arbitrary distinct K/Q and M2=0; otherwise eligible | Accept through zero-mask equality |
+| Valid interface but selected path has one point | Slot 131 returns false; no slot-132 placement or registration |
+| Successful traffic Read on an owner without a point collection | No network geometry query or newly constructed point collection during Read |
+| Traffic centre zero, last point (5,0,0), radius 4; flag `0x10`, no leader | Gap 1; moving last point to (4.5,0,0) makes gap 0 |
+| Vehicle front anchor zero, last point (1,0,0); flag `0x10`, no leader | Gap 1, independently of vehicle radius |
+| Vehicle anchor zero, follower radius 4, leader centre (10,0,0), direction (1,0,0), radius 2; slot 150 true | Leader limit 5 |
+| Same, leader radius zero | C=R=10; leader limit 7, not 5 |
+| Same, leader centre (1,0,0), radius zero | Leader limit −2; do not clamp to zero |
+| No endpoint or leader limit active | Gap 16 |
+| Non-E network, flag `0x1000`, state not 16, equal entry/exit, inherited modifier 1, turn tuning 0.5, level direction | Modifier f32 0.3 (the network factor alone was skipped) |
+| E true, no exemptions, inherited modifier 1, table entry 2 = 0.8, equal entry/exit, nonzero slope | Modifier f32 0.8; no turn or slope factor |
+| State 16, inherited modifier 1, arbitrary supported network and slope | Modifier 1; no network, turn or slope factor |
+| No E/state/turn exemptions, network factor 1, no turn factor, A=1, T=0.5, Yd=−0.5 | Modifier 1; signed downhill value clamps to zero |
