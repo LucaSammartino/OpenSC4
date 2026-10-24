@@ -3,7 +3,7 @@
 | glue-nettool-close7 | Codex / glue-nettool-close7 | in progress; context guard; gate PASS; clean2032 nettool8/14 | Finish records/questions/report and READY measured-work queue. |
 
 ## Handoff
-- CURRENT STOP: context guard reached; no queue written. No game request or asynchronous operation remains. Earlier notes below are superseded by this section.
+- CURRENT: resumed finish; both verdicts collected, run411 recorded and NT35/NT36 appended. No game request or asynchronous operation remains. Earlier notes below are superseded by this section.
 - Goal14/14 NOT achieved; task permits READY measured work with remaining gaps default-off. Actual counted result `nettool 8/14`.
 - Done: merge reconstruction91fc87d82 (initial octopus52b86d4a2 recorded parents but no content after shell failure), implementation134795b68, final source f2ed3a386, gate docs fcf52515b, request docs321ab0e81.
 - NT32 release/reset tests and NT34 nonflat A/B/C solve/grading/refresh tests pass. Fixed NG1 insertion-order defect with SGI193 bucket/chain order, resize-before-duplicate, retained bucket count on shutdown; no propagation pick priority. City shared-endpoint cost98->93, native90.
