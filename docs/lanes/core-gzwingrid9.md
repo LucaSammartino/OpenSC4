@@ -15,5 +15,6 @@
 - Corrected diagnosed aliasing: default_colors and default_format.words[..6] now synchronize in color setter and default-format replacement; new owner_default_format_and_color_slots_share_storage test.
 - Corrected stable source full Rust gate PASS: 6993 passed, 0 failed, 0 ignored; clippy 0 diagnostics.
 - Final all session 80339 completed PASS: native 47/47 edges (74.5 s), CTest 79/79 (151.2 s), overall native 227.6 s. Corrected Rust 6993/0, clippy diagnostics 0, six-file fmt 0 diff lines.
-- Next: explicit task-requested qbuild verify is next; collect that operation, finalize report/queue. No game requests. Do not rerun all.
+- Explicit required qbuild verify running as exec session 26241, native request qbuild-20261024-094413-build-ctest. Collect this SAME operation to terminal result. Do not relaunch all or verify.
+- Final-all native evidence retained in build-runs/final-all-fc4verify-{build,ctest}.log; verify writes standard fc4verify logs. Next: collect verify, finalize report/queue. No game requests.
 - No game request outstanding. ABI unchanged.
