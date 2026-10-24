@@ -1,8 +1,34 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-map-view-close18 (map-view owner closure) | `core-map-view-close18` / engine lane | in progress: resumed from 05b04a982; QV5/QV11/QV16 implemented, prior native cargo 7486/0 and CTest 81/81. Full gate pending. ABI unchanged; no new questions. | (1) Implement QV1/QV2/QV3/QV14 and vectors 35–48; (2) pass qbuild all and queued verify; (3) close every owner row. |
+| core-map-view-close18 (map-view owner closure) | `core-map-view-close18` / engine lane | continue: implementation complete at b50f6f024; all owner rows covered and vectors 1–48 implemented. Focused current-source owner tests 84/84. Full workspace/clippy/native gate pending; no ready claim. ABI unchanged; no new questions. | (1) Run qbuild all on committed stable source; (2) run queued qbuild verify; (3) record measured gates and publish ready merge-queue entry. |
 
 ## Report
+
+This round implements the remaining QV1/QV2/QV3/QV14 contracts in commits
+`ec113e868`, `d219aa264` and `b50f6f024`. The QV18 merge and QV5/QV11/QV16 work
+were already present. Added display/none reset, independent requested memories,
+panel flags, first-show/reset/Cancel behavior, traffic reconstruction and ferry
+accumulation, animation/damaged cells/palette overrides, and explicit inherited
+PC24/53/64 plus all four RC modes for ring arithmetic and integer conversions.
+Each conformance vector 35–48 has a test. README Owner closure has no open rows.
+
+Focused validation PASS **84/84**: 60 conformance tests and 24 core owner tests,
+using the current map_view source and only the unchanged cached grid dependency.
+Evidence: `build-runs/owner-diagnostic-tests-final.log`. Explicit-file formatting
+was applied through check diffs and apply_patch. Fixed diagnostic warnings,
+mutable legend fixtures, obsolete reset expectations, ring-test pixel indexing,
+and wrapping channel math for caller-modified RC. Failed intermediate evidence
+remains in `qv1-focused.log`, `map-view-final-focused.log`,
+`map-view-diagnostic-tests.log` and `owner-diagnostic-tests.log` under build-runs.
+
+**Full gate remains pending.** Do not claim ready or owner credit until qbuild all
+and queued qbuild verify pass on this committed source. Context accounting reached
+147669/150000 before this handoff; no new full gate was launched because it could
+not safely be collected before the enforced context stop. No operations or game
+requests remain outstanding. No plugin/capi/ABI/coverage-map edits, game runs or
+new questions. No ready merge-queue entry was written.
+
+## Earlier report (prior round)
 
 Merged `re-map-view-qv18` (`2ef6fa4ba551c32bb1fdda490a580225a697e201`) as
 `45e79361d`. The generated QUESTIONS total was the only merge conflict; summing
@@ -55,7 +81,7 @@ No plugin/C ABI wiring, ABI export changes, coverage-map edits or game runs.
 - Done: merged re-map-view-qv18 (2ef6fa4ba551c32bb1fdda490a580225a697e201) as 45e79361d; generated QUESTIONS conflict resolved from merged rows (658 open / 1563 answered).
 - Done: 49b99359d implements QV5 scale-presence factors/conversion and retained invalid scale; QV11 empty/default/shared/debug layers; QV16 vector-21 correction and closure row. e706923b1 fixes the integration module path.
 - Added close18_vectors.rs tests v01 and v34; adapted obsolete 16-bit expectations and throttle test. Formatting is applied through apply_patch, using rustfmt --check diffs only.
-- Next: qbuild all on the stable final source, then queued qbuild verify; record results and finalize report/queue. No game requests.
+- Next exactly: python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-map-view-close18 all; collect to terminal. Then the same command with verify (queued native build/CTest), record gates and finalize ready queue. No game requests.
 - All answered owner contracts now implemented, README has no open rows, and conformance vectors 1–48 are covered. Source diagnostics fixed: mutable legends, obsolete reset fixtures, private FP interfaces, deprecated atomic API, ring-test row-major coordinate, wrapping RC channel math.
 - Focused current-source owner harness PASS 84/84 (60 conformance + 24 core). It compiles the real map_view module and reuses only the unchanged cached grid dependency; build-runs/owner-diagnostic-tests-final.log. Formatting applied via explicit-file rustfmt --check diffs and apply_patch.
 - Gates: focused cargo PASS 2/2, 44 filtered (25m56s compilation on heavily contended host), session 33160 completed. Corrected native qbuild-20261024-215541-build-ctest PASS: build 46/46 edges, CTest 81/81, 96.2s total; session 6612 completed.
