@@ -585,7 +585,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PersistShadow.h
         # LR14/T79 default-off live construction getters.
         plugin/FC4ConstructionShadow.cpp
-        plugin/FC4ConstructionShadow.h)
+        plugin/FC4ConstructionShadow.h
         # Default-off public network-tool draw projection (private native tools).
         plugin/FC4NetToolDragShadow.cpp
         plugin/FC4NetToolDragShadow.h)
