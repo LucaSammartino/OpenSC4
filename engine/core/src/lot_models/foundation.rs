@@ -10,8 +10,6 @@ pub struct Footprint {
 impl Footprint {
     pub(super) fn valid(self) -> bool {
         self.min.into_iter().chain(self.max).all(f32::is_finite)
-            && self.min[0] <= self.max[0]
-            && self.min[1] <= self.max[1]
             && (self.max[0] - self.min[0]).is_finite()
             && (self.max[1] - self.min[1]).is_finite()
     }
@@ -137,6 +135,31 @@ pub struct FoundationModel<T> {
     top_texture: Option<T>,
     zoom: Option<Zoom>,
     rotation: Option<Edge>,
+    basic: BasicModel,
+}
+
+impl<T> Drop for FoundationModel<T> {
+    fn drop(&mut self) {
+        drop(self.side_texture.take());
+        drop(self.top_texture.take());
+        // BasicModel is the last field; its owner is released last (§1.1).
+    }
+}
+
+impl<T: Texture> LotModelLifetime for FoundationModel<T> {
+    fn basic(&self) -> &BasicModel {
+        &self.basic
+    }
+    fn basic_mut(&mut self) -> &mut BasicModel {
+        &mut self.basic
+    }
+    fn owner_interface(&self) -> ModelInterface {
+        ModelInterface::Basic
+    }
+    fn destroy_resources(&mut self) {
+        drop(self.side_texture.take());
+        drop(self.top_texture.take());
+    }
 }
 
 impl<T: Texture> FoundationModel<T> {
@@ -152,22 +175,11 @@ impl<T: Texture> FoundationModel<T> {
             || !base.is_finite()
             || !top.is_finite()
             || !top_scale.is_finite()
-            // Unsupported numeric domain, not a native zero-scale guard:
-            // native unchecked division can yield nonfinite UVs (LM8).
-            || top_scale <= 0.0
             || !(top - base).is_finite()
         {
             return Err(ContractError::InvalidInput);
         }
         let shape = FoundationShape::new(footprint, base, top, top_scale);
-        if shape
-            .sides
-            .iter()
-            .chain(std::iter::once(&shape.top))
-            .any(|face| face.repeats.into_iter().any(|v| !v.is_finite()))
-        {
-            return Err(ContractError::InvalidInput);
-        }
         Ok(Self {
             footprint,
             base,
@@ -179,7 +191,73 @@ impl<T: Texture> FoundationModel<T> {
             top_texture: None,
             zoom: None,
             rotation: None,
+            basic: BasicModel::default(),
         })
+    }
+
+    /// Published empty bounds and default top scale (§§2.2–2.3). Other
+    /// constructor fields are explicit inputs until LM2 is settled.
+    pub fn empty(keys: FoundationTextureKeys) -> Self {
+        let footprint = Footprint {
+            min: [1., 1.],
+            max: [0., 0.],
+        };
+        Self {
+            footprint,
+            base: 1.,
+            top: 0.,
+            top_scale: 16.,
+            shape: FoundationShape::new(footprint, 1., 0., 16.),
+            keys,
+            side_texture: None,
+            top_texture: None,
+            zoom: None,
+            rotation: None,
+            basic: BasicModel::default(),
+        }
+    }
+
+    pub fn world_bounds(&self) -> Bounds {
+        Bounds {
+            min: [self.footprint.min[0], self.base, self.footprint.min[1]],
+            max: [self.footprint.max[0], self.top, self.footprint.max[1]],
+        }
+    }
+
+    /// Unchecked reciprocal, including zero/negative scales (§2.3).
+    pub fn set_top_scale<L: Lighting>(&mut self, scale: f32, light: &mut L) -> Result<(), ContractError> {
+        if !scale.is_finite() {
+            return Err(ContractError::InvalidInput);
+        }
+        self.top_scale = scale;
+        self.setup_vertices(true, false, light);
+        Ok(())
+    }
+
+    /// Native packed-colour path; the compatibility draw uses float metadata.
+    pub fn draw_lit<F: TextureFactory<Binding = T>, L: FoundationLighting>(
+        &mut self,
+        highlighted: bool,
+        zoom: Zoom,
+        rotation: Edge,
+        factory: &mut F,
+        lighting: &mut L,
+    ) -> Vec<FoundationDraw<'_, T>> {
+        if !highlighted && self.rotation != Some(rotation) {
+            self.recolour(lighting);
+            self.rotation = Some(rotation);
+        }
+        // The adapter is deliberately silent: raw BGRA was computed above.
+        struct NoLight;
+        impl Lighting for NoLight {
+            fn for_normal(&mut self, _: Vec3) -> Vec3 {
+                [0.; 3]
+            }
+            fn at_corner(&mut self, _: Vec3, _: Vec3) -> Vec3 {
+                [0.; 3]
+            }
+        }
+        self.draw(highlighted, zoom, rotation, factory, &mut NoLight)
     }
 
     pub fn shape(&self) -> &FoundationShape {
@@ -321,10 +399,13 @@ impl<T: Texture> FoundationModel<T> {
         // Finite, nearest-even PC53 subset; no universal x87 control claim.
         let existing = ((f64::from(self.top) - f64::from(self.base) + 16.0) * 0.0625).trunc();
         let required = ((f64::from(drop) + 16.0) * 0.0625).trunc();
-        if !(0.0..=134_217_727.0).contains(&required) || !(0.0..=2_147_483_647.0).contains(&existing) {
+        if !(0.0..=2_147_483_647.0).contains(&required) || !(-2_147_483_648.0..=2_147_483_647.0).contains(&existing) {
             return Err(ContractError::InvalidInput);
         }
-        let candidate = (f64::from(self.top) - required * 16.0) as f32;
+        // §2.2 specifies signed32(N << 4), not an unbounded depth multiply.
+        // Conversion itself is restricted to the published valid i32 domain.
+        let depth = (required as i32).wrapping_shl(4);
+        let candidate = (f64::from(self.top) - f64::from(depth)) as f32;
         if !candidate.is_finite() || !(self.top - candidate).is_finite() {
             return Err(ContractError::InvalidInput);
         }
