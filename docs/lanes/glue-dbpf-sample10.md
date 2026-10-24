@@ -14,11 +14,12 @@
 - Changed source to retain the independent Rust reader and next index entry, yielding after ~800 ms between records. No native record object or cursor is retained.
 - Autotest quit drains the final pending sample through normal framework ticks; wall deadline/watchdog/external timeout remain active. Other shutdowns explicitly report unfinished work non-exact.
 - Corrected source commit 3c2f8c290. Final qbuild all PASS: Rust 6988/0/0, clippy clean; native job qbuild-20261024-092912-build-ctest PASS, build 50/50 (2.8 s), CTest 80/80 (74.8 s), total 82.8 s. Session 59934 collected to exit 0.
-- Next: submit prepared build-runs/gdbs10-r2-house2032-20261024b.draft as a new request. No game outstanding yet.
-- DLL SHA256: 1BA53DB4F8BE377D45F3B34651FF3CC566B3B03BB59BB962BA2EE0BF383046BE.
+- Outstanding: gdbs10-r2-house2032-20261024b submitted after corrected gate; collect original blocking wait exec session 89442. Never resubmit this label; completed verdicts are valid.
+- R2 DLL SHA256: 59359D2DB7EE5786E53B44DCCC2F7A04B8824204CE40EACDD551ECB03BBAE1A9.
 - Game request: train187 house ini plus dbpf_shadow=1; Konradshohe, turbo to 2032-01-01, seconds=1800/timeout=2100.
 - Wait for game via build-runs/wait-dbpf-game.ps1, a single filesystem event wait without qwait or polling loops.
 - No new spec ambiguity: rotation is explicitly requested shadow policy. Existing EX56 remains open.
 - Clean-room restriction forbids opening/editing tools/regress.ps1; coordinator must append the profile key after measured exact run.
 - HEAD is intentionally detached; never update shared refs. EX56 remains open; resource-manager packed files only.
-- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-090545-build-ctest.verdict.
+- Next: collect R2, summarize with build-runs/summarize-dbpf.py gdbs10-r2-house2032-20261024b, record it with a free run number, finalize report and queue.
+- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-092912-build-ctest.verdict (prior source gate verdict 090545 retained).
