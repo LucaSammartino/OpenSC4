@@ -1148,3 +1148,5 @@ mod netocc_shadow;
 
 // Private collector/registration snapshot transport; no public DLL exports.
 mod lua_registry_shadow;
+// Private record-only SC token adapter observation replay.
+mod scres_shadow;
