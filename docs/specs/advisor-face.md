@@ -119,3 +119,12 @@ Owner: `0x004202F0` `Init`, `0x00420540` `Shutdown`, `0x004205D0` `LoadModels`, 
 `0x00420900` `Animate`, `0x004209D0` `DoPaint`. Described, other owners: `0x00420030`, `0x00420100`, `0x004200A0`,
 `0x00420130`, `0x00420140`, `0x00420220` (counted assignment), `0x00420B70`, `0x00420C00`, `0x00420C20`,
 `0x00683EA0`.
+
+## 8. The situation face (`cSC4SituationUIImageWinProc`) *[compat]*
+
+A subclass (owner of 2 functions, 152 bytes; added 2026-10-24, re-gzsmallwin7) that animates on its own clock instead
+of the tick manager:
+- **`Init(win)`** (`0x0054A700`): when not initialised, `+0x28` := win (counted), then the base `Init`.
+- **`DoPaint`** (`0x0054A660`): the timer at `+0xF8` gives the elapsed time; when it is at least 25 (the float at
+  `0x00A9B754`), the timer stops, `Animate(elapsed)` (slot 13) runs, the base `DoPaint` draws and the timer restarts;
+  otherwise only the base `DoPaint` draws.
