@@ -50,6 +50,8 @@ pub use crate::tgi::DIR_TGI;
 /// Size of the DBPF 1.x header.
 pub const HEADER_LEN: usize = 96;
 
+pub mod packed;
+
 /// Random-access byte source behind a [`Package`].
 pub trait Source {
     /// Total length in bytes.
