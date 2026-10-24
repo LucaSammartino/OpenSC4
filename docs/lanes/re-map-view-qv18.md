@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-map-view-qv18 (map-view QV2/3/14 closure) | Codex / `re-map-view-qv18` (RE lane; detached HEAD) | ready, partial: merged qv17 `8f269ba2a`; QV2 `465ada3f5`; doccheck passed; ABI unchanged; game n/a | (1) Finish QV3 panels/groups; (2) finish QV14 ring precision. |
+| re-map-view-qv18 (map-view QV2/3/14 closure) | Codex / `re-map-view-qv18` (RE lane; detached HEAD) | in progress: resumed QV3/QV14; merged qv17 `8f269ba2a`; QV2 `465ada3f5`; preceding doccheck passed; ABI unchanged; game n/a | Finish QV3 panels/groups and QV14 ring precision, then doccheck and final queue. |
 
 ## Report
 
@@ -44,4 +44,5 @@ only through the expressly requested merge.
 - QV14 first instruction page was inspected only; no conclusion about runtime precision or RC was reached.
 - QV2 caution: +0x548/+0x948 are the two palette[255] entries, not factors; factors are +0x958/+0x95C. +0x141 suppresses marked-cell collection, not lot blocking.
 - No ABI reservation, REA operation or game request outstanding. Source paths under C:/Users/tlori/FreeCity4; edits only in this worktree; never read engine/.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-map-view-qv18-r1-manifest.json.
+- Round 2: verified qv17 is already an ancestor of HEAD; do not merge again or reopen QV2.
+- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-map-view-qv18-r2-manifest.json.
