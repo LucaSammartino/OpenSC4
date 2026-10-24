@@ -16,7 +16,7 @@
 #include "cISC4NeighborDeal.h"
 #include "cRZAutoRefCount.h"
 #include "cRZCOMDllDirector.h"
-#include "cRZString.h"
+#include "cRZBaseString.h"
 #include "SC4List.h"
 #include "fc4.h"
 #include <cmath>
@@ -41,7 +41,7 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
     double actual = 0;
     const char* name = "unknown";
     bool equal = false;
-    cRZString text;
+    cRZBaseString text;
     int32_t x = 0, z = 0;
     switch (field) {
         case 0: case 1: c->GetPosition(x, z); actual = field == 0 ? x : z; name = "position"; break;
