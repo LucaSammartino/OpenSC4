@@ -72,7 +72,8 @@ pseudocode notes. No external REA or binary-open dependency was needed.
 ## Handoff
 
 - Goal complete: Q7/Q9/Q13 archived; Q12 remains open and unmodified.
-- Done: prerequisites a688b387c; WWW 238109854; HTTP Q13 5bc2608bc; final parent/report commit follows.
+- Done: prerequisites a688b387c; WWW 238109854; HTTP Q13 5bc2608bc; parent/report 35c9b4932.
+- Resume verification 2026-10-24: engine closure rows checked against committed supplement; doccheck check/links PASS; questions index regenerated. No spec changes needed.
 - Next: supervisor publishes detached HEAD and lands ready queue entry with full tip.
 - Engine core-www-close13 should implement the linked HTTP supplement and its vectors before owner credit.
 - No game/shadow requests, running operations, ABI proposals or export changes.
