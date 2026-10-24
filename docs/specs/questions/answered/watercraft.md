@@ -1,8 +1,5 @@
 # watercraft: answered questions
 
-<!-- from: core-watercraft9 round 2 (2026-10-24) -->
-- ~~**WC9 - section 6.2.2 ordered steering versus WC8-08:** with L=R=100, T=0, dt=10, does the second response return toward zero and clear L?~~
-  **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §6.2.2's two ordered predicates are correct. The original leaves T=-0.1 and L=R=100; the second response does not run either branch. WC8-08 now specifies that result. Instructions 0056EC87–0056ECF2 confirm the sign gates; simultaneous active inputs alone do not clear a channel.
 
 
 <!-- from: core-watercraft4 (2026-10-22) -->
@@ -45,3 +42,7 @@
   rotation axes, contact transform and publication equations (0056AF90); this question stays open.
 
   **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §5.7.5 completes the remaining grounding/contact/heel equations and publication contract, alongside §§5.7.0–5.7.4's earlier answers. Terrain-angle and height gates are strict; rejected contact retains the speed reduction. Contact can publish before scalar heel completion returns false. Total heel rotates the terrain normal about previous heading; incremental yaw rotates current heading about world Y. Required services and degenerate-basis behavior are explicit quirks, not unanswered alternatives. Vectors WC5-H01–H10 distinguish axes, signs, time arguments, equality and side-effect ordering.
+
+<!-- from: core-watercraft9 round 2 (2026-10-24) -->
+- ~~**WC9 - section 6.2.2 ordered steering versus WC8-08:** with L=R=100, T=0, dt=10, step 1 writes T=-0.1, then step 2's positive-T predicates both fail. Literal prose therefore leaves T=-0.1 and L=100, whereas WC8-08 requires T=-0.05 and clears L. Which predicate/ordering is intended? [implement the literal two ordered responses in section 6.2.2; encode the prose result in a question-marked test, do not claim WC8-08 conformance]~~
+  **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §6.2.2's two ordered predicates are correct. The original leaves T=-0.1 and L=R=100; the second response does not run either branch. WC8-08 now specifies that result. Instructions 0056EC87–0056ECF2 confirm the sign gates; simultaneous active inputs alone do not clear a channel.
