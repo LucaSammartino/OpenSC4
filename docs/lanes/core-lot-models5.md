@@ -15,6 +15,7 @@
 - Done: initial all session 8909 terminal PASS: native build 220/220 edges, CTest 69/69, 316.7 s, with explicit tree-changed notice. Rust 6766 passed/clippy clean were before later fixes. This is superseded evidence, not final-source coverage.
 - Done: corrected-source all Rust gate passed 6768 tests (55 lot_models), 0 failed/ignored; clippy 0 diagnostics. Code source is 083e15f71; later commits only update this lane file. Final fmt passed on all seven owned Rust files before the final arithmetic patch, which was also formatted via check hunks.
 - Done: final all session 42731 terminal PASS, native label qbuild-20261024-005348-build-ctest: build 50/50 edges (117.6 s), CTest 69/69 (149.6 s), total 271.5 s, no tree-changed notice. Final all Rust 6768 passed/clippy 0 diagnostics and native checks therefore cover stable final engine source.
-- Next: explicitly requested qbuild verify is being launched after this milestone commit; collect its terminal result, then final report/merge queue. No game requests outstanding. Final fmt is checked again in the launch call.
+- Done: final fmt exit=0, seven files, no differences. Final full gate recorded in 9e72e54d2.
+- Next: collect explicit qbuild verify session 78190, queued native label qbuild-20261024-011050-build-ctest. Do not launch a duplicate. Then replace this Handoff with final report, commit, write merge queue using actual HEAD. No game requests outstanding.
 - Native verification must use qbuild's coordinator queue, never fc4verify directly. qbuild all already queues build+ctest through that path.
 - No game requests outstanding. Manifest: main build-runs/run4-core-lot-models5-r1-manifest.json.
