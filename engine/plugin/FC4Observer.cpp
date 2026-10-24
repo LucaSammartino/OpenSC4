@@ -644,7 +644,7 @@ public:
                 FontSysVerify("load");
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
-                SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()));
+                SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them

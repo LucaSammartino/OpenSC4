@@ -4,7 +4,6 @@
 #include "FC4SCResShadow.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
-#include "FC4Observer.h"
 #include "FC4Interfaces.h"
 #include "compat/FC4Compat.h"
 #include "cIGZPersistDBSerialRecord.h"
@@ -155,12 +154,11 @@ void SCResShadowStart() {
     }
     Log("scres: ON: record-only binary/text numeric, descriptor and key reads; PARTIAL coverage; strings/parsers/images/writers blocked by SCR8");
 }
-void SCResShadowLine(const char* event, int32_t julian) {
+void SCResShadowLine(const char* event, int32_t julian, cISC4City* city) {
     if (!g_enabled) return;
     // The observer's published date is not initialized in the city-load notice.
     // Use the city's borrowed simulator, as the clock/history shadows do.
     if (julian <= 0) {
-        auto* city = CurrentCity();
         auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
         if (sim) julian = sim->GetSimDateNumber();
     }
