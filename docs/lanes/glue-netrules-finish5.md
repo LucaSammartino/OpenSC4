@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netrules-finish5: finish network rules shadow measurement | Codex / `glue-netrules-finish5` (engine lane) | READY measured work: source4a3d87e3b; cargo6696/0, clippy0 diagnostics, native198/198, CTest70/70; run349 clean to2032-02-01/ref0, netrules74/74 explicit exact and mismatch-clean, 84 evaluations/24 tables; no new questions; two inherited C ABI exports, none added this round | (1) Coordinator add netrules_shadow=1 to tools/regress.ps1 shadows profile (lane explicitly forbidden to read tools/); (2) review/credit run349 and land detached HEAD. |
+| glue-netrules-finish5: finish network rules shadow measurement | Codex / `glue-netrules-finish5` (engine lane) | READY measured work: source4a3d87e3b; cargo6696/0, clippy0 diagnostics, native198/198, CTest70/70; run351 clean to2032-02-01/ref0, netrules74/74 explicit exact and mismatch-clean, 84 evaluations/24 tables; no new questions; two inherited C ABI exports, none added this round | (1) Coordinator add netrules_shadow=1 to tools/regress.ps1 shadows profile (lane explicitly forbidden to read tools/); (2) review/credit run351 and land detached HEAD. |
 
 ## Change and scope
 
@@ -33,7 +33,7 @@ No duplicate all/verify/native request was launched. Logs remain in build-runs/:
 qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log.
 Only records changed after validation. The gate milestone is d79c6301c.
 
-## Real-city evidence: run349
+## Real-city evidence: run351
 
 ```
 netrules-finish5-konrad-2032-20261024e 74/74
@@ -61,7 +61,7 @@ and build-runs/netrules-finish-peripheral-actions.txt through2032-02-01.
 DLL SHA256: 94e16e4afe82425af2bc7bc9cda06c411082a926d32ee81b7117cc59e71b9224.
 The event-based waiter reached terminal exit0 without qwait or duplicate requests.
 
-Record: docs/runs/netrules-finish5-konrad-2032-20261024e-349.md (df6a1a412).
+Record: docs/runs/netrules-finish5-konrad-2032-20261024e-351.md (df6a1a412).
 Main and local docs/runs were scanned before assignment;348 was the maximum.
 Request: build-runs/game-queue/done/netrules-finish5-konrad-2032-20261024e.req.
 Verdict/full log: build-runs/game-results/ under that label. No operation remains
@@ -75,6 +75,6 @@ The lane did not open, read or edit tools/regress.ps1: the clean-room rules
 explicitly forbid opening any part of tools/, while this task requests a change
 there. A narrow exception was requested asynchronously; no answer was received.
 The coordinator should add `netrules_shadow = 1` to the shadows profile using
-run349 as evidence. Coverage tables were not edited; credit remains the
+run351 as evidence. Coverage tables were not edited; credit remains the
 coordinator's action. This READY entry contains the measured engine/reporting
 work, with the profile edit explicitly left for the coordinator.
