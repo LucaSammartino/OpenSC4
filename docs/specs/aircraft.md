@@ -304,6 +304,58 @@ Their order and float-width operands are established at `0x0053412A–0x0053414F
 and `0x0053418A–0x0053422B`. These fields have no non-finite/range rejection.
 Named import is `0x0051E4A0`; it is not a numeric exemplar property.
 
+#### 4.1.1 Initial rotor preset and reconstruction (AF9)
+
+The thirteen fields have concrete initial values. They are installed when
+`InitInstance(0)` first creates the runtime rotor model, before either parameter
+overlay. They are not additional saved fields. The normal `Init` always selects
+preset **0** (`0x0053A8DD–0x0053A8F9`); the second static preset is not selected by
+this initialization path. The initial values below are already in internal units:
+do not apply the Lua conversion factors to them.
+
+| Field | Initial value | Exact binary32 bits |
+|---|---:|---|
+| Mass | 1.5 | `3FC00000` |
+| Power | 240 | `43700000` |
+| SpeedMultiplier | 0.699999988079071 | `3F333333` |
+| MaxSpeed | 227 | `43630000` |
+| DragFactor | 4 | `40800000` |
+| RotationalDragFactor | 1 | `3F800000` |
+| BankMax | 300 | `43960000` |
+| BankChangeRate | 400 | `43C80000` |
+| PitchMax | 300 | `43960000` |
+| PitchChangeRate | 400 | `43C80000` |
+| YawRateMax | 400 | `43C80000` |
+| BankMultiplier | 1 | `3F800000` |
+| PitchMultiplier | 1 | `3F800000` |
+
+Evidence: the preset-copy instructions `0x005345A0–0x00534660`, selection/copy at
+`0x00538607–0x00538620`, and the file-backed binary32 words in preset 0 at
+`0x00B09B70` (stride `0x7C`). The angular fields come from offsets `0x0C`,
+`0x24`, `0x14`, `0x1C`, `0x20`; mass through pitch multiplier come from offsets
+`0x5C–0x78`. This is a bit copy, not a recomputation from degrees or radians.
+
+Initialization then applies **player parameters first**, followed by the
+`helicopter` AI overlay (`0x00538622–0x0053863D`). Therefore the copied preset
+and the final active parameters need not be identical. In particular, if a player
+parameter record exists and its converted speed is zero, `OnPlayerTakeOver`
+uses the preset's **yaw-rate maximum (400)** as its speed fallback, not its
+MaxSpeed (227), then the AI overlay runs. With no player record and no AI record,
+MaxSpeed stays 227; with an all-zero player record and no nonzero AI MaxSpeed,
+it becomes 400 (`0x005342A6–0x005342CF`). Preserve this quirk.
+
+`Read` restores the nested aircraft record and the home vector and marks placement
+as loaded; it does **not** construct a rotor model or restore a flight phase
+(`0x00534400–0x00534456`). Subsequent `Init` uses that home placement, performs
+the allocation/preset/overlay sequence above if no runtime model exists, and calls
+`PhysicsInit`. `PhysicsInit` explicitly selects phase **0** with engine disabled
+(`0x005361D5–0x005361EE`). Thus a freshly loaded helicopter starts its physics in
+phase 0, irrespective of the goal stack preserved by the base record. The goal
+stack and flight phase are separate. `InitInstance` is a no-op when the runtime
+model already exists (`0x005385C4–0x005385CE`); calling it again does not recopy
+the preset or reapply either overlay. `PhysicsInit` still resets the phase when
+it is called on that existing model.
+
 ### 4.2 Flight and control overview
 
 - **Parameters** (`LoadDriveParameters` `0x005340A0`): the 13-field record and
@@ -397,3 +449,18 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
     `v=(0,0,10)`, zero velocity, and `v=(0,0,−10)`. Phase 1 produces thrust
     magnitudes `−5000`, `−5000`, `0` respectively; phase 2 produces `−5000`
     in all three cases. Test the thrust component separately from total force.
+14. Fresh helicopter, no player or AI parameter record: after Init, all thirteen
+    parameter words equal §4.1.1 and phase is 0 with engine disabled. Compare the
+    words exactly, including `SpeedMultiplier=3F333333`; do not derive them from
+    rounded decimal angles or speeds.
+15. Fresh helicopter with a present all-zero player record and absent AI record:
+    MaxSpeed is 400 (`43C80000`), while the other twelve rotor fields keep their
+    preset values. A subsequent all-zero AI overlay still preserves 400. With AI
+    `MaxSpeed=3`, expect approximately 10000 internal units instead (the §4.1
+    conversion overrides the player result).
+16. Round-trip a helicopter whose runtime phase is 4 and whose base goal stack
+    contains a nondefault goal. Read alone creates no runtime rotor state. Init
+    reconstructs the normal preset/overlays and starts phase 0 with engine off;
+    the base goal remains available independently. On an existing runtime model,
+    change Mass to 7, then call InitInstance again: Mass remains 7. A direct
+    PhysicsInit resets phase to 0 but does not recopy Mass from the preset.
