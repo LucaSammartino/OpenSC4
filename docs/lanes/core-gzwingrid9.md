@@ -14,6 +14,6 @@
 - First qbuild all completed PASS: Rust 6992/0, clippy 0 diagnostics, native 253/253, ctest 79/79. Original logs retained as build-runs/before-color-fix-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log. Tree-change note was documentation-only during that run.
 - Corrected diagnosed aliasing: default_colors and default_format.words[..6] now synchronize in color setter and default-format replacement; new owner_default_format_and_color_slots_share_storage test.
 - Corrected stable source full Rust gate PASS: 6993 passed, 0 failed, 0 ignored; clippy 0 diagnostics.
-- Final all is exec session 80339, awaiting native request qbuild-20261024-093306-build-ctest. Collect this SAME operation to terminal result. Do not relaunch all.
-- Next: collect final native verdict; run explicit task-requested qbuild verify, finalize report/queue. No game requests.
+- Final all session 80339 completed PASS: native 47/47 edges (74.5 s), CTest 79/79 (151.2 s), overall native 227.6 s. Corrected Rust 6993/0, clippy diagnostics 0, six-file fmt 0 diff lines.
+- Next: explicit task-requested qbuild verify is next; collect that operation, finalize report/queue. No game requests. Do not rerun all.
 - No game request outstanding. ABI unchanged.
