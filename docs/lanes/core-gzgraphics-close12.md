@@ -13,13 +13,14 @@
 - Filed GZG7 in docs/specs/questions/gz-graphics.md for stroke-quad corners/rounding.
 - Open owners: context 3.2 GZG1/GZG7; renderers 4 GZG2; GraphicSystem 5 GZG3;
   AlphaBlt standalone pixels 6.1 GZG5. None claimed fully native-exact.
-- Focused graphics tests: 42 passed before final additions. fmt: eight absolute files PASS.
+- Resumed gate: cargo 7112 passed, 0 failed (45 graphics tests); eight absolute
+  owned-file fmt checks PASS, diff_lines=0. Clippy/native still pending.
 - First all: cargo 7111 passed; clippy manual_range_patterns FAILED (corrected).
 - Preserved logs: build-runs/qbuild-first-test.log and qbuild-first-clippy.log.
 - Sessions 16330 and 56402 are gone (coordinator instruction); their results are
   incomplete and are not credited as final gates.
 - Resume launched one fresh qbuild all on unchanged f155a4cd4 engine source;
-  active exec session 91095 (pending collection via functions cell 9).
+  active exec session 91095 (continue collecting with write_stdin).
 - NEXT: collect that same operation to terminal; inspect PASS/FAIL and native
   verdict, finish owner report, commit and write READY queue using actual HEAD.
 - Failure history: build-runs/failed-check-evidence.md. q.py Bash mapping failed;
