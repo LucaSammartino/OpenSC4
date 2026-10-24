@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 82.0% · implemented 55.7% · verified 27.3% · replaced in game 19.1%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main d1904a692, regress-train206.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 82.0% · implemented 56.0% · verified 27.3% · replaced in game 19.1%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main dbaf976f6, regress-train208.out.</text>
 <rect x="18.0" y="146.0" width="74.8" height="112.1" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.1" width="74.8" height="105.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.8" y="146.0" width="95.6" height="80.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="188.4" y="146.0" width="63.8" height="80.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="92.8" y="226.4" width="48.7" height="74.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="92.8" y="226.4" width="48.7" height="74.9" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.8" y="301.2" width="48.7" height="62.1" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="141.5" y="226.4" width="57.4" height="41.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="198.9" y="226.4" width="53.3" height="41.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
