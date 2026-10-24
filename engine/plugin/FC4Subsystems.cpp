@@ -775,20 +775,6 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // The effects replacement fails closed (glue22 question 9): the class is
-        // registered only when the run also sets effects_replace = 1.
-        if (strcmp(kSubsystems[i].key, "effects") == 0) {
-            const long force = SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0);
-            if (force == 0) {
-                static bool warned = false;
-                if (!warned) {
-                    warned = true;
-                    Log("subsystem 'effects': the class replacement is NOT registered (glue22 question 9); "
-                        "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
-                }
-                continue;
-            }
-        }
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {
