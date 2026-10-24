@@ -12,7 +12,8 @@
 - Gate: qbuild all PASS; cargo 7214/0, clippy 0 diagnostics, coordinator native build 262/262, CTest 81/81.
 - Gate evidence: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
 - Native queue operation qbuild-20261024-144300-build-ctest collected to terminal PASS; no second verify queued.
-- Next: submit glue-lots-shadow12-house2032-r1 with both keys and turbo through 2032-01-01; use build-runs/wait-verdict.ps1 (event-based, not qwait).
-- No game request outstanding yet; highest existing run number read is 510.
+- Run 511: glue-lots-shadow12-house2032-r1 stalled at 2030-11-28 (native/outside FreeCity4 heartbeat); ref_warnings=0; lotrec 59/59 and lottrip 59/59 exact. Failed evidence retained.
+- Next: submit glue-lots-shadow12-house2032-normal-r2 with both keys at normal speed through 2032-01-01; use build-runs/wait-verdict.ps1 (event-based, not qwait).
+- No game request outstanding; next available local run number 512.
 - Clean-room prohibition on tools/ overrides task requests to inspect or edit its coverage/profile files; coordinator must handle those files.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lots-shadow12-r1-manifest.json.
