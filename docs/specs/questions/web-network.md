@@ -54,3 +54,6 @@ its companion completion/stop/drain bodies are evidence only, not WWW inventory 
 No full Q9 answer is claimed: all residual support/adapters retain their exact O/P checklist rows.
 Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.
 
+2026-10-24 (re-www-q17): cookie constructor `008f9bad`, including its CookieData.ini
+path literal, is now qualified in §3.6 and marked C in the owner checklist. This does not
+close Q9's other support/adapters, WWW cookie-header construction or HTTP request normalization.

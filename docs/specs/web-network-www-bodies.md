@@ -103,7 +103,7 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 008f72b5 | 72 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
 | 00812970 | 71 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00812970 |
 | 008f692a | 65 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::Shutdown |
-| 008f9bad | 64 | reach | P: 3.6 / Q9 | FUN_008f9bad |
+| 008f9bad | 64 | reach | C: 3.6 | FUN_008f9bad |
 | 008f708a | 57 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::AddURLHandler |
 | 00813d30 | 53 | reach | C: 4.13 / web-network-ftp.md | FUN_00813d30 |
 | 00818100 | 52 | reach | C: 4.14 | FUN_00818100 |

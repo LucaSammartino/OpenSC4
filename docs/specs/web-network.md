@@ -32,10 +32,10 @@ an implementation must reproduce it for byte-exact parity.
 | cGZWWWSystem (includes reached FTP bodies) | 34049 | partial, section 4; body checklist controls credit |
 | cRZHTTPClient | 15133 | partial, section 5 and linked lifetime contract |
 | cRZURL | 9498 | **yes, section 2** |
-| cRZCookieManager | 8137 | partly, section 3 (parse, add, lookup, eviction; file format and capacity open) |
-| NetworkFileCache | 6699 | partial, section 6; persistence/admission residuals Q11 |
+| cRZCookieManager | 8137 | section 3 (parse, add, lookup, eviction, capacity and persistence) |
+| NetworkFileCache | 6699 | bounded storage/IO behavior, section 6 including persistence/admission |
 | cRZNetSocket, cRZNetStreamSocket, cRZNetCommandGenerator, cRZNameLookup | 11671 | transport contract linked; command-generator boundary section 7 |
-| HTTPMessage | 957 | no |
+| HTTPMessage | 957 | separated-string splitter, section 3.2 |
 
 ## 2. cRZURL — URL parser and resolver
 
@@ -354,7 +354,7 @@ now *[inferred from the selection loop; the removal step was not re-read]*.
 
 ### 3.6 Persistence and settings (bounded persistence contract)
 
-WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
+WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under the `CookieData` section with
 `Admin`/`Binary` mode marker. SetShouldEncryptCookieDataFile selects hexadecimal text storage;
 despite the method name there is **no encryption**.
 
@@ -629,7 +629,7 @@ active entry is examined. Waiting jobs receive no progress forwarding through th
 The HTTP terminal handler obtains foreign-job information and incoming success, then locks and finds an
 active entry by its foreign ID. It copies the Job into a local temporary and removes the live entry before
 unlocking. A missing foreign pointer or absent match causes no callback; it still returns true. A matched
-  job without a target skips the entire suffix described below. No source/type discriminator is tested during the ID scan
+job without a target skips the entire suffix described below. No source/type discriminator is tested during the ID scan
 (008f8c5a).
 
 **Matched null-target quirk (Q10).** The active entry has already been copied and erased,
@@ -1135,8 +1135,8 @@ not a no-op (`008fd998–008fda27`).
 
 For non-null, nonempty data, create a holder. With copy=true allocate/copy the bytes; otherwise
 store the passed buffer pointer. Do not treat the latter as a const borrowed slice with automatic
-  caller ownership: native holder destruction/allocator compatibility must be supplied by the
-  adapter. Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
+caller ownership: native holder destruction/allocator compatibility must be supplied by the
+adapter. Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
 after substitution, any negative lifetime gives expiration `0x7fffffff`; otherwise expiration is
 32-bit now+lifetime, with creation=access=now. No saturation is performed
 (`008fda4b–008fda8d`). Insert the new entry and return true. Failed allocations are outside the
@@ -1157,7 +1157,7 @@ length, attribute, lifetime, creation, access, expiration. It attempts to materi
 entries first and omits those still lacking filenames. Writer returns true without aggregating
 individual write failures. It deletes the old INI file before rebuilding it. It does **not** call
 the public file getter: no per-read expiration test, counter increment or access-time update occurs
-(`008fc9b1`, direct reserve/write calls at `008fca37–008fca77`). Even an expired named record
+(`008fc9b1`, direct reserve/write calls at `008fca6e`/`008fca80`). Even an expired named record
 can be written. Enumeration is native hash-table order: ascending bucket index, each bucket's
 linked chain from head to tail (`0097c081`, `008fc653`, `008fc5e4`); it is not byte-key order.
 The hash starts at zero and, for each key byte interpreted as signed 8-bit, doubles the previous
@@ -1187,7 +1187,7 @@ then append `.cache` (`00b1614c` → `00accc9c`). Format candidate as `%d%s` (`0
 Thus key `a.html` at time 100 starts with `100.html.cache`; absent/long extensions give
 `100.cache`. Try up to 10000 candidates, subtracting one from the 32-bit time after each failure.
 Each attempt opens write-only with CREATE_NEW and shared-read, then closes immediately on success
-(`00919b00`, disposition mapping `00919b4c–00919b58`). This reserves an empty file and refuses
+(`00919b00`, disposition mapping `00919b52–00919b89`). This reserves an empty file and refuses
 existing names; it is not an existence-only check. On exhaustion return false and leave the final
 attempted candidate in the output. The full-path variant takes an optional directory (null means
 the cache directory), concatenates directly, and returns the full path; the name variant returns
