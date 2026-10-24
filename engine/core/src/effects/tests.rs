@@ -188,6 +188,32 @@ fn game_of(m: &EffectsManager, id: EffectId) -> GameEffect {
     }
 }
 
+#[test]
+fn legacy_component_offsets_survive_creation_and_parent_moves() {
+    use super::transform::{ParentTransform, Placement};
+    let placement = Placement {
+        flags: 1,
+        transform: ParentTransform {
+            translation: [17., 9., 33.],
+            ..ParentTransform::default()
+        },
+        ..Placement::default()
+    }
+    .encode();
+    let mut brush = ComponentRecord::new(component_type::BRUSH, 0);
+    let mut game = ComponentRecord::new(component_type::GAME, 0);
+    brush.placement = placement;
+    game.placement = placement;
+    let mut m = manager(one_effect("offset", vec![brush, game]));
+    let id = m.create("offset").unwrap();
+    assert_eq!(brush_of(&m, id).cur, (17., 33.));
+    assert_eq!(game_of(&m, id).position, [17., 9., 33.]);
+    m.set_position(id, [32., 10., 64.]);
+    assert_eq!(brush_of(&m, id).cur, (49., 97.));
+    assert_eq!(game_of(&m, id).position, [49., 19., 97.]);
+    assert_eq!(game_of(&m, id).cell, (3, 6));
+}
+
 /// Ticks until the brush is inactive: (ticks, per-tick application counts).
 fn run_stroke(record: u32, us: u32, dilation: f32) -> (usize, Vec<usize>, BrushEffect) {
     let mut m = manager(one_effect(
