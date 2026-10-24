@@ -1,18 +1,94 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lua-shadow5: Lua host record/replay shadow | Codex; glue-lua-shadow5 | in progress | Inspect documented interception contracts; implement and measure supported shadow work. |
+| glue-lua-shadow5: bounded Lua collector/registration shadow | Codex; glue-lua-shadow5 (detached lane worktree) | ready: lua-registry 73/73 exact to 2032; full replay open LH6-LH7 | Land measured registry work; resolve interception contracts before full Lua replay or coverage credit. |
 
-## Handoff
-- Goal: default-off Lua host shadow with real-city validation through 2032.
-- Done: reserved detached worktree reused; inspected Lua host sections 1, 3, 5, 6.1, 6.2, 8, 13-16 and advisors 8.2 (collector layout). Filed LH6-LH7 for full interception and nondeterminism contracts.
-- Done: 6c5fad877 records LH6-LH7. Implemented default-off lua_shadow with distinct lua-registry label, collector capture and core register_api replay; no public DLL exports added.
-- Focused checks: cargo test -p fc4-capi lua_registry_shadow: 4 passed (1m34s); owned-file qbuild fmt passed; git diff --check passed.
-- Done: implementation commit 33cacb5aa. Stable-source qbuild all Rust workspace 6807 passed, 0 failed, 0 ignored; clippy exit 0, diagnostics 0.
-- Done: initial qbuild all terminal FAIL: native build PASS 224/224 edges; CTest 69/70 (ret_channel_check flagged missing citation for IsCFunction). Added lua-host §5 slot 16 AL bool citation at call.
-- Done: corrected source 9e2b85dd3 complete qbuild all PASS: workspace 6807/0/0, clippy diagnostics 0, native build 47/47 edges, CTest 70/70 (88.8 s). Queue qbuild-20261024-014147-build-ctest terminal pass; no native operation outstanding.
-- Next: unique game request lua-registry-shadow5-9e2b85d-turbo-2032 with lua_shadow=1, turbo to 2032-01-01. Wait using build-runs/wait-verdict.py in one blocking operation. Initial operation 94445 and corrected operation 94263 complete.
-- No game request outstanding. Bash q.py focused-test attempt failed CreateFileMapping (build-runs/q/20261024-012649-7620.log); direct PowerShell cargo test succeeded.
-- Initial gate logs preserved as build-runs/initial-{fc4verify-build,fc4verify-ctest,qbuild-test,qbuild-clippy}.log. Game wait helper build-runs/wait-verdict.py uses blocking Windows directory notifications (no qwait/polling).
-- Highest existing run number 348 at inspection; recheck before reserving run record.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lua-shadow5-r1-manifest.json.
-- Plan: lua_shadow default off; distinct lua-registry label; all 47 names/order/flags, native callback bindings and scratch alias checked. No excluded nondeterministic fields.
+## Changes and scope
+
+`lua_shadow = 1` enables a default-off, record-only `lua-registry` comparison at
+city load and monthly. It reads the original immutable CRT extension collector
+using the layout documented in advisors.md §8.2 (bounded ReadProcessMemory,
+rebased from the preferred image address). It compares all 47 ordered names,
+isGlobal bytes and non-null callback bindings against the production core's
+collector. Unspecified structure padding is not a field and is not compared.
+
+The original collector's callback addresses are opaque foreign identity inputs.
+A private static-link adapter executes the production core's
+`collectors::register_api(true)` followed by `register_api(false)` in a local
+stack/table model. It compares the resulting global/game callback addresses and
+`_tf_` callback address against the original app-owned VM. Original values are
+read with public raw table operations, without invoking metamethods, scripts or
+callbacks. The native stack is restored and its balance checked; the replay also
+checks stack restoration after each registration pass. This checks callback
+entry-point identities, not Lua closure heap identity/upvalues or callback bodies.
+The original collector and registered values are recorded in the game log at
+each sample. There are no native dispatch hooks, service/factory substitutions,
+retained game references, or public DLL C ABI export changes.
+
+**This is bounded registration-state verification, not full Lua verification.**
+Every chunk, game-driven global/table operation and script call is **not**
+recorded/replayed. There is no `lua shadow` success line and no claim to verifying
+the complete 47 KB Lua host. The separate `lua-registry` label prevents the
+bounded result from masquerading as that coverage.
+
+## Validation
+
+- Focused Rust tests: 4 passed, including wrong callback binding, changed name,
+  flag, scratch value, missing entry, null callback, unterminated name and invalid
+  private transport inputs. Owned-file qbuild fmt and git diff --check passed.
+- Final source `9e2b85dd3`: required `qbuild all` PASS. Workspace **6807 passed,
+  0 failed, 0 ignored**; clippy **0 diagnostics**; native build **47/47 edges**;
+  CTest **70/70**, 88.8 s. Native steps used the coordinator queue through the
+  same qbuild operation (`qbuild-20261024-014147-build-ctest`); no direct MSVC
+  configure/build/ctest and no duplicate native request.
+- Initial all gate built successfully but passed CTest 69/70: ret_channel_check
+  required an explicit citation for the IsCFunction AL bool result. Fixed with
+  the lua-host §5 slot 16 citation. Focused checker then had 0 flagged uses;
+  repeated full gate passed. Full initial logs preserved in
+  `build-runs/initial-{fc4verify-build,fc4verify-ctest,qbuild-test,qbuild-clippy}.log`.
+  Final logs use their ordinary names in build-runs. An earlier q.py focused
+  test launch failed Bash CreateFileMapping; its log is
+  `build-runs/q/20261024-012649-7620.log`; direct PowerShell cargo succeeded.
+
+## Real-city result
+
+[Run 349](../runs/lua-registry-shadow5-9e2b85d-turbo-2032-349.md), label
+`lua-registry-shadow5-9e2b85d-turbo-2032`, Konradshohe, turbo, `lua_shadow=1`,
+requested end 2032-01-01, actual verdict date **2032-01-03**: **clean**,
+`ref_warnings=0`, foreign exceptions/watchdog stalls/rtc/overruns all 0.
+DLL SHA256 prefix `608b8211`, city time 47.156 s, queue wall time 66 s.
+One blocking directory-notification wait collected the unique verdict, without
+qwait or polling; no game/native requests remain outstanding.
+
+Exact measured count:
+
+```text
+lua-registry 73/73
+```
+
+All 73 dated lines (load 2026-01-27 through month 2032-01-01) have 47 entries,
+collector_diffs=0, binding_diffs=0, scratch_diffs=0, stack_diffs=0,
+capture_diffs=0, mismatches=0. Total: 3,431 sampled entries/bindings.
+Scratch callback was `0x0040C890` in every sample. No normal-speed rerun was
+needed because no turbo differences occurred. The harness summary does not
+automatically list this new label; the count above is from the dated log lines.
+
+## Exclusions, questions and next steps
+
+No nondeterministic fields are excluded from the bounded comparison. Broader
+VM execution is unmeasured, rather than treated as matching or excluded.
+
+- **LH6**, docs/specs/questions/lua-host.md: the spec establishes no supported
+  pre-initialization observer installation covering all Lua instances, cached
+  interfaces and subsequent calls/internal table accesses. Full interception
+  remains unimplemented pending that contract.
+- **LH7**, same file: full replay needs a specified treatment of foreign inputs
+  and nondeterminism. No speculative replay exceptions were added.
+- Coordinator: regenerate the questions index (engine lanes cannot run tools/),
+  and assess bounded collector/registration coverage separately. Do **not** mark
+  full Lua host verified or append lua_shadow to the full shadows regress profile
+  on the strength of this run. No tools/ file was read or edited.
+- Implement complete chunk/call/state recording and replay after the contracts
+  are supplied, then repeat real-city validation for the full `lua` label.
+
+Commits: `6c5fad877` questions, `33cacb5aa` implementation, `9e2b85dd3`
+return-channel citation; `c0dafa2ef` / `e61f825be` gate milestones.
