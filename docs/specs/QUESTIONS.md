@@ -284,7 +284,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 4 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 21 | 7 | NT32 | questions/network-tools.md |
+| network-tools | 19 | 9 | NT32 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **598** | **1422** | | |
+| **total** | **596** | **1424** | | |
