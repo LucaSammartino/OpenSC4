@@ -200,6 +200,137 @@ fn nt29_solved_inventory_shared_vertices_and_repeated_charge() {
     assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 110);
 }
 
+// NT30 controlled replay inputs, not snapshots of the live city.
+fn nt30_fixture(type_id: u32, entries: Vec<(i32, i32)>) -> (NetworkGeometry, Terrain) {
+    let t = Terrain::from_altitudes(128, 128, &vec![100.0; 129 * 129], 0.0, TerrainTuning::SHIPPED).unwrap();
+    let mut g = geo();
+    g.run.type_id = type_id;
+    g.types.infos[type_id as usize].params.earthwork_cost = 0.1;
+    for &(x, z) in &entries {
+        let vertices = smoothing::corner_vertices(x, z, 129);
+        g.insert_cell_info(CellInfo {
+            x,
+            z,
+            in_run: true,
+            flags: 1 << type_id,
+            vertices,
+            corners: [100.0; 4],
+            ..CellInfo::default()
+        });
+        for v in vertices {
+            g.network.insert_fixed(v, 100.0);
+        }
+    }
+    assert!(g.network.solve());
+    g.solved = entries;
+    (g, t)
+}
+
+#[test]
+fn nt30_controlled_price_vectors() {
+    let diagonal = |x, z, n| {
+        std::iter::once((x, z))
+            .chain((1..=n).flat_map(|j| [(x - 1 + j, z + j), (x + j, z + j)]))
+            .collect()
+    };
+    for (kind, entries, expected) in [
+        (ROAD, (4..=14).map(|x| (x, 4)).collect(), 110),
+        (ROAD, diagonal(20, 4, 8), 170),
+        (ROAD, diagonal(14, 4, 4), 90),
+        (STREET, (64..=74).map(|x| (x, 8)).collect(), 55),
+    ] {
+        let (mut g, t) = nt30_fixture(kind, entries);
+        assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), expected);
+        for ci in g.cells.values_mut() {
+            ci.placed = true;
+        }
+        assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), expected);
+    }
+}
+
+#[test]
+fn nt30_refresh_solved_and_incident_missing_network_height() {
+    let (mut g, mut t) = nt30_fixture(ROAD, (4..=14).map(|x| (x, 4)).collect());
+    g.cells.get_mut(&cell_key(4, 4)).unwrap().corners = [110.0; 4];
+    g.smoothing.cells = vec![cell_key(4, 4)];
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 114);
+    // Refreshes an already solved, unplaced cell even with no grading changes.
+    g.update_terrain_heights(&mut t);
+    assert_eq!(g.solved.len(), 11);
+    assert_eq!(g.cells[&cell_key(4, 4)].corners, [100.0; 4]);
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 110);
+
+    g.insert_cell_info(CellInfo {
+        x: 3,
+        z: 4,
+        placed: true,
+        vertices: [519, 648, 649, 520],
+        corners: [102.0, 103.0, 104.0, 104.0],
+        ..CellInfo::default()
+    });
+    // Rebuild so that 520 is absent, including from the existing run entries.
+    g.network = VertexHtConstraintSatisfier::default();
+    for v in [519, 648, 649] {
+        g.network.insert_fixed(v, 100.0);
+    }
+    assert!(g.network.solve());
+    t.set_altitude_at_vertex(520, 99.0);
+    g.terrain.insert_fixed(520, 100.0);
+    assert!(g.terrain.solve());
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 110);
+    let grading = g.update_terrain_heights(&mut t);
+    assert_eq!(grading.changed, vec![520]);
+    assert_eq!(g.solved.last(), Some(&(3, 4)));
+    assert_eq!(g.cells[&cell_key(3, 4)].corners, [100.0, 100.0, 100.0, 104.0]);
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 110);
+    g.types.infos[ROAD as usize].params.earthwork_cost = 1.0;
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 114);
+    g.refresh_committed_corners(&t, &[520, 520]);
+    assert_eq!(g.solved.len(), 12);
+}
+
+#[test]
+fn nt30_first_refresh_fallback_and_connection_offset() {
+    let (mut g, t) = nt30_fixture(ROAD, vec![(4, 4)]);
+    g.solved.clear();
+    let key = cell_key(4, 4);
+    let ci = g.cells.get_mut(&key).unwrap();
+    ci.placed = true;
+    ci.connection_node = true;
+    ci.corners = [110.0; 4];
+    for v in ci.vertices {
+        g.network.insert_fixed(v + smoothing::CONNECTION_NODE_OFFSET, 101.0);
+    }
+    assert!(g.network.solve());
+    g.smoothing.cells = vec![key];
+    g.refresh_committed_corners(&t, &[]);
+    assert_eq!(g.cells[&key].corners, [101.0; 4]);
+    assert_eq!(g.solved, vec![(4, 4)]);
+    // Ordinary absent lookups in pass one use live terrain, not stale corners.
+    g.cells.get_mut(&key).unwrap().connection_node = false;
+    g.network = VertexHtConstraintSatisfier::default();
+    g.refresh_committed_corners(&t, &[]);
+    assert_eq!(g.cells[&key].corners, [100.0; 4]);
+    assert_eq!(g.solved, vec![(4, 4)]);
+}
+
+#[test]
+fn nt31_retained_powerline_price_precision() {
+    assert_eq!(extras::power_line_cost(3, 10, 15, 2.0), 65);
+    assert_eq!(extras::power_line_cost(2, 16_777_217, 0, 1.0), 16_777_217);
+    // Unsigned input must also remain exact above the signed boundary.
+    assert_eq!(extras::power_line_cost(2, 4_294_967_295, 0, 0.25), 1_073_741_823);
+    // f64 rounds this product up to the next integer; x87's 64-bit
+    // significand retains the fractional difference until truncation.
+    let below_one = f32::from_bits(0x3f7f_ffff);
+    assert_eq!(extras::power_line_cost(2, 2_147_483_649, 0, below_one), 2_147_483_520);
+    assert_eq!(extras::power_line_cost(2, 2_147_483_649, 0, -below_one), -2_147_483_520);
+    assert_eq!(extras::power_line_cost(2, 3, 0, f32::INFINITY), 0);
+    assert_eq!(extras::power_line_cost(2, 3, 0, f32::NAN), 0);
+    assert_eq!(extras::power_line_cost(2, u32::MAX, 0, f32::MAX), 0);
+    assert_eq!(extras::power_line_cost(1, u32::MAX, 15, 2.0), 0);
+}
+
 #[test]
 fn t05_street_is_straight_only() {
     let t = flat();

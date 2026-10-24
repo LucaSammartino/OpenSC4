@@ -1242,6 +1242,25 @@ fn sat_of(geo: &NetworkGeometry, which: u32) -> Option<&VertexHtConstraintSatisf
 
 /// A satisfier's solved height of `vertex` (`FC4_NETGEOM_SAT_*`).
 #[no_mangle]
+pub unsafe extern "C" fn fc4_netgeom_get_smoothing_cells(
+    g: *const fc4_netgeom,
+    out: *mut fc4_netgeom_cell,
+    capacity: u32,
+) -> u32 {
+    with_geo(g, 0, |geo| {
+        let cells: Vec<_> = geo
+            .smoothing
+            .cells
+            .iter()
+            .filter_map(|key| geo.cells.get(key))
+            .map(|c| fc4_netgeom_cell { x: c.x, z: c.z })
+            .collect();
+        copy_out(&cells, out, capacity)
+    })
+}
+
+/// A satisfier's solved height of `vertex` (`FC4_NETGEOM_SAT_*`).
+#[no_mangle]
 pub unsafe extern "C" fn fc4_netgeom_sat_height(g: *const fc4_netgeom, which: u32, vertex: i32, out: *mut f32) -> bool {
     with_geo(g, false, |geo| {
         match sat_of(geo, which).and_then(|s| s.height(vertex)) {

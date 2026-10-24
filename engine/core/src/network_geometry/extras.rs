@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use super::params::TYPE_COUNT;
-use crate::x87::{ftol32, r24, rhe, u32_to_float};
+use crate::x87::{r24, rhe};
 
 /// Network flag: a draft (preview) occupant (§10.3).
 pub const FLAG_DRAFT: u32 = 0x8000_0000;
@@ -161,14 +161,48 @@ pub fn cost_of_solution(c: &CostInputs) -> i32 {
 }
 
 /// `cSC4PowerLineTool::GetCostOfSolution` (`0x0064F0F0`, §11): 0 for at
-/// most one pole; else `trunc(r24((float)(uint32)wire × per_wire)) +
-/// per_pole × poles`.
+/// most one pole; else `trunc((uint32)wire × per_wire) + per_pole × poles`.
+/// NT31: the multiply remains in x87 precision until truncation, with no
+/// intervening float32 store (network-tools §8.3.1).
 pub fn power_line_cost(poles: u32, wire_cells: u32, per_pole: i32, per_wire: f32) -> i32 {
     if poles <= 1 {
         return 0;
     }
-    let w = ftol32(r24(u32_to_float(wire_cells as i32) * f64::from(per_wire)));
+    let w = power_line_wire_cost(wire_cells, per_wire);
     w.wrapping_add(per_pole.wrapping_mul(poles as i32))
+}
+
+// A uint32 times a float32 significand has at most 56 significant bits:
+// exact in x87's extended precision, but not necessarily in f64. Truncate
+// that exact binary product, keeping _ftol's low 32 bits (including its
+// zero low half for NaN, infinity and magnitudes >= 2^63).
+fn power_line_wire_cost(count: u32, price: f32) -> i32 {
+    let bits = price.to_bits();
+    let exponent = ((bits >> 23) & 0xff) as i32;
+    if exponent == 255 {
+        return 0;
+    }
+    let fraction = bits & 0x7f_ffff;
+    let (significand, shift) = if exponent == 0 {
+        (fraction, -149)
+    } else {
+        (fraction | 0x80_0000, exponent - 150)
+    };
+    let product = u64::from(count) * u64::from(significand);
+    let magnitude = if shift >= 0 {
+        if shift >= 64 || product > (i64::MAX as u64) >> shift {
+            return 0;
+        }
+        product << shift
+    } else {
+        product.checked_shr((-shift) as u32).unwrap_or(0)
+    };
+    let integer = magnitude as i64;
+    if bits >> 31 != 0 {
+        -integer as i32
+    } else {
+        integer as i32
+    }
 }
 
 /// The cell key of `DestroyOccupantsAndResolve`: `(x << 16) + z` (§13; the

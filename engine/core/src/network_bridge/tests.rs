@@ -131,6 +131,38 @@ fn road_tool() -> BridgeTool {
     BridgeTool::new(types::shipped_records(0))
 }
 
+#[test]
+fn nt31_controlled_bridge_selection_and_retained_price() {
+    // NT31 selection-only vector. Complete model construction is a separate
+    // scope; this does not instantiate the live city's 974-cost bridge.
+    let mut tool = road_tool();
+    assert_eq!(tool.types.len(), 9);
+    let mut run = run_x(20, 43);
+    let terrain = MockTerrain::flat(100.0);
+    let host = NoBridgeHost;
+    let w = world(&mut run, 20, &terrain, &host);
+    for (preferred, expected) in [(-1, 1), (0, 0)] {
+        tool.preferred = preferred;
+        let (mut start, mut end) = (2, 17);
+        assert_eq!(
+            select::find_best_bridge_type(&tool, &w, &mut start, &mut end, true, 20.0),
+            Some(expected)
+        );
+        assert_eq!((start, end), (2, 17));
+    }
+    let rec = BridgeRecord {
+        type_id: 0,
+        start: 2,
+        end: 11,
+        bridge_type: 0,
+        ..BridgeRecord::default()
+    };
+    assert_eq!(cost::bridge_cost(&tool, &rec, 100), 900);
+    let mut longer = rec.clone();
+    longer.end += 1;
+    assert_eq!(cost::bridge_cost(&tool, &longer, 100), 1000);
+}
+
 // ---- §17 test 1: loading ---------------------------------------------------------
 
 #[test]
