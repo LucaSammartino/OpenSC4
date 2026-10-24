@@ -1,32 +1,36 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propdev-close7 (prop developer verification) | Codex / `glue-propdev-close7` | in progress | Apply PV16/PV17; gate and measure native shadow through 2032 |
+| glue-propdev-close7 (prop developer verification) | Codex / `glue-propdev-close7` | ready | Land measured work; route PV18 to RE; retain default-off shadow |
 
-## Handoff
-- Round 2 goal: exercise PV16 through specified lighting producer, implement PV17 live dated walk, retain PV18 ineligibility, finish with READY measured merge entry even when not N/N.
-- Source changes in progress: linked dated nodes; post-callback live next-link read; no occupant hold across callbacks; bounded null creation-result eligibility; script lightinghour 0..23 through SDK SetTimeOfDay(float), PV15 borrowed acquisition.
-- Focused dated_walk test PASS 1/1 (session 69822 terminal). fmt diagnostic corrected in place. q.py failed before cargo because Git Bash mapping denied; direct PowerShell cargo used.
-- Source milestone 9600542f6; final fmt PASS. Full all gate session 3069 TERMINAL PASS: Rust 6940/0, clippy 0 diagnostics, native 61/61 edges, CTest 78/78; qbuild-20261024-070413-build-ctest, 221.6s native. No source changed during gate.
-- Next: unique scripted normal-speed native 2032 request gpc7-r2-light-normal-2032-a, without qwait; collect its existing or eventual verdict, measure exact coverage/eligible/night counts; final report and READY queue required.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propdev-close7-r2-manifest.json.
+## Changes
 
-## Round 1 evidence
-- Goal: compare every native prop developer operation, monthly `propdev shadow` summaries, exact through 2032.
-- Done: initial handoff `276e570b4`; PV16 scoped native slot-3 night observer, same-thread CRT pre-state/draw-count/final-state capture, independent ordered-list/callback-output comparison, restoration at city shutdown. Additive CRT C ABI; ABI version unchanged.
-- Gate: focused observation tests 2/2 passed. Native `qbuild-20261024-063016-build-ctest` PASS: 249/249 edges, CTest 78/78, terminal session 77289. Queue says tree changed: only question/wait-helper files changed while native source remained stable.
-- Game milestone: `gpc7-pv16-normal-2032-a` clean to 2032-01-01, foreign_exceptions/ref_warnings/rtc=0; source e5edd7566, DLL 489fe5e3, normal 146.891s. Exact coverage `propdev 0/72`, 0 resyncs; 24197/24197 selector events and 45465/45465 complete streams. Run record 434. Night callbacks=0: not exercised.
-- Added final requester-tag projection comparison and ineligibility reporting for days without block work; do not promote these projections to full creation-effect exactness.
-- Gate milestone: first `all` terminal PASS (session 26152): Rust 6939/0, clippy 0 diagnostics, native 50/50 edges, CTest 78/78, request `qbuild-20261024-064127-build-ctest`. Native source stable; report/run doc commits explain tree-changed note.
-- Added bounded `clockmode 0|1|2` script action through borrowed city clock slot 86, clock slots 29/5, parser range/error tests, additive engine README documentation. `build-runs/propdev-night-actions.txt` selects mode 0 and enables native transition notifications on 2026-01-28.
-- Clock action source `all` session 32462 TERMINAL FAIL: Rust 6939/0, clippy clean, native 55/55 edges, CTest 77/78; sole failure plugin_ini_script_test's stale unknown-action list at plugin_load_test.cpp:9488. Unique verdict `qbuild-20261024-064433-build-ctest.verdict`; complete failed CTest log preserved by rename to build-runs/fc4verify-ctest-clock-golden-failed.log.
-- Corrected the native integration test's expected action-list string additively. Corrected-source `all` session 96482 and collector cell 70 TERMINAL PASS: Rust 6939/0, clippy clean, native 47/47 edges, CTest 78/78, 81.2s. No asynchronous gate remains. The tree-changed note is the handoff/test-fix commit, not a source edit during native checking.
-- Latest measured source: `gpc7-clock-normal-2032-b` clean to 2032-01-01, foreign_exceptions/ref_warnings/rtc=0, normal 132.593s, DLL 80210e7d. `propdev 0/72`, resyncs=0; selector events 23581/23581, streams 45465/45465, invalid=0; final requester-tag projections 588/588; incomplete/mismatches=2966. Run record 435. Wait session 46972/cell 74 TERMINAL; no game or check outstanding.
-- Final corrected full gate ID: `qbuild-20261024-065026-build-ctest`, PASS as above. No source edits after this gate. Requester-tag writes do not use the final native tag as a replay input.
-- Next: PV16 remains UNEXERCISED: callbacks/draws=0 even though clockmode 0 succeeded. Read only relevant clock24/lot-developer spec sections to identify the genuine light-message producer; try script mode 2 then 0 or an explicitly specified public delivery, never infer a signature. Keep normal 2032 evidence; use a new unique label for every new request. Then finish every creation write and PV17 live dated walk/effects under the answered contract or PV18 answer, gate changed source, measure again.
-- Both measured requests use explicit enable=simulator, not a separately established full house enable list; do not claim house-profile coverage from them. Neither coverage map nor regress script was read/edited; no merge queue entry because this is a continuation, not completed whole-propdev verification.
-- Report unverified families explicitly: creation registration writes, hold/holder/tag callback ordering, dated timer/state/date advancement, occupant RNG, queued notification lifetime/order and model writes/releases. Night scope still unexercised until a run counts callbacks >0.
-- PV17 implementation audit still needed: core do_message currently iterates a copied `dated_list()`; section 3.3.1 specifies a live linked-list walk with no temporary per-element reference. Ordinary expiry leaves lists alone, but custom reentrant mutation cannot be credited from the current loop.
-- PV18 filed for hidden dated-record snapshot/model-call contract; creation/dated operations remain explicitly ineligible, full-operations-exact=0.
-- New owned header: engine/plugin/FC4PropDevNight.h. One dated monthly label now `propdev shadow YYYY-MM-DD`.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-propdev-close7-r1-manifest.json`.
-- Never inspect tools/ or analysis material; tools/regress.ps1 change requires coordinator follow-up under clean-room restriction.
+Round 2 source commit `9600542f6` implements the section 3.3.1 live linked-list dated walk: each callback returns before the next link is read, null values are skipped, and no temporary occupant reference is taken. Removal copies the last node's value and unlinks that last node, as section 4.7 requires. Reentrant invalidation of the current node has no defined native outcome and is not credited as ordinary expiry. A focused test removes a future entry and appends another during the callback, proving the walk observes the live links.
+
+The bounded `lightinghour 0..23` script action calls the genuine native `SetTimeOfDay(float hours)` producer (lighting.md sections 2.1/2.2, SDK slot 6), using PV15's borrowed renderer/lighting-manager path. It neither synthesizes dusk/dawn nor guesses a signature. Parser boundaries and integration action-list expectations are covered. `clockmode` remains available from round 1.
+
+Null creation-service results are eligible for comparison when their complete arguments/result stream matches: section 4.4 performs no post-return registration/tag writes for null. Successful creation remains ineligible under PV18. The created-output counter now excludes failed attempts. Monthly summaries report eligible operations separately from matching projections; `full-operations-exact=0` remains explicit. `propdev_shadow` stays default-off.
+
+Round 1 commits add the PV16 scoped native message observer, same-thread CRT capture and independent ordered-list/callback-return comparison, plus requester-tag output projections. The cumulative lane adds C ABI export `fc4_prop_developer_shadow_crt`; this round adds no export and never changes the ABI version.
+
+## Validation
+
+- Focused live dated-walk test: 1/1 passed; final owned-file fmt passed. The initial q.py invocation failed before cargo because Git Bash's mapping was denied; direct PowerShell cargo supplied the focused result.
+- Stable final source full gate `qbuild-20261024-070413-build-ctest`: Rust **6940 passed, 0 failed**, clippy **0 diagnostics**, native **61/61 edges**, CTest **78/78**, PASS. Session 3069 terminal; native verification 221.6s. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. No source changed during or after this gate.
+- Normal-speed `gpc7-r2-light-normal-2032-a` reached **2032-01-01**, clean, **151.563s**, DLL **0a9789a1**; foreign exceptions, stalls, rtc, overruns and **ref_warnings=0**. Session 63239 terminal; no operation remains outstanding. Wait used `build-runs/wait-file.ps1`, never qwait. Run record [436](../runs/gpc7-r2-light-normal-2032-a-436.md).
+- Exact clean/total: **`propdev 0/72`**; harness text: `propdev 72 lines, 0 with every mismatch count 0`. Resyncs **0**.
+- Eligible operation projections: **42537 eligible, 42537 matched** out of **45465 deliveries**; **2928 incomplete**. Monthly mismatch total is exactly **2928**, all incompleteness diagnostics covered by PV18; no additional observed divergence.
+- PV16 genuinely exercised: **6 night callbacks, 6 exact, 975 CRT draws**. Native producer logs show midnight `changed=1 night=1` and noon transitions. Selector events **24200/24200**, complete replay streams **45465/45465**, invalid streams **0**, final requester-tag projections **562/562**. Those tag projections do not certify the complete creation effects.
+
+## Limits and next steps
+
+PV18 remains open in `docs/specs/questions/prop-developer.md`; no new question this round. Still ineligible: successful creation registration writes and hold/holder/tag callback ordering; dated timer/state/date advancement, separate occupant RNG, queued notification lifetime/order, and model writes/releases. Do not replay an opaque native-effect transcript as independent verification, read unnamed date-record fields, or tick a native occupant twice.
+
+Land this measured work as READY, then route PV18 to an RE lane. After its contract is specified, implement independent delegated-effect observation before promoting those operations or claiming N/N. The explicit `enable=simulator` profile is not a separately established full house profile. Neither coverage-map nor regress tooling was read or edited.
+
+## Earlier measured evidence
+
+Round 1 normal-speed requests remain valid: `gpc7-pv16-normal-2032-a` (record 434, DLL 489fe5e3, 146.891s) and `gpc7-clock-normal-2032-b` (record 435, DLL 80210e7d, 132.593s), both clean to 2032 with ref_warnings/rtc/foreign exceptions zero and `propdev 0/72`. They had zero night callbacks and do not exercise PV16. Their selector streams were respectively 24197/24197 and 23581/23581, with 45465/45465 complete replays each. The second had 588/588 requester-tag projections and 2966 incomplete operations.
+
+Round 1's clockmode action first failed CTest 77/78 on a stale expected action list (`qbuild-20261024-064433-build-ctest`); failed evidence remains in `build-runs/fc4verify-ctest-clock-golden-failed.log`. Corrected-source `qbuild-20261024-065026-build-ctest` passed Rust 6939/0, clippy clean, CTest 78/78. Round 2's gate above supersedes it.
+
+Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-propdev-close7-r2-manifest.json`. Detached HEAD is intentional; the supervisor publishes the commits to the reserved lane branch.
