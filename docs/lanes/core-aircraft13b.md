@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | WIP: settled stages and conformance fixtures committed; fmt PASS (9 owned files, then 2 corrected files); native qbuild verify PASS, build 264/264, CTest 81/81; workspace tests/clippy incomplete at core compilation. No ABI change, game run or new question. | (1) Complete qbuild all on committed source with sufficient compiler resources; (2) correct any test/clippy diagnostics; (3) review owner closure tables and publish reserved lane branch. |
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | In progress (r2): completing interrupted workspace gate from dadd406e7; prior native verify PASS, CTest 81/81. No ABI change, game run or new question. | Complete qbuild all; fix diagnostics; audit remaining settled contracts and owner closure rows; report verified partial closure. |
+
+## Handoff
+
+- Goal: finish the workspace gate and implement remaining settled aircraft contracts.
+- Starting tip: `dadd406e7`; implementation `5d59a8396`, fixture correction `4ba6b67cd`.
+- Prior native verify: PASS, build 264/264, CTest 81/81 (`8b52caea1`).
+- Prior cargo/clippy attempts terminated; none remains running or outstanding.
+- Next: run qbuild all with one Cargo job and debug information disabled; collect terminal result.
+- Then audit aircraft/helicopter README owner tables against settled spec sections.
+- Keep AF2-AF6, AF10 and AF11 explicit; no capi/plugin/ABI wiring.
+- Existing detailed r1 report below preserves incomplete gate evidence.
+- Detached HEAD: commit normally; supervisor publishes reserved lane branch.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r2-manifest.json`.
 
 ## Changes
 
