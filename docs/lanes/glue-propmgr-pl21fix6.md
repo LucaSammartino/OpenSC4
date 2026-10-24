@@ -16,11 +16,14 @@
 - Shadows: corrupt at same shutdown stack (identical six plugin offsets), real660.078 s, foreign_exceptions1/ref_warnings0; propmgr220/220, lotcfg293/293 exact.
 - Fix: ProcessHashState Reset frees nodes/buckets without deleting static state; destructor Reset is safe after app cleanup; corrected bucket delete[] element type.
 - Focused x86 MSVC lifecycle test passed: stable static address, Clear/repeated Reset, map releases, family borrowed values, repopulation and destructor cleanup.
-- Gate operation42243 running on changed stable source; collect it to terminal completion. First focused invocation failed only on cmd forward-slash script spelling; corrected invocation passed.
-- Next: collect final gate, snapshot fixed DLL, regress tags pl21r3fixa and pl21r3fixb (both profiles twice), preserving baseline failures.
+- Fix commit dede60ae0; final gate42243 collected exit0 PASS: cargo6935/0/0, clippy0, CMake160/160 (6.8 s), CTest77/77 (77.3 s), total85.9 s.
+- Final gate verdict qbuild-20261024-060405-build-ctest.verdict. Tree-changed notice reflects source commit and lane-file update during gate; engine source was stable throughout.
+- Fixed DLL build-runs/dlls/pl21fix6-r3-fixed.dll SHA256 8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f.
+- Regress operation73784 active: regress-pl21r3fixa-shadows and regress-pl21r3fixa-replace; collect same operation. Next: second fixed pair tag pl21r3fixb.
+- q.py Bash wrapper failed Win32 error5 before launching regress; direct local output-filter wrapper then submitted the unique requests once.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No game outstanding; final build running. WriteCapture and automata owners unchanged.
+- No build outstanding. WriteCapture and automata owners unchanged. First focused cmd path spelling failed; corrected focused test passed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
 - Historical round-2 and original implementation evidence follows; it used an older base.
 
