@@ -189,23 +189,19 @@ private:
                 s->bad_ = true;
                 return false;
             }
-            void* p = nullptr;
-            if (!o->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) || p == nullptr) {
+            if (!const_cast<WriteCapture&>(s->cap_).AcquireReplayInterface(
+                    id, iid == 0 ? GZIID_cIGZUnknown : iid)) {
                 // The original wrote a reference to something that does not
                 // answer what the reader asks: the same null the original's
                 // own Read stores (automata.md §1).
                 Log("automataowners shadow: reference interface unavailable offset=%u id=%u class=0x%08X iid=0x%08X",
                     static_cast<unsigned>(s->pos_ - 8), id, cls, iid);
-                if (out != nullptr) *out = r;
+                if (out != nullptr) *out = fc4_ref{};
                 return true;
             }
-            // The token below is a number, not a kept pointer: the interface
-            // reference this QueryInterface took goes back at once, and the
-            // reader's own reference is taken on the capture's object.
-            auto* acquired = reinterpret_cast<cIGZUnknown*>(p);
-            FC4_ACQUIRED(acquired, "automata capture replay QueryInterface");
-            FC4_RELEASE(acquired);
-            if (!const_cast<WriteCapture&>(s->cap_).AcquireReplayReference(id)) return false;
+            // LR13: the capture's independent pin represents the temporary
+            // Serializable lifetime; the field owns this successful QI until
+            // HostRelease. Tokens identify objects, never interface addresses.
             r.token = id;
         }
         if (out != nullptr) *out = r;
@@ -612,7 +608,8 @@ void AutomataShadowStartup(bool automataReplaced) {
         "city load and each month. Success is mismatches=0 on every line.",
         src);
     if (g_ownersEnabled) Log("automataowners shadow: ON (automata_owners_shadow): complete inherited manager "
-        "records, reachable automaton/controller records and indexed construction records; same-input codec "
+        "records, reachable automaton/controller records and complete construction records (all 15 fields, "
+        "inherited holder, all reference identities, nulls, membership and order); same-input codec "
         "comparison only, crane presence seeded from captured record; no lifecycle/movement claim");
 }
 
@@ -679,6 +676,18 @@ intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid) {
         if (ref.token != 0) HostRelease(&capture, ref.token);
     }
     return 1;
+}
+
+// T66-T73 use exactly the production construction capture/codec/replay path.
+// No native Read, Init, or mutation is performed by this test seam.
+intptr_t ConstructionCaptureTest(cIGZUnknown* object) {
+    WriteCapture capture(false, true);
+    if (!capture.Capture(object)) return -1;
+    CaptureIn input(capture);
+    RecordOut output;
+    const auto host = RefHost(&capture);
+    return fc4_automata_construction_roundtrip(input.Get(), output.Get(), &host) &&
+           input.atEnd() && output.bytes == capture.Bytes() ? 1 : 0;
 }
 
 }  // namespace fc4

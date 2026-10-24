@@ -1113,3 +1113,12 @@ add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
 endif()
+
+# LR13 T66-T73: actual DLL construction capture and literal-IID replay.
+if(TARGET FreeCity4)
+    add_executable(fc4_construction_capture_test tests/construction_capture_test.cpp)
+    target_include_directories(fc4_construction_capture_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_construction_capture_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_construction_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME construction_capture_test COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>")
+endif()
