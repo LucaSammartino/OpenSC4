@@ -221,8 +221,12 @@ pub fn ensure_listener(io: &mut impl Io) -> bool {
     true
 }
 pub fn ensure_control(io: &mut impl Io) -> bool {
-    if io.is_open(Socket::Control) { return true; }
-    if !io.create(Socket::Control) { return false; }
+    if io.is_open(Socket::Control) {
+        return true;
+    }
+    if !io.create(Socket::Control) {
+        return false;
+    }
     if !io.bind(Socket::Control, Address::default()) {
         io.close(Socket::Control);
         return false;
@@ -337,20 +341,31 @@ impl Session {
         Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
     }
     pub fn query_interface(&mut self, io: &mut impl Io, identity: u32, iid: u32, output: &mut u32) -> bool {
-        if !matches!(iid, 1 | 0x452294aa) { return false; }
+        if !matches!(iid, 1 | 0x452294aa) {
+            return false;
+        }
         *output = identity;
         self.references = self.references.wrapping_add(1);
         io.effect(Effect::AddTarget(identity));
         true
     }
     pub fn set_target(&mut self, io: &mut impl Io, target: Option<u32>) {
-        if target == self.target { return; }
-        if let Some(target) = target { io.effect(Effect::AddTarget(target)); }
-        if let Some(old) = self.target { io.effect(Effect::ReleaseTarget(old)); }
+        if target == self.target {
+            return;
+        }
+        if let Some(target) = target {
+            io.effect(Effect::AddTarget(target));
+        }
+        if let Some(old) = self.target {
+            io.effect(Effect::ReleaseTarget(old));
+        }
         self.target = target;
     }
     pub fn release(&mut self, io: &mut impl Io) -> Contract<u32> {
-        if self.references > 1 { self.references -= 1; return Ok(self.references); }
+        if self.references > 1 {
+            self.references -= 1;
+            return Ok(self.references);
+        }
         self.destroy(io, 1)?;
         Ok(0)
     }
@@ -876,8 +891,16 @@ impl Session {
         }
         self.acquire_listing_into(io, path, None)
     }
-    pub fn acquire_listing_into(&mut self, io: &mut impl Io, path: &[u8], output: Option<&mut Vec<listing::Entry>>) -> Contract<bool> {
-        if self.state != 2 { self.work = false; return Ok(false); }
+    pub fn acquire_listing_into(
+        &mut self,
+        io: &mut impl Io,
+        path: &[u8],
+        output: Option<&mut Vec<listing::Entry>>,
+    ) -> Contract<bool> {
+        if self.state != 2 {
+            self.work = false;
+            return Ok(false);
+        }
         if path.is_empty() {
             return Err(Unsupported::NativeInputDomain("008163d0 empty path last-byte read"));
         }
@@ -1104,7 +1127,9 @@ mod tests {
         }
     }
     impl Io for Fake {
-        fn lookup(&mut self, _: &[u8]) -> Option<[u8; 4]> { None }
+        fn lookup(&mut self, _: &[u8]) -> Option<[u8; 4]> {
+            None
+        }
         fn now(&mut self) -> u32 {
             77
         }
@@ -1198,14 +1223,22 @@ mod tests {
     }
     #[test]
     fn sup01_sup04_sup05_sup08_and_scheduler_destruction() {
-        use super::super::{http, worker::{Scheduler, Record, Job, Effect as W}};
+        use super::super::{
+            http,
+            worker::{Effect as W, Job, Record, Scheduler},
+        };
         let mut io = Fake::default();
-        let mut s = Session { target: Some(9), ..Session::default() };
+        let mut s = Session {
+            target: Some(9),
+            ..Session::default()
+        };
         s.set_target(&mut io, Some(9));
         assert!(io.effects.is_empty());
         struct Http(Vec<http::Effect>);
         impl http::Host for Http {
-            fn effect(&mut self, e: http::Effect) { self.0.push(e); }
+            fn effect(&mut self, e: http::Effect) {
+                self.0.push(e);
+            }
             fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
         }
         let mut recorder = Http(Vec::new());
@@ -1215,30 +1248,54 @@ mod tests {
         assert_eq!(recorder.0, [http::Effect::AddTarget(9), http::Effect::ReleaseTarget(9)]);
         let mut output = 123;
         assert!(!s.query_interface(&mut io, 7, 2, &mut output));
-        assert_eq!(output,123);
+        assert_eq!(output, 123);
         assert!(s.query_interface(&mut io, 7, 0x452294aa, &mut output));
-        assert_eq!((output,s.references),(7,1));
+        assert_eq!((output, s.references), (7, 1));
         s.references = 0;
         assert_eq!(s.release(&mut io), Ok(0));
-        assert_eq!(io.effects.last(),Some(&Effect::DeleteSession));
-        let mut scheduler = Scheduler { record: Some(Record::default()), initialized: true, target: Some(9), ..Scheduler::default() };
-        assert_eq!(scheduler.adjust_worker_reference(&mut io,false),u32::MAX);
-        let mut job = Job { id: 1, status: 1, url: b"u".to_vec(), destination: b"d".to_vec(), time: 2, progress: 3, custom: 9 };
+        assert_eq!(io.effects.last(), Some(&Effect::DeleteSession));
+        let mut scheduler = Scheduler {
+            record: Some(Record::default()),
+            initialized: true,
+            target: Some(9),
+            ..Scheduler::default()
+        };
+        assert_eq!(scheduler.adjust_worker_reference(&mut io, false), u32::MAX);
+        let mut job = Job {
+            id: 1,
+            status: 1,
+            url: b"u".to_vec(),
+            destination: b"d".to_vec(),
+            time: 2,
+            progress: 3,
+            custom: 9,
+        };
         let copy = job.clone();
-        job.url[0] = b'x'; job.destination[0] = b'y';
-        assert_eq!((copy.url.as_slice(),copy.destination.as_slice()),(b"u".as_slice(),b"d".as_slice()));
+        job.url[0] = b'x';
+        job.destination[0] = b'y';
+        assert_eq!(
+            (copy.url.as_slice(), copy.destination.as_slice()),
+            (b"u".as_slice(), b"d".as_slice())
+        );
         scheduler.queue.push_back(copy);
-        io.effects.clear(); io.worker_effects.clear();
-        assert_eq!(scheduler.erase_range(&mut io,0,1),0);
+        io.effects.clear();
+        io.worker_effects.clear();
+        assert_eq!(scheduler.erase_range(&mut io, 0, 1), 0);
         assert!(io.effects.is_empty() && io.worker_callbacks.is_empty());
-        assert_eq!(io.worker_effects,[W::UnlinkQueueNode,W::EraseFirstString,W::DestroyQueueNode]);
-        scheduler.destroy(&mut io,1).unwrap();
-        assert_eq!(io.effects,[Effect::ReleaseTarget(9)]);
-        assert_eq!(io.worker_effects.last(),Some(&W::FreeScheduler));
+        assert_eq!(
+            io.worker_effects,
+            [W::UnlinkQueueNode, W::EraseFirstString, W::DestroyQueueNode]
+        );
+        scheduler.destroy(&mut io, 1).unwrap();
+        assert_eq!(io.effects, [Effect::ReleaseTarget(9)]);
+        assert_eq!(io.worker_effects.last(), Some(&W::FreeScheduler));
         assert!(ensure_control(&mut io));
         assert!(io.open[0]);
-        assert!(lookup(&mut io,b"host").is_none());
-        assert_eq!(&io.effects[io.effects.len()-2..], [Effect::ConstructLookupString,Effect::DestroyLookupString]);
+        assert!(lookup(&mut io, b"host").is_none());
+        assert_eq!(
+            &io.effects[io.effects.len() - 2..],
+            [Effect::ConstructLookupString, Effect::DestroyLookupString]
+        );
     }
     #[test]
     fn ftpc01_through_ftpc06() {

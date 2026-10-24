@@ -295,7 +295,11 @@ impl Scheduler {
     pub fn adjust_worker_reference(&mut self, host: &mut impl Host, add: bool) -> u32 {
         host.worker_effect(Effect::Lock);
         let value = self.record.as_mut().map_or(0, |record| {
-            record.suspend = if add { record.suspend.wrapping_add(1) } else { record.suspend.wrapping_sub(1) };
+            record.suspend = if add {
+                record.suspend.wrapping_add(1)
+            } else {
+                record.suspend.wrapping_sub(1)
+            };
             record.suspend as u32
         });
         host.worker_effect(Effect::Unlock);
@@ -315,9 +319,13 @@ impl Scheduler {
     pub fn destroy(&mut self, host: &mut impl Host, deleting_flags: u32) -> Contract<()> {
         if self.initialized {
             self.initialized = false;
-            if let Some(target) = self.target.take() { host.effect(ftp::Effect::ReleaseTarget(target)); }
+            if let Some(target) = self.target.take() {
+                host.effect(ftp::Effect::ReleaseTarget(target));
+            }
         }
-        if let Some(mut session) = self.session.take() { session.destroy(host, 1)?; }
+        if let Some(mut session) = self.session.take() {
+            session.destroy(host, 1)?;
+        }
         host.worker_effect(Effect::DestroyCriticalSection);
         host.worker_effect(Effect::DestroySynchronization);
         for _ in self.queue.drain(..) {
@@ -325,7 +333,9 @@ impl Scheduler {
             host.worker_effect(Effect::DestroyQueueNode);
         }
         host.worker_effect(Effect::DestroyStoredStrings);
-        if deleting_flags & 1 != 0 { host.worker_effect(Effect::FreeScheduler); }
+        if deleting_flags & 1 != 0 {
+            host.worker_effect(Effect::FreeScheduler);
+        }
         Ok(())
     }
 }

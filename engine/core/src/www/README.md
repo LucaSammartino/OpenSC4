@@ -8,16 +8,16 @@ calendar conversion. Mutable operations require exclusive Rust access; getters
 have no `RefCell`. Native references are explicit effects, except cache RAM buffers
 whose portable ownership uses `Arc`; no-copy insertion transfers a `Vec` allocation.
 Adapters must supply native allocator compatibility and stay within the specified
-16-bit reference/32-bit size domain. Constructor path literals not qualified by the
-spec are explicit inputs, rather than invented defaults.
+16-bit reference/32-bit size domain. Cookie/cache defaults use the settled
+`CookieData.ini` and `FileCache.ini` literals; other path inputs remain explicit.
 
 ## Owner closure
 
 Each row identifies executable coverage of the published contract. An `open:` suffix
 is an existing spec limit, not a successful native false return. Rows do not claim
-closure of the native address inventory. Q17/Q18 spec lanes answered the earlier
-questions; `pending implementation` below records remaining engine work, not an
-unanswered spec question. This lane is still in progress.
+closure of the native address inventory. The q17/q18 spec answers are applied below.
+Q19/Q20 record the newly identified initialization/record-transition gaps. Native
+allocator/container wrappers are not claimed as portable owner coverage.
 
 | Owner / spec section | Code item | Test / remaining boundary |
 |---|---|---|
@@ -29,31 +29,37 @@ unanswered spec question. This lane is still in progress.
 | CookieManager 3.5 eviction | `Manager::evict` | `header_version_quirk_and_eviction_order` |
 | CookieManager 3.6 lifecycle/persistence/settings | `Manager::{default,new,init,shutdown,read,write,clear_file,enumerate,set_binary,set_file_path}`, `Host::{read_binary,write_binary}` | `ck01_through_ck06_and_lifecycle`, `persistence_read_cap_and_init_nonempty_guard`, `ck07_through_ck13_settled_edges` |
 | CookieManager 3.7 inventory/vectors | portable methods above (native QI/refcounts are adapter roles) | `ck01_through_ck06_and_lifecycle`, `ck07_through_ck13_settled_edges`: CK01–CK13 |
-| WWWSystem 4.1 identity/lifecycle | `service::Www::{construct_with_host,query_interface,post_init,shutdown,destroy}` | `identity_default_hold_order_and_dispatch_target_selection`, `constructed_components_and_ftp_admission_vectors`, `progress_borrowed_no_waiter_update_and_cancel_all`; residual helpers pending implementation in 4.15 |
+| WWWSystem 4.1 identity/lifecycle | `service::Www::{construct_with_host,query_interface,post_init,shutdown,destroy}` | `identity_default_hold_order_and_dispatch_target_selection`, `constructed_components_and_ftp_admission_vectors`, `progress_borrowed_no_waiter_update_and_cancel_all` |
 | WWWSystem 4.2 dispatch/holds | `Www::{load_text,load,set_default_target}` | `handler_failure_owns_attempt_and_releases_after_callback`, `identity_default_hold_order_and_dispatch_target_selection` |
 | WWWSystem 4.3 local files | `Www::local` | `local_threshold_open_fallback_and_read_failure_nonzero_id` |
 | WWWSystem 4.4 HTTP/cache/duplicates | `Www::admit_http`, `Client::submit_headers` | `cache_threshold_and_failed_retrieval_continues_to_admission`, `duplicate_waiting_foreign_status_cancel_leaks_and_fanout_reentry`, `http_admission_helper_spans_submission_and_www_insertion`, `www22_cookie_record_construction` |
 | WWWSystem 4.5 status/cancel | `Www::{status,get_job,http_id,ftp_id,cancel,cancel_all}` | `duplicate_waiting_foreign_status_cancel_leaks_and_fanout_reentry`, `progress_borrowed_no_waiter_update_and_cancel_all` |
 | WWWSystem 4.6 messages/progress | `Www::{envelope,progress,do_message}` | `progress_borrowed_no_waiter_update_and_cancel_all`, `duplicate_waiting_foreign_status_cancel_leaks_and_fanout_reentry` |
 | WWWSystem 4.7 completion/fanout | `Www::complete_http`, `convert` | `completion_conversion_failure_cookies_and_cache_before_target`, `cancellation_late_resource_and_foreign_admission_zero_hold`, `www21_null_target_skips_entire_suffix` |
-| WWWSystem 4.8 FTP call boundary | `Www::{load,complete_ftp}`, `Scheduler::admit` | `constructed_components_and_ftp_admission_vectors`, `ftpc07_ftpc08_scheduler_admission`; scheduler integration pending implementation |
+| WWWSystem 4.8 FTP call boundary | `Www::{load,complete_ftp}`, `Scheduler::admit` | `constructed_components_and_ftp_admission_vectors`, `ftpc07_ftpc08_scheduler_admission`; fresh-session continuation open: Q19 |
 | WWWSystem 4.9 settings/handlers/visited | `Www` settings/handler methods, `http::Client::{set_directory,set_cache_setting}`, `path_preference` | `splitter_empty_slots_quote_and_directory_side_effects`, `http_directory_and_cache_setting_are_independent_copies`, `handler_failure_owns_attempt_and_releases_after_callback`; implemented, including embedded HTTP state after failed cache directory creation |
 | WWWSystem 4.10 WWW-01–WWW-20 vectors | service test module | named tests in preceding rows and vector index below |
 | WWWSystem 4.11 path conversion | `www::{native_path,percent_decode}` | `published_native_path_vectors` |
 | WWWSystem 4.12 response cache policy | `service::{cache_tokens,cache_policy}` | `policy_distinguishing_headers_and_wrapping_dates`, `splitter_empty_slots_quote_and_directory_side_effects` |
-| WWWSystem 4.13 reached FTP bodies | `ftp`, `listing`, `worker`, `Session::simple_command`, `Scheduler::{new,admit}` | existing FTP tests; new `ftpc01_through_ftpc06`, `ftpc07_ftpc08_scheduler_admission`; support/lifecycle integration pending implementation |
+| WWWSystem 4.13 reached FTP bodies | `ftp`, `listing`, `worker`, `Session::{simple_command,acquire_listing_into}`, `Scheduler::{new,admit,destroy}` | FTP tests, `ftpc01_through_ftpc06`, `ftpc07_ftpc08_scheduler_admission`; fresh-session initialization open: Q19 |
 | WWWSystem 4.14 reached HTTP admission | `http::{Client,Request,Job,method_id,method_name,parse_records}` | `method_prefix_and_wrapper_boundaries`, `admission_wrap_raw_cancel_leaks_and_first_match_wins`, `zero_and_one_request_ref_delete`, `norm01_through_norm08` |
-| WWWSystem 4.15 residual support | `Client::set_target` (HTTP listener) | `http_slot01_slot02_and_http35` (destruction); remaining support/helpers and SUP01–09 pending implementation |
+| WWWSystem 4.15 identity/listener/socket/progress/name/format support | `Session::{query_interface,set_target,release}`, `ftp::{ensure_control,lookup}`, `Scheduler::{destroy,adjust_worker_reference,erase_range}`, `support` | `sup01_sup04_sup05_sup08_and_scheduler_destruction`, `sup02_sup03_sup06_sup07_sup09`; listing helper qualification open: Q19 |
+| WWWSystem 4.15 value copies / native containers / adapters | `service::Job::clone`, `worker::Job::clone`, ordered Rust job collections; existing interface methods | SUP04/SUP05; native circular-sentinel allocations, deleting arrays and pointer-adjusting ABI wrappers are not modeled; owner not fully closed |
 | HTTPClient 5.1 construction/lifetime/calendar | `Client::{new,complete,final_boundary,shutdown,worker_exit,query_interface,destroy}`, `http_date`, `notification::time_to_seconds` | lifetime tests, `http_slot01_slot02_and_http35`, `http26_through_http34_dates` |
 | HTTPClient 5.2 synchronous notifications | `Client::send_notification`, completion effects | `http01_through_http09`, `cancellation_callback_before_release_and_stop_leaks` |
 | HTTPClient 5.3 progress | `Client::update` | `http01_through_http09` |
 | HTTPClient 5.4 HTTP01–HTTP09 vectors | notification test module | `http01_through_http09` |
-| HTTPClient 5.5 wire supplement 1–6 | `http_wire::{request_bytes,framing,expired,reusable,retry,finalize,Body}`, `http_date` | `http10_through_http14_and_http22_through_http25`, `http15_through_http21_body_framing`, `http26_through_http34_dates`, `http_slot01_slot02_and_http35`; header reader, transport worker and integration pending implementation |
-| NetworkFileCache 6.1 defaults/settings/inventory | `cache::{Cache,Entry,Data}`, numeric setters | `holders_loading_failures_paths_settings_and_persistence`, `nfc01_through_nfc06`; settled constructor literal and filename allocation pending implementation |
-| NetworkFileCache 6.2 lifecycle/paths | `Cache::{init,shutdown,clear_map,directory,ini_name,set_directory,set_ini_name}` | `nfc07_through_nfc12`, `holders_loading_failures_paths_settings_and_persistence`, `clear_map_releases_only_map_holds_and_preserves_files_settings_and_counters`; settled loader and unused-file selection pending implementation |
-| NetworkFileCache 6.3 presence/info/reads | `Cache::{present,present_ram,present_file,info,copy_info,size,created,data,file,force_file}` | `nfc01_through_nfc06`, `nfc07_through_nfc12`, `holders_loading_failures_paths_settings_and_persistence`; settled filename reservation pending implementation |
-| NetworkFileCache 6.4/6.4.1 admission/removal/maintenance/writer | `Cache::{add,add_sized,remove,maintain,write_ini}` | existing cache tests; settled source-file admission, naming, loader and writer-order contracts pending implementation |
-| NetworkFileCache 6.5 NFC01–NFC12 vectors | cache test module | `nfc01_through_nfc06`, `nfc07_through_nfc12` |
+| HTTPClient 5.5 / wire 1 request/header/transport | `http_wire::{request_bytes,expired,reusable,retry}`, `http_transport::{read_header,execute,Peer}` | `header_fragmentation_informational_status_zero_and_interrupts`, `worker_short_sends_numeric_lookup_reuse_and_framing`, `worker_failure_retry_redirect_and_error_codes`; native resource publication/proxy endpoint/status grammar open: Q20 |
+| HTTPClient 5.5 / wire 2 body framing | `http_wire::{framing,Body}` | `http15_through_http21_body_framing`, `worker_short_sends_numeric_lookup_reuse_and_framing` |
+| HTTPClient 5.5 / wire 3 finalization | `http_wire::finalize` | `http10_through_http14_and_http22_through_http25`, `worker_failure_retry_redirect_and_error_codes` |
+| HTTPClient 5.5 / wire 4 dates | `http_date` | `http26_through_http34_dates` |
+| HTTPClient 5.5 / wire 5 destruction | `Client::{query_interface,destroy}` | `http_slot01_slot02_and_http35` |
+| HTTPClient 5.5 / wire 6 conformance | preceding code items | HTTP10–HTTP35 in `web_network_settled.rs`; transport fixtures in `web_network_transport.rs` |
+| NetworkFileCache 6.1 defaults/settings/inventory | `cache::{Cache,Entry,Data}`, numeric setters | `holders_loading_failures_paths_settings_and_persistence`, `nfc01_through_nfc06`, `nfc13_through_nfc19` |
+| NetworkFileCache 6.2 lifecycle/paths | `Cache::{init,shutdown,clear_map,read_ini,remove_unused_files,directory,ini_name,set_directory,set_ini_name}` | `nfc07_through_nfc12`, `holders_loading_failures_paths_settings_and_persistence`, `clear_map_releases_only_map_holds_and_preserves_files_settings_and_counters`, `nfc13_through_nfc19` |
+| NetworkFileCache 6.3 presence/info/reads | `Cache::{present,present_ram,present_file,info,copy_info,size,created,data,file,force_file}` | `nfc01_through_nfc06`, `nfc07_through_nfc12`, `holders_loading_failures_paths_settings_and_persistence` |
+| NetworkFileCache 6.4/6.4.1 admission/removal/maintenance/writer | `Cache::{add,add_sized,add_source_file,reserve_filename,remove,maintain,write_ini,read_ini}`, `cache::hash`, `Host::map_buckets` topology input | cache tests including `nfc13_through_nfc19`; writer visits supplied ascending buckets/chains, without lexical sorting |
+| NetworkFileCache 6.5 NFC01–NFC19 vectors | cache test module | `nfc01_through_nfc06`, `nfc07_through_nfc12`, `nfc13_through_nfc19` |
 
 ## Vector index
 
@@ -79,20 +85,22 @@ NFC01–NFC12 are labeled at their assertions. WWW vectors map as follows:
 
 ## Closure disposition (2026-10-24)
 
-The q17/q18 answers are being applied. The remaining engine work is listed below;
-the old unanswered-question labels no longer describe these implementation gaps.
+The q17/q18 answers have executable coverage. This is a partial owner-closure
+delivery: the table distinguishes published portable coverage from native wrappers
+and the newly identified spec gaps. No whole-owner native equivalence is claimed.
 
 | Owner | Fully implemented? | Sections that remain open |
 |---|---|---|
-| cGZWWWSystem | No | 4.13 remaining FTP integration and 4.15 residual support helpers pending implementation |
-| HTTP (cRZHTTPClient) | No | Wire supplement 1: header reader/transport worker integration pending implementation; helper algorithms and HTTP10–35 fixtures implemented |
+| cGZWWWSystem | No | 4.13 fresh FTP initialization and 4.15 listing labels: Q19. Native 4.15 circular-list allocation/deleting-array/pointer-adjusting wrappers remain implementation work; this is not an unanswered question |
+| HTTP (cRZHTTPClient) | No | Wire 1 transport is implemented; native dequeue/resource publication and proxy endpoint/status grammar qualification: Q20. Completion/lifetime algorithms remain separately exercised, not connected by an invented record cast |
 | cRZCookieManager | Yes, published portable behavior | 3.1–3.7 covered, including CK01–CK13; IO/calendar and native allocation remain explicit foreign inputs |
 | CookieData | Yes, published value behavior | 3.1 defaults/owned strings/pairs/fields and independent copying covered |
-| NetworkFileCache | No | 6.1–6.4.1 settled constructor, file admission/naming, loader, orphan selection and hash traversal pending implementation; NFC13–19 pending |
+| NetworkFileCache | Yes, published portable storage behavior | 6.1–6.5 and NFC01–19 covered; filesystem primitives and native map bucket topology remain explicit host inputs; Arc ownership requires a native allocator/refcount adapter |
 
 The module uses explicit foreign constructor inputs for unqualified path literals.
-Some old `Unsupported` barriers in FTP/cache still require replacement by the newly
-settled contracts. They must not be treated as ordinary native failures.
+The FTP initialization `Unsupported` barrier now names Q19 instead of the incorrect
+scheduler-constructor address. Cache Q11/Q15 barriers have been removed. Native
+pointer identities passed without live borrowed storage remain outside safe inputs.
 The cache's `clear_map` drops only map RAM holds, preserves caller-held buffers and
 does not delete files. The HTTP settings are logical fields without an invented
 mapping to constructor string offsets. WWW applies them before the cache directory

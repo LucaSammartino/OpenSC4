@@ -67,10 +67,13 @@ pub struct Cache {
     pub since_maintenance: u32,
 }
 impl Default for Cache {
-    fn default() -> Self { Self::new(b"FileCache.ini".to_vec()) }
+    fn default() -> Self {
+        Self::new(b"FileCache.ini".to_vec())
+    }
 }
 pub fn hash(key: &[u8]) -> u32 {
-    key.iter().fold(0u32, |value, byte| value.wrapping_mul(2) ^ (*byte as i8 as i32 as u32))
+    key.iter()
+        .fold(0u32, |value, byte| value.wrapping_mul(2) ^ (*byte as i8 as i32 as u32))
 }
 impl Cache {
     pub fn new(ini_name: Vec<u8>) -> Self {
@@ -146,11 +149,15 @@ impl Cache {
     pub fn read_ini(&mut self, host: &mut impl Host) -> Contract<bool> {
         host.persistence_attempt("read");
         let path = self.path(&self.ini_name);
-        let Some(values) = host.read_ini_values(&path, b"Cache Entries") else { return Ok(false) };
+        let Some(values) = host.read_ini_values(&path, b"Cache Entries") else {
+            return Ok(false);
+        };
         let now = host.now();
         for value in values {
             let fields: Vec<_> = value.rsplitn(8, |b| *b == b',').collect();
-            if fields.len() != 8 { continue; }
+            if fields.len() != 8 {
+                continue;
+            }
             let number = |i: usize| super::ftp::atol(fields[i]) as u32;
             let (length, expiration) = (number(5), number(0));
             let filename = fields[6].to_vec();
@@ -158,11 +165,22 @@ impl Cache {
                 self.remove_file(host, &filename);
                 continue;
             }
-            if !host.exists(&self.path(&filename)) { continue; }
-            self.entries.insert(fields[7].to_vec(), Entry {
-                filename, ram: None, length, attribute: number(4), lifetime: number(3) as i32,
-                creation: number(2).min(now), access: number(1).min(now), expiration,
-            });
+            if !host.exists(&self.path(&filename)) {
+                continue;
+            }
+            self.entries.insert(
+                fields[7].to_vec(),
+                Entry {
+                    filename,
+                    ram: None,
+                    length,
+                    attribute: number(4),
+                    lifetime: number(3) as i32,
+                    creation: number(2).min(now),
+                    access: number(1).min(now),
+                    expiration,
+                },
+            );
         }
         Ok(true)
     }
@@ -180,39 +198,89 @@ impl Cache {
         Ok(true)
     }
     #[allow(clippy::too_many_arguments)]
-    pub fn add_source_file(&mut self, host: &mut impl Host, key: &[u8], source: &[u8], copy: bool, attribute: u8, lifetime: i32) -> bool {
-        if key.is_empty() { return false; }
+    pub fn add_source_file(
+        &mut self,
+        host: &mut impl Host,
+        key: &[u8],
+        source: &[u8],
+        copy: bool,
+        attribute: u8,
+        lifetime: i32,
+    ) -> bool {
+        if key.is_empty() {
+            return false;
+        }
         let now = host.now();
         self.count(host, now);
         self.remove(host, key);
-        let split = source.iter().rposition(|b| matches!(b, b'/' | b'\\')).map_or(0, |i| i + 1);
+        let split = source
+            .iter()
+            .rposition(|b| matches!(b, b'/' | b'\\'))
+            .map_or(0, |i| i + 1);
         let mut name = source[split..].to_vec();
         if copy || !source[..split].eq_ignore_ascii_case(&self.directory) {
             let (_, reserved) = self.reserve_filename(host, key, None, false);
             name = reserved;
-            if !host.copy_file(source, &self.path(&name), true) { return false; }
+            if !host.copy_file(source, &self.path(&name), true) {
+                return false;
+            }
         }
         let length = host.file_length(&self.path(&name));
-        if matches!(length, 0 | u32::MAX) { return false; }
-        let lifetime = if lifetime == -1 { self.default_lifetime } else { lifetime };
-        self.entries.insert(key.to_vec(), Entry {
-            filename: name, ram: None, length, attribute: attribute as u32, lifetime,
-            creation: now, access: now,
-            expiration: if lifetime < 0 { i32::MAX as u32 } else { now.wrapping_add(lifetime as u32) },
-        });
+        if matches!(length, 0 | u32::MAX) {
+            return false;
+        }
+        let lifetime = if lifetime == -1 {
+            self.default_lifetime
+        } else {
+            lifetime
+        };
+        self.entries.insert(
+            key.to_vec(),
+            Entry {
+                filename: name,
+                ram: None,
+                length,
+                attribute: attribute as u32,
+                lifetime,
+                creation: now,
+                access: now,
+                expiration: if lifetime < 0 {
+                    i32::MAX as u32
+                } else {
+                    now.wrapping_add(lifetime as u32)
+                },
+            },
+        );
         true
     }
     /// Return success and the last attempted name/path, including on exhaustion.
-    pub fn reserve_filename(&self, host: &mut impl Host, key: &[u8], directory: Option<&[u8]>, full_path: bool) -> (bool, Vec<u8>) {
-        let suffix = key.iter().rposition(|b| *b == b'.').map(|i| &key[i..]).filter(|s| (2..=8).contains(&s.len())).unwrap_or_default();
-        let suffix: Vec<_> = suffix.iter().copied().filter(|b| b.is_ascii_alphanumeric() || *b == b'.').collect();
+    pub fn reserve_filename(
+        &self,
+        host: &mut impl Host,
+        key: &[u8],
+        directory: Option<&[u8]>,
+        full_path: bool,
+    ) -> (bool, Vec<u8>) {
+        let suffix = key
+            .iter()
+            .rposition(|b| *b == b'.')
+            .map(|i| &key[i..])
+            .filter(|s| (2..=8).contains(&s.len()))
+            .unwrap_or_default();
+        let suffix: Vec<_> = suffix
+            .iter()
+            .copied()
+            .filter(|b| b.is_ascii_alphanumeric() || *b == b'.')
+            .collect();
         let directory = directory.unwrap_or(&self.directory);
         let mut time = host.now();
         let mut name = Vec::new();
         for _ in 0..10000 {
             name = [(time as i32).to_string().as_bytes(), &suffix, b".cache"].concat();
             let path = [directory, &name].concat();
-            if host.create_new(&path) { return (true, if full_path { path } else { name }); }
+            if host.create_new(&path) {
+                return (true, if full_path { path } else { name });
+            }
             time = time.wrapping_sub(1);
         }
         (false, if full_path { [directory, &name].concat() } else { name })
@@ -415,7 +483,9 @@ impl Cache {
         let mut n = 0;
         for key in keys {
             // §6.4 says materialize entries, without a read/expiration sweep.
-            if !self.entries.contains_key(&key) { continue; }
+            if !self.entries.contains_key(&key) {
+                continue;
+            }
             self.materialize(host, &key)?;
             let Some(entry) = self.entries.get(&key) else {
                 continue;

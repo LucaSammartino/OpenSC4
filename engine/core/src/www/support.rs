@@ -17,7 +17,13 @@ pub enum Effect {
     ReleaseMessage,
 }
 /// Synchronous borrowed progress; never retain the stack record.
-pub fn forward_progress(host: &mut impl Host, listener: bool, current_job: bool, recipient: Option<u32>, words: [u32; 2]) -> bool {
+pub fn forward_progress(
+    host: &mut impl Host,
+    listener: bool,
+    current_job: bool,
+    recipient: Option<u32>,
+    words: [u32; 2],
+) -> bool {
     if listener && current_job {
         if let Some(recipient) = recipient.filter(|r| *r != 0) {
             let record = [words[0], words[1], if words[1] == 0 { 50 } else { 1 }];
@@ -32,7 +38,9 @@ pub fn forward_progress(host: &mut impl Host, listener: bool, current_job: bool,
 /// The CRT formatter result and its bounded temporary are primitive inputs.
 pub fn formatted(destination: &mut Vec<u8>, temporary: &[u8; 1024], result: i32) -> i32 {
     destination.clear();
-    if (0..1024).contains(&result) { destination.extend_from_slice(&temporary[..result as usize]); }
+    if (0..1024).contains(&result) {
+        destination.extend_from_slice(&temporary[..result as usize]);
+    }
     result
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,7 +53,13 @@ pub struct Name {
 }
 impl Default for Name {
     fn default() -> Self {
-        Self { initialized: false, references: 0, state: 0, settings: [10, 1800], ids: BTreeSet::new() }
+        Self {
+            initialized: false,
+            references: 0,
+            state: 0,
+            settings: [10, 1800],
+            ids: BTreeSet::new(),
+        }
     }
 }
 impl Name {
@@ -67,18 +81,31 @@ impl Name {
         self.shutdown(host);
         self.ids.clear();
         host.effect(Effect::FreeNameSentinel);
-        if flags & 1 != 0 { host.effect(Effect::FreeName); }
+        if flags & 1 != 0 {
+            host.effect(Effect::FreeName);
+        }
     }
     pub fn release(&mut self, host: &mut impl Host) -> u32 {
-        if self.references > 1 { self.references -= 1; return self.references; }
+        if self.references > 1 {
+            self.references -= 1;
+            return self.references;
+        }
         self.destroy(host, 1);
         0
     }
 }
-pub fn address_byte(address: u32, index: usize) -> u8 { address.to_le_bytes()[index] }
-pub fn port_byte(port: u16, index: usize) -> u8 { (port as u32).to_le_bytes()[index] }
-pub fn raw_port(port: u16) -> u16 { port }
-pub fn false_stub() -> bool { false }
+pub fn address_byte(address: u32, index: usize) -> u8 {
+    address.to_le_bytes()[index]
+}
+pub fn port_byte(port: u16, index: usize) -> u8 {
+    (port as u32).to_le_bytes()[index]
+}
+pub fn raw_port(port: u16) -> u16 {
+    port
+}
+pub fn false_stub() -> bool {
+    false
+}
 
 pub trait DrainHost {
     fn open(&mut self) -> bool;
@@ -91,14 +118,24 @@ pub trait DrainHost {
     fn close(&mut self);
 }
 pub fn drain_close(host: &mut impl DrainHost, counter: &mut u32, logging: bool) {
-    if !host.open() { return; }
+    if !host.open() {
+        return;
+    }
     host.blocking(true);
     while host.connected() && host.readable(0) {
-        let Some((count, bytes)) = host.receive(1024) else { break; };
-        if count == 0 { break; }
+        let Some((count, bytes)) = host.receive(1024) else {
+            break;
+        };
+        if count == 0 {
+            break;
+        }
         *counter = counter.wrapping_add(count as u32);
         if logging {
-            let length = if count == -1 { bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len()) } else { count as usize };
+            let length = if count == -1 {
+                bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len())
+            } else {
+                count as usize
+            };
             host.log(&bytes, length);
         }
     }
