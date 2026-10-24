@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lighting-shadow9: lighting state shadow | Codex, `glue-lighting-shadow9` | in progress | Inspect public contracts and implement monthly comparison. |
+| glue-lighting-shadow9: lighting state shadow | Codex, `glue-lighting-shadow9` | in progress; context handoff | Collect r4 safety verdict, finish measured report and queue. |
 
 ## Handoff
 - Goal: default-off lighting_shadow, independent Rust expectations, house-safe monthly native comparison through 2032.
@@ -16,6 +16,7 @@
 - Ref warning diagnostic: log lines 10158–10160, automataowners construction round-trip class A97F909E, missing reference interface 2977AA49 on class A9BC9AB6, WriteCapture::ClearReferences:79. No lighting diff/refusal; input capture independently reports texture 69D3A23B.
 - Game r3 COMPLETE stalled fallback, lighting9-house-2032-r3-20261024 51/51 exact, last monthly 2030-03-01. Watchdog recovered after 8766 ms, simulation continued to 2030-03-14, then harness ended at wall 600 s despite 1500/1800 request. No clean shutdown verdict. Record docs/runs/lighting9-house-2032-r3-20261024-471.md. No game request outstanding.
 - Game r4 OUTSTANDING: lighting9-house-2032-r4-20261024, unchanged source fad1dbe42 / DLL hash prefix 54fbdfa7, same house profile, seconds=1500/timeout=1800/end_date=2032-01-01. Wait on SAME label with build-runs/wait-lighting-verdict.py; after 540-second timeout wait AGAIN, never resubmit. Native/source gate already PASS; never repeat it. Preserve prior evidence. Whole owner remains blocked LT14. No merge queue until accepted result/report; next free local record number 472.
+- CONTEXT HANDOFF: active blocking wait is exec session 14011. Exact next step: collect SAME session with write_stdin, 60000-ms waits, until terminal; if timeout, invoke helper again on r4's SAME verdict path. Never duplicate the game request. Final acceptance still needs clean shutdown/ref_warnings=0; r2 already demonstrated 73/73 exact to 2032 but had one automata cleanup warning. Source and gate are final. If r4 accepted, record run 472, replace Handoff with full report (explicit partial owner scope/LT14 and LT15, all historical run outcomes), commit, guard status, then write READY merge queue with actual HEAD. Do not edit prohibited tools/profile; coordinator handles questions index and credit.
 - Prepared request: exact house ini switches (Compare-Object verified), plus lighting_shadow=1, turbo to 2032-01-01. DLL engine/build-x86/FreeCity4.dll.
 - Constraints: no prohibited source or tools; no agents; no branch changes; shared files additive.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r1-manifest.json
