@@ -1182,9 +1182,62 @@ Restore has no such recovery loop. If its final Blt result is `887601C2`, call *
 surface (table +`6C`), ignore that result, then return false. It does not call Restore or retry after IsLost
 (`0x0088574D`–`0x00885772`). A final nonnegative Blt returns true, every other negative result false.
 
-The remaining RD7 proof boundary is owner+4 CopyColorBuffer (`0x00883950`): its lock-probe cache, destination
-allocation/ownership, clipped copy and pixel-format/failure paths. Its table/identity attribution is settled
-above. No unresolved light/material or region-transfer semantics are included in that remaining boundary.
+### 12.6 CopyColorBuffer (RD7)
+
+Owner+4 slot 3, `00883950`, takes `(x,y,width,height,destination)` and returns a buffer pointer,
+not a success Boolean. It reads owner `+22C` (the render target, §14.2), with no null-surface guard.
+While owner lost byte `+261` is set it returns null before flushing or inspecting the destination.
+Otherwise it flushes, mapping nonzero results to the driver error but continuing. Owner bytes
+`+288`/`+289`, initially zero, mean probe-done/probe-succeeded. The first call locks the whole
+surface with flags 1, retrying `8876021C` without a bound; a nonnegative result is unlocked and
+cached as success, any other negative result as failure. Every later call uses this cached verdict,
+including across mode changes and loss/recovery. Cached failure returns null even for a supplied
+destination. The probe's HRESULT is not assigned to the driver error (`0088398C`–`00883A10`).
+
+After a successful probe, each call separately locks the whole target with the same retry rule.
+A negative result returns the supplied destination unchanged (null if none), without Unlock or
+destination allocation. Once locked, all normal exits unlock the surface once; Unlock's result
+is ignored. If no destination was supplied, request a buffer through RZ::GS service slot 3.
+Missing service/factory output leaves the return null. No destination AddRef or Release occurs
+on any path: a supplied pointer is borrowed and returned unchanged, and a newly created buffer
+is returned with its factory reference even if initialization or copying fails. An uninitialized
+destination is initialized with `(width,height,pixel-format 9)`; failure returns that same buffer.
+An initialized destination is not resized: the working width/height become the signed maximum
+of requested and existing dimensions. Source right/bottom were already calculated from the
+original request and are **not** recomputed (`00883A16`–`00883B6A`).
+
+Source left/top are signed max(x,0)/max(y,0), right/bottom signed min(x+originalWidth,
+surfaceWidth)/min(y+originalHeight,surfaceHeight). Addition is wrapping 32-bit. Clipping does
+not translate the destination origin: copied rows start at destination (0,0), advancing by its
+byte pitch, while source rows start at clipped left/top and advance by surface pitch. There is
+no vertical reversal. The black-background condition is the literal quirk: clipped left differs
+from x, or clipped top differs from y, or clipped right differs from x+workingWidth, or
+`clippedBottom+y+workingHeight != 0` modulo 2^32. In particular an ordinary positive full copy
+usually clears the destination first. When that condition holds, attempt destination lock
+`8001`; on success fill `FF000000` with second argument zero, then unlock `8001`. A failed
+clear lock does not abort the copy (`00883B6A`–`00883BF5`).
+
+Source format must have RGB flag `40` and bit count 16, 24 or 32. Otherwise attempt the same
+lock/fill/unlock with colour `FF00FFFF`, then return the destination. Accepted formats attempt
+destination lock `8080`; failure returns it without destination unlock. Success copies the
+clipped width for clipped-height rows, then unlocks `8080`, including an unrecognized 16-bit
+mask combination which copies nothing. Supported positive rectangles and positive destination
+pitch are the portable conformance domain: there is no empty-intersection/negative-size guard;
+row termination uses an unsigned pointer comparison with base+height*pitch, so disjoint or
+wrapped rectangles must not be modeled as guaranteed safe empty copies.
+
+| Source layout | Result for each copied pixel |
+|---|---|
+| 16 bits, R/G/B masks `F800/07E0/001F` | Opaque `FFRRGGBB`; each channel v of n bits becomes floor(255v/(2^n−1)); alpha mask is ignored |
+| 16 bits, `7C00/03E0/001F`, alpha mask zero or `8000` | Same 5-bit scaling; alpha is FF when absent, otherwise 00/FF from bit 15 |
+| 16 bits, `F800/07C0/003E`, alpha mask 1 | Same 5-bit scaling; alpha 00/FF from bit 0 |
+| 24 bits | For source bytes b0,b1,b2, destination bytes are **FF,b0,b1,b2**, in increasing address order; masks are not consulted |
+| 32 bits | Bitwise dword copy, including alpha, regardless of channel masks |
+
+The 16-bit scaling is division with truncation, **not** bit replication (§9.6 uses replication).
+Evidence: `00883C30`–`00883E3B` for pitch, mask selection and copying; `00881B66`–`00881BE1`,
+`00881C06`–`00881C81`, `00881CA6`–`00881D29`, `00881D56`–`00881DDA` for integer scaling/alpha;
+`00883E44`–`00883EB0` for fill and returns; constructor cache writes `0088617A`/`00886180`.
 
 ## 13. Cache and ordering obligations
 
@@ -1289,6 +1342,24 @@ Depth-attachment failure releases that new depth surface, nulls its slot and pre
 or second depth format is attempted after failure. Clipper SetHWnd and primary SetClipper results, and the
 three primary GetColorKey calls after chain creation, are ignored. A nonnegative final SetViewport result is
 normalized to zero (`0x0088C315`–`0x0088C397`).
+
+**Owner surface bindings (RD12).** Context getters at vtable byte offsets `18` and `1C` return
+borrowed context fields `+18` (primary) and `+20` (depth); they do not AddRef. Setup assigns these
+to owner `+228` and `+230` using AddRef-before-Release assignment (same-pointer assignment does
+nothing). Owner `+22C` instead receives the owned result of device GetRenderTarget, after releasing
+and nulling its previous value. It aliases context `+1C`, the back buffer/separate render target;
+with the fullscreen zero-back-buffer fallback, that target aliases the primary. Owner `+234` has
+**no setup or restore population**: it starts null and is not a second depth/stencil alias. Thus region
+types 0/1/2 mean render target/depth/unpopulated slot, respectively; ordinary type-2 creation fails.
+On first device loss, the owner's device, depth, primary and render-target references are dropped
+and nulled, in that order. Recovery reacquires device, depth and primary from context, then
+releases/nulls/requeries `+22C` (normally already null); failed context rebuild leaves the owner
+lost with those slots null. Full cleanup releases/nulls all four surface slots, including
+`+234` if externally populated. Neither loss, recovery nor setup resets the CopyColorBuffer probe
+cache (§12.6). These are distinct owned references even when their pointer values alias. Evidence:
+context table `00AC5060`, getters `0040CF10`/`004ED900`, assignment `00886EF0`–`00886F15`, setup
+`00887ACE`–`00887B2F`, recovery `00884BE0`–`00884C51`, loss `00884E7C`–`00884EC1`, cleanup
+`008870F2`–`0088718F`. Flush uses graphics identity owner+`C`: its apparent `+220` is owner `+22C`.
 
 ### 14.3 Presentation
 
