@@ -567,6 +567,9 @@ cGZWinText	widget toolkit	ui	widget-text.md	-	-	-
 cGZWinToolTip	widget toolkit	ui	widget-tooltip.md	-	-	-
 cGZWinToolTipMgr	widget toolkit	ui	widget-tooltip.md	-	-	-
 cGZWinPieMenu	widget toolkit	ui	widget-piemenu.md	-	-	-
+cGZWinFolders	widget toolkit	ui	widget-folders.md	-	-	-
+cGZWinFolderRow	widget toolkit	ui	widget-folders.md	-	-	-
+cGZWinTextTicker	widget toolkit	ui	widget-ticker.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
