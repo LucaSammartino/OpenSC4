@@ -10,6 +10,8 @@
 - 94d252ffd documents closure; f155a4cd4 fixes clippy and adds V46/stored driver setters.
 - Source is stable at f155a4cd4; later commits only record lane status.
 - Module README maps every requested section to code/tests or explicit questions.
+- Resume audit clarified 5.2: its service callback is implemented; Windows
+  procedure translation belongs to the separate canvas owner in 7.4.
 - Filed GZG7 in docs/specs/questions/gz-graphics.md for stroke-quad corners/rounding.
 - Open owners: context 3.2 GZG1/GZG7; renderers 4 GZG2; GraphicSystem 5 GZG3;
   AlphaBlt standalone pixels 6.1 GZG5. None claimed fully native-exact.
