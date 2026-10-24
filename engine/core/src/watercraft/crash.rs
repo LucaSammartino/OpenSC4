@@ -23,6 +23,39 @@ pub enum CrashEffect {
     Grounding,
 }
 
+/// Primitive effect interface; refresh ordering is computed by the core.
+pub trait CrashInstance {
+    fn set_transform(&mut self, transform: &super::Transform);
+    fn running(&self) -> bool;
+    fn start(&mut self, control: bool);
+}
+
+pub struct CrashEffectSet<'a> {
+    pub mushroom: Option<&'a mut dyn CrashInstance>,
+    pub splash: Option<&'a mut dyn CrashInstance>,
+    pub grounding: Option<&'a mut dyn CrashInstance>,
+}
+
+impl CrashEffects for CrashEffectSet<'_> {
+    fn refresh(&mut self, kind: CrashEffect, transform: &super::Transform) {
+        let instance = match kind {
+            CrashEffect::Mushroom => &mut self.mushroom,
+            CrashEffect::Splash => &mut self.splash,
+            CrashEffect::Grounding => &mut self.grounding,
+        }
+        .as_deref_mut()
+        .expect("watercraft crash effect is a required precondition");
+        instance.set_transform(transform);
+        if !instance.running() {
+            instance.start(false);
+        }
+    }
+
+    fn splash_present(&self) -> bool {
+        self.splash.is_some()
+    }
+}
+
 impl Watercraft {
     /// No frame-time factor: the ramp uses stored total crash elapsed.
     pub fn sinking_tick(&mut self, terrain: &dyn Terrain) -> bool {

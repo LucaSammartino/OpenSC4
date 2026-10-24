@@ -11,6 +11,29 @@ pub struct AiTargets {
 }
 
 impl Fleet {
+    /// Complete picker-to-target path; no host-supplied target calculation.
+    pub fn ai_motion_core(
+        &mut self,
+        id: BoatId,
+        dt: f32,
+        terrain: &dyn super::Terrain,
+        mut centre: impl FnMut(super::Cell) -> Vec3,
+        manager: &mut Option<&mut dyn DockManager>,
+    ) -> Result<AiTargets> {
+        if self.boat(id)?.travel.len() < 10 {
+            let picked = self.pick_location(id, terrain, &mut centre, manager)?;
+            let boat = self.boat_mut(id)?;
+            boat.speed = 0.0;
+            boat.turn = 0.0;
+            if !picked {
+                return Ok(AiTargets::default());
+            }
+        }
+        // Refill has already executed in the owner. The shared midpoint path
+        // only observes those points; its compatibility picker is a no-op.
+        self.ai_motion(id, dt, terrain.sea_level(), |_| true, centre, manager)
+    }
+
     /// The picker must be this core's route/search implementation; it is not a
     /// provider of a completed native motion result. Cell conversion is foreign.
     pub fn ai_motion(

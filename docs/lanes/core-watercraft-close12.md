@@ -1,8 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-watercraft-close12 (partial WC4/WC5 implementation) | `core-watercraft-close12` / engine lane, detached reserved worktree | WIP: native cargo 7382/0, CTest 81/81, fmt 8 files clean; all interrupted at budget stop, Clippy not run; ABI unchanged; no game runs; WC12 filed. | (1) finish owner integration and remaining vectors; (2) resolve WC12; (3) complete all gate and enqueue ready. |
+| core-watercraft-close12 | `core-watercraft-close12` / engine lane, detached reserved worktree | in progress; resuming `18be8b1e9`; ABI unchanged | Finish settled owner integration and vectors; run all and queued verify; commit report and READY entry. |
 
-## Report
+## Handoff
+
+- Goal: cSC4Watercraft closure in `engine/core/src/watercraft/`, except spec-open WC10/WC11.
+- Prior implementation: `7fc6ee83f`; fixture/format corrections: `015caaa14`; native pass: `d23d651e4`.
+- Prior verify passed 81/81; prior all interrupted, not passed. Evidence remains in build-runs.
+- Current batch: core wandering picker, picker-to-AI integration, player-drive/far-docking/state/animation orchestration in `runtime.rs`, concrete crash-effect refresh, six ordered wake-stop updates, six integration tests in `runtime_tests.rs`.
+- Formatting: seven owned files pass (`build-runs/fmt-r2-final.log`).
+- Focused native cargo operation 49453 remains outstanding, compiling on heavily contended host; summary `build-runs/focused-r2-1.log`. Source/tests advanced after compilation started; collect it, then run the stable-source all/verify gates.
+- Guard reached two-thirds at context 101135/150000: stop new feature work, finish validation/corrections and report partial closure honestly.
+- Next: collect focused operation to terminal; correct diagnostics; run required all and queued verify, then commit final report and queue entry.
+- WC12 already filed; inspect current answers before adding questions.
+- No game request. No plugin/capi/ABI changes. WC12 remains open; README's other pending rows remain implementation debt.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close12-r2-manifest.json`.
+
+## Previous round evidence
 
 This round adds reviewable helpers but **does not achieve cSC4Watercraft owner closure**.
 The user-set two-thirds budget stop was reached before the full Rust gate finished.

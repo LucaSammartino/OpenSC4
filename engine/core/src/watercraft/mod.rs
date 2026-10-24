@@ -5,7 +5,7 @@
 mod collision;
 mod commands;
 mod crash;
-pub use crash::{CrashEffect, CrashEffects, GroundingTerrain};
+pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
 mod math;
@@ -15,6 +15,8 @@ mod owner;
 mod physics;
 mod record;
 mod routes;
+mod runtime;
+pub use runtime::{AnimationServices, AnimationTimes, DriveServices, MotionServices, RopeEffect, SpatialServices};
 mod states;
 mod subsidiary;
 mod targets;
@@ -39,6 +41,8 @@ mod collision_tests;
 mod physics_tests;
 #[cfg(test)]
 mod round2_tests;
+#[cfg(test)]
+mod runtime_tests;
 #[cfg(test)]
 mod tests;
 
