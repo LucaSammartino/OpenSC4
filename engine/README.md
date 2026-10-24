@@ -2422,6 +2422,15 @@ record reader without Init. `lotrec-shadow:` reports expected/visited/captures/
 exact counts and explicit errors. Off-list lots, business-unit payloads and all
 occupants (including unspecified prop subclasses) are outside this scope.
 
+`lottrip_shadow = 1` (default `0`, environment `FC4_LOTTRIP_SHADOW`) reports
+`cSC4TripData` record evidence separately as `lottrip shadow` load/month lines.
+It uses the same complete master-lot capture and full Rust re-encoding as
+`lotrec_shadow`; enabling both shares one walk. Trips receive exact credit only
+when their entire containing lot compares byte-for-byte. Inventory/capture/reader
+failures remain mismatches even when no trip count can be recovered. `empty=1`
+supplies no nonempty trip evidence. Off-list trips are outside this inventory.
+Business-unit/base-texture/wall discovery remains unspecified (LR15).
+
 `netrules_shadow = 1` enables the default-off, record-only network tile-rule
 observer (NR16/NR17). It requires the published GOG fingerprint, fixed image
 base and every byte at all three observation sites; any validation failure

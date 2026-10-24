@@ -63,6 +63,12 @@ impl OutStream for IdentityWriter {
 /// Full record re-encoding, preserving configuration metadata instead of calling
 /// the live object's Write (which intentionally uses the Init configuration).
 pub fn reencode(bytes: &[u8]) -> Option<Vec<u8>> {
+    reencode_with_trip_count(bytes).map(|(encoded, _)| encoded)
+}
+
+/// Count inline trips only after accepting the complete master-lot payload.
+/// This is the §14.1 inventory, not trips owned by off-list lots or simulators.
+pub fn reencode_with_trip_count(bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
     let lot = Lot::default();
     let mut ids = Identities;
     let mut input = ByteReader::with_resolver(bytes, &mut ids);
@@ -73,5 +79,50 @@ pub fn reencode(bytes: &[u8]) -> Option<Vec<u8>> {
     if !lot.rec.borrow().write(&mut output) {
         return None;
     }
-    Some(output.0.into_bytes())
+    let trips = u32::try_from(lot.rec.borrow().trips.len()).ok()?;
+    Some((output.0.into_bytes(), trips))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lot_records::LotRecord;
+    use crate::traffic_simulator::TripData;
+
+    #[test]
+    fn inline_trip_inventory_requires_complete_record() {
+        let record = LotRecord {
+            trips: vec![
+                TripData {
+                    count: 148,
+                    trip_length: f32::from_bits(0x80000000),
+                    travel_types_used: 0xcccccccc,
+                    ..TripData::default()
+                },
+                TripData::default(),
+            ],
+            strategy: 73,
+            ..LotRecord::default()
+        };
+        let mut writer = IdentityWriter(ByteWriter::new());
+        assert!(record.write(&mut writer));
+        let bytes = writer.0.into_bytes();
+        let (encoded, trips) = reencode_with_trip_count(&bytes).unwrap();
+        assert_eq!(trips, 2);
+        assert_eq!(encoded, bytes);
+        // A failed final field or an extra byte must not yield a trip inventory.
+        assert!(reencode_with_trip_count(&bytes[..bytes.len() - 1]).is_none());
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert!(reencode_with_trip_count(&trailing).is_none());
+    }
+
+    #[test]
+    fn empty_lot_supplies_no_nonempty_trip_evidence() {
+        let mut writer = IdentityWriter(ByteWriter::new());
+        assert!(LotRecord::default().write(&mut writer));
+        let (encoded, trips) = reencode_with_trip_count(writer.0.bytes()).unwrap();
+        assert_eq!(trips, 0);
+        assert_eq!(encoded, writer.0.bytes());
+    }
 }
