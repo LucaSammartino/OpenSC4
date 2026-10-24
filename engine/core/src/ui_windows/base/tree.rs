@@ -34,7 +34,7 @@ impl Windows {
             list,
         }
     }
-    pub fn unlock_children(&mut self, read: ChildRead) {
+    pub fn unlock_children(&mut self, host: &mut impl Host, read: ChildRead) {
         let key = (read.owner, read.generation);
         let count = self.child_readers.get_mut(&key).expect("paired read unlock");
         *count -= 1;
@@ -43,7 +43,7 @@ impl Windows {
             if let Some(old) = self.retired_children.remove(&key) {
                 for c in old {
                     if self.valid(c) {
-                        self.release(c);
+                        self.release(host, c);
                     }
                 }
             }
@@ -96,7 +96,7 @@ impl Windows {
         self.write_children(p);
         self.get_mut(p).children.insert(0, c);
         self.add_ref(c);
-        self.calc_absolute(c);
+        self.calc_absolute(host, c);
         self.set_buffer_recursive(host, c);
         true
     }
@@ -121,7 +121,7 @@ impl Windows {
         if valid {
             self.drop_manager_references(host, c);
             self.set_parent(host, c, None);
-            self.release(c);
+            self.release(host, c);
         }
         self.get_mut(p).children.remove(i);
         true
@@ -140,47 +140,56 @@ impl Windows {
         let removed = self.child_remove(host, p, c);
         self.destroy(host, c);
         if valid && self.valid(c) {
-            self.release(c);
+            self.release(host, c);
         }
         removed && shutdown
     }
     pub fn child_delete_all(&mut self, host: &mut impl Host, p: Window) -> bool {
         let mut ok = true;
         while let Some(&c) = self.get(p).children.first() {
-            ok &= self.destroy(host, c);
+            // WT5: reread the current head. A persistently busy manager never
+            // detaches it, so the native loop intentionally need not terminate.
+            ok &= host.destroy_window(self, c);
         }
         ok
     }
     pub fn begin_busy(&mut self) {
-        self.busy += 1;
+        self.busy = self.busy.wrapping_add(1);
     }
     pub fn end_busy(&mut self, host: &mut impl Host) {
         self.busy = self.busy.saturating_sub(1);
-        if self.busy == 0 {
+        if self.busy <= 0 {
             for w in std::mem::take(&mut self.condemned) {
-                self.destroy_now(host, w);
+                self.destroy(host, w);
             }
         }
     }
     pub fn destroy(&mut self, host: &mut impl Host, w: Window) -> bool {
-        if !self.valid(w) {
-            return false;
-        }
-        // WT5 explicitly leaves this manager contract open: use its published
-        // synchronous-detach assumption even when final destruction is deferred.
-        if let Some(p) = self.get(w).parent {
-            self.child_remove(host, p, w);
-        }
-        if self.busy != 0 {
+        if self.busy > 0 {
+            let mut ancestor = Some(w);
+            while let Some(a) = ancestor {
+                if self.condemned.contains(&a) {
+                    return true;
+                }
+                ancestor = self.windows.get(&a).and_then(|s| s.parent);
+            }
             if !self.condemned.contains(&w) {
                 self.condemned.push(w);
             }
-        } else {
-            self.destroy_now(host, w);
+            return true;
         }
+        if !self.valid(w) {
+            return false;
+        }
+        if let Some(p) = self.get(w).parent.filter(|&p| self.valid(p)) {
+            return self.child_delete_absolute(host, p, w);
+        }
+        self.add_ref(w);
+        host.shutdown(self, w);
+        self.release(host, w);
         true
     }
-    fn destroy_now(&mut self, host: &mut impl Host, w: Window) {
+    pub fn deleting_destructor(&mut self, host: &mut impl Host, w: Window, flags: u32) {
         if !self.valid(w) {
             return;
         }
@@ -188,7 +197,13 @@ impl Windows {
         self.shutdown(host, w);
         self.drop_manager_references(host, w);
         host.event(NativeOp::Unregister(w));
-        self.windows.remove(&w);
+        self.get_mut(w).registered = false;
+        // Direct nondeleting teardown is not a way to preserve live references.
+        // Keep allocation storage only when bit zero is clear.
+        self.get_mut(w).children.clear();
+        if flags & 1 != 0 {
+            self.windows.remove(&w);
+        }
     }
     pub fn child_from_id(&self, p: Window, id: u32) -> Option<Window> {
         self.get(p)
@@ -345,7 +360,7 @@ impl Windows {
                 }
             }
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
         ok
     }
 }

@@ -16,7 +16,6 @@ struct TestHost {
     no_service: bool,
     calls: Vec<(Window, u32, Vec<u32>)>,
     mutate_filter: bool,
-    shutdown_in_filter: bool,
 }
 impl Host for TestHost {
     fn window_manager(&mut self) -> Object {
@@ -90,9 +89,6 @@ impl Host for TestHost {
         if self.mutate_filter {
             self.mutate_filter = false;
             wins.remove_filter(self, w, f);
-            if self.shutdown_in_filter {
-                wins.shutdown(self, w);
-            }
         }
         self.filter_handles
     }
@@ -136,7 +132,7 @@ fn wt01_constructor_and_lifecycle() {
         (w.flags, w.fade_periods, w.shade, w.instance_id),
         (0x8903, (500, 500), u32::MAX, 7)
     );
-    assert_eq!((w.fill, w.unnamed_0c, w.unknown_a0_a4), (0, 0, [0; 2]));
+    assert_eq!((w.fill, w.references, w.unknown_a0_a4), (0, 0, [0; 2]));
     s.init(&mut h, p);
     s.init(&mut h, p);
     s.set_accelerator(&mut h, p, Some(70));
@@ -242,6 +238,8 @@ fn wt10_dispatch_filters_and_arguments() {
     h.mutate_filter = true;
     s.do_message(&mut h, p, Message::new(7, 0x1234ffff, 0xabcd8000, 0xbeef0000, 0));
     assert_eq!(h.calls.last().unwrap().2, vec![u32::MAX, (-32768i32) as u32, 0xbeef]);
+    assert_eq!(s.get(p).filters(), &[50]);
+    s.plot_composite(&mut h, p);
     assert!(s.get(p).filters().is_empty());
     assert!(h.events.contains(&NativeOp::Release(50)));
     s.do_message(&mut h, p, Message::new(14, 0x12345678, 0x87654321, 0x8002fffe, 0));
@@ -487,7 +485,7 @@ fn snapshot_enumeration_and_busy_destruction() {
     s.child_to_back(p, b);
     assert_eq!(s.get(a).references, refs + 1);
     assert_eq!(&*snapshot, &[b, a]);
-    s.unlock_children(snapshot);
+    s.unlock_children(&mut h, snapshot);
     assert_eq!(s.get(a).references, refs);
     let mut visited = Vec::new();
     assert!(!s.enum_children(
@@ -503,11 +501,13 @@ fn snapshot_enumeration_and_busy_destruction() {
     assert_eq!(visited, [a, b]);
     assert!(h.events.contains(&NativeOp::Release(a)));
     s.begin_busy();
-    assert!(s.child_delete_all(&mut h, p));
-    assert!(s.get(p).children().is_empty());
+    assert!(s.destroy(&mut h, a));
+    assert_eq!(s.get(p).children().len(), 2);
     assert!(s.valid(a));
     s.end_busy(&mut h);
     assert!(!s.valid(a));
+    assert!(s.child_delete_all(&mut h, p));
+    assert!(s.get(p).children().is_empty());
     assert!(!s.valid(b));
 }
 #[test]
@@ -557,14 +557,15 @@ fn private_buffer_failure_and_absent_draw_service() {
 }
 
 #[test]
-fn shutdown_during_filter_releases_each_entry_once() {
+fn shutdown_clears_active_and_pending_owning_entries() {
     let (mut s, mut h, p) = setup();
     s.init(&mut h, p);
     s.add_filter(&mut h, p, 50);
     h.mutate_filter = true;
-    h.shutdown_in_filter = true;
     s.do_message(&mut h, p, Message::new(3, 0, 0, 0, 0));
-    assert_eq!(h.events.iter().filter(|e| **e == NativeOp::Release(50)).count(), 1);
+    assert_eq!(s.get(p).removed_filters, [50]);
+    s.shutdown(&mut h, p);
+    assert_eq!(h.events.iter().filter(|e| **e == NativeOp::Release(50)).count(), 2);
     assert!(s.get(p).filters().is_empty());
     assert!(s.get(p).removed_filters.is_empty());
 }
@@ -594,6 +595,8 @@ fn constructors_reparenting_and_tree_forwarders() {
     s.child_add(&mut h, r, p);
     let q = child(&mut s, &mut h, r, Rect::default());
     let a = child(&mut s, &mut h, p, Rect::default());
+    // Reparenting/removing releases list ownership; the caller holds this one.
+    s.add_ref(a);
     assert_eq!(s.get(a).notification, Some(p));
     s.child_add(&mut h, q, a);
     assert_eq!((s.get(a).parent, s.get(a).notification), (Some(q), Some(q)));
@@ -616,6 +619,8 @@ fn constructors_reparenting_and_tree_forwarders() {
     assert!(s.get(a).flag(0x4000)); // detach is not shutdown
     s.child_add(&mut h, p, a);
     assert!(s.child_delete_absolute(&mut h, p, a));
+    assert!(s.valid(a));
+    s.release(&mut h, a);
     assert!(!s.valid(a));
     assert!(!s.child_delete_absolute(&mut h, p, a));
 }

@@ -139,7 +139,7 @@ impl Windows {
                 self.move_to(host, c, r.0, r.1);
             }
         }
-        self.unlock_children(children);
+        self.unlock_children(host, children);
         ok
     }
     fn steal_fade_buffer(&mut self, host: &mut impl Host, src: Window, buffer: Object) -> Window {
@@ -201,7 +201,7 @@ impl Windows {
                 self.clean_overlays(host, c);
             }
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
     }
     pub fn plot(&mut self, host: &mut impl Host, w: Window) -> bool {
         let temporary = self.get(w).params.contains_key(&FADE_TEMP);
@@ -225,7 +225,7 @@ impl Windows {
         if self.get(w).flag(0x20) {
             self.fade_advance(host, w);
         }
-        if self.run_filters(host, w, Message::new(0x16, 0, 0, 0, 0)) {
+        if self.run_filters(host, w, Message::new(0x16, 0, 0, 0, 0), true) {
             return true;
         }
         if !self.get(w).dirty {
@@ -293,7 +293,7 @@ impl Windows {
                 self.plot(host, c);
             }
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
         true
     }
     pub fn plot_present(&mut self, host: &mut impl Host, w: Window) -> bool {

@@ -12,30 +12,35 @@ impl Windows {
             return false;
         };
         if self.get(w).filtering {
-            // WT10: deferred entries stay in the active list until outermost exit.
             self.get_mut(w).removed_filters.push(f);
+            host.event(NativeOp::AddRef(f));
         } else {
             self.get_mut(w).filters.remove(i);
             host.event(NativeOp::Release(f));
         }
         true
     }
-    pub(super) fn run_filters(&mut self, host: &mut impl Host, w: Window, msg: Message) -> bool {
+    pub(super) fn run_filters(&mut self, host: &mut impl Host, w: Window, msg: Message, paint: bool) -> bool {
         let nested = self.get(w).filtering;
         self.get_mut(w).filtering = true;
-        let filters = self.get(w).filters.clone();
         let mut handled = false;
-        for f in filters {
+        let mut index = 0;
+        while let Some(&f) = self.get(w).filters.get(index) {
             if host.filter(self, f, w, msg) {
                 handled = true;
                 break;
             }
+            index += 1;
         }
         self.get_mut(w).filtering = nested;
-        if !nested {
+        if paint && !nested {
             let pending = std::mem::take(&mut self.get_mut(w).removed_filters);
+            for &f in &pending {
+                // Native failed-find erases the active sentinel: no defined continuation.
+                assert!(self.remove_filter(host, w, f), "WT10 active sentinel erasure");
+            }
             for f in pending {
-                self.remove_filter(host, w, f);
+                host.event(NativeOp::Release(f));
             }
         }
         handled
@@ -44,14 +49,17 @@ impl Windows {
         self.get(w).accelerator.is_some_and(|a| host.accelerate(a, msg))
     }
     pub fn do_message(&mut self, host: &mut impl Host, w: Window, msg: Message) -> bool {
-        if self.run_filters(host, w, msg) {
-            return true;
+        self.do_message_byte(host, w, msg) != 0
+    }
+    /// Preserve AL from void-typed slot 16; the bool facade is for ordinary callers.
+    pub fn do_message_byte(&mut self, host: &mut impl Host, w: Window, msg: Message) -> u8 {
+        if self.run_filters(host, w, msg, false) {
+            return 1;
         }
         let [kind, a, b, c, _] = msg.0;
         if kind == 1 {
-            self.child_delete(host, w, u64::from(a));
-            return false;
-        } // WT11: void slot's AL is unpublished.
+            return host.child_delete_byte(self, w, u64::from(a));
+        }
         let buttons = c >> 16;
         let x = (a as i16 as i32) as u32;
         let y = (b as i16 as i32) as u32;
@@ -71,19 +79,26 @@ impl Windows {
             18 => (140, vec![a, b]),
             19 => (141, vec![a]),
             20 => (142, vec![a]),
-            _ => return false,
+            _ => return 0,
         };
         if kind == 17 && !self.get(w).flag(1) {
             self.set_focus_to(host, self.get(w).notification);
         }
         host.event(NativeOp::Handler(w, slot, args.clone()));
         if host.handler(self, w, slot, &args) {
-            return true;
+            return 1;
         }
-        (kind == 5 || kind == 6) && self.accelerate(host, w, msg)
+        u8::from((kind == 5 || kind == 6) && self.accelerate(host, w, msg))
     }
     pub fn send(&mut self, host: &mut impl Host, target: Window, msg: Message) -> bool {
-        self.valid(target) && self.do_message(host, target, msg)
+        self.send_byte(host, target, msg) != 0
+    }
+    pub fn send_byte(&mut self, host: &mut impl Host, target: Window, msg: Message) -> u8 {
+        if self.valid(target) {
+            self.do_message_byte(host, target, msg)
+        } else {
+            0
+        }
     }
     pub fn post(&mut self, host: &mut impl Host, target: Window, msg: Message) -> bool {
         host.event(NativeOp::Post(target, msg));
@@ -117,7 +132,7 @@ impl Windows {
             self.do_message(host, new, Message::new(19, old.unwrap_or(0) as u32, 0, 0, 0));
         }
         if let Some(old) = old {
-            self.release(old);
+            self.release(host, old);
         }
         if let Some(new) = new {
             self.add_ref(new);
@@ -138,7 +153,7 @@ impl Windows {
                 break;
             }
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
         if let Some(c) = target {
             return self.process_cursor(host, c, msg);
         }

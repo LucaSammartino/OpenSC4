@@ -5,6 +5,8 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
+#[cfg(test)]
+mod closure_tests;
 mod dispatch;
 mod geometry;
 mod paint;
@@ -70,7 +72,6 @@ pub enum Param {
 pub struct BaseWindow {
     pub manager: Object,
     pub keyboard: Option<Object>,
-    pub unnamed_0c: u32,
     pub id: u32,
     pub absolute: Rect,
     pub draw_area: Rect,
@@ -101,6 +102,7 @@ pub struct BaseWindow {
     filters: Vec<Object>,
     removed_filters: Vec<Object>,
     filtering: bool,
+    registered: bool,
 }
 
 impl BaseWindow {
@@ -108,7 +110,6 @@ impl BaseWindow {
         Self {
             manager,
             keyboard,
-            unnamed_0c: 0,
             id: 0,
             absolute: Rect::default(),
             draw_area: Rect::default(),
@@ -132,13 +133,14 @@ impl BaseWindow {
             instance_id: id,
             shade: u32::MAX,
             fill: 0,
-            references: 1,
+            references: 0,
             children: Vec::new(),
             child_generation: 0,
             params: BTreeMap::new(),
             filters: Vec::new(),
             removed_filters: Vec::new(),
             filtering: false,
+            registered: true,
         }
     }
     pub fn flag(&self, mask: u32) -> bool {
@@ -214,6 +216,25 @@ pub struct BufferInfo {
 /// Buffer creation internals and native slot meanings stay at this boundary (§12).
 pub trait Host {
     fn event(&mut self, _event: NativeOp) {}
+    /// Explicit AL left by a slot-16 override (the native declaration is void).
+    fn child_delete_byte(&mut self, wins: &mut Windows, _parent: Window, child: Window) -> u8
+    where
+        Self: Sized,
+    {
+        u8::from(wins.destroy(self, child))
+    }
+    fn deleting_destructor(&mut self, wins: &mut Windows, w: Window, flags: u32)
+    where
+        Self: Sized,
+    {
+        wins.deleting_destructor(self, w, flags);
+    }
+    fn destroy_window(&mut self, wins: &mut Windows, w: Window) -> bool
+    where
+        Self: Sized,
+    {
+        wins.destroy(self, w)
+    }
     fn window_manager(&mut self) -> Object {
         0
     }
@@ -308,7 +329,7 @@ pub struct Windows {
     pub queue_enabled: bool,
     plots: VecDeque<Window>,
     posts: VecDeque<(Window, Message)>,
-    busy: u32,
+    busy: i32,
     condemned: Vec<Window>,
     draw_service: Option<bool>,
     child_readers: BTreeMap<(Window, u64), usize>,
@@ -358,17 +379,31 @@ impl Windows {
         self.windows.get_mut(&w).expect("live window")
     }
     pub fn valid(&self, w: Window) -> bool {
-        self.windows.contains_key(&w)
+        self.windows.get(&w).is_some_and(|s| s.registered)
     }
     pub fn add_ref(&mut self, w: Window) -> u32 {
         let s = self.get_mut(w);
         s.references = s.references.wrapping_add(1);
         s.references
     }
-    pub fn release(&mut self, w: Window) -> u32 {
-        let s = self.get_mut(w);
-        s.references = s.references.wrapping_sub(1);
-        s.references
+    pub fn query_interface(&mut self, w: Window, iid: u32, out: &mut Option<Window>) -> bool {
+        if !matches!(iid, 1 | 0x22ba0121 | 0xe98b2f57) {
+            return false;
+        }
+        *out = Some(w);
+        self.add_ref(w);
+        true
+    }
+    pub fn release(&mut self, host: &mut impl Host, w: Window) -> u32 {
+        let count = self.get(w).references;
+        if count > 1 {
+            self.get_mut(w).references = count - 1;
+            count - 1
+        } else {
+            // No decrement is stored before virtual slot 148(1).
+            host.deleting_destructor(self, w, 1);
+            0
+        }
     }
     pub fn set_param(&mut self, host: &mut impl Host, w: Window, key: u32, value: Option<Param>) -> bool {
         if let Some(Param::Object(old)) = self.get_mut(w).params.remove(&key) {
@@ -429,10 +464,8 @@ impl Windows {
             self.get_mut(w).flags &= !0x4000;
             self.set_accelerator(host, w, None);
             let filters = std::mem::take(&mut self.get_mut(w).filters);
-            // Deferred removals name entries in the active list, without an
-            // additional AddRef. Clearing both lists must release each entry once.
-            self.get_mut(w).removed_filters.clear();
-            for f in filters {
+            let pending = std::mem::take(&mut self.get_mut(w).removed_filters);
+            for f in filters.into_iter().chain(pending) {
                 host.event(NativeOp::Release(f));
             }
             self.hide(host, w);
