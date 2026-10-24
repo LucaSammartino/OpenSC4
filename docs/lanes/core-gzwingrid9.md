@@ -4,10 +4,13 @@
 
 ## Handoff
 - Goal: merge re-wingrid-wg9, implement settled contracts and close owner table.
-- Done: resolved merge conflict by retaining WG3/WG4 only.
+- Done: merged settled specs/index at 825b81f96; retained WG3/WG4 only.
 - Prior round tip: 751c3f546; round 2 uses detached HEAD as instructed.
-- Main script index failed attempting to write main; use local script next.
-- Next: finish merge/index; read §§5.15–5.16; implement and gate.
+- Implemented WG5–WG9 dependencies, setters, sorting, paint, and 19 vectors.
+- Focused changed-source snapshot: 73/73 widget tests including all 19 vectors.
+- Earlier focused snapshot: 69/73 (four obsolete provisional assertions); corrected.
+- Next: finish closure table, focused final snapshot, fmt and full all/verify gate.
+- Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
 - No round 2 game request or gate outstanding. Core-only; ABI unchanged.
 
 ## Previous round report

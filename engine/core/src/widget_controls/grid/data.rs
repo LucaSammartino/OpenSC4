@@ -261,8 +261,6 @@ impl Grid {
         Ok(true)
     }
 
-    /// Default/per-cell format replacement only. Axis-format size words remain
-    /// explicitly open WG6; no invented struct-copy semantics.
     pub fn set_cell_format_state(&mut self, cell: Coordinate, format: &Format, f: &mut impl Foreign) -> Result<bool> {
         if cell == (-1, -1) {
             if let Some(font) = format.font {
@@ -276,7 +274,21 @@ impl Grid {
             return Ok(true);
         }
         if cell.0 == -1 || cell.1 == -1 {
-            return Err(Unsupported::Open("WG6"));
+            let axis = usize::from(cell.0 == -1);
+            let index = if axis == 0 { cell.0 } else { cell.1 };
+            if let Some(font) = format.font {
+                f.add_ref(font);
+            }
+            let entry = self.sizes[axis].entry(index).or_default();
+            if let Some(font) = entry.format.font {
+                f.release(font);
+            }
+            *entry = SizeEntry {
+                format: format.clone(),
+                explicit: -1,
+                cached: -1,
+            };
+            return Ok(true);
         }
         if !self.within(cell) {
             return Ok(false);

@@ -2,6 +2,8 @@
 use super::*;
 use grid::{Grid, GridHost, Input, LayoutContext, PaintHost, PaintOp, PaintRecord};
 use std::collections::BTreeMap;
+#[path = "vectors.rs"]
+mod vectors;
 
 #[derive(Default)]
 pub(super) struct Events {
@@ -24,6 +26,20 @@ pub(super) struct Events {
 }
 
 impl GridHost for Recording {
+    fn grid_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
+        u32::from_be_bytes([0x7f, rgb[0], rgb[1], rgb[2]])
+    }
+    fn compare_grid_text(&mut self, a: &[u8], b: &[u8]) -> std::cmp::Ordering {
+        let a = grid::Cell {
+            value: grid::Value::Text(a.to_vec()),
+            ..grid::Cell::default()
+        };
+        let b = grid::Cell {
+            value: grid::Value::Text(b.to_vec()),
+            ..grid::Cell::default()
+        };
+        grid::compare_c_locale(&a, &b)
+    }
     fn enabled(&mut self, _: Handle) -> bool {
         !self.owner.disabled
     }
@@ -199,7 +215,7 @@ fn owner_hit_headers_inclusive_edges_and_input_notifications() {
         &mut c,
         &mut f,
     );
-    assert_eq!(g.selection, [(0, 0), (0, 1), (1, 0), (1, 1)]);
+    assert_eq!(g.selection, [(0, 0), (0, 1)]); // row membership suppresses duplicates
     g.input(
         Input::Down {
             point: [190, 50],
@@ -208,7 +224,7 @@ fn owner_hit_headers_inclusive_edges_and_input_notifications() {
         &mut c,
         &mut f,
     );
-    assert_eq!(g.selection, [(0, 0), (1, 0)]); // default row removal mode
+    assert_eq!(g.selection, [(0, 0)]); // default row removal mode
     g.flags &= !8;
     assert_eq!(g.hit_test([10, 30], &mut f), None);
 }
@@ -285,16 +301,18 @@ fn owner_editable_text_reference_balance_init_and_font() {
     assert_eq!(f.editor_texts, [b"edit".to_vec()]);
     assert!(matches!(
         g.cells[&(0, 0)].value,
-        grid::Value::Window { handle: 601, .. }
+        grid::Value::Window { handle: 1601, .. }
     ));
     g.set_cell_font((1, 1), Some(40), &mut c, &mut f);
     g.shutdown(&mut f);
-    assert_eq!(f.refs.iter().filter(|&&(add, h)| add && h == 601).count(), 2);
-    assert_eq!(f.refs.iter().filter(|&&(add, h)| !add && h == 601).count(), 3); // temporary setter, factory, retained cell
+    assert_eq!(f.refs.iter().filter(|&&(add, h)| add && h == 1601).count(), 3);
+    assert_eq!(f.refs.iter().filter(|&&(add, h)| !add && h == 1601).count(), 3); // query, temporary setter, retained cell
+    assert!(f.refs.contains(&(false, 601))); // created editor
     let (mut g, mut c, mut f) = setup(0);
     g.initialized = false;
     assert!(g.init(&mut c, &mut f));
-    assert_eq!(g.default_formatting(), Err(Unsupported::Open("WG6")));
+    g.default_formatting(&mut f);
+    assert_eq!(g.default_format.words[6], 0x0005_0201);
     assert_eq!(g.language, 1);
     assert!(g.init(&mut c, &mut f));
 }
@@ -318,6 +336,7 @@ fn owner_paint_layers_clips_selection_owner_veto_and_open_alignment() {
     };
     format.words[1] = 11;
     format.words[3] = 12;
+    format.words[4] = 13;
     format.words[5] = 13;
     format.words[6] = (3 << 8) | (6 << 16);
     let mut formats = BTreeMap::from([((0, 0), format.clone())]);
@@ -355,7 +374,7 @@ fn owner_paint_layers_clips_selection_owner_veto_and_open_alignment() {
     g.cells.get_mut(&(0, 0)).unwrap().value = grid::Value::Text(b"text".to_vec());
     assert_eq!(
         g.paint(&formats, &grid::Format::default(), [0, 0], 99, &mut c, &mut f),
-        Err(Unsupported::Open("WG6"))
+        Ok(())
     );
     formats.get_mut(&(0, 0)).unwrap().words[6] = 0;
     g.paint(&formats, &grid::Format::default(), [0, 0], 99, &mut c, &mut f)
@@ -373,10 +392,6 @@ fn owner_live_setters_formats_helpers_and_resources() {
     assert_eq!(g.buffer_to_draw_to(&mut f), (Some(41), [2, 3, 4, 5]));
     g.set_fill_color(17, &mut c, &mut f);
     assert_eq!(f.defaults, [17]);
-    assert_eq!(
-        g.pending_owner(grid::PendingOwner::SortColumn),
-        Err(Unsupported::Open("WG8"))
-    );
     let mut out = (99, 99);
     assert!(!g.first_selection(&mut out));
     assert_eq!(out, (99, 99));
@@ -445,6 +460,7 @@ fn owner_paint_line_order_header_defaults_and_unbounded_bar_quirk() {
         font: Some(50),
         words: [0x40000000; 8],
     };
+    format.words[0] = 12;
     format.words[3] = 12;
     format.words[6] = 0;
     let formats = [(0, 0), (0, 1), (1, 0), (1, 1)]

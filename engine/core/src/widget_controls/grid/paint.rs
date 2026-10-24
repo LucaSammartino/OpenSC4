@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Paint passes from win-grid §5.12. Effective format merging remains WG5.
+//! Paint passes from win-grid §§5.12, 5.15.
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaintRecord {
     pub rect: Rect,
     pub clip: Rect,
+    pub cell_area: Rect,
     pub coordinate: Coordinate,
     pub cell: Option<Cell>,
     pub format: Format,
@@ -19,6 +20,7 @@ pub enum PaintOp {
     Clip(Rect),
     Capability(u32, bool),
     LineWidth(f32),
+    TextAlignment(u32),
     Line { from: [i32; 2], to: [i32; 2], color: u32 },
 }
 
@@ -72,23 +74,38 @@ impl Grid {
         let selected = record.selected && self.flags & 0x80000 == 0;
         self.fill_paint(
             intersect(rect, record.clip),
-            color(&record.format, if selected { 0x18 } else { 8 }),
+            color(
+                &record.format,
+                if selected {
+                    0x18
+                } else if record.enabled {
+                    8
+                } else {
+                    0x10
+                },
+            ),
             f,
         );
     }
 
-    fn paint_content(&self, record: &PaintRecord, f: &mut impl PaintHost) -> Result<()> {
+    pub(crate) fn paint_content(&self, record: &PaintRecord, f: &mut impl PaintHost) -> Result<()> {
         if self.flags & 0x20000 == 0 {
             self.paint_background(record, f);
         }
         let mut rect = inset(record.rect, self.cell_gutters);
+        let mut extended = record.clone();
         if self.flags & 0x20000 != 0 {
-            rect[2] = record.clip[2];
+            extended.clip[2] = record.cell_area[2];
         }
         let align = alignment(&record.format);
-        f.paint_op(PaintOp::Clip(record.clip));
+        f.paint_op(PaintOp::Clip(extended.clip));
         match record.cell.as_ref().map(|c| &c.value) {
-            Some(Value::Text(text)) => self.paint_text(record, rect, text, f)?,
+            Some(Value::Text(text)) => {
+                if self.flags & 0x20000 != 0 {
+                    rect[2] = record.cell_area[2];
+                }
+                self.paint_text(&extended, rect, text, f)?;
+            }
             Some(Value::Bitmap(image)) => {
                 let size = f.image_area(*image);
                 let [w, h] = [size[2] - size[0], size[3] - size[1]];
@@ -114,28 +131,32 @@ impl Grid {
         Ok(())
     }
 
-    fn paint_text(&self, record: &PaintRecord, mut rect: Rect, text: &[u8], f: &mut impl PaintHost) -> Result<()> {
+    pub(crate) fn paint_text(
+        &self,
+        record: &PaintRecord,
+        mut rect: Rect,
+        text: &[u8],
+        f: &mut impl PaintHost,
+    ) -> Result<()> {
         let align = alignment(&record.format);
-        if matches!(align[0], 3..=5) {
-            return Err(Unsupported::Open("WG6"));
-        }
         let Some(font) = record.format.font else {
             return Ok(());
         };
         let line = f.font_height(font);
-        rect[1] = match align[1] {
-            6 => (rect[1] + rect[3]) / 2 - line / 2,
-            7 => rect[3] - line,
-            _ => rect[1],
-        };
+        if align[1] == 6 {
+            rect[1] = rect[1].wrapping_add(rect[3]) / 2 - line / 2;
+            rect[3] = rect[1].wrapping_add(line);
+        } else if align[0] != 5 {
+            rect[1] = rect[3].wrapping_sub(line);
+        }
         let text_color = color(
             &record.format,
             if record.selected {
-                0x18
+                0x14
             } else if record.enabled {
-                0x10
+                4
             } else {
-                8
+                0x0c
             },
         );
         if self.flags & 0x80000 != 0 && text_color != 0x4000_0000 {
@@ -150,6 +171,11 @@ impl Grid {
             }
         }
         if text_color != 0x4000_0000 {
+            f.paint_op(PaintOp::TextAlignment(match align[0] {
+                3 => 1,
+                4 => 2,
+                _ => 0,
+            }));
             f.paint_op(PaintOp::Primitive(Draw::Text {
                 font,
                 text: text.to_vec(),
@@ -160,8 +186,20 @@ impl Grid {
         Ok(())
     }
 
-    /// Resolved formats are explicit inputs because GetCellFormat's precedence
-    /// is still open WG5. No inheritance/default resource is invented here.
+    /// Paint using the owner's effective formats and initialized header format.
+    pub fn paint_owner(
+        &mut self,
+        origin: [i32; 2],
+        window_color: u32,
+        context: &mut LayoutContext,
+        f: &mut impl PaintHost,
+    ) -> Result<()> {
+        let header = self.header_format.clone();
+        self.paint(&BTreeMap::new(), &header, origin, window_color, context, f)
+    }
+
+    /// Explicit formats may be supplied by callers that already resolved them.
+    /// Missing entries are resolved from the grid's format matrices.
     #[allow(clippy::too_many_arguments)]
     pub fn paint(
         &mut self,
@@ -226,6 +264,7 @@ impl Grid {
             let record = PaintRecord {
                 rect: [from[0], from[1], to[0], to[1]],
                 clip: area,
+                cell_area: area,
                 coordinate,
                 cell: None,
                 format: Format::default(),
@@ -251,16 +290,10 @@ impl Grid {
             }
             for i in self.position[axis]..self.position[axis].wrapping_add(self.visible[axis].ceil() as i32) {
                 let coordinate = if axis == 0 { (i, 0) } else { (0, i) };
-                let mut rect = offset(self.cell_rect(coordinate, f), origin);
-                // WG9: literal header band from the cell-area boundary; the
-                // slot 72/73 bodies are not settled in the incorporated spec.
-                if axis == 0 {
-                    rect[1] = window[1] + self.gutters[1];
-                    rect[3] = area[1];
-                } else {
-                    rect[0] = window[0] + self.gutters[0];
-                    rect[2] = area[0];
-                }
+                let Some(local) = self.header_rect(axis, i, f) else {
+                    continue;
+                };
+                let rect = offset(local, origin);
                 let mut text = self.heading(axis, i).to_vec();
                 if text.is_empty() && self.flags & 0x100000 != 0 {
                     text = format!("{} #{}", if axis == 0 { "Column" } else { "Row" }, i).into_bytes();
@@ -268,6 +301,7 @@ impl Grid {
                 let record = PaintRecord {
                     rect,
                     clip: intersect(rect, window),
+                    cell_area: area,
                     coordinate,
                     cell: None,
                     format: header.clone(),
@@ -283,10 +317,14 @@ impl Grid {
             for r in self.position[1]..end[1] {
                 let coordinate = (c, r);
                 let rect = offset(self.cell_rect(coordinate, f), origin);
-                let format = formats.get(&coordinate).ok_or(Unsupported::Open("WG5"))?.clone();
+                let format = formats
+                    .get(&coordinate)
+                    .cloned()
+                    .unwrap_or_else(|| self.cell_format(coordinate));
                 records.push(PaintRecord {
                     rect,
                     clip: intersect(rect, area),
+                    cell_area: area,
                     coordinate,
                     cell: self.cells.get(&coordinate).cloned(),
                     format,

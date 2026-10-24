@@ -318,10 +318,7 @@ fn grid_delete_axis_modes_and_default_per_cell_format_ownership() {
     assert!(!g.dirty);
     assert_eq!(g.set_cell_format_state((-1, -1), &format, &mut f), Ok(true));
     assert_eq!(&f.refs[f.refs.len() - 2..], [(true, 123), (false, 123)]);
-    assert_eq!(
-        g.set_cell_format_state((-1, 0), &format, &mut f),
-        Err(Unsupported::Open("WG6"))
-    );
+    assert_eq!(g.set_cell_format_state((-1, 0), &format, &mut f), Ok(true));
     assert_eq!(g.set_cell_format_state((5, 5), &format, &mut f), Ok(true));
     assert!(g.dirty);
     assert_eq!(g.cells[&(5, 5)].format, Some(format));
@@ -342,10 +339,10 @@ fn grid_vectors_1_to_6_and_literal_selection_modes() {
     let mut g = grid::Grid::new(100, 0);
     let mut f = Recording::default();
     assert!(!g.set_default_color(6, 42));
-    assert_eq!(g.default_colors, [0; 6]);
+    assert_eq!(g.default_colors, [0x4000_0000; 6]);
     assert!(g.set_default_color(5, 42));
     g.set_text((0, 99), Some(b"last"), 0, 1, &mut f).unwrap();
-    g.scroll_pages(1, 2);
+    g.scroll_pages(1, 2, &mut f);
     assert_eq!(g.position[1], 8);
     assert!(g.set_selection((1, 2)));
     g.set_selection_rules(2, 10);
@@ -369,7 +366,7 @@ fn grid_vectors_1_to_6_and_literal_selection_modes() {
     assert!(!g.set_axis_extra(0, 7, 42));
     g.set_selection_rules(1, 10);
     assert!(g.add_selection((2, 3), true));
-    assert!(g.add_selection((4, 3), true));
+    assert!(!g.add_selection((4, 3), true)); // row already selected (WG5-c)
     assert!(g.add_selection((2, 3), false));
     assert!(g.selection.is_empty());
     g.set_selection_rules(0, 10);

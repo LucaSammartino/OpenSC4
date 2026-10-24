@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cGZWinGrid state, selection and sparse size/format tables (win-grid §§1–5).
+mod contracts;
 mod data;
 mod paint;
 mod runtime;
 use super::*;
+pub use contracts::{compare_c_locale, CellComparator};
 pub use data::GridDataForeign;
 pub use paint::{PaintHost, PaintOp, PaintRecord};
 pub use runtime::{compare_cell_values, equal_record, signed_gcd, stable_sort_values};
-pub use runtime::{GridHost, Input, Mutation, PendingOwner};
+pub use runtime::{GridHost, Input, Mutation};
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;
@@ -15,14 +17,29 @@ pub const PRIMARY_SLOTS: usize = 142;
 pub const WINDOW_SLOTS: usize = 151;
 pub type Coordinate = (i32, i32);
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Format {
     pub font: Option<Handle>,
     /// The other eight words are preserved even when their public meanings
     /// remain unproved. They are not a Rust/native memory-layout promise.
-    // WG6: zero initialization is provisional until SetDefaultFormatting is
-    // specified; compatible drawing requires a resolved supplied format.
     pub words: [u32; 8],
+}
+impl Default for Format {
+    fn default() -> Self {
+        Self {
+            font: None,
+            words: [
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0xff,
+                0x4000_0000,
+            ],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -115,7 +132,7 @@ pub struct Grid {
     pub last_set: Coordinate,
     pub background: Option<Handle>,
     pub owner_draw: Option<Handle>,
-    pub header_font: Option<Handle>,
+    pub header_format: Format,
     pub default_format: Format,
     pub default_colors: [u32; 6],
     pub selection_mode: u32,
@@ -165,9 +182,9 @@ impl Grid {
             last_set: (-1, -1),
             background: None,
             owner_draw: None,
-            header_font: None,
+            header_format: Format::default(),
             default_format: Format::default(),
-            default_colors: [0; 6],
+            default_colors: [0x4000_0000; 6],
             selection_mode: 1,
             selection_max: i32::MAX,
             selection: Vec::new(),
@@ -266,7 +283,11 @@ impl Grid {
         self.selection.clear();
     }
     pub fn selected(&self, cell: Coordinate) -> bool {
-        self.selection.contains(&cell)
+        self.selection.iter().any(|&entry| match self.selection_mode {
+            0 => entry.0 == cell.0,
+            1 => entry.1 == cell.1,
+            _ => entry == cell,
+        })
     }
     /// Returns whether data changed. A caller must run the recalculation hook
     /// even for false, including when the list was already in the desired state.
@@ -312,10 +333,8 @@ impl Grid {
             self.selection.push((0, 0));
         }
     }
-    /// Bound helper is a literal fixed-range reading; WG5 asks for the body
-    /// contract for negative indices and limits other than -1.
     pub fn within_axis(&self, axis: usize, index: i32) -> bool {
-        index >= 0 && (self.flags & (0x2000 << axis) == 0 || self.limits[axis] == -1 || index < self.limits[axis])
+        matches!(self.limits[axis], 0 | -1) || (index >= 0 && index < self.limits[axis])
     }
     pub fn within(&self, cell: Coordinate) -> bool {
         self.within_axis(0, cell.0) && self.within_axis(1, cell.1)
@@ -327,6 +346,10 @@ impl Grid {
         self.cells.keys().fold([c, r, c, r], |a, &(c, r)| {
             [a[0].min(c), a[1].min(r), a[2].max(c), a[3].max(r)]
         })
+    }
+    pub fn get_used_range(&self, output: &mut Rect) -> bool {
+        *output = self.used_range();
+        !self.cells.is_empty()
     }
     pub fn get_axis_extra(&mut self, axis: usize, index: i32) -> u32 {
         *self.extra_maps[axis].entry(index).or_default()
@@ -438,20 +461,42 @@ impl Grid {
         }
         self.position[axis] = index;
     }
-    pub fn scroll_pages(&mut self, axis: usize, pages: i32) {
-        self.scroll_cells(axis, pages.wrapping_mul(4));
+    pub fn scroll_pages(&mut self, axis: usize, pages: i32, f: &mut impl GridForeign) {
+        self.scroll_cells(axis, pages.wrapping_mul(4), f);
     }
-    /// Literal relative-scroll interpretation. The slot bodies are pending in
-    /// win-grid's inventory (WG5); unlike ScrollTo, its lower clamp is unproved.
-    pub fn scroll_cells(&mut self, axis: usize, cells: i32) {
-        self.scroll_to(axis, self.position[axis].wrapping_add(cells));
+    pub fn scroll_cells(&mut self, axis: usize, cells: i32, f: &mut impl GridForeign) -> bool {
+        let mut position = self.position[axis].wrapping_add(cells);
+        if !(matches!(self.limits[axis], 0 | -1) && self.flags & (0x8000 << axis) != 0) {
+            // Both axes deliberately test the vertical fixed-range flag (§5.15).
+            let count = if self.flags & 0x10000 == 0 {
+                self.used_range()[axis + 2].wrapping_add(1)
+            } else {
+                self.limits[axis]
+            };
+            position = position.min(count.wrapping_sub(1)).max(0);
+            let mut pixels = self.size_sum(axis, position, count.wrapping_sub(position), f);
+            while position > 0 && pixels < self.cell_size[axis] {
+                position -= 1;
+                pixels = pixels.wrapping_add(if axis == 0 {
+                    self.column_width(position)
+                } else {
+                    self.row_height(position, f)
+                });
+            }
+        }
+        position = position.max(0);
+        if position != self.position[axis] {
+            self.position[axis] = position;
+            self.dirty = true;
+        }
+        true
     }
-    pub fn wheel(&mut self, delta: i32) {
-        self.scroll_cells(1, delta / -100);
+    pub fn wheel(&mut self, delta: i32, f: &mut impl GridForeign) {
+        self.scroll_cells(1, delta / -100, f);
     }
-    pub fn scroll_step(&mut self, axis: usize, back: bool) {
+    pub fn scroll_step(&mut self, axis: usize, back: bool, f: &mut impl GridForeign) {
         let count = self.visible[axis] as i32;
-        self.scroll_cells(axis, if back { count.wrapping_neg() } else { count });
+        self.scroll_cells(axis, if back { count.wrapping_neg() } else { count }, f);
     }
     pub fn do_message(&mut self, message: Message, f: &mut impl Foreign) -> bool {
         if message.kind == 3 && message.words[0] as u32 == 0x8871_13a3 {
@@ -509,7 +554,7 @@ impl Grid {
             &mut self.background,
             &mut self.owner_draw,
             &mut self.default_format.font,
-            &mut self.header_font,
+            &mut self.header_format.font,
         ] {
             replace_ref(slot, None, f);
         }
@@ -829,15 +874,7 @@ impl Grid {
                 Value::Window { handle, .. } => height = f.window_size(*handle)[1],
                 Value::Bitmap(handle) => height = f.buffer_height(*handle),
                 Value::Text(text) if !text.is_empty() => {
-                    // Literal precedence: explicit cell, row, column, default.
-                    // The GetCellFormat slot's missing merge rules are WG5.
-                    let font = record
-                        .format
-                        .as_ref()
-                        .and_then(|fmt| fmt.font)
-                        .or_else(|| self.sizes[1].get(&cell.1).and_then(|s| s.format.font))
-                        .or_else(|| self.sizes[0].get(&cell.0).and_then(|s| s.format.font))
-                        .or(self.default_format.font);
+                    let font = self.cell_format(cell).font;
                     if let Some(font) = font {
                         let line = f.font_height(font);
                         if line != 0 {

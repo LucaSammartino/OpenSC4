@@ -5,6 +5,10 @@ use super::*;
 /// Only individual game-interface operations cross this boundary. References
 /// returned by create_grid_bar/create_editor are created, not borrowed.
 pub trait GridHost: GridDataForeign {
+    /// Window RGB conversion; pixel representation belongs to the adapter.
+    fn grid_rgb(&mut self, window: Handle, rgb: [u8; 3]) -> u32;
+    /// CRT _stricmp using the host's current thread CTYPE locale, not Unicode.
+    fn compare_grid_text(&mut self, a: &[u8], b: &[u8]) -> std::cmp::Ordering;
     fn enabled(&mut self, window: Handle) -> bool;
     fn capturing(&mut self, window: Handle) -> bool;
     fn focused(&mut self) -> Option<Handle>;
@@ -39,19 +43,6 @@ pub enum Input {
     Wheel(i32),
     Character,
     Focus(bool),
-}
-
-/// Named owner bodies explicitly pending in the source specification. These
-/// cannot be implemented by guessing from similarly named controls.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PendingOwner {
-    SortColumn,
-    SortRow,
-    ResizeColumnToFitCellWindows,
-    SetCellColors,
-    SetCellWrapping,
-    SetCellAlignment,
-    SetCellBorder,
 }
 
 /// Live counterparts of the data-stage methods: unlike direct state edits,
@@ -118,10 +109,6 @@ pub(super) fn inside(r: Rect, p: [i32; 2]) -> bool {
 }
 
 impl Grid {
-    pub fn pending_owner(&self, _: PendingOwner) -> Result<()> {
-        Err(Unsupported::Open("WG8"))
-    }
-
     pub fn set_fill_color(&mut self, color: u32, context: &mut LayoutContext, f: &mut impl GridHost) {
         f.base_fill_color(self.window(), color);
         if self.flags & 0x100 != 0 {
@@ -167,12 +154,14 @@ impl Grid {
                 (true, changed)
             }
             Mutation::ScrollCells { axis, count } => {
-                self.scroll_cells(axis, count);
-                (true, true)
+                let old = self.position[axis];
+                self.scroll_cells(axis, count, f);
+                (true, old != self.position[axis])
             }
             Mutation::ScrollPages { axis, count } => {
-                self.scroll_pages(axis, count);
-                (true, true)
+                let old = self.position[axis];
+                self.scroll_pages(axis, count, f);
+                (true, old != self.position[axis])
             }
             Mutation::Selection(cell) => {
                 let changed = self.set_selection(cell);
@@ -256,27 +245,19 @@ impl Grid {
             f.release(previous as Handle);
         }
         // WG4: preserve the measured store of grid extra, not the argument.
-        self.extra_mode = 1;
-        self.cells.entry(cell).or_default().extra = self.extra;
+        self.set_cell_extra(cell, self.extra);
         self.extra_mode = 2;
         true
     }
-    /// WG6 leaves the default-format initializer unsettled. Initialization
-    /// still performs the settled lifecycle; callers must supply resolved
-    /// formatting before rendering and cannot claim initializer parity.
     pub fn init(&mut self, context: &mut LayoutContext, f: &mut impl GridHost) -> bool {
         if !self.initialized {
             f.base_init(self.window());
             self.initialized = true;
             self.language = f.language_value().unwrap_or(1);
-            let _ = self.default_formatting();
+            self.default_formatting(f);
             self.recalculate(context, f);
         }
         true
-    }
-
-    pub fn default_formatting(&mut self) -> Result<()> {
-        Err(Unsupported::Open("WG6"))
     }
 
     pub fn set_area_live(&mut self, rect: Rect, context: &mut LayoutContext, f: &mut impl GridHost) {
@@ -542,7 +523,7 @@ impl Grid {
         match input {
             Input::Character => false,
             Input::Wheel(delta) => {
-                self.wheel(delta);
+                self.wheel(delta, f);
                 self.recalculate(context, f);
                 true
             }
@@ -683,7 +664,7 @@ impl Grid {
                 self.recalculate(context, f);
             }
             0x21 | 0x22 => {
-                self.scroll_step(usize::from(modifiers & 4 == 0), key == 0x21);
+                self.scroll_step(usize::from(modifiers & 4 == 0), key == 0x21, f);
                 self.recalculate(context, f);
             }
             0x25..=0x28 => self.arrow(key, modifiers, context, f),
@@ -770,14 +751,20 @@ impl Grid {
         }
         self.clear_cell(cell, f);
         let Some(editor) = f.create_editor(0x11ff) else {
-            // WG7: spec does not settle the factory failure path.
-            return Err(Unsupported::Open("WG7"));
+            // §5.15: terminal native null-interface fault, not boolean failure.
+            return Err(Unsupported::Precondition("Grid null editor dereference"));
         };
         f.editor_text(editor, text, count);
-        let result = self.set_window(cell, Some(editor), true, true, 1, f);
+        let mut window = None;
+        if f.object_query(editor, crate::ui_windows::IID_IGZ_WIN, &mut window) {
+            if let Some(window) = window {
+                self.set_window(cell, Some(window), true, true, 1, f);
+                f.release(window);
+            }
+        }
         f.release(editor);
         self.recalculate(context, f);
-        Ok(result)
+        Ok(true)
     }
 
     pub fn set_cell_font(
@@ -830,7 +817,7 @@ pub fn stable_sort_values<T>(values: &mut [T], ascending: bool, mut compare: imp
 }
 
 /// text_compare supplies the native case-insensitive comparison service;
-/// its locale/encoding remains open WG8, so no ASCII policy is substituted.
+/// with the current CRT CTYPE locale (§5.16). compare_c_locale is the C-locale adapter.
 pub fn compare_cell_values(
     left: Option<&Cell>,
     right: Option<&Cell>,
