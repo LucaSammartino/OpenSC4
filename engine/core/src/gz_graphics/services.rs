@@ -305,11 +305,16 @@ impl<D: AlphaDelegate> AlphaBlt<D> {
     ) -> Result<Option<Arc<dyn Buffer>>> {
         super::alpha::load_surface(path, if mask { None } else { Some(32) }, io)
     }
-    pub fn alpha_surface_from_file(&mut self, path: &str, levels: u32, io: &mut dyn AlphaFileIo) -> Result<Option<Arc<dyn Buffer>>> {
-        super::alpha::load_surface(path,Some(levels),io)
+    pub fn alpha_surface_from_file(
+        &mut self,
+        path: &str,
+        levels: u32,
+        io: &mut dyn AlphaFileIo,
+    ) -> Result<Option<Arc<dyn Buffer>>> {
+        super::alpha::load_surface(path, Some(levels), io)
     }
     pub fn mask_surface_from_file(&mut self, path: &str, io: &mut dyn AlphaFileIo) -> Result<Option<Arc<dyn Buffer>>> {
-        super::alpha::load_surface(path,None,io)
+        super::alpha::load_surface(path, None, io)
     }
 }
 

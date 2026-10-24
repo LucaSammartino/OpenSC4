@@ -129,13 +129,24 @@ pub struct GradientCoefficients {
     pub x: [i32; 4],
     pub y: [i32; 4],
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum IntegerRounding {
+    #[default]
+    NearestEven,
+    Down,
+    Up,
+    TowardZero,
+}
 impl GradientCoefficients {
     pub fn convert(words: &[u32], anchor: Point) -> Result<Self> {
+        Self::convert_with_rounding(words, anchor, IntegerRounding::NearestEven)
+    }
+    pub fn convert_with_rounding(words: &[u32], anchor: Point, rounding: IntegerRounding) -> Result<Self> {
         if words.len() != 12 || anchor.iter().any(|v| !v.is_finite()) {
             return Err(Error::InvalidInput);
         }
         // Rust 1.75: spell out default x87 nearest-even, without round_ties_even.
-        fn integer(word: u32) -> Result<i32> {
+        fn integer(word: u32, rounding: IntegerRounding) -> Result<i32> {
             let v = (f32::from_bits(word) as f64 * 16_711_680.) as f32;
             let v = v as f64;
             if !v.is_finite() || v < i32::MIN as f64 || v > i32::MAX as f64 {
@@ -143,14 +154,26 @@ impl GradientCoefficients {
             }
             let floor = v.floor();
             let fraction = v - floor;
-            Ok(if fraction < 0.5 || (fraction == 0.5 && (floor as i64) & 1 == 0) { floor as i32 } else { (floor + 1.) as i32 })
+            match rounding {
+                IntegerRounding::Down => return Ok(floor as i32),
+                IntegerRounding::Up => return Ok(v.ceil() as i32),
+                IntegerRounding::TowardZero => return Ok(v as i32),
+                IntegerRounding::NearestEven => (),
+            }
+            Ok(if fraction < 0.5 || (fraction == 0.5 && (floor as i64) & 1 == 0) {
+                floor as i32
+            } else {
+                (floor + 1.) as i32
+            })
         }
         let mut out = Self::default();
         for i in 0..4 {
-            let c = integer(words[i])?;
-            out.x[i] = integer(words[4+i])?;
-            out.y[i] = integer(words[8+i])?;
-            out.constant[i] = (c.wrapping_add(0x8000) as f64 - (out.x[i] as f64 * anchor[0] as f64 + out.y[i] as f64 * anchor[1] as f64)) as i32;
+            let c = integer(words[i], rounding)?;
+            out.x[i] = integer(words[4 + i], rounding)?;
+            out.y[i] = integer(words[8 + i], rounding)?;
+            out.constant[i] = (c.wrapping_add(0x8000) as f64
+                - (out.x[i] as f64 * anchor[0] as f64 + out.y[i] as f64 * anchor[1] as f64))
+                as i32;
         }
         Ok(out)
     }
@@ -164,6 +187,8 @@ pub struct BufferEngine {
     pub native_colours: [u32; 4],
     pub source: Option<Arc<dyn Target>>,
     pub gradient: GradientCoefficients,
+    /// Adapter-supplied x87 integer-conversion mode; default FP environment.
+    pub gradient_rounding: IntegerRounding,
     locked: bool,
     /// Fault injection models the specified native success-with-null outcome.
     pub renderer_allocation_available: bool,
@@ -178,6 +203,7 @@ impl Default for BufferEngine {
             native_colours: [0; 4],
             source: None,
             gradient: GradientCoefficients::default(),
+            gradient_rounding: IntegerRounding::NearestEven,
             locked: false,
             renderer_allocation_available: true,
         }
@@ -237,7 +263,9 @@ impl BufferEngine {
     /// Already clipped packed spans. No duplicated pixel kernels: the selected
     /// existing software module performs all writes. Source binding remains GZG2.
     pub fn draw_preclipped_spans(&self, spans: &[(u32, u32)]) -> Result<()> {
-        if spans.is_empty() { return Ok(()); }
+        if spans.is_empty() {
+            return Ok(());
+        }
         let route = self.span_route()?;
         if route == SpanRoute::Blit {
             return Err(Error::Unsupported("GZG2"));
@@ -267,8 +295,16 @@ impl BufferEngine {
                     };
                     let spans = runs!(span_render8);
                     if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
-                        let g = k::Gradient { start: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
-                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                        let g = k::Gradient {
+                            start: g.constant.map(|v| v as u32),
+                            dx: g.x.map(|v| v as u32),
+                            dy: g.y.map(|v| v as u32),
+                        };
+                        if route == SpanRoute::Gradient {
+                            k::render_gradient(&spans, &mut dest, &g)
+                        } else {
+                            k::render_alpha_gradient(&spans, &mut dest, &g)
+                        }
                     } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
@@ -284,8 +320,16 @@ impl BufferEngine {
                     };
                     let spans = runs!(span_render565);
                     if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
-                        let g = k::Gradient { c: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
-                        if route == SpanRoute::Gradient { k::render_gradient(bytes,&spans,&dest,&g) } else { k::render_alpha_gradient(bytes,&spans,&dest,&g) }
+                        let g = k::Gradient {
+                            c: g.constant.map(|v| v as u32),
+                            dx: g.x.map(|v| v as u32),
+                            dy: g.y.map(|v| v as u32),
+                        };
+                        if route == SpanRoute::Gradient {
+                            k::render_gradient(bytes, &spans, &dest, &g)
+                        } else {
+                            k::render_alpha_gradient(bytes, &spans, &dest, &g)
+                        }
                     } else if route == SpanRoute::Alpha {
                         k::render_alpha(bytes, &spans, &dest, native, argb)
                     } else {
@@ -302,8 +346,16 @@ impl BufferEngine {
                     };
                     let spans = runs!(span_render1555);
                     if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
-                        let g = k::GradientRecord { c: g.constant, dx: g.x, dy: g.y };
-                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                        let g = k::GradientRecord {
+                            c: g.constant,
+                            dx: g.x,
+                            dy: g.y,
+                        };
+                        if route == SpanRoute::Gradient {
+                            k::render_gradient(&spans, &mut dest, &g)
+                        } else {
+                            k::render_alpha_gradient(&spans, &mut dest, &g)
+                        }
                     } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
@@ -320,8 +372,16 @@ impl BufferEngine {
                     };
                     let spans = runs!(span_render4444);
                     if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
-                        let g = k::Gradient { start: g.constant, dx: g.x, dy: g.y };
-                        if route == SpanRoute::Gradient { k::render_gradient(&spans,&mut dest,&g) } else { k::render_alpha_gradient(&spans,&mut dest,&g) }
+                        let g = k::Gradient {
+                            start: g.constant,
+                            dx: g.x,
+                            dy: g.y,
+                        };
+                        if route == SpanRoute::Gradient {
+                            k::render_gradient(&spans, &mut dest, &g)
+                        } else {
+                            k::render_alpha_gradient(&spans, &mut dest, &g)
+                        }
                     } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, &mut dest, native, argb)
                     } else {
@@ -337,8 +397,16 @@ impl BufferEngine {
                     };
                     let spans = runs!(span_render8888);
                     if route == SpanRoute::Gradient || route == SpanRoute::AlphaGradient {
-                        let g = k::Gradient { start: g.constant.map(|v| v as u32), dx: g.x.map(|v| v as u32), dy: g.y.map(|v| v as u32) };
-                        if route == SpanRoute::Gradient { k::render_gradient(&spans,bytes,dest,&g) } else { k::render_alpha_gradient(&spans,bytes,dest,&g) }
+                        let g = k::Gradient {
+                            start: g.constant.map(|v| v as u32),
+                            dx: g.x.map(|v| v as u32),
+                            dy: g.y.map(|v| v as u32),
+                        };
+                        if route == SpanRoute::Gradient {
+                            k::render_gradient(&spans, bytes, dest, &g)
+                        } else {
+                            k::render_alpha_gradient(&spans, bytes, dest, &g)
+                        }
                     } else if route == SpanRoute::Alpha {
                         k::render_alpha(&spans, bytes, dest, native, argb)
                     } else {
@@ -399,7 +467,7 @@ impl RenderEngine for BufferEngine {
             return self.set_colours(0, &colours);
         }
         if let StateChange::Gradient(Some(words), x, y) = &c {
-            self.gradient = GradientCoefficients::convert(words, [*x,*y])?;
+            self.gradient = GradientCoefficients::convert_with_rounding(words, [*x, *y], self.gradient_rounding)?;
         }
         self.state.apply(c, false);
         Ok(())
@@ -447,13 +515,16 @@ impl RenderEngine for BufferEngine {
     }
     fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
         let state = self.state.clone();
-        super::geometry::execute(self,route,kind,points,&state)
+        super::geometry::execute(self, route, kind, points, &state)
     }
     fn spans(&mut self, spans: &[PixelSpan]) -> Result<()> {
-        let packed: Vec<_> = spans.iter().map(|s| {
-            let start = ((s.y as u32) << 16) | u32::from(s.left as u16);
-            (start,start.wrapping_add(s.right.wrapping_sub(s.left) as u32))
-        }).collect();
+        let packed: Vec<_> = spans
+            .iter()
+            .map(|s| {
+                let start = ((s.y as u32) << 16) | u32::from(s.left as u16);
+                (start, start.wrapping_add(s.right.wrapping_sub(s.left) as u32))
+            })
+            .collect();
         self.draw_preclipped_spans(&packed)
     }
 }
@@ -566,7 +637,7 @@ impl RenderEngine for HardwareEngine {
     }
     fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
         let state = self.state.clone();
-        super::geometry::execute(self,route,kind,points,&state)
+        super::geometry::execute(self, route, kind, points, &state)
     }
 }
 
@@ -640,6 +711,6 @@ impl RenderEngine for SimGlEngine {
     }
     fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
         let state = self.base.state.clone();
-        super::geometry::execute(self,route,kind,points,&state)
+        super::geometry::execute(self, route, kind, points, &state)
     }
 }

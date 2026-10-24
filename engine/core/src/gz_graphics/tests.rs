@@ -587,13 +587,19 @@ impl AlphaDelegate for Delegate {
 }
 struct FileIo(bool);
 impl AlphaFileIo for FileIo {
-    fn create_buffer(&mut self) -> Result<Arc<dyn Buffer>> { Ok(buffer(&log(),2,true)) }
+    fn create_buffer(&mut self) -> Result<Arc<dyn Buffer>> {
+        Ok(buffer(&log(), 2, true))
+    }
     fn open(&mut self, _: &str) -> bool {
         self.0
     }
     fn close(&mut self) {}
-    fn read_at(&mut self, _: usize, _: &mut [u8]) -> usize { 0 }
-    fn initialize(&mut self, _: &Arc<dyn Buffer>, _: u32, _: u32, _: u32, _: u32) -> bool { true }
+    fn read_at(&mut self, _: usize, _: &mut [u8]) -> usize {
+        0
+    }
+    fn initialize(&mut self, _: &Arc<dyn Buffer>, _: u32, _: u32, _: u32, _: u32) -> bool {
+        true
+    }
 }
 #[test]
 fn gzg_v33_v34_v35_alpha_stateless_forwarding_and_open_failure() {

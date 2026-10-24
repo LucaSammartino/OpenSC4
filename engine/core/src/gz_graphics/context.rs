@@ -421,8 +421,14 @@ impl DrawContext {
         if src.width() <= 0 || src.height() <= 0 || dest.width() <= 0 || dest.height() <= 0 {
             return Ok(());
         }
-        self.set_blit(source, [dest.0.wrapping_sub(src.0) as f32, dest.1.wrapping_sub(src.1) as f32],
-            [(dest.width() as f64 / src.width() as f64) as f32, (dest.height() as f64 / src.height() as f64) as f32])?;
+        self.set_blit(
+            source,
+            [dest.0.wrapping_sub(src.0) as f32, dest.1.wrapping_sub(src.1) as f32],
+            [
+                (dest.width() as f64 / src.width() as f64) as f32,
+                (dest.height() as f64 / src.height() as f64) as f32,
+            ],
+        )?;
         self.clear_tiling()?;
         let drawing = self.fill(dest);
         let cleanup = self.clear_blit();
@@ -432,18 +438,25 @@ impl DrawContext {
         if tile.width() <= 0 || tile.height() <= 0 || dest.width() <= 0 || dest.height() <= 0 {
             return Ok(());
         }
-        self.set_blit(source, [dest.0.wrapping_add(offset[0]) as f32, dest.1.wrapping_add(offset[1]) as f32], [1.; 2])?;
-        self.set_tiling([tile.0 as u32,tile.1 as u32,tile.2 as u32,tile.3 as u32])?;
+        self.set_blit(
+            source,
+            [
+                dest.0.wrapping_add(offset[0]) as f32,
+                dest.1.wrapping_add(offset[1]) as f32,
+            ],
+            [1.; 2],
+        )?;
+        self.set_tiling([tile.0 as u32, tile.1 as u32, tile.2 as u32, tile.3 as u32])?;
         let drawing = self.fill(dest);
         let tiling = self.clear_tiling();
         let cleanup = self.clear_blit();
         drawing.and(tiling).and(cleanup)
     }
     pub fn ellipse(&mut self, x0: i32, y0: i32, x1: i32, y1: i32) -> Result<()> {
-        self.draw(5, &[[x0 as f32,y0 as f32],[x1 as f32,y1 as f32]])
+        self.draw(5, &[[x0 as f32, y0 as f32], [x1 as f32, y1 as f32]])
     }
     pub fn filled_ellipse(&mut self, x0: i32, y0: i32, x1: i32, y1: i32) -> Result<()> {
-        self.ellipse(x0,y0,x1,y1)
+        self.ellipse(x0, y0, x1, y1)
     }
 }
 impl Drop for DrawContext {
