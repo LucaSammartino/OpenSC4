@@ -8,9 +8,9 @@
 - Diagnostic: final ancestry check found origin/main advanced to 625733fc6 during the long gate; diff adds viewutil_shadow at both exact conflict sites. Merge this advancement to avoid another skipped tip.
 - Run 632 was concurrently taken by train206; this lane's r3 record is now run 640 (free on current main).
 - Merge 95e87ebc114834e11af350d88dd8a0ead67276ce of 625733fc6 resolves five additive conflicts: CMake, capi module, ini key/docs, observer shutdown. Both viewutil and modelinst preserved.
-- Running final all on stable engine source 95e87ebc1: session 40602, output build-runs/modelinst-r4-final-all.log. Collect THIS SAME operation with write_stdin until terminal; no duplicate check. Prior gate full logs archived in build-runs/modelinst-r3-gate-evidence/.
-- Refreshed workspace tests complete: 7,466 passed / 0 failed / 0 ignored, 51 summaries; compilation 48m06s. Clippy exit=0, diagnostics=0. Native queued as qbuild-20261024-215641-build-ctest by the SAME gate; collect session 40602 through terminal, no second verify.
-- Next: finish gate, then one confirmation modelinst-mi14-merge-2032-r4. No game request outstanding. No new owners/questions; no public ABI changes.
+- Final all PASS on stable engine source 95e87ebc1: session 40602 collected to terminal, output build-runs/modelinst-r4-final-all.log. Prior gate full logs archived in build-runs/modelinst-r3-gate-evidence/.
+- Cargo 7,466 passed / 0 failed / 0 ignored, 51 summaries; clippy exit=0, diagnostics=0. Native qbuild-20261024-215641-build-ctest build 110/110 (190.7 s), CTest 81/81 (273.4 s), total 466.3 s.
+- Next: one confirmation modelinst-mi14-merge-2032-r4; DLL SHA256 0e7a5d9eb4af327798a12637112d5af9a7303134dffe93a97bea285702169e28. Runs 640/641 were taken concurrently: use free 650 for r3 and 651 for r4 after checking current main. No new owners/questions; no public ABI changes.
 
 ## Current-main refresh
 
