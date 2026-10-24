@@ -7,7 +7,10 @@
 - Done: independent Rust configuration field/object derivation and C ABI projection; default-off lotconf/simulator probes wired into existing observer callbacks.
 - Done: initial focused Rust tests 2/2; final owned-file formatting 4/4. Added ABI null/layout test and literal raw-byte vector handling after focused tests; full gate next.
 - Milestone ada4367a1: implementation committed. Initial qbuild all: 6879 workspace tests pass; clippy fails solely on two unnecessary u8 casts; queued native build PASS 232/232 edges; CTest 72/72 PASS. Native queue label qbuild-20261024-023705-build-ctest completed; no native operation outstanding.
-- Next: corrected the two casts; rerun qbuild all on corrected final source, then request original simulator + lotconf shadows at normal speed to 2032.
+- Milestone 3f34d9bcc: removed the two redundant casts. Corrected qbuild all Rust tests 6879/6879 PASS, clippy PASS (0 diagnostics).
+- Outstanding operation: qbuild all session 26040, native queue qbuild-20261024-024520-build-ctest. Collect this SAME session to terminal; do not launch another build/verify.
+- Next: collect native verdict; request original simulator + lotconf shadows at normal speed to 2032. Unique planned game label lotconf-sim-shadow6-native-2032-20261024a (not submitted). Request disable=simulator, lotconf_shadow=1, simulator_shadow=1, turbo=0, end_date=2032-01-01.
+- Highest local run record was 373; recheck before assigning run 374. Game waiter helper build-runs/wait-shadow6-verdict.py waits in one operation without qwait.
 - Initial failed-gate evidence: build-runs/gate-initial-failed.md and build-results/qbuild-20261024-023705-build-ctest*; native logs fc4verify-build.log/fc4verify-ctest.log. Do not credit initial all as PASS.
 - GLUE22 filed in docs/specs/questions/lot-configuration.md: native capacity input contract and absent configuration cost getter. Occupancy/cost remain unmeasured.
 - Simulator measures native Write/core Read bookkeeping plus calendar/speed/time getters; no independent scheduler evolution. Native inTick is ignored on Read by spec; all other record bytes compared.
