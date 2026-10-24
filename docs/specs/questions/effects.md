@@ -17,3 +17,5 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
 
 <!-- re-effects-ef20 (2026-10-24) copied EF20 from glue-effects-shadow7 and answered
      it in effects.md section 18.7; original question archived in answered/effects.md. -->
+<!-- re-effects-ef21 (2026-10-24) answered EF21 from glue-effects-capture8 in
+     effects.md section 18.8; original question moved to answered/effects.md. -->
