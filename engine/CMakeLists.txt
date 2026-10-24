@@ -1177,3 +1177,10 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ViewUtilShadow.cpp plugin/FC4ViewUtilShadow.h)
 endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_advisors_registration
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
+    add_test(NAME plugin_advisors_default_off
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-advisors)
+endif()

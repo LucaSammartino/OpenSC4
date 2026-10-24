@@ -124,6 +124,7 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include "cFC4AdvisorSystem.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -481,6 +482,11 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// advisors.md §1.1, §14: opt-in replacement of the advisor system.
+const ClassEntry kAdvisorsClasses[] = {
+    {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -552,6 +558,7 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -724,7 +731,7 @@ void Resolve() {
     AutomataShadowStartup(enabledKey("automata"));
     // The MySims shadow (FC4MySimsShadow.h; it compares the original MySim agent + advisors).
     MySimsShadowStartup();
-    AdvisorsShadowStartup();  // advisors_shadow = 1 only; no replacement factory
+    AdvisorsShadowStartup();  // advisors_shadow = 1 only; independent of replacement enablement
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
