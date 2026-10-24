@@ -1,16 +1,18 @@
 # `cSC43DRender`: owner behaviour beyond the draw pass (behaviour spec)
 
-Scope: the exact owner `cSC43DRender` (130 owner functions, `0x007C1890`–`0x007CB530` plus folded bodies
-`0x004E13E0`, `0x004E82A0`, `0x004F7BA0`, `0x007D30D0`, `0x007D32D0`, `0x007FF0B0`). Not `cSC4View3DWin`
+Scope: the exact owner `cSC43DRender` (153 functions as tools/coverage.py assigns them on `5c0ff782`, inventory in
+§16: `0x007C1890`–`0x007CCF80` plus folded bodies such as `0x007D30D0`, `0x007D32D0`, `0x007D5BB0`, `0x007F6610`,
+`0x007F8290`, `0x007FF0B0`). Not `cSC4View3DWin`
 (view3d-window.md), not the terrain view, span kernels or the DirectX 7 driver (renderer-driver.md).
 
 This spec **extends** view3d.md and does not repeat it. Already specified there and reused by reference:
 the field layout (view3d.md §3.1), the 76-slot `cISC43DRender` table (§3.2), the pass brackets (§3.3),
 the sub-objects and `DoMessage` (§3.4), and `Draw` with its static/dynamic blocks (§4).
 
-**Completeness: partial.** §1–§6, §9 (lifecycle) and §10 (screen shake) are proof-backed (addresses cited,
-numeric paths and constants read from instructions and the binary's data).
-§7 lists every owner method this spec and view3d.md do **not** yet specify. No whole-owner credit is claimed.
+**Completeness: whole owner** (since 2026-10-23, re-render3d7). The owner as tools/coverage.py assigns it on
+`5c0ff782` has 153 functions (40,210 bytes); §16 places every one of them. §1–§6 and §9–§12 are proof-backed
+(addresses cited, numeric paths and constants read from instructions and the binary's data); §13–§15 add the
+bodies that §7 used to list as open, read the same way.
 
 Conventions: offsets are from the renderer base (`this`, the `cISC43DRender` pointer) unless marked
 "sub-object relative". "Model" is the object passed to slots 27–31; its interface is named only by slot
@@ -53,14 +55,14 @@ Reference count `+0x10` starts at **0**. Non-zero defaults a replacement must re
 | Field | Default | Meaning (where known) |
 |---|---|---|
 | `+0x4D` | 1 | background picture enabled (§3.4) |
-| `+0x60` | 1 | byte returned by `GetBackgroundPicture`; when set, `Draw` skips `ClearViewport` (view3d.md §4.1 step 12) |
-| `+0x63`, `+0x64` | 1, 1 | *[unknown]* |
+| `+0x60` | 1 | the picture is tiled on the ground plane (§13.3); written by both `SetBackgroundPicture` overloads, returned by `GetBackgroundPicture`; when set, `Draw` skips `ClearViewport` (view3d.md §4.1 step 12) |
+| `+0x63`, `+0x64` | 1, 1 | the backing-store service supports partial copies; partial copies allowed (§12, §13.4) |
 | `+0x90`, `+0x94` | −1, −1 | camera-derived values (§3.1) |
 | `+0xE8` | 1 | **lighting enabled** (§3.3) |
 | `+0xE9` | 0 | **view fog enabled** (§3.3) |
 | `+0xEC`…`+0xFC` | 1.0f ×5 | fog colour/params passed to `TurnOnFog` |
 | `+0x100`, `+0x104` | 10000.0f, 15000.0f | fog start / end distance passed to `TurnOnFog` (view3d.md §4.1 step 14) |
-| `+0x10C`, `+0x110` | 4096.0f, 4096.0f | *[unknown]* |
+| `+0x10C`, `+0x110` | 4096.0f, 4096.0f | the city extent in metres (x, z) that `ClearViewport` and `UpdateVisibleTerrainMetrics` clip against (§13.3, §13.5); nothing in the owner writes them again, so it is always the large-city size *[quirk]* |
 | `+0x1A4` | 0x5000 | *[unknown]* |
 | `+0x1B8` | 1.0f | clear depth pushed to driver slot 13 |
 | `+0x1E4`, `+0x1F4` | 0x7FFFFFFF | empty-rect sentinels of the dirty-rect accumulator |
@@ -433,19 +435,18 @@ overloads and the per-frame `SetShakeOffsets` are §10. Fields used here: `+0x08
 
 ---
 
-## 7. Remaining owner methods (not specified here or in view3d.md)
+## 7. Where the rest of the owner is specified
 
-Picking (§11 covers view objects, `IsModelVisible`, both `Pick`, both `PickTerrain` and the screen
-`PickTerrainAlways`): the ray `PickTerrainAlways` (`0x007C7E20`) clip arithmetic (precision, order, the point
-insert helper `0x007C6EC0`) is outline only (§11.6); `GetViewportRayContainerRect` and the quad-grid cell query
-`0x005F2C70` used by `Pick`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9; `SetGDriver` and
-`StaticSetGDriver` §13.4): `SetGraphicSystem`, `StaticShutdown` (outline: releases the globals `0x00B4E1EC`,
-`0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first), destructor body `0x007CA020`. (Shake is
-complete: §6.3 and §10.) Dirty rects (merge scoring and the rect filter are §6.1): the writer of `+0x1FD`.
-Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`, `GetVisibleContainerRect`,
-`GetViewportRayContainerRect`, `GetModelContainerRect`. Drawing: `TurnOnLighting`, `TurnOnFog`. (Added
-2026-10-21: the quad grid §5.1, the passes §5.2, single-model additions, view updates, clearing, backgrounds,
-snapshots, clipping, terrain metrics and the statistics strings §13.)
+This section used to list the owner methods no spec covered. They are now in:
+- §11.6: the ray `PickTerrainAlways` clip, with its point-insert helper `0x007C6EC0`;
+- §13: the view updates (the scroll copy `DoTranslatedViewUpdate`, which is the writer of `+0x1FD`), clearing and
+  backgrounds, the driver, snapshots, clipping, the statistics strings, the terrain metrics;
+- §14: the container-rectangle geometry (`WorldToContainerRect`, the frustum and visible rectangles,
+  `GetViewportRayContainerRect`, `GetModelContainerRect`) and the quad-grid rebuild;
+- §15: `TurnOnLighting` and `TurnOnFog` (draw-context methods), `SetGraphicSystem`, `StaticShutdown`, the
+  destructor, and the small helpers (sorts, vector code, thunks, the class factory).
+
+The quad-grid cell query `0x005F2C70` that `Pick` uses belongs to `SC4QuadGrid` (§5.1), not to this owner.
 
 ---
 
@@ -806,18 +807,38 @@ Returns 0 at once when `+0x198` is null. Queries `+0x198` for IID `0x6771477D` (
    is the closest one; the renderer itself does not compare distances.
 5. Returns 1 if any model hit, else 0 (the terrain hit only limits the distance; it is not a result).
 
-### 11.6 `PickTerrainAlways(origin, dir, out, extra)` (slot 63, `0x007C7E20`) *[outline]*
+### 11.6 `PickTerrainAlways(origin, dir, out, extra)` (slot 63, `0x007C7E20`) *[compat]*
 
-Returns 0 when `+0x19C` is null. A hit from slot 61 (origin, dir, out, fallback 0, extra) returns 1 unchanged.
-Otherwise, when dir.y > −1e-5 (ray not pointing down) returns 0. Else it builds a polyline of homogeneous points
-(w = 1.0) from the origin to the ray's y = 0 point (origin − dir × origin.y / dir.y), clips it against the four city
-edges at 0.01 inside the map (x ≥ 0.01, z ≥ 0.01, x ≤ 16·W − 0.01, z ≤ 16·D − 0.01, with W, D from `+0x19C` slots
-`+0x1C` and `+0x20`), projecting outside points onto the edge and inserting a point where the line crosses, then
-tries slot 61 on each segment p[k]→p[k+1] (direction p[k+1] − p[k], fallback 0), accepting a hit only when
-(hit − p[k+1])·(p[k+1] − p[k]) ≤ 0 (not beyond the segment end); the last segment is tried with fallback 1. On a
-hit, the hit is slid back onto the original ray at its own height: t = (hit.y − origin.y) / dir.y,
-hit.x = origin.x + t·dir.x, hit.z = origin.z + t·dir.z. Float precision and operation order of the clip are not
-verified against the instructions (§7).
+1. Returns 0 when `+0x19C` (the terrain) is null. A hit from slot 61 (origin, dir, out, fallback 0, extra) returns 1
+   unchanged.
+2. Otherwise, when dir.y > −1e-5 (the double `0x00ABAB20`; the ray does not point down) returns 0.
+3. **The polyline.** A vector of 16-byte points (x, y, z, w), made with two entries (`0x007C5BE0`): p0 = (origin,
+   1.0) and p1 = (origin − dir × (origin.y / dir.y), 1.0), the ray's y = 0 point. Each component is rounded to float
+   when stored.
+4. **The four planes** (a, b, c, d), with W, D from terrain slots 7 and 8 (`+0x1C`, `+0x20`) and the margin
+   0.01 (`0x00ABAB1C`): (1, 0, 0, −0.01), (0, 0, 1, −0.01), (−1, 0, 0, 16·W − 0.01), (0, 0, −1, 16·D − 0.01). So
+   x ≥ 0.01, z ≥ 0.01, x ≤ 16·W − 0.01, z ≤ 16·D − 0.01. `16·W − 0.01` is an int-to-float load minus the float
+   margin, stored as float.
+5. **Clipping**, for each plane in that order, over the pairs (p[k], p[k+1]), k = 0 … n − 2, with n re-read after
+   every insert:
+   1. d0 and d1 = `((w·d + z·c) + y·b) + x·a` for p[k] and p[k+1], each rounded to float.
+   2. **d0 ≥ 0** (p[k] inside): when d1 < 0, insert q = p[k]·(1 − t) + p[k+1]·t, t = d0 / (d0 − d1), after p[k]
+      (`0x007C6EC0`, a vector insert of one point), and skip over it.
+   3. **d0 < 0** (p[k] outside): project p[k] onto the plane: s = `(((a·x + c·z) + b·y) + w·0) + d` (in x87
+      precision, the w term is multiplied by 0), then x −= a·s, y −= b·s, z −= c·s, each rounded to float on store;
+      w is unchanged. When d1 > 0 (strictly), insert the crossing point q, computed as above from the point's values
+      **before** the projection, after it, and **stop this plane** (the remaining pairs are not visited) *[quirk]*.
+   4. After the pairs: when the last point's d < 0, it is projected the same way.
+6. **The segments.** For k = 0 … n − 3: slot 61 (p[k], p[k+1] − p[k], out, 0, extra), with all four components of
+   the difference (w gives 0). A hit is accepted only when (out − p[k+1])·(p[k+1] − p[k]) ≤ 0 over x, y, z (not
+   beyond the segment's end). Then the last segment p[n − 2] → p[n − 1] is tried with fallback 1, accepted as is.
+7. **On a hit**, it is slid back onto the original ray at its own height: t = (out.y − origin.y) / dir.y,
+   out.x = t·dir.x + origin.x, out.z = t·dir.z + origin.z. Returns 1, else 0. The point vector is freed.
+
+Case: origin (10, 50, 10), dir (−1, −1, 0) (normalisation is the caller's), city 64 × 64 cells. p1 = (−40, 0, 10)
+is outside plane 0: d0 = 9.99 ≥ 0, d1 = −40.01 < 0, t = 0.1998, so q = (0.01, 40.01, 10) is inserted after p0 and
+skipped, which ends the pairs; the last point p1 is outside and is projected to (0.01, 0, 10). The other planes
+leave the line. The segments are origin → q (fallback 0), then q → (0.01, 0, 10) (fallback 1).
 
 ---
 
@@ -861,50 +882,424 @@ w = 5, srcX = 0.
 
 ---
 
-## 13. The methods §7 listed: view updates, clearing, the driver and the rest *[compat]*
+## 13. View updates, clearing, the driver and the rest *[compat]*
 
-*Added 2026-10-21 (re-render3d), from the instruction bytes.*
+*Added 2026-10-21 (re-render3d) as summaries; the bodies were read on the instructions on 2026-10-23
+(re-render3d7).* W and H are the viewport size `+0x68`, `+0x6C`; "the driver" is the global `0x00B4E1EC`
+(renderer-driver.md; its slots 11 `Clear`, 12 `ClearColor`, 13 `ClearDepth`, 74/75 `SetViewport`); `dc` is the draw
+context `+0x11C`. Render-property booleans are read as bytes of the properties object's table (render-properties.md
+§2): boolean *i* is the byte at `+0x1C + 0x20·i`.
 
 ### 13.1 Scrolling, zooming and rotating
 
-- `AttemptTranslatedViewUpdate(dx, dy)` (`0x007CABE0`): when |dx| < 14/16 of the width and |dy| < 14/16 of the
-  height, partial copies are allowed (`+0x64`, §12), the backing store is on and holds a valid copy, the queued dirty
-  rectangles move by (−dx, dy) and the view scrolls (`DoTranslatedViewUpdate` `0x007CA4D0`: the saved copy shifts
-  and the uncovered strips are redrawn); true. Otherwise the draw frustum is rebuilt, the queue emptied, and the
-  caller redraws everything.
-- A **zoom change** (`DoViewZoomChange3`, `0x007CAA60`): the change queue is processed; the backing store is switched
-  on only below integer property 8 `kBackingStoreMaxZoomAll`; a full update is marked; the draw context takes the new
-  zoom; the quad grid is rebuilt for the new projection (`RebuildQuadGrid` `0x007C5370`: every element gets a fresh
-  rectangle; one that fits nowhere is filed in quadrant (0, 0) to (1, 1)); the draw frustum is rebuilt, the static
-  set re-evaluated (`ReevaluateBackingStoreObjectFlags`, §12), the view counter (`+0x15C`) bumped and the queue
-  emptied.
-- A **rotation change** (`DoViewRotationChange2`, `0x007CAB30`) does the same without the backing-store switch and
-  the re-evaluation.
+**`AttemptTranslatedViewUpdate(dx, dy)`** (`0x007CABE0`):
+1. The scroll path needs all of: |dx| < (14·W) / 16 and |dy| < (14·H) / 16 (C integer division), partial copies
+   allowed (`+0x64`), the backing store on (`0x00B0DC19`), a valid saved copy (`+0x65`) and buffer 0
+   (`0x00B4E1E4`).
+2. Then every queued dirty rectangle (list `+0x1D4`, rect at node `+0x10`…`+0x1C`) moves by (−dx, +dy), the view
+   scrolls (`DoTranslatedViewUpdate`, below), and the result is 1.
+3. Otherwise: dc `+0x20` := 3, `+0x109` := 1 (full update due), `+0x65` := 0, the draw frustum is rebuilt from the
+   viewport rect (`+0x70`, `+0x78`), `+0x160`/`+0x174` cleared, the dirty queue emptied (`0x007C6D80`); result 0.
+
+**`DoTranslatedViewUpdate(dx, dy)`** (`0x007CA4D0`). Nothing when the guard `+0x108` is set; it is set for the call
+and cleared at the end.
+1. dc `+0x20` := 3 (the update reason). The shake offsets `+0x258`, `+0x25C` := 0; the camera control gets
+   `SetCameraPositionTweakAdd(+0x80, +0x84)` (`0x007CDA20`, the subpixel bias); `SetDefaultRenderStateUnilaterally`;
+   slot 24 (`Set3DCameraView`).
+2. With view fog on (`+0xE9`): `TurnOnFog(dc, 1, &+0xEC, +0x100, +0x104)`. Then `TurnOnLighting(dc, +0xE8 ≠ 0)`
+   (§15.1).
+3. **The copy.** Both backing buffers are restored (§12 service slot 7, `0x00B4E1E4` then `0x00B4E1E8`, results
+   ignored) with
+   - source (max(dx, 0), max(−dy, 0)),
+   - size (W − |dx|, H − |dy|),
+   - destination (max(−dx, 0), max(dy, 0)).
+
+   So the picture moves by (−dx, +dy).
+4. **The uncovered strips**, drawn by `UpdateViewportRect` (§4) in this order:
+   1. dx < 0: the column (0, 0, −dx, H); dx > 0: (W − dx, 0, W, H); dx = 0: the row, (0, H + dy, W, H) for dy < 0
+      or (0, 0, W, dy) for dy > 0;
+   2. when both are non-zero, the row beside the column: dy < 0 → (max(−dx, 0), H + dy, W − max(dx, 0), H);
+      dy > 0 → (max(−dx, 0), 0, W − max(dx, 0), dy); else nothing (an empty rect).
+
+   (0, 0) copies nothing and passes two **uninitialised** rectangles *[quirk]*; the callers never pass it
+   *[inferred]*.
+5. Driver slot 75 (`SetViewport()`, the full viewport); `UnsetClipRect` on the 3D camera `+0x88` and the 2D camera
+   `+0xD8` (§13.4).
+6. **The stale area**: `+0x200`…`+0x20C` := the destination rectangle of the moved picture (left, top, right,
+   bottom), `+0xDC` := 0 (camera mode), **`+0x1FD` := 1**, and the timer `+0x218` is reset. `DoViewCleanup` (§6.2)
+   then redraws that rectangle band by band (this is the only writer of `+0x1FD` = 1; the constructor and
+   `DoViewCleanup` clear it).
+7. `+0x65` := `SaveBackingStore(0, 0, W, H)` (§12).
+8. When boolean 16 `kShowUpdateRegions` is off: rebuild the draw frustum from the viewport rect and clear
+   `+0x160`/`+0x174`.
+9. Slot 24 again; when boolean 1 `kRenderDynamicView` is on, the dynamic triple (`DrawPreDynamicView`,
+   `DrawDynamicView`, `DrawPostDynamicView`).
+10. `TurnOnLighting(dc, 0)`, `TurnOnFog(dc, 0, null, FLT_MAX, FLT_MAX)`, slot 26 (`SetUICameraView`), dc `+0x20` := 0.
+
+Case: W × H = 800 × 600, (dx, dy) = (10, −5): source (10, 5), size 790 × 595, destination (0, 0); strips
+(790, 0, 800, 600) then (0, 595, 790, 600); `+0x200` = (0, 0, 790, 595).
+
+**A zoom change** `DoViewZoomChange3(oldZoom, oldRot, newZoom, newRot)` (`0x007CAA60`, pops 16). Nothing when the
+zoom is unchanged. Otherwise:
+1. Process the change queue if it is not empty (§5).
+2. Slot 57 `SetBackingStoreEnabled(newZoom < integer 8 kBackingStoreMaxZoomAll)` (props `+0x18` table, `+0x15C`).
+3. `+0x109` := 1, `+0x65` := 0; dc `+0x10` := (float) newZoom, dc `+0x14` := newZoom, dc `+0x18` := newRot.
+4. `RebuildQuadGrid(oldZoom, oldRot, newZoom, newRot)` (§14.3); rebuild the draw frustum;
+   `ReevaluateBackingStoreObjectFlags` (§12); clear `+0x160`/`+0x174`; `+0x15C` += 1; empty the dirty queue.
+
+**A rotation change** `DoViewRotationChange2(oldZoom, oldRot, newZoom, newRot)` (`0x007CAB30`) is the same, keyed on
+the rotation, without step 2 and without the re-evaluation; dc `+0x10` and `+0x14` take newZoom, `+0x18` newRot.
 
 ### 13.2 Single-model additions
 
-A mode-0 dirty rectangle with a model (§5) draws only that model into the static view:
-`DoSingleModelStaticDrawAddition` (`0x007C32A0`) sets the draw context's `+0x20` to 8, draws the model with the rounds
-of §5.2, then saves that rectangle into the backing store (§12).
+A mode-0 dirty rectangle with a model (§5) draws only that model into the static view.
+`DoSingleModelStaticDrawAddition(model, rect)` (`0x007C32A0`) does nothing for an empty rect (left ≥ right or
+top ≥ bottom). Otherwise:
+1. dc `+0x20` := 8; slot 24; the round dc `+0x4` := 0.
+2. Draw the model (model slot 12, `+0x30`, with (dc, 0)) and add 1 to the round, while the draw returns 2 and the
+   round is at most 11 (at most 12 draws).
+3. When `+0x65` (a valid copy) is set: `+0x65` := `SaveBackingStore(rect)` (§12).
+4. dc `+0x20` := 0.
 
 ### 13.3 Clearing and backgrounds
 
-- `ClearViewport(full)` (slot 47, `0x007C3F80`): without a background picture, a depth clear, or a colour and depth
-  clear when `full` or when the ground plane does not cover the screen; with one, the picture is tiled over the
-  viewport (or the ground-plane rectangle, block-aligned) as a textured quad, then the depth is cleared.
-- `ClearViewportWithSolidColor` (slot 48), `DrawViewportRectangle` (slot 49: an untextured quad, colour `0xFF000000`
-  unless given) and `DrawTexturedViewportRectangle` (slot 50) draw in the UI camera.
-- `SetBackgroundPicture` (slots 53, 54) takes an image (uploaded with its width, height and format) or a ready
-  texture; `GetBackgroundPicture` (slot 52) returns it. `SetViewportClearColor` (slot 46) keeps the colour.
+**The picture fields:**
+- `+0x4D`: enabled;
+- `+0x50`: the image;
+- `+0x54`: its texture;
+- `+0x58`, `+0x5C`: its width and height;
+- `+0x60`: tiled on the ground plane (else over the screen).
+
+**`ClearViewport(full)`** (slot 47, `0x007C3F80`, pops 4). The **corner test** used twice below takes the x–z box of
+the four draw ground points (view-utilities `+0x2E4`… via `0x007F8290`; box `0x005D6BA0`). It is true when `full` is
+set, or when the box leaves [0, `+0x10C`] × [0, `+0x110`] (strict comparisons: min < 0 or max > 4096).
+
+1. **No picture** (picture disabled, no texture, or the view utilities not valid, their byte `+0x00`):
+   1. *need colour* := the corner test.
+   2. When the draw frustum is narrowed (view utilities `+0x228`): `DrawViewportRectangle(draw rect, &+0x1A8, 1,
+      need colour)` (slot 49) and return.
+   3. Else, when *need colour* and the background is not transparent (`+0x62`): colour and depth masks on,
+      `Clear(0x5000)` (colour and depth).
+   4. Else: depth mask on, `Clear(0x1000)` (depth).
+2. **With the picture**:
+   1. Save dc's lighting state (`0x007D2A10`); under boolean 28 `kRenderSnapshot`, `TurnOnLighting(dc, 0)`.
+   2. `SetDepthOffset(0)`.
+3. **Screen tiling** (`+0x60` clear), only when the draw frustum is not narrowed: one quad over
+   (0, 0) – (tx·pw, ty·ph), with tx = ⌈W / pw⌉, ty = ⌈H / ph⌉ (pw, ph = `+0x58`, `+0x5C`).
+   - Depth −32500 (`0xC6FDE800`) and texture coordinates 0 … tx, 0 … ty.
+   - State: colour, depth mask and depth test on, depth function 7, texturing on, blending and alpha test off.
+   - The texture with filtering (1, 1) and wrap (3, 3).
+   - Slot 25 (`Set2DCameraView`); driver vertex array (2, 20-byte stride); `DrawPrims(1, 0, 4)`.
+4. **Ground tiling** (`+0x60` set):
+   1. Alpha test off. Narrowed frustum: `DrawViewportRectangle(draw rect, &+0x1A8, 1, 0)` (a depth-only fill), then
+      colour mask and depth test on, depth function 3. Else: depth mask on, `Clear(0x1000)`, colour mask on, depth
+      test off.
+   2. Slot 24 (`Set3DCameraView`).
+   3. When the corner test holds:
+      - State: depth mask off, texturing on, blending off; the texture as in step 3.
+      - Tiles: the block size b is `0x00ABAAE4`[dc zoom `+0x14`] = 1024, 512, 256, 128, 64, 32 for zooms 0–5. The
+        tiles cover the outer visible-area rectangle (view-utilities.md §6), its minimum rounded down and its
+        maximum up to multiples of b.
+      - Each tile (x … x + b, z … z + b) at y = 0, with texture coordinates 0 … 1, is drawn when `full`, or
+        x < −4, or x ≥ 4096 − 4, or z < −4, or z ≥ 4096 − 4. So only the tiles outside the city are drawn.
+      - Then **the two horizon fills**, each `DrawViewportRectangle(rect, &+0x1A8, 0, 1)`. The ray from frustum
+        corner 3 along (corner 2 − corner 3) (view-utilities `+0xCC`, `+0xC0`) meets the ground (`0x007F6AB0`) at a
+        screen point (`0x007F78E0`) with y: when y < H, fill (0, y, W, H). The ray from corner 7 (`+0xFC`) in the
+        same direction gives y′: when y′ > 0, fill (0, 0, W, y′). Both are truncated to integers (`_ftol2`).
+
+      When the corner test fails, neither the tiles nor the fills are drawn.
+5. End (with the picture): under `kRenderSnapshot`, restore the saved lighting state.
+
+**`ClearViewportWithSolidColor(colour[4], depth, unused)`** (slot 48, `0x007C3350`, pops 12):
+1. `ClearColor(colour)`; colour mask on.
+2. With `depth`: depth mask on, `ClearDepth(+0x1B8)`, `Clear(0x5000)`. Without: `Clear(0x4000)`.
+3. `ClearColor(+0x1A8…+0x1B4)` (the stored clear colour back).
+
+No camera is set.
+
+**`DrawViewportRectangle(rect, rgba, depthMask, useColour)`** (slot 49, `0x007C3400`, pops 16). A quad at depth
+−32500 over the integer rect (vertices top-left, bottom-left, top-right, bottom-right).
+- Colour: with `useColour`, the four floats become the bytes of an ARGB dword. Each byte is
+  `(v − (v >> 8)) & 0xFF`, v = `bits(c + 49152.0) − 0x47400000` (c × 256 rounded to nearest even), so 1.0 → 255 and
+  0.5 → 128. Without it, `0xFF000000` (`0x00B0DC24`).
+- State: texturing off, depth test on, depth function 7, depth mask := `depthMask`, colour mask := `useColour`.
+- Slot 25 (`Set2DCameraView`); `DrawPrims(1, 1, 4)` (position and colour).
+
+So `useColour` = 0 makes it a depth-only fill.
+
+**`DrawTexturedViewportRectangle(rect, texture, z, depthMask, useTexture)`** (slot 50, `0x007C2400`, pops 20). The
+same quad at depth −z.
+- Texture coordinates (0, 0), (0, 1), (1, 0), (1, 1).
+- State: texturing and colour mask := `useTexture`, depth test on, depth function 3, depth mask := `depthMask`, the
+  texture.
+- Slot 25; `DrawPrims(1, 2, 4)` (position and texture coordinates).
+
+**Pictures:**
+- `SetBackgroundPicture(image, groundTiled)` (slot 54, `0x007C2610`):
+  1. `+0x60` := `groundTiled`. The same image: return 1.
+  2. Release the old image (`+0x50` := 0); AddRef the new one; free the old texture
+     (`nsTexUtil::ReleaseTexture(driver, +0x54)` when there is a driver; `+0x54` := 0).
+  3. A null image returns 1.
+  4. With a driver and `nsTexUtil::SetupTexture(image, driver, &+0x54, 0, 0, 0, 0)`: `+0x50` := image; `+0x58`,
+     `+0x5C` := image slots 9 and 10 (width, height); return 1.
+  5. Else return 0. The AddRef'd image is then neither kept nor released *[quirk: a leaked reference]*.
+- `SetBackgroundPicture(texture, w, h, groundTiled)` (slot 53, `0x007C26D0`): `+0x60` := `groundTiled`. When the
+  texture differs from `+0x54`: release the image, free the old texture, then `+0x54`, `+0x58`, `+0x5C` := texture,
+  w, h. The same texture keeps the old size *[quirk]*. Returns 1.
+- `GetBackgroundPicture(&groundTiled)` (slot 52) and `EnableBackgroundPicture` (slot 51) are in §3.4.
 
 ### 13.4 The driver, snapshots, clipping and statistics
 
-- `SetGDriver` (slot 7, with `StaticSetGDriver` `0x007C3810`): keeps the driver and asks it for its backing-store
-  (`0x669565FE`, the global `0x00B4E1F0` of §12) and snapshot (`0xE69BFE2A`) services, then makes the backing
-  store (§12); the camera depth range is set again. `TakeSnapshot` (slots 22, 23) reads the screen through
-  the snapshot service, and the second form writes it out as an image through a Gimex factory.
-- `SetClipRect` (`0x007C3C60`, only with boolean 24 `kUseUpdateRectClipping`) sets the driver's clip and both cameras'
-  subviews to a rectangle; `UnsetClipRect` (`0x007FF0B0`) clears a camera's subview.
-- `UpdateVisibleTerrainMetrics` (`0x007C4910`, on `0x4A9F2FFE` and after city init): terrain picks at the screen
-  centre and 100 pixels around it give the view utilities their visible terrain area, clipped to the city.
-- `GetStatsString1` / `GetStatsString2` (slots 73, 74) format the frame counters (`SPS:%.1f BST:%u …`) *[summary]*.
+**`StaticSetGDriver(driver)`** (`0x007C3810`). Nothing for the current driver. Otherwise:
+1. With an old driver, `DestroyBackingStore` (§12). AddRef the new driver; release the old; store it.
+2. Release and clear the backing-store service `0x00B4E1F0` and the snapshot service `0x00B4E1F4`.
+3. With a driver: QI it for `0x669565FE` into `0x00B4E1F0` and `0xE69BFE2A` into `0x00B4E1F4`, then
+   `CreateBackingStore` (§12).
+
+**`SetGDriver(driver)`** (slot 7, `0x007C3BE0`):
+1. `StaticSetGDriver`.
+2. With a backing-store service: `+0x63` := its slot 9 (partial copies supported); `+0x64` := `+0x63` and not
+   boolean 30 `kNoPartialBackingStoreCopies`.
+3. With a 3D camera: driver slot 64 (`GetVideoModeInfo` into a 52-byte local, unused) and
+   `SetDepthSize(65536.0)`.
+
+**`TakeSnapshot(out, unused)`** (slot 23, `0x007C2530`): without the snapshot service, AL = 0. Else `*out` := service
+slot 3 (0, 0, W, H, 0) (an image), AL = image ≠ 0.
+
+**`TakeSnapshot(target, arg)`** (slot 22, `0x007C2570`):
+1. Slot 23 (&image, arg). On success: a new `cGZGimexFactory` (0x38 bytes, `GlobalHeapAlloc`; a failed allocation is
+   not tested *[quirk]*) is AddRef'd.
+2. Its slot 8 (target, image, 100) writes the image (100: the quality argument *[inferred]*); its byte result is
+   the return value.
+3. Release the factory and the image.
+
+**`SetClipRect(rect)`** (`0x007C3C60`): only under boolean 24 `kUseUpdateRectClipping`.
+1. Driver slot 74 `SetViewport(left, H − bottom, right − left, bottom − top)` (a bottom-left origin).
+2. `cS3DCamera::SetSubview` with the same four values (unsigned to float) on the 3D (`+0x88`) and 2D (`+0xD8`)
+   cameras.
+3. `+0xDC` := 0.
+
+**`UnsetClipRect`** (`0x007FF0B0`) is a **camera** method (ECX = the camera):
+- the subview offsets `+0x18`, `+0x1C` := 0 and the subview flag `+0x14` := 0;
+- the size `+0x20`, `+0x24` := the full size `+0x08`, `+0x0C`;
+- the camera's change counter `+0x17C` += 1.
+
+**Statistics.**
+- `GetStatsString1(str)` (slot 73) calls the string's slot 27 (a printf) with
+  `"SPS:%.1f BST:%u BRT:%u VCT:%u PrVDT:%u TeDT:%u PoVDT:%u ToDT:%u"` and the float global `0x00B4E218`, then
+  `+0x288`, `+0x28C`, `+0x290`, `+0x294`, `+0x2AC`, `+0x298`, `+0x2BC`.
+- `GetStatsString2(str)` (slot 74) uses `"QGT:%u MST:%u MTC:%u, MC1:%u MDC:%u AIT:%u AMT:%u ART:%u TPT%u MPT:%u"`
+  with `+0x2A4`, `+0x2A8`, `+0x2B0`, `+0x2B4`, `+0x2B8`, `+0x2C0`, `+0x2C4`, `+0x2C8`, `+0x2CC`, `+0x2D0`.
+
+In the owner's code only the constructor writes these counters (to 0, all but `+0x2B0`), so the strings report
+zeros *[inferred: no writer elsewhere was searched]*.
+
+### 13.5 `UpdateVisibleTerrainMetrics()` (`0x007C4910`)
+
+Called on message `0x4A9F2FFE` and after city init. It writes the view utilities' visible-terrain fields `+0x3DC`
+(centre x, y, z), `+0x3E8` (half size) and `+0x3EC`, `+0x3F0`, `+0x3F4`, `+0x3F8` (min x, min z, max x, max z).
+1. Terrain slot 21 (`MinHeight`) is called and its result dropped.
+2. **Five terrain picks** (slot 60, screen point, fallback 1, extra 0) at (W/2, H/2), (W/2 + 100, H/2),
+   (W/2, H/2 + 100), (W/2 − 100, H/2), (W/2, H/2 − 100) (W/2, H/2 are `int / 2`). Each output is first the zero
+   vector `0x00B4E1F8`. A pick **counts** when its y > 1.0, so a miss, and a hit below 1 m, do not count.
+3. **When any counts**: centre := their mean (sum × 1.0 / count). A sixth pick at (W, H) (unchecked) gives
+   half size := max(|p.z − centre.z|, |p.x − centre.x|).
+4. **When none counts**: walk the city's border every 4 cells (`BoundaryIterator` `0x0060CEE0` over
+   (0, 0) – (cellsX / 4, cellsZ / 4), terrain slots 7 and 8, negative counts as 0).
+   - Each point (64·i, altitude at vertex (4·i, 4·j) (terrain slot 14), 64·j) is projected to the viewport
+     (`0x007F7850`).
+   - Of those strictly inside (0, W) × (0, H), keep the one with the smallest squared distance to the screen centre
+     (strict <).
+   - centre := that point, else (0, 0, 0); half size := (16 << zoom) / 2 (view utilities `+0x0C`) when one was found,
+     else 1.0.
+5. **The rectangle**: min = centre − half, max = centre + half (x and z). A max that is not above its min becomes
+   min + 1.
+6. Then `ClipWorldPositionToCityPosition(centre)` (`0x007F7710`; after the rectangle, which does not move with it).
+7. Clamp: a min < 0 → 0; a max ≥ 4096 (`+0x10C`, `+0x110`) → 4096.
+
+---
+
+## 14. Container rectangles and the quad-grid rebuild *[compat]*
+
+The quad grid (§5.1) files elements by a 2D "container" rectangle in fixed view coordinates. `size` is the grid size
+`+0x124`; `rot` is the view-utilities rotation `+0x10` (0–3); offX, offY are the per-rotation margins `+0x268[rot]`,
+`+0x278[rot]` (§9.1 step 3).
+
+### 14.1 `WorldToContainerRect(min, max, out, rot)` (`0x007C1B30`, pops 16)
+
+1. Two points A and B from the box, padded along one axis by fractions of the extent e of the other one:
+   a = 0.35355338 × e, b = 0.1464466 × e (`0x00ABAA40`, `0x00ABAA3C`).
+
+   | rot | e | A | B |
+   |---|---|---|---|
+   | 1 | max.x − min.x | (max.x − b, max.y, min.z − a) | (min.x + b, min.y, max.z + a) |
+   | 2 | max.z − min.z | (max.x + a, max.y, max.z − b) | (min.x − a, min.y, min.z + b) |
+   | 3 | max.x − min.x | (min.x + b, max.y, max.z + a) | (max.x − b, min.y, min.z − a) |
+   | other | max.z − min.z | (min.x − a, max.y, min.z + b) | (max.x + a, min.y, max.z − b) |
+
+2. Each point goes to fixed view coordinates (`ProjectPointToFixedViewCoordinates` `0x007F6710`); then
+   x += offX, y := −y + offY.
+3. out = (A.x − 2, A.y − 2, B.x + 2, B.y + 2).
+4. Clamp, in order:
+   1. left ≤ 0.5 → 0.5, top ≤ 0.5 → 0.5;
+   2. right ≥ size − 0.5 → size − 0.5, bottom likewise;
+   3. right ≤ left → left := right − 0.1; bottom ≤ top → top := bottom − 0.1;
+   4. right − left > size / 2 → right := left + 1; bottom − top > size / 2 → bottom := top + 1.
+
+Step 4.4 makes a box wider than half the grid a 1-unit sliver at its left or top edge *[quirk]*.
+
+### 14.2 The other rectangles
+
+- `GetModelContainerRect(model, out, rot)` (`0x007C3F10`, pops 12): box := (min (1, 1, 1), max (0, 0, 0)), then
+  model slot 8 (`+0x20`) fills it; `WorldToContainerRect(&min, &max, out, rot)`.
+- `MoveGridElement(element, model)` (`0x007C3790`, pops 8):
+  1. Model slot 8 writes the box into element `+0x1C` (min) / `+0x28` (max).
+  2. `WorldToContainerRect` with the current rotation.
+  3. `SC4QuadGrid::MoveElement(element, rect, flag)`, flag = 1 unless the element is in the backing store (`0x08`)
+     without bit `0x80`.
+  4. On failure the model's element is cleared (model slot 6 (0)). Returns the result.
+- `GetViewFrustumContainerRect(out)` (`0x007C1E10`): the viewport corners (0, 0) and (view-utilities `+0x28`,
+  `+0x2C`), through `ProjectPointFromViewportCoordinatesToFixedViewCoordinates` (`0x007F8390`); out =
+  (p0.x + offX, −p0.y + offY, p1.x + offX, −p1.y + offY). No clamp.
+- `GetDrawFrustumContainerRect(out)` (`0x007C1EF0`): the same with the draw rectangle's corners (view-utilities
+  `+0x22C`, `+0x230`) and (`+0x234`, `+0x238`).
+- `GetVisibleContainerRect(out, which)` (`0x007C1FD0`):
+  - `which` 0 or 1: the draw rectangle, cached at `+0x178` (valid flag `+0x174`); any other value: the view
+    rectangle, cached at `+0x164` (flag `+0x160`).
+  - It is computed once per invalidation (§4 clears both flags). It is clamped when computed: a negative left or top
+    → 0, a right or bottom above size − 1 → size − 1.
+- `GetViewportRayContainerRect(x, y, out)` (`0x007C20E0`, pops 12):
+  1. (x, y, 0) is unprojected to world coordinates (`0x007F79B0`), then projected to fixed view coordinates with the
+     margins: (px, py).
+  2. out = (px, py, px + 2, py + 2).
+  3. px < 0 → left 0; left > size − 2 → size − 2; right < left + 1 → left + 1. The same for y.
+
+### 14.3 `RebuildQuadGrid(oldZoom, oldRot, newZoom, newRot)` (`0x007C5370`, pops 16)
+
+Nothing when the zoom and the rotation are both unchanged, or the grid holds no element. Otherwise:
+1. Take all elements (`SC4QuadGrid::GetAllElements` into a temporary array) and make a new grid (`CreateQuadGrid`,
+   §9.1).
+2. For each element, in the array's order:
+   1. Make a new `SC43DGridElement` from the element pool (`0x00B0DC34`, free list at `+8`, count `+0xC`), holding one
+      reference. Copy the flags (`+6`), the model (`+0x18`) and the box (`+0x1C`–`+0x30`).
+   2. Its rect := `GetModelContainerRect(model, newRot)`; the model's element := the new one (model slot 6).
+   3. Add it to the new grid with the flag of §14.2. On failure, retry once with the rect (0, 0) – (1, 1)
+      (`+8`…`+0x14`); a second failure clears the model's element.
+   4. Drop the construction reference (a 16-bit count at `+4`; at 0 the element deletes itself).
+3. Destroy the old grid (its destructor and `GlobalHeapFree`), keep the new one in `+0x120`, free the array.
+
+---
+
+## 15. Draw-context toggles, lifecycle remainder and helpers
+
+### 15.1 `TurnOnLighting` and `TurnOnFog`
+
+Both run with ECX = the draw context (dc). Its driver is dc `+0x30`.
+- **`TurnOnLighting(on)`** (`0x007D30D0`): nothing when dc `+0x90` already equals `on`.
+  - On: the lighting manager (dc `+0x44`), when present, fills dc `+0x94`…`+0x9C` (its slot 10), and those three
+    floats are the colour.
+  - Off: the colour is (1, 1, 1).
+  - Then the driver's `ColorMultiplier(r, g, b)` (slot 32) and dc `+0x90` := `on`.
+- **`TurnOnFog(on, colour, start, end)`** (`0x007D32D0`, pops 16):
+  1. When dc `+0xA0` differs from `on`: on → driver `Enable(6)` and `Fog(0, 2)` (linear vertex fog); off →
+     `Disable(6)`. Store `on`.
+  2. A colour that differs from dc `+0xA4`…`+0xAC` (any NaN differs): `Fog(1, colour)`, then cache it.
+  3. A start other than FLT_MAX (`0x00ABB4D0`, "unchanged") that differs from dc `+0xB4`: `Fog(3, &start)`, cache.
+     The end likewise with dc `+0xB8` and `Fog(4, …)`.
+
+### 15.2 Lifecycle remainder
+
+- `SetGraphicSystem(gs)` (`0x007C5D00`, pops 4):
+  1. AddRef `gs`; release `+0x14` and `+0x18`; `+0x18` := gs.
+  2. QI `gs` for `0x0073283C` into `+0x14`.
+  3. With `+0x14`: its slot 29 fills the two strings `+0x1C` and `+0x30`. Without it, both strings are emptied.
+
+  The old `+0x14` is released but not cleared. A null `gs`, or a QI that leaves its output alone, therefore calls
+  slot 29 on the released pointer *[quirk]*.
+- `StaticShutdown()` (`0x007C3090`): once, while the byte `0x00B4E1E0` is set, clear it.
+  1. With a driver: `DestroyBackingStore`, release the driver, clear `0x00B4E1EC`.
+  2. Release and clear `0x00B4E1F0` and `0x00B4E1F4`.
+
+  Returns 1.
+- `HasBackingStore()` (`0x007C2790`): buffer 0 (`0x00B4E1E4`) ≠ 0.
+- The destructor body (`0x007CA020`, under the deleting destructor `0x007CB090`):
+  1. Restores the three vtables, then `Shutdown` (§9.3).
+  2. Clears and frees the view utilities (`+0x114`). Frees the draw context's six arrays (`0x007D5BB0`: `+0x54`,
+     `+0x60`, `+0x6C`, `+0xE0`, `+0x12C`, `+0x1EC`) and the draw context (`+0x11C`).
+  3. Frees the member lists and vectors, including the dirty-rect list (`0x007C7020`: each node's arrays `+0x30`
+     and `+0x24`, then the node).
+  4. Releases the properties object `+0x48`; frees the strings `+0x30` and `+0x1C`.
+
+  Nothing is observable beyond the releases.
+- `GZCOM_CreatecSC43DRender` (`0x007CB070`): `GlobalHeapAlloc(0x2E8)` and the constructor (§1.3), or null.
+- The thunks `0x007C9FE0` / `0x007C9FF0` adjust this by −4 / −8 into `QueryInterface` (`0x007C1890`);
+  `0x007CA000` / `0x007CA010` do the same into `Release` (`0x007C3060`).
+
+### 15.3 Helpers
+
+- **The draw-list sorts** (§5.2). Entries are 8 bytes, sorted on the unsigned dword at `+4`.
+  - `SortDrawListDescending` / `Ascending` (`0x007C56D0` / `0x007C5710`): while n − 1 > 0: p = partition(list, 0,
+    n − 1); sort(list, p); list += p + 1 entries; n −= p + 1.
+  - The partitions `0x007C3950` / `0x007C3A10`, (list, lo, hi):
+    1. swap entry (lo + hi) / 2 into lo; pivot = its key; last = lo;
+    2. for i = lo + 1 … hi: when key[i] > pivot (descending; < for ascending): last += 1 and swap(last, i);
+    3. swap(lo, last); return last.
+
+    Equal keys stay on the right of the pivot, and the order among them is not kept.
+- **The model-change-queue vector** (0x30-byte items, §5):
+  - `0x007C5750`: copy-construct a range;
+  - `0x007C57E0`: fill n copies;
+  - `0x007C5870`: assign a range (unrolled by 4), used by the flush and by the erase in processing;
+  - `0x007C62B0`: insert n copies at a position, growing to size + max(size, n) when full.
+- `AccumulateViewTranslation()` (`0x007C3230`):
+  1. With the camera control (`+0x8C`): dx = cc `+0x98` − cc `+0xA8`, dz = cc `+0x9C` − cc `+0xAC`.
+  2. `+0xE0` += round(dx), `+0xE4` += round(dz). The rounding is to nearest even, `bits(d + 12582912.0) −
+     0x4B400000`.
+  3. `+0x15C` += 1.
+- **Points**:
+  - `0x007C5BE0(n)`: a vector of n 16-byte points, each four copies of the zero global `0x00B4E1F8`;
+  - `0x007C6EC0(pos, &p)`: insert one point before `pos`, growing through `0x004F5D50` when full; returns the new
+    point's address.
+- **View-utilities readers** called from here:
+  - `0x007F6610`: the valid byte `+0x00`;
+  - `0x007F8290(a, b, c, d)`: the four draw ground points as (x, z) pairs from `+0x2E4`, `+0x2F0`, `+0x2FC`,
+    `+0x308` (x at the point, z at +8).
+
+---
+
+## 16. Function inventory (owner `cSC43DRender`, 153 functions on `5c0ff782`)
+
+Specified in §1–§12 or view3d.md, at their addresses there (71):
+`0x007C1890`, `0x007C1980`, `0x007C1A00`, `0x007C1A50`, `0x007C1AC0`, `0x007C2220`, `0x007C2330`, `0x007C2390`,
+`0x007C27A0`, `0x007C2910`, `0x007C2960`, `0x007C2AC0`, `0x007C2B40`, `0x007C2C70`, `0x007C2CE0`, `0x007C2EB0`,
+`0x007C2F80`, `0x007C3060`, `0x007C30F0`, `0x007C3180`, `0x007C35C0`, `0x007C38D0`, `0x007C3B30`, `0x007C3B60`,
+`0x007C3E10`, `0x007C3E50`, `0x007C3E90`, `0x007C3ED0`, `0x007C5000`, `0x007C50F0`, `0x007C51D0`, `0x007C5260`,
+`0x007C52F0`, `0x007C5540`, `0x007C55C0`, `0x007C5AC0`, `0x007C5C80`, `0x007C5D90`, `0x007C5E20`, `0x007C5F40`,
+`0x007C61A0`, `0x007C63A0`, `0x007C6410`, `0x007C6830`, `0x007C6BC0`, `0x007C6D80`, `0x007C6E30`, `0x007C7070`,
+`0x007C7310`, `0x007C7370`, `0x007C7830`, `0x007C7DD0`, `0x007C8630`, `0x007C86D0`, `0x007C8F30`, `0x007C94C0`,
+`0x007C9540`, `0x007C95B0`, `0x007C9600`, `0x007C9B10`, `0x007C9F90`, `0x007C9FA0`, `0x007CA9C0`, `0x007CACD0`,
+`0x007CAE00`, `0x007CAFB0`, `0x007CB090`, `0x007CB0B0`, `0x007CB530`, `0x007CCF80`, `0x007D2720`.
+
+By name in §3 (the accessor tables) (22):
+`0x007C1920`, `0x007C1940`, `0x007C1960`, `0x007C1A90`, `0x007C22B0`, `0x007C22D0`, `0x007C22E0`, `0x007C22F0`,
+`0x007C2300`, `0x007C2310`, `0x007C2320`, `0x007C2350`, `0x007C25E0`, `0x007C25F0`, `0x007C2750`, `0x007C2760`,
+`0x007C2C00`, `0x007C2C10`, `0x007C2C30`, `0x007C2C40`, `0x007C2CD0`, `0x007C9FC0`.
+
+By name in §5 (the entry points) (5): `0x007CA180`, `0x007CA200`, `0x007CA3D0`, `0x007C9220`, `0x007C9320`.
+
+In §11.6 (2): `0x007C7E20`, `0x007C6EC0`.
+
+In §13 (20): `0x007CABE0`, `0x007CA4D0`, `0x007CAA60`, `0x007CAB30`, `0x007C32A0`, `0x007C3F80`, `0x007C3350`,
+`0x007C3400`, `0x007C2400`, `0x007C2610`, `0x007C26D0`, `0x007C3810`, `0x007C3BE0`, `0x007C2530`, `0x007C2570`,
+`0x007C3C60`, `0x007FF0B0`, `0x007C2D50`, `0x007C2DB0`, `0x007C4910`.
+
+In §14 (8): `0x007C1B30`, `0x007C3F10`, `0x007C3790`, `0x007C1E10`, `0x007C1EF0`, `0x007C1FD0`, `0x007C20E0`,
+`0x007C5370`.
+
+In §15 (25): `0x007D30D0`, `0x007D32D0`, `0x007C5D00`, `0x007C3090`, `0x007C2790`, `0x007CA020`, `0x007D5BB0`,
+`0x007C7020`, `0x007CB070`, `0x007C9FE0`, `0x007C9FF0`, `0x007CA000`, `0x007CA010`, `0x007C56D0`, `0x007C5710`,
+`0x007C3950`, `0x007C3A10`, `0x007C5750`, `0x007C57E0`, `0x007C5870`, `0x007C62B0`, `0x007C3230`, `0x007C5BE0`,
+`0x007F6610`, `0x007F8290`.
+
+Not covered: the `SC4QuadGrid` and `SC43DGridElement` internals (their own owners, §5.1), and the readers of the
+visible-terrain fields `+0x3DC`…`+0x3F8` (the terrain view, terrain-view.md).
