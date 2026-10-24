@@ -55,7 +55,7 @@ resources are credited as exact city placement.
   `3ad54edbd75795668b20c3d08f6389944b7372937b37eee3bb80304251ec7b9b`.
 - Exactly **14 counted nettool shadow lines, 8 exact**. This matches inherited
   normal run 383's 8/14; these six differences are not turbo-only.
-  The run record is [run 400](../runs/nettool-exact6-r3-20261024-7c9f-400.md).
+  The run record is [run 400](../runs/nettool-exact6-r3-20261024-7c9f-417.md).
 
 ### Measurements and remaining work
 

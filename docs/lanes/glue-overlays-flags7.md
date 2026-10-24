@@ -13,14 +13,14 @@ Validation: focused terrain_overlays **64 passed**; explicit owned-file fmt **PA
 Both game runs used DLL SHA256 `2ffcbac8e0fa35f904f8f84b157d0521b71b1a2bf29912f62ed5c819065bab7e`, Konradshohe, turbo, target2032-01-01, observe/digest off. Both verdicts **clean**, `ref_warnings=0`, all harness problem counts0; only two expected x87 startup warnings. Every counted dated shadow line has zero mismatches and zero resyncs; no incomplete captures. Exact requested overlays lines:
 
 ```text
-ovflags7-fixture-2032-20261024a 73/73
-ovflags7-ro-2032-20261024b 73/73
+ovflags7-fixture-2032-20261024a-420 73/73
+ovflags7-ro-2032-20261024b-421 73/73
 ```
 
 | Run record | Mode / final date | Sentinel comparison | Record observation | Controlled suffix replay |
 |---|---|---|---|---|
-| [410](../runs/ovflags7-fixture-2032-20261024a.md) | fixture /2032-01-01 |73/73;7300/7300 fields |292/292;12264/12264 checks |292/292;10220/10220 fields |
-| [411](../runs/ovflags7-ro-2032-20261024b.md) | default read-only /2032-01-06 |73/73;7300/7300 fields |292/292;empty arenas,0 live checks |0 lines;fixture omitted |
+| [410](../runs/ovflags7-fixture-2032-20261024a-420.md) | fixture /2032-01-01 |73/73;7300/7300 fields |292/292;12264/12264 checks |292/292;10220/10220 fields |
+| [411](../runs/ovflags7-ro-2032-20261024b-421.md) | default read-only /2032-01-06 |73/73;7300/7300 fields |292/292;empty arenas,0 live checks |0 lines;fixture omitted |
 
 **Coverage owner rows:** the fixture supplies measured verification for the `cSTEOverlayManager` row, specifically ordinary binding add, placement/move, alpha/RGB/draw-state/self-lighting suffix and indirect handle/overlay state across its four managers. Record observation additionally checks live storage/index/resource invariants. It does **not** verify the separate `cSTEVertBufExtn`, `SC4MarkedCellView`, `SC4PathInfoView`, `SC4TrainJunctionView`, `cSC4PathView`, or `cSC4PathView::PathInfo` owner rows named in the generic brief. It does not establish full rendering, groups/model-shadow paths, original Init/history reconstruction, or image bytes. OV13 remains the documented boundary; no new original-behaviour question was needed. Tools coverage files were neither opened nor edited; coordinator should apply credit only to the measured owner/scope.
 

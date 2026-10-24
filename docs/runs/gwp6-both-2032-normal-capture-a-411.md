@@ -1,5 +1,5 @@
-tag: gwp6-both-2032-normal-capture-a-377
-run: 377
+tag: gwp6-both-2032-normal-capture-a-411
+run: 411
 date: 2026-10-24
 lane: glue-weather-propdev6
 dll: FreeCity4-glue-weather-propdev6 (d9230437; engine source 599207dca)

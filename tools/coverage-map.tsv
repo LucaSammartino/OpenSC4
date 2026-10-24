@@ -22,7 +22,8 @@ cSC4LineItem*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
 cSC4DemandSimulator*	demand	simulation	demand.md	core/src/demand	demand_shadow	demand
 cSC4Demand	demand	simulation	demand.md	core/src/demand	demand_shadow	demand
 cSC4LandValueSimulator	landvalue	simulation	landvalue.md	core/src/landvalue.rs	landvalue_shadow	landvalue
-cSC4WeatherSimulator	weather	simulation	weather.md	core/src/weather	-	weather
+# weather_shadow (glue-weather-propdev6 applying WE1; house profile from train180) replays the native weather simulator's daily step through core/src/weather and compares wind and moisture exactly each month: 73/73, zero resyncs (run 5)
+cSC4WeatherSimulator	weather	simulation	weather.md	core/src/weather	weather_shadow	weather
 cSC4OrdinanceSimulator	ordinance	simulation	ordinance.md	core/src/ordinance	-	ordinance
 cSC4Ordinance*	ordinance	simulation	ordinance.md	core/src/ordinance	-	ordinance
 cSC4PowerSimulator	power	simulation	power.md	core/src/power	power_shadow	power

@@ -76,7 +76,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | plumbing | 1 | 54 | 20,057 | yes | yes | 144/144 | yes | yes |
 | simulation | prop / lot configuration managers | 2 | 121 | 19,551 | yes | yes | 220/220, 293/293 | yes | yes |
 | simulation | landfill | 3 | 103 | 19,083 | yes | yes | 71/71 | part | part |
-| simulation | weather | 1 | 68 | 18,299 | yes | yes | - | - | yes |
+| simulation | weather | 1 | 68 | 18,299 | yes | yes | no lines | - | yes |
 | simulation | network rules | 5 | 55 | 18,176 | yes | yes | 73/73 | part | - |
 | simulation | prop developer | 2 | 58 | 17,553 | yes | yes | - | - | part |
 | simulation | sim grids | 4 | 109 | 17,244 | yes | yes | 73/73 | part | part |
@@ -279,13 +279,13 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 91832c62ef37727f | |
+| tools/coverage-map.tsv | e7683711a478f7cd | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
-| tools/regress.ps1 | fd209d15e809a915 | |
+| tools/regress.ps1 | 42924f081ba5e0c5 | |
 | engine/plugin/FC4Subsystems.cpp | eec7afb8a9f649b7 | |
 | build-runs/regress-train176.out | b4b1c6c9bad7440f | regress train176 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
-Read from tools/regress.ps1: 40 replace keys, 47 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
+Read from tools/regress.ps1: 40 replace keys, 48 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
 
 ## Warnings
 
@@ -320,3 +320,4 @@ Read from tools/regress.ps1: 40 replace keys, 47 shadows. On by default in FC4Su
 - map row `fn:IntersectWithGroundPlane` matches no owner
 - map row `fn:ResolvePath` matches no owner
 - shadow `automata_owners_shadow` is in the regress list but `regress-train176.out` has no `automata_owners` lines
+- shadow `weather_shadow` is in the regress list but `regress-train176.out` has no `weather` lines

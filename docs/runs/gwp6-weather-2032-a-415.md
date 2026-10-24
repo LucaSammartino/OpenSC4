@@ -1,5 +1,5 @@
-tag: gwp6-weather-2032-a-374
-run: 374
+tag: gwp6-weather-2032-a-415
+run: 415
 date: 2026-10-24
 lane: glue-weather-propdev6
 dll: FreeCity4-glue-weather-propdev6 (308c2d83; weather source 4d5f5b227)

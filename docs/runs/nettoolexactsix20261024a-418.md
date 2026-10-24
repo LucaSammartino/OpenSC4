@@ -1,5 +1,5 @@
-tag: nettoolexactsix20261024a
-run: 382
+tag: nettoolexactsix20261024a-418
+run: 418
 date: 2026-10-24
 lane: glue-nettool-exact6
 dll: d37c42349d4ad1f0fe28dd6365886aa285de10a78bdda5e6221a41ed267fe352

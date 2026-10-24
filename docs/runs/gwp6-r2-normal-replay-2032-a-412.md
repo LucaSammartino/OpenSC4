@@ -1,5 +1,5 @@
-tag: gwp6-r2-normal-replay-2032-a-382
-run: 382
+tag: gwp6-r2-normal-replay-2032-a-412
+run: 412
 date: 2026-10-24
 lane: glue-weather-propdev6
 dll: FreeCity4-glue-weather-propdev6 (365c345b; replay source e1ab63334 plus scope/test correction 8cd746b79)
