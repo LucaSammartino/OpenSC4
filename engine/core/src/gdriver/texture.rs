@@ -541,7 +541,7 @@ fn decode_blocks(
                     resize_channel(c & 31, 5, bits[2]),
                 ];
             }
-            for channel in 0..3 {
+            let mixed: [(u32, u32); 3] = std::array::from_fn(|channel| {
                 let a = palette[0][channel];
                 let b = palette[1][channel];
                 if c0 > c1 {
@@ -550,12 +550,16 @@ fn decode_blocks(
                         4 | 5 => (21, 11, 16, 5),
                         _ => (11, 5, 8, 4),
                     };
-                    palette[2][channel] = (wa * a + wb * b + rounding) >> shift;
-                    palette[3][channel] = (wb * a + wa * b + rounding) >> shift;
+                    (
+                        (wa * a + wb * b + rounding) >> shift,
+                        (wb * a + wa * b + rounding) >> shift,
+                    )
                 } else {
-                    palette[2][channel] = (a + b).div_ceil(2);
+                    ((a + b).div_ceil(2), 0)
                 }
-            }
+            });
+            palette[2] = mixed.map(|pair| pair.0);
+            palette[3] = mixed.map(|pair| pair.1);
             let selectors = u32::from_le_bytes(block[color_offset + 4..color_offset + 8].try_into().unwrap());
             let alpha_bits = u64::from_le_bytes(block[..8].try_into().unwrap());
             for p in 0..16 {
