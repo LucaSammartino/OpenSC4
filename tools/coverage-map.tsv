@@ -779,6 +779,35 @@ cGZRESIDtoExtensionMap	framework services (GZ)	framework	framework-misc.md	-	-	-
 cGZFileNameToResKeyConverterDefault	framework services (GZ)	framework	framework-misc.md	-	-	-
 cRZTextFile	framework services (RZ)	framework	sc-resources.md, graphics-rules.md, framework-misc.md	-	-	-
 fn:GetTrueName	framework services (RZ)	framework	framework-misc.md	-	-	-
+cRZFastAllocatorGeneralThreadSafe	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZAllocatorService	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cGZDefaultAllocator	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cRZStackAllocator	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZMessage2Standard	framework services (RZ)	framework	foundations.md, framework-misc2.md	-	-	-
+cRZAutoMsg2Notification	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZMouseMessage	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cRZUnknown	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZSystemService	framework services (RZ)	framework	framework-gz-services.md, framework-misc2.md	-	-	-
+cRZAutoRefCount	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZUnknownAutoPtr	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCriticalSection	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZThread	framework services (RZ)	framework	foundations.md, framework-misc2.md	-	-	-
+cGZMessageQueue	framework services (GZ)	framework	framework-misc2.md	-	-	-
+nGZLog::cOutputBackEnd	framework services (GZ)	framework	gz-framework-core.md, framework-misc2.md	-	-	-
+nGZLog::cDefaultOutputBackEnd	framework services (GZ)	framework	gz-framework-core.md, framework-misc2.md	-	-	-
+cRZCursor	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZSystemCursorW95	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZAutoCursor	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCursorResource	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCursorResourceFactory	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZKeyboard	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZResourceCOMDirectorW32	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cGZDBRecordBitmapRes	persistence and resources	framework	persistence.md, framework-misc2.md	-	-	-
+cGZDBRecordPackedFile	persistence and resources	framework	framework-misc2.md	-	-	-
+cRZStringResource	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZApp	application	framework	application.md, framework-misc2.md	-	-	-
+cRZVersion	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZExceptionNotification	framework services (RZ)	framework	framework-misc2.md	-	-	-
 # the GZ catch-all sits below cGZDate and the command-system rows, which it used to hide (first match wins)
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
@@ -800,7 +829,7 @@ cWinBMPViewGVExtra	windows and panels	ui	-	-	-	-
 cSTEChangeTerrainUI	city tools and input	ui	-	-	-	-
 (anonymous_namespace)::cParser	network rules	simulation	-	-	-	-
 nsGZWinUtils	widget toolkit	ui	-	-	-	-
-RZ	framework services (RZ)	framework	-	-	-	-
+RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
 nsTexUtil	3D scene and models	renderer	-	-	-	-
 MiscGraphTextInfo	widget toolkit	ui	-	-	-	-
 SCLuaTableRef	Lua host	framework	-	-	-	-
@@ -831,7 +860,7 @@ CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	-	-	-	-
 cEaseSound	audio	audio	-	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
-ThreadPlatformData	framework services (RZ)	framework	-	-	-	-
+ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
 SC4QuadGridQuadrant	3D scene and models	renderer	-	-	-	-
 AnyString	persistence and resources	framework	-	-	-	-
 cAutomataOccupantFilter	automata (managers, records)	simulation	-	-	-	-
