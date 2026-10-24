@@ -12,7 +12,9 @@
 - qbuild all: Rust 6888/0; clippy 0 diagnostics; native PASS 86/86, CTest FAIL 72/73 (capi_smoke ABI mismatch).
 - Both source ABI constants are 91; stale smoke object was not compiled (diagnostic names train-integration).
 - Failed native logs preserved as build-runs/round3-initial-failed-fc4verify-{build,ctest}.log; verdict qbuild-20261024-023736-build-ctest.
-- Next: invalidate only stale smoke object, native qbuild verify with SCCACHE_RECACHE=1; then unique triple-shadow request, wait without qwait.
-- Run IDs through 380 exist; choose 381+ after rechecking. No game request outstanding.
+- Stale smoke object cleaned; corrected qbuild verify PASS: native 48/48 (1.7 s), CTest 73/73 (75.2 s), total 78.4 s.
+- Corrected verdict: qbuild-20261024-024155-build-ctest; logs build-runs/fc4verify-{build,ctest}.log.
+- Next: submit lotrec-r3-triple-2032-381 (automata/simgrid/lotrec), collect event-driven waiter without qwait.
+- Run IDs through 380 exist; 381 is free after rechecking. Planned unique request lotrec-r3-triple-2032-381.
 - Round 2 evidence remains in build-runs; no new questions or ABI exports.
 - Before READY queue: merge main again, report full 40-character actual HEAD; do not switch branches or update refs.
