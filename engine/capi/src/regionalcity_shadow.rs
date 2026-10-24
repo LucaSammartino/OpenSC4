@@ -154,14 +154,7 @@ mod tests {
 
     #[test]
     fn malformed_or_trailing_record_is_not_an_exact_sample() {
-        unsafe extern "C" fn accept(
-            _: *mut c_void,
-            _: u32,
-            _: u32,
-            _: f64,
-            _: *const u8,
-            _: u32,
-        ) -> bool {
+        unsafe extern "C" fn accept(_: *mut c_void, _: u32, _: u32, _: f64, _: *const u8, _: u32) -> bool {
             true
         }
         let mut out = ByteWriter::new();
@@ -171,21 +164,11 @@ mod tests {
         // SAFETY: valid readable local bytes and a synchronous callback.
         unsafe {
             assert_eq!(
-                fc4_regionalcity_shadow_compare(
-                    bytes.as_ptr(),
-                    bytes.len() as u32,
-                    Some(accept),
-                    std::ptr::null_mut()
-                ),
+                fc4_regionalcity_shadow_compare(bytes.as_ptr(), bytes.len() as u32, Some(accept), std::ptr::null_mut(),),
                 u64::MAX
             );
             assert_eq!(
-                fc4_regionalcity_shadow_compare(
-                    bytes.as_ptr(),
-                    1,
-                    Some(accept),
-                    std::ptr::null_mut()
-                ),
+                fc4_regionalcity_shadow_compare(bytes.as_ptr(), 1, Some(accept), std::ptr::null_mut(),),
                 u64::MAX
             );
         }
