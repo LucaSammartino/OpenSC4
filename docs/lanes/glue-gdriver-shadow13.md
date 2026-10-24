@@ -21,7 +21,7 @@ The single final-source `qbuild all` completed successfully. It automatically su
 
 ## Real-city measurement
 
-[Run 631](../runs/gdriver13-r2-turbo-2032-20261024a-631.md): `gdriver13-r2-turbo-2032-20261024a`, Konradshohe, turbo, end date 2032-01-01, `gdriver_shadow=1`. Verdict **clean**, date **2032-01-15**, real_seconds **28.469**, **ref_warnings=0**, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. DLL SHA256 prefix `0cb3fd55`.
+[Run 631](../runs/gdriver13-r2-turbo-2032-20261024a-644.md): `gdriver13-r2-turbo-2032-20261024a`, Konradshohe, turbo, end date 2032-01-01, `gdriver_shadow=1`. Verdict **clean**, date **2032-01-15**, real_seconds **28.469**, **ref_warnings=0**, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. DLL SHA256 prefix `0cb3fd55`.
 
 Measured summary: **`gdriver 72/72`**. Exact retained log lines:
 
