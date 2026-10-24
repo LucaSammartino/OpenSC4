@@ -326,7 +326,15 @@ struct NameSample {
     uint32_t counts[3] = {};
     uint32_t bytes = 0;
     bool captured = false;
+    uint32_t visuals[3] = {};
+    bool visualCaptured = false;
 };
+
+bool ReadNative(void*, uint32_t address, uint8_t* out, size_t length) {
+    SIZE_T copied = 0;
+    return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address),
+        out, length, &copied) != FALSE && copied == length;
+}
 
 void CompareNames(void* context) {
     auto& s = *static_cast<NameSample*>(context);
@@ -335,6 +343,13 @@ void CompareNames(void* context) {
     if (!manager || !CaptureDirectory(bytes)) return;
     s.bytes = static_cast<uint32_t>(bytes.size());
     s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, manager, s.counts);
+    // effects §18.1 primary manager identity; §18.7 framing. Capture owns all
+    // copies and never invokes collection getters or resource publication.
+    // City-load/month delivery is on the owner thread after bootstrap returns;
+    // retained descriptions are not changed by animation/draw reads.
+    const auto collection = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(manager)) + 0x94u;
+    s.visualCaptured = fc4_effects_verify_visuals(bytes.data(), bytes.size(), collection,
+        ReadNative, nullptr, s.visuals);
 }
 
 } // namespace
@@ -349,12 +364,13 @@ void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
     }
     NameSample sample{city};
     const bool safe = SehGuard("effects record shadow", CompareNames, &sample);
-    const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 ? 0u : 1u;
+    const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 && sample.visualCaptured ? 0u : 1u;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("effects shadow %04d-%02d-%02d %s: bytes=%u entries=%u queries=%u refusal=%u resyncs=0; mismatches=%u",
+    Log("effects shadow %04d-%02d-%02d %s: bytes=%u entries=%u queries=%u visuals=%u fields=%u refusal=%u resyncs=0; mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month",
-        sample.bytes, sample.counts[0], sample.counts[1], refusal, sample.counts[2] + refusal);
+        sample.bytes, sample.counts[0], sample.counts[1], sample.visuals[0], sample.visuals[1],
+        refusal, sample.counts[2] + sample.visuals[2] + refusal);
 }
 
 }  // namespace fc4

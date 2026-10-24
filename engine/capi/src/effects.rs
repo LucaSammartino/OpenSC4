@@ -387,8 +387,7 @@ pub unsafe extern "C" fn fc4_effects_verify_names(
                 }
             }
         }
-        // Literal section 4 membership only. EF20 blocks native description
-        // capture; this does not claim priority, publication or placement state.
+        // Literal section 4 membership only; retained payload has a separate check.
         for name in ["", "end", "__fc4_effects_shadow_absent__"] {
             probes.push(std::ffi::CString::new(name).unwrap());
         }
@@ -399,6 +398,53 @@ pub unsafe extern "C" fn fc4_effects_verify_names(
             counts[1] += 1;
             counts[2] += u32::from(native != expected);
         }
+        true
+    })
+}
+
+/// Retained visual payload comparison; counts = records, fields, differences.
+/// # Safety
+/// Data spans len bytes and counts spans three writable words. The callback
+/// copies a native 32-bit readable address into the supplied writable span.
+/// Caller guarantees an owner-thread quiescent interval (effects §18.7.4).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_effects_verify_visuals(
+    data: *const u8,
+    len: usize,
+    collection: u32,
+    read: Option<unsafe extern "C" fn(U, u32, *mut u8, usize) -> bool>,
+    user: U,
+    counts: *mut u32,
+) -> bool {
+    guard(false, || {
+        if counts.is_null() {
+            return false;
+        }
+        let counts = std::slice::from_raw_parts_mut(counts, 3);
+        counts.fill(0);
+        let Some(read) = read else {
+            return false;
+        };
+        if data.is_null() || collection == 0 {
+            return false;
+        }
+        let Ok(directory) = EffectDirectory::parse(std::slice::from_raw_parts(data, len)) else {
+            return false;
+        };
+        struct Memory {
+            read: unsafe extern "C" fn(U, u32, *mut u8, usize) -> bool,
+            user: U,
+        }
+        impl fc4_core::effects::capture::Memory for Memory {
+            fn read(&mut self, address: u32, bytes: &mut [u8]) -> bool {
+                unsafe { (self.read)(self.user, address, bytes.as_mut_ptr(), bytes.len()) }
+            }
+        }
+        let Some(result) = fc4_core::effects::capture::compare_visuals(Memory { read, user }, collection, &directory)
+        else {
+            return false;
+        };
+        counts.copy_from_slice(&[result.records, result.fields, result.differences]);
         true
     })
 }
@@ -554,7 +600,9 @@ pub unsafe extern "C" fn fc4_effects_destroy(fx: *mut fc4_effects) {
 /// may destroy its handle).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_effects_set_directory(fx: *mut fc4_effects, d: *const fc4_effects_directory) -> bool {
-    let Some(d) = dir_ref(d).cloned() else { return false };
+    let Some(d) = dir_ref(d).cloned() else {
+        return false;
+    };
     with_fx(fx, false, |m, _| {
         m.set_directory(d);
         true

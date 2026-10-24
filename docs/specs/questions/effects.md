@@ -12,5 +12,8 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
 <!-- re-effects-ef18 (2026-10-24) answered EF18 and EF19; moved to answered/effects.md.
      EF17 remains reserved by the coordinating brief. No open questions remain. -->
 
+<!-- from: glue-effects-capture8 (2026-10-24) -->
+- **EF21 — §18.7 native observation attachment and remaining payloads:** EF20 specifies retained memory framing but not an attachment contract for tracing the naturally executed bootstrap/publication calls. How does a default-off plugin observer obtain a live resource primary identity and the natural bootstrap/publication inputs/results without requesting a new resource or changing owner behavior? Which owner-thread city-load/month callback boundaries exclude concurrent retained collection/queue writes, including reload? Supply complete typed native payload memory layouts for particle/dynamic/decal/shake/light and component types 3–15 (including anonymous descriptions), or explicit cross-references to their complete contracts, to support payload-exact capture. [Compare only the visual records and name/index multiset for now; other families, camera/binding/trigger publication and queue/bootstrap history remain uncredited. No resource publication/getter/parse calls or guessed native hooks are introduced.]
+
 <!-- re-effects-ef20 (2026-10-24) copied EF20 from glue-effects-shadow7 and answered
      it in effects.md section 18.7; original question archived in answered/effects.md. -->

@@ -14,6 +14,32 @@ use crate::effects::*;
 use crate::terrain::fc4_brush_params;
 
 #[test]
+fn effects_visual_capture_refuses_missing_callback_and_bad_resource() {
+    unsafe extern "C" fn unreadable(_: *mut c_void, _: u32, _: *mut u8, _: usize) -> bool {
+        false
+    }
+    let bytes = fc4_core::effects::shipped::volcano_directory().to_bytes();
+    let mut counts = [99; 3];
+    unsafe {
+        for (length, callback) in [
+            (bytes.len(), None),
+            (1, Some(unreadable as unsafe extern "C" fn(_, _, _, _) -> _)),
+            (bytes.len(), Some(unreadable)),
+        ] {
+            assert!(!fc4_effects_verify_visuals(
+                bytes.as_ptr(),
+                length,
+                0x100,
+                callback,
+                std::ptr::null_mut(),
+                counts.as_mut_ptr()
+            ));
+            assert_eq!(counts, [0; 3]);
+        }
+    }
+}
+
+#[test]
 fn effects_record_names_native_case_membership_and_refusals() {
     unsafe extern "C" fn native(user: *mut c_void, name: *const c_char) -> u32 {
         let name = std::ffi::CStr::from_ptr(name).to_str().unwrap();

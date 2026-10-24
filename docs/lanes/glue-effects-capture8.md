@@ -4,7 +4,10 @@
 
 ## Handoff
 - Goal: default-off effects record shadow using EF20; 73/73 exact through 2032.
-- Done: merged glue-effects-shadow7 and re-effects-ef20 at 52edd0f0e (merge reported shared packed-refs permission warning, HEAD contains both).
-- Next: read EF20 answer and existing plugin capture; remove answered open question; implement safe record capture.
+- Done: repaired failed sandbox octopus tree at 165a86708; EF20 is absent from open questions.
+- Done: implemented bounded retained visual memory reader and independent resource comparison; focused core tests 3/3, explicit fmt clean.
+- Scope: visual vector fields, components, parameter bindings, duplicate name/index multiset; excludes pointer/padding/capacity and transform flag bits outside 0..2.
+- Next: run full final gate, then 2032 game measurement; diagnose any mismatch without inferring native contracts.
+- EF21 asks for remaining family layouts and natural trace attachment/quiescence contracts; no whole-owner coverage claimed.
 - Worktree is intentionally detached; do not update shared refs.
 - No game request outstanding.
