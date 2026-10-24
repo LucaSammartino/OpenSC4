@@ -129,11 +129,18 @@ int main(int argc, char** argv) {
     if (offset(effect.Prop()) != 4 || offset(effect.Serial()) != 0x10) return 4;
     Construction c;
     c.sparks = {effect.Prop()}; c.current = effect.Serial();
+    // RefAudit performs one balanced Serializable QI per previously unseen
+    // vtable. Warm its class cache before counting helper acquisitions.
+    check("T66 audit-cache warmup", c, 1);
+    effect.adds = effect.releases = 0;
     check("T66 derived identity through both views", c, 1);
     if (c.callbacks[2] != effect.Serial() || c.callbacks[3] != effect.Serial()) ++failures;
     // Per occurrence: writer helper QI, observer QI, reader temporary and
     // successful field QI. Duplicate identity still has independent lifetimes.
-    if (effect.adds != 8 || effect.releases != 8) ++failures;
+    if (effect.adds != 8 || effect.releases != 8) {
+        std::printf("T66 helper acquisitions %u/%u expected 8/8\n", effect.adds, effect.releases);
+        ++failures;
+    }
     Effect ground, roof, crew;
     ground.fieldIid = roof.fieldIid = kProp;
     ground.cls = roof.cls = 0x2977AA47;
