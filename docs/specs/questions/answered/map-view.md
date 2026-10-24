@@ -1,5 +1,21 @@
 # map-view: answered questions
 
+<!-- from: core-map-view5b (2026-10-23) -->
+- **QV14 - §5.2: ring intermediate precision:** which x87 precision-control and rounding-control modes
+  apply to the ring helper, and at which operations (including square roots) are intermediates rounded?
+  Does the stated formula require 24-, 53- or 64-bit significands between its explicit binary32 stores?
+  Please add a near-threshold pixel vector that discriminates these modes. [literal formula implemented
+  with the explicit binary32 stores and binary64 intermediates; §10.15-16 pass; this is a portable numeric
+  choice, not a claim of native edge-pixel/weight equivalence for all coordinates; invalid domains remain QV10]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv18):** DIFFERS — §5.2 and vectors 45–48 specify inherited
+  PC/RC, every arithmetic/square-root rounding point, explicit binary32 stores, and integer bias
+  conversion. CRT PC53 is superseded by framework PC24; neither setter changes RC. Later contexts
+  can change PC, so inheritance, not a permanent global PC53 or PC24, is the native contract.
+  Nearest-mode vectors yield weights 254/255/255 and 254/254/255 under PC24/53/64, distinguishing
+  all three choices. Corrected candidate bounds to floor lower / ceil upper. No new question split;
+  the already bounded invalid geometric domains remain outside this ordinary finite contract.
+
 <!-- from: re-mapview (2026-10-20) -->
 - **QV3 - §1, §3.2:** the panels `0x8A2871B1`-`0x8A2871C4`, `0xAA32BCD4`/`0xAA32BCD5`; the groups' remembered views
   behind the buttons `0x5005`, `0x5008` and `0x8002`; the toggle `+0x9AC` of `0x8100`/`0x8101`; the command

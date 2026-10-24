@@ -96,7 +96,7 @@ map-enabled byte and calls ResetDataView (`0x007A6290`–`0x007A64BE`).
 `HideWindow` first requires child B1 to exist; otherwise it does nothing. With B1 present it hides
 `0x4200`, B1, B2, D4, D5, C3 and C4, clears the map-enabled byte, then calls ResetDataView.
 The group's memories, CB and the alternate controls are not individually reset/hidden by this
-operation (`0x007A64D0`–`0x007A657F`).
+operation (`0x007A64D0`–`0x007A6574`).
 
 Accepted commands `0xCA2871F0`/`0xCA2871F1` refresh highlights and bitmap, then apply standard large
 and consume the message. `0xA32CACD4`, `0x0A32CAC3`, `0xEA8B80A7` and `0xEA8B80A8` apply small.
@@ -291,10 +291,10 @@ palette construction and building reconciliation are specified below (QV7–QV8)
 | `0x5006`, `0x5007` | 10 water, 7 power |
 | `0x5009`, `0x500A`, `0x500B`, `0x500C`, `0x500D` | `0x20` age, 2 land value, 1 mayor rating, `0x1E` zones, `0x1C` HQ |
 | `0x500E`, `0x500F`, `0x5010`, `0x5011` | 8 air, `0x18` water, `0x19` garbage, `0x1A` radiation pollution |
-| `0x5005`, `0x5008` | a group's last view (`0x5008`: 9 traffic when the toggle `0x8001` is down) *[summary]* |
+| `0x5005`, `0x5008` | the remembered group request, as specified in §3.2.1 |
 | `0x6001`–`0x600C` | `0x28`–`0x2A`, `0x32`–`0x36`, `0x3C`–`0x3F` (desirability by wealth) |
 | `0x8001` | 9 traffic; `0x8002` the last traffic volume view; `0x8003`–`0x800C` views `0x4C`–`0x55` |
-| `0x8100`, `0x8101` | a two-way toggle (`+0x9AC` := 0 / 1) and `ResetDataView` *[summary]* |
+| `0x8100`, `0x8101` | normal/alternate traffic data (`+0x9AC` := 0 / 1) and ResetDataView (§3.2.1) |
 
 The buttons `0x51xx` and `0x61xx` act as `0x50xx` and `0x60xx`. `0xCA2871F0`, `0xCA2871F1` redraw and show the
 large map; `0x8A2871D5` posts the command `0x6A935CF1` (`0x00B43CB0` slot 20); `0xA32CACD4` and `0x0A32CAC3` return
@@ -799,17 +799,80 @@ entire decoration pass (`0x007A5303`–`0x007A535D`, `0x007A45F6`–`0x007A481E`
   (`0x007A474E`–`0x007A47D4`, helper `0x0079E130`–`0x0079E3F4`).
 
 For finite ordinary bitmap coordinates, the ring helper offsets the supplied centre by +0.5 on both axes.
-For supplied centre `(u,v)` and radius `r`, candidate rows run inclusively from `ceil(v−r−0.5)` to
-`floor(v+r+0.5)`, clipped to the buffer. At row `j`, store `dy² = binary32((j−binary32(v+0.5))²)` and
+For supplied centre `(u,v)` and radius `r`, candidate rows run inclusively from `floor(v−r−0.5)` to
+`ceil(v+r+0.5)`, clipped to the buffer. At row `j`, store `dy² = binary32((j−binary32(v+0.5))²)` and
 `R² = binary32((r+1)²)`. If `R²−dy²` is negative, draw no pixels in that row. Otherwise candidates run
-from `ceil(binary32(u+0.5)−sqrt(R²−dy²))` to the corresponding `floor` with a plus sign, clipped to the
+from `floor(binary32(u+0.5)−sqrt(R²−dy²))` to the corresponding `ceil` with a plus sign, clipped to the
 buffer. A candidate pixel `(i,j)` has distance error
 `e = abs(sqrt((i−binary32(u+0.5))²+dy²)−r)`.
 Only `e < 2` is blended, with weight `b = 255−floor(128×e)`. This is a soft ring, not a filled disk.
-The native square roots and intermediate arithmetic use x87 precision between the stated binary32 stores
+The native square roots and intermediate arithmetic use the x87 mode and rounding schedule below
 (`0x0079E156`–`0x0079E3B3`; constants 0.5, 1, 2, 128 at `0x00A84D2C`, `0x00A81228`,
 `0x00A8825C`, `0x00AB7E10`). Ring-helper invalid geometric inputs are unsafe numeric inputs;
-the float-grid conversion rule is separately specified in §4.2.1. Exact ring precision remains QV14.
+the float-grid conversion rule is separately specified in §4.2.1.
+
+#### Ring precision and integer bounds (QV14) *[compat]*
+
+The ring helper **inherits the calling thread's x87 precision control (PC) and rounding control (RC)**;
+it neither establishes a local mode nor restores a different one on return. Its geometry uses x87
+instructions, including both square roots; there is no SSE or library-square-root substitute.
+PC applies to every add, subtract, multiply and square root, not merely to explicit stores.
+PC=00/10/11 means 24/53/64 significant bits respectively, with the x87 exponent range between stores.
+An explicit binary32 store separately rounds to that format's significand and exponent range using RC.
+Loads of binary32 values and signed 32-bit pixel coordinates are exact. Sign changes/absolute value
+and comparisons introduce no extra rounding.
+
+The executable does **not** establish one immutable precision for its lifetime. CRT initialization
+requests PC=53 (`0x009F1718`–`0x009F171F`, `0x009F1E04`–`0x009F1E13`,
+`0x009EEEE5`–`0x009EEF02`, `0x009F6C30`–`0x009F6C41`). Application framework setup later
+changes PC to **24** (`cSC4App::PreFrameWorkInit`, `0x0045236C`, through `0x005F85E0`–`0x005F85E8`).
+The setter changes only PC bits 8–9 of the hardware control word (`0x008929E0`–`0x00892A09`);
+it preserves RC. Ordinary Windows thread entry supplies round-to-nearest, ties-to-even (RC=00),
+which neither of these precision setters changes. Thus the unmodified post-framework context is
+**PC=24, RC=nearest**, not the earlier CRT's PC=53 and not the hardware's 64-bit reset precision.
+
+Subsequent calling context matters. For example, the expression reader `0x0067BA40` changes PC24 to
+PC53 at `0x0067BA5A`–`0x0067BA6A` and has no restoring store before its return `0x0067BAD4`.
+Lua wrappers can temporarily select 53 bits and restore the previous precision (e.g.
+`cGZLua5Thread::Pause`, `0x008B6C35`–`0x008B6C65`). Plugins/foreign callbacks can also change the
+thread state. A ring called in such a context uses that actual PC/RC; assuming that startup forces
+all later rings to PC24, or imposing PC53 for portability, is not the native rule. No runtime
+frequency of those contexts is asserted here. The inherited-state contract resolves the varying
+contexts without a new unresolved question. In particular, these are caller state and operation
+rounding rules, not a claim that every finite expression has its exact-real-number result.
+
+For the schedule below, `P(x op y)` means one x87 operation rounded at the inherited PC/RC,
+`sqrtP` means the similarly rounded square root, and `S(x)` means an explicit binary32 store/reload
+using RC. Apply nested operations in the order written. For ordinary finite coordinates and
+RC=nearest, the floor/ceil notation in the preceding paragraph has the following exact schedule:
+
+| Quantity | Rounded evaluation and retained format |
+|---|---|
+| Outer squared radius | `a=P(r+1)`, then `R²=S(P(a×a))`. No store of a before its square. |
+| Inclusive row bounds | Lower argument `P(P(v−r)−0.5)` uses the floor conversion below; upper argument `P(P(v+r)+0.5)` uses ceil. Use the original supplied v, before its centre offset; intersect with `[clip.top,clip.bottom−1]`. |
+| Shifted centre | `cx=S(P(u+0.5))`, `cy=S(P(v+0.5))`, once each. |
+| Row displacement | `d=P(j−cy)`, `dy²=S(P(d×d))`, once per row. |
+| Row half-width | `t=P(R²−dy²)`; a negative t skips the row, otherwise `h=sqrtP(t)`. There is **no** store of t or h. |
+| Inclusive column bounds | Floor conversion of `P(cx−h)` and ceil conversion of `P(h+cx)`, intersected with `[clip.left,clip.right−1]`. Both use the same retained h, not a binary32 h. |
+| Pixel distance error | `dx=P(i−cx)`, `s=P(dx×dx)`, `s=P(s+dy²)`, `d=sqrtP(s)`, `e=abs(P(d−r))`. None of dx/s/d/e is stored to binary32. |
+| Blend weight | If `e<2`, apply floor conversion to `P(e×128)` and subtract the resulting integer from 255. Equality at 2 does not blend. |
+
+The integer-bound/weight conversion itself includes rounding: with input z retained on the x87 stack,
+form `S(P(P(z+bias)+12582912))` and interpret its binary32 **bits** plus `0xB4C00000`, modulo 2³²,
+as signed integer n. For floor, bias is −0.5 and exact equality `z=n+1` corrects the result to n+1;
+for ceil, bias is +0.5 and exact equality `z=n−1` corrects it to n−1. The integer ±1 is signed
+32-bit wrapping arithmetic. These conversions agree with mathematical floor/ceil for the ordinary
+nearest-mode bitmap domain (in particular arguments within ±4194303). For a caller-modified RC,
+use this bias/store/equality rule with that RC rather than replacing it with a host integer cast
+or silently resetting RC. The rule specifies the inherited-mode behavior; invalid/unsafe geometric
+domains remain as bounded above, not a new split of QV14.
+
+The explicit stores are at `0x0079E17B` (R²), `0x0079E246`/`0x0079E258` (cx/cy),
+and `0x0079E26E` (dy²); conversion stores are `0x0079E1A1`, `0x0079E1F5`,
+`0x0079E2AB`, `0x0079E2F7` and `0x0079E37D`. The row square root is `0x0079E28D`;
+pixel arithmetic and square root are `0x0079E344`–`0x0079E35A`; the strict comparison/weight
+are `0x0079E35C`–`0x0079E3AC`. The binary64 0.5 at `0x00A92D28` and binary32
+0.5/12582912 at `0x00A84D2C`/`0x00AB7E08` are exact constants, not precision-setting operations.
 
 Both passes share the pixel blend (`0x0079DC00`–`0x0079DCD8`). For source RGB `S`, destination ARGB `D`
 and weight `b`, each output RGB byte is `floor((Dchannel×(256−b)+Schannel×b+128)/256)`;
@@ -914,7 +977,7 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV14 (ring precision) and QV15 (missing lot-mean prose).
+See [questions/map-view.md](questions/map-view.md): QV15 (missing lot-mean prose).
 QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
 [answered record](questions/answered/map-view.md).
 
@@ -1086,3 +1149,27 @@ QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
     Without 5005 selected, source 76 chooses traffic/T, source 9 traffic/9, and other sources
     standard large/M. Cancel button dispatches `(0x6A935CF1,0,0)` without direct memory/layout
     changes; tutorial rejection dispatches nothing.
+45. **Ring PC24 versus wider precision:** one ring, clip `[0,8)×[0,8)`, supplied binary32
+    `u=−511/1024` (bits `0xBEFF8000`), `v=−0.5`, `r=513/128=4.0078125`, pixel `(0,4)`.
+    Use nearest/ties-even for operations and stores. Here `cx=1/1024,cy=0,dy²=16` and
+    `R²=410881/16384`. The pre-square-root pixel sum is 16 under PC24 (the half-ulp addition
+    rounds to even), but `16+2⁻²⁰` under PC53/64. Weights are respectively **254/255/255**.
+    Source `0x00FF0000`, destination `0xFF000000` gives **`0xFFFD0000`/`0xFFFE0000`/`0xFFFE0000`**.
+    This is a calculated instruction-rounding vector, not a game screenshot measurement.
+46. **Ring PC53 versus PC64:** same setup and pixel, but `u=−0.5+2⁻²⁵`
+    (bits `0xBEFFFFFF`, exact decimal `−0.4999999701976776123046875`). Then `cx=2⁻²⁵`.
+    PC24/53 round the pixel sum to 16 and distance to 4. PC64 retains `16+2⁻⁵⁰`, yielding
+    distance `4+2⁻⁵³` and `128×e=1−2⁻⁴⁶`. The conversion correction therefore gives floor 0
+    under PC64 instead of 1. Weights **254/254/255**, red-on-black results
+    **`0xFFFD0000`/`0xFFFD0000`/`0xFFFE0000`**. A binary32 store of the distance would fail this case.
+47. **Ring candidate bounds:** nearest mode, PC24, clip `[0,4)×[0,4)`, supplied `(u,v,r)=(0,0,1)`.
+    Row bounds before clipping are `floor(−1.5)=−2` through `ceil(1.5)=2`. Row 2 has
+    `dy²=2.25`, `h=sqrtP(1.75)`, column bounds −1 through 2 before clipping. Pixel `(2,2)` is
+    visited and has `e=1.121320247650146484375`, weight 112. Red-on-black gives `0xFF700000`.
+    Reversing the lower/upper conversions to ceil/floor wrongly omits this pixel.
+48. **Inherited rounding control:** PC24, same clip/pixel as vector 45, but supplied
+    `u=v=−0.5`, `r=2049/512=4.001953125`. Distance is exactly 4, `e=1/512` and `128×e=1/4`.
+    Under RC nearest/down/up/toward-zero, the native integer bias conversion returns respectively
+    **0/−1/0/−1**, so weights are **255/256/255/256**. Source red on opaque black gives red byte
+    **254/255/254/255**. This deliberately caller-modified state demonstrates why the helper's
+    conversion cannot be replaced with mathematical floor for every RC. The helper leaves RC intact.

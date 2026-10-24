@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-map-view-qv18 (map-view QV2/3/14 closure) | Codex / `re-map-view-qv18` (RE lane; detached HEAD) | in progress: resumed QV3/QV14; merged qv17 `8f269ba2a`; QV2 `465ada3f5`; preceding doccheck passed; ABI unchanged; game n/a | Finish QV3 panels/groups and QV14 ring precision, then doccheck and final queue. |
+| re-map-view-qv18 (map-view QV2/3/14 closure) | Codex / `re-map-view-qv18` (RE lane; detached HEAD) | in progress: QV3 `ee9d2ef1b`; QV14 complete pending final gate/report; merged qv17 `8f269ba2a`; QV2 `465ada3f5`; doccheck passed before final RC vector; ABI unchanged; game n/a | Final gate, commit report and update ready queue. |
 
 ## Report
 
@@ -35,17 +35,17 @@ No engine, plugin, capi, ABI-table or coverage-map edits were authored; predeces
 only through the expressly requested merge.
 
 ## Handoff
-- Goal remaining: finish QV3 and QV14 without reopening the committed predecessor/QV2 answers.
+- Goal remaining: final gate/report/queue; QV2/QV3/QV14 behavior and answers are complete.
 - Done: prerequisite merge `8f269ba2a`; QV2 behavior, vectors and answer `465ada3f5`; doccheck passed.
-- Round 2 milestone: QV3 panels/groups drafted in §§1.2/3.2.1/3.3, vectors 40–44; question moved.
+- Round 2 milestone: QV3 panels/groups committed `ee9d2ef1b`, §§1.2/3.2.1/3.3, vectors 40–44.
 - QV14 discovery: PreFrameWorkInit 0x0045236C calls 0x005F85E0, which sets PC=24 through 0x008929E0.
 - QV14 vectors calculated by build-runs/ring-precision-qv18.py: r=513/128, v=-1/2, pixel(0,4),
   u=-511/1024 gives weights 254/255/255 for PC24/53/64; u=-1/2+2^-25 gives 254/254/255.
-- Next exact step: query DoMessage 0x007A56E0, then read main decomp/cSC4WinMapView.c lines 3219–3900 in ranges of at most 80 lines.
-- QV3: resolve panels 0x8A2871B1–0x8A2871C4 and 0xAA32BCD4/5, group memories behind 0x5005/0x5008/0x8002, toggles and command 0x6A935CF1.
-- QV3 helpers: ShowSmallWindow/group selection may be in decomp/_unnamed/region_00790000.c or region_007a0000.c; query before reading.
-- QV14: helper 0x0079E130 leaves CW inherited; predecessor found CRT 0x009F6C30 setting PC=53. Establish RC/PC inheritance and exact store schedule, then a threshold vector.
-- QV14 first instruction page was inspected only; no conclusion about runtime precision or RC was reached.
+- QV14 complete: §5.2 operation/store schedule and floor-lower/ceil-upper bounds; vectors 45–48.
+- RC inherited too: bias conversion at w=1/4 gives weights 255/256/255/256 for nearest/down/up/zero.
+- PC24 is framework setup, not immutable: expression parser 0x0067BA40 can leave PC53; Lua wrappers restore.
+- Next exact step: run build-runs/gate-re-map-view-qv18.py, finalize Report/Handoff, enqueue actual HEAD.
+- Bash q.py wrapper failed before doccheck (CreateFileMapping access denied); direct foreground helper passed.
 - QV2 caution: +0x548/+0x948 are the two palette[255] entries, not factors; factors are +0x958/+0x95C. +0x141 suppresses marked-cell collection, not lot blocking.
 - No ABI reservation, REA operation or game request outstanding. Source paths under C:/Users/tlori/FreeCity4; edits only in this worktree; never read engine/.
 - Round 2: verified qv17 is already an ancestor of HEAD; do not merge again or reopen QV2.
