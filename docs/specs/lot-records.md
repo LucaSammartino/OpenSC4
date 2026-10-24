@@ -889,6 +889,73 @@ release warning alone does not prove that field 13 legitimately changed identity
 train180 254/250-byte observation is a reported mismatch, not evidence that a four-byte
 loss or a bare-occupant substitution is required native behavior.
 
+### 9.1.2 Field-13 teardown identity and observation boundary (LR14)
+
+**Answer: the bare callback is not a second form of a live dust effect.** Construction creates a
+visual effect, acquires a reference, and stores its complete effect view at `+0x13C`
+(`0x005CBC17–0x005CBC46`, `0x005CBD05`). Write merely adjusts that stored nonnull pointer by
+`0x10` and queries Serializable (`0x005CD3A6–0x005CD3B9`). Neither operation creates a temporary
+bare occupant. There is, however, a native teardown route to exactly the reported base vtable:
+Shutdown removes the effect's occupant view `O+0xC` from the occupant manager, when available,
+then releases the construction-owned effect reference **without clearing `+0x13C`**
+(`0x005D0F72–0x005D0F99`, Shutdown's `this` is object+8). If this destroys the effect, its
+destructor eventually runs the embedded occupant destructor at `O+0xC`
+(`0x005F0399–0x005F03AB`). That destructor installs `0x00AA41BC` at `O+0x10`
+(`0x005E8C44–0x005E8C51`), the very address field 13 would pass to the helper. Thus a
+retained construction can contain a nonnull, released effect address whose old Serializable
+storage has the bare-occupant vtable *[quirk]*. After destruction this is stale storage, not a
+valid bare object that the construction now owns. Allocation reuse can change it again.
+
+The export misleadingly names `0x005E8C40` as a vector destructor; the vtable stores and
+the effect destructor's `O+0xC` argument establish the occupant teardown operation here.
+The derived Serializable vtable is installed before this base teardown
+(`0x005F0347–0x005F0368`). A bare vtable observed afterwards therefore does not prove that
+a separately allocated bare occupant ever existed. The field is not cleared by the remainder
+of Shutdown (`0x005D0F99–0x005D1088`). Repeating Shutdown does not restore it: the initialized
+guard and base Shutdown precede reference cleanup (`0x005D0CE6–0x005D0D06`).
+
+This establishes a native explanation for the **identity pattern**, not a reconstruction of
+run 470's timing. Its callback/class ID, byte counts and later exception alone cannot distinguish
+post-Shutdown stale storage, teardown reentrancy, address reuse, or incorrect observer framing.
+They do not establish that Shutdown ran on that instance. In particular, adding a reference to
+an already destroyed allocation cannot make it a valid live object again. No result is specified
+for invoking QI, Write or Release through such stale storage; do not reproduce its accidental
+bytes or access violation as valid serialization behavior. A still-live, separately supplied bare
+Serializable remains the well-defined rejected-input case in §9.1.1/T69.
+
+For a **valid live effect**, ownership across writer slot 26 is:
+
+| Boundary | References owned, excluding unrelated owners |
+|---|---|
+| Before helper | Construction owns one effect reference; an observer owns none unless separately acquired. |
+| Slot 26 entry | Helper additionally owns one successful Serializable-QI reference. The callback borrows that view for its duration. |
+| Callback returns | Any reference retained by the callback must already have its own acquisition. The helper then releases its QI reference, even on callback false. |
+| After helper | Construction still owns its original reference unless a separate lifecycle action released it. Only the observer's independent acquisitions belong to its cleanup. |
+
+For example, with only construction owning the effect, helper QI changes count 1→2; a
+callback pin changes 2→3; helper cleanup changes 3→2; pin cleanup changes 2→1.
+Pin cleanup can legitimately reach zero if construction and all other owners released their
+references meanwhile. It cannot reach zero in the unchanged live-owner example. The return
+count alone cannot tell these cases apart. Reader rejection separately releases its temporary
+Serializable and retains no effect reference. It neither consumes construction's ownership nor
+authorizes keeping an observer pin forever. A nonnull rejected field is still a mismatch; the
+reported 254/250 bytes authorize no four-byte correction.
+
+**Additional observation required for lifetime attribution.** At the original Write entry, while
+the caller's construction is known alive, record its complete address, initialized state and raw
+field-13 value. Correlate that instance with native Shutdown entry/exit, the effect destructor
+entry/base-vtable installation, and allocator reuse. At helper entry and slot-26 entry record
+the actual argument/view address, existing vtable and successful QI output; record each
+observer acquisition/release and the callback's nesting. Obtain this through passive native
+call/write tracing during normal operations, not by calling lifecycle methods or probing guessed
+interfaces. Inspect referenced storage only while its lifetime is established; once destruction is
+seen, record the stale field value without dereferencing it or trying to pin it. A genuine helper
+temporary would have a distinct creation/destruction interval inside Write; these original
+paths have none for occupants. A matching `O`, Shutdown release and base-vtable installation
+before the callback identify stale teardown storage; a different argument before helper QI
+identifies a framing/capture discrepancy. Absence of either trace is insufficient to choose a
+cause. An initialized-state check is a useful exclusion, not a lifetime guarantee across callbacks.
+
 ### 9.2 Life cycle (`0x005D1300` Init, `0x005D0890` SetLot, `0x005D0680` DoDailySim)
 
 - **`Init`** (`0x005D1300`, occupant frame; answers OP15 / OP7, 2026-10-21), in this order: return true at once if
@@ -953,6 +1020,82 @@ loss or a bare-occupant substitution is required native behavior.
   `RebuildModel` (refresh) recomputes `N`, span and `startY` from the building as before the save.
 
 ---
+
+### 9.3 Non-Write method inventory and live observation scope (LR14)
+
+The following is the construction owner's inventory beyond the Write record comparison.
+Addresses identify original entry points, not additional ABI exports. Detailed simulation and
+rendering rules are in lot-developer §6.7 and §9.2 above. **Getter** means a call can inspect a
+known-live object without advancing its state; preserve the documented `this` frame and output
+arguments. **Passive** means observe the original call and its outputs when the game makes it;
+do not invoke it as a read-only shadow probe. **Lifetime** changes references or allocation and
+must be traced with balanced ownership. None is covered merely by an exact Write round trip.
+
+| Method(s) and entry address(es) | Observable surface / live-city category |
+|---|---|
+| GetPosition `0x005CA7D0`; GetBoundingBox `0x005CA820` | Getter: world-box centre and bounds, occupant frame. |
+| GetGZCLSID `0x005D04A0` | Getter: construction class ID `0xA97F909E`, Serializable frame. |
+| QueryInterface `0x005CA7A0` | Lifetime: construction IID `0x496E7636` returns object view with AddRef; other IIDs delegate to occupant at object+8. Inspect only known IIDs; balance every successful acquisition. |
+| AddRef `0x006491C0`; Release `0x006491D0` | Lifetime: object+8 occupant counter; final Release destroys. Reference counts are observations of these natural operations, not a reason to probe Release. |
+| operator.new `0x005CA8A0`; constructor `0x005D00F0`; GZCOM creator `0x005D0BC0`; deleting destructor `0x005D0C00` | Lifetime: allocation, initial fields/interface tables, destruction/free. No read-only invocation on an existing city object. |
+| Init `0x005D1300`; Shutdown `0x005D0CE0` | Passive: registration, messages, initialized state, attachment cleanup and released references; §9.2 and §9.1.2. |
+| StaticInit `0x005CED80` | Passive: once-per-process configuration/resources, not a per-record getter. |
+| Read `0x005CE770` | Passive during natural load: versions, field restoration, acquisitions/rejections, pending refresh. A comparison Read must target an independent replacement object, not the live native owner. |
+| SetLot `0x005D0890` | Passive: lot/building ownership, placement, schedule reset and messages. |
+| DoMessage `0x005D1090` | Passive: daily/tick, refresh and renderer/lighting notifications; message frame object+4. |
+| DoDailySim `0x005D0680`; DoAnimationTick `0x005CE110` | Passive: schedule transitions, completion, scaffold/effect/crew changes and animation accumulator. Calling with zero elapsed time can still mutate state. |
+| SetBuildingCompletion `0x005CA8D0`; SendConstructionMessage `0x005CBD20` | Passive: building completion and queued notification type/payload. |
+| AddToRenderer `0x005CA960`; RebuildModel `0x005CAD60` | Passive: renderer membership, model buffers, bounds and derived schedule geometry. |
+| DoRotationChange `0x005CB7C0`; Draw `0x005CC410` | Passive: rotation, lighting-dirty clearing/vertex colours, render commands/state restoration. Draw is not a pure getter; lighting is part of DoRotationChange, not a separate named construction method. |
+| DivideLot `0x005CB9F0`; RemoveRectangle `0x005CCD70` | Passive: construction placement regions/footprint subtraction. |
+| SetCraneAngle `0x005CBE10`; SetScaffoldHeight `0x005CC020` | Passive: mesh/crane pose and attached prop/crew positions. |
+| CreateCrane `0x005CC820`; AnimateCrane `0x005CD570` | Passive: crane allocation/model state, pose and animation state. |
+| AttemptAddOuterCrane `0x005CD710`; AttemptAddInnerCrane `0x005CDDA0`; AttemptAddCrane `0x005CE360` | Passive: placement attempts, success/failure, resulting crane type/position and retained model. |
+| CreateAndPlaceProp `0x005CCF20`; AddGroundProps `0x005CF790`; AddRoofProps `0x005CFC40` | Passive: prop creation, position, initialization and owner list membership. |
+| CreateDustClouds `0x005CBC10`; CreateSparks `0x005CEC20`; ScatterSparks `0x005CFE20` | Passive: effects, names/priorities, field-13 retention and spark membership/placement. |
+| CreateAutomata `0x005CE580`; CreateConstructionCrew `0x005CFA60` | Passive: crew allocation/placement, references and two per-entry flags. |
+| CreateLotTexture `0x005CF380` | Passive: texture creation and attachment to the lot. |
+
+Interface adjustment thunks are the same operations, not separate behavioral coverage:
+occupant QI `0x005D04C0`, Serializable QI `0x005D04D0`, holder QI `0x005D04E0`;
+holder destructor `0x005D04F0`, Draw thunk `0x005D0640`, holder Write/Read
+`0x005D0660`/`0x005D0670`; and AddRef/Release thunks `0x0064DD90–0x0064DDE0`.
+The Draw thunk uses the adjustment stored before its interface (`0x005D0640–0x005D0643`);
+do not infer a fixed complete-object address from its exported mangled name. Destructor body
+`0x005D0C60` is teardown behind the deleting destructor, not a getter.
+
+**Inherited surface.** Occupant vtable `0x00AA21B8` slots 5–33 additionally expose
+IsInitialized; the occupant-view conversion; type ID; GetBoundingCityCells; removal flags
+set/unset/CanRemove; highlight get/set; visibility set/get; GetOrCreatePlaceableObject and
+SetPlaceableObject; IsOccupantGroup/AddOccupantGroup/GetOccupantGroups; occupant-manager
+bounds get/set; the inherited slots 27/28; and SetFlag/SetAllFlags/ClearFlag/IsFlagSet/GetFlags.
+Read-only inspection covers initialized/type, bounds, CanRemove, highlight, visibility,
+group membership/enumeration and flag getters. GetOrCreatePlaceableObject can allocate;
+setters and group additions are passive-only. Slot 9 and slot 28 point to the shared
+`0x00648F10` one-argument no-op, not the unrelated tool operation shown by the export alias.
+The main slot 3 and occupant slot 6 are subobject conversions (`0x006C2040` returns this+8
+for nonnull input), not acquired references or lot getters. Slot 7 (`0x006BDD80`) reads
+the occupant type at its frame+0x24, not a simgrid count. These folded-name aliases do
+not add other owners' behaviors to construction. Slot 27 is the shared false-returning
+one-argument method `0x005DEB40`; it can be observed as false without invoking another
+owner's named operation.
+
+Holder vtable `0x00AA2138` slots 3–21 supplies the shared property-holder surface:
+HasProperty, GetPropertyList, GetProperty overloads, AddProperty overloads,
+CopyAddProperty, RemoveProperty, RemoveAllProperties, EnumProperties overloads and
+CompactProperties. Has/Get/Enum can observe the live holder under §2's ownership rules;
+returned property/container views are not new construction records. Mutation/compaction is
+passive-only. Serializable and message-target views add no separate lifecycle algorithm.
+Inherited behavior remains specified with its owning base; the construction inventory does
+not claim an independent comparison for it.
+
+Natural calls can be passively observed in a live city only when their trigger occurs:
+creation, load, day/tick, camera rotation, drawing, or removal. Absence of a call is not a
+passing comparison. A load/month Write inventory neither stimulates those triggers nor
+establishes a census of every live construction (§3.1.1). In particular, holding a construction
+reference keeps its allocation alive but does not keep its children initialized/attached after
+Shutdown. Record-only observation must exclude known shut-down instances and report an
+unknown/stale lifetime as an incomplete observation rather than dereference it for a score.
 
 ## 10. Prop occupants
 
@@ -1708,3 +1851,17 @@ independent capture pins and references already owned by construction.
 | T71 | Successful writer Serializable QI; writer slot 26 returns false; repeat with true | Temporary Serializable and writer-view acquisitions each released once in both cases; net helper delta zero. Observer retention requires a separate pin before callback return. Never consume construction's pre-existing reference. |
 | T72 | Valid effect O; QI Serializable from O+4 and O+0x10; QI effect from both results | Serializable results both O+0x10; effect results both O. Each QI adds one reference, each matched Release removes one; construction's owned reference keeps O alive. |
 | T73 | Capture unchanged construction twice; field 13 has a live effect handle and nonempty name | Identities/membership unchanged; §10.2 writes empty name/zero each time. Temporary string destroyed, no temporary bare occupant from this path, balanced helper QIs. Historical 254/250-byte replay still fails exact comparison; no fixed length adjustment authorized. |
+
+### 17.8 Construction lifetime and observation vectors (LR14)
+
+These are normative cases, not new game measurements. Use lifetime-aware native doubles or
+passive traces for destruction cases; never invoke a method through freed game storage.
+
+| Vector | Inputs / operation | Required result |
+|---|---|---|
+| T74 | Live field-13 effect, construction sole owner; successful helper QI; callback acquires one pin; helper and observer clean up | Counts 1→2→3→2→1. Same effect identity throughout; no bare occupant created and no last-reference destruction. Repeat callback false: same releases. |
+| T75 | As T74, but construction naturally shuts down after callback returns and before pin cleanup; no other effect owners remain | Construction's release leaves only observer pin; cleanup reaches zero legitimately. Record the intervening Shutdown. Zero alone is not proof of an observer over-release or a native temporary. |
+| T76 | Retain construction allocation; naturally run initialized Shutdown with manager available and field-13 effect's last owners released | Manager receives O+0xC before owner's Release. Field +0x13C remains O; it is no longer an owned reference. Trace base teardown installing AA41BC at O+0x10. Exclude instance from live Write census; do not dereference stale O or acquire a pin from it. |
+| T77 | Two observations: valid live bare Serializable supplied as field-13 read token; separately a raw stale field value after T76 | First follows T69: rejection/null, temporary release, mismatch. Second is incomplete lifetime observation with no QI/Read/Release on stale storage; not an alternative valid bare-effect encoding. |
+| T78 | Original Write/helper/slot-26 trace includes construction/object/view addresses and lifetime events; compare with trace having only class ID, 254/250 bytes and final release zero | First can distinguish view framing, intervening teardown and pin lifetime using §9.1.2. Second is insufficient to attribute the crash or require bare serialization. Preserve mismatch and later exception as separate observations. |
+| T79 | Invoke only known-live GetPosition/GetBoundingBox/GetGZCLSID; separately passively observe Draw and DoAnimationTick(0) | Getter results match §9.2/class identity without schedule advancement. Draw/tick may change caches or state; do not invoke them as pure probes or credit them from a Write comparison. |
