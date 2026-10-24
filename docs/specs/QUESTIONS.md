@@ -306,7 +306,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 16 | GLUE22, PV16 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 9 | PL24 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **600** | **1422** | | |
+| **total** | **599** | **1423** | | |
