@@ -535,6 +535,8 @@ void AddCityReader(cIGZCOM* com, HeldSample& sample) {
     if (!Interface(packed, 39)) { ++sample.counts.refusal; return; }
     auto* segment = packed->AsIGZPersistDBSegment(); // borrowed, held by packed
     cRZBaseString path(sample.cityPath.c_str());
+    // [abi-ret] SDK persistence Open(bool,bool) returns bool, as in CompareFile;
+    // this packed reader view is distinct from SC4's streaming interface.
     if (!Interface(segment, 30) || !packed->Init() || !packed->SetPath(path) || !segment->Open(true, false)) {
         ++sample.counts.refusal; FC4_RELEASE_CREATED(packed); return;
     }
