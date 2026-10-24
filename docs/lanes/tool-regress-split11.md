@@ -17,6 +17,9 @@
 - R2 probe finished: run 614, all four clean; DLL SHA256 4853374130ffde73a29adf15e197802a7b4f79d307141fdb23983bc4eb3bdfd1. Traffic projects ~384 s. Resources have a 152 s shutdown tail, project ~367 s total; do not normalize their overshot final date as simulation cost.
 - Updated LPT weights give traffic and resources separate groups; all other house shadows should share the third group. Regression grouping/cadence tests passed 2/2 before final resource-tail correction; rerun with full suite below.
 - Next exact step: python build-runs/validate-split.py (combined then split on immutable R2 snapshot); output split11-r2-measurements.json. Full games not started yet. Then tooling suite and qbuild verify, record parity/wall results.
+- R2 runs 615/616 both FAIL with watchdog stalls: combined truncated 2027-02-15 (203 s reported wall); split groups truncated 2028-11-02 / 2032-05-11 / 2030-02-17 (276 s reported wall). Python invocation times differ: 210.00 / 496.77 s; never substitute one timing source for the other.
+- Split groups estimated 383.5/367.4/353.2 s. 51/52 partial labels exact; propmgr 150/151 mismatches=1, flammability 36/36. Combined 52/52 partial labels exact, flammability 9/9. No full-horizon parity or speed proof.
+- Next: run python build-runs/retry-combined.py then the same with --split, once each; they preserve unique *-retry evidence and wait for coordinator regress before submitting. If stalls repeat report them, do not weaken watchdogs. Then final tooling suite/native gate and hold queue WIP unless acceptance is met.
 
 ## Report
 
