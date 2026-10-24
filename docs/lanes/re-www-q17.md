@@ -54,6 +54,9 @@ Game runs/shadow n/a; no request outstanding and no dynamic equivalence claim.
 ## Handoff
 
 - Resumed final round: first re-read core-www-close13 Owner closure table; previous six answers remain intact.
+- Milestone 2648fec8d: shared HTTP normalization and WWW Cookie record construction qualified.
+- This milestone: nine FTP bodies and HTTP slots 0/3 qualified; checklist 102 C / 31532 B, 46 O / 2517 B.
+- Research ended at guard context 95966/150000, below the two-thirds ceiling; next run doccheck, index, review, report and ready queue.
 - Remaining goal: WWW Q7/Q9 and HTTP Q9/Q13 in questions/web-network.md; Q12 is outside this brief.
 - Read core-www-close13 Owner closure table for exact remaining exclusions; do not read engine files.
 - Next RE step: Q9 HTTP request normalization at 0081ca90, 0081acf0 (273 decomp lines) and 0081ac20.

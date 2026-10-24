@@ -17,6 +17,10 @@ DoJobFinalization `0081a470`, exact date-parser acceptance `00818490`/`00818680`
 adjustment at `00b18ba8`, and residual native slots 0/3. This is HTTP-owner work, not a reopening
 of parked WWW-owner Q9. Proposed vectors do not certify complete HTTP transaction equivalence.
 
+2026-10-24 (re-www-q17), resumed round: §5.1 now settles slots 0/3 (ID-1-only
+QueryInterface preserving miss output; deleting-destructor wrapper/free flag). The
+destructor dependency's full cleanup and the other wire/date items remain open.
+
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing
@@ -33,6 +37,12 @@ Still unresolved: commands 00815a60 (717 B), 00814cc0 (657 B), 00814f60/008153a0
 scheduler admission 00817600, lifecycle/container/control helpers and exact per-address O: Q7
 rows in web-network-www-bodies.md. No full Q7 answer is claimed. Final round 3/3: **PARK**,
 no fourth round; the combined Q7/Q9 residual is exactly 57 bodies / 7292 B.
+
+2026-10-24 (re-www-q17), resumed round: web-network-ftp-control.md §9 now qualifies
+all seven command entries listed above, scheduler constructor 00813d70 and admission
+00817600, with FTPC01–FTPC08 proposed/unexecuted fixtures. These nine rows are now C;
+remaining O scheduler lifecycle/control/container rows still keep Q7 open. The preceding
+PARK and 57-body count describe the earlier round, not the current checklist totals.
 
 ## Q9 (re-web-largest4, 2026-10-22) — other reached scheduler/resource and support bodies
 Complete the still-open bodies in web-network-www-bodies.md outside Q7/Q8, especially HTTP job submission and

@@ -1024,7 +1024,17 @@ HTTP objects, not a second independent WWW implementation. The raw table `00abfc
 mislabelled as a particle simulator by the export: its six entries are slot 0 `00811cb0`,
 1 `004bdf00` (folded AddRef), 2 `0048c920` (folded Release), 3 `0081d030`,
 4 `008179f0` (Init association), 5 `0081cd40` (shutdown). Only the linked contract's
-qualified effects may be inferred from these entries; names alone do not qualify slots 0/3.
+qualified effects may be inferred from these entries. Byte-checked slot 0 is QueryInterface:
+only ID 1 succeeds, writing this to the caller's output, calling virtual AddRef +4 and
+returning true; other IDs return false without touching the output. A null success-output
+pointer is unsafe (`00811cb0–00811ccb`). Slot 3 always calls destructor `0081cee0`,
+then frees this with GlobalHeapFree only if deleting flag bit 0 is set, returning this
+(`0081d030–0081d04d`). It is not another interface query. The destructor's complete
+dependency cleanup remains Q13; qualifying the wrapper does not imply a worker join.
+
+Proposed/unexecuted HTTP-SLOT01–02: slot 0 ID 2 preserves a sentinel output and performs
+no AddRef; ID 1 writes this and AddRefs once. With a controlled destructor dependency,
+slot 3 flags 0/2 call it without a free, flags 1/3 call it before one GlobalHeapFree.
 
 Named nonvirtual inventory:
 
