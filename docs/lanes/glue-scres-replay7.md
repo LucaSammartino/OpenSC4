@@ -17,8 +17,10 @@
 - Added separate partial file-control replay with observed preprocessing as explicit foreign input; strict raw replay still reports its differences (no suppression/resync).
 - Focused tests8/8, fmt PASS. Final stable-source all PASS: Rust6905/0failed/ignored, clippy0, native194/194 (123.7s), CTest74/74 (166.6s), total292.0s.
 - Final native request qbuild-20261024-043532-build-ctest collected to terminal; source86831123c unchanged throughout.
-- Next: collect unique scres7-control-2032-cedar; then a separate scres7-default-2032-dogwood with new key off (not yet written).
+- Cedar run405 clean/ref0 to2032-01-04: scres149/222; existing76/76 exact, partial file-control73/73 exact with45 foreign preprocessing decisions; raw73 lines each72 differences underSCR11, resync0/refused0.
+- Final DLL SHA256 7e1bdf3e0d8436ad9374d3f6475f8d41d5ee24285c91cb4070e16aa76380be43.
+- Next: collect separate scres7-default-2032-dogwood with new key off; then final report/ready measured queue entry.
 - Keep new observation default-off behind ini; no public C ABI changes planned.
-- Cedar being enqueued. No native operation outstanding. Prior ash/birch evidence retained in build-runs/game-results/; records403/404.
+- Dogwood being enqueued; no native operation outstanding. Evidence/records403-405 retained; no other game request outstanding.
 - Whole cFileParser verification remains blocked on SCR11; do not credit that owner row or append the new key to house profile unless raw replay becomes exact.
 - Current house-profile string is in prohibited tools/regress.ps1; do not read/edit it or merge main. Coordinator must append exact new key after review.
