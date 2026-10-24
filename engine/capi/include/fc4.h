@@ -12987,6 +12987,12 @@ bool fc4_powerline_select(const fc4_powerline_selection_host* host,
     fc4_powerline_selected_pole* poles, uint32_t capacity, fc4_powerline_selection* out);
 /* Smoothing hash iteration order used by NT30's first refresh. */
 uint32_t fc4_netgeom_get_smoothing_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+/* EX54/EX55 public packed-file projection; raw buffer covers *size bytes. */
+uint32_t fc4_dbpf_packed_count(const fc4_dbpf* p, bool filtered);
+uint32_t fc4_dbpf_packed_keys(const fc4_dbpf* p,
+    void (*emit)(void*, uint32_t, uint32_t, uint32_t), void* ctx);
+uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
+    uint32_t instance, uint8_t* buffer, uint32_t* size);
 #ifdef __cplusplus
 }
 #endif
