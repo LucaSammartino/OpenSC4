@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-pedestrians12: pedestrian owners | `Codex` / `core-pedestrians12` (engine lane) | ready; cargo 7383/0/0, clippy clean, all and verify PASS, CTest 81/81; PN1 consumer open, PN3 filed; ABI unchanged | (1) Coordinator review and land; (2) spec writers resolve PN1 and PN3 |
+| core-pedestrians12: pedestrian owners | `Codex` / `core-pedestrians12` (engine lane) | in progress; resuming completed owners at 03a5edffd; prior cargo 7383/0/0, clippy clean, CTest 81/81; ABI unchanged | (1) Run final-round all and verify; (2) refresh ready queue with actual HEAD |
+
+## Handoff
+
+- Goal: finish the final round and enqueue both completed pedestrian owners.
+- Done: implementation and Owner closure table committed before 03a5edffd; prior all and verify passed. No source changes needed on resume.
+- Next: run qbuild all once with the previously successful serial inputs, then explicit qbuild verify; collect each operation to completion.
+- Facts: only Unsupported is PN1 play-count consumer; PN2 is outside these owners; existing PN3 literal choices execute. No new owners or questions this round.
+- No outstanding gate or game request. Prior evidence and report remain below until finalization.
 
 ## Report
 
