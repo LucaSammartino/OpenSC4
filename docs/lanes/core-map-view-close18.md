@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-map-view-close18 (partial map-view owner closure) | `core-map-view-close18` / engine lane | Partial QV5/QV11/QV16 implementation at 49b99359d, integration-path fix e706923b1; focused 2/2, corrected native CTest 81/81; qbuild all pending. Owner closure incomplete. ABI unchanged; no new questions. | (1) Finish qbuild all; (2) implement QV1/QV2/QV3/QV14 and vectors 35–48; (3) close every owner row. |
+| core-map-view-close18 (partial map-view owner closure) | `core-map-view-close18` / engine lane | Continuation: QV5/QV11/QV16 at 49b99359d, path fix e706923b1; focused 2/2, native cargo 7486/0, CTest 81/81, fmt 10 files clean. Host qbuild all stopped at context limit; clippy unrun. Owner closure incomplete; queue wip. ABI unchanged; no new questions. | (1) Implement QV1/QV2/QV3/QV14 and vectors 35–48; (2) pass qbuild all and queued verify; (3) close every owner row before claiming credit. |
 
 ## Report
 
@@ -30,7 +30,16 @@ but CTest failed 80/81 because the new test module needed an explicit path
 attribute. Fixed in `e706923b1`; preserved failed logs under
 `build-runs/failed-first-fc4verify-*.log`. Corrected request
 `qbuild-20261024-215541-build-ctest` PASS: build 46/46 edges, CTest 81/81, 96.2s.
-The required qbuild all operation is still running; workspace/clippy are pending.
+The corrected CTest cargo_test log contains 51 Rust result lines totalling
+**7486 passed, 0 failed, 0 ignored**. Final explicit-file fmt passed, 10 files,
+zero diff lines. The required host qbuild all attempt waited for the focused
+build lock and then compiled without returning a result for roughly 46 minutes
+overall. At the context limit, stopped only that unique worktree runner's
+Python/Cargo/rustc descendants and collected the **same operation** to its actual
+terminal result (child exit 15, runner exit 1). Clippy did not run. Evidence is
+`build-runs/qbuild-all-final-1.log` and `build-runs/qbuild-test.log`; this is an
+**incomplete gate**, not a source test failure or a full-gate pass. Nothing is
+left running for a later round. The merge queue is wip until the full gate passes.
 
 The credit target is **not complete**. QV1 (§§2/3.1, vector 35), QV2 (§4.1 traffic
 and marked cells, vectors 36–39), QV3 (§§1.2/3.2.1/3.3, vectors 40–44), and QV14
@@ -45,10 +54,13 @@ No plugin/C ABI wiring, ABI export changes, coverage-map edits or game runs.
 - Done: merged re-map-view-qv18 (2ef6fa4ba551c32bb1fdda490a580225a697e201) as 45e79361d; generated QUESTIONS conflict resolved from merged rows (658 open / 1563 answered).
 - Done: 49b99359d implements QV5 scale-presence factors/conversion and retained invalid scale; QV11 empty/default/shared/debug layers; QV16 vector-21 correction and closure row. e706923b1 fixes the integration module path.
 - Added close18_vectors.rs tests v01 and v34; adapted obsolete 16-bit expectations and throttle test. Formatting is applied through apply_patch, using rustfmt --check diffs only.
-- Next: collect qbuild all operation session 27498 to terminal (build-runs/qbuild-all-final-1.log), then report/queue the measured partial work per the run-5 context-stop rule.
+- Next: implement QV1 display/none reset and vector 35, then QV2/QV3/QV14; run qbuild all on stable final source and queued qbuild verify. Keep the queue wip until the complete gate passes.
 - Remaining owner work: QV1 display/none reset (vector 35); QV2 traffic reconstruction/markers (36–39); QV3 panels/memories/reset/commands (40–44); QV14 inherited PC/RC ring arithmetic (45–48). All answered, no new question needed.
 - Gates: focused cargo PASS 2/2, 44 filtered (25m56s compilation on heavily contended host), session 33160 completed. Corrected native qbuild-20261024-215541-build-ctest PASS: build 46/46 edges, CTest 81/81, 96.2s total; session 6612 completed.
-- Failed evidence: native qbuild-20261024-214427-build-ctest build PASS 267/267, CTest 80/81 (cargo_test E0583); preserved as build-runs/failed-first-fc4verify-{ctest,build,configure}.log. Source fixed before corrected native gate; workspace qbuild all was waiting on build-directory lock and is now progressing on corrected source.
+- Failed evidence: native qbuild-20261024-214427-build-ctest build PASS 267/267, CTest 80/81 (cargo_test E0583); preserved as build-runs/failed-first-fc4verify-{ctest,build,configure}.log. Path fixed before corrected native gate.
+- Host qbuild all session 27498 was stopped at the context limit after roughly 46 minutes (initial lock wait included), actual terminal child exit 15/runner exit 1 collected. Workspace result/clippy incomplete. No sessions or native requests remain outstanding.
+- Native cargo_test passed 7486/0/0 over 51 result lines (engine/build-x86/Testing/Temporary/LastTest.log). Final fmt: 10 explicit owned files, exit 0, zero diff lines.
+- Use qbuild's engine working directory/CRT settings for future Rust checks; the initial direct focused command ran from the worktree root and did not share all final gate compilation inputs. Package rust-version is 1.75.
 - Earlier diagnostics: Bash wrapper Win32 error 5 (q/20261024-213040-2940.log); initial relative-path fmt failed, absolute-path fmt corrected and patched. All current owned files format clean.
 - Game: no request needed for this core-only task and none outstanding. ABI unchanged; plugin/capi/coverage map untouched.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-map-view-close18-r1-manifest.json.
