@@ -22,5 +22,6 @@
 - No new spec ambiguity: rotation is explicitly requested shadow policy. Existing EX56 remains open.
 - Clean-room restriction forbids opening/editing tools/regress.ps1; coordinator must append the profile key after measured exact run.
 - HEAD is intentionally detached; never update shared refs. EX56 remains open; resource-manager packed files only.
-- Next: submit fresh gdbs10-r3-house2032-20261024c with identical house switches and existing corrected DLL; wait without qwait, collect terminal result and report. No game outstanding now.
+- Outstanding: gdbs10-r3-house2032-20261024c submitted with identical switches and DLL (no source changes/rebuild). Collect existing blocking wait exec session 89566; its verdict is valid if already present. Never duplicate this request.
+- Next: summarize R3, record a free run number (469/470 used here), then finalize lane and ready queue if clean 73/73 to 2032. Target house under 800 s; report actual elapsed and all limitations.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-092912-build-ctest.verdict (prior source gate verdict 090545 retained).
