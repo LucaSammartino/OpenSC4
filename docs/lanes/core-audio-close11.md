@@ -1,32 +1,85 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-audio-close11: SC4 audio owner closure | Codex, core-audio-close11 | in progress | Continue remaining SC4 owners; handler milestone gated |
+| core-audio-close11: SC4 audio owner closure | `Codex` / `core-audio-close11` (engine lane) | ready: partial closure; cargo 7094/0/0, clippy 0 diagnostics, native 210/210, CTest 80/80; ABI unchanged; AU45–AU49, AA14 filed | 1. Land tested partial implementation. 2. Resolve owner questions before claiming family closure. |
 
-## Handoff
-- Final round r3: prior session 33201 is gone; its result is unclaimed. No new owners will be started. README now has an explicit per-owner verdict and numbered question for every remaining owner. Next: commit this documentation, run qbuild all once, collect that same operation to termination, fix only diagnosed failures, then final report/ready queue.
-- Active manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-audio-close11-r3-manifest.json. No game requests outstanding; core-only changes have no plugin/ABI wiring.
-- Goal: close every specified cSC4Audio* owner in engine/core/src/audio, without ABI/plugin changes. Family NOT closed; no merge-queue entry.
-- Done: 45593631c implements extended EventHandler §7 lifecycle/radio/settings/dispatch/construction/alternate automata/modal/mouse/callbacks/torch/destruction plus owner/closure tests and README section table. 4dba7adc7 fixes mouse pattern lint.
-- Stable final gate on c2ed86da8: qbuild all PASS, workspace 7065 passed/0 failed/0 ignored, clippy 0 diagnostics, native build 47/47 edges (117.1 s), CTest 80/80 (212.9 s), native total 332.1 s; no tree-change annotation.
-- Gate session 48188 and queue qbuild-20261024-111334-build-ctest TERMINATED PASS. All other prior sessions also TERMINATED. No outstanding operations or game requests.
-- Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. qbuild fmt PASS for four owned event-handler .rs files using absolute paths.
-- Earlier failed evidence: build-runs/qbuild-clippy-round1-failed.log (7|8|9 lint); initial all session 20824 failed clippy but native passed 256/256, 80/80 with tree-change annotation. Corrected focused clippy 23487 passed before stable all.
-- Focused tests: 22 handler tests passed before final callback test; initial lifecycle 12/1 was a test asserting constructor state after Init, corrected then 13/0. Stable all includes all final tests.
-- Questions appended only: AU45 (completed §7.2 fifth accepted no-op vs older §16.12 four-only vector; implement completed table literally), AU46 (SoundManager §§8.1–8.3 inventory missing focus/reset/enumeration/volume/update/lifetime bodies). File docs/specs/questions/audio.md; index regeneration belongs to coordinator.
-- Owner status: EventHandler specified bodies implemented; existing AmbienceManager has its separate closure table. AmbienceLayer, SoundManager full owner, COMDirector execution, AEMSEventSystem/Bank, Listener, SemManager, 3 emanation models, ScapeManager, FireHandler, Preferences still pending; README records each explicitly. Do not claim family closure.
-- Round r2: added emanation.rs (3 model defaults/QI/IDs/lifetime, SEM QI/teardown/destructor), preferences.rs (settled IO/slider/window gates), listener.rs (settled lifecycle/dispatch/zoom/output continuation; geometry explicitly AU40). README maps sections/tests/gaps.
-- Focused emanation operation 75349 TERMINATED PASS (2 tests). Audio focused 12308 terminated (its final tool output was omitted from displayed batch, no result claim). Later changed-source audio operation 72482 TERMINATED PASS: 154 tests, includes Scape/Fire. Formatting applied using checked formatter patch.
-- Added scape.rs (settled factory/QI/service initialization/cleanup and Fire lifecycle), executable Director startup/class-set registration, aems.rs raw bank/resource slurp and linkage continuation. README maps sections/tests/gaps; AU47 director lifetime and AU48 AEMS missing inventory filed in questions/audio.md. AEMS/Director additions await final gate.
-- Added AmbienceLayer §8.2–8.7 tuning/filter cache/group spatial/update/freshness/loops/ease/Pause stages and §10.9–18 tests; AA14 files absent constructor/full Init/StaticInit/Shutdown/extra-slot/loading contracts. Full native layer initialization remains blocked, no fabricated success.
-- Focused changed-source operation 17025 TERMINATED PASS: 169 audio tests. Final focused operation 65081 TERMINATED PASS: 171 audio tests, 0 failed/ignored; includes SoundManager foreign stages.
-- Added SoundManager acquiring QI, seven subscriptions, all event routes, sample resolution/property/play/ref balancing stages. AU49 files inconsistent radius source and missing tSound+14/position/stop/completion contract. Existing manager remains explicitly a fixture, not a foreign executor.
-- qbuild fmt final PASS for 13 explicit absolute owned Rust files. First fmt failed only module declaration order; applied checked patch, preserved build-runs/qbuild-fmt-round2-failed.log. Final source is stable for full gate.
-- Stable source 67c7eec75: required qbuild all is RUNNING in exec session 33201. Collect THIS operation with write_stdin; never duplicate. Latest bounded qbuild-test.log has progressed through compilation into tests: sweep_fsh_and_s3d and sweep_installed_game_data running over 60 seconds. No full verdict yet. Last collection returned running after 60 seconds. qbuild-clippy.log/fc4verify logs must be checked for this round's timestamps before claiming results.
-- Round r2 reached measured context limit while waiting on this mandatory gate. No merge-queue entry written. All source committed; do not rerun all merely for progress. Finish collection, then audit any remaining settled stage omissions (especially full layer Init continuation) before claiming owner closure. Full source gate and final owner-by-owner report remain required.
-- Exact next step: collect 33201 to terminal result, diagnose/fix any failures and preserve evidence, then full owner report and merge queue if coverage criteria satisfied. No game requests. Current source additions are not fully gated yet.
-- Essential linked spec: docs/specs/audio-owner-contracts.md (linked audio.md §15), §18 listener lines 61–134; §19 SEM/models 135–178; §20 scape/fire 179–248; §21 preferences 249–330. Explicit gaps AU40–44; leaf slot5 AU5.
-- Ambience layer is unimplemented foreign interface in existing audio_ambience owner: audio-ambience §8 and §10.9–18 must still be implemented for family closure.
-- Foreign handler API: EventHandlerHost low-level operations, EventHandlerMessage payload/original-position IO with explicit release_position. Old fixture helpers intentionally retained for conformance compatibility. Global torch state uses Mutex; deterministic tests share TorchState explicitly.
-- Local q.py Bash startup fails CreateFileMapping Win32 error 5; direct Cargo and qbuild work. Use qbuild all only on stable final source; native via its build queue, never fc4verify directly.
-- Formatting helper build-runs/format-patch.py produces a header-checked patch from rustfmt stdin; apply with apply_patch (no formatter stdout redirection to source). It handles owned files only.
-- Detached HEAD is intentional. Commits succeed despite Git's packed-refs.lock permission diagnostic; do not change refs/config or run maintenance. Manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-audio-close11-r2-manifest.json.
+## Result
+
+Ready to land the tested partial implementation. The `cSC4Audio*` family is **not fully implemented**.
+This final round added no owners and changed no Rust source. It documented an explicit verdict and
+numbered open question for every remaining owner in `engine/core/src/audio/README.md`.
+
+Earlier implementation milestones include EventHandler `45593631c` (lint correction `4dba7adc7`),
+ambience-layer and SoundManager stages `16d512327`, and final source formatting `67c7eec75`.
+Final-round closure documentation is `5f014e31c`. The gate below ran on that commit with stable source.
+
+Implemented work covers EventHandler lifecycle, message/event routing, radio, construction,
+automata, modal mouse handling, enumeration, torch state and destruction; settled listener,
+emanation/SEM, scape/fire, preferences, director and AEMS stages; ambience-layer tuning/filtering,
+sampling, freshness, loops and easing; and explicit SoundManager reference-balanced sample IO.
+The README section table maps these stages and conformance vectors to code and tests.
+
+## Owner-by-owner verdict
+
+- **cSC4AudioEventHandler: specified bodies implemented.** Sections 1.2–1.3, 6.4, 7.1–7.6,
+  relevant 8.7/9.5/12–14 behavior and §16 handler vectors are mapped to owner/closure tests.
+  Open AU45 records §16 vector 12 contradicting the completed §7.2 dispatch table; the code
+  follows §7.2 literally. This is not an unimplemented handler algorithm.
+- **cSC4AudioAmbienceManager: partial.** Existing manager closure table remains applicable;
+  audio-ambience §3.6 absent creation clock is open AA10. Rectangle/removal literal choices
+  remain recorded as AA12/AA13. No full replacement claim.
+- **cSC4AudioAmbienceLayer: partial.** Covered §8.2–8.7 stages and §10.9–18 algorithm tests;
+  §8.1 native initialization/lifetime and uncovered slots remain open AA14.
+- **cSC4AudioSoundManager: partial.** Settled routing/QI/subscriptions and sample resolution/play
+  continuations implemented. §§8.1–8.3/10.6 focus/reset/volume/enumeration/update/lifetime and
+  instance construction/position/stop/completion remain open AU46/AU49. Legacy fixture is not
+  a complete foreign event executor.
+- **cSC4AudioCOMDirector: partial.** Add/start and 92-class registration execute; §§1.1/1.3
+  constructor interleaving/application lifetime remain open AU47.
+- **cSC4AudioAEMSEventSystem: partial.** Known state and successful linkage stages implemented;
+  §§10.7–10.8 / owner-contracts §17 dispatch/lifetime/failure policy remain open AU48.
+- **cSC4AudioAEMSSoundBank: partial.** Raw file/resource slurp and cached TGI implemented;
+  §10.7 / owner-contracts §17 full lifetime/error policy and bank validation remain open AU48/AU1.
+- **cSC4AudioListener: partial.** Settled lifecycle/dispatch/output/zoom stages and AU9-01–05
+  tests implemented; owner-contracts §§18.1–18.3 geometry/tuning/cheat/failure lifetime open AU40.
+- **cSC4AudioSemManager: partial.** QI, teardown and destruction stages implemented;
+  owner-contracts §19 construction/registration remain open AU41.
+- **cSC4AudioEmanationModel2D: partial.** Defaults/QI/identity/lifetime implemented;
+  owner-contracts §19.1 slots 5–6 arithmetic remain open AU41.
+- **cSC4AudioEmanationModel3D: partial.** Same settled coverage and §19.1 AU41 arithmetic gap.
+- **cSC4AudioEmanationModel3DEffects: partial.** Same settled coverage and §19.1 AU41 arithmetic gap.
+- **cSC4AudioScapeManager: partial.** Settled factory/QI/service/local-index/cleanup stages
+  implemented; owner-contracts §§20.1–20.2 resources/remaining slots remain open AU42.
+- **cSC4AudioEventHandlerDisasterFire: partial.** Settled Init/Shutdown/subscriptions/occupant
+  forwarding implemented; §7.4 / owner-contracts §20.3 remaining inventory/lifetime open AU44.
+- **cSC4AudioPreferencesWinProc: partial.** Settled preference IO/slider/window gates and
+  AU9-10–15 tests implemented; owner-contracts §§21.1–21.3 remaining control/dialog/song rules open AU43.
+- **83 audio leaf classes: partial.** Measured shapes/QI/predicates implemented; §11 slot 5
+  behavior remains open AU5. Lower sound-system owners retain their separate SS question table;
+  no new lower owner was started or claimed closed in this round.
+
+## Validation
+
+- Required final `qbuild all`: **PASS**, operation 11724 collected to terminal exit 0.
+  Cargo: **7094 passed, 0 failed, 0 ignored**, summed over all 44 `test result:` lines in
+  `build-runs/qbuild-test.log`. Clippy: **0 diagnostics**, `build-runs/qbuild-clippy.log`.
+- Queued native request `qbuild-20261024-122014-build-ctest`: **pass**.
+  CMake build **210/210**, 394.7 s; CTest **80/80**, 829.1 s; native total 1228.0 s.
+  Logs: `build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`.
+  The shared queue delayed native execution; its Cargo CTest dependency eventually passed.
+  No duplicate gate, direct verifier invocation, source change or tree-change annotation.
+- Earlier focused final-source audio tests: **171 passed, 0 failed/ignored** (operation 65081).
+  Explicit owned-file formatting passed in the prior round. No Rust changed afterward.
+- Earlier session 33201 is gone and its full-gate result is **unclaimed**, not treated as a pass
+  or failure. Earlier failed lint/format evidence remains in
+  `build-runs/qbuild-clippy-round1-failed.log` and `build-runs/qbuild-fmt-round2-failed.log`.
+- Game runs: **none required/requested** for this core-only submission. No plugin/C API wiring,
+  real-game shadow or reference-warning measurement is claimed. No ABI export/version changes.
+
+## Questions and follow-up
+
+This lane appended **AU45–AU49** to `docs/specs/questions/audio.md` and **AA14** to
+`docs/specs/questions/audio-ambience.md` in earlier rounds; this final round filed no new question.
+AU40–AU44 and AA10/AA12/AA13 pre-exist; AU1/AU5 remain in audio.md §15.
+Question-index regeneration belongs to the coordinator because engine lanes cannot run `tools/`.
+Resolve the exact sections above before claiming complete owner or wildcard-family coverage.
+No further implementation or verification is outstanding for this partial submission.
