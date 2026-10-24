@@ -1216,7 +1216,7 @@ this dispatch contract alone does not specify those motion helpers.
 #### 5.7.2 Crash angle ramps and bump rollback (WC5, partial)
 
 Let `t` be crash elapsed at +0x2C0 **after** the dispatch additions, `T=p[21]`,
-`a` the old angle at +0x2C4, `A=p[22]` and `B=p[25]`. These are float fields;
+`a` the old angle at +0x2C4, `A=p[22]` and `B=p[24]`. These are float fields;
 the original uses x87 intermediates and rounds when storing them. Neither helper
 clamps elapsed or completes a last frame at its endpoint.
 
@@ -1437,9 +1437,12 @@ Before testing the proposed point, multiply speed by p[23], storing the
 result. This retention occurs once per qualifying helper call, not per second
 and not only on successful contact.
 
-Obtain the current complete transform C and apply the banking helper of
-§5.1.1 using the retained speed. Let V be its rotation applied to `unit(-H)`;
-translation and uniform scale are not part of this direction product. Propose
+Build a temporary identity transform and apply the banking helper of
+§5.1.1 using the retained speed. Sample the terrain normal **again**, at the
+unchanged P.x/P.z, and let V be the temporary rotation applied to this second
+sample. This sample is not normalized before the product. The incoming owner
+transform is not used in this calculation; translation and uniform scale are
+not part of the direction product. Propose
 `x=P.x + dt*p[4]*v*H.x`, `z=P.z + dt*p[4]*v*H.z`.
 Ask the city's world-position-inside predicate (slot 98) first. Outside
 clears sliding and skips coordinate conversion/height sampling. Inside,
@@ -1449,7 +1452,8 @@ publication; the comparison uses the returned height before that store is
 reloaded. Equality rejects. Rejection clears sliding but retains the already
 reduced speed and leaves P unchanged in this phase.
 
-Accepted contact rebuilds a basis from `F=unit(H)`,
+Accepted contact first fetches the current complete owner transform C, then
+rebuilds a basis from `F=unit(H)`,
 `R=unit(V cross F)`, `U=F cross R`. It is V, not the terrain normal, that
 supplies this up candidate. Set C's rotation columns to `(R,U,F)` and its
 translation to `(x,h,z)`, marking translation and rotation changed separately
@@ -1461,6 +1465,18 @@ runtime H with F or set previous heading, and has no ordinary bow lift.
 Evidence: gate/angle/retention `0x0056AF90–0x0056B10C`, bank/direction product
 `0x0056B17B–0x0056B234`, proposed point/height test
 `0x0056B23E–0x0056B2F1`, basis/publication `0x0056B385–0x0056B583`.
+
+**WC12 correction and quirk.** Both ramp branches and the completion comparison
+read +0x3A4, namely p[24] (`0x0056B5D1`, `0x0056B5E3`, `0x0056B60D`);
+p[25] at +0x3A8 governs only the earlier contact angle gate. The bank call
+at `0x0056B18C` acts on the identity temporary initialized at
+`0x0056B104–0x0056B188`. The second terrain-normal call at `0x0056B1C2`
+overwrites the earlier -H workspace before the matrix product
+(`0x0056B1C5–0x0056B230`). Thus positive speed and zero turn give V equal to
+that terrain normal, regardless of incoming C. The owner transform is fetched
+only after contact acceptance (`0x0056B382`), retaining its scale for publication.
+For a second normal parallel to H the cross-product basis is still unguarded;
+the caller supplies no fallback or clean false result for that degeneracy.
 
 **Heel phase.** After contact or its rejection, compute the new scalar A and
 the float increment dA by §5.7.2. If A >= B, return false without final heel
@@ -2082,8 +2098,11 @@ comparisons allow ordinary float/trigonometric tolerance; branch tests do not.
 | WC5-H06 | Sliding set, t=0, p[25]=0; terrain normal=-H | Angle zero equals limit; clear sliding, retain old speed, no contact position conversion. Heel still runs and returns true. |
 | WC5-H07 | Sliding set, t=0, normal Y, p[25]=1, p[23]=0.5, v=1; proposed point outside | Speed becomes 0.5 and stays reduced; sliding clears. No cell/height queries for rejected contact; heel separately samples normal, publishes once and returns true. |
 | WC5-H08 | Same angle/retention as H07, inside, h=30, P.y=20, p[26]=10 | Height difference equals tolerance: reject contact and clear sliding. Retained speed remains 0.5; no previous-position rewrite from contact. Final heel may still publish. |
-| WC5-H09 | Sliding set, t=0, dt=10, v=1, p[23]=0.5, p[4]=0.2, turn=0, p[25]=1, p[26]=10; inside, h=22; incoming C maps -Z to Y | Contact publishes at (10,22,31), saves previous P=(10,20,30), leaves runtime H unchanged, calls 100/104/107. Heel publishes again at that position and calls 100/104/107 again. Scale preserved, no lift. |
+| WC5-H09 | Sliding set, t=0, dt=10, v=1, p[23]=0.5, p[4]=0.2, turn=0, p[25]=1, p[26]=10; inside, h=22; both terrain normals Y; incoming C maps -Z to Y | Contact uses banked second normal Y, so R=X, U=Y, F=Z. It publishes at (10,22,31), saves previous P=(10,20,30), leaves runtime H unchanged, calls 100/104/107. Heel publishes again at that position and calls 100/104/107 again. Incoming rotation is irrelevant to contact V. Scale preserved, no lift. |
 | WC5-H10 | H09 but p[24]=0, old A=0 | Contact still publishes/writes first. Heel's A>=B test returns false without a second publication; no rollback of the contact changes. |
+| WC12-H11 | No sliding, T=8000, t=3200, old A=0, p[24]=1, p[25]=2 | Fast ramp reaches 1 and completes false; changing only p[25] does not change the heel endpoint. With p[24]=2, stored A=2 and the same completion occurs. |
+| WC12-H12 | H09 twice, with incoming rotation identity and with incoming C mapping -Z to Y; same incoming scale 3 | Both contact rotations are identity and both retain scale 3. Two normal samples precede the accepted contact transform fetch. No incoming rotation participates in V. |
+| WC12-H13 | H09, but first normal Y and second normal Z | First sample passes the angle gate. Second sample makes V parallel to F: contact attempts the unguarded zero-length cross-product normalization; no repaired identity basis or early false result is permitted. |
 | WC3-LC01 | Missing group or missing local and inherited tuning lists; old tuning arbitrary | All forty defaults replace old tuning; void result, no failure or rollback. |
 | WC3-LC02 | Present forty-entry list; entry 9=3, entry 8=0 | Resolved entry 8=-3. A zero-filled local list wins over a populated parent list. |
 | WC3-LC03 | Base LoadModels returns false; occupant Init succeeds and effects service exists | Base Init returns false after occupant Init; watercraft continues its own setup and normally returns true. |

@@ -1,5 +1,10 @@
 # watercraft: answered questions
 
+<!-- from: core-watercraft-close12 (2026-10-24) -->
+- **WC12 - heel endpoint and contact basis contradictions:** §5.7.2 defines heel B=p[25], while §5.7.5 defines B=p[24] and WC5-H10 requires p[24]=0 to end heel after contact. Which entry governs the ramp and completion? Also WC5-H09 supplies positive retained speed and an incoming C mapping -Z to Y, but §5.7.5 applies §5.1.1 banking first, which replaces C's rotation with identity for positive speed and turn=0. This makes V=-Z parallel to F=Z rather than the vector Y described by H09; should contact use the incoming or banked C? [Follow the newer completion section and H10 for B=p[24]; follow the explicit banking call for contact, preserving its unguarded degenerate basis. Contact position/publication ordering is implemented and tested, but the H09 basis cannot be certified against both statements.]
+
+  **ANSWERED 2026-10-24 (re-watercraft-wc13):** DIFFERS — §5.7.2 uses p[24] for both ramp branches and completion. §5.7.5 corrects the contact direction to a fresh identity temporary, banked using retained speed, applied to a second terrain-normal sample. Neither the incoming rotation nor -H supplies that product. H09 therefore has V=Y and a finite identity contact basis; incoming scale is preserved by the later accepted-contact transform fetch. Zero cross products remain unguarded quirks. Corrected H09/H10 and added WC12-H11–H13 distinguish the endpoint, incoming-rotation independence and second-sample degeneracy.
+
 
 
 <!-- from: core-watercraft4 (2026-10-22) -->
