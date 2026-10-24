@@ -19,6 +19,11 @@
   §9 also supplies the debug borrowed-string lifetime, signature and failure contract.
   Exact residual: tuning signature/failures, inherited initialization/teardown and
   subsidiary animation/effect/model computations. No full-owner closure claim.
+  re-watercraft-wc9: §3.5 resolves the void tuning contract, missing-list defaults,
+  resolved-entry-9 dependency, and inherited Init/Shutdown ordering and results.
+  §5.1.5 expands slots 83/103/104/107 and the required no-tow rope-effect path.
+  Residual: complete transitive LoadModels/effect-controller contracts and common
+  TweenStruct sampling arithmetic; this is not complete owner closure.
 
 <!-- from: core-watercraft4 (2026-10-22) -->
 - **WC4 - sections 5.1, 5.2, 5.3 and 6.1 movement:** please expand Engine_AIBoatMotion, Movement_PositionNew and its four helpers, inherited animation/player-drive steps, and effect/model updates into executable arithmetic, ordering and failure contracts. Missing details include interpolation, steering, speed selection, water height/tilt, collision footprint construction, route-coordinate encodings, whether final docking completion is tested before or after motion, whether wake heading change means vector-delta magnitude or angle, and whether final-approach/following dt is clamped. [no original owner computation accepted as provider input; final docking completion tested also after motion, final approach dt unclamped, wake change uses vector-delta magnitude; far-approach and full animation/drive ticks remain unsupported]
@@ -37,18 +42,8 @@
   effect-controller and slot-104/107 updates. §5.3.2 (re-watercraft-wc5c)
   supplies far-approach clamping, entry effects, call order and return contract. Normal attitude
   composition was already resolved in round 2; crash attitude remains WC5.
-
-<!-- from: core-watercraft4 (2026-10-22) -->
-- **WC5 - section 5.7 and automata section 6.6 crash/bump:** what are the exact footprint-overlap, inanimate hit, bump response, size-class and crash-sequence equations (sink/heel axes, ramps, RNG draws and boundary rules)? Section 6.6 gives accumulator writes but no crash animation formula. Does crash entry notify (0xB,0) as watercraft section 4 states, or (0xB,duration) as automata section 6.6 states? How are equal-size losers and non-player boats sinking after a player win handled? [literal watercraft entry notification (0xB,0), question-marked; threshold classification/state-case dispatch only, no full collision/crash-motion claim]
-  Round 3 progress: §§5.7.0–5.7.2 resolve boat maximum-extent gating, SAT/contact equality,
-  size classes, both equal-size victims, AI sinking after player win, speed transfer/rollback,
-  crash angle endpoints and distinct transform/runtime sink heights. Event (0xB,0) is confirmed;
-  explicit pre-push and state-entry notifications are separate. Full shore detection,
-  model-to-footprint construction and sink/heel rotation/contact remain open.
-  re-watercraft-wc5 round 2: §§5.7.3–5.7.4 resolve model footprint margins,
-  transform projection/offset/multiplier, missing-model failure, corner scan
-  order and all 32 inanimate direction-byte cases. re-watercraft-wc5c: §5.7.2
-  adds the sinking basis, independent roll/pitch signs, previous/current-heading
-  roles, heading feedback and publication contract. Exact residual: grounding/heel
-  rotation axes, contact transform and publication equations (0056AF90); this question stays open.
+  re-watercraft-wc9: §5.1.5 supplies subsidiary dispatch/publication boundaries,
+  §5.2.1 the three-point midpoint, strict-distance and consumption gates, and
+  §5.7.5 the grounding transform. Residual: full AI target-production formulas,
+  common tween sampling and effect-controller internals; WC4 remains open.
 

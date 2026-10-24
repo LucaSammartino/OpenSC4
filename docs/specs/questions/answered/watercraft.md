@@ -1,7 +1,7 @@
 # watercraft: answered questions
 
 <!-- from: core-watercraft9 round 2 (2026-10-24) -->
-- **WC9 - section 6.2.2 ordered steering versus WC8-08:** with L=R=100, T=0, dt=10, does the second response return toward zero and clear L?
+- ~~**WC9 - section 6.2.2 ordered steering versus WC8-08:** with L=R=100, T=0, dt=10, does the second response return toward zero and clear L?~~
   **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §6.2.2's two ordered predicates are correct. The original leaves T=-0.1 and L=R=100; the second response does not run either branch. WC8-08 now specifies that result. Instructions 0056EC87–0056ECF2 confirm the sign gates; simultaneous active inputs alone do not clear a channel.
 
 
@@ -29,3 +29,19 @@
 - ~~**WC2 - §5.1:** what the caller of the boat's animation tick does when it returns false (a boat still for more than 5 s outside states 7, 16, 75–78), and the meaning of drive-parameter entries 4, 11–14, 18, 22–24, 26, 30, 31 and 34. [as read]~~
 
   **ANSWERED 2026-10-23 (re-watercraft-wc5):** DIFFERS — §§2, 5.1.1 and 5.1.3 supply all listed uses. The caller invokes manager RemoveAutomaton(boat,false). Entry 18, not 24, caps normal bow pitch and supplies half its value as model lift. Entries 13/14 slew AI speed/turn per ms, 26 is a strict terrain-height contact tolerance, 30/31 are command-curve endpoints, and 34 is loaded but has no observed owner-side read. Entries 22–24 belong to crash attitude/retention. Vectors WC2-P01–P04 and corrected WC4-M07 cover the caller and newly identified uses; existing command/crash vectors cover the rest.
+
+<!-- from: core-watercraft4 (2026-10-22) -->
+- ~~**WC5 - section 5.7 and automata section 6.6 crash/bump:** what are the exact footprint-overlap, inanimate hit, bump response, size-class and crash-sequence equations (sink/heel axes, ramps, RNG draws and boundary rules)? Section 6.6 gives accumulator writes but no crash animation formula. Does crash entry notify (0xB,0) as watercraft section 4 states, or (0xB,duration) as automata section 6.6 states? How are equal-size losers and non-player boats sinking after a player win handled? [literal watercraft entry notification (0xB,0), question-marked; threshold classification/state-case dispatch only, no full collision/crash-motion claim]~~
+  Round 3 progress: §§5.7.0–5.7.2 resolve boat maximum-extent gating, SAT/contact equality,
+  size classes, both equal-size victims, AI sinking after player win, speed transfer/rollback,
+  crash angle endpoints and distinct transform/runtime sink heights. Event (0xB,0) is confirmed;
+  explicit pre-push and state-entry notifications are separate. Full shore detection,
+  model-to-footprint construction and sink/heel rotation/contact remain open.
+  re-watercraft-wc5 round 2: §§5.7.3–5.7.4 resolve model footprint margins,
+  transform projection/offset/multiplier, missing-model failure, corner scan
+  order and all 32 inanimate direction-byte cases. re-watercraft-wc5c: §5.7.2
+  adds the sinking basis, independent roll/pitch signs, previous/current-heading
+  roles, heading feedback and publication contract. Exact residual: grounding/heel
+  rotation axes, contact transform and publication equations (0056AF90); this question stays open.
+
+  **ANSWERED 2026-10-24 (re-watercraft-wc9):** DIFFERS — §5.7.5 completes the remaining grounding/contact/heel equations and publication contract, alongside §§5.7.0–5.7.4's earlier answers. Terrain-angle and height gates are strict; rejected contact retains the speed reduction. Contact can publish before scalar heel completion returns false. Total heel rotates the terrain normal about previous heading; incremental yaw rotates current heading about world Y. Required services and degenerate-basis behavior are explicit quirks, not unanswered alternatives. Vectors WC5-H01–H10 distinguish axes, signs, time arguments, equality and side-effect ordering.
