@@ -577,7 +577,11 @@ void TestNetworkTools() {
 }  // namespace
 
 int main() {
-    CHECK(fc4_abi_version() == FC4_ABI_VERSION);
+    const uint32_t actualAbi = fc4_abi_version();
+    if (actualAbi != FC4_ABI_VERSION) {
+        std::fprintf(stderr, "ABI mismatch: linked Rust=%u, compiled header=%u\n", actualAbi, FC4_ABI_VERSION);
+    }
+    CHECK(actualAbi == FC4_ABI_VERSION);
     CHECK(fc4_sim_create(nullptr) == nullptr);
     CHECK(!fc4_sim_pause(nullptr));
     TestDays();
