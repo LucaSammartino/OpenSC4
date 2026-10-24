@@ -14,7 +14,9 @@
 - Recovery evidence preserved by build-runs/run-app-final-gate.py under build-runs/app-recovery-gate/; final all runs on committed stable source (RUST_TEST_THREADS=2).
 - Game app-shadow13-2032-r2a completed clean to 2032-01-05, ref_warnings=0; run 631 records app 0/72 and app-startup 0/1. Exactly fields 14 Exception Reports and 15 Scripts differ; other 17 fields match. Startup published Julian was unset.
 - Added expected-path and stored-input diagnostics; startup now waits for a published positive Julian. Formatting fix applied in place. This source change requires final all after diagnosis.
-- Gate exec session 35565 is still running; collect it before any new native verify. No game request outstanding.
+- Diagnostic gate exec session 35565 collected to exit=0: cargo 7407/0/0, clippy 0 diagnostics, native qbuild-20261024-203333-build-ctest 177/177 edges and 81/81 CTests PASS.
 - AP18 filed for observed lazy slot65/66 base/suffix/pre-cache-input disagreement. Supported app/app-startup now compare 17 fields; app_shadow_path_cache=1 separately enables app-path-cache diagnostics, default off. Literal core unchanged; no resync.
-- Next: collect gate, normal-speed diagnostic run to 2032, resolve or question the two lazy cache differences, gate final source and rerun measured scope.
+- Normal-speed request app-shadow13-2032-r2normal submitted to 2032 with app_shadow=1 and app_shadow_path_cache=1 (AP18 diagnostic).
+- Final stable-source all runs via build-runs/run-app-final-gate.py, console build-runs/app-closure-gate-console.log; previous evidence saved under build-runs/app-diagnostic-gate/.
+- Next: collect normal game and final gate, then turbo supported app_shadow (cache diagnostic off) to 2032; record exact labels and finish ready partial scope.
 - Clean-room: no analysis sources, tools/, or game binaries read.
