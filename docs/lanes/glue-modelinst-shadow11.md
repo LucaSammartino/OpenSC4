@@ -32,9 +32,9 @@ MI14 in `docs/specs/questions/model-instances.md` requests safe live enumeration
 
 ## Game result and external blocker
 
-Run [498](../runs/modelinst-static-2032-20261024-a-498.md), `modelinst-static-2032-20261024-a`: terminal harness no-load, city never loaded within 1,200 s; wall 2,717 s including hung end screenshot. Coordinator confirmed harness failure, not code. Reference warnings, foreign exceptions and Rust panics were zero, but no modelinst measurement was possible.
+Run [498](../runs/modelinst-static-2032-20261024-a-653.md), `modelinst-static-2032-20261024-a`: terminal harness no-load, city never loaded within 1,200 s; wall 2,717 s including hung end screenshot. Coordinator confirmed harness failure, not code. Reference warnings, foreign exceptions and Rust panics were zero, but no modelinst measurement was possible.
 
-Run [499](../runs/modelinst-static-2032-20261024-b-499.md), `modelinst-static-2032-20261024-b`: the one authorized retry uses the same train193 switches plus `modelinst_shadow=1`, turbo to 2032-01-01, seconds 600, timeout 1,200. Slot 5 running marker since 14:50:59, queue pid 27484. At 15:29:04 there was still no verdict or plugin log, beyond timeout plus 15 minutes. The request remains outstanding and a later result for this unique label remains valid.
+Run [499](../runs/modelinst-static-2032-20261024-b-654.md), `modelinst-static-2032-20261024-b`: the one authorized retry uses the same train193 switches plus `modelinst_shadow=1`, turbo to 2032-01-01, seconds 600, timeout 1,200. Slot 5 running marker since 14:50:59, queue pid 27484. At 15:29:04 there was still no verdict or plugin log, beyond timeout plus 15 minutes. The request remains outstanding and a later result for this unique label remains valid.
 
 Exact `<label> <clean>/<total>` line: unavailable, not 0/0 or 73/73. No reached date, shutdown, ref-warning count, resync or house-shadow measurement is available for run 499. No coverage credit or shared regress-profile edit is requested. MI14 remains open; no new owners or questions were started this round.
 

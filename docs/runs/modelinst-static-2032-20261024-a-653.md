@@ -1,5 +1,5 @@
-tag: modelinst-static-2032-20261024-a-498
-run: 498
+tag: modelinst-static-2032-20261024-a-653
+run: 653
 date: 2026-10-24
 lane: glue-modelinst-shadow11
 dll: FreeCity4-glue-modelinst-shadow11 (engine source d230f041b)
