@@ -156,6 +156,7 @@ return for failed setup; caller intent behind this overloaded argument remains R
    a Microsoft driver installed instead of the vendor driver..." *[compat: the check and the text]*.
 4. If the helper produced no context object: message box "Internal Error.", set-up fails.
 5. The device's viewport rectangle is read and kept as (x, y, x+width, y+height).
+   Owner primary/render-target/depth bindings and their owned references follow §14.2 (RD12).
 6. Initial transforms, all through the driver's own interface: model-view (matrix mode 0) := identity; projection
    (matrix mode 1) := the pixel-space orthographic matrix below; matrix mode back to 0; then `Clear(0x7000)`
    (colour, depth and stencil, §5.3).
@@ -200,6 +201,8 @@ otherwise not, and the error code follows §3. It then resets every texture-stag
   default device state, recreates the vertex buffer if needed, re-initialises the texture manager for the new
   device, then posts `0x8ACAA95F` (`kSGLMessage_RestoreTextures`) and `0x6ACB92A9` (the renderer's "force full
   redraw", view3d.md §3.4). Clients must re-upload texture contents on `kSGLMessage_RestoreTextures`.
+
+The exact surface references dropped and reacquired on these paths are listed in §14.2 (RD12).
 
 ### 4.5 Tearing down (`DestroyViewport 0x008881D0`, `Cleanup3DEnvironment 0x008870B0`)
 
@@ -1088,7 +1091,7 @@ claim to have independently specified every byte in the approximate 139 KB owner
 |---|---|---|
 | `nSGLDX7::cGDriver` | graphics table `0x00AC4660`, constructor `0x00885F90`; owns managers, window and context | §§2–11, §12.2; auxiliary identities below |
 | `cTextureStageData` | 0x80-byte cached stage records; constructor `0x00882090`, application `0x00884320` / `0x00884500` | §§7, 10, 13 |
-| `cTextureManager` | surface-copy/lifetime `0x0088A380` onward; 48-byte named records, device surfaces and converters | §9; remaining conversion arithmetic RD6 |
+| `cTextureManager` | surface-copy/lifetime `0x0088A380` onward; 48-byte named records, device surfaces and converters | §9, including RD6 arithmetic/decoder rules in §9.6 |
 | `cPrimitiveManager` / `cPrimitive` | queue and index scratch `0x00889B60`–`0x0088A380`; queue entries refer to vertex ranges and index storage | §8.3; lifetime/order obligations §13 |
 | `cVertexBuffer` | 0x30-byte value records; copy constructor `0x008895B0`, assignment `0x00889620`, recreation `0x008896B0`, reserve/unlock `0x008899B0` / `0x00889A90` | §14.1 internal value records; auxiliary tables do not return independent vertex buffers (§12.4) |
 | `cGDriver::D3DLight` | constructor `0x00883EC0`; auxiliary light operations reach it at `0x00886BC9` / `0x00886CD9` | D3D7 light record; initialization below; public setters §12.4 |
@@ -1214,6 +1217,8 @@ These are owner+0 slots 4–8, not methods on the internal vertex-buffer value r
 28-byte entry in the vector at owner `+0x27C`: zero-based identity/sentinel, type, owned surface pointer,
 two zero reserved words, recorded window width and height. Public handles are entry index+1; zero is failure.
 They have no generation counter or separate AddRef/Release. All offsets here are owner-relative.
+The context aliases and automatic population of the type-selected owner slots are specified in §14.2;
+in particular ordinary setup leaves the type-2 slot null.
 
 NewBufferRegion(type), `0x00886750`, returns zero immediately while lost. Otherwise select the first free
 entry (identity `FFFFFFFF`), or append a cleared entry. Type 0/1/2 selects owner surface `+0x22C`/`+0x230`/
@@ -1539,6 +1544,8 @@ unless the setup column says otherwise. Observe calls, output sentinels, errors,
 | DX7-48 | Restore type 0 with owner `+230` null; then restore with both Blts surface-lost | First returns false after accepted-rectangle flush without Blt despite non-null type-0 surface; second calls region IsLost once and returns false without recovery retry |
 | DX7-49 | Partial save loses surface twice; region Restore=0, context recovery succeeds, retry succeeds | Region clear occurs (type 0/1 flags as §12.5), then retry; final Boolean false despite successful copy. Full-region save retries without clear and can return true |
 
+| Vector | Setup / operation | Required distinction |
+|---|---|---|
 | DX7-50 | Encode A=8/15,R=1/15,G=8/15,B=15/15 as source 4, then source 5; convert to all ordinary keys | Both encodings give bytes `FF 88 11` at key 0, `881188FF` at keys 1/2, `145F` at key 3, `8A3F` at keys 4/5 and `818F` at key 7; padding untouched |
 | DX7-51 | Source-6 R5=4,G5=16,B5=31,A1=1; repeat equivalent source 7; convert to 8/6/4-bit destinations | Key 1 `FF2184FF`; key 3 `243F`; key 7 `F28F`. Bit replication differs from floor(255v/31), e.g. v=4 gives 33 versus 32 |
 | DX7-52 | Source 0 pixel `7F123456`, equivalent source 1, and source 2/3 RGB bytes; ordinary keys | Keys 4/5 give `08CA` for alpha 7F and `88CA` for absent alpha; key 7 `7135` versus `F135`. RGB quantization drops low bits; key 0 always B,G,R bytes |
