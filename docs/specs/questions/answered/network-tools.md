@@ -237,3 +237,24 @@
   environment observations and resources, or use labelled constraint-boundary fixtures;
   the measured totals cannot specify a unique native live fixture. Three boundary vectors
   distinguish coordinate observation, supplied constraints and unavailable reconstructed cost.
+
+<!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
+- ~~**NT36 - occupied-cell and subclass/model host integration boundary:** in the same
+  clean 2032 run the NT33 live renderer/lot/terrain/zoning/tuning adapter performs
+  10 rays and 40 lot reads with straight prefix 13, but reports selection complete=0.
+  Its bounded ABI refuses occupied cells rather than classifying/reusing them.
+  Native/core powerline valid counts are 13/0 and prices 65/0; bridge valid counts
+  are 17/0 and prices 974/0. Beyond NT31 recording fixtures and NT33 observation
+  calls, what admitted callable interfaces, layouts and ownership contract should
+  connect occupied-cell classification/reuse and the real subclass placement/model
+  hosts? The bridge model host is still unwired. [incomplete remains unavailable,
+  never clear/no-hit or successful placement; retain both measured differences and
+  default-off replacement; selection/resource fixtures do not confer owner coverage]~~
+  **ANSWERED 2026-10-24 (re-nettools-ng9):** DIFFERS — network-tools §8.3.3.
+  Occupancy is not a refusal: classify the ordered manager list, preserve the last qualifying
+  assignment and select the last accepted pole/wire QI with independent reference ownership.
+  Slot 40 takes a null filter and unlimited count, not a flags mask. Seven vectors cover order,
+  capability, pole-cell filtering, reuse and bridge failure. Class/model creation remains a separate
+  host responsibility; original private constructors and slot-54 cell records are not a general
+  model callback ABI. Supply the specified model/corner/connection effects or report unavailable;
+  retain the measured 13/0,65/0 and 17/0,974/0 differences without city or owner coverage credit.

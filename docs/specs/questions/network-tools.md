@@ -117,15 +117,3 @@
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
 
 <!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
-- **NT36 - occupied-cell and subclass/model host integration boundary:** in the same
-  clean 2032 run the NT33 live renderer/lot/terrain/zoning/tuning adapter performs
-  10 rays and 40 lot reads with straight prefix 13, but reports selection complete=0.
-  Its bounded ABI refuses occupied cells rather than classifying/reusing them.
-  Native/core powerline valid counts are 13/0 and prices 65/0; bridge valid counts
-  are 17/0 and prices 974/0. Beyond NT31 recording fixtures and NT33 observation
-  calls, what admitted callable interfaces, layouts and ownership contract should
-  connect occupied-cell classification/reuse and the real subclass placement/model
-  hosts? The bridge model host is still unwired. [incomplete remains unavailable,
-  never clear/no-hit or successful placement; retain both measured differences and
-  default-off replacement; selection/resource fixtures do not confer owner coverage]
-
