@@ -6,8 +6,8 @@
 - Goal: default-off renderprops_shadow; independent Rust expectations; real-city monthly comparisons to 2032.
 - Done: default-off registry shadow implemented: 3 counts, 77 names, 462 core-derived Find probes (542 fields/sample), no native output seeds. RP7 filed for live setter inputs/view acquisition; no whole-owner claim.
 - Focused gate: fmt PASS for capi/src/renderprops_shadow.rs; cargo test -p fc4-capi renderprops_shadow PASS 1/1 (579 filtered).
-- Full gate: workspace cargo PASS 6985/6985; clippy PASS, zero diagnostics. Same all operation queued native build/ctest as qbuild-20261024-083622-build-ctest; exec session 97133 remains outstanding. Do not submit duplicate verify.
-- Next: collect session 97133 to terminal native verdict, then game house profile to 2032.
+- Full gate terminal PASS: workspace cargo 6985/6985; clippy zero diagnostics; native build 254/254 edges (238.3 s), CTest 79/79 (224.0 s), qbuild PASS. Logs build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log. Queue label qbuild-20261024-083622-build-ctest. Only lane documentation changed during gate; source stable at aa6a2508b.
+- Next: submit prepared renderprops-shadow9-20261024-r1 request, then collect its verdict using build-runs/wait-renderprops-verdict.ps1 (no qwait).
 - Initial fmt invocation used wrong relative path; retry with capi/src/renderprops_shadow.rs. q.py Bash failed CreateFileMapping (Win32 5); use PowerShell cargo directly.
 - Constraints: no native signatures may be inferred; questions go in render-properties questions file. No DR registers without shared protocol.
 - No game request outstanding.
