@@ -5,7 +5,8 @@
 ## Handoff
 - Goal: implement answered DBPF raw-read and key/count contracts, then measure a default-off read-only shadow through 2032.
 - Done: initial handoff 09a70f6de; Rust packed projection implements EX54/EX55. All 23 vectors exercised by 4 focused tests (4/4 passed).
-- NEXT EXACT STEP: gate the NEW incremental shadow with qbuild all, then run unique gdbc8-r3-turbo2032-20261024a through 2032-01-27 (extra days let January's queued sample drain before harness quit). No request or build is currently outstanding.
+- NEXT EXACT STEP: collect the active house-profile run gdbc8-r3-house2032-20261024b (waiter exec session 96946), inspect DBPF samples and stalls, then split records within large files if necessary. No build outstanding.
+- Round 2 gate on 4609b87fa: qbuild all terminal native PASS, 49/49 edges and CTest 79/79 (83.1 s), qbuild-20261024-074334-build-ctest. Rust/clippy logs refreshed. Build waiter session 6879 collected to terminal pass. House profile read from explicitly allowed main build-runs/regress-train186-shadows.ini; request copies its switches plus dbpf_shadow=1, turbo through 2032-01-27, timeout 1380 s. Original gate launch transport result was truncated; native verdict collected without duplicating the build.
 - Live shadow now traverses resource-manager and multi-packed roots, compares held segment metadata/raw bytes/return/size/null queries/payloads/key lists/counts. No lifecycle or write methods called on game segments. Three new C ABI exports; ABI version untouched.
 - Open EX56 asks whether public roots cover every open packed file, indexed-pointer ownership, and ReadRecord noninterference/return contract. Scope explicitly resource-manager-packed; broader completeness unclaimed. Only payload bytes/in-out size are compared, not ReadRecord return.
 - Constraints: no tools/ reads or edits; profile update must be handed to coordinator. No branch/ref changes.
