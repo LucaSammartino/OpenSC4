@@ -1,6 +1,6 @@
 # Nation (`cSC4Nation`): short-form spec
 
-Status: NQ1–NQ3 closure (re-nation-nq3, 2026-10-24). Written from the Windows 1.1.641 executable (code `0x00497220`–`0x00499D3F`,
+Status: NQ1–NQ4 closure (re-nation-nq3 / re-nation-nq4, 2026-10-24). Written from the Windows 1.1.641 executable (code `0x00497220`–`0x00499D3F`,
 vtable `0x00A8EF00`). It settles what the nation adds beyond neighbors.md, foundations §11 and demand.md §8.2.
 
 Tags: *[compat]* observable, must match; *[quirk]* original behaviour that a replacement must reproduce.
@@ -112,6 +112,26 @@ fixture supplies the directory enumerator's order rather than relying on a host 
 | Registered tutorial folder exists with both `*.sc4` and `region.ini` | Keep that region; skip template-directory copying; export tutorial records and update registry active flags (§8). |
 | Registered folder exists but has no `region.ini` | Delete region, recreate it, copy template files, select replacement, then export tutorial records; failures do not roll back earlier effects. |
 
+### 5.2 Directory case-map vectors (NQ4)
+
+`Lower` below means §6.4's directory-name transform. Text is UTF-8; hex lists specify literal bytes.
+Pin the CRT locale in the fixture: `C` means its invariant C locale; `en-US` means the Windows English
+(United States) LC_CTYPE locale (LCID `0x0409`, code page 1252). These are static conformance expectations,
+not measurements from a game run. Do not substitute the test runner's unspecified default locale.
+
+| Locale and input/state | Expected result |
+|---|---|
+| C or en-US; `Lower("TuToRiAl")` | `tutorial`. |
+| C; `Lower("ÉCOLE")`, bytes `C3 89 43 4F 4C 45` | `École`, bytes `C3 89 63 6F 6C 65`: accented capital is retained. |
+| en-US; same input | `école`, bytes `C3 A9 63 6F 6C 65`: non-ASCII bytes are not simply preserved. |
+| en-US; `Lower("É")` versus `Lower("É")` (the latter is `45 CC 81`) | `C3 A9` versus `65 CC 81`, unequal: no normalization. |
+| C; `Lower` of bytes `41 E9 42` | Only `61` remains. The code-page-1252 byte E9 is not a complete UTF-8 sequence; neither it nor the suffix is preserved. |
+| C; `Lower` of bytes `F0 9F 98 80` (U+1F600) | `EF 98 80` (U+F600), from the converter's 16-bit truncation, not a surrogate pair. |
+| No preference match; catalog `[Other, ÉCOLE]`, both probe successfully and contain tutorial cities; supplied registry default bytes are `école` | en-US selects index 1; C keeps provisional index 0. The registry result itself is not folded by Init. |
+| Reset; registry directory key `école`; catalog `[ÉCOLE, école]`, each folder valid under §8 | en-US retains the first region for that key; C retains the second. Reset folds catalog names, then takes the first byte-equal match. |
+| en-US; raw registry default supplied as `ÉCOLE`; catalog directory `ÉCOLE` | Init's comparison fails (`école` versus verbatim `ÉCOLE`). Ordinary registry initialization avoids this by folding its stored names. |
+| en-US; display name `ÉCOLE`, preference `école` | Preference lookup is false with output 0. Directory folding never applies to preference display names. |
+
 ## 6. Initialization, discovery and shutdown (NQ1) *[compat]*
 
 ### 6.1 Directory setup and catalog
@@ -186,6 +206,44 @@ Callback return values are ignored. A subsequent Init rediscovers the catalog an
 "read once per process" description meant the ordinary single application lifetime, not a reinit guarantee.
 Difficulty resize-to-three retains surviving elements before new tuning is read; shutdown has not zeroed them.
 
+### 6.4 Directory-name encoding and case mapping (NQ4) *[compat]*
+
+Tutorial directory names use the `cRZString::MakeLower` transform (`0x0090EAC5`), whose string encoding is
+**UTF-8**, internal encoding ID 8, rather than the Windows ANSI code page. Its case map is the **active CRT
+LC_CTYPE locale**, not a fixed ASCII-only table or a locale-independent Unicode case fold. For an initial
+run of bytes below `0x7F`, each uppercase byte is replaced by the CRT narrow lowercase result. If any byte
+is `0x7F` or greater, the whole string, including the already transformed prefix, is converted from encoding
+8 to encoding 16; each resulting 16-bit character receives CRT `towlower`, and the result is encoded back
+to 8. Thus ordinary BMP UTF-8 names receive locale-dependent lowercase, without normalization or
+multi-character case expansion. In the C locale, wide lowercase changes only U+0041–U+005A; other
+characters remain unchanged. In a non-C locale it uses the CRT's Windows lowercase mapping, retaining
+the input character if mapping fails. The language manager can set the CRT locale from its selected
+language's locale name; a failed locale change leaves the previous map in force. Merely selecting a
+tutorial default name does not define a new case map. Evidence: threshold/narrow path
+`0x0090EAE4–0x0090EB0D`, fixed encoding conversions and word-sized map
+`0x0090EB3E–0x0090EB72`, encoding-8 decoder `0x00910EDF–0x00910F69`, C/non-C wide mapping
+`0x009F4C59–0x009F4C78` / `0x009F4BD4–0x009F4C32`, and language locale change
+`0x00928058–0x0092807F`.
+
+*[quirk]* This converter is older than a conforming UTF-8/UTF-16 round trip: four-byte characters become
+one word holding the low 16 bits, rather than a surrogate pair. Invalid or incomplete input stops decoding
+at that sequence and keeps only the converted prefix; MakeLower ignores the conversion status and
+replaces the string with that prefix. Do not preserve arbitrary high bytes as a fallback. The word store,
+prefix length, and unconditional replacement are at `0x0091112C–0x00911145`,
+`0x0090EB46–0x0090EB72` and `0x009113CB–0x009113DE`; the four-byte calculation is at
+`0x00910FD3–0x0091103E`. No nation-specific validity filter repairs these names.
+
+Init compares the transformed catalog directory to the registry default **verbatim**, including length.
+Reset likewise compares each transformed catalog directory to the registry's supplied directory key,
+verbatim, taking the first match (`0x00498FE6–0x00499015`). In the ordinary registry, both the
+language-default names and tutorial `region_dir` keys were already transformed with MakeLower when
+loaded (`0x004B7994–0x004B79A9`, `0x004B7BAE–0x004B7BCA`). This explains the apparent folding of
+both sides in §8: do not add another transformation to the registry result at the nation boundary.
+If the locale changes between loading the registry and comparing catalog names, the stored key is not
+automatically remapped. All final comparisons are byte/length equality, not filesystem case comparison.
+The preference display-name comparison in §6.2 remains case sensitive. §5.2 pins locale, encoding and
+comparison boundary in conformance vectors.
+
 ## 7. Catalog getters, selection, creation and deletion (NQ1/NQ2)
 
 `GetRegionCount` returns the catalog length. `GetRegion(index)` returns its borrowed pointer without AddRef;
@@ -225,8 +283,9 @@ names, moves the current-language default tutorial name to the front if present,
 If the current screen reports class ID `0xEA659793`, it destroys that screen before processing and recreates
 the region screen at the ordinary end (`0x00498D33–0x00498E93`, `0x00499C7C–0x00499C84`).
 
-For each tutorial directory name, it looks for the first catalog region with the same **lowercased directory
-name**. A found region is retained only when its user directory exists and contains both a `*.sc4` match and
+For each tutorial directory key supplied by the registry, it looks for the first catalog region whose
+**lowercased directory name** equals that key byte for byte (§6.4 defines the transform and the registry's
+earlier folding). A found region is retained only when its user directory exists and contains both a `*.sc4` match and
 a `region.ini` match. A missing directory or either missing pattern causes DeleteRegion and recreation. An
 unlisted directory at that root/name is removed with recursive flag 1 before creation. Creation uses
 AddNewRegion(name), then GetRegion(returnedIndex); a null region causes an early return without undoing prior
