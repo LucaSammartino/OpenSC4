@@ -13,7 +13,8 @@
 - Failed evidence preserved as build-runs/lighting-r3-stale-abi-*.log; diagnostic removes only generated capi_smoke.cpp.obj to force current-header compilation.
 - Corrected full gate PASS: 7021 Rust tests, clippy zero diagnostics; native 51/51 edges; CTest 80/80 (75.8s). Job qbuild-20261024-102901-build-ctest / session95504 collected to terminal PASS. Source remains d441508d5.
 - Outstanding sole game label: lighting9-r3-extended-house2032-20261024a, exact house profile plus lighting_shadow=1, turbo to2032, seconds1500/timeout1800. Do not duplicate/discard completed verdict. Prior accepted r4 below belongs to round2.
-- Next: run python build-runs/lighting-verdict-wait.py lighting9-r3-extended-house2032-20261024a; collect same session in 60s waits, no qwait. Inspect verdict and bounded lighting log lines; free run number; final report/READY queue full40-char actualHEAD.
+- Active notification wait session70714: python build-runs/lighting-verdict-wait.py lighting9-r3-extended-house2032-20261024a. Collect THAT session via write_stdin in60s waits, no qwait. It preserves an already completed unique verdict.
+- Next: collect game verdict and bounded lighting lines; free run numbers (main now through481; older lane469–472 collide after merge and must be renumbered without changing their evidence); final report/READY queue full40-char actualHEAD.
 - Main run numbers through at least 478 are occupied; choose new number after reading main docs/runs.
 - Detached HEAD is intentional; do not update refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r3-manifest.json.
 
