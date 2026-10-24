@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! aircraft.md §8 tests 1–3, automata.md §§6.4,6.6,14 test 15.
+//! aircraft.md §8 airplane vectors, automata.md §§6.4,6.6,14 test 15.
 //! Test 3 covers the source's property rule through a foreign station boundary.
 
 use fc4_core::automata::*;
@@ -36,24 +36,21 @@ fn fire_plane_station_with_three_units_sets_available_property_to_seven() {
     };
     assert_eq!(initialize_fire_plane_station_units(&mut station), Ok(Some(3)));
     assert_eq!(station.available, Some(7));
-    for count in [0, 32, 33] {
+    for (count, mask) in [
+        (0, None),
+        (1, Some(1)),
+        (31, Some(0x7FFFFFFF)),
+        (32, Some(0)),
+        (33, Some(1)),
+        (63, Some(0x7FFFFFFF)),
+        (64, Some(0)),
+        (0x80000000, None),
+    ] {
         station.units = Some(count);
         station.available = None;
         let result = initialize_fire_plane_station_units(&mut station);
-        match count {
-            0 => {
-                assert_eq!(result, Ok(None));
-                assert_eq!(station.available, None);
-            }
-            32 => {
-                assert_eq!(result, Ok(Some(32)));
-                assert_eq!(station.available, Some(u32::MAX));
-            }
-            _ => {
-                assert_eq!(result, Err(AircraftUnsupported::StationUnitCount));
-                assert_eq!(station.available, None);
-            }
-        }
+        assert_eq!(result, Ok(mask.map(|_| count)));
+        assert_eq!(station.available, mask);
     }
     station.units = None;
     assert_eq!(initialize_fire_plane_station_units(&mut station), Ok(None));
@@ -142,15 +139,14 @@ impl DriveParameterSource for Exemplar<'_> {
 }
 
 #[test]
-#[allow(clippy::approx_constant)] // Check the spec's decimal constants exactly.
 fn airplane_default_and_explicit_speed_parameters() {
-    // aircraft §8 test 1. No list uses the printed defaults, not ×1000.
+    // aircraft §8 test 1. Exact encoded defaults, without ×1000.
     let defaults = AirplaneDriveParameters::load(None).0;
     assert_eq!(
-        defaults,
+        defaults.map(f32::to_bits),
         [
-            100.0, 1.0, 25.0, 150.0, 0.2618, 0.06545, 0.7854, 0.3927, 0.5236, 0.04363, 10000.0, 10000.0, 0.4, 0.04,
-            0.5236, 0.08, 0.68, 0.0
+            0x42C80000, 0x3F800000, 0x41C80000, 0x43160000, 0x3E860A92, 0x3D860A92, 0x3F490FDB, 0x3EC90FDB, 0x3F060A92,
+            0x3D32B8C3, 0x461C4000, 0x461C4000, 0x3ECCCCCD, 0x3D23D70A, 0x3F060A92, 0x3DA3D70A, 0x3F2E147B, 0
         ]
     );
     let mut list = [0.0; 18];
@@ -206,7 +202,7 @@ fn nearest_parameter_list_stops_parent_inheritance() {
     };
     assert_eq!(AirplaneDriveParameters::load(Some(&child)).0[2], 25.0);
     let empty = Exemplar {
-        list: Some(&[]),
+        list: Some(&own_list),
         parent: Some(&root),
     };
     assert_eq!(AirplaneDriveParameters::load(Some(&empty)).0[0], 100.0);

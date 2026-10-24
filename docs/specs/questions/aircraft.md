@@ -41,3 +41,10 @@
   target handling. dispatch.md §4.3 lists call sites and state meanings but not the aircraft goal conditions.
   [core does not fabricate dispatch transitions or route them through a foreign AI implementation]
 
+<!-- from: core-airplane9 (2026-10-24) -->
+- **AF9 - §3.4.1/§3.4.2 non-finite physics inputs:** the velocity-limiter table explicitly covers finite inputs
+  only. What are the comparison/normalization and time-cap results for NaN/infinite velocity, maximum speed,
+  milliseconds and AI multipliers? Should unordered x87 comparisons choose a branch different from ordinary
+  floating comparisons? [finite vectors are implemented; isolated helpers use literal comparisons without
+  sanitization, while the complete flight tick remains Unsupported(AF2); no non-finite native equivalence claimed]
+

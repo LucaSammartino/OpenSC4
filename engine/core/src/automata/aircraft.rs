@@ -47,8 +47,9 @@ impl AircraftUnsupported {
     }
 }
 
-/// Exemplar data remains foreign. The adapter chooses the property/list;
-/// AF1 leaves its property ID and player-list identity open.
+/// Imported group data remains foreign: this is the named `airplane` record,
+/// not a numeric exemplar property. A present record contains 18 floats;
+/// missing named fields have already become zero. Player selection is AF5.
 pub trait DriveParameterSource {
     fn drive_parameters(&self) -> Option<&[f32]>;
     fn parent(&self) -> Option<&dyn DriveParameterSource>;
@@ -71,73 +72,15 @@ pub fn initialize_fire_plane_station_units(
         return Ok(None);
     }
     let count = station.property_u32(0x0C0A_FDD7).unwrap_or(0);
-    if count == 0 {
+    if (count as i32) <= 0 {
         return Ok(None);
     }
-    let mask = match count {
-        1..=31 => (1u32 << count) - 1,
-        32 => u32::MAX,
-        // Literal 2^n-1 no longer fits the u32 property. AF8 asks for the
-        // native overflow rule; do not wrap a shift or mutate the station.
-        _ => return Err(AircraftUnsupported::StationUnitCount),
-    };
+    let mask = (1u32 << (count % 32)).wrapping_sub(1);
     station.set_property_u32(0xCC0A_FDDB, mask);
     Ok(Some(count))
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct AirplaneDriveParameters(pub [f32; 18]);
-
-// aircraft.md §3.1 gives these rounded decimal constants explicitly.
-#[allow(clippy::approx_constant)]
-impl Default for AirplaneDriveParameters {
-    fn default() -> Self {
-        Self([
-            100.0, 1.0, 25.0, 150.0, 0.2618, 0.06545, 0.7854, 0.3927, 0.5236, 0.04363, 10000.0, 10000.0, 0.4, 0.04,
-            0.5236, 0.08, 0.68, 0.0,
-        ])
-    }
-}
-
-impl AirplaneDriveParameters {
-    /// aircraft.md §3.1: nearest list wins; zero entries use defaults, and
-    /// explicit entries 2 and 3 alone get the ×1000 conversion.
-    pub fn load(mut source: Option<&dyn DriveParameterSource>) -> Self {
-        while let Some(current) = source {
-            if let Some(list) = current.drive_parameters() {
-                return Self::from_list(Some(list));
-            }
-            source = current.parent();
-        }
-        Self::default()
-    }
-
-    pub fn from_list(list: Option<&[f32]>) -> Self {
-        let Some(list) = list else {
-            return Self::default();
-        };
-        let mut values = Self::default().0;
-        for (i, value) in values.iter_mut().enumerate() {
-            // Literal reading for a short list: absent entries act as zero.
-            // The spec gives no malformed/short-list rule; tracked in AF7.
-            if let Some(&given) = list.get(i).filter(|&&given| given != 0.0) {
-                *value = if i == 2 || i == 3 { given * 1000.0 } else { given };
-            }
-        }
-        for (derived, parent, factor) in [
-            (5, 4, 0.25),
-            (7, 6, 0.5),
-            (9, 8, 1.0 / 12.0),
-            (11, 10, 1.0),
-            (13, 12, 0.1),
-        ] {
-            if list.get(derived).copied().unwrap_or(0.0) == 0.0 {
-                values[derived] = values[parent] * factor;
-            }
-        }
-        Self(values)
-    }
-}
+pub use super::airplane::{Airplane, AirplaneDriveParameters};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AircraftRecord {
@@ -285,122 +228,6 @@ pub fn airplane_effect_names(fire_plane: bool) -> [&'static str; 6] {
     ]
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Airplane {
-    pub record: AircraftPlacementRecord,
-    pub drive_parameters: AirplaneDriveParameters,
-    pub player_parameters: AirplaneDriveParameters,
-    phase: Option<FlightPhase>,
-    ammunition: Option<u32>,
-    loiter_elapsed_ms: Option<f32>,
-}
-
-impl Airplane {
-    pub const fn class_id(&self) -> u32 {
-        CLSID_AIRPLANE
-    }
-
-    pub fn base(&self) -> &AutomatonBase {
-        &self.record.aircraft.base
-    }
-    pub fn base_mut(&mut self) -> &mut AutomatonBase {
-        &mut self.record.aircraft.base
-    }
-    pub fn phase(&self) -> Option<FlightPhase> {
-        self.phase
-    }
-    pub fn ammunition(&self) -> Option<u32> {
-        self.ammunition
-    }
-
-    /// Parameter and placement portion of Init. AF4 blocks native Init closure.
-    pub fn init_data(&mut self, ai: Option<&dyn DriveParameterSource>, player: Option<&dyn DriveParameterSource>) {
-        self.drive_parameters = AirplaneDriveParameters::load(ai);
-        self.player_parameters = AirplaneDriveParameters::load(player);
-        self.record.init_placement();
-    }
-
-    /// The phase change is returned for an eventual AEMS adapter. No group
-    /// mapping is guessed here (AF4). Repeated phases do not refill ammo.
-    pub fn set_airplane_state(&mut self, next: FlightPhase) -> Option<FlightPhaseChange> {
-        if self.phase == Some(next) {
-            return None;
-        }
-        let previous = self.phase.replace(next);
-        if next == FlightPhase::Phase1 {
-            self.ammunition = Some(3);
-        }
-        Some(FlightPhaseChange {
-            previous,
-            current: next,
-        })
-    }
-
-    pub fn write(&self, out: &mut dyn OutStream) -> bool {
-        self.record.write(out)
-    }
-
-    /// Atomic owner replacement; transient state is rebuilt by Init, not saved.
-    pub fn read(&mut self, inp: &mut dyn InStream) -> bool {
-        let Some(record) = AircraftPlacementRecord::read(inp) else {
-            return false;
-        };
-        *self = Self {
-            record,
-            ..Self::default()
-        };
-        true
-    }
-
-    pub fn pursue_goal(&mut self) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
-        match self.base().states.last().map(|s| s.state_type) {
-            Some(state_type::CHASE) => {
-                self.base_mut().pop_state();
-                Ok(AircraftGoalOutcome::Popped)
-            }
-            Some(58) => Ok(AircraftGoalOutcome::NoAircraftHandler), // CROP_DUST is name-only.
-            Some(50 | 51 | 53 | 57) => Err(AircraftUnsupported::GoalControl),
-            _ => Ok(AircraftGoalOutcome::NoAircraftHandler),
-        }
-    }
-
-    /// The airplane's documented LOITER push uses an infinite stack timeout;
-    /// the separate two-second timer and ammo decrement end it (§6.6).
-    pub fn begin_loiter(&mut self) {
-        self.base_mut().push_state(53, SetStateArgs::default());
-        self.loiter_elapsed_ms = Some(0.0);
-    }
-
-    pub fn tick_loiter(&mut self, dt_ms: f32) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
-        if self.base().states.last().map(|s| s.state_type) != Some(53) {
-            return Ok(AircraftGoalOutcome::NoAircraftHandler);
-        }
-        let Some(elapsed) = self.loiter_elapsed_ms else {
-            // AF3: reconstructing an unsaved timer for a loaded LOITER is
-            // not specified; do not silently treat it as a newly begun one.
-            return Err(AircraftUnsupported::GoalControl);
-        };
-        let next = elapsed + dt_ms;
-        // Literal "after a 2.0 s timer": strictly greater; boundary is AF3.
-        if next <= 2000.0 {
-            self.loiter_elapsed_ms = Some(next);
-            return Ok(AircraftGoalOutcome::Waiting);
-        }
-        let Some(ammunition) = self.ammunition.and_then(|n| n.checked_sub(1)) else {
-            return Err(AircraftUnsupported::GoalControl); // AF3: empty/unknown ammo.
-        };
-        self.ammunition = Some(ammunition);
-        self.loiter_elapsed_ms = None;
-        self.base_mut().pop_state();
-        Ok(AircraftGoalOutcome::Popped)
-    }
-
-    /// AF2 explicitly leaves CalculateForces/UpdatePhysics open. No mutation
-    /// and no fake movement on failure.
-    pub fn update_physics(&mut self, _dt_ms: f32, _world: &dyn AircraftWorld) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::FlightModel)
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AircraftGoalOutcome {
