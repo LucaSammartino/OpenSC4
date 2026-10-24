@@ -14,7 +14,7 @@
 - Workspace test stage passed: 7,294 passed, 0 failed over 48 result groups (build-runs/qbuild-test.log).
 - Final qbuild all PASS: workspace 7,294/0, clippy 0 diagnostics; queued native qbuild-20261024-160226-build-ctest passed build 263/263 and CTest 81/81. Operation 41598 collected to terminal exit 0.
 - Native evidence: build-runs/fc4verify-build.log and fc4verify-ctest.log; Rust evidence qbuild-test.log and qbuild-clippy.log.
-- Next: submit reserved construction game label to 2032-01-01; wait once with build-runs/wait-construction-game.ps1 (event notification, not qwait).
+- Next: collect game wait operation exec session 10849 to terminal, then analyze with python build-runs/summarize-construction.py occprops12-t79-20261024-a.
 - Existing open LD39 covers missing texture scales; do not duplicate it. Full lifecycle/render comparison requires passive tracing; this lane measures only getters.
-- No game request outstanding. Run 512 reserved in docs/runs/occprops12-t79-20261024-a-512.md; request label occprops12-t79-20261024-a.
+- Game request outstanding: occprops12-t79-20261024-a, turbo to 2032-01-01, construction_shadow=1, refaudit=1. Run 512 reserved in docs/runs/occprops12-t79-20261024-a-512.md.
 - Clean-room exclusions apply. Only task-named coverage-map.tsv and regress.ps1 are exceptions under tools; no tools scripts run.
