@@ -26,6 +26,7 @@
 #include "FC4PropDevSnapshot.h"
 #include "FC4PropDevCreation.h"
 #include "FC4PropDevNight.h"
+#include "FC4Properties.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -120,6 +121,18 @@ PropSelectorReplay* g_selectorReplay = nullptr;
 PropCreationTrace* g_creationTrace = nullptr;
 size_t g_creationCursor = 0;
 bool g_creationValid = true;
+struct CreationTagOutput {
+    uint64_t prop;
+    std::vector<uint32_t> native;
+};
+std::vector<CreationTagOutput> g_creationTags;
+size_t g_tagCursor = 0;
+bool g_tagValid = true;
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
+    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
+    const auto& tag = g_creationTags[g_tagCursor++];
+    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
+}
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
 size_t g_nestedCursor = 0;
@@ -270,6 +283,7 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.ctx->onSelect = &HookSelect;
     b.ctx->hookCtx = b.ctx.get();
     b.host = MakePropHost(b.ctx.get());
+    b.host.set_prop_requester = &CompareRequesterTag;
     PropBlockSnapshot::Bind(b.host);
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
@@ -452,6 +466,7 @@ struct MonthStats {
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
     uint32_t operationsExact = 0, operationsIncomplete = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
+    uint32_t creationTags = 0, creationTagsMatched = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -619,6 +634,11 @@ void StepAfter(void* ctx) {
         g_month.d.Add("creation transcript invalid: consumed=%u native=%u", U(g_creationCursor),
                       g_creationTrace ? U(g_creationTrace->Events().size()) : 0);
     }
+    g_month.creationTags += U(g_creationTags.size());
+    if (!g_tagValid || g_tagCursor != g_creationTags.size()) {
+        g_month.d.Add("creation requester tag projection differs: consumed=%u native=%u", U(g_tagCursor),
+                      U(g_creationTags.size()));
+    } else g_month.creationTagsMatched += U(g_creationTags.size());
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
@@ -638,7 +658,13 @@ void StepAfter(void* ctx) {
                 else CompareCores(g_run.core, native.core, g_month.d);
             }
             if (eligible && g_month.d.mismatches == before) ++g_month.operationsExact;
-            else ++g_month.operationsIncomplete;
+            else {
+                ++g_month.operationsIncomplete;
+                // Ineligibility is not an exact output. In particular a Day
+                // with no block can still have unobserved dated effects.
+                if (!eligible && g_month.d.mismatches == before)
+                    g_month.d.Add("operation outputs not fully observed (creation/dated effects; PV18)");
+            }
         }
     } result{s, mismatchesBefore, !g_uncertain && complete && s.inputs.valid};
     g_run.ctx->pool.Drain();
@@ -1006,6 +1032,20 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     g_nativeOperation = false;
     trace.Finish();
     creations.Finish();
+    // PV17: service insertion precedes requester tagging. Compare the final
+    // native tag projection to the independent developer's requested writes;
+    // never supply that final tag as a replay input. This does not certify
+    // arbitrary virtual holder callbacks or the unobserved registration writes.
+    g_creationTags.clear();
+    g_tagCursor = 0;
+    g_tagValid = true;
+    for (const auto& event : creations.Events()) if (event.result) {
+        CreationTagOutput tag{event.result, {}};
+        auto* prop = static_cast<cISC4PropOccupant*>(FromToken(event.result));
+        cISC4Occupant* occupant = prop->AsOccupant(); // borrowed
+        if (!occupant || !props::GetU32s(occupant->AsPropertyHolder(), 0x89A1C16C, tag.native)) g_tagValid = false;
+        g_creationTags.push_back(std::move(tag));
+    }
     g_creationTrace = &creations;
     g_creationCursor = 0;
     g_creationValid = creationRecording;
@@ -1075,6 +1115,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " night-callbacks=" + std::to_string(g_month.nights) +
                              " night-exact=" + std::to_string(g_month.nightExact) +
                              " night-draws=" + std::to_string(g_month.nightDraws) +
+                             " creation-tags=" + std::to_string(g_month.creationTags) +
+                             " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     g_month = MonthStats{};

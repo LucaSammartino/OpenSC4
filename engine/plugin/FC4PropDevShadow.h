@@ -35,6 +35,8 @@
 // Native night callbacks capture the invoking thread's genuine CRT input,
 // validate the complete draw count and final CRT, then compare the saved
 // ordered list/cursor/batch/mode outputs before another recipient runs (PV16).
+// Successful creation returns also compare the final native requester-tag
+// projection against the independent requested write, in creation order.
 // Creation attempts/failures and dated effects remain incomplete (PV18). Output
 // matches are not full-operation exactness. At each SimNewMonth
 // the original's record is read into a second core and its state and lists
