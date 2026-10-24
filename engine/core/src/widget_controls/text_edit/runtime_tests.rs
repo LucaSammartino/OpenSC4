@@ -328,7 +328,7 @@ fn te_password_mixed_coordinates_and_double_click_vectors_18_19_28() {
         .paints
         .iter()
         .any(|p| matches!(p, Paint::Text { bytes, .. } if bytes == b"*")));
-    assert!(f.paints.iter().any(|p| matches!(p, Paint::Caret { x: 25, .. })));
+    assert!(f.paints.iter().any(|p| matches!(p, Paint::Caret { x: 20, .. })));
     e.flags = 0x1000;
     e.runtime.clipboard = Some(40);
     e.key_down(0x1b, 2, &mut f).unwrap();

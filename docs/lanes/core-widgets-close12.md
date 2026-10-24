@@ -1,31 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-widgets-close12: widget owner closure | Codex / core-widgets-close12 | in progress | Continue TextEdit audit, complete FileBrowser settled orchestration, reconcile closure tables, run final gate |
+| core-widgets-close12: widget owner closure | Codex / core-widgets-close12 | in progress | Collect native gate, run corrected final all, commit partial closure report and READY queue |
 
 ## Handoff
-- Goal: close Grid, FileBrowser, TextEdit and TreeView core owners against widget-controls and related specs.
-- Worktree reserved; detached HEAD retained. No plugin/C ABI changes authorized.
-- Done: inspected audit evidence, incorporated owner specs and current code. Grid runtime already claims closure in grid/README.md; top module README/audit are stale. TreeView residuals are explicitly WC2/WC3/WC6.
-- Done: e46fcc383 adds TextEdit runtime/layout/input/paint/edits modules and 3 recording-service tests (17 focused tests total). These remain provisional pending full owner/vector review.
-- Focused cargo passed 17/17 on latest committed source (shared reflow guard/mouse refinements included); session 63969 collected to terminal exit 0. No operations remain running.
-- qbuild fmt passed for all 8 owned Rust files, exit=0 files=8 diff_lines=0.
-- Initial focused compile failed four u64 token/u32 notification word mismatches; changed host send payload to [u64;3], then focused runs passed. q.py failed Bash CreateFileMapping (evidence build-runs/q/20261024-112349-31168.log); direct cargo works.
-- Questions appended: TE10 native runtime defaults, TE11 shared reflow threshold in docs/specs/questions/text-edit.md. Do not run forbidden tools/questions.py; coordinator regenerates index.
-- Next: review/fix remaining TextEdit source issues below; implement FileBrowser settled lifecycle/init/paint portions without inventing FBQ1/2/4/5 contracts; reconcile complete Owner closure table incl all conformance vectors.
-- Review needed: exact_line_heights currently uses base_area at origin instead of a base SetHeight primitive; painting image edge/dimensions/scrollbar strips need closer audit; live character wrapper/manager key queries and accessor/buffer adapters still need completion; raw default placeholders TE10 must not become asserted native values.
-- Runtime repairs: byte-stage APIs retained; live set_text/insert_raw/remove_raw/remove_char_raw/insert_text/undo/redo execute native work. Verify all input calls use live entries and native event ordering.
-- No FileBrowser/Grid/TreeView source edits yet; no owner closure claim for this continuation. Grid release already shuts down and expects caller drop; audit if owning final-release adapter is still required.
-- No final all/verify gate run yet (source not final); no game needed for unwired core, no game requests outstanding; ABI unchanged.
-- Formatting helper build-runs/format-owned.py emits an apply_patch diff; apply its output, never write rustfmt stdout to source. It now explicitly decodes rustfmt UTF-8. A one-time mojibake mistake was repaired; fmt passed afterward.
-- Round 2 milestone: live character entry/key queries, text/output/resource adapters, origin-preserving exact-height resize and background image thirds/bar strips; TextEdit focused 20/20 passed (session 89531 terminal exit 0). Grid owning final-release adapter added; its compile/test pending.
-- Round 2 milestone: FileBrowser lifecycle.rs implements settled Init/paint/refresh dispatch, direct destruction vs final release, property adapters and factory prefix; unresolved primary bodies default to FBQ errors, not hidden whole-owner host algorithms. README replaced with section-level tables; TreeView audited (WC2/WC3/WC6 only).
-- TE12 appended: background option polarity absent from section 9; provisional false=direct/true=edge explicitly marked. TE10/TE11 remain unsettled.
-- Focused operation 30437 terminal exit 1: one FileBrowser associated-function syntax error, corrected before the next operation. Corrected-source focused operation 5496 is compiling; functions cell 49 is collecting that SAME operation in 60-second waits. Do not launch duplicate checks. Latest source includes the control-prefix test and formatting; final all must cover it.
-- Owned absolute-path qbuild fmt passed for the 12 earlier changed files. Final audit adds the distinct W+0x144 auxiliary string default `-` and the buffer RemoveBadCharacters wrapper (filter locally; call foreign strncpy with original count). Added a focused boundary test. Rechecked formatting on the four final files including mod.rs.
-- Session 5496/cell 49 terminal exit 1: 83 tests, 81 passed, 2 fixture failures. Evidence preserved in build-runs/focused-r2-failures.md. Recording RGB whitelist now accepts Init colors; password vector constrains the original readable mask span. No production behavior was changed for these failures.
-- Final qbuild fmt passed for the two corrected test files (exit=0 files=2 diff_lines=0).
-- Round 3: prior session 93629 gone; coordinator explicitly requested one new final all/verify gate, with no new implementation. Stable source remains 5d68621c7.
-- FINAL ALL running: session 93471, build-runs/final-gates-r3.py; collect that operation to terminal. Output: build-runs/final-r3-all.log; detailed logs: build-runs/qbuild-*.log. No game requests.
-- Round 3 test result: 6859 passed/1 failed/0 ignored; Clippy passed with zero diagnostics. Native queue qbuild-20261024-122431-build-ctest is pending; collect session 93471 before editing source. Diagnosis/evidence: build-runs/final-r3-failure.md.
-- Next: after 93471 terminates, fix runtime_tests.rs:331 expected caret x=25 to x=20 (fixture gutters zero, mask prefix length two at 10px/byte); no production behavior change. Run final-gates-r3-corrected.py (preserves initial detailed logs), collect to terminal, inspect totals, commit full partial closure report and READY queue with actual full HEAD.
+- FINAL ROUND: no new implementation; finish diagnostics, gates, partial closure report and READY queue. Detached HEAD; do not update refs. No ABI/plugin changes or game requests.
+- Done e46fcc383: TextEdit live runtime/layout/input/paint/edits; 37f186865: character/output adapters, origin-preserving exact-height operation, background pieces and Grid owning final release.
+- Done 1d4319ffa: FileBrowser lifecycle/init/paint/property/factory orchestration; section-level Owner closure tables. a239d32c1: auxiliary string default and RemoveBadCharacters buffer adapter.
+- Done 5d68621c7: recording RGB whitelist and safe password span fixture repairs; earlier focused failures are in build-runs/focused-r2-failures.md.
+- Owner status: Grid fully implemented against settled spec; TextEdit partial TE5/TE8/TE9-TE12; FileBrowser partial FBQ1/FBQ2/FBQ4/FBQ5/FBQ6; TreeView partial WC2/WC3/WC6. Detailed sections/tests in engine/core/src/widget_controls/README.md and grid/README.md.
+- Questions filed this lane: TE10 defaults, TE11 shared reflow threshold, TE12 background mode polarity in docs/specs/questions/text-edit.md. Existing unresolved IDs remain boundaries, not closure claims.
+- Owned formatting passed previously for 12 changed files; latest absolute-path qbuild fmt passed runtime_tests.rs, files=1 diff_lines=0.
+- Prior session 93629 gone; coordinator authorized replacement all operation 93471 running build-runs/final-gates-r3.py. Collect THAT operation to terminal; do not duplicate. Log build-runs/final-r3-all.log.
+- Initial all Rust result: 6859 passed/1 failed/0 ignored; Clippy exit 0 diagnostics 0. Native request qbuild-20261024-122431-build-ctest has waited since 12:24 behind game regression. Detailed qbuild-test.log and qbuild-clippy.log remain original evidence.
+- Diagnosed failure runtime_tests.rs:331 expected caret x=25 despite fixture gutters zero and two 10px mask bytes. Corrected expected x to 20 only; no production input changed while native stage waits. Diagnosis build-runs/final-r3-failure.md.
+- Corrected focused operation 8356 TERMINAL exit 0: 1 passed/0 failed/4656 filtered, log build-runs/final-r3-focused.log. No focused operation outstanding.
+- Next: collect 93471 to terminal, then run build-runs/final-gates-r3-corrected.py once (preserves initial qbuild logs), collect its SAME session to terminal and inspect full summed totals. all includes verify, do not duplicate verify.
+- Then replace this Handoff with full report (owner status/open sections, tests/clippy/CTest, questions, no game/ABI); commit; write READY merge-queue/core-widgets-close12.json with full actual HEAD and reserved branch name.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r3-manifest.json.
