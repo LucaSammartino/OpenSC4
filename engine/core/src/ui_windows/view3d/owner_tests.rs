@@ -999,8 +999,8 @@ fn window_focus_accelerator_button_filter_and_clock_routes() {
     assert!(v.window_message(&mut host, button.clone()));
     assert!(host.ops.is_empty());
     assert!(v.filter_message(&mut host, button));
-    assert!(host.ops.is_empty()); // unknown button has no invented action
-    assert!(host.popup_calls.is_empty());
+    assert!(host.ops.is_empty()); // unknown button still reaches the tutorial follow-up
+    assert_eq!(host.popup_calls, [PopupCall::TutorialButton(19)]);
     for kind in [0x13, 0x0D, 0x14] {
         v.window_message(
             &mut host,
@@ -1916,7 +1916,10 @@ fn button_filter_executes_commands_and_day_night_preferences_in_order() {
             ..WindowMessage::default()
         }
     ));
-    assert_eq!(h.popup_calls, [PopupCall::Execute(0x6A93_5CC9)]);
+    assert_eq!(
+        h.popup_calls,
+        [PopupCall::Execute(0x6A93_5CC9), PopupCall::TutorialButton(0x2A4F_BB08)]
+    );
     h.popup_calls.clear();
     v.handle_button_activated(&mut h, 0xCA35_CB76);
     assert_eq!(
@@ -1926,7 +1929,8 @@ fn button_filter_executes_commands_and_day_night_preferences_in_order() {
             PopupCall::DayNightPreference(1),
             PopupCall::DayNightButton(0xCA35_CB74, false),
             PopupCall::DayNightButton(0xCA35_CB76, true),
-            PopupCall::DayNightButton(0xCA35_CB78, false)
+            PopupCall::DayNightButton(0xCA35_CB78, false),
+            PopupCall::TutorialButton(0xCA35_CB76)
         ]
     );
     assert_eq!(h.ops, [Op::Action(ActionCall::VisualTimeMode(1))]);
