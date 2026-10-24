@@ -8,11 +8,11 @@
 - Coverage: primary QI/AddRef/SetOwnControl, legacy GetControl/SetOwnControl; all five owner fields compared.
 - SetParameters counts and post-build GetControl probes are separate; property/interpreter replay excluded.
 - Questions: LC14 return contracts; LC15 observable direct-call boundary, in docs/specs/questions/legacy-control.md.
-- Next: collect REQUIRED qbuild all session 7674, already launched on stable source; never duplicate it.
+- Next: final qbuild all after C++ QI byte-buffer review fix, then game draft to 2032. First all session 7674 is terminal PASS.
 - Focused result: terminal, 2 passed/0 failed (4870 filtered), 55m41s compile; log build-runs/legacyctl-focused.log. PowerShell wrapper exit 1 reflects normal cargo stderr NativeCommandError, not a test failure.
-- Full gate Rust results: 7375 passed/0 failed; clippy clean (Finished dev profile, 1m09s). Session 7674 still active awaiting remaining/native result; no terminal verdict yet. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, eventual legacyctl-all-console.log.
-- Native verify: use qbuild verify only if all does not already delegate it; then game to 2032.
-- Review finding pending fix AFTER session 7674 terminal: QI pre-out may be uninitialized. Current uint32 memcpy plus reinterpret_cast still evaluates those bits. Keep pre-out as unsigned-char bytes and compare by memcmp on rejection; decode native output only on native success. Preserve current gate logs and rerun all after the C++-only fix. Do not game-test before fixing.
+- First all: PASS, cargo 7375/0, clippy 0 diagnostics, native build 263/263 edges and CTest 81/81. Queue qbuild-20261024-182826-build-ctest; all delegates native verification correctly, do not separately enqueue verify.
+- Evidence before review fix: build-runs/legacyctl-pre-qi-fix/; final source needs a new all check because C++ changed.
+- Review fix applied: QI out-pointer representation stays in unsigned-char bytes and is compared bytewise for both success/rejection; no indeterminate pointer/integer value is evaluated.
 - Game draft: build-runs/legacyctl-owner-2032.req-draft; wait helper build-runs/wait-legacyctl-verdict.ps1 uses one file event, no qwait/poll loop.
 - Focused check: build-runs/legacyctl-focused.log; no game request outstanding.
 - Formatting: PASS, three explicit owned Rust files. Focused compilation is unusually slow but active (CPU increased, one rustc completed).

@@ -38,7 +38,7 @@ void* originals[SlotCount]{};
 
 // No native post-state enters Rust: inputs are BEFORE state and method argument.
 void Compare(const State& before, const void* owner, uint32_t op, uint32_t argument,
-             uint32_t nativeValue, bool checkValue, void* queryOut = nullptr, void* rejectedOut = nullptr) {
+             uint32_t nativeValue, bool checkValue, const void* queryOut = nullptr, const void* rejectedBytes = nullptr) {
     uint32_t result[6]{};
     const bool ok = fc4_legacyctl_shadow_replay(before.words, op, argument, result) == 1;
     const State after = Snapshot(owner);
@@ -53,8 +53,13 @@ void Compare(const State& before, const void* owner, uint32_t op, uint32_t argum
         }
         if (op == 3) {
             const bool accepted = result[5] != 0;
-            const void* expected = accepted ? static_cast<const uint8_t*>(owner) + result[5] - 1 : rejectedOut;
-            if ((nativeValue != 0) != accepted || queryOut != expected) ++bad;
+            if ((nativeValue != 0) != accepted) ++bad;
+            if (accepted) {
+                const void* expected = static_cast<const uint8_t*>(owner) + result[5] - 1;
+                if (!queryOut || std::memcmp(queryOut, &expected, sizeof(expected)) != 0) ++bad;
+            } else if (queryOut && std::memcmp(queryOut, rejectedBytes, sizeof(void*)) != 0) {
+                ++bad;
+            }
         } else if (checkValue && nativeValue != result[5]) {
             ++bad;
         }
@@ -65,14 +70,12 @@ void Compare(const State& before, const void* owner, uint32_t op, uint32_t argum
 }
 bool __fastcall QueryHook(void* self, void*, uint32_t iid, void** out) {
     const State before = Snapshot(self);
-    // QI callers may supply an uninitialized out-pointer. Copy representation
-    // bytes rather than evaluating an indeterminate C++ pointer value.
-    uint32_t untouched = 0;
+    // QI callers may supply an uninitialized out-pointer. Keep its character
+    // representation opaque throughout; never evaluate it as a pointer/integer.
+    unsigned char untouched[sizeof(void*)]{};
     if (out) std::memcpy(&untouched, out, sizeof(untouched));
     const bool value = reinterpret_cast<QueryFn>(originals[Query])(self, nullptr, iid, out);
-    uint32_t returned = 0;
-    if (out) std::memcpy(&returned, out, sizeof(returned));
-    Compare(before, self, 3, iid, value, true, reinterpret_cast<void*>(returned), reinterpret_cast<void*>(untouched));
+    Compare(before, self, 3, iid, value, true, out, untouched);
     return value;
 }
 uint32_t __fastcall RefHook(void* self, void*) {
