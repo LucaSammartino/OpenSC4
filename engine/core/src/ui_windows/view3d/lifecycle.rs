@@ -283,6 +283,8 @@ impl View3DWin {
         self.owner.lifecycle.initialized = false;
         self.owner.lifecycle.active = false;
         self.owner.motion.paint_enabled = false;
-        self.owner.deferred.clear();
+        for message in std::mem::take(&mut self.owner.deferred) {
+            host.deferred_reference(&message, false);
+        }
     }
 }

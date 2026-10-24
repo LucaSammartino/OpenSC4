@@ -23,8 +23,8 @@ claim measurement in the real game.
 | view3d-window §1, §1.1 identity and overrides | `query_interface`, `slots`, `on_command` | `vw_t1_qi_exact_interfaces_and_shared_count`, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command`; no-op slot 143 covered; remaining: unified override adapter |
 | §2 construction | `OwnerState`, `Lifecycle`, `Motion`, `ViewState`, `PanelState` defaults | VW-T12/T13/T14, lifecycle tests; remaining: full VW-T26 dormant/panel-extra vector |
 | §3 Init | `init`, `registry::COMMANDS`, `LifecycleHost::register_view_command` | `init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure`, `vw_t28_registry_is_literal_and_ordered` |
-| §3.1 cheats | `process_cheat`, decimal-prefix `atof`, `CheatHost::decimal_separator` | VW-T5/T6; `vw_t31_sizeof_crt_grammar`; remaining: comma-locale vector |
-| §4 Shutdown | `shutdown`, `shutdown_helpers`, `shutdown_tail` | VW-T2 and GUI shutdown tests; remaining: dormant helper active flag and exact required-failure teardown audit |
+| §3.1 cheats | `process_cheat`, decimal-prefix `atof`, `CheatHost::decimal_separator` | VW-T5/T6; `vw_t31_sizeof_crt_grammar`, `sizeof_uses_host_locale_decimal_separator` |
+| §4 Shutdown | `shutdown`, `shutdown_helpers`, `shutdown_tail` | VW-T2, GUI shutdown tests and `shutdown_releases_each_deferred_queue_reference_once`; remaining: dormant helper active flag and exact required-failure teardown audit |
 | §5 notifications | `notification`, `pre_city_shutdown`, object-record methods | VW-T3, reference tests, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command` |
 | §5.1 pause / mission | `notification`, borrowed `Notification::attachment` | `notification_view_hidden_pause_mission_and_progress_guards`; remaining: target/fallback caption work and complete VW-T33 |
 | §5.2 view updates | `notification`, `refresh_background`, temporary hidden pause | notification and paint tests; remaining: complete VW-T36 basename/failure vector |
@@ -39,12 +39,12 @@ claim measurement in the real game.
 | §6g commands | `process_command`, `process_motion_panel_command`, typed tool methods | VW-T11–T15 and command guards; remaining: bus/pipe button dispatch and exhaustive registry-to-dispatch audit |
 | §6h panels / registry | `PanelState`, panel/filter methods, `COMMANDS` | VW-T14, tab/filter tests, `vw_t28_registry_is_literal_and_ordered`; remaining: mayor pane bookkeeping audit |
 | §6i menus / buttons | `menus`, `actions`, catalog methods | catalog/tool/disaster tests; remaining: resolved VW17 routing and caller-data cases, complete VW-T32 |
-| §6j status | `status`, `DisplayState` | VW-T17/T18, widget/rating/mission tests, `vw_t22_cursor_priorities_and_in_place_update`, `vw_t23_fade_alpha_motion_and_hidden_reset`; remaining: explicit hidden-BMP visibility callback semantics |
+| §6j status | `status`, `DisplayState` | VW-T17/T18, widget/rating/mission tests, `vw_t22_cursor_priorities_and_in_place_update`, `vw_t23_fade_alpha_motion_and_hidden_reset`, `vw_t24_date_formatter_year_boundaries`; remaining: explicit hidden-BMP visibility callback semantics |
 | §6k save / triggers | `save_object_record`, `load_object_record`, `StlHashMap` trigger state | VW-T16, opaque-reference tests, `vw_t30_trigger_wrapping_bucket_heads_and_growth`; open: VW19 load reconstruction |
-| §6l helpers | `Coverage`, `CoverageHost`, `refresh_background`, `setup_graph`, `stop_auxiliary`, borrowed getters, empty debug slot | `vw_t35_borrowed_getters_and_debug_no_effect`, `vw_t37_t38_coverage_transform_fallback_and_stale_cache`; remaining: owner/GUI integration of coverage and graph setup, advice routing, complete VW-T33/T34/T36/T39 |
+| §6l helpers | `Coverage`, `CoverageHost`, `refresh_background`, `setup_graph`, `stop_auxiliary`, borrowed getters, empty debug slot | `vw_t35_borrowed_getters_and_debug_no_effect`, `vw_t37_t38_coverage_transform_fallback_and_stale_cache`, `vw_t39_graph_resource_order_and_conditional_stop`; remaining: owner/GUI integration of coverage and graph setup, advice routing, complete VW-T33/T34/T36 |
 | §6m quirks | motion/commands and helper state | VW-T11/T12/T13/T21/T30; remaining: dormant objects, required failures, panel extras |
-| §6n paint completion | `paint`, `paint_deferred`, `MotionHost` | `vw_t19_t20_deferred_tail_and_timer_boundaries`, existing ordered paint and decay tests; remaining: safe-but-disabled modal drop/recheck vector |
-| §7 conformance | `owner_tests`, `resolved_tests` | Existing VW-T1–T18 plus new T19/T20/T21/T22/T23/T25/T28/T30/T31/T35/T37/T38; T24 behavior exists in `update_date`, exact boundary vector remains. T26/T27/T29/T32/T33/T34/T36/T39 are not fully covered |
+| §6n paint completion | `paint`, `paint_deferred`, `MotionHost` | `vw_t19_t20_deferred_tail_and_timer_boundaries`, `vw_t19_safe_but_disabled_modal_drops_one_message_without_repost`, existing ordered paint and decay tests |
+| §7 conformance | `owner_tests`, `resolved_tests` | Existing VW-T1–T18 plus T19/T20/T21/T22/T23/T24/T25/T28/T30/T31/T35/T37/T38/T39; T26/T27/T29/T32/T33/T34/T36 are not fully covered |
 | §8 questions | `state::load_triggers` | open: VW19; no older VW question is treated as still open |
 | view3d §5.1 paint order | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw`, decay/pause tests, VW-T19/T20; cost → scroll → resume → context time → one renderer Draw → tail |
 | view3d §5.2 draw fields | `Motion` | paint gating, timing, decay and hidden pause tests |

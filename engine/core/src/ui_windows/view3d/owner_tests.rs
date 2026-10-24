@@ -75,6 +75,9 @@ struct Host {
     rewrite: Option<(i32, i32)>,
     zoom: i32,
     changed: bool,
+    deferred_enabled: Option<bool>,
+    decimal_separator: u8,
+    date: Option<[i32; 3]>,
     moved: bool,
     simulator: bool,
     scroll_control: Option<u32>,
@@ -111,6 +114,9 @@ impl Default for Host {
             rewrite: None,
             zoom: 3,
             changed: true,
+            deferred_enabled: None,
+            decimal_separator: b'.',
+            date: None,
             moved: false,
             simulator: true,
             scroll_control: None,
@@ -139,7 +145,7 @@ impl Host {
 impl WidgetHost for Host {
     fn status_snapshot(&self) -> StatusSnapshot {
         StatusSnapshot {
-            date: [12003, 4, 5],
+            date: self.date.unwrap_or([12003, 4, 5]),
             start_year: 2000,
             population: 1234,
             city_name: "City".into(),
@@ -1068,7 +1074,7 @@ impl MotionHost for Host {
         self.changed
     }
     fn deferred_enabled(&self) -> bool {
-        self.changed
+        self.deferred_enabled.unwrap_or(self.changed)
     }
     fn deferred_reference(&mut self, m: &Notification, acquire: bool) {
         self.ops.push(Op::DeferredRef(m.kind, acquire));
@@ -1435,6 +1441,9 @@ impl StateHost for Host {
 }
 
 impl CheatHost for Host {
+    fn decimal_separator(&self) -> u8 {
+        self.decimal_separator
+    }
     fn create_cheat_control(&mut self, _: CheatTool) -> Option<u32> {
         self.scroll_control
     }

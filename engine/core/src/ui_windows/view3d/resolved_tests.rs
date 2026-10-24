@@ -55,6 +55,76 @@ fn vw_t21_inverted_limits_minimum_first() {
 }
 
 #[test]
+fn shutdown_releases_each_deferred_queue_reference_once() {
+    let mut v = view();
+    let mut h = Host {
+        changed: false,
+        ..Host::default()
+    };
+    for kind in [0xAA5C_F1E3, 0xAC08_3D7D, 0xAA5C_F1E3] {
+        v.notification(
+            &mut h,
+            Notification {
+                kind,
+                ..Notification::default()
+            },
+        );
+    }
+    assert_eq!(v.owner.deferred.len(), 2);
+    v.shutdown_tail(&mut h);
+    v.shutdown_tail(&mut h);
+    let references: Vec<_> = h
+        .ops
+        .into_iter()
+        .filter(|op| matches!(op, Op::DeferredRef(..)))
+        .collect();
+    assert_eq!(
+        references,
+        [
+            Op::DeferredRef(0xAA5C_F1E3, true),
+            Op::DeferredRef(0xAC08_3D7D, true),
+            Op::DeferredRef(0xAA5C_F1E3, false),
+            Op::DeferredRef(0xAC08_3D7D, false),
+        ]
+    );
+    assert!(v.owner.deferred.is_empty());
+}
+
+#[test]
+fn vw_t19_safe_but_disabled_modal_drops_one_message_without_repost() {
+    let mut v = view();
+    let mut h = Host {
+        changed: false,
+        ..Host::default()
+    };
+    for kind in [0xAA5C_F1E3, 0xAC08_3D7D] {
+        v.notification(
+            &mut h,
+            Notification {
+                kind,
+                ..Notification::default()
+            },
+        );
+    }
+    h.changed = true; // Modal state is safe when the paint tail begins.
+    h.deferred_enabled = Some(false); // Recheck after unlink forbids repost.
+    h.ops.clear();
+    assert!(v.paint(&mut h, 0, 0));
+    assert_eq!(v.owner.deferred.len(), 1);
+    assert_eq!(
+        h.ops,
+        [
+            Op::DeferredRef(0xAA5C_F1E3, true),
+            Op::DeferredRef(0xAA5C_F1E3, false),
+            Op::DeferredRef(0xAA5C_F1E3, false),
+            Op::Tail,
+        ]
+    );
+    v.shutdown_tail(&mut h);
+    assert_eq!(h.ops.last(), Some(&Op::DeferredRef(0xAC08_3D7D, false)));
+}
+
+#[test]
 fn vw_t22_cursor_priorities_and_in_place_update() {
     let mut v = view();
     let mut h = Host::default();
@@ -170,6 +240,104 @@ fn vw_t31_sizeof_crt_grammar() {
             Op::Size(10.0)
         ]
     );
+}
+
+#[test]
+fn sizeof_uses_host_locale_decimal_separator() {
+    let mut v = view();
+    let mut h = Host {
+        decimal_separator: b',',
+        ..Host::default()
+    };
+    for text in ["1,5", "1.5", "  +2,5D1tail", "bad"] {
+        v.process_cheat(&mut h, 0xCA7BC5B5, &["SizeOf", text]);
+    }
+    assert_eq!(h.ops, [Op::Size(1.5), Op::Size(1.0), Op::Size(25.0), Op::Size(0.9)]);
+}
+
+#[test]
+fn vw_t24_date_formatter_year_boundaries() {
+    let v = view();
+    let mut h = Host::default();
+    for (year, formatted_year) in [(-1, -1), (0, 0), (10000, 10000), (10001, 1)] {
+        h.date = Some([2000 + year, 4, 5]);
+        h.widgets.clear();
+        v.update_date(&mut h);
+        assert_eq!(h.widgets, [WidgetCall::Date([formatted_year, 4, 5])]);
+    }
+}
+
+#[derive(Default)]
+struct GraphRecorder {
+    resource: Option<u32>,
+    calls: Vec<(u32, i32, u32)>,
+}
+
+impl GraphHost for GraphRecorder {
+    fn graph_resource(&mut self, instance: u32, group: u32) -> Option<u32> {
+        assert_eq!((instance, group), (0x4203, 0xCA31_8385));
+        self.resource
+    }
+    fn graph_reset(&mut self, resource: u32, index: i32, value: u32) {
+        assert_eq!(resource, 77);
+        self.calls.push((8, index, value));
+    }
+    fn graph_prepare(&mut self, resource: u32) {
+        assert_eq!(resource, 77);
+        self.calls.push((6, 0, 0));
+    }
+    fn graph_series(&mut self, resource: u32, series: u32, colour: u32) {
+        assert_eq!(resource, 77);
+        self.calls.push((7, series as i32, colour));
+    }
+    fn graph_release(&mut self, resource: u32) {
+        assert_eq!(resource, 77);
+        self.calls.push((0, 0, 0));
+    }
+}
+
+#[test]
+fn vw_t39_graph_resource_order_and_conditional_stop() {
+    let v = view();
+    let mut graph = GraphRecorder::default();
+    v.setup_graph(&mut graph);
+    assert!(graph.calls.is_empty());
+    graph.resource = Some(77);
+    v.setup_graph(&mut graph);
+    assert_eq!(
+        graph.calls,
+        [
+            (8, -1, 0),
+            (6, 0, 0),
+            (7, 1, 0x00FF00),
+            (7, 2, 0x44CC22),
+            (7, 3, 0x1E911E),
+            (7, 4, 0x5B81D0),
+            (7, 5, 0x3D6EB8),
+            (7, 6, 0x3C42AD),
+            (7, 7, 0xD0D030),
+            (7, 8, 0xC6B733),
+            (7, 9, 0xBC9F37),
+            (0, 0, 0),
+        ]
+    );
+    let mut h = Host {
+        changed: false,
+        ..Host::default()
+    };
+    let mut active = false;
+    assert!(v.stop_auxiliary(&mut h, 42, &mut active));
+    assert!(h.helper_calls.is_empty());
+    active = true;
+    assert!(v.stop_auxiliary(&mut h, 42, &mut active));
+    assert!(!active);
+    assert_eq!(h.helper_calls, [(42, 4)]);
+    h.changed = true;
+    h.helper_calls.clear();
+    active = true;
+    assert!(v.stop_auxiliary(&mut h, 42, &mut active));
+    assert!(!active);
+    assert_eq!(h.helper_calls, [(42, 4), (42, 0)]);
 }
 
 #[test]
