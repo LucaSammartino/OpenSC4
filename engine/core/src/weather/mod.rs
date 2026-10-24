@@ -54,7 +54,11 @@
 //!   and `UpdateMoisture` does nothing (§5.3, §4).
 //! - §5.1, §6.1, §6.2, §6.3 and §6.5 run in `f32` in the spec's operation
 //!   order (one rounding per operation, foundations §18; the generator's
-//!   doubles are 24-bit, foundations §6.1). The cosine of §6.1 is the
+//!   doubles are 24-bit, foundations §6.1). The daily fraction uses the
+//!   binary64 constant before rounding; daily
+//!   normalization uses reciprocal products and moisture rescales the
+//!   measured direction, as specified by WE1 in §5.1.1–2 and §6.5.1.
+//!   The cosine of §6.1 is the
 //!   `double` cosine of the rounded angle (x87 `fcos` is not affected by the
 //!   precision control); it can differ from the original only within a
 //!   `double` error of a `float32` rounding boundary. The windSpread tuning

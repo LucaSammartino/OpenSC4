@@ -560,7 +560,7 @@ pub struct PropDeveloper {
     token: Cell<u64>,
     s: RefCell<PropState>,
     member: RefCell<Box<dyn PropRandom>>,
-    wealth_rng: SharedRandom,
+    wealth_rng: RefCell<SharedRandom>,
     crt: Cell<CrtRand>,
     requesters: RefCell<Vec<Requester>>,
     managers: Cell<[PropRef; 3]>,
@@ -572,6 +572,8 @@ pub struct PropDeveloper {
     signs: RefCell<Vec<PropRef>>,
     last: RefCell<BlockOutcome>,
     member_draws: Cell<u32>,
+    shadow_selectors: Cell<bool>,
+    selection_creation: Cell<bool>,
 }
 
 fn trunc_i32(v: f32) -> i32 {
@@ -600,7 +602,7 @@ impl PropDeveloper {
             token: Cell::new(token),
             s: RefCell::new(PropState::default()),
             member: RefCell::new(member),
-            wealth_rng,
+            wealth_rng: RefCell::new(wealth_rng),
             crt: Cell::new(CrtRand::default()),
             requesters: RefCell::new(Vec::new()),
             managers: Cell::new([PropRef::default(); 3]),
@@ -612,6 +614,8 @@ impl PropDeveloper {
             signs: RefCell::new(Vec::new()),
             last: RefCell::new(BlockOutcome::default()),
             member_draws: Cell::new(0),
+            shadow_selectors: Cell::new(false),
+            selection_creation: Cell::new(false),
         })
     }
 
@@ -626,6 +630,24 @@ impl PropDeveloper {
     }
     pub fn last_block(&self) -> BlockOutcome {
         self.last.borrow().clone()
+    }
+    /// Tooling only: route even wealth selectors through a genuine transcript.
+    /// Preview the next block without advancing the independent scanner.
+    pub fn shadow_prepare(&self) -> Option<(i32, i32)> {
+        self.shadow_selectors.set(true);
+        let s = self.s.borrow();
+        if s.scan_flag != 2 {
+            return None;
+        }
+        let mut scanner = s.scanner.clone();
+        scanner.next_cell().or_else(|| {
+            scanner.reset(0, 0);
+            scanner.next_cell()
+        })
+    }
+
+    pub fn selection_is_creation(&self) -> bool {
+        self.selection_creation.get()
     }
     pub fn requesters(&self) -> Vec<Requester> {
         self.requesters.borrow().clone()
@@ -652,6 +674,10 @@ impl PropDeveloper {
     /// Replaces the member generator (tests, replays).
     pub fn set_member_random(&self, r: Box<dyn PropRandom>) {
         *self.member.borrow_mut() = r;
+    }
+    /// Observation replay: isolate the file generator in shadow-owned storage.
+    pub fn set_wealth_random(&self, r: SharedRandom) {
+        *self.wealth_rng.borrow_mut() = r;
     }
     /// The C `rand()` state of the night shuffle.
     pub fn crt(&self) -> CrtRand {
@@ -838,7 +864,12 @@ impl PropDeveloper {
         }
     }
 
-    fn select(&self, r: usize, ids: &[u32], x: i32, z: i32) -> u32 {
+    fn select(&self, r: usize, ids: &[u32], x: i32, z: i32, creation: bool) -> u32 {
+        self.selection_creation.set(creation);
+        if self.shadow_selectors.get() {
+            let token = self.requesters.borrow()[r].token();
+            return self.host.requester_select(token, ids, x, z);
+        }
         match self.requester(r) {
             Requester::Null => 0,
             Requester::Wealth(_) => self.wealth_select(ids, x, z),
@@ -868,7 +899,7 @@ impl PropDeveloper {
         if kept.is_empty() {
             return 0;
         }
-        let k = self.wealth_rng.borrow_mut().uniform_u32(kept.len() as u32) as usize;
+        let k = self.wealth_rng.borrow().borrow_mut().uniform_u32(kept.len() as u32) as usize;
         kept.get(k).copied().unwrap_or(0)
     }
 
@@ -990,7 +1021,7 @@ impl PropDeveloper {
                     let r = r as usize;
                     let keep = if custom[r] {
                         let t = h.prop_type(prop);
-                        self.select(r, &[t], x, z) == t
+                        self.select(r, &[t], x, z, false) == t
                     } else {
                         true
                     };
@@ -1122,7 +1153,7 @@ impl PropDeveloper {
             return false;
         }
         let pick = if self.custom(r) {
-            self.select(r, &cands, slot.x, slot.z)
+            self.select(r, &cands, slot.x, slot.z, true)
         } else {
             let k = self.draw_member_uniform(cands.len() as u32) as usize;
             cands.get(k).copied().unwrap_or(0)

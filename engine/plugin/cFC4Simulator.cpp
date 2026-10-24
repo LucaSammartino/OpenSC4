@@ -34,6 +34,7 @@
 #include "FC4PropDevShadow.h"  // the glue12b1 lane
 #include "FC4TrafficShadow.h"
 #include "FC4PortsShadow.h"
+#include "FC4WeatherShadow.h"
 #include "FC4OrdinanceShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Pacing.h"
@@ -414,6 +415,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::TrafficShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
 !fc4::PropDevShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::PortsShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::WeatherShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::OrdinanceShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }

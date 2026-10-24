@@ -194,6 +194,22 @@ pub unsafe extern "C" fn fc4_weather_shutdown(w: *mut fc4_weather) -> bool {
     with_w(w, false, |h| h.sim.shutdown())
 }
 
+/// Tooling only: copy the independent CRT generator state. Never writes native state.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_weather_shadow_crt(w: *mut fc4_weather, state: *mut u32, restore: bool) -> bool {
+    if state.is_null() {
+        return false;
+    }
+    with_w(w, false, |h| {
+        if restore {
+            h.sim.set_crt(fc4_core::rng::CrtRand::new(*state));
+        } else {
+            *state = h.sim.crt().state();
+        }
+        true
+    })
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fc4_weather_do_post_city_init(w: *mut fc4_weather) -> bool {
     with_w(w, false, |h| h.sim.do_post_city_init())
@@ -202,20 +218,37 @@ pub unsafe extern "C" fn fc4_weather_do_post_city_init(w: *mut fc4_weather) -> b
 /// `DoMessage` (§5): SimNewDay (data1 = Julian day), SimNewWeek, SimNewMonth
 /// (data3 = month), PostCityInit. Always true.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_weather_handle_message(w: *mut fc4_weather, msg_type: u32, data1: u32, data3: u32) -> bool {
+pub unsafe extern "C" fn fc4_weather_handle_message(
+    w: *mut fc4_weather,
+    msg_type: u32,
+    data1: u32,
+    data3: u32,
+) -> bool {
     with_w(w, true, |h| h.sim.handle_message(msg_type, data1, data3))
 }
 
 /// `CellWidthX/Z` (axis 0 / 1).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_weather_cell_width(w: *const fc4_weather, axis: u32) -> f32 {
-    with_w(w, 0.0, |h| if axis == 0 { h.sim.cell_width_x() } else { h.sim.cell_width_z() })
+    with_w(w, 0.0, |h| {
+        if axis == 0 {
+            h.sim.cell_width_x()
+        } else {
+            h.sim.cell_width_z()
+        }
+    })
 }
 
 /// `CellCountX/Z` (axis 0 / 1).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_weather_cell_count(w: *const fc4_weather, axis: u32) -> u32 {
-    with_w(w, 0, |h| if axis == 0 { h.sim.cell_count_x() } else { h.sim.cell_count_z() })
+    with_w(w, 0, |h| {
+        if axis == 0 {
+            h.sim.cell_count_x()
+        } else {
+            h.sim.cell_count_z()
+        }
+    })
 }
 
 unsafe fn put<T>(p: *mut T, v: T) {
@@ -241,7 +274,13 @@ pub unsafe extern "C" fn fc4_weather_position_to_cell(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_weather_cell_to_position(w: *const fc4_weather, cx: i32, cz: i32, x: *mut f32, z: *mut f32) {
+pub unsafe extern "C" fn fc4_weather_cell_to_position(
+    w: *const fc4_weather,
+    cx: i32,
+    cz: i32,
+    x: *mut f32,
+    z: *mut f32,
+) {
     with_w(w, (), |h| {
         let (a, b) = h.sim.cell_to_position(cx, cz);
         put(x, a);
@@ -428,4 +467,40 @@ pub unsafe extern "C" fn fc4_weather_read(w: *mut fc4_weather, inp: *const fc4_i
             decode: no_core_objects,
         })
     })
+}
+
+#[cfg(test)]
+mod shadow_tests {
+    use super::*;
+
+    #[test]
+    fn observed_crt_is_independent_and_drives_weekly_reset() {
+        unsafe extern "C" fn size(_: U, x: *mut f32, z: *mut f32) {
+            *x = 32.0;
+            *z = 32.0;
+        }
+        unsafe {
+            let mut host: fc4_weather_host = std::mem::zeroed();
+            host.struct_size = std::mem::size_of::<fc4_weather_host>() as u32;
+            host.city_size = Some(size);
+            let w = fc4_weather_create(&host, 7);
+            let tuning = crate::props::fc4_props_create();
+            assert!(crate::props::fc4_props_set_i32s(tuning, 0xA760_7D70, &1, 1));
+            assert!(fc4_weather_init(w, tuning));
+            crate::props::fc4_props_destroy(tuning);
+            fc4_weather_handle_message(w, 0x6695_6815, 0, 0); // exhaust first pass
+            let before = with_w(w, None, |h| Some(h.sim.snapshot()));
+            let mut seed = 0xA123_4567;
+            assert!(fc4_weather_shadow_crt(w, &mut seed, true));
+            assert_eq!(before, with_w(w, None, |h| Some(h.sim.snapshot())));
+            fc4_weather_handle_message(w, 0x6695_6815, 0, 0); // exactly one reset/draw
+            let mut actual = 0;
+            assert!(fc4_weather_shadow_crt(w, &mut actual, false));
+            assert_eq!(actual, seed.wrapping_mul(214_013).wrapping_add(2_531_011));
+            assert_eq!(seed, 0xA123_4567); // the observed input is never overwritten
+            assert!(!fc4_weather_shadow_crt(w, std::ptr::null_mut(), true));
+            assert!(!fc4_weather_shadow_crt(std::ptr::null_mut(), &mut seed, true));
+            fc4_weather_destroy(w);
+        }
+    }
 }

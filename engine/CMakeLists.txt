@@ -1051,6 +1051,11 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4LuaShadow.cpp plugin/FC4LuaShadow.h)
 endif()
 
+# Opt-in record-only weather replay; never replaces the native simulator.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4WeatherShadow.cpp plugin/FC4WeatherShadow.h)
+endif()
+
 # OV12 observer safeguards run against the same native adapter as the plugin.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_observation_test tests/overlays_observation_test.cpp)
@@ -1067,4 +1072,20 @@ if(TARGET FreeCity4)
     target_compile_definitions(fc4_automata_capture_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_automata_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME automata_capture_test COMMAND fc4_automata_capture_test "$<TARGET_FILE:FreeCity4>")
+# PV14 genuine selector capture preserves the original ABI and return value.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_transcript_test tests/propdev_transcript_test.cpp)
+    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin)
+    target_compile_definitions(fc4_propdev_transcript_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(fc4_propdev_transcript_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME propdev_transcript_test COMMAND fc4_propdev_transcript_test)
+endif()
+
+# Frozen block inputs preserve each lot's lists once, including empty configurations.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_snapshot_test tests/propdev_snapshot_test.cpp)
+    target_include_directories(fc4_propdev_snapshot_test PRIVATE plugin capi/include)
+    target_compile_definitions(fc4_propdev_snapshot_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_propdev_snapshot_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME propdev_snapshot_test COMMAND fc4_propdev_snapshot_test)
 endif()

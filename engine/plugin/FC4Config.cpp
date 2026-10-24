@@ -370,6 +370,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_shadow",
                                   // Bounded original Lua registry comparison; default off.
                                   "lua_shadow",
+                                  "weather_shadow",
                                   // Partial SC token adapter read observations (default off).
                                   "scres_shadow",
                                   // Fixed native adapter vectors and shipped resource prefix.

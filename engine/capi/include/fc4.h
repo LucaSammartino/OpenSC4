@@ -1049,6 +1049,8 @@ bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
 /* Persistence (§10). */
 bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
 bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
+/* Record-only tooling: get/restore the independent iterator CRT state. */
+bool fc4_weather_shadow_crt(fc4_weather* w, uint32_t* state, bool restore);
 
 /* ---- ordinances (docs/specs/ordinance.md) --------------------------------------
  * The ordinance simulator and the standard ordinance classes (§3.6). The shim
@@ -12909,6 +12911,15 @@ uint32_t fc4_network_rules_snapshot(const fc4_network_rules* r, uint32_t type, u
 int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint32_t index,
                                 const fc4_network_rules_capture* capture,
                                 fc4_network_rules_output* out, uint32_t cap);
+/* PV14 observation only: copy 624 MT words, validating index + remaining = 624. */
+bool fc4_prop_developer_shadow_random(fc4_prop_developer* p, const uint32_t* words,
+                                     uint32_t index, uint32_t remaining, bool wealth);
+/* PV14 frozen-input replay helpers. A NEW independent holder, NULL for NULL. */
+fc4_props* fc4_props_clone(const fc4_props* p);
+/* Enable genuine selectors (including wealth), preview next block without
+ * stepping. False means no block. Purpose getter: inside requester_select. */
+bool fc4_prop_developer_shadow_prepare(const fc4_prop_developer* p, int32_t* bx, int32_t* bz);
+bool fc4_prop_developer_shadow_selector_creation(const fc4_prop_developer* p);
 #ifdef __cplusplus
 }
 #endif
