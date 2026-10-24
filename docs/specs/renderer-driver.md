@@ -430,7 +430,8 @@ vertex count, source pointer, index count, index pointer):
 4. Copy the vertices into the reserved space, converting from the source stride to the compact layout
    (`0x00889280`). Supported packed formats: position; position+colour; position+1 or 2 UV sets;
    position+colour+1 UV set; position+colour+2 UV sets (straight copy, only at stride 32). A stride that is not a
-   multiple of 4 or any other format fails: the reservation is released and the queue returns `0x80004005`.
+   multiple of 4 or any other format performs no copy but still reports copy success; it does not release the
+   reservation on that account (`0x00889409`–`0x00889422`) [quirk].
 5. Subtract the minimum index from each index. If the last queued entry has the same primitive and that
    primitive is a triangle, line or point **list**, merge: both unindexed → add the vertex count; both indexed →
    add vertex and index counts and rebase the new indices onto the merged entry's first vertex (this assumes the
@@ -440,6 +441,28 @@ vertex count, source pointer, index count, index pointer):
 **Flush** (`0x00889DE0`, called by every state slot before it changes state): submit every entry in order as
 `DrawPrimitiveVB` (unindexed) or `DrawIndexedPrimitiveVB` from the buffer, clear the queue, reset the index
 scratch. Not started with a non-empty queue: returns failure and **keeps** the queue.
+
+**Exact compact-buffer writes and flush result (RD10).** The destination is always 32 bytes per vertex:
+XYZ at bytes 0–11, diffuse colour at 12–15, UV0 at 16–23, UV1 at 24–31. Position-only writes XYZ and
+`0xFFFFFFFF` diffuse, leaving both UV sets untouched. Position+colour copies bytes 0–15 and leaves both UV
+sets untouched. Position+UV writes XYZ, `0xFFFFFFFF` diffuse and UV0, leaving UV1 untouched; the two-UV
+variant also copies UV1. Position+colour+UV copies the supplied elements and leaves UV1 untouched;
+position+colour+two-UV at stride 32 copies all 32 bytes. These are byte copies, with no float arithmetic or
+colour conversion (`0x0088C680`–`0x0088C81D`). Flush submits all queued entries despite failures and returns
+the HRESULT of the **last submission**, including a last success that hides earlier failures. An empty flush
+returns zero. The index-scratch cursor is reset even when a nonempty, stopped manager returns `0x80004005`
+without clearing its queue (`0x00889BF0`–`0x00889C88`, `0x00889DE0`).
+
+For nonindexed quads the declared index count remains `3*floor(count/2)`, truncated to 16 bits, but the
+generator writes a whole six-index quad for every base `b=0,4,8,... < count`, including an incomplete last
+quad. For positive ordinary counts it therefore writes `6*ceil(count/4)` indices, with pattern
+`b,b+1,b+2,b,b+2,b+3`. For count 6 it declares 9 but writes
+`0,1,2,0,2,3,4,5,6,4,6,7`; the submitted prefix has 9 elements and refers to vertex 6 outside the six
+copied vertices. For count 5 it declares 6 but writes those same 12 elements. These writes may exceed the
+logical scratch reservation; they are not permission to invent readable vertices or stable memory-corruption
+results. Quad strips likewise emit whole groups of six while `b < count-2`, stepping by two, even for odd
+counts (`0x0088B460`–`0x0088B500`). Indexed quads use the corresponding four caller indices per generated
+quad, so an incomplete group can read beyond the caller's logical list (`0x008825D0`–`0x0088268A`).
 
 **Index scratch** (`GetIndices(n)`, `0x0088A240`): a growable array of 16-bit indices handed out sequentially;
 when `n` more would exceed its allocated capacity, the queue is flushed first (queued entries point into it),
@@ -527,6 +550,18 @@ convention of Direct3D (element `m[r*4+c]`, translation in row 3).
 
 `SetViewport` (slots 74-75, §11) re-sends the stored projection through `LoadMatrix` with the mode forced to 1, so
 the half-pixel shift follows the new viewport size.
+
+**Floating-point environment (RD11).** `LoadMatrix` uses the caller's current x87 control word; it neither
+loads a control word nor clears/restores exception status (`0x00882AC0`–`0x00882C7C`). For portable finite
+conformance use round-to-nearest/even, 64-significand-bit extended intermediates and masked exceptions:
+form the width/height quotients, round each x87 arithmetic operation at that precision, and round to binary32
+at each stored matrix element. Binary64 intermediates are insufficient. With viewport width 30 and input
+matrix words m0=`3E2F59FF`, m3=`40A4645F`, the corrected m0 is `30888889` (binary64 gives `30888888`).
+The original does not validate finite inputs or nonzero viewport sizes: zeros, infinities, NaNs and unmasked
+exceptions follow the ambient x87 environment, including traps and status flags. There is no driver-defined
+NaN canonicalization or payload policy. Finite bit-exact vectors under the stated environment are required;
+portable core need not emulate host FPU exception flags, traps or NaN payloads unless exposing an explicit
+x87-environment compatibility mode. Ordinary finite examples alone must not excuse the discriminator above.
 
 ## 9. Textures (`nSGLDX7::cTextureManager`, object `+0x18`, `0x0088A380`-`0x0088B2C0`; slots 24-26, 35-39, 58-61)
 
