@@ -2187,6 +2187,51 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 
 ---
 
+## 20.4 Scape position enumeration and convenience insertion (AU42 partial)
+
+This settles primary slots 11 and 13 from [supplement §20.1](audio-owner-contracts.md#201-scape-construction-and-slots).
+AU42 remains open for resource loading, the other instance/group operations, smoothing,
+timers and allocation failure. These two entry points do not establish complete scape coverage.
+
+Primary slot 11 (`0x004F57B0`) takes `(groupKey, positions, countInOut, metadataOut)`.
+It holds the manager's group lock (`base+0x44`) while looking up the first matching group
+in stored list order and copying outputs, and releases the lock on every normal return.
+Missing group returns false without changing either output word or the positions buffer.
+For an existing group, compare its stored count (`group+0x20`) against the caller's input
+capacity **as signed 32-bit integers** (`0x004F57F1`–`0x004F57F6`). If count exceeds
+capacity, return false with all outputs untouched. In particular, insufficient capacity
+does not return a required size and does not copy a prefix. There is no null-buffer sizing
+mode and no clamping of a negative capacity to zero. *[quirk]*
+
+On success, overwrite countInOut with the stored count, copy the raw word at group `+0x30`
+to metadataOut, then copy each instance's first three 32-bit words to consecutive 12-byte
+positions records in instance-list order. The raw copies preserve floating-point bit patterns,
+including NaNs; there is no coordinate conversion. Stop at either the list end or the stored
+count, return true, and leave the rest of the buffer untouched. An inconsistent short list
+still reports the group's stored count, rather than the number actually copied. Count zero
+performs both word writes but no position write (`0x004F5807`–`0x004F584D`). Null count or
+metadata output is not accepted on a successful path; a null positions buffer is harmless
+only when no position is copied. No service/initialized/enabled gate is tested here.
+The resource meaning of the raw metadata word remains part of AU42's resource contract.
+
+Primary slot 13 (`0x004F51E0`) is a four-argument convenience entry. With arguments
+`(A,B,C,D)`, it dynamically dispatches the same object's **primary slot 12**, passing
+`(A,0,0,B,C,D)` in that order. It adds no checks, locking, output clearing, ownership or
+return conversion; the return register is the slot 12 result. This is a dispatch contract,
+not an independent instance insertion algorithm. Fire-handler calls to slot 13 therefore
+inherit slot 12's full contract once the remaining AU42 work settles it.
+
+### Scape capacity conformance vectors
+
+| ID | Input/action | Required result |
+|---|---|---|
+| AU42-cap-01 | Missing key; sentinel count, metadata and buffer | False, all sentinels unchanged; group lock acquired/released. |
+| AU42-cap-02 | Existing count 3; capacity 2 | False; capacity remains 2, metadata and buffer unchanged; no prefix copied. |
+| AU42-cap-03 | Existing count 0; capacity −1, then capacity 0 | First false/outputs unchanged. Second true, count 0 and raw metadata written; null positions allowed because no copy occurs. |
+| AU42-cap-04 | Count 2; capacity 4; two positions include NaN bit patterns | True; count becomes 2, raw metadata copied, first two records copied bit-for-bit in list order, remaining records untouched. |
+| AU42-cap-05 | Host fixture count 3 but list contains one instance; capacity 3 | True; count remains reported as 3, exactly one record copied; no count repair. |
+| AU42-cap-06 | Override slot 12 with a recording host; call slot 13 `(A,B,C,D)` | One call `(A,0,0,B,C,D)`; same return register and no other owner work. |
+
 ## 19.2 SEM lifetime and model parameter contract (AU41)
 
 This completes [supplement §19](audio-owner-contracts.md#19-sem-registration-and-the-three-emanation-owners).

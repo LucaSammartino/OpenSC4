@@ -22,11 +22,15 @@ pseudocode copied into specs. Read core-audio-close13 Owner verdicts before answ
 Gate: foreground `python build-runs/check-docs.py` passed `doccheck check: ok`; output in
 `build-runs/doccheck-re-audio-au40.log`. Cargo, clippy, CTest and game runs: n/a for prose.
 No ABI changes or proposals; no engine reads/edits, plugin, capi or coverage-map changes.
-AU42 and AU43 remain open; there is no full owner-closure claim for scape/preferences.
+AU42 also gains a bounded partial answer in audio §20.4: slot 11's signed capacity,
+untouched outputs on failure and raw position-copy behavior, plus slot 13's dynamic slot 12
+wrapper, with six vectors. AU42 and AU43 remain open; there is no full owner-closure claim
+for scape/preferences.
 
 ## Handoff
 - Goal: close audio owner questions with prose and vectors; round 2 AU41 completed.
-- Done: AU40/AU44 prior round; AU41 ready for milestone commit; doccheck passed.
+- Done: AU40/AU44 prior round; AU41 committed as `2e1ac72c8`; doccheck passed.
+- Added AU42 slot 11 capacity and slot 13 wrapper contract with six vectors; run doccheck.
 - Next: run measured guard after commit; at two thirds stop new RE and finalize report/queue.
 - If budget permits future work: AU42 scape resource/group/instance slots, then AU43 preferences.
 - Exact source: main decomp/_unnamed/region_004e0000.c, SEM class file and export instructions.

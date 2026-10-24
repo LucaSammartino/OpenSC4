@@ -203,9 +203,13 @@ Primary QI `0x004F5210` accepts `1`, soundscape IID `0x29E39DB4` (base), and ser
 | 7 | `0x004F65C0` | Keyed group operation; missing key returns false; inner behavior AU42. |
 | 8 | `0x004F6620` | Operate on groups whose saved flags contain every requested mask bit; mode-dependent cleanup AU42. |
 | 9–10 | `0x004F7850`, `0x004F7AF0` | Keyed instance operations; missing group clears instance output and returns false. |
-| 11 | `0x004F57B0` | Enumerate group positions into caller buffer, subject to capacity. Full capacity/output contract AU42. |
+| 11 | `0x004F57B0` | Enumerate positions: signed capacity check, failure preserves outputs, success copies raw records/metadata; audio §20.4. |
 | 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Additional instance/group operations; signatures and behavior AU42. |
 | 18 | `0x004F69E0` | Deleting destructor wrapping `0x004F62C0`. |
+
+Slot 13 `0x004F51E0` is the four-argument wrapper for dynamic slot 12: `(A,B,C,D)`
+becomes `(A,0,0,B,C,D)`, preserving its result. Audio §20.4 adds six capacity/dispatch
+vectors; the other operations and resource contract remain AU42.
 
 Service table slots 0–2 are adjustment thunks; slot 3 is `0x00407BA0`, slot 4
 `0x0070C880`, slot 5 `0x004F6230` returns `0x80000000`, slots 6/7 `0x004F6240` /
