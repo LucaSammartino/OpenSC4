@@ -20,4 +20,6 @@
 - Next: queue unique nettools-shadow12-draw-2032-20261024-aeaff8388, turbo to 2032-01-01 with both drag keys and original nettool/netmgr; record exact lines and file questions for differences. Source work is limited to measured draw projection; no full-owner credit.
 - Run 512 nettools-shadow12-draw-2032-20261024-aeaff8388 completed clean to 2032-01-01, ref_warnings=0: nettool wide drag shadow 73/73; nettool drag shadow 0/73 (pipe reverse-diagonal native/core total 7/6, cells 12/10 in both snap modes; six differing fields/line). Record committed next.
 - Next: one normal-speed 2032 confirmation; file distinct drag-extension observation question after checking archived relevant contracts. Wider draw projection already measurable/exact; keep both keys default-off, ready partial closure after normal result.
+- NG8 filed in docs/specs/questions/network-geometry.md for underground auto-connect occupant selection (not NT28's answered staircase projection); coordinator must regenerate question index, tools are forbidden here.
+- Normal request nettools-shadow12-draw-normal-2032-20261024-aeaff8388 outstanding; event wait exec session 61598. Do not submit another game request. Collect this same operation to terminal.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettools-shadow12-r1-manifest.json.
