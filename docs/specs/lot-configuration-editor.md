@@ -26,7 +26,8 @@ memory layout.
 
 `SetDataHasChanged` (`0x00480590`, 18 bytes) stores the caller's byte at editor
 `+0x12C`, then calls `SetTitle` (`0x0047F0B0`). The title begins `Lot Editor -- `;
-its dirty suffix is ` *` (native string bytes at `0x00A8DCC0`).
+its dirty suffix is ` *` (native string bytes at `0x00A8DCC0`). §25.3 gives
+the complete title composition and refresh contract.
 
 `SetSelectedLotConfigurationObject` (`0x0047B100`, 238 bytes): changing the
 pointer ends a pending drag (`+0x1B8`) and releases mouse capture if held. Null
@@ -659,8 +660,9 @@ For type 7 addition, the editor resizes the initially empty dword payload to
 **three elements**, then stores words at byte offsets 0,4,8,12 as
 `0,0,0x02000000,0` (`0x00484BCA..0x00484BEE`). The last store is beyond the
 logical end. Do not silently describe it as a four-element payload or a safe
-16-byte allocation. Allocator capacity and the consequences of that fourth
-store remain LE3. All six record-allocation paths set the result to null on
+16-byte payload allocation. §25.1 establishes the allocation request and copy
+extent; effects on adjacent allocator storage are outside that contract.
+All six record-allocation paths set the result to null on
 allocation failure, then write its type/fields without a guard; these are not
 clean no-op exits (`0x004848BB..0x004848D4`, `0x0048498F..0x004849A8`,
 `0x00484A64..0x00484A7D`, `0x00484B39..0x00484B52`,
@@ -1651,3 +1653,106 @@ prop-lotconfig; implementing the bridge is engine work, not another RE question.
 | LEI13 | Verification fails; current name `New Lot`; choose continue/cancel | Exact §24.3 text and title `New Lot`, service options `(1,1,0)`; only `0x5301814A` returns true, neither result mutates records. |
 | LEI14 | Successful Read installs a configuration whose only prop has only an invalid ID | Actual manager Fix removes that ID and record, returns first-problem code 1 (not 2); editor retains the mutated configuration, marks dirty and shows the code-1 warning. No supplied external result can replace these effects. |
 | LEI15 | Fix returns zero on an already-dirty editor | Read returns true and leaves dirty true; no reconciliation warning. |
+
+## 25. Residual geometry and title contracts *[compat]*
+
+### 25.1 Type-7 payload request, copying and placement-mode commands
+
+The type-7 temporary record starts with an empty payload vector. Growing it
+to three words requests **12 payload bytes**, sets both logical end and
+capacity end to start+12, and then performs the four stores described in §9.4.
+Thus the fourth word is beyond capacity as well as beyond logical size. This
+is a native memory-write quirk, not an implicit fourth payload element.
+Evidence: resize `0x006BDF10..0x006BDF66`, insertion growth
+`0x0042340A..0x0042341A`, and actual growth helper
+`0x0051CA64..0x0051CA95`, `0x0051CB1D..0x0051CB30`. The latter's exported
+hashtable name is misleading: its instructions grow a dword vector by
+old-size + max(old-size, added-size). For an empty vector that is exactly 3.
+
+The allocation wrapper routes this request through the shared small-block
+allocator (`0x0090CF54`, `0x005E55B0`). That allocator adds four header bytes
+and chooses the first power-of-two class starting at 8 which accommodates
+the total (`0x005B9FC2..0x005BA005`): this request uses the 16-byte class,
+with the returned pointer four bytes after the block header. It does not
+reserve a fourth payload word. Null underlying allocation is followed by an
+unchecked header store in this allocator; neither it nor the editor supplies
+a recoverable empty-object result. No fixed subsequent heap corruption or
+crash location is promised: neighboring block contents and allocator failure
+policy are external state.
+
+On successful record insertion, only the **three logical words** are copied
+into the configuration record's separately owned vector. Copy construction
+uses source end minus start, requests exactly that many dword bytes and copies
+that range (`0x00478934..0x00478938`, `0x00462F00`; assignment on record
+shifts uses `0x00462C20..0x00462C93`). The resulting type-7 payload is
+`[0,0,0x02000000]`; the stray fourth store is not serialized as a fourth word
+by virtue of this insertion. The editor then frees the temporary payload and
+record before marking dirty and drawing (`0x00484CE2..0x00484D14`). A safe
+replacement should represent the three-word result and expose any requested
+native-overrun diagnostic separately, rather than perform an unsafe write.
+
+`DoAddNewWaterConstraint` (`0x0047C8D0`) and
+`DoAddNewTerrainConstraint` (`0x0047C930`) are mode commands, not immediate
+object creation. If already in the requested mode (6 or 7), they do nothing,
+even if pending payload remains. Otherwise they clear the pending payload's
+logical size (`+0x1A4 = +0x1A0`) without freeing its capacity, install that
+mode, and request cursor `+0x14C` with option true through window `+0x154`.
+They do not change configuration records, selection, dirty or title, and do
+not draw/invalidate. The apparent memory-move branches are unreachable
+self-comparisons (`0x0047C8E2`, `0x0047C942`). Actual placement remains the
+separate AddNewLotConfigurationObject operation.
+
+### 25.2 Movement arithmetic and unconditional refresh
+
+Keyboard movement (`0x00485040`) uses only modifier bits 0, 1 and 2.
+Start with step 0.5 if bit 1 is set, otherwise 0.25; multiply by 4 for bit 0
+and then by 8 for bit 2. The resulting steps for masks 0 through 7 are
+respectively **0.25, 1, 0.5, 2, 2, 8, 4, 16**. All are exact binary32 values.
+Left/right subtract/add the step from x and both x bounds. Up/down normally
+subtract/add it from z and both z bounds. With Space down, Up/Down instead
+add/subtract it from y **only for type 1**; other types do not translate.
+Other keys do not translate. Every individual coordinate update stores to
+binary32; no integer conversion or snapping occurs in this method
+(`0x00485059..0x0048516B`).
+
+Position movement (`0x004851B0`) computes target x minus old x and target z
+minus old z in x87 registers. The deltas are **not spilled to binary32**:
+each is added to the old center and the two corresponding bounds, and each
+result is stored independently to binary32. It does not directly assign
+the target coordinates or adjust y (`0x004851B4..0x004851F0`). With extreme
+finite inputs, preserving the deltas' x87 precision can differ from rounding
+them to binary32 before addition. No NaN rejection occurs before these
+arithmetic operations; later boundary comparisons follow §9.6.
+
+Both overloads always call the §9.2 boundary mover with option false for
+type 4, true for all other types, and ignore its return. Then they set dirty
+to 1, update title, draw and invalidate, in that order. This also happens
+for an unrecognized key, for Space+Up/Down on an ineligible type, and when
+the requested position equals the old position. These are observable
+refresh/dirty quirks, not successful-translation tests
+(`0x0048516E..0x00485196`, `0x004851F3..0x0048521D`).
+
+### 25.3 Title composition
+
+`SetTitle` (`0x0047F0B0`) obtains the current configuration's name through
+its `+0x10` getter and sets the window text to `Lot Editor -- ` followed by
+that name, followed by ` *` exactly when the dirty byte is nonzero. It then
+invalidates the window, even when the new title equals the old title. It
+does not use the identity path, file stem or selected object's name; an empty
+configuration name leaves the prefix, plus the dirty suffix if applicable.
+The configuration pointer is dereferenced without a null guard. Evidence:
+name read/append `0x0047F164..0x0047F187`, dirty test/suffix
+`0x0047F18C..0x0047F1A7`, text/invalidation `0x0047F1AC..0x0047F1BF`;
+literal bytes at `0x00A8DCC0..0x00A8DCD2` are space, asterisk, NUL, NUL,
+then `Lot Editor -- ` and NUL.
+
+### 25.4 Conformance vectors
+
+| Vector | Setup/action | Required observation |
+|---|---|---|
+| LER01 | Add a type-7 object with successful allocations; observe temporary payload requests/stores and inserted record | Request 12 bytes, vector size/capacity 3, fourth zero store at start+12 outside capacity; inserted record has exactly `[0,0,0x02000000]`. No mandated adjacent-memory consequence. |
+| LER02 | Mode 2, pending words `[10,20]`, nonzero capacity; request water | Mode 6, empty pending payload with capacity retained, cursor `+14C` requested with true; no object or dirty/title/draw change. Request water again after supplying pending words: words remain. Terrain from mode 6 clears them and installs 7. |
+| LER03 | Interior type 1, y=10, Space+Up, modifier mask 5; then Space+Down mask 7 | y becomes 18 then 2; x/z/bounds unchanged by translation. Each call still boundary-moves, marks dirty, updates title, draws and invalidates. |
+| LER04 | Interior type 0, Space+Up, or unrecognized key | No initial translation; boundary mover and dirty/title/draw/invalidation still occur. |
+| LER05 | Position move interior object x/z=8/8, bounds 7/7/9/9, target 12/14 | Before boundary adjustment: center 12/14, bounds 11/13/13/15, y unchanged. All result coordinates are binary32 stores; no integer snapping. |
+| LER06 | Configuration named `Park`, unrelated identity filename; dirty byte 0 then 2 | Titles `Lot Editor -- Park` and `Lot Editor -- Park *`; each SetTitle invalidates. Empty dirty name yields `Lot Editor --  *` (two spaces before asterisk). |
