@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 350 (Network-occupant, prop/lot-config, variant and feature shadows exact in the house regress and credited; model instances and cRZString claimed; traffic/landvalue flake recurred (run 5).); 348 (Network-occupant shadow, prop/lot shadows and SC resources landed; SC resource owners claimed implemented (run 5).); 341 (Tutorial and city-detail shadows exact in the house regress and credited; GZ framework core owners claimed implemented (run 5).); 337 (Dormant tutorial/citydetail/variant/feature shadow keys and the traffic sentinel fix landed; landvalue dropped one line (run 5).); 336 (Advisors shadow exact in the house regress and credited; particles, strings, network rules and GZ framework contracts landed (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 373 (Strings and network-rules shadows exact in the house regress and credited; nettool, lua, overlays and overlay views landed; traffic flake recurred (run 5).); 372 (OV12 observer 292/292 exact on empty state; getters 73/73 exact); 371 (OV12 diagnostic run; getter exact, dynamic observer rejected); 361 (bounded lua-registry 73/73 exact through 2032, clean, full Lua replay open LH6-LH7; lists as run 349); 358 (strings shadow exact 73/73 through 2032, run 343). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

@@ -4,9 +4,10 @@
  "spec": [
   "network-geometry 3.2",
   "3.3",
-  "18.3"
+  "18.3",
+  "network-tools 3.5 (NT28)"
  ],
- "description": "Road, snap on, (0, 0) -> (6, 4): pre-adjust rule 1.3 makes dx = 5; the snap keeps dx = dz + 1 = 5; end (5, 4); dragged count 6; straight count 0 (|5 - 4| = 1 with w2 = 1); pen direction 4; end direction 5; axis (0, 1). ComputeDraggedCells walks the larger remaining delta first, then diagonally.",
+ "description": "Road, snap on, (0, 0) -> (6, 4): pre-adjust rule 1.3 makes dx = 5; the snap keeps dx = dz + 1 = 5; end (5, 4); dragged count 6; straight count 0; pen direction 4; end direction 5; axis (0, 1). NT28 groups the axis-aligned staircase into six major-axis rows, retaining every turn cell.",
  "steps": [
   {
    "op": "ng_segments",
@@ -60,16 +61,32 @@
       0
      ],
      [
+      1,
+      1
+     ],
+     [
       2,
       1
+     ],
+     [
+      2,
+      2
      ],
      [
       3,
       2
      ],
      [
+      3,
+      3
+     ],
+     [
       4,
       3
+     ],
+     [
+      4,
+      4
      ],
      [
       5,

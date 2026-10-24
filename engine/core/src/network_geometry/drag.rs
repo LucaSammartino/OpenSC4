@@ -196,39 +196,77 @@ pub fn step_cells(x: i32, z: i32, pen_direction: u8, width: u32) -> Vec<(i32, i3
         .collect()
 }
 
-/// `ComputeDraggedCells` (`0x00639790`, §3.3 step 1): walk the pen from
-/// `start` to `end`, along the axis with the larger remaining delta (both
-/// axes when the deltas are equal), one step per position. The walk visits
-/// `max(dx, dz) + 1` positions, the dragged count of §3.2.
+/// Same-width convenience entry point for the ordered staircase (NT28).
 pub fn compute_dragged_cells(
     start: (i32, i32),
     end: (i32, i32),
-    pen_direction: u8,
+    _pen_direction: u8,
     width: u32,
 ) -> (Vec<(i32, i32)>, Vec<Step>) {
+    let seg = break_into_segments(start, end, false, false, width, width);
+    compute_dragged_rows(start, end, &seg, width, width)
+}
+
+/// network-tools §3.5: group every axis-aligned staircase position into
+/// major-axis rows, then widen intervals and emit increasing minor values.
+pub fn compute_dragged_rows(
+    start: (i32, i32),
+    end: (i32, i32),
+    seg: &Segments,
+    w1: u32,
+    w2: u32,
+) -> (Vec<(i32, i32)>, Vec<Step>) {
+    let along_x = seg.axis.0 == 0;
+    let mut rows: Vec<(i32, i32, i32)> = Vec::new();
+    let (mut x, mut z) = start;
+    let mut previous_x = true;
+    loop {
+        let (major, minor) = if along_x { (x, z) } else { (z, x) };
+        if let Some(row) = rows.last_mut().filter(|r| r.0 == major) {
+            row.1 = row.1.min(minor);
+            row.2 = row.2.max(minor);
+        } else {
+            rows.push((major, minor, minor));
+        }
+        if (x, z) == end {
+            break;
+        }
+        let (rx, rz) = (end.0 - x, end.1 - z);
+        let move_x = rx.abs() > rz.abs() || (rx.abs() == rz.abs() && !previous_x);
+        if move_x {
+            x += rx.signum();
+        } else {
+            z += rz.signum();
+        }
+        previous_x = move_x;
+    }
+    let negative = if along_x {
+        matches!(seg.end_direction, 1 | 3)
+    } else {
+        matches!(seg.end_direction, 1 | 7)
+    };
     let mut cells = Vec::new();
     let mut steps = Vec::new();
-    let (mut x, mut z) = start;
-    loop {
+    let count = rows.len();
+    for (i, (major, mut lo, mut hi)) in rows.into_iter().enumerate() {
+        let straight = i < seg.straight_count as usize;
+        let first_diag = i == seg.straight_count as usize;
+        let widen = straight || ((!first_diag || seg.straight_count != 0 || lo == hi) && (i + 1 < count || lo == hi));
+        if widen {
+            let extra = if straight { w1 } else { w2 }.max(1) as i32 - 1;
+            if negative {
+                lo -= extra;
+            } else {
+                hi += extra;
+            }
+        }
         let first = cells.len() as u32;
-        cells.extend(step_cells(x, z, pen_direction, width));
+        cells.extend((lo..=hi).map(|minor| if along_x { (major, minor) } else { (minor, major) }));
         steps.push(Step {
             first,
             last: cells.len() as u32 - 1,
             kind: StepKind::Regular,
         });
-        if (x, z) == end {
-            break;
-        }
-        let (rx, rz) = (end.0 - x, end.1 - z);
-        if rx.abs() > rz.abs() {
-            x += rx.signum();
-        } else if rz.abs() > rx.abs() {
-            z += rz.signum();
-        } else {
-            x += rx.signum();
-            z += rz.signum();
-        }
     }
     (cells, steps)
 }

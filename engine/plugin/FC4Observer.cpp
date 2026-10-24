@@ -16,6 +16,9 @@
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
 #include "FC4AdvisorsShadow.h"
+#include "FC4StringsShadow.h"
+#include "FC4LuaShadow.h"
+#include "FC4OverlaysShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -58,6 +61,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4NetRulesShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
 #include "FC4DemolitionPriceShadow.h"  // the glue23 lane: demolition_price_shadow
@@ -577,6 +581,7 @@ public:
         // before the save autotest and before AutotestOnTick's quit or end.
         ScriptOnTick();
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
+        OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
         if (saveDue_) {
             saveDue_ = false;
@@ -612,6 +617,7 @@ public:
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
+                NetRulesShadowCityLoaded();
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
@@ -635,6 +641,7 @@ public:
                 fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
                 fc4::Span8CityLoaded();
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
+                OverlaysShadowCityLoaded(CurrentCity());
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -643,6 +650,7 @@ public:
                 FontSysVerify("load");
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
@@ -675,6 +683,7 @@ public:
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
+                NetRulesShadowCityShutdown();
                 OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references go
                 PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references go with the city
@@ -684,11 +693,13 @@ public:
                 DispatchShadowCityShutdown();
                 PropLotShadowCityShutdown();    // the prop / lot configuration / tutorial shadows' totals
                 TerrainShadowCityShutdown();  // terrain_shadow: the totals line, then our terrain goes
+                OverlaysShadowCityShutdown();
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references
                 EffectsShadowCityShutdown();  // effects_shadow: the mirror core goes with the city
                 AutomataShadowCityShutdown();  // automata_shadow: the shadow cores and their references
                 AdvisorsShadowCityShutdown();
                 fc4::NetOccShadowCityShutdown();
+                LuaShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
@@ -734,6 +745,8 @@ public:
                 AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 AdvisorsShadowMonth(julian);
                 fc4::NetOccShadowMonth(julian);
+                StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
+                LuaShadowMonth(julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
@@ -747,12 +760,14 @@ public:
                 DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
+                NetRulesShadowMonth(julian);
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
                 PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
                 fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
                 DatesProbe(CurrentCity(), "month");
+                OverlaysShadowMonth(CurrentCity(), julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

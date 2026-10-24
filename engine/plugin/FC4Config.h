@@ -244,6 +244,9 @@
 // netocc_shadow = 0 / 1: record-only network occupant load/month comparison,
 // default 0. Documented Read fixups counted separately (NO45 harness decision).
 
+// netrules_shadow = 0 / 1: NR16/NR17 record-only tile evaluator observer,
+// default off. Requires fingerprint and all three exact observation sites.
+
 #include <string>
 
 namespace fc4 {
@@ -613,5 +616,12 @@ std::string IniPath();
 
 // advisors_shadow = 0 / 1 (default 0): round-trip original advisor records
 // through the core at city load and each month; no replacement or simulation.
+
+// nettool_shadow = 0 / 1 (default 0): compare scripted original network
+// placements with a read-only core replay against the same pre-placement city.
+// Reports drag cells, status, failure, step counts and cost; not solved pieces,
+// bridge models or power-line poles/wires (network-tools question NT27).
+// overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
+// city load and each month. Live records/cells/textures await OV12; no rendering.
 
 }  // namespace fc4
