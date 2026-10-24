@@ -52,12 +52,20 @@ a functioning native flight owner. Only explicitly specified stages are closed.
 | cSC4Airplane | aircraft §6 | `clip_aircraft_to_world`; `altitude_uses_highest_surface_and_clip_keeps_outward_margin` |
 | cSC4Airplane | aircraft §7 | Open: AF2–AF6, AF9; AF1/AF7/AF8 have been settled for airplane parameters/station masks |
 | cSC4Airplane | aircraft §8 | Vectors 1/2 in aircraft.rs parameter tests; 3/6 in station test; 4/5 and 8–13 in airplane.rs tests named above. Vector 7 belongs solely to helicopter §4.1, outside this owner assignment |
-| cSC4Airplane | automata §6.1/§6.2 | Shared `AutomatonBase`/state stack; `chase_rejection_obeys_shared_final_state_and_stack_indices`, `aircraft_records_nest_base_and_home_without_traffic` |
-| cSC4Airplane | automata §6.4/§14 vector 15 | `AircraftRecord`, `AircraftPlacementRecord`, `Airplane::{read,write}`; `aircraft_records_nest_base_and_home_without_traffic` includes same-input byte round-trip, `concrete_versions_accept_zero_but_aircraft_base_requires_one`, `truncated_owner_reads_are_atomic_at_every_byte_boundary`, `failed_aircraft_write_never_attempts_home_vector` |
-| cSC4Airplane | automata §6.5/§6.6 | Independent phase, phase-1 ammo refill, CHASE and CROP_DUST pop, separate LOITER timer; `phase_and_loiter_ammo_are_independent_of_goal_stack`, `name_only_airplane_crop_dust_pops_without_a_flight_model`, `unsettled_models_do_not_mutate_owners`; open: AF3/AF4/AF6 as above |
+| cSC4Airplane | automata §6.1 | Shared `AutomatonBase` codec; `aircraft_records_nest_base_and_home_without_traffic` |
+| cSC4Airplane | automata §6.2 | Shared state stack; `chase_rejection_obeys_shared_final_state_and_stack_indices` |
+| cSC4Airplane | automata §6.4 | `AircraftRecord`, `AircraftPlacementRecord`, `Airplane::{read,write}`; `aircraft_records_nest_base_and_home_without_traffic` includes same-input byte round-trip, `concrete_versions_accept_zero_but_aircraft_base_requires_one`, `truncated_owner_reads_are_atomic_at_every_byte_boundary`, `failed_aircraft_write_never_attempts_home_vector` |
+| cSC4Airplane | automata §6.5 | `pursue_goal` pops name-only CROP_DUST; `name_only_airplane_crop_dust_pops_without_a_flight_model`; open: AF3 for the destination sentinel/arrival, landed and fire-goal control contracts |
+| cSC4Airplane | automata §6.6 | Independent phase, phase-1 ammo refill, CHASE pop, separate LOITER timer; `phase_and_loiter_ammo_are_independent_of_goal_stack`, `unsettled_models_do_not_mutate_owners`; open: AF3/AF4/AF6 as above |
+| cSC4Airplane | automata §14 vector 15 | `AircraftRecord`, `AircraftPlacementRecord`; `aircraft_records_nest_base_and_home_without_traffic`, `concrete_versions_accept_zero_but_aircraft_base_requires_one` |
 | cSC4Airplane | automata-managers §1 | Class ID matches director registration; `aircraft_records_nest_base_and_home_without_traffic`; COM factory allocation remains outside core owner |
-| cSC4Airplane | automata-managers §2–§4 | Foreign director/managers and traffic population; no new airplane-owned behavior assigned |
-| cSC4Airplane | automata-managers §5–§8 | Vehicle-family slots/manager tests assign no additional airplane-owned behavior |
+| cSC4Airplane | automata-managers §2 | Foreign manager slot tables; no new airplane-owned behavior assigned |
+| cSC4Airplane | automata-managers §3 | Foreign traffic population; no airplane-owned behavior assigned |
+| cSC4Airplane | automata-managers §4 | Manager constructors/base helpers; no airplane-owned behavior assigned |
+| cSC4Airplane | automata-managers §5 | Vehicle-family slots; no additional airplane-owned behavior assigned |
+| cSC4Airplane | automata-managers §6 | No additional airplane quirk assigned |
+| cSC4Airplane | automata-managers §7 | No additional airplane open question assigned |
+| cSC4Airplane | automata-managers §8 | Manager conformance vectors; airplane owner vectors are aircraft §8 and automata §14 above |
 
 An in-game shadow needs an adapter to observe matching native airplane parameter
 records and pre-correction candidate/scalar inputs/results. Those isolated stages
