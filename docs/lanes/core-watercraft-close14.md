@@ -4,7 +4,7 @@
 
 ## Handoff
 
-Goal: complete cSC4Watercraft owner closure; current partial batch passes every required gate. Exact next step: finalize this report and write the merge-queue JSON with the actual full HEAD; no source changed after passing gates and no gate needs repeating. Context guard stopped finalization; no merge-queue file was written. All asynchronous operations were collected and none remain outstanding. Manifest for this round: C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r2-manifest.json.
+Goal: complete cSC4Watercraft owner closure. Round 3 resumes at 243cde934 with a clean tree; prerequisite branches are already merged. Next: inspect and implement the 28 remaining owner rows, starting with lifecycle and runtime integration, then run focused and final gates. Earlier gates cover only the prior batch. No operations are outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r3-manifest.json.
 
 Prerequisites merged: 4ee9852ce (core-watercraft-close12), f075b206b (re-watercraft-wc13).
 Implementation 113eccaaa adds primary/auxiliary model acquisition, explicit reference transfers and output failure handling, inherited model positioning and scene publication (§§3.6–3.8). It also corrects WC12 contact to bank identity and use the second terrain-normal sample, preserving the incoming scale only when publishing accepted contact.
