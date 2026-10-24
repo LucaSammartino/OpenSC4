@@ -1,19 +1,70 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-view3dwin-close12 (cSC4View3DWin owner closure) | Codex / `core-view3dwin-close12` (engine lane) | in progress | (1) Implement VW19; (2) audit closure; (3) full gates and report. |
+| core-view3dwin-close12 (cSC4View3DWin VW19 and closure audit) | Codex / `core-view3dwin-close12` (engine lane) | Ready partial implementation, code `18db8cb78`: VW19 closed; cargo 7394/0 with serialized scheduling, clippy 0 diagnostics, CTest 81/81; ABI unchanged; no game runs or new questions; 19 settled owner coverage gaps remain | (1) Complete the 19 settled implementation/test gaps listed below and in the module README. |
 
-## Handoff
-- Goal: close every cSC4View3DWin owner row, implementing settled VW19 and five vectors.
-- Done: merged re-view3dwin-vw20 by fast-forward to c13d5f600; Git printed packed-refs.lock permission diagnostic but merge completed.
-- Implemented in 18db8cb78: in-place trigger loading in both record adapters; five VW19 vectors exercise both adapters and notification silence.
-- Audit: supplied README has many settled implementation gaps beyond its three VW19 entries. VW19 entries are updated; full owner closure is not established.
-- Focused operation 90151 collected to terminal exit 1 after explicit interruption under shared contention (about 25 minutes wall, 118 CPU seconds, 4.2 GB working set). It yielded no test verdict. Evidence: build-runs/focused-close12.log. Initial runner hit PowerShell stderr/Stop handling; corrected runner uses Continue.
-- First qbuild all operation 49440 collected to terminal exit 1. Console build-runs/all-close12-console.log; failed Rust evidence preserved as build-runs/qbuild-test-parallel-first.log. Clippy clean; native queued build PASS 262/262 edges, CTest PASS 81/81 (qbuild-20261024-182656-build-ctest).
-- Scope: engine/core only, no plugin/C ABI changes. Detached HEAD is intentional.
-- Required gates: qbuild all and qbuild verify, foreground logs under build-runs.
-- Formatting: explicit trigger_load_tests.rs and state.rs check passed (2 files, diff_lines=0); evidence build-runs/fmt-close12-final-console.log.
-- Coverage audit: README has 34 owner rows, 19 retain explicit settled implementation/test gaps. Full owner closure is not established; no new spec question is justified by those gaps.
-- First full-gate Rust phase: 590 passed, 2 failed in unchanged capi occupant_manager_tests slot42/slot44 scheduling tests. The latter observed 0 lock waits instead of 1; both rely on B running within 300 ms. Log qbuild-test.log preserved pending full operation completion. Clippy is now running in session 49440.
-- Clippy phase passed: exit 0, diagnostics 0, 15m23s. Native first-gate build/CTest passed in 262.9s.
-- Serial Rust retry passed: 7394 passed, 0 failed, 0 ignored. All five VW-T40–T44 tests and both former slot42/slot44 failures explicitly passed. Logs: qbuild-test.log and test-close12-serial-console.log. Same source; RUST_TEST_THREADS=1 changed scheduling inputs after the measured failures.
-- Next: collect operation 5870 to terminal result (build-runs/gate-close12-serial.ps1). Rust phase is complete; explicit qbuild verify is queued as qbuild-20261024-183418-build-ctest. Console: build-runs/verify-close12-console.log. Do not launch a duplicate; do not rerun Rust or clippy.
+## Report
+
+Merged `re-view3dwin-vw20` first, fast-forwarding to `c13d5f600`. Implementation is
+`18db8cb78`. This patch closes VW19, not the entire owner. The supplied closure
+table had substantial settled implementation gaps beyond its three VW19 entries.
+
+Implemented column module paths: `engine/core/src/ui_windows/view3d.rs`,
+`engine/core/src/ui_windows/view3d/state.rs`, and
+`engine/core/src/ui_windows/view3d/references.rs`. Both logical and opaque-reference
+record adapters now assign trigger pairs into the existing table in stream order.
+Absent keys survive, duplicate counts overwrite without moving nodes or growing
+capacity, empty streams preserve the table, and only new keys use ordinary growth.
+Loading does not pre-size, assert counts, or send trigger notifications.
+
+`engine/core/src/ui_windows/view3d/trigger_load_tests.rs` implements VW-T40 through
+VW-T44, each through both adapters: collision round trips, duplicate zero/MAX
+assignment, populated/empty loads, pair-count versus distinct-key capacity, and
+growth-time collision order. All five tests passed. The module README resolves
+the three VW19 entries and names the implementation and tests.
+
+## Coverage audit and next work
+
+The existing 34-row Owner closure table maps sections to code and tests, but 19
+rows explicitly retain settled implementation/test deficits. Complete coverage of
+the other rows and full owner closure cannot be certified by this run. There are
+no remaining spec-question entries; the deficits are not Unsupported contracts.
+
+Implementation/test gaps remain in view3d-window sections **1.1, 2, 4, 5.1, 5.2,
+6, 6.3, 6a–6e, 6g–6j, 6l–6m, and 7**. The README retains the individual next
+steps: override/control adapters, dormant fields and teardown, required fallbacks
+and graphics QI, GUI extras, edge/capture branches, command/button/menu routing,
+mayor bookkeeping, mission/advice destinations, hidden-BMP visibility, and helper
+integration. VW-T26/T27/T29/T32/T33/T34/T36 still lack complete coverage. These
+settled gaps must be finished before claiming the owner; no new spec question is
+justified by them.
+
+## Validation
+
+- Ran `qbuild all` once on final Rust source. Its parallel Rust phase reported
+  590 passed / 2 failed in unchanged C API occupant-manager cross-thread tests.
+  Both depend on a worker running within 300 ms; slot44 observed zero lock waits
+  instead of one. Clippy passed with zero diagnostics. Queued native job
+  `qbuild-20261024-182656-build-ctest` passed build 262/262 edges and CTest 81/81.
+  Preserve the failed run: `build-runs/all-close12-console.log` and
+  `build-runs/qbuild-test-parallel-first.log`.
+- Changed scheduling input only to `RUST_TEST_THREADS=1` after that diagnosis and
+  reran the workspace Rust phase with `qbuild test`: **7394 passed / 0 failed /
+  0 ignored**. Both formerly failing tests and all five new vectors explicitly
+  passed. No source changed between these runs. Evidence:
+  `build-runs/test-close12-serial-console.log` and `build-runs/qbuild-test.log`.
+- Ran the explicitly requested `qbuild verify` through the coordinator queue:
+  `qbuild-20261024-183418-build-ctest`, verdict **pass**, build **46/46 edges**
+  (2.0 s), CTest **81/81** (90.2 s), total 94.4 s. Evidence:
+  `build-runs/verify-close12-console.log`, `fc4verify-build.log`, and
+  `fc4verify-ctest.log` under `build-runs/`. Every operation was collected to its
+  actual terminal result; none remains outstanding.
+- Explicit formatting check passed for `trigger_load_tests.rs` and `state.rs`:
+  2 files, zero diff lines (`build-runs/fmt-close12-final-console.log`).
+- The earlier focused compilation was interrupted under shared contention and
+  produced no test verdict; its separate incomplete evidence remains in
+  `build-runs/focused-close12.log`.
+
+No game runs or shadow measurements: this is a core-only patch, without plugin
+or C ABI wiring as requested. No C ABI exports or ABI version changed. No new
+questions were filed; VW19 was settled by the merged spec. The READY queue entry
+is for this passing partial patch, not a claim of full owner coverage.
