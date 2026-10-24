@@ -5,7 +5,8 @@
 ## Handoff
 Goal: close settled cSC4Watercraft WC4/WC5 contracts in engine/core/src/watercraft.
 Done: added AI target arithmetic, inherited tween/animation/visibility/lighting and shared effects binding, heel/contact composition and separate crash dispatch with vectors.
-Next: collect focused operation session 53091, correct diagnostics, run stable all and verify once, finalize report and queue.
+Next: collect all session 94385 and corrected verify session 50826, correct real diagnostics if any, finalize report and queue.
 Constraints: no capi/plugin/ABI changes. Partial closure: common ticks, picker orchestration, player drive, far docking and earlier owner-table pending work remain.
 Spec discrepancy: WC12 filed for heel parameter/basis contradictions. Literal current completion section and explicit banking call used.
-Gate: focused compile still running; build-runs/focused-1.log, same operation session 53091. Game requests: none.
+Gate: initial verify build PASS 262/262, CTest 80/81 (fixture lacked required travel points; corrected). Full failed logs: build-runs/failed-verify-1-{build,ctest}.log. Corrected fmt PASS 8 files, zero diff lines.
+Initial focused compile interrupted/collected exit 1 after native tests supplied actionable evidence; build-runs/focused-1.log. Stable all and corrected verify outstanding in this turn. Game requests: none.

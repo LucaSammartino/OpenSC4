@@ -46,24 +46,24 @@ fn wc4_ai01_ai02_refill_and_strict_short_distance() {
     b.speed = 1.0;
     b.turn = 1.0;
     f.insert(1, b).unwrap();
-    let target = f
-        .ai_motion(1, 100.0, 0.0, |_| true, |_| [0.0; 3], &mut None)
-        .unwrap();
+    let target = f.ai_motion(1, 100.0, 0.0, |_| true, |_| [0.0; 3], &mut None).unwrap();
     assert_eq!(target, AiTargets::default());
-    assert_eq!(
-        (f.get(1).unwrap().speed, f.get(1).unwrap().turn),
-        (0.0, 0.0)
-    );
+    assert_eq!((f.get(1).unwrap().speed, f.get(1).unwrap().turn), (0.0, 0.0));
     let b = f.get_mut(1).unwrap();
     let target = b.ai_midpoints(100.0, [[0.05, 0.0, 0.0], [10.0, 0.0, 0.0]], 0.0);
     assert!(target.remove);
     assert!(b.travel.is_empty());
     let mut b = boat();
     b.inherited_heading = [1.0, 0.0, 0.0];
-    assert!(
-        !b.ai_midpoints(100.0, [[0.1, 0.0, 0.0], [10.0, 0.0, 0.0]], 0.0)
-            .remove
-    );
+    b.travel = vec![
+        TravelPoint {
+            cell: Cell { x: 0, z: 0 },
+            tried: 0,
+            direction: 0
+        };
+        3
+    ];
+    assert!(!b.ai_midpoints(100.0, [[0.1, 0.0, 0.0], [10.0, 0.0, 0.0]], 0.0).remove);
 }
 
 #[test]
@@ -87,10 +87,7 @@ fn wc4_ai03_through_ai05_asymmetric_turn_signs_and_publication() {
         near(b.heading[2], 0.98480775);
         assert_eq!(b.previous_position, [4.0; 3]);
         assert_eq!(b.previous_heading, [1.0, 0.0, 0.0]);
-        assert!(matches!(
-            b.events.last(),
-            Some(Event::Publish(Publication::MoveTo(..)))
-        ));
+        assert!(matches!(b.events.last(), Some(Event::Publish(Publication::MoveTo(..)))));
     }
 }
 
@@ -224,11 +221,7 @@ fn wc5_h06_through_h10_contact_order_and_strict_gates() {
     assert!(b.heel_tick(10.0, &g));
     assert!(!b.shore_contact);
     assert_eq!(b.speed, 1.0);
-    for (inside, height, count, sliding) in [
-        (false, 22.0, 1, false),
-        (true, 30.0, 1, false),
-        (true, 22.0, 2, true),
-    ] {
+    for (inside, height, count, sliding) in [(false, 22.0, 1, false), (true, 30.0, 1, false), (true, 22.0, 2, true)] {
         let mut g = ground();
         g.inside = inside;
         g.height = height;
@@ -293,8 +286,7 @@ fn crash_dispatch_double_time_outside_and_effect_order() {
     let mut g = ground();
     g.inside = false;
     fx.0.clear();
-    f.crash_state_tick(1, 10.0, cells, &g, &mut fx, &mut None)
-        .unwrap();
+    f.crash_state_tick(1, 10.0, cells, &g, &mut fx, &mut None).unwrap();
     assert_eq!(f.get(1).unwrap().crash_elapsed, 30.0);
     assert!(fx.0.is_empty());
     assert_eq!(f.get(1).unwrap().top_state(), Some(state::IMMEDIATE_REMOVE));

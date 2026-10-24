@@ -54,6 +54,7 @@ impl Fleet {
 impl Watercraft {
     /// Selected targets are returned before slew, for observation of NaN and
     /// asymmetric turn signs. The midpoint scan never selects another segment.
+    /// Requires at least three travel points, as checked by ai_motion.
     pub fn ai_midpoints(&mut self, dt: f32, mid: [Vec3; 2], water: f32) -> AiTargets {
         let delta = mid.map(|m| math::flat(math::sub(m, self.inherited_position)));
         let distance = delta.map(math::length);
@@ -93,11 +94,7 @@ impl Watercraft {
             } else {
                 angle
             };
-            let sign = if u[0] * h[2] - u[2] * h[0] < 0.0 {
-                -1.0
-            } else {
-                1.0
-            };
+            let sign = if u[0] * h[2] - u[2] * h[0] < 0.0 { -1.0 } else { 1.0 };
             let signed = (limited * sign) as f32;
             let r = signed as f64 * 0.017_453_292_f32 as f64;
             let cosine = r.cos() as f32;

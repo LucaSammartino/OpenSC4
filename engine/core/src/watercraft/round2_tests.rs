@@ -96,9 +96,7 @@ fn close(a: Vec3, b: Vec3) {
 
 #[test]
 fn wc5_k01_through_k04_sinking_basis_signs_and_heading_feedback() {
-    for (bytes, pitch_sign, roll_sign) in
-        [([0, 0], 1.0, 1.0), ([2, 0], -1.0, 1.0), ([0, 1], 1.0, -1.0)]
-    {
+    for (bytes, pitch_sign, roll_sign) in [([0, 0], 1.0, 1.0), ([2, 0], -1.0, 1.0), ([0, 1], 1.0, -1.0)] {
         let mut b = boat();
         b.heading = [0.0, 0.0, 1.0];
         b.previous_heading = b.heading;
@@ -134,9 +132,7 @@ fn inherited_seek_uses_inherited_vectors_overshoots_and_keeps_zero_time_division
     b.inherited_position = [1.0, 2.0, 3.0];
     b.inherited_destination = [-1.0, 20.0, 30.0];
     b.inherited_measured_speed = 5.0;
-    b.generic_seek(100.0, 1.0, |_, _, _| {
-        panic!("near destination skips adjustment")
-    });
+    b.generic_seek(100.0, 1.0, |_, _, _| panic!("near destination skips adjustment"));
     assert_eq!(b.inherited_destination, [1.0, 2.0, 3.0]);
     assert_eq!(b.inherited_measured_speed, 5.0);
     assert_eq!(b.events, [Event::Notify(4, 0)]);
@@ -188,10 +184,7 @@ fn wc7_r02_r08_backtrack_survivor_and_fill_to_ten() {
     b.neighbor = Some(NeighborRoute {
         occupant: Arc::new(Resource(1)),
         position: [0.0; 3],
-        cells: (0..12)
-            .map(|i| Cell { x: i, z: 0 })
-            .collect::<Vec<_>>()
-            .into(),
+        cells: (0..12).map(|i| Cell { x: i, z: 0 }).collect::<Vec<_>>().into(),
         next: 0,
     });
     let mut f = Fleet::default();
@@ -199,10 +192,7 @@ fn wc7_r02_r08_backtrack_survivor_and_fill_to_ten() {
     assert_eq!(f.fill_route_points(1, &Water, &mut None), Ok(true));
     let b = f.get(1).unwrap();
     assert_eq!(b.travel.len(), 10);
-    assert!(b
-        .travel
-        .iter()
-        .all(|p| p.direction == u32::MAX && p.tried == 0));
+    assert!(b.travel.iter().all(|p| p.direction == u32::MAX && p.tried == 0));
     assert_eq!(b.neighbor.as_ref().unwrap().next, 10);
     f.get_mut(1).unwrap().travel.clear();
     assert_eq!(f.fill_route_points(1, &Water, &mut None), Ok(true));
@@ -243,10 +233,7 @@ fn detector_outside_removal_precedes_queries_and_shore_bump_preserves_speed() {
         outside: true,
         calls: Vec::new(),
     };
-    assert_eq!(
-        f.detect_collision(1, false, &Water, &mut queries, &mut None),
-        Ok(true)
-    );
+    assert_eq!(f.detect_collision(1, false, &Water, &mut queries, &mut None), Ok(true));
     assert_eq!(queries.calls, ["rectangle"]);
     assert_eq!(f.get(1).unwrap().top_state(), Some(state::IMMEDIATE_REMOVE));
     let mut b = boat();
@@ -256,19 +243,13 @@ fn detector_outside_removal_precedes_queries_and_shore_bump_preserves_speed() {
     f.insert(1, b).unwrap();
     queries.outside = false;
     queries.calls.clear();
-    assert_eq!(
-        f.detect_collision(1, false, &Water, &mut queries, &mut None),
-        Ok(false)
-    );
+    assert_eq!(f.detect_collision(1, false, &Water, &mut queries, &mut None), Ok(false));
     assert_eq!(f.get(1).unwrap().position, [1.0, 2.0, 3.0]);
     assert_eq!(f.get(1).unwrap().speed, 0.01);
     assert_eq!(queries.calls, ["rectangle", "rectangle", "occupied"]);
     f.get_mut(1).unwrap().speed = 0.3;
     queries.calls.clear();
-    assert_eq!(
-        f.detect_collision(1, false, &Water, &mut queries, &mut None),
-        Ok(true)
-    );
+    assert_eq!(f.detect_collision(1, false, &Water, &mut queries, &mut None), Ok(true));
     assert_eq!(f.get(1).unwrap().top_state(), Some(state::SLOW_REMOVE));
     assert_eq!(
         queries.calls,

@@ -37,16 +37,8 @@ impl Watercraft {
         }
         let previous = self.previous_heading;
         let y = [0.0, 1.0, 0.0];
-        let roll = if self.crash_direction[1] == 0 {
-            angle
-        } else {
-            -angle
-        };
-        let pitch = if self.crash_direction[0] == 0 {
-            -angle
-        } else {
-            angle
-        };
+        let roll = if self.crash_direction[1] == 0 { angle } else { -angle };
+        let pitch = if self.crash_direction[0] == 0 { -angle } else { angle };
         let b = math::normalize(rotate(y, math::normalize(previous), roll));
         let axis = math::normalize(math::cross(previous, y));
         let f = math::normalize(math::normalize(rotate(previous, axis, pitch)));
@@ -69,15 +61,12 @@ impl Watercraft {
             self.transform.changed(1);
             self.previous_position = self.position;
             // Separate slot-29 sample and distinct runtime/transform heights.
-            self.position[1] = terrain.water_height(self.position)
-                - depth * (self.crash_elapsed / self.drive.0[21]);
+            self.position[1] = terrain.water_height(self.position) - depth * (self.crash_elapsed / self.drive.0[21]);
         }
-        self.events.push(Event::Publish(Publication::Transform(
-            self.transform.clone(),
-        )));
-        self.inherited_heading = self.heading;
         self.events
-            .push(Event::Publish(Publication::Update(true, true)));
+            .push(Event::Publish(Publication::Transform(self.transform.clone())));
+        self.inherited_heading = self.heading;
+        self.events.push(Event::Publish(Publication::Update(true, true)));
         self.events.push(Event::EffectUpdate);
         self.events.push(Event::ModelUpdate);
         true
@@ -124,10 +113,7 @@ impl Watercraft {
                     c.changed(4);
                 }
                 let v = math::add(
-                    math::add(
-                        math::scale(c.basis[0], back[0]),
-                        math::scale(c.basis[1], back[1]),
-                    ),
+                    math::add(math::scale(c.basis[0], back[0]), math::scale(c.basis[1], back[1])),
                     math::scale(c.basis[2], back[2]),
                 );
                 let proposed = [
@@ -145,9 +131,8 @@ impl Watercraft {
                         c.changed(1);
                         c.changed(4);
                         self.transform = c;
-                        self.events.push(Event::Publish(Publication::Transform(
-                            self.transform.clone(),
-                        )));
+                        self.events
+                            .push(Event::Publish(Publication::Transform(self.transform.clone())));
                         self.previous_position = self.position;
                         self.position = self.transform.translation;
                         self.inherited_heading = self.heading;
@@ -170,11 +155,7 @@ impl Watercraft {
         let n = terrain.normal(self.position);
         // rotate() is the earlier sinking convention; §5.7.5 explicitly uses
         // negative half angles, so negate the angle at this boundary.
-        let up = math::normalize(rotate(
-            n,
-            math::normalize(self.previous_heading),
-            -self.crash_angle,
-        ));
+        let up = math::normalize(rotate(n, math::normalize(self.previous_heading), -self.crash_angle));
         let heading = math::normalize(rotate(self.heading, [0.0, 1.0, 0.0], -increment));
         let f = math::normalize(heading);
         let r = math::normalize(math::cross(up, f));
@@ -182,9 +163,8 @@ impl Watercraft {
         self.transform.translation = self.position;
         self.transform.changed(1);
         self.transform.changed(4);
-        self.events.push(Event::Publish(Publication::Transform(
-            self.transform.clone(),
-        )));
+        self.events
+            .push(Event::Publish(Publication::Transform(self.transform.clone())));
         self.heading = heading;
         self.inherited_heading = heading;
         self.crash_publication_tail();
@@ -192,8 +172,7 @@ impl Watercraft {
     }
 
     fn crash_publication_tail(&mut self) {
-        self.events
-            .push(Event::Publish(Publication::Update(true, true)));
+        self.events.push(Event::Publish(Publication::Update(true, true)));
         self.events.push(Event::EffectUpdate);
         self.events.push(Event::ModelUpdate);
     }
@@ -211,11 +190,7 @@ impl super::Fleet {
         manager: &mut Option<&mut dyn super::DockManager>,
     ) -> super::Result<bool> {
         if rectangle.into_iter().any(|cell| !terrain.contains(cell)) {
-            self.push_state(
-                id,
-                crate::automata::State::new(super::state::IMMEDIATE_REMOVE),
-                manager,
-            )?;
+            self.push_state(id, crate::automata::State::new(super::state::IMMEDIATE_REMOVE), manager)?;
             return Ok(true);
         }
         let boat = self.boat_mut(id)?;
@@ -224,14 +199,7 @@ impl super::Fleet {
             return Ok(true);
         }
         boat.crash_elapsed += dt;
-        for key in [
-            "SMLWake",
-            "SMLWash",
-            "MEDWake",
-            "MEDWash",
-            "LargeWake",
-            "LargeWash",
-        ] {
+        for key in ["SMLWake", "SMLWash", "MEDWake", "MEDWash", "LargeWake", "LargeWash"] {
             boat.events.push(Event::StopWake(key));
             boat.events.push(Event::EffectUpdate);
         }

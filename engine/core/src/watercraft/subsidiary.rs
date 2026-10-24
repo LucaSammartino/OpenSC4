@@ -64,9 +64,7 @@ impl Subsidiary {
             model.advance(time);
         }
         if self.attachments_present && !models.is_empty() {
-            let model = models[0]
-                .as_ref()
-                .expect("first attached animation model is required");
+            let model = models[0].as_ref().expect("first attached animation model is required");
             if model.frame() >= model.frame_count() - 1.0 {
                 boat.events.push(Event::Notify(1, 0));
             }
