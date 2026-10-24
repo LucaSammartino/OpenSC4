@@ -1,22 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-gzmsg-shadow8 (queue manager shadow) | Codex / `glue-gzmsg-shadow8` | in progress: round 2 main merge resolved; full gate pending | Run qbuild all, then enqueue READY default-off diagnostic; GZ11/GZ12 remain open. |
+| glue-gzmsg-shadow8 (queue manager shadow) | Codex / `glue-gzmsg-shadow8` | READY: default-off diagnostic; main merged; full gate PASS; shadow unverified | Land diagnostic; separate RE lane answers GZ11/GZ12. |
 
-## Handoff
+## Round 2 result
 
-- Goal: land the existing default-off diagnostic after merging main; no new feature work.
-- Round 2: merged main; resolved private Rust module and known config-key list conflicts by retaining both sides.
-- Public exports from main are retained; no ABI version bump or generated ABI list edits.
-- Merge commit: 808a5612d (main parent 03482006f); Rust 6962/0, clippy zero diagnostics.
-- First round-2 native gate qbuild-20261024-064225-build-ctest: build PASS 91/91; CTest 77/78, capi_smoke stale object compiled ABI 95 from train-integration while current header/Rust both 96. Build relinked but did not recompile capi_smoke.cpp.
-- Failed evidence: build-runs/round2-failed-fc4verify-{build,ctest}.log and build-results/qbuild-20261024-064225-build-ctest.verdict.
-- Next: invalidate only capi_smoke compiler artifacts via Ninja clean rule, rerun qbuild all on unchanged merged source, collect to completion, report and enqueue READY.
-- Existing game labels gzmsg-shadow8-r1-2032 and gzmsg-shadow8-r2-2032 are completed and clean with ref_warnings=0; gzmsg 0/73, covered by GZ11/GZ12. No requests outstanding or new game run required for this merge-only resolution.
-- Prior implementation and measurements follow below.
+READY to land as a default-off diagnostic, as explicitly requested by the coordinator. The shadow remains unverified; no coverage credit is claimed.
+
+- Merged main (03482006f) in 808a5612d. Resolved `engine/capi/src/lib.rs` and `engine/plugin/FC4Config.cpp` additively: retained main's `scres_file_shadow` and the lane's `gzmsg_shadow` module/key entries. Main's public exports, including nettool exports, remain intact. No ABI version bump or generated ABI list edits.
+- Final stable-source `qbuild all`: **6962 passed, 0 failed, 0 ignored; clippy 0 diagnostics; native build 48/48 edges; CTest 78/78; qbuild PASS**. Native request `qbuild-20261024-064821-build-ctest` collected to terminal PASS. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; terminal verdict in `build-runs/build-results/qbuild-20261024-064821-build-ctest.verdict`.
+- First round-2 check `qbuild-20261024-064225-build-ctest` passed Rust/clippy and native build 91/91, but CTest was 77/78: stale `capi_smoke` object compiled ABI 95 from train-integration while current header/Rust both declare 96. It relinked without recompiling that object. Invalidated exactly that compiler artifact with Ninja's clean rule and repeated the full check; no source change or ABI bump was needed. Failed evidence preserved in `build-runs/round2-failed-fc4verify-{build,ctest}.log` and the unique failed request's verdict.
+- No new game run: merge conflict resolutions only retain existing module/config declarations and do not change diagnostic behavior. Existing completed labels `gzmsg-shadow8-r1-2032` and `gzmsg-shadow8-r2-2032` remain clean with ref_warnings=0; gzmsg 0/73. No requests outstanding.
+- No new questions. Existing GZ11/GZ12 in `docs/specs/questions/framework-gz-services.md` remain for the separate RE lane.
+
+Prior implementation and measurements follow below.
 
 ## Result
 
-WIP, not ready: native state could not be captured at all. Both real-city turbo runs produced **`gzmsg 0/73`**, not the required 73/73. No coverage-map/shadow verification credit is requested. There are no outstanding game requests.
+Native state could not be captured at all. Both real-city turbo runs produced **`gzmsg 0/73`**, not the required 73/73 for a verified shadow. No coverage-map/shadow verification credit is requested. There are no outstanding game requests. Round 2 authorizes landing this default-off diagnostic while its questions remain open.
 
 Implemented `FC4GZMsgShadow.*`, default-off through `gzmsg_shadow = 1`, with load/month/shutdown observer hooks, a known config key, and a private static-link Rust transport using the production `QueueManager2`. The diagnostic's explicit domain is IDs 0..255, service ID 0x64FA8434, IID 0x652294BC, and UINT32_MAX (259 probes). Its intended comparison is lookup membership, Boolean return and numeric queue identity against an immutable load baseline. It never resyncs, mutates native queues, registers notifications, posts messages, or substitutes engine behavior. Tokens are numeric only; all acquired native references are released within Capture. No C ABI DLL exports or ABI version changed.
 
@@ -52,4 +52,4 @@ Owner names below identify the relevant tools/coverage-map.tsv row groups from t
 
 1. Answer GZ12 with a supported existing-manager acquisition/availability/ownership contract. Do not create or insert a native service merely to make the shadow pass.
 2. Answer GZ11 with complete read-only state or mutation observation contracts; widen beyond the explicit diagnostic domain before requesting owner-row credit.
-3. Resume the shadow, rerun the gate after source changes, then obtain 73/73 real-city exact samples. Until then keep the shadow default-off and the merge queue WIP. tools/regress.ps1, tools/coverage-map.tsv and tools/coverage-shadows.tsv were not touched; no successful shadow exists to add to a profile.
+3. Resume the shadow, rerun the gate after source changes, then obtain 73/73 real-city exact samples. Until then keep the shadow default-off. The diagnostic is READY to land per the round 2 instruction; verification remains incomplete. tools/regress.ps1, tools/coverage-map.tsv and tools/coverage-shadows.tsv were not touched; no successful shadow exists to add to a profile.
