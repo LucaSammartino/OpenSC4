@@ -1166,3 +1166,5 @@ mod city_shadow;
 mod lighting_shadow;
 // LR14/T79 read-only live construction geometry; private static-link transport.
 mod construction_shadow;
+// Private application path/lifecycle observation transport; no DLL ABI exports.
+mod app_shadow;

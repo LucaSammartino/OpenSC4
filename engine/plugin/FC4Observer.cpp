@@ -108,6 +108,7 @@
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
 #include "FC4DbpfNative.h"
+#include "FC4AppShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -146,7 +147,9 @@ constexpr uint32_t kMsgPreCityInit = 0x26D31EC0;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
                                          kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive,
-                                         kMsgPostLoad, kMsgPreCityInit};
+                                         kMsgPostLoad, kMsgPreCityInit,
+                                         // application.md 6.2 mode transitions (app_shadow).
+                                         0x8BB5BB46, 0xCBB5BB45, 0xEA8AE29A};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -580,6 +583,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        AppShadowTick();
         FpuTick();
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
         // (modal-dialogs.md §2.3); before the script and the autotest.
@@ -613,6 +617,7 @@ public:
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
         FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
+        AppShadowMessage(msg->GetType());
         switch (msg->GetType()) {
             case kMsgPostCityInit:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
@@ -681,6 +686,7 @@ public:
                 RenderPropsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LightingShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                AppShadowObserve(static_cast<int32_t>(PublishedJulian()), true);
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
@@ -795,6 +801,7 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                AppShadowObserve(julian, false);
                 RenderPropsShadowMonth(julian);
                 CityShadowObserve(CurrentCity(), julian, false);
                 LightingShadowMonth(julian);
@@ -874,6 +881,7 @@ public:
         const bool service = fw->AddSystemService(static_cast<cIGZSystemService*>(this));
         const bool tick = fw->AddToTick(static_cast<cIGZSystemService*>(this));
         bool notes = true;
+        AppShadowStart();
         for (uint32_t id : kObserverMessages) {
             notes = ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), id) && notes;
         }
@@ -887,6 +895,7 @@ public:
     void Stop() {
         if (!started_) return;
         started_ = false;
+        AppShadowStop();
         cIGZMessageServer2Ptr ms;
         if (ms) {
             for (uint32_t id : kObserverMessages) {
