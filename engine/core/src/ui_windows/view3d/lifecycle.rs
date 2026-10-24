@@ -144,9 +144,22 @@ pub trait LifecycleHost: InputHost {
     fn cheat_manager_exists(&self) -> bool;
     fn development_cheats(&self) -> bool;
     fn loading_city(&self) -> bool;
+    fn register_view_command(&mut self, id: u32, name: &'static str, flags: u32);
 }
 
 impl View3DWin {
+    /// Slot 143 never invokes ProcessCommand (§1.1).
+    pub fn on_command(&self, _command: u32, _caller_data: u32) -> bool {
+        false
+    }
+
+    pub fn pre_city_shutdown(&mut self, host: &mut impl LifecycleHost) {
+        for message in std::mem::take(&mut self.owner.deferred) {
+            host.deferred_reference(&message, false);
+        }
+        self.remove_all_controls(host, true);
+        self.remove_all_persistent_controls(host);
+    }
     pub fn renderer(&self) -> Option<u32> {
         self.owner.lifecycle.objects.get(&0xF4).copied()
     }
@@ -190,9 +203,10 @@ impl View3DWin {
             return true;
         }
         host.lifecycle(LifecycleCall::Subscribe);
-        // VW9: exact ordered 104-record registry is not specified. This service
-        // boundary must not manufacture records from guessed command IDs.
         host.lifecycle(LifecycleCall::RegisterCommands);
+        for (id, name) in super::COMMANDS {
+            host.register_view_command(id, name, 0);
+        }
         if host.cheat_manager_exists() {
             host.lifecycle(LifecycleCall::CheatListener(true));
             for (index, &(id, name)) in CHEATS.iter().enumerate() {

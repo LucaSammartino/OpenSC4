@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! View filters, levels, cheats and global triggers (view3d-window §§3.1, 6f, 6k).
 
-use std::collections::BTreeMap;
+use crate::stl::StlHashMap;
 
 use super::{ControlCall, InputHost, SaveRef, View3DWin};
 
@@ -26,7 +26,7 @@ pub struct ViewState {
     pub last_lot: Option<u32>,
     pub contours_shown: bool,
     pub contour_layer: Option<i32>,
-    pub(crate) triggers: BTreeMap<u32, u32>,
+    pub(crate) triggers: StlHashMap<u32>,
 }
 
 impl Default for ViewState {
@@ -44,7 +44,7 @@ impl Default for ViewState {
             last_lot: None,
             contours_shown: false,
             contour_layer: None,
-            triggers: BTreeMap::new(),
+            triggers: StlHashMap::with_hint(100),
         }
     }
 }
@@ -80,6 +80,9 @@ pub trait CheatHost: InputHost + StateHost {
     /// UserDataDirectory/RecordedAnimations/. Allocation failure is tolerated.
     fn create_recorder_child(&mut self, id: u32, subdirectory: &str);
     fn remove_recorder_child(&mut self, id: u32);
+    fn decimal_separator(&self) -> u8 {
+        b'.'
+    }
 }
 
 impl View3DWin {
@@ -124,11 +127,7 @@ impl View3DWin {
 
     pub fn set_filter(&mut self, host: &mut impl StateHost, new: Option<FilterInfo>) {
         let old = self.owner.view.filter;
-        host.send(
-            0x06CD_B65A,
-            old.map_or(0, |f| f.token),
-            new.map_or(0, |f| f.token),
-        );
+        host.send(0x06CD_B65A, old.map_or(0, |f| f.token), new.map_or(0, |f| f.token));
         if let Some(f) = new {
             host.hold_filter(f.token);
         }
@@ -158,26 +157,24 @@ impl View3DWin {
     }
 
     pub fn global_trigger_state(&self, trigger: u32) -> bool {
-        self.owner.view.triggers.contains_key(&trigger)
+        self.owner.view.triggers.contains(trigger)
     }
 
     pub fn assert_global_trigger(&mut self, host: &mut impl StateHost, trigger: u32) {
-        use std::collections::btree_map::Entry;
-        match self.owner.view.triggers.entry(trigger) {
-            Entry::Occupied(mut e) => *e.get_mut() = e.get().wrapping_add(1),
-            Entry::Vacant(e) => {
-                e.insert(1);
-                host.send(0xAA37_5FE8, trigger, 1);
-            }
+        if let Some(count) = self.owner.view.triggers.get_mut(trigger) {
+            *count = count.wrapping_add(1);
+        } else {
+            *self.owner.view.triggers.entry(trigger, || 1) = 1;
+            host.send(0xAA37_5FE8, trigger, 1);
         }
     }
 
     pub fn retract_global_trigger(&mut self, host: &mut impl StateHost, trigger: u32) {
-        if let Some(count) = self.owner.view.triggers.get_mut(&trigger) {
+        if let Some(count) = self.owner.view.triggers.get_mut(trigger) {
             if *count > 1 {
                 *count -= 1;
             } else {
-                self.owner.view.triggers.remove(&trigger);
+                self.owner.view.triggers.remove(trigger);
                 host.send(0xAA37_5FE8, trigger, 0);
             }
         }
@@ -215,8 +212,7 @@ impl View3DWin {
                 let Some(text) = args.get(1) else {
                     return false;
                 };
-                // f32::clamp preserves a NaN input, as do the spec's comparisons.
-                let size = atof(text).clamp(0.9, 64.0);
+                let size = atof(text, host.decimal_separator()).clamp(0.9, 64.0);
                 host.camera_size(size);
                 true
             }
@@ -238,8 +234,7 @@ impl View3DWin {
                 false
             }
             0x8AB7_30AE => {
-                self.owner.view.terrain_query =
-                    !args.get(1).is_some_and(|s| s.eq_ignore_ascii_case("off"));
+                self.owner.view.terrain_query = !args.get(1).is_some_and(|s| s.eq_ignore_ascii_case("off"));
                 true
             }
             0x88F3_D4BB | 0x88F3_D4BC => {
@@ -262,12 +257,7 @@ impl View3DWin {
         }
     }
 
-    pub fn set_render_property(
-        &mut self,
-        host: &mut impl CheatHost,
-        name: &str,
-        value: &str,
-    ) -> bool {
+    pub fn set_render_property(&mut self, host: &mut impl CheatHost, name: &str, value: &str) -> bool {
         if host.render_property(name, value) {
             host.post_render_property_change(0xC9F7_75BB);
             true
@@ -277,38 +267,25 @@ impl View3DWin {
     }
 }
 
-/// Decimal C-atof prefix semantics, including trailing junk and incomplete
-/// exponents. No locale is guessed: a foreign command-line adapter may supply
-/// numeric arguments in the spec's dot-decimal form. Locale behavior is VW12.
-fn atof(text: &str) -> f32 {
+/// Bundled CRT decimal-prefix grammar (§6l), including D exponents.
+fn atof(text: &str, decimal: u8) -> f32 {
     let text = text.trim_start();
     let bytes = text.as_bytes();
     let mut i = usize::from(matches!(bytes.first(), Some(b'+') | Some(b'-')));
     let start = i;
-    let special = text[start..].to_ascii_lowercase();
-    if special.starts_with("infinity") || special.starts_with("inf") {
-        return if bytes.first() == Some(&b'-') {
-            f32::NEG_INFINITY
-        } else {
-            f32::INFINITY
-        };
-    }
-    if special.starts_with("nan") {
-        return f32::NAN;
-    }
     while bytes.get(i).is_some_and(u8::is_ascii_digit) {
         i += 1;
     }
-    if bytes.get(i) == Some(&b'.') {
+    if bytes.get(i) == Some(&decimal) {
         i += 1;
         while bytes.get(i).is_some_and(u8::is_ascii_digit) {
             i += 1;
         }
     }
-    if i == start || (i == start + 1 && bytes.get(start) == Some(&b'.')) {
+    if i == start || (i == start + 1 && bytes.get(start) == Some(&decimal)) {
         return 0.0;
     }
-    if matches!(bytes.get(i), Some(b'e') | Some(b'E')) {
+    if matches!(bytes.get(i), Some(b'e' | b'E' | b'd' | b'D')) {
         let exponent = i;
         i += 1;
         if matches!(bytes.get(i), Some(b'+') | Some(b'-')) {
@@ -322,5 +299,26 @@ fn atof(text: &str) -> f32 {
             i = exponent;
         }
     }
-    text[..i].parse().unwrap_or(0.0)
+    let normalized: String = bytes[..i]
+        .iter()
+        .map(|&b| match b {
+            b'd' | b'D' => 'e',
+            b if b == decimal => '.',
+            b => char::from(b),
+        })
+        .collect();
+    normalized.parse::<f64>().unwrap_or(0.0) as f32
+}
+
+pub(super) fn load_triggers(pairs: &[(u32, u32)]) -> StlHashMap<u32> {
+    // Literal stream-order insertion; reconstruction order is not settled (VW19).
+    let mut map = StlHashMap::with_hint(100);
+    for &(key, count) in pairs {
+        if let Some(old) = map.get_mut(key) {
+            *old = count;
+        } else {
+            *map.entry(key, || count) = count;
+        }
+    }
+    map
 }

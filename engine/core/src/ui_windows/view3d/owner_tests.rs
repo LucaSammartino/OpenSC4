@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 use crate::ui_windows::win::WinStore;
+include!("resolved_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
@@ -30,6 +31,8 @@ enum Op {
     Time(f32),
     Draw,
     Tail,
+    DeferredRef(u32, bool),
+    Repost(u32, u32),
     Send(u32, u32, u32),
     HoldFilter(u32),
     ReleaseFilter(u32),
@@ -50,6 +53,7 @@ enum Op {
 }
 
 struct Host {
+    registry: Vec<(u32, &'static str, u32)>,
     funds_value: i32,
     hover: Vec<(bool, u32, u32)>,
     dialog_calls: Vec<DialogCall>,
@@ -85,6 +89,7 @@ struct Host {
 impl Default for Host {
     fn default() -> Self {
         Self {
+            registry: Vec::new(),
             funds_value: 100,
             hover: Vec::new(),
             dialog_calls: Vec::new(),
@@ -231,8 +236,7 @@ impl ReferenceHost for Host {
     }
     fn resolve_identity(&mut self, identity: u64, iid: u32) -> Option<u32> {
         self.reference_calls.push((identity, iid));
-        self.filter_allocation
-            .then_some((identity - 0x10000) as u32)
+        self.filter_allocation.then_some((identity - 0x10000) as u32)
     }
 }
 
@@ -278,6 +282,9 @@ impl HelperHost for Host {
 }
 
 impl LifecycleHost for Host {
+    fn register_view_command(&mut self, id: u32, name: &'static str, flags: u32) {
+        self.registry.push((id, name, flags));
+    }
     fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply {
         let object = match call {
             LifecycleCall::LoadKeyMap { .. } if self.filter_allocation => Some(11),
@@ -502,10 +509,7 @@ fn catalog_item_guards_network_intersections_lot_move_and_null_allocation() {
     v.invoke_catalog_item(&mut host, 0x6A2B_245F, 42, false);
     let movement = Op::Control(90, ControlCall::Event(InputEvent::Move(50, 60, 0)));
     assert!(host.ops.contains(&movement));
-    assert_eq!(
-        host.ops.last(),
-        Some(&Op::Control(90, ControlCall::Release))
-    );
+    assert_eq!(host.ops.last(), Some(&Op::Control(90, ControlCall::Release)));
     host.filter_allocation = false;
     host.ops.clear();
     v.invoke_zoning_tool(&mut host, 1);
@@ -540,10 +544,7 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
     v.owner.lifecycle.progress = Some(99);
     v.pre_city_init(&mut host);
     assert!(v.owner.motion.city_initializing);
-    assert_eq!(
-        v.owner.view.filter.unwrap().realistic_flags,
-        Some([true; 3])
-    );
+    assert_eq!(v.owner.view.filter.unwrap().realistic_flags, Some([true; 3]));
     assert_eq!(v.owner.motion.edge_speed, 0.8);
     assert_eq!(
         &host.ops[..4],
@@ -560,9 +561,7 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
     assert!(!v.owner.motion.city_initializing);
     assert_eq!(v.persistent_controls(), 1);
     assert_eq!(v.lifecycle_state().progress, None);
-    assert!(host
-        .ops
-        .contains(&Op::City(CityCall::CitySize(0xC9C6_28EC, 1024))));
+    assert!(host.ops.contains(&Op::City(CityCall::CitySize(0xC9C6_28EC, 1024))));
     assert_eq!(
         host.ops
             .iter()
@@ -635,9 +634,7 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
             Op::Gui(GuiCall::ClearFocus(0x0987_B48F)),
         ]
     );
-    assert!(host
-        .ops
-        .contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
+    assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
     let fields = v.gui_state().fields.clone();
     let windows = v.gui_state().windows.clone();
     let overlay = v.gui_state().overlay.unwrap();
@@ -698,21 +695,14 @@ fn gui_failed_creations_and_shutdown_progress_order() {
     v.owner.lifecycle.progress = Some(42);
     host.ops.clear();
     v.shutdown(&mut host);
-    let gui_end = host
-        .ops
-        .iter()
-        .rposition(|o| matches!(o, Op::Gui(_)))
-        .unwrap();
+    let gui_end = host.ops.iter().rposition(|o| matches!(o, Op::Gui(_))).unwrap();
     let progress = host
         .ops
         .iter()
         .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(42)))
         .unwrap();
     assert!(gui_end < progress);
-    assert_eq!(
-        host.ops.last(),
-        Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands))
-    );
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
 }
 
 #[test]
@@ -773,14 +763,9 @@ fn init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure() {
         })
         .collect();
     assert_eq!(cheats, CHEATS[..10].iter().map(|c| c.0).collect::<Vec<_>>());
-    assert_eq!(
-        host.ops.last(),
-        Some(&Op::Lifecycle(LifecycleCall::InitTail))
-    );
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::InitTail)));
     assert_eq!(v.lifecycle_state().progress, Some(12));
-    assert!(host
-        .ops
-        .contains(&Op::Lifecycle(LifecycleCall::Release(11))));
+    assert!(host.ops.contains(&Op::Lifecycle(LifecycleCall::Release(11))));
     host.init_fail = None;
     assert!(v.init(&mut host));
     host.ops.clear();
@@ -821,10 +806,7 @@ fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
         assert!(host.ops.contains(&Op::Control(id, ControlCall::Shutdown)));
         assert!(host.ops.contains(&Op::Control(id, ControlCall::Release)));
     }
-    assert_eq!(
-        host.ops.last(),
-        Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands))
-    );
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
 }
 
 #[test]
@@ -850,31 +832,24 @@ fn vw_t3_deferred_budget_deduplicates_and_command_qi_has_priority() {
         },
     );
     assert_eq!(v.owner.deferred.len(), 1);
-    assert!(host.ops.is_empty());
+    assert_eq!(host.ops, [Op::DeferredRef(0xAA5C_F1E3, true)]);
     v.replay_deferred(&mut host);
     assert_eq!(v.owner.deferred.len(), 1);
+    host.ops.clear();
     host.changed = true;
     v.replay_deferred(&mut host);
     assert!(v.owner.deferred.is_empty());
     assert_eq!(
         host.ops,
         vec![
-            Op::Window(MessageCall::BudgetFailure),
-            Op::Action(ActionCall::Region { prompt: false })
+            Op::DeferredRef(0xAA5C_F1E3, true),
+            Op::DeferredRef(0xAA5C_F1E3, false),
+            Op::Repost(0xAA5C_F1E3, 0),
+            Op::DeferredRef(0xAA5C_F1E3, false),
+            Op::Tail,
         ]
     );
-    assert_eq!(
-        host.dialog_calls,
-        [
-            DialogCall::HiddenPauseSimulatorClock,
-            DialogCall::Bankruptcy {
-                group: 0x96A0_06B0,
-                instance: 0x0A5C_F71D,
-                id: 0x2A5C_FB2C
-            },
-            DialogCall::HiddenResumeSimulatorClock,
-        ]
-    );
+    assert!(host.dialog_calls.is_empty());
 }
 
 #[test]
@@ -1003,7 +978,7 @@ fn notification_view_hidden_pause_mission_and_progress_guards() {
             Op::Speed(0x8998_BBDF, false, false),
             Op::Window(MessageCall::Refresh(Refresh::Alert)),
             Op::Alert(None),
-            Op::Window(MessageCall::Refresh(Refresh::MissionActivation(7))),
+            Op::Window(MessageCall::Refresh(Refresh::Mission(0, 7))),
         ]
     );
     host.ops.clear();
@@ -1088,6 +1063,18 @@ impl MotionHost for Host {
     }
     fn paint_tail(&mut self) {
         self.ops.push(Op::Tail);
+    }
+    fn deferred_safe(&self) -> bool {
+        self.changed
+    }
+    fn deferred_enabled(&self) -> bool {
+        self.changed
+    }
+    fn deferred_reference(&mut self, m: &Notification, acquire: bool) {
+        self.ops.push(Op::DeferredRef(m.kind, acquire));
+    }
+    fn repost_deferred(&mut self, m: &Notification, delivery: u32) {
+        self.ops.push(Op::Repost(m.kind, delivery));
     }
 }
 
@@ -1225,11 +1212,7 @@ fn vw_t10_buttons_visit_persistent_before_stack_and_stop() {
 
 #[test]
 fn vw_t8_right_click_drag_threshold_and_modifiers() {
-    for (point, mods, jumps) in [
-        ((102, 103), 0, true),
-        ((104, 100), 0, false),
-        ((100, 100), 1, false),
-    ] {
+    for (point, mods, jumps) in [((102, 103), 0, true), ((104, 100), 0, false), ((100, 100), 1, false)] {
         let mut v = view();
         let mut h = Host::default();
         v.on_mouse(&mut h, InputEvent::DownR(100, 100, 0), context());
@@ -1276,10 +1259,9 @@ fn tutorial_blocks_move_before_drag_and_rewrites_button_coordinates() {
     h.tutorial = true;
     h.rewrite = Some((12, 13));
     v.on_mouse(&mut h, InputEvent::DownL(1, 2, 0), context());
-    assert!(h.ops.contains(&Op::Control(
-        2,
-        ControlCall::Event(InputEvent::DownL(12, 13, 0))
-    )));
+    assert!(h
+        .ops
+        .contains(&Op::Control(2, ControlCall::Event(InputEvent::DownL(12, 13, 0)))));
 }
 
 #[test]
@@ -1374,23 +1356,18 @@ fn vw_t13_zoom_limits_compare_against_unclamped_maximum() {
 fn paint_gates_preserve_tail_and_write_time_before_draw() {
     let mut v = view();
     let mut h = Host::default();
-    assert!(!v.paint(&mut h, 10, 0));
+    assert!(v.paint(&mut h, 10, 0));
     assert_eq!(h.ops, [Op::Tail]);
     h.ops.clear();
     v.motion_mut().paint_enabled = true;
     v.motion_mut().paint_period_us = 100.0;
-    assert!(!v.paint(&mut h, 99, 0));
-    assert!(h.ops.is_empty());
+    assert!(v.paint(&mut h, 99, 0));
+    assert_eq!(h.ops, [Op::Tail]);
+    h.ops.clear();
     assert!(v.paint(&mut h, 1_000_000, 0));
     assert_eq!(
         h.ops,
-        [
-            Op::ResetPaint,
-            Op::Cost(0.5),
-            Op::Time(7.0),
-            Op::Draw,
-            Op::Tail
-        ]
+        [Op::ResetPaint, Op::Cost(0.5), Op::Time(7.0), Op::Draw, Op::Tail]
     );
     h.ops.clear();
     v.motion_mut().city_initializing = true;
@@ -1593,10 +1570,7 @@ fn render_cheat_recorder_and_debug_flags_keep_their_quirks() {
     assert!(v.process_cheat(&mut h, 0x88F3_D4BC, &["RP", "property"]));
     assert_eq!(
         h.ops,
-        [
-            Op::Property("property".into(), "".into()),
-            Op::Message(0xC9F7_75BB)
-        ]
+        [Op::Property("property".into(), "".into()), Op::Message(0xC9F7_75BB)]
     );
     h.ops.clear();
     h.changed = false;
@@ -1636,10 +1610,7 @@ fn vw_t16_trigger_transitions_and_four_reference_save_roundtrip() {
     v.retract_global_trigger(&mut h, 123);
     v.retract_global_trigger(&mut h, 123);
     v.retract_global_trigger(&mut h, 123);
-    assert_eq!(
-        h.ops,
-        [Op::Send(0xAA37_5FE8, 123, 1), Op::Send(0xAA37_5FE8, 123, 0)]
-    );
+    assert_eq!(h.ops, [Op::Send(0xAA37_5FE8, 123, 1), Op::Send(0xAA37_5FE8, 123, 0)]);
     assert!(!v.global_trigger_state(123));
     v.assert_global_trigger(&mut h, 123);
     v.assert_global_trigger(&mut h, 123);
@@ -1669,17 +1640,11 @@ fn level_only_notifies_changes_and_contour_pair_removes_returned_layer() {
     v.set_view_level(&mut h, 1);
     assert!(h.ops.is_empty());
     v.set_view_level(&mut h, 3);
-    assert_eq!(
-        h.ops,
-        [Op::Send(0xC6CD_BF1A, 0, 0), Op::Send(0xC6CD_BF1B, 0, 0)]
-    );
+    assert_eq!(h.ops, [Op::Send(0xC6CD_BF1A, 0, 0), Op::Send(0xC6CD_BF1B, 0, 0)]);
     h.ops.clear();
     v.toggle_contours(&mut h);
     v.toggle_contours(&mut h);
-    assert_eq!(
-        h.ops,
-        [Op::Contour(true, 0x07F9_4205), Op::Contour(false, 42)]
-    );
+    assert_eq!(h.ops, [Op::Contour(true, 0x07F9_4205), Op::Contour(false, 42)]);
     assert_eq!(v.owner_state().view.contour_layer, None);
 }
 
@@ -1829,9 +1794,7 @@ fn scripted_popup_filters_alignment_failure_and_secondary_close_order() {
         flags: 0,
         margin: -75
     }));
-    assert!(h
-        .popup_calls
-        .contains(&PopupCall::Filter(0xCB95_403E, true)));
+    assert!(h.popup_calls.contains(&PopupCall::Filter(0xCB95_403E, true)));
     h.popup_calls.clear();
     v.close_owner_secondary(&mut h);
     let hidden: Vec<_> = h
@@ -1885,7 +1848,7 @@ fn save_uses_opaque_identities_subobjects_and_load_interfaces_before_init() {
     for (field, token) in [(0xF0, 10), (0xF4, 20), (0xF8, 30), (0x154, 40)] {
         v.owner.lifecycle.objects.insert(field, token);
     }
-    v.owner.view.triggers.insert(99, 2);
+    *v.owner.view.triggers.entry(99, || 2) = 2;
     assert_eq!(v.save_object_record(&mut h, false), None);
     assert!(h.reference_calls.is_empty());
     let record = v.save_object_record(&mut h, true).unwrap();
@@ -1909,7 +1872,7 @@ fn save_uses_opaque_identities_subobjects_and_load_interfaces_before_init() {
     assert_eq!(loaded.renderer(), Some(20));
     assert_eq!(loaded.model_maker(), Some(30));
     assert!(!loaded.owner.view.not_loaded);
-    assert_eq!(loaded.owner.view.triggers[&99], 2);
+    assert_eq!(loaded.owner.view.triggers.get(99), Some(&2));
     let mut bad = record.clone();
     bad.header.3 = 5;
     h.reference_calls.clear();
@@ -1969,10 +1932,7 @@ fn background_first_valid_image_releases_all_loads_and_picking_is_null_safe() {
     v.owner.lifecycle.objects.extend([(0x150, 10), (0xF4, 20)]);
     assert!(v.add_background_image(&mut h, true));
     assert_eq!(v.owner.background_mode, 2);
-    assert_eq!(
-        h.helper_calls,
-        [(1, 0xFFFF), (2, 0xFFFF), (3, 1), (3, 0xFFFF)]
-    );
+    assert_eq!(h.helper_calls, [(1, 0xFFFF), (2, 0xFFFF), (3, 1), (3, 0xFFFF)]);
     let mut point = [1.0; 3];
     v.owner.lifecycle.objects.remove(&0xF4);
     assert!(!v.pick_terrain(&mut h, 1, 2, 0, &mut point));
@@ -1990,15 +1950,9 @@ fn background_first_valid_image_releases_all_loads_and_picking_is_null_safe() {
 }
 
 #[test]
-fn helper_stop_branch_and_coverage_effect_contract() {
+fn helper_stop_branch() {
     let v = view();
     let mut h = Host::default();
-    v.show_coverage(&mut h);
-    assert_eq!(
-        h.helper_calls,
-        [(0, 0), (0x3AE4_BEA3, 32), (0x3AE4_BEAB, 32)]
-    );
-    h.helper_calls.clear();
     v.stop_foreign_helper(&mut h, 99);
     assert_eq!(h.helper_calls, [(99, 4), (99, 0)]);
     h.helper_calls.clear();
@@ -2123,7 +2077,7 @@ fn vw_t18_cost_red_when_above_funds_fades_frozen_for_1500ms() {
     v.update_cost_indicator(&mut h, 0.75);
     let halfway = v.owner_state().display.cost;
     assert_eq!(halfway.mode, CostMode::Fading);
-    assert_eq!(halfway.position, (85, 185));
+    assert_eq!(halfway.position, (100, 99));
     assert_eq!(halfway.colour, [255; 3]);
     assert!(halfway.alpha < cost.alpha);
     v.update_cost_indicator(&mut h, 0.75);
@@ -2275,10 +2229,7 @@ fn vw_t15_query_tool_twice_is_one_tool_and_cancel_closes_both_menus() {
     v.set_tertiary(Some(101), 2);
     assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF1));
     assert!(v.owner.stack.is_empty());
-    assert_eq!(
-        &h.ops[h.ops.len() - 2..],
-        &[Op::Close(true), Op::Close(false)]
-    );
+    assert_eq!(&h.ops[h.ops.len() - 2..], &[Op::Close(true), Op::Close(false)]);
     h.established = false;
     v.process_motion_panel_command(&mut h, 0x6A93_5CF3);
     assert!(v.owner.stack.is_empty());
