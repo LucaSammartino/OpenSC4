@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Bounded city geometry: terrain §2.1 and budget §17 item 6.
+//! Bounded city geometry: terrain §2.1 and budget round-2 errata item 6.
 //! HG8: city persistence and the remaining owner methods are unspecified.
 
 pub const CELL_WIDTH: f32 = 16.0;

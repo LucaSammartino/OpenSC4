@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-city-shadow9: bounded city geometry shadow | Codex / glue-city-shadow9 | ready (measured slice; HG8 open) | Land measured geometry; resolve HG8 before whole-owner credit. |
+| glue-city-shadow9: bounded city geometry shadow | Codex / glue-city-shadow9 | in progress (final citation gate) | Collect final gate; resolve HG8 before whole-owner credit. |
 
 ## Result and scope
 
@@ -17,7 +17,7 @@ serializable capture route. No invented city record parser or native-seeded pers
 ## Implementation
 
 - Source commit `237c3319a`: portable `city_geometry` core implements the published floor conversion from
-  budget §17 item 6, with the 16 m cell width from terrain §2.1. A private static-link C transport compares
+  budget round-2 errata item 6, with the 16 m cell width from terrain §2.1. A private static-link C transport compares
   native samples against that production Rust core; no public C ABI export changes.
 - Plugin samples `PositionToCell` at eight fixed caller-owned coordinate pairs and compares X/Z separately;
   both cell widths are compared separately. Every line covers **18 fields**, including negative edges, exact
@@ -31,6 +31,9 @@ serializable capture route. No invented city record parser or native-seeded pers
 
 ## Verification
 
+- Final audit found the floor rule citation was mislabeled §17; corrected to budget round-2 errata item 6.
+  Implementation statements and the measured behavior are unchanged. A second full gate is being collected
+  on the final source comment; no additional game run is required for a comment-only correction.
 - Owned-file formatting passes. Focused city-filter tests: **157 passed**, including both new tests for
   signed boundary flooring and counting every differing axis/width independently.
 - Stable-source `qbuild.py all`: **PASS**, workspace **6986 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**.

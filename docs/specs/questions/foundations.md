@@ -98,6 +98,6 @@
   the other city fields; save-records section 2 says the city-written auxiliary record is unspecified.
   The brief names core/src/save.rs as a city implementation but it implements the simulator v4 record.
   [No city persistence oracle or whole-owner credit. Measure only PositionToCell on eight fixed caller inputs
-  per load/month (budget section 17 item 6: floor, 16 m origin) and CellWidthX/Z (terrain section 2.1).
+  per load/month (budget round-2 errata item 6: floor, 16 m origin) and CellWidthX/Z (terrain section 2.1).
   All other cISC4City methods, serialized fields, 53 component references and auxiliary records remain
   uncompared. No native output is used to populate independent expected values; no Write or mutators called.]
