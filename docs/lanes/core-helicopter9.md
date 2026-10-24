@@ -12,6 +12,7 @@
 - Done: qbuild all reached terminal PASS; native build 253/253 edges (107.9 s), CTest 79/79 (241.1 s), total verify 353.5 s.
 - Next: collect the separately task-mandated qbuild verify mode, then finalize report/merge queue. Rust/native source remains e60c21f25.
 - Completed native queue label: qbuild-20261024-084413-build-ctest; logs build-runs/fc4verify-build.log and fc4verify-ctest.log.
+- Outstanding task-mandated verify: qbuild-20261024-090152-build-ctest; collect SAME exec session 90083 to terminal result.
 - Facts: q.py failed before cargo (Git Bash mapping error); direct cargo focused tests worked. First compile failure preserved in build-runs/focused-first-failure.txt.
 - Checks: no ABI/plugin edits; no game request outstanding. Narrow parameter/record/goal shadow feasible next; flight shadow blocked by AF2/AF3.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-helicopter9-r1-manifest.json.
