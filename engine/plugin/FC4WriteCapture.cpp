@@ -198,6 +198,7 @@ bool WriteCapture::WriteVariant(cIGZVariant const& v) {
 }
 
 bool WriteCapture::Put(const void* p, size_t n) {
+    if (n == 0) return good_;
     const uint8_t* b = static_cast<const uint8_t*>(p);
     bytes_.insert(bytes_.end(), b, b + n);  // x86: already little-endian
     return good_;

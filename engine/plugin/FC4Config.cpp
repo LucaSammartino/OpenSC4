@@ -355,6 +355,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "prop_occupant_verify",
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
+                                  // SG3/LR12 record-only observations (default off).
+                                  "simgrid_shadow", "lotrec_shadow",
                                   // Read-only overlay getter/record/cell/texture observation.
                                   "overlays_shadow",
                                   // Inherited automata and construction record comparison (default off).
