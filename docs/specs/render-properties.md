@@ -316,6 +316,122 @@ logger's headings, padding, line endings, `%g` spelling, write/close failures or
 handling of embedded zero bytes. Those remain the graphics-rules GR6 contract; merely
 decoding names with replacement characters cannot claim byte-exact logging.
 
+### 1.5 Configured state, the view snapshot and observation (RP7)
+
+**There is no public ordered-write-history interface in this owner.** Its eighteen slots
+provide current counts, names, values, lookup and assignment, plus reference operations;
+they provide neither a change journal nor an observer registration. The application getter
+in §1.4 returns the current owner, not its inputs. Graphics-rule logging is also not such
+an interface: the value dump is a current-state report with formatted floats, and the option
+summary is preferences/recommendations ([graphics-rules.md](graphics-rules.md) §6).
+Reading these outputs into expected state would test a copy of native results, not an
+independent prediction. Registered defaults predict a newly constructed object only.
+
+#### Sources and order of live changes *[compat]*
+
+The rules manager applies each property set in **Boolean-list order, then integer-list
+order, then float-list order**, preserving repeated writes within each list
+(`0x007CE1F9–0x007CE258`). There is no combined source-text assignment order across the
+three types. Rule selection, option selection and preference reapplication are specified
+in graphics-rules.md §§1, 5, 6 and 8; they are inputs to prediction, not a new render-owner
+method. The same registered defaults can consequently lead to different live values.
+Reconstructing startup requires the actual configuration/rule inputs, environment and
+preferences, with subsequent option/preference changes in their actual order.
+
+The view's misleadingly named private **SetRenderProperties** (`0x007ECDA0`) writes the
+**application** owner held in `0x00B43CC4`, not its embedded snapshot. It resolves a name
+Boolean first, then integer, then float; an empty Boolean value toggles the current truth
+value, while nonempty Boolean/integer/float text uses the corresponding SCRes parser.
+It returns false if there is no application owner or no matching property, and true for
+a resolved assignment; this is not a setter validation/status result. The successful path
+can post `0xC9F775BB` through the message server. That notification carries neither an
+ordered list of assignments nor their values. Evidence: target and Boolean path
+`0x007ECDC6–0x007ECE43`, numeric paths `0x007ECE4B–0x007ECEBE`, notification and result
+`0x007ECEE7–0x007ECF32`. The static parser callback at `0x007EDE30` forwards to this helper;
+neither is a public render-properties slot. Predict textual inputs by the SCRes parsing
+contract; do not substitute host-language number/Boolean parsing.
+
+#### The second object is a private scroll snapshot *[compat, quirk]*
+
+Let **V** mean the complete `cSC4View3DWin` object, not an arbitrarily acquired secondary
+interface. Its constructor constructs a separate properties object **S = V + 0x380**
+(`0x007F0E32–0x007F0E70`). S initially has the ordinary defaults. It is embedded storage,
+not a separately allocated service. The view's public vtable `0x00ABCE40` has no
+render-properties/snapshot getter; its QueryInterface at `0x007E5630–0x007E56C0` does not
+expose S. **There is no public acquisition/signature contract for S.** In particular,
+neither GetRenderer nor the helper named SetRenderProperties returns it. Do not invent
+a view-properties IID or reinterpret a secondary interface plus `0x380` as S.
+
+When application Boolean **30 (`kNoPartialBackingStoreCopies`)** is true, scroll begin saves the
+application's three tables in S, then writes application Booleans **9, 10, 32, 13** to
+false in that order and assigns application float **9** from float **10**. The snapshot
+is the state **before** these writes. Scroll end, when that same application flag is true
+at the end call, restores all three application tables from S. These operations are
+conditional on the flag at each call, not on a saved “begin succeeded” flag
+(`0x007F6427–0x007F64CF`, `0x007F6177–0x007F61D8`). Thus changing that flag between calls
+can suppress restoration, or permit restoration of an older snapshot. No balancing or
+automatic recovery rule is supplied by these two bodies.
+
+The save/restore copies the table contents rather than replaying setters. Boolean-table
+copy uses `0x007F5F00`, integer/float-table copy `0x007F6010`; their call sites above address
+the three table descriptors directly. S and the application consequently have independent
+stored values: changing the application after a save does not update S, and restore
+overwrites intervening application assignments. The paths also literally copy the 32-bit
+field at P + 8 (the reference count) from source to destination
+(`0x007F645C–0x007F646F`, `0x007F61B3–0x007F61C0`). This is an internal snapshot quirk,
+not AddRef/Release and not a way to transfer public reference ownership.
+
+An image-specific diagnostic bridge may identify V and borrow S while that view remains
+alive, after verifying object identity and layout. This is a **private diagnostic binding**,
+not SDK acquisition. Do not AddRef/Release or delete S as an independently owned heap object;
+§1.1's deleting destructor can free the complete properties pointer, which here points
+inside V. If the bridge cannot establish the complete V and lifetime, report the snapshot
+binding unavailable. The ordinary application acquisition in §1.4 remains sufficient for
+application counts/names/Find; it does not acquire S.
+
+#### Non-mutating input-observation contract *[choice: diagnostic protocol]*
+
+There is **no native subscription or existing DR0 entitlement** implied by this spec.
+The following is a protocol for a host-supplied trace/bridge, not a claim that such a
+bridge exists or that native measurements have been performed. It must observe genuine
+operations without issuing additional setters, restoring native values, replacing native
+results, or seeding expected values from getters/table reads. A monthly sample is not
+enough to recover missing input history.
+
+| Event/input | Required observation and replay rule |
+|---|---|
+| Construction/lifetime | Distinct instance identity and generation, construction before any configuration write, and destruction/end of borrowed lifetime. Initialize expected tables from §3, independently of native outputs. Never replay destruction or reference tests against the borrowed live application or S. |
+| Setter entry | Record target P/generation, sequence number, thread, type, signed 32-bit index, and the argument before execution. On this x86 build ECX is P, index is the 32-bit stack argument at entry +4, and value is at entry +8: Boolean low byte, integer four bytes, float binary32 four bytes. All three bodies remove eight argument bytes and promise no status (`0x007DDE60–0x007DDEB4`). Preserve duplicate/no-change writes and inter-type order across calls. |
+| Setter completion | Associate entry with the same completed operation; apply only completed writes at the comparison boundary. Preserve the native register/flags/stack and x87 environment. For ordinary finite binary32 inputs, replay the setter width in §2.1; do not route floats through decimal logs. Exceptional x87/NaN inputs require that environment, not a universal payload-preservation promise. |
+| Snapshot/save and restore | Record the source/destination instance relationship and completion of each save/restore. Copy the **independent expected source** tables to the expected destination. Native copied table values must never become expected inputs. These events are necessary even when no setter is seen. Track the P+8 copy separately if claiming reference-field coverage. |
+| Sampling | Compare native outputs only after all earlier completed events have been replayed and with no write/copy in progress. A late attach, missing event, ambiguous ordering, unidentified source, lost lifetime, or observation failure makes dependent comparisons unavailable/incomplete; do not silently reset expectations from native state. |
+
+At the setter boundary these are **external inputs to that owner**, so replay can test
+its assignments and getters independently; it does not verify that the rules manager,
+preferences or parser selected the correct inputs. That requires predicting their inputs
+and behavior under their own specs. Likewise a copy event must not be misreported as an
+invocation of every setter or as evidence for unobserved setter methods.
+
+The shared SCRes/weather observer owns its debug state: SCRes can occupy all four hardware
+execution slots, and its documented DR0 loan is restricted to weather on the installing
+thread outside active parser/file frames or pending forwarding
+([glue-weather-boot8.md](../lanes/glue-weather-boot8.md)). Property setters can run **inside**
+parser frames. That loan therefore cannot serve as continuous setter observation, and
+DR1–DR3 are not spare slots to assume available. A conforming bridge for simultaneous
+observation must use a separately coordinated trace facility that leaves the existing
+DR0–DR3/DR6/DR7 state and exception dispatch intact, or report this observer unavailable.
+Blindly clearing, replacing, temporarily borrowing or swallowing the existing breakpoints
+does not satisfy the protocol. Merely restoring them later does not recover missed events.
+No particular in-process hook or new debugging implementation is prescribed here.
+
+For owner closure, public counts/names/ASCII Find probes can remain independently credited
+without this bridge. Live values need a complete input/copy history; setter credit needs
+observed setters (or an isolated owned-instance fixture); S needs the private lifetime
+binding above. QueryInterface/refcount/destruction and independent copying need separate
+owned-object tests (§7.1), never destructive calls on a borrowed live service. RP1/RP2's
+metadata and RP6's locale profiles remain separate questions. A registry-only shadow
+does not become whole-owner verification by adding a dump of configured native values.
+
 ## 2. Slots (vtable `0x00ABB6C0`) *[compat]*
 
 | Slot | VA | Behaviour |
@@ -475,13 +591,15 @@ a short name always returns the lower index.
   28) and `kLightingUpdateDelta` (float 6) (lighting.md §1.3, §2.1, §6).
 - The glyph texture manager reads `kStringTextureCacheSize` (integer 23; glyph-textures.md §1.2).
 - The model maker reads `kModelLODOffset` (integer 22; graphics-formats.md §4.2).
-- `cSC4View3DWin` keeps its own copy (§1.1) and re-posts render-properties changes (`0xC9F775BB`, graphics-formats.md
-  §4.2).
+- `cSC4View3DWin` keeps a private scroll snapshot and can restore the application's tables without setters
+  (§1.5); its text assignment helper writes the application and posts `0xC9F775BB` (graphics-formats.md §4.2).
 
 ## 5. Quirks
 
 1. Four short names are ambiguous; the lower index wins (§3).
 2. Get and set do not check the index; set ignores the range (§2).
+3. Scroll snapshot save/restore bypasses setters and copies the reference-count field too; its enable flag is
+   checked separately at begin and end (§1.5).
 
 ## 6. Open questions
 
@@ -492,6 +610,8 @@ remaining shipped-language locale/codepage profiles and startup ordering. §1.4 
 the native primitive ABI, binding/failure protocol and byte/timing boundaries; §7.3 gives
 independent native discriminators. Those are instruction-derived recipes, not measured
 per-language outcomes. The C-locale ASCII core domain remains distinct from native binding.
+RP7 is answered in §1.5 and §7.4: no public ordered-input journal or snapshot getter exists;
+the private scroll snapshot restores tables without setters. Its original entry is archived.
 
 ## 7. Conformance tests
 
@@ -592,3 +712,27 @@ Do not describe these recipes as executed native vectors, game/shadow evidence, 
 that every shipped-language profile has been covered. The last four columns of a future
 profile record should include accepted CRT locale/codepage, construction name bytes,
 lookup mapping observations and final IDs; retain failures and unchanged profiles too.
+
+### 7.4 Configured state and snapshot vectors (RP7)
+
+These are **instruction-derived conformance vectors and adapter test recipes**, not
+executed native/game results. Mutation belongs in an isolated owned fixture; never change
+the borrowed application/S merely to provoke a probe. For snapshot cases, an isolated
+view fixture must also provide its renderer/message dependencies. A pure expected-state
+fixture can check the replay rules, but cannot count that as native view-method coverage.
+
+| ID | Inputs / operation | Required result |
+|---|---|---|
+| RP7-1: configuration duplicates | A rules property set lists Boolean (9, false), (9, true), integer (23, 4096), (23, 2048), float (2, 1.5). Start with fresh tables. | Setter events are B9=false, B9=true, I23=4096, I23=2048, F2=1.5, in exactly that order. Final values B9=true, I23=2048, F2=1.5; no deduplication. A final-state dump cannot establish the first/fourth writes. |
+| RP7-2: raw finite argument | On an isolated P, set float 2 from binary32 bits `0x80000000` (negative zero), then from `0x3FC00000` (1.5); set integer 23 to −17. Use the ordinary masked x87 environment. | Each entry argument remains distinguishable in the trace; float getter after the first assignment has negative-zero sign, after the second returns 1.5, and integer getter returns −17. Range metadata does not clamp −17. No success Boolean is read from a setter. |
+| RP7-3: ordinary scroll | Application B30=true; B9=B10=B32=B13=true, F9=1.5, F10=2.0, I23=2048. Begin scroll; during scroll set I23=4096; end scroll with B30 still true. | Save captures the stated pre-begin values. Begin writes B9/B10/B32/B13=false in that order, then F9=2.0; S still has the original values. End restores the originals, including I23=2048 and F9=1.5. There are no setter events for the restoration. |
+| RP7-4: disabled begin/end | B30=false throughout; invoke begin and end in the fixture. | No property save, restore or scroll-specific setters from either path. This does not claim absence of their other message/renderer side effects. |
+| RP7-5: flag changes | First establish S with a valid enabled begin/end. With B30=true begin again, then set B30=false before end. Separately, after a disabled begin set B30=true before end. | First end skips restoration and leaves intervening writes intact. Second end restores the previously saved S, including S's B30 value; no fresh save is inferred from the disabled begin. Record both condition changes as inputs. |
+| RP7-6: text helper target | In an owned fixture, call the view text helper with name `RenderShadows` and empty value, with B9=true; then use a missing name. | First resolves Boolean 9 and sets application B9=false; S is unchanged. Missing name returns false and issues no setter. This helper is not a snapshot getter or a new owner slot. |
+| RP7-7: no history bootstrap | Attach after native configuration with no captured startup inputs; or omit a snapshot-restore event from an otherwise complete setter trace. | Mark live expected values incomplete/unavailable. Do not seed from native getters or count resulting equality as independent verification. Counts/names/eligible Find probes can continue under their own domain. |
+| RP7-8: observer conflict/lifetime | With the known SCRes/weather debug state occupied, request property tracing without a coordinated independent facility; separately withhold the complete-view bridge or end V's lifetime. | Property observer/snapshot binding is unavailable, debug state is preserved, and S is never used past lifetime or independently released/deleted. This is an adapter obligation, not a native owner error return. |
+
+For an instrumented native run, retain the ordered input/copy record and its completion/gap
+status, object generations, comparison boundaries, executable identity, and observer
+availability alongside the verdict. Finite setter traces alone do not cover exceptional
+floating inputs, invalid indices, lifetime slots, or non-C locale behavior.

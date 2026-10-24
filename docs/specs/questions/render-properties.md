@@ -21,3 +21,5 @@
   accepted locale/codepage and startup construction order, observed I/i/high-byte results,
   and effects of locale changes. Native language-manager success can mask a failed
   setlocale; requested language alone is insufficient evidence. No profile run was made.
+
+<!-- RP7 (filed in glue-renderprops-shadow9) is answered in render-properties.md §1.5/§7.4 and archived in answered/render-properties.md. -->
