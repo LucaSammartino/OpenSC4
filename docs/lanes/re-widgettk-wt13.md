@@ -8,5 +8,7 @@
 - Worktree reused with detached HEAD; no engine files read or changed.
 - Questions retrieved from core-uiwin-close11 and core-widgets-close12; local question files lack the new entries.
 - Engine closure tables are linked inside forbidden engine/; use lane reports and their question references instead.
-- Next: query exported native functions, inspect relevant decomp ranges, then edit specs and archive six answers.
+- Text-edit milestone: TE10–12 specified and archived; runtime sound IDs are uninitialized, three colors are 0xFF000000, line height 1; signed reflow <1 is normal-return-only; false direct / true edge.
+- Next: finish WT10–12, regenerate index, run doccheck and commit final report.
+- WT evidence: live filter list additions visible immediately; only outer PlotComposite drains deferred removals, not DoMessage. Type 1 preserves ChildDelete AL. Release at 0 or 1 invokes slot 148(1); ordinary larger counts decrement.
 - No ABI changes or game requests planned.
