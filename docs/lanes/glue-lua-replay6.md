@@ -1,18 +1,70 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree) | in progress | Implement LH6/LH7 bounded comparison, native gate, unique 2032 game run. |
+| glue-lua-replay6: bounded Lua registration shadow | Codex; glue-lua-replay6 (detached worktree; supervisor publishes reserved branch) | ready: lua 73/73 exact to 2032; full gate passed | Land bounded registration changes; no full-VM verification credit. |
 
-## Handoff
+## Changes and verification scope
 
-- Goal: extend bounded registration comparison per lua-host LH6/LH7; emit monthly `lua shadow` summaries.
-- Prior lane: glue-lua-shadow5 measured lua-registry 73/73; full execution replay is unsupported by public observation.
-- Done: LH6/LH7 §§1.4.2/3.5/8.6 read; full replay remains disabled. Native capture failures and image-validated portable evidence labels added; requested `lua shadow` summary label with explicit registration scope.
-- Model checks scratch at each registration stage; 6 focused capi tests passed (ordering, missing bindings, exact actual identities included).
-- Source milestone: `c9a62c9b1`; owned Rust fmt and diff check clean.
-- Final-source qbuild all PASS (collected to exit 0): workspace 6890 passed, 0 failed, 0 ignored; clippy 0 diagnostics; native fc4verify build 233/233 (115.1 s), CTest 72/72 (146.2 s), verify PASS 265.1 s. Native ID `qbuild-20261024-030121-build-ctest` complete.
-- Gate noted tree changes: documentation milestone commit and README scope clarification only; runtime source stayed c9a62c9b1 throughout. No duplicate checks.
-- Next: submit and collect unique `lua-replay6-c9a62c9b1-turbo-2032-20261024a` run (no qwait); record run >=382 in label-only filename. Then final report, merge main as task explicitly requests, queue full actual HEAD.
-- Formatting first used a relative path rejected by qbuild; corrected to absolute owned-file path. No source compilation failure.
-- Task explicitly overrides spec §8.6 evidence label `lua-registry`; `lua` summary must still confer no full-VM verification credit.
-- Game request submitted: `lua-replay6-c9a62c9b1-turbo-2032-20261024a`, turbo Konradshohe to 2032; DLL SHA256 `2D4B35923B7B650C9DBE1D3DC3111EAC6FCE645C40759C26FAA74EED48F1A758`. Only request outstanding; do not resend/discard a completed verdict. Native gate complete.
-- Do not access tools/ or analysis sources. No ABI export changes intended.
+Continues glue-lua-shadow5 using the LH6/LH7 answers in lua-host §§1.4.2,
+3.5 and 8.6. Full chunk/call replay remains disabled: public interfaces offer
+no complete observer, and no replay-input or nondeterminism-exclusion contract
+is established. No callbacks, chunks or metamethods are executed by the shadow.
+
+The native sampler now explicitly counts missing C-function bindings (including
+`_tf_`) as capture failures, checks stack height after restoration as well as
+before it, and records portable preferred-address labels only when VirtualQuery
+validates that a callback belongs to the loaded executable image. Zero means no
+preferred label. Same-process comparisons always retain exact actual pointers;
+foreign-module and heap addresses are never rebased to erase differences.
+The production-core registration adapter checks `_tf_` after each local pass
+(global then game) while comparing the live app snapshot after both passes.
+
+At load and monthly, the summary now matches the house pattern exactly:
+`lua shadow YYYY-MM-DD <event>: scope=registration ... mismatches=N`.
+This task explicitly overrides the older §8.6 `lua-registry` summary label.
+Per-entry records retain `lua-registry record` for bounded evidence. The startup
+line, summaries and README explain the scope; counting `lua` supplies **no
+full-VM Lua verification credit**. No tools/ file, regress profile, generated
+ABI entry, public C ABI export or version was changed.
+
+## Gate
+
+- Implementation commit: `c9a62c9b1`. Six focused capi tests passed, including
+  collector order, missing bindings and exact pointer identity without rebasing.
+- Owned Rust qbuild fmt and git diff --check passed. The first fmt invocation
+  rejected a relative filename; the absolute owned-file invocation found a
+  formatting diff, applied with apply_patch, then passed. No compile/test failure.
+- One final-source `qbuild all` passed: **6890 passed, 0 failed, 0 ignored**
+  across workspace test-result lines; clippy **0 diagnostics**; native fc4verify
+  build **233/233** edges (115.1 s), full CTest **72/72** (146.2 s),
+  fc4verify **PASS** (265.1 s), qbuild **PASS**, exit 0.
+- Native request `qbuild-20261024-030121-build-ctest` collected to terminal
+  completion without duplication. Logs: `build-runs/qbuild-{test,clippy}.log`,
+  `build-runs/fc4verify-{configure,build,ctest}.log`. The tree-change note from
+  the verifier was caused by documentation commits/README clarification; runtime
+  source stayed at c9a62c9b1 throughout the gate and game run.
+
+## Real-city result
+
+[Run 382](../runs/lua-replay6-c9a62c9b1-turbo-2032-20261024a.md), unique label
+`lua-replay6-c9a62c9b1-turbo-2032-20261024a`: Konradshohe, turbo,
+`lua_shadow=1`, target 2032-01-01, actual verdict **2032-01-21**, **clean**,
+`ref_warnings=0`; foreign exceptions, watchdog stalls, rtc and overruns all 0.
+City time 29.969 s; queue wait 7 s; run wall time 40 s. DLL SHA256:
+`2D4B35923B7B650C9DBE1D3DC3111EAC6FCE645C40759C26FAA74EED48F1A758`.
+
+Exact harness-recognized result: **lua 73/73**. Independently counted 73 dated
+samples, load 2026-01-27 through month 2032-01-01, with every collector, binding,
+scratch, stack and capture difference count zero. Each has 47 entries: **3431**
+per-entry observations. Scratch is 0x0040C890; window_graph actual and preferred
+callback labels are both 0x0040C890 in the measured process. A single file-event
+wait accepted the unique completed verdict; no qwait, resend or game launch.
+No turbo differences occurred, so no normal-speed rerun was required.
+
+## Questions and next steps
+
+No new questions; LH6/LH7 are answered. No nondeterminism fields were excluded.
+Closure allocation/upvalues, callback bodies, scripts, historical chunks/calls,
+other owners and unsampled VMs remain outside the bounded comparison, never
+counted as matches. A complete replay would require a separately justified
+capture and side-effect/identity contract. No native/game requests outstanding.
+Coordinator: land this bounded change and retain that scope in coverage reports.
