@@ -360,6 +360,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "netrules_shadow",
                                   // Constructed original string comparisons (default off).
                                   "strings_shadow",
+                                  // Record-only scripted network drag comparison (default off).
+                                  "nettool_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

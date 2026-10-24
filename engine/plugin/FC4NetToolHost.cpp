@@ -332,7 +332,9 @@ bool ValidateAndSolve(void* u, fc4_nettool_run* run, bool real, fc4_nettool_pass
     g_pieceCount = 0;
     g_piecesOwner = nullptr;
     if (valid > 0) SolvePieces(c, run, valid);
-    return valid > 0;
+    // Callback success means the pass result was filled, including refusal.
+    // Returning false discards out->failure in the C ABI adapter (NT28).
+    return true;
 }
 
 // §3.3 step 4.1: GetNetworkOccupant(x, z) with the OR filter on `mask`

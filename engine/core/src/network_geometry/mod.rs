@@ -262,8 +262,8 @@ pub fn draw_network_line(
     if info.params.straight_only && seg.dragged_count != seg.straight_count {
         return false;
     }
-    // 4. ComputeDraggedCells. [inferred] The cells per step are w1.
-    let (c, s) = compute_dragged_cells(start, seg.end, seg.pen_direction, w1);
+    // 4. Ordered staircase rows, including turn cells (network-tools NT28).
+    let (c, s) = drag::compute_dragged_rows(start, seg.end, &seg, w1, w2);
     run.cells = c;
     run.steps = s;
     // §3.3 step 3: [inferred] "whose end is diagonal" is read as the end
@@ -456,7 +456,24 @@ impl NetworkGeometry {
             (true, self.can_tiles_be_supported(t, host))
         });
         match r {
-            Ok(level) => self.level = Some(level),
+            Ok(level) => {
+                self.level = Some(level);
+                // Retain the final network corners for pricing/insertion.
+                // NT29: a later getter reads live terrain, never re-solves
+                // these corners from the new terrain or satisfier targets.
+                for ci in self.cells.values_mut() {
+                    let off = if ci.connection_node {
+                        smoothing::CONNECTION_NODE_OFFSET
+                    } else {
+                        0
+                    };
+                    ci.corners = std::array::from_fn(|k| {
+                        self.network
+                            .height(ci.vertices[k] + off)
+                            .unwrap_or_else(|| t.vertex_altitude(ci.vertices[k]))
+                    });
+                }
+            }
             Err(c) => {
                 self.failure = c;
                 self.valid = 0;
@@ -479,16 +496,18 @@ impl NetworkGeometry {
         }
         self.create_cell_infos(t, host);
         if self.smooth(t, host).is_err() {
+            // Failure retains the public footprint, but no solved inventory
+            // is priced or inserted (network-tools §5.2).
+            self.solved.clear();
             return 0;
         }
         self.valid
     }
 
     /// The inputs of `GetCostOfSolution` (network-tools.md §8.1) for the
-    /// solved cells: the corners are the network satisfier's heights (the
-    /// cell's corner where a vertex was not solved). [inferred] "Already
-    /// built" is cell info `+0x52`, which §8.1 of this spec calls the
-    /// intersection byte (Q NG16). The bridge records' costs are NG2's (0).
+    /// retained solved cells (NT29): retained network corners versus live
+    /// terrain. The intersection marker alone excludes the cell charge;
+    /// placed state does not. The bridge records' costs are NG2's (0).
     pub fn cost_inputs(&self, t: &dyn GeometryTerrain, demolition: i32) -> extras::CostInputs {
         let info = self.info(self.run.type_id);
         let mut cell_costs = [0; TYPE_COUNT];
@@ -499,21 +518,12 @@ impl NetworkGeometry {
             .solved
             .iter()
             .filter_map(|&(x, z)| self.cells.get(&cell_key(x, z)))
-            .map(|ci| {
-                let off = if ci.connection_node {
-                    smoothing::CONNECTION_NODE_OFFSET
-                } else {
-                    0
-                };
-                extras::CostCell {
-                    in_run: ci.in_run,
-                    prebuilt: ci.intersection,
-                    type_mask: ci.flags & extras::TYPE_BITS,
-                    corners: std::array::from_fn(|k| {
-                        self.network.height(ci.vertices[k] + off).unwrap_or(ci.corners[k])
-                    }),
-                    terrain: ci.vertices.map(|v| t.vertex_altitude(v)),
-                }
+            .map(|ci| extras::CostCell {
+                in_run: ci.in_run,
+                prebuilt: ci.intersection,
+                type_mask: ci.flags & extras::TYPE_BITS,
+                corners: ci.corners,
+                terrain: ci.vertices.map(|v| t.vertex_altitude(v)),
             })
             .collect();
         extras::CostInputs {

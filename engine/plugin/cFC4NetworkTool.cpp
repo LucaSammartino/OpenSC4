@@ -91,6 +91,14 @@ cFC4NetworkTool::~cFC4NetworkTool() {
 
 void cFC4NetworkTool::SetCity(cISC4City* city) { ctx_.city = city; }
 
+void cFC4NetworkTool::PublishStepCounts(bool clear) {
+    fc4_netgeom_state state{};
+    if (!clear && ctx_.geom) fc4_netgeom_get_state(ctx_.geom, &state);
+    publishedValid_.store(state.valid, std::memory_order_relaxed);
+    publishedStraight_.store(state.straight_count, std::memory_order_relaxed);
+    publishedTotal_.store(state.dragged_count, std::memory_order_relaxed);
+}
+
 void cFC4NetworkTool::SetMessageServer(cIGZMessageServer2* ms) {
     if (ms == ctx_.msgServer) return;
     if (ms != nullptr) FC4_ADDREF(ms);
@@ -172,6 +180,7 @@ bool cFC4NetworkTool::Init() {
     landBridges = networkType_ != 5;  // §4.4 quirk: every type with a bridge type
     const bool ok = fc4_nettool_init(core_, cityX, cityZ, depth, coverA, coverB, tolerance, landBridges);
     if (ctx_.geom != nullptr) fc4_netgeom_reset(ctx_.geom);
+    PublishStepCounts();
     fc4::Log("nettool type %u Init: city %ux%u", networkType_, cityX, cityZ);
     return ok;
 }
@@ -181,6 +190,7 @@ bool cFC4NetworkTool::Shutdown() {
     if (!live_) return true;  // the stand-in
     LogStatus("Shutdown");
     const bool ok = core_ != nullptr && fc4_nettool_reset(core_);
+    PublishStepCounts(true);
     return ok;
 }
 
@@ -189,6 +199,7 @@ void cFC4NetworkTool::Reset() {
     if (!live_) return;  // the stand-in
     if (core_ != nullptr) fc4_nettool_reset(core_);
     if (ctx_.geom != nullptr) fc4_netgeom_reset(ctx_.geom);
+    PublishStepCounts();
 }
 
 uint32_t cFC4NetworkTool::GetUITool(cISC4NetworkToolUI** outUi) {
@@ -210,6 +221,7 @@ uint32_t cFC4NetworkTool::PlaceNetworkOccupants(uint32_t startX, uint32_t startZ
         core_, static_cast<int32_t>(startX), static_cast<int32_t>(startZ), static_cast<int32_t>(endX),
         static_cast<int32_t>(endZ), static_cast<uint32_t>(networkMask), callback, bUseWorldCache,
         static_cast<int32_t>(networkType));
+    PublishStepCounts();
     LogStatus("PlaceNetworkOccupants");
     FC4_X87_CHECK("nettool PlaceNetworkOccupants");
     return ok ? 1u : 0u;
@@ -290,6 +302,7 @@ uint32_t cFC4NetworkTool::DrawNetworkLine(const SC4Point<uint32_t>& start, const
     const bool ok = fc4_netgeom_draw_line(geom, static_cast<uint32_t>(networkType), static_cast<int32_t>(start.x),
                                           static_cast<int32_t>(start.y), static_cast<int32_t>(end.x),
                                           static_cast<int32_t>(end.y), useWorldCache);
+    PublishStepCounts();
     FC4_X87_CHECK("nettool DrawNetworkLine");
     return ok ? 1u : 0u;
 }
@@ -325,6 +338,7 @@ void cFC4NetworkTool::EnablePreviewUpdate(bool enable) {
 void cFC4NetworkTool::SetAnchorPoints(const SC4Vector<SC4Point<uint32_t>>&) {}
 
 void cFC4NetworkTool::GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) const {
+    outCells.clear();  // NT27: assign a caller-owned copy, replacing its contents.
     if (!live_ || ctx_.geom == nullptr) return;
     fc4_netgeom_cell cells[FC4_NETTOOL_MAX_CELLS];
     const uint32_t n = fc4_netgeom_get_cells(ctx_.geom, cells, FC4_NETTOOL_MAX_CELLS);
@@ -335,11 +349,17 @@ void cFC4NetworkTool::GetDraggedCells(SC4Vector<SC4Point<uint32_t>>& outCells) c
 
 void cFC4NetworkTool::SetValidStepCount(uint32_t) {}
 
-uint32_t cFC4NetworkTool::GetValidStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetValidStepCount() const {
+    return publishedValid_.load(std::memory_order_relaxed);
+}
 
-uint32_t cFC4NetworkTool::GetStraightStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetStraightStepCount() const {
+    return publishedStraight_.load(std::memory_order_relaxed);
+}
 
-uint32_t cFC4NetworkTool::GetTotalStepCount() const { return 0; }
+uint32_t cFC4NetworkTool::GetTotalStepCount() const {
+    return publishedTotal_.load(std::memory_order_relaxed);
+}
 
 bool cFC4NetworkTool::IsRegularStep(uint32_t) const { return false; }
 

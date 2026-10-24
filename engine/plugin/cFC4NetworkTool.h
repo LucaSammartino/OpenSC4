@@ -160,6 +160,12 @@ public:
     static cIGZUnknown* Create(uint32_t networkType);
 
 private:
+    // Mutation-thread publication: public count getters must not enter the
+    // geometry's RefCell when the game queries them concurrently (§5.1).
+    void PublishStepCounts(bool clear = false);
+    std::atomic<uint32_t> publishedValid_{0};
+    std::atomic<uint32_t> publishedStraight_{0};
+    std::atomic<uint32_t> publishedTotal_{0};
     std::atomic<uint32_t> refCount_{0};
     bool destroying_ = false;
     bool live_ = false;

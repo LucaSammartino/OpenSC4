@@ -617,4 +617,9 @@ std::string IniPath();
 // advisors_shadow = 0 / 1 (default 0): round-trip original advisor records
 // through the core at city load and each month; no replacement or simulation.
 
+// nettool_shadow = 0 / 1 (default 0): compare scripted original network
+// placements with a read-only core replay against the same pre-placement city.
+// Reports drag cells, status, failure, step counts and cost; not solved pieces,
+// bridge models or power-line poles/wires (network-tools question NT27).
+
 }  // namespace fc4

@@ -542,7 +542,7 @@ void TestNetworkTools() {
     w.pass_failure = 0xF0000002u;
     CHECK(!fc4_nettool_place_network_occupants(t, 10, 10, 20, 10, 0, 0, true, -1));
     CHECK(w.data4s.empty());
-    CHECK(fc4_nettool_get_failure_state(t) == 0xF0000002u);
+    CHECK(fc4_nettool_get_failure_state(t) == 1u);  // NT28: public Boolean, internal reason retained.
     CHECK(fc4_nettool_clear_failure(t) && fc4_nettool_get_failure_state(t) == 0);
 
     // §11 test 14: the smooth refit (new corners − depth).

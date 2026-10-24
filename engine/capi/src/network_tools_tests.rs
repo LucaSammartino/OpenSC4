@@ -347,7 +347,7 @@ fn t18_08_failure_leaves_nothing_over_the_abi() {
     let t = f.tool(0);
     let ok = unsafe { fc4_nettool_place_network_occupants(t, 10, 10, 20, 10, 0, 0, true, -1) };
     assert!(!ok);
-    assert_eq!(unsafe { fc4_nettool_get_failure_state(t) }, 0xF000_0002);
+    assert_eq!(unsafe { fc4_nettool_get_failure_state(t) }, 1);
     assert!(f.w().inserted.is_empty());
     unsafe { fc4_nettool_destroy(t) };
 }

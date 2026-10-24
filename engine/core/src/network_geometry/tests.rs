@@ -72,7 +72,19 @@ fn t03_diagonal_snap_width_1() {
     assert_eq!(s.axis, (0, 1));
     let (cells, steps) = compute_dragged_cells((0, 0), s.end, s.pen_direction, 1);
     assert_eq!(steps.len(), 6);
-    assert_eq!(cells, vec![(0, 0), (1, 0), (2, 1), (3, 2), (4, 3), (5, 4)]);
+    let expected = [
+        (0, 0),
+        (1, 0),
+        (1, 1),
+        (2, 1),
+        (2, 2),
+        (3, 2),
+        (3, 3),
+        (4, 3),
+        (4, 4),
+        (5, 4),
+    ];
+    assert_eq!(cells, expected);
 }
 
 #[test]
@@ -82,6 +94,110 @@ fn t04_diagonal_snap_width_2() {
     assert_eq!(s.end, (4, 4));
     assert_eq!((s.dragged_count, s.straight_count), (5, 0));
     assert_eq!(s.axis, (1, 0));
+}
+
+#[test]
+fn nt28_ordered_diagonal_and_wide_footprints() {
+    let t = flat();
+    let mut g = geo();
+    for (start, end, expected) in [((20, 4), (28, 12), 17), ((14, 4), (18, 8), 9)] {
+        assert!(g.draw_network_line(ROAD, start, end, false, &t, &NoHost));
+        assert_eq!(g.run.cells.len(), expected);
+        let mut cells = vec![start];
+        for n in 1..=(end.0 - start.0) {
+            cells.extend([(start.0 + n - 1, start.1 + n), (start.0 + n, start.1 + n)]);
+        }
+        assert_eq!(g.run.cells, cells);
+        assert_eq!(
+            g.run.steps[0],
+            Step {
+                first: 0,
+                last: 0,
+                kind: StepKind::Regular
+            }
+        );
+        for (i, step) in g.run.steps.iter().enumerate().skip(1) {
+            assert_eq!((step.first, step.last), (2 * i as u32 - 1, 2 * i as u32));
+        }
+    }
+    for (start, end, rows) in [
+        ((4, 28), (16, 28), (4..=16).collect::<Vec<_>>()),
+        ((16, 28), (4, 28), (4..=16).rev().collect()),
+    ] {
+        assert!(g.draw_network_line(AVENUE, start, end, false, &t, &NoHost));
+        assert_eq!(
+            g.run.cells,
+            rows.into_iter().flat_map(|x| [(x, 27), (x, 28)]).collect::<Vec<_>>()
+        );
+    }
+    assert!(g.draw_network_line(AVENUE, (4, 28), (4, 30), false, &t, &NoHost));
+    assert_eq!(g.run.cells, vec![(3, 28), (4, 28), (3, 29), (4, 29), (3, 30), (4, 30)]);
+}
+
+#[test]
+fn nt29_retained_corners_live_terrain_and_intersection_marker() {
+    let mut g = geo();
+    g.run.type_id = ROAD;
+    g.types.infos[ROAD as usize].params.earthwork_cost = 1.0;
+    g.insert_cell_info(CellInfo {
+        x: 0,
+        z: 0,
+        in_run: true,
+        flags: 1 << ROAD,
+        corners: [4.0; 4],
+        vertices: [0, 65, 66, 1],
+        ..CellInfo::default()
+    });
+    g.solved.push((0, 0));
+    // A later satisfier target cannot substitute for retained corners.
+    g.network.insert_fixed(0, 99.0);
+    let price = |g: &NetworkGeometry, height| extras::cost_of_solution(&g.cost_inputs(&shaped(|_, _| height), 0));
+    assert_eq!(price(&g, 4.0), 10);
+    assert_eq!(price(&g, 3.0), 14);
+    g.cells.get_mut(&cell_key(0, 0)).unwrap().placed = true;
+    assert_eq!(price(&g, 3.0), 14);
+    g.cells.get_mut(&cell_key(0, 0)).unwrap().intersection = true;
+    assert_eq!(price(&g, 3.0), 4);
+    let ci = g.cells.get_mut(&cell_key(0, 0)).unwrap();
+    ci.intersection = false;
+    ci.in_run = false;
+    assert_eq!(price(&g, 3.0), 4);
+}
+
+#[test]
+fn nt29_solved_inventory_shared_vertices_and_repeated_charge() {
+    let t = shaped(|_, _| 0.0);
+    let mut g = geo();
+    g.run.type_id = ROAD;
+    g.types.infos[ROAD as usize].params.earthwork_cost = 1.0;
+    for (x, vertices) in [(0, [0, 65, 66, 1]), (1, [1, 66, 67, 2]), (2, [2, 67, 68, 3])] {
+        g.insert_cell_info(CellInfo {
+            x,
+            z: 0,
+            corners: [1.0; 4],
+            vertices,
+            ..CellInfo::default()
+        });
+    }
+    g.solved = vec![(0, 0), (1, 0)];
+    let price = |g: &NetworkGeometry| extras::cost_of_solution(&g.cost_inputs(&t, 0));
+    assert_eq!(price(&g), 8); // shared vertices charged twice; cache-only third cell excluded
+    let ci = g.cells.get_mut(&cell_key(0, 0)).unwrap();
+    ci.in_run = true;
+    ci.flags = (1 << ROAD) | (1 << STREET);
+    assert_eq!(price(&g), 18); // maximum type charge once
+    g.cells.get_mut(&cell_key(2, 0)).unwrap().corners = [2.0; 4];
+    g.solved.push((2, 0));
+    assert_eq!(price(&g), 26); // appended non-run neighbour adds eight earthwork
+
+    let t = flat();
+    let mut g = geo();
+    g.draw_network_line(ROAD, (4, 4), (14, 4), false, &t, &NoHost);
+    assert_eq!(g.place(&t, &mut NoHost), 11);
+    for ci in g.cells.values_mut() {
+        ci.placed = true;
+    }
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 110);
 }
 
 #[test]
@@ -110,8 +226,8 @@ fn pre_adjust_rules() {
 fn wide_types_stay_inside_the_city() {
     let t = flat();
     let mut g = geo();
-    // An avenue's second row of cells at z = 64 is outside.
-    assert!(!g.draw_network_line(AVENUE, (0, 63), (5, 63), true, &t, &NoHost));
+    // An avenue widens toward negative minor coordinates (NT28).
+    assert!(!g.draw_network_line(AVENUE, (0, 0), (5, 0), true, &t, &NoHost));
     assert!(g.run.cells.is_empty());
     assert!(g.draw_network_line(AVENUE, (0, 62), (5, 62), true, &t, &NoHost));
     assert_eq!(g.run.cells.len(), 12);
