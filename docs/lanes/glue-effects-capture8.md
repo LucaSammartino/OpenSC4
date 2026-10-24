@@ -7,7 +7,8 @@
 - Done: repaired failed sandbox octopus tree at 165a86708; EF20 is absent from open questions.
 - Done: implemented bounded retained visual memory reader and independent resource comparison; focused core tests 3/3, explicit fmt clean.
 - Scope: visual vector fields, components, parameter bindings, duplicate name/index multiset; excludes pointer/padding/capacity and transform flag bits outside 0..2.
-- Next: run full final gate, then 2032 game measurement; diagnose any mismatch without inferring native contracts.
+- Done: source 46c67c95c full qbuild all PASS: cargo 6922/0/0, Clippy 0 diagnostics, queued native build 240/240, CTest 74/74. Explicit fmt 4 files clean.
+- Next: request effects8-visuals-2032-20261024a, turbo to 2032; diagnose any mismatch without inferring native contracts.
 - EF21 asks for remaining family layouts and natural trace attachment/quiescence contracts; no whole-owner coverage claimed.
 - Worktree is intentionally detached; do not update shared refs.
 - No game request outstanding.
