@@ -147,15 +147,16 @@ at `+0x0C` and `+0x14`, and Hit manager at `+0x1C`. Destructor helper `0x004ED6A
 releases non-null retained references. Model creation/registration is in `0x004EDAA0`:
 failure to obtain Hit manager returns false; each model is allocated as 40 bytes and queried
 for lifecycle IID `0x89E51472`. Model initialization failure prevents later successful
-registration. Exact rollback/default state remains AU41.
+registration. Full construction, retained-state failure rules and teardown are
+[audio.md §19.2](audio.md#192-sem-lifetime-and-model-parameter-contract-au41).
 
 **Name caveat:** the export calls `0x004ED750` `Init`, but its observed effects are
 unregistration and teardown: remove model IDs `0x7DCDED2D`, `0x7DCDED3D`, `0x0A63A543`
 from Hit, query retained models for the lifecycle interface, call its shutdown slot, and release
 retained objects and Hit references. Do not implement this teardown as initialization merely
 because of the recovered name. Registration uses Hit slots 19/20 (`+0x4C` / `+0x50`).
-The full caller order remains AU41; the constructor and application integration must be checked
-before exposing these helpers as a replacement API.
+The director calls registration after Listener Init and teardown before Listener Shutdown;
+§19.2 specifies caller ordering and the null-Hit teardown quirk.
 
 ### 19.1 Shared model interface
 
@@ -168,15 +169,14 @@ missing ID is **`0x7DCDED3D`**, verified by `0x004ED9E7`; primary/secondary tabl
 | 0 | `0x004ED930` (all) | QI: `1` and `0xDDCF3BD7` return base; lifecycle IID `0x89E51472` returns `base+4`; success AddRefs. |
 | 1 / 2 | `0x004BDF00` / `0x004ED910` (all) | Shared reference operations; unrelated export class labels are folding artifacts. |
 | 3 | `0x004ED900` (all) | Model identifier getter; recovered class label is not semantic evidence. |
-| 4 | `0x004EDA60` (all) | Returns true without model work. |
-| 5 | `0x004ED210` / `0x004ED2A0` / `0x004ED3F0` | Parameter transformation; full numeric behavior AU41. |
-| 6 | `0x004ECDA0` / `0x004ECE70` / `0x004ECF90` | Model-specific companion operation; full semantics AU41. |
+| 4 | `0x004EDA60` (all) | Calls supplied object's slot 14 with embedded name view, ignores result, returns true; audio §19.2. |
+| 5 | `0x004ED210` / `0x004ED2A0` / `0x004ED3F0` | Parameter transformation; signed first division, logical final shift and projected effects pan: audio §19.2. |
+| 6 | `0x004ECDA0` / `0x004ECE70` / `0x004ECF90` | Ordered parameter copies and 3D/effects mode writes: audio §19.2. |
 
 These models do not read PCM files, issue window drawing, or handle game messages through this
 interface. They transform sound parameters for Hit. The 3D transformations transfer position
 parameters `0x20`–`0x22` and `0x40`–`0x42`; do not treat them as message IDs. Fixed-point
-volume/pan arithmetic, parameter flags and rounding are not yet settled sufficiently for a
-conformant implementation (AU41).
+volume/pan arithmetic, parameter flags, rounding and failure behavior are specified in audio §19.2.
 
 ## 20. Scape service and fire-handler boundary
 

@@ -1,37 +1,34 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-audio-au40 (AU40/AU44 owner contracts) | Codex / `re-audio-au40`, detached HEAD | ready: partial closure; AU40/AU44 answered, 18 spec vectors, doccheck passed; no ABI change | AU41–AU43 remain open for a successor |
+| re-audio-au40 (audio owner contracts round 2) | Codex / `re-audio-au40`, detached HEAD, RE | in progress: AU41 answered, 12 new spec vectors, doccheck passed; AU40/AU44 previously answered | Check measured guard; finish report and queue, or continue AU42/AU43 within budget |
 
 ## Report
 
-Partial closure under the requested two-thirds wind-down rule. Answered AU40 and AU44 in
-`docs/specs/audio.md`, corrected their summaries in `audio-owner-contracts.md`, moved both
-original questions to `questions/answered/audio.md`, and regenerated `docs/specs/QUESTIONS.md`.
-No duplicate open questions were added. AU41, AU42 and AU43 remain open, without a closure claim.
+Round 1 answered AU40 (`1a339eeb2`) and AU44 (`6ee211ad9`), with 18 vectors and passing
+doccheck. Round 2 adds AU41 in audio.md §19.2, correcting supplement §19 and moving the
+original question to questions/answered/audio.md. Regenerated docs/specs/QUESTIONS.md.
 
-- AU40 (`1a339eeb2`): listener geometry, sea-plane handling, normalization/rounding, zoom/tuning
-  sizing, city/cheat payload gates and service/message failure lifetime; ten conformance vectors.
-  Notification movement uses the camera, while its payload points to listener position.
-  Missing server, null message allocation and some missing/short tuning arrays are native
-  invalid accesses, not recoverable false results. Low-zoom dimensions cross foreign city/renderer IO.
-- AU44 (`6ee211ad9`): all five interface views, defaults, fire predicate, message/scan paths,
-  group registration and nontransactional lifetime; eight conformance vectors. Failed Init
-  retains subscriptions. Shutdown never removes the scape group. Message insertion/removal
-  keys use the acquired position interface; enumeration uses the visited occupant pointer.
-- Evidence: main-checkout re_query and class decomp only, with numeric/width claims checked
-  against instruction bytes and constants read from the working executable. No REA call was
-  attempted because the session has no binary open. No assembly or pseudocode copied to specs.
-- Gate: foreground `python build-runs/check-docs.py` completed `doccheck check: ok`;
-  log `build-runs/doccheck-re-audio-au40.log`. The earlier q.py launcher failed in Git Bash
-  CreateFileMapping before starting doccheck; that is distinct from the passing Python run.
-- Cargo, clippy, CTest and game runs: n/a for prose-only RE work. No ABI export changes,
-  proposed ABI rows, engine reads/edits, plugin edits or coverage-map edits.
+AU41 supplies SEM/model construction, binding, registration and teardown, all six model
+slot 5/6 operations, radius/projection/pan arithmetic, return conventions and twelve
+conformance vectors. Registration has no rollback. Allocation failure reaches an unchecked
+QI; teardown requires Hit. Primary model slot 4 calls the host's slot 14 with the embedded
+name interface. Final volume uses a logical shift after wrapped multiplication, and effects
+pan uses absolute projected X. Startup/teardown ordering is verified against director callers.
+
+Evidence: main-checkout re_query, decomp and instruction bytes, with constants read from the
+working executable. No REA call attempted: this session has no binary open. No assembly or
+pseudocode copied into specs. Read core-audio-close13 Owner verdicts before answering.
+
+Gate: foreground `python build-runs/check-docs.py` passed `doccheck check: ok`; output in
+`build-runs/doccheck-re-audio-au40.log`. Cargo, clippy, CTest and game runs: n/a for prose.
+No ABI changes or proposals; no engine reads/edits, plugin, capi or coverage-map changes.
+AU42 and AU43 remain open; there is no full owner-closure claim for scape/preferences.
 
 ## Handoff
-- Guard measured 105,664 / 150,000 after the AU44 milestone; stopped new RE work at wind-down.
-- Next: AU41 SEM constructors/registration and model slot 5/6 arithmetic, then AU42 scape
-  remaining slots/resources/smoothing/timers, then AU43 preferences dialog/song persistence.
-- Owner closure table was read from the core-audio-close13 worktree's lane file; main has no copy.
-- Source evidence remains in main `decomp/` and `ghidra/export/windows`; local helper files/logs
-  are ignored under this worktree's `build-runs/`.
-- Detached HEAD is intentional; supervisor publishes the commits to reserved branch re-audio-au40.
+- Goal: close audio owner questions with prose and vectors; round 2 AU41 completed.
+- Done: AU40/AU44 prior round; AU41 ready for milestone commit; doccheck passed.
+- Next: run measured guard after commit; at two thirds stop new RE and finalize report/queue.
+- If budget permits future work: AU42 scape resource/group/instance slots, then AU43 preferences.
+- Exact source: main decomp/_unnamed/region_004e0000.c, SEM class file and export instructions.
+- Numeric verification covered all six model entries; constants helper build-runs/read-floats.py.
+- Detached HEAD intentional; supervisor publishes commits. No branches/refs changed.

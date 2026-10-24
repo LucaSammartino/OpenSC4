@@ -2,10 +2,6 @@
 <!-- Engine questions for docs/specs/audio.md; append new entries below. -->
 
 <!-- from: re-audio9 (2026-10-23) -->
-- **AU41 — SEM and emanation arithmetic:** settle model slot 5/6 transformations (`0x004ED210`,
-  `0x004ED2A0`, `0x004ED3F0`, `0x004ECDA0`, `0x004ECE70`, `0x004ECF90`) against instructions;
-  numeric decompilation is corrupt. Recover SEM construction/defaults and registration rollback at
-  `0x004EDAA0`; check caller ordering of teardown `0x004ED750` (misnamed Init in export).
 - **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
   but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
   failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.

@@ -2166,7 +2166,7 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ## 15. Open items
 
 The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
-[questions/audio.md](questions/audio.md), AU41–AU43. AU40 and AU44 are settled in §18.4 and
+[questions/audio.md](questions/audio.md), AU42–AU43. AU41 is settled in §19.2; AU40 and AU44 in §18.4 and
 §7.4.1 respectively. The remaining questions qualify the coverage of those sections;
 an owner appearing in the inventory does not imply that all its numerical behavior is settled.
 
@@ -2186,6 +2186,150 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 | **AU12** | Property-key *names* for the audio exemplar keys of §10.8 are unrecovered (the reader takes raw 32-bit ids). | the shipped property-name table |
 
 ---
+
+## 19.2 SEM lifetime and model parameter contract (AU41)
+
+This completes [supplement §19](audio-owner-contracts.md#19-sem-registration-and-the-three-emanation-owners).
+The instruction audit, rather than the inferred names or numeric pseudocode, defines the rules
+below. There is no model message handler, PCM resource reader or drawing operation.
+
+### Construction, binding and registration
+
+The 32-byte SEM factory `0x004ED700` returns null on failed allocation; otherwise its reference
+count and all six retained pointers start zero. The three 40-byte model constructors and identity
+strings are §3.4. All three have reference count zero at `+8`, an embedded name/string interface
+at `+0x0C`, ID at `+0x20`, and a null retained dependency at `+0x24`. QI rejects unknown IDs
+without overwriting the output. Primary slot 3 reads the ID. **Primary slot 4 is not a no-op:**
+it calls the supplied object's slot 14 (`+0x38`) with the model's embedded name interface
+(`base+0x0C`), ignores that call's result, and returns true (`0x004EDA60`–`0x004EDA73`).
+
+The lifecycle view is `base+4`, with Init `0x004ED180` and Shutdown `0x004ED1F0` in slots
+3 and 4. Init gets the SC4 director, reads the pointer at director base `+0x60`, and retains
+it at model base `+0x24`; replacing it acquires the new reference before releasing the old,
+while assigning the same pointer makes no reference calls. It returns whether the resulting
+pointer is non-null. Shutdown clears/releases that pointer if present and returns true. The
+literal addresses matter: neither the folded `SFX::AmbienceManager` name nor the folded
+`GetInstanceID` name establishes the dependency's meaning. Model transformations read the
+**raw 32-bit word at dependency+0x14**, or zero for a null dependency; there is no float
+conversion of that word (`0x0040CE70`). Destruction releases this dependency and the name
+storage; it does not unregister a model from Hit.
+
+Startup `0x004EDAA0` has the following observable stages. Acquiring Hit uses framework
+GetService with service `0x1B2CE671`, IID `0xBB1BD9A8`. Missing framework/service returns
+false. Otherwise SEM retains Hit, then saves the old 2D model from Hit slot 22
+(`+0x58`, ID `0x7DCDED2D`), then the old 3D model with ID `0x7DCDED3D`. A missing old 2D
+stops before the 3D lookup; a missing old 3D stops before construction. Saved model assignment
+acquires the new non-null pointer before releasing a different previous pointer.
+
+Only after both old models exist does SEM allocate, retain, query lifecycle IID `0x89E51472`
+and initialize replacements, in order 2D, 3D, 3DEffects. Each QI/Init must succeed before
+the next allocation. A temporary lifecycle view is released before the next QI and on exit.
+After all three succeed, Hit receives exactly this sequence: register effects via slot 19
+(`+0x4C`); remove 2D ID via slot 20 (`+0x50`); register new 2D; remove 3D ID;
+register new 3D. These registration/removal results do not affect the true return.
+There is no initialized latch and no rollback: a failed lookup, QI or model Init returns false
+while retaining Hit, saved originals and any replacements already assigned. A failed model
+allocation assigns null and then dereferences it for QI; it is a native invalid access,
+not a clean false result (`0x004EDB73`–`0x004EDC7D`). *[quirk]*
+
+Teardown `0x004ED750` (misnamed Init) unconditionally uses retained Hit: remove new 2D,
+register saved 2D, remove new 3D, register saved 3D, remove effects. It then visits retained
+replacement 2D, 3D, effects in that order: QI lifecycle, call Shutdown only on QI success,
+clear/release the replacement. It balances each temporary lifecycle reference, then clears/
+releases saved 2D, saved 3D and Hit, and returns true. It neither checks registration results
+nor skips a null saved original when passing it to Hit. A fresh or twice-torn-down SEM has
+null Hit and faults at the first use. Destruction alone releases Hit, effects, saved 3D,
+new 3D, saved 2D, new 2D, in that order, with no registration or lifecycle calls.
+
+The director calls startup after SoundManager Init and Listener Init
+(`0x004EC1F5`); PreAppShutdown calls teardown after the two handlers and before Listener
+Shutdown, then clears/releases SEM (`0x004EC339`–`0x004EC34A`). Thus listener binding is
+available during model initialization and remains available during model shutdown. This
+also agrees with §11's director lifetime; teardown must not be called as startup.
+
+### Parameter IO and integer volume
+
+Slots 5 and 6 both take **source S, destination D**. A parameter read is S slot 4
+(`+0x10`) with one ID argument. A write is receiver slot 3 (`+0x0C`) with
+`(ID, value, flag)`. In particular, the `1` pushed before a copied read is the later
+write's flag, not a getter fallback argument. No parameter-presence checks occur.
+Copied values keep their full 32 bits. Writes are attempted even if earlier writes fail;
+there is no rollback. Null S/D is an invalid access.
+
+For the following arithmetic, each integer product and sum wraps to 32 bits. Interpret a
+wrapped product as signed for truncation toward zero by 1024. Let V be that quotient of
+S parameter `0x14` times S parameter `0x15`. Let M be the raw dependency word described
+above. Ordinary 2D/3D volume is the low 32 bits of M×V, **logically** shifted right ten
+bits. Thus it lies in `0..0x003FFFFF`, with no clamp to 1024; a negative product is not
+an arithmetic shift. The signed divide uses sign bias 1023 then arithmetic shift
+(`0x004ED239`–`0x004ED261`, `0x004ED39F`–`0x004ED3C5`). Effects applies one additional
+signed, truncating division by 1024 to the wrapped product V×attenuation before the
+same final M multiplication/logical shift (`0x004ED638`–`0x004ED672`).
+
+| Model slot | Parameter effects, in order | Return |
+|---|---|---|
+| 2D slot 5, `0x004ED210` | Read S `0x16`, `0x15`, `0x14`; compute volume; write S `0x0C=volume`, flag 1; D `0x16=saved S pan`, flag 1; D `0x15=volume`, flag 0. | true |
+| 3D slot 5, `0x004ED2A0` | Copy S→D `0x20,0x21,0x22,0x40,0x41,0x42`, flag 1; read radius S `0x38`; write scaled radii D `0x1E,0x1F`, flag 1 (below); read S `0x15,0x14`; write S `0x0C=volume`, flag 1; D `0x15=volume`, flag 0. | Leaves final setter's return register; no explicit true/false assignment. |
+| Effects slot 5, `0x004ED3F0` | Same six position copies; read S `0x38`, then S `0x20,0x21,0x22` again for projection. Without a view, return false after those copies/reads. With a view, compute attenuation/pan below; write D `0x16=pan`, flag 1; read S `0x15,0x14`; write S `0x0C=volume`, flag 1; D `0x15=volume`, flag 0. | Without view false; otherwise leaves final setter's return register. |
+| 2D slot 6, `0x004ECDA0` | Copy S→D `0x13,0x19,0x1A,0x1B,0x23,0x24,0x25,0x26,0x33`, all flag 1. | true |
+| 3D slot 6, `0x004ECE70` | Set D `0x1C=1`, flag 1; copy S→D `0x1D,0x13,0x19,0x1A,0x1B,0x23,0x24,0x25,0x26,0x33,0x1E,0x1F`, all flag 1. | true |
+| Effects slot 6, `0x004ECF90` | As 3D slot 6, except D `0x1C=0`. | true |
+
+### Radius, projection and pan arithmetic
+
+Numeric constants are the binary32 values at `0x00A823A4` (0.01, bits `0x3C23D70A`),
+`0x00A94034` (π, `0x40490FDB`), `0x00A9402C` (π/2, `0x3FC90FDB`), plus exact
+0.5, 16, 512, 1024 and 1/1024. Arithmetic uses x87 intermediates; store to binary32
+only at the specified boundaries. Float-to-integer conversion uses `_ftol2` truncation
+toward zero; do not substitute nearest rounding. Exceptional x87 inputs follow the
+native masked-invalid conversion behavior, with no validation or fallback.
+
+For ordinary 3D, convert radius `0x38` as **unsigned u32** to x87, multiply by binary32
+0.01, then multiply by global zoom scale `0x00B21A30`, store binary32 R, and write
+D `0x1E=trunc(R)` and `0x1F=trunc(R×16)`. There is no binary32 store between the first
+two multiplications (`0x004ED33B`–`0x004ED388`). The global starts zero in the file image;
+Listener `_CalculateZoomValues` sets it to its fifth zoom scale (§18.4,
+`0x004F18C0`–`0x004F18CF`). It is not the current zoom index.
+
+Effects instead stores binary32 r after unsigned radius×0.01. S position `0x20,0x21,0x22`
+is converted **as signed i32** to three binary32 coordinates. The global view at
+`0x00B43DD8` projects that vector in place through
+`SC4ViewUtilities::ProjectPointToViewportCoordinates2D` `0x007F78E0`; projected coordinates
+are host/view IO, not a new projection formula in this owner. Read width W and height H
+from view `+0x28/+0x2C`; truncate projected x/y to integers X/Y. Set dx=X−trunc(W/2),
+dy=Y−trunc(H/2), with wrapped integer subtraction. Store binary32 distance after
+sqrt(signed interpretation of wrapped dx²+dy²). Store binary32 radius limit after
+signed interpretation of wrapped (W+H), multiplied by 0.5 and r. Attenuation is
+trunc(1024) if distance≤limit (also on unordered comparison), otherwise
+trunc(1024/(distance/limit)). Zero/negative limits receive no special handling
+(`0x004ED504`–`0x004ED5A2`). There is no effects write to `0x1E/0x1F` in slot 5.
+
+Pan uses **absolute X**, not dx and not X/W. Form t=X×binary32 π×(1/1024) in x87;
+save binary32 t but take sine of the still-unrounded x87 value. Form p=512×sin(t).
+Compare the saved binary32 t against binary32 π/2: if strictly greater, replace p
+with 1024−p; otherwise keep p (unordered also keeps it). Truncate, then clamp the
+signed integer to `[0,1024]` (`0x004ED5A7`–`0x004ED621`). Consequently pixel pan is
+not normalized to viewport width and is periodic beyond the intended span. *[quirk]*
+
+### AU41 conformance vectors
+
+Use a parameter host that records ordered reads/writes and write flags. Supply M as a raw
+word, and supply the projection result and view dimensions independently of the model.
+
+| ID | Input/action | Required result |
+|---|---|---|
+| AU41-01 | Construct SEM/models; reject an unrelated QI; invoke model primary slot 4 | Zero counts/null dependencies; IDs/names as §3.4; failed QI preserves output; slot 4 calls host slot 14 with embedded name view and returns true even if host returns false. |
+| AU41-02 | Bind model with director holder P, repeat, bind Q, Shutdown twice | First AddRef P; repeat no count calls; AddRef Q before Release P; first Shutdown clears/releases Q; both Shutdown calls true. |
+| AU41-03 | Startup: no Hit; then Hit but no old 2D; then old 2D but no old 3D | False each time; respectively no retained change, retain Hit, retain Hit and old 2D. No model construction or Hit register/remove. |
+| AU41-04 | All prerequisites; record successful registration then teardown | Startup: register effects, remove/register 2D, remove/register 3D. Teardown: remove/restore 2D, remove/restore 3D, remove effects, model lifecycle shutdown/release in 2D/3D/effects order, release saved originals/Hit. Ignore Hit result failures. |
+| AU41-05 | Fail 3D lifecycle Init; separately fail first model allocation | First false, retains originals/Hit and first two replacements, no Hit mutation; second invalid access during QI, not false. Fresh teardown similarly faults on null Hit. |
+| AU41-06 | 2D: S14=1024, S15=512, S16=77, M=1024 | S0C=512 flag 1, D16=77 flag 1, D15=512 flag 0; return true. No geometry copy. |
+| AU41-07 | S14=−1025, S15=1, M=1024; also S14=−1, S15=1 | First V=−1, final volume=4194303; second V=0 and volume=0. Neither case clamps to 1024. |
+| AU41-08 | 3D: S38=100, zoom scale=2; ordinary 2D volume inputs | Six position copies precede D1E=2, D1F=32: the binary32 R store rounds the product to exactly 2 before integer truncation. Volume writes as AU41-06; no D16 write. |
+| AU41-09 | Slot 6, distinct values for every source parameter | Exact ordered copy lists and flag 1 from table; only 3D/effects write D1C, respectively 1/0; all return true. |
+| AU41-10 | Effects without a global view | Six destination copies still occur; S38 and second position reads occur; false, with no pan, radius or volume writes. |
+| AU41-11 | Effects: W=H=1024, projection (512,512), S38=100, M=1024, S14=S15=1024 | Center distance zero gives attenuation 1024; pan 512, S0C and D15=1024. D1E/D1F untouched. |
+| AU41-12 | Same center X/Y, but W=H=2048, S38=0 | Positive distance/zero limit gives attenuation zero and volume zero; pan still 512, demonstrating absolute-pixel pan. |
 
 ## 18.4 Listener geometry, tuning and failure contract (AU40)
 
