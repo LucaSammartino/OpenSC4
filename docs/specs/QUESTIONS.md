@@ -204,6 +204,7 @@ generated index: the questions live one file per spec, so read only the file for
 | VW | view3d-window |
 | WC | watercraft |
 | WCB | callout-box |
+| WDD | widget-dragdrop |
 | WE | weather |
 | WG | win-grid |
 | WGN | widget-wingen |
@@ -411,6 +412,7 @@ generated index: the questions live one file per spec, so read only the file for
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
+| widget-dragdrop | 1 | 0 | WDD2 | questions/widget-dragdrop.md |
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
 | widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
 | widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
@@ -420,4 +422,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **667** | **1567** | | |
+| **total** | **668** | **1567** | | |

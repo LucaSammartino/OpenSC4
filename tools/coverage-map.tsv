@@ -581,6 +581,7 @@ cGZWinCombo	widget toolkit	ui	widget-combo.md	-	-	-
 cGZWinMgrW32	widget toolkit	ui	widget-winmgr.md	-	-	-
 cGZWinMgrBase	widget toolkit	ui	widget-winmgr.md	-	-	-
 cGZWin32COMDirector	widget toolkit	ui	widget-winmgr.md	-	-	-
+cGZWinDragAndDropManager	widget toolkit	ui	widget-dragdrop.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
