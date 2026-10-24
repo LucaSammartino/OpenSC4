@@ -1,22 +1,53 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-effects-close5: effects owner closure | Codex / core-effects-close5 | in progress | Audit six owners against effects spec; implement gaps and validate. |
+| core-effects-close5: effects owner closure | Codex / core-effects-close5 | wip: gates pass; full owner closure awaits EF18/EF19 | Resolve missing contracts and complete the open sections listed below. |
 
-## Handoff
-- Goal: close cSC4EffectsParser, cSC4EffectsCollection, EffectsParser, EffectsBootstrap, cSC4BrushEffect, cSC4GameEffect in pure Rust.
-- Worktree reserved, detached HEAD; initial tree clean, no commits beyond main.
-- Audit: parser commands EC1–EC305 and component directory DI1–DI5 already implemented with per-section tests.
-- Added semantic component transforms, game map host calls with retained map identity, uint32 parameter-13 truncation, and focused owner tests.
-- Added owner closure matrix in engine/core/src/effects/README.md; EF18 blocks queue/bootstrap/full collection closure, EF19 blocks native legacy transform/numeric qualification. EF17 left alone.
-- Implementation milestone: ae1f3b323 (semantic transforms, map lifecycle, parameter width, open boundaries and matrix).
-- Initial focused check failed on test RNG API use (missing SeedSource and PartialEq); fixed tests. Corrected focused tests: 4/4 passed (4451 core tests discovered).
-- Explicit owned-file fmt: 8 files, exit=0, diff_lines=0. Relative fmt paths initially failed; absolute paths work.
-- q.py could not launch Git Bash (CreateFileMapping permission denied); focused cargo ran directly in the worktree.
-- Stable-source qbuild all: cargo 6808 passed, 0 failed; clippy exit=0, diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
-- First qbuild all operation reached terminal PASS: native qbuild-20261024-013445-build-ctest, build 223/223 edges, CTest 70/70. Native noted tree changed because handoff-only commits advanced HEAD during the wait; Rust production source was unchanged throughout the attempt.
-- First logs preserved as build-runs/{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.attempt1.log; build-runs/effects-gate-attempt1.txt records results/source boundary.
-- Review diagnostic corrected after first terminal verdict: §8.3 identity parent now returns local translation directly; new regression checks negative-zero bit preservation. Owned-file fmt 2/2 passed. Corrected focused tests: 5/5 passed, 4452 core tests discovered; source commit 06bca609a.
-- effects-parser §13 defines in-memory matrix/offset/scale storage but deliberately excludes renderer row/column convention; EF19 concerns legacy decoding/world-position convention/order, not the already implemented parser rotation stores.
-- Next: final qbuild all on committed stable source without intervening tracked edits/commits; see ignored build-runs/effects-final-operation.txt for the live operation ID. All already uses the required coordinator native queue; do not duplicate its verify request. EF18/EF19 prevent claiming complete six-owner closure.
-- No game requests outstanding; no ABI/plugin/capi edits authorized.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-close5-r1-manifest.json.
+## Result
+
+State is **wip**. Settled runtime gaps are implemented and all checks pass;
+the six requested owners cannot yet be claimed closed because the supplied
+specs omit the EF18 contracts and EF19 qualification below. No owner coverage
+rows should be claimed as fully closed from this report.
+
+## Changes
+
+- `ae1f3b323`: semantic parent rotation/scale/translation inputs for brush and game components; game map apply/remove host primitives with retained opaque map identities; map removal after pause undo on Stop; uint32 parameter-13 semantics; wrapping game count; explicit Unsupported queue/bootstrap boundaries.
+- `06bca609a`: identity-parent direct translation path preserves the original binary32 bits, including negative zero. This correction followed review of the explicit §8.3 identity rule after the first full check completed.
+- Added five focused runtime tests and one bootstrap/queue Unsupported test. Runtime tests cover both transform owners, brush RNG advancement and restart, map action order and movement, pause/expiry/Stop ordering, map identities, single-update quirks, missing simulator, and parameter width.
+- Added the [six-owner section matrix](../../engine/core/src/effects/README.md), linked to the existing detailed [parser command tables](../../engine/core/src/effects_parser/README.md). Existing EC1–EC305 command and DI1–DI5 component-directory coverage is retained.
+- No plugin/capi wiring, ABI export changes, ABI version change, game request, or coverage-map edit.
+
+## Measured validation
+
+Final gate ran on committed source at `68e905cf5`, with no tracked edits or commits
+until its terminal verdict:
+
+- `qbuild.py --wt <WT> all`: **PASS**, 6809 tests passed, 0 failed, 0 ignored; Clippy exit 0 with 0 diagnostics under `-D warnings`.
+- Native build/CTest used the coordinator queue automatically through that same `all` operation: `qbuild-20261024-014615-build-ctest`, terminal verdict **pass**. Build **47/47** edges in 96.6 s; CTest **70/70** in 147.2 s; overall native **PASS**, 245.6 s. No duplicate verify was launched.
+- Corrected focused runtime tests: **5/5** passed; 4452 core tests discovered. The bootstrap/queue test also passed in the workspace gate.
+- Owned-file fmt: initial eight files passed; the two files changed for the identity-parent correction passed again, both with zero diff lines.
+- Final full logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Earlier check: 6808 tests, Clippy 0 diagnostics, native build 223/223 and CTest 70/70 passed before the identity-parent correction. Its complete logs are preserved under the corresponding `*.attempt1.log` names, with source/result boundaries in `build-runs/effects-gate-attempt1.txt`. That native run noted handoff-only commits changed HEAD during its wait; the final run has no such warning.
+- Initial focused compile mistakes in test RNG setup were corrected before successful focused checks. The q.py Bash launcher failed with CreateFileMapping permission denied; focused cargo was run directly. Initial relative fmt paths failed; absolute owned-file paths passed.
+
+Game runs: **n/a** for this pure Rust change. No outstanding request or native
+shadow equivalence is claimed. Existing §17 runtime conformance vectors passed
+within the workspace suite. The full shipped-directory census assertions in
+§17.13–14 still lack a complete shipped resource fixture; the README distinguishes
+that data-corpus limitation from the existing behavior vectors and scoped tables.
+
+## Questions and sections still open
+
+Both new questions are appended to [questions/effects.md](../specs/questions/effects.md).
+EF17 remains untouched as directed. The generated question index was not edited.
+
+- **EF18:** effects §6.1 only names `EffectsParser::ParseQueuedFiles`; effects-parser §1 explicitly excludes its algorithm. `EffectsBootstrap` has no assigned algorithm in the supplied spec. These two boundaries return Unsupported. Collection behavior beyond effects-parser §11.1 also remains open: effects §18.1 collection slots and the foreign ID-resolution/copy-validation boundaries in §§19.4 and 19.9. Named/anonymous component identity, replacement and retention remain implemented and tested in `script::Directory`.
+- **EF19:** effects §§3, 8.3 and 9.2 do not settle the legacy placement-load mapping, renderer matrix convention and component world-position intermediate order. Semantic transforms implement the literal parent rotation/scale plus translation, with direct identity paths; native numeric equivalence and manager decoding of legacy placements remain open. The already specified parser matrix storage and rotation-store contracts in effects-parser §13 remain implemented, not excluded by this question.
+
+## Next steps
+
+Resolve EF18 and EF19 in the specs, then implement their newly settled contracts
+and complete the six-owner closure audit. Supply a complete allowed fixture for
+the §17.13–14 data census if those assertions are required for the replacement.
+All work is committed on the reserved detached HEAD for supervisor publication;
+the merge-queue entry is held as `wip`.
