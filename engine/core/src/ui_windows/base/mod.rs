@@ -204,6 +204,8 @@ pub struct BufferInfo {
     pub usable: bool,
     pub content: bool,
     pub context: Option<Object>,
+    /// Interface 0xAB300B2B slot 5 for presentation; slot 4 above is drawing.
+    pub present_context: Option<Object>,
     pub transparent: Option<u32>,
     pub color: Option<u32>,
 }

@@ -15,7 +15,8 @@
 - Gate for 6e106e666: fmt 6/6 clean; qbuild all PASS, tests 7075 passed/0 failed, clippy 0 diagnostics, native build 256/256 edges, CTest 80/80 (284.0 seconds native). Queue qbuild-20261024-105853-build-ctest completed pass; no outstanding operation.
 - Review identified two corrections before final source: pending filter removals do not own extra references at Shutdown; release a content surface when a fade transfer is ineligible. Add regression tests for both.
 - Corrected both review paths. Added default constructor service lookup and helper coverage. Focused corrected source: 26 passed, 0 failed (raw PowerShell exit remains 1 despite successful test output).
-- Corrected-source qbuild all (a70980fdf) Rust stages: 7080 passed, 0 failed, clippy 0 diagnostics. Native request qbuild-20261024-111122-build-ctest is outstanding; collect exec session 76932 to terminal, never duplicate it.
+- Corrected-source qbuild all (a70980fdf): PASS; 7080 passed, 0 failed, clippy 0 diagnostics, native build 47/47 edges, CTest 80/80 (338.4 seconds native). Native request qbuild-20261024-111122-build-ctest completed pass, session 76932 terminal.
 - Parent-module fmt check also reports declaration ordering and recursively includes existing unowned children. Fix the declaration only; check parent with skip_children to avoid mass formatting unrelated files.
-- Next: collect native verdict, finish parent formatting, distinguish draw/present context host queries, then final fmt/all/verify and report/queue. No merge queue file yet.
+- Final review correction: distinguish draw and present context queries (published interface slots 4 vs 5); regression uses different handles. Parent declaration formatted without changing unrelated modules.
+- Next: final fmt/all/verify on this source, then report/queue. No outstanding operation or merge queue file yet.
 - No game requests (core-only, no plugin wiring). Native lifetime/graphics ABI closure is not claimed for either owner.

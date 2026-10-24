@@ -315,7 +315,7 @@ impl Windows {
         let Some(destination) = destination else {
             return true;
         };
-        if let Some(c) = host.buffer_info(destination).context {
+        if let Some(c) = host.buffer_info(destination).present_context {
             host.event(NativeOp::Context(c, 4, vec![]));
             host.event(NativeOp::Context(c, 8, vec![0, 0]));
             host.event(NativeOp::Context(c, 10, vec![]));

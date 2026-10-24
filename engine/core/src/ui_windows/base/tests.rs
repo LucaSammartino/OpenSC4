@@ -527,7 +527,8 @@ fn transparency_native_colors_and_draw_context() {
     h.buffers.insert(
         900,
         BufferInfo {
-            context: Some(98),
+            context: Some(77),
+            present_context: Some(98),
             ..BufferInfo::default()
         },
     );
@@ -536,6 +537,7 @@ fn transparency_native_colors_and_draw_context() {
     s.plot(&mut h, p);
     assert!(h.events.contains(&NativeOp::Context(99, 22, vec![0])));
     assert!(h.events.contains(&NativeOp::Context(98, 21, vec![u32::MAX])));
+    assert!(!h.events.iter().any(|e| matches!(e, NativeOp::Context(77, _, _))));
     h.fail_lock = true;
     assert!(!s.fill_transparent(&mut h, p));
 }

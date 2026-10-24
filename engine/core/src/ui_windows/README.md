@@ -10,6 +10,8 @@ are not the toolkit implementation. Toolkit clients use `base`.
 buffers, draw contexts, cursor services, colour conversion and accelerator
 processing. `NativeOp` preserves ordered calls and their arguments without
 inventing the meanings of opaque native graphics slots. The host owns the
+separate drawing (interface slot 4) and presentation (slot 5) context queries.
+The host also owns the
 implementation of concrete slot 150 (`create_private_buffer`), which the spec
 explicitly leaves unsettled. Allocation failure is propagated through all the
 specified common tails. Host callbacks can reenter the runtime; child snapshots
