@@ -180,8 +180,9 @@ extern "C" {
  * 86 = merge-train batch train102 (re-dispatch-completion4, re-small-renderer-contracts4, core-view-utilities-complete4, verify-fontsys4, core-networkmodel-contractfix4, verify-command-system4, core-key-accelerator4, verify-persist-manager4, verify-variants4, verify-landfill-records4): merged (no C ABI history entry of its own)
  * 87 = merge-train batch train104 (verify-language-native4, verify-cmdline-native4, tools-refill-validation4): merged (no C ABI history entry of its own)
  * 88 = merge-train batch train108 (core-player-drive4, core-persist-runtime4, verify-dbpf-native4, core-legacy-control4): merged (no C ABI history entry of its own)
- * 89 = merge-train batch train155 (re-lotcfg-editor5, glue-netmgr-exact5, re-citytools-ct5, re-effects-ef5, re-view3dwin-vw5): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 89u
+ * 89 = merge-train batch train155 (re-lotcfg-editor5, glue-netmgr-exact5, re-citytools-ct5, re-effects-ef5, re-view3dwin-vw5): merged (no C ABI history entry of its own)
+ * 90 = merge-train batch train167 (glue-netrules-finish5, re-overlays-ov12, glue-rzstrings-shadow5, core-lot-models5): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 90u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
