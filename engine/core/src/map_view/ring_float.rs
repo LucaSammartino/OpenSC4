@@ -217,3 +217,96 @@ impl RingContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inherited_precision_and_rounding_apply_to_signed_halfway_sums() {
+        for (precision, bits) in [
+            (RingPrecision::Bits24, 24),
+            (RingPrecision::Bits53, 53),
+            (RingPrecision::Bits64, 64),
+        ] {
+            for rounding in [
+                RingRounding::Nearest,
+                RingRounding::Down,
+                RingRounding::Up,
+                RingRounding::TowardZero,
+            ] {
+                let context = RingContext { precision, rounding };
+                for neg in [false, true] {
+                    // At magnitude one, 2^-PC is exactly half an ulp. The even
+                    // endpoint is one; directed rounding depends on the sign.
+                    let half = F {
+                        sig: 1,
+                        exp: -bits,
+                        neg,
+                    };
+                    let one = F::int(if neg { -1 } else { 1 });
+                    let increment = matches!((rounding, neg), (RingRounding::Down, true) | (RingRounding::Up, false));
+                    let expected = F {
+                        sig: (1u64 << (bits - 1)) + u64::from(increment),
+                        exp: 1 - bits,
+                        neg,
+                    };
+                    assert_eq!(
+                        context.add(one, half).cmp(expected),
+                        Ordering::Equal,
+                        "{context:?}, negative={neg}"
+                    );
+
+                    // The other tie, one ulp farther on, rounds to the even
+                    // endpoint two ulps away when RC is nearest.
+                    let odd = F {
+                        sig: (1u64 << (bits - 1)) + 1,
+                        exp: 1 - bits,
+                        neg,
+                    };
+                    let increment = increment || rounding == RingRounding::Nearest;
+                    let expected = F {
+                        sig: odd.sig + u64::from(increment),
+                        ..odd
+                    };
+                    assert_eq!(
+                        context.add(odd, half).cmp(expected),
+                        Ordering::Equal,
+                        "{context:?}, odd negative={neg}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn square_roots_round_at_inherited_precision_without_a_binary32_spill() {
+        // Exact lower dyadic bounds for sqrt(2), independently of host FP.
+        for (precision, lower, exp, nearest_up) in [
+            (RingPrecision::Bits24, 0xb504f3, -23, false),
+            (RingPrecision::Bits53, 0x16a09e667f3bcc, -52, true),
+            (RingPrecision::Bits64, 0xb504f333f9de6484, -63, false),
+        ] {
+            for rounding in [
+                RingRounding::Nearest,
+                RingRounding::Down,
+                RingRounding::Up,
+                RingRounding::TowardZero,
+            ] {
+                let context = RingContext { precision, rounding };
+                let increment = rounding == RingRounding::Up || (rounding == RingRounding::Nearest && nearest_up);
+                let expected = F {
+                    sig: lower + u64::from(increment),
+                    exp,
+                    neg: false,
+                };
+                assert_eq!(context.sqrt(F::int(2)).cmp(expected), Ordering::Equal, "{context:?}");
+                assert_eq!(
+                    context.sqrt(F::int(4)).cmp(F::int(2)),
+                    Ordering::Equal,
+                    "exact square: {context:?}"
+                );
+            }
+        }
+    }
+}
