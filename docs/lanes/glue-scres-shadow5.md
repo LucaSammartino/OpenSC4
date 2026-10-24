@@ -19,9 +19,11 @@
   with CreateFileMapping error 5; direct cargo test completed successfully.
 - Implementation milestone: 985f7d3a4. Stable-source qbuild all: cargo 6807/6807,
   clippy zero diagnostics; native request qbuild-20261024-014455-build-ctest
-  pending. Existing fc4verify logs/DLL are round-1 evidence until it completes.
-- Next: collect the SAME qbuild operation (exec session 30973) to terminal,
-  then enqueue a uniquely named constructed-input city run.
+  terminal FAIL: native 47/49, missing fc4 qualification on compat namespace;
+  CTest skipped. Full failed log preserved as
+  build-runs/fc4verify-build-failed-985f7d3a4-r2.log. Namespace corrected.
+- Next: rerun qbuild all on corrected source, collect to terminal, then enqueue
+  a uniquely named constructed-input city run. No game request outstanding.
 - tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
   verification credit; unsupported owners/signatures remain SCR8/SCR9.
 - No outstanding game request. HEAD is intentionally detached.

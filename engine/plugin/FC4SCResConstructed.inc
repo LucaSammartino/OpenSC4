@@ -75,7 +75,7 @@ void ConstructedRead(InputGroup& group, unsigned mode, unsigned slot,
     // Refuse an unknown executable/table entry before making any direct call.
     auto** table = reinterpret_cast<void**>(kTables[mode]);
     const auto& patch = g_patches[mode][slot];
-    if (!compat::IdentifiedVersion() || (table[slot] != reinterpret_cast<void*>(kFunctions[mode][slot]) &&
+    if (!fc4::compat::IdentifiedVersion() || (table[slot] != reinterpret_cast<void*>(kFunctions[mode][slot]) &&
         (!patch.entry || table[slot] != patch.forward))) {
         ++group.refused;
         return;
