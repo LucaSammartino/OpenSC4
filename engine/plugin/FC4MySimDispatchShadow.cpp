@@ -20,7 +20,7 @@ extern "C" uint32_t fc4_mysimdispatch_shadow_compare(const uint32_t*, uint32_t);
 namespace fc4 {
 namespace {
 constexpr uint32_t kDispatch = 0xCBC14674, kSerializable = 0xE4FDA3D4;
-int32_t lastJulian = 0;
+int32_t lastMonth = 0;
 uint32_t months = 0, clean = 0;
 
 // Only settled constructor state fields and writer identity are compared.
@@ -43,8 +43,12 @@ bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint3
 
 void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     if (!SettingInt("mysimdispatch_shadow", "FC4_MYSIMDISPATCH_SHADOW", 0) || !city ||
-        julian <= 0 || julian == lastJulian) return;
-    lastJulian = julian;
+        julian <= 0) return;
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    const int32_t monthKey = date.year * 12 + date.month;
+    if (monthKey == lastMonth) return;
+    lastMonth = monthKey;
     uint32_t fields = 0, differences = 0, errors = 0, fixtures = 0, live = 0;
     auto* director = RZGetCOMDllDirector();
     auto* com = director ? director->GZCOM() : nullptr;
@@ -72,8 +76,6 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
             else ++errors;
         }
     }
-    fc4_date date{};
-    fc4_date_from_julian(julian, &date);
     ++months;
     if (differences == 0 && errors == 0) ++clean;
     Log("mysimdispatch shadow %04d-%02d-%02d: constructor=%u live_headers=%u fields=%u errors=%u "
@@ -83,7 +85,7 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
 
 void MySimDispatchShadowShutdown() {
     if (months) Log("mysimdispatch: measured %u/%u exact constructor/header samples; live trip owner remains unverified (MS20/MS18)", clean, months);
-    lastJulian = 0;
+    lastMonth = 0;
     months = clean = 0;
 }
 }

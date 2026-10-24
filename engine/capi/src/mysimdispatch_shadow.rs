@@ -49,6 +49,9 @@ mod tests {
         let mut native = expected();
         native[2..].fill(123);
         assert_eq!(unsafe { fc4_mysimdispatch_shadow_compare(native.as_ptr(), 0) }, 0);
-        assert_eq!(unsafe { fc4_mysimdispatch_shadow_compare(std::ptr::null(), 0) }, u32::MAX);
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_compare(std::ptr::null(), 0) },
+            u32::MAX
+        );
     }
 }

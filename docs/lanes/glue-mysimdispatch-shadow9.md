@@ -10,4 +10,5 @@
 - Compared scope: fresh native constructor state/previous/flags/minutes/travel, class/version; discoverable live serialized class/version only. Native outputs never initialize expected state. This does NOT verify the whole owner.
 - Filed MS20 in docs/specs/questions/mysims.md. Coordinator must regenerate QUESTIONS index (tools forbidden here).
 - MS18 remains partial: explicitly inventory uncompared methods; do not infer missing native signatures.
-- No game requests outstanding. Gate not started.
+- Milestone cdaea5883: scoped shadow implemented. Focused fc4-capi comparator tests pass 2/2. q.py could not start Git Bash (mapping access denied); direct cargo worked. Applied explicit fmt fix and calendar-month deduplication.
+- No game requests outstanding. Next operation: stable qbuild all, then queued native verify if all does not already dispatch it.
