@@ -1,8 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-effects-close5: effects owner closure | Codex / core-effects-close5 | wip: gates pass; full owner closure awaits EF18/EF19 | Resolve missing contracts and complete the open sections listed below. |
+| core-effects-close5: effects owner closure | Codex / core-effects-close5 | in progress | Audit the permitted resource contracts; gate the closed subset. |
 
-## Result
+## Handoff
+
+- Round 2 goal: close the supplied contracts and land the closed subset.
+- Starting tip: `d86f0c837`; round 1 implementation and validation are recorded below.
+- EF18/EF19 are still open in the permitted specs. No RE sources have been accessed.
+- The task's requested binary investigation/spec rewrite conflicts with its explicit
+  clean-room prohibitions; neither questions nor contracts will be falsely marked answered.
+- Next: add independent resource-format checks for opaque placement preservation,
+  complete the resource-owner matrix, then run the final gate once.
+- No game request outstanding; no plugin, ABI, or game behavior change planned.
+- Detached HEAD is intentional; the supervisor publishes commits.
+
+## Round 1 result
 
 State is **wip**. Settled runtime gaps are implemented and all checks pass;
 the six requested owners cannot yet be claimed closed because the supplied
