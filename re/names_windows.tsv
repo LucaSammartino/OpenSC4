@@ -10312,7 +10312,12 @@ va	name	source	confidence	note
 0080eba0	cSC4OrdinanceTrashPresort::Shutdown	auto:C	high	mac 00532d74 score 1.0 support 1
 0080ebe0	cSC4OrdinanceTrashPresort::GetCurrentMonthlyIncome	auto:A	high	mac 00532de6 score 1.0 support 0
 0080ec90	cSC4OrdinanceTrashPresort::CheckConditions	auto:C	high	mac 00532e94 score 1.0 support 1
+0080eea0	cSC4MadCowPlayerWin::QueryInterface	manual:radio.tsv	high	intro-video-player.md §1 (IID 0x452294AA)
+0080fb60	cSC4MadCowPlayerWin::CreateSurface	manual:radio.tsv	high	intro-video-player.md §2
+0080fc30	cSC4MadCowPlayerWin::OnAppActivate	manual:radio.tsv	high	intro-video-player.md §3
 0080ffc0	cSC4MadCowPlayerWin::SetAudioEnabled	auto:B1	low	mac 00446446 score 0.898 support 1.0
+008101b0	cSC4MadCowPlayerWin::Shutdown	manual:radio.tsv	high	intro-video-player.md §4
+008102d0	cSC4MadCowPlayerWin::StopPlayback	manual:radio.tsv	high	intro-video-player.md §4 (called by StopMovie)
 008103e0	cSC4MadCowPlayerWin::StopMovie	auto:B1	medium	mac 0044644c score 0.895 support 1.0
 008128a0	cRZURL::~cRZURL	auto:B3	medium	mac 006a885a score 0.913 support 6.0
 00813bf7	lib::Catch@00813bf7	library	medium	Function ID
@@ -11974,19 +11979,23 @@ va	name	source	confidence	note
 008d2c5f	cRZRadio::SetVolume	auto:A	high	mac 0036bb6e score 1.0 support 0
 008d2c7d	cRZRadio::OnIdle	auto:A	high	mac 0036b96a score 0.5 support 0
 008d2c96	std::find<__gnu_cxx::__normal_iterator<cIGZRadioStation**,std::vector<cIGZRadioStation*,std::allocator<cIGZRadioStation*>>>,cIGZRadioStation*>	auto:B1	medium	mac 00735e42 score 0.883 support 1.0
-008d2cfd	cRZDiskRadioStation::OnIdle	auto:C	high	mac 0036883c score 1.0 support 1
+008d2cfd	cRZDiskRadioStation::OnIdle	manual:radio.tsv	high	radio.md §3.2 (4000 ms gap)
 008d2e5f	cRZDiskRadioStation::GetStationCallSign	auto:C	high	mac 00367cea score 1.0 support 1
 008d2e88	cRZDiskRadioStation::GetStationDescription	auto:C	high	mac 00368aa2 score 1.0 support 1
-008d2eb0	cRZDiskRadioStation::IsCycleTypePresent	auto:C	high	mac 00368284 score 1.0 support 1
+008d2eb0	cRZDiskRadioStation::IsCycleTypePresent	manual:radio.tsv	high	radio.md §3.2 (option 2 for jingles)
 008d2f21	cRZRadio::TurnOn	auto:C	high	mac 003686d4 score 1.0 support 1
 008d2f97	cRZRadio::Mute	auto:C	high	mac 0036babc score 1.0 support 1
+008d2fdc	cRZRadio::SetVolumeLevel	manual:radio.tsv	high	radio.md §2.3 (cIGZRadio slot 16; clamps to 0x400)
 008d300b	cRZRadio::GetCurrentStation	auto:C	high	mac 003686a4 score 1.0 support 1
 008d3025	cRZRadio::GetCurrentStation	auto:C	high	mac 0036865a score 1.0 support 1
 008d3048	cRZRadio::SetStation	auto:C	high	mac 00368af2 score 1.0 support 1
+008d3066	cRZRadio::SelectStation	manual:radio.tsv	high	radio.md §2.6 (cIGZRadio slot 14)
 008d30c7	cRZRadio::GetStationCount	auto:C	low	mac 00368ae4 score 1.0 support 1
+008d30d1	cRZRadio::OnIdleTick	manual:radio.tsv	high	radio.md §2.6 (cIGZRadio slot 5)
 008d3122	__ZThn28_N8cRZRadio12StopPlaybackEv	auto:B0	low	mac 007376be score 0.96 support 1.0
 008d312a	__ZThn28_N8cRZRadio12PlayNextSongEb	auto:B0	low	mac 007376c8 score 0.96 support 1.0
-008d319b	cRZRadio::DoEvent	auto:A	high	mac 003683e4 score 0.882 support 0
+008d3132	cRZRadio::StartFile	manual:radio.tsv	high	radio.md §2.1 (event 0xEAB186DF)
+008d319b	cRZRadio::DoEvent	manual:radio.tsv	high	radio.md §2.1
 008d3333	std::vector<float,std::allocator<float>>::erase	auto:D	medium	mac 006ef382 score 0.5 support 1
 008d335b	std::find<__gnu_cxx::__normal_iterator<cIGZRadioStation**,std::vector<cIGZRadioStation*,std::allocator<cIGZRadioStation*>>>,cIGZRadioStation*>	auto:B0	medium	mac 00735efc score 0.939 support 2.0
 008d338f	cRZDiskRadioStation::MoveToNextPlaylistItem	auto:C	high	mac 0036832a score 1.0 support 1
@@ -12016,14 +12025,15 @@ va	name	source	confidence	note
 008d3e7e	cRZDiskRadioStation::PlayWelcome	auto:A	high	mac 0036b6f8 score 1.0 support 0
 008d3ee0	cRZDiskRadioStation::DoesFileExist	auto:B0	medium	mac 0036b454 score 0.995 support 2.0
 008d3f8e	cRZDiskRadioStation::PlayNextSelectionNotOnExclusionList	auto:C	high	mac 0036b52e score 1.0 support 1
-008d4127	cRZDiskRadioStation::StartPlayingNextSelectionOfGivenType	auto:C	high	mac 0036b154 score 1.0 support 1
+008d4127	cRZDiskRadioStation::StartPlayingNextSelectionOfGivenType	manual:radio.tsv	high	radio.md §3.3
 008d4317	cRZDiskRadioStation::ShufflePlaylist	auto:C	high	mac 0036aa32 score 1.0 support 1
 008d4579	cRZDiskRadioStation::ReadCallSignFromDisk	auto:B5	medium	mac 0036a786 score 0.939 support 6.0
 008d4687	cRZRadio::Init	auto:B1	medium	mac 0036a44a score 0.952 support 3.5
 008d484a	cRZRadio::GetStation	auto:C	high	mac 00368b7e score 1.0 support 1
 008d490b	cRZRadio::GetStation	auto:C	high	mac 003697f0 score 1.0 support 1
-008d49f8	cRZRadio::SetupDiskStations	auto:B3	medium	mac 00369a9a score 0.95 support 4.0
+008d49f8	cRZRadio::SetupDiskStations	manual:radio.tsv	high	radio.md §2.4
 008d5092	cRZRadio::GetCurrentSong	auto:C	high	mac 00369a6e score 1.0 support 1
+008d50aa	cRZRadio::SetCurrentSong	manual:radio.tsv	high	radio.md §2.1 (cIGZRadio slot 33)
 008d51db	__ZThn28_N8cRZRadio4InitEv	auto:B2	low	mac 007367fa score 0.96 support 1.0
 008d51fc	std::vector<cGZPlayListEntry,std::allocator<cGZPlayListEntry>>::~vector	auto:B0	medium	mac 0073641a score 0.897 support 2.0
 008d5409	cRZDiskRadioStation::SetModifierList	auto:C	high	mac 0036a704 score 1.0 support 1
@@ -12039,9 +12049,9 @@ va	name	source	confidence	note
 008d6196	cGZPlayList::_AddNextPathSegment	auto:B3	medium	mac 00371d86 score 0.951 support 3.0
 008d6258	cGZPlayList::_GetLine	auto:B0	medium	mac 00371f3e score 0.968 support 3.0
 008d6352	cGZPlayList::_MakeAbsolutePath	auto:B2	medium	mac 00371e5e score 0.964 support 4.0
-008d64e3	cGZPlayList::_ParseExtM3UFormat	auto:A	high	mac 00372456 score 1.0 support 0
-008d66c9	cGZPlayList::_ParseM3UFormat	auto:B1	medium	mac 0037262e score 0.986 support 3.0
-008d6824	cGZPlayList::_ParsePLSFormat	auto:A	high	mac 00372088 score 1.0 support 0
+008d64e3	cGZPlayList::_ParseExtM3UFormat	manual:radio.tsv	high	radio.md §4
+008d66c9	cGZPlayList::_ParseM3UFormat	manual:radio.tsv	high	radio.md §4
+008d6824	cGZPlayList::_ParsePLSFormat	manual:radio.tsv	high	radio.md §4
 008d6b22	cGZPlayList::Open	auto:A	high	mac 003727f0 score 1.0 support 0
 008d6cf0	RZDrawDrawCircle	auto:B2	medium	mac 004752d4 score 0.929 support 2.0
 008d8760	(anonymous_namespace)::drr_get_color	auto:B2	medium	mac 007efa04 score 0.994 support 1.0
@@ -13452,6 +13462,7 @@ va	name	source	confidence	note
 009374a4	cHitIniFile::InitPackedDBSegments	auto:A	high	mac 002f40e8 score 1.0 support 0
 0093756a	cHitIniFile::EnumDefaultEntries	auto:A	high	mac 002f41e0 score 1.0 support 0
 009377af	cHitPropertySetTrackResource::SetKey	auto:C	high	mac 00729238 score 1.0 support 1
+009377dd	cHitMan::DefaultTrackFlowErrorHandler	manual:hit-music.tsv	high	hit-music.md §3.8 (stored by the ctor at +0xA8)
 009377f8	cHitMan::SetTrackFlowErrorHandler	auto:C	high	mac 00365222 score 1.0 support 1
 00937805	cHitMan::HandleTrackFlowError	auto:C	high	mac 00365234 score 1.0 support 1
 00937818	cHitMan::QueryInterface	auto:A	high	mac 00365250 score 1.0 support 0
@@ -13493,15 +13504,16 @@ va	name	source	confidence	note
 009385d6	cHitSem::cHitSem	auto:B6	medium	mac 00734828 score 0.861 support 2.0
 0093860a	cHitSem::QueryInterface	auto:A	high	mac 007325a4 score 1.0 support 0
 00938643	cHitMan::Shutdown	auto:C	high	mac 00366984 score 1.0 support 1
+0093873f	cHitControlGroup::cHitControlGroup	manual:hit-music.tsv	high	hit-music.md §3.5 (0x38 bytes, QI 0xFB1C0050)
 0093877e	icf::cGZFileNameToResKeyConverterDefault::KeyToFileName	folded	folded	23 names: cGZFileNameToResKeyConverterDefault::KeyToFileName | cGZGraph::DoHitTest | cGZPersistBufferResourceFactory::SaveToFile | cGZPersistBufferResourceFactory::SerialWrite | cGZPersistDBSerialRecord::SetRZCharStr | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleInternalEntityReference | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleStartNamespaceDecl | cGZWin::GZOnCaptureChanged | cGZWin::GZOnCommand | cGZWin::GZOnKeyDown | cGZWin::GZOnKeyUp | cGZWinToolTip::IsPointInWindowParentCoordinates | cGZWinToolTip::IsPointInWindowScreenCoordinates | cGZWinToolTip::IsPointInWindowWindowCoordinates | cHitResourceFactory::Read | cHitTrackPlayer::SetEffectsLevel | cHitTrackPlayer::SetEffectsType | cHitTrackPlayer::SetSoundFile | cHitTrackPlayer::UpdateView | cRZCursorResourceFactory::SerialWrite | cSCResourceCatalogView::GZOnCommand | cSCResourceCatalogView::GZOnKeyDown | cSCResourceCatalogView::GZOnKeyUp
 00938789	cGZWin::GZOnMouseWheel	auto:D	low	mac 0010bf20 score 0.5 support 1
 0093878e	cGZPersistResource::DebugInstanceTag	auto:B4	low	mac 00259974 score 0.942 support 2.0
-0093880a	cHitMan::LoadHitFile	auto:C	high	mac 00366ba6 score 1.0 support 1
+0093880a	cHitMan::LoadHitFile	manual:hit-music.tsv	high	hit-music.md §3.2 (cIHitMan slot 9)
 0093899f	cHitMan::RemoveAllSems	auto:C	low	mac 003659f8 score 1.0 support 1
 009389aa	std::map<long,cGZWinTreeView::GZWinTreeView_TreeNode*,std::less<long>,std::allocator<std::pair<long_const,cGZWinTreeView::GZWinTreeView_TreeNode*>>>::operator[]	auto:D	medium	mac 00750084 score 0.5 support 1
 009389ef	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,std::vector<unsigned_char,std::allocator<unsigned_char>>>,std::_Select1st<std::pair<unsigned_long_const,std::vector<unsigned_char,std::allocator<unsigned_char>>>>,cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>::cKeyLess,std::allocator<std::pair<unsigned_long_const,std::vector<unsigned_char,std::allocator<unsigned_char>>>>>::_M_erase	auto:B0	medium	mac 00729c9e score 0.98 support 1.0
 00938a26	cHitMan::SetSequenceGroupSnd	auto:C	high	mac 003660b0 score 1.0 support 1
-00938a41	cHitMan::DuckMapSetSndobPri	auto:C	high	mac 00365e1a score 1.0 support 1
+00938a41	cHitMan::DuckMapSetSndobPri	manual:hit-music.tsv	high	hit-music.md §3.6 (cIHitMan slot 39)
 00938ac6	cHitMan::DuckMapSndobPri	auto:C	high	mac 00365c2e score 1.0 support 1
 00938af0	cHitMan::ControlGroup	auto:C	high	mac 00365fa0 score 1.0 support 1
 00938b50	cHitMan::AddDBSegment	auto:C	high	mac 00366082 score 1.0 support 1
@@ -13517,8 +13529,8 @@ va	name	source	confidence	note
 00938d26	cHitTrackDataBlock::GetEntryPointOffset	auto:C	high	mac 007340d6 score 1.0 support 1
 00938d49	cHitTrackDataBlock::AddEntryPoint	auto:C	high	mac 00735546 score 1.0 support 1
 00938d61	cHitTrackDataBlock::~cHitTrackDataBlock	auto:C	high	mac 00733f36 score 1.0 support 1
-00938d8e	cHitMan::ParseHitFile	auto:A	high	mac 003660de score 1.0 support 0
-00938ec6	cHitMan::FilepathHasEmbeddedKey	auto:B2	medium	mac 0036551e score 0.972 support 2.5
+00938d8e	cHitMan::ParseHitFile	manual:hit-music.tsv	high	hit-music.md §3.2 (ENTP/EENT scan)
+00938ec6	cHitMan::FilepathHasEmbeddedKey	manual:hit-music.tsv	high	hit-music.md §3.3
 00939040	cGZPropertySetT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::ClearAll	auto:C	high	mac 00729d36 score 1.0 support 1
 0093906d	cHitMan::UnloadHitFile	auto:B3	medium	mac 00366dca score 0.987 support 2.0
 00939237	cGZPropertySetT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::cGZPropertySetT	auto:B1	medium	mac 0072e954 score 0.861 support 2.0
@@ -13549,7 +13561,7 @@ va	name	source	confidence	note
 00939993	cHitMan::Random	auto:C	high	mac 0073268a score 1.0 support 1
 009399b3	__ZThn4_N7cHitManD0Ev	auto:B0	low	mac 007358bc score 0.96 support 1.0
 009399c3	__ZThn28_N7cHitMan8ShutdownEv	auto:B0	low	mac 007357c6 score 0.96 support 1.0
-009399cb	cHitMan::Init	auto:A	high	mac 00366314 score 0.911 support 0
+009399cb	cHitMan::Init	manual:hit-music.tsv	high	hit-music.md §3.1 (tables 0x00B16B38, 0x00B16CE8)
 00939c7b	cHitTrackDataBlock::SetFilename	auto:B3	medium	mac 00366872 score 0.972 support 2.0
 00939d41	std::map<cRZString_const,long,nGZLog::cLessRZString,std::allocator<std::pair<cRZString_const,long>>>::map	auto:B2	medium	mac 007e9ac8 score 0.946 support 2.0
 00939d5a	__ZThn28_N7cHitMan4InitEv	auto:B0	low	mac 00735578 score 0.96 support 1.0
@@ -13582,12 +13594,16 @@ va	name	source	confidence	note
 0093a89e	cHitTrackPlayer::Release	auto:C	high	mac 00356980 score 1.0 support 2
 0093a8b5	cHitTrackPlayer::Update	auto:C	low	mac 003569b0 score 1.0 support 1
 0093a8ba	cHitTrackPlayer::Play	auto:C	high	mac 003569be score 1.0 support 2
+0093a8cb	cHitTrackPlayer::SetCompareFlags	manual:hit-music.tsv	high	hit-music.md §8.3 (+0x9C equal, +0x9D greater, +0x9E less)
+0093a8f9	cHitTrackPlayer::SetCompareFlagsFloat	manual:hit-music.tsv	high	hit-music.md §8.3
 0093a959	cHitTrackPlayer::CurrentPlayPosition	auto:C	high	mac 00356b06 score 1.0 support 1
 0093aa0e	cHitTrackPlayer::SetPosition	auto:A	high	mac 00356c0c score 1.0 support 0
 0093aa6f	cHitTrackPlayer::SetErrorCondition	auto:C	low	mac 00356ca2 score 1.0 support 1
 0093aa77	cHitTrackPlayer::GetErrorCondition	auto:C	low	mac 00356cb2 score 1.0 support 1
 0093aaaf	cGZAny<AnyFloat32>::TypeID	auto:A	low	mac 00728d18 score 1.0 support 0
 0093ab29	std::_List_base<cRZAutoRefCount<cIGZWinMessageFilter>,std::allocator<cRZAutoRefCount<cIGZWinMessageFilter>>>::_M_clear	auto:B2	medium	mac 00663c8a score 0.899 support 1.0
+0093ab4b	cHitTrackPlayer::EnumFunc_KillTrack	manual:hit-music.tsv	high	hit-music.md §8.2 opcode 0x33 (kills, cIGZSnd slot 9)
+0093abd4	cHitTrackPlayer::EnumFunc_StopTrack	manual:hit-music.tsv	high	hit-music.md §8.2 opcode 0x5A (stops, cIGZSnd slot 8)
 0093ac5d	cHitTrackPlayer::Shutdown	auto:C	high	mac 00356e0c score 1.0 support 2
 0093ac87	cHitTrackPlayer::GetTrackDef	auto:C	high	mac 00356e8c score 1.0 support 1
 0093ac9d	cHitTrackPlayer::SetHitList	auto:C	high	mac 003569f6 score 1.0 support 1
@@ -13595,6 +13611,8 @@ va	name	source	confidence	note
 0093acd6	cHitTrackPlayer::CompletionTime	auto:C	high	mac 00357278 score 1.0 support 1
 0093adaa	cHitTrackPlayer::Reset	auto:C	high	mac 00356e5c score 1.0 support 1
 0093adba	cHitTrackPlayer::SetRegisterVal	auto:C	high	mac 00358b5e score 1.0 support 1
+0093ae2d	cHitTrackPlayer::HasRegister	manual:hit-music.tsv	high	hit-music.md §6.1 (local set, then the chain)
+0093ae78	cHitTrackPlayer::NoteOff	manual:hit-music.tsv	high	hit-music.md §6.4 step 7, opcode 0x03
 0093ae8c	cHitTrackPlayer::UpdateVolPan	auto:B1	medium	mac 00356d1c score 0.875 support 4.0
 0093af0d	cHitTrackPlayer::SetFrequency	auto:C	high	mac 00356d7a score 1.0 support 2
 0093af41	cHitTrackPlayer::Load	auto:C	high	mac 00356ddc score 1.0 support 2
@@ -13603,19 +13621,23 @@ va	name	source	confidence	note
 0093b01e	cHitTrackPlayer::Pause	auto:C	high	mac 00356f92 score 1.0 support 2
 0093b08b	cHitTrackPlayer::Unpause	auto:C	high	mac 0035702e score 1.0 support 2
 0093b108	cHitTrackPlayer::Stop	auto:A	high	mac 003570d2 score 1.0 support 0
-0093b508	cHitTrackPlayer::UpdatePitch	auto:A	high	mac 00357f8a score 0.876 support 0
-0093b791	cHitTrackPlayer::PlayPause	auto:A	high	mac 0035882e score 1.0 support 0
+0093b200	cHitTrackPlayer::GetRegister	manual:hit-music.tsv	high	hit-music.md §6.1 (first set of the chain that has it)
+0093b268	cHitTrackPlayer::SetRegister	manual:hit-music.tsv	high	hit-music.md §6.1 (local set, dependents, notify)
+0093b36f	cHitTrackPlayer::SetRegisterFloat	manual:hit-music.tsv	high	hit-music.md §6.1
+0093b481	cHitTrackPlayer::RemoveRegister	manual:hit-music.tsv	high	hit-music.md §6.1 (dependents' slot 5, then notify)
+0093b508	cHitTrackPlayer::UpdatePitch	manual:hit-music.tsv	high	hit-music.md §6.7 (ratio 2^(1/12) at 0x00AD2B80)
+0093b791	cHitTrackPlayer::PlayPause	manual:hit-music.tsv	high	hit-music.md §6.3 (the start routine)
 0093b9ae	cHitTrackPlayer::UpdatePatch	auto:A	high	mac 00358264 score 0.896 support 0
 0093baef	std::_List_base<cRZAutoRefCount<cGZDBSDFRecord>,std::allocator<cRZAutoRefCount<cGZDBSDFRecord>>>::~_List_base	auto:D	medium	mac 0073a29a score 0.5 support 1
 0093bbf0	cHitTrackPlayer::Kill	auto:A	high	mac 0035770e score 1.0 support 0
 0093bd06	cHitTrackPlayer::HandleNotifySetPropertyValue	auto:A	high	mac 003584a6 score 1.0 support 0
 0093bfef	cHitTrackPlayer::NoteOn	auto:A	high	mac 00358430 score 1.0 support 0
 0093c0ec	cHitTrackPlayer::StartSndDependent	auto:A	high	mac 00357854 score 0.858 support 0
-0093c229	cHitTrackPlayer::DoCommand	auto:A	high	mac 00358d56 score 1.0 support 0
-0093df4c	cHitTrackPlayer::HandleTimerCallback	auto:B0	medium	mac 0035b86c score 0.94 support 3.0
+0093c229	cHitTrackPlayer::DoCommand	manual:hit-music.tsv	high	hit-music.md §8 (jump table 0x0093DC8B, 97 entries)
+0093df4c	cHitTrackPlayer::HandleTimerCallback	manual:hit-music.tsv	high	hit-music.md §6.4
 0093e0df	lib::Catch@0093e0df	library	medium	Function ID
 0093e0fc	cHitTrackPlayer::NoteOff	auto:D	medium	mac 00356cf8 score 0.5 support 1
-0093e146	cHitTrackPlayer::Play	auto:A	high	mac 00357a78 score 1.0 support 0
+0093e146	cHitTrackPlayer::Play	manual:hit-music.tsv	high	hit-music.md §6.2
 0093e2d8	cHitTrackPlayer::Step	auto:B0	medium	mac 0035b826 score 0.907 support 1.0
 0093e43d	cHitTrackPlayer::AsIGZSndMultipleSources	auto:C	low	mac 00727d78 score 1.0 support 1
 0093e449	cHitTrackPlayer::SetID	auto:C	low	mac 00727e1e score 1.0 support 2
@@ -13640,17 +13662,19 @@ va	name	source	confidence	note
 0093e60a	cHitChannel::~cHitChannel	auto:B0	medium	mac 0035e994 score 0.937 support 1.0
 0093e882	cHitTrackPlayer::~cHitTrackPlayer	auto:C	high	mac 0035cc26 score 1.0 support 1
 0093e8f4	cHitTrackPlayer::cHitTrackPlayer	auto:D	medium	mac 0035c21c score 0.5 support 1
-0093eaa1	cHitTrackPlayer::SetTrackDef	auto:A	high	mac 0035bb74 score 1.0 support 0
+0093eaa1	cHitTrackPlayer::SetTrackDef	manual:hit-music.tsv	high	hit-music.md §6.1, §5.3 (parent chain through 0xFF4C97BE)
 0093ec35	cHitChannel::QueryInterface	auto:A	high	mac 0035d85c score 0.851 support 0
 0093ec9f	cGZMessageQueue2::AddRef	auto:C	low	mac 00038bbe score 1.0 support 1
 0093f07e	cHitChannel::UpdatePitch	auto:A	high	mac 0035df44 score 1.0 support 0
-0093f136	cHitChannel::UpdateVolPan	auto:A	high	mac 0035e0c8 score 1.0 support 0
+0093f136	cHitChannel::UpdateVolPan	manual:hit-music.tsv	high	hit-music.md §9.3
 0093f304	cHitChannel::CreateSnd	auto:A	high	mac 0035e45a score 0.873 support 0
 0093f687	cHitChannel::UpdatePatch	auto:B0	medium	mac 0035e654 score 0.902 support 2.0
 0093f7eb	cIGZSndUpdateTarget::cIGZSndUpdateTarget	auto:B1	medium	mac 006f7f86 score 0.98 support 3.0
 0093f806	cHitChannel::NoteOn	auto:A	high	mac 0035e6f4 score 1.0 support 0
 0093f84d	cHitChannel::Load	auto:B1	medium	mac 0035e6a8 score 0.908 support 1.0
-0093fa5b	cHitChannel::HandleNotifySetPropertyValue	auto:A	high	mac 0035efea score 1.0 support 0
+0093fa5b	cHitChannel::HandleNotifySetPropertyValue	manual:hit-music.tsv	high	hit-music.md §9.3
+0093fd3c	cHitChannel::SetRegister	manual:hit-music.tsv	high	hit-music.md §9.1 (alias, local set, notify)
+0093fd99	cHitChannel::SetRegisterFloat	manual:hit-music.tsv	high	hit-music.md §9.1
 0093fe12	cHitChannel::cHitChannel	auto:B0	medium	mac 0035e7de score 0.925 support 4.0
 0093feeb	cHitResourceFactory::CreateInstance	auto:C	high	mac 00727a92 score 1.0 support 1
 0093ff03	icf::cGZBufferResourceFactory::CreateInstance	folded	folded	11 names: cGZBufferResourceFactory::CreateInstance | cGZGimexFactory::CreateInstance | cGZPersistBufferResourceFactory::CreateInstance | cHitResourceFactory::CreateInstance | cRZCursorResourceFactory::CreateInstance | cS3DFSHTextureFactory::CreateInstance | cS3DResSpriteAnimFactory::CreateInstance | cSC4EffectsResourceFactory::CreateInstance | cSC4PathInfoFactory::CreateInstance | cSCResExemplarCohortFactory::CreateInstance | cSCResExemplarFactory::CreateInstance
@@ -13665,11 +13689,13 @@ va	name	source	confidence	note
 0094034b	cHitResource<cHitTrackPlayer>::AddRef	auto:C	low	mac 00728414 score 1.0 support 1
 00940350	cHitResource<cHitTrackPlayer>::Release	auto:C	low	mac 00728472 score 1.0 support 1
 00940355	cHitResource<cHitTrackPlayer>::~cHitResource	auto:C	high	mac 00728a78 score 1.0 support 1
+009404c2	cHitList::SetWindow	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 7; opcode 0x26 SmartSetCrit)
 009404d2	cHitResource<cHitList>::QueryInterface	auto:B0	medium	mac 00728322 score 0.941 support 2.0
 00940512	cHitPropertySetTrackResource::GetKey	auto:C	high	mac 007292fa score 1.0 support 1
 0094052a	cHitPropertySetTrackResource::SetType	auto:C	low	mac 007294e8 score 1.0 support 1
 00940536	cHitPropertySetTrackResource::SetInstance	auto:C	low	mac 007295a8 score 1.0 support 1
 0094057b	__ZThn32_N12cHitResourceI8cHitListE14QueryInterfaceEmPPv	auto:B1	low	mac 00728318 score 0.96 support 1.0
+0094067a	cHitList::Count	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 9)
 0094070e	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::Release	auto:C	high	mac 00728628 score 1.0 support 2
 00940722	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::QueryInterface	auto:A	high	mac 007285ba score 1.0 support 0
 00940763	__ZThn4_N28cGZPropertySetSerializerXmlTI19cKeyStandardTraitsTImLin340718371ELi1806839612EEE14QueryInterfaceEmPPv	auto:B0	low	mac 007285b0 score 0.96 support 1.0
@@ -13685,10 +13711,10 @@ va	name	source	confidence	note
 00940da2	cGZAny<AnySint32>::TypeID	auto:A	low	mac 00728dba score 1.0 support 0
 00940da8	GetCurrentFrameworkCodePage	auto:B0	low	mac 00014b8a score 0.842 support 2.0
 00940dff	cHitPropertySetTrackResource::Read	auto:A	high	mac 0035432e score 1.0 support 0
-00940e5c	cHitPropertySetTrackResource::Write_OldFormat	auto:B2	medium	mac 003543ec score 0.903 support 15.0
+00940e5c	cHitPropertySetTrackResource::Write_OldFormat	manual:hit-music.tsv	high	hit-music.md §5.1 (27 fields)
 00941664	icf::cHitPropertySetTrackResource::Read	folded	folded	2 names: cHitPropertySetTrackResource::Read | cHitPropertySetTrackResource::ReadLegacyFormat
 00941679	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::Read	auto:A	high	mac 0072b59e score 0.741 support 0
-00941930	cHitPropertySetTrackResource::ReadLegacyFormat	auto:B1	medium	mac 00352956 score 0.868 support 16.0
+00941930	cHitPropertySetTrackResource::ReadLegacyFormat	manual:hit-music.tsv	high	hit-music.md §5.1
 009425a2	cPropertySetUint32XmlReader::HandleEndElement	auto:A	high	mac 00355110 score 0.904 support 0
 0094286b	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::Write	auto:A	high	mac 0072bffc score 0.92 support 0
 00942d50	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::GetPropertySetTypeString	auto:A	high	mac 0072bdb4 score 1.0 support 0
@@ -13696,8 +13722,21 @@ va	name	source	confidence	note
 00942f24	cHitResourceFactory::CreateInstance	auto:A	high	mac 003555e6 score 1.0 support 0
 00943809	cPropertySetUint32XmlReader::HandleStartElement	auto:A	high	mac 003525e6 score 1.0 support 0
 0094392e	cHitList::QueryInterface	auto:A	high	mac 0035cf68 score 1.0 support 0
+00943953	cHitList::RandomIndex	manual:hit-music.tsv	high	hit-music.md §4.5 (HitMan Random(n, 0))
+0094397e	cHitList::Clear	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 6)
 00943995	std::list<cIGZWin*,std::allocator<cIGZWin*>>::remove	auto:D	medium	mac 006637e6 score 0.5 support 2
-00943dbc	cHitList::ReadResource	auto:B2	medium	mac 0035d538 score 0.999 support 2.5
+00943a2e	cHitList::Remove	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 5)
+00943a9b	cHitList::GetAt	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 11)
+00943b07	cHitList::SetAt	manual:hit-music.tsv	high	hit-music.md §4.5
+00943b71	cHitList::EraseAt	manual:hit-music.tsv	high	hit-music.md §4.5
+00943c01	cHitList::Add	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 4)
+00943c46	cHitList::Choose	manual:hit-music.tsv	high	hit-music.md §4.5 (slot 8)
+00943cf2	cHitList::WriteResource	manual:hit-music.tsv	high	hit-music.md §4.4
+00943dbc	cHitList::ReadResource	manual:hit-music.tsv	high	hit-music.md §4.4
+00944088	cHitSem2dDefault::Apply	manual:hit-music.tsv	high	hit-music.md §10 (sem slot 5)
+00944117	cHitSem2dDefault::Setup	manual:hit-music.tsv	high	hit-music.md §10 (sem slot 6)
+009441e3	cHitSem3dDefault::Apply	manual:hit-music.tsv	high	hit-music.md §10 (sem slot 5)
+00944351	cHitSem3dDefault::Setup	manual:hit-music.tsv	high	hit-music.md §10 (sem slot 6)
 0094448e	cGZScriptCOMDirector::cGZScriptCOMDirector	auto:A	high	mac 007518be score 1.0 support 0
 009444c9	cGZScriptCOMDirector::GetDirectorID	auto:A	low	mac 007518b4 score 1.0 support 0
 009444cf	GetGZScriptCOMDirector	auto:B0	medium	mac 003a8d68 score 0.838 support 1.0
@@ -13733,8 +13772,9 @@ va	name	source	confidence	note
 009457c6	cRZUnknown::QueryInterface	auto:B0	medium	mac 000262d6 score 0.929 support 13.0
 009457e1	cFreshCellPlayer::Release	auto:C	high	mac 0036bc5e score 1.0 support 2
 009457fb	cFreshCellPlayer::QueryInterface	auto:A	high	mac 0036bc84 score 1.0 support 0
-00945820	cFreshCellPlayer::UpdateScaledVol	auto:D	medium	mac 0036bcd2 score 0.5 support 1
+00945820	cFreshCellPlayer::UpdateScaledVol	manual:freshness.tsv	high	freshness.md §5.2
 0094585f	cFreshScore::cFreshScore	auto:B6	medium	mac 0036c294 score 0.872 support 2.0
+009458c4	cFreshScore::GetCell	manual:freshness.tsv	high	freshness.md §2.1 (+0x48 + (row*64 + col)*4)
 009458d6	cFreshCellPlayer::cFreshCellPlayer	auto:B0	medium	mac 0036c3ec score 0.933 support 1.0
 00945942	icf::cFreshCellPlayer::AddRef	folded	folded	5 names: cFreshCellPlayer::AddRef | cGZGimexFactory::AddRef | cGZGimexReader::AddRef | cGZGimexWriter::AddRef | cGZPersistResourceKeyList::AddRef
 00945949	cFreshCellPlayer::IsPlaying	auto:C	low	mac 007379e4 score 1.0 support 1
@@ -13761,11 +13801,11 @@ va	name	source	confidence	note
 00945ed0	NetworkFileCache::SetFileCacheSize	auto:C	low	mac 0043e234 score 1.0 support 1
 00945edc	NetworkFileCache::SetRAMCacheSize	auto:C	low	mac 0043e220 score 1.0 support 1
 00945f38	cFreshCellPlayer::FilenameHasGuid	auto:B2	medium	mac 0036be14 score 0.976 support 3.5
-00946039	cFreshScore::ParseScore	auto:A	high	mac 0036c484 score 1.0 support 0
-0094680f	cFreshCellPlayer::StartCellExternal	auto:B1	medium	mac 0036d3ae score 0.926 support 5.5
+00946039	cFreshScore::ParseScore	manual:freshness.tsv	high	freshness.md §2.2 (versions 5-7)
+0094680f	cFreshCellPlayer::StartCellExternal	manual:freshness.tsv	high	freshness.md §5.5
 00946a79	cFreshScore::LoadScore	auto:B4	medium	mac 0036d108 score 0.962 support 2.0
 00946b30	cFreshScore::LoadScore	auto:B3	medium	mac 0036d00a score 0.974 support 3.0
-00946c2c	cFreshCellPlayer::Start	auto:A	high	mac 0036d766 score 0.771 support 0
+00946c2c	cFreshCellPlayer::Start	manual:freshness.tsv	high	freshness.md §5.1
 00946fe6	cFreshPlayer::QueryInterface	auto:A	high	mac 0036dd16 score 1.0 support 0
 00947004	cFreshPlayer::Release	auto:C	high	mac 0036dd52 score 1.0 support 1
 0094701e	cFreshPlayer::Init	auto:C	high	mac 0036f75e score 1.0 support 1
@@ -13777,6 +13817,7 @@ va	name	source	confidence	note
 00947519	cFreshPlayer::GetCellToSubtract	auto:C	high	mac 0036e3c2 score 1.0 support 1
 00947559	cFreshPlayer::SetVolume	auto:C	high	mac 00370150 score 1.0 support 1
 0094758e	cFreshPlayer::StopFade	auto:C	high	mac 0036e148 score 1.0 support 1
+009475fb	cFreshPlayer::BeatTime	manual:freshness.tsv	high	freshness.md §4.6 ((n - origin) * 60000 / tempo)
 0094761c	cFreshPlayer::ProcessVolumeFadeTimerCallback	auto:B0	medium	mac 0036e7b0 score 0.954 support 1.0
 009476c3	cFreshPlayer::UpdatePlayerInfo	auto:D	medium	mac 0036dfdc score 0.5 support 3
 0094776d	cFreshPlayer::SetZoom	auto:C	high	mac 0036e9e0 score 1.0 support 1
@@ -13800,17 +13841,20 @@ va	name	source	confidence	note
 00947a55	cFreshPlayer::SetDivision3DPosition	auto:C	high	mac 0036edc4 score 1.0 support 1
 00947aa9	cFreshPlayer::SetNumDivisionsX	auto:C	high	mac 0036ee08 score 1.0 support 1
 00947ac1	cFreshPlayer::SetNumDivisionsZ	auto:C	high	mac 0036ee28 score 1.0 support 1
+00947ad9	cFreshPlayer::ChooseDivision	manual:freshness.tsv	high	freshness.md §4.8
 00947c38	cFreshPlayer::Init	auto:B5	medium	mac 0036de42 score 0.941 support 1.5
 00947d28	cFreshPlayer::Shutdown	auto:C	high	mac 0036f902 score 1.0 support 1
 00947db8	cFreshPlayer::Play	auto:C	high	mac 0036fb22 score 1.0 support 1
 00947e90	cFreshPlayer::StopNoLock	auto:B1	medium	mac 0036e074 score 0.989 support 2.0
+00947f58	cFreshPlayer::UpdateBeatClock	manual:freshness.tsv	high	freshness.md §4.6 (the 250 ms sound-system update)
 009482c5	cFreshPlayer::SubtractCell	auto:C	high	mac 0036e6f6 score 1.0 support 1
 00948321	FreshPlayerVolumeFadeTimerCallback	auto:B1	low	mac 0036e898 score 1.0 support 1.0
 0094832a	cFreshPlayer::FadeVolume	auto:C	high	mac 003701bc score 1.0 support 1
 00948420	cFreshPlayer::SetTempo	auto:C	high	mac 0037033a score 1.0 support 1
 009484a0	cFreshPlayer::SetXPos	auto:C	high	mac 0036e8a2 score 1.0 support 1
 00948504	cFreshPlayer::SetYPos	auto:C	high	mac 0036e93c score 1.0 support 1
-00948573	cFreshPlayer::ToggleCell	auto:C	high	mac 0036e346 score 1.0 support 1
+00948573	cFreshPlayer::ToggleCell	manual:freshness.tsv	high	freshness.md §4.7 (body: the start score, slot 58)
+00948719	cFreshPlayer::FindBestCellToStart	manual:freshness.tsv	high	freshness.md §4.7 (vtable slot 54)
 009489ae	cFreshPlayer::cFreshPlayer	auto:B3	medium	mac 0036f400 score 0.923 support 1.0
 00948b7f	cFreshPlayer::GetScore	auto:C	low	mac 00737dee score 1.0 support 1
 00948b85	cFreshPlayer::IsPlaying	auto:C	low	mac 00737dfa score 1.0 support 1
@@ -13836,10 +13880,13 @@ va	name	source	confidence	note
 00949100	cFreshDimensionPlayer::Play	auto:B0	medium	mac 003706b2 score 0.966 support 3.0
 0094950a	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>,std::_Select1st<std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,void(*)(cIGZWin*,cGZArray<std::pair<unsigned_long,cIGZVariant*>>&,bool)>>>::insert_unique	auto:D	medium	mac 00758392 score 0.5 support 20
 0094970d	cFreshDimensionPlayer::Update	auto:B1	medium	mac 0037080c score 0.969 support 4.0
+00949902	cFreshDimensionPlayer::cFreshDimensionPlayer	manual:freshness.tsv	high	freshness.md §6 (400 bytes, CLSID 0xBDDA72DD)
 00949ade	icf::cGZApp::Shutdown	folded	folded	34 names: cGZApp::Shutdown | cGZCOM::Init | cGZCOM::Shutdown | cGZCheatCodeManager::Init | cGZCheatCodeManager::Shutdown | cGZDBSegmentDirectoryFiles::GetPath | cGZFileSystem::Init | cGZFileSystem::Shutdown | cGZSndSys::IsServiceRunning | cGZSoundCOMDirector::PostAppInit | cGZWin::GZPaint | cGZWinIMEServer::GetCompositionEnabled | cHTMLContainerElement::IsContainer | cHitDebugInfo::Init | cHitDebugInfo::Shutdown | cHitMan::Unpause | cHitTrackPlayer::Init | cPropertySetUint32XmlReader::HandleEndCdataSection | cPropertySetUint32XmlReader::HandleStartCdataSection | cRZCOMDllDirector::AbortiveQuit | cRZCOMDllDirector::OnInstall | cRZCOMDllDirector::PostAppInit | cRZCOMDllDirector::PostAppShutdown | cRZCOMDllDirector::PostSystemServiceShutdown | cRZCOMDllDirector::PreAppInit | cRZCOMDllDirector::PreFrameWorkInit | cRZDiskRadioStation::Init | cRZDiskRadioStation::Shutdown | cRZLanguageManager::Init | cRZLanguageManager::Shutdown | cRZLanguageUtility::Shutdown | cRZOStream::Shutdown | cRZSystemService::Init | cRZSystemService::Shutdown
 00949b47	cHitTrackPlayer::GetUseCount	auto:C	low	mac 00727df6 score 1.0 support 2
 00949b73	icf::cGZGraph::SetGraphAreaOutlineAndFill	folded	folded	11 names: cGZGraph::SetGraphAreaOutlineAndFill | cGZPersistSurveyorWriter::WriteTypeInfo | cGZSndSys::SetServiceRunning | cGZWinTextTicker::SetCaption | cHTMLElement::Insert | cHTMLElement::OnMouseDownL | cHTMLElement::OnMouseUpL | cHTMLElement::SetLinkColor | cHTMLHR::Draw | cHTMLHR::Layout | cHTMLListItemHangingIndent::Draw
 00949c27	cFreshDimensionPlayer::LoadScore	auto:A	high	mac 00370ee4 score 1.0 support 0
+00949d19	cFreshDimensionPlayer::RebuildCellPool	manual:freshness.tsv	high	freshness.md §6
+00949ea4	cFreshDimensionPlayer::SetScoreEnabled	manual:freshness.tsv	high	freshness.md §6
 0094a5ea	icf::cGZApp::GZRun	folded	folded	9 names: cGZApp::GZRun | cGZPersistDBSerialRecord::GetError | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleEndCdataSection | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleStartCdataSection | cGZWinIMEServer::IsIMEAvailable | cHTMLElement::IsContainer | cHTMLElement::Selectable | cHitTrackPlayer::StopAllInstances | cRZNullOStream::GetError
 0094abc9	cGZToolsCOMDirector::cGZToolsCOMDirector	auto:B1	medium	mac 002eca08 score 0.935 support 2.0
 0094ac43	cGZToolsCOMDirector::Get	auto:B2	medium	mac 002ecaec score 0.931 support 1.0
@@ -14007,6 +14054,7 @@ va	name	source	confidence	note
 0096655a	cGZSoundCOMDirector::OnStart	auto:A	high	mac 00719d3e score 0.839 support 0
 00966678	cGZSoundCOMDirector::PostAppInit	auto:B1	medium	mac 00719c36 score 0.949 support 2.5
 009666c9	GetGZSoundCOMDirector	auto:B0	medium	mac 0032b6e8 score 0.838 support 1.0
+009666f4	cGZSndSys::UpdateTimerCallback	manual:sound-system.tsv	high	sound-system.md §2.2 (20 ms callback timer)
 00966723	cGZSndSys::QueryInterface	auto:C	high	mac 00360076 score 1.0 support 3
 00966792	cGZSndSys::AddRef	auto:C	low	mac 003600e8 score 1.0 support 3
 00966799	cGZSndSys::Release	auto:C	high	mac 003600fa score 1.0 support 3
@@ -14019,6 +14067,7 @@ va	name	source	confidence	note
 0096693e	cGZSndSys::GetSoundSystemThreadId	auto:C	high	mac 0036059c score 1.0 support 1
 009669be	cGZSndSys::FindPlayingGZSnd	auto:C	high	mac 0036039a score 1.0 support 1
 009669f3	cGZSndSys::IsSndPlaying	auto:C	high	mac 003603f0 score 1.0 support 1
+00966a1b	cGZSndSys::DoMessage	manual:sound-system.tsv	high	sound-system.md §2.2 (message type 0xDB53383B)
 00966a95	cGZSndSys::PostEvent	auto:C	high	mac 0036042c score 1.0 support 1
 00966ab2	cGZSndSys::PostEvent	auto:C	high	mac 003614fe score 1.0 support 1
 00966b55	cGZSndSys::PostEvent	auto:C	high	mac 0036160e score 1.0 support 1
@@ -14039,7 +14088,7 @@ va	name	source	confidence	note
 009676d2	cGZSndSys::GetNumExtensionDefaultDataSourceClassIdMappings	auto:C	low	mac 003605a4 score 1.0 support 1
 009677e6	std::list<cRZAutoRefCount<cIGZWinMessageFilter>,std::allocator<cRZAutoRefCount<cIGZWinMessageFilter>>>::clear	auto:B1	medium	mac 00663ccc score 0.89 support 2.0
 00967819	cGZSndSys::UnregisterRenderer	auto:C	high	mac 00362182 score 1.0 support 1
-00967885	cGZSndSys::UpdateTargets	auto:B0	medium	mac 0036319c score 0.948 support 3.0
+00967885	cGZSndSys::UpdateTargets	manual:sound-system.tsv	high	sound-system.md §2.3 (250 ms slow round)
 009679ad	cGZSndSys::DoEvent	auto:C	high	mac 00363874 score 1.0 support 1
 00967acb	cGZSndSys::GetExtensionDefaultDataSourceClassIdMappingClassId	auto:C	high	mac 003608a0 score 1.0 support 1
 00967b1a	cGZSndSys::NumRenderers	auto:C	high	mac 00360718 score 1.0 support 1
@@ -14072,7 +14121,7 @@ va	name	source	confidence	note
 009689e9	cGZSndSys::SetExtensionDefaultDataSourceClassId	auto:B8	medium	mac 00360eb8 score 0.986 support 3.0
 00968a9d	cGZSndMgr::QueryInterface	auto:A	high	mac 00363b30 score 1.0 support 0
 00968ad1	cGZSndMgr::Release	auto:C	high	mac 00363b82 score 1.0 support 1
-00968ae7	cGZSndMgr::GetSound	auto:B3	medium	mac 00363c0c score 0.897 support 1.5
+00968ae7	cGZSndMgr::GetSound	manual:sound-system.tsv	high	sound-system.md §3.2 (name form: CRC24 | 0xFF000000)
 00968b1d	cGZSndMgr::SndAutoPlay	auto:C	high	mac 00363c68 score 1.0 support 1
 00968b2c	cGZSndMgr::SystemSndAutoPlay	auto:C	high	mac 00363c90 score 1.0 support 1
 00968b3b	cCompletionObj::QueryInterface	auto:A	high	mac 00730a3c score 1.0 support 0
@@ -14091,9 +14140,9 @@ va	name	source	confidence	note
 00969055	cGZSndMgr::GetSndDataSource	auto:C	high	mac 00364f50 score 1.0 support 1
 009692fc	cGZSndMgr::SystemSndID	auto:C	high	mac 003644be score 1.0 support 1
 00969335	cGZSndMgr::RegisterSndCreator	auto:A	high	mac 003645c2 score 1.0 support 0
-009693c0	cGZSndMgr::GetSound	auto:C	high	mac 0036474a score 1.0 support 1
+009693c0	cGZSndMgr::GetSound	manual:sound-system.tsv	high	sound-system.md §3.2 (id form)
 00969475	cGZSndMgr::AddSndToAutoPlayList	auto:C	high	mac 00363fb0 score 1.0 support 1
-009694a2	cGZSndMgr::SndAutoPlay	auto:C	high	mac 00364a86 score 1.0 support 1
+009694a2	cGZSndMgr::SndAutoPlay	manual:sound-system.tsv	high	sound-system.md §3.2
 00969536	cGZSndMgr::SystemSndAutoPlay	auto:C	high	mac 00364b8a score 1.0 support 1
 0096958d	cGZSndMgr::UnregisterSndDataSource	auto:C	high	mac 00365166 score 1.0 support 1
 009695cb	cGZSndMgr::UnregisterSndDataSource	auto:C	high	mac 00363d26 score 1.0 support 1
@@ -14109,16 +14158,29 @@ va	name	source	confidence	note
 00969a31	cGZSndMgr::RegisterSndDataSourceCreator	auto:C	high	mac 00364c8a score 1.0 support 1
 00969ab9	cGZSndMgr::~cGZSndMgr	auto:C	high	mac 003641c8 score 1.0 support 1
 00969af1	cGZSndMgr::cGZSndMgr	auto:A	high	mac 00363dbe score 1.0 support 0
+00969bf2	cGZSndSegmentDataSourceCreator::Create	manual:sound-system.tsv	high	sound-system.md §4.1 (XA, UTalk, MP3, WAV order)
+00969e08	cGZSndSegmentDataSourceCreator::cGZSndSegmentDataSourceCreator	manual:sound-system.tsv	high	sound-system.md §4.1 (CLSID 0xDC1F73D6)
 00969f0c	cGZSndPropertyCache::QueryInterface	auto:A	high	mac 0035621e score 1.0 support 0
 00969f31	cGZSndPropertyCache::RemoveInstanceProperty	auto:A	high	mac 003562fa score 1.0 support 0
 00969f64	cGZSndPropertyCache::SetGlobalProperty	auto:A	high	mac 00356358 score 1.0 support 0
 00969fbe	cGZSndPropertyCache::RemoveGlobalProperty	auto:A	high	mac 00356410 score 1.0 support 0
+0096a382	cGZSndPropertyCache::cGZSndPropertyCache	manual:sound-system.tsv	high	sound-system.md §4.2 (CLSID 0x9D4C6B95)
+0096a3de	cGZSndPropertyCache::CreateInstanceSet	manual:sound-system.tsv	high	sound-system.md §4.2
 0096a932	cGZSndDefaultEventHandler::QueryInterface	auto:A	high	mac 0072de5e score 1.0 support 0
 0096a957	cGZSndDefaultEventHandler::Release	auto:C	high	mac 0072dea8 score 1.0 support 1
-0096a972	cGZSndDefaultEventHandler::DoEvent	auto:A	high	mac 00355d00 score 0.776 support 0
+0096a972	cGZSndDefaultEventHandler::DoEvent	manual:sound-system.tsv	high	sound-system.md §4.3
+0096ac16	cGZSndDefaultEventHandler::cGZSndDefaultEventHandler	manual:sound-system.tsv	high	sound-system.md §4.3 (CLSID 0x7DC495CC)
 0096ac70	cGZSndDefaultEventHandler::~cGZSndDefaultEventHandler	auto:C	high	mac 00355c6c score 1.0 support 1
+0096ae6b	cGZSndWavFileDataSource::Open	manual:sound-system.tsv	high	sound-system.md §4.4 (mmio, PCM only)
+0096b078	cGZSndXAFileDataSource::Open	manual:sound-system.tsv	high	sound-system.md §4.5 ("XA" header)
 0096b1b1	lib::Catch@0096b1b1	library	medium	Function ID
+0096b1f5	cGZSndXAFileDataSource::cGZSndXAFileDataSource	manual:sound-system.tsv	high	sound-system.md §4.5 (CLSID 0x1D07EB4B, 0xF84 bytes)
+0096b28c	cGZSndXAFileDataSource::Read	manual:sound-system.tsv	high	sound-system.md §4.5
+0096b34f	cGZSndXAFileDataSource::DecodeMono	manual:sound-system.tsv	high	sound-system.md §4.5 (15-byte frames)
+0096b4de	cGZSndXAFileDataSource::FillBuffer	manual:sound-system.tsv	high	sound-system.md §4.5 (0xF00 bytes)
 0096b53e	lib::Catch@0096b53e	library	medium	Function ID
+0096b544	cGZSndXAFileDataSource::DecodeStereo	manual:sound-system.tsv	high	sound-system.md §4.5 (30-byte frames)
+0096b919	cGZSndWavFileDataSource::cGZSndWavFileDataSource	manual:sound-system.tsv	high	sound-system.md §4.4 (CLSID 0xBB7051F5)
 0096ba2b	cGZSndEventStd::QueryInterface	auto:B1	medium	mac 0046dafa score 0.92 support 1.5
 0096ba55	__ZThn44_N14cGZSndEventStd14QueryInterfaceEmPPv	auto:B2	low	mac 007eece4 score 0.96 support 1.0
 0096ba6d	cGZSndEventStd::cGZSndEventStd	auto:B1	medium	mac 0046db50 score 0.936 support 1.5

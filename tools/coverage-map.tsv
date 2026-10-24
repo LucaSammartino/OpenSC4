@@ -329,27 +329,27 @@ cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
-cGZSnd*	audio	audio	-	-	-	-
+cGZSnd*	audio	audio	sound-framework.md	-	-	-
 cGZSoundCOMDirector	audio	audio	sound-system.md	-	-	-
-cGZSound*	audio	audio	-	-	-	-
-GZSndSysMacCOMDirector	audio	audio	sound-system.md	-	-	-
+cGZSound*	audio	audio	sound-framework.md	-	-	-
+GZSndSysMacCOMDirector	audio	audio	sound-renderer.md	-	-	-
 GZSndSys*	audio	audio	-	-	-	-
 cHitTrackPlayer	audio	audio	sound-system.md	-	-	-
 cHitMan	audio	audio	sound-system.md	-	-	-
 cHitChannel	audio	audio	sound-system.md	-	-	-
 cHitIniFile	audio	audio	sound-system.md	-	-	-
 cHitPropertySetTrackResource	audio	audio	sound-system.md	-	-	-
-cHit*	audio	audio	-	-	-	-
+cHit*	audio	audio	hit-music.md	-	-	-
 cFreshPlayer	audio	audio	sound-system.md	-	-	-
 cFreshCellPlayer	audio	audio	sound-system.md	-	-	-
 cFreshnessCOMDirector	audio	audio	sound-system.md	-	-	-
-cFresh*	audio	audio	-	-	-	-
-cRZRadio	audio	audio	-	-	-	-
-cRZDiskRadioStation	audio	audio	-	-	-	-
+cFresh*	audio	audio	freshness.md	-	-	-
+cRZRadio	audio	audio	radio.md	-	-	-
+cRZDiskRadioStation	audio	audio	radio.md	-	-	-
 cGZPlayList	audio	audio	sound-system.md	-	-	-
 cSC4SoundDescription	audio	audio	audio.md	-	-	-
 tSound	audio	audio	-	-	-	-
-cSC4MadCowPlayerWin	audio	audio	-	-	-	-
+cSC4MadCowPlayerWin	audio	audio	intro-video-player.md	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
 cGroupLayer	audio	audio	-	-	-	-
 # ---- renderer
