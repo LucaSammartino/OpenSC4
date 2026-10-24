@@ -1,49 +1,43 @@
 # Nation core
 
-`engine/core/src/nation/mod.rs` implements the portable application-owned portion of
-`cSC4Nation`, from nation.md and its economy dependency demand.md §8.2/§11.2.
-No plugin or C ABI wiring is included. There are no nation serialization records:
-nation.md §1 explicitly excludes them, so codec round trips do not apply. Tests
-instead verify deterministic loading of identical property inputs and retention
-of application state through Shutdown/Init.
+Portable `cSC4Nation` owner from nation.md §§1–8 and demand.md §11.2.
+`NationHost` supplies platform/game interfaces; `NationRegion` supplies region
+operations, including the region factory (§6), and `TutorialCity` supplies the
+regional-city interface. Returned region/city handles are owned and release on
+Drop. Getters borrow them without taking or releasing COM references. Getters
+use immutable shared state; no RefCell is involved. This object has no city save
+record, so no codec is applicable.
 
-Use one `ProcessEconomy` per application process (`ProcessEconomy::global()` in a
-future adapter). Its thread-safe cache reads tuning only once, including across
-multiple nation instances and Shutdown/Init cycles. Getters use shared immutable
-state, without RefCell. The filesystem supplies a `RegionCatalog` of owned region
-handles. Region activation calls the region interface through `RegionActivation`.
-These handles carry no borrowed COM pointer ownership inside the core.
+Use one `ProcessDirectories` per process (or `ProcessDirectories::global()`). Its
+OnceLock stores the two directory strings and consumes StaticInit even without
+an app. Tuning belongs to each nation, is destroyed at Shutdown, and is reread at
+the next Init. Difficulty survives Shutdown and resize-to-three retains existing
+elements when an explicitly empty ID list skips difficulty loading.
 
 ## Owner closure
 
-| Owner / spec section | Code item | Test / open contract |
+| Owner / nation section | Implementation | Coverage |
 |---|---|---|
-| cSC4Nation, nation §1: application state | `Nation`, `RegionCatalog`, `ProcessEconomy` | `lifecycle_messages_and_once_per_process_tuning`; discovery remains open: NQ1 |
-| cSC4Nation, nation §1: serialization | No serializer or city save record, as specified | Not applicable: no record and no codec; lifecycle test retains application state |
-| cSC4Nation, nation §2: economy | `EconomyTuning::get_economy_modifier`, `EconomyDate::unsigned_months` | `demand_lookup_fallback_unsigned_date_and_rounding`; invalid difficulty/missing fallback open: NQ3 |
-| cSC4Nation, nation §3: messages | `init`, `shutdown`, `do_message` | `lifecycle_messages_and_once_per_process_tuning`; tutorial filesystem effects open: NQ1 |
-| cSC4Nation, nation §4: slots 0–2, 17 | COM identity, refcounts, destructor belong to future adapter | Outside portable core scope; no COM or ABI introduced |
-| cSC4Nation, nation §4: slots 3–4 | `init`, `shutdown` (tuning and subscriptions) | `lifecycle_messages_and_once_per_process_tuning`; filesystem lifecycle open: NQ1 |
-| cSC4Nation, nation §4: slots 5–8, 11, 15 | Directory, count, active index/region and indexed region getters | `catalog_getters_and_ordered_activation`; initial/invalid index contract open: NQ2 |
-| cSC4Nation, nation §4: slot 9 | `set_active_region` | `catalog_getters_and_ordered_activation`; same-index/error contract open: NQ2 |
-| cSC4Nation, nation §4: slots 10, 12–14 | Explicit Unsupported methods | `unsettled_filesystem_operations_fail_without_catalog_mutation`; open: NQ1 |
-| cSC4Nation, nation §4: slot 16 | `Nation::get_economy_modifier` | `lifecycle_messages_and_once_per_process_tuning` and economy tests |
-| cSC4Nation, nation §5: conformance vectors 1–2 | `engine/conformance/tests/nation.rs` | `nation_section5_vector1_shipped_difficulty_and_no_city`, `nation_section5_vector2_month_before_start_is_unsigned` |
-| cSC4Nation, demand §8.2 | Demand curve lookup/default and difficulty addition | `demand_lookup_fallback_unsigned_date_and_rounding` |
-| cSC4Nation, demand §11.2 | `TuningProperties`, `EconomyTuning::from_properties`, `ProcessEconomy::load_once` | `missing_empty_short_and_duplicate_tuning`, `property_indices_are_plain_addition_and_inputs_are_deterministic`, `process_tuning_and_getters_are_thread_safe`; UB replacements open: NQ3 |
+| §1 application state, no serialization | `Nation`, owned regions, process directories | construction/lifecycle conformance vectors; no save record |
+| §2 / demand §11.2 economy and defaults | `EconomyTuning`, `EconomyDate` | core economy tests; `nation.rs` §5 vectors; `nation_owner.rs` NQ3 vectors |
+| §3 messages | `do_message`, `init`, `shutdown` | ignored city messages, reset dispatch, three subscribe/unsubscribe calls |
+| §4 COM identity/refcounts | Future game adapter | Outside portable core; no C ABI/plugin change |
+| §§6.1–6.2 discovery and copying | `discover_regions`, `copy_region_files`, `copy_new_user_regions`, `ProcessDirectories` | ordered entries, Downloads exclusion, recursive suffixes, overwrite/writable, localized templates, starter fallback |
+| §6.2 initialization/preferences | `init`, `get_index_of_current_region_setting_in_preferences` | NUL/length/case/64-byte prefix, no-op repeated Init, probe failures and tutorial candidate |
+| §6.3 cleanup/reinit | `shutdown`, `EconomyTuning::reload` | ordered unsubscription, active Shutdown, catalog Drop, changed tuning and retained process guard |
+| §7 getters/selection | Borrowed indexed getters, `set_active_region` | constructor index 0, no-op same index, invalid-index no effects, ignored callback failure |
+| §7 add/delete | `add_new_region`, `delete_region` | null factory safety, both neighbors, selection before deletion, ordered erase and active adjustment, LastRegion |
+| §8 tutorial reset | `reset_tutorial_cities` | app/city guards, retained/recreated/unlisted directories, default first, exports/read failures, move/shutdown/drop, registry flags, screen normal/early exits |
 
-## Remaining contracts and shadow feasibility
+NQ1–NQ3 are answered and implemented. No open nation contract remains in this
+portable owner. Replacement safety errors are distinct from original bool/void
+returns; ordinary region, copy, export and move failures never trigger rollback.
+Region factories and regional-city parsing remain the responsibility of their
+respective interfaces, rather than duplicated nation algorithms.
 
-NQ1 is a closure blocker: the spec supplies filesystem method names, but no
-algorithms, arguments or failure behavior. Discovery, preference matching,
-addition, deletion and tutorial reset return `Unsupported`, without mutation.
-In particular, reset messages reach the reset method and propagate its error.
-These are explicit gaps, not claims of a complete filesystem replacement.
-NQ2 records safe provisional index/lifecycle choices; NQ3 records safe errors for
-the original undefined reads beyond the specified missing-data defaults.
+## Integration boundary
 
-An economy-only in-game shadow is feasible next: capture dates, city presence,
-difficulty and demand ID through game interfaces, share process tuning, and
-compare slot 16 outputs. It requires future capi/plugin work. A filesystem shadow
-needs NQ1 settled first. This lane requests no game run because it adds no runtime
-wiring and cannot emit a shadow comparison.
+This module has no C ABI or GZCOM adapter and is not installed as a replacement
+or shadow in the game. A future adapter must implement the interfaces using the
+game's services, wire the process directory owner, and compare behavior in-game.
+Synthetic conformance is measured here; game shadow/ref-warning results are not.

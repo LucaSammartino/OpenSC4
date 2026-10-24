@@ -6,7 +6,10 @@
 - Goal: implement NQ1–NQ3 answers in engine/core/src/nation; READY queue.
 - Done: merged answer branch re-nation-nq3; resolved open-question add/add and additive core module conflict.
 - Prior implementation: 0920be534; prior full gate recorded in 6d399b153.
-- Next: replace process tuning cache/lifecycle and filesystem Unsupported methods using nation §§6–8.
+- Implemented: portable NationHost/NationRegion/TutorialCity effects, discovery/templates/preferences, lifecycle, add/delete and reset; no Unsupported operations remain.
+- Focused tests: 3 core nation tests, 2 existing §5 vectors and all 11 new owner conformance vectors passed. Added explicit display-name setter to match discovery ordering; final gate will recheck it.
+- Formatting applied via apply_patch using rustfmt check diffs (never emitted source).
+- Next: commit implementation, then run qbuild all once on stable source.
 - Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
 - No game request outstanding; portable core has no plugin wiring/shadow.
 - Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.
