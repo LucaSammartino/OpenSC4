@@ -205,42 +205,44 @@ impl Grid {
                     .min(area[axis + 2] - 1)
             }
         });
-        for axis in 0..2 {
+        // Interleave the row-line pass with the first column boundary.
+        let mut boundaries = Vec::new();
+        for c in self.position[0]..end[0] {
+            boundaries.push((0, c));
+            if c == self.position[0] {
+                boundaries.extend((self.position[1]..end[1]).map(|r| (1, r)));
+            }
+        }
+        for (axis, i) in boundaries {
             if self.flags & (0x20 << axis) == 0 || self.line_colors[axis] == 0x4000_0000 {
                 continue;
             }
-            for i in self.position[axis]..end[axis] {
-                // Row lines exist only on a first column pass.
-                if axis == 1 && end[0] <= self.position[0] {
-                    break;
-                }
-                let coordinate = if axis == 0 { (i, 0) } else { (0, i) };
-                let r = offset(self.cell_rect(coordinate, f), origin);
-                let mut from = [area[0], area[1]];
-                let mut to = [extent[0], extent[1]];
-                from[axis] = r[axis + 2];
-                to[axis] = from[axis];
-                let record = PaintRecord {
-                    rect: [from[0], from[1], to[0], to[1]],
-                    clip: area,
-                    coordinate,
-                    cell: None,
-                    format: Format::default(),
-                    selected: false,
-                    enabled,
-                };
-                if self
-                    .owner_draw
-                    .map_or(true, |target| f.owner_paint(target, 0xfa78_5cb0 + axis as u32, &record))
-                {
-                    f.paint_op(PaintOp::LineWidth(self.line_widths[axis] as f32));
-                    f.paint_op(PaintOp::Line {
-                        from,
-                        to,
-                        color: self.line_colors[axis],
-                    });
-                    f.paint_op(PaintOp::LineWidth(1.0));
-                }
+            let coordinate = if axis == 0 { (i, 0) } else { (0, i) };
+            let r = offset(self.cell_rect(coordinate, f), origin);
+            let mut from = [area[0], area[1]];
+            let mut to = [extent[0], extent[1]];
+            from[axis] = r[axis + 2];
+            to[axis] = from[axis];
+            let record = PaintRecord {
+                rect: [from[0], from[1], to[0], to[1]],
+                clip: area,
+                coordinate,
+                cell: None,
+                format: Format::default(),
+                selected: false,
+                enabled,
+            };
+            if self
+                .owner_draw
+                .map_or(true, |target| f.owner_paint(target, 0xfa78_5cb0 + axis as u32, &record))
+            {
+                f.paint_op(PaintOp::LineWidth(self.line_widths[axis] as f32));
+                f.paint_op(PaintOp::Line {
+                    from,
+                    to,
+                    color: self.line_colors[axis],
+                });
+                f.paint_op(PaintOp::LineWidth(1.0));
             }
         }
         for axis in 0..2 {

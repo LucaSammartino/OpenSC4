@@ -7,7 +7,7 @@ use super::*;
 pub use data::GridDataForeign;
 pub use paint::{PaintHost, PaintOp, PaintRecord};
 pub use runtime::{compare_cell_values, equal_record, signed_gcd, stable_sort_values};
-pub use runtime::{GridHost, Input, Mutation};
+pub use runtime::{GridHost, Input, Mutation, PendingOwner};
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;
@@ -122,6 +122,9 @@ pub struct Grid {
     pub selection_max: i32,
     pub selection: Vec<Coordinate>,
     pub cells: BTreeMap<Coordinate, Cell>,
+    /// Independent set keyed by the child identity (§5.7). Moving cell data
+    /// does not update these coordinates: DoCellWindowMove is a no-op (§5.11).
+    pub windows: BTreeMap<Handle, (Coordinate, bool, bool)>,
     /// Axis 0 = columns, axis 1 = rows.
     pub sizes: [BTreeMap<i32, SizeEntry>; 2],
     pub headings: [BTreeMap<i32, Vec<u8>>; 2],
@@ -169,6 +172,7 @@ impl Grid {
             selection_max: i32::MAX,
             selection: Vec::new(),
             cells: BTreeMap::new(),
+            windows: BTreeMap::new(),
             sizes: Default::default(),
             headings: Default::default(),
             extra_maps: Default::default(),
@@ -521,8 +525,10 @@ impl Grid {
     fn dispose(&mut self, _: Coordinate, cell: Cell, f: &mut impl GridForeign) {
         match cell.value {
             Value::Window { handle, .. } => {
-                f.child_remove(self.window(), handle);
-                f.release(handle);
+                if self.windows.remove(&handle).is_some() {
+                    f.child_remove(self.window(), handle);
+                    f.release(handle);
+                }
             }
             Value::Bitmap(handle) => f.release(handle),
             _ => {}
@@ -636,6 +642,9 @@ impl Grid {
             if n > 0 {
                 if let Some(record) = self.cells.remove(&cell) {
                     self.dispose(cell, record, f);
+                    // §5.11 retains the matrix entry until its caller overwrites
+                    // it; represent the disposed payload safely as empty.
+                    self.cells.insert(cell, Cell::default());
                 }
             }
         } else {
@@ -774,11 +783,7 @@ impl Grid {
         f: &mut impl GridForeign,
     ) -> bool {
         if let Some(window) = window {
-            if self
-                .cells
-                .values()
-                .any(|c| matches!(c.value, Value::Window { handle, .. } if handle == window))
-            {
+            if self.windows.contains_key(&window) {
                 return false;
             }
         }
@@ -805,6 +810,7 @@ impl Grid {
             },
         );
         f.add_ref(window);
+        self.windows.insert(window, (cell, keep_width, keep_height));
         f.send_to_back(window);
         f.window_flag(window, 0x800, false);
         f.child_add(self.window(), window);
@@ -945,16 +951,9 @@ impl Grid {
 
     pub fn place_all_windows(&mut self, f: &mut impl GridForeign) {
         let windows: Vec<_> = self
-            .cells
+            .windows
             .iter()
-            .filter_map(|(&cell, record)| match record.value {
-                Value::Window {
-                    handle,
-                    keep_width,
-                    keep_height,
-                } => Some((cell, handle, keep_width, keep_height)),
-                _ => None,
-            })
+            .map(|(&handle, &(cell, width, height))| (cell, handle, width, height))
             .collect();
         for (cell, handle, width, height) in windows {
             self.place_window(cell, handle, width, height, false, f);

@@ -208,6 +208,9 @@ fn grid_identity_clear_result_extra_queries_owner_draw_and_window_text() {
     );
     assert!(!g.cell_text_value((3, 3), &mut text, &mut f));
     let mut cell = (-1, -1);
+    // Direct cell fixtures also populate the independently keyed window set.
+    g.windows.insert(40, ((2, 3), false, false));
+    g.windows.insert(99, ((3, 3), false, false));
     assert!(g.is_cell_window(Some(40), 999, &mut cell, &mut f));
     assert_eq!(cell, (2, 3));
     assert!(f.child_ops.is_empty()); // nonnull pointer ignores id

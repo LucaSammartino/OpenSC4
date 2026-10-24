@@ -110,12 +110,10 @@ impl Grid {
         output: &mut Coordinate,
         f: &mut impl GridDataForeign,
     ) -> bool {
-        for (&cell, record) in &self.cells {
-            if let Value::Window { handle, .. } = record.value {
-                if window.map_or_else(|| f.window_id(handle) == id, |window| window == handle) {
-                    *output = cell;
-                    return true;
-                }
+        for (&handle, &(cell, _, _)) in &self.windows {
+            if window.map_or_else(|| f.window_id(handle) == id, |window| window == handle) {
+                *output = cell;
+                return true;
             }
         }
         false

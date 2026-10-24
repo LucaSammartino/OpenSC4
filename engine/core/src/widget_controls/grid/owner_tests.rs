@@ -94,6 +94,9 @@ impl GridHost for Recording {
     fn window_buffer(&mut self, _: Handle) -> (Option<Handle>, Rect) {
         (Some(41), [2, 3, 4, 5])
     }
+    fn base_fill_color(&mut self, _: Handle, color: u32) {
+        self.defaults.push(color);
+    }
 }
 
 impl PaintHost for Recording {
@@ -368,6 +371,12 @@ fn owner_paint_layers_clips_selection_owner_veto_and_open_alignment() {
 fn owner_live_setters_formats_helpers_and_resources() {
     let (mut g, mut c, mut f) = setup(0);
     assert_eq!(g.buffer_to_draw_to(&mut f), (Some(41), [2, 3, 4, 5]));
+    g.set_fill_color(17, &mut c, &mut f);
+    assert_eq!(f.defaults, [17]);
+    assert_eq!(
+        g.pending_owner(grid::PendingOwner::SortColumn),
+        Err(Unsupported::Open("WG8"))
+    );
     let mut out = (99, 99);
     assert!(!g.first_selection(&mut out));
     assert_eq!(out, (99, 99));
@@ -406,4 +415,62 @@ fn owner_live_setters_formats_helpers_and_resources() {
     assert_eq!(g.release(&mut refs, &mut f), 1);
     assert_eq!(g.release(&mut refs, &mut f), 0);
     assert!(!g.initialized);
+}
+
+#[test]
+fn owner_window_set_keeps_identity_order_and_move_coordinates() {
+    let (mut g, _, mut f) = setup(0);
+    g.set_window((2, 0), Some(20), false, false, 1, &mut f);
+    g.set_window((0, 0), Some(30), false, false, 1, &mut f);
+    g.copy_cell((2, 0), (4, 0), false, &mut f);
+    let mut cell = (-1, -1);
+    assert!(g.is_cell_window(Some(20), 0, &mut cell, &mut f));
+    assert_eq!(cell, (2, 0)); // native DoCellWindowMove does not relocate the set record
+    f.child_ops.clear();
+    g.is_cell_window(None, 999, &mut cell, &mut f);
+    assert_eq!(f.child_ops, [("id", 20), ("id", 30)]);
+    g.clear_cell((4, 0), &mut f);
+    assert!(!g.windows.contains_key(&20));
+}
+
+#[test]
+fn owner_paint_line_order_header_defaults_and_unbounded_bar_quirk() {
+    let (mut g, mut c, mut f) = setup(0x18 | 0x60 | 0x100000);
+    g.visible = [2.0; 2];
+    g.dirty = false;
+    g.cells.insert((1, 1), grid::Cell::default());
+    g.owner_draw = Some(40);
+    g.line_widths = [2, 3];
+    let mut format = grid::Format {
+        font: Some(50),
+        words: [0x40000000; 8],
+    };
+    format.words[3] = 12;
+    format.words[6] = 0;
+    let formats = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        .into_iter()
+        .map(|cell| (cell, format.clone()))
+        .collect();
+    g.paint(&formats, &format, [0, 0], 99, &mut c, &mut f).unwrap();
+    let ids: Vec<_> = f.owner.owners.iter().take(4).map(|e| e.0).collect();
+    assert_eq!(ids, [0xfa785cb0, 0xfa785cb1, 0xfa785cb1, 0xfa785cb0]);
+    assert!(f
+        .owner
+        .paints
+        .iter()
+        .any(|p| matches!(p, PaintOp::Primitive(Draw::Text { text, .. }) if text == b"Column #0")));
+    assert!(f
+        .owner
+        .paints
+        .iter()
+        .any(|p| matches!(p, PaintOp::Primitive(Draw::Text { text, .. }) if text == b"Row #1")));
+    g.flags = 2 | 0x10000;
+    g.limits = [1, -1];
+    g.visible = [100.0; 2];
+    g.test_bars(&mut f);
+    assert!(g.bars[1].is_some()); // horizontal always-wanted test reads row limit
+    g.flags |= 0x8000;
+    g.limits[0] = 0;
+    g.bar_values(&mut f);
+    assert_eq!(f.owner.bars.last().unwrap().2, [i32::MAX; 2]);
 }

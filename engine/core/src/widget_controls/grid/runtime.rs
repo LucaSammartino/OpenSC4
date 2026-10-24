@@ -23,6 +23,7 @@ pub trait GridHost: GridDataForeign {
     fn editor_text(&mut self, editor: Handle, text: Option<&[u8]>, count: i32);
     /// Borrowed base-window buffer and its existing drawing rectangle.
     fn window_buffer(&mut self, window: Handle) -> (Option<Handle>, Rect);
+    fn base_fill_color(&mut self, window: Handle, color: u32);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,6 +36,19 @@ pub enum Input {
     Wheel(i32),
     Character,
     Focus(bool),
+}
+
+/// Named owner bodies explicitly pending in the source specification. These
+/// cannot be implemented by guessing from similarly named controls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PendingOwner {
+    SortColumn,
+    SortRow,
+    ResizeColumnToFitCellWindows,
+    SetCellColors,
+    SetCellWrapping,
+    SetCellAlignment,
+    SetCellBorder,
 }
 
 /// Live counterparts of the data-stage methods: unlike direct state edits,
@@ -101,6 +115,17 @@ pub(super) fn inside(r: Rect, p: [i32; 2]) -> bool {
 }
 
 impl Grid {
+    pub fn pending_owner(&self, _: PendingOwner) -> Result<()> {
+        Err(Unsupported::Open("WG8"))
+    }
+
+    pub fn set_fill_color(&mut self, color: u32, context: &mut LayoutContext, f: &mut impl GridHost) {
+        f.base_fill_color(self.window(), color);
+        if self.flags & 0x100 != 0 {
+            self.recalculate(context, f);
+        }
+    }
+
     pub fn buffer_to_draw_to(&self, f: &mut impl GridHost) -> (Option<Handle>, Rect) {
         f.window_buffer(self.window())
     }
@@ -801,7 +826,11 @@ pub fn stable_sort_values<T>(values: &mut [T], ascending: bool, mut compare: imp
     values.sort_by(|a, b| if ascending { compare(a, b) } else { compare(b, a) });
 }
 
-pub fn compare_cell_values(left: Option<&Cell>, right: Option<&Cell>, mut text_compare: impl FnMut(&[u8], &[u8]) -> std::cmp::Ordering) -> std::cmp::Ordering {
+pub fn compare_cell_values(
+    left: Option<&Cell>,
+    right: Option<&Cell>,
+    mut text_compare: impl FnMut(&[u8], &[u8]) -> std::cmp::Ordering,
+) -> std::cmp::Ordering {
     match (left.map(|c| &c.value), right.map(|c| &c.value)) {
         (Some(Value::Text(a)), Some(Value::Text(b))) => text_compare(a, b),
         _ => std::cmp::Ordering::Equal,

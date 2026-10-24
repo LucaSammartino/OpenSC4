@@ -6,8 +6,10 @@
 - Goal: implement all settled cGZWinGrid owner contracts in Rust, without capi/plugin changes.
 - Worktree reserved and detached HEAD; commit normally, do not alter refs.
 - Existing module extended with runtime.rs (live mutation, hit/input, bars/layout, editable text) and paint.rs (renderer/owner callbacks, supplied resolved formats).
-- Initial focused snapshot: widget_controls 50 passed, before latest helper/live-mutation additions; final focused and required full checks still needed.
+- Focused snapshots: 50 passed initially; 53 passed after window-set/order and additional paint/bar vectors. Final six-file fmt check passed (0 diff lines).
 - Owner closure table added at engine/core/src/widget_controls/grid/README.md; WG7–WG9 appended, existing WG5/WG6 remain open.
 - Formatting uses build-runs/format-grid-patch.py to translate rustfmt --check diffs into apply_patch; no formatter output is redirected to source.
-- Next: audit window-set ordering/move quirk, add remaining paint/bar vectors, format, focused tests, full all and queued verify.
+- Audit corrected independent handle-keyed cell-window set and no-op window-move coordinates, row-line order, disposed-entry retention, Init's always-true result.
+- Stable final Rust source: qbuild all running as exec session 91956; collect this same process to terminal result. No duplicate gate. Native queued verify follows if not already part of all.
+- Next: collect gate, run required queued verify if needed, report results and spec-only open sections, final report commit and merge queue.
 - No game request outstanding. ABI unchanged.
