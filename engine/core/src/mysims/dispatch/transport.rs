@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Verified §4.6.2 operations. These are deliberately separate from the still
-//! unsettled route-branch/mask selection (MS18), not a replacement branch matrix.
+//! Specified geometry, stop selection and ordered transport effects.
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,7 +78,7 @@ impl MySimDispatch {
         self.within_proximity(sim, self.location_distance(st.destination, st.current), final_marker)
     }
 
-    fn clear_held_automaton(&self, sim: i32, services: &dyn TripServices) {
+    pub(super) fn clear_held_automaton(&self, sim: i32, services: &dyn TripServices) {
         let held = self.edit(sim, |st| st.automata_occupant.take());
         if let Some(o) = held {
             services.release_automaton(o);
@@ -129,7 +128,8 @@ impl MySimDispatch {
                 return TripOutcome::UnsupportedMs18;
             };
             let Some(stop) = stops.into_iter().find(|stop| stop.purpose == purpose) else {
-                self.change_flags(sim, |f| f | 0x40);
+                self.set_state(sim, self.get_state(sim).search.state);
+                self.set_stuck(sim);
                 return TripOutcome::Rejected;
             };
             self.edit(sim, |st| {
@@ -163,12 +163,15 @@ impl MySimDispatch {
             return TripOutcome::UnsupportedMs18;
         };
         if travel == 0xFF {
-            self.change_flags(sim, |f| f | 0x40);
+            self.install_travel_type(sim, travel);
+            self.set_state(sim, self.get_state(sim).search.state);
+            self.set_stuck(sim);
             return TripOutcome::Rejected;
         }
         self.install_travel_type(sim, travel);
-        self.change_flags(sim, |f| f | 0x200);
+        self.set_state(sim, self.get_state(sim).search.state);
         self.change_flags(sim, |f| f & !0x436);
+        self.change_flags(sim, |f| f | 0x200);
         TripOutcome::Accepted
     }
 
@@ -191,7 +194,7 @@ impl MySimDispatch {
         near
     }
 
-    fn install_travel_type(&self, sim: i32, travel: u32) {
+    pub(super) fn install_travel_type(&self, sim: i32, travel: u32) {
         self.edit(sim, |st| {
             if st.travel_type != travel {
                 st.travel_type = travel;
@@ -206,10 +209,9 @@ impl MySimDispatch {
         self.install_travel_type(sim, selected.travel_type);
         self.set_state(sim, selected.state);
         if selected.stuck {
-            self.change_flags(sim, |f| f | 0x40);
+            self.set_stuck(sim);
         }
         if selected.idle {
-            self.begin_idle(sim);
             self.change_flags(sim, |f| f | 0x2401);
         }
         self.change_flags(sim, |f| f & !selected.clear_flags);

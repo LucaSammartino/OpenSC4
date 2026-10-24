@@ -1113,6 +1113,9 @@ add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
 endif()
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4MySimDispatchShadow.cpp plugin/FC4MySimDispatchShadow.h)
+endif()
 
 # Read-only render-properties registry differential; opt-in only.
 if(TARGET FreeCity4)

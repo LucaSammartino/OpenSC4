@@ -11,6 +11,9 @@ use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, ResKey, Sa
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+#[path = "support/mysim_dispatch_ms18.rs"]
+mod closure;
+
 #[derive(Default)]
 struct Foreign {
     cancel: Cell<Option<bool>>,
@@ -458,7 +461,14 @@ fn ms18_05_wait_boundary() {
             assert_eq!(got, TripOutcome::Rejected);
             assert!(service.cells.borrow().is_empty());
             assert_eq!(*service.attempts.borrow(), vec![None]);
-            assert_eq!(f.take(), vec![(1, 0x4BB2D020, 0x10, 0x50)]);
+            assert_eq!(
+                f.take(),
+                vec![
+                    (1, 0x4BB2D020, 0x10, 0x2411),
+                    (1, 0x4BB2D020, 0x2411, 0x2451),
+                    (1, 0xEBA06C12, 0, 0),
+                ]
+            );
         }
         assert_eq!(f.d.get_state(1).search.state, 2);
     }
@@ -557,8 +567,8 @@ fn ms18_stop_groups_boarding_order_success_and_missing_stop() {
             f.take(),
             vec![
                 (1, 0xEBA0732E, purpose, 0),
-                (1, 0x4BB2D020, 0x436, 0x636),
-                (1, 0x4BB2D020, 0x636, 0x200)
+                (1, 0x4BB2D020, 0x436, 0),
+                (1, 0x4BB2D020, 0, 0x200)
             ]
         );
         let got = f.d.get_state(1);
@@ -566,7 +576,14 @@ fn ms18_stop_groups_boarding_order_success_and_missing_stop() {
         restore(&f, &st);
         *service.stops.borrow_mut() = Some(vec![]);
         assert_eq!(f.d.transit_stop_update(1, marker, &service), TripOutcome::Rejected);
-        assert_eq!(f.take(), vec![(1, 0x4BB2D020, 0x436, 0x476)]);
+        assert_eq!(
+            f.take(),
+            vec![
+                (1, 0x4BB2D020, 0x436, 0x2437),
+                (1, 0x4BB2D020, 0x2437, 0x2477),
+                (1, 0xEBA06C12, 0, 0),
+            ]
+        );
     }
 }
 
@@ -618,7 +635,7 @@ fn ms18_final_marker_observations_and_common_tail_order() {
         let notice = if near { 0xEBA06BD4 } else { 0x2BAC398F };
         assert_eq!(
             *events.borrow(),
-            vec![0, notice, 0x4BB2D020, 0x4BB2CFC0, 0x4BB2D020, 0x4BB2D020, 0x4BB2D020, 0x4BB2D020]
+            vec![0, notice, 0x4BB2D020, 0x4BB2CFC0, 0x4BB2D020, 0x4BB2D020, 0xEBA06C12, 0x4BB2D020, 0x4BB2D020]
         );
         assert_eq!(
             f.take(),
@@ -626,8 +643,9 @@ fn ms18_final_marker_observations_and_common_tail_order() {
                 (1, notice, 0, 0),
                 (1, 0x4BB2D020, 0, 2),
                 (1, 0x4BB2CFC0, 2, 3),
-                (1, 0x4BB2D020, 2, 0x42),
-                (1, 0x4BB2D020, 0x42, 0x2443),
+                (1, 0x4BB2D020, 2, 0x2403),
+                (1, 0x4BB2D020, 0x2403, 0x2443),
+                (1, 0xEBA06C12, 0, 0),
                 (1, 0x4BB2D020, 0x2443, 0x2403),
                 (1, 0x4BB2D020, 0x2403, 0x2503)
             ]
@@ -635,7 +653,7 @@ fn ms18_final_marker_observations_and_common_tail_order() {
         let got = f.d.get_state(1);
         assert_eq!(
             (got.current.occupant, got.travel_type, got.current.deadline()),
-            (None, 0xFE, 97)
+            (None, 0xFE, if near { 0 } else { 97 })
         );
         assert_eq!(got.destination, st.destination);
     }

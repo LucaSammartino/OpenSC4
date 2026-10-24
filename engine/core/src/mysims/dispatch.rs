@@ -36,10 +36,13 @@ use crate::traffic_network::NetworkModel;
 
 use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 
+mod callbacks;
+mod ready;
 mod record;
 pub mod scripted;
 mod transport;
 mod trip;
+pub use ready::model_selection;
 pub use record::DispatchRecordRefs;
 pub use transport::{BoardingAutomaton, TransitStop, TransportTail};
 pub use trip::{DispatchTuning, TripOutcome, TripSearch, TripServices};
@@ -663,20 +666,18 @@ impl MySimDispatch {
     /// `+0x40`, with its notifications (`0x4BB2D020` flags, `0x4BB2CFC0`
     /// trip state; data (old, new) as §3.3's handler reads them).
     pub fn set_state(&self, sim: i32, s: i32) {
-        let notes = {
-            let mut sims = self.sims.write().unwrap();
-            let st = sims.entry(sim).or_default();
-            let notes = set_state(&mut st.search, s);
-            st.change_counter = st.change_counter.wrapping_add(notes.len() as u32);
-            notes
-        };
-        for n in notes {
-            match n {
-                StateNote::Flags { old, new } => self.notify_owner(sim, super::dispatch_note::TRIP_STATE_A, old, new),
-                StateNote::TripState { old, new } => {
-                    self.notify_owner(sim, super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
-                }
-            }
+        let old = self.edit(sim, |st| {
+            let old = st.search.state;
+            st.search.prev_state = old;
+            st.search.state = s;
+            old
+        });
+        if s == STATE_AT_LOCATION {
+            self.change_flags(sim, |flags| flags | FLAG_AT_LOCATION);
+        }
+        if old != s {
+            self.edit(sim, |st| st.change_counter = st.change_counter.wrapping_add(1));
+            self.notify_owner(sim, super::dispatch_note::TRIP_STATE_B, old as u32, s as u32);
         }
     }
 
