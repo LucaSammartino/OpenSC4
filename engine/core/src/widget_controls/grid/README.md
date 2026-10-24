@@ -27,7 +27,7 @@ the additional owner tests are in `grid/owner_tests.rs`.
 | win-grid 3 interface inventory | Rust methods and opaque handles; no native vtable export | owner methods below; open: WG8 pending slot bodies |
 | win-grid 4 flags | `set_flags`, `set_window_flag`, wrapping/outline/fixed-range state | `owner_layout_bars_images_failure_pause_and_second_pass`, `owner_live_setters_formats_helpers_and_resources` |
 | win-grid 5.1 lifecycle/area/messages | `init`, `release`, `shutdown`, `set_area_live`, `message`, `input` | `owner_editable_text_reference_balance_init_and_font`, `owner_keys_arrows_message_focus_and_dropdown_capture`; open: WG6 initializer |
-| win-grid 5.2 fonts/colors/gutters | state setters plus `mutate` live hook | `grid_vectors_1_to_6_and_literal_selection_modes`, `owner_live_setters_formats_helpers_and_resources`; WG3 delayed cell-gutter effect preserved |
+| win-grid 5.2 fonts/colors/gutters | state setters plus `mutate` live hook, shared default color/format storage | `grid_vectors_1_to_6_and_literal_selection_modes`, `owner_live_setters_formats_helpers_and_resources`, `owner_default_format_and_color_slots_share_storage`; WG3 delayed cell-gutter effect preserved |
 | win-grid 5.3 scrolling/selection/limits | `scroll_pages`, `mutate`, `set_selection_rules`, `enable_fixed_ranges`, `pause_recalculations` | all six spec vectors; open: WG5 relative-scroll body/bounds |
 | win-grid 5.4 dimension sums | `size_sum` wrapping signed sums | `grid_size_cache_float_fraction_and_pause_dirty_contract`, rectangle tests |
 | win-grid 5.5 extra/headings | `data.rs` extra queries, `heading`, `set_heading` | `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`, copy-axis tests |

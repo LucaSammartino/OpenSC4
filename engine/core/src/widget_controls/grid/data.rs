@@ -272,6 +272,7 @@ impl Grid {
                 f.release(font);
             }
             self.default_format = format.clone();
+            self.default_colors.copy_from_slice(&format.words[..6]);
             return Ok(true);
         }
         if cell.0 == -1 || cell.1 == -1 {

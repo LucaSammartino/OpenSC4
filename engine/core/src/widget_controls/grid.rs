@@ -208,6 +208,7 @@ impl Grid {
     pub fn set_default_color(&mut self, index: u32, color: u32) -> bool {
         if let Some(slot) = self.default_colors.get_mut(index as usize) {
             *slot = color;
+            self.default_format.words[index as usize] = color;
             true
         } else {
             false

@@ -18,6 +18,9 @@ pub trait GridHost: GridDataForeign {
     fn point_in_bar(&mut self, bar: Handle, point: [i32; 2]) -> Option<[i32; 2]>;
     fn mouse_holder(&mut self, window: Handle);
     fn bar_mouse(&mut self, bar: Handle, kind: u32, point: [i32; 2], modifiers: u32) -> bool;
+    /// Grid SendMsg ID and copied pointed-to data. For codes 5/6 this is
+    /// instead the native key message type, with key/modifiers/zero as data;
+    /// 0x9A1552D5 carries a scalar key rather than a pointer on the native side.
     fn notify(&mut self, source: Handle, id: u32, data: &[i32]) -> bool;
     fn create_editor(&mut self, style: u32) -> Option<Handle>;
     fn editor_text(&mut self, editor: Handle, text: Option<&[u8]>, count: i32);
@@ -826,6 +829,8 @@ pub fn stable_sort_values<T>(values: &mut [T], ascending: bool, mut compare: imp
     values.sort_by(|a, b| if ascending { compare(a, b) } else { compare(b, a) });
 }
 
+/// text_compare supplies the native case-insensitive comparison service;
+/// its locale/encoding remains open WG8, so no ASCII policy is substituted.
 pub fn compare_cell_values(
     left: Option<&Cell>,
     right: Option<&Cell>,

@@ -474,3 +474,20 @@ fn owner_paint_line_order_header_defaults_and_unbounded_bar_quirk() {
     g.bar_values(&mut f);
     assert_eq!(f.owner.bars.last().unwrap().2, [i32::MAX; 2]);
 }
+
+#[test]
+fn owner_default_format_and_color_slots_share_storage() {
+    let (mut g, _, mut f) = setup(0);
+    assert!(g.set_default_color(3, 55));
+    assert_eq!(g.default_format.words[3], 55);
+    let format = grid::Format {
+        font: None,
+        words: [1, 2, 3, 4, 5, 6, 7, 8],
+    };
+    assert_eq!(g.set_cell_format_state((-1, -1), &format, &mut f), Ok(true));
+    for i in 0..6 {
+        let mut color = 99;
+        assert!(g.default_color(i, &mut color));
+        assert_eq!(color, i + 1);
+    }
+}
