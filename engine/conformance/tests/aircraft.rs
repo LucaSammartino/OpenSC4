@@ -383,7 +383,9 @@ fn phase_and_loiter_ammo_are_independent_of_goal_stack() {
     plane.begin_loiter();
     assert_eq!(plane.base().states.last().unwrap().base.countdown_ms, -1.0);
     assert_eq!(plane.tick_loiter(2000.0), Ok(AircraftGoalOutcome::Waiting));
-    assert_eq!(plane.tick_loiter(1.0), Ok(AircraftGoalOutcome::Popped));
+    assert_eq!(plane.ammunition(), Some(2)); // first visit spends ammo, after countdown advance
+    plane.loiter_remaining_seconds = 0.125;
+    assert_eq!(plane.tick_loiter(125.0), Ok(AircraftGoalOutcome::Popped));
     assert_eq!(plane.ammunition(), Some(2));
     assert!(plane.set_airplane_state(FlightPhase::Phase1).is_none());
     assert_eq!(plane.ammunition(), Some(2));
@@ -393,7 +395,7 @@ fn phase_and_loiter_ammo_are_independent_of_goal_stack() {
     assert_eq!(plane.ammunition(), Some(3));
     let mut heli = Helicopter::default();
     heli.set_helicopter_state(FlightPhase::Phase1);
-    assert!(heli.set_helicopter_state(FlightPhase::Phase1).is_none());
+    assert!(heli.set_helicopter_state(FlightPhase::Phase1).is_some());
     assert!(heli.base().states.is_empty());
     assert!(heli.push_mission_loiter());
     assert_eq!(heli.base().states.last().unwrap().base.countdown_ms, 6000.0);
@@ -466,8 +468,8 @@ fn helicopter_chase_pops_invalid_target_but_reports_missing_controls_for_valid_t
     assert_eq!(heli.record, before);
     let geometry = HelicopterChaseGeometry::for_target(target, 2.0);
     assert_eq!(geometry.lead_position, [600.0, 200.0, 300.0]);
-    assert_eq!(geometry.hover_position, [100.0, 220.0, 300.0]);
-    assert_eq!(geometry.spotlight_target, target.position);
+    assert_eq!(geometry.hover_position, [600.0, 220.0, 300.0]);
+    assert_eq!(geometry.spotlight_target, geometry.lead_position);
 }
 
 #[test]

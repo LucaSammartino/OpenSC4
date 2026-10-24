@@ -87,6 +87,11 @@ pub use aircraft::{
 };
 pub use aircraft::{initialize_fire_plane_station_units, AirStationProperties};
 
+pub(crate) mod aircraft_actions;
+pub use aircraft_actions::{
+    AircraftWeaponEffects, EngineNotification, PlayerWeaponRecord, SoundRequest, WeaponOutcome,
+};
+
 pub mod airplane;
 
 #[cfg(test)]
