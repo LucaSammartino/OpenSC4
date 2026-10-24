@@ -47,9 +47,7 @@ pub struct Family {
 
 impl Family {
     pub fn supported(&self) -> bool {
-        // EF23: sequence flags are outside EF21's stated extent. Its listed
-        // vector is useful evidence, but does not establish complete payload.
-        !(self.kind == Kind::Component(6) && !self.slots.is_empty()) && self.slots.iter().all(|s| s.payload.is_some())
+        self.slots.iter().all(|s| s.payload.is_some())
     }
 }
 
@@ -118,9 +116,9 @@ fn extent(kind: Kind) -> Option<usize> {
         Kind::Shake => 0x28,
         Kind::Light => 0x1c,
         Kind::Component(3) => 0x34,
-        Kind::Component(4 | 7) => 0x1c,
+        Kind::Component(4 | 6 | 7) => 0x1c,
         Kind::Component(5) => 0x50,
-        Kind::Component(6 | 8) => 0x18,
+        Kind::Component(8) => 0x18,
         Kind::Component(_) => return None,
     })
 }
@@ -205,7 +203,11 @@ fn payload<M: Memory>(r: &mut Reader<M>, kind: Kind, b: &[u8]) -> Option<Payload
             p.insert(0x18, Value::Byte(b[0x18]));
         }
         Kind::Component(5) => scalars(&mut p, b, 0xc, 0x4c),
-        Kind::Component(6) => nested(r, &mut p, b, 0xc, 0x14, 8)?,
+        Kind::Component(6) => {
+            nested(r, &mut p, b, 0xc, 0x14, 8)?;
+            // EF23: capture the retained word, not Read's low-three-bit mask.
+            scalars(&mut p, b, 0x18, 0x18);
+        }
         Kind::Component(7) => scalars(&mut p, b, 0xc, 0x18),
         Kind::Component(8) => {
             scalars(&mut p, b, 0xc, 0xc);

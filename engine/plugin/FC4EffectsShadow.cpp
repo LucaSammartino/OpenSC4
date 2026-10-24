@@ -140,7 +140,12 @@ void EffectsShadowStartup(bool effectsReplaced) {
     g_recordEnabled = !effectsReplaced;
     if (g_recordEnabled) {
         g.enabled = false;
-        Log("effects shadow: enabled native record-only names (EF20 limits collection capture)");
+        Log("effects shadow: enabled native record-only names (effects section 4.2)");
+        // EF22 sections 18.8.6-7 are a closed refusal rule. This host has no
+        // pre-Init attachment, exception-transparent gateways or exclusion
+        // protocol covering all payload writers. Do not patch even a subset,
+        // probe executable bytes, or treat calendar callbacks as a lock.
+        Log("effects native observation: unavailable (EF22 host capabilities missing: pre-Init attachment, exception-transparent forwarding, all-writer exclusion); manager/resource/sequence/live-instance payloads not compared");
         return;
     }
     Log("effects shadow: enabled (%s; the mirror records every write)",
@@ -326,7 +331,6 @@ struct NameSample {
     uint32_t counts[3] = {};
     uint32_t bytes = 0;
     bool captured = false;
-    uint32_t visuals[3] = {};
 };
 
 void CompareNames(void* context) {
@@ -339,7 +343,7 @@ void CompareNames(void* context) {
     // EF21 §18.8.2: a load/month callback proves neither owner identity nor
     // exclusion of reload/Init writers. Do not traverse retained native
     // payloads without natural-call attachment and a verified outer boundary.
-    // EF22 requests the version/thunk/patch contract needed for attachment.
+    // EF22 supplies byte guards but requires host capabilities absent here.
     // Name membership remains independently measurable via the SDK method.
 }
 
@@ -358,10 +362,10 @@ void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
     const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 ? 0u : 1u;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("effects shadow %04d-%02d-%02d %s: bytes=%u entries=%u queries=%u visuals=%u fields=%u payload_unavailable=1 history_unavailable=1 refusal=%u resyncs=0; mismatches=%u",
+    Log("effects shadow %04d-%02d-%02d %s: scope=name-membership bytes=%u entries=%u queries=%u payload_unavailable=1 history_unavailable=1 attachment_refused=1 refusal=%u resyncs=0; mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month",
-        sample.bytes, sample.counts[0], sample.counts[1], sample.visuals[0], sample.visuals[1],
-        refusal, sample.counts[2] + sample.visuals[2] + refusal);
+        sample.bytes, sample.counts[0], sample.counts[1],
+        refusal, sample.counts[2] + refusal);
 }
 
 }  // namespace fc4
