@@ -18,8 +18,9 @@
 - Revised sample: 5 witnesses, <=78 comparisons/month; disputed paths explicitly excluded.
 - Fixed checker receiver type/spec citation and registered ini key to remove unknown-key warnings.
 - Revised fmt PASS; focused ret-channel check: zero unreviewed uses (73 reviewed).
-- Revised qbuild all: 6759 tests passed, zero clippy diagnostics; native queued qbuild-20261024-011602-build-ctest.
-- Next: collect session 73425 to terminal verdict, then exact 2032 game run with unique label b1.
+- Revised qbuild all PASS: 6759 tests, zero clippy diagnostics, native build 52/52, CTest 69/69.
+- Native qbuild-20261024-011602-build-ctest complete; session 73425 terminal PASS.
+- Next: submit prepared build-runs/strings5-2032-20261024-b1.pending, wait with wait-strings-verdict.ps1.
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
 - No outstanding game request; a1 verdict/log and docs/runs record retained.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
