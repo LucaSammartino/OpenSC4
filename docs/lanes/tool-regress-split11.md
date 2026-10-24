@@ -23,6 +23,7 @@
 - R2 combined retry run 617 completed: native clean to 2032-01-02, all 52 labels exact (flammability 54/54; propmgr 220/220), but watchdog_stalls=2 => parent regress FAIL. Repeated stalls reported, no watchdog weakening.
 - Timings: queue wall 832 s, legacy regress wall 846 s, complete invocation 971.09 s. Legacy $wall is sampled before summary/delta processing at regress.ps1:299, so only invocation time is end-to-end.
 - Current foreground operation session 14587: combined retry finished; split retry waits for any coordinator regress then runs once; afterwards automatically runs tooling-tests-final.out and qbuild-final.out (one verify only). Collect that SAME session to terminal result, then python build-runs/summarize-r2.py and finish report/queue.
+- R2 split retry run 618 also FAIL: all groups watchdog-stalled, dates 2027-04-04 / 2028-09-05 / 2027-11-08; 51/52 partial labels exact, propmgr 68/70 mismatches=2, flammability 16/16. Reported wall 213 s, invocation 603.28 s; truncated, NOT valid speed proof. Final tests/native verify are now the only remaining foreground work in session 14587. Summary script ran, full counts saved split11-r2-final.json; no more game attempts.
 
 ## Report
 
