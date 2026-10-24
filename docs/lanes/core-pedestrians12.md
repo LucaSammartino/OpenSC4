@@ -1,15 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-pedestrians12: pedestrian owners | `Codex` / `core-pedestrians12` (engine lane) | in progress; resuming completed owners at 03a5edffd; prior cargo 7383/0/0, clippy clean, CTest 81/81; ABI unchanged | (1) Run final-round all and verify; (2) refresh ready queue with actual HEAD |
-
-## Handoff
-
-- Goal: finish the final round and enqueue both completed pedestrian owners.
-- Done: implementation and Owner closure table committed before 03a5edffd; prior all and verify passed. No source changes needed on resume.
-- Final-round all PASS: cargo 7,383/0/0, clippy exit 0 / diagnostics 0, native 46/46 edges, CTest 81/81 (91.1 s). Console: `build-runs/pedestrians-all-final-console.log`; queue `qbuild-20261024-191506-build-ctest`.
-- Next: run explicit qbuild verify once, then replace this handoff with the final report and refresh the ready queue using actual HEAD.
-- Facts: only Unsupported is PN1 play-count consumer; PN2 is outside these owners; existing PN3 literal choices execute. No new owners or questions this round.
-- No outstanding gate or game request. Prior evidence and report remain below until finalization.
+| core-pedestrians12: pedestrian owners | `Codex` / `core-pedestrians12` (engine lane) | ready; final-round cargo 7383/0/0, clippy clean, all and verify PASS, CTest 81/81; PN1 consumer open, prior PN3 filed; ABI unchanged | (1) Coordinator review and land; (2) spec writers resolve PN1 and PN3 |
 
 ## Report
 
@@ -21,10 +12,14 @@ PN1 remains open only for the one-shot play-count consumer (pedestrians sections
 
 ## Validation
 
-- Final `qbuild all`: PASS; workspace totals 7,383 passed, 0 failed, 0 ignored, including all ten pedestrian tests; clippy exit 0, diagnostics 0. Native build PASS 161/161 edges; CTest PASS 81/81 (111.4 s). Queue label `qbuild-20261024-183724-build-ctest`. Console: `build-runs/pedestrians-all-r2-serial-console.log`.
-- Explicit `qbuild verify`: PASS; native build 46/46 edges (1.8 s), CTest 81/81 (129.3 s), total 131.2 s. Queue label `qbuild-20261024-185820-build-ctest`. Console: `build-runs/pedestrians-verify-r2-console.log`. Standard logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Final-round `qbuild all`: PASS; workspace totals 7,383 passed, 0 failed, 0 ignored, including all ten pedestrian tests; clippy exit 0, diagnostics 0. Native build PASS 46/46 edges (2.2 s); CTest PASS 81/81 (91.1 s); native total 95.4 s. Queue label `qbuild-20261024-191506-build-ctest`. Console: `build-runs/pedestrians-all-final-console.log`. Inputs: `RUST_TEST_THREADS=1`, `CARGO_BUILD_JOBS=1`, matching the previous successful diagnostic. Result committed at c89d527ff.
+- Final-round explicit `qbuild verify`: PASS; native build 161/161 edges (9.9 s), CTest 81/81 (159.9 s), total 172.2 s. Queue label `qbuild-20261024-191705-build-ctest`. Console: `build-runs/pedestrians-verify-final-console.log`. Both operations were collected to their terminal results; neither was duplicated. Standard logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Previous-round `qbuild all`: PASS; workspace totals 7,383 passed, 0 failed, 0 ignored, including all ten pedestrian tests; clippy exit 0, diagnostics 0. Native build PASS 161/161 edges; CTest PASS 81/81 (111.4 s). Queue label `qbuild-20261024-183724-build-ctest`. Console: `build-runs/pedestrians-all-r2-serial-console.log`.
+- Previous-round explicit `qbuild verify`: PASS; native build 46/46 edges (1.8 s), CTest 81/81 (129.3 s), total 131.2 s. Queue label `qbuild-20261024-185820-build-ctest`. Console: `build-runs/pedestrians-verify-r2-console.log`.
 - Initial round-2 all: FAIL, cargo 591 passed / 1 failed, clippy clean, native build PASS 262/262 and CTest 81/81. The scheduling-sensitive capi `slot44_holds_the_lock_across_threads` assertion at line 714 observed lock_waits 0 instead of 1 after a 300 ms worker window. Failure evidence remains in `build-runs/pedestrians-all-r2-console.log` and commits `7301e48f1` / `c7e388658`. A diagnostic rerun with `RUST_TEST_THREADS=1` and `CARGO_BUILD_JOBS=1` passed the complete workspace without source changes.
 
 No game requests or shadow measurements: this is an unwired portable core module. Plugin and capi wiring were deliberately excluded; C ABI exports and ABI version are unchanged. Round 2 changed only this report and gate inputs; implementation and Owner closure README were completed in round 1.
 
-Next: coordinator review/landing; spec writers resolve PN1's consumer and PN3's summary choices. No gate operation remains outstanding.
+Final round resumed from 03a5edffd and changed only the lane report and validation evidence. No new owners, questions, implementation changes, or ABI changes were introduced. Both final-round gates passed once; no gate operation remains outstanding. The ready merge-queue entry names the final report commit with its full 40-character tip.
+
+Next: coordinator review/landing; spec writers resolve PN1's consumer (pedestrians sections 3 and 7) and prior PN3's summary choices (sections 2.4–2.6 and automata 6.5). PN3 paths are implemented; only PN1's consumer remains Unsupported for these owners.
