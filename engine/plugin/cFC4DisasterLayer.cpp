@@ -137,6 +137,8 @@ Layer::Layer() {
     h.occupant_in_manager = [](void* u, uint64_t o) { auto* s = Self(u); return s->live_.occupant_in_manager(&s->ctx_, o); };
     h.occupant_cell = [](void* u, uint64_t o, int32_t* x, int32_t* z) { auto* s = Self(u); return s->live_.occupant_cell(&s->ctx_, o, x, z); };
     h.instance_location = [](void*, uint64_t i, int32_t* x, int32_t* z) {
+        // [abi-ret] disasters.md §2.7: resolve only if instance slot 6
+        // returns true; earthquake GetLocation explicitly returns false.
         auto* p = Ptr<cISC4DisasterInstance>(i); return p && p->GetLocation(*x, *z);
     };
     h.dispatch_counts = [](void* u, uint32_t* fire, uint32_t* police) {
