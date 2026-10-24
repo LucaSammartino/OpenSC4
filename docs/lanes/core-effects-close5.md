@@ -1,25 +1,46 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-effects-close5: effects owner closure | Codex / core-effects-close5 | in progress | Audit the permitted resource contracts; gate the closed subset. |
+| core-effects-close5: effects owner closure | Codex / core-effects-close5 | ready: tested closed subset; full closure still awaits EF18/EF19 | Land the resource-format checks; obtain permitted answers for the remaining contracts. |
 
-## Handoff
+## Round 2 result
 
-- Round 2 goal: close the supplied contracts and land the closed subset.
-- Starting tip: `d86f0c837`; round 1 implementation and validation are recorded below.
-- EF18/EF19 are still open in the permitted specs. No RE sources have been accessed.
-- The task's requested binary investigation/spec rewrite conflicts with its explicit
-  clean-room prohibitions; neither questions nor contracts will be falsely marked answered.
-- Done: independent §3 resource-format test passed (1/1; 4453 core unit tests
-  discovered); both owned Rust files passed fmt with zero diff lines.
-- Done: resource/description owners added to the matrix; EF18/EF19 remain explicit.
-- Next: run the final `qbuild all` once on this stable source and collect its
-  native operation to completion; report/enqueue only the tested closed subset.
-- No game request outstanding; no plugin, ABI, or game behavior change planned.
-- Detached HEAD is intentional; the supervisor publishes commits.
+**Ready for the tested closed subset, not full owner closure.** Round 2 adds
+independent effects §3 resource-format checks and expands the owner matrix.
+EF18/EF19 remain open; the requested binary investigation and spec rewriting
+conflict with the task's explicit clean-room prohibitions. No RE source was
+accessed, no spec contract was invented, and no question was marked answered.
+
+- `a275014b7`: hand-built binary fixture with two variable-length component
+  names, all 56 opaque placement bytes, negative-zero render storage, every
+  following field, exact serialization, and rejection of every truncated prefix.
+  This establishes byte preservation/framing, not semantic transform decoding.
+- The [owner matrix](../../engine/core/src/effects/README.md) now explicitly
+  maps resource and brush/scrubber description contracts to code/tests alongside
+  the parser/runtime owners. Missing queue/bootstrap/collection and transform
+  contracts remain identified; full owner closure is not claimed.
+- Final source gate at `a275014b7d2ae71cf1507f78bcc07e30a0c35cb8`:
+  `qbuild all` **PASS**, **6810 passed, 0 failed, 0 ignored**;
+  Clippy **0 diagnostics** under `-D warnings`; native build **92/92** in 76.1 s;
+  CTest **70/70** in 155.2 s; native overall **PASS**, 234.9 s.
+- Native queue label: `qbuild-20261024-020258-build-ctest`, terminal **pass**.
+  The same asynchronous operation was collected to completion. No tracked edits
+  or commits occurred during the gate. Subsequent edits only correct/report docs.
+- Focused test **1/1 passed**; owned-file fmt **2 files, 0 diff lines**.
+  Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`,
+  `fc4verify-build.log`, `fc4verify-ctest.log`. Initial invocation/formatting
+  diagnostics and their corrections: `build-runs/round2-focused-evidence.txt`.
+- Game: **n/a**, no plugin/capi wiring change or request outstanding; no native
+  shadow equivalence claimed. ABI exports/version unchanged.
+- Questions: existing **EF18, EF19** in `docs/specs/questions/effects.md`;
+  no new question, archive move, or index edit. Do not run prohibited `tools/`
+  scripts from this engine lane. A separate clean-room spec answer is required.
+- Next: supply the missing permitted contracts, then implement/test them; obtain
+  a complete allowed fixture for the §17.13–14 corpus census if required.
+  The supervisor publishes this intentionally detached HEAD to the reserved lane.
 
 ## Round 1 result
 
-State is **wip**. Settled runtime gaps are implemented and all checks pass;
+Round 1 ended **wip**. Settled runtime gaps were implemented and all checks passed;
 the six requested owners cannot yet be claimed closed because the supplied
 specs omit the EF18 contracts and EF19 qualification below. No owner coverage
 rows should be claimed as fully closed from this report.
@@ -65,4 +86,5 @@ Resolve EF18 and EF19 in the specs, then implement their newly settled contracts
 and complete the six-owner closure audit. Supply a complete allowed fixture for
 the §17.13–14 data census if those assertions are required for the replacement.
 All work is committed on the reserved detached HEAD for supervisor publication;
-the merge-queue entry is held as `wip`.
+the round 1 merge-queue entry was held as `wip`. Round 2 enqueues the tested
+closed subset as `ready`, with the remaining gaps stated above.
