@@ -554,6 +554,7 @@ cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinListBox	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinTreeView	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWin	widget toolkit	ui	widget-toolkit.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-

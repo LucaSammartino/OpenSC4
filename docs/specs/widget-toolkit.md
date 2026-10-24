@@ -37,7 +37,7 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x00` | 4 | vtable | `0x00ADC8D8` | ctor |
 | `+0x04` | 4 | window manager (`cIGZWinMgr*`) | `RZ::WM()` | ctor; `SetWindowManager` `0x0099CA0B` writes it |
 | `+0x08` | 4 | keyboard object | manager slot 38 result | ctor; `SetKeyboard` `0x0099BF01` |
-| `+0x0C` | 4 | reference count (section 8.1) | **0** | ctor; `0x0094C47C`, `0x0099B7A3` |
+| `+0x0C` | 4 | reference count (section 8.1; `AddRef` `0x0094C47C`, §18) | **0** | ctor; `0x0094C47C`, `0x0099B7A3` |
 | `+0x10` | 4 | window ID (`GetID`/`SetID`) | 0 | `0x0099BE66`, `0x0099BE5C` |
 | `+0x14..+0x20` | 16 | **absolute (screen) rectangle** L,T,R,B | 0 | `CalcAbsoluteArea` `0x0099DCE4` |
 | `+0x24..+0x30` | 16 | **draw area** (§17.1) | 0 | ctor; `SetAreaToDrawTo` `0x0099CF6A` |
@@ -59,6 +59,7 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0x94` | 4 | fade-in period (clock ticks) | **500** | ctor; `Set/GetFadeEffectPeriod` `0x0099C25F`/`0x0099C276` |
 | `+0x98` | 4 | second fade period | **500** | same; never read by the show/hide paths (§8) |
 | `+0x9C` | 4 | key equivalent | 0 | `0x0099BE80`/`0x0099BE87` |
+| `+0xA0`, `+0xA4` | 4+4 | mouse-down offset (x, y), written only by `set_mouse_down_offset` (§18) | not set | `0x0099BDA4` |
 | `+0xA8..+0xB4` | 16 | **area** L,T,R,B in parent coordinates | 0 | `GetR` `0x0099BC5A` reads `+0xB0`; `GetW` `0x0099C81B` = `+0xB0 − +0xA8` |
 | `+0xB8..+0xC4` | 16 | **blit rectangle** (§17.1) | 0 | ctor; `recalc_blt_area` `0x0099C7BA` |
 | `+0xC8` | 4 | **flag word** (§3) | **`0x8903`** | ctor; `GetFlag` `0x0099BDBB` |
@@ -67,7 +68,8 @@ Offsets of the `cGZWin` part of the object. Initial values are the constructor's
 | `+0xD4` | 4 | fill colour (3 bytes used by `GetFillColor` `0x0099BFC9`) | 0 | ctor |
 
 The `cGZWin` part ends at `+0xD8`. The constructor's field list covers everything above except `+0x34..+0x40` (always
-written by `SetAreaToDrawTo` before use, §17.1) and `+0xA0..+0xA4`, which it leaves untouched (`+0xA0..+0xA4` open, WT2).
+written by `SetAreaToDrawTo` before use, §17.1) and `+0xA0..+0xA4`, which it leaves untouched: only the dialog
+classes' mouse-down handlers set them (§18; WT2 answered 2026-10-23).
 
 ## 3. The flag word (`+0xC8`) *[compat]*
 
@@ -516,7 +518,7 @@ Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (u
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children and z-order (§§2–4), geometry and hit testing (§5), dispatch and filters (§7), lifecycle and fades (§8), accelerator wiring (§13.4), painting/private buffers (§14), mouse/cursor routing (§15), key equivalents (§16), and the geometry, invalidation, parameter, enumeration, sorting and colour helpers (§17). WT14 closes concrete slot 150, the base-owned graphics calls and ownership boundary in §§14.5.1–14.5.3 and 14.6. Graphics services remain separate owners, not unspecified base-window operations. **Still open, so the class is not complete:** fields `+0xA0..+0xA4` (WT2) and the other open questions in §11. |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), `ChildStepFront`/`ChildStepBack`/`ChildMoveRelative`/`IsWinInChildChain` (§4.3), the `GZOnSetFocus`/`GZOnMouseWheel` defaults, parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. WT14 closes concrete slot 150, the base-owned graphics calls and ownership boundary in §§14.5.1–14.5.3 and 14.6; graphics services remain separate owners, not unspecified base-window operations. **Whole owner since 2026-10-23** (re-gzwin7): §18 adds `create_private_buffer`, the small accessors and the last helpers (and answers WT2, the fields `+0xA0..+0xA4`), so all 157 functions of the owner are placed. The draw-context, buffer, graphics-system and colour-manager slots stay cited by number; WT1, WT3, WT5 and WT6 stay open |
 | `cGZFadeTmpWin` (not an owner pattern of this lane; listed for completeness) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
 | `cGZWinGen` | Partial concrete generated-window contract in [widget-generator.md](widget-generator.md): inventory, lifetime, callback dispatch, client layout, capture and drawing boundary. Open helper details are explicitly listed there. |
 | `cGZWinHTML` | Partial window-side contract in [widget-html-window.md](widget-html-window.md); document grammar remains in [html-document.md](html-document.md). |
@@ -1040,3 +1042,76 @@ the windows **with** `0x800` (the bit `ChildToFront`/`ChildToBack` require, §4.
 - **`fill_private_buffer_with_transparent_color()`** (`0x0099BA3E`): no buffer → false. Lock the buffer (slot 6,
   flags `0x8001`; failure → false); if the buffer has a transparent colour (slot 26), fill the draw area `+0x24` with
   it (slot 20, last argument 0); unlock (slot 7, `0x8001`); true even when there was no transparent colour.
+
+## 18. The rest of the owner: the private buffer, accessors and helpers *[compat]*
+
+*Added 2026-10-23 (re-gzwin7), read on the instructions.* With this section every function of the `cGZWin` owner
+(157 on `5c0ff782`) is specified.
+
+### 18.1 `create_private_buffer(w, h)` (`0x0099D0ED`, pops 8, AL)
+
+1. Neither `w` > 0 nor `h` > 0: release the private buffer `+0x64`, clear it, return false.
+2. **With the draw system** (`cRZSysServPtr<cIGZDrawSystem>`, `0x00449720`):
+   1. Release the old buffer (its slot 4, then `Release`) and clear `+0x64`.
+   2. The draw system's slot 5 (`&+0x64, w, h, 1`) makes the new one; its AL is the result.
+3. **Without it**:
+   1. When `+0x64` is null, the graphics system (`RZ::GS()`, slot 3 (`&+0x64`)) makes a buffer object; still null →
+      false.
+   2. An existing buffer first gets its slot 4.
+   3. Then the buffer's slot 3 (`w, h`, an 8-byte format descriptor made from 1 by `0x0044A490`). True → true; false →
+      release and clear `+0x64`, false.
+
+### 18.2 Accessors and forwards
+
+Slot numbers are `cIGZWin` slots; "WM" is the window manager `+0x04`.
+
+| Address | Method | Behaviour |
+|---|---|---|
+| `0x0094C47C` | `AddRef` | `++[+0x0C]`, returns the new count |
+| `0x0099B774` | `QueryInterface(iid, out)` | IIDs 1, `0x22BA0121` (`cIGZWin`) and `0xE98B2F57` give `this` (AddRef'd), true; any other: false, `out` untouched |
+| `0x0099B8AB` / `0x0099B8D0` | `GetChildAs(id, iid, out)` / `GetChildAsRecursive` | the child by ID (slot 34 / slot 35), then its `QueryInterface(iid, out)`; no child: false |
+| `0x0099B993` | `SetCursor(cursor, apply)` | `+0x74` := `cursor`; with `apply`, slot 84 (`UpdateCursor`, §15.2) |
+| `0x0099BC3F` | `set_init_flag(b)` | `SetFlag(0x4000, b)` (slot 68) |
+| `0x0099BDCE` / `0x0099BDD9` | `IsVisible` / `IsEnabled` | `GetFlag(1)` / `GetFlag(2)` (slot 67) |
+| `0x0099BC61` / `0x0099C82A` | `GetB` / `GetH` | `+0xB4` / `+0xB4 − +0xAC` |
+| `0x0099BC68` / `0x0099BC8F` | `SetW(w)` / `SetH(h)` | `SetArea(L, T, L + w, B)` / `SetArea(L, T, R, T + h)` (slot 55) |
+| `0x0099BCB6` | `SetSize(w, h)` | `SetArea(L, T, L + w, T + h)` |
+| `0x0099BD13` | `SetSize(point&)` | slot 53 `SetSize(p.x, p.y)` |
+| `0x009D7D97` | `SetArea(rect&)` | slot 55 with the rect's four values |
+| `0x0099BD27` | `GZWinOffset(dx, dy)` | `SetArea(L + dx, T + dy, R + dx, B + dy)` |
+| `0x0099C8C5` | `GZWinMoveTo(x, y)` | `SetArea(x, y, x + W, y + H)` |
+| `0x0099BCE1` / `0x0099BCEC` | `GetArea()` / `GetArea(out)` | `&+0xA8` / copies `+0xA8`–`+0xB4` |
+| `0x0099BCE8` / `0x0099BD01` | `GetAreaAbsolute()` / `(out)` | `&+0x14` / copies `+0x14`–`+0x20` |
+| `0x0099BDA4` | `set_mouse_down_offset(x, y)` | `+0xA0`, `+0xA4`. Its callers are the dialog classes `cGZWinGenDlg` (`0x009C2307`) and `cGZWinMsgBox` (`0x009CD9E2`) |
+| `0x0099BDF3` | `GetFocus` | WM slot 36 |
+| `0x0099BDFE` / `0x0099BE1E` | `GZSetCapture` / `GZReleaseCapture` | WM slot 29 / 30 with `this` |
+| `0x0099BE0A` | `GZAmCapturing` | WM slot 28 = `this` |
+| `0x0099BE2A` / `0x0099BE3A` / `0x0099BF14` | `GetMainWindow` / `GetWindowFromPoint` / `GetCursorManager` | WM slots 3 / 25 / 32 (tail calls, arguments passed on) |
+| `0x0099BE54` | `SetCaption(s)` | the caption string `+0x50`, its slot 13 (assign) |
+| `0x0099BADC` | `MakeFillColor(r, g, b)` | the buffer to draw to (`+0x68`) slot 30 or, without one, `RZ::GS()` slot 34 (tail calls); 0 when neither |
+| `0x0099BF1F` | `SetFillColor(native)` | `RZ::GS()` slot 36 splits it into r, g, b (no null test on the graphics system *[quirk]*), then own slot 107 `(r, g, b)` |
+| `0x0099BFAC` | `SetFillColor(r, g, b)` | `+0xD4` := `r << 16 \| g << 8 \| b` |
+| `0x0099BF5E` / `0x0099BF6D` / `0x0099BFA5` | `SetFillColor(c)` (AL = 1) / `SetFillColorRGB(c)` / `GetFillColorRGB` | `+0xD4` as a dword |
+| `0x0099CA91` | `SetShadeColor(c)` | `+0xD0` := `c` |
+| `0x0099CA60` | `PostMsg(target, type, d1, d2, d3)` (slot 146, pops 20) | builds `{type, d1, d2, d3}` on the stack and calls slot 147 `(target, &block)` |
+
+### 18.3 Children
+
+- **`GetChildCount`** (`0x0099DDB3`): counts the child list under its read lock: the block's `+4` is incremented, and
+  `unlock_child_list_read` (`0x0099D3D2`) releases it.
+- **`ChildExists(win)`** (`0x0099DDD5`): false unless WM slot 24 (`IsWindowValid(win)`) holds; then whether `win` is in
+  the list (under the lock).
+- **`ChildExists(id)`** (`0x0099DE2A`): whether a child's `GetID` (slot 63) equals `id`.
+- **`GetChildWindowFromCursorPoint(x, y)`** (`0x0099DFA9`):
+  1. In list order, children that are visible (flag 1) and do not have flag `0x200000` are asked (their slot 40) for
+     the window at (x, y); the first non-null answer is the result.
+  2. Otherwise, `this` when its slot 62 holds for (x, y) *[inferred: the point is inside]*, else null.
+
+### 18.4 Small helpers
+
+- `0x0099D2AB`: the parameter map's destructor (clears the tree with `0x0099D229`, frees its header).
+- `0x0099D2E7`: a list constructor for the filter lists (`0x004F5A00`, count := 0).
+- `0x0099D3B4`: a three-argument insert wrapper into `0x009CB802`.
+- **`GZOnMouseExit`** (`0x0079A1B0`, pops 4) is an override that lives in the resource catalog view's vtable
+  (`0x00AB6AA8`, a developer tool). When `+0x11C` is non-null: `+0x114 |= 1`, `+0x11C` := 0, slot 92 (invalidate).
+  Returns true.
