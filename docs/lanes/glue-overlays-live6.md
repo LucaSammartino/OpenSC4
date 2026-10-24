@@ -10,8 +10,8 @@
 - Default overlays_shadow stays read-only; fixture opt-in adds/removes through native interfaces. Init/history and image bytes remain unavailable per OV13.
 - Focused Rust test initially failed on expected fixture flags (65 vs actual 81: ordinary PART bit); expectation corrected, no production arithmetic changed.
 - Done: 3e887dd25 implementation; corrected focused Rust test PASS (1/1); owned Rust formatting PASS.
-- Full qbuild all is RUNNING in exec session 3528; collect the SAME operation to terminal result, do not duplicate. Workspace tests PASS 6889/0/0, clippy PASS 0 diagnostics; logs build-runs/qbuild-test.log and qbuild-clippy.log.
-- Native build/CTest queued as qbuild-20261024-030343-build-ctest; request under build-runs/build-queue, no native result yet.
-- Next: collect full gate, fix any diagnostics, unique 2032 run with observe=0 and overlays_fixture=1. Event waiter build-runs/wait-overlays-verdict.ps1 exists (no qwait).
-- No game requests outstanding. No source edits yet.
+- Full qbuild all terminal PASS: workspace 6889/0/0, clippy 0 diagnostics, native build 233/233 edges, CTest 72/72. Native total333.4s. Logs qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log in build-runs.
+- Native gate noted tree changed: only handoff docs commits changed after engine commit 3e887dd25; engine diff from that commit remains empty.
+- Next: submit unique ovlive6-2032-20261024a to 2032 with observe=0, overlays_fixture=1. Event waiter build-runs/wait-overlays-verdict.ps1 exists (no qwait).
+- No game requests outstanding as of gate commit. Next run number382 (docs/runs maximum381).
 - Worktree reserved and detached; do not change refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-live6-r1-manifest.json.
