@@ -6,10 +6,10 @@
 
 - Goal: merge main and resolve capture conflicts preserving automata and netocc; no new scope.
 - Round 1 tip d292d95c0: automataowners exact 72/72 through 2032; report retained below.
-- Merge main in progress: WriteCapture/config resolved; profile conflict still needs combined unique entry.
+- Merge ee9db8e59 completed: WriteCapture/config/profile conflicts resolved; one combined shadows entry.
 - Preserve WriteCapture object/reference members, variants_ layout, netocc opt-in core variant path and automata default independent encoder.
-- Next: finish merge, commit; run qbuild all and verify on stable source; new combined-shadow game request.
-- No outstanding builds or game requests. Next free run number observed: 349.
+- Next: collect qbuild all (session 71444), then explicit verify if all did not already run it; new combined-shadow game request.
+- qbuild all running on ee9db8e59. No game request outstanding. Next free run number observed: 349.
 - Detached HEAD: commit normally; supervisor publishes branch. Manifest run4-glue-automata-ext5-r2-manifest.json.
 
 ## Report
