@@ -13,10 +13,10 @@
 - Applied rustfmt check diffs via apply_patch to the owned tests; final format check and full gate next.
 - Implementation committed at f90a7edfc. Final owned formatting PASS, zero diffs.
 - qbuild all Rust gate PASS: 6936 tests passed, 0 failed/ignored; clippy 0 diagnostics.
-- Native build/CTest queued by that same operation as qbuild-20261024-052626-build-ctest; session59001 still outstanding. Collect it, do not duplicate verify.
-- Native result still pending after roughly twelve minutes; source unchanged. No native failure has been returned.
+- qbuild all terminal PASS: native build240/240 (93.5s), CTest74/74 (143.2s), native240.4s; queue qbuild-20261024-052626-build-ctest collected. Session59001 complete.
+- Verifier tree-change note is docs-only checkpoints: engine diff f90a7edfc..HEAD is empty.
 - Prepared event-driven build-runs/wait-verdict.py for the required single blocking game wait without qwait; summarize-scres.py counts dated exact lines.
 - Predecessor run records remain in merged replay7 branch: their 403–406 IDs collide with current main records; do not re-add them with duplicate IDs.
-- Next: collect native terminal verdict, then combined/default 2032 turbo runs with unique labels and free run numbers.
+- Next: submit scres8-raw-2032-maple-449, then default-off scres8-default-2032-oak-450; run numbers449/450 checked free.
 - No game request outstanding. No ABI export additions intended beyond inherited replay branch.
 - Worktree detached by supervisor; commit normally, do not update refs.
