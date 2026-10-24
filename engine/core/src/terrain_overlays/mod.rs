@@ -333,7 +333,8 @@ impl OverlayManager {
             secondary: None,
             primary,
             cells,
-            flags: 0x11 | if repeat { 2 } else { 0 },
+            // Overlay-manager §3.2.2 (OV15): ordinary adds establish bit 7.
+            flags: 0x91 | if repeat { 2 } else { 0 },
             alpha: 1.0,
             color: [1.0; 3],
             draw_state: 0,

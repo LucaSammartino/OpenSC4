@@ -79,6 +79,9 @@ fc4_nettool_host MakeNetToolHost(NetToolContext* ctx);
 // city's cISTETerrain, world via the occupant manager).
 fc4_netgeom_host MakeNetGeomHost(NetToolContext* ctx);
 
+// Read-only resource boundary diagnostics for the opt-in NT31 replay.
+void LogNetToolReplayResources();
+
 // ---- verified-order game interfaces (docs/abi/interfaces.tsv) ------------------------------------
 
 // cISC4NetworkManager, slots 3-8 (the §10 path calls slots 5, 6 and 8). Own

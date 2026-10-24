@@ -21,6 +21,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4Properties.h"
 
 #include "SC4List.h"
 #include "SC4Point.h"
@@ -45,6 +46,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <sstream>
+#include <cstdlib>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -1046,6 +1049,88 @@ void UndergroundRebuild(void* u, uint64_t occ, uint32_t outcome, const float* ve
 }  // namespace fc4
 
 namespace fc4 {
+
+void LogNetToolReplayResources() {
+    static bool tried = false;
+    if (tried) return;
+    tried = true;  // NT31: a missing first resource load is not retried.
+    props::Exemplar tuning;
+    const bool loaded = tuning.Load(0x6534284A, 0xE7E2C2DB, 0xC911E35B);
+    std::vector<uint32_t> spacing, poleCost;
+    std::vector<float> clearance, wireCost;
+    props::GetU32s(tuning.Holder(), 0x098B25C8, spacing);
+    props::GetU32s(tuning.Holder(), 0x4A5F5953, poleCost);
+    props::GetF32s(tuning.Holder(), 0x098B27D0, clearance);
+    props::GetF32s(tuning.Holder(), 0x0A5F596B, wireCost);
+    Log("nettool resources powerline loaded=%d spacing=%u clearance=%.9g pole_cost=%u wire_cost=%.9g "
+        "scope=resource-read placement=uncovered clearance_ray=unavailable contract=NT31",
+        loaded ? 1 : 0, spacing.empty() ? 20 : spacing[0], clearance.empty() ? 7.0f : clearance[0],
+        poleCost.empty() ? 0 : poleCost[0], wireCost.empty() ? 0.0f : wireCost[0]);
+    cIGZPersistResourceManagerPtr rm;
+    std::vector<uint8_t> bytes;
+    if (!rm || !ReadRuleResource(rm, 0, 0x8A5971C5, 0x8A5993B9, bytes)) {
+        Log("nettool resources network_ini=unavailable scope=resource-read");
+        return;
+    }
+    const auto trim = [](const std::string& s) {
+        const size_t first = s.find_first_not_of(" \t\r\n");
+        return first == std::string::npos ? std::string() : s.substr(first, s.find_last_not_of(" \t\r\n") - first + 1);
+    };
+    std::istringstream input(std::string(bytes.begin(), bytes.end()));
+    std::string line, section;
+    uint32_t poles = 0, bridges = 0, loadedBridges = 0;
+    while (std::getline(input, line)) {
+        line = trim(line.substr(0, line.find_first_of(";#")));
+        if (line.empty()) continue;
+        if (line.front() == '[' && line.back() == ']') {
+            section = line.substr(1, line.size() - 2);
+            continue;
+        }
+        if (section != "PowerPoles" && section != "RoadBridgeExemplars") continue;
+        const size_t equal = line.find('=');
+        if (equal == std::string::npos) continue;
+        const std::string key = trim(line.substr(0, equal)), value = trim(line.substr(equal + 1));
+        if (section == "PowerPoles") {
+            // Raw unsigned INI mapping, not invented pole instances. No model
+            // attachment/orientation coverage is inferred from this inventory.
+            Log("nettool resources PowerPoles key=%s instance=%s scope=resource-read", key.c_str(), value.c_str());
+            ++poles;
+            continue;
+        }
+        ++bridges;
+        std::istringstream tokens(value);
+        std::vector<std::string> parts;
+        std::string token;
+        while (std::getline(tokens, token, ',')) parts.push_back(trim(token));
+        if (parts.size() != 4) {
+            Log("nettool resources road_bridge key=%s malformed_tokens=%u", key.c_str(), static_cast<uint32_t>(parts.size()));
+            continue;
+        }
+        uint32_t tgi[3]{};
+        bool parsed = true;
+        for (size_t i = 0; i < 3; ++i) {
+            char* end = nullptr;
+            const unsigned long parsedValue = std::strtoul(parts[i].c_str(), &end, 16);
+            parsed &= end != parts[i].c_str() && *end == '\0';
+            tgi[i] = static_cast<uint32_t>(parsedValue);
+        }
+        props::Exemplar bridge;
+        const bool found = parsed && bridge.Load(tgi[0], tgi[1], tgi[2]);
+        if (found) ++loadedBridges;
+        std::vector<uint32_t> minSpan, maxSpan, cost, deck;
+        props::GetU32s(bridge.Holder(), 0x482CB458, minSpan);
+        props::GetU32s(bridge.Holder(), 0x482CB467, maxSpan);
+        props::GetU32s(bridge.Holder(), 0x482CB470, cost);
+        props::GetU32s(bridge.Holder(), 0x482CB445, deck);
+        Log("nettool resources road_bridge key=%s tgi=%08X/%08X/%08X loaded=%d min_span_present=%d "
+            "min_span=%u max_span=%u cost=%u/%u deck=%08X scope=resource-read model_host=uncovered",
+            key.c_str(), tgi[0], tgi[1], tgi[2], found ? 1 : 0, minSpan.empty() ? 0 : 1,
+            minSpan.empty() ? 0 : minSpan[0], maxSpan.empty() ? 100000 : maxSpan[0],
+            cost.empty() ? 0 : cost[0], cost.size() < 2 ? 0 : cost[1], deck.empty() ? 0 : deck[0]);
+    }
+    Log("nettool resources network_ini=loaded pole_mappings=%u road_entries=%u road_loaded=%u "
+        "scope=resource-read selection_host=uncovered model_host=uncovered", poles, bridges, loadedBridges);
+}
 
 fc4_nettool_host MakeNetToolHost(NetToolContext* ctx) {
     fc4_nettool_host h{};

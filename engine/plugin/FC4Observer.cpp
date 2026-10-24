@@ -19,6 +19,7 @@
 #include "FC4StringsShadow.h"
 #include "FC4LuaShadow.h"
 #include "FC4OverlaysShadow.h"
+#include "FC4WeatherShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -95,6 +96,8 @@
 #include "FC4SpanContext.h"  // the glue-span-context-final4 lane
 #include "FC4SpanRender8.h"
 #include "FC4FeatureShadow.h"
+#include "FC4SimGridRecordShadow.h"
+#include "FC4LotRecordShadow.h"
 #include "FC4SCResShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -637,6 +640,8 @@ public:
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
                 fc4::FeatureShadowLoaded();
+                SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
+                LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
                 fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
@@ -652,6 +657,7 @@ public:
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 break;
             case kMsgPreSave:
@@ -702,6 +708,7 @@ public:
                 AdvisorsShadowCityShutdown();
                 fc4::NetOccShadowCityShutdown();
                 LuaShadowCityShutdown();
+                WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
@@ -739,6 +746,8 @@ public:
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();
+                SimGridRecordShadowObserve(CurrentCity(), julian, false);
+                LotRecordShadowObserve(CurrentCity(), julian, false);
                 if (observe_) {
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
                     FpuLog("observe month");
@@ -749,6 +758,7 @@ public:
                 fc4::NetOccShadowMonth(julian);
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
+                WeatherShadowMonth(CurrentCity(), julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

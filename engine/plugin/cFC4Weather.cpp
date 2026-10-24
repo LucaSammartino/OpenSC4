@@ -171,6 +171,7 @@ float SeaLevel(void* u) {
 
 // void1 = the weather simulator as cIGZUnknown, data2 (§5).
 void Post(void* u, uint32_t type, uint32_t data2) {
+    if (Self(u)->RecordOnly()) return;
     if (type == kMsgMoistureMapUpdated) Self(u)->MarkMoistureChanged();
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
@@ -208,7 +209,7 @@ cIGZUnknown* CreateFC4WeatherSimulator() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4WeatherSimulator*>(new cFC4WeatherSimulator()));
 }
 
-cFC4WeatherSimulator::cFC4WeatherSimulator() {
+cFC4WeatherSimulator::cFC4WeatherSimulator(bool recordOnly) : recordOnly_(recordOnly) {
     host_ = MakeHost(this);
     // Seed(0xFFFFFFFF) in the original (§3); ours takes derive(S, GZCLSID) of
     // the session seed (foundations §6.3, FC4Seed.h).
@@ -269,7 +270,7 @@ bool cFC4WeatherSimulator::Init() {
     FC4_TRACE("WeatherSimulator::Init");
     if (initialized_) return true;
     // Step 2: PostCityInit, the city.
-    if (msgServer_ == nullptr) {
+    if (!recordOnly_ && msgServer_ == nullptr) {
         cIGZMessageServer2Ptr ms;
         if (ms) {
             msgServer_ = ms;
@@ -340,6 +341,7 @@ bool cFC4WeatherSimulator::Shutdown() {
 }
 
 void cFC4WeatherSimulator::RegisterAgents(bool add) {
+    if (recordOnly_) return;
     cIGZMessageTarget2* self = static_cast<cIGZMessageTarget2*>(this);
     if (add) {
         if (simulator_ == nullptr && city_ != nullptr) {
@@ -502,7 +504,7 @@ bool cFC4WeatherSimulator::Write(cIGZOStream& s) {
     FC4_TRACE("WeatherSimulator::Write");
     fc4::OStreamAdapter a(s);
     const bool ok = fc4_weather_write(core_, a.Get());
-    fc4::Log("weather Write -> %d", ok ? 1 : 0);
+    if (!recordOnly_) fc4::Log("weather Write -> %d", ok ? 1 : 0);
     return ok;
 }
 

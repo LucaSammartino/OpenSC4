@@ -29,12 +29,12 @@
 //! behaviour is kept as [`FinishMode::DrawPass`].
 //!
 //! Spec gaps decided here (numbered questions, EF6 onwards): the render
-//! sections are located, not read (EF6); the components' local placement is
-//! the identity (EF7); a brush's second `Stop` ends the long terrain
+//! sections are located, not read (EF6); a brush's second `Stop` ends the long terrain
 //! operation again (EF8); a meta component updates its child although the
 //! child is also on the active list (EF9).
 
 pub mod brush;
+pub mod collection;
 pub mod dilation;
 pub mod directory;
 pub mod game;

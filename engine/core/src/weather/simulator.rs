@@ -200,12 +200,27 @@ fn filled(nx: i32, nz: i32, v: u8) -> Grid {
     vec![vec![v; nz.max(0) as usize]; nx.max(0) as usize]
 }
 
-/// Mirror reflection at the grid edges (`a[-1] = a[1]`), clamped for tiny grids.
-/// §6.5 step 3 over `a4` (arrays x-major, `nx × nz`): pass 1 along z into a
-/// buffer, `(H[z−1] + H[z+1]) + 2·H[z]`, whose high-z mirror uses countX
-/// [quirk]; pass 2 along x, `((S[x−1] + S[x+1]) + 2·S[x]) × 0.0625`, always
-/// from the pass-1 values (the original filters each line from a copy,
-/// weather test 12) *[compat]*. Every step is one f32 operation.
+fn moisture_integer(value: f32) -> i32 {
+    // Weather §6.5.1: the native bias/bit conversion remains defined outside
+    // the range where it agrees with a general nearest-even conversion.
+    (value + 12_582_912.0).to_bits().wrapping_sub(0x4B40_0000) as i32
+}
+
+#[test]
+fn we1_moisture_conversion_ties() {
+    for (normal, expected_bits, expected) in [
+        (0x3F00_0000, 0x424A_0000, 50),
+        (0xBF00_0000, 0x424E_0000, 52),
+        (0x3EFF_FF80, 0x424A_0001, 51),
+    ] {
+        let u = 51.0 - f32::from_bits(normal);
+        assert_eq!(u.to_bits(), expected_bits);
+        assert_eq!(moisture_integer(u), expected);
+    }
+}
+
+/// §6.5 step 3, x-major arrays: z pass into a copy, then x pass × 0.0625.
+/// Mirror edges; the high-z mirror uses countX [quirk]. Each operation is f32.
 fn smoothed_heights(hgt: &[f32], nx: i32, nz: i32, a4: [i32; 4]) -> Vec<f32> {
     let n = hgt.len();
     let at = |x: i32, z: i32| (x * nz + z) as usize;
@@ -607,13 +622,16 @@ impl WeatherSim {
         b + (1.0 - b) * 0.5
     }
 
-    /// `GetAmbientWind(&v)`: (speed, direction × speed).
+    /// `GetAmbientWind(&v)` (weather §5.1.2): measure and rescale the stored direction.
     pub fn ambient_wind(&self) -> (f32, [f32; 2]) {
         let d = self.d.borrow();
-        (
-            d.wind_speed,
-            [d.wind_dir[0] * d.wind_speed, d.wind_dir[1] * d.wind_speed],
-        )
+        let mut v = d.wind_dir;
+        let len = (v[0] * v[0] + v[1] * v[1]).sqrt();
+        if len > 0.01 {
+            let scale = d.wind_speed / len;
+            v = [v[0] * scale, v[1] * scale];
+        }
+        (d.wind_speed, v)
     }
 
     pub fn wind_at_cell(&self, _x: i32, _z: i32) -> (f32, [f32; 2]) {
@@ -645,7 +663,8 @@ impl WeatherSim {
         if date.month != d.wind_month {
             return;
         }
-        let t = (date.day - 1) as f32 / 30.0;
+        // WE1: load the binary64 reciprocal before the one 24-bit rounding.
+        let t = r24(f64::from(date.day - 1) * f64::from_bits(0x3FA1_1111_1111_1111)) as f32;
         let p = [
             d.prev_wind_speed * d.prev_wind_dir[0],
             d.prev_wind_speed * d.prev_wind_dir[1],
@@ -656,7 +675,12 @@ impl WeatherSim {
         ];
         let v = [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
         let len = (v[0] * v[0] + v[1] * v[1]).sqrt();
-        d.wind_dir = if len > 0.0 { [v[0] / len, v[1] / len] } else { v };
+        d.wind_dir = if len > 0.0 {
+            let reciprocal = 1.0 / len;
+            [v[0] * reciprocal, v[1] * reciprocal]
+        } else {
+            v
+        };
         d.wind_speed = d.prev_wind_speed + (d.target_wind_speed - d.prev_wind_speed) * t;
     }
 
@@ -904,13 +928,11 @@ impl WeatherSim {
                 d.high_moisture,
                 d.curvature_threshold,
                 d.slope_k,
-                [d.wind_dir[0] * d.wind_speed, d.wind_dir[1] * d.wind_speed],
+                self.ambient_wind().1,
             )
         };
-        let b = round_half_even_f32(ambient * 255.0) as i32;
-        let high = (round_half_even_f32(high_m * 255.0) as i32)
-            .saturating_add(b)
-            .clamp(0, 255);
+        let b = moisture_integer(ambient * 255.0);
+        let high = moisture_integer(high_m * 255.0).saturating_add(b).clamp(0, 255);
         for x in a2[0]..a2[2] {
             for z in a2[1]..a2[3] {
                 let i = at(x, z);
@@ -922,8 +944,8 @@ impl WeatherSim {
                 let xp = if x + 1 >= nx { x } else { x + 1 };
                 let zm = if z - 1 < 0 { z } else { z - 1 };
                 let zp = if z + 1 >= nz { z } else { z + 1 };
-                let cx = sm[at(xm, z)] + sm[at(xp, z)] - 2.0 * s;
-                let cz = sm[at(x, zm)] + sm[at(x, zp)] - 2.0 * s;
+                let cx = (sm[at(xm, z)] + sm[at(xp, z)]) - (s + s);
+                let cz = (sm[at(x, zm)] + sm[at(x, zp)]) - (s + s);
                 let add = if (cx >= 0.0 && cz >= 0.0) || hgt[i] <= s {
                     if cx + cz <= threshold || cx <= 0.0 || cz <= 0.0 {
                         b
@@ -932,8 +954,9 @@ impl WeatherSim {
                     }
                 } else {
                     let nrm = h.vertex_normal(x, z);
-                    let v = b as f32 - (wind[0] * nrm[0] + wind[1] * nrm[2]) * slope_k;
-                    (round_half_even_f32(v) as i32).clamp(0, 255)
+                    let dot = (wind[1] * nrm[2] + wind[0] * nrm[0]) + nrm[1] * 0.0;
+                    let v = b as f32 - dot * slope_k;
+                    moisture_integer(v).clamp(0, 255)
                 };
                 m[i] = m[i].saturating_add(add).min(255);
             }

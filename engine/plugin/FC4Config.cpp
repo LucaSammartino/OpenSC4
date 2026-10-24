@@ -355,6 +355,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "prop_occupant_verify",
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
+                                  // SG3/LR12 record-only observations (default off).
+                                  "simgrid_shadow", "lotrec_shadow",
                                   // Read-only overlay getter/record/cell/texture observation.
                                   "overlays_shadow",
                                   // Inherited automata and construction record comparison (default off).
@@ -368,10 +370,16 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_shadow",
                                   // Bounded original Lua registry comparison; default off.
                                   "lua_shadow",
+                                  "weather_shadow",
                                   // Partial SC token adapter read observations (default off).
                                   "scres_shadow",
                                   // Fixed native adapter vectors and shipped resource prefix.
                                   "scres_constructed",
+                                  "ordinance_shadow",
+                                  // Original configuration and simulator record-only comparisons; default off.
+                                  "lotconf_shadow", "simulator_shadow",
+                                  // Controlled live native overlay actions; independent of observe.
+                                  "overlays_fixture",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

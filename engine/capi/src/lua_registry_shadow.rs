@@ -122,12 +122,18 @@ fn compare(entries: &[Entry], scratch: u32) -> Comparison {
             return result;
         }
         result.stack_diffs += u32::from(vm.stack != [Value::Sentinel]);
+        // §8.6: each pass has its own scratch binding (print, then window_graph).
+        // These are model stages; the native snapshot is after both passes.
+        if let Some(last) = expected.iter().rfind(|e| e.is_global == global) {
+            result.scratch_diffs +=
+                u32::from(vm.globals.get("_tf_") != Some(&Value::Function(vm.bindings[last.function.name()])));
+        }
     }
     for (original, entry) in entries.iter().zip(expected) {
         let table = if entry.is_global { &vm.globals } else { &vm.game };
         result.binding_diffs += u32::from(table.get(entry.name) != Some(&Value::Function(original.registered)));
     }
-    result.scratch_diffs = u32::from(vm.globals.get("_tf_") != Some(&Value::Function(scratch)));
+    result.scratch_diffs += u32::from(vm.globals.get("_tf_") != Some(&Value::Function(scratch)));
     result
 }
 
@@ -196,6 +202,32 @@ mod tests {
         entries[0].name.fill(b'X');
         entries[1].function = 0;
         assert_eq!(mismatches(compare(&entries, 146)), 3);
+    }
+    #[test]
+    fn collector_order_and_missing_c_bindings_are_not_excluded() {
+        let mut entries = capture();
+        entries.swap(0, 1);
+        assert_eq!(compare(&entries, 146).collector_diffs, 2);
+        let mut entries = capture();
+        entries[0].registered = 0;
+        let r = compare(&entries, 0);
+        assert_eq!(r.binding_diffs, 1);
+        assert_eq!(r.scratch_diffs, 1);
+    }
+    #[test]
+    fn actual_callback_identities_are_never_rebased_for_comparison() {
+        let mut entries = capture();
+        // Opaque same-process inputs can share an entry point; no invented
+        // uniqueness or executable-address constraint is applied to them.
+        for entry in &mut entries {
+            entry.function = 0x0060_c890;
+            entry.registered = entry.function;
+        }
+        assert_eq!(mismatches(compare(&entries, 0x0060_c890)), 0);
+        // A preferred evidence label is not the actual pointer (LH7-G).
+        entries[0].registered = 0x0040_c890;
+        assert_eq!(compare(&entries, 0x0060_c890).binding_diffs, 1);
+        assert_eq!(compare(&entries, 0x0040_c890).scratch_diffs, 1);
     }
     #[test]
     fn private_transport_rejects_invalid_pointers_and_lengths() {

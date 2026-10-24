@@ -60,7 +60,7 @@ class cFC4WeatherSimulator final : public cFC4ISC4WeatherSimulator,
                                    public cIGZMessageTarget,
                                    public cIGZSerializable {
 public:
-    cFC4WeatherSimulator();
+    explicit cFC4WeatherSimulator(bool recordOnly = false);
     ~cFC4WeatherSimulator();
 
     // cIGZUnknown
@@ -103,6 +103,8 @@ public:
 
     // For the host callbacks (cFC4Weather.cpp).
     cISC4City* City() const { return city_; }
+    bool RecordOnly() const { return recordOnly_; }
+    fc4_weather* Core() const { return core_; }
     cISTETerrain* Terrain() const { return terrain_; }
     void MarkMoistureChanged() { moistureDirty_ = true; }
 
@@ -125,6 +127,7 @@ private:
     int32_t lastSeason_ = -1;
 
     // The moisture grid mirror (§11.2): rows indexed by x.
+    bool recordOnly_ = false;
     bool moistureDirty_ = true;
     std::vector<uint8_t> cells_;
     std::vector<FC4ByteRow> rows_;

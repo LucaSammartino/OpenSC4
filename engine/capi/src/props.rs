@@ -23,6 +23,16 @@ pub(crate) unsafe fn props_ref<'a>(p: *const fc4_props) -> Option<&'a PropertyHo
     (p as *const PropertyHolder).as_ref()
 }
 
+/// Tooling snapshots: a new independent holder, or NULL for NULL input.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_props_clone(p: *const fc4_props) -> *mut fc4_props {
+    guard(std::ptr::null_mut(), || {
+        props_ref(p).map_or(std::ptr::null_mut(), |h| {
+            Box::into_raw(Box::new(h.clone())) as *mut fc4_props
+        })
+    })
+}
+
 fn with_props(p: *mut fc4_props, f: impl FnOnce(&mut PropertyHolder)) -> bool {
     // SAFETY: documented precondition: NULL or a live fc4_props*.
     match unsafe { (p as *mut PropertyHolder).as_mut() } {
@@ -501,6 +511,23 @@ mod tests {
             assert_eq!(fc4_core::props::i64s(h, 2), Some(vec![]));
             assert_eq!(fc4_core::props::i64_of(h, 2), Some(10));
             fc4_props_destroy(p);
+        }
+    }
+
+    #[test]
+    fn frozen_holder_clone_survives_original_mutation_and_destruction() {
+        unsafe {
+            assert!(fc4_props_clone(std::ptr::null()).is_null());
+            let original = fc4_props_create();
+            assert!(fc4_props_set_u32s(original, 7, [11, 23, 11].as_ptr(), 3));
+            let frozen = fc4_props_clone(original);
+            assert!(fc4_props_set_u32s(original, 7, [99].as_ptr(), 1));
+            fc4_props_destroy(original);
+            assert_eq!(
+                fc4_core::props::u32s(props_ref(frozen).unwrap(), 7),
+                Some(vec![11, 23, 11])
+            );
+            fc4_props_destroy(frozen);
         }
     }
 }

@@ -1,0 +1,9 @@
+tag: gwp6-r2-normal-replay-2032-a-412
+run: 412
+date: 2026-10-24
+lane: glue-weather-propdev6
+dll: FreeCity4-glue-weather-propdev6 (365c345b; replay source e1ab63334 plus scope/test correction 8cd746b79)
+pacing: normal
+verdict: clean
+switches: weather_shadow=1, propdev_shadow=1, sim_turbo=0; turbo=0; Konradshohe to 2032-01-01
+result: clean through 2032-01-01, 162.844 s, ref_warnings=0, rtc=0, no exceptions/stalls/panics/warnings; both shadows remain default-off. Weather 1/73: exact final line weather shadow 2032-01-01: phase=month mismatches=1629 steps=2567 record=all-bytes crt=observed first-byte=65833; first difference unchanged at step 3 byte 65833 original/ours 118/117, 65889-byte records (existing WE1; no weather changes). Propdev strict monthly result 0/72 including operation-unavailability diagnostics: 45465 delivered operations, selector-events=23768, selector-zero=358, selector-matched=23739, replay-complete=45018, replay-invalid=447, operation-output-matches=42507, operations-incomplete=2958, full-operations-exact=0. Matching individual events may be in invalid operation streams. Eligible output comparisons validate full removal identities and per-operation saved projections without model-state resynchronization; native creation attempt arguments/failures and dated effects remain uncaptured/incomplete, not new spec ambiguities. Exact final propdev suffix before differences: mismatches=46; selector-events=301 selector-zero=2 selector-matched=301 replay-complete=649 replay-invalid=2 operation-output-matches=607 full-operations-exact=0 operations-incomplete=44. Exact shutdown line: propdev shadow: city shutdown: 72 month lines, 0 with mismatches=0. No full-operation or exact-through-date claim; no coverage/profile credit requested. Final full gate qbuild-20261024-032932-build-ctest PASS: cargo 6880/0, clippy diagnostics=0, CTest 73/73. Unique request waited without qwait; its completed verdict retained.

@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 385 (Traffic removed-lot fix landed with three exact house repeats; PL21, SCR8/SCR9 and LV6 answered; all house shadows exact (run 5).); 381 (Effects subset and overlay, network-tool and Lua RE answers landed; scres constructed checks exact in the house regress; propmgr PL21 flake twice (run 5).); 380 (Automata extension and scres constructed adapter shadow landed (owners shadow held out of the profile pending a crash fix); traffic recovered, propmgr PL21 flake once (run 5).); 375 (Round 2 merged automata/netocc capture paths; full gate Rust 6804/0, clippy clean, native build 207/207, CTest 70/70 including plugin INI tests; combined shadows exact through 2032.); 373 (Strings and network-rules shadows exact in the house regress and credited; nettool, lua, overlays and overlay views landed; traffic flake recurred (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 422 (Weather exact in the house profile, nettool/propdev/overlays work and their answers landed after a shutdown-crash bisect; automata owners and propmgr flakes on main remain (run 5).); 414 (WE1 weather exact; creation continuation capture diagnosed); 413 (weather exact; propdev selector streams exact, output boundary remains open); 409 (Simgrid/lotrec now counted, effects closure, live overlays and OV15 landed; sim grids, master lots and automata generator/attractor rows verified (run 5).); 403 (simgrid and lotrec dated summaries, exact 73/73 each through 2032, lists as run 400). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

@@ -69,6 +69,8 @@ namespace fc4 {
 // the game) whose recording hooks are set.
 struct PropDevContext {
     bool readOnly = false;
+    // PV15: an unavailable manager is not an observed daytime input.
+    bool lightingAvailable = false;
     cIGZMessageTarget2* target = nullptr;  // the developer's +4 (agents, notifications, ticks)
     cFC4PropDeveloper* owner = nullptr;    // the wealth requesters' developer (null in the shadow)
     bool agentRegistered = false;

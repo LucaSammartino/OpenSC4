@@ -131,7 +131,7 @@ pub struct PowerLineTool {
     /// `+0x384`: counted up by `DeterminePolePositions` *[inferred: the
     /// number of wire cells]*.
     pub wire_cells: u32,
-    /// +0x388, updated by Determine and the cost getter, reset by slot 53.
+    /// +0x388, retained by Determine, reset by slot 53 (NT31).
     pub counted_poles: u32,
     /// `+0x3A4`..`+0x3B0`.
     pub params: PowerLineParams,
@@ -153,13 +153,15 @@ impl PowerLineTool {
         self.poles.len() as u32
     }
 
-    /// `GetCostOfSolution` (`0x0064F0F0`): `+0x388` := the pole count; 0 for
-    /// at most one pole, else `trunc(r24((float)wire × +0x3B0)) + +0x3AC ×
-    /// poles`.
+    /// `GetCostOfSolution` (`0x0064F0F0`): use retained `+0x388`; 0 for
+    /// at most one pole, else `trunc((uint32)wire × +0x3B0) + +0x3AC × poles`.
+    /// NT31: no float32 rounding between multiply and truncation.
     pub fn cost_of_solution(&mut self) -> i32 {
-        self.counted_poles = self.pole_count();
+        // Literal NT31 retained-price contract: ReleasePoleInfos structurally
+        // clears records, but the counted inventory still prices at 65.
+        // Older NG §11 equates count with vector size; see question NT32.
         power_line_cost(
-            self.pole_count(),
+            self.counted_poles,
             self.wire_cells,
             self.params.cost_per_pole,
             self.params.cost_per_wire,

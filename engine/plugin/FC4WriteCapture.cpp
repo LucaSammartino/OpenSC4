@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace fc4 {
 namespace {
@@ -45,10 +46,39 @@ void* Borrowed(cIGZSerializable* obj, uint32_t iid) {
 
 }  // namespace
 
-bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
-    bytes_.clear();
+WriteCapture::~WriteCapture() { ClearReferences(); }
+
+WriteCapture::WriteCapture(WriteCapture&& other) noexcept { *this = std::move(other); }
+
+WriteCapture& WriteCapture::operator=(WriteCapture&& other) noexcept {
+    if (this != &other) {
+        ClearReferences();
+        bytes_.clear();
+        variants_ = other.variants_;
+        holdReferences_ = other.holdReferences_;
+        good_ = other.good_;
+        // Transfer the retained references without AddRef/Release; the source
+        // must have an empty reference table when its destructor runs.
+        bytes_.swap(other.bytes_);
+        refs_.swap(other.refs_);
+        index_.swap(other.index_);
+        other.good_ = true;
+    }
+    return *this;
+}
+
+void WriteCapture::ClearReferences() {
+    if (holdReferences_) {
+        for (const auto& ref : refs_)
+            FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    }
     refs_.clear();
     index_.clear();
+}
+
+bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
+    bytes_.clear();
+    ClearReferences();
     good_ = true;
     if (answered != nullptr) *answered = false;
     if (obj == nullptr) return false;
@@ -106,8 +136,25 @@ bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
     if (it != index_.end()) {
         i = it->second;
     } else {
+        if (holdReferences_) {
+            // Construction effects can be passed as their effect interface
+            // (lot-records §9 #12). Do not retain that foreign interface as a
+            // cIGZSerializable or call its class slot. Resolve the actual
+            // serializable and keep the QI reference through replay; otherwise
+            // a released temporary (including a variant result) leaves a stale
+            // pointer under an apparently valid capture ID.
+            void* serial = nullptr;
+            if (!obj->QueryInterface(GZIID_cIGZSerializable, &serial) || serial == nullptr) {
+                good_ = false;
+                return false;
+            }
+            obj = static_cast<cIGZSerializable*>(serial);
+            FC4_ACQUIRED(obj, "capture reference QueryInterface");
+        }
         refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
-        index_.emplace(obj, i);
+        // The incoming interface is the writer's identity, even if QI adjusted
+        // the pointer. IDs must not alias an unrelated interface address.
+        index_.emplace(p, i);
     }
     SetUint32(static_cast<uint32_t>(i + 1));
     return SetUint32(refs_[i].classId);
@@ -198,6 +245,7 @@ bool WriteCapture::WriteVariant(cIGZVariant const& v) {
 }
 
 bool WriteCapture::Put(const void* p, size_t n) {
+    if (n == 0) return good_;
     const uint8_t* b = static_cast<const uint8_t*>(p);
     bytes_.insert(bytes_.end(), b, b + n);  // x86: already little-endian
     return good_;

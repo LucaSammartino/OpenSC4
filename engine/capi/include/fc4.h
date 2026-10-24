@@ -182,8 +182,11 @@ extern "C" {
  * 88 = merge-train batch train108 (core-player-drive4, core-persist-runtime4, verify-dbpf-native4, core-legacy-control4): merged (no C ABI history entry of its own)
  * 89 = merge-train batch train155 (re-lotcfg-editor5, glue-netmgr-exact5, re-citytools-ct5, re-effects-ef5, re-view3dwin-vw5): merged (no C ABI history entry of its own)
  * 90 = merge-train batch train167 (glue-netrules-finish5, re-overlays-ov12, glue-rzstrings-shadow5, core-lot-models5): merged (no C ABI history entry of its own)
- * 91 = merge-train batch train169 (glue-automata-ext5): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 91u
+ * 91 = merge-train batch train169 (glue-automata-ext5): merged (no C ABI history entry of its own)
+ * 92 = merge-train batch train173 (re-weather-we1, re-effects-ef18, glue-ordinance-shadow6, glue-lotconf-sim-shadow6, glue-simgrid-lotrec5): merged (no C ABI history entry of its own)
+ * 93 = merge-train batch train176 (re-overlays-ov15, glue-simgrid-label6, core-effects-close6, glue-overlays-live6): merged (no C ABI history entry of its own)
+ * 94 = merge-train batch train180 (glue-nettool-exact6, re-nettool-nt32, re-propdev-pv16, glue-overlays-flags7, glue-weather-propdev6): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 94u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -1047,6 +1050,8 @@ bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
 /* Persistence (§10). */
 bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
 bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
+/* Record-only tooling: get/restore the independent iterator CRT state. */
+bool fc4_weather_shadow_crt(fc4_weather* w, uint32_t* state, bool restore);
 
 /* ---- ordinances (docs/specs/ordinance.md) --------------------------------------
  * The ordinance simulator and the standard ordinance classes (§3.6). The shim
@@ -12907,6 +12912,67 @@ uint32_t fc4_network_rules_snapshot(const fc4_network_rules* r, uint32_t type, u
 int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint32_t index,
                                 const fc4_network_rules_capture* capture,
                                 fc4_network_rules_output* out, uint32_t cap);
+/* PV14 observation only: copy 624 MT words, validating index + remaining = 624. */
+bool fc4_prop_developer_shadow_random(fc4_prop_developer* p, const uint32_t* words,
+                                     uint32_t index, uint32_t remaining, bool wealth);
+/* PV14 frozen-input replay helpers. A NEW independent holder, NULL for NULL. */
+fc4_props* fc4_props_clone(const fc4_props* p);
+/* Enable genuine selectors (including wealth), preview next block without
+ * stepping. False means no block. Purpose getter: inside requester_select. */
+bool fc4_prop_developer_shadow_prepare(const fc4_prop_developer* p, int32_t* bx, int32_t* bz);
+bool fc4_prop_developer_shadow_selector_creation(const fc4_prop_developer* p);
+#ifdef __cplusplus
+}
+#endif
+
+/* Independent lot-configuration Load projection (record-only shadow). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_lot_configuration_fields {
+    uint32_t width, depth, zones, wealths, purposes, growth_stage;
+    uint32_t water, construction, roads;
+    float max_slope, min_slope, foundation_slope;
+} fc4_lot_configuration_fields;
+bool fc4_lot_configuration_project(const fc4_props* exemplar, uint32_t detail,
+                                  fc4_lot_configuration_fields* out,
+                                  fc4_lotdev_cfg_object_callback visit, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
+/* Bounded NT31 read-only selection. Does not certify placement, reuse,
+ * pole models or curves. Every callback is mandatory; cell must return false
+ * for unavailable inputs or existing occupants. On false, outputs are not a
+ * comparable native result. Prefix is the helper's previously placed count. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_powerline_selection_host {
+    uint32_t struct_size;
+    void* user;
+    bool (*cell)(void*, int32_t, int32_t, int32_t* zone, bool* blocked);
+    float (*width)(void*);
+    float (*height)(void*, float, float);
+    bool (*special)(void*, int32_t, int32_t);
+    void (*corners)(void*, int32_t, int32_t, float*);
+    bool (*ray)(void*, const float* origin, const float* direction, float* hit);
+} fc4_powerline_selection_host;
+typedef struct fc4_powerline_selection {
+    uint32_t valid, failure, poles, wires;
+    int32_t cost;
+} fc4_powerline_selection;
+typedef struct fc4_powerline_selected_pole {
+    int32_t x, z;
+    uint32_t mask;
+} fc4_powerline_selected_pole;
+bool fc4_powerline_select(const fc4_powerline_selection_host* host,
+    const fc4_netgeom_cell* cells, uint32_t cell_count,
+    const fc4_netgeom_step* steps, uint32_t step_count, uint32_t prefix,
+    uint32_t spacing, float clearance, uint32_t pole_cost, float wire_cost,
+    fc4_powerline_selected_pole* poles, uint32_t capacity, fc4_powerline_selection* out);
+/* Smoothing hash iteration order used by NT30's first refresh. */
+uint32_t fc4_netgeom_get_smoothing_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
 #ifdef __cplusplus
 }
 #endif

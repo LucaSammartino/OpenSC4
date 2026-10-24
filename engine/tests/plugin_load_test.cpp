@@ -11693,6 +11693,14 @@ int main(int argc, char** argv) {
                 uint32_t n = 0;
                 CHECK(sim->GetOrdinanceIDArray(nullptr, n) == 0 && n == 0);
 
+                // The shadow must handle an empty record and reject null input.
+                auto ordinanceShadowSeam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+                CHECK(ordinanceShadowSeam != nullptr);
+                if (ordinanceShadowSeam) {
+                    CHECK(ordinanceShadowSeam(kFC4SeamOrdinanceShadow, nullptr, nullptr) == -1);
+                    CHECK(ordinanceShadowSeam(kFC4SeamOrdinanceShadow, sim, nullptr) == 0);
+                }
+
                 // One of our ordinances, created through GZCOM (as the class store does).
                 void* o = nullptr;
                 CHECK(director->GetClassObject(kCLSID_FreeClinics, GZIID_cISC4Ordinance, &o));
@@ -11715,6 +11723,19 @@ int main(int argc, char** argv) {
                     CHECK(sim->GetOrdinanceByID(0) == fc4::AsSdk(ord));
                     CHECK(ord->AddRef() == 3);  // ours, the map's, this one
                     CHECK(ord->Release() == 2);
+                    if (ordinanceShadowSeam) {
+                        // Capturing/stepping copies cannot alter the live flags,
+                        // adjusted money, pending balance or reference count.
+                        CHECK(ord->ForceAvailable(true));
+                        CHECK(ord->ForceOn(true));
+                        CHECK(ord->ForceMonthlyAdjustedIncome(-37));
+                        CHECK(ordinanceShadowSeam(kFC4SeamOrdinanceShadow, sim, nullptr) == 1);
+                        CHECK(ord->IsAvailable() && ord->IsOn() && ord->GetMonthlyAdjustedIncome() == -37);
+                        CHECK(ord->AddRef() == 3 && ord->Release() == 2);
+                        CHECK(ord->ForceAvailable(false));
+                        CHECK(ord->ForceOn(false));
+                        CHECK(ord->ForceMonthlyAdjustedIncome(0));
+                    }
                 }
 
                 // A foreign (DLL plugin) ordinance, available when added (§4.2).

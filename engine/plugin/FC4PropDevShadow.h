@@ -24,19 +24,18 @@
 // host: it changes nothing in the game) reads the original's record (§7)
 // and inits; it then follows the 13 messages of §3.1 step 5 and the
 // animation tick through its own listener. Each block step of the original
-// is wrapped: ours steps first (its removals and creations recorded, not
-// made), the block's props are listed, the original steps (exactly once),
+// is wrapped: inputs freeze first, the original steps exactly once,
+// then genuine selector transcripts replay through the independent owner,
 // and then
 //   - the scan flag and the block scanner (§2, raw +0x14 / +0x18..+0x34,
 //     vtable-checked) are compared with ours (exact);
-//   - when every keep check of ours was certain (wealth, pollution, a crime
-//     prop with incident ID 0: crime.md §11.6), the number of props the
-//     original removed from the block with ours, and every prop ours removed
-//     in the cell walk (not kept, §4.3 step 3.9) must be among them.
-// Not compared: which kept prop the member generator removes (§4.3 step 5)
-// and the creations (member and wealth generators, §5). At each SimNewMonth
+//   - selectors validate identity, purpose, depth, ordered candidates, x/z
+//     and complete event count; zero and out-of-list returns are preserved;
+//   - eligible operations compare every removal identity and saved projection.
+// Creation attempts/failures and dated effects remain incomplete. Output
+// matches are not full-operation exactness. At each SimNewMonth
 // the original's record is read into a second core and its state and lists
-// compared with the running shadow core; a difference resyncs it.
+// compared with the running shadow core; differences never resync it.
 //
 // Log lines (always written):
 //   propdev shadow: ON (...) | requested but INACTIVE (...)                  game start

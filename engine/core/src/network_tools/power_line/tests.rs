@@ -341,6 +341,35 @@ fn drag(n: usize, spacing: u32) -> (ToolRun, PowerLineTool) {
 }
 
 #[test]
+fn nt31_empty_land_recording_placement_and_retained_price() {
+    // Synthetic pole resources supplied by TestWorld. No shipped exemplar,
+    // attachment-orientation or rendered curve coverage is claimed here.
+    let (mut run, mut tool) = drag(13, 10);
+    run.start = (4, 32);
+    run.end = (16, 32);
+    run.cells = (4..=16).map(|x| (x, 32)).collect();
+    run.straight_count = 13;
+    tool.anchors = vec![run.start, run.end];
+    tool.params.v_3a8 = 7.0;
+    tool.params.cost_per_pole = 15;
+    tool.params.cost_per_wire = 2.0;
+    let mut w = TestWorld::default();
+    let mut state = ToolState::new(5);
+    assert!(do_network_specific_placement(&mut state, &mut tool, &mut w, &mut run, 0, true).unwrap());
+    assert_eq!((run.valid_count, state.failure), (13, 0));
+    assert_eq!(
+        w.poles.values().map(|p| p.cell).collect::<Vec<_>>(),
+        vec![(4, 32), (14, 32), (16, 32)]
+    );
+    assert!(tool.poles.is_empty()); // structural records released by placement
+    assert_eq!(tool.wire_cells, 10);
+    assert_eq!(w.events.iter().filter(|e| matches!(e, Event::Create(_))).count(), 3);
+    assert_eq!(tool.cost_of_solution(), 65);
+    tool.release_pole_infos(&mut w);
+    assert_eq!(tool.cost_of_solution(), 65);
+}
+
+#[test]
 fn pl_g1_g2_spacing_is_in_steps_at_pivots() {
     // Axis pivots use the prior-run first-cell rule; diagonals use anchor-distance equality.
     for (spacing, expected) in [(3, vec![0, 3, 5]), (20, vec![0, 5])] {

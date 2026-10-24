@@ -556,6 +556,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PropOccupantFixtures.h
         plugin/FC4PropOccupantCompare.h
         plugin/compat/FC4PropOccupantAuthority.h
+        # SG3 complete owner/getter inventory record shadow (default off).
+        plugin/FC4SimGridRecordShadow.cpp
+        plugin/FC4SimGridRecordShadow.h
+        # LR12 current master-list full lot records (default off).
+        plugin/FC4LotRecordShadow.cpp
+        plugin/FC4LotRecordShadow.h
+        plugin/FC4LotRecordObservation.h
         # Record-only, opt-in network occupant shadow.
         plugin/FC4NetOccShadow.cpp
         plugin/FC4NetOccShadow.h
@@ -568,7 +575,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4StringsShadow.h
         # Opt-in partial resource/token adapter observation replay.
         plugin/FC4SCResShadow.cpp
-        plugin/FC4SCResShadow.h)
+        plugin/FC4SCResShadow.h
+        # Default-off record-only ordinance monthly shadow.
+        plugin/FC4OrdinanceShadow.cpp
+        plugin/FC4OrdinanceShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -627,6 +637,11 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_safe_lot_iterator_test PRIVATE plugin)
     target_compile_options(fc4_safe_lot_iterator_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME safe_lot_iterator_test COMMAND fc4_safe_lot_iterator_test)
+    # LR12 master-list observation accounting (T58-T65).
+    add_executable(fc4_lot_record_observation_test conformance/tests/lot_record_observation_test.cpp)
+    target_include_directories(fc4_lot_record_observation_test PRIVATE plugin)
+    target_compile_options(fc4_lot_record_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME lot_record_observation_test COMMAND fc4_lot_record_observation_test)
 
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
@@ -1036,6 +1051,11 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4LuaShadow.cpp plugin/FC4LuaShadow.h)
 endif()
 
+# Opt-in record-only weather replay; never replaces the native simulator.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4WeatherShadow.cpp plugin/FC4WeatherShadow.h)
+endif()
+
 # OV12 observer safeguards run against the same native adapter as the plugin.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_observation_test tests/overlays_observation_test.cpp)
@@ -1043,4 +1063,31 @@ if(TARGET FreeCity4)
     target_compile_definitions(fc4_overlays_observation_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_overlays_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME overlays_observation_test COMMAND fc4_overlays_observation_test)
+endif()
+
+# Automata owners: captured IDs must retain the correct live interface.
+if(TARGET FreeCity4)
+    add_executable(fc4_automata_capture_test tests/automata_capture_test.cpp)
+    target_include_directories(fc4_automata_capture_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_automata_capture_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_automata_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME automata_capture_test COMMAND fc4_automata_capture_test "$<TARGET_FILE:FreeCity4>")
+endif()
+
+# PV14 genuine selector capture preserves the original ABI and return value.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_transcript_test tests/propdev_transcript_test.cpp)
+    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin)
+    target_compile_definitions(fc4_propdev_transcript_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(fc4_propdev_transcript_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME propdev_transcript_test COMMAND fc4_propdev_transcript_test)
+endif()
+
+# Frozen block inputs preserve each lot's lists once, including empty configurations.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_snapshot_test tests/propdev_snapshot_test.cpp)
+    target_include_directories(fc4_propdev_snapshot_test PRIVATE plugin capi/include)
+    target_compile_definitions(fc4_propdev_snapshot_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_propdev_snapshot_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME propdev_snapshot_test COMMAND fc4_propdev_snapshot_test)
 endif()
