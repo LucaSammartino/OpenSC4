@@ -183,7 +183,7 @@ generated index: the questions live one file per spec, so read only the file for
 | VP | video-preferences |
 | VU | view-utilities |
 | VW | view3d-window |
-| WC | watercraft |
+| WC | watercraft, widget-controls |
 | WG | win-grid |
 | WR | water-ripples |
 | WT | widget-toolkit |
@@ -252,7 +252,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
-| gz-graphics | 5 | 1 | GZG7 | questions/gz-graphics.md |
+| gz-graphics | 4 | 2 | GZG7 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
@@ -266,7 +266,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 2 | 9 | LR12 | questions/lot-records.md |
+| lot-records | 2 | 10 | LR13 | questions/lot-records.md |
 | lua-host | 0 | 7 | LH6 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
@@ -279,12 +279,12 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 21 | 24 | NO45 | questions/network-occupants.md |
+| network-occupants | 21 | 25 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 16 | 4 | NT27 | questions/network-tools.md |
+| network-tools | 16 | 7 | NT30 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -292,7 +292,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 6 | OV12 | questions/overlay-manager.md |
+| overlay-manager | 5 | 7 | OV13 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 9 | 4 | PT14 | questions/particles.md |
@@ -327,7 +327,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 5 | 1 | RZS7 | questions/rz-strings.md |
+| rz-strings | 5 | 2 | RZS8 | questions/rz-strings.md |
 | sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -342,7 +342,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
-| text-edit | 2 | 6 | TE9 | questions/text-edit.md |
+| text-edit | 3 | 6 | TE10 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
@@ -352,7 +352,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| vehicles | 7 | 2 | VH10 | questions/vehicles.md |
+| vehicles | 4 | 5 | VH10 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
@@ -360,10 +360,10 @@ generated index: the questions live one file per spec, so read only the file for
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
-| widget-controls | 0 | 0 | - | questions/widget-controls.md |
+| widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
-| win-grid | 2 | 2 | WG5 | questions/win-grid.md |
+| win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **585** | **1404** | | |
+| **total** | **587** | **1415** | | |

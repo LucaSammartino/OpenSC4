@@ -301,6 +301,157 @@ Evidence: 17-digit request at `0x00A0279E`–`0x00A027AE`, intermediate rounding
 `0x00A04B63`–`0x00A04B89`, and final guard/carry and decimal-position adjustment
 at `0x00A02687`–`0x00A026A8`.
 
+#### 5.1.1 Finite decimal primitive (RZS7)
+
+For every finite nonzero binary64 magnitude, the following defines the decimal
+digits and decimal position consumed by §5.1. It uses integer arithmetic; no
+host floating-point rounding mode, logarithm or decimal conversion is implicit.
+The result is a digit string `D` and decimal position `d`, representing
+`integer(D) × 10^(d-length(D))`. This is the legacy intermediate, before the
+requested format precision is applied. Negative input uses its magnitude here;
+the owner supplies its sign as already specified. Zero and non-finite inputs
+remain governed by §5.1 above.
+
+**Representation and exact input widening.** A working extended value is
+`(M,E)`, with an unsigned **80-bit significand**, including an explicit leading
+one, and a biased 15-bit exponent, bias 16383. Its magnitude is
+`M × 2^(E-16383-79)`. The 12-byte storage holds little-endian `M` in bytes 0–9
+and sign/exponent in bytes 10–11. This is software arithmetic, not x87's 64-bit
+significand stored in a padded 12-byte slot. Initially the binary64 is widened
+exactly to a 64-bit explicit significand and then extended with 16 zero low
+bits. Equivalently, if its binary64 exponent field is `b` and fraction is `F`:
+
+- Normal input: `M=(2^52+F) × 2^27`, `E=b+15360`.
+- Subnormal input: let `L` be the bit length of nonzero `F`;
+  `M=F × 2^(80-L)`, `E=15308+L`. Do not flush subnormals to zero.
+
+Exact widening and subnormal normalization: `0x00A026C1`–`0x00A02772`;
+insertion of the extra 16 low bits: `0x00A04A4D`, `0x00A04A67`–`0x00A04A80`.
+
+**Legacy multiply.** All multiplications below use this same operation, rounding
+after **each** multiplier. For the positive normal operands reached here,
+split each significand into five unsigned 16-bit limbs, least significant first:
+`A=sum(a_i × 2^(16i))`, `B=sum(b_j × 2^(16j))`. Form the 96-bit integer
+
+`P = sum(a_i × b_j × 2^(16(i+j-4)))`, over exactly the pairs `i+j >= 4`.
+
+There are fifteen such products. Products with `i+j < 4` are omitted entirely:
+their carry is **not** added to `P`. Thus this is not generally
+`floor(A×B / 2^64)`, nor an exact extended multiplication. Set the provisional
+exponent to `E_A+E_B-16382`. Normalize `P` by left shifts until bit 95 is set,
+subtracting one from the exponent for each shift. Split normalized `P` into
+an 80-bit upper part and a 16-bit remainder. Increment the upper part when the
+remainder exceeds `0x8000`, or equals `0x8000` and the upper part is odd.
+This local rounding is nearest, ties to even, **on the truncated product**;
+there is no sticky bit from omitted products. If incrementing carries beyond
+80 bits, use `M=2^79` and increment the exponent. Otherwise the upper part is
+the new `M`. All operands and products reached by finite binary64 extraction
+are normal in this extended range; extended underflow/overflow branches are
+not needed for this primitive. Evidence: fifteen-product accumulation
+`0x00A04E42`–`0x00A04EB4`, normalization `0x00A04EB6`–`0x00A04EE7`, rounding
+and storage `0x00A04F22`–`0x00A04F8C`. The later **decimal** guard rounding
+remains half-up, a separate operation.
+
+**Scaling constants.** The table gives the raw stored `(E,M)`, in hexadecimal,
+for the powers needed by binary64 extraction. All significands contain exactly
+20 hex digits; the leading integer bit is included. They are data constants,
+not powers to regenerate using host arithmetic. Before using a selected table
+entry, if its low 16 bits are at least `0x8000`, decrement its 32-bit field in
+bits 16–47 by one, leaving the other fields unchanged. For every listed entry
+to which this applies, this is simply `M := M-0x10000`. This adjustment occurs
+on a temporary copy and does not change the table. Do not apply it to the
+separate correction constant below. The argument preserving the low 16 bits of
+the current value is enabled on this path (`0x00A04A75`, `0x00A04FE5`–`0x00A04FED`).
+
+| k | Raw `10^k`: E : M | Raw `10^-k`: E : M |
+|---|---|---|
+| 1 | `4002:A0000000000000000000` | `3FFB:CCCCCCCCCCCCCCCDCCCD` |
+| 2 | `4005:C8000000000000000000` | `3FF8:A3D70A3D70A3D70A3D71` |
+| 3 | `4008:FA000000000000000000` | `3FF5:83126E978D4FDF3B645A` |
+| 4 | `400C:9C400000000000000000` | `3FF1:D1B71758E219652CD3C3` |
+| 5 | `400F:C3500000000000000000` | `3FEE:A7C5AC471B4784230FD0` |
+| 6 | `4012:F4240000000000000000` | `3FEB:8637BD05AF6C69B6A640` |
+| 7 | `4016:98968000000000000000` | `3FE7:D6BF94D5E57A42BC3D33` |
+| 8 | `4019:BEBC2000000000000000` | `3FE4:ABCC77118461CEFDFDC2` |
+| 16 | `4034:8E1BC9BF040000000000` | `3FC9:E69594BEC44DE15B4C2F` |
+| 24 | `404E:D3C21BCECCEDA1000000` | `3FAF:9ABE14CD44753B53C492` |
+| 32 | `4069:9DC5ADA82B70B59EF020` | `3F94:CFB11EAD453994BA67DE` |
+| 40 | `4083:EB194F8E1AE525FD5DD0` | `3F7A:8B61313BBABCE2C62324` |
+| 48 | `409E:AF298D050E4395D79671` | `3F5F:BB127C53B17EC1595561` |
+| 56 | `40B9:82818F1281ED44A0BFF9` | `3F44:FB158592BE068D2FEED7` |
+| 64 | `40D3:C2781F49FFCFA6D53CBF` | `3F2A:A87FEA27A539E9A53F24` |
+| 128 | `41A8:93BA47C980E98CE0C66F` | `3E55:DDD0467C64BCE4A1AC7D` |
+| 192 | `427C:E070F78D3927556B85BC` | `3D81:91FF83775423CC067B63` |
+| 256 | `4351:AA7EEBFB9DF9DE8EDDBC` | `3CAC:C0314325637A193AFA91` |
+| 320 | `4426:81842F29F2CCE376E6A1` | `3BD7:FD00B897478238D18921` |
+
+The first seven positive entries occupy `0x00B19D00`–`0x00B19D48`, the next
+seven start at `0x00B19D54`, and the 64-power group starts at `0x00B19DA8`;
+negative groups start at `0x00B19E60`, `0x00B19EB4`, `0x00B19F08`. Entries
+are 12 bytes apart. Selection, temporary adjustment and multiply are confirmed
+at `0x00A04FF7`–`0x00A05031`.
+
+**Decimal position and order of operations.** For the widened input, set `H`
+to its top significand byte, `floor(M/2^72)`. The initial decimal-position
+estimate is the signed integer
+
+`d = floor((E×0x4D10 + 0x4D×(floor(E/256)+2H) - 0x134312F4) / 65536)`.
+
+The division rounds toward negative infinity, as an arithmetic right shift
+does; do not replace it with truncation toward zero. These integer operations
+do not overflow signed 32 bits for finite binary64 inputs. Scale the working
+value by `10^-d`, decomposing `abs(d)` in base eight. Visit the base-eight
+digits from least significant to most significant. A nonzero digit `r` in
+position `j` selects the table power `k=r×8^j`; select `10^-k` for positive
+`d`, `10^k` for negative `d`. Apply its adjustment, then the legacy multiply,
+before visiting the next digit. A zero digit performs no multiplication;
+`d=0` performs none. Do not combine constants or reverse their order.
+
+If the scaled exponent is at least `0x3FFF`, increment `d` once and apply one
+additional legacy multiply with the fixed constant
+`E=0x3FFB, M=0xCCCCCCCCCCCCCCCCCCCC`. This constant is slightly below one tenth
+and differs from the table's raw and adjusted `10^-1`. There is no reciprocal
+correction for a value just below a decimal boundary. Estimate and one-step
+correction: `0x00A04A42`–`0x00A04AA2`; fixed constant:
+`0x00A0496B`–`0x00A04997`.
+
+**Digit extraction and decimal rounding.** Convert the final scaled `(M,E)`
+to the unsigned fixed-point integer
+`R = floor((M×2^8) / 2^(16382-E))`. Here `E <= 16382`; this conversion
+discards low bits without rounding. Obtain eighteen successive digits: each
+digit is the integer part of `10R / 2^88`, and the new residue is `10R modulo
+2^88`. This is exact integer extraction from that fixed-point value, with no
+further extended or binary64 rounding. Retain the first seventeen characters,
+then increment their decimal magnitude if the eighteenth is at least `5`.
+Propagate carry through `9`s; carry past the first character leaves `1` and
+increments `d`. Omit trailing zeros in the resulting seventeen-character
+field; missing digits at subsequent requested precision mean zeros. Extraction
+can begin with `0` just below a boundary: do not insert a normalization step
+that would change which eighteen digits are generated. The guard rounding
+itself can correct that leading zero. Fixed-point setup:
+`0x00A04AC9`–`0x00A04B07`; digit extraction:
+`0x00A04B09`–`0x00A04B61`; guard, carry and trimming:
+`0x00A04B63`–`0x00A04BC9`. The caller requests seventeen digits with the
+fractional-mode flag off (`0x00A0279E`–`0x00A027AE`).
+
+For example, exact binary64 `1000000000000000.25` (bits `430C6BF526340002`)
+has estimate `d=15`. Its scaling uses adjusted `10^-7`, then adjusted
+`10^-8`, then the separate correction constant, incrementing `d` to 16.
+After those multiplies the significand is `CCCCCCCCCCCCDB362616`, exponent
+`0x3FFB`. Its eighteen extracted characters are `100000000000000024`, so the
+intermediate is `D=10000000000000002, d=16`. Exact rational conversion rounded
+half-up directly to seventeen digits would instead end in `3`. At `%.2f`,
+the legacy result is therefore `1000000000000000.20`, not `.25` or `.30`.
+Even input `1.0` takes the correction multiply: its eighteen characters are
+`099999999999999999`, which guard-round and trim to `D=1, d=1`. These quirks
+are observable at requested precisions beyond the intermediate's digit count.
+
+RZ41–RZ50 below are static deductions from the instructions and stored
+constants, checked by integer reconstruction and exact rational comparison;
+they are not native execution measurements.
+
+#### 5.1.2 Signs, special values and owner field assembly
+
 Both signs of input zero produce unsigned zero digits: the runtime normalizes
 zero's sign (`0x00A04BBB`–`0x00A04BC9`) and the owner's less-than-zero test does
 not extract a minus from negative zero. The owner's `+` or space flag can still
@@ -549,6 +700,16 @@ are part of the expected result.
 | RZ38 | Sprintf `%f`, quiet NaN bits 0x7FF8000000000000; `%g`, same; `%+g`, negative indefinite bits 0xFFF8000000000000 | `1.#QNAN0`; `1.#QNAN`; `+-1.#IND` |
 | RZ39 | Sprintf `%.0f`, `%.2f`, `%.3f` separately, positive infinity | `1`; `1.#J`; `1.#IO` |
 | RZ40 | Sprintf `%.513f`, 1.0; `%#.0g`, 1.0 | `1.` followed by 512 zeros (length 514, successful allocation); `1.` |
+| RZ41 | Magnitude bits `0000000000000001` (smallest positive subnormal); Sprintf `%.20e` | Raw eighteen digits `494065645841246544`; `D=49406564584124654, d=-323`; `4.94065645841246540000e-324` |
+| RZ42 | Magnitude bits `7FEFFFFFFFFFFFFF` (largest finite); Sprintf `%.20e` | Raw `179769313486231570`; `D=17976931348623157, d=309`; `1.79769313486231570000e+308` |
+| RZ43 | Magnitude bits `000FFFFFFFFFFFFF` (largest subnormal); Sprintf `%.16e` | Raw `222507385850720088`; `D=22250738585072009, d=-307`; `2.2250738585072009e-308` |
+| RZ44 | Magnitude bits `0010000000000000` (smallest normal); Sprintf `%.16e` | Raw `222507385850720138`; `D=22250738585072014, d=-307`; `2.2250738585072014e-308` |
+| RZ45 | Bits `430C6BF526340002`, exact `1000000000000000.25`; Sprintf `%.2f` | Raw `100000000000000024`; `D=10000000000000002, d=16`; `1000000000000000.20`; direct exact-to-17-digit half-up would give `D=10000000000000003` |
+| RZ46 | Bits `430C6BF526340006`, exact `1000000000000000.75`; Sprintf `%.2f`; repeat with sign bit set (`C30C6BF526340006`) | Raw magnitude `100000000000000074`; `D=10000000000000007, d=16`; `1000000000000000.70` / `-1000000000000000.70`; exact-to-17-digit half-up would end `8` |
+| RZ47 | Bits `42D6BCC41E900008`, exact `100000000000000.125`; Sprintf `%.3f` | Raw `100000000000000124`; `D=10000000000000012, d=15`; `100000000000000.120`; exact-to-17-digit half-up would end `3` |
+| RZ48 | Bits `3FB999999999999A` (binary64 nearest to 0.1); Sprintf `%.20e` | Raw `100000000000000005`; `D=10000000000000001, d=0`; `1.00000000000000010000e-001` |
+| RZ49 | Bits `3FF0000000000000` (1.0); Sprintf `%.20e` | Raw `099999999999999999`; `D=1, d=1`; `1.00000000000000000000e+000` |
+| RZ50 | Bits `4415AF1D78B58C40` (exact 10^20); Sprintf `%.16e` | Raw `999999999999999999`; guard carry gives `D=1, d=21`; `1.0000000000000000e+020` |
 | DT01 | Fresh base instance; literal `a<b` -> distinct output | true, `a<b`, no callbacks; HTML byte zero |
 | DT02 | Set value `City`=`Oak`; parse `Hi # city #!` | true, `Hi Oak!` |
 | DT03 | Set same key `CITY`=`Elm`; also named callback for `city` | true, `Elm` for `#City#`; callback not invoked |

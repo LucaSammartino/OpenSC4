@@ -117,15 +117,12 @@ pub fn pole_position_axis(cell: i32) -> f32 {
 pub struct PowerLineRecord {
     pub version: u16,
     pub base: OccupantBase,
-    /// u32 `+0x30`.
-    pub field_30: u32,
-    /// u32 `+0x34`, `+0x38`, `+0x3C` (the position floats' bits).
+    /// Position `+0x38` (three float bit patterns).
     pub position_bits: [u32; 3],
-    /// u32 `+0x40`.
-    pub field_40: u32,
-    /// The references written from `+0x4C`, `+0x44`, `+0x48`, in that
-    /// order.
-    pub refs: [RefValue; 3],
+    pub cell: [i32; 2],
+    pub flag: bool,
+    /// The two pole references, in order (NO13).
+    pub refs: [RefValue; 2],
 }
 
 /// `Write` (`0x0064A310`).
@@ -134,11 +131,12 @@ pub fn write_power_line_record(rec: &PowerLineRecord, out: &mut dyn OutStream) -
     if !rec.base.write(out) {
         return false;
     }
-    out.put_u32(rec.field_30);
     for &w in &rec.position_bits {
         out.put_u32(w);
     }
-    out.put_u32(rec.field_40);
+    out.put_i32(rec.cell[0]);
+    out.put_i32(rec.cell[1]);
+    out.put_bool(rec.flag);
     for r in &rec.refs {
         out.put_ref(r);
     }
@@ -146,25 +144,23 @@ pub fn write_power_line_record(rec: &PowerLineRecord, out: &mut dyn OutStream) -
 }
 
 /// `Read` (`0x0064A3A0`): symmetric, references read with IID
-/// `0xA8C86142`. §5.2 states no version check, so none is made (question
-/// NO13); the version read is kept in the record.
+/// `0xA8C86142`. Only version 2 is accepted (NO13).
 pub fn read_power_line_record(inp: &mut dyn InStream) -> Option<PowerLineRecord> {
     let version = inp.get_u16()?;
+    if version != POWER_LINE_RECORD_VERSION {
+        return None;
+    }
     let base = OccupantBase::read(inp)?;
-    let field_30 = inp.get_u32()?;
     let position_bits = [inp.get_u32()?, inp.get_u32()?, inp.get_u32()?];
-    let field_40 = inp.get_u32()?;
-    let refs = [
-        inp.get_ref_as(IID_POWER_POLE)?,
-        inp.get_ref_as(IID_POWER_POLE)?,
-        inp.get_ref_as(IID_POWER_POLE)?,
-    ];
+    let cell = [inp.get_i32()?, inp.get_i32()?];
+    let flag = inp.get_bool()?;
+    let refs = [inp.get_ref_as(IID_POWER_POLE)?, inp.get_ref_as(IID_POWER_POLE)?];
     Some(PowerLineRecord {
         version,
         base,
-        field_30,
         position_bits,
-        field_40,
+        cell,
+        flag,
         refs,
     })
 }

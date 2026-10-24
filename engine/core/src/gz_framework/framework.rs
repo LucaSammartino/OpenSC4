@@ -25,6 +25,13 @@ pub trait Host: References {
     fn exception_dialog(&mut self, text: &str);
 }
 
+pub trait Streams: References {
+    /// Returns the newly retained null stream, or allocation failure.
+    fn create_null(&mut self, input: bool) -> Option<Token>;
+    /// The actual cleared slot is passed through, including failure writes.
+    fn query_into(&mut self, object: Token, iid: u32, out: &mut Option<Token>) -> bool;
+}
+
 #[derive(Debug)]
 pub struct Framework {
     refs: u32,
@@ -36,6 +43,9 @@ pub struct Framework {
     pub ordered_protected: bool,
     scheduling: i32,
     debug_level: u32,
+    propagated_debug_level: i32,
+    streams: [Option<Token>; 3],
+    pub unnamed_flag: u8,
     pub phase: u32,
     pub alternate_loop: bool,
     pub pending_quit: bool,
@@ -54,6 +64,9 @@ impl Default for Framework {
             ordered_protected: false,
             scheduling: 4,
             debug_level: 0,
+            propagated_debug_level: 0,
+            streams: [None; 3],
+            unnamed_flag: 0,
             phase: 0,
             alternate_loop: false,
             pending_quit: false,
@@ -63,6 +76,54 @@ impl Default for Framework {
     }
 }
 impl Framework {
+    /// Borrowed embedded identities; Token models a primary base address.
+    pub fn helper(&self, primary: Token) -> Token {
+        primary + 0xE8
+    }
+    pub fn com(&self, primary: Token) -> Token {
+        primary + 8
+    }
+    pub fn application(&self) -> Option<Token> {
+        self.application
+    }
+    pub fn set_application(&mut self, application: Option<Token>) {
+        self.application = application;
+    }
+    pub fn propagate_debug_level(&mut self, level: i32, mut environment: impl FnMut(&str, &str) -> bool) {
+        self.propagated_debug_level = level;
+        environment("GZFRAMEWORK_DEBUG_LEVEL", &level.to_string());
+    }
+    pub fn stream(&mut self, host: &mut impl Streams, selector: u32) -> Option<Token> {
+        let slot = self.streams.get_mut(selector as usize)?;
+        if slot.is_none() {
+            *slot = host.create_null(selector == 2);
+        }
+        *slot
+    }
+    pub fn query_stream(
+        &mut self,
+        host: &mut impl Streams,
+        selector: u32,
+        iid: u32,
+        out: Option<&mut Option<Token>>,
+    ) -> bool {
+        let Some(out) = out.filter(|_| selector < 3) else {
+            return false;
+        };
+        // Native allocation failure dereferences null; no checked false result.
+        let stream = self.stream(host, selector).expect("null stream allocation failed");
+        host.query_into(stream, iid, out)
+    }
+    pub fn set_stream(&mut self, host: &mut impl Streams, selector: u32, replacement: Option<Token>) -> bool {
+        let Some(slot) = self.streams.get_mut(selector as usize) else {
+            return false;
+        };
+        if let Some(old) = slot.take() {
+            host.release(old);
+        }
+        let Some(replacement) = replacement else { return true };
+        host.query_into(replacement, if selector == 2 { 0x051B11BD } else { 0xC51B11CB }, slot)
+    }
     pub fn query_interface(&mut self, iid: u32, out: &mut Option<Face>) -> bool {
         let face = match iid {
             1 | 0x65 => Face::Primary,
@@ -159,16 +220,20 @@ impl Framework {
         true
     }
     pub fn add_ordered(&mut self, host: &mut impl References, id: u32, order: i32, t: Token) -> Result<bool> {
-        if self.ordered_protected || self.ordered.iter().any(|e| e.0 == id) {
+        if self.ordered_protected {
             return Ok(false);
         }
-        if self.ordered.iter().any(|e| e.1 == order) {
-            return Err(Unsupported("GZF1"));
+        let i = self.ordered.partition_point(|e| e.1 >= order);
+        // Literal traversal contract: duplicate checking stops at insertion.
+        if self.ordered[..i].iter().any(|e| e.0 == id) {
+            return Ok(false);
         }
-        let i = self.ordered.partition_point(|e| e.1 < order);
         host.add_ref(t);
         self.ordered.insert(i, (id, order, t));
         Ok(true)
+    }
+    pub fn ordered(&self) -> impl Iterator<Item = (u32, i32, Token)> + '_ {
+        self.ordered.iter().copied()
     }
     pub fn remove_ordered(&mut self, host: &mut impl References, id: u32) -> bool {
         if self.ordered_protected {

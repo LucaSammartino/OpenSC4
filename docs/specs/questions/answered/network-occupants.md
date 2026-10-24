@@ -1,5 +1,18 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: glue-netocc-shadow5 (2026-10-23) -->
+- ~~**NO45 - §2.3 byte-exact record-shadow comparison versus required Read fixups:**
+  Native Write saves flags unchanged whereas Read clears `0xE000`, forces triangle
+  alpha to `0xFF`, and can change transform mask 7 to 5 at scale 1.0. Which
+  comparison boundary applies, including inherited underground records? The test
+  `native_read_fixups_prevent_an_unconditional_byte_round_trip` demonstrates the
+  flags counterexample. [implementation held pending contract]~~
+  **ANSWERED 2026-10-23 (coordinator's harness decision):** normalize native Write
+  using exactly the documented Read fixups: clear flags `0xE000`, force triangle
+  alpha `0xFF`, change transform mask 7 to 5 when scale is 1.0 (omit scale bytes).
+  This is the native save/reload reference. Count changed fields separately as
+  `fixups=N` on every line; every other byte must match. Live Read is unchanged.
+
 <!-- from: core-netocc-poles5 (2026-10-23) -->
 - ~~**NO44 - §6.1 constructor enum defaults:** what initial 32-bit values does the pylon constructor assign to UI state +6C, dispatch state +70 and dispatch type +74? The published constructor defaults cover dirty, references, transform, call, blink, drag and the v5 tail but do not specify these three values. [unpublished; core construction requires the three values as explicit inputs rather than assuming zero]~~
   **ANSWERED 2026-10-23 (re-netocc-poles5):** DIFFERS — §6.1 and §13 test 45: UI=1,

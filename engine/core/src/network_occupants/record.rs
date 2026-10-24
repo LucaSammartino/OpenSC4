@@ -11,13 +11,13 @@
 //! NO15/NO16: one quad of four 24-byte vertices, the four scalars after it,
 //! the cell-info sub-record, 76-byte triangles (alpha forced on read), the
 //! interleaved bounding box, `ConvertV5FlagsToCurrentFlags` below v6, the
-//! v < 7 / v < 8 read tail (as [`LoadEffects`]) and the reference + int64
+//! v < 7 / v < 8 read tail (as [`LoadEffects`]) and the resource key + int64
 //! in every version. The final render-state alpha fix-up needs the model
 //! instance and is [`NetworkBaseRecord::finish_read_alpha`].
 
 use super::xform::Xform;
 use crate::automata::OccupantBase;
-use crate::stream::{InStream, OutStream, RefValue};
+use crate::stream::{InStream, OutStream, ResKey};
 
 /// The version `Write` emits.
 pub const NETWORK_RECORD_VERSION: u16 = 8;
@@ -27,10 +27,6 @@ pub const NETWORK_RECORD_MIN_VERSION: u16 = 4;
 pub const SAVED_FLAGS_MASK: u32 = 0xFFFF_1FFF;
 /// The cell-info sub-record's only accepted version.
 pub const CELL_INFO_VERSION: u16 = 2;
-/// The IID `Write` QIs the `+0x140` reference for (segment-o-stream QI).
-pub const IID_OWNED_REF_WRITE: u32 = 0x6999_A8FB;
-/// The IID `Read` reads the `+0x140` reference as.
-pub const IID_OWNED_REF_READ: u32 = 0xA966_7793;
 /// The property the v < 7 tail sets to `(z << 16) + x` (slot 72).
 pub const PROP_LEGACY_CELL: u32 = 0x4835_C6AB;
 /// The empty property every v < 8 tail adds (slot 7 with 1).
@@ -135,8 +131,10 @@ pub struct NetworkBaseRecord {
     /// The two f32 offsets of a v < 7 record with a non-zero path id
     /// (never written by the current writer).
     pub legacy_offsets: Option<[f32; 2]>,
-    /// `+0x140`.
-    pub owned_ref: RefValue,
+    /// The resource key saved for cached path info `+0x140`, not an object
+    /// reference. All-zero means absent. This segment-record codec retains
+    /// the key; resolving the live resource belongs to the host (§2.3 field 12).
+    pub path_info_key: ResKey,
     /// `+0x170` (low) / `+0x174` (high).
     pub int64: i64,
 }
@@ -159,7 +157,7 @@ impl Default for NetworkBaseRecord {
             network_flags: 0,
             path_id: 0,
             legacy_offsets: None,
-            owned_ref: RefValue::Null,
+            path_info_key: ResKey::default(),
             int64: 0,
         }
     }
@@ -266,7 +264,7 @@ impl NetworkBaseRecord {
     }
 }
 
-/// `Write` (`0x0061A190`): always version 8; false (and nothing after it)
+/// Segment-stream `Write` (`0x0061A190`): always version 8; false (and nothing after it)
 /// when the occupant base record fails; else true when the stream has no
 /// error afterwards.
 pub fn write_network_record(rec: &NetworkBaseRecord, out: &mut dyn OutStream) -> bool {
@@ -303,12 +301,12 @@ pub fn write_network_record(rec: &NetworkBaseRecord, out: &mut dyn OutStream) ->
     }
     out.put_u32(rec.network_flags);
     out.put_u32(rec.path_id);
-    out.put_ref(&rec.owned_ref);
+    out.put_res_key(rec.path_info_key);
     out.put_i64(rec.int64);
     out.error() == 0
 }
 
-/// `Read` (`0x0061CC00`) into a fresh record. `None` for a version below 4
+/// Segment-stream `Read` (`0x0061CC00`) into a fresh record. `None` for a version below 4
 /// (only the u16 read), a failed occupant base, a short stream or a stream
 /// error. A cell-info version other than 2 consumes only its u16 and the
 /// read **continues** (the caller ignores that result; the stream is then
@@ -371,7 +369,7 @@ pub fn read_network_record(inp: &mut dyn InStream) -> Option<NetworkBaseRecord> 
     if rec.path_id != 0 && rec.version < 7 {
         rec.legacy_offsets = Some([inp.get_f32()?, inp.get_f32()?]);
     }
-    rec.owned_ref = inp.get_ref_as(IID_OWNED_REF_READ)?;
+    rec.path_info_key = inp.get_res_key()?;
     rec.int64 = inp.get_i64()?;
     if inp.error() != 0 {
         return None;

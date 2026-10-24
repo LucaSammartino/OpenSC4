@@ -357,6 +357,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "advisors_shadow",
                                   // Read-only overlay getter contracts; full record walk awaits OV12.
                                   "overlays_shadow",
+                                  "netocc_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

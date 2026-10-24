@@ -123,6 +123,27 @@ type (`ReloadNetworkSpecificInfo`, `0x00657980`).
 A tool must be `Init`ed before use and `Shutdown` after. The network manager's shared tools (`GetNetworkTool(type,
 false)`) and private ones (`true`) behave the same (network-manager.md §7.1).
 
+### 2.1 Public result observation (NT27)
+
+After synchronous slot 7 returns, and before another draw, `Reset` or `Shutdown`, slots 23/25/26/27 expose the
+**current drag**, its valid steps, straight steps and total steps respectively. Slot 23 takes a caller-owned
+vector of pairs of signed 32-bit cell coordinates `(x, z)` and **assigns a copy** of the tool's entire dragged-cell
+vector to it, replacing previous contents; it neither lends internal storage nor transfers occupant references.
+The Windows vector has begin/end/capacity pointers and 8-byte elements; use the public SDK's compatible container
+contract, not a pointer into the tool. The caller owns and destroys the copy; subsequent tool operations do not
+change it (`0x0062CA30`–`0x0062CA3F`, assignment `0x00611B00`–`0x00611BCF`). Counts are 32-bit values, not cell-vector
+lengths (`0x00407AB0`, `0x00407AC0`, `0x00809240`). Slot 7 clears its temporary anchors and restores insert data4,
+but does not reset these results. A failed validation may therefore expose a nonempty full drag with zero valid
+steps. **There is no public cISC4NetworkTool getter for solved records, type masks, piece IDs or orientation**:
+slot 23 contains coordinates only, and slots 0–50 of `0x00AA8748` provide no solved-vector accessor. The internal
+12-byte solved records in §2 are not a public ABI. A city occupant query after successful real placement observes
+committed occupants, not the solver's ordered record inventory (which can include re-solved neighbours). A shadow
+using only these tool getters can compare drag/status/cost; it cannot claim solved-piece/type/orientation coverage.
+Bridge candidate getters likewise do not expose the final solved records. Power-line placement and cost use the
+subclass contracts (§9, [power-line-tool.md](power-line-tool.md)); bridges require the actual type/model resources
+([network-bridges.md](network-bridges.md)). Missing adapters or literal zero Init inputs are not native defaults
+and do not make these paths comparable.
+
 ---
 
 ## 3. PlaceNetworkOccupants (slot 7, `0x00629210`, pop 32, returns AL)
@@ -189,6 +210,37 @@ Anchors cleared; `+0x208 := 1` (`0x00629980`); return the result.
 - It draws **no random numbers**. There is no call to the `cRZRandomSuper` draw `0x00913A06` anywhere in
   `0x00620000`–`0x0065FFFF`; the network-side callers are the construction crew and the network lot manager only.
 - A failed validation places **nothing** of that run (§5.2), and the call returns false.
+
+### 3.5 Ordered dragged-cell footprint (NT28)
+
+Slot 23 copies the flat **dragged-cell** vector, including every cell of every step, in stored order. It does
+not return one representative cell per step, filter to valid steps, or append the separate extra-cell inventory
+used by intersection auto-complete. In particular, a one-cell-wide diagonal staircase has two cells in many
+steps. The statement in network-geometry §3.3 that width 1 has one cell per step applies to straight runs only.
+The following specifies the footprint before existing-network alignment or auto-connection changes it.
+
+Use the adjusted endpoints and axis outputs of network-geometry §3.2. The major axis is x when `abs(dx) > abs(dz)`,
+otherwise z. Group the axis-aligned staircase positions into rows of constant major coordinate. The staircase
+moves toward the end along the larger remaining absolute delta; on equality it takes the **other axis from the
+previous move**, with the initial previous move treated as x (so the first equal-delta move is z). Each row's
+minor-coordinate interval includes **all** positions visited at that major coordinate. Thus a diagonal's
+intermediate turn cell belongs to the same step as its row neighbour, rather than becoming an extra step or an
+extra-cell record (`0x00639810`–`0x0063990B`).
+
+Widen those intervals with the type's two widths `w1, w2` (network-geometry §2.3). The widening side is negative
+minor coordinates for x-major/end-direction 1 or 3, or z-major/end-direction 1 or 7; otherwise positive. Widening
+means extending only that side by `width − 1`. Use `w1` on the straight-prefix rows. On the remaining diagonal
+rows use `w2`: widen the first such row only if there was a straight prefix or its interval is a singleton;
+widen interior rows; widen the last row only if its interval is a singleton. These endpoint tests prevent
+widening an already two-position diagonal endpoint a second time (`0x0063990B`–`0x00639A0F`).
+
+Rows are emitted from the start toward the end along the major axis. **Within each row, minor coordinates are
+always increasing**, including reversed drags; neither radial distance from the start nor pointer/set order
+determines the width order (`0x00639AF7`–`0x00639D66`). For a two-wide horizontal run at z=28, away from existing
+networks, each x row is `(x,27),(x,28)`. Reversing the drag reverses the x rows, not those two cells within a row.
+Existing-network alignment and auto-connection can subsequently shift or extend this same vector
+(`0x00639D66`–`0x0063A633`; network-geometry §3.3); sample the final copy, not a reconstruction from the original
+endpoints. Validation does not truncate this public footprint to its valid prefix.
 
 ---
 
@@ -262,9 +314,21 @@ A failing run inserts nothing, and the solved set is empty. But:
 
 - the world cache was already cleared at §3.1 step 5 (real mode);
 - the failure code stays in `+0x20C` until the next `PlaceNetworkOccupants` or `ClearFailureReason` (slot 13);
-- `GetFailureState` (slot 14) returns it.
+- `GetFailureState` (slot 14) returns **whether it is nonzero**, not the code itself (§5.3).
 
 ### 5.3 Failure codes and reason strings
+
+**NT28, public versus internal failure.** Slot 14 (`0x0062C8F0`–`0x0062C8FD`) returns exactly 0 or 1 in EAX:
+0 when the internal reason is zero, 1 otherwise. Its Boolean result must not be compared with the internal
+`F000xxxx` reasons below. The observed rail, avenue and crossing `failure=1` is this normalization, not a special
+literal-1 validation reason. The default stop-on-failure contract is still §5.1: a **nonempty** run refused by
+validation/solve has valid=0 and returns false; the empty-drag early success is a separate case. A replay returning
+true/failure=0/valid=0 for a refused nonempty run has lost the failure, even though its valid count agrees. These
+public values alone cannot identify which terrain/reservation/solve test refused a particular city drag; no new
+rail or avenue rejection rule can be inferred from the Boolean 1. Apply the existing passes and their native
+terrain, occupant and resource inputs. `ClearFailureReason` clears the internal reason and hence makes slot 14
+return 0, without rebuilding the drag. This corrects the former claim here and in the ABI notes that slot 14
+returns the raw code.
 
 The UI shows the reason string. `GetFailureReasonString` (slot 52, `0x0062BF60`; the power-line tool's
 `0x0064F570`) loads the LTEXT with instance = the
@@ -396,13 +460,54 @@ The tool only **prices**. It never touches the budget. The price of the current 
 |---|---|
 | demolition | `+0x220` (the demolition cost of what the drag clears, from `UpdateOccupantHighlights`) |
 | earthwork | `S := Σ abs(corner height − terrain altitude)` over the 4 corners of every solved cell, accumulated in a float (terrain slot 12 at the corner vertex). Then `r24(S × +0x328 + 12582912.0f)`, stored as a float, whose bit pattern minus `0x4B400000` is the integer (`0x00625834`–`0x0062584F`). This rounds to nearest, half to even, for values below 2²² |
-| cells | over every solved cell that is part of the run (cell record `+0x10`) and was not already built (`+0x52 = 0`): the **largest** per-type cell cost among the types in the cell's type mask. The per-type cost table is at `0x00B453A4`, stride `0x114`, filled from the network exemplars *[inferred]* |
+| cells | over every solved cell that is part of the run (cell record `+0x10`) and is not marked as an intersection cell (`+0x52 = 0`): the **largest unsigned** per-type cell cost among the types in the cell's type mask, starting at 0. The per-type cost table is at `0x00B453A4`, stride `0x114`, filled from the network exemplars (network-geometry §11) |
 | bridges | per bridge: `(end − start) × (bridge per-cell cost + +0x320) + bridge fixed cost` (bridge **type** `+0x154`, `+0x150`, 0 for every shipped type; network-bridges.md §12) |
 | tunnels | per tunnel: `(end − start) × +0x324` |
 | intersections | per highway intersection: its rule's cost (rule `+0xB4`) |
 
 The power-line tool has its own `GetCostOfSolution` (`0x0064F0F0`, network-geometry.md §11). The per-type values
 are the placement exemplars' (network-geometry.md §2.4, NT2).
+
+#### 8.1.1 Retained solution and post-commit terrain (NT29)
+
+Each call prices the tool's **retained solved-vector entries**, in their current order, looking up each entry's
+cell key through the world cache (`0x00625647`–`0x0062568D`). It does not iterate slot 23's drag vector, the extra
+cells, the smoothing set, or every cached cell. A missing cell info contributes nothing; `GetCellInfo` first
+uses the cache and computes/stores a cell info on a miss (`0x00633220`–`0x00633241`). The solved vector can contain
+neighbours added during commit (§6.1), so the drag footprint is **not** a universal cost inventory. A simple new
+road with no re-solved neighbours nevertheless has a solved cell for each staircase footprint cell: the
+intermediate cells from §3.5 are ordinary run cells and incur the normal cell cost.
+
+For each available cell info retain its type mask, run-membership byte `+0x10`, intersection marker `+0x52`,
+four corner heights `+0x58..+0x64`, and corresponding vertex IDs `+0xA8..+0xB4`. Cell cost requires run membership
+and a clear intersection marker; **earthwork is evaluated regardless of both bytes**. The marker is set/cleared
+by `MarkIntersection` (`0x0063B180`–`0x0063B184`); it does not mean "already built". Commit's placed byte `+0x51`
+does not suppress cell cost. Consequently repeating a flat existing road can still cost 110 for eleven cells;
+the getter does not deduct construction cost just because an occupant now exists there *[quirk]*.
+
+At the time of the getter, for each corner subtract the **live terrain altitude at its stored vertex ID** from
+that cell's retained network corner height and take the absolute difference. Do not substitute the cached
+pre-edit terrain snapshot, a new height solve against post-commit terrain, or the terrain satisfier's target
+heights for the retained network corners. Commit first applies the terrain satisfier (`+0x188`) through slot 57,
+then refreshes the smoothing cells' network corners from slot 73 (`+0x124` network satisfier, with live terrain
+fallback; `0x00629D47`–`0x00629D7D`, `0x006444F0`–`0x00644523`). Changed existing occupants may add solved entries.
+Keep that final solution and those refreshed cell infos through the post-commit sample. Insertion sets placed
+state but does not replace this inventory with a fresh occupant scan.
+
+The price getter calls terrain slot 12 anew for **each** corner of each solved entry, including repeated vertex
+IDs shared between cells. Accumulate in solved-entry/corner order, rounding the running sum to float32 **after
+each addition** (`0x006256DB`–`0x0062570E`). Only then multiply by the earthwork factor, add 12582912, round to
+float32 and interpret the bits as described above (`0x0062582A`–`0x00625859`); there is no deduplication of vertex
+charges or per-cell integer rounding. Slot 57 changes terrain only for a difference strictly greater than
+0.001 (`0x006445A3`–`0x006445D1`), so even a supported ordinary road need not have exactly zero post-commit height
+residual. Supported/elevated pieces can retain larger network-to-ground differences.
+
+The reported 110/113 and 55/61 mismatches cannot be repaired by an additive adjustment or assumed tolerance.
+They require the same final solved entries, retained network heights, intersection flags and live terrain reads.
+The public totals do not reveal the individual residuals. The 170/102 and 90/54 diagonal results also require
+the full staircase inventory; with road cost 10, zero other charges and flat terrain, seventeen and nine new
+run cells cost **170** and **90**, respectively. Bridge and power-line prices additionally require their own
+retained records/resources; the generic per-cell formula cannot stand in for those owners.
 
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
@@ -721,12 +826,16 @@ So network-manager.md §8.8's pothole calls are:
 | 8 | +0x20 | `0x00624FD0` | `PlaceNetworkOccupantById(x, z, piece, usable, type)` | 20 | — |
 | 9 | +0x24 | `0x006248D0` | `OccupantExists(x, z, mask, &id)` (zones.md §8.8) | 16 | AL |
 | 13 | +0x34 | `0x0062C8E0` | `ClearFailureReason` | 0 | — |
-| 14 | +0x38 | `0x0062C8F0` | `GetFailureState` (`+0x20C`) | 0 | EAX |
+| 14 | +0x38 | `0x0062C8F0` | `GetFailureState` (`+0x20C != 0`) | 0 | EAX = 0 or 1 |
 | 18 | +0x48 | `0x0063AF40` | `DrawNetworkLine(&start, &end, snap, type)` (network-geometry.md §3) | 16 | AL |
 | 19 | +0x4C | `0x0063BDC0` | `PlaceAllSegments(commit, preview, neighbour, type)` | 16 | — |
 | 20 | +0x50 | `0x00625640` | `GetCostOfSolution` | 0 | EAX |
 | 21 | +0x54 | `0x0062C8D0` | `EnablePreviewUpdate(bool)` (`+0x234`) | 4 | — |
 | 22 | +0x58 | `0x0062CA20` | `SetAnchorPoints(&points)` | 4 | — |
+| 23 | +0x5C | `0x0062CA30` | `GetDraggedCells(&out)`; replaces caller's coordinate vector (§2.1) | 4 | — |
+| 25 | +0x64 | `0x00407AB0` | valid step count (`+0x78`) | 0 | EAX |
+| 26 | +0x68 | `0x00407AC0` | straight step count (`+0x74`) | 0 | EAX |
+| 27 | +0x6C | `0x00809240` | total dragged step count (`+0x70`) | 0 | EAX |
 | 50 | +0xC8 | `0x0062A5C0` | `DestroyOccupantsAndResolve(&list)` | 4 | — |
 | 52 | +0xD0 | `0x0062BF60` | `GetFailureReasonString` (class method, 2 dword arguments) | 8 | — |
 | 53 | +0xD4 | `0x0062C980` | `DoNetworkSpecificPlacement(arg3, neighbourMode)`; base returns false | 8 | AL |
@@ -759,6 +868,11 @@ original's layout *[choice]*. The pops agree with docs/abi/interfaces.tsv.
 
 ## 16. Answers given here
 
+- **NT27:** §2.1 and §14 define the public copy/count contract. No public solved-record getter exists;
+  drag/status/cost comparisons cannot certify solved pieces, types or orientation.
+- **NT28:** §3.5 specifies staircase rows and increasing width order; §5.3 corrects slot 14 to a Boolean.
+- **NT29:** §8.1.1 defines retained solved-entry/corner inputs, live terrain, intersection cost exclusion and
+  repeated-placement pricing. Tests 20–30 below cover these three answers.
 - **NM5** (network-manager.md §15): confirmed, §13.2. MATCHES.
 - **zones.md §14.3 Q1(a)**, the street tool's `PlaceNetworkOccupants`:
   - when it fails: §5.1, §5.3;
@@ -809,7 +923,7 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
    10) with `callback = roadTool`. The street run covers (11..14, 10). Then
    `roadTool.PlaceNetworkOccupants(10, 10, 11, 10, 0, null, true, −1)` is called once.
 8. **Failure leaves nothing** (§5.2). A road run across a cell with a building that may not be demolished → false;
-   `GetFailureState() = 0xF0000002`; no occupant inserted; no money withdrawn.
+   internal reason `0xF0000002`, public `GetFailureState() = 1`; no occupant inserted; no money withdrawn.
 9. **UI pricing** (§8.2). A player drag priced 150 with funds 100 → `WithdrawFunds(150)` fails; nothing is built;
    funds stay 100. Priced 150 with funds 1 000 → funds 850, then the road is built.
 10. **Negative price** (§8.2). If `GetCostOfSolution` returns −1, `WithdrawFunds` receives `0x00000000FFFFFFFF` and
@@ -845,3 +959,51 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
     `SetState(1)`.
 19. **PlaceNetworkOccupantById** (§4). `(7, 9, 0x100, false, 0)` → one occupant at (7, 9) with flag `0x4000` still
     set (not usable), inserted with data4 1. With `usable = true`, it is usable and `0x4000` is clear.
+20. **Public copy survives the next drag** (NT27). Real, mask-zero road (4,4)–(14,4), successful on flat empty
+    terrain: copy slot 23 into an output vector initially holding `(99,99)`. It now holds exactly
+    `(4,4),(5,4),…,(14,4)`; slots 25/26/27 return 11/11/11. Draw (30,30)–(32,30) on the same tool. The old caller
+    copy still has eleven entries; another slot-23 call replaces it with the three new cells. No occupant
+    references are acquired or released by either coordinate copy.
+21. **Seventeen cells, nine steps** (NT28). Road, mask=0, snap=false, (20,4)–(28,12), with no adjacent networks:
+    slot 23 is `(20,4), (20,5),(21,5), (21,6),(22,6), …, (27,12),(28,12)` (17 cells). Its step intervals are
+    `[0,0],[1,2],[3,4],…,[15,16]`; total=9, straight=0, and valid=9 on successful placement. On flat empty land
+    with the shipped road cell cost, zero demolition and zero earthwork, cost=170. The turn cells are ordinary
+    drag cells; the extra-cell vector is empty.
+22. **Shared-endpoint diagonal footprint** (NT28). The unaligned draw (14,4)–(18,8) gives
+    `(14,4),(14,5),(15,5),(15,6),(16,6),(16,7),(17,7),(17,8),(18,8)`: nine cells, five steps, straight=0.
+    With no joins/re-solved neighbours and otherwise the pricing conditions of test 21, cost=90. Existing
+    endpoint networks may alter the solve, but do not justify reducing the base footprint to five cells.
+23. **Width ordering in both directions** (NT28). Two-wide avenue, no existing networks, horizontal
+    (4,28)–(16,28): slot 23 is `(4,27),(4,28),(5,27),(5,28),…,(16,27),(16,28)`; 26 cells, 13 total and straight
+    steps. Reverse endpoints: `(16,27),(16,28),…,(4,27),(4,28)`. Vertical (4,28)–(4,30):
+    `(3,28),(4,28),(3,29),(4,29),(3,30),(4,30)`. These are draw results regardless of a later validation refusal.
+24. **Boolean failure and retained footprint** (NT28). For a nonempty 13-step draw whose validation pass cuts
+    valid steps and sets reason `0xF0000002`, default stop-on-failure gives slot-7 AL=false, slot-14 EAX=1,
+    slot-25=0, slot-27=13. Slot 23 still returns the full drawn footprint. A refusal with reason `0xF0000006`
+    also exposes EAX=1, not that reason code. `ClearFailureReason` then gives EAX=0 without changing the copied
+    footprint. This fixture distinguishes the empty-drag early success from a refused nonempty drag.
+25. **Post-commit height source** (NT29; abstract pricing fixture). One retained solved run cell, mask road,
+    intersection marker clear, retained network corners `(4,4,4,4)`, live terrain at its four vertex IDs
+    `(4,4,4,4)`, cached old terrain `(0,0,0,0)`, earthwork factor=1, cell cost=10, all other charges zero:
+    cost=10. Changing just the live terrain to `(3,3,3,3)` gives cost=14 on the next getter call. Neither call
+    changes the retained network heights or starts another solve.
+26. **Intersection marker versus placed state** (NT29; same pricing fixture). Set placed byte `+0x51=1`:
+    cost remains 14. Set intersection marker `+0x52=1`: cost=4, since only the cell charge is excluded.
+    Clearing run membership also excludes the cell charge but retains earthwork=4. Already existing ordinary
+    road occupants are not an independent cost exemption.
+27. **Inventory and shared corners** (NT29; abstract pricing fixture). Two adjacent retained solved cells,
+    neither a run cell, all eight retained corner values 1, corresponding live terrain all zero, factor=1:
+    cost=8, including the shared edge's two vertex IDs twice. Add an unrelated cached or extra cell that is
+    absent from the solved vector: cost stays 8. Mark one solved cell as part of the run, mask road+street,
+    with costs 10 and 5: cost=18, using the maximum 10 once rather than their sum.
+28. **Repeat road still has a cell charge** (NT29). Repeat test 20's eleven-cell flat road with unchanged
+    terrain and no special intersection marker. When the solved inventory remains those ordinary run cells,
+    cost is again 110. The new call may have zero earthwork; the existing occupants do not make cell cost zero.
+29. **Post-commit neighbour is priced** (NT29; abstract pricing fixture). A solved non-run neighbour appended
+    during commit has four retained network corners 2 above its live terrain. With factor=1 it adds 8 earthwork
+    and zero cell cost, even though it is absent from slot 23. Merely caching that neighbour without adding a
+    solved entry contributes zero.
+30. **Power-line and bridge observation boundary** (NT27). After a successful subclass placement, copy/count
+    getters still report the current drag, but their coordinate pairs contain no pole, wire or bridge piece ID.
+    Reading them cannot turn an unwired generic adapter into a comparison of those pieces. Use the subclass
+    cost and placement contracts; retain a recorded mismatch until the adapters and resources agree.

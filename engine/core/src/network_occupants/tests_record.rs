@@ -12,7 +12,7 @@ use super::record::*;
 use super::underground::*;
 use super::xform::*;
 use crate::automata::OccupantBase;
-use crate::stream::{ByteReader, ByteWriter, InStream, OutStream};
+use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, ResKey};
 
 fn f(b: &[u8], at: usize) -> f32 {
     f32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
@@ -200,9 +200,9 @@ fn base_len(r: &NetworkBaseRecord) -> usize {
 fn network_record_v8_layout_and_round_trip() {
     let r = sample_network_record();
     let b = encode(&r);
-    // 2 + base + xform + 96 + 10 + (8 + 5·2) + 4 + 76·1 + 24 + 4 + 4 + ref 4 + 8.
+    // 2 + base + xform + 96 + 10 + (8 + 5·2) + 4 + 76·1 + 24 + 4 + 4 + key 12 + 8.
     let bl = base_len(&r);
-    assert_eq!(b.len(), 2 + bl + 13 + 96 + 10 + 18 + 4 + 76 + 24 + 4 + 4 + 4 + 8);
+    assert_eq!(b.len(), 2 + bl + 13 + 96 + 10 + 18 + 4 + 76 + 24 + 4 + 4 + 12 + 8);
     // Vertex 0: x, y, z, u, v then R, G, B, A of 0xFF112233.
     let q = 2 + bl + 13;
     assert_eq!(f(&b, q + 4), 1.0);
@@ -256,7 +256,7 @@ fn old_version(r: &NetworkBaseRecord, version: u16, offsets: Option<[f32; 2]>) -
     let mut b = encode(r);
     b[0..2].copy_from_slice(&version.to_le_bytes());
     if let Some([dx, dz]) = offsets {
-        let at = b.len() - 12; // before the null ref (4) and the i64 (8)
+        let at = b.len() - 20; // before the resource key (12) and the i64 (8)
         let mut ins = dx.to_le_bytes().to_vec();
         ins.extend_from_slice(&dz.to_le_bytes());
         b.splice(at..at, ins);
@@ -301,6 +301,56 @@ fn network_record_old_versions_and_tail() {
     assert_eq!(back.network_flags, 0x0800_0001);
     // v3 rejected.
     assert!(read_network_record(&mut ByteReader::new(&old_version(&r, 3, None))).is_none());
+}
+
+#[test]
+fn network_path_info_is_a_resource_key_in_every_version() {
+    let mut rec = sample_network_record();
+    rec.path_id = 9;
+    for key in [
+        ResKey::default(),
+        ResKey {
+            type_id: 0x2966_7894,
+            group: 0x1122_3344,
+            instance: 0x5566_7788,
+        },
+    ] {
+        rec.path_info_key = key;
+        for version in 5..=8 {
+            let offsets = (version < 7).then_some([0.0, 0.0]);
+            let bytes = old_version(&rec, version, offsets);
+            let at = bytes.len() - 20;
+            assert_eq!(&bytes[at..at + 4], &key.type_id.to_le_bytes());
+            assert_eq!(&bytes[at + 4..at + 8], &key.group.to_le_bytes());
+            assert_eq!(&bytes[at + 8..at + 12], &key.instance.to_le_bytes());
+            assert_eq!(&bytes[at + 12..], &rec.int64.to_le_bytes());
+            let mut input = ByteReader::new(&bytes);
+            let back = read_network_record(&mut input).unwrap();
+            assert_eq!(back.path_info_key, key);
+            assert_eq!(back.int64, rec.int64);
+            assert_eq!(input.error(), 0);
+            assert!(input.get_u8().is_none());
+            for end in at..bytes.len() {
+                assert!(read_network_record(&mut ByteReader::new(&bytes[..end])).is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn native_read_fixups_prevent_an_unconditional_byte_round_trip() {
+    // Literal §2.3 Read behavior, not a divergence to repair for a shadow.
+    // NO45 asks how a raw-record shadow should account for these mutations.
+    let mut rec = sample_network_record();
+    rec.network_flags = 0x0600_8000;
+    let original = encode(&rec);
+    let loaded = read_network_record(&mut ByteReader::new(&original)).unwrap();
+    assert_eq!(loaded.network_flags, 0x0600_0000);
+    let rewritten = encode(&loaded);
+    let flags = original.len() - 28;
+    assert_eq!(&original[flags..flags + 4], &[0, 0x80, 0, 6]);
+    assert_eq!(&rewritten[flags..flags + 4], &[0, 0, 0, 6]);
+    assert_ne!(original, rewritten);
 }
 
 #[test]

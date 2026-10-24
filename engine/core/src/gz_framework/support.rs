@@ -72,8 +72,16 @@ pub struct Support {
     pub random_seed_argument: u32,
 }
 impl Support {
-    pub fn query_interface(&self, _iid: u32) -> Result<()> {
-        Err(Unsupported("GZF10"))
+    pub fn query_interface(&mut self, iid: u32, this: Token, out: &mut Option<Token>) -> bool {
+        if iid != 0x452294AA {
+            return false;
+        }
+        self.add_ref();
+        *out = Some(this);
+        true
+    }
+    pub fn destroyed(&self) -> bool {
+        self.refs.is_destroyed()
     }
     pub fn new(kind: Kind) -> Self {
         let mut ids: Vec<_> = match kind {
@@ -116,10 +124,20 @@ impl Support {
     pub fn add_ref(&mut self) -> u32 {
         self.refs.add_ref()
     }
-    pub fn release(&mut self, host: &mut impl Host, this: Token) -> u32 {
+    pub fn release(&mut self, host: &mut impl Host, _this: Token) -> u32 {
         let n = self.refs.release();
         if self.refs.is_destroyed() {
-            self.shutdown(host, this);
+            // FinalRelease destroys storage, but never replays public Shutdown.
+            self.notifications.clear();
+            self.pending_waits.clear();
+            if self.kind == Kind::Misc {
+                if let Some(c) = self.commands.take() {
+                    host.release(c);
+                }
+                if let Some(m) = self.messages.take() {
+                    host.release(m);
+                }
+            }
         }
         n
     }

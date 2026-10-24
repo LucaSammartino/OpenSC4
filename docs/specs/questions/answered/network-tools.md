@@ -39,3 +39,62 @@
   final-anchor/step direction, candidate border and validation, regional type 4, failure returns
   without failure-code writes, append-only paired vectors and no consent UI or preview creation
   inside Attempt. The wrapper's separate Place call remains governed by NT20.
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-23) -->
+- ~~**NT27 - same-process scripted placement result observation:** specify a public-interface
+  observation contract for native solved cells with network types, piece IDs and orientation
+  after slot 7, and confirm slots 23/25/26/27 expose the ordered dragged cells and current
+  valid/straight/total step counts after real placement, before Shutdown. Section 2 names
+  internal offsets but does not define a public solved-record getter or its ownership/layout.
+  [compare only public drag/status/cost getters; never invent class-method signatures or
+  read undocumented object storage; solved piece/type coverage remains unverified]
+  The existing plugin host also leaves bridge types/models and powerline-specific placement
+  unwired. The diagnostic replay uses the existing adapter's literal zero underground Init
+  values, shipped geometry parameters and zero demolition cost: its differences in these
+  paths are recorded, not suppressed or credited as exact whole-owner coverage.~~
+  **ANSWERED 2026-10-24 (re-nettool-nt27):** MATCHES — network-tools §2.1/§14 and tests 20/30:
+  slot 23 assigns a caller-owned coordinate-vector copy; 25/26/27 return current valid/straight/total
+  step counts before Reset/Shutdown. No public solved-record getter exists; coordinates do not
+  certify type/piece/orientation or missing bridge/power-line adapters. Original entry recovered
+  from glue-nettool-shadow5 because this lane's base predates its filing.
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
+- ~~**NT28 - observed public result differences in Konradshohe:** run
+  nettool-shadow5-r1-20261024-a is clean through 2032-01-02, but the original road
+  (20,4)-(28,12) getter returns 17 dragged cells where the core returns 9 (both
+  total=9, straight=0, valid=9). Avenue (4,28)-(16,28) returns 26 cells in a
+  different order from the core's 26. What is the ordered slot-23 projection
+  relative to geometry's drag cells/extra cells, including width ordering?
+  Rail (4,24)-(16,24) and avenue (4,28)-(16,28) return false, failure=1,
+  valid=0; the core returns true, failure=0, valid=0. Which failure path yields
+  literal 1 (rather than the section 5.3 F000xxxx codes), and what rule is
+  missing from the documented validation contract? The lowered-strip bridge
+  attempt has native valid=17 versus core 0; powerline has 13 versus 0
+  (known unwired adapter paths). [retain all differences, no exact owner credit;
+  costs are sampled against post-commit terrain in subsequent source so that
+  pre/post terrain phases are not mistaken for an engine cost difference]~~
+  **ANSWERED 2026-10-24 (re-nettool-nt27):** DIFFERS — network-tools §3.5/§5.3, tests 21–24:
+  slot 23 includes all staircase turn cells, grouped in major-axis steps; minor coordinates
+  increase within each step even on reversal. Extra cells are a separate inventory. Slot 14
+  is a normalized Boolean, not the internal F000xxxx code: every nonzero reason yields 1.
+  A refused nonempty run returns false with default stop-on-failure. Boolean logs cannot identify
+  the specific rejecting pass. Original entry recovered from glue-nettool-shadow5.
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
+- ~~**NT29 - cost/height replay observations:** corrected-source turbo run
+  nettool-shadow5-r1-20261024-b is clean to 2032-01-02. Both cost getters now
+  read the live post-commit terrain, yet road (4,4)-(14,4) costs original/core
+  110/113, and street (64,8)-(74,8) costs 55/61; a repeat of the first road
+  costs 110/110. The two diagonal road runs cost 170/102 and 90/54 (native
+  slot 23 has additional cells, NT28). Which retained height/terrain records
+  must the post-commit GetCostOfSolution sample, and is the extra-cell
+  projection also the cost-cell inventory? [retain earthwork/cell-cost
+  differences; no tolerance or compensating cost is applied; bridge and
+  powerline costs remain explicitly uncovered by the existing host]~~
+  **ANSWERED 2026-10-24 (re-nettool-nt27):** DIFFERS — network-tools §8.1/§8.1.1, tests 25–29:
+  price retained solved entries (including appended neighbours), their cached network corners
+  refreshed from the network satisfier during commit, and live terrain at stored vertex IDs.
+  Count shared corners per entry and round each running sum addition to float32. Neither slot 23
+  nor the extra-cell vector is the general pricing inventory. Cell +0x52 excludes intersection
+  cells, not already-built cells; placed +0x51 does not suppress the charge. Original entry
+  recovered from glue-nettool-shadow5; no guessed per-run height residual or compensating price.

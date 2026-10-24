@@ -1141,3 +1141,5 @@ pub mod persist_manager_verify;
 
 // Private overlay getter-contract comparison; live record enumeration awaits OV12.
 mod overlays_verify;
+// Private record-only network occupant verification transport.
+mod netocc_shadow;

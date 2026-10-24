@@ -21,6 +21,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
+#include "FC4PropLotCompare.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TractInterfaces.h"
@@ -767,7 +768,7 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
     evidence.Pair(typeOrder == SIZE_MAX);
     evidence.Pair(famOrder == SIZE_MAX);
     // Per type: key (7), validity (8), profile (14).
-    uint32_t keyDiff = 0, profDiff = 0, padOnly = 0, validDiff = 0;
+    uint32_t keyDiff = 0, profDiff = 0, padOnly = 0, validDiff = 0, rawProfiles = 0, fixups = 0;
     for (uint32_t id : origTypes) {
         cGZPersistResourceKey k;
         const bool ok = pm->GetPropKeyFromType(id, k);
@@ -792,24 +793,23 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
             uint8_t a[0x1C], b[0x1C];
             memcpy(a, op, 0x1C);
             memcpy(b, &pp, 0x1C);
-            bool diff = false, pad = false;
-            for (size_t i = 0; i < 0x1C; ++i) {
-                if (a[i] == b[i]) continue;
-                if (i >= 0x15 && i <= 0x17) {
-                    pad = true;
-                } else {
-                    diff = true;
-                }
-            }
-            if (diff) {
+            props::Exemplar ex;
+            std::vector<uint8_t> sizeBytes;
+            const bool loaded = ok && ex.Load(k.type, k.group, k.instance);
+            const bool ordinarySize = loaded && (!props::Has(ex.Holder(), 0x27812810) ||
+                (props::GetRawArrayBytes(ex.Holder(), 0x27812810, sizeBytes) && sizeBytes.size() == 12));
+            const auto cmp = proplot::Profile(a, b, ordinarySize);
+            rawProfiles += cmp.rawEqual ? 0u : 1u;
+            fixups += cmp.fixups;
+            if (!cmp.definedEqual) {
                 ++profDiff;
                 first.Add("profile %08X", id);
-            } else if (pad) {
+            } else if (!cmp.rawEqual) {
                 ++padOnly;
             }
-            // Raw comparisons include padding differences. They are never
-            // removed from the numerator to manufacture an exact result.
-            evidence.Pair(!diff && !pad);
+            // Native verification retains raw evidence; the shadow line below
+            // separately reports defined-field agreement under PL23.
+            evidence.Pair(cmp.rawEqual);
         } else {
             evidence.Pair(true);
         }
@@ -864,13 +864,14 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
     fc4_prop_catalogue_get_state(g_propCat, &cs);
     AppendF(body,
             "types=%u/%u families=%u/%u (orig/ours) keysDiffering=%u validDiffering=%u profilesDiffering=%u "
-            "padOnly=%u members=%u familiesDiffering=%u data2=%s%u (types %u) catalogue=%u/%u/%u first: %s",
+            "padOnly=%u members=%u familiesDiffering=%u data2=%s%u (types %u) catalogue=%u/%u/%u "
+            "scope=defined-fields rawProfilesDiffering=%u fixups=%u first: %s",
             static_cast<unsigned>(origTypes.size()), static_cast<unsigned>(ourTypes.size()),
             static_cast<unsigned>(origFams.size()), static_cast<unsigned>(ourFams.size()), keyDiff, validDiff, profDiff,
             padOnly, members, memberDiff, g_catalogueData2Known ? "" : "unknown ", g_catalogueData2,
-            static_cast<unsigned>(origTypes.size()), cs.types, cs.families, cs.profiles, first.Str());
+            static_cast<unsigned>(origTypes.size()), cs.types, cs.families, cs.profiles, rawProfiles, fixups, first.Str());
     NativeReport(evidence, "cSC4PropManager", "resource-catalogue-ordered-and-missing", pm);
-    return m + padOnly;
+    return m;
 }
 
 // Queries: slots 17, 18, 23, 30, 31 on sample cells.
@@ -1172,6 +1173,7 @@ struct Binding {
     uint32_t id = 0;
     uint32_t type = 0, group = 0, instance = 0;
     bool loaded = false;
+    bool appendedFoundation = false;
     std::unique_ptr<cFC4LotConfiguration> independent;
 };
 // Process lifetime: the catalogue caches configurations by these stand-in
@@ -1227,6 +1229,10 @@ bool LcmLoadConfiguration(void*, uint64_t cfg, uint32_t t, uint32_t g, uint32_t 
     b->independent = std::make_unique<cFC4LotConfiguration>();
     const cGZPersistResourceKey key(t, g, i);
     b->loaded = b->independent->Load(key, static_cast<uint8_t>(detail));
+    props::Exemplar ex;
+    std::vector<uint32_t> foundation;
+    b->appendedFoundation = ex.Load(t, g, i) &&
+        props::GetU32s(ex.Holder(), 0x88FCD877, foundation) && !foundation.empty();
     return b->loaded;
 }
 
@@ -1489,15 +1495,6 @@ std::vector<uint32_t> OursIds(fc4_lot_config_manager* s, uint32_t which, uint64_
     return v;
 }
 
-bool SameObject(const fc4_lotdev_cfg_object& a, const std::vector<uint32_t>& aIds, const fc4_lotdev_cfg_object& b,
-                const std::vector<uint32_t>& bIds) {
-    return a.object_type == b.object_type && a.flags == b.flags && a.orientation == b.orientation &&
-           a.byte3 == b.byte3 && memcmp(a.offset, b.offset, sizeof(a.offset)) == 0 &&
-           memcmp(a.footprint_max, b.footprint_max, sizeof(a.footprint_max)) == 0 &&
-           memcmp(a.footprint_min, b.footprint_min, sizeof(a.footprint_min)) == 0 && a.foundation == b.foundation &&
-           a.tag == b.tag && aIds == bIds;
-}
-
 struct ObjectCopy {
     fc4_lotdev_cfg_object o;
     std::vector<uint32_t> ids;
@@ -1513,12 +1510,11 @@ void CopyObject(void* ctx, const fc4_lotdev_cfg_object* o) {
 }
 
 // Independently load identical resource keys, then compare the complete object
-// arrays, including the appended foundation and its unspecified object ID.
-// No normalization, trimming, or copied-native-configuration host answers.
+// arrays. Retain raw evidence separately from PL23 defined-field agreement.
 intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
     NativeEvidence decoder, getters;
     FirstList first;
-    uint32_t cfgs = 0, objects = 0, diffCfgs = 0, noKey = 0, foundations = 0;
+    uint32_t cfgs = 0, objects = 0, diffCfgs = 0, noKey = 0, foundations = 0, rawCfgs = 0, fixups = 0;
     for (uint32_t id : ids) {
         cISC4LotConfiguration* c = g_lctx.orig->GetLotConfiguration(id);
         const Binding* b = nullptr;
@@ -1582,19 +1578,29 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
         }
         objects += static_cast<uint32_t>(orig.size());
         bool diff = orig.size() != ours.size();
-        size_t at = 0;
-        for (; !diff && at < orig.size(); ++at) {
-            if (!SameObject(orig[at].o, orig[at].ids, ours[at].o, ours[at].ids)) diff = true;
+        bool rawDiff = diff;
+        size_t at = SIZE_MAX;
+        for (size_t j = 0; j < std::min(orig.size(), ours.size()); ++j) {
+            const bool appended = b->appendedFoundation && orig.size() == ours.size() && j + 1 == orig.size();
+            const auto cmp = proplot::Object(orig[j].o, orig[j].ids, ours[j].o, ours[j].ids, appended);
+            rawDiff = rawDiff || !cmp.rawEqual;
+            fixups += cmp.fixups;
+            if (!cmp.definedEqual) {
+                diff = true;
+                if (at == SIZE_MAX) at = j;
+            }
         }
+        rawCfgs += rawDiff ? 1u : 0u;
         if (diff) {
             ++diffCfgs;
             first.Add("%08X n=%u/%u @%u", id, static_cast<unsigned>(orig.size()), static_cast<unsigned>(ours.size()),
-                      static_cast<unsigned>(at == 0 ? 0 : at - 1));
+                      static_cast<unsigned>(at));
         }
-        decoder.Pair(!diff);
+        decoder.Pair(!rawDiff);
     }
-    AppendF(body, "configurations=%u objects=%u detail=%u foundations=%u unbound=%u configurationsDiffering=%u first: %s",
-            cfgs, objects, g_lctx.detail, foundations, noKey, diffCfgs, first.Str());
+    AppendF(body, "configurations=%u objects=%u detail=%u foundations=%u unbound=%u configurationsDiffering=%u "
+            "scope=defined-fields rawArraysDiffering=%u fixups=%u first: %s",
+            cfgs, objects, g_lctx.detail, foundations, noKey, diffCfgs, rawCfgs, fixups, first.Str());
     NativeReport(decoder, "cSC4LotConfiguration", "resource-complete-ordered-objects", g_lctx.orig,
                  "C++-loader-with-Rust-object-decoder");
     NativeReport(getters, "cSC4LotConfiguration", "resource-getters-and-compatibility", g_lctx.orig, "C++");
