@@ -197,8 +197,18 @@ function Ctl([string]$cmdline) {
     else { $parts = @($cmdline.Trim() -split '\s+' | Where-Object { $_ }) }
     # PowerShell 5.1 turns a native command's stderr into terminating errors under "Stop"; a failed action must
     # not end the run.
-    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-    try { $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $Ctl @parts 2>&1 } finally { $ErrorActionPreference = $old }
+    # Each call gets 60 s: PrintWindow on a game window that has stopped responding never returns (slot 4,
+    # 2026-10-24: the end snap blocked the run, and its game slot, for 25 minutes after the timeout).
+    $psi = New-Object System.Diagnostics.ProcessStartInfo "powershell.exe"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Ctl`" " + (($parts | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join " ")
+    $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.CreateNoWindow = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $proc.StandardOutput.ReadToEndAsync(); $stderr = $proc.StandardError.ReadToEndAsync()
+    if (-not $proc.WaitForExit(60000)) {
+        try { $proc.Kill() } catch { }
+        return "sc4ctl $($parts[0]) timed out after 60 s"
+    }
+    $out = @(($stdout.Result + $stderr.Result) -split "\r?\n" | Where-Object { $_ })
     return ($out | ForEach-Object { "$_" }) -join " | "
 }
 function MainCheckout {
