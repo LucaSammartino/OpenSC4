@@ -45,6 +45,7 @@
 
 #include <cctype>
 #include <cstdio>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -194,6 +195,53 @@ struct NetworkShadow {
     bool ok = false;
     uint32_t failure = 0;
     std::vector<fc4_netgeom_cell> cells;
+    fc4_netgeom_host sourceGeom{};
+    // Private grading overlay: the real-commit replay must observe its own
+    // terrain writes during NT30 refresh without writing into the game.
+    std::map<int32_t, float> graded;
+    uint32_t changedVertices = 0;
+
+    static NetworkShadow& Self(void* u) { return *static_cast<NetworkShadow*>(u); }
+
+    fc4_netgeom_host RecordingHost() {
+        fc4_netgeom_host h{};
+        h.struct_size = sizeof(h);
+        h.user = this;
+        h.cells = [](void* u, uint32_t* x, uint32_t* z) {
+            auto& s = Self(u); s.sourceGeom.cells(s.sourceGeom.user, x, z);
+        };
+        h.vertex_altitude = [](void* u, int32_t v) {
+            auto& s = Self(u);
+            const auto found = s.graded.find(v);
+            return found == s.graded.end() ? s.sourceGeom.vertex_altitude(s.sourceGeom.user, v) : found->second;
+        };
+        h.set_altitude_at_vertex = [](void* u, int32_t v, float height) { Self(u).graded[v] = height; };
+        h.cell_has_water = [](void* u, int32_t x, int32_t z) {
+            auto& s = Self(u); return s.sourceGeom.cell_has_water(s.sourceGeom.user, x, z);
+        };
+        h.surface_water_level = [](void* u, int32_t v) {
+            auto& s = Self(u); return s.sourceGeom.surface_water_level(s.sourceGeom.user, v);
+        };
+        h.max_allowed_height = [](void* u) {
+            auto& s = Self(u); return s.sourceGeom.max_allowed_height(s.sourceGeom.user);
+        };
+        h.is_connection_node = [](void* u, int32_t x, int32_t z) {
+            auto& s = Self(u); return s.sourceGeom.is_connection_node(s.sourceGeom.user, x, z);
+        };
+        h.cell_occupants = [](void* u, int32_t x, int32_t z, fc4_netgeom_occupant* out, uint32_t n) {
+            auto& s = Self(u); return s.sourceGeom.cell_occupants(s.sourceGeom.user, x, z, out, n);
+        };
+        h.update_occupant_highlights = [](void* u, uint32_t type, const fc4_netgeom_cell* cells,
+                                         uint32_t n, uint32_t valid) {
+            auto& s = Self(u);
+            return s.sourceGeom.update_occupant_highlights(s.sourceGeom.user, type, cells, n, valid);
+        };
+        h.bridge_type_count = [](void* u, uint32_t type) {
+            auto& s = Self(u); return s.sourceGeom.bridge_type_count(s.sourceGeom.user, type);
+        };
+        // No game setters, redisplays, inserts, demolition or messages.
+        return h;
+    }
 
     ~NetworkShadow() {
         if (core) fc4_nettool_destroy(core);
@@ -202,19 +250,8 @@ struct NetworkShadow {
 
     bool Prepare(const harness::ScriptAction& a, cISC4City* city) {
         ctx.city = city;
-        const auto sourceGeom = MakeNetGeomHost(&ctx);
-        fc4_netgeom_host gh{};
-        gh.struct_size = sizeof(gh);
-        gh.user = &ctx;
-        gh.cells = sourceGeom.cells;
-        gh.vertex_altitude = sourceGeom.vertex_altitude;
-        gh.cell_has_water = sourceGeom.cell_has_water;
-        gh.surface_water_level = sourceGeom.surface_water_level;
-        gh.max_allowed_height = sourceGeom.max_allowed_height;
-        gh.is_connection_node = sourceGeom.is_connection_node;
-        gh.cell_occupants = sourceGeom.cell_occupants;
-        gh.update_occupant_highlights = sourceGeom.update_occupant_highlights;
-        gh.bridge_type_count = sourceGeom.bridge_type_count;
+        sourceGeom = MakeNetGeomHost(&ctx);
+        const auto gh = RecordingHost();
         ctx.geom = fc4_netgeom_create(&gh, nullptr, 0);
         if (!ctx.geom) return false;
         const auto sourceTool = MakeNetToolHost(&ctx);
@@ -232,6 +269,7 @@ struct NetworkShadow {
         ok = fc4_nettool_place_network_occupants(core, a.x0, a.z0, a.x1, a.z1,
                                                 0, 0, true, -1);
         failure = fc4_nettool_get_failure_state(core);
+        if (ok) changedVertices = fc4_netgeom_update_terrain_heights(ctx.geom, nullptr);
         if (!fc4_netgeom_get_state(ctx.geom, &geom)) return false;
         const uint32_t count = fc4_netgeom_get_cells(ctx.geom, nullptr, 0);
         cells.resize(count);
@@ -257,7 +295,7 @@ void NetworkStep(void* p) {
                                            0xFFFFFFFFu);
     c->ok = (r & 0xFFu) != 0;
     if (c->shadow) {
-        const auto& s = *c->shadow;
+        auto& s = *c->shadow;
         auto* t = reinterpret_cast<cFC4ISC4NetworkToolFull*>(c->tool);
         SC4Vector<SC4Point<uint32_t>> cells;
         t->GetDraggedCells(cells);
@@ -270,6 +308,9 @@ void NetworkStep(void* p) {
         // grades it before returning; replaying against pre-commit heights
         // would count earthwork that the native getter no longer counts.
         // The solve itself still ran against the same pre-placement city.
+        // Commit refresh has retained the replay's network corners. The
+        // getter now reads the actual live terrain, as the native getter does.
+        s.graded.clear();
         const int32_t coreCost = fc4_netgeom_cost(s.ctx.geom, 0);
         uint32_t cellDiffs = cells.size() != s.cells.size() ? 1u : 0u;
         for (size_t i = 0; i < cells.size() && i < s.cells.size(); ++i) {
@@ -281,11 +322,11 @@ void NetworkStep(void* p) {
             (total != s.geom.dragged_count) + (cost != coreCost);
         Log("nettool shadow %s (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
             "cells=%u/%u cell_diffs=%u ok=%d/%d failure=%08X/%08X valid=%u/%u straight=%u/%u "
-            "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires contract=NT27-NT29",
+            "total=%u/%u cost=%d/%d replay_changed=%u uncovered=pieces,bridges,poles,wires contract=NT27-NT31",
             harness::FormatDate(a.date).c_str(), a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
             static_cast<uint32_t>(cells.size()), static_cast<uint32_t>(s.cells.size()), cellDiffs,
             c->ok ? 1 : 0, s.ok ? 1 : 0, failure, s.failure, valid, s.geom.valid,
-            straight, s.geom.straight_count, total, s.geom.dragged_count, cost, coreCost);
+            straight, s.geom.straight_count, total, s.geom.dragged_count, cost, coreCost, s.changedVertices);
     }
     c->tool->Shutdown();  // slot 4
 }

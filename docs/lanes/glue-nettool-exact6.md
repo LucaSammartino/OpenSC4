@@ -9,8 +9,12 @@
   fixtures pass, NT31 extended-precision powerline pricing fixed and tested.
 - Done: shadow comparison lines now include the scripted date after `nettool shadow`.
 - Focused cargo test `nt3`: 7 passed (four new NT30/NT31 tests); Rust 1.75 compatible.
-- Next: finish recording-host subclass replay and invoke refresh in record-only shadow;
-  native gate and real-city measurement still pending. No exactness claimed.
+- Done: record-only shadow grades into private terrain overlay, refreshes NT30 corners,
+  then discards overlay for live post-native price reads. No game setters forwarded.
+- Gate running: qbuild all, session 40130; cargo 6892/0, clippy 0 diagnostics.
+  Native request qbuild-20261024-030420-build-ctest queued; collect SAME session.
+- Next: collect native gate; run unique 2032 city request; finish subclass resource/host
+  replay. No exactness claimed. First full gate has not reached terminal result yet.
 - q.py Bash failed CreateFileMapping access (log build-runs/q/20261024-025713-33616.log);
   direct PowerShell cargo succeeded. fmt requires absolute file paths; fixes applied.
 - Full native gate and unique 2032 city run required; no request outstanding.
