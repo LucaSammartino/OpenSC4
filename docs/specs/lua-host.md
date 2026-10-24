@@ -151,6 +151,40 @@ These acquisitions depend on events; they do not prove every cache predates ever
 Once a caller retained the service or its Lua, later registry edits leave that old pointer unchanged.
 Even before such caching, the owner can already have initialized in the earlier service pass.
 
+#### 1.4.2 Observation boundary: no complete public call observer (LH6)
+
+**No supported record-only installation point captures all three owners before their first
+Open/load/registration and observes every later interface call and VM table access.** The public
+interfaces in §§5–6 provide operations on the receiver, not an observer-registration operation.
+Acquiring or QI'ing an existing receiver does not redirect other holders' calls to the acquirer.
+The factory creates a fresh object (`0x008800A0–0x008800E1`); it does not enumerate or attach to
+existing objects. The app opens its result immediately (§1.4); automata creation is immediately
+followed by Open and extension registration (`0x0051C4E4–0x0051C51F`), and ScriptServer likewise
+opens its factory result (`0x008B08A1–0x008B08C0`). App access therefore neither enumerates the
+other VMs nor recovers the temporary automata VM after its release. The factory-dispatch seam in
+§1.4.1 is a creation/substitution boundary, not an existing-instance observer or a guaranteed early
+plugin callback. This answers LH6 negatively; it is not a missing observer slot to invent.
+
+The distinct boundaries must not be conflated:
+
+| Available mechanism | What it observes or changes | Limit |
+|---|---|---|
+| Retained app Lua or ScriptServer Lua interface | Current state and operations explicitly requested through that view | No historical chunks, other owners, or notification of calls through other retained views |
+| Thread OnCreate/OnDestroy (§6.2.1), error reporter (§4.3), ScriptServer control notifications (§6.3) | Their specified lifecycle/error/control events | Not an all-call or table-access observer; changing a callback is itself a state change |
+| Lua debug hook | Execution events on the configured Lua context | Not every host method or table access; no pre-Open all-owner installation guarantee. ScriptServer installs its own automatic-yield hook (§6.3.5) |
+| Metatable methods | The Lua operations that invoke that metamethod | Ordinary reads of present table fields and raw operations bypass it; installing methods changes script behavior |
+| Extension collector plus public raw Lua reads (§8.6) | Ordered collector fields and current callback bindings in the sampled VM | A registration-state sample, not registration history, closure internals or callback execution |
+
+The bypass is concrete: `cISCLua::GetTable` jumps to the thread wrapper, which calls Lua directly
+(`0x008803C0`, `0x008B7B68`). VM execution can instead call the table lookup directly
+(`0x008C6C28`), using the index metamethod only on a missing value (`0x008C6C32–0x008C6C3B`).
+Neither path reports the operation to a retained interface holder. Lua's hook setter replaces the
+context's hook fields (`0x008B9770–0x008B97A1`); it is not a multiplexer for external observers.
+Consequently the public observation contract here supports the bounded §8.6 comparison only.
+Full chunk/call/state replay has no established installation contract under record-only public
+access; it remains disabled. A later full-replay design requires a separately justified capture
+mechanism and cannot claim completeness from these samples (§16.2).
+
 ### 1.5 Init order (instance 1)
 
 1. `cSC4App::Init`: create, `Open(0x7E)` (§3.1). Opening also subscribes the instance to the game-data registry
@@ -272,6 +306,37 @@ Lua 4 tags are emulated with metatables.
 
 `__gc` only runs for **userdata** in Lua 5.0, so the advisor tag-gc method (advisors.md §8.1) runs only for the
 userdata it is meant for.
+
+### 3.5 External inputs and replay limits (LH7)
+
+**The original host defines no replay exclusion, recorded-input injection or value-normalization
+contract.** Library calls and foreign callbacks execute normally; their results and side effects
+are visible to scripts. Time, random draws, pointer identities, registry notifications and table
+iteration are not silently discarded or normalized by the host. Thus LH7 does not authorize a
+full same-process replay to exclude those differences. Under §1.4.2 full replay remains disabled;
+the bounded §8.6 comparison executes none of those libraries/callbacks and has no nondeterminism
+exclusions. Deterministic foreign services may supply fixture inputs in standalone conformance
+tests **[choice]**, but this is not a native recording/injection API or evidence of full replay.
+
+| Source | Original observable behavior | Consequence for a comparison |
+|---|---|---|
+| Library time and environment | OpenFlagIO exposes `io`/`os`; the clock wrapper calls the CRT clock (`0x008C3471`), and the environment wrapper calls CRT getenv (`0x008C3450`) | No VM-start clock epoch, frozen environment or substitution of recorded values is established. Files, process environment, locale and date/time facilities are external inputs, not guaranteed repeats |
+| `math.random` / `math.randomseed` and compatibility aliases | Random calls CRT rand (`0x008C09FC`); seed calls CRT srand (`0x008C0B32`). Other game functions call that same rand entry point | Not a per-Lua-state random stream: native callers on the same OS thread share CRT state. A second execution can consume or reset that live state; do not reseed/draw on the original as a replay setup or assume matching per-VM seeds isolate it |
+| `game.*`, command and registry callbacks | Native functions perform their specified foreign operations; registry get/call returns are converted by §§9.3–9.4 | An output-only recording does not reproduce writes, messages, reentry, errors or scheduling. There is no blanket permission to rerun or replace a foreign callback merely because it has a return value |
+| Userdata, light userdata, tables, threads, closures | Identity is observable; registry mirror keys and `_e` retain entry pointers (§9.2), and closures capture pointers | Do not collapse objects to type names, compare unrelated heap addresses by image relocation, or discard aliasing/lifetime. §8.6 compares C callback entry points, not closure/userdata identity |
+| Registry notifications | Subscription synchronously replays existing entries, including root, in the specified traversal order (§9.1); subsequent notifications update the mirror (§9.5) | Preserve the ordered entry events and pointer associations. Do not sort, deduplicate, or replace late subscription with an empty starting tree; arbitrary mutation during replay has no snapshot guarantee |
+| `next` / `pairs` and foreign output enumeration | Lua table traversal scans array slots then occupied hash nodes in their storage order (`0x008C8F90–0x008C906C`); registry call outputs retain foreign enumeration order (§9.4) | Not a lexical-key order contract. Do not sort return sequences to obtain agreement; equal table contents alone do not prove equal iteration behavior |
+| Process-wide Lua 4 tags | Every VM's `newtag` consumes the shared counter (§3.4) | A second VM is independent in its tables, not isolated from all process state. Do not relabel returned tag numbers to hide a differing creation history |
+
+The random-state warning follows actual shared call targets: e.g. the non-Lua shuffle call at
+`0x0049CC00` and Lua at `0x008C09FC` both target `0x009EFB9F`. Rand and srand access the
+same CRT per-OS-thread data field (`0x009EFB92–0x009EFBC0`), not Lua coroutine-local state.
+This does not assert that all game randomness uses that generator. No numeric random-sequence
+formula or tolerance is assumed.
+Similarly, the iteration rule describes this executable's traversal, not a promise that another
+allocator/table construction history yields the same hash-node order. A future full replay needs
+its own capture, side-effect isolation and identity/order contract before it can claim agreement;
+these are design obligations, not unanswered native observer methods.
 
 ---
 
@@ -1391,6 +1456,36 @@ The two advisor tags and the shared gc method are in advisors.md §8.1. On the h
 process-wide tag (§3.4). In instance 1 these are tags 1 and 2 when no earlier `newtag` ran (§16, T10). The method is
 attached with `SetTagMethod(tag, "gc")` → `__gc` (§3.4).
 
+### 8.6 Bounded collector and registration-state comparison (LH6/LH7)
+
+This is a verification scope **[choice]**, not a native replay feature. The original supplies the
+collector and registration behavior in §§8.1–8.2. Observe the collector using the documented
+[collector layout](advisors.md#82-registration-register_apibool-global): begin/end/capacity at
+preferred-image addresses `0x00B207CC/0x00B207D0/0x00B207D4`, stride 12, with name pointer,
+callback pointer and isGlobal byte. Validate readable bounds and strings before using them.
+Compare the 47 names in collector order, their flag bytes and non-null callback entry points.
+Padding is not a field. Treat the original callback entry points as opaque foreign identity
+inputs to the local registration model, not functions for the model to execute.
+
+For a sampled live app VM, save its stack height and use public **raw** table operations to read
+the three global bindings, the 44 `game` bindings and `_tf_`. Read a C function's entry point
+through the public conversion, not its closure allocation address. Do not execute a chunk,
+callback or metamethod to obtain the sample. Restore the stack on completion and report a
+capture failure if a required table, C function, readable collector field or balanced stack is
+absent. After both normal registration passes, `_tf_` is `window_graph` (`0x0040C890`); after
+only the global pass it is `print` (§8.2). Compare to the corresponding registration stage,
+not to an assumed historical stage. A snapshot at another stage is not evidence that an earlier
+pass failed. The local registration model must also preserve its initial stack height.
+
+Names, ordering, flags, binding presence, callback identities and stack restoration have **no
+nondeterminism exclusions**. In one process compare callback addresses exactly. When expressing
+an executable address as a portable evidence label, use preferred address = actual address −
+loaded image base + `0x00400000`, only for a validated address inside that image. This relocation
+label is not permission to erase identity differences or to apply that arithmetic to heap or
+foreign-module pointers. Closure addresses/upvalues, callback bodies, scripts and unsampled VMs
+are outside this comparison's scope, not fields counted as matched. Publish the bounded result
+as `lua-registry`; it supplies no full-VM `lua` verification credit (§1.4.2).
+
 ---
 
 ## 9. The game-data registry mirror (`sc4game`) *[compat]*
@@ -1408,6 +1503,12 @@ in depth-first reverse-sibling insertion order; duplicate registration returns f
 `0x00474DE0`, `0x00473BD0`). This resolves legacy Q7 for nonmutating registration.
 Instance 1 is subscribed before any city component publishes. Instance 2 is subscribed only while
 the automata scripts run. Mutation during replay has no established snapshot guarantee.
+
+This subscription replay is **registry entry delivery**, not Lua execution replay (LH7, §3.5).
+It invokes the new target synchronously and may build a mirror during Open itself. A later sample
+cannot reconstruct notification timing from the final `sc4game` table. Entry pointers are used as
+identity keys, not normalized script values; the bounded §8.6 comparison does not inspect or
+claim equivalence of this mirror.
 
 ### 9.2 `AddEntry` (type 3)
 
@@ -1572,6 +1673,9 @@ The `cIGZLua5`/`cIGZLua5Thread`/`cIGZLuaScriptServer`/`cISCStringDetokenizer` vt
 - **Class registry.** The three Lua class IDs (`0xEA10C4A2`, `0x4B2811AA`, `0x2B2810F7`) are registered through
   GZCOM by `cSCLuaCOMDirector`. A replacement could in principle register its own factory for them. Every user
   creates the VM through `CreateInstance`. No user constructs `cSCLua` directly.
+- **Observation is separate from replacement (LH6).** The factory possibility above does not
+  establish an early public observer or redirect cached interfaces. Under record-only access,
+  use §8.6's bounded comparison; do not infer complete call/state replay (§1.4.2).
 - **Blockers for a different VM:**
   1. Every game C function finds its host through the **4 bytes in front of the `lua_State`** (§1.3). The game's
      extension functions QI that pointer for `cISCLua`. The registry closures call it as a `cIGZLua5Thread` (slot 82
@@ -1702,3 +1806,26 @@ no original-host forwarding. They do not claim that executable conformance cover
 | LH5-J | No output parameters / captured main pointer mismatch | `[status]` / `[2]`; mismatch does not clear sets or call server |
 | LH5-K | False UnregisterCommandGenerator during Shutdown | False result, but all four owned endpoint/set references released and bookkeeping empty; global name survives |
 | LH5-L | Shutdown twice; then destroy | Second true with no unregister; destructor does not synthesize unregister or remove Lua globals |
+
+### 16.2 Observation and external-input vectors (LH6/LH7; specified, not executed)
+
+These prose vectors specify scope and observable behavior, not new executable tests or full-VM
+coverage. Native-side bounded sampling uses public raw operations only (§8.6). Lifecycle,
+library and foreign-service fixtures below run in an isolated implementation test, not as extra
+calls against the live game's random generator or callbacks.
+
+| Vector | Input / initial state | Expected observation |
+|---|---|---|
+| LH6-A | Retain app Lua after its Open; request another Lua through its class factory | New receiver is a distinct instance; app acquisition provides no historical Open/chunks or automatic call observer. It does not acquire the temporary automata or ScriptServer Lua |
+| LH6-B | Table has an existing key and an index metamethod that records invocations; evaluate a Lua read of that key | Existing value returned, index method not invoked. A metatable trace cannot certify complete table-access capture |
+| LH6-C | Read all 47 collector records and an app sample after both registration passes, with stack height S | Ordered names/flags and matching non-null callback entry points; three global and 44 game bindings; `_tf_` equals window_graph; native and model stack heights both S. Result label is lua-registry only |
+| LH6-D | Same sample, but exchange two collector records / alter a flag / bind one name to another callback / change `_tf_` | Each is a difference; do not sort records, ignore a flag or normalize callback identities to obtain a match |
+| LH6-E | A required collector record is unreadable, a binding is not a C function, or final stack height differs | Capture/binding/stack failure as applicable; never publish an exact sample or silently omit the field |
+| LH6-F | Identical bounded samples before and after an unsampled temporary VM ran scripts and closed | Samples alone establish no equality of that VM's chunks, calls, notifications or final state; no full lua verification credit |
+| LH7-A | Two isolated VMs on the same OS thread use a controlled shared CRT random source: seed in A, then draw in B and A | B consumes the first draw, A the next. A's seed is not private to A; no automatic reseed or replay exclusion. Assert draw consumption, not a guessed random numeric sequence |
+| LH7-B | Controlled clock/environment or foreign registry getter supplies different results on successive calls | Results follow each supplied input and §§9.3–9.4 conversion. Host does not freeze the first result or normalize the difference away |
+| LH7-C | Two node entries have identical names but distinct pointers; the same entry pointer is referenced twice | Pointer-key associations remain distinct for the two entries and shared for repeated references to one entry; type-only or name-only identity normalization fails |
+| LH7-D | Nonmutating registry: root with children added A then B; register a new target, then register it again | First registration synchronously delivers root, B, A (type 3); duplicate returns false, no replay. No sorting or deduplication of the first delivery |
+| LH7-E | Table fixture with populated array keys 1 and 2 plus hash keys; traverse with next | Array entries 1 then 2 precede hash entries in native storage traversal order. Hash entries are not required to be lexically ordered; sorting an observed sequence is not an exact comparison |
+| LH7-F | Fresh process, empty stacks, NewTag on VM A then VM B | Returns 1 then 2 (§3.4/T10), not 1 per VM; no tag-number relabeling |
+| LH7-G | Bound collector sample with callback actual address 0x0060C890 and executable loaded at 0x00600000 | Portable preferred-address label 0x0040C890. Same-process equality still compares actual pointers; do not apply image rebasing to an entry/userdata heap pointer |
