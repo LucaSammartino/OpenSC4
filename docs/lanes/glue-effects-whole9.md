@@ -14,5 +14,6 @@
 - Added alias and foreign-name framing assertions; explicit fmt six files PASS, 0 diff lines; diff --check clean.
 - qbuild all on 3dd46ce91: Rust 6954/0; Clippy failed collapsible_match at observation.rs PublishAfter. Do not repeat before collecting operation.
 - Native operation qbuild-20261024-061303-build-ctest collected to termination: PASS build 249/249 (113.6 s), CTest 78/78 (176.4 s), overall 294.9 s. First all verdict FAIL solely Clippy.
-- Failed Clippy evidence preserved as build-runs/failed-3dd46ce91-clippy.log; applied recommended match guard. Next: final qbuild all after this diagnostic source fix, then 2032 game run.
+- Failed Clippy evidence preserved as build-runs/failed-3dd46ce91-clippy.log; 88180deb2 applied recommended match guard; explicit fmt PASS.
+- Final all on stable source 88180deb2: Rust 6954/0 and Clippy 0 diagnostics PASS. Native operation qbuild-20261024-062533-build-ctest queued; session 7298 must be collected to termination. Next: native result then unique 2032 game request.
 - No game request outstanding. Detached HEAD; do not update shared refs. Highest observed run number 433 (recheck before writing record).
