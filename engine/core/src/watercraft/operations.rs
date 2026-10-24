@@ -237,10 +237,10 @@ impl Watercraft {
 
 /// Assist_PickNewDir's exact priority and mask rule, independent of any
 /// coordinate convention, navigability, collision or RNG provider.
-pub fn candidate_directions(direction: u8, tried: u8) -> impl Iterator<Item = i32> {
+pub fn candidate_directions(direction: u32, tried: u8) -> impl Iterator<Item = i32> {
     [0_i32, 1, -1, 2, -2, 3, -3, 4]
         .into_iter()
-        .map(move |offset| (i32::from(direction) + offset) % 8)
-        .filter(move |candidate| *candidate != (i32::from(direction) + 4) % 8)
+        .map(move |offset| (direction as i32).wrapping_add(offset) % 8)
+        .filter(move |candidate| *candidate != (direction as i32).wrapping_add(4) % 8)
         .filter(move |candidate| tried & (1_u32.wrapping_shl((*candidate as u32) & 31) as u8) == 0)
 }

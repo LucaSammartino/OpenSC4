@@ -9,7 +9,11 @@ use std::sync::Arc;
 #[test]
 fn wc9_literal_simultaneous_steering_pending_spec_resolution() {
     let mut b = boat();
-    let mut command = DriveCommand { left: 100.0, right: 100.0, ..DriveCommand::default() };
+    let mut command = DriveCommand {
+        left: 100.0,
+        right: 100.0,
+        ..DriveCommand::default()
+    };
     b.translate_drive_commands(10.0, &mut command, &mut CommandEffects::default());
     assert!((b.turn + 0.1).abs() < 1e-6);
     assert_eq!(command.left, 100.0);
@@ -20,7 +24,7 @@ fn wc6_05_through_09_render_tween_and_shared_channel_boundaries() {
     let mut b = boat();
     let mut command = DriveCommand::default();
     let mut effects = CommandEffects::default();
-    b.turn = 3.0;
+    command.steering = 3.0;
     b.heading = [1.0, 0.0, 0.0];
     b.complete_drive_commands(0.0, &mut command, &mut effects);
     assert_eq!(b.turn, 2.0);
@@ -33,7 +37,12 @@ fn wc6_05_through_09_render_tween_and_shared_channel_boundaries() {
     b.complete_drive_commands(0.0, &mut command, &mut effects);
     assert_eq!(command.heading, 0.0);
     // Start chosen so the existing linear tween samples 0.15 at 5/2000.
-    b.player.speed_tween = SpeedTween { start: 0.150_125_31, target: 0.1, elapsed: 5.0, duration: 2000.0 };
+    b.player.speed_tween = SpeedTween {
+        start: 0.150_125_31,
+        target: 0.1,
+        elapsed: 5.0,
+        duration: 2000.0,
+    };
     b.speed = -0.2;
     b.complete_drive_commands(0.0, &mut command, &mut effects);
     let tween = b.player.speed_tween;
@@ -42,7 +51,14 @@ fn wc6_05_through_09_render_tween_and_shared_channel_boundaries() {
     b.complete_drive_commands(0.0, &mut command, &mut effects);
     assert_eq!(b.player.speed_tween, tween);
     command.throttle = 0.0;
-    command.shared[0] = CommandChannel { previous: 10.0, duration: 2, limit: 1, timer: 95.0, interval: 100.0, ..CommandChannel::default() };
+    command.shared[0] = CommandChannel {
+        previous: 10.0,
+        duration: 2,
+        limit: 1,
+        timer: 95.0,
+        interval: 100.0,
+        ..CommandChannel::default()
+    };
     command.shared_bookkeeping(10.0, &mut effects);
     assert!(command.shared[0].edge);
     assert!(!command.shared[0].armed);
@@ -61,15 +77,30 @@ fn wc6_09_shared_events_exact_sentinel_and_signed_duration() {
     #[derive(Default)]
     struct Events(Vec<(usize, u32)>);
     impl PlayerEffects for Events {
-        fn play_fire(&mut self, _: &'static str) -> bool { false }
+        fn play_fire(&mut self, _: &'static str) -> bool {
+            false
+        }
         fn fire_model_hook(&mut self) {}
-        fn has_waterski(&self) -> bool { false }
+        fn has_waterski(&self) -> bool {
+            false
+        }
         fn waterski_transform(&mut self, _: &Transform) {}
         fn waterski(&mut self, _: bool) {}
-        fn command_event(&mut self, channel: usize, event: u32) { self.0.push((channel, event)); }
+        fn command_event(&mut self, channel: usize, event: u32) {
+            self.0.push((channel, event));
+        }
     }
-    let mut command = DriveCommand { throttle: 0.0, reverse: -2.0, ..DriveCommand::default() };
-    command.shared[0] = CommandChannel { duration: 2, limit: 2, armed: true, ..CommandChannel::default() };
+    let mut command = DriveCommand {
+        throttle: 0.0,
+        reverse: -2.0,
+        ..DriveCommand::default()
+    };
+    command.shared[0] = CommandChannel {
+        duration: 2,
+        limit: 2,
+        armed: true,
+        ..CommandChannel::default()
+    };
     let mut effects = Events::default();
     command.shared_bookkeeping(10.0, &mut effects);
     assert!(!command.shared[0].armed);
@@ -98,8 +129,12 @@ struct CommandEffects {
 
 impl PlayerEffects for CommandEffects {
     fn fire_model_hook(&mut self) {}
-    fn has_waterski(&self) -> bool { true }
-    fn waterski_transform(&mut self, _: &Transform) { self.calls.push("transform".into()); }
+    fn has_waterski(&self) -> bool {
+        true
+    }
+    fn waterski_transform(&mut self, _: &Transform) {
+        self.calls.push("transform".into());
+    }
     fn command_event(&mut self, _: usize, _: u32) {}
     fn play_fire(&mut self, name: &'static str) -> bool {
         self.calls.push(name.into());
@@ -241,21 +276,21 @@ fn command_steering_countersteers_returns_and_clamps() {
     assert!((b.turn - 0.1).abs() < 1e-6);
     command.right = -1.0;
     command.left = 100.0;
-    b.turn = 0.0;
+    command.steering = 0.0;
     b.translate_drive_commands(10.0, &mut command, &mut effects);
     assert!((b.turn + 0.1).abs() < 1e-6);
     command.left = -1.0;
-    b.turn = -0.2;
+    command.steering = -0.2;
     b.translate_drive_commands(10.0, &mut command, &mut effects);
     assert!((b.turn + 0.19).abs() < 1e-6);
     command.left = 0.0;
-    b.turn = -0.2;
+    command.steering = -0.2;
     b.translate_drive_commands(10.0, &mut command, &mut effects);
     assert!((command.left - 190.0).abs() < 1e-3);
     assert!((b.turn + 0.19).abs() < 1e-6);
     command.left = -1.0;
     command.right = 0.0;
-    b.turn = 0.2;
+    command.steering = 0.2;
     b.translate_drive_commands(10.0, &mut command, &mut effects);
     assert!((command.right - 210.0).abs() < 1e-3);
     assert!((b.turn - 0.21).abs() < 1e-6);
@@ -325,6 +360,41 @@ fn skier_toggle_and_stop_and_command_translation_order() {
     f.player_commands(1, 100.0, &mut command, &mut effects, &mut None)
         .unwrap();
     assert_eq!(f.get(1).unwrap().events, [Event::BaseCommandTranslation]);
+}
+
+#[test]
+fn wc8_11_persistent_toggle_stopped_then_forward_and_wc6_negative_fire() {
+    let mut b = boat();
+    b.group = Arc::new(Group {
+        id: 1,
+        parent: Some(Arc::new(Group {
+            id: 0x4409,
+            ..(*group()).clone()
+        })),
+        ..(*group()).clone()
+    });
+    let mut command = DriveCommand {
+        skier_toggle: true,
+        ..DriveCommand::default()
+    };
+    let mut effects = CommandEffects::default();
+    b.translate_drive_commands(0.0, &mut command, &mut effects);
+    assert!(!b.player.skier_running);
+    assert!(command.skier_toggle);
+    assert!(effects.calls.is_empty());
+    b.speed = 0.1;
+    b.translate_drive_commands(0.0, &mut command, &mut effects);
+    assert!(b.player.skier_running);
+    assert!(command.skier_toggle);
+    assert_eq!(effects.calls, ["transform", "skier:true", "transform"]);
+    command.shared[7].armed = true;
+    command.shared[7].timer = 42.0;
+    command.skier_toggle = false;
+    effects.fire_succeeds = true;
+    b.translate_drive_commands(0.0, &mut command, &mut effects);
+    assert_eq!(b.player.shots, 0);
+    assert!(command.shared[7].armed);
+    assert_eq!(command.shared[7].timer, 42.0);
 }
 
 #[test]
@@ -697,7 +767,7 @@ fn direction_order_excludes_reverse_and_respects_every_mask_bit() {
     for direction in 0..8 {
         let order = candidate_directions(direction, 0).collect::<Vec<_>>();
         assert_eq!(order.len(), 7);
-        assert!(!order.contains(&i32::from((direction + 4) % 8)));
+        assert!(!order.contains(&(((direction + 4) % 8) as i32)));
         for mask in 0..=255 {
             let expected = order
                 .iter()

@@ -10,7 +10,9 @@ resource acquisition and berth arbitration, never native owner calculations.
 **Implementation in progress, not owner closure.** `pending` means specified work
 still to implement, not an Unsupported contract. `open` means the current spec
 itself leaves the behavior unsettled. WC3–WC5 are the only open watercraft
-questions; WC1–WC2 and WC6–WC8 have answers in the spec.
+questions from the original audit; WC1–WC2 and WC6–WC8 have answers in the spec.
+Round 2 adds WC9: §6.2.2's ordered steering prose contradicts WC8-08.
+The implementation follows the literal prose and does not claim that vector.
 
 | Owner | Spec section | Code item | Test or remaining work |
 |---|---|---|---|
@@ -27,8 +29,8 @@ questions; WC1–WC2 and WC6–WC8 have answers in the spec.
 | cSC4Watercraft | §5.1.1 | `physics.rs` | `wc4_m01_m02_*` through `wc4_m07_*`, `wc4_v01_through_v04_*`. |
 | cSC4Watercraft | §5.1.2 | `count_idle_always`, budget accounting | Existing idle tests; manager population writer outside this owner. |
 | cSC4Watercraft | §5.1.3 | `slew_ai_targets` | `wc2_p02_*`; pending explicit caller-removal and shore-contact gate vectors; open: WC4 target selection. |
-| cSC4Watercraft | §5.1.4 | Wake request substeps | Pending tween, generic seek, state dispatch, stop-update ordering; open: WC4 subsidiary calculations. |
-| cSC4Watercraft | §5.2 | `candidate_directions`, `direction_step`, route-cell reader | Signed remainder/mask test; pending complete fill/backtrack picker; open: WC4 AI target selection. |
+| cSC4Watercraft | §5.1.4 | `advance_speed_tween`, `generic_seek`, wake requests | Round 2 covers tween completion and inherited-vector seeking, adjustment bypass, overshoot and zero-time division. Pending full state/flag dispatch and stop-update ordering; open: WC4 subsidiary calculations. |
+| cSC4Watercraft | §5.2 | `candidate_directions`, `fill_route_points`, `backtrack_travel` | Neighbor/ferry fill to ten and WC7-R02 survivor-mask rule. Pending wandering search orchestration; open: WC4 AI target selection. |
 | cSC4Watercraft | §5.3 | `dock_requests`, `docking_tick`, cleanup | Existing berth/queue and final approach tests; pending distinct lot/berth coordinates. |
 | cSC4Watercraft | §5.3.1 | `docking_tick` final approach | Strict pre-motion completion, unclamped time and antiparallel sign implemented; pending all named edge vectors. |
 | cSC4Watercraft | §5.3.2 | Docking entry height flatten/land continuation | Far branch remains open: WC4 AI target selection; pending far-call ordering scaffold. |
@@ -36,20 +38,20 @@ questions; WC1–WC2 and WC6–WC8 have answers in the spec.
 | cSC4Watercraft | §5.4.1 | `RouteReader`, quantization, reservation cleanup | `wc7_r03_through_r06_*`; pending full route-fill/wrap vectors and null occupant behavior. |
 | cSC4Watercraft | §5.5 | `undocking_tick` | Updated motion/completion test; pending named blocked, on-land, missing-occupant vectors. |
 | cSC4Watercraft | §5.6 | movement gates | Existing flag/bounds/crash-state ordering test; pending inherited FindState order audit. |
-| cSC4Watercraft | §5.7 | Collision substeps | Pending full boat/shore detector orchestration. |
+| cSC4Watercraft | §5.7 | `detect_collision` | Outside removal precedes boat/shore scans; boat crash returns early, bumps continue to shore. Focused outside/shore tests; pending comprehensive composed boat/shore vectors. |
 | cSC4Watercraft | §5.7.0 | `Footprint::overlaps`, `find_overlapping_boat`, `respond_to_boat_collision` | SAT contact and size-tie/bump/player-victim tests; pending all scan/size vectors and two-slot AEMS event observation. |
 | cSC4Watercraft | §5.7.1 | Crash state entry/timer prefix | Pending specified dispatcher, double dt, effects and tween reset; open: WC5 crash prerequisites. |
-| cSC4Watercraft | §5.7.2 | `bump_rollback` | Collision response tests; pending scalar ramps/sinking basis; open: WC5 heel/contact composition. |
+| cSC4Watercraft | §5.7.2 | `bump_rollback`, `sinking_tick`, `heel_angle_step` | WC5-S01–S07 scalar/height vectors and WC5-K01–K04 sinking orientation/heading feedback. Heel helper is scalar-only; open: WC5 heel/contact composition. |
 | cSC4Watercraft | §5.7.3 | `Footprint::build` | `wc5_f01_through_f04_*`; missing geometry retains caller's explicit scratch validity/axis. |
 | cSC4Watercraft | §5.7.4 | `inanimate_collision` | `wc5_i01_through_i05_*`, all 32 table cells and scan order. |
 | cSC4Watercraft | §6.1 | coast, tow release, movement | Pending complete drive tick; open: WC4 inherited player-drive computations. |
-| cSC4Watercraft | §6.2–§6.2.3 | Legacy command skeleton | Pending replacement by settled float-channel/nonlinear curve/shared bookkeeping specification. Existing boolean command tests are historical, not WC8 conformance. |
+| cSC4Watercraft | §6.2–§6.2.3 | Float `DriveCommand`, nonlinear/inverse curves, `CommandChannel`, `SpeedTween` | WC8 speed/steering/toggle and WC6 fire/transform/render/tween/cooldown vectors. WC8-08 disputed in WC9; nullable missing-group input unrepresentable (`Arc<Group>` required). Pending tow-effect transform/refresh and complete drive-tick integration. |
 | cSC4Watercraft | §6.3 | `following_tick`, tow hooks | `following_uses_endpoint_gap_and_slack_does_not_publish`; pending named endpoint/negative-time vectors. |
 | cSC4Watercraft | §7 | `do_message`, insertion-order fleet scan | First geometric-match selection; pending explicit rejection-of-first-candidate and radius equality vectors. |
 | cSC4Watercraft | §8 | State/idle fallthrough | Existing idle test; crash continuation pending. |
 | cSC4Watercraft | §9 | `debug_extra_text` | Existing formatting test; pending shared borrowed-string identity/lifetime API. |
-| cSC4Watercraft | §10 | Contract boundary | open: WC3 inherited/tuning, WC4 AI/subsidiary updates, WC5 heel/contact; no new questions. |
-| cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs` | In-progress vector coverage listed above, not all 138 named vectors implemented. |
+| cSC4Watercraft | §10 | Contract boundary | open: WC3 inherited/tuning, WC4 AI/subsidiary updates, WC5 heel/contact and new WC9 steering contradiction. |
+| cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs`, `round2_tests.rs` | In-progress vector coverage listed above, not all named vectors implemented. |
 
 The record test `record_same_input_round_trip_stabilizes_inherited_loaded_status`
 checks equality of a decoded record and its same-input second round trip, and byte

@@ -40,7 +40,7 @@ pub enum Publication {
 }
 
 /// Quaternion convention from §5.1.1 (negative cross product).
-fn rotate(v: Vec3, axis: Vec3, angle: f32) -> Vec3 {
+pub(super) fn rotate(v: Vec3, axis: Vec3, angle: f32) -> Vec3 {
     let (s, c) = (angle * 0.5).sin_cos();
     let [x, y, z] = math::scale(axis, s);
     let rows = [

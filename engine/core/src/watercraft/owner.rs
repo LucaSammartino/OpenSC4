@@ -103,7 +103,7 @@ pub struct NeighborRoute {
 pub struct TravelPoint {
     pub cell: Cell,
     pub tried: u8,
-    pub direction: u8,
+    pub direction: u32,
 }
 
 /// Only foreign terrain operations; all movement decisions remain in Rust.
@@ -186,6 +186,8 @@ pub struct Watercraft {
     pub transform: super::Transform,
     pub inherited_position: Vec3,
     pub inherited_heading: Vec3,
+    pub inherited_destination: Vec3,
+    pub inherited_measured_speed: f32,
     pub record: WatercraftRecord,
     pub group: Arc<Group>,
     pub drive: DriveParameters,
@@ -200,6 +202,8 @@ pub struct Watercraft {
     pub lifetime_elapsed: f32,
     pub idle_elapsed: f32,
     pub crash_elapsed: f32,
+    pub crash_angle: f32,
+    pub shore_contact: bool,
     pub still_elapsed: f32,
     pub backwards_elapsed: f32,
     pub count_idle_always: bool,
@@ -246,6 +250,8 @@ impl Watercraft {
             transform: super::Transform::default(),
             inherited_position: [0.0; 3],
             inherited_heading: [0.0; 3],
+            inherited_destination: [0.0; 3],
+            inherited_measured_speed: 0.0,
             record,
             drive: group.drive_parameters(),
             group,
@@ -260,6 +266,8 @@ impl Watercraft {
             lifetime_elapsed: 0.0,
             idle_elapsed: 0.0,
             crash_elapsed: 0.0,
+            crash_angle: 0.0,
+            shore_contact: false,
             still_elapsed: 0.0,
             backwards_elapsed: 0.0,
             count_idle_always: false,

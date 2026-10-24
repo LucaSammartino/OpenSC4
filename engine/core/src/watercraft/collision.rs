@@ -3,6 +3,14 @@
 use super::{math, state, BoatId, Cell, DockManager, Event, Fleet, Result, Terrain, Transform, Watercraft};
 use crate::automata::{State, Vec3};
 
+/// Foreign occupant, terrain-normal and surface-water queries only.
+pub trait CollisionQueries {
+    fn cell_rectangle(&mut self, boat: BoatId) -> [Cell; 4];
+    fn occupied(&mut self, cell: Cell) -> bool;
+    fn is_wet(&mut self, cell: Cell) -> bool;
+    fn terrain_normal(&mut self, position: Vec3) -> Vec3;
+}
+
 #[derive(Clone, Debug)]
 pub struct ModelGeometry {
     pub bounds: [Vec3; 2],
@@ -135,6 +143,68 @@ impl Watercraft {
 }
 
 impl Fleet {
+    /// Full ordered detector. A boat bump continues into the inanimate scan;
+    /// outside-city removal and either crash return before later queries.
+    pub fn detect_collision(
+        &mut self,
+        id: BoatId,
+        ai_collisions_enabled: bool,
+        terrain: &dyn Terrain,
+        queries: &mut dyn CollisionQueries,
+        manager: &mut Option<&mut dyn DockManager>,
+    ) -> Result<bool> {
+        let rectangle = queries.cell_rectangle(id);
+        if [0, 2, 1, 3].into_iter().any(|i| !terrain.contains(rectangle[i])) {
+            self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
+            return Ok(true);
+        }
+        let a = self.boat(id)?;
+        if a.top_state() == Some(state::PLAYER_DRIVE) || ai_collisions_enabled {
+            if let Some(other) = self.find_overlapping_boat(id, [0.0; 3], 1.0)? {
+                let crashes = self.boat(id)?.boat_crash_threshold_exceeded(self.boat(other)?.speed);
+                let other_rectangle = if crashes {
+                    [Cell { x: 0, z: 0 }; 4]
+                } else {
+                    queries.cell_rectangle(other)
+                };
+                if self.respond_to_boat_collision(id, other, other_rectangle, terrain, manager)? {
+                    return Ok(true);
+                }
+            }
+        }
+        let rectangle = queries.cell_rectangle(id);
+        let bounds = [rectangle[0].x, rectangle[0].z, rectangle[3].x, rectangle[3].z];
+        let hit =
+            self.boat_mut(id)?
+                .inanimate_collision(bounds, |c| queries.occupied(c), |c| terrain.navigable(c, 0, None));
+        if !hit {
+            return Ok(false);
+        }
+        if !self.boat(id)?.shore_crash_threshold_exceeded() {
+            self.boat_mut(id)?.bump_rollback();
+            return Ok(false);
+        }
+        if self.boat(id)?.top_state() == Some(state::PLAYER_DRIVE) {
+            self.boat_mut(id)?.events.push(Event::Aems(7));
+        }
+        let mut dry = [false; 4];
+        // The case helper short-circuits at the first dry corner.
+        for (i, cell) in queries.cell_rectangle(id).into_iter().enumerate() {
+            dry[i] = !queries.is_wet(cell);
+            if dry[i] {
+                break;
+            }
+        }
+        let normal = if dry.iter().any(|c| *c) {
+            queries.terrain_normal(self.boat(id)?.position)
+        } else {
+            [0.0, 1.0, 0.0]
+        };
+        let case = self.boat(id)?.determine_crash_case(dry, normal)?;
+        self.set_state_internal(id, case, manager)?;
+        Ok(true)
+    }
+
     /// Manager-list order; model-less scratch validity is supplied explicitly.
     pub fn find_overlapping_boat(&self, id: BoatId, offset: Vec3, multiplier: f32) -> Result<Option<BoatId>> {
         let a = self.boat(id)?;

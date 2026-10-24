@@ -3,6 +3,9 @@
 | core-watercraft9: watercraft owner closure | Codex / core-watercraft9 | in progress | Audit existing module against current spec, close settled gaps, run gates. |
 
 ## Handoff
+- ROUND 2 milestone: neighbor/ferry fill-to-ten and survivor-mask backtracking; inherited seek/tween arithmetic; sinking basis/heading/height and scalar heel ramps; ordered collision detector implemented. Owner remains partial; README rows updated.
+- Focused snapshot: 66 passed, 0 failed. The final steering record mirror change is newer and awaits final gate. Earlier compile diagnostics preserved in build-runs/focused-r2-failures.txt.
+- NEXT NOW: absolute-path qbuild fmt on 11 touched .rs files, qbuild all once on stable source, explicit verify, record totals, commit report and READY queue full HEAD. No outstanding commands or game requests.
 - ROUND 2: float-channel commands, nonlinear/inverse speed curves, shared 13-channel bookkeeping, skier transforms, heading/rudder and speed tween implemented.
 - Focused first snapshot: 57 passed. Later WC6/WC9 vectors still need checking. q.py failed Bash CreateFileMapping; direct cargo works.
 - New WC9: literal §6.2.2 steering conflicts with WC8-08. Literal prose implemented with marked vector; no WC8-08 claim.

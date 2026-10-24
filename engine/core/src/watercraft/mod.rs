@@ -4,7 +4,9 @@
 
 mod collision;
 mod commands;
+mod crash;
 mod following;
+mod inherited;
 mod math;
 mod movement;
 mod operations;
@@ -14,7 +16,7 @@ mod record;
 mod routes;
 mod states;
 
-pub use collision::{Footprint, ModelGeometry};
+pub use collision::{CollisionQueries, Footprint, ModelGeometry};
 pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
 pub use movement::Gear;
 pub use operations::{candidate_directions, Message, MessageDisposition};
@@ -28,6 +30,8 @@ pub use states::CrashCase;
 mod collision_tests;
 #[cfg(test)]
 mod physics_tests;
+#[cfg(test)]
+mod round2_tests;
 #[cfg(test)]
 mod tests;
 

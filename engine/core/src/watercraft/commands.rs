@@ -16,6 +16,8 @@ pub struct DriveCommand {
     pub other: [f32; 8],
     pub shared: [CommandChannel; 13],
     pub signed_command: f32,
+    /// Drive-state +0x5C, copied to the boat after the ordered responses.
+    pub steering: f32,
     pub rudder: [f32; 3],
     pub heading: f32,
 }
@@ -73,6 +75,7 @@ impl Default for DriveCommand {
             other: [-1.0; 8],
             shared: [CommandChannel::default(); 13],
             signed_command: 0.0,
+            steering: 0.0,
             rudder: [0.0; 3],
             heading: 0.0,
         }
@@ -93,9 +96,21 @@ pub trait PlayerEffects {
 
 impl DriveCommand {
     pub fn values(&self) -> [f32; 13] {
-        [self.throttle, self.reverse, self.right, self.left, self.other[0],
-         self.other[1], self.other[2], self.fire, self.other[3], self.other[4],
-         self.other[5], self.other[6], self.other[7]]
+        [
+            self.throttle,
+            self.reverse,
+            self.right,
+            self.left,
+            self.other[0],
+            self.other[1],
+            self.other[2],
+            self.fire,
+            self.other[3],
+            self.other[4],
+            self.other[5],
+            self.other[6],
+            self.other[7],
+        ]
     }
 
     pub fn shared_bookkeeping(&mut self, dt: f32, effects: &mut dyn PlayerEffects) {
@@ -142,8 +157,16 @@ impl Watercraft {
         let x = q.max(p[30]).min(p[31]);
         let u = if x > 0.0 { x * a / p[31] } else { x * n / p[30] };
         let angle = u as f64 * b as f64;
-        let w = if gear == Gear::Forward { angle.tan() } else { angle.atan() } as f32;
-        let speed = if w > 0.0 { w * p[7] / positive } else { w * p[6] / negative };
+        let w = if gear == Gear::Forward {
+            angle.tan()
+        } else {
+            angle.atan()
+        } as f32;
+        let speed = if w > 0.0 {
+            w * p[7] / positive
+        } else {
+            w * p[6] / negative
+        };
         speed.max(p[6]).min(p[7])
     }
 
@@ -152,7 +175,11 @@ impl Watercraft {
         let (a, b, n, positive) = curve_constants();
         let negative = (n as f64 * b as f64).tan() as f32;
         let s = speed.max(p[6]).min(p[7]);
-        let z = if s > 0.0 { s * positive / p[7] } else { s * negative / p[6] };
+        let z = if s > 0.0 {
+            s * positive / p[7]
+        } else {
+            s * negative / p[6]
+        };
         let h = z.atan() * 0.636_619_75;
         let q = if h > 0.0 { h * p[31] / a } else { h * p[30] / n };
         q.max(p[30]).min(p[31])
@@ -188,13 +215,29 @@ impl Watercraft {
             if self.speed != 0.0 && sign(target) != sign(self.speed) {
                 let old = self.speed;
                 self.speed = approach(self.speed, target, b);
-                if old > 0.0 { command.reverse = p[32]; } else { command.throttle = p[33]; }
+                if old > 0.0 {
+                    command.reverse = p[32];
+                } else {
+                    command.throttle = p[33];
+                }
             } else if sign(input) == sign(self.speed) && target.abs() <= self.speed.abs() {
                 let inverse = self.inverse_speed_command(self.speed);
-                if self.speed > 0.0 { command.throttle = inverse; } else { command.reverse = inverse; }
+                if self.speed > 0.0 {
+                    command.throttle = inverse;
+                } else {
+                    command.reverse = inverse;
+                }
             } else {
-                let step = if input < 0.0 && sign(input) != sign(self.speed) { b } else { a };
-                self.speed = if (target - self.speed).abs() <= step { target } else { self.speed + sign(input) * step };
+                let step = if input < 0.0 && sign(input) != sign(self.speed) {
+                    b
+                } else {
+                    a
+                };
+                self.speed = if (target - self.speed).abs() <= step {
+                    target
+                } else {
+                    self.speed + sign(input) * step
+                };
             }
         }
         if command.fire >= 0.0 {
@@ -232,33 +275,56 @@ impl Watercraft {
             }
         }
         let r = (dt * 0.001) * p[2];
+        self.turn = command.steering;
         if command.left >= 0.0 && self.turn <= 0.0 {
-            if self.turn < -p[1] * command.left { command.left = -self.turn / p[1] - dt; }
+            if self.turn < -p[1] * command.left {
+                command.left = -self.turn / p[1] - dt;
+            }
             self.turn = -p[1] * command.left;
         } else if self.turn < 0.0 {
-            let step = if command.right > 0.0 { command.right = 0.0; r.max(r * p[5]) } else { r };
+            let step = if command.right > 0.0 {
+                command.right = 0.0;
+                r.max(r * p[5])
+            } else {
+                r
+            };
             self.turn = (self.turn + step).min(0.0);
         }
         // WC9: literal §6.2.2 predicates; WC8-08's simultaneous-channel
         // expectation contradicts this ordered positive-T response.
         if command.right >= 0.0 && self.turn >= 0.0 {
-            if p[1] * command.right < self.turn { command.right = self.turn / p[1] + dt; }
+            if p[1] * command.right < self.turn {
+                command.right = self.turn / p[1] + dt;
+            }
             self.turn = p[1] * command.right;
         } else if self.turn > 0.0 {
-            let step = if command.left > 0.0 { command.left = 0.0; r.max(r * p[5]) } else { r };
+            let step = if command.left > 0.0 {
+                command.left = 0.0;
+                r.max(r * p[5])
+            } else {
+                r
+            };
             self.turn = (self.turn - step).max(0.0);
         }
         self.turn = self.turn.max(p[8]).min(p[9]);
+        command.steering = self.turn;
         Some(gear)
     }
 
     pub fn complete_drive_commands(&mut self, dt: f32, command: &mut DriveCommand, effects: &mut dyn PlayerEffects) {
-        self.turn = self.turn.max(self.drive.0[8]).min(self.drive.0[9]);
+        self.turn = command.steering.max(self.drive.0[8]).min(self.drive.0[9]);
+        command.steering = self.turn;
         command.rudder = [-0.125 * self.turn, 0.0, std::f32::consts::TAU];
         let h = super::math::normalize(self.heading);
         let angle = h[2].acos();
-        command.heading = if h[0] >= 0.0 { angle } else { std::f32::consts::TAU - angle };
-        if self.player.speed_tween.retarget(self.speed.abs()) { self.events.push(Event::ResetSpeedTween); }
+        command.heading = if h[0] >= 0.0 {
+            angle
+        } else {
+            std::f32::consts::TAU - angle
+        };
+        if self.player.speed_tween.retarget(self.speed.abs()) {
+            self.events.push(Event::ResetSpeedTween);
+        }
         command.shared_bookkeeping(dt, effects);
         self.events.push(Event::BaseCommandTranslation);
     }
