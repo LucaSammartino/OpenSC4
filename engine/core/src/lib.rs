@@ -186,3 +186,4 @@ pub mod widget_controls;
 pub mod helicopter;
 pub mod city_geometry;
 pub mod regional_city;
+pub mod region;

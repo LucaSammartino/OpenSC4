@@ -8,3 +8,6 @@
 <!-- from: re-region (2026-10-20) -->
 - **RQ2 - §6, §8:** the file-name rule of `SC4CreateSavePathForCity` (`0x005DC400`) and the name the starter region
   gets from its default-constructed string. [as read]
+
+<!-- from: core-region10 (2026-10-24) -->
+- **RQ3 - §6 versus region-model.md §6.4, §7.3, §7.6:** the older spec starts folder suffixes at 1, says MoveCity fails only on rename failure and describes ResetTutorialCity's return as whether export succeeded. The detailed model starts suffixes at 2, also fails a post-rename read, and returns true on failed tutorial export. Which is authoritative? [follow the detailed region-model.md pseudocode: suffix 2, read failure false, tutorial export failure true; ignore the regional-city write result as that pseudocode does]

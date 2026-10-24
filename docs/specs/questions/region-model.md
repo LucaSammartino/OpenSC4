@@ -58,3 +58,12 @@ PR review of RM7: the proposed import-command argument proof cites region-city-d
   of regions that are not active: the import-city dialog runs them on every inactive region to list its cities, besides
   `SetActiveRegion`. So the `region.ini` rewrite of RM1 and the Timbuktu overflow move of RM12 can happen when the dialog
   opens, not only when a region is made active. This is read from the bytes only; RM1 and RM12 stay open. [as read]
+
+<!-- from: core-region10 (2026-10-24) -->
+- **RM15 - §3.1:** does RZAtoUint32HexA reject trailing non-hex text or more than eight digits, or consume a prefix? [literal prefix parser: skip blanks and optional 0x, consume up to eight hex digits; zero remains a literal name]
+<!-- from: core-region10 (2026-10-24) -->
+- **RM16 - §8.1:** what portable contract should GetBaseTerrainHeight expose after SetBaseTerrainType stores a value outside 0..1? The spec describes an arbitrary out-of-bounds process-memory read, not a stable value. [Unsupported::BaseTerrainType for this unsettled input; setter still stores any integer]
+<!-- from: core-region10 (2026-10-24) -->
+- **RM17 - §5.5, §7.1, §7.6:** RemoveCity and failed ReloadCity leave a dangling box, and ResetTutorialCity would then try to update that freed box. What defined failure behavior should an adapter expose? [retain the stale opaque BoxId on failed reload, resolve it to None, skip tutorial-id update, still activate tutorial after successful export]
+<!-- from: core-region10 (2026-10-24) -->
+- **RM18 - §7.4:** sanitizing the whole city filename to 256 bytes can remove its extension. Where is the collision suffix inserted if no dot remains? [append ` (n)` at the end when there is no last dot]
