@@ -46,8 +46,8 @@ ABI entry, public C ABI export or version was changed.
 
 ## Initial real-city result
 
-[Run 382](../runs/lua-replay6-c9a62c9b1-turbo-2032-20261024a.md), unique label
-`lua-replay6-c9a62c9b1-turbo-2032-20261024a`: Konradshohe, turbo,
+[Run 382](../runs/lua-replay6-c9a62c9b1-turbo-2032-20261024a-397.md), unique label
+`lua-replay6-c9a62c9b1-turbo-2032-20261024a-397`: Konradshohe, turbo,
 `lua_shadow=1`, target 2032-01-01, actual verdict **2032-01-21**, **clean**,
 `ref_warnings=0`; foreign exceptions, watchdog stalls, rtc and overruns all 0.
 City time 29.969 s; queue wait 7 s; run wall time 40 s. DLL SHA256:
@@ -73,8 +73,8 @@ no tree-change note. Logs use ordinary `build-runs/qbuild-{test,clippy}.log`
 and `build-runs/fc4verify-{configure,build,ctest}.log` names. The first passing
 measurement above is preserved separately; no duplicate progress checks ran.
 
-[Run 383](../runs/lua-replay6-f36681776-turbo-2032-20261024b.md), unique label
-`lua-replay6-f36681776-turbo-2032-20261024b`: Konradshohe turbo to 2032,
+[Run 383](../runs/lua-replay6-f36681776-turbo-2032-20261024b-398.md), unique label
+`lua-replay6-f36681776-turbo-2032-20261024b-398`: Konradshohe turbo to 2032,
 actual verdict **2032-01-02**, **clean**, **ref_warnings=0**; foreign exceptions,
 watchdog stalls, rtc, overruns, panics, structured exceptions, incomplete lines
 and other warnings all 0. City time **62.859 s**, queue wait **6 s**, wall **77 s**.

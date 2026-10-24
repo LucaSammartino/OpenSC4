@@ -24,9 +24,9 @@ All three unique requests enabled automata_shadow and automata_owners_shadow, us
 
 | Run | Label | Final date | Real seconds | Automata bytes compared |
 |---|---|---|---|---|
-| [387](../runs/automata-crash6-r2-2032-20261024-a.md) | automata-crash6-r2-2032-20261024-a | 2032-01-01 | 49.422 | 782013 |
-| [388](../runs/automata-crash6-r2-2032-20261024-b.md) | automata-crash6-r2-2032-20261024-b | 2032-01-01 | 43.547 | 776199 |
-| [389](../runs/automata-crash6-r2-2032-20261024-c.md) | automata-crash6-r2-2032-20261024-c | 2032-01-02 | 45.109 | 779584 |
+| [387](../runs/automata-crash6-r2-2032-20261024-a-394.md) | automata-crash6-r2-2032-20261024-a-394 | 2032-01-01 | 49.422 | 782013 |
+| [388](../runs/automata-crash6-r2-2032-20261024-b-395.md) | automata-crash6-r2-2032-20261024-b-395 | 2032-01-01 | 43.547 | 776199 |
+| [389](../runs/automata-crash6-r2-2032-20261024-c-396.md) | automata-crash6-r2-2032-20261024-c-396 | 2032-01-02 | 45.109 | 779584 |
 
 The game-tested DLL SHA256 was ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484. These runs preceded the mandated main merges; capture/automata plugin source was unchanged by both merges. Full logs and verdicts remain under `build-runs/game-results/` with these exact labels. Every wait collected the original operation; the event-based waiter accepted existing completed verdicts and used no qwait. No requests remain outstanding. Run numbers were moved to 387-389 after the final merge revealed concurrent traffic and train172 records; filenames remain label-only.
 

@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 393 (Simgrid/lotrec, ordinance and lot-configuration shadows landed with weather and effects RE answers; landvalue flake once (run 5).); 392 (ordinance shadow exact 72/72 to 2032, run 374); 389 (Round 3 shared native variant encoder; automata, SG3 and LR12 exact through 2032); 388 (Round 2 SG3/LR12 integration, exact record observations through 2032); 387 (lotconf 73/73 and simulator 73/73 exact on measured fields through 2032, clean native owners). See `docs/manual-checks.md`.
+- **Latest in-game run:** 399 (Lua label fix and automata owners capture fix landed; all house shadows exact, automata owner rows verified (run 5).); 393 (Simgrid/lotrec, ordinance and lot-configuration shadows landed with weather and effects RE answers; landvalue flake once (run 5).); 392 (ordinance shadow exact 72/72 to 2032, run 374); 389 (Round 3 shared native variant encoder; automata, SG3 and LR12 exact through 2032); 388 (Round 2 SG3/LR12 integration, exact record observations through 2032). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
