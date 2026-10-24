@@ -2166,7 +2166,8 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ## 15. Open items
 
 The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
-[questions/audio.md](questions/audio.md), AU40–AU44. These qualify the coverage of those sections;
+[questions/audio.md](questions/audio.md), AU41–AU43. AU40 and AU44 are settled in §18.4 and
+§7.4.1 respectively. The remaining questions qualify the coverage of those sections;
 an owner appearing in the inventory does not imply that all its numerical behavior is settled.
 
 | # | Question | What would settle it |
@@ -2197,8 +2198,8 @@ The zoom index is a signed 32-bit value and is used directly for table indexing;
 
 Let C be camera position (`+0x3C`), T its look target (`+0x48`), U its orientation vector
 (`+0x6C`), and z its zoom index (`+0x0C`). For z < 2, obtain two integer dimensions via the
-city interface `+0x178(&width,&depth)`; pass its return through city `+0x174`, then pass
-that return, width and depth to renderer `+0x48`. Use half the returned width/depth as T.x/T.z;
+city interface `+0x178(&width,&depth)`, with the renderer's `+0x174` and `+0x48` conversion
+calls following it. These foreign calls supply the dimensions; use half width/depth as T.x/T.z;
 T.y remains the camera target height. This is the low-zoom city-centering rule, not half of
 the original target coordinates (`0x004F1524`–`0x004F1577`).
 

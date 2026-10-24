@@ -334,4 +334,5 @@ These are spec vectors for implementers; no executable tests or engine files are
 | AU9-14 | Escape from an accepted enabled preferences window | Cancel handler invoked; DoWinProcMessage returns false. |
 | AU9-15 | Same Escape from disabled or unrelated window | False with no cancel action. |
 
-AU40–AU44 need additional vectors when settled, especially numerical edge cases and failure rollback.
+AU40 and AU44 have additional vectors in audio §§18.4 and 7.4.1. AU41–AU43 still need
+additional vectors when settled, especially numerical edge cases and failure rollback.
