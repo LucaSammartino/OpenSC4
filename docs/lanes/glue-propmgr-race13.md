@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-race13: exact native prune-input capture | `Codex` / `glue-propmgr-race13` (engine lane) | ready: source c5d532838; cargo 7389/0, clippy clean, CTest 81/81; runs 733/734 clean, propmgr 220/220 each, zero resyncs; ABI unchanged; PL24 updated | (1) Coordinator review and credit exact runs; (2) resolve general boundary/NaN contract PL24 |
+| glue-propmgr-race13: remove unsafe query probe | `Codex` / `glue-propmgr-race13` (engine lane) | in progress; main merged; prior probe failed train207 with native AV | Remove query vtable patches; gate and two house runs |
+
+## Handoff
+- Goal: remove LotQueryProbe shared-slot patches and retain exact default-off comparisons.
+- Main merged on detached HEAD as requested; do not switch refs.
+- Prior tip 39b9ee63d reported exact runs but shared slot patches crashed train207; those results do not validate safety.
+- Probe patches OM slot40, occupant slot8, city slot96 in FC4PropLotShadow.cpp.
+- Existing PL24 records native-only props exactly on upper boundaries; retain core half-open contract.
+- Next: replace probe with read-only calls; diagnose conversion inputs; final gate once; two house runs to 2032.
+- No game request outstanding. No new owners or questions this round.
+
+## Previous round (superseded safety evidence)
 
 The remaining independently sampled prune input was the world bounds: after capturing the native slot-40 list and slot-8 positions (`88730ab68`), Rust still made later city slot-96 calls. Source `c5d532838` now captures both native slot-96 conversions and replays those exact dependency returns. It validates corner count, order and cell arguments, alongside the existing list rectangle, filter, position and result checks. TLS limits observation to our native lot query; other calls forward, and the scoped probe restores the city slot. Mismatch diagnostics print actual native bounds. No returned prop list is imported, no comparison is skipped or tolerated, and the core retains A7.2's literal half-open test.
 
