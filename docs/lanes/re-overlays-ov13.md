@@ -5,8 +5,9 @@
 ## Handoff
 
 - Goal: close OV13 and OV14 for glue-overlays-shadow5 using export evidence, prose and vectors only.
-- Done: reused reserved detached worktree; read rules, question entries, existing sections 2.6/3.8 and lane formats.
-- Next: write sections 2.6/3.8 and paper vectors, move both questions, regenerate index and run doccheck.
+- Done: `b04f4a0db` initial handoff; extended sections 2.6/3.8.1, added eight section 9.2 paper vectors, moved OV13/OV14 to answered and regenerated index.
+- Gate: doccheck passed; initial diff check found a trailing blank line in the question file, now removed.
+- Next: commit answer milestone, inspect final diff and finalize report/queue.
 - Verified: constructor ends with null index pointers but never initializes +E4/+E8/+EC; Init calls BuildCellIndex only when dynamic byte is zero (0x0073CCF1-0x0073CCF8).
 - Verified: terrain-view Init directly constructs all four managers then directly calls Init at 0x0075C6BC/C8/D7/E7. No observer registration interface is supplied by this owner.
 - Owner lane file on this base and main has no Owner closure table or `open:` rows; its Coverage limits section names OV13/OV14 and was read first instead.
