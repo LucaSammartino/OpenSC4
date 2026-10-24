@@ -1,94 +1,56 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lotrec5: SG3 simgrid and LR12 master lot record shadows | Codex / `glue-simgrid-lotrec5` (engine, detached HEAD) | in progress; round 2 integration | Resolve main merge, native gate, new 2032 run, refresh main, READY queue |
-
-## Handoff
-
-- Goal: integrate existing shadows with moving main; no new implementation scope.
-- First required merge committed as 90fd92058 (main c11352c34); all conflicts resolved.
-- Keep independent native WriteVariant capture from this lane; combine additive module/source/config lists.
-- First qbuild all terminal: cargo 6860/0, clippy 0 diagnostics; native FAIL 211/213, CTest skipped, request qbuild-20261024-020014-build-ctest.
-- Diagnostic C2512: main's explicit opt-in WriteCapture constructor conflicts with aggregate initialization of LR12 Sample.
-- Fixed LR12 member to capture{true}; retained main's variants_ guard with the independent native encoder.
-- Fix committed 90c916d27; corrected qbuild all PASS: cargo 6860/0, clippy 0, native 48/48, CTest 72/72, request qbuild-20261024-020630-build-ctest.
-- Game lotrec-autumn-integrated clean to 2032, ref_warnings=0, all problems zero; simgrid and lotrec each 73/73 exact observations.
-- Final lines: simgrid exact=86/86 bytes=423538; lotrec exact=671/671 bytes=238616. Full lines in game log and run record.
-- Second required main merge: main 5b14b8109; resolved additive config and sole regress profile; native verify next.
-- Main added run records through 373: use run 374 (359 was initially free but numbering advanced).
-- Before queue: collect post-refresh native verify; main refresh already performed after game.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-simgrid-lotrec5-r2-manifest.json.
-- Detached HEAD intentional; never switch branches or update shared refs.
+| glue-simgrid-lotrec5: SG3 simgrid and LR12 master lot record shadows | Codex / `glue-simgrid-lotrec5` (engine, detached HEAD) | READY; main refreshed twice; cargo 6860/0, clippy clean; final native 200/200 and CTest 73/73; run 374 clean to 2032, ref_warnings=0; simgrid 73/73 and lotrec 73/73 observations exact; no new questions; ABI unchanged | Coordinator: land full queue tip |
 
 ## Changes
 
-Merged `glue-simgrid-lots-shadow5` (`e37c0c33c`) and `re-lotrec-lr12`
-(`73c81a8b7`). Implemented LR12 in `f79a9c26f`, native variant capture in
-`545141775`, and known-key registration in `f062d2f96`.
+Round 2 integrates the existing default-off SG3 simgrid and LR12 master-list
+lot-record shadows. First main merge: `90fd92058` (main `c11352c34`).
+Second main merge: `41e69419d` (main `5b14b8109`), after the new game verdict.
+Both sides' additive C API declarations/modules, CMake sources and config keys
+are preserved, including main's overlays and Lua registrations.
+There is exactly one regress `shadows =` assignment: main's profile with
+`simgrid_shadow` and `lotrec_shadow` appended.
 
-`lotrec_shadow=1` observes the current master-list lots at load and every month.
-It reacquires the borrowed manager, walks the registered safe iterator, acquires
-each Serializable view by QI, captures Write, then releases that view and
-unregisters/C-frees the iterator. Inventory, capture, reader and comparison
-failures remain explicit in the denominator. One observation-wide reference map
-preserves aliases without recursing into units, designates or occupants.
-
-The production core reads each complete record and re-encodes all 27 fields,
-including configuration metadata, float bits, populations, properties and trips,
-without Init. Native property variants are captured independently through their
-published interface. No live simulation mutations or owner replacement occur.
-Both `simgrid_shadow` and `lotrec_shadow` remain default off. No public ABI change.
+Integration fix `90c916d27` explicitly initializes the lot sampler's
+`WriteCapture{true}` and retains main's default-off variant guard around the
+independent native encoder. No new scope, C ABI exports, or questions.
 
 ## Validation
 
-Five focused Rust conformance tests passed. Native T58-T65 accounting cases live
-in `engine/conformance/tests/lot_record_observation_test.cpp`; CTest executed the
-test successfully. Existing safe-iterator tests cover unregister/C-free.
-Formatting checks passed for the three new Rust files.
+- Initial full gate: cargo 6860/0 and clippy 0 diagnostics; native FAIL
+  211/213, CTest skipped. Diagnostic C2512 identified main's explicit capture
+  constructor and aggregate initialization. Failed evidence:
+  `build-runs/round2-initial-failed-build.log`, `round2-initial-test.log`,
+  `round2-initial-clippy.log`; request `qbuild-20261024-020014-build-ctest`.
+- Corrected stable-source `qbuild all`: PASS, cargo 6860/0, clippy 0 diagnostics,
+  native 48/48 (5.7 s), CTest 72/72 (155.4 s), total 163.0 s.
+  Request `qbuild-20261024-020630-build-ctest`; native logs preserved as
+  `build-runs/round2-corrected-build.log` and `round2-corrected-ctest.log`.
+- After the second main merge, `qbuild verify`: PASS, native 200/200 (77.4 s),
+  CTest 73/73 (144.5 s), total 223.5 s. This includes a successful cargo_test
+  on the merged source. Request `qbuild-20261024-021438-build-ctest`.
+  Final logs: `build-runs/fc4verify-build.log` and `fc4verify-ctest.log`.
+- Every asynchronous build and game operation was collected to its terminal
+  result; no duplicate requests were launched.
 
-Final stable-source `qbuild all`: **PASS**, cargo **6702 passed / 0 failed**,
-clippy **0 diagnostics**, native build **86/86** (4.3 s), full CTest **70/70**
-(82.3 s). Native request `qbuild-20261024-004339-build-ctest`, total 88.5 s.
-Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`,
-`fc4verify-ctest.log`. All asynchronous operations were collected to completion.
+## Real-city result
 
-Earlier native request `qbuild-20261024-001350-build-ctest` passed 224/224 and
-70/70, explicitly marked tree changed. First full stable gate
-`qbuild-20261024-003021-build-ctest` passed cargo 6702/0, clippy 0 diagnostics,
-86/86 and 70/70. The final repeat followed the measured unknown-key diagnostic.
+[Run 374: lotrec-autumn-integrated](../runs/lotrec-autumn-integrated.md):
+Konradshohe, turbo to 2032-01-01, clean, ref_warnings=0, every harness
+problem count zero. DLL SHA256 prefix `54d7c5ee`; real_seconds=40.484,
+wall=56 s. Both shadows were exact in all 73 observations, with no nonzero
+mismatches. The completed unique verdict is retained without resubmission.
 
-## Real-city measurements
-
-[r1](../runs/lotrec5-2032-r1-20261024.md): clean to 2032-01-01, ref_warnings=0,
-simgrid 73/73 and lotrec 73/73. Six misleading unknown-key warnings were corrected
-by registering the working keys. The original verdict/log remain under
-`build-runs/game-results/lotrec5-2032-r1-20261024.*`.
-
-[r2](../runs/lotrec5-2032-r2-20261024.md): Konradshohe, turbo to 2032-01-01,
-**clean**, **ref_warnings=0**, all harness problem counts zero including other
-WARNING lines; 48.031 s real, 61 s wall. DLL SHA256 prefix `969505f1`.
-The exact clean/total tallies from this run's actual plugin log are:
-
-```text
-simgrid 73/73
-lotrec 73/73
-```
-
-Every load/month line has `mismatches=0`. Final lines (2032-01-01):
+Exact final plugin lines:
 
 ```text
 simgrid-shadow: phase=month julian=2463233 roles=86 expected=86 developers=12 exact=86/86 mismatches=0 differences=0 unavailable=0 cells=311552 bytes=423538 mode=record-only scope=SG3
-lotrec-shadow: phase=month julian=2463233 expected=677 visited=677 captures=677 exact=677/677 mismatches=0 differences=0 errors=0 empty=0 bytes=247966 mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props
+lotrec-shadow: phase=month julian=2463233 expected=671 visited=671 captures=671 exact=671/671 mismatches=0 differences=0 errors=0 empty=0 bytes=238616 mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props
 ```
 
-Evidence: `build-runs/game-results/lotrec5-2032-r2-20261024.verdict` and `.log`.
-No mismatch or turbo-only difference; no normal-speed discriminator needed.
-This verifies SG3's owner inventory and LR12's master-lot record scope, not all
-lot-related classes, occupant payloads or simulation algorithms.
-
-## Questions and landing
-
-No new questions. LR12 is answered by the merged prerequisite. No outstanding
-build or game request. No game files committed. Clean-room restrictions prevented
-reading/editing the regression script or coverage tables: the coordinator should
-credit both exact shadows and add `simgrid_shadow=1` / `lotrec_shadow=1` to the
-regress shadows profile after review. The implementation is READY.
+Evidence: `build-runs/game-results/lotrec-autumn-integrated.verdict` and
+`lotrec-autumn-integrated.log`. Final native verification follows the main
+refresh; the game verdict predates that refresh as required by the task order.
+Both shadows observe records only; they do not replace simulation owners.
+No new questions; no remaining implementation work.
