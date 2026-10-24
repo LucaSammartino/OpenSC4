@@ -1157,3 +1157,5 @@ mod scres_file_shadow;
 
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
+// Private production-core render-properties registry expectations.
+mod renderprops_shadow;

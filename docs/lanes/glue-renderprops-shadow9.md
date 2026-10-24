@@ -4,7 +4,8 @@
 
 ## Handoff
 - Goal: default-off renderprops_shadow; independent Rust expectations; real-city monthly comparisons to 2032.
-- Done: reserved detached worktree reused; clean initial status.
-- Next: read render-properties specification sections and existing plugin/core interfaces.
+- Done: default-off registry shadow implemented: 3 counts, 77 names, 462 core-derived Find probes (542 fields/sample), no native output seeds. RP7 filed for live setter inputs/view acquisition; no whole-owner claim.
+- Next: focused Rust transport test, final all gate (queued native verify), game request using house profile to 2032.
+- Initial fmt invocation used wrong relative path; retry with capi/src/renderprops_shadow.rs. q.py Bash failed CreateFileMapping (Win32 5); use PowerShell cargo directly.
 - Constraints: no native signatures may be inferred; questions go in render-properties questions file. No DR registers without shared protocol.
 - No game request outstanding.
