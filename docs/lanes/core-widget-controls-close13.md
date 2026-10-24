@@ -11,7 +11,9 @@
 - Scoped clippy-driver diagnostic corrected manual_clamp and MSRV-compatible optional-parent check; owner-clippy-2.log clean. qbuild fmt absolute paths: 8 files, exit 0, diff_lines 0.
 - Focused cargo operation 81749 interrupted to terminal exit 1 after prolonged silence. First all operation 49012 interrupted to terminal exit 1 after scoped clippy identified changed-source corrections. Logs preserved separately.
 - Corrected final all operation 11550 is running; build-runs/all-corrected.log / qbuild-test.log. Collect same operation to terminal.
-- Queued verify operation 41471 is running; label qbuild-20261024-175346-build-ctest; build-runs/verify-final.log. Collect same operation to terminal. Do not duplicate either gate.
+- Queued verify operation 41471 collected to terminal exit 0: qbuild PASS; label qbuild-20261024-175346-build-ctest; native build 264/264 edges (232.7s), CTest 81/81 (412.5s), total 650.5s. Logs build-runs/verify-final.log and fc4verify-{build,ctest}.log.
+- Verify warns tree changed during run: source corrections preceded request; documentation and commit state changed while queued/running. No repeat without a changed-source diagnostic.
+- Final-source isolated clippy --test check clean; 26/26 pass again in owner-tests-final-result.log (0.01s).
 - Next: collect required gates; address actual failures only; commit final report and queue ready only if gates pass (partial closure explicitly permitted at context stop).
 - Remaining audit: ListBox residual adapter inventory; TreeView full recalculate/bar policy, image centering and drag helper integration. Do not claim complete owner closure from current draft.
 - No game requests. ABI unchanged; no plugin/capi or text-edit internal edits. README closure audit explicitly records incomplete implementation; no new questions (WC1-WC6 already answered).
