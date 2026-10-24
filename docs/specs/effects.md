@@ -418,6 +418,108 @@ calls `UpdateVisualEffect(effect, 0)` on each, then `ActivateNewVisualEffects`. 
 `DoZoomChanged`, the reload of step 1, and `DoRenderPropertiesChanged` (also with `+0xB8C` = 1, when the
 cached pointer `+0xB90` changes, `0x00593E10+`).
 
+### 6.2 File queue and bootstrap lifetime (EF18) *[compat]*
+
+`EffectsParser` and `EffectsBootstrap` are export labels for functions in the
+manager/parser arrangement, not two additional independently constructed COM
+owners. The constructor labelled `EffectsParser::EffectsParser` (`0059EEC0`)
+constructs `cSC4EffectsParser` (effects-parser §5). The receiver of
+`EffectsParser::ParseQueuedFiles` (`0058E4E0`) and
+`EffectsBootstrap::LoadAllEffects` (`005945B0`) is the effects manager.
+The file queue is the separate `nSCRes::cFileParser` at manager `+C78`;
+the effects command parser is at `+C7C`. Init obtains CLSID `5CF9459A`,
+IID `1CF94583` for the former, initializes it, and obtains CLSID `A956AD14`,
+IID `6956BABC` for the latter (`00594CB1–00594D20`). These boundaries are
+supported synchronous operations, not an Unsupported feature or a worker job.
+
+**Queue contract.** Installing a command parser through file-parser slot 5
+retains it and initializes its command dictionary; replacing a different parser
+retains the replacement before releasing the old one (`00680930`). Queue slot 6
+appends a copied input path and its parent directory, retaining insertion order
+and duplicates; flag bit 0 is saved on the input record, and flag bit 1 requests
+a directory watcher (shared for inputs with the same parent directory). Appending
+sets `filesModified` true (`00681DA0–00681F52`). The queue is an input-file list,
+not a list consumed by a successful parse. `NumInputFiles` and `InputFilePath`
+inspect this retained list (`006809C0`, `00680A30`). The modified flag is a byte,
+explicitly settable, and queried by slot 14 (`00680900`, `00680920`).
+
+Calling `ParseQueuedFiles` asks file-parser slot 8 to parse **all** registered
+inputs synchronously, in list order; slot 8 delegates to slot 7 with start=0,
+count=NumInputFiles (`00680990`). With a ready installed parser the file parser
+clears `filesModified`, begins a parse session, parses each path with its saved
+parent directory, and finishes the session. On an error it records a diagnostic
+and still finishes the session; successfully published earlier commands are not
+rolled back. The command grammar and owner writes remain effects-parser and §19
+contracts. This is repeated parsing of the retained inputs, not creation of a new
+effects manager. The ordinary all-success result is true, with diagnostic
+`Successfully parsed %d lines`; file-open failures produce
+`Couldn't open file '%s'` (`00680EA0`, `006812F0`, continuation `006813ED`).
+The literal not-ready path (no parser, or its ready query is false) stores
+`Not ready to parse` but returns true because its error flag remains clear
+(`00681450–006814AF`): preserve this odd success result as a quirk.
+
+The manager does not convert the result into a public boolean or throw a new
+queue exception. False: retrieve slot 10's diagnostic, pass it to the UI service
+slot 45 when that service exists, and send no completion message. True: pass
+null to that UI slot (clear the error), then, if the message service exists, send
+a standard message of type `C9F775BB` with dispatch argument 0, and release the
+temporary message. There is no separate success latch: repeated successful calls
+send repeated completion messages. The two services are independently optional.
+Evidence: `0058E4E3–0058E526`, `0058E526–0058E56F`.
+
+**Bootstrap selection and order.** The ordinary domain has initialized manager,
+file parser, command parser and framework services. Read command-line option
+`packedeffects`, lowercase its string, and choose packed loading by default.
+Literal `off` disables it; literal `on` enables it; other strings leave the
+default enabled. No whitespace trimming is added (`00594610–005946A6`).
+Build `main.fx` beneath the directory returned by `00602250`, then begin one
+collection (§18.6). Within that collection:
+
+1. If packed loading is enabled and the resource service exists, request key
+   `(type EA5118B0, group EA5118B1, instance 1)` as IID `CA51189B` and, when
+   obtained, apply its collection reader (slot 5) to this collection. A failed
+   resource request does not abort bootstrap.
+2. In that same enabled/resource-service branch, if `main.fx` exists, attach the
+   effects parser to this manager, install its adjusted parser interface in the
+   file parser, append `main.fx` with flags 3 and call `ParseQueuedFiles`. If the
+   file does not exist, call `DoRenderPropertiesChanged` instead. This file test
+   and render-properties alternative are skipped when the resource service is
+   absent (`00594711–005947D9`).
+3. With a resource service, enumerate all keys of type `EA5118B0` in the service's
+   enumeration order. Skip **every** key whose instance is 1, regardless of group;
+   for each other key, request IID `CA51189B` and apply a successfully obtained
+   reader to the collection. Release the previously held resource before each
+   such request. This enumeration also happens in unpacked mode
+   (`005947DE–00594888`).
+4. In unpacked mode, attach/install the parser, append the data-directory path
+   `Effects\\config.fx` with flags 3, then append the previously built `main.fx`
+   path with flags 2. Parse the retained queue once, send progress message 2 with
+   an empty string, then invoke effects-parser slot 2 to detach its manager and
+   collection interfaces (effects-parser §11). The code does not pretest these
+   two files and does not suppress this cleanup on an ordinary false parse
+   result (`0059488A–005949B1`). The packed `main.fx` branch has no matching
+   explicit detach here.
+5. End the collection, release the resource enumeration and last held resource,
+   and destroy temporary paths (`005949CD–00594A24`).
+
+The bootstrap has no explicit aggregate success return, no rollback, and no
+implicit effect activation. Its resource readers and file commands publish into
+the same collection in the order above. Reload during ticking follows §6.1;
+shutdown releases the command parser, shuts down the file parser and releases
+it. No separate bootstrap object must be persisted.
+
+**EF18 queue/bootstrap conformance vectors (proposed, unexecuted).** Host services
+must record calls individually, not return a prebuilt bootstrap result.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF18-1 | Queue contains A, B, A; parse twice, all succeed; both reporting services present | inputs visited A,B,A twice; queue remains length 3; two UI clears and two `C9F775BB` sends |
+| EF18-2 | File parser returns false with diagnostic D; UI absent, message service present | diagnostic queried, no completion message; earlier publications retained |
+| EF18-3 | Default packed option, base resource succeeds, main.fx absent, extra keys have instances 1,2,3 | Begin; base reader; render-properties refresh; skip instance 1; readers 2 and 3 in service order; End; no file append |
+| EF18-4 | Option `OFF`, resource service present, extra resource R; config.fx succeeds, main.fx fails | Begin; no base request; R read; attach/install; append config flags 3 then main flags 2; parse; error report; progress 2; detach; End; R's publications retained |
+| EF18-5 | Packed enabled, resource service absent, main.fx exists | Begin then End; no file parse, no render-properties alternative, no enumeration |
+| EF18-6 | No installed command parser | file parser stores `Not ready to parse` yet returns true; manager clears UI error and sends completion if those services exist |
+
 ## 7. Finishing and the end message *[compat]*
 
 The draw pass (`Update(SC4DrawContext)` `0x00593120` → `DeactivateUnusedVisualEffects` `0x005922A0`) tests each
@@ -1758,6 +1860,80 @@ replacement is to survive the game's own direct field access.
 - The exact dispatch site that reaches `+0x08` before the first draw needs a runtime probe: log every call
   into the replacement after `Init` together with `this` and `this+8`, or break on `cIGZMessageTarget2`'s
   `DoMessage` in the original and record the caller.
+
+### 18.6 Collection publication and reload (EF18) *[compat]*
+
+The collection interface in §18.1 is a publication service, not a mutex.
+`BeginCollection`/`EndCollection` delimit a rebuild of bindings and notification
+indices; there is no nesting counter or transaction rollback. The generic
+collection's Begin (`0058BEF0`) clears the effect-ID binding vector and message
+trigger vector and clears its camera-present byte. It **retains** the description
+arrays and their name maps, including component descriptions covered by
+effects-parser §11.1. The manager's Begin (`0058F690`) first unsubscribes its
+message target from every previous trigger's message ID when a message service
+exists, clears its ID-pair and trigger lookup tables, then performs that generic
+Begin. Existing runtime effects are not stopped by this operation.
+
+**Visual-effect publication and copies.** `AddEffectDescription` (`0058D560`)
+folds the supplied name to lowercase and selects a slot by the pair
+(folded name, **exact description priority**), using `00587170`. A matching pair
+is replaced at the same stable index; a different priority appends a description
+and an additional name entry. It assigns a value copy of the description before
+performing fixups. It does not retain a pointer to the caller's mutable record,
+and does not reject unresolved references or validate a preexisting nonnegative
+index against table bounds.
+
+The stored trailing description string is folded to lowercase. For each copied
+component whose signed description index is negative, fold its name, then resolve
+by type: particles (0), model particles (16), decals (1), or that type's component
+directory (3–15). A hit replaces the index; a miss leaves the negative value.
+Meta type 2 instead gets index 0 without checking that its child name exists.
+Other types retain their index. A component whose index was already nonnegative
+is skipped entirely, including its name folding. This fixes names only at
+publication time; later definition of a missing component is not a retroactive
+fixup (`0058D6C2–0058D77B`).
+
+For every copied parameter binding, fold its resource name. If binding flags bit
+0 is set, look up that name in the collection's shake-description map; otherwise
+if bit 2 or bit 3 is set, use the light-description map. On a hit replace the
+binding's last word with that description index; a miss preserves it. Other flag
+combinations preserve that word. Bit 0 takes precedence. These are literal map
+choices (`0058D781–0058D805`), not a generic asset-validation pass.
+`GetEffectDescription` (`0058B500`) folds its lookup name, returns false on a
+miss without writing the destination, and on a hit returns true and assigns a
+value copy if a destination was supplied. A null destination is an existence
+query. This is separate from the manager's max-priority selection in §4.1.
+
+**IDs and messages.** `AddEffectBinding(name,group,instance)` (`0058B580`)
+appends a copied string and the two unsigned words; it does not resolve the name
+or create a runtime effect. Parser callers fold their own names (§19.4).
+`AddMessageTrigger` (`0058B8B0`, interface thunk `0058C0E0`) appends a copied
+(message ID,string) record without deduplication. End (`005900A0`) retains the
+current camera parameters for manager use, resolves each ID binding's name
+against the effect-name map and inserts (group,instance) → description index into
+the manager lookup. Missing names add no mapping. All matching name entries are
+visited in native name-map traversal order; insertion is **first-wins** for an
+already present ID pair (`0058F230`), including conflicts between successive
+binding records. It does not substitute the max-priority rule from Create by
+name for this operation. The runtime ID lookup therefore uses the binding chosen
+at collection End, not a fresh name-priority query.
+
+End also assigns message-ID → trigger-vector-index in vector order (later
+duplicate IDs overwrite earlier indices), and subscribes the manager message
+target once for each trigger record, including duplicates, when the message
+service exists (`00590270–00590370`). It does not clear descriptions or activate
+runtime effects. A subsequent Begin unsubscribes those records and clears these
+derived tables. Thus reloading an empty collection retains descriptions but
+removes its previous IDs/triggers and camera-presence state. Copy/publication
+failure is not transactional: there is no owner undo of earlier copies or calls.
+
+| ID | Fixture | Required result (proposed, unexecuted) |
+|---|---|---|
+| EF18-7 | Publish effect `Smoke`, priority 1; republish `SMOKE`, priority 1; publish `smoke`, priority 2 | first slot replaced, second priority has a second slot; caller records remain independent |
+| EF18-8 | Copied components: unknown particle name/index −1; unknown meta/index −1; mixed-case particle name/index 7 | first name folded and index stays −1; meta name folded/index 0; last name and index untouched; publication does not reject |
+| EF18-9 | Bind distinct single-description names A then B to the same ID pair, End | pair resolves to A; a missing-name binding creates no pair |
+| EF18-10 | Two triggers with the same message ID; End then Begin with message service | End's lookup selects second trigger; two subscribe calls then two unsubscribe calls; trigger/binding lists cleared; descriptions retained |
+| EF18-11 | Publish effect with one missing component; add that component afterwards; inspect stored effect | index remains unresolved until the effect is republished; no implicit validation/republication |
 
 ## 19. Effects-script command contracts *[compat]*
 
