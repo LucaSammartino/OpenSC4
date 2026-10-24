@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! map-view Ãƒâ€šÃ‚Â§10 and owner interface vectors. No game/renderer implementation.
 use fc4_core::map_view::*;
+#[path = "map_view/close18_vectors.rs"]
 mod close18_vectors;
 #[path = "map_view/settled_vectors.rs"]
 mod settled_vectors;
