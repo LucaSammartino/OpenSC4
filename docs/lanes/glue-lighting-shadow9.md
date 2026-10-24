@@ -11,8 +11,9 @@
 - Failed focused compile (f64 passed to f32 register constructor) preserved in build-runs/lighting-focused-r3.log; corrected evidence lighting-focused-r3-corrected.log. q.py failed Bash startup; Python runner used instead. No full gate yet.
 - Source milestone d441508d5; explicit-owned-file fmt PASS. First full gate: 7021 Rust tests PASS, clippy zero diagnostics, native 217/217 edges PASS, CTest 79/80: capi_smoke used an inherited stale object (compiled header ABI97, actual/header now ABI98). Failure reports compiled path train-integration; no ABI version changed here.
 - Failed evidence preserved as build-runs/lighting-r3-stale-abi-*.log; diagnostic removes only generated capi_smoke.cpp.obj to force current-header compilation.
-- Next: repeat full gate after this diagnosed generated-input invalidation; unique house request to 2032, wait without qwait.
-- No request outstanding. Prior accepted r4 evidence below belongs to round 2, not new source.
+- Corrected full gate PASS: 7021 Rust tests, clippy zero diagnostics; native 51/51 edges; CTest 80/80 (75.8s). Job qbuild-20261024-102901-build-ctest / session95504 collected to terminal PASS. Source remains d441508d5.
+- Outstanding sole game label: lighting9-r3-extended-house2032-20261024a, exact house profile plus lighting_shadow=1, turbo to2032, seconds1500/timeout1800. Do not duplicate/discard completed verdict. Prior accepted r4 below belongs to round2.
+- Next: run python build-runs/lighting-verdict-wait.py lighting9-r3-extended-house2032-20261024a; collect same session in 60s waits, no qwait. Inspect verdict and bounded lighting log lines; free run number; final report/READY queue full40-char actualHEAD.
 - Main run numbers through at least 478 are occupied; choose new number after reading main docs/runs.
 - Detached HEAD is intentional; do not update refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r3-manifest.json.
 
