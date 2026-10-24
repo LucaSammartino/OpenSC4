@@ -1,5 +1,29 @@
 # Standard window controls: answered questions
 
+## WC3 — TreeView exact input, drag and pixel contract
+
+In widget-controls sections 6.4–6.5: settle zero-visible-node keyboard behavior,
+exact page-navigation arithmetic, right-click selection, modifier ordering,
+shared double-click state, drag start/over/drop/cancel notifications and helper
+lifetime. Verify selected gradient arithmetic, expander/connector drawing,
+clipping, buffer-access failure and image-list resource failures. Anchors:
+`009D1031`, `009D135A`, `009D14BF`, `009D2577`, `009D17A8`, `009D0CB1`,
+`009D0888`, helper `009CFD89`–`009D14BE`. No game comparison was requested/run.
+
+**ANSWERED 2026-10-24 (re-widget-controls-wc7):** DIFFERS — Sections 6.5–6.7
+and vectors T37–T51 settle the owner contracts. Navigation on an empty visible
+sequence is an unsafe pre-begin dereference. Page movement uses the ceil row
+count without subtracting an overlap row. Control toggles only with flag 0x10;
+Shift has no range rule. Static timer/rectangle state permits cross-instance
+double clicks. Drag requires a synchronous acceptance byte, borrows its helper
+data during the runner call, selects/rejects targets by ancestry, and sends a
+drop pair without moving nodes; empty target selection cancels without restoring
+the old selection. No separate owner cancel notification is present. The
+selected effect is two flat fills with byte-average/quarter-band arithmetic.
+Access failure skips its guarded primitive, not the whole paint. Exact final
+raster pixels and modal termination remain the called graphics/font/runner
+service contracts, with no game-verified bitmap claim.
+
 ## WC2 — TreeView property/node ABI and lifecycle residuals
 
 In widget-controls sections 6.1–6.3, settle remaining primary-slot signatures,

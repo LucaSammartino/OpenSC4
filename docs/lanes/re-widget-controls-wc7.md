@@ -67,6 +67,7 @@ closure from this round. No engine file was edited.
 
 - Final round 3 started 2026-10-24 at 4f94638c6; detached HEAD retained. Bash q.py fails CreateFileMapping; use bounded PowerShell reads and re_query directly.
 - Round 3 milestone: WC2 adapters/wrappers, move/removal, image ownership/failure and T27–T36 specified; WC2 archived. Gate deferred to final once. Next: settle WC3 input/drag/drawing from named owners; then refresh inventory/coverage and index.
+- Round 3 WC2 committed 659be86a3. WC3 now specified/archived with T37–T51; inventory/coverage refreshed. Next exact step: run final doccheck once with output under build-runs, then replace report, commit and enqueue full HEAD ready. All WC1–WC6 archived; no new owners/questions/game/ABI changes.
 - Goal remaining: finish WC2 and WC3; WC1/WC4/WC5/WC6 answered.
 - Done: 14590ec17 WC1; 391e9d561 partial WC2; doccheck and whitespace passed.
 - Next exact step: inspect O19-24 image/insertion wrapper bodies at 009D3F7B/009D34A7/009D0C63/009D407E/009D3D60/009D3CBA.
