@@ -19,17 +19,17 @@ The implemented column uses module paths relative to `engine/core/src/watercraft
 | cSC4Watercraft | §0 | `Watercraft`, `Fleet` | Scope. |
 | cSC4Watercraft | §1 | `WatercraftRecord`, runtime fields | `record_only_saves_version_and_base_and_rejects_truncation`; pending remaining inherited/runtime fields. |
 | cSC4Watercraft | §2 | `DriveParameters`, `Group` | Existing absent/zero/ancestor parameter tests. |
-| cSC4Watercraft | §3 | `owner.rs::initialize_runtime`, `states.rs::shutdown` | Init factory failure and repeated-init tests; pending inherited lifecycle integration; open: WC10 model acquisition. |
+| cSC4Watercraft | §3 | `owner.rs::initialize_runtime`, `states.rs::shutdown` | Init factory failure and repeated-init tests; pending inherited lifecycle integration with the concrete model loader. |
 | cSC4Watercraft | §3.1 | constructor, codec Write, `erase_travel_point`, `sign` | `wc3_l01_l05_l06_constructor_erase_and_sign`; pending type ID, deletion/release order and interface model. |
 | cSC4Watercraft | §3.2 | endpoints, `maximum_extent`, `Footprint::build` | `wc5_f01_through_f04_model_footprint_builder`; pending outside-corner helper vectors. |
 | cSC4Watercraft | §3.3 | `movement_possible`, docking cleanup, straight integration | Existing movement ordering tests; pending separate reported station-lot position. |
 | cSC4Watercraft | §3.4 | `angular_proximity`, `quantize_heading`, `on_land`, `end_towing` | `wc2_p02_slew_and_wc3_j04_j05_angular_quantization`; pending terrain-at-cell and reentrant tow reference tests. |
-| cSC4Watercraft | §3.5 | `mod.rs::DriveParameters`, `owner.rs` lifecycle prefix | Parameter tests; pending complete inherited lifecycle work; open: WC10 model initialization. |
+| cSC4Watercraft | §3.5 | `mod.rs::DriveParameters`, `owner.rs` lifecycle prefix | Parameter tests; pending complete inherited lifecycle and effect-binding integration. |
 | cSC4Watercraft | §3.6 | `models.rs::load_models` | `model_tests.rs::wc3_ml01_*` through `wc3_ml04_*`: primary setup, radius, partial failure/retry, auxiliary filtering and reference transfer. |
 | cSC4Watercraft | §3.7 | `models.rs::acquire_model`, `add_model_instance`, `load_auxiliary_model` | `model_tests.rs::wc10_r01_*` through `wc10_r04_*`, `wc10_a01_*` through `wc10_a05_*`. |
 | cSC4Watercraft | §3.8 | `models.rs::position_model_instance`, `publish_models`, `remove_models` | `model_tests.rs::wc11_p01_*` through `wc11_p04_*`, `wc11_u01_*` through `wc11_u07_*`. |
 | cSC4Watercraft | §4 | `states.rs`, `runtime.rs::runtime_state_tick`, `crash.rs::crash_state_tick` | `common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once`, `crash_dispatch_double_time_outside_and_effect_order`; inherited enter result remains pending. |
-| cSC4Watercraft | §5.1 | `runtime.rs::animation_tick_core`, `operations.rs`, `subsidiary.rs` | Ordered core dispatch added; dedicated end-to-end animation fixture and effect-command execution remain pending; open: WC11 model publication. |
+| cSC4Watercraft | §5.1 | `runtime.rs::animation_tick_core`, `operations.rs`, `subsidiary.rs`, `models.rs` | Ordered core dispatch and concrete model publication exist; dedicated end-to-end animation fixture and effect/model-command execution remain pending. |
 | cSC4Watercraft | §5.1.1 | `physics.rs` | `wc4_m01_m02_*` through `wc4_m07_*`, `wc4_v01_through_v04_*`. |
 | cSC4Watercraft | §5.1.2 | `count_idle_always`, budget accounting | Existing idle tests; manager population writer outside this owner. |
 | cSC4Watercraft | §5.1.3 | `physics.rs::slew_ai_targets`, `targets.rs` | `wc2_p02_*`, `wc4_ai03_through_ai05_asymmetric_turn_signs_and_publication`; pending caller-removal/shore-contact gates. |
@@ -54,13 +54,13 @@ The implemented column uses module paths relative to `engine/core/src/watercraft
 | cSC4Watercraft | §5.7.4 | `inanimate_collision` | `wc5_i01_through_i05_*`, all 32 table cells and scan order. |
 | cSC4Watercraft | §5.7.5 | `crash.rs::heel_tick` | `wc5_h01_through_h05_heel_axes_time_and_boundaries`, `wc5_h06_through_h10_contact_order_and_strict_gates`, `wc12_h11_*` through `wc12_h13_*`; contact banks identity and samples a fresh terrain normal before reading the owner transform. |
 | cSC4Watercraft | §6.1 | `runtime.rs::player_drive_tick`, `movement.rs::coast`, `operations.rs::release_tow_ahead`, `physics.rs` | `wc6_10_full_drive_ignores_base_false_and_uses_two_times`; inherited channel saturation/sentinel vector. |
-| cSC4Watercraft | §6.2–§6.2.3 | Float `DriveCommand`, nonlinear/inverse curves, `CommandChannel`, `SpeedTween` | WC8 speed/steering/toggle and WC6 fire/transform/render/tween/cooldown vectors. WC8-08 disputed in WC9; nullable missing-group input unrepresentable (`Arc<Group>` required). Pending tow-effect transform/refresh and complete drive-tick integration. |
+| cSC4Watercraft | §6.2–§6.2.3 | Float `DriveCommand`, nonlinear/inverse curves, `CommandChannel`, `SpeedTween` | WC8 speed/steering/toggle, settled WC9 simultaneous steering and WC6 fire/transform/render/tween/cooldown vectors. Nullable missing-group input remains unrepresentable (`Arc<Group>` required). Pending tow-effect transform/refresh and complete drive-tick integration. |
 | cSC4Watercraft | §6.3 | `following_tick`, tow hooks | `following_uses_endpoint_gap_and_slack_does_not_publish`; pending named endpoint/negative-time vectors. |
 | cSC4Watercraft | §7 | `do_message`, insertion-order fleet scan | First geometric-match selection; pending explicit rejection-of-first-candidate and radius equality vectors. |
 | cSC4Watercraft | §8 | `runtime.rs::runtime_state_tick` | `common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once`. |
 | cSC4Watercraft | §9 | `debug_extra_text` | Existing formatting test; pending shared borrowed-string identity/lifetime API. |
 | cSC4Watercraft | §10 | Contract boundary | WC1–WC12 answered. Remaining `pending` rows are implementation debt, not spec gaps. |
-| cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs`, `round2_tests.rs`, `closure_tests.rs`, `runtime_tests.rs` | In-progress vector coverage listed above, not all named vectors implemented. |
+| cSC4Watercraft | §11 | `tests.rs`, `physics_tests.rs`, `collision_tests.rs`, `round2_tests.rs`, `closure_tests.rs`, `runtime_tests.rs`, `model_tests.rs` | The 23 newly settled WC10/WC11/WC12 vectors and ML01–ML04 are covered; other pending vector coverage is listed above. |
 
 The record test `record_same_input_round_trip_stabilizes_inherited_loaded_status`
 checks equality of a decoded record and its same-input second round trip, and byte
