@@ -1022,3 +1022,8 @@ if(TARGET FreeCity4)
         endif()
     endforeach()
 endif()
+
+# Opt-in record-only Lua collector/registration shadow (LH6-LH7 bound scope).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4LuaShadow.cpp plugin/FC4LuaShadow.h)
+endif()

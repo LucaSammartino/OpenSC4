@@ -2422,3 +2422,11 @@ Finite decimal extraction (RZS7), pointer formatting, nonvirtual substring/case
 helpers, detokenizer and language owners remain open for this shadow. Non-ASCII
 case/format probes are excluded and counted (RZS2/RZS5); other operations retain
 their counted bytes. The shadow never changes locale or replacement dispatch.
+- `lua_shadow = 1` (default off) records the original Lua extension collector
+  and app VM's registered callback identities at city load and monthly. The
+  `lua-registry shadow YYYY-MM-DD` lines compare all 47 ordered names/flags,
+  replay core `register_api(true/false)` with the recorded native callback
+  bindings, and compare globals, `game` fields and `_tf_`, preserving the native
+  stack. No nondeterministic values are excluded. This is bounded registration
+  verification: full chunk/global/table/call recording and VM replay remain
+  open under lua-host LH6-LH7 and receive no full Lua coverage credit.

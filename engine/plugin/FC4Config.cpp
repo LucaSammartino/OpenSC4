@@ -362,6 +362,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "strings_shadow",
                                   // Record-only scripted network drag comparison (default off).
                                   "nettool_shadow",
+                                  // Bounded original Lua registry comparison; default off.
+                                  "lua_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
