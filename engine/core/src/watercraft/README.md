@@ -14,7 +14,7 @@ WC10/WC11 carry the remaining model acquisition/publication boundaries.
 Settled work still marked `pending` below is implementation debt, not a spec gap.
 The implemented column uses module paths relative to `engine/core/src/watercraft/`.
 
-| Owner | Spec section | Code item | Test or remaining work |
+| Owner | Spec section | Implemented (module path / item) | Test or remaining work |
 |---|---|---|---|
 | cSC4Watercraft | §0 | `Watercraft`, `Fleet` | Scope. |
 | cSC4Watercraft | §1 | `WatercraftRecord`, runtime fields | `record_only_saves_version_and_base_and_rejects_truncation`; pending remaining inherited/runtime fields. |
@@ -24,6 +24,8 @@ The implemented column uses module paths relative to `engine/core/src/watercraft
 | cSC4Watercraft | §3.2 | endpoints, `maximum_extent`, `Footprint::build` | `wc5_f01_through_f04_model_footprint_builder`; pending outside-corner helper vectors. |
 | cSC4Watercraft | §3.3 | `movement_possible`, docking cleanup, straight integration | Existing movement ordering tests; pending separate reported station-lot position. |
 | cSC4Watercraft | §3.4 | `angular_proximity`, `quantize_heading`, `on_land`, `end_towing` | `wc2_p02_slew_and_wc3_j04_j05_angular_quantization`; pending terrain-at-cell and reentrant tow reference tests. |
+| cSC4Watercraft | §3.5 | `mod.rs::DriveParameters`, `owner.rs` lifecycle prefix | Parameter tests; pending complete inherited lifecycle work; open: WC10 model initialization. |
+| cSC4Watercraft | §3.6 | pending `LoadModels` owner control | ML01–ML04 not implemented; acquisition/auxiliary internals open: WC10. |
 | cSC4Watercraft | §4 | `states.rs`, `crash.rs::crash_state_tick` | `crash_dispatch_double_time_outside_and_effect_order`; pending integration into common state dispatcher and inherited enter result. |
 | cSC4Watercraft | §5.1 | `operations.rs`, `subsidiary.rs` | Timer/budget and subsidiary tests; pending complete ordered animation tick; open: WC11 model publication. |
 | cSC4Watercraft | §5.1.1 | `physics.rs` | `wc4_m01_m02_*` through `wc4_m07_*`, `wc4_v01_through_v04_*`. |
