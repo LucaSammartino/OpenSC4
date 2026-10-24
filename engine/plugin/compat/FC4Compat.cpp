@@ -670,6 +670,26 @@ bool DisasterHookEntry(DisasterHook which, void*** entry, uintptr_t* function) {
     return true;
 }
 
+bool QueryToolFilterVtables(const void** hover, const void** describe, const void** record) {
+    const auto* v = IdentifiedVersion();
+    if (!v || v->imageBase != 0x00400000 ||
+        reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) != v->imageBase) return false;
+    // Fixed addresses are used only for the identified supported image.
+    constexpr uintptr_t tables[] = {0x00A909B0, 0x00A90B18, 0x00AA42B0};
+    for (uintptr_t va : tables) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) != sizeof(mbi) ||
+            mbi.State != MEM_COMMIT || mbi.Type != MEM_IMAGE ||
+            reinterpret_cast<uintptr_t>(mbi.AllocationBase) != v->imageBase ||
+            (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) ||
+            !CheckCode("query filter entry", *reinterpret_cast<const uintptr_t*>(va), v->imageBase)) return false;
+    }
+    *hover = reinterpret_cast<const void*>(tables[0]);
+    *describe = reinterpret_cast<const void*>(tables[1]);
+    *record = reinterpret_cast<const void*>(tables[2]);
+    return true;
+}
+
 const void* ParkManagerVtable() {
     static int state = 0;  // 0 unknown, 1 available, -1 refused
     static const void* vtable = nullptr;

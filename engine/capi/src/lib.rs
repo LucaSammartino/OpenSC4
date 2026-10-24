@@ -1166,6 +1166,8 @@ mod city_shadow;
 mod lighting_shadow;
 // LR14/T79 read-only live construction geometry; private static-link transport.
 mod construction_shadow;
+// Private live query predicate comparison; no public DLL exports.
+mod querytool_shadow;
 // Private legacy owner-method observation replay (no public DLL exports).
 mod legacyctl_shadow;
 // VU16: private partial view-utilities comparison transport.
