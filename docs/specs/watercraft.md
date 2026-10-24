@@ -1601,7 +1601,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
 | Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
 | Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.4, 5.1.1, 5.2, 5.4.1; angular proximity and direction-quantization signatures/results now included |
-| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; tuning signature/failure audit still WC3 |
+| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3.5, §5.2; tuning void result, fallback and readable-list preconditions specified |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
@@ -1628,8 +1628,8 @@ substitute an opaque provider result for missing owner computation.
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow and debug lifetime contracts and inherited animation dispatch | Complete tuning signature/result/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
-| WC4 | Commands, routes/following/final and far docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations. |
+| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, adjustors, geometry/movement/docking/angular/quantization signatures, land/tow/debug, tuning and inherited lifecycle/subsidiary dispatch boundaries | Transitive model-loading/effect-controller contracts and shared tween sampling arithmetic. Historical 79 is not the current measured attribution (§10.1). |
+| WC4 | Commands, drive ordering, routes/following/final/far docking, integration, normal visual basis, slew, generic seeking, wake order, subsidiary animation gates, publication boundaries and AI midpoint/consumption gates | Full AI target-production branches, common tween sampling, and effect-controller internals. §5.1.5 expands slots 83/103/104/107 without claiming transitive renderer/effect closure. |
 | WC5 (answered) | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, footprint, inanimate corners, sinking and grounding/contact bases and publication (§5.7.5) | None for this question; required-service preconditions and degenerate bases are explicit. |
 
 These gaps are not answered by an inventory count or by the existing summary
