@@ -4,6 +4,7 @@
 #include "FC4Log.h"
 #include "FC4PropCityCommon.h"
 #include "FC4RefAudit.h"
+#include "FC4SCResShadow.h"
 #include "FC4Subsystems.h"
 #include "FC4WriteCapture.h"
 #include "cFC4Weather.h"
@@ -21,6 +22,7 @@ namespace {
 cFC4WeatherSimulator* g_core = nullptr;
 cIGZUnknown* g_original = nullptr; // borrowed for this city's lifetime
 uint64_t g_differences = 0, g_steps = 0, g_lines = 0, g_clean = 0;
+bool g_recordDifferenceLogged = false;
 size_t g_firstOffset = 0;
 void Compare();
 using MoistureFn = void (__fastcall*)(void*, void*, const SC4Rect<int32_t>&);
@@ -61,11 +63,15 @@ void __fastcall ManualAddition(void* self, void* edx, float x0, float z0, float 
 // hardware execution breakpoint observes that point; no game code is patched
 // and no call to __getptd, rand or srand is made. Private continuable exceptions
 // install/restore DR0 through the current thread's genuine exception context.
+// The SCRes observer may lend its idle slot for the synchronous weekly call:
+// weather 5.2 enters no resource parser and posts (does not dispatch) messages.
+// Preserve its full DR0/DR6/DR7 state, including all other enabled breakpoints.
 // All draws in the scoped operation must form a contiguous CRT sequence.
 constexpr DWORD kConfigureObserver = 0xE042FC40;
 constexpr DWORD kRandSite = 0x009EFBA4;
 DWORD g_thread = 0;
 DWORD g_savedDr0 = 0, g_savedDr6 = 0, g_savedDr7 = 0;
+DWORD g_observedDr7 = 0;
 bool g_configured = false;
 uint32_t g_randBefore = 0, g_randAfter = 0, g_randCount = 0;
 bool g_randValid = true;
@@ -80,7 +86,12 @@ LONG CALLBACK ObserveRand(EXCEPTION_POINTERS* p) {
         p->ExceptionRecord->NumberParameters == 1) {
         c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
         if (p->ExceptionRecord->ExceptionInformation[0] == 1) {
-            if ((c->Dr7 & 3) != 0) { g_randValid = false; return EXCEPTION_CONTINUE_EXECUTION; }
+            g_observedDr7 = c->Dr7;
+            if ((c->Dr7 & 3) != 0 &&
+                !((c->Dr7 & 0xF0000u) == 0 && SCResShadowCanLendBreakpoint(c->Dr0))) {
+                g_randValid = false;
+                return EXCEPTION_CONTINUE_EXECUTION;
+            }
             g_savedDr0 = c->Dr0;
             g_savedDr6 = c->Dr6;
             g_savedDr7 = c->Dr7;
@@ -125,6 +136,8 @@ bool BeginRand() {
     g_thread = GetCurrentThreadId();
     const ULONG_PTR operation = 1;
     RaiseException(kConfigureObserver, 0, 1, &operation);
+    if (!g_configured)
+        Log("weather shadow observer: configuration failed valid=%d dr7=%08X", g_randValid ? 1 : 0, g_observedDr7);
     if (!g_configured) g_thread = 0;
     return g_configured;
 }
@@ -155,12 +168,14 @@ void Compare() {
             ++differences;
         }
     }
-    if (differences && g_differences == 0)
+    if (differences && !g_recordDifferenceLogged) {
+        g_recordDifferenceLogged = true;
         Log("weather shadow: first difference step=%llu byte=%u original/ours=%u/%u bytes=%u/%u",
             g_steps, static_cast<unsigned>(g_firstOffset),
             g_firstOffset < a.size() ? a[g_firstOffset] : 0,
             g_firstOffset < b.size() ? b[g_firstOffset] : 0,
             static_cast<unsigned>(a.size()), static_cast<unsigned>(b.size()));
+    }
     g_differences += differences;
 }
 
@@ -219,8 +234,12 @@ bool WeatherShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMess
     if (g_original == nullptr || name == nullptr || std::strcmp(name, "cSC4WeatherSimulator") != 0 ||
         target == nullptr || msg == nullptr || finished == nullptr) return false;
     if (g_core == nullptr) { Bootstrap(); Line("load", static_cast<int32_t>(data1)); }
+    const int32_t nativeDate = AsGame(g_core->City()->GetSimulator())->GetSimDateNumber();
     const bool weekly = type == 0x66956815;
     const bool observing = weekly && BeginRand();
+    if (g_steps < 12)
+        Log("weather shadow delivery: type=%08X delivered=%lld native=%d weekly=%d observing=%d",
+            type, data1, nativeDate, weekly ? 1 : 0, observing ? 1 : 0);
     if (weekly && !observing) ++g_differences;
     *finished = target->DoMessage(msg); // exactly one genuine original call
     if (observing && !EndRand()) ++g_differences;
@@ -238,6 +257,10 @@ bool WeatherShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMess
     if (observing) {
         uint32_t state = 0;
         if (!fc4_weather_shadow_crt(g_core->Core(), &state, false) || state != g_randAfter) ++g_differences;
+        if (g_steps < 48)
+            Log("weather replay: type=%08X delivered=%lld native=%d draws=%u valid=%d crt=%08X/%08X/%08X",
+                type, data1, nativeDate, g_randCount, g_randValid ? 1 : 0,
+                g_randBefore, g_randAfter, state);
     }
     ++g_steps;
     Compare();
@@ -259,6 +282,7 @@ void WeatherShadowCityShutdown() {
     g_core = nullptr;
     g_original = nullptr;
     g_differences = g_steps = g_lines = g_clean = 0;
+    g_recordDifferenceLogged = false;
     if (g_handler) { RemoveVectoredExceptionHandler(g_handler); g_handler = nullptr; }
 }
 }
