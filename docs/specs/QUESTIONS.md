@@ -224,7 +224,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
-| application | 10 | 6 | AP17 | questions/application.md |
+| application | 12 | 6 | AP19 | questions/application.md |
 | audio | 8 | 12 | AU51 | questions/audio.md |
 | audio-ambience | 4 | 11 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
@@ -300,7 +300,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 4 | 12 | QV17 | questions/map-view.md |
+| map-view | 1 | 15 | QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -408,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **661** | **1560** | | |
+| **total** | **660** | **1563** | | |
