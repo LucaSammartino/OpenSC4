@@ -3,6 +3,10 @@
 | core-www-close15 (WWW owner closure) | Codex / `core-www-close15` (engine lane) | in progress; focused 33/33 and FTP FTPC01-06 pass; fmt 14 files clean; no ABI changes | Continue HTTP worker, FTP support and cache closure, then all/verify gates. |
 
 ## Handoff
+Round r2: merge q17/q18 commands both already up to date (shared packed-refs lock warning; refs are read-only).
+Round r2: cache Q11/Q15 implemented: atomic filename reservation, source files, rightmost-seven loader, orphans, writer topology and default INI name.
+Round r2: build-runs/cache-r2.log terminal PASS 6/6 including NFC13-19; q.py unavailable (bash CreateFileMapping access denied), use PowerShell output capture.
+Round r2 next: HTTP header/worker orchestration and FTP residual helpers, update README, all + verify gates.
 Goal: merge re-www-q17 then re-www-q18 and close the five WWW owners in core only.
 Done: merged q17 at b8ded3ec5 and q18 at 8a66a839c; resolved overlapping indexes.
 Done: cookie splitter, hex persistence, constructor default and changed-path reload implemented; CK07-CK13 fixtures added.

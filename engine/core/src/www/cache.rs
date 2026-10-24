@@ -39,10 +39,15 @@ pub trait Host {
     /// and open/read failure. Partial/failed reads must not escape as success.
     fn read_file(&mut self, path: &[u8]) -> Option<Vec<u8>>;
     fn write_file(&mut self, path: &[u8], data: &[u8]) -> bool;
-    /// Filename allocation/collision policy is explicitly Q11.
-    fn reserve_filename(&mut self, _directory: &[u8]) -> Contract<Vec<u8>> {
-        Err(Unsupported::PrimitiveContract("Q11 cache filename allocation"))
-    }
+    /// Atomic CREATE_NEW, write-only/shared-read; close immediately on success.
+    fn create_new(&mut self, path: &[u8]) -> bool;
+    fn copy_file(&mut self, source: &[u8], destination: &[u8], overwrite: bool) -> bool;
+    fn file_length(&mut self, path: &[u8]) -> u32;
+    fn read_ini_values(&mut self, path: &[u8], section: &[u8]) -> Option<Vec<Vec<u8>>>;
+    fn cache_files(&mut self, directory: &[u8]) -> Option<Vec<Vec<u8>>>;
+    /// Native map topology snapshot: ascending buckets, head-to-tail chains.
+    /// Bucket count and chain topology are storage inputs, not lexical ordering.
+    fn map_buckets(&mut self) -> Vec<Vec<Vec<u8>>>;
     fn clear_ini_section(&mut self, path: &[u8], section: &[u8]);
     fn write_ini(&mut self, path: &[u8], section: &[u8], key: &[u8], value: &[u8]) -> bool;
     fn persistence_attempt(&mut self, operation: &'static str);
@@ -60,6 +65,12 @@ pub struct Cache {
     pub default_lifetime: i32,
     pub operations: u32,
     pub since_maintenance: u32,
+}
+impl Default for Cache {
+    fn default() -> Self { Self::new(b"FileCache.ini".to_vec()) }
+}
+pub fn hash(key: &[u8]) -> u32 {
+    key.iter().fold(0u32, |value, byte| value.wrapping_mul(2) ^ (*byte as i8 as i32 as u32))
 }
 impl Cache {
     pub fn new(ini_name: Vec<u8>) -> Self {
@@ -134,7 +145,26 @@ impl Cache {
     }
     pub fn read_ini(&mut self, host: &mut impl Host) -> Contract<bool> {
         host.persistence_attempt("read");
-        Err(Unsupported::OwnedBody("Q11 cache INI loader acceptance"))
+        let path = self.path(&self.ini_name);
+        let Some(values) = host.read_ini_values(&path, b"Cache Entries") else { return Ok(false) };
+        let now = host.now();
+        for value in values {
+            let fields: Vec<_> = value.rsplitn(8, |b| *b == b',').collect();
+            if fields.len() != 8 { continue; }
+            let number = |i: usize| super::ftp::atol(fields[i]) as u32;
+            let (length, expiration) = (number(5), number(0));
+            let filename = fields[6].to_vec();
+            if length > 4_000_000 || expiration <= now {
+                self.remove_file(host, &filename);
+                continue;
+            }
+            if !host.exists(&self.path(&filename)) { continue; }
+            self.entries.insert(fields[7].to_vec(), Entry {
+                filename, ram: None, length, attribute: number(4), lifetime: number(3) as i32,
+                creation: number(2).min(now), access: number(1).min(now), expiration,
+            });
+        }
+        Ok(true)
     }
     /// Release map RAM holds without deleting persisted cache files (§6.2).
     pub fn clear_map(&mut self) {
@@ -142,10 +172,50 @@ impl Cache {
     }
     pub fn remove_unused_files(&mut self, host: &mut impl Host) -> Contract<bool> {
         host.persistence_attempt("remove-unused");
-        Err(Unsupported::OwnedBody("Q11 cache unused-file selection"))
+        for filename in host.cache_files(&self.directory).unwrap_or_default() {
+            if filename.ends_with(b".cache") && !self.entries.values().any(|e| e.filename == filename) {
+                self.remove_file(host, &filename);
+            }
+        }
+        Ok(true)
     }
-    pub fn add_source_file(&mut self) -> Contract<bool> {
-        Err(Unsupported::OwnedBody("Q11 cache source-file admission"))
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_source_file(&mut self, host: &mut impl Host, key: &[u8], source: &[u8], copy: bool, attribute: u8, lifetime: i32) -> bool {
+        if key.is_empty() { return false; }
+        let now = host.now();
+        self.count(host, now);
+        self.remove(host, key);
+        let split = source.iter().rposition(|b| matches!(b, b'/' | b'\\')).map_or(0, |i| i + 1);
+        let mut name = source[split..].to_vec();
+        if copy || !source[..split].eq_ignore_ascii_case(&self.directory) {
+            let (_, reserved) = self.reserve_filename(host, key, None, false);
+            name = reserved;
+            if !host.copy_file(source, &self.path(&name), true) { return false; }
+        }
+        let length = host.file_length(&self.path(&name));
+        if matches!(length, 0 | u32::MAX) { return false; }
+        let lifetime = if lifetime == -1 { self.default_lifetime } else { lifetime };
+        self.entries.insert(key.to_vec(), Entry {
+            filename: name, ram: None, length, attribute: attribute as u32, lifetime,
+            creation: now, access: now,
+            expiration: if lifetime < 0 { i32::MAX as u32 } else { now.wrapping_add(lifetime as u32) },
+        });
+        true
+    }
+    /// Return success and the last attempted name/path, including on exhaustion.
+    pub fn reserve_filename(&self, host: &mut impl Host, key: &[u8], directory: Option<&[u8]>, full_path: bool) -> (bool, Vec<u8>) {
+        let suffix = key.iter().rposition(|b| *b == b'.').map(|i| &key[i..]).filter(|s| (2..=8).contains(&s.len())).unwrap_or_default();
+        let suffix: Vec<_> = suffix.iter().copied().filter(|b| b.is_ascii_alphanumeric() || *b == b'.').collect();
+        let directory = directory.unwrap_or(&self.directory);
+        let mut time = host.now();
+        let mut name = Vec::new();
+        for _ in 0..10000 {
+            name = [(time as i32).to_string().as_bytes(), &suffix, b".cache"].concat();
+            let path = [directory, &name].concat();
+            if host.create_new(&path) { return (true, if full_path { path } else { name }); }
+            time = time.wrapping_sub(1);
+        }
+        (false, if full_path { [directory, &name].concat() } else { name })
     }
     pub fn info(&self, key: &[u8]) -> Option<&Entry> {
         self.entries.get(key)
@@ -326,7 +396,7 @@ impl Cache {
     fn materialize(&mut self, host: &mut impl Host, key: &[u8]) -> Contract<()> {
         if self.entries[key].filename.is_empty() {
             if let Some(data) = self.entries[key].ram.clone() {
-                let name = host.reserve_filename(&self.directory)?;
+                let (_, name) = self.reserve_filename(host, key, None, false);
                 let path = self.path(&name);
                 self.entries.get_mut(key).unwrap().filename = if host.write_file(&path, data.bytes()) {
                     name
@@ -339,23 +409,19 @@ impl Cache {
     }
     pub fn write_ini(&mut self, host: &mut impl Host) -> Contract<bool> {
         let path = self.path(&self.ini_name);
+        host.remove_file(&path);
         host.clear_ini_section(&path, b"Cache Entries");
-        let keys: Vec<_> = self.entries.keys().cloned().collect();
+        let keys: Vec<_> = host.map_buckets().into_iter().flatten().collect();
         let mut n = 0;
         for key in keys {
             // §6.4 says materialize entries, without a read/expiration sweep.
-            // Literal direct materialization, pending Q15 on writer edge cases.
+            if !self.entries.contains_key(&key) { continue; }
             self.materialize(host, &key)?;
             let Some(entry) = self.entries.get(&key) else {
                 continue;
             };
             if entry.filename.is_empty() {
                 continue;
-            }
-            // Escaping of delimiters is Q11; refuse that input, rather than invent CSV.
-            if key.contains(&b',') || key.contains(&0) || entry.filename.contains(&b',') || entry.filename.contains(&0)
-            {
-                return Err(Unsupported::NativeInputDomain("Q11 cache INI delimiters"));
             }
             let mut value = key.clone();
             value.push(b',');
