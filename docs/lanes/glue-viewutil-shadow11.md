@@ -5,9 +5,10 @@
 ## Handoff
 
 - Goal: repair the merge-train conflict only; no new owners, questions or game runs.
-- Done: prior measured rotation-only work and report committed at 76760254f.
-- Next: merge main d1f26eca7, preserve both additive module registrations, run qbuild all, commit report and refresh queue.
-- Facts: run 510 (`viewutil11-r1-on2-20261024-1424`) remains valid, clean 73/73; partial scope 1/50, VU16 blocks other bodies; no outstanding operations.
+- Done: prior measured rotation-only work and report committed at 76760254f; merged main d1f26eca7 at 626eee779, retaining lighting and viewutil module registrations and all lifecycle hooks.
+- Done: final qbuild all Rust tests 7345 passed, 0 failed, 0 ignored (48 result lines); clippy zero diagnostics.
+- Next: collect running qbuild all session 22614 to terminal result; native request `qbuild-20261024-153750-build-ctest` is queued; then finalize report and queue full HEAD.
+- Facts: run 510 (`viewutil11-r1-on2-20261024-1424`) remains valid, clean 73/73; partial scope 1/50, VU16 blocks other bodies; no new game requests.
 
 ## Changes and scope
 
