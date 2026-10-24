@@ -12,5 +12,7 @@
 - Focused cargo output: 21 passed, 0 failed, covering all 21 spec cases plus boundary tests; PowerShell reports exit 1 despite passing output, so final qbuild is authoritative.
 - First q.py failed to launch Bash (Win32 error 5); evidence build-runs/q/20261024-104909-30944.log. Formatting was corrected using in-place apply_patch generated from stdin rustfmt with engine config.
 - Questions WT10-WT12 appended to docs/specs/questions/widget-toolkit.md; existing WT1-3/5-6 and opaque graphics/create-buffer remain explicit boundaries.
-- Next: final qbuild fmt (absolute owned paths), all, and verify; inspect terminal verdicts, fix diagnostics, finalize report/queue.
+- Gate for 6e106e666: fmt 6/6 clean; qbuild all PASS, tests 7075 passed/0 failed, clippy 0 diagnostics, native build 256/256 edges, CTest 80/80 (284.0 seconds native). Queue qbuild-20261024-105853-build-ctest completed pass; no outstanding operation.
+- Review identified two corrections before final source: pending filter removals do not own extra references at Shutdown; release a content surface when a fade transfer is ineligible. Add regression tests for both.
+- Next: correct those paths, cover small forwarding helpers, then final fmt/all/verify and final report/queue. Prior full gate was before these corrections; do not present it as the final-source verdict.
 - No game requests (core-only, no plugin wiring). Native lifetime/graphics ABI closure is not claimed for either owner.
