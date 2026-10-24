@@ -100,3 +100,10 @@ equivalence claim. This does not request a new RE round or reopen the parked own
   separators, assigns cookie settings directly, and directly materializes cache
   records in byte-key order without read-side effects. These are literal choices,
   not measured native behavior; no new round is requested for parked Q7/Q9.]
+
+<!-- from: core-www-close13 (2026-10-24) -->
+- **Q16 - section 3.4 copying lookup miss:** does GetCookieDataForURL's copying
+  overload leave the output record untouched when no k-th match exists? Section
+  3.4 qualifies assignment on a match but does not state a miss-side output effect.
+  [Literal success-only assignment: core `lookup_into` returns false and leaves
+  the supplied record unchanged on a miss. This does not reopen parked Q7/Q9.]

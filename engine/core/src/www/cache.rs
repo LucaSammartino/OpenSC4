@@ -78,6 +78,12 @@ impl Cache {
     fn path(&self, name: &[u8]) -> Vec<u8> {
         [self.directory.as_slice(), name].concat()
     }
+    pub fn directory(&self) -> &[u8] {
+        &self.directory
+    }
+    pub fn ini_name(&self) -> &[u8] {
+        &self.ini_name
+    }
     pub fn set_directory(&mut self, host: &mut impl Host, path: &[u8]) -> bool {
         self.directory = directory(path);
         !path.is_empty() && (host.exists(&self.directory) || host.create_directory(&self.directory))
@@ -121,7 +127,7 @@ impl Cache {
         if self.initialized {
             let _ = self.write_ini(host);
             // Shutdown clears RAM/map storage; it does not remove persisted files.
-            self.entries.clear();
+            self.clear_map();
             self.initialized = false;
         }
         true
@@ -129,6 +135,10 @@ impl Cache {
     pub fn read_ini(&mut self, host: &mut impl Host) -> Contract<bool> {
         host.persistence_attempt("read");
         Err(Unsupported::OwnedBody("Q11 cache INI loader acceptance"))
+    }
+    /// Release map RAM holds without deleting persisted cache files (§6.2).
+    pub fn clear_map(&mut self) {
+        self.entries.clear();
     }
     pub fn remove_unused_files(&mut self, host: &mut impl Host) -> Contract<bool> {
         host.persistence_attempt("remove-unused");

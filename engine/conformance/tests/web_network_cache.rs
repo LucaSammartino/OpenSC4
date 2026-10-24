@@ -63,6 +63,27 @@ fn fixture(io: &mut Io) -> Cache {
     cache
 }
 #[test]
+fn clear_map_releases_only_map_holds_and_preserves_files_settings_and_counters() {
+    let mut io = Io::default();
+    let mut cache = fixture(&mut io);
+    cache.directory = b"dir\\".to_vec();
+    cache.entries.get_mut(b"K".as_slice()).unwrap().filename = b"kept.tmp".to_vec();
+    let mut caller = None;
+    assert!(cache.data(&mut io, b"K", Some(&mut caller)));
+    assert_eq!(caller.as_ref().unwrap().references(), 2);
+    let counters = (cache.operations, cache.since_maintenance);
+    cache.clear_map();
+    assert!(cache.entries.is_empty());
+    assert_eq!(caller.as_ref().unwrap().references(), 1);
+    assert_eq!(caller.unwrap().bytes(), [1, 2, 3]);
+    assert!(io.deleted.is_empty());
+    assert_eq!(cache.directory(), b"dir\\");
+    assert_eq!(cache.ini_name(), b"fixture.ini");
+    assert_eq!((cache.operations, cache.since_maintenance), counters);
+    assert!(!cache.initialized);
+}
+
+#[test]
 fn nfc01_through_nfc06() {
     let mut io = Io::default();
     let mut c = fixture(&mut io);
