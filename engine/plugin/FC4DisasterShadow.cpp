@@ -730,7 +730,9 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
     // the coverage and the clamped rectangle are there to read it from.
     const DisasterIgniteInputs in =
         DisasterIgniteInputsOf(g.city, AsOcc(o), force, g.ctx.pausedSample, g.ctx.emergencySample);
-    if (in.coverage > 50) ++g.unfollowable;
+    // High coverage is an ordinary refusal input (disasters.md section 5.4),
+    // not an unfollowable call. The original/mirror result comparison below
+    // still reports a disagreement at any coverage, including above 50.
     char exits[24] = "";
     if (refused) {
         std::string e;

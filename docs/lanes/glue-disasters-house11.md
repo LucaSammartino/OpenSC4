@@ -1,8 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-disasters-house11 (countable house disaster shadow) | Codex / `glue-disasters-house11` (engine; reserved detached HEAD) | WIP measured run 492: disasters 3/73; episodes 1259/1259, resync0; clean 2032-01-03 in 1200.343s but ref3 and propmgr219/220; Rust7119/0, clippy clean, CTest81/81; explicit verify PASS; DS47 filed | (1) Correct legacy unfollowable accounting and reference lifetimes; (2) investigate new prop query difference; (3) re-gate changed source and rerun before profile inclusion; DS28/DS47 remain open |
+| glue-disasters-house11 (countable house disaster shadow) | Codex / `glue-disasters-house11` (engine; reserved detached HEAD) | in progress: final round corrects matching coverage-refusal accounting; previous run492 retained below | Gate corrected source once; measure new unique house run; publish measured closure with full HEAD |
 
-## Result
+## Handoff
+
+- Goal: final measured closure of the default-off fire/riot house schedule; no new owners or questions.
+- Done: resumed a78db985b; removed the legacy coverage>50 unfollowable increment. Section 5.4 already specifies coverage refusals; result disagreements remain counted.
+- Next: run qbuild all once on corrected source, collect the same operation; use required queued verify, never direct MSVC.
+- Then submit one unique house game request matching house11-fire-riot-01, wait without qwait, measure to 2032 and compare train193.
+- Prior evidence: run492 disasters3/73, episodes1259/1259, resync0, ref3, propmgr219/220. No outstanding request.
+- Ownership remains unchanged: targets are AddRef-held and released with FC4_RELEASE. Do not hide last-reference warnings with CREATED releases.
+- DS28/DS47 stay open; other disaster types default-off. No new questions this final round.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-disasters-house11-r3-manifest.json.
+
+## Previous round result (run 492; retained evidence)
 
 **WIP, not qualified for house inclusion.** Exact countable result: `disasters 3/73` in [run 492](../runs/house11-fire-riot-01-492.md), label `house11-fire-riot-01`. The request was submitted once and its existing terminal verdict was collected from wait session 98875. No game request remains outstanding. The user's resume instruction calls for WIP when the disaster lines are non-exact; this is a measured failure, not a stop on the short-form spec questions.
 
