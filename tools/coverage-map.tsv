@@ -156,9 +156,10 @@ cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 # lotrec_shadow (glue-simgrid-lotrec5, counted from train176) round-trips every master lot record through core/src/lot_records at load and monthly; units, occupants and unspecified props are excluded, so only cSC4Lot is credited (record-only, run 5)
 cSC4Lot	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	lotrec_shadow	-
-cSC4BusinessUnit	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	-	-
+# lotunit_shadow / lotbasetexture_shadow (glue-lots-lr15apply12, counted from train205 run 631): every business unit reachable through GetUnit from the complete master-lot walk, and every registered base-texture occupant on the full grid, round-trip exact monthly to 2032 (record-only); walls stay unverified (LR15/T88)
+cSC4BusinessUnit	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	lotunit_shadow	-
 cSC4TripData	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
-cSC4LotBaseTextureOccupant	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
+cSC4LotBaseTextureOccupant	lots and lot records	simulation	lot-records.md	core/src/lot_records	lotbasetexture_shadow	-
 cSC4LotRetainingWallOccupant	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	-	-
 cSC4City	city and save file	simulation	foundations.md,save-records.md	core/src/save.rs	-	-
 cSC4DBSegment*	city and save file	simulation	foundations.md	core/src/save.rs,core/src/stream.rs	-	-
