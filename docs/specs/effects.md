@@ -2381,7 +2381,7 @@ slots alias one object or there is no name-map entry.
 
 The generic AddComponentDescription interface nevertheless accepts a caller's
 description, asks its slot 0 for the type, and selects bucket (type−3) with
-20-byte stride, **without a type-range check** (`0058AC1C–0058AC2C`).
+`20` hex-byte stride, **without a type-range check** (`0058AC1C–0058AC2C`).
 Thus reserved does not mean forced empty: a foreign extension may publish an
 object there. There is no universal native memory layout for that object's
 private payload. A nonempty reserved bucket must be reported as an unsupported
