@@ -55,7 +55,8 @@ return safe errors; the spec promises no deterministic native outcome for them.
 
 ## Owner closure
 
-Tests are in `tests.rs` and its child `closure_tests.rs`. Open cells identify
+Tests are in `tests.rs`, its child `closure_tests.rs`, and the V46 lifetime
+fixture beside `DrawContext`. Open cells identify
 remaining spec limits, not successful rendering. V01–61 and V79–90 concern
 this lane's owners (V36–42 concern canvas and retain existing coverage).
 V62–78 concern the out-of-scope native canvas extension and are not claimed.
@@ -65,7 +66,7 @@ none is claimed fully native-exact. Settled bodies are mapped individually below
 | Owner | Spec section | Code item | Test / open contract |
 |---|---|---|---|
 | All GZ owners | 1 | `Rect`, module boundary, foreign traits | `gzg_v02_empty_intersection`, `owner_getters_can_be_shared_across_threads` |
-| cGZDrawContext | 2.1 | `query`, `CONTEXT_IIDS`, getters, `Drop` | implemented: `gzg_v01_query_and_reference_lifetimes`, `gzg_v45_v46_context_replacement_failure_stacks_and_shutdown_destruction` |
+| cGZDrawContext | 2.1 | `query`, `CONTEXT_IIDS`, getters, `Drop` | implemented: `gzg_v01_query_and_reference_lifetimes`, `gzg_v45_v46_context_replacement_failure_stacks_and_shutdown_destruction`, `gzg_v46_null_engine_still_releases_retained_target` |
 | cGZDrawContext | 2.2 | `DrawContext::new`, `Attributes`, `reset_defaults` | `gzg_v03_v04_attachment_and_same_pointer`, `gzg_v09_v10_state_stack_and_narrow_reset` |
 | cGZDrawContext | 2.3 | colour/mode/thickness setters, `gradient` forwarding | implemented: `gzg_v11_v12_setter_suppression_and_thickness`, `gzg_v03_v04_attachment_and_same_pointer`; invalid numeric inputs safely rejected |
 | cGZDrawContext | 3.1 | offsets, clipping, transform/state stacks | `gzg_v05_v06_v07_v08_transforms_and_clip`, `gzg_v09_v10_state_stack_and_narrow_reset` |
@@ -83,7 +84,7 @@ none is claimed fully native-exact. Settled bodies are mapped individually below
 | cGZDrawContextRenderToSimGL | 4.3 | `SimGlEngine`, construction, target probe, pair-count gate | `hardware_state_order_and_simgl_open_routes`; open: GZG2 (specialized subdivision and fallback) |
 | cGZGraphicSystem | 5.1 | identities, construction, driver/control state | `gzg_v01_query_and_reference_lifetimes`, `graphics_lifecycle_listeners_flags_and_driver_identity`; open: GZG3 (unnamed inventories, IO) |
 | cGZGraphicSystem | 5.2 | `init`, `shutdown`, `do_message`, `canvas_event`, `on_tick` | `gzg_v28_graphics_dispatch_and_service_release`, `graphics_lifecycle_listeners_flags_and_driver_identity`; open: GZG3 (discovery, rollback), GZG4 (Windows translation) |
-| cGZGraphicSystem | 5.3 | driver identity/borrowed getters, availability/downgrade, flags | `gzg_v29_translucency_is_the_byte_not_device_capability`, `gzg_v30_v31_v32_screen_downgrade_reduces_before_testing`, `graphics_lifecycle_listeners_flags_and_driver_identity`; open: GZG3 (presentation, projection, screen format/defaults, folded slots) |
+| cGZGraphicSystem | 5.3 | driver identity/borrowed getters, stored preference/path setters, availability/downgrade, flags | `gzg_v61_driver_getters_are_borrowed_exact_and_null_on_missing`, `gzg_v29_translucency_is_the_byte_not_device_capability`, `gzg_v30_v31_v32_screen_downgrade_reduces_before_testing`, `graphics_lifecycle_listeners_flags_and_driver_identity`; open: GZG3 (presentation, projection, screen format/defaults, folded slots) |
 | cGZAlphaBlt | 6.1 | identities, `AlphaOperation`, `AlphaBlt::call`, count | `gzg_v33_v34_v35_alpha_stateless_forwarding_and_open_failure`; open: GZG5 (remaining standalone signatures/pixel kernels) |
 | cGZAlphaBlt | 6.2 | `surface_from_file`, `alpha_surface_from_file`, `mask_surface_from_file` | implemented: `gzg_v58_v59_indexed_loader_levels_raw_mask_and_row_stride`, `gzg_v35_v60_loader_open_and_lock_failure_ownership` |
 | cGZAlphaBlt | 6.3 | `generic_buffer_clip`, `clipped_alpha_rectangles` | implemented: `gzg_v56_v57_ordinary_clip_and_wrapper_local_copies`; final NoClip pixels remain delegated/GZG5 |

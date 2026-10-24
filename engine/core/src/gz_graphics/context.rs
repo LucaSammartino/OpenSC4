@@ -223,6 +223,9 @@ impl DrawContext {
         self.native_colours[index] = t.native_rgb(colour);
         self.optional_notify(StateChange::Colours(self.colours))
     }
+    pub fn set_primary_colour(&mut self, colour: u32) -> Result<()> {
+        self.set_colour(0, colour)
+    }
     pub fn set_alpha(&mut self, v: i32) -> Result<()> {
         if self.attributes.alpha != v {
             self.attributes.alpha = v;
@@ -469,5 +472,35 @@ impl Drop for DrawContext {
         self.states = Vec::new();
         drop(self.engine.take());
         drop(self.target.take());
+    }
+}
+
+#[cfg(test)]
+mod lifetime_tests {
+    use super::*;
+    struct TargetStub;
+    impl Target for TargetStub {
+        fn area(&self) -> Rect {
+            Rect::default()
+        }
+        fn native_rgb(&self, colour: u32) -> u32 {
+            colour
+        }
+        fn buffer(&self) -> Option<Arc<dyn Buffer>> {
+            None
+        }
+        fn supports_simgl(&self) -> bool {
+            false
+        }
+    }
+    #[test]
+    fn gzg_v46_null_engine_still_releases_retained_target() {
+        let target: Arc<dyn Target> = Arc::new(TargetStub);
+        let mut context = DrawContext::new([0; 4]);
+        // Native destruction fixture, independent of safe detached-on-failure API.
+        context.target = Some(target.clone());
+        assert_eq!(Arc::strong_count(&target), 2);
+        drop(context);
+        assert_eq!(Arc::strong_count(&target), 1);
     }
 }

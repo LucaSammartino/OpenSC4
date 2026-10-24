@@ -159,6 +159,14 @@ impl GraphicSystem {
     pub fn driver_count(&self) -> usize {
         self.drivers.len()
     }
+    /// Literal named setter; consuming the preference during discovery is GZG3.
+    pub fn set_default_driver_class_id(&mut self, id: u32) {
+        self.default_driver_class = id;
+    }
+    /// Literal stored path; driver INI precedence/resolution remains GZG3.
+    pub fn set_driver_settings_ini_file_path(&mut self, path: &str) {
+        self.driver_ini = path.to_owned();
+    }
     pub fn driver_by_index(&self, index: usize) -> Option<&Arc<dyn Driver>> {
         self.drivers.get(index)
     }

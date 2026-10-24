@@ -55,10 +55,10 @@ pub fn polygon_spans(points: &[Point], clip: Rect) -> Vec<PixelSpan> {
             c.visited += 1;
             let b = v[c.index];
             c.end = b.2;
-            if c.end < row {
+            if c.end < row && direction != 1 {
                 return false;
             }
-            if c.end > row {
+            if c.end != row {
                 let slope = (b.0 as f64 - a.0 as f64) / (b.1 as f64 - a.1 as f64);
                 c.x = ((((row as f64 - a.1 as f64) * slope + a.0 as f64) * 65536. + 0.5).floor() as i32)
                     .wrapping_add(65535);
@@ -372,7 +372,7 @@ pub(super) fn execute(
                 }
             }
         }
-        6 | 7 | 8 => {
+        6..=8 => {
             let size = match kind {
                 6 => 3,
                 7 => 4,

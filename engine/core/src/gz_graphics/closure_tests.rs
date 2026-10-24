@@ -441,6 +441,10 @@ fn settled_polygon_spans_reach_real_buffer_kernels() {
 #[test]
 fn gzg_v61_driver_getters_are_borrowed_exact_and_null_on_missing() {
     let mut g = graphics(&log());
+    g.set_default_driver_class_id(0x12345678);
+    g.set_driver_settings_ini_file_path("driver.ini");
+    assert_eq!(g.default_driver_class, 0x12345678);
+    assert_eq!(g.driver_ini, "driver.ini");
     assert!(g.driver_by_index(0).is_none());
     assert!(g.driver_by_id(7).is_none());
     let d: Arc<dyn Driver> = Arc::new(TestDriver {
