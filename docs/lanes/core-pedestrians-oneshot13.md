@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-pedestrians-oneshot13 (PN1 one-shot play-count consumer) | `Codex` / `core-pedestrians-oneshot13` (engine lane, detached HEAD) | in progress; implementation 86cf7b9c2; focused cargo 32/0 including all 22 PN1 vectors; fmt PASS; native build 266/266 and ctest 81/81 PASS | 1. Collect qbuild all. 2. Commit final report and enqueue. |
+| core-pedestrians-oneshot13 (PN1 one-shot play-count consumer) | `Codex` / `core-pedestrians-oneshot13` (engine lane, detached HEAD) | in progress; implementation 86cf7b9c2; focused cargo 32/0; workspace cargo 7505/0 including all 22 PN1 vectors; 29 owner rows closed; fmt PASS; native build 266/266 and ctest 81/81 PASS | 1. Collect remaining qbuild all stages. 2. Commit final report and enqueue. |
 
 ## Report
 
@@ -19,11 +19,13 @@ and animation clocks do not gate this body.
 
 Coverage: PN1-I1–I10 and PN1-T1–T12 each have a named test in
 `engine/core/src/pedestrians/tests/one_shot.rs`; the module README maps every
-vector and has no open owner closure rows. Focused Cargo passed 32 tests, with
-0 failures, including all 22 PN1 tests. Explicit-file formatting passed on the
-three owned Rust files. Queued native verification passed 266/266 build edges
-and CTest 81/81. The required qbuild all operation is still pending; this report
-must be finalized from its terminal result before enqueueing ready.
+vector and closes all 29 owner closure rows. Focused Cargo passed 32 tests, with
+0 failures, including all 22 PN1 tests. The required full workspace Cargo stage
+passed 7505 tests, 0 failed and 0 ignored, summed over 51 result lines; it also
+ran and passed all 22 PN1 tests. Explicit-file formatting passed on the three
+owned Rust files. Queued native verification passed 266/266 build edges and
+CTest 81/81. The remaining qbuild all stages are still pending; this report must
+be finalized from the operation's terminal result before enqueueing ready.
 
 No new questions, game requests, plugin/capi changes, C ABI changes, or coverage
 map edits. PN1 is fully settled; PN2 is outside these owners and existing PN3
@@ -39,7 +41,7 @@ summary interpretations remain as documented in the module README.
 - Constraints: core only; no plugin/capi/ABI/coverage-map edits; use apply_patch for every file mutation.
 - Focused operation: session 99323 completed PASS, cargo 32/0 (all 22 PN1 vectors); log build-runs/pedestrians-focused-1.log.
 - Diagnostics: q.py could not start Bash (Win32 mapping error 5); direct Cargo used instead. Relative fmt paths failed, corrected to absolute; final fmt exit=0/diff_lines=0.
-- Final qbuild all: exec session 76709, started on stable committed source; no result yet. Logs build-runs/qbuild-<step>.log.
+- Final qbuild all: exec session 76709, started on stable committed source; workspace Cargo PASS 7505/0/0 (51 result lines; PN1 22/22). Clippy still running; collect this same operation. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
 - Queued qbuild verify: session 3907 finished PASS; request qbuild-20261024-212419-build-ctest. Build 266/266 edges (194.5 s), ctest 81/81 (288.6 s), total 485.3 s.
 - Native logs: build-runs/fc4verify-build.log and fc4verify-ctest.log. Verifier noted tree changed during run: only lane status docs changed (979eecd4d); engine source remained 86cf7b9c2.
 - Native commands only through qbuild verify/queue; no pre-edit baseline full build.
