@@ -319,7 +319,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
-| render-properties | 3 | 4 | RP8 | questions/render-properties.md |
+| render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 9 | 2 | RD12 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
@@ -371,4 +371,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1469** | | |
+| **total** | **607** | **1469** | | |
