@@ -38,7 +38,7 @@ impl TripServices for Services {
     fn attach_player(&self, _: u64) -> TripOutcome {
         TripOutcome::Accepted
     }
-    fn dispatch_next_leg(&self, _: i32, _: Option<u64>) -> Option<u32> {
+    fn basic_dispatch(&self, _: i32, _: &std::collections::VecDeque<RouteData>, _: Option<u64>) -> Option<u32> {
         self.calls.set(self.calls.get() + 1);
         Some(self.travel.get())
     }
@@ -68,6 +68,8 @@ fn fixture(mode: u32, flags: u32) -> D {
         st.search.home = st.current;
         st.destination.set_cell_position(2, 1);
         st.automata_occupant = Some(88);
+        st.search.route = [marker(0), marker(0)].into();
+        st.path_indices = (2, 0);
         st.queue.push_back(st.destination);
     });
     f

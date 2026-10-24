@@ -1,12 +1,13 @@
 # `cSC4ModelMaker`: occupants to model instances (behaviour spec)
 
-Scope: the whole `cSC4ModelMaker` owner as tools/coverage.py assigns it (105 functions, 34,705 bytes; inventory
-in §20). The model-ID rules it calls (`cSC4ModelMakerUtility`) are graphics-formats §4.2 and are not repeated.
-§14 outlines model making and §15 specifies the background loader `cSC4ModelBackgroundLoader`, an owner of its
-own (re-modelmaker, 2026-10-22).
+Scope: the whole `cSC4ModelMaker` owner as tools/coverage.py assigns it (88 functions, 32,418 bytes on 2026-10-23;
+inventory in §20). The model-ID rules it calls (`cSC4ModelMakerUtility`) are graphics-formats §4.2 and are not
+repeated. §14 specifies model making and §15 the whole background-loader owner `cSC4ModelBackgroundLoader` (22
+functions, 7,977 bytes) (re-modelmaker, 2026-10-22; completed by re-modelmaker7, 2026-10-23).
 The 3D renderer it feeds is render3d.md / view3d.md. Evidence: the GOG 1.1.641 exe through the Ghidra export
 (`tools/re_query.py`) and decomp/; REA was unavailable for this lane ("No app is open"), so every branch and
-constant below was read from the instructions at the cited addresses.
+constant below was read from the instructions at the cited addresses. re-modelmaker7 read the remaining bodies on
+the instruction bytes of the Steam 1.1.641 exe (the same code as GOG, `docs/lanes/re-dates.md`).
 
 Offsets are from the start of the object (the primary interface pointer). The save interface sits at `+0x04`, so
 its methods see `this + 4`; offsets quoted for `Read`/`Write` are converted to object offsets here.
@@ -381,11 +382,11 @@ all indices.
 No type filter: only occupant types `0x74758926`, `0xA823821E` and `0x278128A0` are handled; others do nothing.
 Not deferring: p = occupant position (slot `+0x20`, three floats). For each model instance of the occupant's
 model holder (holder slot `+0x0C` count, slot `+0x10` fills a list; at most 10 on the stack, more on the heap):
-build a transform with an identity 3×3 rotation and translation p, read the instance's current transform record
-(instance slot `+0x24`), apply the new one (slot `+0x28`) with bit 0 of the record's flag byte set and its
-change counter incremented, and if the renderer `+0x14` holds the instance (slot `+0x6C`) re-queue it (slot
-`+0x78`; render3d.md §5). Release the holder. *[outline]* the exact transform-record layout is in the remainder
-(§20); the identity-plus-translation content is read from `0x0049388E`–`0x00493920`.
+start a transform record (§12.10) as identity rotation, zero translation, flags and counter 0
+(`0x004938D3`–`0x00493950`); read the instance's current record into it (instance slot `+0x24`, so its rotation
+is kept); set the translation to p, flag bit 0 and the change counter + 1; apply it (slot `+0x28`); and if the
+renderer `+0x14` holds the instance (slot `+0x6C`) re-queue it (slot `+0x78`; render3d.md §5) (`0x0049395A`–
+`0x004939B1`). Release the holder.
 
 ### 8.9 Highlighted (op 6, `0x00493A00`)
 
@@ -608,9 +609,75 @@ Net observable effect: the five dynamic texture bindings are rebuilt when the li
 1e-4 in any channel; no model is re-flagged or re-sent to the renderer by this function. Whether materials bound
 earlier by §12.4 see the new texels depends on whether §11.2 rebuilds the binding in place (not traced).
 
-### 11.2 `RebuildDynamicTexture(k)` (`0x00492CC0`) — remainder
+### 11.2 `RebuildDynamicTexture(k)` (`0x00492CC0`) *[compat]*
 
-Builds texture binding `+0xD0 + 4k` (k = 0..4) from the light colour; not traced (1068 bytes, §20).
+*Added 2026-10-23 (re-modelmaker7), read on the instructions; the export of this body is stack-mangled.*
+
+1. Get two services:
+   - **R**: class `0x056B906E`, interface `0x656B8EFC`;
+   - **T**: the texture service of §12.4, class `0x1AC0E11A`, interface `0xFAC0E219`.
+2. Load the texture `(type 0x7AB50E44, group T slot 11, instance I + +0x10C)` through R slot 3 with interface
+   `0x1AB50C3F`. `I` is `0x294ECDD0` for k = 0–3 and `0x894FD650` for k = 4 (table `0x00A8EE0C`). `+0x10C` is the
+   saved zoom mirror (§2). On failure the binding is left as it is and the function returns.
+3. Read the texture's image descriptor (texture slot 3; words `+4` mip count, `+8` width, `+0x0C` height, `+0x14`
+   format, `+0x18` sub-format, `+0x1C` mip-pointer array).
+4. Choose a tint kernel and its bits per texel and block size (§11.3) from (format, sub-format):
+
+   | Format | Kernel |
+   |---|---|
+   | (3, 1) | 8888, 32 bits |
+   | (2, 1) | 888, 24 bits |
+   | (3, 10) | 1555, 16 bits |
+   | (3, 13) | 4444, 16 bits |
+   | 7 or 8 | DXT1, 4 bits, block 4 |
+   | 9 or 10 | DXT3/5, 8 bits, block 4 |
+   | anything else | return without change |
+
+5. Per mip: `w := max(w, block)` and `h := max(h, block)`; its size is `w × h` texels; then `w >>= 1`, `h >>= 1`.
+   A buffer of `bits × total / 8` bytes holds every mip.
+6. The colour is `0xFF000000 | c(+0xC4) << 16 | c(+0xC8) << 8 | c(+0xCC)`, the light colour of §11.1:
+   - each channel is `c(f) = low8(v − (v >> 8))` with `v = bits(f + 49152.0f) − 0x47400000` (`0x00A8ED90`);
+   - that is `round(256 f)`, with 256 giving 255.
+7. Each mip is tinted from the source into its place in the buffer. The kernel gets a width of `size / block`, a
+   height of `block` and zero row padding, so a whole mip is one run.
+8. The new descriptor is the source's eight words with the mip-pointer array replaced. When binding `+0xD0 + 4k`
+   exists it is updated in place (T slot 7, `(binding, descriptor)`); otherwise it is created (T slot 4,
+   `(descriptor, &binding)`).
+9. The buffers are then freed (T keeps its own copy *[inferred]*). The texture and the services are released.
+
+### 11.3 The tint kernels (`0x008D08E0`–`0x008D0E10`) *[compat]*
+
+Each multiplies a texel's channels by the colour's channels, rounding each product. Arguments: `(dst, dstPad,
+src, srcPad, width, height, colour)`, with the pads in bytes after each row.
+
+| Kernel | Address | Texel | Rule per channel |
+|---|---|---|---|
+| 8888 | `0x008D08E0` | 32-bit A,R,G,B | `(p × c + 128) >> 8` for all four bytes (alpha × the colour's `0xFF`) |
+| 888 | `0x008D09C0` | three bytes | `(p × c + 128) >> 8` with colour bytes 0, 1, 2 |
+| 4444 | `0x008D0A60` | 16-bit | each nibble `(p × c' + 8) >> 4`, `c'` the high nibble of the colour's matching byte |
+| 1555 | `0x008D0B60` | 16-bit | the 5-bit fields scaled by the colour's top 5 bits with rounding; the alpha bit kept when the colour's alpha bit is set |
+| DXT1 | `0x008D0C60` | 8-byte block | §11.3.1 |
+| DXT3/5 | `0x008D0E10` | 16-byte block | the first 8 bytes (alpha) copied, then the colour half as DXT1 with the quirk below |
+
+#### 11.3.1 DXT colour blocks
+
+The two 565 endpoints `e0`, `e1` are tinted (5- and 6-bit fields scaled by the colour's top 5 bits, rounded) into
+`t0`, `t1`, and the endpoint order and indices are adjusted:
+
+| Source order | Tinted order | Stored endpoints | Indices |
+|---|---|---|---|
+| `e1 < e0` (four-colour mode) | `t0 < t1` | swapped (`t1`, `t0`) | every bit inverted (`~idx`) |
+| `e1 < e0` | `t0 = t1` | (`t0`, `t1`) | 0 |
+| `e1 < e0` | `t0 > t1` | (`t0`, `t1`) | unchanged |
+| `e0 ≤ e1` (three-colour mode) | `t1 < t0` | swapped | `idx ^ (~idx >> 1 & 0x55555555)` |
+| `e0 ≤ e1` | otherwise | (`t0`, `t1`) | unchanged |
+
+*[quirk]* Three oddities:
+- Inverting every index bit maps 0↔3 and 1↔2, not the 0↔1, 2↔3 that an endpoint swap needs.
+- The DXT3/5 kernel computes the same swap, then stores the endpoints back in their unswapped order, keeping the
+  remapped indices.
+- The 16-bit kernels advance their rows by four bytes per texel. With the single-run calls of §11.2 this is never
+  reached.
 
 ## 12. Model loading (partial)
 
@@ -705,50 +772,227 @@ Tail: h = o's model holder (slot `+0x4C`, AddRef'd when present); for each fille
 `+0x14(inst)` (add it to the holder), then release the list's reference. Release h. Returns count > 0. (A
 holder-less occupant that fills instances is not guarded in the original.)
 
-## 13. Terrain hiding (partial)
+*§12.7–§12.12 added 2026-10-23 (re-modelmaker7), read on the instructions (the export of these bodies is partly
+stack-mangled).*
+
+### 12.7 `LoadModelsCommon(o, zoom, rot, type)` (`0x00490C70`, RET 0x10) *[compat]*
+
+1. Inputs:
+   - `ex` = o slot 6, the exemplar;
+   - `p` = o's position (slot 8); for a foundation (`0x68FD0C69`) `p.y += 0.2f` (`0x00A8ED78`);
+   - the occupant's orientation and flip byte from `cSC4ModelMakerUtility::GetOccupantOrientationAndState`.
+2. `GetAllModelInstanceIDs` (graphics-formats §4.2) fills a vector of model instance ids, a parallel vector of
+   12-byte offsets and the key's type and group.
+3. For each id `i` in order (an id of 0 makes no model):
+   - **make the model:** `AddModel(o, &(type, group, id), rot, orientation, flip, &p, offset)` (§12.11). The
+     offset argument is null when `offset[i]` is exactly (0, 0, 0), else `&offset[i]`.
+   - **result:** only the **first** id sets the function's result: true when it gave a model *[quirk]*.
+   - **when a model was made, by type:**
+     - building `0x278128A0`, **first model only**:
+       - when o answers `0x87DDA3A9`: if building-development slot 50 (`+0xC8`) returns 0 for both `(2, a, b)` and
+         `(1, a, b)` (two words of the key), and its slot 56 (`+0xE0`) is true for o, call its slot 59 (`+0xEC`)
+         `(interface, 0)`; release the interface;
+       - the instance flags (slot 13 → slot 14) gain `0x40`.
+     - flora `0x74758926`: flags `| 0x80`.
+     - prop `0xA823821E`: flags `| 0x20`; when ex has `0x4A70D491`, bit 0 is cleared and `0x2` set instead.
+   - **then, any type:** when ex's boolean `0xE9F0FA86` is true, the instance's byte record (slot 15) gains bit
+     `0x4` and is written back (slot 16).
+4. Free both vectors and return the result.
+
+### 12.8 `LoadFoundationModels(o, zoom, rot, type)` (`0x00491040`) *[compat]*
+
+A foundation that uses building-style models (`FoundationOccupantUsesBuildingStyleModels`) goes to
+`LoadModelsCommon`. Otherwise one `cSC4FoundationModel` is made:
+1. Read from ex:
+   - `a` = float `0xC911EDA0` and `b` = float `0xC911EDA1` (both default 16.0);
+   - the 5-value arrays of `0x68FCFF37` (`P1`) and `0x68FCFF38` (`P2`), through the property's value data (slot
+     103), or none;
+   - `0x88FCC3E3`, which is read and never used *[quirk]*.
+2. Allocate 0x278 bytes from the pool (`0x005D5500`) and construct with 1.
+3. Set it up (§12.5 setters):
+   - `0x005D5360(P1, P2)` and `0x005D53B0(a, b)`;
+   - the box: o slot 10 `(&min, &max)` with max y + 0.2f, through `0x005D5A60`;
+   - `AdjustHeightToTerrain(1)` and model slot 4 `(o)`.
+4. Add the model to o's holder (slot 19, then holder slot 5) and release our reference. True.
+
+### 12.9 `CreatePlaceHolderModelInstance(o, zoom, viewRot, rot, flip)` (`0x0048F920`, RET 0x14) *[compat]*
+
+The placeholder for a missing model:
+- **Base:** `s` = the larger of `x1 − x0` and `z1 − z0` of o's cell rect (slot 11, inclusive). The base is
+  `0x2A0E0000` for `s ≤ 1`, `0x2A0C0000` for 2, `0x2A0B0000` for 3 and `0x2A0A0000` for 4 or more.
+- **Rotation:** `r = (3 × viewRot + (flip ? 0 : rot)) % 4`, a C remainder (negative inputs give negative r).
+- **Key:** `(0x5AD0E817, 0xBADB57F1, GetModelProperty1Instance(base, zoom, r))`.
+- **Instance:** through the resource manager `+0x10` (slot 3, interface `0x9AD0E7E3`), then the resource's slot 5
+  `(0, &instance)`, then the resource is released.
+
+Returns the instance or null.
+
+### 12.10 The transform record and `FindModelTransform(ex, flag, rot, p, offset, rec)` (`0x0048FA40`) *[compat]*
+
+A transform record is 0x34 bytes:
+
+| Offset | Field |
+|---|---|
+| `+0x00` | change counter (byte; each change adds 1) |
+| `+0x01` | flags (byte): bit 0 translation set, bit 2 rotation set |
+| `+0x04` | 3×3 rotation, row-major (`m[r][c]` at `+4 + 4(3r + c)`) |
+| `+0x28` | translation (x, y, z) |
+
+`FindModelTransform`:
+1. **Yaw and position:**
+   - `flag` false: `θ = −(the camera object +0x18's float at +0x1C)`. With an offset, the offset is rotated about
+     the y axis by `−GetObjectYRotationAngle(rot)` (§12.5 `RotateAboutAxis`, centre 0) and added to `p`; its y is
+     added unrotated.
+   - `flag` true: `θ = GetObjectYRotationAngle(rot)` (view-utilities.md: `−rot × π/2`), and the offset is added
+     **unrotated** *[quirk]*.
+2. **Rotation:** a y rotation by θ, `[[cos θ, −0, sin θ], [0, 1, −0], [−sin θ, 0, cos θ]]`. It is computed with a
+   tilt of 0.0 (`0x00A80990`), which gives the negative zeros; flag bit 2 is set and the counter + 1.
+3. **Terrain tilt**, when ex's boolean `0x69F14D33` is true:
+   1. Find the surface normal `n`. When there is an object at `p` (`0x00B43D54` slot 7 `(p, 0x1F4F, 1)`), `n` is
+      that object's slot 57 `(x, z)` normalised. Otherwise, when the terrain's slot 77 is false at `(x, z)`, `n` is
+      the terrain's slot 26 normal. With neither, nothing is tilted.
+   2. When `n.y ≠ 1`, limit the tilt:
+      - if `n.y < 0.866` (`0x00A8ED9C`) and `n.x > 0.5`: `n := (0.5, n.y, n.z) / sqrt(n.y² + n.z² + 0.25)`;
+      - then, if still `n.y < 0.866` and `n.z > 0.5`: `n := (n.x, n.y, 0.5) / sqrt(n.y² + n.x² + 0.25)`.
+      - Only positive x and z are limited *[quirk]*.
+   3. `f` := (0, 0, 1) rotated about y by `−θ`; `r := normalise(n × f)`.
+   4. Columns 0, 1, 2 of the rotation := `r`, `n`, `r × n`. Flag bit 2 set, counter + 1.
+4. **Translation:** := the position of step 1; flag bit 0 set, counter + 1.
+
+### 12.11 `AddModel(o, key, rot, orientation, flip, p, offset)` (`0x004902E0`, RET 0x1C) *[compat]*
+
+1. When `GetOccupantModelClass(o)` is `0xEA123BE1` or `0xAA123BF9`, try an animated model:
+   - the class `0xAA123BF9` forces `flip := 1`;
+   - when `GetAnimatedModelFromResourceKey(key)` succeeds: the instance is its slot 0; then its slot 8
+     `(+0x10C, +0x110)` (zoom and rotation mirrors) and slot 14 `(0.01f)`; when ex has `0x6A9EDD07`, its byte goes
+     to slot 16;
+   - no instance → the key's type and group become (`0x5AD0E817`, `0xBADB57F1`).
+2. Otherwise, and after a failed animated try, load the S3D resource of the key (resource manager slot 3,
+   interface `0x9AD0E7E3`). A failure with another type/group retries with (`0x5AD0E817`, `0xBADB57F1`) and the
+   same instance.
+3. **Size cut:** the resource's box (slot 7, from (1,1,1, 0,0,0)) gives the extent `max − min`. When the camera
+   object's scale (`+0x18 +0x154`) × the extent's length is **below** `kRenderModelThreshold` (render-properties
+   float `+0x184`), the resource is released and null returned. Otherwise the instance is the resource's slot 5
+   `(0, &instance)`.
+4. **Placeholder:** with no instance, unless `+0xC1` is set and ex lacks `0x6A871B82`:
+   `CreatePlaceHolderModelInstance(o, +0x10C, +0x110, orientation, flip)` (§12.9). Still none → release, null.
+5. **Transform:** `FindModelTransform(ex, flip, orientation, p, offset, rec)` from a fresh record, applied with
+   instance slot 10.
+6. When o's flag `0x10` (o slot 32) is set, the instance keeps only bit 0 of its flags (slot 13 → slot 14).
+7. Instance slot 4 `(o)`, then add it to o's holder (slot 20 → holder slot 5; the holder is not null-checked).
+   Release our reference and the resource, and return the instance.
+
+`rot` is not used.
+
+### 12.12 `CreateOccupantShadow(o, zoom, viewRot)` (`0x00491230`, RET 0xC) *[compat]*
+
+**When there is no shadow** (false):
+- ex has the boolean `0x029244DB` true;
+- o is a building (`0x87DDA3A9`) and ex's boolean `0xEA3209F9` is true;
+- o is a prop (`0xE9793A65`) and the render property `+0x1FC` (shadow detail) is below 3, or ex's `0x8A5E5DB8` is
+  not true;
+- o is none of these and not a power pole (`0x2890D4DE`).
+
+**The shadow model:**
+1. `rotation` = the building's slot 14, the prop's slot 9 or the flora's (`0xC83DD057`) slot 12; 0 for a pole.
+2. For `z` from `zoom` down to 0: `id = GetModelInstanceID(o, z, (viewRot + 1) % 4, rotation, ex has 0xE83A081D,
+   &type, &group)` (type and group default to `0x5AD0E817`, `0xBADB57F1`).
+3. Load it (resource manager, `0x9AD0E7E3`) and make a model with the resource's slot 6 `(0, &model)`.
+4. The model is usable when it has meshes (slot 3) and either the shadow detail is at least 4 or it has exactly
+   one mesh.
+5. When the resource's box height (`max y − min y`) × the camera scale is below the render property `+0x134`, the
+   function returns false. The first usable model ends the search; none → false.
+
+**The overlay:**
+1. A record from `FindModelTransform(ex, ex has 0xE83A081D, rotation, o's position, none, rec)`, then rotated by
+   **−π/2** about y. The double at `0x00A8EDD8` is `−π/2` rounded to binary32. Columns:
+   `c0' = c0 cos A − c2 sin A` and `c2' = c0 sin A + c2 cos A`. Flag bit 2 set, counter + 1.
+2. For each mesh `j` whose material state (`+0x0B`) is at least 1 and whose vertex count (header word `+6`) is at
+   least 3:
+   - copy its vertex positions (attribute 0) and texture coordinates (attribute 7, `0x008D0520`) into arrays;
+   - ask the terrain view (terrain slot 66) for overlay manager 0 (view slot 18);
+   - call its model-shadow add, slot 11 (overlay-manager.md §3.7), with the material's texture binding, the count,
+     the positions, the coordinates, a world box and the record. The box is the occupant's (slot 10) below shadow
+     detail 5; at 5 or more it is the model box transformed by the record (`0x007F8170`) *[inferred]*;
+   - a returned id other than −1 is added to o's holder (slot 7).
+3. True.
+
+## 13. Terrain hiding
 
 ### 13.1 `DoTerrainHidingForOccupantCells(o, t, flag)` (`0x00492440`) *[compat]*
 
 RET 0xC, returns a bool. r = o's cell rect (slot `+0x2C`: x0, z0, x1, z1, inclusive). If x0 > x1 or z0 > z1:
 false. Clip r to the city cell rect `+0x30` with the intersection of §7.3 (`0x0048ED90`); empty: false.
 mode = false, except when t = `0x68FD0C69` and flag is true and o answers `0xC8FCE101`: mode = (that interface's
-slot `+0x24` = 2) (released after). If `DoTerrainHidingForCells(r, mode)` (`0x00491CD0`, remainder) is false,
+slot `+0x24` = 2) (released after). If `DoTerrainHidingForCells(r, mode)` (§13.2) is false,
 return false. Otherwise make r end-exclusive (x1 + 1, z1 + 1) and ask the terrain (`+0x70`) to refresh it: slot
 `+0x110(0, 0, &r, 0)`; return true. `RemoveModels` (§12.1) passes flag 0, so removal always uses mode false.
 
-## 14. Making models (`AddModels` `0x00494390`, `AddModel` `0x004902E0`) *[outline; MM2]*
+### 13.2 `DoTerrainHidingForCells(r, mode)` (`0x00491CD0`, RET 8) *[compat]*
 
-*Added 2026-10-22 (re-modelmaker).* The two bodies stay in the §20 remainder; this is what they do.
+*Added 2026-10-23 (re-modelmaker7).* r is an inclusive cell rect. The terrain's cell flags are read with slot 82
+(`+0x148(x, z)`) and written with slot 81 (`+0x144(x, z, flags)`). Their low bits: 0 and 1 hide the terrain
+*[inferred: the two triangles of the cell]*, 2 is base-texture cover, 3 is a network bit.
 
-`AddModels(o, zoom, rotation, type, shown)`: an occupant outside the load rectangle (§7.2) gets no models.
-Otherwise, by occupant type:
+1. **Mode:** when `mode` is set, every cell of r gets `(f & ~4) | 3`; only changed cells are written.
+2. **Grid:** `g[(x − r.x0) × H + (z − r.z0)] = f & ~7` for every cell, with W × H the size of r (an empty r gives
+   no grid). Bits 0–2 are rebuilt from scratch, so step 1's bits survive only through the change test of step 5.
+3. **Occupants:** the occupant manager (`+0x54`) slot 40 lists the occupants between r's corners under the view
+   filter `+0x58` (type −1). Each starts with `mask = 0xFFFFFFFF` and `b = 0`; by type (o slot 7):
+   - **network** `0xC772BF98`:
+     - when it answers `0xA821EF94` and its slot 8 is false for `0x4000`: `mask := ~8`;
+     - slot 8 true for `0x1000000` → `b := 8`;
+     - unless slot 8 is true for `0x8000000`: slot 8 false for `0x2000000` → `b |= 1`, false for `0x4000000` →
+       `b |= 2`;
+     - then, when it answers `0x4A10AFC2`, its slot 92 `(&u, &a, &c)`: `a` → `b |= 1`, `c` → `b |= 2` (`u` is
+       unused).
+   - **foundation** `0x68FD0C69`: when its `0xC8FCE101` slot 9 is 2 and the lot at its first cell (the lot manager
+     `+0x68` slot 6 `(x0, z0, 0)`) has flags (slot 12) with bit 0 and either of bits 1 and 2: `b := 3`.
+   - **base texture** `0x497F6D9D`: over the overlap with r, its `0x097F6D98` slot 7 `(i, j, &cover)` for each cell;
+     true with `cover` set → `g |= 4`. The indices `i, j` are relative to r's corner, not to the occupant
+     *[quirk]*. `mask` and `b` stay unchanged, so step 4 is skipped.
+   - **pipe or subway connection** `0x2A183167`, `0x8A13918A`: `b := 3`.
+4. **Apply:** unless `b = 0` and `mask = ~0`, every grid cell of the occupant's cell rect (o slot 11) clipped to r
+   gets `g := (g & mask) | b`. Each occupant is released.
+5. **Write back:** each cell whose terrain flags differ from `g` is written. Returns whether any was written.
 
-| Type | Loader | Visible at |
+## 14. Making models (`AddModels` `0x00494390`) *[compat]*
+
+*Outlined 2026-10-22 (re-modelmaker); specified in full 2026-10-23 (re-modelmaker7).*
+
+`AddModels(o, zoom, rot, type, shown)` (RET 0x14):
+1. **Load rect:** false unless o's cell rect (slot 11) overlaps the load rectangle `+0x8C` (§7.2).
+2. **Masks and holder:** `zoomMask := 1 << zoom`, `rotMask := 1 << rot`. h = o's holder (slot 20), AddRef'd when
+   present.
+3. **Models, by type.** "All" sets **both** masks to the "every zoom" and "every rotation" words `+0xB0` and
+   `+0xB4`. The result `R` is the loader's result unless noted.
+
+| Type | Steps | Masks |
 |---|---|---|
-| building `0x278128A0` | building models; then completion (§9.5) and the state effect | the zoom |
-| flora `0x74758926` | the same models path | the zoom |
-| prop `0xA823821E` | prop models (§12.2); the state effect when its state is 2 | every zoom unless it uses building-style models |
-| foundation `0x68FD0C69` | foundation models (`LoadFoundationModels` `0x00491040`), the state effect | every zoom unless building style |
-| network `0xC772BF98` | network models (§12.6), the state effect | every zoom when the network occupant's slot 32 is false |
-| power pole `0x2890D4DE` | network models, a shadow (`CreateOccupantShadow` `0x00491230`), the state effect | the zoom |
-| pipe and subway connection `0x2A183167`, `0x8A13918A` | underground connection models (§12.6), the state effect | the zoom |
-| retaining wall `0x895D1169` | the wall's own `AddRetainingWallModels` | every zoom |
-| landfill `0x6A11BD2B`, base texture `0x497F6D9D` | the common loader (`LoadModelsCommon` `0x00490C70`) / the base-texture loader | the zoom / every zoom |
+| building `0x278128A0` | `0x004919F0` (§12.2); false skips the rest of the row; with `0x87DDA3A9`, `DoBuildingCompletionChanged` (§9.5); with a lot (`LotAtOccupant`, §12.5), `R :=` `ApplyStateEffect(o, type, lot, 0)` (§9.1) | zoom |
+| flora `0x74758926` | `0x004919F0` | zoom |
+| prop `0xA823821E` | `LoadPropModels` (§12.2); when its `0xE9793A65` slot 22 is 2 and it has a lot, `R :=` the state effect | all, unless `OccupantUsesBuildingStyleModels` |
+| foundation `0x68FD0C69` | `LoadFoundationModels` (§12.8); false skips the rest of the row (masks included); with a lot, `ApplyStateEffectToModels(o, type, lot, 0)` (§9.3) | all, unless `FoundationOccupantUsesBuildingStyleModels` |
+| network `0xC772BF98` | `LoadNetworkModels` (§12.6), `ApplyStateEffect(o, type, 0, 0)` | all when its `0xA821EF94` slot 32 is false |
+| power pole `0x2890D4DE` | `LoadNetworkModels`, `CreateOccupantShadow` (§12.12), `ApplyStateEffect(o, type, 0, 0)` | zoom |
+| pipe and subway connection `0x2A183167`, `0x8A13918A` | `LoadUndergroundConnectionModels` (§12.6), `ApplyStateEffect(o, type, 0, 0)` | zoom |
+| retaining wall `0x895D1169` | `cSC4LotRetainingWallOccupant::AddRetainingWallModels(o, 1, 0)` | all |
+| landfill `0x6A11BD2B` | `LoadModelsCommon` (§12.7) | zoom |
+| base texture `0x497F6D9D` | `0x0048F490` (§12.3) | all |
+| any other | nothing, `R` false | zoom |
 
-"Every zoom" is the mask `+0xB0`; "the zoom" is `1 << zoom`. The occupant's model handle (occupant slot 19) gets the
-zoom mask (slot 13) and the rotation mask (slot 15).
+4. **Shown:** when `shown`, o's slot 32 is true for 4 and the view filter (`+0x58` slot 3) accepts o:
+   - when `+0x50` is clear and the hiding filter (`+0x60` slot 4) accepts the type:
+     `DoTerrainHidingForOccupantCells(o, type, 1)` (§13.1);
+   - h slot 8 `(1)` (made visible), then `SetOccupantAnimation(o, 1)` on the coordinator `+0x74`.
+5. **Highlight:** when o's slot 16 is not 0, `DoOccupantHilighted(o, 0, that value)`.
+6. **Masks:** h slot 13 `(zoomMask)`, h slot 15 `(rotMask)`; release h. Return `R`.
 
-`AddModel` makes one model instance: an animated model when the key names one, else the S3D resource of the key
-(graphics-formats.md §4.2) through the resource manager; a missing key falls back to (`0x5AD0E817`, `0xBADB57F1`,
-instance). A model whose extent × the scene's scale is below `kRenderModelThreshold` (render-properties float 9,
-read at the table's `+0x184`) is dropped. Without a resource, a **placeholder** (`CreatePlaceHolderModelInstance`
-`0x0048F920`) is made unless `+0xC1` (`-IgnoreMissingModelDataBugs:on`, §3.2) is set and the exemplar lacks
-property `0x6A871B82`. The instance gets its transform (`FindModelTransform` `0x0048FA40`), the occupant's flag
-`0x10` keeps only bit 0 of its flags, and it is added to the occupant's handle. Buildings set instance flag `0x40`,
-flora `0x80`, props `0x20` (`0x22` without bit 0 when the exemplar has `0x4A70D491`).
+h is not null-checked in steps 4 and 6. A building's and a prop's `R` is the state effect's result when one runs
+*[quirk]*.
 
-When the occupant is shown and passes the view filter: the terrain under it is hidden (the hiding filter `+0x60`,
-§13), its handle is made visible and its animation started.
+Making the models of one occupant is §12.7 (`LoadModelsCommon`) with `AddModel` (§12.11); the transform is §12.10,
+the placeholder §12.9.
 
 ## 15. The background loader (`cSC4ModelBackgroundLoader`) *[compat]*
 
@@ -798,33 +1042,116 @@ defaults are 16384, 65536, 400000, 100, 1, 0.1, 8, radii 8, 8, 6, 6, 4, factors 
 - **Radius** (`ExpandLoadRect(rect, zoom)`, `0x0048CA40`): with m the system memory in MiB (§7.1; 0 when the call
   fails), `r := trunc(m × factor[zoom])`, then `r := max(r, minimum[zoom])` (unsigned); the rectangle grows by `r`
   on every side. §7.2 uses it in place of the model maker's own radius while the loader is on.
-- **Start** (`StartLoadingForZoomAndRotation(zoom, rotation, &rect, &centre)`, `0x0048DAE0`, §10.1): re-read the
-  tuning if the speed changed, drop the tasks and the loaded resources (`ClearResourceSet` `0x0048CC30`), keep the
-  zoom and rotation, estimate the cell count from the screen size and a per-zoom factor, add one task (the
-  rectangle and the centre) and post "pause" (§15.4); restart the thread if it had stopped.
-- **Refocus** (`0x0048CB40(&rect, &centre)`, from the model maker's refocus step §10.2): under the lock (`+0x6C`),
-  the first unfinished task gets progress 0, the new centre and rectangle; the waiting loaded cells are dropped; the
-  spiral restarts at the centre, clamped into the rectangle. Without an unfinished task nothing changes.
+- **Task record** (36 bytes, in the list `+0x74`, nodes of §15.6):
+
+  | Offset | Field |
+  |---|---|
+  | `+0x00` | type: 0 loads (the only type ever made) |
+  | `+0x04` | state: 0 new, 1 running, 2 done |
+  | `+0x08` | progress (float) |
+  | `+0x0C` | rectangle x0, z0, x1, z1 (cells, inclusive) |
+  | `+0x1C` | centre x, z |
+
+  The curves of §15.2 sit at `+0xF4` (`0x0B579C21`) to `+0x154` (`0x0B579C27`), 0x10 bytes apart; then the radii
+  `+0x164` and factors `+0x170`, the cell limit `+0x17C`, the resume progress `+0x180` and the speed `+0x184`.
+  `+0xF0` is `0x0B579C20`.
+- **The spiral:** a `SpiralIterator` at `+0x98` (simgrid.md §7.4, order in plumbing.md §7.2), clockwise (mode
+  byte `+0xB8` = 1 from the constructor), its box at `+0xA8` and ring counter at `+0xC4`. The waiting loaded
+  cells are a vector of (x, z) pairs at `+0xC8`.
+- **Start** (`StartLoadingForZoomAndRotation(zoom, rotation, &rect, &centre)`, `0x0048DAE0`, RET 0x10, §10.1),
+  under the lock (`+0x6C`):
+  1. Recompute the speed as in `Init`; when it changed, store it and re-read the tuning.
+  2. Free every task. Then progress `+0x78` := 0, `ClearResourceSet` (`0x0048CC30`), and clear the waiting cells.
+  3. Keep the zoom (`+0x8C`) and rotation (`+0x90`).
+  4. `+0x94` := `trunc(w × f[zoom])`, with `w` the screen width from `0x00B43DD0` slot 11 (default 1024) and f =
+     0.166015625, 0.0888671875, 0.044921875, 0.01953125, 0.009765625 (170, 91, 46, 20, 10 cells at 1024).
+  5. Give the filter `+0xEC` the zoom and rotation (`SetZoomAndRotation`).
+  6. When the global `0x00B43DD8` is set:
+     - append the task {type 0, state 0, progress 0, rect, centre};
+     - post 3 (§15.4);
+     - when the thread is suspended (`+0x14` = 2), its slots 5 and 7, then `+0x14` := 1.
+  7. Unlock.
+- **Refocus** (`0x0048CB40(&rect, &centre)`, RET 8, from the model maker's refocus step §10.2), under the lock.
+  Only the first task of **type 0** changes; with none, nothing does:
+  - its progress := 0; its centre and rectangle := the new ones;
+  - the waiting cells are cleared;
+  - the spiral's box := the rectangle with `x1 := max(x1, x0)` and `z1 := max(z1, z0)`;
+  - the spiral is constructed again at the centre (`0x0043FE10`).
+
+  The task's state is kept, so a running task goes on from ring 0 of the new centre.
 - **Cancel** (`CancelAllLoadTasks` `0x0048CD60`, §10.1 while saving): under the lock, every task is freed, the
   waiting cells are dropped and `ClearResourceSet` runs.
+- **`ClearResourceSet`** (`0x0048CC30`): when the set `+0xD8` is not empty (count `+0xE8`), release every
+  resource in it and clear it.
 
-### 15.4 The worker thread (`ThreadFunction` `0x0048E460`)
+### 15.4 The worker thread (`ThreadFunction` `0x0048E460`) *[compat]*
 
-Under the loader's lock the worker runs the tasks: for each, while the slice time (curve `0x0B579C21` at the task's
-progress) is not used up, `ContinueLoadTask` (`0x0048DCD0`) walks the next cells of a spiral around the centre inside
-the rectangle, spending the budget (`0x0B579C27`) at 1 per cell with occupants and 0.1 per empty cell, loading the
-resources of each occupant that passes the zoom/rotation filter (`LoadResourcesForOccupant` `0x0048D630`), and stops
-when 1000 cells (`0x0B579C2A`) wait. It then posts commands (`PostCommand` `0x0048DA50`: append to `+0x7C`, set
-`+0x88`): 0 cells ready, 1 task done, 2 all done, 3 pause, 4 resume (once progress exceeds `0x0B579C2B`). It sleeps
-for curve `0x0B579C22`. The stop byte `+0x68` ends it.
+*Specified 2026-10-23 (re-modelmaker7).* Each **slice**, until the stop byte `+0x68` is set:
+
+1. **Lock and budget:** lock `+0x6C`, restart the slice timer `+0x30` and set `budget := C27(0)`.
+2. **Run tasks** while there are tasks, the pause byte `+0x28` is clear and the last `ContinueLoadTask` returned
+   true. Each pass takes the **first** task `t`:
+   1. When `budget ≤ 0`: if the timer has passed `C21(t.progress)`, end the run; otherwise
+      `budget := C27(t.progress)`.
+   2. For a type-0 task:
+      - **New task** (state 0): the spiral's box := t's rectangle with `x1 := max(x1, x0)` and
+        `z1 := max(z1, z0)`; start the spiral at t's centre (inline constructor); state := 1.
+      - Then `ContinueLoadTask(t, &budget)`.
+      - **Progress:** `t.progress := trunc(sqrt((2 × ring)² − waiting)) / (+0x94 + 1)`, also stored in `+0x78`.
+        `ring` is `+0xC4`, `waiting` the number of waiting cells, and the square root is taken of an int32.
+   3. A type-1 task would set `+0x78` := 0; no code makes one, and such a task (or one of another type) would never
+      finish.
+   4. A task in state 2 is unlinked and freed.
+3. **After the run:**
+   - with no task left, post 2;
+   - when the loader holds the simulator paused (`+0x29`) and `+0x78 > C2B`, post 4.
+
+   Then unlock.
+4. **Sleep** `trunc(min(C22(first task's progress), 5,000,000))`, or 1,000,000 with no task, through
+   `cRZThread::SleepCurrentThread` *[inferred: µs; MM1]*.
+
+On exit it locks, posts 4 and unlocks. Returns 0.
+
+**`ContinueLoadTask(t, &budget)`** (`0x0048DCD0`, RET 8). While `budget > 0` and fewer than `C2A` (`+0x17C`) cells
+wait, take the spiral's next cell. The end of the spiral sets `t.state := 2` and marks the task done. For each cell:
+- **`+0xF0` set:** load the resources of every occupant at the cell under the filter `+0xEC` (occupant manager
+  `+0x20` slot 40, the cell as both corners, type −1), then release them. The budget pays `C25(t.progress)` when
+  there was at least one occupant, else `C26(t.progress)`.
+- **`+0xF0` clear:** no occupants are queried and the budget pays **nothing** *[quirk]*. Only the cell limit or the
+  spiral's end stops the walk.
+- The cell is appended to the waiting cells.
+
+Then `budget := −1`. Posts follow (`PostCommand` `0x0048DA50`, the vector append of §15.6; each post sets `+0x88`):
+- 0 when any cell was appended;
+- 1 and then 4 when the task finished.
+
+Returns whether fewer than `C2A` cells wait.
+
+**`LoadResourcesForOccupant(o, zoom, rot)`** (`0x0048D630`, RET 0xC):
+1. Nothing when o's holder (slot 19) has both `1 << zoom` in its zoom mask (slot 12) and `1 << rot` in its rotation
+   mask (slot 14).
+2. Otherwise:
+   - read ex's `0xE83A081D` and o's orientation and flip (`GetOccupantOrientationAndState`);
+   - take the model ids of o for (zoom, rot) from `GetAllModelInstanceIDs`, starting from a 4-entry zero vector;
+     key type and group default to (`0x5AD0E817`, `0xBADB57F1`).
+3. For each id ≠ 0, the resource manager `+0x1C` slot 3 `(key, 0x456B8F1D, &res, 0, 0)`:
+   - a resource already in the set `+0xD8` (a hash set by pointer, bucket `(res >> 2) % buckets`) is released;
+   - otherwise it is inserted after a resize to count + 1, keeping the reference.
+
+   The set holds one reference per resource until `ClearResourceSet`.
 
 ### 15.5 The main thread
 
 - **`ProcessBackgroundThreadToMainThreadCommunications`** (`0x0048E170`, on the animation tick `0x86AD10EE`, §5):
   nothing unless `+0x88` is set. Under the lock, the commands in order:
-  - 0: when cells wait (`+0xC8` ≠ `+0xCC`), `ProcessLoadedCells` (`0x0048D800`): for each waiting cell,
-    `LoadOccupantModelsForZoomAndRotation` (§10.4) for its occupants; after the minimum number of cells
-    (`0x0B579C24`) it stops once the time limit (`0x0B579C23`) is passed. When it stops with cells left, the
+  - 0: when cells wait (`+0xC8` ≠ `+0xCC`), `ProcessLoadedCells` (`0x0048D800`). The main-thread timer `+0x48`
+    is restarted first. For each waiting cell in order:
+    1. Each occupant at the cell under the filter `+0xEC` gets `LoadOccupantModelsForZoomAndRotation(o, +0x8C,
+       +0x90)` (§10.4) and is released; `n := n + 1`.
+    2. Read `limit = C23(p)` and `min = C24(p)`, with `p` the first task's progress, or 0 with no task.
+    3. When `n > min` and the timer has passed `limit`, stop after this cell.
+
+    The processed cells are erased from the front, and it returns whether none are left. When cells are left, the
     command list is kept as it is for the next tick (`0x0048E1D3`–`0x0048E1DB`).
   - 1: the model maker's "background load started" byte `+0xA4` is cleared (`0x0048EAD0`).
   - 2: when no task is left and the thread is not suspended: suspend it (slot 4), state `+0x14` := 2.
@@ -834,6 +1161,21 @@ for curve `0x0B579C22`. The stop byte `+0x68` ends it.
   Then the list is emptied and `+0x88` cleared.
 - **`Pause`** (`0x0048C960`) and **`Resume`** (`0x0048C970`) set and clear `+0x28` (§5, `0xCAD61E00` and
   `0xEAD61E16`); while it is set the worker ends its slice at once.
+
+### 15.6 Container helpers *[compat]*
+
+*Added 2026-10-23 (re-modelmaker7).*
+- `0x0048CAE0(&task)` (RET 4): a 0x2C-byte task-list node with the 36-byte record copied whole to `+8`. The links
+  at `+0` and `+4` are left for the caller, `StartLoadingForZoomAndRotation`, which appends the node at the list's
+  end.
+- `0x005BFE60(pos, &value, unused, n, atEnd)` (RET 0x14), named `BeginLoadTask` in the export: the grow path of a
+  4-byte vector insert. It is shared with code outside the loader; the loader's posts use it when the command
+  vector `+0x7C` is full.
+  1. New capacity `size + max(size, n)`.
+  2. Copy `[begin, pos)`, then `n` copies of `value`, then, unless `atEnd`, `[pos, end)`.
+  3. Free the old array and set begin, end and capacity.
+
+  The third argument is not read.
 
 ## 19. Conformance cases
 
@@ -885,33 +1227,21 @@ re-modelmaker cases (§14, §15):
 - M28 (§14): an occupant outside the load rectangle gets no models; a prop without building-style models gets the
   zoom mask `0x1F`, a building `1 << zoom`.
 
-## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
+## 20. Function inventory (owners `cSC4ModelMaker` and `cSC4ModelBackgroundLoader`, tools/coverage.py --owners)
 
-Specified: 20607 bytes; remainder (not yet specified or only outlined): 14098 bytes. The remainder is **not empty**,
-so this spec does not yet claim the whole owner.
+Both owners are specified in full (re-modelmaker7, 2026-10-23, on `5c0ff782`): `cSC4ModelMaker` 88 functions,
+32,418 bytes; `cSC4ModelBackgroundLoader` 22 functions, 7,977 bytes. The round 3 remainder is closed:
 
-Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x494390, `AddModel` 0x4902E0,
-`LoadModelsCommon` 0x490C70, `LoadFoundationModels` 0x491040, `FindModelTransform` 0x48FA40,
-`CreatePlaceHolderModelInstance` 0x48F920; `CreateOccupantShadow` 0x491230; `DoTerrainHidingForCells` 0x491CD0;
-`RebuildDynamicTexture` 0x492CC0; and the out-of-class helpers 0x445F10..0x447B00 (10 rows) and
-0x8D08E0..0x8D0E10 (6 rows), not yet identified. re-modelmaker (2026-10-22) outlines `AddModels` and `AddModel`
-in §14 (they stay in the remainder, MM2), names thirteen functions in the table below and moves `0x0048C960` and
-`0x0048C970` to the loader owner (§15).
+- model loading `AddModels` (§14), `AddModel` (§12.11), `LoadModelsCommon` (§12.7), `LoadFoundationModels`
+  (§12.8), `FindModelTransform` (§12.10), `CreatePlaceHolderModelInstance` (§12.9), `CreateOccupantShadow`
+  (§12.12), `DoTerrainHidingForCells` (§13.2) and `RebuildDynamicTexture` (§11.2);
+- the six out-of-class rows `0x008D08E0`..`0x008D0E10` are the tint kernels of §11.3;
+- the ten rows `0x00445F10`..`0x00447B00` listed here before now belong to `cSC4AnimationCoordinator`
+  (animation-coordinator.md) in the owner map and are no longer counted here;
+- the loader's remaining bodies are §15.3–§15.6.
 
 | address | bytes | name | section |
 |---|---|---|---|
-| `0x00445F10` | 134 | FUN_00445f10 | remainder |
-| `0x004465A0` | 44 | FUN_004465a0 | remainder |
-| `0x004465D0` | 78 | FUN_004465d0 | remainder |
-| `0x00446760` | 52 | FUN_00446760 | remainder |
-| `0x004469B0` | 578 | FUN_004469b0 | remainder |
-| `0x00446D20` | 287 | FUN_00446d20 | remainder |
-| `0x00446EB0` | 399 | FUN_00446eb0 | remainder |
-| `0x00447750` | 86 | FUN_00447750 | remainder |
-| `0x00447A00` | 139 | FUN_00447a00 | remainder |
-| `0x00447B00` | 30 | FUN_00447b00 | remainder |
-| `0x0048C960` | 5 | cSC4ModelBackgroundLoader::Pause | §15.5 (loader owner) |
-| `0x0048C970` | 5 | cSC4ModelBackgroundLoader::Resume | §15.5 (loader owner) |
 | `0x0048EA00` | 36 | FUN_0048ea00 | §7.6 |
 | `0x0048EA30` | 36 | FUN_0048ea30 | §7.6 |
 | `0x0048EA60` | 6 | cSC4ModelMaker::GetGZCLSID | §1 |
@@ -930,11 +1260,11 @@ in §14 (they stay in the remainder, MM2), names thirteen functions in the table
 | `0x0048F4D0` | 217 | cSC4ModelMaker::LoadNetworkModels | §12.6 |
 | `0x0048F5B0` | 169 | cSC4ModelMaker::LoadUndergroundConnectionModels | §12.6 |
 | `0x0048F660` | 689 | cSC4ModelMaker::UpdateModelLoadRect | §7.2 |
-| `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | remainder |
-| `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
+| `0x0048F920` | 283 | cSC4ModelMaker::CreatePlaceHolderModelInstance | §12.9 |
+| `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | §12.10 |
 | `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | §12.5 |
 | `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | §9.5 |
-| `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder (outline §14) |
+| `0x004902E0` | 968 | cSC4ModelMaker::AddModel | §12.11 |
 | `0x004906B0` | 358 | FUN_004906b0 | §12.4 |
 | `0x00490820` | 565 | FUN_00490820 | §12.4 |
 | `0x00490A60` | 70 | FUN_00490a60 | §12.5 |
@@ -942,17 +1272,16 @@ in §14 (they stay in the remainder, MM2), names thirteen functions in the table
 | `0x00490B00` | 117 | FUN_00490b00 | §12.5 |
 | `0x00490B80` | 139 | FUN_00490b80 | §12.5 |
 | `0x00490C10` | 90 | FUN_00490c10 | §12.5 |
-| `0x00490C70` | 965 | cSC4ModelMaker::LoadModelsCommon | remainder |
-| `0x00491040` | 462 | cSC4ModelMaker::LoadFoundationModels | remainder |
-| `0x00491210` | 27 | FUN_00491210 | §12.5 |
-| `0x00491230` | 1979 | cSC4ModelMaker::CreateOccupantShadow | remainder |
+| `0x00490C70` | 965 | cSC4ModelMaker::LoadModelsCommon | §12.7 |
+| `0x00491040` | 462 | cSC4ModelMaker::LoadFoundationModels | §12.8 |
+| `0x00491230` | 1979 | cSC4ModelMaker::CreateOccupantShadow | §12.12 |
 | `0x004919F0` | 63 | FUN_004919f0 | §12.2 |
 | `0x00491A30` | 76 | cSC4ModelMaker::LoadPropModels | §12.2 |
 | `0x00491A80` | 80 | FUN_00491a80 | §3.3 |
 | `0x00491AD0` | 421 | cSC4ModelMaker::cSC4ModelMaker | §2 |
 | `0x00491C80` | 8 | FUN_00491c80 | §1 |
 | `0x00491C90` | 60 | cSC4ModelMaker::~cSC4ModelMaker | §3.4 |
-| `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | remainder |
+| `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | §13.2 |
 | `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | §13.1 |
 | `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | §7.4 |
 | `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | §7.5 |
@@ -960,15 +1289,13 @@ in §14 (they stay in the remainder, MM2), names thirteen functions in the table
 | `0x004929B0` | 27 | GZCOM_CreatecSC4ModelMaker | §1 |
 | `0x004929D0` | 30 | cSC4ModelMaker::~cSC4ModelMaker (deleting destructor) | §3.4 |
 | `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
-| `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
+| `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | §11.2 |
 | `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | §11.1 |
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
 | `0x004933A0` | 729 | cSC4ModelMaker::ApplyStateEffect | §9.1 |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
-| `0x00493700` | 25 | FUN_00493700 | §6.2 |
-| `0x00493720` | 40 | FUN_00493720 | §6.2 |
 | `0x00493750` | 124 | cSC4ModelMaker::DoOccupantDestroyed | §8.2 |
-| `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 (outline) |
+| `0x004937D0` | 536 | cSC4ModelMaker::DoOccupantMoved | §8.8 |
 | `0x00493A00` | 386 | cSC4ModelMaker::DoOccupantHilighted | §8.9 |
 | `0x00493B90` | 232 | cSC4ModelMaker::DoOccupantShown | §8.4 |
 | `0x00493C80` | 221 | cSC4ModelMaker::ApplyStateEffectToModels | §9.3 |
@@ -977,7 +1304,7 @@ in §14 (they stay in the remainder, MM2), names thirteen functions in the table
 | `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | §6.1 |
 | `0x00494290` | 113 | cSC4ModelMaker::DoOccupantInserted | §8.3 |
 | `0x00494310` | 126 | cSC4ModelMaker::DoOccupantRemoved | §8.3 |
-| `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder (outline §14) |
+| `0x00494390` | 1112 | cSC4ModelMaker::AddModels | §14 |
 | `0x004947F0` | 8 | cSC4ModelMaker::FinalRelease (thunk) | §1 |
 | `0x00494800` | 248 | cSC4ModelMaker::Init | §3.1 |
 | `0x00494900` | 99 | cSC4ModelMaker::DoPropStateChanged | §9.4 |
@@ -997,11 +1324,36 @@ in §14 (they stay in the remainder, MM2), names thirteen functions in the table
 | `0x005D5500` | 43 | FUN_005d5500 | §12.5 |
 | `0x005D5A60` | 42 | FUN_005d5a60 | §12.5 |
 | `0x005D7710` | 129 | FUN_005d7710 | §12.5 |
-| `0x005EA370` | 174 | FUN_005ea370 | §6.2 |
-| `0x005EA550` | 184 | FUN_005ea550 | §6.2 |
-| `0x008D08E0` | 219 | FUN_008d08e0 | remainder |
-| `0x008D09C0` | 160 | FUN_008d09c0 | remainder |
-| `0x008D0A60` | 244 | FUN_008d0a60 | remainder |
-| `0x008D0B60` | 247 | FUN_008d0b60 | remainder |
-| `0x008D0C60` | 417 | FUN_008d0c60 | remainder |
-| `0x008D0E10` | 442 | FUN_008d0e10 | remainder |
+| `0x008D08E0` | 219 | FUN_008d08e0 | §11.3 |
+| `0x008D09C0` | 160 | FUN_008d09c0 | §11.3 |
+| `0x008D0A60` | 244 | FUN_008d0a60 | §11.3 |
+| `0x008D0B60` | 247 | FUN_008d0b60 | §11.3 |
+| `0x008D0C60` | 417 | FUN_008d0c60 | §11.3.1 |
+| `0x008D0E10` | 442 | FUN_008d0e10 | §11.3.1 |
+
+`cSC4ModelBackgroundLoader`:
+
+| address | bytes | name | section |
+|---|---|---|---|
+| `0x0048C960` | 5 | cSC4ModelBackgroundLoader::Pause | §15.5 |
+| `0x0048C970` | 5 | cSC4ModelBackgroundLoader::Resume | §15.5 |
+| `0x0048CA40` | 155 | cSC4ModelBackgroundLoader::ExpandLoadRect | §15.3 |
+| `0x0048CAE0` | 86 | FUN_0048cae0 (task node) | §15.6 |
+| `0x0048CB40` | 240 | FUN_0048cb40 (refocus) | §15.3 |
+| `0x0048CC30` | 94 | cSC4ModelBackgroundLoader::ClearResourceSet | §15.3 |
+| `0x0048CC90` | 193 | cSC4ModelBackgroundLoader::Shutdown | §15.1 |
+| `0x0048CD60` | 128 | cSC4ModelBackgroundLoader::CancelAllLoadTasks | §15.3 |
+| `0x0048CF10` | 1811 | cSC4ModelBackgroundLoader::ReadTunableValues | §15.2 |
+| `0x0048D630` | 449 | cSC4ModelBackgroundLoader::LoadResourcesForOccupant | §15.4 |
+| `0x0048D800` | 569 | cSC4ModelBackgroundLoader::ProcessLoadedCells | §15.5 |
+| `0x0048DA50` | 77 | cSC4ModelBackgroundLoader::PostCommand | §15.4 |
+| `0x0048DAE0` | 487 | cSC4ModelBackgroundLoader::StartLoadingForZoomAndRotation | §15.3 |
+| `0x0048DCD0` | 1177 | cSC4ModelBackgroundLoader::ContinueLoadTask | §15.4 |
+| `0x0048E170` | 295 | cSC4ModelBackgroundLoader::ProcessBackgroundThreadToMainThreadCommunications | §15.5 |
+| `0x0048E2B0` | 432 | cSC4ModelBackgroundLoader::cSC4ModelBackgroundLoader | §15.1 |
+| `0x0048E460` | 1164 | cSC4ModelBackgroundLoader::ThreadFunction | §15.4 |
+| `0x0048E8F0` | 12 | cSC4ModelBackgroundLoader::StaticBackgroundThreadFunction | §15.1 |
+| `0x0048E900` | 255 | cSC4ModelBackgroundLoader::Init | §15.1 |
+| `0x0048EAD0` | 10 | FUN_0048ead0 (command 1) | §15.5 |
+| `0x0048EAE0` | 106 | RefocusLoadToNewViewLocation (model-maker method) | §10.2 |
+| `0x005BFE60` | 227 | cSC4ModelBackgroundLoader::BeginLoadTask (vector insert) | §15.6 |

@@ -1,6 +1,10 @@
 # view3d-window: answered questions
 <!-- Answered entries moved from ../view3d-window.md. -->
 
+<!-- from: core-view3dwin11 (2026-10-24) -->
+- **VW19 — §6k/§6l trigger loading:** When reading saved trigger pairs, does DoLoad pre-size the hash table, insert at bucket heads in stream order, or restore stream chain order? §6l settles writing and live insertion but does not specify reconstruction, including duplicate keys. [Literal insertion in stream order, updating an existing key without growth; save traversal uses the resulting table, so colliding pairs can reverse on load.]
+  **ANSWERED 2026-10-24 (re-view3dwin-vw20):** MATCHES — §6k/§6l: stream-order assignments into the existing table, no clear or pre-sizing; new keys grow/prepend normally, duplicates overwrite without growth or movement. Save traverses the resulting distinct keys, including zero counts. VW-T40–VW-T44.
+
 <!-- from: core-view3dwin5 (2026-10-23, round 3) -->
 - **VW18 - §§1.1, 5.1, 6, 6f, 6j–6l remaining opaque contracts:** how is mission activation data1 converted
   into UpdateMissionProgress's first argument? What payload fields select the advice-link subpanel/graph/budget,

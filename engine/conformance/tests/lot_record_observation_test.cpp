@@ -54,5 +54,56 @@ int main() {
         s.Visit(&b); s.Record(true, true, false); s.Finish(true, 2);
         check(s.captures == 2 && s.exact == 0 && s.errors == 1 && s.differences == 1, "T65");
     }
+    { // T80/T81: shared unit edges deduplicate; null adds no payload.
+        LotRecordObservation masters, units;
+        masters.expected = 3;
+        int c = 0;
+        void* lots[] = {&a, &b, &c};
+        void* getters[] = {&a, &a, nullptr};
+        for (unsigned i = 0; i < 3; ++i) {
+            masters.Visit(lots[i]);
+            if (getters[i] && !units.seen.count(getters[i])) {
+                ++units.expected; units.Visit(getters[i]); units.Record(true, true, true);
+            }
+        }
+        masters.Finish(true, 3);
+        check(masters.Mismatches() == 0 && units.expected == 1 && units.exact == 1, "T80 rooted unit union");
+        masters.Finish(false, 3);
+        check(masters.Mismatches() != 0, "T81 incomplete master walk invalidates units");
+    }
+    { // T82/T83/T86: registered list completeness, empty/failure, malformed values.
+        struct Node { Node* next; Node* prev; void* value; };
+        Node root{}, first{}, second{};
+        root = {&first, &second, nullptr}; first = {&second, &root, &a}; second = {&root, &first, &b};
+        auto observe = [&](bool queried, LotRecordObservation& s) {
+            return fc4::ObserveRegisteredList(&root, queried, s,
+                [&](void*) { s.Record(true, true, true); });
+        };
+        LotRecordObservation valid;
+        check(observe(true, valid) && valid.exact == 2 && valid.Mismatches() == 0, "T82 distinct registered occupants");
+        second.value = &a;
+        LotRecordObservation duplicate;
+        observe(true, duplicate);
+        check(duplicate.expected == 2 && duplicate.exact == 1 && duplicate.Mismatches() != 0, "T86 duplicate stays error");
+        second.value = nullptr;
+        LotRecordObservation nullValue;
+        observe(true, nullValue);
+        check(nullValue.expected == 2 && nullValue.Mismatches() != 0, "T86 null stays error");
+        second.next = &first;
+        LotRecordObservation cycle;
+        check(!observe(true, cycle) && cycle.Mismatches() != 0, "T86 detached cycle");
+        root.next = root.prev = &root;
+        LotRecordObservation empty, failed;
+        check(observe(true, empty) && empty.expected == 0 && empty.Mismatches() == 0, "T83 successful empty");
+        check(!observe(false, failed) && failed.Mismatches() != 0, "T83 failed is not empty success");
+    }
+    { // T85/T87: failure/QI/unsupported class remains in selected denominator.
+        LotRecordObservation s; s.expected = 3;
+        int c = 0;
+        s.Visit(&a); s.Record(false, false, false);
+        s.Visit(&b); s.Record(true, false, false);
+        s.Visit(&c); s.Record(true, true, false);
+        check(s.expected == 3 && s.exact == 0 && s.Mismatches() == 3, "T85/T87 failures retained");
+    }
     return failures ? 1 : 0;
 }

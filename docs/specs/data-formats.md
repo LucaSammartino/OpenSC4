@@ -2126,6 +2126,99 @@ reference does not prevent them. A shadow must reacquire/revalidate discovery ac
 and report a refusal/restart rather than claim an exact comparison against changing data. No city
 streaming ABI or record-object lifecycle operation is needed to perform this read-only comparison.
 
+### 8.3.1 Transient segments: observation boundaries (EX57) *[compat]*
+
+**There is no common public all-open-segments notification in these paths.** Normal city load/save
+exposes a segment through synchronous messages; the obliteration and path-based regional helpers do
+not send those messages. Thus subscribing to the six ordinary load/save messages extends observation
+to the ordinary temporary save, but cannot establish an all-open-files census. The contracts below
+describe what an observer can actually receive; they do not require a replacement to invent a missing
+callback. See [foundations.md §3.7](foundations.md#37-save-and-load-sequences) for the serialization sequence.
+
+**Types and ownership at the boundary.** These are 32-bit interface pointers, not interchangeable
+object-base addresses. Message `void1` on the messages that set it is a borrowed
+`cIGZPersistDBSegment*` (IID `0x656B8F0C`), not a `cISC4DBSegment*` (IID `0x499899DA`).
+The latter's `AsIGZPersistDBSegment()` at `+0x0C` returns a borrowed persistence pointer; on the
+original object it adjusts by eight bytes and does not AddRef (`0x006C2040–0x006C204A`).
+QI for either interface acquires a reference (`0x005D16D0–0x005D1721`). To use indexed packed reads,
+QI the supplied segment for IID `0x286D4A6A`, use §8.3, and release only the acquired interface.
+Do not Release the message's borrowed pointer. The message field setter merely stores a pointer and
+sets a presence bit; it does not AddRef the pointee (`0x00913322–0x0091332F`). Retaining the message
+therefore does not retain its segment or its path strings. Copy path text during delivery if needed
+later. A retained segment reference still does not keep its file open.
+
+The persistence view's lifecycle calls have these shapes (offsets are from that view, not from the
+SC4 streaming view): `bool Init()` at `+0x10`, `bool Shutdown()` at `+0x14`,
+`bool Open(bool read, bool write)` at `+0x18`, `bool IsOpen()` at `+0x1C`,
+`bool Close()` at `+0x20`, and `bool SetPath(cIGZString const&)` at `+0x2C`.
+`Open(true,false)` is the load mode; the save/regional-write helpers use `Open(false,true)`.
+These signatures follow the actual callers and return tests, not the export's sometimes shifted
+inferred lifecycle names: `0x005DC00D–0x005DC038`, `0x005DC25B–0x005DC274`,
+`0x005DC31B–0x005DC334`; `0x005D2110–0x005D216C` checks both Boolean arguments.
+An observer must not call Close/Shutdown on someone else's borrowed segment.
+
+| Synchronous message | Typed data | Observation point |
+|---|---|---|
+| PreLoad `0x26C63340` | void1: `cIGZPersistDBSegment*`; void2: borrowed path string | Open and version-accepted; before resource-manager registration and class-object load. The on-disk index is readable. |
+| Load `0x26C63341`, PostLoad `0x26C63342` | Same segment and path types | After root/class-object reading, before city Init. The segment is still open and registered. |
+| PreSave `0x26C63343`, unnamed `0x26C63346` | void1: `cIGZPersistDBSegment*`; void2/void3: borrowed path strings; data4: 32-bit 0/1 caller flag | Temporary package is already open; version/root/class records are not yet all written. Other subscribers can write records here. |
+| Save `0x26C63344` | Same fields as PreSave | Root-writing helper has succeeded, but its stream remains alive and class-object serialization is still pending. This is a writing phase. |
+| PostSave `0x26C63345` | void2/void3 and data4 as above; **void1 is not set** | Still before root-stream destruction and class-object serialization. Neither a segment handoff nor a complete-file notification. |
+
+The message field accessors are `GetVoid1(): void*` at `+0x28`, `GetVoid2(): void*` at `+0x3C`,
+`GetVoid3(): void*` at `+0x50`, and `GetData4(): uint32` at `+0x60` on the standard message interface.
+The path values point to `cIGZString` objects; do not interpret them as character buffers.
+Evidence: load assignments/delivery `0x00455704–0x00455743`, `0x0045580D–0x00455883`;
+save assignments/delivery `0x00456100–0x004561B3`, `0x00456317–0x004563BD`.
+PostSave is constructed fresh and sets no void1 (`0x0045637A–0x004563BD`); it must not be decoded
+using the Save payload by assumption. Standard message construction zeroes its fields (`0x009134D6`);
+void1 getter `0x0099BE66` reads the pointer stored by `0x00913322`.
+
+**Stable-read callback.** A non-mutating PreLoad, Load or PostLoad handler can QI and complete indexed
+reads during that synchronous delivery, provided it neither pumps messages nor reenters city/file
+lifecycle operations. This supplies a stable *read interval*, not a snapshot that survives the callback.
+For save callbacks, even a temporarily quiescent index describes only that phase's pending package;
+write-open records may reject indexed reads (§8.3). No ordinary save message supplies the complete
+new package after all writers have finished. PostSave precedes root stream destruction
+(`0x004563BD–0x004563E0`), `SaveClassObjects` (`0x004563EB–0x004563F4`) and Close
+(`0x004563F8–0x004563FD`), with Shutdown/Release afterward (`0x00456416–0x00456425`).
+For a completed save comparison use the subsequently registered backing file (§8.3), or a separate
+read-only reader after successful completion and replacement of the city file. Do not postpone use
+of the message's borrowed pointer to the next month.
+
+**Helpers that do not broadcast this lifecycle.** The following describe original internal helpers,
+not new framework services or exported entry points an observer may assume it can call:
+
+| Helper boundary | Ownership and observable result |
+|---|---|
+| `SC4OpenSaveGame(path: cIGZString const&, write: bool, checkVersion: bool) -> cIGZPersistDBSegment*` (`0x005DBFE0`) | Creates/retains a segment, opens with `(read=!write, write=write)`, reads the app version, and returns its owned reference on success. When checking, accepts unsigned versions 62 through 65 inclusive. Returns null after failure cleanup. No open message. |
+| `SC4CloseSaveGame(segment: cIGZPersistDBSegment*) -> bool` (`0x005DBC10`) | Requires non-null. If IsOpen is true, calls Close, Shutdown and Release and returns true, without testing their results. If already closed, returns false and **does not Release**. It is not an unconditional reference-release helper. |
+| Path-based `SC4ReadRegionalCity(path: cIGZString const&, out: cISC4RegionalCity**) -> bool` (`0x005DC220`) | Opens a private read segment, accepts versions 62..65, reads the regional object, then closes/shuts down/releases while still inside the helper. The successful output is a retained regional-city object, not the segment. |
+| Path-based `SC4WriteRegionalCity(path: cIGZString const&, city: cISC4RegionalCity*) -> bool` (`0x005DC2E0`) | Borrows the regional object, opens a private write segment, applies the same version check and writes it, then performs local cleanup. No segment is returned. |
+| Segment-based regional read/write (`0x005DC070` / `0x005DC1A0`) | Same regional output/input types, with borrowed `cIGZPersistDBSegment*` replacing path. They own their temporary stream/QI references, not the caller's segment lifetime. They serialize the regional object without a load/save broadcast. |
+
+The path-based regional helpers return the serialization Boolean; cleanup does not change it.
+Their successful-open cleanup is conditional on IsOpen: if false, they skip Close, Shutdown **and
+Release** (`0x005DC2A2–0x005DC2D0`, `0x005DC362–0x005DC390`). Preserve this odd conditional
+ownership behaviour when matching the helper; it is not permission for observers to leak their own
+QI reference. OpenSaveGame's argument widths/version tests are verified at
+`0x005DC018–0x005DC064`; CloseSaveGame's conditional consumption at `0x005DBC10–0x005DBC3C`.
+The regional read's output AddRef is at `0x005DC151–0x005DC15D`.
+
+Obliteration first writes a separate temporary terrain package through
+`SaveCityForObliteration(path: cIGZString const&) -> bool` (`0x00454510`), then partially closes
+the city, privately reopens that package for reading and removes it after use
+(`0x00454EDF–0x00454EE6`, `0x00454F24–0x00454F38`, `0x00454F74–0x0045500B`). The writer invokes
+the city's terrain-saving method with its segment, closes/shuts down/releases it, and returns true
+even if Init/Open failed (`0x00454562–0x004545A6`, `0x004545BB–0x004545C4`). It sends none of the
+ordinary save messages. The reader temporarily stores its segment in the app during the city-rebuild
+call (`0x00454F92–0x00454FB5`); that private field is not a public enumeration or observation API.
+Consequently neither monthly resource traversal nor ordinary load/save message subscription covers
+these local lifetimes. A test that owns one of these calls can inspect an owned open read segment
+before closing it; passive coverage of every such file needs additional lifecycle instrumentation,
+not a claim that the existing public messages already provide it. No game-wide coverage verdict is
+implied by this static contract.
+
 ## 9. Quirks and choices (summary)
 
 | # | Behaviour | Tag |
@@ -2413,6 +2506,22 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
    and 24 return false; slot 14 appends text and returns true.
 
 ---
+
+### 10.9 Transient observation vectors (§8.3.1)
+
+These are lifecycle/observer conformance cases, not requests to mutate a live city's borrowed segment.
+
+| ID | Input / event | Required result |
+|---|---|---|
+| EX57-1 | Valid city package with known plain record K; PreLoad handler QIs void1 and reads K synchronously | void1 is a persistence interface; packed QI acquires one reference; indexed bytes match K; release the QI once, not void1. Manager discovery need not contain this segment yet. |
+| EX57-2 | Load and PostLoad on that city | Same open backing segment/path; synchronous indexed reads of K remain available before city Init. |
+| EX57-3 | New temporary save; observe PreSave then `0x26C63346` | Both carry the temporary persistence pointer and the same path/flag fields. Neither means all version/root/class records are complete. |
+| EX57-4 | Successful root write; observe Save then PostSave | Save sets void1; PostSave leaves void1 null/unset. Both occur before class-object save and package Close. A complete-package verdict at either notification is invalid. |
+| EX57-5 | Hold a packed QI acquired during save until after the helper closes its file | Object retention does not preserve open state; do not reuse the earlier index as a frozen snapshot. Revalidate/reopen a separate reader for later comparisons. |
+| EX57-6 | OpenSaveGame with checkVersion true, app versions 61, 62, 65, 66 | Null, owned open segment, owned open segment, null respectively. With checkVersion false, the range check does not reject 61/66. |
+| EX57-7 | CloseSaveGame on an open segment, then on a separately retained already-closed segment | First call consumes one reference and returns true; second returns false without consuming that retained reference. Do not pass a destroyed pointer for the second case. |
+| EX57-8 | Path-based regional read/write succeeds | A private segment can open/close without any of the ordinary load/save messages; read returns a retained regional-city object, write borrows its input. No all-open-files credit from message counts. |
+| EX57-9 | Obliteration terrain temporary file opens successfully, or its writer's Open fails | Neither path sends ordinary save notifications. The writer still returns true on the Open-failure path; its Boolean cannot certify that a temporary package was saved or sampled. |
 
 ## 11. Original versus engine/formats
 

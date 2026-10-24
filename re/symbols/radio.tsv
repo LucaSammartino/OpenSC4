@@ -1,0 +1,19 @@
+va	name	evidence	mac_x86
+008d30d1	cRZRadio::OnIdleTick	radio.md §2.6 (cIGZRadio slot 5)
+008d3066	cRZRadio::SelectStation	radio.md §2.6 (cIGZRadio slot 14)
+008d2fdc	cRZRadio::SetVolumeLevel	radio.md §2.3 (cIGZRadio slot 16; clamps to 0x400)
+008d3132	cRZRadio::StartFile	radio.md §2.1 (event 0xEAB186DF)
+008d50aa	cRZRadio::SetCurrentSong	radio.md §2.1 (cIGZRadio slot 33)
+008d319b	cRZRadio::DoEvent	radio.md §2.1
+008d49f8	cRZRadio::SetupDiskStations	radio.md §2.4
+008d2cfd	cRZDiskRadioStation::OnIdle	radio.md §3.2 (4000 ms gap)
+008d2eb0	cRZDiskRadioStation::IsCycleTypePresent	radio.md §3.2 (option 2 for jingles)
+008d4127	cRZDiskRadioStation::StartPlayingNextSelectionOfGivenType	radio.md §3.3
+008d64e3	cGZPlayList::_ParseExtM3UFormat	radio.md §4
+008d6824	cGZPlayList::_ParsePLSFormat	radio.md §4
+008d66c9	cGZPlayList::_ParseM3UFormat	radio.md §4
+0080eea0	cSC4MadCowPlayerWin::QueryInterface	intro-video-player.md §1 (IID 0x452294AA)
+0080fb60	cSC4MadCowPlayerWin::CreateSurface	intro-video-player.md §2
+0080fc30	cSC4MadCowPlayerWin::OnAppActivate	intro-video-player.md §3
+008101b0	cSC4MadCowPlayerWin::Shutdown	intro-video-player.md §4
+008102d0	cSC4MadCowPlayerWin::StopPlayback	intro-video-player.md §4 (called by StopMovie)

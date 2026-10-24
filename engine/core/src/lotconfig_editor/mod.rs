@@ -46,28 +46,29 @@ pub struct Configuration {
     pub size: [u8; 2],
     /// Fields +38, +30, +34 in acceptance order, not invented property names.
     pub numeric: [f32; 3],
-    pub ignored_numeric: i32,
+    pub capacities: [u16; 2],
     pub minimum: u8,
     pub byte42: u8,
     pub checkboxes: u8,
     pub compatibility: [Vec<bool>; 3],
     pub objects: Vec<Record>,
+    pub retaining_walls: Vec<u32>,
     pub fences: Vec<[u8; 4]>,
 }
 impl Default for Configuration {
     fn default() -> Self {
         Self {
             id: 0,
-            name: "New Lot".into(),
-            size: [1, 1],
-            numeric: [5.0, 90.0, 0.0],
-            ignored_numeric: 0,
-            minimum: 0,
+            name: String::new(),
+            size: [0, 0],
+            numeric: [90.0, 90.0, 0.0],
+            capacities: [u16::MAX, 0],
+            minimum: 1,
             byte42: 0,
-            checkboxes: 0,
-            // [choice] Unknown initial bit-vector lengths are not invented.
-            compatibility: Default::default(),
+            checkboxes: 8,
+            compatibility: [vec![false; 16], vec![false; 4], vec![false; 9]],
             objects: Vec::new(),
+            retaining_walls: Vec::new(),
             fences: Vec::new(),
         }
     }
@@ -108,6 +109,11 @@ pub enum Effect {
     Scroll(u32, u32),
     Callback(u64, bool),
     Message(String, u32),
+    /// Published warning components, without inventing a separator between them.
+    ReconciliationWarning {
+        introduction: &'static str,
+        reason: &'static str,
+    },
     Instructions(&'static str),
     Saved(Identity),
     RegisteredConfiguration(u32),
@@ -120,6 +126,7 @@ pub enum Effect {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Text(String),
+    Bytes(Vec<u8>),
     Integer(i32),
     Checked(bool),
     ClearFlag(u32),
@@ -314,6 +321,8 @@ pub fn drawing_style(kind: u8) -> ([u8; 3], f32) {
     )
 }
 
+#[cfg(test)]
+mod fix_test_host;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

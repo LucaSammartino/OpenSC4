@@ -404,6 +404,10 @@ try {
         $docLen = if (Test-Path $docLog) { (Get-Item $docLog).Length } else { 0 }
         if ($Slot -gt 0) { $p = [FC4Run]::Start($Exe, ($gameArgs -join " "), $GameDir, 4) }   # SW_SHOWNOACTIVATE
         else { $p = Start-Process -FilePath $Exe -ArgumentList $gameArgs -WorkingDirectory $GameDir -PassThru }
+        # Keep the game resident: lane cargo builds (18 rustc, ~35 GB, commit 83%) paged the main thread out long enough
+        # for the 10 s stall watchdog to fail a regress twice (train202, 2026-10-24). A 1.5 GB minimum working set makes
+        # the memory manager trim the builds first.
+        try { $p.MaxWorkingSet = [IntPtr](3GB); $p.MinWorkingSet = [IntPtr](1536MB) } catch { }
         # Wait for the plugin's attach line; watch for a driver error window and (slot) a fall-back to Documents.
         $attachDeadline = (Get-Date).AddSeconds(60)
         while ($true) {

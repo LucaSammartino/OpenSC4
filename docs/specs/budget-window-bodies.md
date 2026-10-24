@@ -47,9 +47,9 @@ the already identified unlabelled owner helpers. An address is a native body, no
 | set/get_window_indiv_item | `007795A0`; `00779600` | Existing property contract; setter reference rules still need audit |
 | add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | Widget creation/options; set_comboBox is owner logic, not a row provider |
 | add_Bitmap; add_image_button1/2 | `0077A250`; `0077B7B0`; `0077B960` | Presentation/factory helpers; failure/ref rules not yet fully specified |
-| GetBudgetSegment | `0077A390` | Raw-input selection helper; body remains to specify |
+| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation; not a budget data provider; full failure/reference contract BW25 |
 | SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Setup/failure body gaps |
-| init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population; refresh audit remains |
+| init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population, scale and refresh; widget failure contracts remain BW25 |
 | init/updateNeighborBudget | `0077E600`; `00781C90` | Section 3; remaining rendering/refresh audit recorded below |
 | init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, restore acquisition and viewport; service-query arithmetic remains open |
 | UpdateValues | `007898A0` | Section 6 raw providers and A traversal/reuse slice; B and slider rebuilding remain open |
@@ -59,13 +59,13 @@ the already identified unlabelled owner helpers. An address is a native body, no
 
 | Panel methods | Entries | Contract coverage |
 |---|---|---|
-| constructor; deleting destructor | `007658A0`; `00764CD0` | Construction §8 (summary, BW18); base cleanup still needs complete audit |
-| Init; RegisterMessageNotification | `00766E10`; `007648D0` | §8 (Init at summary level, BW18) |
-| IsVisible; Update; ShowWindow; HideWindow | `00764820`; `00764830`; `00768670`; `00764AD0` | Visibility/tick routing, existing spec; ShowWindow invokes owner refresh |
+| constructor; deleting destructor | `007658A0`; `00764CD0` | Construction §8, §11.1; deleting destructor §11.5 |
+| Init; RegisterMessageNotification | `00766E10`; `007648D0` | §8, §11.2 |
+| IsVisible; Update; ShowWindow; HideWindow | `00764820`; `00764830`; `00768670`; `00764AD0` | §11.5; ShowWindow and HideWindow §8 and budget-window.md §7; ShowWindow invokes owner refresh |
 | DoMessage; DoWinProcMessage; DoSubBudgetWindow | `00768620`; `00768750`; `00768460` | Existing command/modal/dirty routing |
-| InitBalanceSheet; CalculateValues; UpdateBalanceSheetInfo | `00764DF0`; `00767270`; `00767990` | Section 4 computation and the complete control mapping (§4.2); InitBalanceSheet labels BW18 |
+| InitBalanceSheet; CalculateValues; UpdateBalanceSheetInfo | `00764DF0`; `00767270`; `00767990` | Section 4 computation and the complete control mapping (§4.2); InitBalanceSheet labels §11.1 |
 | SetFormattedAmountInTextControl; PrintPercentageString | `00765800`; `00764D50` | §4.3 |
-| DisplayLoanWindow; UpdateLoanDisplay; RemoveLoanWindow | `00765C30`; `00766680`; `00764CF0` | §10 (the slider limits and the row drawing at summary level, BW18) |
+| DisplayLoanWindow; UpdateLoanDisplay; RemoveLoanWindow | `00765C30`; `00766680`; `00764CF0` | §10, §11.3, §11.4 |
 | SetTaxes; DisplayTaxesWindow | `00766D00`; `00768130` | §9 |
 
 Three unlabelled panel helpers are named by re-budgetwin (2026-10-22): `RestoreTaxRates` (`00764850`, §9),
@@ -129,13 +129,67 @@ the ninth still contribute to category totals: the off-screen A branch is `0x007
 64-bit multiplication entry `0x009F0D10` (its imported template name is misleading): multiply monthly income
 by the signed-64-bit scale at +0xB0/+0xB4, retaining the low 64 product bits. A adds that product; B subtracts
 it, including the off-screen branches. Enabled visible A rows display the product through SC4MakeMoneyString;
-disabled rows display an empty string (`0x0077CC2E`–`0x0077CCB0`). This scale is owner state, not a refreshed
-total supplied externally. Its initialization and B's visible money formatting remain in the refresh audit.
+disabled rows display an empty string (`0x0077CC2E`–`0x0077CCB0`). Enabled visible B rows display the
+**negated low64 product**, using two-word negation before SC4MakeMoneyString, and subtract the unnegated
+product from the total (`0x0077D11B`–`0x0077D164`). This is not absolute-value formatting: a positive
+monthly income classified as expense displays a negative amount. Disabled B rows have empty amount text.
+The scale is owner state, not a refreshed total supplied externally; see §2.3.
 
 Discriminators: available IDs [10 expense/on, 20 income/off, 30 income/on] produce counts A=2, B=1 and map
 [1,2,0], including the off ordinance and all zero amounts. With ten income ordinances, only indices 0..8
 have initial controls/map entries, but index 9 contributes to the total if edited/on. A provider that changes
 IsOrdinanceOn between the two initialization calls can produce original != edited before user interaction.
+
+### 2.3 Period scale and ordinance refresh (BW17)
+
+Initialization chooses signed-64 scale 1 for period +0x28 == 0, and 12 for **every nonzero** period,
+with high word 0 (`0x007878C8`–`0x007878D1`, `0x007879A9`, `0x00787A8A`–`0x00787A94`).
+The constructor's default is 1; CreateSubBudgetWindow stores the period but does not calculate this scale.
+These rules apply to the common init preceding mode selection. Do not restrict the ordinance scale to
+period exactly 1 merely because normal buttons supply only 0 or 1. Multiplication and signed two-word
+addition/subtraction retain low64 bits, including overflow; there is no saturation or floating conversion.
+
+Refresh `0x0077ADA0` obtains the available-ID array again through ordinance simulator slot 12 with the
+**existing** +0xA4 buffer and in/out +0xA0 count (`0x0077ADED`–`0x0077AE0B`). It neither re-allocates the
+buffer/state pairs nor calls IsOrdinanceOn to replace the original/edited bytes. It clears the row-map
+logical end to its begin (+0x78 := +0x74, retaining capacity, `0x0077AE0E`–`0x0077AE3A`). The stored
+A/B counts gate their respective passes; refresh does not recompute those counts. Stable available-ID
+order/count and classification are therefore preconditions for interpreting the saved state pairs as
+the same ordinances. **Quirk:** refreshed IDs are associated with edits by array position, not by ID;
+a provider that reorders the array reassigns those edits positionally. No new reconciliation is implied.
+
+For each enabled category pass, scan all returned IDs in order. Read signed-64 monthly income (slot 5)
+and classification (slot 22), through separate borrowed GetOrdinanceByID lookups, as in initialization.
+For a matching category, let q be its zero-based ordinal, independent of the source-array index. Render
+only q >= its offset (+0x11C for A, +0x120 for B), at most nine rows. This viewport quota advances only
+for rows at/after the offset; it is not the unusual group-refresh item quota described in §6.
+Tests are unsigned (`0x0077AE70`–`0x0077AEC5`, B `0x0077B354`). Reuse the existing controls, set the
+name from ordinance slot 7/+0x1C, update the checkbox from the edited byte, and replace amount text
+with the money string or empty string. Append each rendered row's **source-array index** to the row map,
+A first then B. Checkbox/info IDs still start at 300/500 across the combined rendered list; scroll does
+not change their interpretation into ordinance IDs (`0x0077B4EC`–`0x0077B539` for B append).
+
+Each nonempty category pass resets +0x90/+0x94 to zero and recomputes its total over **all** matching
+edited/on entries, including entries before the scroll offset and beyond the nine rows. A adds the low64
+scaled amount and displays it directly. B subtracts it and displays its two-word negation
+(`0x0077AF3A`–`0x0077AF7C`, `0x0077B427`–`0x0077B474`; off-screen B `0x0077B570`–`0x0077B586`).
+Off entries contribute nothing. Each category's total is formatted and assigned to its total text control
+before the next category starts; +0x90/+0x94 is reused scratch, not storage for both totals. A total
+format call is at `0x0077B28B`; B's reset is `0x0077B2EC`–`0x0077B2F2`. This refresh does not apply
+edits to the simulator; application still compares original versus edited pairs (§5.6 of the main spec).
+Factory/QI failure contracts and exceptional stale controls remain part of BW25, not raw row inputs.
+
+Conformance vectors (money formatter inputs below; locale chooses the actual currency text):
+
+| Raw input / action | Required result |
+|---|---|
+| Available [expense/on -3, income/off 7, income/on 5], period 0 | Counts A=2/B=1; initial map [1,2,0]; A row texts empty then money(5); B text money(3); total inputs A=5/B=3 |
+| Same inputs, period 7 | Scale=12, A total=60/B total=36; off amount remains empty, not money(0) |
+| Expense/on with income +3, period 1 | B row and B total receive money(-36); no absolute-value conversion |
+| Ten income/on IDs followed by two expense/on IDs; A offset 8/B offset 0 | Refresh map [8,9,10,11]; A total still includes all ten incomes; four checkbox IDs 300..303 refer to these source indices |
+| Same array, change only edited byte from on to off, then refresh | Original byte unchanged; amount becomes empty, total excludes it, map/category count unchanged |
+| Reverse two same-category IDs during refresh, saved edits [on,off] | The newly first ID uses on, the newly second uses off; no ID-keyed edit restoration |
+| Signed amount 0x4000000000000000, scale 12, enabled A | low64 product=0; row/total formatter input 0, with no overflow error |
 
 ## 3. Neighbour population (`0x0077E600`)
 
@@ -471,7 +525,17 @@ temporary-list reference balance and updateNeighborBudget row reuse;
 initializer fragment `00786F62` and its true-rebuild call at `007875C5`; full group B refresh/slider rebuilding,
 A item rendering and final stale-row cleanup; (3) popup/empty/setup
 failure references and setup helpers. (The panel's loan, tax, formatting and balance-sheet rendering bodies are
-§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts are BW18.) The inventory
+§4.2–§4.3 and §8–§11, re-budgetwin 2026-10-22 and re-budgetui7 2026-10-23; `cSC4BudgetUIWinProc` is now
+specified whole, and BW17's remaining audits concern `cSC4SubBudgetWindow` only.) The inventory
+BW17's broad request is archived with a partial-closure answer; it does **not** mean whole-owner completion.
+The remaining work is numbered separately in questions/budget-window.md: BW22 covers neighbour combo
+options/set_comboBox, +8/+12 metadata, temporary-list references and updateNeighborBudget; BW23 covers
+individual service-query calls, float/amount derivation (including the +0x44 saved floats), remaining
+control reuse and the malformed `00786F62` initializer continuation/`007875C5` rebuild call; BW24 covers
+group A item rendering, B refresh/slider rebuilding and final stale-row cleanup; BW25 covers
+property replacement, popup/empty/setup and widget failure references and unclassified helpers.
+The panel's loan, tax, formatting and balance-sheet rendering bodies are
+§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts remain BW18. The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
 owned references cannot be delegated as already computed results of these same owners.
 
@@ -483,9 +547,9 @@ its instructions read these fields 8 lower (budget-window.md §2.1, BW4).
 - **Construction** (`0x007658A0`): the window from the UI script (type 0, group `0x96A006B0`, instance `0xCBC3C2B9`)
   is made a child of the city view's window (generator `0x5386D516`, id `0xAA3AC000`), aligned with the city view's
   other children, given this proc, made to refuse the focus, and `InitBalanceSheet` (`0x00764DF0`) fills its labels
-  *[summary; BW18]*.
+  (§11.1).
 - **`Init`** (`0x00766E10`): the panels `0xAA3AC001`, `0xAA3AC002` (taxes), `0xAA3AC000` and `0xCA4C332D` (loans)
-  are hidden; this proc is the notification target of every button below *[summary; BW18]*.
+  are hidden; this proc is the notification target of every button below (§11.2).
 - **`HideWindow`** (`0x00764AD0`): hides `0xAA3AC001`, `0xAA3AC000`, `0xAA3AC002` and `0xCA4C332D` (window flag 1
   := 0, slot 68) and clears the visible byte `+0x19D`.
 - **Notifications** (`RegisterMessageNotification(on)`, `0x007648D0`): `on` and not yet subscribed (`+0x19C`):
@@ -540,13 +604,13 @@ remaining payment, monthly payment; 0x20 bytes) at `+0x1C`.
   the amount added `+0x18C` and the chosen amount `+0x190` are cleared. The loan amount slider (`0x8A4C34D4`, IID
   `0x612CE0C3`) gets its range from the bond increment (budget slot 39) and the limits: when the total borrowed
   (slot 41) equals the current borrowing limit (slot 42) nothing more can be borrowed; otherwise the maximum is the
-  smaller of the remaining borrowing room and the bond limit (slot 43) *[summary; BW18]*. The texts `0xEA4C34A6`,
+  smaller of the remaining borrowing room and the bond limit (slot 43) (§11.3). The texts `0xEA4C34A6`,
   `0xCA4C349D`, the monthly payment `0xCA4C34E2` (slot 48 `GetMonthlyPaymentForLoan`, ×12 in the yearly view) and
   the loan length (slot 47, months, shown in years) are set; the existing loans (slot 46 `GetAllLoans`) fill the
   list, and the count is kept twice (`+0x184` and, as the count at opening, `+0x188`). The simulator is
   hidden-paused, the location restored and the panel `0xCA4C332D` run modally.
 - **The list** (`UpdateLoanDisplay`, `0x00766680`): four rows from the scroll position (ids `0x4A4C33AD`–`0x4A4C33B0`,
-  `0x8A4C33D0`–`0x8A4C33D3`, `0x0A4C3405`–`0x0A4C3408`, `0xCA4C3426`–`0xCA4C3429`) *[summary; BW18]*.
+  `0x8A4C33D0`–`0x8A4C33D3`, `0x0A4C3405`–`0x0A4C3408`, `0xCA4C3426`–`0xCA4C3429`) (§11.4).
 - **The slider moves** (`0x682876C9`, data1 `0x8A4C34D4`): the amount `0x0A4C3409` and the payment `0xCA4C34E2`
   (slot 48, ×12 yearly) are shown; the amount is kept (`+0x190`).
 - **Scroll**: `0x2A4C33A6` moves the list up two rows when the position is above 0; `0xAA4C339C` down two rows while
@@ -558,3 +622,133 @@ remaining payment, monthly payment; 0x20 bytes) at `+0x1C`.
   slot 40); then the window closes (`RemoveLoanWindow`).
 - **Close** (`0x0A4C3354`; `RemoveLoanWindow`, `0x00764CF0`): hide the panel `0xCA4C332D`, end its modal loop
   (window manager slot 9 with `(0xF, panel, 0)`), clear the list, the simulator's hidden resume (slot 13).
+
+## 11. Panel: the remaining bodies (BW18) *[compat]*
+
+*Added 2026-10-23 (re-budgetui7).* Read on the instruction bytes; the export of these bodies is stack-mangled.
+Offsets are the primary object's. "Root" is the panel window's root (`+0x10` slot 3, then slot 11); a control is
+found by id with root slot 35 (`+0x8C`) or, with an interface, root slot 37 (`+0x94`); a caption is set with slot 74
+(`+0x128`); a window flag with slot 68 (`+0x110`, `(mask, on)`). A localized string `S(i)` is the LTEXT record
+(group `0x6A3FF01C`, instance `i`). The amount slider is a spinner (IID `0x612CE0C3`): slot 10 (`+0x28`) sets its
+range `(min, max)`, slot 9 (`+0x24`) its value, slot 8 (`+0x20`) reads it *[inferred from use]*.
+
+### 11.1 Construction (`0x007658A0`) and `InitBalanceSheet` (`0x00764DF0`)
+
+1. Every field is cleared (the period `+0x198` := 0, monthly).
+2. The parent is the city view's window (`0x00B43DC4` slot 3). Its current child set is recorded
+   (`nSC4UI::GetWindowChildrenSet`), any window at `+0x10` is released, and the panel window is created from the UI
+   script (type 0, group `0x96A006B0`, instance `0xCBC3C2B9`) as a child of the parent, with id `0xAA3AC000` and
+   interface `0x5386D516`, into `+0x10`.
+3. Only when that succeeds:
+   - the windows the creation added to the parent are found by comparing its child set with the recorded one
+     (`0x0078F3C0`) *[inferred]* and aligned to the parent (`nSC4UI::AlignWindowSetToWindow(set, 0)`);
+   - the panel window's proc is set to this object's `+0x08` interface (window slot 7);
+   - the accept-focus flag is cleared on the panel's whole tree;
+   - `InitBalanceSheet` runs.
+
+   A failed creation leaves `+0x10` null and sets no labels.
+4. The twelve tax start values `+0x150`–`+0x17C` := 0, and the recorded set is freed.
+
+`InitBalanceSheet` sets the caption of each label below to `S(i)`. The first fourteen are found without a null test.
+The last four are set only when `0xAA3AD200` exists; otherwise it returns after `0xAA3AD123`.
+
+| Labels | `i` when `+0x198` = 0 (monthly) | `i` otherwise (yearly) |
+|---|---|---|
+| `0xAA3AC108`, `0xAA3AC109` | `0x0A569E48` | `0x6A569FFD` |
+| `0xAA3AC104`, `0xAA3AC10A` | `0x4A569EF8` | `0x4A569EF8` |
+| `0xAA3AC105`, `0xAA3AC10B`, `0xAA3AD120`, `0xAA3AD200` | `0xAA5690B0` | `0xAA569DCD` |
+| `0xAA3AC106`, `0xAA3AC10C`, `0xAA3AD122`, `0xAA3AD202` | `0x4A569F44` | `0xAA56A0F8` |
+| `0xAA3AC107`, `0xAA3AC10D` | `0xCA569FA8` | `0x4A56A15B` |
+| `0xAA3AD121`, `0xAA3AD123`, `0xAA3AD201`, `0xAA3AD203` | `0xCA569B75` | `0x0A569C81` |
+
+*[quirk]* Construction is the only caller (`0x00765B70`), and it runs while the period is still monthly, so the
+yearly column is never used. Switching to the yearly view (§8) changes the values (§4.2) but not these labels.
+
+### 11.2 `Init` (`0x00766E10`), the rest
+
+1. Hide (flag 1 := 0) `0xAA3AC001`, `0xAA3AC000`, `0xAA3AC002` and `0xCA4C332D`.
+2. Make this object's `+0x08` proc the notification target (`nsGZWinUtils::SetWindowNotificationTarget(root, id,
+   proc)`) of the controls `0xAA3AC40E`, `0xAA3AC50E`, `0x4A8879CB`, `0xAA3AC40F`, `0xAA3AC50F`, `0x4A8879DB`,
+   `0x4A8879CC`, `0x4A8879CD`, `0x4A8879DC`, `0x4A8879DD`, `0xAA3AC400`–`0xAA3AC40D`, `0xAA3AC500`–`0xAA3AC50D`,
+   `0x6A5BB0FB`, `0x4A5BB1B5`, `0xAA4C353B`, `0xCA4C352F`. Then, for each tax type `t` = 0–11, of `0x200 + t` and
+   `0x100 + t`. Last come `0x0A4C3354`, `0xAA4C33E6`, `0x8A4C34D4`, `0x2A4C33A6` and `0xAA4C339C`.
+3. The period toggles (button interface `0x8810`):
+   - `0x4A8879CC` and `0x4A8879DC` get button slot 6 (`+0x18`);
+   - `0x4A8879CD` and `0x4A8879DD` get slot 7 (`+0x1C`);
+   - so the monthly pair starts selected and the yearly pair clear *[inferred]*;
+   - each found reference is released.
+4. `+0x198` := 0 (monthly).
+5. If the amount slider `0x8A4C34D4` is found, the amount text `0x0A4C3409` shows its value (§4.3 formatting,
+   sign-extended).
+
+### 11.3 `DisplayLoanWindow` (`0x00765C30`): titles and the slider's limits
+
+Before the list:
+- the budget simulator `+0x14` is fetched when null (`0x00B43CEC` slot 52), with the usual reference swap;
+- the title `0x0A4C34BE` := `S(0x8A569BD2)` in the monthly view, `S(0x4A569CE4)` in the yearly one;
+- the sixteen list cells (§11.4) are set to the empty string.
+
+Then, if the slider is found. `B` = total borrowed (slot 41), `L` = current borrowing limit (slot 42), `C` = bond limit
+(slot 43), all 64-bit; `inc` = bond increment (slot 39).
+
+| Case (64-bit compares) | Range `(min, max)` | Value | Accept `0xAA4C33E6` (flag 2) |
+|---|---|---|---|
+| `L − B = 0` | `(0, 0)` | 0 | off |
+| `L − B < C` (signed) | `(inc, low32(L) − low32(B))` | `inc` | on |
+| otherwise | `(inc, low32(C))` | `inc` | on |
+
+A borrowed total above the limit (`L − B` negative) falls in the second row and gives a negative maximum
+*[quirk]*.
+
+Then:
+- `0xEA4C34A6` := `L` and `0xCA4C349D` := `B` (§4.3 money formatting);
+- the chosen amount `+0x190` := `inc`;
+- the payment `0xCA4C34E2`, the loan length `0x0A4C34DB` := `S(0xEA569D4B)` formatted with (length / 12,
+  length mod 12) of slot 47, and the list follow as in §10;
+- the panel is shown (flag 1 := 1), its flag `0x800` set, raised (slot 23), flag `0x800` cleared, and centred in
+  its parent: slot 56 moves it to ((parent slot 41 − slot 41) / 2, (parent slot 42 − slot 42) / 2), slots 41 and 42
+  being width and height *[inferred]*, each half a signed division rounded toward zero (`0x00766465`–`0x0076650F`).
+
+When the number of loans equals the maximum loan count (slot 44, a 64-bit count whose high word must be 0), the
+slider is reset as in the first row (range `(0, 0)`, value 0, Accept off) before the modal loop.
+
+### 11.4 `UpdateLoanDisplay` (`0x00766680`): the rows
+
+Let `m` = 12 in the yearly view, else 1. The simulator is fetched as in §11.3 and the sixteen cells are emptied.
+Then the slider again (`A` = the amount added this session, `+0x18C`, unsigned):
+
+| Case | Range | Value | Accept |
+|---|---|---|---|
+| `L − A = B` (64-bit) | `(0, 0)` | 0 | off |
+| otherwise | `(inc, low32(L) − low32(B) − A)` | `+0x190` | on |
+
+*[quirk]* This path does not apply the bond limit `C`. Redrawing the list (scrolling, §10) therefore lifts the cap
+that opening set, up to the whole remaining room.
+
+Next:
+- `0xCA4C349D` := `B + A`;
+- the count `+0x184` := the number of loan records;
+- for each record `k`, in order, with `r` the number of rows drawn so far: when `k ≥` the scroll position `+0x180`
+  and `r < 4`, row `r` is drawn:
+
+| Cell | Shows |
+|---|---|
+| `0x4A4C33AD + r` | `S(0xEA569D4B)` formatted (`Sprintf`) with record words 1 then 0 (years, then months) |
+| `0x8A4C33D0 + r` | the total amount (record `+0x08`, 64-bit) |
+| `0x0A4C3405 + r` | the remaining payment (`+0x10`, 64-bit) |
+| `0xCA4C3426 + r` | the monthly payment (`+0x18`, 64-bit) × `m` |
+
+- Every record, drawn or not, adds `low32(+0x18) × m` (32-bit) to a total. `0x6A4C3494` shows that total,
+  sign-extended.
+- Scroll-up `0x2A4C33A6` is enabled (flag 1) when the position is not 0.
+- Scroll-down `0xAA4C339C` is enabled when the position is below count − 1 **and** the count is above 4 (both
+  unsigned). This is not the same test the scroll handler uses (§10).
+- The maximum-loan-count reset of §11.3 is applied last.
+
+### 11.5 The small slots
+
+`IsVisible` (slot 9, `0x00764820`) returns the visible byte `+0x19D`. `Update` (slot 8, `0x00764830`) sets the dirty
+byte `+0x19E` when the panel is visible. That byte is the one `DoMessage` tests (budget-window.md §7): `DoMessage`
+runs on the `+0x0C` interface, so its `+0x192` is object `+0x19E` (`0x00768641`, `lea ecx,[esi−0xC]` before
+`UpdateBalanceSheetInfo`). The deleting destructor (slot 3, `0x00764CD0`) destroys the loan vector `+0x1C` and frees
+the object when its flag bit 0 is set.

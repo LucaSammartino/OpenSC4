@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 519 (dbpf save transition, LR15 answer, nation and DX7 driver closure work, and landfill, flora and lot shadows landed (run 5); flora verified for all three owners.); 516 (landfill developer 73/73 and occupant probe 11/11 exact through 2032; zone parked LG31); 515 (flora owner shadows exact through 2032, run 511); 514 (EX56 DBPF normal-speed save/re-registration, dbpf 73/73 exact and clean to 2032); 513 (EX56 DBPF house profile, dbpf 73/73 exact, clean to 2032 under 1800 s). See `docs/manual-checks.md`.
+- **Latest in-game run:** 632 (lot configuration editor partial closure and effects, budget window and network tool answers landed (run 5); second stall-free regress.); 631 (amarret's audio and UI spec PRs (OpenSC4#11, #12) landed, specified 78.0% -> 82.0%; lot unit and base texture shadows verified; first stall-free regress after the Defender exclusions.); 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

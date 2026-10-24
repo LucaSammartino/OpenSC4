@@ -30,8 +30,13 @@ pub struct Record {
     pub suspend: i32,
     pub current: Option<Job>,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Scheduler {
+    pub session: Option<ftp::Session>,
+    pub initialized: bool,
+    pub references: u32,
+    pub counter: u32,
+    pub lookup: Option<u32>,
     pub queue: VecDeque<Job>,
     pub record: Option<Record>,
     pub default_directory: Vec<u8>,
@@ -56,6 +61,13 @@ pub enum Effect {
     ReleaseMessage,
     DestroyLocalStrings,
     DestroyUrl,
+    AllocateQueueNode,
+    DestroyCriticalSection,
+    DestroySynchronization,
+    DestroyStoredStrings,
+    FreeScheduler,
+    EraseFirstString,
+    UnlinkQueueNode,
 }
 pub trait Host: ftp::Io {
     fn worker_effect(&mut self, effect: Effect);
@@ -68,7 +80,52 @@ pub enum Step {
     Exited,
 }
 
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
 impl Scheduler {
+    /// 00813d70 is scheduler construction, not session initialization.
+    pub fn new(lookup: Option<u32>) -> Self {
+        Self {
+            session: None,
+            initialized: false,
+            references: 0,
+            counter: 0,
+            lookup,
+            queue: VecDeque::new(),
+            record: None,
+            default_directory: Vec::new(),
+            timeout: 15,
+            target: None,
+        }
+    }
+    pub fn admit(&mut self, host: &mut impl Host, url: &[u8], destination: Option<&[u8]>, custom: u32) -> u32 {
+        if url.is_empty() {
+            return 0;
+        }
+        let destination = destination
+            .filter(|d| !d.is_empty())
+            .map_or_else(|| self.default_directory.clone(), super::directory);
+        host.worker_effect(Effect::Lock);
+        self.counter = self.counter.wrapping_add(1);
+        let id = self.counter;
+        self.queue.push_back(Job {
+            id,
+            status: 1,
+            url: url.to_vec(),
+            destination,
+            time: 0,
+            progress: 0,
+            custom,
+        });
+        host.worker_effect(Effect::AllocateQueueNode);
+        host.worker_effect(Effect::Unlock);
+        self.start(host);
+        host.worker_effect(Effect::DestroyLocalStrings);
+        id
+    }
     /// 00817580: no rollback if thread startup fails; caller owns the acquired hold.
     pub fn start(&mut self, host: &mut impl Host) {
         host.worker_effect(Effect::Lock);
@@ -132,8 +189,8 @@ impl Scheduler {
             return self.final_boundary(host);
         }
         let mut session = ftp::Session::default();
-        let Some(host_address) = ftp::numeric_host(url.server()) else {
-            return Err(Unsupported::OwnedBody("0081e640 outer worker lookup"));
+        let Some(host_address) = ftp::numeric_host(url.server()).or_else(|| ftp::lookup(host, url.server())) else {
+            return self.final_boundary(host);
         };
         session.address = ftp::Address {
             host: host_address,
@@ -235,8 +292,50 @@ impl Scheduler {
         host.worker_effect(Effect::ReleaseScheduler);
         0
     }
-    /// 00816210 wrapper alone does not specify scheduler destructor 00813e10.
-    pub fn destroy(&mut self, _deleting_flags: u32) -> Contract<()> {
-        Err(Unsupported::OwnedBody("00813e10 scheduler destructor"))
+    pub fn adjust_worker_reference(&mut self, host: &mut impl Host, add: bool) -> u32 {
+        host.worker_effect(Effect::Lock);
+        let value = self.record.as_mut().map_or(0, |record| {
+            record.suspend = if add {
+                record.suspend.wrapping_add(1)
+            } else {
+                record.suspend.wrapping_sub(1)
+            };
+            record.suspend as u32
+        });
+        host.worker_effect(Effect::Unlock);
+        value
+    }
+    /// 00812a50 intentionally frees only the first string, not the full value.
+    pub fn erase_range(&mut self, host: &mut impl Host, first: usize, last: usize) -> usize {
+        for _ in first..last {
+            self.queue.remove(first);
+            host.worker_effect(Effect::UnlinkQueueNode);
+            host.worker_effect(Effect::EraseFirstString);
+            host.worker_effect(Effect::DestroyQueueNode);
+        }
+        first
+    }
+    /// Q18 section 4.15: no worker join, callback or queued-target release.
+    pub fn destroy(&mut self, host: &mut impl Host, deleting_flags: u32) -> Contract<()> {
+        if self.initialized {
+            self.initialized = false;
+            if let Some(target) = self.target.take() {
+                host.effect(ftp::Effect::ReleaseTarget(target));
+            }
+        }
+        if let Some(mut session) = self.session.take() {
+            session.destroy(host, 1)?;
+        }
+        host.worker_effect(Effect::DestroyCriticalSection);
+        host.worker_effect(Effect::DestroySynchronization);
+        for _ in self.queue.drain(..) {
+            host.worker_effect(Effect::DestroyQueueStrings);
+            host.worker_effect(Effect::DestroyQueueNode);
+        }
+        host.worker_effect(Effect::DestroyStoredStrings);
+        if deleting_flags & 1 != 0 {
+            host.worker_effect(Effect::FreeScheduler);
+        }
+        Ok(())
     }
 }

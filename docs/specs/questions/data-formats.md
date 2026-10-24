@@ -1,4 +1,5 @@
 # data-formats: open questions
+
 <!-- Questions about [data-formats.md](../data-formats.md). Append new entries at the END; when one is answered, move it to answered/data-formats.md. Rules: README.md. -->
 
 - **EX50 - section 4.4 GetPropertyList, callers:** which game paths call `GetPropertyList` (holder slot 4) on an exemplar or cohort object made by the resource factory (not an occupant's own `cSCExemplarPropertyHolder`), and what in-city action reaches one? In game runs gex4-r1-turbo, gex4-r2-normal and gex4-r4-build (Konradshohe, 6 zone/2 network script actions, growth to 2030) the replacement's counter stayed at 0, so the EX49 workaround (the game factory's own object builds the list) is unexercised in game. [no test drives it; the workaround stays behind enable=exemplars]

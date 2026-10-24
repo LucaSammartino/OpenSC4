@@ -91,7 +91,8 @@ offsets in the tool object; `+0x1C` is the city view and `+0x24` onward belong t
   callback registered with the application, slot 69): the exemplar (`0x6534284A`, `0x88CD66E9`, 1), properties
   `0x69DB8D00` the texture batch `N` (default 100), `0x69DB8D01`/`02` the Ctrl strength and radius (0.25, 0.25),
   `0x69DB8D03`/`04` the Shift strength and radius (4.0, 1.0), `0x69DB8D05` the ramp period `P` when > 0 (`k := 1 /
-  P`; default `k` 10).
+  P`; default `k` 10). The callback (`0x004D8B70`, registered by `Init` at `0x004D90AE`) only clears the read-once
+  flag (`0x00B21924`) and returns true.
 - `Init` (`0x004D9080`): base `Init`; the terrain (held), the brush's UI elements (`GetUIElementsForBrush`, slot 63,
   into `+0x30`…`+0x57`), the terrain view (held), the window manager (held); notifications `0xA6B79602` and
   `0xA6B79612`; the echoes off (§3.4); the idle cursor.
@@ -117,7 +118,8 @@ offsets in the tool object; `+0x1C` is the city view and `+0x24` onward belong t
 - **Move** (`0x004D9D80`): at most one per animation tick (`+0xAC`). Not scrubbing and no position → echoes hidden;
   true. While scrubbing: an action from the last point to `p` is queued, the queue run, the last point := `p`, the
   window manager's slot 19 called, the tick byte set. The echoes are shown at `p`. True.
-- **Animation ticks** (message `0x86AD10EE`) while scrubbing: the tick byte cleared; a counter (`+0x58`) counts the
+- **Animation ticks** (message `0x86AD10EE`; `DoMessage` `0x004D9AC0`, slot 3 of the message-target interface at
+  `+0x28`, vtable `0x00A92A00`; it returns true for every message) while scrubbing: the tick byte cleared; a counter (`+0x58`) counts the
   ticks since the last application and at its third queues an action from the last point to itself (resetting the
   counter); the queue is run. True.
 - **View changes** (`0xA6B79602`, `0xA6B79612`) while the tool is current: the tick byte cleared, the mouse position
@@ -151,11 +153,21 @@ offsets in the tool object; `+0x1C` is the city view and `+0x24` onward belong t
   0 and 1), made by ID pair (effects manager slot 6) when the settings flag (`0x00B43CC4` → `+0x0C` → byte `+0x23C`)
   is set; the stroke cursor := `+0x50` (on) or `+0x54`. `SetCursorEchoPos(p, show)` (`0x004D9160`): the echo point
   (`+0xF0`) := `p`; the first echo scaled by the brush radius (terrain slot 61) × the radius scale, the second by
-  `3 / 1.7^zoom`, both at `p`; each started when shown and stopped when not; the cursor: the stroke cursor when
+  `3 / 1.7^zoom` (the power by repeated squaring in doubles, `0x004D8EF0`: exponent 0 gives 1.0; the zoom is never
+  negative here, and a negative exponent would not terminate), both at `p`; each started when shown and stopped when not; the cursor: the stroke cursor when
   shown, else the idle one. `OnMouseExit` (`0x004D9720`) hides them.
 - **Shutdown** (`0x004D8DD0`): a running stroke is ended (`EndBrushScrub`), capture released; notifications removed;
   started echoes stopped; the window manager, the terrain view (its selection cleared) and the terrain (texture
   updates stopped) released.
+- **Destruction** (`0x004D9560`; deleting wrapper `0x004D9950`, which frees the object when its flag bit 0 is set):
+  `Shutdown` when still initialised; then the action queue and the two timers are destroyed and the references at
+  `+0xE8` and `+0xEC` released, before the base view-input-control destructor.
+
+*Owner boundary.* The function at `0x008AE57B`, auto-named `SetCursorEchoPos` by a weak Mac match (score 0.618,
+support 0), is not this class's. Its only caller is `0x008A6D50` and the routine it calls is `0x008AE16E`, both
+inside the FreeType library range. It fills a table of doubles and shorts at object `+0x400`/`+0x4A0`, and the
+game's next function is the Lua script server's CLSID getter at `0x008AE770`. The FreeType range of
+`tools/coverage-libs.tsv` now ends there (re-scrubber7).
 
 ## 4. The city-situations tool (`cSC4ViewInputControlCitySituations`) *[compat]*
 

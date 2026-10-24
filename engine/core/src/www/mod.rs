@@ -8,9 +8,13 @@ pub mod cache;
 pub mod cookies;
 pub mod ftp;
 pub mod http;
+pub mod http_date;
+pub mod http_transport;
+pub mod http_wire;
 pub mod listing;
 pub mod notification;
 pub mod service;
+pub mod support;
 pub mod worker;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

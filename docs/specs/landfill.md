@@ -1514,6 +1514,22 @@ effects through the typed outputs; retain the historical SDK return observation 
 - `GetLandfillUsage`: the SDK parameter order `(usage, capacity)` is correct (checked at `0x006B9820`).
 - The zone vtable `0x00AB1610` is not a public interface; callers rely on its first three slots (§9).
 
+**Independent native zone verification boundary (LG31).** The published contracts provide **no supported
+public-interface route** to invoke a native zone's queries, mutations, or record `Read`/`Write` on controlled
+inputs. Developer slot 12 (`0x006B9400`, §7.1) supplies only a borrowed zone pointer: it adds no reference.
+The known zone prefix (`0x00AB1610`, §1) permits QI for unknown/message-target identity, AddRef/Release and
+the no-op message operation; it publishes neither zone methods nor a zone serializable interface. There is
+no zone GZCOM CLSID for independent creation. A caller retaining a non-null result must acquire its own
+reference and balance it with Release (the shipped auto-ref holder does this, §9); this protects lifetime,
+but does not establish an independent controlled zone instance or authorize private method calls. The
+zone lifecycle in §4.4.9, inline format in §6.2 and replacement layout requirement in §9 describe behavior
+and compatibility, not additional public calling contracts. Therefore park independent native zone
+verification at this boundary: do not call code addresses, inspect private fields, substitute developer
+serialization as a zone-method oracle, or credit developer/occupant checks as zone verification. The zone
+rules remain specified and can have implementation conformance tests; their independent native comparison
+remains unsupported through the published public interfaces, with no native comparisons or coverage credit
+claimed. This closes LG31's contract question without changing that verification limitation.
+
 ## 8. Dependencies
 
 | Interface | Slot / off | Member | Pop | Return | Used for |
@@ -1742,3 +1758,16 @@ funding 100 %, zone cells all zone type 14, no roads inside.
 23. **Reason 5 is ignored** (§3.2): delivering `0x278E6003` with `data4 = 5` over a zone with tiles changes no
     zone, heap or occupant; with `data4 = 1`, `2` or `3` the same rect dezones the empty cells (§4.5.2). The
     landfill's own levelling must not feed back into `DoTerrainChanged`.
+
+### 11.1 Public zone verification boundary vectors (LG31)
+
+These are verification admission and accounting vectors, not newly measured native zone results.
+They supplement the behavior vectors above; in particular, an implementation-only zone round trip does
+not establish that a public native zone record operation was exercised.
+
+| Vector | Controlled setup or request | Required outcome |
+|---|---|---|
+| LG31-B1: acquisition | Developer slot 12 yields null, or yields a non-null borrowed zone pointer. | Null provides no object to test. Non-null supplies identity only under the published prefix; retention requires a balanced AddRef/Release. Neither outcome admits independent zone query/mutation/record tests. No private access or native comparison is attempted. |
+| LG31-B2: zone record | Independently authored zone bytes, including the §6.3 example, are available; request a native zone `Read` followed by `Write`. | Stop at the public-interface boundary: no published zone factory or serializable calling contract exists. Keep any implementation-only result separate; report native zone comparison as unsupported, not pass or mismatch. |
+| LG31-B3: indirect evidence | A public developer record round trip contains inline zones, or public occupant checks agree. | Credit only the developer or occupant operations actually compared. Independent native zone queries, mutations and records remain unverified; indirect bytes do not become a zone-method oracle. |
+| LG31-B4: closure accounting | LG31 is answered by §7.4 and all measured public developer/occupant cases pass. | Close the contract question while retaining partial landfill verification. Claim no new native zone comparisons or zone coverage credit; question closure alone does not change verification status. |
