@@ -21,6 +21,7 @@ namespace {
 cFC4WeatherSimulator* g_core = nullptr;
 cIGZUnknown* g_original = nullptr; // borrowed for this city's lifetime
 uint64_t g_differences = 0, g_steps = 0, g_lines = 0, g_clean = 0;
+bool g_recordDifferenceLogged = false;
 size_t g_firstOffset = 0;
 void Compare();
 using MoistureFn = void (__fastcall*)(void*, void*, const SC4Rect<int32_t>&);
@@ -155,12 +156,14 @@ void Compare() {
             ++differences;
         }
     }
-    if (differences && g_differences == 0)
+    if (differences && !g_recordDifferenceLogged) {
+        g_recordDifferenceLogged = true;
         Log("weather shadow: first difference step=%llu byte=%u original/ours=%u/%u bytes=%u/%u",
             g_steps, static_cast<unsigned>(g_firstOffset),
             g_firstOffset < a.size() ? a[g_firstOffset] : 0,
             g_firstOffset < b.size() ? b[g_firstOffset] : 0,
             static_cast<unsigned>(a.size()), static_cast<unsigned>(b.size()));
+    }
     g_differences += differences;
 }
 
@@ -219,6 +222,7 @@ bool WeatherShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMess
     if (g_original == nullptr || name == nullptr || std::strcmp(name, "cSC4WeatherSimulator") != 0 ||
         target == nullptr || msg == nullptr || finished == nullptr) return false;
     if (g_core == nullptr) { Bootstrap(); Line("load", static_cast<int32_t>(data1)); }
+    const int32_t nativeDate = AsGame(g_core->City()->GetSimulator())->GetSimDateNumber();
     const bool weekly = type == 0x66956815;
     const bool observing = weekly && BeginRand();
     if (weekly && !observing) ++g_differences;
@@ -238,6 +242,10 @@ bool WeatherShadowDeliver(cIGZMessageTarget2* target, const char* name, cIGZMess
     if (observing) {
         uint32_t state = 0;
         if (!fc4_weather_shadow_crt(g_core->Core(), &state, false) || state != g_randAfter) ++g_differences;
+        if (g_steps < 48)
+            Log("weather replay: type=%08X delivered=%lld native=%d draws=%u valid=%d crt=%08X/%08X/%08X",
+                type, data1, nativeDate, g_randCount, g_randValid ? 1 : 0,
+                g_randBefore, g_randAfter, state);
     }
     ++g_steps;
     Compare();
@@ -259,6 +267,7 @@ void WeatherShadowCityShutdown() {
     g_core = nullptr;
     g_original = nullptr;
     g_differences = g_steps = g_lines = g_clean = 0;
+    g_recordDifferenceLogged = false;
     if (g_handler) { RemoveVectoredExceptionHandler(g_handler); g_handler = nullptr; }
 }
 }
