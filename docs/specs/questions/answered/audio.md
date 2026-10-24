@@ -1,5 +1,39 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU41: audio.md §19.2 specifies
+SEM/model defaults, binding, registration, retained-state failure and teardown, and all six
+model slot 5/6 contracts with twelve vectors. Primary slot 4 calls the supplied object's
+name slot; final volume uses a logical shift; effects pan uses absolute projected pixel X.
+Registration does not roll back; failed model allocation and null-Hit teardown fault.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU41 — SEM and emanation arithmetic:** settle model slot 5/6 transformations (`0x004ED210`,
+  `0x004ED2A0`, `0x004ED3F0`, `0x004ECDA0`, `0x004ECE70`, `0x004ECF90`) against instructions;
+  numeric decompilation is corrupt. Recover SEM construction/defaults and registration rollback at
+  `0x004EDAA0`; check caller ordering of teardown `0x004ED750` (misnamed Init in export).
+
+**ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU44: audio.md §7.4.1 specifies all
+five views, defaults, registration, filtering, dispatch, enumeration and lifetime. Failed Init
+retains subscriptions; Shutdown releases scape but never removes its group. Insertion/removal
+uses the acquired position-interface key, while enumeration uses the visited occupant key.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU44 — fire-handler complete owner contract:** audio §7.4 currently gives identity and corrects
+  torch ownership, rather than specifying the full fire handler. Supplement §20.3 adds some lifecycle
+  and scape IO facts. Recover construction/defaults, all interface views, message dispatch and group
+  registration/removal contracts at `0x004F0240`–`0x004F132F` before calling this owner complete.
+
+**ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU40: audio.md §18.4 and supplement
+§18 specify camera-centered geometry, sea-plane correction, x87 rounding, tuning sizes and
+literal failure lifetime. Notifications measure camera movement; absent server and null
+message allocation fault; the cheat helper only queries/releases its payload view.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU40 — listener geometry and failure lifetime:** complete the camera/terrain-to-listener numerical
+  contract at `0x004F14B0`, tuning fallback/array sizing at `0x004F1A80`, cheat helper `0x004F1470`,
+  missing message-server handling and final message delivery/allocation path. Supplement §18 settles
+  dispatch, payload shape, zoom multiply order and strict squared-distance threshold only.
+
 **ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU48: audio.md §10.7.1 specifies AEMS
 views/defaults, latched lifetime, backend calls/results, bank/file ownership and failure
 quirks. The raw reader uses two unchecked sizes; resource success also depends on Close.

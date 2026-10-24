@@ -803,6 +803,96 @@ service IID `0xBB523BB2` by `cSC4AudioCOMDirector::PostAppInit` (`0x004EBF40`). 
 (`0x004EF100`) belong to **`cSC4AudioEventHandler`**, whose `DoEvent` calls them with the outer base
 and whose sound-system member they read at `+0x14`. They do not belong to DisasterFire.
 
+#### 7.4.1 Fire-handler owner contract (AU44)
+
+Use the outer message-target base B for all offsets here; Init/Shutdown receive B+4.
+Factory `0x004EB100` allocates 52 bytes, constructs at `0x004F0510`, and returns B+4;
+allocation failure returns null. Construction initializes outer refcount B+0x1C and embedded
+filter count B+0x10 to zero, initialized byte B+0x18 false, scape B+0x20 null, and four
+words B+0x24 through B+0x30 zero. There is no initial scape registration or occupant scan.
+
+| View / table | Slots and behavior |
+|---|---|
+| B / `0x00A941E8` | 0 QI `0x004F0270`; 1 AddRef `0x004F0240`; 2 Release `0x004F0250`; 3 DoMessage `0x004F05D0`. |
+| B+4 / `0x00A941D4` | 0–2 adjust to B and share QI/refcount; 3 Init `0x004F0740`; 4 Shutdown `0x004F03A0`. |
+| Embedded filter B+8 / `0x00A941B8` | 0–2 adjust to B for QI/refcount; 3 fire predicate `0x004F0440`; 4/5 return true without inspecting their one argument (`0x004FC900`); 6 deleting destructor adjusts to B (`0x004F0330`). |
+| Filter persistence B+0x0C / `0x00A941A0` | 0–2 adjust to B; 3/4 inherited Write/Read `0x005E97C0`/`0x005E97E0`; 5 inherited class ID getter `0x005E95B0`, returns `0xA9C74DC9`. |
+| Service B+0x14 / `0x00A94190` | 0–2 adjust to B; 3 returns false without work (`0x005DEB40`). |
+
+QI accepts `1` and lifecycle IID `0x89E51472` as B+4, message-target IID `0x452294AA`
+as B, and service IID `0xBB523BB2` as B+0x14. Each success increments the same outer
+refcount. Other IDs return false without clearing the output. In particular, filter views are
+embedded addresses used directly, not additional accepted QI IDs. AddRef increments a 32-bit
+word; Release tests the old count as signed: >1 decrements, otherwise invokes the deleting
+destructor through embedded-filter slot 6 and returns zero. Destruction releases a non-null
+scape and destroys the embedded filter; it does not call Shutdown or remove subscriptions/groups.
+
+The inherited persistence view writes a 16-bit version 3 through stream slot 7 and returns
+the inverse of stream slot 18's error byte. Read obtains a 16-bit version through stream
+slot 7, rejects versions other than 3, then returns the inverse error byte. Neither serializes
+the handler's state. Stream pointers are unchecked.
+
+Init is idempotent and returns true when already initialized. Otherwise obtain the message
+server `(0x04FA845B,0x652294C7)`; missing server returns false with no subscriptions.
+Subscribe B to occupant insertion `0x99EF1142`, removal `0x99EF1143`, then city init
+`0x26D31EC1`, ignoring subscription results. Obtain scape `(0x49E50BA1,0x29E39DB4)`
+and retain it at B+0x20 with normal AddRef-before-old-Release assignment. Missing scape returns
+false **without removing the subscriptions**. With scape present, call slot 5
+`("Fires",0x49E4CE85,0,100.0f)`. A false return also leaves subscriptions and retained scape
+in place, with initialized still false. A successful registration is followed by these three
+slot 16 calls, whose results are ignored (`0x004F082E`–`0x004F08CA`):
+
+| Group | Sound | Remaining arguments in order |
+|---|---|---|
+| `0x49E4CE85` | `0x29DC19EF` | 1, 0, 1, 9 |
+| `0x49E4CE85` | `0x09DC19A2` | 1, 0, 10, 49 |
+| `0x49E4CE85` | `0x09DC1982` | 1, 0, 50, `0x7FFFFFFF` |
+
+Then set initialized true, release temporary services and return true. There is no scan during
+Init itself and no rollback after partial failure. A retry can subscribe again and encounter an
+already registered group. Shutdown when uninitialized is a true-return no-op, even after failed
+Init. When initialized, reacquire message server and, if available, unsubscribe city init,
+insertion, removal in that order. Regardless of server availability, clear/release retained scape,
+clear initialized and return true. It does **not** call a scape group-removal method, clear existing
+fire instances or subscribe/unsubscribe city shutdown (`0x004F03A0`–`0x004F0436`). *[quirk]*
+
+DoMessage always returns true, including null input, QI failure, missing occupant, non-fire
+occupant and unrelated types (`0x004F0734`). For non-null input QI `0x65297976` is required
+before dispatch; a false QI skips dispatch and releases any non-null returned view. On success
+get payload void1 (slot 32) and temporarily AddRef it if non-null, **even for unrelated types**.
+Read type from the original message. Dispatch is:
+
+| Type | Effect |
+|---|---|
+| `0x99EF1142`, `0x99EF1143` | Non-null void1 must QI `0x26BB767E`. Test that position interface through embedded filter slot 3: QI `0x69D25C60` must succeed (the fire predicate); release its returned view. If accepted, get position through position slot 8 even on removal. Insertion calls scape slot 13(`0x49E4CE85`, position-interface pointer, &position, 0.0f); removal calls slot 14(`0x49E4CE85`, position-interface pointer). Release position QI afterward. |
+| `0x26D31EC1` | Call global renderer slot 44 (`+0xB0`) with `(callback 0x004F04D0, B, 0, 0, B+8)`, supplying the embedded fire filter. No renderer null gate. |
+| other | No owner action. |
+
+Finally release temporary void1 and payload. No initialized/scape gate is checked before scape
+calls. The insertion/removal key is the acquired position interface, not the payload's raw void1.
+The fire predicate accepts solely on successful fire IID QI, releasing any non-null QI output
+even on failure; it does not inspect a burning flag (`0x004F0440`).
+
+The enumeration callback (`0x004F04D0`) returns false if occupant or B is null. Otherwise
+AddRef B, call `IterateFireOccupantCallback`, Release B and return true. That member helper
+ignores null occupant, obtains position via occupant slot 8 and calls scape slot 13 with
+`(0x49E4CE85, occupant pointer, &position, 0.0f)`. It does not repeat the fire filter or acquire
+an occupant reference; renderer enumeration supplies filtering. There is no bulk removal callback.
+The position scratch vector is initially zero (global `0x00B21A1C`); the getter result is ignored.
+
+#### AU44 conformance vectors
+
+| ID | Input/action | Expected |
+|---|---|---|
+| AU44-01 | Construct; QI 1, message-target, lifecycle, service and an unrelated IID | Zero counts/flags/dependencies initially; successful views B+4, B, B+4, B+0x14 increment outer count; failure preserves output. Factory returns B+4. |
+| AU44-02 | Init with server absent, then with server present/scape absent | First false with no subscriptions; second false after three subscriptions. Shutdown afterward is a no-op because initialized remains false. |
+| AU44-03 | Group registration returns false | Retained scape and subscriptions remain; no slot 16 calls; false result and initialized false. |
+| AU44-04 | Successful Init, repeated Init, Shutdown | One group registration, three literal slot 16 calls, no initial scan; repeated Init adds nothing. Shutdown unsubscribes city/insertion/removal, releases scape, never removes group. |
+| AU44-05 | Insert then remove fire with distinct raw occupant O and position view P | Fire QI checked both times; position fetched both times; slot 13 uses key P and radius 0, slot 14 removes key P. Both return true regardless of scape result. |
+| AU44-06 | Null message, failed payload QI, null void1, rejected fire predicate | Always true; no scape call. Acquired views released in each applicable case. |
+| AU44-07 | City init with valid payload; renderer visits occupant O | Enumerate with filter B+8; callback brackets owner with AddRef/Release; slot 13 uses O directly. Null callback occupant/owner returns false. |
+| AU44-08 | Destroy initialized handler without Shutdown | Release scape and embedded filter only; no unsubscribe or scape group-removal call. |
+
 ### 7.5 Sound-system callbacks and torch state (AU16)
 
 `DoEvent` (`0x004EF490`) returns **true immediately** if member sound system is null. With it present,
@@ -2076,7 +2166,8 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ## 15. Open items
 
 The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
-[questions/audio.md](questions/audio.md), AU40–AU44. These qualify the coverage of those sections;
+[questions/audio.md](questions/audio.md), AU42–AU43. AU41 is settled in §19.2; AU40 and AU44 in §18.4 and
+§7.4.1 respectively. The remaining questions qualify the coverage of those sections;
 an owner appearing in the inventory does not imply that all its numerical behavior is settled.
 
 | # | Question | What would settle it |
@@ -2095,6 +2186,297 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 | **AU12** | Property-key *names* for the audio exemplar keys of §10.8 are unrecovered (the reader takes raw 32-bit ids). | the shipped property-name table |
 
 ---
+
+## 20.4 Scape position enumeration and convenience insertion (AU42 partial)
+
+This settles primary slots 11 and 13 from [supplement §20.1](audio-owner-contracts.md#201-scape-construction-and-slots).
+AU42 remains open for resource loading, the other instance/group operations, smoothing,
+timers and allocation failure. These two entry points do not establish complete scape coverage.
+
+Primary slot 11 (`0x004F57B0`) takes `(groupKey, positions, countInOut, metadataOut)`.
+It holds the manager's group lock (`base+0x44`) while looking up the first matching group
+in stored list order and copying outputs, and releases the lock on every normal return.
+Missing group returns false without changing either output word or the positions buffer.
+For an existing group, compare its stored count (`group+0x20`) against the caller's input
+capacity **as signed 32-bit integers** (`0x004F57F1`–`0x004F57F6`). If count exceeds
+capacity, return false with all outputs untouched. In particular, insufficient capacity
+does not return a required size and does not copy a prefix. There is no null-buffer sizing
+mode and no clamping of a negative capacity to zero. *[quirk]*
+
+On success, overwrite countInOut with the stored count, copy the raw word at group `+0x30`
+to metadataOut, then copy each instance's first three 32-bit words to consecutive 12-byte
+positions records in instance-list order. The raw copies preserve floating-point bit patterns,
+including NaNs; there is no coordinate conversion. Stop at either the list end or the stored
+count, return true, and leave the rest of the buffer untouched. An inconsistent short list
+still reports the group's stored count, rather than the number actually copied. Count zero
+performs both word writes but no position write (`0x004F5807`–`0x004F584D`). Null count or
+metadata output is not accepted on a successful path; a null positions buffer is harmless
+only when no position is copied. No service/initialized/enabled gate is tested here.
+The resource meaning of the raw metadata word remains part of AU42's resource contract.
+
+Primary slot 13 (`0x004F51E0`) is a four-argument convenience entry. With arguments
+`(A,B,C,D)`, it dynamically dispatches the same object's **primary slot 12**, passing
+`(A,0,0,B,C,D)` in that order. It adds no checks, locking, output clearing, ownership or
+return conversion; the return register is the slot 12 result. This is a dispatch contract,
+not an independent instance insertion algorithm. Fire-handler calls to slot 13 therefore
+inherit slot 12's full contract once the remaining AU42 work settles it.
+
+### Scape capacity conformance vectors
+
+| ID | Input/action | Required result |
+|---|---|---|
+| AU42-cap-01 | Missing key; sentinel count, metadata and buffer | False, all sentinels unchanged; group lock acquired/released. |
+| AU42-cap-02 | Existing count 3; capacity 2 | False; capacity remains 2, metadata and buffer unchanged; no prefix copied. |
+| AU42-cap-03 | Existing count 0; capacity −1, then capacity 0 | First false/outputs unchanged. Second true, count 0 and raw metadata written; null positions allowed because no copy occurs. |
+| AU42-cap-04 | Count 2; capacity 4; two positions include NaN bit patterns | True; count becomes 2, raw metadata copied, first two records copied bit-for-bit in list order, remaining records untouched. |
+| AU42-cap-05 | Host fixture count 3 but list contains one instance; capacity 3 | True; count remains reported as 3, exactly one record copied; no count repair. |
+| AU42-cap-06 | Override slot 12 with a recording host; call slot 13 `(A,B,C,D)` | One call `(A,0,0,B,C,D)`; same return register and no other owner work. |
+
+## 19.2 SEM lifetime and model parameter contract (AU41)
+
+This completes [supplement §19](audio-owner-contracts.md#19-sem-registration-and-the-three-emanation-owners).
+The instruction audit, rather than the inferred names or numeric pseudocode, defines the rules
+below. There is no model message handler, PCM resource reader or drawing operation.
+
+### Construction, binding and registration
+
+The 32-byte SEM factory `0x004ED700` returns null on failed allocation; otherwise its reference
+count and all six retained pointers start zero. The three 40-byte model constructors and identity
+strings are §3.4. All three have reference count zero at `+8`, an embedded name/string interface
+at `+0x0C`, ID at `+0x20`, and a null retained dependency at `+0x24`. QI rejects unknown IDs
+without overwriting the output. Primary slot 3 reads the ID. **Primary slot 4 is not a no-op:**
+it calls the supplied object's slot 14 (`+0x38`) with the model's embedded name interface
+(`base+0x0C`), ignores that call's result, and returns true (`0x004EDA60`–`0x004EDA73`).
+
+The lifecycle view is `base+4`, with Init `0x004ED180` and Shutdown `0x004ED1F0` in slots
+3 and 4. Init gets the SC4 director, reads the pointer at director base `+0x60`, and retains
+it at model base `+0x24`; replacing it acquires the new reference before releasing the old,
+while assigning the same pointer makes no reference calls. It returns whether the resulting
+pointer is non-null. Shutdown clears/releases that pointer if present and returns true. The
+literal addresses matter: neither the folded `SFX::AmbienceManager` name nor the folded
+`GetInstanceID` name establishes the dependency's meaning. Model transformations read the
+**raw 32-bit word at dependency+0x14**, or zero for a null dependency; there is no float
+conversion of that word (`0x0040CE70`). Destruction releases this dependency and the name
+storage; it does not unregister a model from Hit.
+
+Startup `0x004EDAA0` has the following observable stages. Acquiring Hit uses framework
+GetService with service `0x1B2CE671`, IID `0xBB1BD9A8`. Missing framework/service returns
+false. Otherwise SEM retains Hit, then saves the old 2D model from Hit slot 22
+(`+0x58`, ID `0x7DCDED2D`), then the old 3D model with ID `0x7DCDED3D`. A missing old 2D
+stops before the 3D lookup; a missing old 3D stops before construction. Saved model assignment
+acquires the new non-null pointer before releasing a different previous pointer.
+
+Only after both old models exist does SEM allocate, retain, query lifecycle IID `0x89E51472`
+and initialize replacements, in order 2D, 3D, 3DEffects. Each QI/Init must succeed before
+the next allocation. A temporary lifecycle view is released before the next QI and on exit.
+After all three succeed, Hit receives exactly this sequence: register effects via slot 19
+(`+0x4C`); remove 2D ID via slot 20 (`+0x50`); register new 2D; remove 3D ID;
+register new 3D. These registration/removal results do not affect the true return.
+There is no initialized latch and no rollback: a failed lookup, QI or model Init returns false
+while retaining Hit, saved originals and any replacements already assigned. A failed model
+allocation assigns null and then dereferences it for QI; it is a native invalid access,
+not a clean false result (`0x004EDB73`–`0x004EDC7D`). *[quirk]*
+
+Teardown `0x004ED750` (misnamed Init) unconditionally uses retained Hit: remove new 2D,
+register saved 2D, remove new 3D, register saved 3D, remove effects. It then visits retained
+replacement 2D, 3D, effects in that order: QI lifecycle, call Shutdown only on QI success,
+clear/release the replacement. It balances each temporary lifecycle reference, then clears/
+releases saved 2D, saved 3D and Hit, and returns true. It neither checks registration results
+nor skips a null saved original when passing it to Hit. A fresh or twice-torn-down SEM has
+null Hit and faults at the first use. Destruction alone releases Hit, effects, saved 3D,
+new 3D, saved 2D, new 2D, in that order, with no registration or lifecycle calls.
+
+The director calls startup after SoundManager Init and Listener Init
+(`0x004EC1F5`); PreAppShutdown calls teardown after the two handlers and before Listener
+Shutdown, then clears/releases SEM (`0x004EC339`–`0x004EC34A`). Thus listener binding is
+available during model initialization and remains available during model shutdown. This
+also agrees with §11's director lifetime; teardown must not be called as startup.
+
+### Parameter IO and integer volume
+
+Slots 5 and 6 both take **source S, destination D**. A parameter read is S slot 4
+(`+0x10`) with one ID argument. A write is receiver slot 3 (`+0x0C`) with
+`(ID, value, flag)`. In particular, the `1` pushed before a copied read is the later
+write's flag, not a getter fallback argument. No parameter-presence checks occur.
+Copied values keep their full 32 bits. Writes are attempted even if earlier writes fail;
+there is no rollback. Null S/D is an invalid access.
+
+For the following arithmetic, each integer product and sum wraps to 32 bits. Interpret a
+wrapped product as signed for truncation toward zero by 1024. Let V be that quotient of
+S parameter `0x14` times S parameter `0x15`. Let M be the raw dependency word described
+above. Ordinary 2D/3D volume is the low 32 bits of M×V, **logically** shifted right ten
+bits. Thus it lies in `0..0x003FFFFF`, with no clamp to 1024; a negative product is not
+an arithmetic shift. The signed divide uses sign bias 1023 then arithmetic shift
+(`0x004ED239`–`0x004ED261`, `0x004ED39F`–`0x004ED3C5`). Effects applies one additional
+signed, truncating division by 1024 to the wrapped product V×attenuation before the
+same final M multiplication/logical shift (`0x004ED638`–`0x004ED672`).
+
+| Model slot | Parameter effects, in order | Return |
+|---|---|---|
+| 2D slot 5, `0x004ED210` | Read S `0x16`, `0x15`, `0x14`; compute volume; write S `0x0C=volume`, flag 1; D `0x16=saved S pan`, flag 1; D `0x15=volume`, flag 0. | true |
+| 3D slot 5, `0x004ED2A0` | Copy S→D `0x20,0x21,0x22,0x40,0x41,0x42`, flag 1; read radius S `0x38`; write scaled radii D `0x1E,0x1F`, flag 1 (below); read S `0x15,0x14`; write S `0x0C=volume`, flag 1; D `0x15=volume`, flag 0. | Leaves final setter's return register; no explicit true/false assignment. |
+| Effects slot 5, `0x004ED3F0` | Same six position copies; read S `0x38`, then S `0x20,0x21,0x22` again for projection. Without a view, return false after those copies/reads. With a view, compute attenuation/pan below; write D `0x16=pan`, flag 1; read S `0x15,0x14`; write S `0x0C=volume`, flag 1; D `0x15=volume`, flag 0. | Without view false; otherwise leaves final setter's return register. |
+| 2D slot 6, `0x004ECDA0` | Copy S→D `0x13,0x19,0x1A,0x1B,0x23,0x24,0x25,0x26,0x33`, all flag 1. | true |
+| 3D slot 6, `0x004ECE70` | Set D `0x1C=1`, flag 1; copy S→D `0x1D,0x13,0x19,0x1A,0x1B,0x23,0x24,0x25,0x26,0x33,0x1E,0x1F`, all flag 1. | true |
+| Effects slot 6, `0x004ECF90` | As 3D slot 6, except D `0x1C=0`. | true |
+
+### Radius, projection and pan arithmetic
+
+Numeric constants are the binary32 values at `0x00A823A4` (0.01, bits `0x3C23D70A`),
+`0x00A94034` (π, `0x40490FDB`), `0x00A9402C` (π/2, `0x3FC90FDB`), plus exact
+0.5, 16, 512, 1024 and 1/1024. Arithmetic uses x87 intermediates; store to binary32
+only at the specified boundaries. Float-to-integer conversion uses `_ftol2` truncation
+toward zero; do not substitute nearest rounding. Exceptional x87 inputs follow the
+native masked-invalid conversion behavior, with no validation or fallback.
+
+For ordinary 3D, convert radius `0x38` as **unsigned u32** to x87, multiply by binary32
+0.01, then multiply by global zoom scale `0x00B21A30`, store binary32 R, and write
+D `0x1E=trunc(R)` and `0x1F=trunc(R×16)`. There is no binary32 store between the first
+two multiplications (`0x004ED33B`–`0x004ED388`). The global starts zero in the file image;
+Listener `_CalculateZoomValues` sets it to its fifth zoom scale (§18.4,
+`0x004F18C0`–`0x004F18CF`). It is not the current zoom index.
+
+Effects instead stores binary32 r after unsigned radius×0.01. S position `0x20,0x21,0x22`
+is converted **as signed i32** to three binary32 coordinates. The global view at
+`0x00B43DD8` projects that vector in place through
+`SC4ViewUtilities::ProjectPointToViewportCoordinates2D` `0x007F78E0`; projected coordinates
+are host/view IO, not a new projection formula in this owner. Read width W and height H
+from view `+0x28/+0x2C`; truncate projected x/y to integers X/Y. Set dx=X−trunc(W/2),
+dy=Y−trunc(H/2), with wrapped integer subtraction. Store binary32 distance after
+sqrt(signed interpretation of wrapped dx²+dy²). Store binary32 radius limit after
+signed interpretation of wrapped (W+H), multiplied by 0.5 and r. Attenuation is
+trunc(1024) if distance≤limit (also on unordered comparison), otherwise
+trunc(1024/(distance/limit)). Zero/negative limits receive no special handling
+(`0x004ED504`–`0x004ED5A2`). There is no effects write to `0x1E/0x1F` in slot 5.
+
+Pan uses **absolute X**, not dx and not X/W. Form t=X×binary32 π×(1/1024) in x87;
+save binary32 t but take sine of the still-unrounded x87 value. Form p=512×sin(t).
+Compare the saved binary32 t against binary32 π/2: if strictly greater, replace p
+with 1024−p; otherwise keep p (unordered also keeps it). Truncate, then clamp the
+signed integer to `[0,1024]` (`0x004ED5A7`–`0x004ED621`). Consequently pixel pan is
+not normalized to viewport width and is periodic beyond the intended span. *[quirk]*
+
+### AU41 conformance vectors
+
+Use a parameter host that records ordered reads/writes and write flags. Supply M as a raw
+word, and supply the projection result and view dimensions independently of the model.
+
+| ID | Input/action | Required result |
+|---|---|---|
+| AU41-01 | Construct SEM/models; reject an unrelated QI; invoke model primary slot 4 | Zero counts/null dependencies; IDs/names as §3.4; failed QI preserves output; slot 4 calls host slot 14 with embedded name view and returns true even if host returns false. |
+| AU41-02 | Bind model with director holder P, repeat, bind Q, Shutdown twice | First AddRef P; repeat no count calls; AddRef Q before Release P; first Shutdown clears/releases Q; both Shutdown calls true. |
+| AU41-03 | Startup: no Hit; then Hit but no old 2D; then old 2D but no old 3D | False each time; respectively no retained change, retain Hit, retain Hit and old 2D. No model construction or Hit register/remove. |
+| AU41-04 | All prerequisites; record successful registration then teardown | Startup: register effects, remove/register 2D, remove/register 3D. Teardown: remove/restore 2D, remove/restore 3D, remove effects, model lifecycle shutdown/release in 2D/3D/effects order, release saved originals/Hit. Ignore Hit result failures. |
+| AU41-05 | Fail 3D lifecycle Init; separately fail first model allocation | First false, retains originals/Hit and first two replacements, no Hit mutation; second invalid access during QI, not false. Fresh teardown similarly faults on null Hit. |
+| AU41-06 | 2D: S14=1024, S15=512, S16=77, M=1024 | S0C=512 flag 1, D16=77 flag 1, D15=512 flag 0; return true. No geometry copy. |
+| AU41-07 | S14=−1025, S15=1, M=1024; also S14=−1, S15=1 | First V=−1, final volume=4194303; second V=0 and volume=0. Neither case clamps to 1024. |
+| AU41-08 | 3D: S38=100, zoom scale=2; ordinary 2D volume inputs | Six position copies precede D1E=2, D1F=32: the binary32 R store rounds the product to exactly 2 before integer truncation. Volume writes as AU41-06; no D16 write. |
+| AU41-09 | Slot 6, distinct values for every source parameter | Exact ordered copy lists and flag 1 from table; only 3D/effects write D1C, respectively 1/0; all return true. |
+| AU41-10 | Effects without a global view | Six destination copies still occur; S38 and second position reads occur; false, with no pan, radius or volume writes. |
+| AU41-11 | Effects: W=H=1024, projection (512,512), S38=100, M=1024, S14=S15=1024 | Center distance zero gives attenuation 1024; pan 512, S0C and D15=1024. D1E/D1F untouched. |
+| AU41-12 | Same center X/Y, but W=H=2048, S38=0 | Positive distance/zero limit gives attenuation zero and volume zero; pan still 512, demonstrating absolute-pixel pan. |
+
+## 18.4 Listener geometry, tuning and failure contract (AU40)
+
+This completes [owner supplement §§18.1–18.3](audio-owner-contracts.md#18-listener-camera-inputs-and-position-notifications).
+All coordinates and tuning elements are f32. Update (`0x004F14B0`) returns false immediately
+if the global renderer reference is absent; with a renderer but no camera it returns true
+without work. Otherwise terrain, city, sound-system and tuning prerequisites are unchecked.
+Missing prerequisites are native invalid accesses, not successful updates or false returns.
+The zoom index is a signed 32-bit value and is used directly for table indexing; there is no clamp.
+
+Let C be camera position (`+0x3C`), T its look target (`+0x48`), U its orientation vector
+(`+0x6C`), and z its zoom index (`+0x0C`). For z < 2, obtain two integer dimensions via the
+city interface `+0x178(&width,&depth)`, with the renderer's `+0x174` and `+0x48` conversion
+calls following it. These foreign calls supply the dimensions; use half width/depth as T.x/T.z;
+T.y remains the camera target height. This is the low-zoom city-centering rule, not half of
+the original target coordinates (`0x004F1524`–`0x004F1577`).
+
+The listener geometry is defined by these vectors, in this order:
+
+| Quantity | Rule / observable |
+|---|---|
+| Initial direction F | Normalize T − C; right vector R = F × U. R is not normalized here. |
+| Sea-plane target | Read terrain `+0x74` (sea level S). Only if T.y < S, replace T by the ray/plane intersection from C along F with plane `(0,1,0,−S)`. The helper result is ignored; F and R are not recomputed. |
+| Height H | Process-global zoom height at index z, calculated as supplement §18.3 specifies. |
+| Position L, member `+0x0C` | `(T.x, T.y + H, T.z)`; H is a vertical offset. |
+| Auxiliary position, member `+0x18` | T − H × F. Products for x/y are rounded to f32 before subtraction; z's product stays in x87 until subtraction. |
+| Target, member `+0x24` | Copy of the possibly sea-adjusted T. |
+| Final direction D | Normalize T − L. |
+| Final up V | Negate Normalize(R × D). |
+| Foreign sound calls | Get sound-system listener with `+0x0C`; call returned listener `+0x24(D.x,D.y,D.z,V.x,V.y,V.z)`. Get it again; call `+0x1C(L.x,L.y,L.z)`. No acquired reference or null gate is added around these two gets. |
+
+Numeric audit: `0x004F157B`–`0x004F1617`, `0x004F1669`–`0x004F17DC` use x87
+arithmetic. Each normalization stores its reciprocal length as f32, then multiplies components
+by that stored reciprocal. In the first and final-direction normalization, x/y differences
+remain extended until multiplication; the z difference is first stored as f32. Sum order is
+z² + y² + x² for the first direction, x² + z² + y² for the final direction. Cross R's
+components are stored as f32. The final-up cross x/y remain extended, z is stored f32;
+its length sum is x² + z² + y². Normalized components are stored f32 (the final-up y/z
+products stay extended until their negated f32 stores). There is no zero-length test: zero
+height, coincident C/T or parallel vectors may propagate infinities/NaNs with ordinary masked
+x87 exceptions. No fallback direction or epsilon is substituted. *[quirk]*
+
+The sea-plane helper (`0x005D7360`) treats absolute denominator < f32(0.01) as parallel.
+If the absolute plane distance is also < f32(0.01), it writes C and returns true;
+otherwise it writes zero and returns false. For a nonparallel ray it writes C + tF with
+t = −planeDistance / stored-f32 denominator, without a t >= 0 gate. The caller uses that
+output even on false. Its strict T.y < S test leaves equality and unordered values alone.
+
+Notification movement is measured between C and saved camera member `+0x30`, not between L
+and its prior value (`0x004F1826`–`0x004F185B`). Strictly greater squared movement than
+the current zoom threshold copies C into that member before allocating the message. Equality
+or unordered comparison suppresses notification. Changes to T, H or orientation can therefore
+change L without sending a message. The payload still points to L. The standard-message path
+allocates 44 bytes, AddRefs, sets type, Pointer1 and payload as supplement §18.3, calls server
+`+0x10(message,0)`, Releases, and returns true regardless of delivery result. A null allocation
+reaches a null virtual call after saving C. There is no false-return allocation recovery.
+
+Tuning (`0x004F1A80`) acquires the global resource manager and requests
+TGI `(0x6534284A,0xCA25875D,0x6A359C5C)`, IID `0xA52160F5`, flags 0,0.
+A failed resource lookup leaves all tuning unchanged and releases the resource/manager
+references. A missing resource manager is an unchecked dereference. With the resource present,
+read its property holder (`+0x1C`) and apply the following in order:
+
+| Property | Destination / missing-property rule |
+|---|---|
+| `0x2A36E3CB` | Scalar `+0x70`, retains previous value (constructor 4). If sound system exists, get `+0x10`, AddRef, call returned object `+0x28(scalar)`, Release. A null returned object is unchecked. |
+| `0xCA359F17` | Height array `+0x3C`; missing writes bits `[44A70000,4426C000,43A68000,43110000,42920000]` directly into its first five entries, without resizing. |
+| `0x6A359F22` | Multiplier array `+0x48`; missing writes five 1.0 values directly, without resizing. |
+| `0x2A35A25F` | Scalar `+0x6C`, retains previous value (constructor 1). |
+| `0xEA4A7C55` | Array `+0x54`; missing resizes to five then assigns `[1,0.75,0.5,0.25,0]`. |
+| `0x2AA40CCC` | Movement array `+0x60`; missing resizes to five then assigns `[26,13,6.5,3.25,1.625]`. Regardless of lookup success, square each of its first five entries and multiply by 256, storing f32 only after both multiplies. |
+
+The vector property helper (`0x005FFCC0`) resizes successful reads to the actual property count
+and copies the f32 data; it neither pads to five nor rejects short arrays. Consequently first-use
+missing height/multiplier properties write through empty storage; successful arrays shorter
+than five also permit out-of-bounds access in calculation/update. The fallback for the last two
+arrays alone guarantees five elements. There is no global "all tuning missing" fallback when
+the exemplar itself is unavailable. Repeated reads of a missing movement property reset before
+squaring; a fresh successful property copy is squared each time. *[quirk]*
+
+The city helper requires payload QI `0x65297976` even though no payload values are used. Null
+message/missing view returns false. City init acquires the global sound system; if absent it
+releases the payload and returns false before camera subscriptions or tuning. Otherwise it
+subscribes the two camera types, reads tuning, computes heights and updates. City shutdown
+unsubscribes those types and clears/releases sound system. It does not reset vectors or tuning.
+The outer dispatcher still returns true for either recognized city message. Init/Shutdown and
+the deliberately empty cheat helper are specified in supplement §§18.1–18.2.
+
+### AU40 conformance vectors
+
+| ID | Input/action | Expected |
+|---|---|---|
+| AU40-01 | z=2, C=(0,10,0), T=(0,0,0), U=(0,0,1), sea=-1, H=2 | L=(0,2,0), auxiliary=(0,2,0), target=(0,0,0); orientation D=(0,−1,0), V=(0,0,−1), ignoring signed-zero differences. Orientation call precedes position call. |
+| AU40-02 | Same, sea=4 | Target becomes (0,4,0), L=(0,6,0), auxiliary=(0,6,0); initial F/R retained. |
+| AU40-03 | z=0, host renderer writes dimensions 200,100, camera target initially (9,3,7) | Geometry uses T=(100,3,50) before sea adjustment. |
+| AU40-04 | Saved C=(0,0,0), C=(3,4,0), threshold=25 | No message; threshold below 25 sends. Changing only H never triggers movement. |
+| AU40-05 | Movement triggers; message delivery returns false | Saved C already changed; message AddRef/fill/deliver(message,0)/Release still occurs; update returns true. Null allocation instead reaches invalid access and does not return false. |
+| AU40-06 | Missing movement property with any old contents | Size five, squared thresholds `[173056,43264,10816,2704,676]`. Repeating read gives same values. |
+| AU40-07 | Present movement array `[1,2,3,4,5]` | Thresholds `[256,1024,2304,4096,6400]`. Present length three is not padded or rejected; five-entry transformation is invalid access. |
+| AU40-08 | Fresh constructor; present exemplar missing height property | No allocation/resizing before five fallback writes; native invalid access. Exemplar lookup failure instead leaves empty arrays unchanged. |
+| AU40-09 | Init without message server; cheat with/without payload QI | Init faults before initialized becomes true. Cheat returns true after releasing successful QI, false otherwise; no command parsing or state mutation. |
+| AU40-10 | H=0, or C=T, or R parallel to final D | No normalization fallback; NaNs may reach orientation. Position writes and movement gate still follow normal ordering. |
 
 ## 16. Conformance tests
 
