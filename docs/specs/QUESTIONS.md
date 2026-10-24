@@ -303,7 +303,7 @@ generated index: the questions live one file per spec, so read only the file for
 | map-view | 1 | 15 | QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
-| model-instances | 6 | 1 | MI15 | questions/model-instances.md |
+| model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 1 | 1 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -408,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **661** | **1563** | | |
+| **total** | **660** | **1563** | | |
