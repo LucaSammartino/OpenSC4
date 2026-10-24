@@ -102,6 +102,6 @@ mod tests {
             ),
             u32::MAX - 4
         );
-        assert!(time_string_to_seconds(b"unqualified").is_err());
+        assert_eq!(time_string_to_seconds(&mut Clock, b"unqualified"), Ok(0));
     }
 }

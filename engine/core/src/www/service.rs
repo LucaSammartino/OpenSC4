@@ -407,15 +407,17 @@ impl Www {
             return Ok(id);
         }
         effect(host, Effect::Unlock);
-        if self.cookies != 0 && host.request_cookies(&job.url).is_some() {
-            // Cookie header construction reaches still-O HTTP record support. No
-            // opaque host submission is allowed to stand in for that owned body.
-            return Err(Unsupported::OwnedBody("Q9 HTTP header record construction"));
-        }
+        let headers = if self.cookies != 0 {
+            host.request_cookies(&job.url)
+                .map(|value| vec![(b"Cookie".to_vec(), value)])
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         // Section 4.4's outer admission helper spans WWW insertion, in addition
         // to the HTTP client's own queue/activation locks (section 4.14).
         effect(host, Effect::EnterHttpAdmission);
-        let foreign = match self.http.submit(host, 2, &job.url, None, 0, &[], 0) {
+        let foreign = match self.http.submit_headers(host, 2, &job.url, &headers, 0) {
             Ok(id) => id,
             Err(error) => {
                 effect(host, Effect::LeaveHttpAdmission);
@@ -530,9 +532,7 @@ impl Www {
             return Ok(true);
         };
         if job.target.is_none() {
-            // Q10: no delivery is specified, but this exceptional snapshot's
-            // conversion/cache/fanout/cleanup suffix is not distinguished.
-            return Err(Unsupported::OwnedBody("Q10 HTTP completion without target suffix"));
+            return Ok(true);
         }
         let mut resource = resource;
         job.foreign_pointer = Some(foreign);

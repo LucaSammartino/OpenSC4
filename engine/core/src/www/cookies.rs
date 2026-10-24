@@ -51,8 +51,7 @@ impl Default for Cookie {
     }
 }
 
-/// Date parsing is the explicitly open HTTP Q13 dependency. Hosts may provide a
-/// qualified date reply; this owner never substitutes an RFC/browser parser.
+/// Runtime date and INI IO dependencies.
 pub trait Host {
     fn now(&mut self) -> u32;
     fn date_seconds(&mut self, text: &[u8]) -> Contract<u32>;
@@ -62,22 +61,66 @@ pub trait Host {
     fn write_binary_marker(&mut self, path: &[u8]);
     fn read_text(&mut self, path: &[u8], key: &[u8]) -> Option<Vec<u8>>;
     fn write_text(&mut self, path: &[u8], key: &[u8], text: &[u8]);
-    /// Q3: no default encoding is invented. Buffer limit is the native 16384.
-    fn read_binary(&mut self, _path: &[u8], _key: &[u8], _limit: usize) -> Contract<Vec<u8>> {
-        Err(Unsupported::PrimitiveContract("Q3 cookie binary text conversion"))
+    fn read_binary(&mut self, path: &[u8], key: &[u8], limit: usize) -> Contract<Vec<u8>> {
+        let encoded = self.read_text(path, key).unwrap_or_default();
+        let encoded = &encoded[..encoded.len().min(limit * 2)];
+        if encoded.len() % 2 != 0 {
+            return Err(Unsupported::NativeInputDomain("odd cookie hex payload"));
+        }
+        let mut bytes = Vec::new();
+        for pair in encoded.chunks_exact(2) {
+            let hex = |b: u8| (b as char).to_digit(16);
+            let (Some(a), Some(b)) = (hex(pair[0]), hex(pair[1])) else {
+                return Ok(Vec::new());
+            };
+            bytes.push((a * 16 + b) as u8);
+        }
+        Ok(bytes)
     }
-    fn write_binary(&mut self, _path: &[u8], _key: &[u8], _text: &[u8]) -> Contract<()> {
-        Err(Unsupported::PrimitiveContract("Q3 cookie binary text conversion"))
+    fn write_binary(&mut self, path: &[u8], key: &[u8], text: &[u8]) -> Contract<()> {
+        const HEX: &[u8] = b"0123456789ABCDEF";
+        let encoded: Vec<_> = text
+            .iter()
+            .flat_map(|b| [HEX[(b >> 4) as usize], HEX[(b & 15) as usize]])
+            .collect();
+        self.write_text(path, key, &encoded);
+        Ok(())
     }
 }
 
 fn trim(text: &[u8]) -> &[u8] {
-    let start = text.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(text.len());
+    let start = text
+        .iter()
+        .position(|b| !matches!(b, b' ' | b'\t'))
+        .unwrap_or(text.len());
     let end = text
         .iter()
-        .rposition(|b| !b.is_ascii_whitespace())
+        .rposition(|b| !matches!(b, b' ' | b'\t'))
         .map_or(start, |i| i + 1);
     &text[start..end]
+}
+/// Shared native splitter: only nonempty pre-trim tails count; quotes are consumed.
+pub fn split(text: &[u8], delimiter: u8, capacity: usize, quotes: bool) -> Vec<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut item = Vec::new();
+    let mut quoted = false;
+    for &byte in text {
+        if quotes && byte == b'"' {
+            quoted = !quoted;
+        } else if byte == delimiter && !quoted {
+            out.push(trim(&item).to_vec());
+            item.clear();
+            if out.len() == capacity {
+                return out;
+            }
+        } else {
+            item.push(byte);
+        }
+    }
+    if !item.is_empty() && out.len() < capacity {
+        out.push(trim(&item).to_vec());
+    }
+    out
 }
 /// Decimal prefix conversion (32-bit atol). Overflow is represented by low bits.
 pub fn decimal(text: &[u8]) -> i32 {
@@ -94,9 +137,8 @@ impl Cookie {
             ..Self::default()
         };
         if !text.is_empty() {
-            cookie.pairs = text
-                .split(|b| *b == b';')
-                .take(40)
+            cookie.pairs = split(text, b';', 40, true)
+                .iter()
                 .map(|item| {
                     let item = trim(item);
                     let at = item.iter().position(|b| *b == b'=');
@@ -138,9 +180,12 @@ impl Cookie {
                     if value.is_empty() {
                         cookie.ports[0] = url.map_or(80, port);
                     } else {
-                        // Literal n-1 convention, unresolved Q1; never repair to RFC syntax.
-                        let values: Vec<_> = value.split(|b| *b == b',').take(16).collect();
-                        for (slot, item) in cookie.ports.iter_mut().zip(values.iter().take(values.len() - 1)) {
+                        let values = split(value, b',', 16, false);
+                        for (slot, item) in cookie
+                            .ports
+                            .iter_mut()
+                            .zip(values.iter().take(values.len().saturating_sub(1)))
+                        {
                             *slot = decimal(item) as u32;
                         }
                     }
@@ -203,9 +248,13 @@ pub struct Manager {
     pub initialized: bool,
     pub binary: bool,
     pub capacity: usize,
-    /// Constructor literal is unqualified: supplied by adapter, not guessed here.
     pub path: Vec<u8>,
     pub records: Vec<Cookie>,
+}
+impl Default for Manager {
+    fn default() -> Self {
+        Self::new(b"CookieData.ini".to_vec())
+    }
 }
 impl Manager {
     pub fn new(path: Vec<u8>) -> Self {
@@ -223,8 +272,12 @@ impl Manager {
     pub fn file_path(&self) -> &[u8] {
         &self.path
     }
-    pub fn set_file_path(&mut self, path: &[u8]) {
-        self.path = path.to_vec();
+    pub fn set_file_path(&mut self, host: &mut impl Host, path: &[u8]) -> bool {
+        if self.path != path {
+            self.path = path.to_vec();
+            let _ = self.read(host);
+        }
+        true
     }
     pub fn init(&mut self, host: &mut impl Host) -> bool {
         if !self.initialized {

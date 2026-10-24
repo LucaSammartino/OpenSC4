@@ -1,5 +1,5 @@
 //! Reached HTTP admission/cancel bodies and bounded FOREIGN lifetime evidence.
-//! No HTTP worker transport, resource parser, normalization or destructor algorithm.
+//! IO remains injected; request normalization is byte preserving.
 use super::{directory, Contract, Unsupported};
 use std::collections::{BTreeMap, VecDeque};
 
@@ -40,6 +40,10 @@ pub struct Request {
     pub body: Vec<u8>,
     pub representation: u8,
     pub records: Vec<[u32; 6]>,
+    pub headers: Vec<(Vec<u8>, Vec<u8>)>,
+    pub raw_header: Vec<u8>,
+    pub original_url: Vec<u8>,
+    pub redirects: u32,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Resource {
@@ -47,6 +51,68 @@ pub struct Resource {
     pub strings: [Vec<u8>; 3],
     pub redirects: u32,
     pub file: bool,
+}
+impl Request {
+    pub fn normalize(&mut self) {
+        if !self.raw_header.is_empty() && self.headers.is_empty() && self.records.is_empty() {
+            self.headers = parse_records(&self.raw_header);
+            self.raw_header.clear();
+        }
+        let method = method_id(&self.method, u32::MAX);
+        if method != 0 && method != 1 {
+            if self.headers.first().is_some_and(|p| p.1.is_empty()) {
+                self.headers.remove(0);
+            } else if self.records.first().is_some_and(|r| r[3] == r[4]) {
+                self.records.remove(0);
+            }
+        }
+    }
+}
+/// Shared literal byte parser (§4.14), including space-only folded lines.
+pub fn parse_records(text: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let mut out = Vec::new();
+    let (mut name, mut value) = (Vec::new(), Vec::new());
+    let mut in_value = false;
+    let mut i = 0;
+    while i < text.len() {
+        let b = text[i];
+        if matches!(b, b'\r' | b'\n') {
+            while i < text.len() && matches!(text[i], b'\r' | b'\n') {
+                i += 1;
+            }
+            if text.get(i) == Some(&b' ') {
+                in_value = true;
+                while i < text.len() && matches!(text[i], b' ' | b'\t') {
+                    i += 1;
+                }
+            } else {
+                if !name.is_empty() {
+                    out.push((std::mem::take(&mut name), std::mem::take(&mut value)));
+                }
+                value.clear();
+                in_value = false;
+            }
+            continue;
+        }
+        if (b == b':' && value.is_empty()) || (!in_value && name.is_empty() && matches!(b, b' ' | b'\t')) {
+            in_value = true;
+            i += 1;
+            while i < text.len() && matches!(text[i], b' ' | b'\t') {
+                i += 1;
+            }
+            continue;
+        }
+        if in_value {
+            value.push(b);
+        } else {
+            name.push(b);
+        }
+        i += 1;
+    }
+    if !name.is_empty() && !value.is_empty() {
+        out.push((name, value));
+    }
+    out
 }
 /// Exact eight-word copied record of 00818100. Words 5/6 are identities, not Rust ownership.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -183,6 +249,30 @@ impl Client {
         records: &[[u32; 6]],
         custom: u32,
     ) -> Contract<u32> {
+        self.submit_inner(host, method, url, body, representation, records, &[], custom)
+    }
+    pub fn submit_headers(
+        &mut self,
+        host: &mut impl Host,
+        method: u32,
+        url: &[u8],
+        headers: &[(Vec<u8>, Vec<u8>)],
+        custom: u32,
+    ) -> Contract<u32> {
+        self.submit_inner(host, method, url, None, 0, &[], headers, custom)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn submit_inner(
+        &mut self,
+        host: &mut impl Host,
+        method: u32,
+        url: &[u8],
+        body: Option<&[u8]>,
+        representation: u8,
+        records: &[[u32; 6]],
+        headers: &[(Vec<u8>, Vec<u8>)],
+        custom: u32,
+    ) -> Contract<u32> {
         if matches!(method, 8..=10) {
             return Ok(0);
         }
@@ -206,6 +296,7 @@ impl Client {
             request.representation = representation;
         }
         request.records.extend_from_slice(records);
+        request.headers.extend_from_slice(headers);
         self.requests.insert(id, request);
         let result = self.admit(host, Some(id), custom);
         self.release_request(host, id)?;
@@ -223,13 +314,7 @@ impl Client {
         if req.method.is_empty() || req.url.is_empty() {
             return Ok(0);
         }
-        let method = method_id(&req.method, u32::MAX);
-        if !req.body.is_empty() && req.records.is_empty() {
-            return Err(Unsupported::OwnedBody("0081acf0 request normalization"));
-        }
-        if method != 0 && method != 1 && req.records.first().is_some_and(|r| r[3] == r[4]) {
-            return Err(Unsupported::OwnedBody("0081ac20 first record normalization"));
-        }
+        req.normalize();
         req.refs = req.refs.wrapping_add(1);
         host.effect(Effect::AddRequest(id));
         host.effect(Effect::Lock);
