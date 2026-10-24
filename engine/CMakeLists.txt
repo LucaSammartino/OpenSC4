@@ -1113,3 +1113,8 @@ add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
 endif()
+
+# LT14: default-off read-only lighting parameter getter comparison.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4LightingShadow.cpp plugin/FC4LightingShadow.h)
+endif()

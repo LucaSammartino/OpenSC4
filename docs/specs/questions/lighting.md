@@ -33,3 +33,14 @@
   64-byte result contract? The arithmetic schedule establishes propagation/classification but does not
   specify those encodings. [Core returns true and propagates quiet NaN values without a finite fallback;
   its integer register primitive canonicalizes payloads. NaN bit-pattern equivalence is not claimed.]
+
+<!-- from: glue-lighting-shadow9 (2026-10-24) -->
+- **LT14 - §§1.3, 2, 3, 6 live-owner input replay:** what public/serializable interfaces provide the lighting
+  owner's complete ordered external inputs at city load and thereafter: the time-of-day driver (independent
+  of GetTimeOfDay), tint/reset events, render settings including the unidentified LT1 byte, view changes and
+  terrain notifications? There is no owner Read/Write slot in §7. Please specify a safe input snapshot/replay
+  contract, including initial state and notification ordering, rather than copying native lighting outputs
+  into the expected model. [Default-off shadow measures only §5.6 GetShadowParams and
+  GetDecalShadowParams(null), using §1.4's explicitly shipped parameter inputs in the Rust core. The published
+  §0 global locates the borrowed owner; no hardware observers, setters or native lifecycle calls. Slots
+  0–13, 15, 17–29 and nonnull-holder slot 16 remain uncompared; whole-owner verification is not claimed.]

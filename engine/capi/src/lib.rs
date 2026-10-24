@@ -1157,3 +1157,6 @@ mod scres_file_shadow;
 
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
+
+// Read-only shipped lighting parameter comparison; private static-link transport.
+mod lighting_shadow;
