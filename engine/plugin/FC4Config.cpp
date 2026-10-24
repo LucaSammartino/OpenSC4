@@ -408,6 +408,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
                                   // Published legacy owner-method comparisons; default off.
                                   "legacyctl_shadow",
+                                  // VU16 partial view utility differential, default off.
+                                  "viewutil_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

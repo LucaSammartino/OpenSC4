@@ -43,10 +43,11 @@ pub struct SpeedTween {
 
 impl SpeedTween {
     pub fn sample(&self) -> f32 {
-        if self.duration <= 0.0 {
+        if self.duration.is_nan() || self.duration <= 0.0 {
             self.target
         } else {
-            self.start + (self.elapsed / self.duration).clamp(0.0, 1.0) * (self.target - self.start)
+            let ratio = (self.elapsed / self.duration).clamp(0.0, 1.0);
+            (self.start as f64 + ratio as f64 * (self.target as f64 - self.start as f64)) as f32
         }
     }
 

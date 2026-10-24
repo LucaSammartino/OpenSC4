@@ -3,7 +3,7 @@ use super::*;
 
 /// Editor Â§9 raw offsets: +10/+14 are minima, +18/+1C maxima.
 /// The existing shared record field names describe the opposite convention;
-/// do not change the shared decoder or normalize editor geometry (question LE6).
+/// §24.1 settles this mismatch: never swap raw fields at the manager bridge.
 pub fn bounds(o: &LotConfigObject) -> [f32; 4] {
     [o.max_x, o.max_z, o.min_x, o.min_z]
 }

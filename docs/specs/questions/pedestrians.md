@@ -9,3 +9,6 @@
 - **PN2 - §4.2–§4.4:** the names of the two hose effects, what the truck does with messages `0xAA0F3F75` and
   `0x8A0F3F7B` and their per-level values, and the interface `0xABF98CB3` slot 5 that the crew's strength is
   added to. [as read]
+
+<!-- from: core-pedestrians12 (2026-10-24) -->
+- **PN3 - §2.4–§2.6 and automata §6.5:** the summaries do not specify collision-timer remainder handling, crowd reaction timing/selection, the strike box inset's progression, or riot heading weighting/milling intervals. Are a reset-to-zero 500 ms cadence, uniform reaction selection on animation completion, a one-cell (16 world unit) inset per target query, uniform walkable heading selection per entered road cell, and a random milling direction per follower tick faithful? [literal summary implementations, not Unsupported; please specify any missing constants/order]

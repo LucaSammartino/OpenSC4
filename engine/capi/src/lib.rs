@@ -1168,3 +1168,5 @@ mod lighting_shadow;
 mod construction_shadow;
 // Private legacy owner-method observation replay (no public DLL exports).
 mod legacyctl_shadow;
+// VU16: private partial view-utilities comparison transport.
+mod viewutil_shadow;
