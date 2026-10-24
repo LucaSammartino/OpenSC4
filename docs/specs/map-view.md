@@ -43,6 +43,26 @@ of that view is assumed to succeed: a null allocation is subsequently dereferenc
 recoverable false result. These are native failure boundaries, not a transactional initialization guarantee
 (`0x0079E43F`–`0x0079E489`, `0x0079E49C`–`0x0079E53E`).
 
+### 1.1 Construction and repeated initialization (QV9) *[compat]*
+
+Construction sets the current-view identity to zero (none), source zero, overlay enabled but not registered,
+inactive, dirty false, debug false, and the last-redraw clock to a fresh native clock reading. It does not
+require a caller-supplied notification baseline. Notification `0xA6B79602` compares the second 32-bit word
+of its two supplied data records; unequal words mark dirty, equal words do not. This is a comparison of
+the message's old/new values, not comparison with a retained owner value. Evidence: constructor
+`0x007A0D50`–`0x007A0EFA` (current identity store `0x007A0ECE`, clock store `0x007A0EF4`), notification
+`0x007A55E7`–`0x007A55FF`; message-target offsets are four bytes below the complete object's offsets.
+
+Every `Init` repeats the base-window initialization and window-flag calls. Its latch protects the
+subscriptions and marked-cell allocation: once set, later calls return true without repeating that work.
+The latch is set **before** the missing-server false exit; a second Init after that false exit therefore
+returns true without repairing the missing setup (`0x0079E43F`–`0x0079E484`, `0x0079E53A`).
+`HookUpdateMessages` has no such guard: every call registers the animation target, appends its source's
+message ID to the existing vector, sorts the vector, then subscribes once per entry, including duplicates.
+Two hooks without an intervening unhook therefore repeat subscription attempts for the accumulated entries;
+the owner neither rejects repeated hooks nor promises that the foreign message server delivers duplicates
+(`0x007A17B9`–`0x007A17FE`, `0x007A193A`–`0x007A1974`).
+
 ## 2. The data view exemplar *[compat]*
 
 Data view `n` is the exemplar with key (type `0x6534284A`, group `0x690F693F`, instance `0x4A0B6800 + n`), loaded
@@ -79,6 +99,53 @@ radiation pollution (24–26), `0x1B` EQ (27), `0x1C` HQ (28), `0x1D` Moisture (
 `0x3C`–`0x3F` IR, ID, IM, IHT (72–75), `0x4C`–`0x55` traffic volume (76; road, pedestrian, car, bus, subway and
 elevated train, passenger train, freight truck, freight train, ferry, monorail, by the travel types of
 `0x6B7C5CDD`), and `0xF0`–`0xF3` the pipe, subway, subway building and regional transport tools (no source).
+
+### 2.1 Missing and malformed fields (QV6) *[compat]*
+
+The following are the effects of a **successful nonzero exemplar load** with absent properties. They are
+not defaults applied before the resource lookup, nor a reset of all owner memory on each selection.
+
+| Absent field | Result |
+|---|---|
+| source E5 / layer ED / highlight E9 | 0 / 1 / 0 |
+| interpolate E7 / block E8 | false / disabled; old mask storage is irrelevant while disabled |
+| scale EC | scale 256 and the default factors already specified above |
+| effect EA / footprint EF / ring EE | empty string / zero / zero |
+| ramp E4 | retain both existing palette arrays; constructor does not initialize their entries |
+| occupant list E0 | no added types; show-all default; a present empty list instead starts show-only with no types |
+| invert E1 / hide E2 / force bases F0 | retain the list-derived show-all choice / false / false |
+| terrain E3 | mode 1; F1 starts with the resulting E3 mode and changes it only for values 0, 1 or 2 |
+| travel list `0x6B7C5CDD` | retain the previous count and bytes (construction count is zero) |
+| zone E6 | use the currently queried zone-display option |
+| custom EB | no new custom object; the previous one has already been shut down/released |
+
+The two terrain fields each map 0→1, 1→3, 2→2; any other value leaves the mode entering that field
+unchanged, rather than failing selection. The travel count is first narrowed to its low **eight bits**,
+then capped at eight; that many initial u32 entries contribute their low byte. Thus a 256-element list
+selects zero types, a 257-element list selects one, and nine selects eight. There is no range check on
+an entry's other bits (`0x007A4D23`–`0x007A4E42`, `0x007A4E6E`–`0x007A4EA6`).
+
+Except for separately documented helpers such as the legend title, the owner obtains each property by
+one ID lookup and directly uses the requested mutable scalar alias or raw array pointer/count. It does
+not check the variant type, convert a mismatched type, iterate duplicate IDs, or validate their agreement.
+The property holder's returned property is the one consumed; duplicate records in a serialized resource
+are a resource/holder concern, not multiple map-view assignments. The native variant aliases themselves
+do not type-check: a scalar alias addresses inline payload, whereas an array alias loads the stored
+pointer ([variant-storage.md](variant-storage.md) §4). A wrong-type scalar can therefore expose raw
+payload bits; a wrong-type array can dereference a meaningless address. There is no general malformed-input
+false result or substitute zero. Odd/empty ramps follow §4.3, including its unsafe read boundary.
+Missing ramp means retention, not invocation with an empty ramp. Evidence: `0x007A4C22`–`0x007A4CFD`,
+`0x007A4F03`–`0x007A4F45`, `0x007A50F8`–`0x007A533B`.
+
+The resource instance is the 32-bit sum `0x4A0B6800+n` for a nonzero request, with wrapping and no overflow
+rejection (`0x007A49CE`–`0x007A49E0`). An overflow to zero enters the none-selection path. A failed resource
+lookup returns false after the teardown already described in §3.1; it does not restore hooks/custom state.
+Allocations are not a recoverable all-or-nothing selection protocol: required constructor nodes, marked-cell
+objects, the filter and layer-5 grid can subsequently be dereferenced after null allocation; containers and
+temporary bitmap operations likewise have no owner-wide rollback. Do not manufacture a successful empty
+view or a retry-preserving dirty state from an allocation fault. Native normally returning foreign false
+results remain governed by their individual rules (§§1, 3, 5–7). See `0x007A4BF1`–`0x007A4D5E`,
+`0x007A2080`–`0x007A2103`, and §1's marked-cell allocation boundary.
 
 ## 3. Choosing a view *[compat]*
 
@@ -200,6 +267,29 @@ Sources 11, 13–23 and 31–63 draw nothing *[quirk: the shipped zones and the 
 `+0x9E0` is set) picks the developer's grid: 2 → slot 14 (unsigned 16-bit), 3 and 4 → slot 13 (signed 16-bit),
 5 → a grid built by `0x007A2080` (signed 16-bit), 6 → a debug grid of slot 11's entries × 12 (signed 16-bit).
 
+#### Layer 5: capacity percentage (QV4) *[compat]*
+
+Layer 5 reuses a lazily allocated signed-16 simgrid with cell-size shift 1 and instance `0x89D5C471`.
+Every refresh first copies developer slot 15's population map into it, then combines developer slot 14's
+built-capacity map with it. This is **population / built capacity × 100**, not maximum-capacity occupancy.
+At matching geometry, let P be the copied word interpreted as signed 16-bit and C the capacity word
+interpreted as unsigned 16-bit: C=0 gives zero; otherwise store the low word of truncation toward zero of
+`P×100.0f/C`. No saturation or division-by-zero marker is added. For example P=3,C=8 gives 37;
+P=65535,C=2 gives -50, because the copied population word is interpreted as -1.
+Evidence: owner `0x007A2080`–`0x007A213D`; copy `0x0079DDE0`; percentage arithmetic
+`0x0079DDF0`–`0x0079DE30` (signed destination load, unsigned divisor, x87 multiply/divide and qword
+truncation), constants `0x00A81054`=0.0f and `0x00A80AA0`=100.0f.
+
+If the source shift differs from the owned shift, each combining walk converts geometry before invoking
+its callback: a coarser destination uses the mean of the corresponding power-of-two square of source
+cells, summing in 32 bits and arithmetic-shifting right by the shift difference twice (floor mean);
+a finer destination replicates each source cell across its power-of-two square. Population samples are
+sign-extended, capacity samples zero-extended; a callback consumes the resulting low word. Equal shifts
+walk corresponding cells, x outer and z inner. This conversion is independent for the two inputs, before
+the percentage operation (`0x0068C270`, `0x006B4710`; signed/unsigned loads `0x0068C3D8`, `0x006B4878`,
+two arithmetic shifts `0x0068C403`/`0x0068C40A`, `0x006B48A3`/`0x006B48AA`). The resulting grid then uses
+the ordinary signed-16 display path; its palette conversion is separate (QV5).
+
 ### 4.2 Values to palette indices
 
 | Grid | Index |
@@ -227,8 +317,8 @@ unmasked invalid exceptions the conversion can trap; the map owner provides no e
 
 - With **interpolate** set and a grid coarser than the city's cells (city slots 93, 94), the grid is first
   resampled to one value per cell (`SC4InterpolateGrid`) and drawn at the cell size.
-- With **block by lot**, a copy of the grid is made in which every lot's cells carry one value (`BlockMapByLot`,
-  with the property's argument) *[summary]*.
+- With **block by lot**, a copy of the grid is made and selected lots' rectangles are replaced by a common
+  value, according to the mask/mean rule below.
 - While the 3D overlay is on (`+0x140`), the marked-cell view is added once to the renderer (slot 32, layer 5,
   priority 1000) and every coloured cell is also marked in the city at the grid's cell size.
 
@@ -266,6 +356,43 @@ The owner upsamples to the city's x/z cell counts if interpolation is enabled an
 dimension is smaller (`0x007A23EC`–`0x007A23FE`); destination cell sizes then become the city's world
 width/height divided by its respective cell counts (16 m for an ordinary city).
 Block-property presence forces interpolation on, even when its mask is zero.
+
+#### Lot mask and crime icons (QV4) *[compat]*
+
+For the unsigned-byte path, blocking happens after any cell resampling and before palette lookup. The
+property E8 is a **lot-type bit mask**: obtain each lot's type byte from slot 31 and select it when
+`mask & (1 << (type & 31))` is nonzero. Iterate the lot manager's slot-15 enumeration. For each selected
+lot, obtain its inclusive cell rectangle (slot 14), sum its unsigned source-grid bytes, and let N be its
+cell count. Replace the entire rectangle in the destination copy by `max(1, trunc((sum+floor(N/2))/N))`.
+Thus half means round upward, and a completely zero lot becomes 1. Unselected cells retain the copied
+grid; means read the source rather than previously replaced rectangles. The owner passes byte offset
+zero to this helper. Mask zero selects no lots but still forces interpolation (§2). There is no clipping
+of a bad lot rectangle or recovery from zero area/jagged data; those are unsafe accesses/division, not
+validation failures. Evidence: `0x007A25E1`–`0x007A25F3`, `0x0079FF49`–`0x0079FF6D` (mask),
+`0x0079FF70`–`0x007A0013` (inclusive area, byte sum, signed division, minimum 1).
+
+Crime source 4 first draws the crime grid, then walks **all** returned incident-array entries in order;
+neither incident type nor visuals-created flag filters them. Each entry supplies cell x/z and its icon
+resource key (crime.md §11.4). Request its bitmap from the image service (slot 12, flag 1, using the
+destination bitmap's format), then blend the icon centred at `(trunc(x×r),trunc(z×r))`, where r is the
+binary32 ratio of map bitmap width to city x-cell count. The same ratio applies to both coordinates.
+The rotation argument is the negated renderer orientation, reduced modulo four. The icon keeps its
+native pixel size; it is not scaled to cell size. Release the returned icon after use. The service's
+return value is not tested before the blit, so a missing/null icon is an unsafe boundary, not a skipped
+incident (`0x007A41BD`–`0x007A42B4`; ratio store `0x007A41FC`, coordinate truncations
+`0x007A4273`/`0x007A427F`). Incident entries without a lot can contain uninitialized positions; the map
+does not repair the producer's quirk (crime.md §11.4).
+
+The icon blitter (`0x0079E600`) swaps width/height for odd quarter turns, puts the upper-left at the
+centre minus floor(rotated size/2), and clips the half-open rectangle to the destination. For a zero-origin
+source of size W×H, the source coordinates of destination-local `(u,v)` are: turn 0 `(u,v)`, turn 1
+`(W−1−v,u)`, turn 2 `(W−1−u,H−1−v)`, turn 3 `(v,H−1−u)`. Empty intersection changes nothing.
+Source/destination pixel locks use flag `0x8040`; a false lock result skips the affected blend and does
+not stop subsequent incidents. For straight source RGB s, alpha a, and destination channel d, each output
+RGB byte is `floor((d×(256−a)+s×a+128)/256)`. Output alpha is
+`min(255, destinationAlpha−floor((destinationAlpha×a+128)/256)+a)`. Even a=255 retains a 1/256 contribution
+from the destination. Evidence: rotation/clip `0x0079E632`–`0x0079E793`, locks `0x0079E797`–`0x0079E823`,
+blend `0x0079E881`–`0x0079E905`. These bitmap incident icons are distinct from the kind-5 hotspot effect.
 
 #### Marked-cell inclusion and geometry (QV10) *[compat]*
 
@@ -479,9 +606,38 @@ redraw (**250 ms**, and always dirty, for source 76). `0xA6B79602` with a change
 There is no bitmap-update success code for this tick handler to propagate: `Update` returns void. In
 particular, a normally returning custom-view slot-5 result is ignored; when the common update tail is reached,
 the last-redraw clock is stored after that call (`0x007A4855`–`0x007A486F`). No foreign error causes an owner
-rollback of the selection. The clock/dirty rules for individual early exits remain QV9; the ordinary false
+rollback of the selection. The clock/dirty rules for individual early exits follow below; the ordinary false
 results and local skip behavior specified in §§1, 3, 5 and 6 must not be replaced by a universal stop-on-error
 policy.
+
+### 7.1 Clock and redraw commitment (QV9) *[compat]*
+
+The clock is the Windows CRT `_clock`: system FILETIME minus its CRT baseline, divided unsigned by
+10000, with the low 32 bits used by this owner (`0x00932A45` thunk, `0x009F361F`–`0x009F365A`, import
+`0x00A801C8` = GetSystemTimeAsFileTime). It is milliseconds of wall time, not simulation time. Tick
+eligibility is an **unsigned 32-bit** subtraction `now−last`, wrapping modulo 2^32, compared unsigned
+with 1000 or 250 (`0x007A55C0`–`0x007A55CD`). A small clock regression therefore looks like a large
+elapsed interval and permits a redraw. No monotonic-clock rejection or saturation is native.
+
+| Update situation | Dirty afterward | Last clock | Existing child bitmap |
+|---|---|---|---|
+| inactive entry | preserved | preserved | preserved |
+| active, child `0x4203` interface lookup false | cleared | fresh clock | preserved |
+| active, source zero (none) | cleared | fresh clock | replaced by null |
+| active nonzero source with no drawing case (11, 13–23, 31–63, unknown layer with a developer) | cleared | fresh clock | replaced by the cleared temporary bitmap, plus any enabled highlights/custom work |
+| missing building-development service/developer in the developer/default-source branch | cleared | preserved | preserved |
+| ordinary completed draw, including normally returning false local locks/presentation/custom update | cleared | fresh clock | replacement attempted; no retry inferred from false |
+
+Dirty is cleared immediately on active entry (`0x007A2F72`–`0x007A2F8E`), before child lookup, temporary
+bitmap work or any foreign calls. The missing-child path jumps directly to the clock store; the missing
+developer path exits without it (`0x007A3003`, `0x007A43EF`–`0x007A4403`). The source-zero path sends a
+null bitmap and reaches custom update then the clock store (`0x007A484B`–`0x007A486F`). Other empty
+sources still create/clear and install the temporary bitmap. Thus draw-nothing does **not** preserve an old
+image on the normal path. The clock is sampled at the end, after the custom slot-5 call, not copied from
+the tick's eligibility sample. Filter/reset calls do not themselves commit a timestamp: only the Update
+they invoke does. A normally returning partial update does not restore dirty/clock. If a native fault or
+exception prevents reaching the tail, there is no rollback guarantee; in particular the entry dirty clear
+has already happened. A later notification/highlight change can mark dirty again.
 
 ## 8. Quirks
 
@@ -493,9 +649,8 @@ policy.
 
 See [questions/map-view.md](questions/map-view.md): QV1 (the 3D view filter options and the terrain and zone display
 calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels, the group buttons and the toggle
-`0x8100`/`0x8101`), QV4 (`BlockMapByLot` and the crime and traffic markers), QV5 (16-bit conversions),
-QV6 (raw properties/resources), QV9 (construction and update commits), QV11 (developer layers), and
-QV14 (ring precision). QV7, QV8 and QV10 are answered in §§4.2.1, 4.3 and 5.0.
+`0x8100`/`0x8101`), QV5 (16-bit conversions), QV11 (other developer layers), and QV14 (ring precision).
+QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
 
 ## 10. Conformance tests
 
@@ -570,3 +725,33 @@ QV14 (ring precision). QV7, QV8 and QV10 are answered in §§4.2.1, 4.3 and 5.0.
     and corresponding colours `[0x01000000,0xFF000000]`. With sizes 32×16, the first spans
     world x=[0,32], z=[16,32], with terrain/water height from overlay-views §2.2, independent
     of minimap rotation. With all palette alphas zero the replacement cell and colour arrays are empty.
+24. **Lot selection/mean:** source lot bytes `[0,0,1,1]`, type 3, mask 8 → all four become 1.
+    `[1,2]` becomes `[2,2]`; `[0,0]` becomes `[1,1]`. Mask 4 leaves the type-3 lot unchanged.
+    Type 35 is also selected by mask 8. Mask zero changes no lot values but still enables interpolation.
+25. **Layer-5 ratio:** matching-geometry population/capacity pairs `(3,8),(7,0),(65535,2),(9,4)`
+    produce signed words `37,0,-50,225`, before signed-16 palette conversion. A finer population
+    block `[-1,0,0,0]` reduced to one owned cell copies -1 (floor mean), not zero.
+26. **Crime placement and blend:** map width 64, city width 128 cells, incident `(11,7)` → centre `(5,3)`.
+    A 2×2 icon at turn 0 covers x=[4,6), z=[2,4); no filtering on visuals=false. Source `0xFFFFFFFF`
+    over `0xFF000000` yields `0xFFFEFEFE`; source `0x80808080` over `0xFF000000` yields `0xFF404040`.
+    Two incidents at the same point blend in supplied order.
+27. **Travel narrowing:** list `[256,511,258]` → count 3, bytes `[0,255,2]`; length 9 → first 8;
+    lengths 256 and 257 → count 0 and 1. A subsequent absent list retains the prior count/bytes.
+28. **Absence/terrain:** after a known palette, select a resource without E4/E5/ED/E7/E8/E9/EA/EE/EF:
+    palettes retained; source 0, layer 1, interpolation/block false, highlight 0, name empty, colours zero.
+    E3=1,F1=99 → mode 3; E3=99,F1 absent → mode 1. Do not apply prior-view source or highlight values.
+29. **Wrapped identity:** nonzero request `0xB5F49800` sums to zero and follows none-selection;
+    `0xB5F49801` queries instance 1. Neither is rejected as arithmetic overflow.
+30. **Init/hook repetition:** failed first Init for missing message server → false; second Init → true,
+    base setup repeated, subscriptions/marked-cell creation still absent. Two source-1 hook calls
+    without unhook → two animation registration attempts and three subscription attempts total
+    (first vector `[0x2A09B21A]`, second vector has two equal entries).
+31. **Clock wrap/regression:** dirty nontraffic owner, last=`0xFFFFFF00`, now=`0x000002E8` → elapsed 1000,
+    eligible. Last=1000, now=999 → elapsed `0xFFFFFFFF`, eligible. Elapsed 999 is ineligible; traffic
+    elapsed 249/250 is ineligible/eligible, with dirty forced even absent a simulator notification.
+32. **Commit points:** active dirty owner, child lookup false → dirty false, clock sampled at exit, old
+    bitmap preserved. Missing developer → dirty false, old clock/image retained. Source 20 with valid
+    child → cleared replacement image and fresh clock. Source 0 → null image and fresh clock. Inactive
+    Update preserves all three. A normally returning custom false does not undo a replacement or restore dirty.
+33. **Notification comparison:** supplied old/new records' second words 5/5 leave a clean map clean;
+    5/6 mark it dirty, independent of prior notifications or constructor clock.

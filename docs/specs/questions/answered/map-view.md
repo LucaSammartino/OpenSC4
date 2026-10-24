@@ -1,5 +1,38 @@
 # map-view: answered questions
 
+<!-- from: re-mapview (2026-10-20) -->
+- **QV4 - §4.1, §4.3:** the rule of `BlockMapByLot` (`0x0079FEF0`) and its argument `0x4A0B47E8`, the crime incident
+  markers (`0x0079E600`), and the developer grid of layer 5 (`0x007A2080`). [as read]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §§4.1/4.3 specify lot-type mask selection,
+  inclusive rounded byte means with minimum 1, ordered native-size incident icons with rotation/clipping
+  and division-by-256 blending, and the signed population/built-capacity percentage grid; vectors 24–26.
+
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV6 - §2: raw property and resource failures:** except scale and desirability layer, what defaults apply to
+  absent fields, and what happens with wrong property types, duplicate IDs, odd ramp lists, invalid terrain
+  modes, travel-type lists longer than eight or entries outside a byte, resource-key overflow and allocation
+  failures? [only documented scale/layer defaults and block-property presence used; other missing/malformed
+  consumed fields explicitly Unsupported; raw lists retained without inventing ramp or travel conversions]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §2.1 specifies per-field absence/retention,
+  unchecked variant aliases and one holder lookup per ID, terrain-mode carry, byte count/entry narrowing,
+  wrapped resource identity and nontransactional failure boundaries. Unsafe malformed resources are not
+  successful empty views or owner validation failures; ramp details remain in §4.3; vectors 27–29.
+
+<!-- from: core-map-view4 (2026-10-23) -->
+- **QV9 - §1, §3.1, §7: state outside the specified prefix:** what are the constructor's initial current view,
+  notification value and last-redraw clock, repeated Init/Hook behavior, tick clock width/wrap semantics, and
+  the timestamp/dirty commit points after empty sources, failed/partial updates or filter-reset calls? Does
+  draw-nothing clear or preserve an existing bitmap? [portable construction takes explicit clock/notification
+  baselines and an unknown current view; no native defaults claimed; clock regression and repeated Init/Hook
+  refused; none stops at QV1 reset boundary; partial redraw intents retain dirty and last-redraw state]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv11):** DIFFERS — §§1.1/7.1 specify initial none/current clock,
+  comparison of message old/new records, latched Init and accumulating Hook calls, unsigned wrapping
+  wall-clock milliseconds, active-entry dirty clear, and distinct missing-child/developer/empty-source
+  timestamp/image commit points; vectors 30–33. Normally returning partial draws do not retain retry state.
+
 <!-- from: core-map-view4 (2026-10-23) -->
 - **QV7 - §5: highlight comparison and collection:** what fields, ordering, duplicates and radius equality does
   0x007A1390 compare? What radius data belongs to kinds 6-8 (dash rather than kind 9's explicit none), what is
