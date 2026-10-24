@@ -10,7 +10,7 @@
 - Questions: LC14 return contracts; LC15 observable direct-call boundary, in docs/specs/questions/legacy-control.md.
 - Next: collect REQUIRED qbuild all session 7674, already launched on stable source; never duplicate it.
 - Focused result: terminal, 2 passed/0 failed (4870 filtered), 55m41s compile; log build-runs/legacyctl-focused.log. PowerShell wrapper exit 1 reflects normal cargo stderr NativeCommandError, not a test failure.
-- Full gate: build-runs/qbuild-test.log now compiling core/conformance after lock released; console will be build-runs/legacyctl-all-console.log.
+- Full gate Rust results: 7375 passed/0 failed; clippy clean (Finished dev profile, 1m09s). Session 7674 still active awaiting remaining/native result; no terminal verdict yet. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, eventual legacyctl-all-console.log.
 - Native verify: use qbuild verify only if all does not already delegate it; then game to 2032.
 - Review finding pending fix AFTER session 7674 terminal: QI pre-out may be uninitialized. Current uint32 memcpy plus reinterpret_cast still evaluates those bits. Keep pre-out as unsigned-char bytes and compare by memcmp on rejection; decode native output only on native success. Preserve current gate logs and rerun all after the C++-only fix. Do not game-test before fixing.
 - Game draft: build-runs/legacyctl-owner-2032.req-draft; wait helper build-runs/wait-legacyctl-verdict.ps1 uses one file event, no qwait/poll loop.
