@@ -467,6 +467,109 @@ and if that fails `Init` returns its result without doing anything else. Then, i
 (`0x004E4F60`); own slot 14 `LoadFreshnessScore`; own slot 12 `AddAmbienceLoop(+0x1D0)` (the loop sound id
 read from `0x6A3FBDDA`, §8.2).
 
+### 8.1.1 Layer construction, ownership and uncovered slots (AA14)
+
+Constructor `0x004E7290` starts initialized byte `+4` and refcount `+8` at zero,
+enabled byte `+0x0C` at one and paused byte `+0x0D` at zero. Group radii `+0x20/+0x24`
+are f32 50; the three group holders are null, group mode is 1 and `+0x38` is 5.
+Position/accumulator fields `+0x3C`–`+0xA4` and `+0xB0`–`+0xD0` take the zero f32 at
+`0x00B2194C`; total `+0xA8`, density `+0xAC` and timer `+0xD4` are zero. It constructs
+the ease-sound member and three response curves, empty score/loop lists, name string,
+tuning/filter vectors, and zero filter counts, loop sound ID `+0x1D0`, score master volume
+`+0x1E8` and score-selection state. It stores its constructor layer-ID argument at `+0x1F8`;
+the name and tuning values are populated later. Do not infer initialized values for padding
+or scalar fields not explicitly set here. Loop entries start with **instance ID zero**.
+The process HandleCell cache starts with signed key pair `(0x7FFFFFFF,0x7FFFFFFF)`
+at `0x00B09810/14`; its cached world x/y/z are zero-initialized storage at
+`0x00B2196C/48/70`. Construction, BeginUpdate and Shutdown do not reset that cache.
+
+QI (`0x004E4A70`) accepts only 1 and `0x4A2835FE`, returns base and AddRefs; failure
+returns false without overwriting the output. AddRef increments `+8`; Release
+(`0x004E7A60`) decrements when signed count >1, otherwise destroys and frees the outer
+object, returning zero. Destructor `0x004E76E0` destroys vectors, curves, string, score/loop
+containers and ease-sound state, and releases group holders in order `+0x30,+0x2C,+0x28`.
+It does **not** call Shutdown, unsubscribe or decrement the process layer count.
+
+StaticInit (`0x004E4EB0`) retains the current global resource manager into `0x00B21950`,
+releasing any replaced reference; missing resource manager returns false. It then obtains
+SndSys `(0x23CECBA0,0x106077D2)` and retains it in `0x00B21954`, balancing the temporary
+service reference. Missing SndSys returns false while retaining the resource manager.
+Init's initialized byte and process-count increment remain set on this first failure:
+there is no rollback. A repeated Init on that layer returns true without retrying StaticInit
+or doing the rest of Init. Another layer sees a nonzero count and skips StaticInit too.
+After successful StaticInit, Init requires the message-server output: it dereferences it to
+subscribe even if lookup failed. It ignores tuning, subscription and subordinate load/add
+results, completes §8.1's ordered operations and returns true. These are literal failure
+rules, not a promise that every failed service lookup returns cleanly.
+
+Shutdown (`0x004E7860`) is a true-returning no-op when its initialized byte is clear.
+Otherwise it requires the message server to unsubscribe `0xC53D10AA`, removes group layers,
+filters, all freshness scores and all loops, in that order, decrements the process count,
+runs StaticShutdown only when that reaches zero, clears initialized, and returns true.
+StaticShutdown (`0x004E6FD0`) clears the process filter cache first, then clears/releases
+resource manager and SndSys, returning true. Thus Shutdown also balances a first Init that
+returned false, provided required message-server pointers are valid.
+
+DoMessage (`0x004E8230`) rejects null and any type other than `0xC53D10AA` with false.
+For that type it rereads tuning using layer ID, removes/recreates filters, removes/recreates
+group layers, calls its own Enable with the inverse current enabled byte **twice**, then
+returns true. Since Enable (`0x004E4A60`) only stores the supplied byte and performs no IO,
+these calls restore the original enabled state. The reload does not load scores or loops.
+CanHandleOccupant (slot 18, `0x005DEB40`) always returns false, with no occupant inspection;
+it is distinct from the filtering path in §8.4.
+
+InsertOccupant (`0x004E4BD0`) rejects null; otherwise occupant `+0x20` supplies its position,
+which is inserted into group layer `+0x28` with extra radius zero. Only successful insertion
+AddRefs the occupant, increments `+0x124` and returns true. MoveOccupant (`0x004E4C40`)
+rejects null; otherwise it obtains position and calls group UpdateInstance with occupant,
+position and radius `+0x20`, returning true regardless of that helper's result, with no
+reference adjustment. RemoveOccupant (`0x004E4CA0`) returns false for null or failed group
+removal; success Releases the occupant, decrements `+0x124` and returns true. These slots
+assume an existing group layer; they do not run CanHandle or acquire the occupant on entry.
+
+AddAmbienceLoop (`0x004E69D0`) rejects sound ID zero or an existing same-ID loop. Otherwise
+it appends a loop with that sound ID, instance ID zero, three f32 position/volume-state
+words zero and final word zero, and returns true without starting a sound. RemoveAmbienceLoop
+(`0x004E6240`) erases the first matching sound ID and returns true, or false if absent;
+it issues **no stop**, even for a running instance. Bulk removal (`0x004E6280`) instead
+creates stop event `0x6A451908`, payload IID `0x5B523BA4`, data `(instance ID,0,0,0)` for
+each nonzero instance, submits it through SndSys `+0x30`, releases the event, and erases
+every entry. Creation failure is not checked before submission. It returns true.
+
+LoadFreshnessScore (`0x004E6D20`) reads floor(word count/2) group/instance pairs from
+`+0x1D4`, builds TGI `(0x2026960B,group,instance)` and calls its own AddFreshnessScore
+for each pair. Failed additions log and processing continues; an odd trailing word is ignored.
+AddFreshnessScore (`0x004E6E00`) rejects a duplicate **full TGI**. It creates class
+`0x3C1CF59E`, IID `0xDC1CF595` (freshness player), then event `0x2A2C0384`, payload IID
+`0x5B523BA4`, initially four zero data words. Failed object/event creation returns false,
+releasing any outputs; it appends no entry. On success event `+0x18` supplies payload;
+payload `+0x84(player)`, `+0x2C(type)`, `+0x40(group)`, `+0x54(instance)` are called in
+order, followed by SndSys `+0x30(event)`. Dispatch result does not gate success. It appends
+the score with flag bytes `(0,1)`, zero instance/timer words, saved TGI and retained player,
+balances temporary references and returns true. Resource loading belongs to the event's
+recipient; AddFreshnessScore does not read resource bytes itself.
+
+RemoveFreshnessScore (`0x004E6840`) matches the first entry by **instance ID alone**, not
+full TGI. Missing returns false. Found creates event `0x4A2C0389` with the same payload IID,
+sets payload `+0x84(player)` and submits via `+0x30` only if creation succeeded; it removes
+the score even on event-creation failure. It unconditionally Releases the player once, then
+clears/releases the retained player again, unlinks and destroys the entry, releases any event
+and returns true (`0x004E68B7`–`0x004E68E9`). This extra Release is literal *[quirk]*.
+Bulk score removal (`0x004E6910`) sends the same removal event for every entry when creation
+succeeds, but only clears/releases the entry's one retained player reference, erases each
+entry and returns true. SetScoreMasterVolume (`0x004E61F0`) stores the raw word at `+0x1E8`
+without a clamp and immediately calls UpdateAmbienceScores with elapsed `0x7FFFFFFF`.
+
+**Conformance cases.** Fail first StaticInit, then call Init again: false then true, count
+only incremented once and no retry; Shutdown decrements once. A tuning notification with
+enabled true records Enable(false), Enable(true); other types return false. Duplicate loop
+ID is false; removing a live loop singly produces no stop, while bulk removal sends its
+instance ID. Three freshness words create one TGI attempt. Same instance ID in different
+groups may be added twice; singular removal removes the first. Failed removal-event creation
+still erases the entry and makes the stated Release calls. Insert failure acquires no occupant;
+successful insert/removal make one AddRef/Release pair. Move of non-null occupant returns true
+even on a failed update. A new layer does not reset an earlier layer's cell-cache keys.
+
 ### 8.2 Layer tuning (`_ReadTuningValues` `0x004E7A90`)
 
 **Defaults, written first, before the exemplar is looked up** (so a missing exemplar leaves exactly these):
@@ -539,6 +642,14 @@ its id count (all false) and calls `_AddFilter(id, kind)` for each id in list or
 
 The same class id listed twice, or by two layers, yields the same filter object in each list *[compat]*.
 How the kinds and interfaces are used is §8.4.
+
+Direct repeated CreateFilters resets interface counters `+0x138/+0x13C/+0x140` and the three
+bit vectors, but **does not clear** existing pointer lists or their kind counts
+`+0x220/+0x23C/+0x258`. It appends newly resolved filters to those lists, even when duplicate.
+The normal tuning-message route explicitly RemoveAllFilters first, which clears the lists
+and counts; do not give a direct CreateFilters call that extra cleanup. A conformance case
+with one successful kind-1 filter called twice therefore has kind count 2 and two pointer
+entries, while the interface counters reflect only the second creation pass.
 
 ### 8.4 Filtering: `CanHandle`, `HandleCell`, `HandleOccupant`
 

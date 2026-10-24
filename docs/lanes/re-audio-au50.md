@@ -1,28 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-audio-au50 (audio owner contracts) | Codex / `re-audio-au50` | in progress | Answer AU45–AU49 and AA14; doccheck |
+| re-audio-au50 (audio owner contracts) | Codex / `re-audio-au50` (RE) | in progress; AU45-AU49 and AA14 answered; doccheck passed | Audit contradictions; commit report; enqueue |
 
 ## Handoff
 
-- Goal: close core-audio-close11's six RE questions with prose contracts and conformance cases.
-- Done: bb6273807 initial handoff; debbb740c AU45 vector correction and source-question archive.
-- Current: radius/play corrections and director 11.3 written; AU47 archived on 2026-10-24.
-- AU46/AU49 now answered in audio.md §8.3.1 and archived; AA14 and AU48 remain.
-- Next: finish AU48 and AA14. Regenerate tools/questions.py index; run
-  python tools/doccheck.py check (NOT run).
-- Sound facts: reset QI BB1BE367 then +30 then QI FD584467, rewrite property15 unchanged.
-  Enumeration payload+80 QI EA4FC425, callback+C(instance), false stops but returns true.
-  Volume wrapper 4F9D20 reads payload+38 volume/+24 ID; inner4F9AF0 signed volume*gain,
-  truncation, property15(value,0), flag10. Completion registration QI E9D00A9A +C(manager+8/null).
-- Radius: 4F9FCA signed FILD then *f32 .01 *f32 100; FST first radius then *4 FSTP second.
-  Play4FA037 sets property10=3 with third arg0; holder play uses manager master volume.
-  SetPosition4FA260 found ID stores xyz, updates self/master, distance pause, flag2; missing false.
-  UpdatePosition4F9050 writes trunc(x/y/z) as property20/21/22 with flags1/1/0.
-- Layer: failed first Init retains flag/count, repeated Init succeeds without retry; Shutdown
-  balances. CreateFilters resets interface counters/bits but retains pointer lists/kind counts.
-  Destructor4E76E0 does not Shutdown. CanHandleOccupant5DEB40 always false. RemoveLoop no stop;
-  bulk loop removal sends stops. Freshness loading takes group/instance pairs, ignores odd tail.
-- AEMS: Init latchB21938 set before work; negative backend stages call Shutdown. Shutdown clears
-  latch/stops/removes banks, critical removesystem, restore, clears work vector/unregisters.
-  Destructor4E1920 no Shutdown. AddBank backend0 means success. Bank4E2450 frees rawbuffer/heap.
-- All six question bodies read via git show core-audio-close11. No merge queue: incomplete.
+- Goal: close core-audio-close11's six questions with prose and conformance cases.
+- Done: debbb740c AU45; 21399ceb3 AU47 archive; 6fe5ae5b5 AU46/AU49 contracts.
+- Current: AU48 audio.md §10.7.1; AA14 audio-ambience.md §8.1.1/8.3 written and archived.
+- All questions sourced from core-audio-close11 via git show; absent from this branch's open files.
+- questions.py index regenerated docs/specs/QUESTIONS.md; doccheck.py check passed 2026-10-24.
+- Next: audit earlier summaries for contradictions; commit report; create ready merge queue.
+- Evidence: main re_query.py and class decomp files; no REA session used.
+- Numeric rules checked against asm --bytes; PE constants read by ignored build-runs helper.
+- AEMS AddBank zero means success; callback4E2410 identity; bank+20 stores zero on success.
+- Two GetSize calls unchecked; TGI copied after Read success; resource result is Close result.
+- Layer first failed Init retains latch/count; repeated Init true without retry; Shutdown balances.
+- Layer singular loop removal no stop; singular freshness removal has extra Release.
+- SoundManager DoEvent focus/stop-all returns false after effects; public wrappers differ.
+- No engine, ABI, tools or game changes; no game requests.

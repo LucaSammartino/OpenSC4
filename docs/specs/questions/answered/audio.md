@@ -1,5 +1,19 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU48: audio.md §10.7.1 specifies AEMS
+views/defaults, latched lifetime, backend calls/results, bank/file ownership and failure
+quirks. The raw reader uses two unchecked sizes; resource success also depends on Close.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
+  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
+  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
+  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
+  them, plus AddBank result convention, file reference ownership, allocation/read failures and
+  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
+  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
+  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]
+
 **ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU46: audio.md §8.3.1 supplies the
 payload gates, reset/enumeration/volume/focus/stop-all calls, tick arithmetic, defaults and
 nontransactional Init/Shutdown. Focus and stop-all DoEvent return false after their effects.

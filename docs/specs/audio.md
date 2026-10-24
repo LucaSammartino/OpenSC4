@@ -1547,6 +1547,118 @@ of `(size, stride2, handler)`; handlers are dispatched at `_SNDAEMSI_updatemodul
 non-zero. **No `"AB"` magic check is visible** in `LoadFromFile` or `addmodulebank` *[inferred]* the magic is
 consumed inside the SNDBANK blob (`FUN_0086B340` `0x0086B340` / `_SNDbankadd` `0x0086B35B`).
 
+### 10.7.1 AEMS owner lifetime and IO results (AU48)
+
+Constructor `0x004E1C20` constructs the system-service view at base `+0x0C` with service ID
+`0xAC1FAE31` and flags `0x80000000`. QI `0x004E1430` answers `0xBB523BB2` at base,
+`0x8C1FAEB7` at base+4, `0x452294AA` at base+8, and otherwise delegates to system-service
+QI on base+0x0C. Successful QI AddRefs the service. AddRef/Release (`0x004E19C0/0x004E19D0`)
+delegate to the system-service reference implementation; there is no second local counter.
+The constructor makes empty storage/work vectors and bank list; gain `+0x110`, effects value
+`+0x114`, master factor `+0x13C` and speed factor `+0x140` are 1.0, effects selector `+0x118`
+is 37, response curve is constructed, image pointer `+0x12C` and adjacent size/end fields
+are zero, and the handle vector contains 21 zero words. The speed-volume vector is initially
+empty; tuning populates it. Backend options are obtained by Init, not default-filled here.
+
+Init (`0x004E2210`, this = service view) uses process latch `0x00B21938`. If already set it
+returns true without work. First call sets it **before** initialization, zeroes the handle
+vector, invokes its own base+4 parameter setters for velocity, throttle and wobble with the
+process value at `0x00B2193C`, reads preferences into master factor (signed volume /1024 or
+zero when disabled), and reads tuning. It sizes the workspace to 200000 bytes, obtains backend
+options, installs callback `0x004E13E0`, sets options, calls backend init with workspace and
+constant `0x72B00`, then effects-bus init with `(0,trunc(effects value),effects selector,0,0)`.
+The callback simply returns zero and performs no work. Any negative result from get-options,
+set-options, backend init or effects-bus init invokes Shutdown and returns false; these
+results use signed comparisons (`0x004E2308`–`0x004E2382`). After success it updates volume,
+registers the primary event target with SndSys `+0x3C` if that service exists, attempts the
+system resource load, and subscribes its base+8 message view to `0xA6B79602` if the global
+message server exists. These later results, and ReadTuningValues' result, do not gate true.
+
+Shutdown (`0x004E1AB0`, service view) returns true, including when the latch was clear.
+When set, it clears the latch first, stops sounds, zeroes all handles, removes all banks,
+enters the backend critical section, removes the event system, leaves critical, restores
+the sound system, clears the workspace's logical length, unregisters the primary target
+through SndSys `+0x40` when obtainable and unsubscribes base+8 from `0xA6B79602` when possible.
+It retains container allocation. Destruction (`0x004E1920`, deleting wrapper `0x004E1D80`)
+destroys owned vectors/list/storage and base service; it does **not** call Shutdown.
+
+StopAllSounds (`0x004E1320`) invokes its base+4 EndSound slot for indices
+0 through 14, then 17,18,20,19, in that order; it does not iterate all 21 indices.
+StartSound (`0x004E16F0`, base+4 view) rejects an already nonzero handle. Otherwise it enters
+critical, calls backend start through `0x00B107E4` with the address of the requested index,
+leaves critical, and stores backend-result-plus-one when that is signed-positive, otherwise
+zero. This attempted-start path returns true even on backend failure. EndSound
+(`0x004E1740`) returns false for a zero handle; otherwise it calls `0x00B107EC(handle-1,&index)`
+inside critical, clears the handle and returns true regardless of backend result. Neither
+method bounds-checks the index. Parameter setters `0x004E1530/0x004E15A0/0x004E1610` clamp
+ordinary f32 inputs to [0,1], multiply by f32 127, truncate toward zero, and call
+`0x00B107F0(parameter index 0/1/2,value)` inside critical; return backend result >=0.
+The instruction comparisons leave NaN on the conversion path, not a finite clamped endpoint.
+
+DoEvent (`0x004E14B0`) handles master-volume event `0x2A5B69C0`: it reads payload `+0x24`
+as unsigned u32, divides by 1024, stores f32 master factor, evaluates the response curve
+on `(speed factor * tuning gain) * unrounded master factor`, then multiplies its result by
+f32 127, truncates and calls SNDmastervol. It always returns false, including after effects.
+No event/payload null gate or ownership acquisition occurs here. Ordinary UpdateVolume
+instead evaluates `(speed factor * stored master factor) * tuning gain`, rounded to f32
+at the curve argument. Message callback `0x004E1680` runs on base+8 and handles only
+`0xA6B79602`; it indexes the speed-volume vector using global simulator `+0x0C` without
+bounds checks, stores that f32 speed factor, evaluates `(master factor * tuning gain) *
+speed factor`, scales/truncates by 127 and calls SNDmastervol, returning true. Other messages
+return false. Numeric order is instruction-checked at `0x004E13F0`–`0x004E141A`,
+`0x004E14DA`–`0x004E151D`, `0x004E16A8`–`0x004E16DC`; 127 is f32 at `0x00A931C0`.
+
+**Bank and file ownership.** AddBank rejects null or any nonzero registrar result; **zero
+means success**. It passes `(bank raw image,0,0,0x004E2410)` to the registrar. That callback
+returns its first argument unchanged; it is not a heap allocator despite the earlier name.
+On success AddBank stores zero at bank+0x20, retains the bank and appends it to the bank list
+(`0x004E1BBC`–`0x004E1C1D`; the shared helper `0x006CE100` is a field setter, not a destructor).
+RemoveBank (`0x004E1790`) matches the first bank's cached **instance** ID, calls backend
+remove with bank+0x20, unlinks it and drops the list and temporary references; missing ID
+returns false. RemoveAllBanks removes from the head, calls backend remove for each and
+balances those same references. Backend removal results are ignored. UnloadSoundBank
+(`0x004E18B0`, base+4 view) reads property `0xEBF44DF7`, stops sounds, zeroes handles,
+then removes that bank. LoadSoundBank uses the same property, stops sounds, then loads its TGI.
+
+A new bank has refcount zero, null raw vector and zero cached TGI/handle. LoadBankFromResource
+holds one temporary reference and releases it after load/AddBank success or failure. Allocation
+returning null has no safe false-return path: the load method is still invoked on that pointer.
+Final bank Release (`0x004E2450`) frees raw vector storage and outer allocation; count >1
+merely decrements. LoadFromFile borrows the caller's file without AddRef/Release/Close.
+It rejects null, resizes byte storage to the **first** GetSize result and passes the **second**
+GetSize result to Read. It returns Read's boolean with no size equality, bytes-read or header
+check (`0x004E24A3`–`0x004E24CF`). A shorter second size leaves the rest unvalidated; a larger
+one may overrun allocation. There is no specified safe recovery or fabricated false for
+that overrun or allocation failure. A failed read leaves the resized storage in the bank.
+LoadFromResource owns its acquired file: after a successful acquisition it always calls
+file `+0x14` (Close) then releases it. Only a successful Read copies the cached TGI, and
+the resource loader's final success is the Close result. This corrects §10.7's abbreviated
+claim that the TGI is copied before reading. Failed acquisition releases any returned reference.
+
+The **system** LoadFromFile (`0x004E2120`) uses the same two-size raw-read policy for its
+system image. Only a true Read enters critical, removes the old backend system and adds the
+new image; add result zero means true. False Read performs neither backend call, even if
+some bytes were delivered. Resource wrapper `0x004E21A0` likewise closes/releases the file
+and returns Close success only after successful load. Neither reader validates a short
+successful read. Tuning acquisition failure logs and returns false with existing values
+unchanged. Successful acquisition reads the three scalar keys independently, preserving
+their old values when absent, resets the curve to its default pair before applying the
+curve property, resets the speed vector to its five defaults before applying its property,
+and returns true without requiring every key or validating the resulting vector length
+(`0x004E1EA0`–`0x004E2118`). Init ignores a false tuning result.
+
+**Conformance cases.** Repeat Init after success does no IO; negative get-options runs the
+full latched shutdown and permits a later retry. Failed final system-resource load does not
+change Init's true result. StopAll requests exactly the 19 indices above, leaving 15 and 16
+alone. Backend start -1 stores zero but returns true; a second successful start at the same
+index is allowed. Parameter 0.5 passes 63; input 2 passes 127. DoEvent updates volume but
+returns false. Registrar zero appends/retains a bank; -1 does neither. RemoveBank matches
+instance ID alone. File sizes (8,4) allocate 8 and request 4; (4,8) request 8 despite allocation
+4, an unsafe original quirk, not a requirement to corrupt replacement memory. False Read
+does not cache TGI; true Read plus false Close caches TGI but reports resource-load failure.
+Failed system Read does not remove/add the backend system. Missing tuning resource preserves
+old tuning, while a successful resource with no speed key restores the five-element default.
+
 ### 10.8 Tuning
 
 All three audio tuning readers pull the **same exemplar**: type `0x6534284A`, group `0xCA25875D`,
