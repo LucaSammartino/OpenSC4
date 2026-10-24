@@ -75,6 +75,7 @@ claimed. The context-stop rule ended new feature work at roughly two thirds.
 No plugin/C ABI wiring, ABI export changes, coverage-map edits or game runs.
 
 ## Handoff
+- Guard is now OVER (>150k). Source is b50f6f024, focused current-source tests 84/84, all/native gates pending. No operation outstanding. Old merge queue still points at 05b04a982 in wip; attempted refresh was denied, so refresh only after final gates in the next round.
 - Resumed 2026-10-24 at 05b04a982; QV18 merge already present. ec113e868 adds QV1/QV2/QV3/QV14 implementation and vectors 35–48; validation pending. README now maps every owner row to code/tests.
 - Goal: close every cSC4WinMapView owner row in engine/core/src/map_view, without plugin, capi, ABI or coverage-map edits.
 - Worktree: C:/Users/tlori/FreeCity4/.claude/worktrees/core-map-view-close18; detached HEAD intentionally reserved by supervisor.
