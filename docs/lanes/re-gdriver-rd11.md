@@ -1,41 +1,51 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gdriver-rd11: DX7 RD6–RD11 closure | Codex / `re-gdriver-rd11` | in progress; RD8–RD11 answered; doccheck PASS | Resume RD6/RD7 from Handoff; finish report and queue only after closure. |
+| re-gdriver-rd11: DX7 RD6–RD11 specs | Codex / `re-gdriver-rd11` | ready; doccheck PASS; RD8–RD11 answered, RD6/RD7 narrowed | Land spec batch; remaining converter arithmetic and CopyColorBuffer are explicit open questions. |
 
 ## Report
 
-Answered RD8–RD11 with instruction-checked behavior and thirteen independent prose vectors (DX7-19–31).
-The answers distinguish stage construction from dirty-only reset, static borrowed adapter text, mode-vector
-cleanup from sticky errors, final-submission HRESULT from last failure, missing white diffuse colour from
-untouched UV bytes, and generated versus submitted incomplete-quad indices. Context setup accepts the first
-depth descriptor and has no alternate-device retry. Driver destruction AddRefs its texture manager [quirk].
-Projection finite conformance requires extended intermediates; ambient FPU traps/status/NaN payload behavior
-is not a portable-core obligation. RD6/RD7 remain open; this is not a ready lane.
+This ready specification batch covers RD6–RD11 in `docs/specs/renderer-driver.md`. RD8–RD11 are fully
+answered; RD6/RD7 settled portions are archived, with precisely narrowed residual entries retained as the
+round-2 task permits. Readiness means the documented rules are reviewable and ready to land, not that the
+two remaining proof boundaries have been solved.
 
-Validation: `python tools/questions.py index` regenerated the index; `python tools/doccheck.py check` PASS.
-No cargo/clippy/CTest or game runs apply to this documentation-only milestone. ABI unchanged; no rows proposed.
-Only local export/decomp/PE evidence used; no REA calls and no engine/plugin/capi reads or edits.
-Git printed a packed-refs lock permission error during commits, but each detached commit completed; no refs
-or configuration were changed. No merge-queue file is written while continuation is required.
+Round 1 (`0d5ac1e1d`, `16da6b791`, `ffd29d331`, checkpoint `1cb2bf7a1`) specified white missing diffuse
+colour, untouched missing UV bytes, incomplete-quad index overrun/count differences, final-submission
+HRESULT, x87 projection intermediates, stage construction versus dirty-only reset, static borrowed driver
+text, mode-vector cleanup, destructor texture-manager AddRef, device-selector rules and first-depth-format
+acceptance with no alternate-device retry. Thirteen independent vectors are DX7-19–31.
 
-## Handoff
+Round 2 (`5e1c273d0`, `2cc7c6db4`) adds eighteen prose conformance vectors DX7-32–49, for 31 in this lane:
 
-- Round 2 resumed 2026-10-23; detached HEAD retained. Manifest now `C:/Users/tlori/FreeCity4/build-runs/run4-re-gdriver-rd11-r2-manifest.json`.
-- Round 2 milestone: §12.4 records all three auxiliary tables, light/material setter contracts and numeric ambient conversion; §12.1 range is instruction-checked (`5F7FFFFF` nearest/even); DX7-32–38 added. Region transfers and CopyColorBuffer still need final reconciliation; RD6 matrix extracted privately by `build-runs/rd-matrix.py`.
-- Round 2 next milestone: §9.6 ranking/availability/copy rules and §§12.4–12.5 auxiliary lighting/regions now specified; eighteen new vectors DX7-32–49. Archived settled RD6/RD7 portions and narrowed open entries to remaining non-copy converter arithmetic and CopyColorBuffer only. Next: regenerate question index, doccheck, final report commit and READY queue (kind re, actual 40-character HEAD).
-- Next: resolve RD7 dispatch/light/material/buffer contracts; then RD6 ranking and converter matrix. Narrow any unproved converter arithmetic explicitly; finish READY queue covering RD6–RD11.
-- Goal: answer RD6–RD11 in renderer-driver.md; spec text only, no engine reads/edits.
-- Done: read rules, lane format, open questions and core-gdriver5 report.
-- Owner closure table is in engine/, which this task forbids reading; use the report's explicit RD6–RD11 exclusions and the questions instead.
-- Done: RD10/RD11 rules added: white missing colour; untouched missing UV; incomplete quad overrun; final draw HRESULT; ambient x87 CW and finite discriminator.
-- Done: `0d5ac1e1d` establishes RD10/RD11 rules. RD8/RD9 prose added: first depth descriptor, selector quirks, setup errors; zero material/clear defaults, stage constructor versus dirty-only reset, list helper and destructor AddRef quirk.
-- Done: `16da6b791` RD8/RD9 milestone; corrected static GetDriverInfo pointer and destructor details after instruction checks. Archived RD8–RD11 and added DX7-19–31.
-- Done: `ffd29d331` archived RD8–RD11 and added vectors; index regeneration and doccheck PASS. Final checkpoint also commits generated QUESTIONS.md and reconciles stale RD8 boundaries.
-- Next: finish RD6/RD7, then final report/queue. RD6/RD7 still open; no ready claim.
-- RD6 selector pseudo is main decomp/nSGLDX7.c lines 173–604; 0088F8D0, source bits helpers 0088BCD0/0088BD20. Converter families main decomp/_unnamed/region_00880000.c ~6400–8770 (0088Dxxx–0088F770); arithmetic still needs asm checks and full matrix.
-- RD7 pseudo for lighting/material: same unnamed file lines 1808–1975, 00883F30–00884200; light range constant 00AC4658 double words E0000000 47EFFFFF (=FLT_MAX), then FSQRT and single store 00883F2A. Remaining buffer/region operations 00885330–00885790, 00886750–00886Dxx.
-- RD7 raw auxiliary tables: owner+0=00AC47EC (13 words read; first 11 public plus destruction entries), +4=00AC47DC (QI/ref/ref/CopyColorBuffer), +8=00AC47AC (12 slots: QI/ref/ref, 883F30/883FA0/884000/886CA0/886B90/noop/noop/884200/8840D0).
-- RE helper build-runs/inspect-rd.py reads PE constants; all edits via apply_patch. Guard counts context, not just this response's visible tokens; no queue until six answers complete.
-- Worktree reserved with detached HEAD; commit normally without changing refs.
-- Main RE source: C:/Users/tlori/FreeCity4; manifest: build-runs/run4-re-gdriver-rd11-r1-manifest.json there.
-- No game runs, ABI rows or implementation changes planned.
+- §9.6 specifies complete ordinary descriptor ranking and stable ties. The bit-count target includes alpha;
+  excess precision outranks shortage and alpha ranks can supersede RGB preferences.
+- All 120 source/request converter-availability cells are determined by the chosen descriptor key, rather
+  than by request number. A fixture tests every cell. DXT5 has no ordinary software decoder in this table;
+  an allocatable fallback surface need not support a DXT5 upload.
+- Direct compressed copying uses the locked linear byte size, without block rounding. Source-0 identity
+  copying and source-5/source-9 expansion to keys 1/2 have exact instruction-checked pixel examples.
+- §§12.1, 12.4 attribute the three auxiliary tables, specify low-byte enables, immediate light/material
+  submissions, property/null-pointer behavior, ambient bit conversion and exact sqrt(FLT_MAX) range
+  (`5F7FFFFF` under nearest/even). These tables return no independent vertex-buffer object.
+- §12.5 specifies region handles, first-free reuse, ownership, creation retry, save/restore rectangles,
+  inclusive-bound predicate quirk, missing-surface gates and asymmetric loss recovery. Partial save can
+  return false even after its retry successfully copies, because prior contents were discarded.
+
+Questions: original RD6/RD7 entries and their settled answers are archived in
+`docs/specs/questions/answered/renderer-driver.md`; residual RD6 is only the other non-copy converter
+arithmetic and DXT1/DXT3 software-decode details. Residual RD7 is only CopyColorBuffer (`00883950`)
+lock-probe cache, destination/refcount ownership, clipping/orientation, conversion and failure behavior.
+Their decompiler stack/pointer aliases are insufficient evidence; no unverified arithmetic was promoted to
+a rule. RD1/RD3/RD4 were not in this round and retain their existing narrow entries.
+
+Validation: `python tools/questions.py index` regenerated `docs/specs/QUESTIONS.md`;
+`python tools/doccheck.py check` PASS; `git diff 1cb2bf7a1 HEAD --check` PASS. A first staging command named
+the wrong generated-index path and staged nothing; the corrected explicit-path staging and commit succeeded.
+Cargo/clippy/CTest and game/shadow runs are n/a for this prose-only batch. No ABI exports or proposed rows.
+No engine reads/edits. Only the main checkout's local export/decomp/PE was queried; no REA calls or errors.
+Private evidence helpers remain ignored under this worktree's `build-runs/`.
+
+The reserved worktree remains detached as instructed. Git printed a packed-refs lock permission diagnostic
+while each detached commit completed; shared refs/configuration were not modified. The final ignored queue
+entry is `build-runs/merge-queue/re-gdriver-rd11.json`, kind `re` as requested, using actual full HEAD.
+Next: land this batch; assign the exact residual RD6/RD7 entries for further instruction checks separately.
