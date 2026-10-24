@@ -5,7 +5,7 @@
 ## Report
 
 Extended nation.md with lifecycle, directory discovery/order, preference matching, add/delete, tutorial
-reset/copy, index and callback-failure rules, safe malformed-input outcomes, and 23 owner-contract vectors.
+reset/copy, index and callback-failure rules, safe malformed-input outcomes, and 22 owner-contract vectors.
 Corrected demand.md §11.2's once-per-process tuning claim: a repeated live Init is a no-op, but Init after
 Shutdown rereads tuning. Directory StaticInit alone is process guarded.
 
