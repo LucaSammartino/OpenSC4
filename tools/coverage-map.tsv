@@ -568,7 +568,10 @@ cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
 fn:script_tag_*	widget toolkit	ui	-	-	-	-
 fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
-cGZGraph	widget toolkit	ui	-	-	-	-
+cGZGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZBarGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZLineGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZScatterGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZ*Graph	widget toolkit	ui	-	-	-	-
 cHTMLDocument	widget toolkit	ui	html-document.md	core/src/html_document	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
