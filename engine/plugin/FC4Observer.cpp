@@ -109,6 +109,7 @@
 #include "FC4GZMsgShadow.h"
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
+#include "FC4GDriverShadow.h"
 #include "FC4DbpfNative.h"
 #include "FC4ViewUtilShadow.h"
 
@@ -685,6 +686,7 @@ public:
                 RenderPropsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LightingShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                GDriverShadowCityLoaded();
                 ViewUtilShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
@@ -746,6 +748,7 @@ public:
                 GZMsgShadowCityShutdown();
                 RenderPropsShadowCityShutdown();
                 LightingShadowCityShutdown();
+                GDriverShadowCityShutdown();
                 ViewUtilShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
@@ -804,6 +807,7 @@ public:
                 RenderPropsShadowMonth(julian);
                 CityShadowObserve(CurrentCity(), julian, false);
                 LightingShadowMonth(julian);
+                GDriverShadowMonth(julian);
                 ViewUtilShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);

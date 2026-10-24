@@ -406,6 +406,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_drag_shadow", "nettool_wide_drag_shadow",
                                   // LR15 scoped record inventories, independently default off.
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
+                                  // Sparse DX7 cached-state transitions, default off.
+                                  "gdriver_shadow",
                                   "querytool_shadow",
                                   // Published legacy owner-method comparisons; default off.
                                   "legacyctl_shadow",
