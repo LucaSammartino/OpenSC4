@@ -58,7 +58,7 @@ Final counted line:
 effects13-names-2032-20261024r2b 73/73
 ```
 
-[Run 632](../runs/effects13-names-2032-20261024r2b-632.md) tests the final
+[Run 632](../runs/effects13-names-2032-20261024r2b-661.md) tests the final
 queued build's DLL, SHA256
 `A31928046E28EF21587535861C20FEF840DB8A187938D755B2699CFE48E8C534`.
 Konradshohe, turbo through 2032-01-01: **clean**, `ref_warnings=0`, all other
@@ -69,7 +69,7 @@ queries. Terminal date 2032-01-21, 28.828 s city runtime, slot 1, wall 42 s.
 Each sample explicitly retains `payload_unavailable=1 history_unavailable=1
 attachment_refused=1`; these unavailable fields are not exact comparisons.
 
-[Run 631](../runs/effects13-names-2032-20261024r2a-631.md) separately records
+[Run 631](../runs/effects13-names-2032-20261024r2a-660.md) separately records
 the earlier DLL: `effects13-names-2032-20261024r2a 73/73`, clean,
 `ref_warnings=0`, 28.407 s runtime. The final build changed the DLL hash, so
 run 632 tested that exact artifact. No normal-speed rerun was needed because
