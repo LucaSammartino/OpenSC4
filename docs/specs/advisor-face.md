@@ -69,12 +69,14 @@ Constructor `0x00420B70(id)`: everything zero except `+0x44` := the advisor ID a
 With a playing model: it advances (slot 15 `(t)`). When its slot 11 now reads 0 (finished) and the last value was
 not 0:
 
-- if `+0xCC` = 0: `+0xCC` := 1, the idle model plays again from the start, and `+0xD0` := a random integer 1…3
-  (`RandomSint32RangeUniform(1, 3)` on `+0xD8`);
-- else `+0xCC` += 1; when it reaches `+0xD0`: `+0xCC` := 0 and the second model plays from the start.
+- if `+0xCC` = 0: `+0xCC` := 1, the idle model plays again from the start, and `+0xD0` := 1 or 2
+  (`RandomSint32RangeUniform(1, 3)` on `+0xD8`, upper bound exclusive, foundations.md);
+- else `+0xCC` += 1; when it equals `+0xD0`: `+0xCC` := 0 and the second model plays from the start.
 
-Then `+0xC8` := slot 11. So the head loops its idle animation and, after a random 1–3 loops, plays its second
-animation once.
+Then `+0xC8` := slot 11. With `+0xD0` = 2 the head plays its idle animation twice, then the second animation once,
+and starts over. With `+0xD0` = 1 the count, already 1, only grows past it, so the second animation **never plays
+again** until `SetMood` resets `+0xCC` *[quirk]*; each pass through the second animation draws a new value, so a
+head ends up stuck on its idle loop with probability ½ per cycle.
 
 ## 4. Window messages, `Init` and `Shutdown` *[compat]*
 
@@ -112,6 +114,8 @@ The pressed offset therefore nudges the head and narrows its viewport while an a
 - `SetMood` remaps the moods (0 → 3, 1 → 2, 3 → 0, 5 → 1; 2 and 4 unchanged) before indexing the advisor's model
   list, so moods 1 and 2 share a model and none maps to 4 except 4 itself.
 - `DoMessage` answers true for every message, not only `0x86AD10EE`.
+- The idle-loop counter can never reach a target of 1 (§3), so the second animation stops after a random number of
+  cycles.
 
 ## 7. Function inventory
 

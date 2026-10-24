@@ -168,3 +168,95 @@ See [questions/region-screen.md](questions/region-screen.md): QR1 (the window co
    named with string `0xAA738C4E`, and calls `RequestNewCity` with it.
 3. **Existing city:** playing a tile whose record has a save path calls `LoadCity(path, record)`.
 4. **Region load:** `LoadRegion` with the current region's name returns true without changing the region.
+
+## 12. The scroll window and the clouds *[compat]*
+
+Added 2026-10-24 (re-gzregion7): the owners `cSC4WinRegionScroll` (9 functions, 2,479 bytes) and
+`cSC4WinRegionClouds` (10 functions, 2,024 bytes), static RE on the instructions of the Steam 1.1.641 exe (same code
+as GOG). Times are in milliseconds (`cRZTimer`), multiplied by 0.001 to seconds.
+
+### 12.1 `cSC4WinRegionScroll`: dragging, gliding and edge scrolling
+
+A transparent full-screen `cGZWin` that turns the right button and the screen edges into scroll messages for its
+notification target (the region screen, `+0x4C`). Constructor `0x007AAE10`; destructor `0x007AC5C0`.
+
+| Offset | Field | Initial |
+|---|---|---|
+| `+0xD8` | the cursor ID shown | `0xC2A676AC` (from `Init`) |
+| `+0xDC`, `+0xE0` | the drag anchor (x, y) | 0 |
+| `+0xE4`, `+0xE8` | the glide velocity | 0 |
+| `+0xEC`, `+0xF0` | the glide deceleration | 0 |
+| `+0xF4`, `+0xF8` | the drag velocity | 0 |
+| `+0xFC`, `+0x100` | an extra velocity added every frame (not set by this owner) | 0 |
+| `+0x104` | edge speed | 300 |
+| `+0x108` | scrolling (byte) | 0 |
+| `+0x109` | dragging (byte) | 0 |
+| `+0x10C` | the anchor picture | null |
+| `+0x110` / `+0x114` | dead-zone radius r / full-speed distance | 10 / 32 |
+| `+0x118` / `+0x11C` | glide stop factor / speed divisor | 5.0 / 3.0 |
+| `+0x120` | timer (unit argument 4) | |
+
+- **`Init`** (`0x007AA520`), once: `cGZWin::Init`, cursor := `0xC2A676AC`, window flags `0x10000` and `0x8000` off.
+  **`Shutdown`** (`0x007AA570`) releases the anchor picture.
+- **Right press** (`GZOnMouseDownR`, `0x007AD3B0`): an old anchor window (child `0x48E945B4`) is deleted; flag
+  `0x200000` off (the window now takes the mouse); the window manager captures the mouse for it (its slot 29);
+  `SetMouseScroll(x, y)`.
+- **`SetMouseScroll(x, y)`** (`0x007AC620`): anchor := (x, y); dragging := 1; the anchor picture (`cSLBuffer(type
+  0x856DDBAC, group 0x46A006B0, instance 0x094AC89A)`, colour key magenta) is loaded once; a bitmap window
+  `0x48E945B4` made from it by the window-control manager (slot 15) is centred on the anchor (`SetArea`), loses flag 2,
+  gets flags `0x200000` and 4, is shown and added as a child (deleted again when that fails).
+- **Right release** (`GZOnMouseUpR`, `0x007AAEC0`): the anchor window is deleted; dragging := 0; drag velocity := 0;
+  the capture is released (manager slot 30); flag `0x200000` on again. True.
+- **Move** (`GZOnMouseMove`, `0x007AAF20`): with `d = (x, y) − anchor`: inside the dead zone (`|d|² < r²`) the drag
+  velocity is 0 and the cursor `0xC2A676AC`; otherwise `speed = max(1, (min(|d|, 32) − r) / 3)` and the drag
+  velocity is `d · speed / |d|`, with the cursor from the 3 × 3 table `0x00AB8F2C` indexed by
+  `(dx ≥ −r) + (dx ≥ r) + 3·((dy ≥ −r) + (dy ≥ r))` (centre `0xC2A676AC`). The cursor is set through the window
+  manager's cursor manager (slot 32, its slot 9). Returns false.
+- **Each paint** (`GZPaint`, `0x007AB130`): the first paint only starts the timer. Then, with `dt` the elapsed
+  milliseconds (the timer restarts):
+  1. `v` := the drag velocity + `+0xFC`/`+0x100`.
+  2. **Edge scrolling**, when the preferences byte `P+0xF09` is set and the service `0xC416025C` (IID `0x0073283C`)
+     slot 12 is true: with the cursor position (window manager slot 34), `vx −= 300` when `x ≤ L + 1`, else `vx += 300`
+     when `x ≥ R − 1`; the same for y with T and B (window slots 43–46).
+  3. **Gliding**: when `v` is exactly 0, `v` := the glide velocity, and the glide velocity loses `dt · 0.001 ·`
+     deceleration; when either component changes sign the glide stops (all four values 0). When `v` is not 0 the glide
+     velocity becomes `v` and the deceleration `5 · v`, so a released drag coasts to rest in 0.2 s.
+  4. **Messages** (window slot 146, `PostMsg(target, type, a, b, c)`): `v` = 0 and scrolling → `0x8A4BAC5B` (stop),
+     scrolling := 0. Otherwise `d = v · dt · 0.001`; when not yet scrolling, `0x8A4BAC53` (start) and scrolling := 1;
+     then `0xAAA1CDF2` with `trunc(256 · dx)`, `trunc(256 · dy)` (the region screen divides by 256, §4).
+
+### 12.2 `cSC4WinRegionClouds`: drifting clouds
+
+A `cGZWin` (flags `0x10000` off, `0x200000` on: it never takes the mouse) that draws textured clouds over the region.
+
+| Offset | Field |
+|---|---|
+| `+0xD8` | timer (units 4) |
+| `+0xF0`, `+0xF4` | the view offset (`SetOffset`, `0x007A98A0`) |
+| `+0xF8`…`+0x104` | the cloud area L, T, R, B (floats) |
+| `+0x108`, `+0x10C` | the wind: a unit vector (`0x007A9980`, a region-screen function, normalises its two arguments) |
+| `+0x110`, `+0x111` | opacity range (`SetOpacityRange`, `0x007A98C0`; constructor 32, 64; region screen tuning `0xCA383CB1`) |
+| `+0x114` | the cloud list |
+| `+0x118`…`+0x124` | four textures |
+| `+0x128` | the random generator (seed −1) |
+
+- **`Init`** (`0x007A99C0`), once: `cGZWin::Init`; ID `0x6A0AF41D`; the four textures `0x4A624656`…`0x4A624659`
+  from the texture manager (service `0x1AC0E11A`, IID `0xFAC0E219`, its slot 5); area := the main window's size,
+  both for the window and the cloud area.
+- **A new cloud** (`InitCloud`, `0x007A98E0`): x = L − 128; y = (T − 128) + (B − T)·r₁; speed `s = 5 · (r₂ + 1)`
+  (5 to 10 pixels per second); velocity `s ·` wind; texture `RandomSint32RangeUniform(0, 4)` (0–3); opacity
+  `RandomSint32RangeUniform(min, max)` (32–63 by default); r are uniform in [0, 1).
+- **`SetCloudArea(L, T, R, B)`** (`0x007A9C20`; the region screen's `ComputeBaseLimits`): stores the area, empties the
+  list and makes `trunc((R − L)·(B − T) / 16384)` clouds (one per 128 × 128 pixels), each placed at a random x in
+  `[L − 128, R − 128)`.
+- **`GZPaint`** (`0x007A9D60`), with all four textures: `dt` = min(elapsed, 200) ms (0 on the first paint, which
+  starts the timer). The 3D device (`0x00B43CA0` slot 3) gets the sprite render states (slots 45, 44, 21, 51–53) and
+  a four-vertex quad (white, alpha = the cloud's opacity, UV (0,0)–(1,1)). With probability 0.003 per paint
+  (`RandomDoubleUniform() < 0.003`) a new cloud is added. Each cloud whose x has reached R is removed; every other one
+  is drawn as a 128 × 128 square at (x − offsetX, y − offsetY) with its texture (device slots 58, 29, 28, 3) and then
+  moves by `dt · 0.001 · velocity`. True.
+- **Shutdown** (`0x007A9880`), destructor (`0x007A9B90`, deleting `0x007A9C00`: the four textures released, the list
+  freed).
+
+Quirks: clouds are only retired on the right edge, so a wind blowing left keeps every cloud for ever; a long frame
+moves the clouds by at most 0.2 s; the scroll window's gliding stops at the first sign change of either axis.

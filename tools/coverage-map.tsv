@@ -274,6 +274,8 @@ cSC4RegionSignpostAnimatorWinProc	region	region	region-view.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
 cSC4WinRegionView	region	region	region-view.md	-	-	-
+cSC4WinRegionScroll	region	region	region-screen.md	-	-	-
+cSC4WinRegionClouds	region	region	region-screen.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
