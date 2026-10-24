@@ -811,9 +811,14 @@ fn wall_fallback_zoom_four_highlight_and_cull_order() {
     assert_eq!(model.sort_value(), 0x8000_2A86);
     assert!(model.recolour_pending());
     model.set_facing_test(false);
+    // DIFFERS from the old fixture: §3 says zero skips, not bypasses facing.
+    assert!(model.draw(false, zoom(4), Edge::East, &mut factory).is_none());
+    assert!(model.draw(false, zoom(4), Edge::South, &mut factory).is_none());
+    model.set_facing_test(true);
+    assert!(model.draw(false, zoom(4), Edge::East, &mut factory).is_none());
     assert!(
         model
-            .draw(false, zoom(4), Edge::East, &mut factory)
+            .draw(false, zoom(4), Edge::South, &mut factory)
             .unwrap()
             .recolour_required
     );
@@ -1089,9 +1094,9 @@ fn owned_leases_survive_draw_borrows_and_drop_once_on_reload_and_owner_drop() {
 fn failed_primary_does_not_create_or_release_a_lease() {
     let mut model = cell(record(), true);
     let mut factory = Factory::replying(&[None, Some((20, false)), None, None]);
-    model.load_texture(zoom(2), &mut factory).unwrap();
+    assert_eq!(model.load_texture(zoom(2), &mut factory), Ok(true));
     assert!(factory.drops.lock().unwrap().is_empty());
-    model.load_texture(zoom(3), &mut factory).unwrap();
+    assert_eq!(model.load_texture(zoom(3), &mut factory), Ok(false));
     assert_eq!(*factory.drops.lock().unwrap(), [20]);
     assert!(model.texture().is_none());
     drop(model);
@@ -1127,23 +1132,24 @@ fn portable_domains_do_not_silently_wrap_or_default() {
         CellCornerLayout::new([[0.0, 0.0]; 4], [[0.0, 0.0]; 4], CornerStep::Forward),
         Err(ContractError::InvalidInput)
     );
-    assert_eq!(
-        FoundationModel::<Binding>::new(
-            Footprint {
-                min: [0.0; 2],
-                max: [1.0; 2]
-            },
-            0.0,
-            1.0,
-            0.0,
-            FoundationTextureKeys {
-                sides: [None; 5],
-                tops: [None; 5]
-            }
-        )
-        .err(),
-        Some(ContractError::InvalidInput)
-    );
+    assert!(FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.0; 2],
+            max: [1.0; 2]
+        },
+        0.0,
+        1.0,
+        0.0,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5]
+        }
+    )
+    .unwrap()
+    .shape()
+    .top
+    .repeats[0]
+        .is_infinite());
 }
 
 #[test]
@@ -1222,24 +1228,137 @@ fn nonfinite_derived_foundation_dimensions_are_outside_portable_domain() {
         .err(),
         Some(ContractError::InvalidInput)
     );
-    assert_eq!(
-        FoundationModel::<Binding>::new(
-            Footprint {
-                min: [0.0, 0.0],
-                max: [16.0, 16.0]
-            },
-            0.0,
-            1.0,
-            f32::from_bits(1),
-            keys()
-        )
-        .err(),
-        Some(ContractError::InvalidInput)
-    );
+    assert!(FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.0, 0.0],
+            max: [16.0, 16.0]
+        },
+        0.0,
+        1.0,
+        f32::from_bits(1),
+        keys()
+    )
+    .unwrap()
+    .shape()
+    .top
+    .repeats[0]
+        .is_infinite());
 }
 
 struct FoundationSamples {
     calls: Vec<String>,
+}
+
+#[test]
+fn foundation_unchecked_scale_and_signed_existing_count() {
+    let mut model = foundation(80.);
+    let mut light = Light::default();
+    let change = model
+        .adjust_height_to_terrain(&border(40., None), false, &mut light)
+        .unwrap();
+    // C=trunc(-24/16)=-1, N=1: a negative existing count is still compared.
+    assert_eq!(change.base, 24.);
+    model.set_top_scale(0., &mut light).unwrap();
+    assert!(model.shape().top.repeats.into_iter().all(f32::is_infinite));
+    model.set_top_scale(-16., &mut light).unwrap();
+    assert_eq!(model.shape().top.repeats, [-2., -3.]);
+    assert!(light.normals.is_empty());
+}
+
+#[test]
+fn foundation_step_depth_uses_signed_low_word_shift() {
+    let mut model = FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0.; 2],
+            max: [16.; 2],
+        },
+        0.,
+        0.,
+        16.,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5],
+        },
+    )
+    .unwrap();
+    // N=134217729 converts validly to i32. Its shifted low word is 80000010,
+    // interpreted as -2147483632 before subtracting from top and storing f32.
+    let result = model
+        .adjust_height_to_terrain(&border(-2_147_483_648., None), false, &mut Light::default())
+        .unwrap();
+    assert!(result.base_changed && result.rebuilt);
+    assert_eq!(result.base.to_bits(), 0x4f00_0000);
+}
+
+#[test]
+fn literal_signed_lattice_and_reversed_foundation_border() {
+    // At -16 and -32 the biased words are 4B3FFFFF and 4B3FFFFE;
+    // upper(-16) stores 4B3FFFFE then adds one after subtraction.
+    let bounds = Bounds {
+        min: [-32., 0., -16.],
+        max: [-16., 0., 0.],
+    };
+    assert_eq!(
+        WallRange::new(Edge::North, bounds).unwrap(),
+        WallRange {
+            start: [-2, -1],
+            end: -1,
+            inner: [-2, -1]
+        }
+    );
+    // Outside the earlier arbitrary 2^24 coordinate restriction, still an
+    // exact 16 m traversal and an ordinary literal bias conversion.
+    let bounds = Bounds {
+        min: [33_554_432., 0., 80.],
+        max: [33_554_448., 0., 96.],
+    };
+    assert_eq!(
+        WallRange::new(Edge::North, bounds).unwrap(),
+        WallRange {
+            start: [2_097_152, 5],
+            end: 2_097_153,
+            inner: [2_097_152, 5]
+        }
+    );
+    let mut model = FoundationModel::<Binding>::new(
+        Footprint {
+            min: [32., 0.],
+            max: [0., 16.],
+        },
+        41.,
+        40.,
+        16.,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5],
+        },
+    )
+    .unwrap();
+    let mut host = FoundationSamples { calls: Vec::new() };
+    let change = model
+        .adjust_from_terrain(false, &mut host, &mut Light::default())
+        .unwrap();
+    assert_eq!(host.calls, ["width"]); // Reversed index bounds sample nothing.
+    assert_eq!(change.base, 24.); // C=0, maximumDrop=0 => N=1.
+}
+
+#[test]
+fn foundation_raw_draw_recolours_only_on_rotation_and_skips_highlight() {
+    let mut model = foundation(8.);
+    let mut factory = Factory::replying(&[Some((30, false)), Some((31, false))]);
+    let mut light = RawLight::default();
+    assert!(model
+        .draw_lit(true, zoom(0), Edge::North, &mut factory, &mut light)
+        .is_empty());
+    assert!(light.calls.is_empty());
+    let draws = model.draw_lit(false, zoom(0), Edge::North, &mut factory, &mut light);
+    assert_eq!(draws.len(), 3);
+    assert_eq!(draws[2].face.vertices[0].colour, [3, 2, 1, 255]);
+    assert_eq!(light.calls.len(), 5);
+    model.draw_lit(false, zoom(0), Edge::North, &mut factory, &mut light);
+    assert_eq!(light.calls.len(), 5);
+    model.draw_lit(false, zoom(0), Edge::East, &mut factory, &mut light);
+    assert_eq!(light.calls.len(), 10);
 }
 impl FoundationTerrain for FoundationSamples {
     fn width(&mut self) -> i32 {
@@ -1776,6 +1895,7 @@ fn cell_zoom_element_selection_and_fallback_zero_are_literal() {
     let mut rec = record();
     rec.texture_key = 0;
     c.set_texture(rec, zoom(0), &mut factory).unwrap();
+    assert_eq!(c.load_texture(zoom(0), &mut factory), Ok(true));
     assert_eq!(factory.calls.len(), 2);
     assert!(c.texture().is_none());
     assert_eq!(*factory.drops.lock().unwrap(), [1]);

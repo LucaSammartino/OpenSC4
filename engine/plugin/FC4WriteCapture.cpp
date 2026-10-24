@@ -14,6 +14,8 @@
 #include "FC4WriteCapture.h"
 
 #include "FC4Log.h"
+#include "FC4Interfaces.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Interfaces.h"
 

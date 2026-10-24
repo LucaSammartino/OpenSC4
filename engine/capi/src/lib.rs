@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 89;
+pub const FC4_ABI_VERSION: u32 = 90;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1126,6 +1126,8 @@ pub mod dates;
 
 // Private transport to the production language utility for native verification.
 mod language_verify;
+// Private bounded original cRZString comparison transport.
+mod strings_shadow;
 // Private ephemeral process command-line read-only verification transport.
 mod cmdline_probe;
 // verify-command-system4: private ORIGINAL comparison transport (no DLL exports).
@@ -1140,3 +1142,6 @@ pub mod feature_manager;
 pub mod persist_manager_verify;
 // LR12 private record-only observation transport.
 mod lotrec_verify;
+
+// Private record-only network occupant verification transport.
+mod netocc_shadow;

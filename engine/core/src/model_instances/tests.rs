@@ -481,7 +481,8 @@ fn animation_failed_build_preserves_frame_word() {
     assert_eq!(a.frame(), 0);
     assert_eq!(a.set_frame(1), 2);
     assert_eq!(a.instance.sort_value(), 55);
-    assert_eq!(requests.load(Ordering::Relaxed), 2);
+    // The rejected frame also reaches GetModelFrame; the resource validates it.
+    assert_eq!(requests.load(Ordering::Relaxed), 3);
     assert_eq!(a.set_animation(100), 0);
     assert_eq!(a.frame(), 1);
     drop(resource);
@@ -1408,4 +1409,161 @@ fn primitive_and_table_boundaries_and_resource_query_outputs() {
     assert_eq!(created.as_ref().unwrap().reference_count(), 1);
     assert!(!factory.serial_read_into(created.as_ref().unwrap(), 0, &[]));
     assert_eq!(created.as_ref().unwrap().reference_count(), 1);
+}
+
+#[test]
+fn animated_unbound_construction_and_public_build_frame() {
+    let a = Reference::constructed(AnimatedInstance::unbound(DrawAttributes::default()));
+    assert_eq!(a.reference_count(), 0);
+    {
+        let a = a.read();
+        assert_eq!((a.frame(), a.frame_count(), a.mode(), a.direction()), (0, 0, 3, 1));
+        assert_eq!(a.speed().to_bits(), (-100_f32).to_bits());
+        assert_eq!(a.accumulator().to_bits(), 0);
+        assert!(a.instance.owner().is_none());
+        assert!(a.instance.resource_model().is_none());
+        assert_eq!(a.instance.custom_data(), 0);
+        assert_eq!(a.instance.properties(), 2);
+        assert_eq!(a.instance.mesh_count(), 0);
+        assert_eq!(a.instance.transform(), Transform::identity());
+    }
+    let alive = a.query_interface(IID_ANIMATED).unwrap();
+    for (iid, part) in [
+        (IID_BASIC, InterfacePart::Basic),
+        (IID_UNKNOWN, InterfacePart::MeshContainer),
+        (IID_MESH_CONTAINER, InterfacePart::MeshContainer),
+        (IID_ANIMATED, InterfacePart::Animated),
+    ] {
+        let queried = a.query_interface(iid).unwrap();
+        assert_eq!(queried.part, part);
+        assert_eq!(a.reference_count(), 2);
+    }
+    assert_eq!(a.reference_count(), 1);
+    drop(alive);
+    let mut a = AnimatedInstance::unbound(DrawAttributes::default());
+    assert!(a.build_frame(0)); // current frame succeeds without a bound model
+    assert!(!a.build_frame(1));
+    let requests = Arc::new(AtomicUsize::new(0));
+    let resource: ModelReference = Reference::new(Box::new(Resource {
+        header: AnimationHeader {
+            frame_count: 3,
+            ..AnimationHeader::default()
+        },
+        frames: vec![ModelFrame::default(), ModelFrame::default()],
+        bounds: BoundingBox::EMPTY,
+        requests: requests.clone(),
+        drops: Arc::new(AtomicUsize::new(0)),
+    }));
+    a.instance.set_model_reference(Some(&resource));
+    assert!(a.build_frame(0));
+    assert_eq!(requests.load(Ordering::Relaxed), 0);
+    assert!(a.build_frame(1));
+    assert_eq!(a.frame(), 1);
+    assert!(!a.build_frame(2)); // valid header range, provider failure
+    assert_eq!(a.frame(), 1);
+    assert_eq!(requests.load(Ordering::Relaxed), 2);
+    assert_eq!(a.set_frame(1), 2);
+    assert_eq!(requests.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn sprite_creation_delegates_with_temporary_and_counted_output() {
+    struct Sprite {
+        resource: Option<Reference<SpriteResource>>,
+        drops: Arc<AtomicUsize>,
+    }
+    impl ReferenceTarget for Sprite {
+        const COUNT_POLICY: CountPolicy = CountPolicy::Basic16;
+    }
+    impl Drop for Sprite {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    struct Binding {
+        succeed: bool,
+        allocations: usize,
+        drops: Arc<AtomicUsize>,
+    }
+    impl SpriteInstanceBinding for Binding {
+        type Instance = Sprite;
+        fn allocate(&mut self) -> Sprite {
+            self.allocations += 1;
+            Sprite {
+                resource: None,
+                drops: self.drops.clone(),
+            }
+        }
+        fn bind(&mut self, sprite: &Reference<Sprite>, resource: &Reference<SpriteResource>) -> bool {
+            assert_eq!(sprite.reference_count(), 1); // temporary retained before binding
+            assert_eq!(resource.reference_count(), 1);
+            assert_eq!(resource.read().animation().unwrap().instance_id, 1000);
+            sprite.write().resource = Some(resource.clone());
+            self.succeed
+        }
+    }
+    let factory = SpriteAnimationFactory;
+    let resource = factory
+        .serial_read(SPRITE_ANIMATION_TYPE, 1000, &anim_bytes([0; 5]))
+        .unwrap();
+    for succeed in [true, false] {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let mut binding = Binding {
+            succeed,
+            allocations: 0,
+            drops: drops.clone(),
+        };
+        let mut output = Some(Reference::new(Sprite {
+            resource: None,
+            drops: drops.clone(),
+        }));
+        assert_eq!(resource.create_model_instance(&mut binding, &mut output), succeed);
+        assert_eq!(binding.allocations, 1);
+        if succeed {
+            let sprite = output.as_ref().unwrap();
+            assert_eq!(sprite.reference_count(), 1); // result, temporary already released
+            assert!(sprite.read().resource.as_ref().unwrap().ptr_eq(&resource));
+            assert_eq!(resource.reference_count(), 2);
+            assert_eq!(drops.load(Ordering::Relaxed), 1); // prior output replaced
+        } else {
+            assert!(output.is_none());
+            assert_eq!(resource.reference_count(), 1);
+        }
+        drop(output);
+        assert_eq!(drops.load(Ordering::Relaxed), 2);
+        assert_eq!(resource.reference_count(), 1);
+        let table = factory.create_instance(SPRITE_TABLE_TYPE).unwrap();
+        assert!(!table.create_model_instance(&mut binding, &mut None)); // portable enum guard
+        assert_eq!(binding.allocations, 1);
+    }
+}
+
+#[test]
+fn sprite_serial_read_preserves_resource_identity_and_borrowed_data() {
+    let factory = SpriteAnimationFactory;
+    let table = factory.create_instance(SPRITE_TABLE_TYPE).unwrap();
+    let mut bytes = vec![0; 44];
+    bytes[..4].copy_from_slice(&SPRITE_TABLE_TYPE.to_le_bytes());
+    bytes[4] = 0xAB;
+    bytes[32..36].copy_from_slice(&1_u32.to_le_bytes());
+    bytes[36..].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+    assert!(factory.serial_read_into(&table, 0, &bytes));
+    {
+        let read = table.read();
+        let data = read.table().unwrap();
+        assert_eq!(data.header()[0], 0xAB);
+        assert_eq!(data.entry_count(), 1);
+        assert_eq!(data.entry(0), Some(&bytes[36..]));
+        assert_eq!(data.entry(1), None);
+        assert_eq!(data.block(), &bytes[4..]);
+        assert_eq!(data.block().as_ptr(), data.header().as_ptr());
+        assert_eq!(table.reference_count(), 1); // all data getters borrow
+    }
+    assert!(!factory.serial_read_into(&table, 0, &anim_bytes([0; 5])));
+    // SerialRead never releases the resource.
+    assert_eq!(table.reference_count(), 1);
+    // Failed-read rollback is the documented portable choice, not native evidence.
+    assert_eq!(table.read().table().unwrap().block(), &bytes[4..]);
+    assert!(factory.serial_read_into(&table, 0, &bytes));
+    assert_eq!(table.reference_count(), 1);
 }

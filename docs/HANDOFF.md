@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 337 (Dormant tutorial/citydetail/variant/feature shadow keys and the traffic sentinel fix landed; landvalue dropped one line (run 5).); 336 (Advisors shadow exact in the house regress and credited; particles, strings, network rules and GZ framework contracts landed (run 5).); 335 (advisors round 2, clean 2032 run, strict shadow 1/73 with all differences explained by AD18); 334 (Advisors shadow and Lua host owners landed; web/network and grid/RNG contracts merged; traffic flake recurred (run 5).); 333 (Seven lanes landed after bisecting out the netocc shadow; effects parser commands claimed; resumes no longer blocked by the unmerged cap (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 358 (strings shadow exact 73/73 through 2032, run 343); 356 (Spandau control clean but short of 2032; emergency pauses and pre-observation samples prevent full shadow verification; key stays out of shadows profile.); 355 (Clean real-city 2032 network-rules measurement, 75/75 mismatch-clean and 74/75 exact; pre-readiness load report keeps profile key excluded pending review.); 354 (Fault-free but bankrupt before 2032; mismatch-clean observed shadow retained, script input corrected for peripheral placement retry.); 353 (Reached 2032 with mismatch-clean shadow, but caught demolition faults and later shutdown exception invalidate clean-run acceptance; key stays out of shadows profile.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

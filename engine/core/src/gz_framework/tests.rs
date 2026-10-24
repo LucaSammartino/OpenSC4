@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Event-recorder conformance vectors GZC01–GZC38 (§10).
+//! Event-recorder conformance vectors GZC01–GZC74 (§10).
+#[path = "closure_tests.rs"]
+mod closure;
 use super::*;
 use crate::commands::{self, CommandServer, ValueConvert};
 use crate::variant::{Elem, Variant};
@@ -20,6 +22,7 @@ struct Spy {
     resource: bool,
     stream: bool,
     setting: Option<String>,
+    library_ids: BTreeMap<String, Token>,
 }
 impl References for Spy {
     fn add_ref(&mut self, t: Token) {
@@ -107,7 +110,7 @@ impl com::Host for Spy {
     }
     fn load_library(&mut self, name: &str) -> Option<Token> {
         self.events.push(format!("load:{name}"));
-        (name != "missing").then_some(12)
+        (name != "missing").then_some(*self.library_ids.get(name).unwrap_or(&12))
     }
     fn library_director(&mut self, _: Token) -> Option<Token> {
         Some(13)
@@ -261,7 +264,7 @@ fn gzc05_07_services_and_protection() {
     assert!(f.add_tick(&mut h, 1));
     assert!(!f.add_tick(&mut h, 1));
     assert_eq!(f.add_ordered(&mut h, 8, 1, 1), Ok(true));
-    assert_eq!(f.add_ordered(&mut h, 9, 1, 2), Err(Unsupported("GZF1")));
+    assert_eq!(f.add_ordered(&mut h, 9, 1, 2), Ok(true));
     f.registry_protected = true;
     assert!(!f.remove_service(&mut h, 1));
     assert!(!f.add_service(&mut h, 2, Some(2)));
@@ -465,7 +468,7 @@ fn gzc22_25_buffer_storage_locks_and_colour() {
     assert_eq!(b.modifications, 1);
     assert!(b.unlock(0));
     assert_eq!(b.nesting, 1);
-    assert_eq!(b.lock_flags, 0);
+    assert_eq!(b.lock_flags, 0x8042);
     assert_eq!(b.rect(), [0, 0, 10, 3]);
     assert_eq!(b.colour_type(), (2, 8));
     assert_eq!(b.bytes_per_pixel(), 1);
@@ -476,6 +479,9 @@ struct Back {
     recurse: bool,
 }
 impl logging::Backend for Back {
+    fn dump(&self, stream: &dyn logging::Stream) {
+        stream.write("backend dump\n");
+    }
     fn accepts(&self, _: &str, _: i32) -> bool {
         self.events.lock().unwrap().push("filter".into());
         self.accepts
@@ -519,7 +525,8 @@ fn gzc26_log_level_sentinels() {
 fn gzc27_log_filter_decline() {
     let l = logging::Log::default();
     let b = backend(false, false);
-    l.add_backend("test", b.clone()).unwrap();
+    l.attach_initialized_host();
+    assert!(l.add_backend("test", b.clone()));
     l.output("c", 1, "rejected");
     assert_eq!(*b.events.lock().unwrap(), ["filter"]);
 }
@@ -527,7 +534,8 @@ fn gzc27_log_filter_decline() {
 fn gzc28_log_recursion_deferred_and_bounded() {
     let l = logging::Log::default();
     let b = backend(true, true);
-    l.add_backend("test", b.clone()).unwrap();
+    l.attach_initialized_host();
+    assert!(l.add_backend("test", b.clone()));
     l.output("c", 1, "outer");
     assert_eq!(
         *b.events.lock().unwrap(),
@@ -548,7 +556,8 @@ fn gzc28_log_recursion_deferred_and_bounded() {
 fn gzc29_foreign_thread_fifo_owns_text() {
     let l = Arc::new(logging::Log::default());
     let b = backend(true, false);
-    l.add_backend("test", b.clone()).unwrap();
+    l.attach_initialized_host();
+    assert!(l.add_backend("test", b.clone()));
     let producer = l.clone();
     std::thread::spawn(move || {
         for text in [String::from("A"), String::from("B")] {
@@ -712,7 +721,7 @@ fn buffer_formats_and_alloc_failure() {
     assert_eq!(b.init(&mut Fails, 1, 1, 2, 8), Err(Unsupported("GZF6")));
     assert!(!b.lock(0));
     let mut sentinel = 99;
-    assert_eq!(b.colour_key(&mut sentinel), Err(Unsupported("GZF10")));
+    assert_eq!(b.colour_key(&mut sentinel), Ok(false));
     assert_eq!(sentinel, 99);
 }
 struct LogLife(Vec<&'static str>);
@@ -731,9 +740,9 @@ fn log_levels_backend_mutation_and_shutdown() {
     let b = backend(true, false);
     assert!(!l.initialized());
     assert_eq!(l.default_level(), i32::MAX);
-    l.add_backend("a", a.clone()).unwrap();
-    l.add_backend("b", b.clone()).unwrap();
-    assert_eq!(l.add_backend("a", a.clone()), Err(Unsupported("GZF7")));
+    assert!(l.add_backend("a", a.clone()));
+    assert!(l.add_backend("b", b.clone()));
+    assert!(!l.add_backend("a", a.clone()));
     l.set_output_level(Some("a"), None, 7);
     assert_eq!(a.events.lock().unwrap().len(), 1);
     assert!(b.events.lock().unwrap().is_empty());

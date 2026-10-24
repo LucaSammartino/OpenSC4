@@ -5,6 +5,7 @@
 pub mod buffer;
 pub mod com;
 pub mod filesystem;
+pub mod formatting;
 pub mod framework;
 pub mod logging;
 pub mod script;

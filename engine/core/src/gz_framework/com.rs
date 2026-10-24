@@ -21,6 +21,7 @@ pub trait Host: References {
 #[derive(Default)]
 pub struct Com {
     pub initialized: bool,
+    running: u8,
     framework: Option<Token>,
     director: Option<Token>,
     libraries: BTreeMap<String, Token>,
@@ -28,6 +29,34 @@ pub struct Com {
     id_lock: std::sync::Mutex<()>,
 }
 impl Com {
+    pub fn set_service_running(&mut self, running: u8) {
+        self.running = running;
+    }
+    pub fn service_running(&self) -> u8 {
+        self.running
+    }
+    pub fn enumerate_libraries(&self, context: Token, callback: Option<&mut dyn FnMut(Token, Token) -> bool>) {
+        if let Some(callback) = callback {
+            for &library in self.libraries.values() {
+                if !callback(library, context) {
+                    break;
+                }
+            }
+        }
+    }
+    pub fn library_array(&self, host: &mut impl References, output: Option<&mut [Token]>, count: &mut u32) -> u32 {
+        let Some(output) = output else {
+            *count = self.libraries.len() as u32;
+            return *count;
+        };
+        *count = (*count).min(self.libraries.len() as u32);
+        assert!(output.len() >= *count as usize, "writable output capacity required");
+        for (slot, &library) in output.iter_mut().zip(self.libraries.values()).take(*count as usize) {
+            host.add_ref(library);
+            *slot = library;
+        }
+        *count
+    }
     pub fn query_interface(&self, host: &mut impl References, this: Token, base: Token, iid: u32) -> Option<Token> {
         if iid == IID {
             host.add_ref(this);

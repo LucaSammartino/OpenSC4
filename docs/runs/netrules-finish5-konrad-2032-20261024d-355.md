@@ -1,0 +1,10 @@
+tag: netrules-finish5-konrad-2032-20261024d-355
+run: 355
+date: 2026-10-24
+lane: glue-netrules-finish5
+dll: engine/build-x86/FreeCity4.dll; SHA256 3c724b5ed15cac3d5a6d3bc0a8238b1a54efbb3e3f3bcaaaa526dfc4c61365f5
+pacing: turbo
+verdict: clean
+switches: Konradshohe; enable=simulator,budget,landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports (38 actual providers); native netmgr/netlot/nettool/demolition; netrules_shadow=1; script=build-runs/netrules-finish-peripheral-actions.txt; seconds=600; timeout=750; end_date=2032-02-01; popup_dialogs=0; close_dialogs=1; autotest_end=quit.
+result: Clean to 2032-02-01 in 126.828 seconds, ref_warnings=0, foreign_exceptions=0, structured exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, dialogs_closed=0. Full-log summary also zero problems, apart from two expected startup x87 warning lines. netrules-finish5-konrad-2032-20261024d 75/75 mismatch-clean; shutdown reports 75 lines/74 exact, evaluations=84, tables=24, mismatches=0, table_mismatches=0, incomplete=0, unavailable=0, resynced=0. The one non-exact line is the initial load status, ready=0, epoch=0, evaluations=0, tables=0, exact=0; all 73 monthly reports and shutdown are exact=1. Last monthly funds=56221, population R/C/I=15309/2494/7620. All 19 script actions ran, including January 2032 mark and digest. Short two-cell peripheral placements avoid the original fixture's destructive central runs. Intersections remain explicitly unobserved. No full every-report exactness or profile-admission claim: key stays default-off and out of shadows profile. Verdict, full log, request and input script retained in this worktree's build-runs/.
+summary: Clean real-city 2032 network-rules measurement, 75/75 mismatch-clean and 74/75 exact; pre-readiness load report keeps profile key excluded pending review.

@@ -1,6 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lotrec5: SG3 simgrid and LR12 master lot record shadows | Codex / `glue-simgrid-lotrec5` (engine, detached HEAD) | READY; cargo 6702/0, clippy clean, CTest 70/70; r1 and r2 clean to 2032, ref_warnings=0; simgrid 73/73 and lotrec 73/73 in each; no new questions; ABI unchanged | Coordinator: credit coverage and add exact keys to regress shadows profile |
+| glue-simgrid-lotrec5: SG3 simgrid and LR12 master lot record shadows | Codex / `glue-simgrid-lotrec5` (engine, detached HEAD) | in progress; round 2 integration | Resolve main merge, native gate, new 2032 run, refresh main, READY queue |
+
+## Handoff
+
+- Goal: integrate existing shadows with moving main; no new implementation scope.
+- First required merge started; conflicts in additive lists, WriteCapture, generated questions total and regress profile.
+- Keep independent native WriteVariant capture from this lane; combine additive module/source/config lists.
+- Next: resolve conflicts, commit merge; qbuild all (stable source) and verify; new unique game label to 2032.
+- Before queue: merge main again and repeat native gate if anything merges.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-simgrid-lotrec5-r2-manifest.json.
+- Detached HEAD intentional; never switch branches or update shared refs.
 
 ## Changes
 

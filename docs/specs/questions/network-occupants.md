@@ -93,25 +93,9 @@ implementer of the class tables and records.
   §§4.2–4.7 also supply connection removal, distress, model/position and drawing summaries. Complete
   connection/cell-walk, model/resource, transform/bounds/Pick/Draw algorithms still require verification;
   the diagonal floor's numeric operation order remains NO43. NO33 stays open for full owner closure.
-
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
-  named matrices; SetUIState, SetBitmapInfo, dispatch type/state, SetSourceOccupant and SetPylonOwner
-  side effects; bounds/transform/position/pick; DoAnimationTick, SetVisibility, DoMessage, Draw and sort;
-  BuildMySimTexture, RebuildCurrentTexture, BuildCallNumberTexture and RebuildModel algorithms. Also
-  supply both PackRenderState descriptions and the renderer slot-0x28 result interpretation. The spec
-  names these members without behavior. The core implements only explicit lifecycle subscriptions,
-  call/drag storage and the record, with no host callbacks standing in for these owner methods.
-  [missing; sections 6.1-6.2 remain open]
-  **Progress 2026-10-23 (re-netocc-answers5):** §6.2.1 and tests 40–42 now specify changed/equal enum
-  setters, unconditional bitmap dirtying, source/owner ref ordering, the shared u32 blink timer,
-  position/reinsertion and visibility. Existing §6.2/test 20 already supplies both packing tuples and
-  the discarded renderer +28 result. Texture/model composition, Draw/Pick, transform/bounds/sort and
-  message decisions remain open; these partial rules do not close NO36.
-  **Progress 2026-10-23 (re-netocc-poles5):** §6.2.2/tests 46–48 now settle cached local/world
-  bounds, transform counter/mask copies, texture-ID sorting, pick eligibility/height/strict distance,
-  ordinary texture resource tables and stale-ID behavior on replacement failure. Full model construction,
-  MySim/label composition, Draw and message owner algorithms remain open. NO44 is answered separately.
+  **Progress 2026-10-23 (re-netocc-answers5d):** §4.7.2/tests 54–55 settle the occupant bounding
+  rectangle, sampled-list eligibility, unsigned extrema comparisons, signed output conversion and
+  wrapping maximum-cell increment. Remaining model/Pick/wire/Draw contracts still prevent closure.
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
@@ -136,10 +120,6 @@ implementer of the class tables and records.
   attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
   underground base geometry and Draw/transform/box algorithms remain open.
 
-<!-- from: re-ugbase (2026-10-20) -->
-- **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
-  classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
-
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
@@ -148,3 +128,4 @@ implementer of the class tables and records.
 - **NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
   `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
   (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]
+

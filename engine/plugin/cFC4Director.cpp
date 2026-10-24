@@ -33,6 +33,7 @@
 #include "FC4LanguageVerify.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4NetRulesShadow.h"
 #include "FC4MySimsShadow.h"  // the mysims1 lane: mysims_shadow
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4Fpu.h"
@@ -365,6 +366,7 @@ public:
         fc4::CmdLineProbe(FrameWork());  // opt-in public borrowed process query evidence
         fc4::Span8Start();
         fc4::PersistManagerVerify(); // Opt-in scoped fixtures, all removed before city load.
+        fc4::NetRulesShadowStart(); // before original network tools initialize
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
