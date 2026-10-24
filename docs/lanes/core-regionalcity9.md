@@ -15,7 +15,8 @@
 - Conformance crate now includes all foundations §14.20–22 header/version and four-deal claiming vectors (four tests total).
 - Focused conformance PASS 4/4 (build-runs/conformance-final.log); final explicit-file fmt PASS 5 files / zero diff lines.
 - Final all gate on source 803244736 completed PASS: Rust 7001/0, clippy zero diagnostics, build 47/47 edges (88.6s), CTest 79/79 (180.8s), total native 271.4s. Label qbuild-20261024-091216-build-ctest; session 34762 terminal PASS.
-- Next: collect explicitly requested qbuild verify, then report/queue. No code edits pending; worktree clean before this documentation update.
+- Explicit qbuild verify outstanding: qbuild-20261024-092447-build-ctest, SAME collector exec session 16861 (currently functions cell 71). Do not launch a duplicate; collect terminal result or read its already completed verdict.
+- Next: collect verify, then replace Handoff with full report and commit; write merge queue at actual HEAD. No code edits pending.
 - Question RY7 records literal Read edge-case choices; raw codec round-trip is separate from object Read normalization.
 - q.py Bash wrapper fails CreateFileMapping before execution; direct Cargo works.
 - Required final checks: qbuild all and verify; no game integration in this lane.
