@@ -1,8 +1,86 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-watercraft-close12 | `core-watercraft-close12` / engine lane, detached reserved worktree | in progress; resuming `18be8b1e9`; ABI unchanged | Finish settled owner integration and vectors; run all and queued verify; commit report and READY entry. |
+| core-watercraft-close12 | `core-watercraft-close12` / engine lane, detached reserved worktree | continue: context guard OVER; cargo 7388/0, clippy clean, CTest 81/81; ABI unchanged | Finalize passing partial batch and READY queue entry in fresh context; full owner closure remains incomplete. |
 
 ## Handoff
+
+- Goal: settled WC4/WC5 cSC4Watercraft owner closure, except actual spec gaps; this batch remains partial.
+- Done: `5e9b9abae` runtime/picker/effect integration and six tests; `a26b57f59` README paths; `21c73dc85` actual test/clippy corrections; `454da7fad` gate handoff.
+- Final corrected all PASS: cargo 7388/0, clippy zero diagnostics, queued build 46/46 and CTest 81/81; `build-runs/all-r2-corrected.log`.
+- Explicit verify PASS: build 46/46, CTest 81/81; `build-runs/verify-r2-final.log`. Formatting nine owned files PASS.
+- All three gate operations collected to terminal. No outstanding game/gate operation; no game run; no ABI/plugin/capi changes.
+- Failed initial evidence preserved as `failed-r2-1-qbuild-test.log`, `failed-r2-1-qbuild-clippy.log`, `all-r2-final-1.log`.
+- Full report follows. README owner table remains honest about settled implementation/test debt and WC10/WC11/WC12.
+- Exact next step: finalize this passing partial batch, commit final report as needed, then write READY `build-runs/merge-queue/core-watercraft-close12.json` with actual full HEAD. Do not rerun gates without a new diagnostic/source change.
+- Guard OVER at finalization prevented queue write; no merge-queue file was written this round.
+- Existing WC12 is not answered; no questions newly filed this round. Never imply complete owner closure.
+
+## Final report (this round)
+
+**This passing batch does not achieve complete cSC4Watercraft owner closure.**
+The standing two-thirds context stop ended new implementation work; remaining
+settled debt stays explicitly pending in the module README, rather than being
+misrepresented as a spec gap.
+
+Implemented column module paths are relative to `engine/core/src/watercraft/`:
+
+- `runtime.rs`: common watercraft state dispatch, crash completion/pop and idle
+  fallthrough, inherited/owner animation order, rope refresh/preconditions,
+  inherited drive channel stepping, full player-drive order and far docking.
+- `routes.rs::pick_location`: bounded wandering search, direction order,
+  navigability/overlap rejection and first-failure backtracking.
+- `targets.rs::ai_motion_core`: executes the core picker before settled AI
+  midpoint/target/publication arithmetic; no external target-result provider.
+- `crash.rs::CrashEffectSet`: concrete transform-before-start refresh with
+  optional splash and required grounding/gated mushroom preconditions.
+- `movement.rs::update_wakes`: each stop is followed by the specified update.
+- `runtime_tests.rs`: six integration tests cover drive timing/base false,
+  sentinel/saturation arithmetic, core picking/consumption, bounded failed
+  search, crash effect refresh/preconditions and state completion/fallthrough.
+  Existing wake fixture now asserts all six stop/update pairs explicitly.
+
+Final validation on corrected stable source:
+
+- Required `qbuild.py all`: **PASS**, cargo **7388 passed / 0 failed**,
+  clippy **0 diagnostics**, native build **46/46**, CTest **81/81**.
+  Summary `build-runs/all-r2-corrected.log`; detailed Rust logs
+  `qbuild-test.log`, `qbuild-clippy.log`; native logs `fc4verify-build.log`,
+  `fc4verify-ctest.log`. Queued native label
+  `qbuild-20261024-183702-build-ctest`; build 2.2 s, CTest 113.9 s.
+- Explicit queued `qbuild.py verify`: **PASS**, build **46/46**, CTest
+  **81/81**, total 93.6 s; `build-runs/verify-r2-final.log`, label
+  `qbuild-20261024-182822-build-ctest`.
+- Formatting **PASS**, nine explicit owned Rust files, zero differences;
+  `build-runs/fmt-r2-corrected.log`.
+- Initial all: Rust **7142/1** (stale wake fixture), clippy two precision
+  diagnostics; native **81/81** with tree-changed note. Failed Rust evidence
+  retained in `failed-r2-1-qbuild-test.log`, `failed-r2-1-qbuild-clippy.log`,
+  and `all-r2-final-1.log`. Corrected only those actual diagnostics before
+  repeating all. Earlier stale-source focused run was cancelled/collected
+  exit 1; `focused-r2-1.log` is not a passing test verdict.
+- Every asynchronous operation was collected to terminal. No outstanding
+  gate/game request. No game run: unwired core-only module, no owner shadow.
+  No plugin/capi changes or C ABI changes.
+
+Questions: none newly filed this round. Existing WC12 in
+`docs/specs/questions/watercraft.md` still records contradictory heel endpoint
+and H09 contact-basis prose; implementation follows the documented newer
+completion/H10 endpoint and explicit banking call. WC10/WC11 remain model
+acquisition/publication gaps.
+
+Remaining owner debt is recorded section by section in
+`engine/core/src/watercraft/README.md`: lifecycle/forwarding and model-load
+control (§§1, 3–3.6), inherited enter result (§4), full effect-command execution
+and end-to-end animation vectors (§§5.1, 5.1.3–5.1.5, 5.1.7), composed search,
+docking/route/helper/collision vectors (§§5.2–5.7.0), tow-command refresh and
+following/message/debug lifetime work (§§6.2–7, 9), and complete §11 coverage.
+These are implementation/test debt, not Unsupported claims justified by WC4/WC5.
+Next round should finish these rows before claiming the requested full closure.
+
+Commits this round: `5e9b9abae` implementation, `a26b57f59` coverage map,
+`21c73dc85` diagnostic corrections, `454da7fad` corrected gate handoff.
+
+## Earlier checkpoints (superseded by final results above)
 
 - Goal: cSC4Watercraft closure in `engine/core/src/watercraft/`, except spec-open WC10/WC11.
 - Prior implementation: `7fc6ee83f`; fixture/format corrections: `015caaa14`; native pass: `d23d651e4`.
