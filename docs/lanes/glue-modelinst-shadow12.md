@@ -4,6 +4,7 @@
 
 ## Handoff
 - Goal: merge shadow11, fix menu load blocker, apply MI14 and measure shadows through 2032.
-- Done: reserved detached worktree reused; initial tree clean, no commits ahead of main.
-- Next: merge glue-modelinst-shadow11 and inspect its report and pre-load diff.
+- Done: shadow11 merged in 2b8dc5bcf, preserving main's lighting additions.
+- Diagnosis: pre-load diff only registers default-off ini key; fixture starts in city-load notification. MI14 proves missing constructor flag corrupts the x86 stack and allocation-start cast selects the container instead of instance interface.
+- Applied MI14 constructor flag 1 and +0xA0 standalone interface adjustment; next: queued native verification, then game to 2032 to test load and exact fixture results.
 - Keep shadows default-off; use queued native builds and game runs; no direct game launch.

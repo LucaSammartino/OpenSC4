@@ -58,15 +58,15 @@ void Compare(int32_t julian, bool load) {
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     if (base && SupportedImage(base)) {
         for (uint32_t probe = 0; probe < 2; ++probe) {
-            // MI14: live enumeration/ownership and missing getter contracts are
-            // unavailable. This finite fixture is separate from all city objects.
-            // Literal constructor/body-destructor interpretation of spec 2:
-            // receiver-only thiscall; use the nondeleting body, never Release
-            // embedded storage or invoke the pool delete on it.
+            // MI14 / spec 2.2: standalone construction requires flag 1; its
+            // instance interface is at +0xA0, not the container at +0. Use the
+            // receiver-only nondeleting body on the allocation for cleanup.
+            // These offsets apply only to this separate complete static fixture.
             alignas(4) unsigned char storage[0xA4]{};
+            using Construct = void*(__thiscall*)(void*, uint32_t);
             using Lifetime = void(__thiscall*)(void*);
-            reinterpret_cast<Lifetime>(base + 0x00402950)(storage);
-            auto* instance = reinterpret_cast<cIS3DModelInstance*>(storage);
+            reinterpret_cast<Construct>(base + 0x00402950)(storage, 1);
+            auto* instance = reinterpret_cast<cIS3DModelInstance*>(storage + 0xA0);
             const bool bound = reinterpret_cast<uintptr_t>(*reinterpret_cast<void***>(instance)) == base + 0x006BD508;
             ++fields;
             mismatches += !bound;
@@ -109,7 +109,7 @@ void Compare(int32_t julian, bool load) {
     } else {
         ++mismatches; // no vacuous exact line on an unsupported image
     }
-    fc4::Log("modelinst shadow %04d-%02d-%02d: phase=%s scope=isolated-static-transform-bounds fixtures=2 fields=%u live=unavailable(MI14) resyncs=0 mismatches=%u",
+    fc4::Log("modelinst shadow %04d-%02d-%02d: phase=%s scope=isolated-static-transform-bounds fixtures=2 fields=%u live=unobserved resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", fields, mismatches);
     ++lines;
     clean += mismatches == 0;
@@ -122,13 +122,13 @@ void ModelInstShadowCityLoaded(cISC4City* city, int32_t julian) {
     lastMonth = -1;
     lines = clean = 0;
     if (!active) return;
-    Log("modelinst: ON; isolated finite static constructor/getters/transform/bounds only; no live-instance or whole-owner credit (MI14)");
+    Log("modelinst: ON; isolated finite static constructor/getters/transform/bounds only; no live-instance or whole-owner credit; MI14 binding applied");
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian, true);
 }
 void ModelInstShadowMonth(int32_t julian) { Compare(julian, false); }
 void ModelInstShadowCityShutdown() {
-    if (active) Log("modelinst shadow summary: clean=%u/%u scope=isolated-static-transform-bounds live=unavailable(MI14)", clean, lines);
+    if (active) Log("modelinst shadow summary: clean=%u/%u scope=isolated-static-transform-bounds live=unobserved", clean, lines);
     active = false;
 }
 }
