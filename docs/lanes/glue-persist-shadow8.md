@@ -4,10 +4,12 @@
 
 ## Handoff
 - Goal: default-off persist shadow for resource manager and buffer resources; 2032 game evidence.
-- Done: 6cc4cdd6e initial handoff; implemented default-off read-only cache-type projection.
+- Done: 6cc4cdd6e initial handoff; a0eafa909 implemented default-off read-only cache-type projection.
+- Gate: focused test 1/1; fmt clean; qbuild all Rust tests 6939 passed, clippy 0 diagnostics.
+- Native: qbuild-20261024-061011-build-ctest queued by the same all operation; collect session 12974, do not duplicate.
 - Scope: core Filter::Type and KeyList append vs native GetResourceListForType, all key fields/order/duplicates.
 - Questions: PR9 registry/cache/refcount independent replay; SCR11 buffer replay inputs. No whole-owner credit.
-- Next: focused Rust test, final all gate (native coordinator queue), 2032 turbo game.
+- Next: collect queued native gate, then 2032 turbo game with persist_shadow=1.
 - Constraints: clean-room; no tools reads/edits; no branch/ref changes; no agents.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-persist-shadow8-r1-manifest.json.
 - Outstanding game requests: none.
