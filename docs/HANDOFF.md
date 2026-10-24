@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 497 (Partial MySim dispatch and helicopter shadows landed; propmgr missed one month, a known intermittent (run 5).); 496 (default-off dispatch constructor comparison, 73/73 exact samples; live owner uncompared); 493 (partial helicopter metadata exact 73/73 to 2032; AF11 full adapter open, run 10481); 491 (Region core module, region, renderer-driver and nation answers landed; landvalue missed one month, a known intermittent (run 5).); 490 (Widget grid contracts, DBPF monthly rotation in the house profile, the implemented-column audit and the partial renderprops shadow landed (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 510 (Traffic drift fix, lighting shadow, EX56 and vehicle answers, and the vehicles, UI window, web-network and nation cores landed (run 5).); 497 (Partial MySim dispatch and helicopter shadows landed; propmgr missed one month, a known intermittent (run 5).); 496 (default-off dispatch constructor comparison, 73/73 exact samples; live owner uncompared); 493 (partial helicopter metadata exact 73/73 to 2032; AF11 full adapter open, run 10481); 491 (Region core module, region, renderer-driver and nation answers landed; landvalue missed one month, a known intermittent (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

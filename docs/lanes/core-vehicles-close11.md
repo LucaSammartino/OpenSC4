@@ -63,8 +63,8 @@ The prior round's failed clippy log remains `qbuild-clippy-r1-failed.log`.
 
 ## Real game
 
-Unique label: **core-vehicles-close11-r2-smoke-20261024-a1**.
-[Run record](../runs/core-vehicles-close11-r2-smoke-20261024-a1.md) (local run 482).
+Unique label: **core-vehicles-close11-r2-smoke-20261024-a1-501**.
+[Run record](../runs/core-vehicles-close11-r2-smoke-20261024-a1-501.md) (local run 482).
 Built DLL SHA prefix `f408380f`; Konradshohe, turbo, target 2027-01-01.
 Verdict **clean** at 2027-01-02: exceptions/stalls/rtc/overruns/**ref_warnings=0**;
 Rust panics, structured exceptions, shadow INCOMPLETE and other warnings all 0.

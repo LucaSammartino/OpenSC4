@@ -1,5 +1,5 @@
-tag: lighting9-r3-extended-house2032-20261024a-495
-run: 495
+tag: lighting9-r3-extended-house2032-20261024a-508
+run: 508
 date: 2026-10-24
 lane: glue-lighting-shadow9
 dll: FreeCity4-glue-lighting-shadow9 (source d441508d5; SHA256 EEF6F4E39B5C00610369738173529A459F35A8BCC3596E30F86D054DA5264C60)

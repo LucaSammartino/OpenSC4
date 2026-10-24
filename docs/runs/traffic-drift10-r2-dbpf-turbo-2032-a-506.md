@@ -1,5 +1,5 @@
-tag: traffic-drift10-r2-dbpf-turbo-2032-a
-run: 493
+tag: traffic-drift10-r2-dbpf-turbo-2032-a-506
+run: 506
 date: 2026-10-24
 lane: glue-traffic-drift10
 dll: source merge dff0e55d6 (main 655671626 plus deferred DBPF queue); SHA256 6e89375a905e324663b2eabce86d734c29c0ba574505cce6cb00c3ef68683451

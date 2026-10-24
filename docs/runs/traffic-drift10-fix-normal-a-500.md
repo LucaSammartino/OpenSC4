@@ -1,5 +1,5 @@
-tag: traffic-drift10-fix-normal-a
-run: 480
+tag: traffic-drift10-fix-normal-a-500
+run: 500
 date: 2026-10-24
 lane: glue-traffic-drift10
 dll: candidate 3d2a34205; SHA256 3bd60f90ba90c42cbfce9eb3715c723e2b6672bca78e0606f2e3abb6174a7754
