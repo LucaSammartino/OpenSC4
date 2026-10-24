@@ -86,11 +86,10 @@ specified core contract is covered; it does not claim native backend integration
 
 ## Remaining boundaries
 
-RD8–RD11 are implemented under the merged spec. RD6 retains only the explicitly
-unsettled non-copy arithmetic (§9.6); RD7 retains only CopyColorBuffer (§12.5).
-RD12 asks for the ownership/alias mapping between the context's surfaces and
-the three exact driver slots used by region methods. Those slots are explicit
-inputs to this core; setup/restore does not guess their aliases.
+RD6–RD12 are implemented under the merged spec. Converter arithmetic (§9.6),
+CopyColorBuffer (§12.6), and setup/recovery surface ownership (§§4.3–4.4, 14.2)
+are covered by DX7-50–62. The externally supplied slot +234 remains unpopulated
+by setup/recovery, as specified.
 RD1's null-write hazard is represented by `Fault::NullWrite`. RD3's unknown
 descriptor meanings and RD4's external loss-message handler do not prevent the
 specified descriptor writes and notifications. The portable matrix contract uses
@@ -99,6 +98,5 @@ compatibility mode is exposed, as allowed by §8.6.
 
 Owner status: cPrimitiveManager/cPrimitive, cVertexBuffer, cTextureStageData,
 D3DLight and the presentation context implement all specified behavior.
-cTextureManager implements every settled contract, with RD6 explicitly open.
-cGDriver implements every settled graphics/auxiliary body, with RD7 and RD12
-explicitly open. No plugin/C ABI registration is added.
+cTextureManager and cGDriver implement every settled contract, including RD6,
+RD7 and RD12. No plugin/C ABI registration is added.
