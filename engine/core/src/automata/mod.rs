@@ -87,6 +87,8 @@ pub use aircraft::{
 };
 pub use aircraft::{initialize_fire_plane_station_units, AirStationProperties};
 
+pub mod airplane;
+
 #[cfg(test)]
 mod tests;
 
