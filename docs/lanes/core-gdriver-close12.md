@@ -3,6 +3,8 @@
 | core-gdriver-close12 (DX7 owner closure) | Codex / `core-gdriver-close12` (engine lane) | in progress | Implement settled RD6–RD11 contracts and gate |
 
 ## Handoff
+- Final-source milestone f66bea7b0: fmt PASS 5 absolute paths; qbuild all workspace PASS 7087/7087, clippy PASS diagnostics=0.
+- ACTIVE NEW operation session 1250: native queue qbuild-20261024-114140-build-ctest, waiting behind game regress. Collect this operation with write_stdin 60000; do not launch another gate for progress. Native result pending.
 - Resumed 2026-10-24: requested RD11 merge already up to date (Git also reports read-only packed-refs lock); detached HEAD retained.
 - Fixed all six clippy diagnostics using Rust 1.75-compatible div_ceil; raw compressed row traversal now forward with overlap/stride regression. README adds support-owner rows with actual code/test names.
 - Prior failed gate summarized in build-runs/prior-gate-evidence.md before rerunning; do not collect inherited session per resumed task instruction.
