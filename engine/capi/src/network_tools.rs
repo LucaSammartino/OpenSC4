@@ -596,10 +596,10 @@ pub unsafe extern "C" fn fc4_nettool_enable_preview_update(t: *mut fc4_nettool, 
     })
 }
 
-/// `GetFailureState` (slot 14): `+0x20C`.
+/// `GetFailureState` (slot 14): Boolean, not the internal reason (NT28).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_nettool_get_failure_state(t: *const fc4_nettool) -> u32 {
-    with_st(t, 0, |st| st.failure)
+    with_st(t, 0, |st| u32::from(st.failure != 0))
 }
 
 /// `OccupantExists(x, z, flags, &mask)` (slot 9): the draft query. Writes

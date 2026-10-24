@@ -123,6 +123,42 @@ completion contract. Their dispatch is synchronous method dispatch. String
 resource loading and text drawing belong to their callers. There is no implicit
 LTEXT read, language change notification or font measurement when bytes change.
 
+### 2.1 Native substring and case-helper ABI (RZS8)
+
+These five entries use x86 **thiscall**, with the native receiver address in
+ECX. Mid/Left/Right return a native `cRZString` **by value**, using a hidden
+caller-supplied result pointer. The following table gives the complete machine
+boundary; stack offsets are relative to ESP on entry, including the return
+address at +0. Arguments are four-byte stack words, pushed right to left.
+Positions and counts are unsigned 32-bit byte quantities, not signed indices.
+
+| Entry | +4 | +8 | +12 | Return / stack cleanup |
+|---|---|---|---|---|
+| Mid, `0x0090EA57` | Result-storage pointer | Start | Count | EAX = result pointer; callee removes 12 argument bytes |
+| Left, `0x0090F45F` | Result-storage pointer | Count | — | EAX = result pointer; callee removes 8 argument bytes |
+| Right, `0x0090F4B3` | Result-storage pointer | Count | — | EAX = result pointer; callee removes 8 argument bytes |
+| MakeLower, `0x0090EAC5` | — | — | — | Void; no stack arguments |
+| MakeUpper, `0x0090EB8E` | — | — | — | Void; no stack arguments |
+
+Result storage is a separate, writable, suitably aligned **0x14-byte native
+object slot**, initially unconstructed. The helper constructs it, including the
+native vptr and reference count zero, and gives it its own character allocation;
+the caller must not preconstruct it or treat the hidden pointer as an assignment
+destination. The result survives destruction or mutation of the source. The
+caller destroys the constructed result exactly once, including empty results;
+for caller-owned storage, native destructor slot 28 with flag zero releases the
+buffer without freeing the object slot. Do not call Release on such a local
+object or delete its storage. Internal temporaries are the helper's obligation.
+Construction/return/cleanup evidence is `0x0090EA9F`–`0x0090EAC2`,
+`0x0090F48D`–`0x0090F4B0`, `0x0090F4E9`–`0x0090F50C`; the native result
+constructor initializes vptr/count at `0x00408C0A`–`0x00408C10`, and non-deleting
+scalar destruction is `0x0044BF64`–`0x0044BF8C`. The case helpers mutate the
+receiver and have **no defined return value**: EAX is incidental, including on
+the empty and wide-conversion paths, and must not be interpreted as the receiver,
+a Boolean, or another owned object (`0x0090EB77`–`0x0090EB8D`,
+`0x0090EC40`–`0x0090EC56`). Successful ordinary allocations and distinct valid
+receiver/result storage are assumed; RZS3 still covers invalid alias/failure edges.
+
 ## 3. Assignment and edits *[compat]*
 
 `FromChar(pointer,count)` replaces the entire value with exactly count bytes.
@@ -179,14 +215,27 @@ operators behave like slot 10. Sensitive branches were verified at
 CompareTo compares the common prefix, using the same sensitive NUL-stopping
 comparison or lowered full-byte comparison. If that result is zero, it returns
 the difference between the ORIGINAL byte lengths. Negative/zero/positive convey
-ordering; the original length difference is observable for equal prefixes.
+ordering; an unequal compared prefix returns exactly **-1 or +1**, according to
+unsigned-byte ordering, never the arithmetic difference between mismatching bytes
+(RZS9). This applies to both overloads and both sensitivity modes. The original
+length difference remains observable for equal prefixes, so the whole operation
+is not a normalized three-way comparator. The sensitive runtime's result is
+normalized at `0x009F1146`–`0x009F1152`; the insensitive full-byte comparator
+normalizes at `0x009F196B`–`0x009F1973`. Both owners preserve a nonzero result
+(`0x0090EF3F`–`0x0090EF52`, `0x0090F02D`–`0x0090F03B`).
 For example `ab` versus `abcd` returns -2, and equal-length `A 00 X` versus
 `A 00 Y` returns zero in sensitive mode (`0x0090EE61`, `0x0090EF5B`).
 
 Find returns the first byte position at or after start. RFind returns the last
 position at or before start, limited to positions where the whole needle fits.
-Failure is unsigned `0xFFFFFFFF`. Empty-needle Find returns start when
-start <= length and failure otherwise; empty-needle RFind returns
+Failure is unsigned `0xFFFFFFFF`. Empty-needle Find returns start only when
+**start < length**, and failure at or beyond the counted end (RZS11). Thus an
+empty haystack fails even for an empty needle and start zero, in either
+sensitivity mode and either needle overload. This is a native quirk: the forward
+range search returns the candidate start for an empty needle, but its owner
+maps a result equal to the haystack end to failure (`0x004426C9`–`0x004426D7`,
+`0x0044282E`–`0x0044283C`). It is not an empty-haystack-only guard.
+Empty-needle RFind returns
 min(start,length). Both needle overloads ultimately scan the needle to its first
 NUL: even an object needle does not use its stored length for the final search
 (`0x00442850`, `0x005C2620`). The haystack remains a counted range, so a search
@@ -495,6 +544,13 @@ precision zeros and digits; zero field padding can therefore occur **before**
 `0x`. A sign precedes zero field padding, but follows space field padding.
 With `-`, zero padding is disabled and any width deficit becomes trailing spaces.
 Only signed integer/floating families acquire the `+`/space sign.
+In particular, `%#010x` with unsigned 3473 produces `000000xd91` (RZS10):
+three digits plus the two-byte `0x` prefix leave five field-padding zeros;
+the prefix's own zero follows those five zeros. `%#010X` produces `000000XD91`.
+`%#010.5x` also produces ten bytes, with different prefix placement: three field zeros,
+then `0x`, then two precision zeros, then `d91`, namely `0000x00d91`.
+The latter illustrates that field zeros and precision zeros occupy different
+positions even though their total count is unchanged.
 Evidence: precision/prefix selection `0x0090FA42`–`0x0090FA8A`, sign and width
 accounting `0x0090FA8C`–`0x0090FAFE`, and prefix/precision/digit emission
 `0x0090FB03`–`0x0090FB78`.
@@ -672,7 +728,7 @@ are part of the expected result.
 | RZ10 | [61 00 62 63].Find(`bc`,0,true) | 2 |
 | RZ11 | `abcd`.Find(object [62 00 7A],0,true) | 1 (needle C prefix `b`) |
 | RZ12 | `ababa`: Find(`ba`,0,true); RFind(`ba`,0xFFFFFFFF,true); Find(`x`,0,true) | 1; 3; 0xFFFFFFFF |
-| RZ13 | `ab`: Find(empty,2,true); Find(empty,3,true); RFind(empty,99,true) | 2; failure; 2 |
+| RZ13 | `ab`: Find(empty,2,true); Find(empty,3,true); RFind(empty,99,true) | failure; failure; 2 (corrected by RZS11) |
 | RZ14 | ` \tA\r\n \t`; Trim | `A\r\n` |
 | RZ15 | `abcd`: Mid(2,99), Mid(4,1), Left(99), Right(2) | `cd`, empty, `abcd`, `cd` |
 | RZ16 | `a::b`; SplitToken(`::`) twice | first `a`, receiver `b`; then empty, receiver still `b` |
@@ -710,6 +766,21 @@ are part of the expected result.
 | RZ48 | Bits `3FB999999999999A` (binary64 nearest to 0.1); Sprintf `%.20e` | Raw `100000000000000005`; `D=10000000000000001, d=0`; `1.00000000000000010000e-001` |
 | RZ49 | Bits `3FF0000000000000` (1.0); Sprintf `%.20e` | Raw `099999999999999999`; `D=1, d=1`; `1.00000000000000000000e+000` |
 | RZ50 | Bits `4415AF1D78B58C40` (exact 10^20); Sprintf `%.16e` | Raw `999999999999999999`; guard carry gives `D=1, d=21`; `1.0000000000000000e+020` |
+| RZ51 | Native Mid on `abcdef`, start 2, count 99; independent unconstructed result slot per §2.1 | EAX equals result slot; 12 argument bytes removed; result `cdef`, native vptr, refcount 0; receiver unchanged |
+| RZ52 | Native Left(2) and Right(2) on `abcdef`, each with fresh result storage | Each returns its result pointer, removes 8 argument bytes; results `ab` / `ef`; changing or destroying source does not change either result; destroy each result once with slot 28 flag 0 |
+| RZ53 | Native Mid(6,1), Left(0), Right(0) on `abcdef`, fresh result slots | Three independently constructed empty native strings, each terminated and requiring destruction; source unchanged |
+| RZ54 | Native MakeLower then MakeUpper on counted [41 00 7A]; also each on empty | Lower [61 00 7A], upper [41 00 5A]; empty stays empty; ECX receiver, no arguments or return-value assertion |
+| RZ55 | `Konradshohe` versus `Ab`, CompareTo, sensitive and insensitive, both overloads | Exactly +1 in all four cases; reversed operands give -1 |
+| RZ56 | `abABabcdef` versus `AB`, CompareTo sensitive, both overloads | Exactly +1; insensitive returns +8 (equal lowered prefix, original lengths 10 minus 2) |
+| RZ57 | Counted [01] versus [7E], CompareTo, either sensitivity, both overloads | Exactly -1, not -125; reversed +1 |
+| RZ58 | Counted [41 00 58] versus [41 00 59], CompareTo, both overloads | Sensitive 0; insensitive exactly -1 |
+| RZ59 | Sprintf `%#010x` and `%#010X`, unsigned 3473 | `000000xd91`; `000000XD91`, each length 10 |
+| RZ60 | Sprintf `%#010.5x`, unsigned 3473 | `0000x00d91`, length 10 (three field zeros before prefix, two precision zeros after it) |
+| RZ61 | Sprintf `%#10x` and `%#-010x`, unsigned 3473 | `     0xd91`; `0xd91    ` (five spaces) |
+| RZ62 | Empty native haystack; Find(empty,0,sensitive), each needle overload and sensitivity | 0xFFFFFFFF in all four combinations |
+| RZ63 | `ab`; Find(empty,start,sensitive), each overload and sensitivity, starts 0,1,2,3 | 0; 1; 0xFFFFFFFF; 0xFFFFFFFF |
+| RZ64 | Empty haystack; RFind(empty,start,sensitive), each overload and sensitivity, starts 0 and 99 | 0 in every case; forward and reverse differ |
+| RZ65 | `ab`; Find(`b`,1,true), Find(`b`,2,true), each overload | 1; 0xFFFFFFFF (ordinary nonempty search unchanged) |
 | DT01 | Fresh base instance; literal `a<b` -> distinct output | true, `a<b`, no callbacks; HTML byte zero |
 | DT02 | Set value `City`=`Oak`; parse `Hi # city #!` | true, `Hi Oak!` |
 | DT03 | Set same key `CITY`=`Elm`; also named callback for `city` | true, `Elm` for `#City#`; callback not invoked |

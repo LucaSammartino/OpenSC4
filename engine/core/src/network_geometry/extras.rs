@@ -80,7 +80,7 @@ pub fn support_flags(level: u32) -> u32 {
 pub struct CostCell {
     /// Part of the run (cell record `+0x10`).
     pub in_run: bool,
-    /// Already built (`+0x52 ≠ 0` in network-tools.md §8.1).
+    /// Intersection marker (`+0x52 ≠ 0`); distinct from placed state (NT29).
     pub prebuilt: bool,
     /// The cell's network type bits.
     pub type_mask: u32,

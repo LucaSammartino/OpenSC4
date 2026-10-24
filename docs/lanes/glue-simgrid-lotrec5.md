@@ -11,9 +11,11 @@
 - Diagnostic C2512: main's explicit opt-in WriteCapture constructor conflicts with aggregate initialization of LR12 Sample.
 - Fixed LR12 member to capture{true}; retained main's variants_ guard with the independent native encoder.
 - Fix committed 90c916d27; corrected qbuild all PASS: cargo 6860/0, clippy 0, native 48/48, CTest 72/72, request qbuild-20261024-020630-build-ctest.
-- Next: game label lotrec-autumn-integrated to 2032 outstanding; run 359 collision grep found no matches.
-- Game wait: build-runs/wait-round2.ps1; preserve completed unique verdict, do not resubmit it.
-- Before queue: merge main again and repeat native gate if anything merges.
+- Game lotrec-autumn-integrated clean to 2032, ref_warnings=0, all problems zero; simgrid and lotrec each 73/73 exact observations.
+- Final lines: simgrid exact=86/86 bytes=423538; lotrec exact=671/671 bytes=238616. Full lines in game log and run record.
+- Second required main merge: main 5b14b8109; resolved additive config and sole regress profile; native verify next.
+- Main added run records through 373: use run 374 (359 was initially free but numbering advanced).
+- Before queue: collect post-refresh native verify; main refresh already performed after game.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-simgrid-lotrec5-r2-manifest.json.
 - Detached HEAD intentional; never switch branches or update shared refs.
 

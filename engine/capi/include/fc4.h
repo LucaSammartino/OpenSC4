@@ -12027,7 +12027,7 @@ bool fc4_nettool_reset(fc4_nettool* t);
 bool fc4_nettool_clear_failure(fc4_nettool* t);
 /* EnablePreviewUpdate (slot 21): +0x234. */
 bool fc4_nettool_enable_preview_update(fc4_nettool* t, bool on);
-/* GetFailureState (slot 14): +0x20C. */
+/* GetFailureState (slot 14): 0 or 1 for whether internal reason +0x20C is nonzero (NT28). */
 uint32_t fc4_nettool_get_failure_state(const fc4_nettool* t);
 /* OccupantExists (slot 9, zones.md §8.8). */
 bool fc4_nettool_occupant_exists(const fc4_nettool* t, int32_t x, int32_t z, uint32_t flags, uint8_t* mask);

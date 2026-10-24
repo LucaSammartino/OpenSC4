@@ -1143,5 +1143,10 @@ pub mod persist_manager_verify;
 // LR12 private record-only observation transport.
 mod lotrec_verify;
 
+// Private overlay getter-contract comparison and OV12 observation diagnostics.
+mod overlays_verify;
 // Private record-only network occupant verification transport.
 mod netocc_shadow;
+
+// Private collector/registration snapshot transport; no public DLL exports.
+mod lua_registry_shadow;

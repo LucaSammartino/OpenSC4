@@ -20,6 +20,8 @@ mod records;
 mod render;
 mod round;
 
+pub mod observation;
+
 pub use drawing::{DrawCommand, DrawingProducer, RectangleRoute, ShadowLighting, ShadowParameters, VisibleRows};
 pub use records::{CellRect, Handle, OverlaySnapshot, Placement, TextureScale};
 pub use render::{BlendFactor, DepthFunction, DrawState, FrameOptions, RenderSelection, DRAW_STATES};

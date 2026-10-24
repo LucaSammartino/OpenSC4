@@ -122,9 +122,9 @@ cSC4VertexHtConstraintSatisfier	network tools	simulation	network-geometry.md	cor
 cSC4NetworkCellInfo	network tools	simulation	network-geometry.md	core/src/network_geometry	-	-
 fn:ReadBridge*	network tools	simulation	network-bridges.md	core/src/network_bridge	-	-
 (anonymous_namespace)::cBridge*	network tools	simulation	network-bridges.md	core/src/network_bridge	-	-
-cSC4TileEvaluator	network rules	simulation	network-rules.md	core/src/network_rules	-	-
-cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	-	-
-cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	-	-
+cSC4TileEvaluator	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
+cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
+cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
 nSC4Networks*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	propmgr_shadow	propmgr
@@ -600,7 +600,7 @@ fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
-cRZString	strings and language	framework	rz-strings.md	core/src/language	-	-
+cRZString	strings and language	framework	rz-strings.md	core/src/language	strings_shadow	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
 cGZWWWSystem	web and network	framework	web-network.md	-	-	-

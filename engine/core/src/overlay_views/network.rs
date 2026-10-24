@@ -1,341 +1,266 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
-use std::sync::Arc;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct NetworkPath {
     pub key: u32,
     pub flags: u32,
-    pub points: Vec<Point>,
     pub has_heights: bool,
+    pub points: Vec<Vec3>,
 }
-
-pub struct RouteSet<'a> {
-    pub routes: &'a [NetworkPath],
-    pub chosen: Option<usize>,
-    pub track_type: u32,
+#[derive(Clone, Debug)]
+pub struct RouteSet {
+    pub keys: Vec<u32>,
+    pub chosen: u32,
 }
-
-pub trait NetworkOccupant {
-    fn paths(&self) -> &[NetworkPath];
-    /// Foreign network-manager slot 41; this is not a view-owner algorithm.
-    fn routes(&self, entry_edge: usize) -> RouteSet<'_>;
+pub trait NetworkHost {
+    fn manager_available(&mut self) -> bool;
+    fn visible_cells(&mut self) -> (Cell, Cell);
+    /// Preserve the manager's linked occupant order.
+    fn occupants(&mut self, cell: Cell) -> Vec<Handle>;
+    /// Preserve bucket order then chain order, without key sorting.
+    fn paths(&mut self, occupant: Handle) -> Vec<NetworkPath>;
+    fn altitude(&mut self, occupant: Handle, x: f32, z: f32) -> f32;
+    fn routes(&mut self, occupant: Handle, entry: u8) -> RouteSet;
+    fn path(&mut self, occupant: Handle, key: u32) -> Option<NetworkPath>;
+    fn route_origin(&mut self, occupant: Handle, first_key: u32) -> Option<Vec3>;
+    fn terrain_altitude(&mut self, x: f32, z: f32) -> f32;
 }
-
-pub trait Network {
-    fn visible_cell_rectangle(&self) -> CellRect;
-    fn occupants(&self, cell: [i32; 2]) -> Vec<&dyn NetworkOccupant>;
+/// Shared process pulse. No certified static initial value (NOV2).
+#[derive(Default)]
+pub struct Pulse {
+    value: Option<u8>,
 }
-
-pub struct SC4PathInfoView {
-    pulse: u8,
-    path_type: i32,
-    ignore_depth: bool,
-    state: Option<DrawState>,
+impl Pulse {
+    pub fn with_observed_value(value: u8) -> Self {
+        Self { value: Some(value) }
+    }
+    pub fn value(&self) -> Option<u8> {
+        self.value
+    }
+    pub fn advance(&mut self) -> Result<u8> {
+        let old = self
+            .value
+            .ok_or(Boundary::Unsupported("NOV2 pulse static initializer"))?;
+        let next = if old == 255 { 0 } else { old.wrapping_add(5) };
+        self.value = Some(next);
+        Ok(next)
+    }
 }
-
-impl SC4PathInfoView {
-    pub fn new(path_type: i32, ignore_depth: bool) -> Self {
+pub struct PathInfoView {
+    pub initialized: bool,
+    pub ignore_depth: bool,
+    pub filter: u32,
+    pub state: Option<RenderState>,
+}
+impl Default for PathInfoView {
+    fn default() -> Self {
         Self {
-            pulse: 0,
-            path_type,
-            ignore_depth,
+            initialized: false,
+            ignore_depth: false,
+            filter: u32::MAX,
             state: None,
         }
     }
-
-    pub fn init(&mut self) {
-        self.state = Some(DrawState {
-            colour_write: None,
-            depth_write: false,
-            depth: if self.ignore_depth {
-                DepthTest::Disabled
-            } else {
-                DepthTest::LessOrEqual
-            },
-            // Unpublished fields stay unknown, rather than gaining native defaults (NOV2).
-            culling: None,
-            blend: Blend::SourceAlpha,
-            textures: 0,
-            alpha_greater_than: Some(0.0),
-        });
-    }
-
-    pub fn pulse(&self) -> u8 {
-        self.pulse
-    }
-    pub fn set_path_type(&mut self, path_type: i32) {
-        self.path_type = path_type;
-    }
-    pub fn path_type(&self) -> i32 {
-        self.path_type
-    }
-    pub fn state(&self) -> Option<DrawState> {
-        self.state
-    }
-
-    pub fn path_colour(&self, key: u32, flags: u32) -> Result<Colour, Error> {
-        if flags & 2 != 0 {
-            // Red-to-white waveform/component mapping is not given (NOV2).
-            return Err(Error::Gap(Gap::PathInfoColourNov2));
-        }
-        let rgb = match (key >> 24) & 15 {
-            2 => [0, 0, 255],
-            4 => [255, 255, 0],
-            6 | 7 => [255, 0, 255],
-            // "Light green" / "light red" do not define byte values.
-            _ => return Err(Error::Gap(Gap::PathInfoColourNov2)),
-        };
-        Ok(Colour([rgb[0], rgb[1], rgb[2], 200]))
-    }
-
-    pub fn draw_path(&self, path: &NetworkPath, terrain: &dyn CellTerrain) -> Result<Vec<Draw>, Error> {
-        if path.points.is_empty() {
-            return Ok(Vec::new());
-        }
-        if path.points.iter().any(|p| !p.finite()) {
-            return Err(Error::InvalidInput);
-        }
-        let elevated = |p: Point| {
-            Point::new(
-                p.x,
-                if path.has_heights {
-                    p.y + 0.5
-                } else {
-                    terrain.ground_altitude(p.x, p.z) + 0.5
-                },
-                p.z,
-            )
-        };
-        if path.key & 0xF0000000 != 0 {
-            let p = elevated(path.points[0]);
-            let colour = Colour([255, 0, 0, 200]);
-            // Literal x/z cross, 4m on either side (NOV2 asks axes and altitude).
-            let points = [
-                Point::new(p.x - 4.0, p.y, p.z),
-                Point::new(p.x + 4.0, p.y, p.z),
-                Point::new(p.x, p.y, p.z - 4.0),
-                Point::new(p.x, p.y, p.z + 4.0),
-            ];
-            return Ok(vec![line_draw(Primitive::Lines, &points, colour)]);
-        }
-        let colour = self.path_colour(path.key, path.flags)?;
-        let points: Vec<_> = path.points.iter().take(25).copied().map(elevated).collect();
-        let mut draws = vec![line_draw(Primitive::LineStrip, &points, colour)];
-        let Some(&end) = points.last() else { return Ok(draws) };
-        // Search backwards for the final non-tiny segment, keeping the actual path end.
-        if let Some(pair) = points
-            .windows(2)
-            .rev()
-            .find(|p| (p[1].x - p[0].x).hypot(p[1].z - p[0].z) > 0.001)
-        {
-            let d = unit_xz(pair[0], pair[1]).ok_or(Error::InvalidInput)?;
-            let scale = 3.0 / 2.0_f32.sqrt();
-            let left = Point::new(end.x + (-d[0] - d[1]) * scale, end.y, end.z + (-d[1] + d[0]) * scale);
-            let right = Point::new(end.x + (-d[0] + d[1]) * scale, end.y, end.z + (-d[1] - d[0]) * scale);
-            draws.push(line_draw(Primitive::Lines, &[left, end, end, right], colour));
-        }
-        if points.len() >= 2 {
-            if (path.key >> 8) & 255 == 255 {
-                if let Some(d) = unit_xz(points[0], points[1]) {
-                    draws.push(bar(points[0], d, colour));
-                }
-            }
-            if path.key & 255 == 255 {
-                let n = points.len();
-                if let Some(d) = unit_xz(points[n - 2], points[n - 1]) {
-                    draws.push(bar(end, d, colour));
-                }
+}
+impl PathInfoView {
+    pub fn init(&mut self, resources: &mut impl Resources) -> bool {
+        if !self.initialized {
+            self.initialized = true;
+            if resources.render_service_available() {
+                let ignore = self.ignore_depth;
+                self.state = Some(RenderState {
+                    culling: false,
+                    tuple: Some([
+                        1,
+                        0,
+                        i32::from(!ignore),
+                        0,
+                        1,
+                        0,
+                        0,
+                        if ignore { -1 } else { 3 },
+                        4,
+                        5,
+                        4,
+                        0,
+                        1,
+                        -1,
+                    ]),
+                    ..overlay_state(
+                        if ignore { DepthTest::Off } else { DepthTest::LessEqual },
+                        0,
+                        Blend::SourceAlpha,
+                    )
+                });
             }
         }
-        Ok(draws)
+        true
     }
-
     pub fn update(
-        &mut self,
-        context: &mut dyn DrawContext,
-        network: &dyn Network,
-        terrain: &dyn CellTerrain,
-    ) -> Result<(), Error> {
-        let state = self.state.ok_or(Error::NotInitialized)?;
-        self.pulse = self.pulse.wrapping_add(5);
-        let mut draws = Vec::new();
-        for cell in network.visible_cell_rectangle().cells() {
-            for occupant in network.occupants(cell) {
-                for path in occupant.paths() {
-                    if self.path_type == -1 || self.path_type == ((path.key >> 16) & 255) as i32 {
-                        draws.extend(self.draw_path(path, terrain)?);
+        &self,
+        pulse: &mut Pulse,
+        network: &mut impl NetworkHost,
+        renderer: &mut impl Renderer,
+    ) -> Result<()> {
+        let pulse = pulse.advance()?;
+        if !network.manager_available() {
+            return Ok(());
+        }
+        let (min, max) = network.visible_cells();
+        renderer.emit(Command::Identity);
+        if let Some(state) = self.state {
+            renderer.emit(Command::State(state));
+        }
+        let mut alpha = [None; 25];
+        for x in min.0..=max.0 {
+            for z in min.1..=max.1 {
+                for occupant in network.occupants(Cell(x, z)) {
+                    for path in network.paths(occupant) {
+                        if self.filter == u32::MAX || self.filter == (path.key >> 16) & 255 {
+                            draw_network_path(&path, occupant, pulse, &mut alpha, network, renderer)?;
+                        }
                     }
                 }
             }
         }
-        context.set_state(state);
-        context.set_texture(None);
-        for draw in &draws {
-            context.draw(draw)?;
-        }
         Ok(())
     }
 }
-
-fn line_draw(primitive: Primitive, points: &[Point], colour: Colour) -> Draw {
-    // No guessed native format identifier (NOV2).
-    Draw {
-        format: None,
-        primitive,
+impl ViewOwner for PathInfoView {
+    fn deleting_cleanup(&mut self, _resources: &mut impl Resources) {}
+}
+pub fn path_info_colour(key: u32, flags: u32, pulse: u8) -> Colour {
+    if flags & 2 != 0 {
+        return Colour::rgba(255, pulse, pulse, 200);
+    }
+    match (key >> 24) & 15 {
+        1 => Colour::rgba(128, 255, 128, 200),
+        2 => Colour::rgba(0, 0, 255, 200),
+        4 => Colour::rgba(255, 255, 0, 200),
+        6 | 7 => Colour::rgba(255, 0, 255, 200),
+        _ => Colour::rgba(255, 128, 128, 200),
+    }
+}
+fn line(points: impl IntoIterator<Item = (Vec3, Colour)>, renderer: &mut impl Renderer) {
+    renderer.emit(Command::Draw(Draw {
+        primitive: 5,
+        format: 1,
         vertices: points
-            .iter()
-            .map(|&position| Vertex {
+            .into_iter()
+            .map(|(position, colour)| Vertex {
                 position,
-                colour,
-                uv: [0.0; 2],
+                colour: Some(colour),
+                uv: None,
             })
             .collect(),
         indices: Vec::new(),
-    }
+    }));
 }
-
-fn bar(p: Point, d: [f32; 2], colour: Colour) -> Draw {
-    line_draw(
-        Primitive::Lines,
-        &[
-            Point::new(p.x - d[1] * 3.0, p.y, p.z + d[0] * 3.0),
-            Point::new(p.x + d[1] * 3.0, p.y, p.z - d[0] * 3.0),
-        ],
-        colour,
-    )
-}
-
-pub trait TrainResourceFactory {
-    fn picture(&self, group: u32, instance: u32) -> Option<Arc<dyn Texture>>;
-    fn model(&self, resource_type: u32, group: u32, instance: u32) -> Option<Arc<dyn Model>>;
-}
-
-/// Resource references only. No geometry or matrices can be injected here.
-pub struct TrainResources {
-    pub pictures: [Arc<dyn Texture>; 6],
-    pub models: [Arc<dyn Model>; 2],
-}
-
-pub struct SC4TrainJunctionView {
-    directions: [[Option<[f32; 2]>; 4]; 4],
-    resources: Option<TrainResources>,
-}
-
-impl Default for SC4TrainJunctionView {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SC4TrainJunctionView {
-    pub fn new() -> Self {
-        Self {
-            directions: [[None; 4]; 4],
-            resources: None,
+pub fn draw_network_path(
+    path: &NetworkPath,
+    occupant: Handle,
+    pulse: u8,
+    alpha: &mut [Option<u8>; 25],
+    network: &mut impl NetworkHost,
+    renderer: &mut impl Renderer,
+) -> Result<()> {
+    let height = |p: Vec3, network: &mut dyn NetworkHost| {
+        (if path.has_heights {
+            p.y
+        } else {
+            network.altitude(occupant, p.x, p.z)
+        }) + 0.5
+    };
+    if path.key & 0xF000_0000 != 0 {
+        let p = *path.points.first().ok_or(Boundary::Undefined("empty cross path"))?;
+        for [a, b] in [
+            [Vec3::new(p.x - 2.0, p.y, p.z), Vec3::new(p.x + 2.0, p.y, p.z)],
+            [Vec3::new(p.x, p.y, p.z - 2.0), Vec3::new(p.x, p.y, p.z + 2.0)],
+        ] {
+            let vertices = [a, b].map(|mut v| {
+                v.y = height(v, network);
+                (v, Colour::rgba(255, 0, 0, 255))
+            });
+            alpha[..2].fill(Some(255));
+            line(vertices, renderer);
         }
+        return Ok(());
     }
-
-    /// Acquires exactly the documented resources. Failure drops only acquired references.
-    /// This is a core helper, not a substitute for the incomplete published Init.
-    pub fn load_resources(&mut self, factory: &dyn TrainResourceFactory) -> Result<(), Error> {
-        let mut pictures = Vec::new();
-        for instance in 0x6BE09921..=0x6BE09926 {
-            pictures.push(
-                factory
-                    .picture(0x1ABE787D, instance)
-                    .ok_or(Error::ResourceUnavailable)?,
+    if path.points.len() < 2 {
+        return Err(Boundary::Undefined("regular network path needs endpoint loads"));
+    }
+    let colour = path_info_colour(path.key, path.flags, pulse);
+    let mut strip = Vec::new();
+    for (i, &point) in path.points.iter().take(25).enumerate() {
+        let mut point = point;
+        point.y = height(point, network);
+        alpha[i] = colour.a;
+        strip.push((point, colour));
+    }
+    line(strip, renderer);
+    let last = path.points.len() - 1;
+    let end = path.points[last];
+    let mut neighbour = last - 1;
+    loop {
+        let delta = path.points[neighbour].minus(end);
+        let length = delta.length();
+        if length >= 0.001_f32 {
+            let d = delta.times(1.0 / length);
+            let angle = std::f32::consts::FRAC_PI_4;
+            let (sin, cos) = angle.sin_cos();
+            let wing_plus = Vec3::new(
+                end.x + 3.0 * (d.x * cos - d.z * sin),
+                end.y + 0.5,
+                end.z + 3.0 * (d.x * sin + d.z * cos),
             );
+            let wing_minus = Vec3::new(
+                end.x + 3.0 * (d.x * cos + d.z * sin),
+                end.y + 0.5,
+                end.z + 3.0 * (-d.x * sin + d.z * cos),
+            );
+            let points = [wing_plus, Vec3::new(end.x, end.y + 0.5, end.z), wing_minus];
+            line(
+                points
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, p)| (p, Colour { a: alpha[i], ..colour })),
+                renderer,
+            );
+            break;
         }
-        let a = factory
-            .model(0x5AD0E817, 0xBADB57F1, 0x8BB70000)
-            .ok_or(Error::ResourceUnavailable)?;
-        let b = factory
-            .model(0x5AD0E817, 0xBADB57F1, 0x8BB80000)
-            .ok_or(Error::ResourceUnavailable)?;
-        let pictures = pictures.try_into().map_err(|_| Error::InvalidInput)?;
-        let midpoints = [
-            Point::new(0.0, 0.0, 8.0),
-            Point::new(8.0, 0.0, 0.0),
-            Point::new(16.0, 0.0, 8.0),
-            Point::new(8.0, 0.0, 16.0),
-        ];
-        for (i, &from) in midpoints.iter().enumerate() {
-            for (j, &to) in midpoints.iter().enumerate() {
-                self.directions[i][j] = unit_xz(from, to);
-            }
+        if neighbour == 0 {
+            break;
         }
-        self.resources = Some(TrainResources {
-            pictures,
-            models: [a, b],
-        });
-        Ok(())
+        neighbour -= 1;
     }
-
-    pub fn resources(&self) -> Option<&TrainResources> {
-        self.resources.as_ref()
+    let endpoint = if (path.key >> 8) as u8 == 255 {
+        Some((path.points[0], path.points[1]))
+    } else if path.key as u8 == 255 {
+        Some((end, path.points[last - 1]))
+    } else {
+        None
+    };
+    if let Some((p, q)) = endpoint {
+        let delta = q.minus(p);
+        let offset = Vec3::new(delta.z, 0.0, -delta.x).times(3.0 / delta.length());
+        line(
+            [p.plus(offset), p.minus(offset)]
+                .into_iter()
+                .enumerate()
+                .map(|(i, point)| {
+                    (
+                        point,
+                        Colour {
+                            r: 255,
+                            g: 0,
+                            b: 0,
+                            a: alpha[i],
+                        },
+                    )
+                }),
+            renderer,
+        );
     }
-    pub fn directions(&self) -> &[[Option<[f32; 2]>; 4]; 4] {
-        &self.directions
-    }
-
-    pub fn init(&mut self) -> Result<(), Error> {
-        // §2 says "the draw state" without publishing it. Never return placeholder success.
-        Err(Error::Gap(Gap::TrainGeometryNov3))
-    }
-
-    pub fn transparency(at_or_heading_for_junction: bool) -> f32 {
-        if at_or_heading_for_junction {
-            0.8
-        } else {
-            0.5
-        }
-    }
-
-    pub fn get_path_bitmap(route: &[Point], entry_direction: [f32; 2], selected: bool) -> Result<u32, Error> {
-        if route.len() < 2 || route.iter().any(|p| !p.finite()) || entry_direction.iter().any(|v| !v.is_finite()) {
-            return Err(Error::InvalidInput);
-        }
-        let end = route[route.len() - 1];
-        let start = route[route.len().saturating_sub(3)];
-        // Literal "last three points" = chord from third-last to last (NOV3).
-        let start = if (end.x - start.x).hypot(end.z - start.z) < 0.25 {
-            route[0]
-        } else {
-            start
-        };
-        let d = unit_xz(start, end).ok_or(Error::InvalidInput)?;
-        let c = d[0] * entry_direction[1] - d[1] * entry_direction[0];
-        let plain = if c < -0.25 {
-            0x6BE09923
-        } else if c <= 0.25 {
-            0x6BE09925
-        } else {
-            0x6BE09921
-        };
-        Ok(plain + u32::from(selected))
-    }
-
-    pub fn get_arrow_bitmap_quad(&self) -> Result<Draw, Error> {
-        Err(Error::Gap(Gap::TrainGeometryNov3))
-    }
-    pub fn draw_train_junction(&self) -> Result<(), Error> {
-        Err(Error::Gap(Gap::TrainGeometryNov3))
-    }
-
-    pub fn update(&self, network: &dyn Network) -> Result<(), Error> {
-        // Traversal is ours, not a provider returning finished junction draw output.
-        for cell in network.visible_cell_rectangle().cells() {
-            for occupant in network.occupants(cell) {
-                for edge in 0..4 {
-                    let routes = occupant.routes(edge);
-                    if !routes.routes.is_empty() {
-                        self.draw_train_junction()?;
-                    }
-                }
-            }
-        }
-        // Even an empty frame cannot turn an unimplemented Init/state into success.
-        Err(Error::Gap(Gap::TrainGeometryNov3))
-    }
+    Ok(())
 }

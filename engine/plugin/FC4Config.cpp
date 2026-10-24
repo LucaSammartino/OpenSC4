@@ -357,11 +357,17 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "advisors_shadow",
                                   // SG3/LR12 record-only observations (default off).
                                   "simgrid_shadow", "lotrec_shadow",
+                                  // Read-only overlay getter/record/cell/texture observation.
+                                  "overlays_shadow",
                                   "netocc_shadow",
                                   // NR16/NR17 record-only evaluator observation (default off).
                                   "netrules_shadow",
                                   // Constructed original string comparisons (default off).
                                   "strings_shadow",
+                                  // Record-only scripted network drag comparison (default off).
+                                  "nettool_shadow",
+                                  // Bounded original Lua registry comparison; default off.
+                                  "lua_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
