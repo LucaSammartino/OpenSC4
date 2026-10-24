@@ -230,7 +230,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 3 | 58 | EX57 | questions/data-formats.md |
+| data-formats | 2 | 59 | EX57 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -280,7 +280,7 @@ generated index: the questions live one file per spec, so read only the file for
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 2 | 20 | MS23 | questions/mysims.md |
-| nation | 0 | 3 | NQ4 | questions/nation.md |
+| nation | 1 | 3 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -358,7 +358,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| vehicles | 4 | 5 | VH10 | questions/vehicles.md |
+| vehicles | 6 | 8 | VH12 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
@@ -366,11 +366,11 @@ generated index: the questions live one file per spec, so read only the file for
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
-| web-network | 1 | 0 | Q16 | questions/web-network.md |
+| web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 13 | 2 | WT13, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1483** | | |
+| **total** | **613** | **1487** | | |
