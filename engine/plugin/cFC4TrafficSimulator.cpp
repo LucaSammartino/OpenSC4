@@ -369,6 +369,7 @@ void PostMessage(void* u, const fc4_traffic_post* m) {
 }
 
 bool IsCityConnection(void* u, uint64_t conn);
+const std::vector<uint64_t>& LotList(fc4::TrafficContext* c);
 
 // The references the core keeps: the switch buildings (§4.7.1) and the
 // source iterator's connection snapshot (§4.1, §9.1 TG19). A connection the
@@ -383,7 +384,14 @@ void AddRefToken(void* u, uint64_t t) {
         FC4_ADDREF(o);
     }
     fc4::TrafficContext* c = Ctx(u);
-    if (++c->coreRefs[t] == 1 && IsCityConnection(u, t)) c->heldConns.insert(t);
+    if (++c->coreRefs[t] == 1) {
+        LotList(c);
+        if (c->liveLots.count(t) != 0 || c->seenLots.count(t) != 0) {
+            c->heldLots.insert(t);
+        } else if (IsCityConnection(u, t)) {
+            c->heldConns.insert(t);
+        }
+    }
 }
 
 void ReleaseToken(void* u, uint64_t t) {
@@ -395,6 +403,10 @@ void ReleaseToken(void* u, uint64_t t) {
     auto it = c->coreRefs.find(t);
     if (it != c->coreRefs.end() && --it->second == 0) {
         c->coreRefs.erase(it);
+        if (c->heldLots.erase(t) != 0) {
+            LotList(c);
+            leftCity = c->liveLots.count(t) == 0;
+        }
         if (c->heldConns.erase(t) != 0 && !IsCityConnection(u, t)) {
             // §9.1 TG19: the snapshot was the connection's last holder once
             // the neighbour simulator let it go; the original frees it here.
@@ -875,6 +887,7 @@ const std::vector<uint64_t>& LotList(fc4::TrafficContext* c) {
 // the city still has it, or when the game handed it over in this call.
 bool LiveLot(fc4::TrafficContext* c, uint64_t lot) {
     if (lot == 0) return false;
+    if (c->heldLots.count(lot) != 0) return true;
     if (c->seenLots.count(lot) != 0) return true;
     LotList(c);
     if (c->liveLots.count(lot) != 0) return true;

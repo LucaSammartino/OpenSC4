@@ -456,6 +456,9 @@ pub struct ShadowHost {
     props_order: RefCell<Vec<(u64, u32)>>,
     /// The original's lots for this delivery (one lot walk).
     lots_cache: RefCell<Option<Rc<[u64]>>>,
+    /// References actually acquired from the live host, including the
+    /// current traffic source across daily deliveries (§4.1).
+    held: RefCell<HashMap<u64, u32>>,
     pub kept: Cell<Kept>,
     pub posted: RefCell<Vec<SimMessage>>,
 }
@@ -478,6 +481,7 @@ impl ShadowHost {
             props_ours: RefCell::new(HashMap::new()),
             props_order: RefCell::new(Vec::new()),
             lots_cache: RefCell::new(None),
+            held: RefCell::new(HashMap::new()),
             kept: Cell::new(Kept::default()),
             posted: RefCell::new(Vec::new()),
         })
@@ -584,7 +588,7 @@ impl ShadowHost {
     /// The pre-image: every source's trip list and the holder properties of
     /// [`LOT_PROPS`] and [`CONNECTION_PROPS`], as they are now; the copy's
     /// writes are forgotten.
-    pub fn snapshot_inputs(&self) {
+    pub fn snapshot_inputs(&self, current: Option<Source>) {
         let h = &*self.inner;
         self.lots_cache.borrow_mut().take();
         let mut trips = HashMap::new();
@@ -604,6 +608,23 @@ impl ShadowHost {
             if holder != 0 {
                 for id in CONNECTION_PROPS {
                     props.insert((holder, id), h.holder_property(holder, id));
+                }
+            }
+        }
+        // A removed current source is absent from the city walk but still
+        // owned by both simulators (§4.1). Capture its pre-delivery list
+        // too; falling through to a post-delivery live read is not a snapshot.
+        if let Some(s) = current {
+            trips.entry(s).or_insert_with(|| h.trip_list(s));
+            let (holder, ids) = match s {
+                Source::Lot(l) => (h.lot_holder(l), LOT_PROPS.as_slice()),
+                Source::Connection(c) => (h.connection_holder(c), CONNECTION_PROPS.as_slice()),
+            };
+            if holder != 0 {
+                for &id in ids {
+                    props
+                        .entry((holder, id))
+                        .or_insert_with(|| h.holder_property(holder, id));
                 }
             }
         }
@@ -888,11 +909,33 @@ impl NetworkHost for ShadowHost {
         self.keep(|k| k.posts += 1);
         self.posted.borrow_mut().push(SimMessage::of_type(msg_type));
     }
-    fn add_ref(&self, _token: u64) {
+    fn add_ref(&self, token: u64) {
         self.keep(|k| k.refs += 1);
+        self.inner.add_ref(token);
+        *self.held.borrow_mut().entry(token).or_default() += 1;
     }
-    fn release(&self, _token: u64) {
+    fn release(&self, token: u64) {
         self.keep(|k| k.refs += 1);
+        // Read restores borrowed record tokens, not acquired references.
+        // Never release one unless this shadow took a reference itself.
+        let mut held = self.held.borrow_mut();
+        if let Some(n) = held.get_mut(&token) {
+            *n -= 1;
+            self.inner.release(token);
+            if *n == 0 {
+                held.remove(&token);
+            }
+        }
+    }
+}
+
+impl Drop for ShadowHost {
+    fn drop(&mut self) {
+        for (token, count) in self.held.get_mut().drain() {
+            for _ in 0..count {
+                self.inner.release(token);
+            }
+        }
     }
 }
 
@@ -1390,7 +1433,7 @@ fn date(julian: i32) -> String {
 /// does not use the scanning iterator.
 /// mid-scan; UpdateSubnetworkInfo (13) among them, on the same scanning
 /// iterator (traffic-network.md §4.12, TS64).
-    fn is_scan_phase(s: u8) -> bool {
+fn is_scan_phase(s: u8) -> bool {
     matches!(
         s,
         cs::CREATE_MAPS
@@ -1738,7 +1781,7 @@ impl TrafficShadow {
             }
         }
         p.from_state = self.copy.cycle_state();
-        self.host.snapshot_inputs();
+        self.host.snapshot_inputs(self.copy.read_state(|s| s.current));
         self.pending = Some(p);
     }
 

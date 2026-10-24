@@ -1,5 +1,22 @@
 # prop-lotconfig: answered questions (archive)
 
+- **PL21:** (§A7.2 slot 23 `GetLotProps`, §A8 persistence) the propmgr shadow (originals in, FreeCity4's
+  core loaded from the original's own record each SimNewMonth) differs intermittently in one GetLotProps
+  sample per run, never the same lot: glue21-r4-3 (turbo) 2028-10-01 lot (10,46) original 3 props, core 2,
+  first 0C3079EC/0C3075E0; glue21-r4-5 (normal speed) 2027-11-01 lot (9,51) original 1, core 0; glue21-r4-4
+  (turbo, same build) 220/220 exact. Every other query and the record compare exact. Can the original's
+  per-lot prop list hold a prop that its saved record (§A8) does not carry at the moment of a SimNewMonth
+  Write (for example a prop added to a lot but not yet in the city's prop table, or a timed prop that the
+  record skips)? If so, which props, so the shadow can exclude them.
+
+  **ANSWERED 2026-10-24 (re-propmgr-pl21):** DIFFERS — there is no separate per-lot collection or timed-prop
+  save exclusion. With an empty caller list and stable state, newly returned props come from the occupant
+  grid, whose writer references every node (`0x004A32AD`, `0x0049EE10`–`0x0049EE27`); the 18-byte manager
+  record itself holds only manager references (`0x004A2430`). Nonempty caller lists retain interior entries
+  even when unregistered, and a save/query pair has no shared atomic snapshot. Documented in §A7.2, §A8,
+  quirk 20 and §T vector 17 (PL21-G/U/C/R/W/S). No props may be excluded on the proposed timing/persistence
+  rationale; preserve the intermittent mismatch as unexplained game evidence, not an exact result.
+
 <!-- from: verify-propcfg4 native comparison (2026-10-22) -->
 - **PL23 - A3.2 profile padding and lot-configuration §3.7 foundation IDs, raw comparison evidence:**
   `vpc4-r2-native-20261022a` (immutable DLL SHA256 prefix `04b93bd7`, native city owners, clean2032/ref0)

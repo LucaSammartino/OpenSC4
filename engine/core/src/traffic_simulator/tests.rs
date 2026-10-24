@@ -90,6 +90,8 @@ const HOST_CLASS: u32 = 0x1234_5678;
 struct World {
     cells: Cell<(i32, i32)>,
     lots: RefCell<Vec<(u64, Lot)>>,
+    /// Removed lots remain readable only through an acquired reference.
+    retired_lots: RefCell<HashMap<u64, Lot>>,
     conns: RefCell<Vec<(u64, Conn)>>,
     holders: RefCell<HashMap<u64, BTreeMap<u32, Variant>>>,
     trips: RefCell<BTreeMap<Source, Vec<TripData>>>,
@@ -159,6 +161,11 @@ impl World {
             .iter()
             .find(|(i, _)| *i == id)
             .map(|(_, l)| l.clone())
+            .or_else(|| {
+                (self.refs.borrow().get(&id).copied().unwrap_or(0) > 0)
+                    .then(|| self.retired_lots.borrow().get(&id).cloned())
+                    .flatten()
+            })
     }
 
     fn prop(&self, holder: u64, id: u32) -> Option<Variant> {
@@ -174,6 +181,11 @@ impl World {
     }
 
     fn get_trips(&self, src: Source) -> Vec<TripData> {
+        if let Source::Lot(id) = src {
+            if self.retired_lots.borrow().contains_key(&id) && self.lot(id).is_none() {
+                return Vec::new();
+            }
+        }
         self.trips.borrow().get(&src).cloned().unwrap_or_default()
     }
 

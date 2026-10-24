@@ -311,6 +311,8 @@ enum : uint32_t {
     kFC4SeamAutomataCmTeardown = 69,
     kFC4SeamUnreadRefs = 70,  // glue-exemplars4: a reference read in Read is not touched before the store load ends
     kFC4SeamAdvisorsShadow = 71,  // record-only snapshot of a = borrowed cIGZUnknown*
+    kFC4SeamOrdinanceShadow = 72,  // a = borrowed cISC4OrdinanceSimulator*, capture/step copies only
+    kFC4SeamAutomataCapture = 73,  // a = reference-only writer, b = requested IID
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

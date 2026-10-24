@@ -470,14 +470,14 @@ int64_t DeactivationCostLookup(void* u, uint64_t holder) {
 void MakeHost() {
     g_ctx.grid = HostGridContext{"traffic shadow", Sw::TrafficGridWrites};
     g_host = MakeTrafficHost(&g_ctx);
-    // Read only: the copy keeps its writes, posts, budget, agent and
-    // reference calls to itself (core traffic_simulator::shadow); these are
+    // Read only: the copy keeps its writes, posts, budget and agent calls
+    // to itself (core traffic_simulator::shadow); these are
     // NULL so that nothing could reach the game even so.
     g_host.add_agent = nullptr;
     g_host.subscribe = nullptr;
     g_host.post_message = nullptr;
-    g_host.add_ref = nullptr;
-    g_host.release = nullptr;
+    // Keep MakeTrafficHost's ownership callbacks: a current source must
+    // survive removal between daily deliveries (traffic-simulator §4.1).
     g_host.create_department = nullptr;
     g_host.release_department = nullptr;
     g_host.set_line_item_income = nullptr;
@@ -498,8 +498,9 @@ void MakeHost() {
 }
 
 void DropShadow() {
-    fc4_traffic_shadow_destroy(g_shadow);
+    fc4_traffic_shadow* shadow = g_shadow;
     g_shadow = nullptr;
+    fc4_traffic_shadow_destroy(shadow);
     g_shadowCity = nullptr;
     g_shadowSim = nullptr;
     for (const Queued& q : g_queued) {
