@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4TestSeam.h"
+#include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
 
 #include "FC4AuraShadow.h"
@@ -270,6 +271,9 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                                 : AutomataCmTeardownTest(static_cast<cIGZUnknown*>(a), static_cast<cIGZUnknown*>(b));
         case kFC4SeamAdvisorsShadow:
             return fc4::AdvisorsShadowTest(static_cast<cIGZUnknown*>(a));
+        case kFC4SeamAutomataCapture:
+            return fc4::AutomataCaptureTest(static_cast<cIGZUnknown*>(a),
+                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b)));
         default:
             return 0;
     }

@@ -1044,3 +1044,12 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_overlays_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME overlays_observation_test COMMAND fc4_overlays_observation_test)
 endif()
+
+# Automata owners: captured IDs must retain the correct live interface.
+if(TARGET FreeCity4)
+    add_executable(fc4_automata_capture_test tests/automata_capture_test.cpp)
+    target_include_directories(fc4_automata_capture_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_automata_capture_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_automata_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME automata_capture_test COMMAND fc4_automata_capture_test "$<TARGET_FILE:FreeCity4>")
+endif()

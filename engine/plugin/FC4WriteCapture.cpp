@@ -45,10 +45,20 @@ void* Borrowed(cIGZSerializable* obj, uint32_t iid) {
 
 }  // namespace
 
-bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
-    bytes_.clear();
+WriteCapture::~WriteCapture() { ClearReferences(); }
+
+void WriteCapture::ClearReferences() {
+    if (holdReferences_) {
+        for (const auto& ref : refs_)
+            FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    }
     refs_.clear();
     index_.clear();
+}
+
+bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
+    bytes_.clear();
+    ClearReferences();
     good_ = true;
     if (answered != nullptr) *answered = false;
     if (obj == nullptr) return false;
@@ -106,8 +116,25 @@ bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
     if (it != index_.end()) {
         i = it->second;
     } else {
+        if (holdReferences_) {
+            // Construction effects can be passed as their effect interface
+            // (lot-records §9 #12). Do not retain that foreign interface as a
+            // cIGZSerializable or call its class slot. Resolve the actual
+            // serializable and keep the QI reference through replay; otherwise
+            // a released temporary (including a variant result) leaves a stale
+            // pointer under an apparently valid capture ID.
+            void* serial = nullptr;
+            if (!obj->QueryInterface(GZIID_cIGZSerializable, &serial) || serial == nullptr) {
+                good_ = false;
+                return false;
+            }
+            obj = static_cast<cIGZSerializable*>(serial);
+            FC4_ACQUIRED(obj, "capture reference QueryInterface");
+        }
         refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
-        index_.emplace(obj, i);
+        // The incoming interface is the writer's identity, even if QI adjusted
+        // the pointer. IDs must not alias an unrelated interface address.
+        index_.emplace(p, i);
     }
     SetUint32(static_cast<uint32_t>(i + 1));
     return SetUint32(refs_[i].classId);

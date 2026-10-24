@@ -187,7 +187,7 @@ private:
         r.class_id = cls;
         if (id != 0) {
             cIGZSerializable* o = s->cap_.SerializableAt(id);
-            if (o == nullptr) {
+            if (o == nullptr || s->cap_.ClassOf(id) != cls) {
                 s->bad_ = true;
                 return false;
             }
@@ -202,7 +202,9 @@ private:
             // The token below is a number, not a kept pointer: the interface
             // reference this QueryInterface took goes back at once, and the
             // reader's own reference is taken on the capture's object.
-            reinterpret_cast<cIGZUnknown*>(p)->Release();
+            auto* acquired = reinterpret_cast<cIGZUnknown*>(p);
+            FC4_ACQUIRED(acquired, "automata capture replay QueryInterface");
+            FC4_RELEASE(acquired);
             FC4_ADDREF(reinterpret_cast<cIGZUnknown*>(o));
             r.token = id;
         }
@@ -286,7 +288,7 @@ struct OwnerScan {
 
     void References(const WriteCapture& parent) {
         // Capture IDs are contiguous, 1-based (FC4WriteCapture.h). Objects are
-        // borrowed during this synchronous city message; never Release them.
+        // pinned by the parent capture through the entire recursive scan.
         for (uint32_t id = 1; parent.SerializableAt(id) != nullptr; ++id) {
             cIGZSerializable* object = parent.SerializableAt(id);
             if (!seen.insert(object).second) continue;
@@ -312,7 +314,7 @@ struct OwnerScan {
             }
             OwnerCount& count = isConstruction ? construction :
                 (fc4_automata_object_is_controller(core) ? controller : automaton);
-            WriteCapture capture;
+            WriteCapture capture(false, true);
             const bool captured = capture.Capture(object);
             uint32_t bad = 1;
             if (captured) {
@@ -490,7 +492,7 @@ uint32_t ComparePart(Part& p, std::string& out, OwnerScan* owners) {
         AppendF(out, " %s: no component", p.name);
         return 0;
     }
-    WriteCapture cap;
+    WriteCapture cap(false, true);
     bool answered = false;
     const bool captured = cap.Capture(obj, &answered);
     if (!captured) {
@@ -559,7 +561,7 @@ void RunCompare(const char* what, int32_t julian) {
     if (g_ownersEnabled) {
         // The occupant manager's saved references include constructions without
         // controllers too (occupant-manager §13); no guessed native enumerator.
-        WriteCapture occupants;
+        WriteCapture occupants(false, true);
         if (!occupants.Capture(reinterpret_cast<cIGZUnknown*>(g_city->GetOccupantManager()))) {
             owners.construction.Add(0, 1);
         } else {
@@ -653,6 +655,20 @@ void AutomataShadowCityShutdown() {
 }
 
 void AutomataShadowMonth(int32_t julian) { RunCompare("month", julian); }
+
+// Native regression seam: replay the supplied reference-only writer through
+// the exact capture/GetRef/host path used by the owners shadow.
+intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid) {
+    WriteCapture capture(false, true);
+    if (!capture.Capture(object)) return -1;
+    CaptureIn input(capture);
+    while (!input.atEnd()) {
+        fc4_ref ref{};
+        if (!input.Get()->get_ref(input.Get()->user, iid, &ref)) return 0;
+        if (ref.token != 0) HostRelease(&capture, ref.token);
+    }
+    return 1;
+}
 
 }  // namespace fc4
 
