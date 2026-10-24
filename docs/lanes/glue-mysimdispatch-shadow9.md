@@ -1,24 +1,41 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-mysimdispatch-shadow9: dispatch replay round 3 | Codex / `glue-mysimdispatch-shadow9` (engine, detached HEAD) | in progress | Final formatting/full gate; prepared house to 2032; READY queue for measured default-off scope. MS21/MS22 remain open. |
+| glue-mysimdispatch-shadow9: dispatch replay | Codex / `glue-mysimdispatch-shadow9` (engine, detached HEAD) | **READY for measured default-off scope.** Source `315da8cc7`; cargo 7017/0, clippy clean, CTest 80/80; house run 471 clean to 2032, dispatch 73/73 exact constructor/header samples. No public C ABI change (98). | Coordinator: land measured scope. MS21/MS22 remain open; live trip behavior and the remaining owner behavior are uncompared. |
 
-## Handoff
-- Goal: implement MS18/MS20 dispatch and independently verify whole owner. Not ready; no round-2 game request enqueued and no merge-queue entry written.
-- Merge re-mysims-ms20 committed 16354d1ef; additive CMake/config conflicts resolved; obsolete open MS18/MS20 removed. Incoming §12.29 has 21 prose vectors, not executable tests.
-- Core milestone ffa8d7194: 42 ordinary pairs, same-mode fallback, FE/FF, strict delay, stuck notices, retry-always-false, deterministic models and constructor defaults.
-- Core/plugin milestone 140680449 plus abbe101a0: idle snap/recovery, callbacks 1/2/9 and mission exit; independent constructor comparison now 208 guaranteed prefix bytes (first 229 excluding unpromised fields). Live observations remain headers only. Do not claim live independent replay.
-- MS21 asks exact route-index/partition/snap rules; failed-leg skip and callback-5 progression still unsupported. MS22 asks omitted auxiliary constructor defaults. Both in docs/specs/questions/mysims.md; index regeneration left to coordinator because tools/ execution is prohibited.
-- Public ABI limitation explicitly answered by MS20: dispatch IID has only nine slots; queue/GoTo/setters/clock/geometry are direct calls. No complete public read-only input observer. Whole-owner native verification requires an explicitly supported captured input boundary; snapshots cannot seed expected requests.
-- Executable conformance lives in engine/conformance/tests/support/mysim_dispatch_ms18.rs (included by mysim_dispatch.rs). Last completed focused integration 38/38; capi comparator 3/3; fmt 8/8 files clean before latest ordering fixes.
-- First full gate terminal FAIL: Rust/clippy dotted test crate discovery; native build 217/217 PASS; CTest 79/80, capi_smoke header97/Rust98; tree changed. Full logs in build-runs/r2-failed-discovery/. Discovery fixed by moving include to tests/support/.
-- Second full gate terminal FAIL: Rust 7016/7016, clippy clean; native build 48/48 PASS, CTest 79/80, same stale smoke object header97/Rust98; tree-changed flag from in-flight commits. Logs in build-runs/r2-failed-abi/. Both CURRENT source ABI declarations are 98. Never bump ABI.
-- Latest source fixes after those terminal results: set_state increments at each synchronous notice (new observer expects counters 1 then 2), missing-stop failure runs state setter, idle double-snap failure applies common clear-2002 tail. Smoke test gained a useful stale-cache diagnostic, forcing recompilation of the stale native source object.
-- Round 3 attempted collection of focused session 44572: runner reports Unknown process id; terminal outcome unavailable. Not resubmitted. Final full gate must cover this suite. No focused process remains collectable.
-- Round 3 formatting found two layout-only differences in ready.rs and support/mysim_dispatch_ms18.rs; corrected in place. Prior smoke failure is a stale train-integration native object (compiled header97), while current header and Rust both declare98; existing f2a48d7e8 smoke diagnostic edit forces recompilation. Do not bump ABI or edit generated abi_entries.inc.
-- Round 3 milestone 315da8cc7: final formatting fixes; fmt exit0, eight files, zero differences.
-- Final full qbuild all on stable 315da8cc7 collected to terminal (session80433): PASS. Workspace tests7017/7017 (dispatch39/39), clippy diagnostics0; native build161/161, CTest80/80, capi_smoke PASS. Native build regenerated ABI entries and recompiled/relinked the stale smoke target; no ABI bump. Previous failed evidence remains in r2-failed-discovery/ and r2-failed-abi/.
-- Next: enqueue prepared unique-label house request after checking existing verdict; collect using wait-game-r2.py without qwait. Then final report and READY merge queue with full actual HEAD, measured default-off scope only.
-- Gate milestone555181f2f committed. Prepared house request ENQUEUED once after verifying no existing verdict/request: label mysimdispatch-shadow9-r2-prefix208-2032-20261024a, house ini to2032, turbo,1500s timeout1800. Request in build-runs/game-queue/ (or done/ after pickup); DLL is final gate build.
-- ACTIVE game wait: build-runs/wait-game-r2.py running as exec session84462; collect THAT SAME operation with write_stdin60s, never resubmit. No qwait used. Honor any completed verdict for this unique label. One request outstanding; next is collect verdict, exact mysimdispatch clean/total log, report/commit and READY queue.
-- Scope still uncompared: native live queue/clock/wait/setter/request/stop/serialized trip behavior, route partitioning, callback 5 and dispatch-tool lifecycle. Prior R1 ctor/header run 470 was clean 73/73 to 2032, but does not validate this new source.
-- Detached HEAD commits are intentional; supervisor publishes branch. No agents, no fixed-address calls, no forbidden reads. q.py Bash fails CreateFileMapping; direct cargo works. qbuild accepts absolute explicit fmt paths. Commit messages live in build-runs/msg-glue-mysimdispatch-shadow9-*.txt.
+## What changed
+
+The core implements the specified dispatch decisions: 42 ordinary travel pairs, same-mode fallback, FE/FF handling, strict departure delay, stuck notices, retry returning false, deterministic models, constructor defaults, idle snap/recovery, callbacks 1/2/9 and mission exit. Synchronous notices expose the change counter in order; missing-stop failure uses the state setter; failed idle double-snap applies the common clear-2002 tail. Unsupported partition/skip decisions remain explicit rather than guessed.
+
+The plugin adds `mysimdispatch_shadow`, off by default, using public factory/serialization interfaces. It predicts constructor state independently and compares 208 guaranteed serialized prefix bytes plus seven class/header/scalar values. Unpromised constructor fields and variable reference encoding are excluded. Live references, when present, permit class/writer identity comparison only. No native snapshot seeds an expected request, and no dispatch replacement is enabled. Both comparators are private static-link transports; no public C ABI export changed and ABI remains 98.
+
+Milestones: spec merge `16354d1ef`; core `ffa8d7194`; core/shadow `140680449`, `abbe101a0`; ordering/recovery `f2a48d7e8`; final formatting `315da8cc7`; gate record `555181f2f`.
+
+## Final verification
+
+- Explicit owned-file formatting: eight Rust files, exit 0, zero differences.
+- Full `qbuild.py --wt <WT> all` on stable final source `315da8cc7`, collected to terminal as session 80433: **PASS**. Workspace test totals summed over all result lines: **7017 passed, 0 failed, 0 ignored**; dispatch integration **39/39**. Clippy: **0 diagnostics**, warnings denied. Native build: **161/161**, 83.0 s. Full CTest: **80/80**, 152.9 s. No edits or commits occurred during this gate.
+- Stale ABI smoke resolved: the prior train-integration object had compiled header 97 while linked Rust was 98. Current header/Rust are both 98. Final native build ran `gen_abi_entries.py` (185 interfaces, unchanged), recompiled and relinked `capi_smoke`, and its test passed. No generated file was edited and no ABI version was bumped.
+- Earlier failed gates remain distinct in `build-runs/r2-failed-discovery/` and `build-runs/r2-failed-abi/` (CTest 79/80). Final logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Focused session 44572 could not be collected in round 3: runner returned `Unknown process id`. It was not resubmitted or claimed to pass. The completed final workspace gate includes the dispatch suite, 39/39.
+
+## Real-game measurement
+
+[House run 471](../runs/mysimdispatch-shadow9-r2-prefix208-2032-20261024a-471.md), label `mysimdispatch-shadow9-r2-prefix208-2032-20261024a`, was enqueued once after checking for an existing verdict. The prepared request ran in slot 2 with turbo, house shadows and `mysimdispatch_shadow = 1`. The existing wait operation (session 84462, no qwait) was collected to terminal. No request remains outstanding.
+
+Verdict **clean**, date **2032-01-01**, **810.656 s** simulation wall time (830 s harness wall), **ref_warnings=0**. Foreign exceptions, watchdog stalls, RTC, overruns, Rust panics, structured exceptions and incomplete shadow lines were all zero. Exact verdict summary and shutdown line (without timestamp/pid prefix):
+
+```text
+mysimdispatch    73 lines, 73 with every mismatch count 0
+mysimdispatch resynced lines: 0
+mysimdispatch: measured 73/73 exact assigned-constructor/header samples; live trip owner remains unverified (MS20 input-boundary limitation)
+```
+
+All 73 samples had `constructor=1 live_headers=0 fields=215 errors=0 mismatches=0`. This independently verifies the promised constructor fields; it does not exercise live header comparison. Existing `mysims` shadow also reported 73/73 clean lines. Evidence: `build-runs/game-results/<label>.verdict` and `<label>.log`; final DLL SHA256 prefix `7b48476f`.
+
+## Questions and uncompared scope
+
+**MS21 and MS22 remain open** in [mysims questions](../specs/questions/mysims.md). MS21 requests exact route-index/partition/current-marker and network-snap rules; failed-leg skip and callback-5 progression remain unsupported. MS22 requests omitted auxiliary constructor defaults; those bytes remain excluded. No new question was filed in round 3.
+
+**Uncompared:** native live queue, clock, waits, setters, requests, stop behavior, serialized trip state, route partitioning, callback 5, dispatch-tool lifecycle, unpromised constructor fields and variable reference encoding. No live dispatch headers were observed. MS20 establishes that the public dispatch IID has only nine slots and supplies no complete read-only observer for direct-call trip inputs. Whole-owner comparison requires a supported captured input boundary; no whole-owner equivalence is claimed.
+
+Next: coordinator may land this measured default-off work; spec writers resolve MS21/MS22, and a future lane can add an independently supported live input boundary. The supervisor publishes this detached HEAD to the reserved lane branch; this lane did not modify shared refs, merge main or push.
