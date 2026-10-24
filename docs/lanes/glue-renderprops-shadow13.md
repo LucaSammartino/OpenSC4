@@ -12,7 +12,7 @@ The ini key remains default-off. No C ABI exports changed. Config documentation 
 
 One stable-source `qbuild all` completed with PASS: Cargo **7,421 passed / 0 failed / 0 ignored** across 51 summaries; clippy **0 diagnostics**; native build **264/264 edges**; CTest **81/81**. The native portion used coordinator queue `qbuild-20261024-204415-build-ctest`, not a local MSVC invocation. Logs remain in `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, and `fc4verify-ctest.log`. Sessions 43351 and 65544 reached terminal results; no outstanding checks or game requests.
 
-[Run 633](../runs/grp13-2032-20261024-r1-633.md): `grp13-2032-20261024-r1`, Konradshohe, turbo, 2026-01-27 through **2032-01-01**, **clean**, `ref_warnings=0`, `foreign_exceptions=0`, `watchdog_stalls=0`, `rtc=0`, `overruns=0`; 116.719 real seconds. Exact result:
+[Run 633](../runs/grp13-2032-20261024-r1-649.md): `grp13-2032-20261024-r1`, Konradshohe, turbo, 2026-01-27 through **2032-01-01**, **clean**, `ref_warnings=0`, `foreign_exceptions=0`, `watchdog_stalls=0`, `rtc=0`, `overruns=0`; 116.719 real seconds. Exact result:
 
 ```text
 renderprops 73/73

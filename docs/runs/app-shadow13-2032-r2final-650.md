@@ -1,5 +1,5 @@
-tag: app-shadow13-2032-r2final-634
-run: 634
+tag: app-shadow13-2032-r2final-650
+run: 650
 date: 2026-10-24
 lane: glue-app-shadow13
 dll: FreeCity4-glue-app-shadow13 final gate at 982412332 (sha256 8c0ae2a45ff8fedab6e841d0b8740441a317d21b3a27ed78029d9996da802867)

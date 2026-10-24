@@ -20,10 +20,10 @@ Evidence: `build-runs/app-closure-gate-console.log`, `qbuild-test.log`, `qbuild-
 
 ## Real-city measurements
 
-- [Run 631](../runs/app-shadow13-2032-r2a-631.md), `app-shadow13-2032-r2a`: clean turbo to 2032-01-05, app 0/72 and app-startup 0/1. Exactly the two AP18 caches differed; the initial startup label also used an unset date, subsequently fixed.
-- [Run 632](../runs/app-shadow13-2032-r2normal-632.md), `app-shadow13-2032-r2normal`: clean normal speed to 2032-01-01, **app 72/72**, **app-startup 1/1**. Explicit AP18 diagnostic **app-path-cache 0/73**, confirming the same two differences without turbo.
-- [Run 633](../runs/app-shadow13-2032-r2exact-633.md), `app-shadow13-2032-r2exact`: clean turbo to 2032-01-20, **app 72/72**, **app-startup 1/1**, unresolved diagnostic off.
-- [Run 634](../runs/app-shadow13-2032-r2final-634.md), `app-shadow13-2032-r2final`: final-gate DLL clean turbo to 2032-01-06, **app 72/72**, **app-startup 1/1**, every supported shadow line mismatches=0 and resyncs=0. DLL SHA256 `8c0ae2a45ff8fedab6e841d0b8740441a317d21b3a27ed78029d9996da802867`.
+- [Run 631](../runs/app-shadow13-2032-r2a-646.md), `app-shadow13-2032-r2a`: clean turbo to 2032-01-05, app 0/72 and app-startup 0/1. Exactly the two AP18 caches differed; the initial startup label also used an unset date, subsequently fixed.
+- [Run 632](../runs/app-shadow13-2032-r2normal-647.md), `app-shadow13-2032-r2normal`: clean normal speed to 2032-01-01, **app 72/72**, **app-startup 1/1**. Explicit AP18 diagnostic **app-path-cache 0/73**, confirming the same two differences without turbo.
+- [Run 633](../runs/app-shadow13-2032-r2exact-648.md), `app-shadow13-2032-r2exact`: clean turbo to 2032-01-20, **app 72/72**, **app-startup 1/1**, unresolved diagnostic off.
+- [Run 634](../runs/app-shadow13-2032-r2final-650.md), `app-shadow13-2032-r2final`: final-gate DLL clean turbo to 2032-01-06, **app 72/72**, **app-startup 1/1**, every supported shadow line mismatches=0 and resyncs=0. DLL SHA256 `8c0ae2a45ff8fedab6e841d0b8740441a317d21b3a27ed78029d9996da802867`.
 
 All four verdicts are clean with `ref_warnings=0`, foreign exceptions=0, watchdog stalls=0 and rtc=0. No game or build request remains outstanding. The exact measured labels for the final DLL are:
 

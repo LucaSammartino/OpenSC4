@@ -1,5 +1,5 @@
-tag: app-shadow13-2032-r2a-631
-run: 631
+tag: app-shadow13-2032-r2a-646
+run: 646
 date: 2026-10-24
 lane: glue-app-shadow13
 dll: FreeCity4-glue-app-shadow13 ae3cc0a3c (sha256 prefix 028feb88)
