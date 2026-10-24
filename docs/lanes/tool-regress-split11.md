@@ -19,6 +19,8 @@
   compare fixed split against combined only. No further implementation work this round (two-thirds budget).
 - A short isolated-cost probe refused submission because train198 is active; no probe games ran.
 - Latest source preserves actual nonclean queue verdict names; 17 regression tests still pass.
+- Run 612 records all 52 measured coverage lines: 51 exact labels, flammability 53/54 (mismatch total 1).
+- coverage.read_regress works unchanged; newest_regress correctly keeps reachable main train196 evidence.
 - Cost source: train196 timestamp gaps before shadow log lines; residential 198.290 s, development 66.596 s,
   demand 59.856 s. Cost proxies, not CPU profiling; measured run will validate balancing.
 - Coordinator train197 completed clean (885.953 s game time); own DLL built from unchanged main engine at ffb8f38c2.
