@@ -20,6 +20,7 @@
 - Final gate verdict qbuild-20261024-060405-build-ctest.verdict. Tree-changed notice reflects source commit and lane-file update during gate; engine source was stable throughout.
 - Fixed DLL build-runs/dlls/pl21fix6-r3-fixed.dll SHA256 8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f.
 - Regress operation73784 active: regress-pl21r3fixa-shadows and regress-pl21r3fixa-replace; collect same operation. Next: second fixed pair tag pl21r3fixb.
+- Fixed pair A replace completed clean2032, foreign_exceptions0/ref_warnings0/rtc0/stalls0, real136.843 s; local log/verdict preserved. Shadows remains outstanding.
 - q.py Bash wrapper failed Win32 error5 before launching regress; direct local output-filter wrapper then submitted the unique requests once.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
