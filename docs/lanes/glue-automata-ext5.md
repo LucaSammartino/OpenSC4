@@ -1,21 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | in progress | Round 2 merge, native gate, combined automata/netocc run to 2032. |
+| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | ready: main merged ee9db8e59; cargo 6804/0, clippy clean, CTest 70/70; run 349 clean through 2032, automata/automataowners/netocc each 72/72 exact; ABI export added in round 1 | Coordinator publish detached HEAD, land and credit coverage. |
 
-## Handoff
+## Round 2 report
 
-- Goal: merge main and resolve capture conflicts preserving automata and netocc; no new scope.
-- Round 1 tip d292d95c0: automataowners exact 72/72 through 2032; report retained below.
-- Merge ee9db8e59 completed: WriteCapture/config/profile conflicts resolved; one combined shadows entry.
-- Preserve WriteCapture object/reference members, variants_ layout, netocc opt-in core variant path and automata default independent encoder.
-- Gate PASS on stable source ee9db8e59: qbuild all, Rust 6804/0, clippy 0 diagnostics, native 207/207, CTest 70/70.
-- Native verify request qbuild-20261024-010820-build-ctest collected to terminal pass; all already invoked the full coordinator verification path.
-- Game request outstanding: automata-ext5-r2-2032-20261024-a, turbo Konradshohe through 2032; automata_shadow, automata_owners_shadow, netocc_shadow enabled.
-- Next: collect blocking build-runs/wait-automata-r2.ps1 wait, inspect exact lines, write run 349 (recheck availability), final report and ready queue.
-- DLL SHA256 3c1d8d7050131323febcac27293cafa7a42b48a39ff4b25bff86e75bc505128d. No build outstanding.
-- Detached HEAD: commit normally; supervisor publishes branch. Manifest run4-glue-automata-ext5-r2-manifest.json.
+Merged main with `git merge --no-edit main` in merge commit `ee9db8e59`. Resolved FC4WriteCapture.cpp by retaining automata default independent native variant encoding and netocc opt-in property transport. Kept both sides of the shared capture layout, including `variants_` and object/reference bookkeeping, and main construction/dependency changes. Kept both config keys. Combined conflicting regress shadows entries into one entry containing all keys from both sides, including netocc and automataowners. No new implementation scope or C exports in round 2; round 1 adds one export, so queue ABI remains true. No ABI version bump.
 
-## Report
+Stable final source `ee9db8e59`: `qbuild all` PASS, **6804 Rust tests passed, 0 failed, 0 ignored**, clippy **0 diagnostics**. Its coordinator native verification request `qbuild-20261024-010820-build-ctest` completed with **build 207/207, CTest 70/70**. This is the full native verify path, including every plugin INI test; no duplicate check was launched. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; terminal verdict `build-runs/build-results/qbuild-20261024-010820-build-ctest.verdict`.
+
+[Run 349](../runs/automata-ext5-r2-2032-20261024-a-349.md): Konradshohe, turbo through **2032-01-01**, **clean**, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, other WARNING lines=0. All three shadows enabled together. DLL SHA256 `3c1d8d7050131323febcac27293cafa7a42b48a39ff4b25bff86e75bc505128d`. Unique request collected by one blocking filesystem-watcher wait to terminal clean; no qwait or duplicate request. Evidence: `build-runs/game-results/automata-ext5-r2-2032-20261024-a.{log,verdict}`.
+
+```text
+automata-ext5-r2-2032-20261024-a automata 72/72
+automata-ext5-r2-2032-20261024-a automataowners 72/72
+automata-ext5-r2-2032-20261024-a netocc 72/72
+automataowners shadow 2032-01-01 month: cSC4AutomataManager=4/4 bytes=5656 mismatches=0; cSC4TrafficAutomataManager=2/2 bytes=5384 mismatches=0; cSC4Automaton=633/633 bytes=203557 mismatches=0; cSC4AutomataController=297/297 bytes=27825 mismatches=0; cSC4ConstructionOccupant=1/1 bytes=262 mismatches=0; mismatches=0
+netocc shadow month 2032-01-01: mismatches=0 fixups=857 records=1283 bytes=478251 network=857 prebuilt=0 bridge=0 tunnel=0 underground=0 pipe=403 subway=0 connection=0 pipe_connection=2 subway_connection=0 pole=3 line=18 pylon=0
+automata shadow: city shutdown: 73 lines, 73 with mismatches=0; components compared 438, bytes compared 782015, mismatches 0
+automataowners shadow: city shutdown: 73 lines, 73 with mismatches=0
+netocc shadow summary: clean=73/73
+```
+
+Each shadow is **73/73 including load**. Across those samples, remaining-owner record comparisons were: AutomataManager 292/292, TrafficAutomataManager 146/146, Automaton 46277/46277, AutomataController 21758/21758, ConstructionOccupant 154/154. Fields remain exactly the round 1 table below; these are record-codec comparisons from the same inputs. Netocc compared 1283 records and 478251 bytes each sample, with monthly fixups=857 and load fixups=0.
+
+Questions: none; no remaining differences. No outstanding builds or game requests. Coverage maps untouched. All commits remain on detached HEAD for supervisor publication; no branch/ref changes or pushes. Next: coordinator land and credit coverage.
+
+## Round 1 report (preserved)
 
 Added default-off `automata_owners_shadow` / `FC4_AUTOMATA_OWNERS_SHADOW` to FC4AutomataShadow. At load/month it compares inherited manager records, recursively captures referenced automata/controllers with cycle deduplication, and captures indexed constructions through occupant-manager Write references. Unsupported automaton/controller classes fail explicitly. Captured variants now use verified native getters and an independent encoder of foundations §9.2, rather than the former false-return stub.
 
