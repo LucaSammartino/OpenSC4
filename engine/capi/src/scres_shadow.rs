@@ -17,6 +17,7 @@ pub struct Observation {
     pub after: [u8; 12],
     pub bytes: *const u8,
     pub length: usize,
+    pub consumed: u32,
 }
 
 fn compare(o: &Observation, bytes: &[u8]) -> u32 {
@@ -96,7 +97,7 @@ fn compare(o: &Observation, bytes: &[u8]) -> u32 {
     u32::from(status != (o.status != 0))
         | (u32::from(output[..width] != o.after[..width]) << 1)
         | (u32::from(counter != u64::from(o.after_counter)) << 2)
-        | (u32::from(consumed != bytes.len() as u64) << 3)
+        | (u32::from(consumed != u64::from(o.consumed)) << 3)
 }
 
 /// # Safety
@@ -133,6 +134,7 @@ mod tests {
             after: [0xA5; 12],
             bytes: bytes.as_ptr(),
             length: bytes.len(),
+            consumed: bytes.len() as u32,
         };
         o.after[..after.len()].copy_from_slice(after);
         o
@@ -167,5 +169,16 @@ mod tests {
         o.after_counter = 8;
         o.status = 0;
         assert_eq!(compare(&o, &[]), 0);
+    }
+
+    #[test]
+    fn constructed_inputs_compare_cursor_without_discarding_unconsumed_bytes() {
+        let bytes = b"12suffix, trailing";
+        let mut o = observation(true, 9, bytes, &12_u32.to_le_bytes());
+        o.consumed = 9;
+        o.after_counter = o.counter + o.consumed;
+        assert_eq!(compare(&o, bytes), 0);
+        o.consumed += 1;
+        assert_eq!(compare(&o, bytes), 8);
     }
 }

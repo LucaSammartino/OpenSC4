@@ -5,8 +5,13 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4Interfaces.h"
+#include "FC4RefAudit.h"
 #include "compat/FC4Compat.h"
 #include "cIGZPersistDBSerialRecord.h"
+#include "cIGZPersistDBRecord.h"
+#include "cIGZPersistResourceManager.h"
+#include "cGZPersistResourceKey.h"
+#include "GZServPtrs.h"
 #include "cISC4City.h"
 #include "fc4.h"
 #include <windows.h>
@@ -21,6 +26,7 @@ struct Observation {
     uint8_t before[12], after[12];
     const uint8_t* bytes;
     size_t length;
+    uint32_t consumed;
 };
 static_assert(offsetof(Observation, bytes) == 48, "Rust repr(C) observation alignment");
 extern "C" uint32_t fc4_scres_shadow_compare(const Observation*);
@@ -29,6 +35,7 @@ Patch g_patches[2][14];
 std::atomic<uint64_t> g_calls{0}, g_bytes{0}, g_bad{0}, g_refused{0};
 std::atomic<uint64_t> g_binary{0}, g_text{0};
 bool g_enabled = false;
+bool g_passive = false, g_constructed = false;
 uint64_t g_lines = 0, g_clean = 0;
 thread_local bool g_inside = false;
 
@@ -83,6 +90,7 @@ bool __fastcall Read(void* self, void*, void* output) {
     }
     o.bytes = bytes.data();
     o.length = bytes.size();
+    o.consumed = static_cast<uint32_t>(bytes.size());
     const uint32_t difference = fc4_scres_shadow_compare(&o);
     ++g_calls;
     if (Mode) ++g_text; else ++g_binary;
@@ -127,17 +135,26 @@ bool Replace(Patch& patch, void* value) {
     VirtualProtect(patch.entry, sizeof(void*), before, &ignored);
     return true;
 }
+#include "FC4SCResConstructed.inc"
 }
 
 namespace fc4 {
 void SCResShadowStart() {
-    if (g_enabled || SettingInt("scres_shadow", nullptr, 0) == 0) return;
+    if (g_enabled) return;
+    g_passive = SettingInt("scres_shadow", nullptr, 0) != 0;
+    g_constructed = SettingInt("scres_constructed", nullptr, 0) != 0;
+    if (!g_passive && !g_constructed) return;
     g_enabled = true;
     if (!compat::IdentifiedVersion()) {
         ++g_refused;
         Log("scres: refused: executable not identified");
         return;
     }
+    if (g_constructed) {
+        ConstructedSpecInputs();
+        Log("scres: constructed adapter inputs complete; resource prefix deferred until city load; PARTIAL coverage, SCR8/SCR9 open");
+    }
+    if (!g_passive) return;
     for (unsigned mode = 0; mode != 2; ++mode) {
         for (unsigned slot = 1; slot != 14; ++slot) {
             if (slot == 3) continue; // SCR8: native string argument view unsettled.
@@ -169,6 +186,8 @@ void SCResShadowLine(const char* event, int32_t julian, cISC4City* city) {
     }
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
+    ConstructedLines(date);
+    if (!g_passive) return;
     // Never credit an empty observation set as an exact differential.
     const uint64_t mismatches = g_bad.load() + g_refused.load() + (g_calls.load() == 0 ? 1u : 0u);
     Log("scres shadow %04d-%02d-%02d %s: partial=adapter_reads calls=%" PRIu64
@@ -184,7 +203,8 @@ void SCResShadowStop() {
         if (patch.entry && *patch.entry == patch.forward && !Replace(patch, patch.original))
             Log("scres: failed to restore adapter entry");
     }
-    Log("scres shadow summary: clean=%" PRIu64 "/%" PRIu64 " partial=adapter_reads", g_clean, g_lines);
+    if (g_passive) Log("scres shadow summary: clean=%" PRIu64 "/%" PRIu64 " partial=adapter_reads", g_clean, g_lines);
+    if (g_constructed && !g_constructedReported) Log("scres: constructed report unavailable: no city loaded");
     g_enabled = false;
 }
 }

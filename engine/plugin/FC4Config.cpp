@@ -358,6 +358,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "netocc_shadow",
                                   // Partial SC token adapter read observations (default off).
                                   "scres_shadow",
+                                  // Fixed native adapter vectors and shipped resource prefix.
+                                  "scres_constructed",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

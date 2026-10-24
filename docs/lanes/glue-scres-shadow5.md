@@ -1,6 +1,29 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-scres-shadow5: resource shadow | Codex, `glue-scres-shadow5` (reserved branch, detached HEAD) | WIP: final gate passes; both real-city runs clean to 2032 but `scres 0/73` each (empty natural sample). No verification credit. SCR8/SCR9 open. | Publish native ABI and natural capture routes, complete capture, then repeat the real-city measurement. |
+| glue-scres-shadow5: resource shadow | Codex, `glue-scres-shadow5` (reserved branch, detached HEAD) | in progress: round 2 constructed-input investigation | Exercise the specified adapter ABI; preserve SCR8/SCR9 until published contracts resolve them. |
+
+## Handoff
+
+- Goal: round 2 constructed native parser differential, then 2032 measurement.
+- Starting tip: cdfb848fd; round 1 gate and two clean city runs below.
+- Clean-room restriction forbids the requested ghidra/decomp/tools inspection,
+  spec edits and question archival. No forbidden source opened or script run.
+- SCR8/SCR9 remain open; do not infer missing parser signatures from addresses.
+- Permitted sc-resources sections 5/6 specify adapter layout and numeric reads;
+  existing shadow compares those with private fc4_scres_shadow_compare.
+- Implemented `scres_constructed` default-off: startup binary/text adapter
+  vectors, plus a fixed shipped pack-1 INI's first 16 raw bytes at city load.
+  Resource-prefix probes exercise binary scalar reads, not an INI parser.
+- Private observation now carries consumed length separately from full input;
+  focused Rust tests 4/4 and owned-file fmt pass. q.py's Bash startup failed
+  with CreateFileMapping error 5; direct cargo test completed successfully.
+- Next: run the required stable-source qbuild all, collect its queued native
+  verification, then enqueue a uniquely named constructed-input city run.
+- tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
+  verification credit; unsupported owners/signatures remain SCR8/SCR9.
+- No outstanding game/build requests. HEAD is intentionally detached.
+
+## Round 1 evidence (retained)
 
 ## Implementation and scope
 
