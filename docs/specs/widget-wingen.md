@@ -5,7 +5,8 @@ Scope: two owners as tools/coverage.py assigns them on `bb641878`:
   game dialog is built on. It has an optional title bar, an optional side bar, colour bars and dividers, gutters, a
   background image, drag-to-move and drag-to-resize, and a pluggable window procedure;
 - `cGZWinFlatRect` (17 functions, 1,509 bytes, §9): the flat rectangle used for the colour bars, the dividers, the
-  side bar and as the base of the title bar.
+  side bar and as the base of the title bar;
+- `cGZWinGenTitleBar` (23 functions, 3,168 bytes, §13): the title bar, with its caption and three system buttons.
 
 Related:
 - widget-toolkit.md: the `cGZWin` base (fields §2, flags §3, children §4, hit tests §5, `SendMsg`/`PostMsg` §7,
@@ -555,5 +556,150 @@ destructor, `0x0099B5BF` `SetWinGenFlag`, `0x0099B6A5` constructor.
 destructor, `0x009CD718` `DoMessage`, `0x009CD7B6` slot 17. The slot 7 thunk `0x0099A017` is a separate
 `fn:` owner, also described in §9.2.
 
-Not covered: the title bar's own behaviour (`cGZWinGenTitleBar`), and the meaning of draw-context slots 38/39 and
-of the graphics-system colour conversions (WGN1, WGN2).
+`cGZWinGenTitleBar` (23): §13.6.
+
+Not covered: the meaning of draw-context slots 38/39, of the graphics-system colour conversions (WGN1, WGN2) and
+of the font slots the title bar uses (cited by number).
+
+## 13. `cGZWinGenTitleBar` *[compat]*
+
+A `cGZWinFlatRect` (§9) with a caption and three system buttons. The general window creates one (§4.3) and keeps it
+in `+0xF0`; it is a child window with ID `0x42B7C351`. It has no `DoMessage` of its own, so its mouse input goes to
+the general window through the flat rectangle's forwarding (§9.4) and drags it (§6.1).
+
+Window offsets as in §9; the title bar adds:
+
+| Offset | Meaning | Constructor value |
+|---|---|---|
+| `+0xD8` | `cIGZWinFlatRect` vtable, the title bar's copy `0x00ADC348` (slot 17 replaced, §13.3) | |
+| `+0xF0` | `cIGZWinGenTitleBar` vtable `0x00ADC330` (IID `0x37C86704`) | |
+| `+0xF4` | title-bar flags (§13.1) | 0 |
+| `+0xF8` | title font (counted) | null |
+| `+0xFC` | caption colour used with flag `0x1000` | 0 |
+| `+0x100` | the **display caption** (a counted `cRZString`, possibly shortened) | a new empty string |
+| `+0x104`, `+0x108` | caption position (x, y) in the title bar | 0, 0 |
+| `+0x10C` | caption right limit: the left edge of the leftmost visible button | 0 |
+| `+0x110`, `+0x114`, `+0x118` | the close, min/max and go-back buttons (`cIGZWinBtn`, counted) | null |
+
+- **`QueryInterface`** (`0x00998E73`): `0x37C86704` → `+0xF0` (null for null), AddRef'd; anything else → the flat
+  rectangle's. The `+0xF0` and `+0xD8` slot-0 thunks (`0x0099A022`, `0x00999FEB`) and the `+0xF0` AddRef and
+  Release thunks (`0x0099A02D`, `0x0099A038`) adjust and forward.
+- **Window overrides** (vtable `0x00ADC398`, compared with `0x00AE20A0`): 0, 1, 2 (its own reference count
+  thunks), 4 `Init`, 5 `Shutdown`, 55 `SetArea`, 74 `SetCaption`, 88 `GZPaint`, 148 destructor.
+- **Constructor** (`0x0099A67E`): the flat-rectangle constructor, the three vtables, the fields above; the display
+  caption is a new `cRZString` (0x14 bytes from the global heap; an allocation failure stores null).
+- **Destructor** (body `0x00999FB2`; deleting form `0x0099A59A`): restore the vtables, `Shutdown`, release the
+  display caption, the flat-rectangle destructor body.
+
+### 13.1 Flags and `SetTitleBarFlag(mask, on)` (`0x0099B50F`)
+
+Bits: 1 close visible, 2 min/max visible, 4 go-back visible, `0x100` close disabled, `0x200` min/max disabled,
+`0x400` go-back disabled, `0x1000` use the `+0xFC` caption colour (§13.4). The general window maps its own flags to
+these (§3).
+
+`SetTitleBarFlag` (not virtual; `on` tested as a byte):
+- 1, 2, 4: if that button exists, its window gets `SetFlag(1 visible, on)` and the buttons are placed again
+  (§13.5);
+- `0x100`, `0x200`, `0x400`: if that button exists, `SetFlag(2 enabled, !on)`;
+- then, for every mask, `flags := on ? flags | mask : flags & ~mask`. Returns true.
+
+Nothing in the game sets `0x1000` or `+0xFC`: the general window passes only the six mapped bits.
+
+### 13.2 `Init` (window slot 4, `0x0099AC7E`) and `Shutdown` (window slot 5, `0x0099944B`)
+
+`Init`: already initialised → true. Without the window-control manager → **false**. Otherwise:
+1. Font: manager slot 5 with `0xE2B14587`, or `0x68963C4C` when that is null; `SetTitleFont` (§13.4).
+2. Image: manager slot 7 `GetPicture(0xE2B14589)` (the system-button strip). If null: a new buffer from the graphics
+   system (slot 3), `Init(64, 64, …)` (buffer slot 3, with the format pair from graphics-system slot 9), and if that
+   and `Lock(0x8001)` (slot 6) succeed, `Fill(0xFFFFFFFF, 0)` (slot 18) and `Unlock(0x8001)`: a white 64 × 64
+   placeholder. Any failure here → release, return **false**.
+3. The image holds the buttons in rows of `imageH / 4` (buffer slot 10 >> 2), each row the full image width
+   (slot 9). With `rect = {0, 0, imageW, imageH / 4}`, in this order, release any old button and
+   `create_and_add_sys_btn`:
+   1. `0x42B7C353` into `+0x110` (close), row 0: visible = flag 1, enabled = not `0x100`;
+   2. `0x42B7C355` into `+0x118` (go back), row 1: visible = flag 4, enabled = not `0x400`;
+   3. `0x42B7C354` into `+0x114` (min/max), row 2: visible = flag 2, enabled = not `0x200`.
+
+   `rect` moves down one row after each success. A failure stops the sequence: release the image and return
+   **false** (the earlier buttons stay).
+4. `cGZWin::Init`, release the image, return true.
+
+The buttons are not placed here; that happens on the first size change (§13.5).
+
+**`create_and_add_sys_btn(id, image, rect, slot)`** (`0x0099A70F`): without the manager or the image → false.
+Manager slot 10 `(2, id, empty string, image, rect, 0)` creates a style-2 button (widget-button.md §1.2) into
+`*slot`; null → false. Then `ChildAdd(button window)`. On success the button's notification target becomes the
+title bar's **parent** (window slot 86 with `+0x48`), so its press reaches the general window's `GZOnCommand`
+(§7), and `SetBtnFlag(4, 0)` (no caption); true. On failure the button is released but **`*slot` keeps the
+pointer** (a later `Shutdown` releases it again); false.
+
+`Shutdown`: initialised only. Release the three buttons (cleared), drop the display caption (the field becomes
+null), hide (window slot 70), `SetTitleFont(null)`, `cGZWin::Shutdown`. Returns true.
+
+### 13.3 Size (`GetMinSize` `0x00998F1D`, `AutoSize` `0x009994BF`, `SetArea` `0x0099B4B8`)
+
+- **`GetMinSize(&w, &h)`** (not virtual): `w = 128`; `h = 8`, raised to the font's slot 37 `(0, 0)` + 8 (the line
+  height) and to the close button's height + 2. Returns true.
+- **`AutoSize(area)`** (flat-rect slot 17 of the title bar): without a font → **false**, nothing. Otherwise
+  `GetMinSize`; the flat rectangle's `AutoSize(area)` (mode 5: full inner width); if `H` is below the minimum height,
+  `SetH(min)` (window slot 52); caption position `x := 4`, `y := (H − line height) / 2`. True.
+- **`SetArea(l, t, r, b)`** (window slot 55): `cGZWin::SetArea`, then `place_controls` (§13.5) only when the size
+  changed.
+
+### 13.4 Caption, font and painting
+
+- **`SetTitleFont(font)`** (`0x00998EDC`): if different: AddRef the new one, release the old one, store, then
+  `InvalidateSelfAndParents` (window slot 92). True.
+- **`SetCaption(caption)`** (window slot 74, `0x0099B4A1`): `cGZWin::SetCaption`, then `calc_display_caption`.
+- **`calc_display_caption`** (`0x0099B0EB`):
+  1. The display caption becomes a copy of the caption (string slot 14 with window slot 73).
+  2. Without a font: clear it, return false.
+  3. With 0 or 1 characters: keep it, true.
+  4. `avail := +0x10C − +0x104`. If `avail` ≤ 0, or the font fits no character of it into `avail` pixels (font
+     slot 42 `(text, n, avail, 0)` returns 0): clear it, true. If all `n` fit: keep it, true.
+  5. Otherwise shorten: the ellipsis is the manager's string `0x5377BE31` (manager slot 35), or `"..."` without it;
+     `e :=` its width (font slot 48). If `e ≥ avail`: clear the caption. Else keep the characters that fit in
+     `avail − e` (font slot 42), erase the rest, `RTrim`, append the ellipsis. True.
+- **`GZPaint`** (window slot 88, `0x0099A043`): the flat rectangle's `GZPaint` (fill and edges); then, with a font,
+  font slot 51 `(buffer to draw to, drawArea.l + x, drawArea.t + y, text, length, colour, 0x8000000, 0, 0)` with the
+  display caption, where `colour` is `+0xFC` with flag `0x1000` and `0x8000000` otherwise *[inferred: "the font's
+  own colour"]*. True.
+
+### 13.5 `place_controls` (`0x0099B285`)
+
+`x := W − 4`. For the close, go-back and min/max buttons in this order, when the button exists and its window is
+visible (window slot 67 with 1): `x −= its width`; `MoveTo(x, (H − its height) / 2)` (window slot 56; the `y` is
+pushed before the argument-less width getter and becomes the second argument); move it to the back
+(`SetFlag(0x800, 1)`, `ChildToBack`, `SetFlag(0x800, 0)`); `x :=` its left edge. So the buttons line up from the
+right edge, 4 pixels in, close outermost.
+
+Then `+0x10C := x`; if `x` > 0 and it changed, `calc_display_caption`. True.
+
+### 13.6 The `cIGZWinGenTitleBar` slots and the inventory
+
+Vtable `0x00ADC330`, 6 slots: 0–2 the thunks above; 3 `GetDisplayCaption(out)` (`0x00999542`: the display caption,
+AddRef'd, true; null → false); 4 `GetMargins(l, t, r, b)` (`0x00998EAA`: 4, 4, 4, 4); 5 `GetFontAs(iid, out)`
+(`0x00998ECA`: without a font false, else the font's `QueryInterface`).
+
+Owner functions (23): `0x00998E73` QI, `0x00998EAA`, `0x00998ECA`, `0x00998EDC` `SetTitleFont`, `0x00998F1D`
+`GetMinSize`, `0x0099944B` `Shutdown`, `0x009994BF` `AutoSize`, `0x00999542`, `0x00999FB2` destructor body,
+`0x00999FEB`/`0x0099A022` QI thunks, `0x0099A02D`/`0x0099A038` AddRef/Release thunks, `0x0099A043` `GZPaint`,
+`0x0099A59A` deleting destructor, `0x0099A67E` constructor, `0x0099A70F` `create_and_add_sys_btn`, `0x0099AC7E`
+`Init`, `0x0099B0EB` `calc_display_caption`, `0x0099B285` `place_controls`, `0x0099B4A1` `SetCaption`,
+`0x0099B4B8` `SetArea`, `0x0099B50F` `SetTitleBarFlag`.
+
+### 13.7 Title-bar quirks and cases
+
+Quirks:
+1. A title bar without a font ignores `AutoSize`, so it keeps the size it was created with.
+2. A failed `ChildAdd` of a system button leaves a released pointer in its field.
+3. Flag `0x1000` and the `+0xFC` colour are unreachable from the general window.
+4. The caption is cleared, not shortened, when even the ellipsis does not fit.
+
+Cases:
+1. A strip image 60 × 64: rows of 16; close uses `{0, 0, 60, 16}`, go back `{0, 16, 60, 32}`, min/max
+   `{0, 32, 60, 48}`.
+2. A 200-wide title bar with only the close button visible, 14 × 14, H = 20: the button at (182, 3), and the
+   caption limit 182.
+3. Caption "Budget", avail 20, the font fits 3 characters in 20 and the ellipsis is 9 wide: the display caption is
+   the characters that fit in 11, trimmed, + "...".
