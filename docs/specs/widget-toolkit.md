@@ -1102,10 +1102,12 @@ Slot numbers are `cIGZWin` slots; "WM" is the window manager `+0x04`.
 - **`ChildExists(win)`** (`0x0099DDD5`): false unless WM slot 24 (`IsWindowValid(win)`) holds; then whether `win` is in
   the list (under the lock).
 - **`ChildExists(id)`** (`0x0099DE2A`): whether a child's `GetID` (slot 63) equals `id`.
-- **`GetChildWindowFromCursorPoint(x, y)`** (`0x0099DFA9`):
-  1. In list order, children that are visible (flag 1) and do not have flag `0x200000` are asked (their slot 40) for
-     the window at (x, y); the first non-null answer is the result.
-  2. Otherwise, `this` when its slot 62 holds for (x, y) *[inferred: the point is inside]*, else null.
+- **`GetChildWindowFromCursorPoint(x, y)`** (slot 40, `0x0099DFA9`):
+  1. In list order, children that are visible (flag 1) and do not have flag `0x200000` are asked, through this same
+     slot 40, for the window at (x, y); the first non-null answer is the result.
+  2. Otherwise, `this` when `IsPointInWindowScreenCoordinates(x, y)` (slot 62, §5.2) holds, else null.
+
+  It differs from `GetChildWindowFromPoint` (slot 39, §5.3) only in skipping flag-`0x200000` children.
 
 ### 18.4 Small helpers
 
