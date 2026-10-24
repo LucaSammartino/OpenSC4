@@ -289,10 +289,11 @@ the developer's state 17 instead, D-now is right and the load snapshot is the wr
 
 ### 6.1.1 Native capture ownership and delivery order (LV6, static proof)
 
-The verified native field widths and canonical interface bases are proposed in
-`build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` for publication in `docs/abi/layouts.md`.
-**They are not yet a published ABI prerequisite.** Coordinator review, application and a full train gate
-are required before an adapter depends on them; a docs-only gate bypass is insufficient.
+The verified native field widths and canonical interface bases are recorded in
+[layouts.md, Land-value native progress](../abi/layouts.md#land-value-native-progress-csc4landvaluesimulator-11641-gog-verified-2026-10-22).
+That record already includes the iterator, developer nodes, initialization/reference fields and
+message-target forwarding ABI; the earlier pending-publication description is superseded.
+Publication establishes the field contract, not an installed interceptor or a full train gate verdict.
 
 Use two separately queried interfaces, each held by its own successful QueryInterface reference:
 L = `cISC4LandValueSimulator` (IID `0xE7781D8C`), M = `cIGZMessageTarget2` (IID `0x452294AA`).
@@ -351,7 +352,8 @@ existing deliveries while preserving target identity, registration order, shutdo
 all notifications. Removing/re-adding an agent or changing a vtable is not approved by this
 proof. An additional independent subscription does not bracket the native call. The native
 startup windows are established in §6.1.2; a complete safe adapter installation is still unproved.
-LV6 stays open for this installation/lifetime/order gap and pending ABI application. LV2 and LV7
+LV6's field/forwarding contract is resolved in §6.1.3. Installation/lifetime/order evidence is a
+separate adapter acceptance requirement; QI does not satisfy it. LV2 and LV7
 still require actual per-Step/developer/startup captures in the preserved runtime traces;
 static layout proof and output-exact pass-end samples do not resolve them.
 
@@ -440,7 +442,7 @@ permission to patch executable memory.
    the native reference-count field. Clear all owner identity/progress at city teardown;
    an address reused by the next city is a new owner.
 
-**Remaining LV6 installation gap.** The native lifecycle and the six-byte DoMessage span
+**Adapter installation evidence still required.** The native lifecycle and the six-byte DoMessage span
 are established, but a complete safe installation is not. The unproved branches are
 (a) observer registration/executable-mutation availability before the synchronous calls
 at `0x00454937` and `0x00455898`, (b) exclusion of OnTick/notification/in-flight entry
@@ -450,8 +452,78 @@ land-value registration on the new-city path. No native callback into the observ
 been established in that interval. These obligations need a reconciled adapter/host
 lifecycle or additional native dispatch proof, not guessed detour bytes or proxy
 re-registration. Keep `input_capture=pass-end-sample; native_step_capture=0` until they,
-the published ABI prerequisite and actual capture implementation are satisfied. LV2/LV7
+the actual capture implementation and full train gate are satisfied. The field ABI is published;
+it does not supply these host guarantees. LV2/LV7
 still require runtime traces at the real read boundaries.
+
+### 6.1.3 LV6 decision: published layout and capture acceptance
+
+**LV6 answer.** The requested layouts are already recorded in `docs/abi/layouts.md` under
+“Land-value native progress”; no additional field row or C ABI export is needed for the
+described read-only observation. A version-gated forwarder around the **actual native M
+delivery**, reading progress through separately held L, is the observation boundary of
+§6.1.1. A QueryInterface-obtained proxy alone is **not** a supported installation: it receives
+no existing agent deliveries and is not substituted for the native target by QI. Re-registering
+the proxy is not equivalent: native Init registers M and native Shutdown removes M, not that
+proxy (`0x006BE6D0–0x006BE724`, `0x006BDF98–0x006BDF9E`). The executable establishes no
+observer installation API or callback exclusion guarantee. Consequently the bounded native
+proof in §6.1.2 is a host acceptance checklist, not proof that the proposed interceptor has
+been installed. Closing the layout question must not enable capture or remove that checklist.
+
+The following is a compact lookup for the published record, not a new layout proposal. Every
+offset uses the base in its first column. All addresses/pointers are native 32-bit values;
+copy bytes at their stated widths, without reading padding as a field.
+
+| Base | Progress needed by an observer | Width / interpretation |
+|---|---|---|
+| L (land-value QI result) | +0x0C initialized; +0x10 reference count | 1-byte flag; 4-byte count (observe only) |
+| L | +0x38 pipelineState; +0x3C tract iterator; +0x40 slope iterator | int32; two 4-byte pointers |
+| L | +0x4C ignoreZoning | 1-byte flag |
+| L | +0x70 developer cursor; +0x8C developer header | two 4-byte node pointers; +0x8C is a pointer field, not an embedded node |
+| iterator pointer | +0x00 state | 1 byte: fresh 0, yielding 1, exhausted 2 |
+| iterator pointer | +0x04 x, +0x08 z, +0x0C step, +0x10 x0, +0x14 z0, +0x18 x1, +0x1C z1 | seven signed int32 fields; inclusive bounds; 0x20-byte allocation |
+| developer node | +0x04 parent, +0x08 left, +0x0C right | three 4-byte pointers; header +0x04 is root, header +0x08 is first |
+| developer node (not header) | +0x10 developer; +0x14 weight | borrowed interface pointer; IEEE-754 float32 |
+
+M = L + 4 and S = L + 8 are consequences of this build's QI, not offsets to apply to an
+arbitrary interface. The byte/dword accesses, inclusive signed iterator comparisons and
+float32 weight consumption are cited in the published layout record. Rechecked anchors:
+QI `0x006BD4DF–0x006BD4F9`; state dword `0x006BE7CD`; iterator state byte and signed bounds
+`0x0060C8D0–0x0060C924`; header/cursor/node payload dwords `0x006BEEB3–0x006BEEFD`.
+The native message-target slot expects M, removes one four-byte argument and returns AL;
+both native calls to Step pass L. SimNewDay uses budget 5, SimIdle forwards message data3
+unchanged (`0x006BF111–0x006BF116`, `0x006BF155–0x006BF160`).
+
+**Progress is a work interval, not a second simulation clock.** A before/after pair describes
+only that delivery. For a tract state, include a fresh iterator's starting coordinate only if
+it was actually yielded; exclude a yielding iterator's already processed coordinate. After
+exhaustion, include the remaining in-bounds coordinates only. A newly reset iterator belongs
+to the next phase or the state-3 retry; it is not evidence that another scan ran in that call.
+An unchanged yielding position means no further tract work. State 9 supplies no input interval.
+The state-3 retry invalidates the *statistics contribution* of the first scan; retain its trace
+as a discarded attempt if desired, but compute statistics from the subsequent ignoreZoning scan.
+
+**Developer and startup records.** State 6 establishes a cursor, not a desirability read.
+Record a state-7 developer only when the pre-call cursor differs from the header: copy its
+key, float32 weight and int16 map for that call, then associate them with the old cursor even
+if the cursor reaches the header afterward. The header call consumes no developer and
+publishes the accumulated total. This remains true for an empty developer map. For a loaded
+city, the state-7 pre-call copy is the map actually available there, whether restored or newly
+published; the earlier restored-map snapshot remains useful provenance, not a substitute
+chosen by which output matches (§6.1, §7.4). A reference to L/M keeps the owner allocation alive
+but cannot retain grids destroyed by Shutdown; capture must end before their destruction.
+
+**Acceptance and labels.** A capture report must identify the native build, city/owner lifetime,
+delivery ordinal/type/budget, before/after progress and owned input copies for the work interval.
+It must demonstrate interception of the native registrations without changing their identity
+or ordering, coverage from the first initialized delivery, and safe installation/restoration
+and callback lifetime under §6.1.2. The observer must not pump simulation between its copies
+and the corresponding native reads; an intervening mutation or missed delivery prevents a
+claim of complete input provenance. A partial trace may describe its observed intervals but
+does not prove a complete pass. Until those conditions are demonstrated, existing output
+comparisons remain `input_capture=pass-end-sample; native_step_capture=0`, even if exact.
+LV2 and LV7 remain open runtime questions. No result in this static ABI answer changes their
+algorithms, sampling, golden outputs or fidelity credit. Conformance examples are §16.19–25.
 
 ## 7. Formulas *[compat]*
 
@@ -835,6 +907,11 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
    and per call, not at one instant; the exact capture boundary is each land value `Step` call; pass 1 after a load
    usually reads the developers' restored maps. Matching an earlier day's sample is evidence, not a contract.
 
+5. *(resolved)* LV6, native progress/forwarding ABI: §6.1.1–§6.1.3 and the published
+   `docs/abi/layouts.md` record. QI alone does not install a forwarder. Host installation,
+   lifetime and real input-provenance validation remain adapter acceptance work; LV2/LV7
+   remain open. The existing pass-end sample earns no per-Step fidelity credit.
+
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
 Shipped tuning unless stated; S = 2.
@@ -879,3 +956,48 @@ Shipped tuning unless stated; S = 2.
 18. Desirability map smaller than the scratch area (A-finer case): scratch 8 × 8 tracts (size 2), desirability
     map 2 × 2 tracts (size 4) holding 0 → scratch tracts x < 4 and z < 4 are processed (value 0 → 1), every
     other scratch tract keeps its value (0 stays 0).
+19. **LV6 ABI/base vector (native adapter acceptance).** QI gives L and M = L + 4; each successful
+    query owns a separate reference. Read the pipeline dword at L + 0x38, not M + 0x38; forward
+    slot 3 with M and the original message pointer exactly once. SimNewDay budget is 5;
+    SimIdle data3 = 17 gives budget 17. The native AL result is returned unchanged. A rejected
+    executable/interface identity produces no private-field read and no capture claim.
+    A standalone QI proxy without interception receives no claim of native delivery coverage.
+20. **LV6 tract interval vector.** Use inclusive bounds x=0..2, z=0..1, step=1 in state 1.
+    Fresh (0,0) → yielding (1,0) attributes (0,0),(1,0); yielding (1,0) → yielding (0,1)
+    attributes (2,0),(0,1). Yielding (0,1) → exhausted attributes (1,1),(2,1), excluding the
+    already processed (0,1) and any stored out-of-bounds coordinate. Each of these is a
+    separate delivery; state transitions do not execute next-state tracts in that delivery.
+    Fresh → same fresh or yielding → same yielding attributes no new tract.
+21. **LV6 retry vector.** The first state-3 scan finds no eligible zoned tract. After that
+    delivery state is still 3, ignoreZoning changes false → true and the tract iterator is
+    fresh at its origin. No all-land scan has yet occurred. Discard that attempt's statistics;
+    the following scan supplies the all-land statistics. Do not treat the reset as wraparound
+    forward progress or reuse the rejected scan's count/sum/histogram.
+22. **LV6 developer interval vector.** One covered scratch cell starts at 100, total at 77;
+    identity curve, two developer nodes in native address order A then B, weights 2.5 and 1.
+    State 6 establishes cursor A without reading either map. A's state-7 pre-call map value
+    is 40: scratch becomes 200, cursor B, state remains 7, total remains 77. A later publication
+    of A=0 must not replace that input. B's state-7 pre-call map value is −3: scratch becomes
+    197, cursor header, state remains 7, total remains 77. The next header delivery reads no
+    developer, copies scratch to total (197), and advances to state 8. This tests the input
+    record and attribution as well as the existing §7.4 arithmetic.
+23. **LV6 empty/dead progress vector.** Empty developer map: state 6 selects header, then
+    state 7 performs no developer callback, publishes scratch as total and enters state 8.
+    State 9 deliveries perform no Step work. An outstanding L/M reference after Shutdown
+    does not permit dereferencing the former iterator/grid storage; the trace ends before
+    destruction. A queued LandValueMapChanged callback is not a new Step capture.
+24. **LV6 loaded-map vector.** One developer, identity curve, weight 2.5, scratch=100.
+    Restored D=40; developer publishes D=0 after land value's state-7 call but before pass
+    completion. The state-7 record contains 40 and produces 200, while the later pass-end
+    map contains 0 and would produce 100. Reverse that publication order (D=0 published
+    before state 7): the record contains 0 and produces 100. Select by the actual read
+    interval, never by matching the expected output or always preferring the restored map.
+25. **LV6 provenance vector.** Exact outputs with only a pass-end sample still report
+    `input_capture=pass-end-sample; native_step_capture=0`. A missed startup delivery,
+    install/restore without an exclusion proof, or an observer that changes agent registration
+    identity cannot upgrade that label. Full per-Step coverage requires the §6.1.3 record and
+    acceptance evidence; these static vectors alone do not certify an installed adapter or
+    settle the LV2/LV7 runtime incidents.
+
+Vectors 19–25 are specified here for an engine/adapter lane to implement; this RE lane has
+not added executable vectors or run native capture. They do not change vectors 1–18.

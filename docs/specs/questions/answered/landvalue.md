@@ -1,6 +1,52 @@
 # landvalue: answered questions (archive)
 <!-- Archive for [landvalue.md](../../landvalue.md). Lanes do not read this file. Open questions are in ../landvalue.md. -->
 
+<!-- from: verify-landvalue-step4 (2026-10-22) -->
+- ~~**LV6 - section 6.1 native Step capture ABI record:** please record the already specified native progress layouts in `docs/abi/layouts.md`: the land-value interface-relative pipeline state, both iterator pointers, ignoreZoning, developer cursor/header, iterator fields and developer map node fields, including their widths and the canonical interface base. The message-target slot 3 / `DoMessage` ABI is present in `interfaces.tsv` and section 11.3, but these field layouts are absent from `docs/abi`. CONTRIBUTING requires game layout dependencies to be recorded there before engine glue uses them. Is a version-gated, QueryInterface-obtained message-target slot-3 forwarder, with progress read through the separately obtained land-value interface before/after each native SimIdle/SimNewDay delivery, the supported boundary? Please document any additional ABI needed for that adapter. [Stop the native-layout/hook path until recorded; retain and explicitly label the existing pass-end sample. No input-boundary fidelity credit, even for zero output differences. No algorithm, math, golden or sampling adjustment.]~~
+  **ANSWERED 2026-10-23 (re-landvalue-lv6):** DIFFERS — the layouts are already published in
+  `docs/abi/layouts.md` (Land-value native progress, including the ScanningIterator, developer-node
+  and message-target tables). No additional field row or C ABI export is needed for these reads.
+  Landvalue §6.1.3 records the exact-width lookup and acceptance rule; §16.19–25 specify conformance
+  vectors. Before/forward/after at the actual native M delivery with separately held L is the
+  observation boundary, but QI alone installs no interceptor. It is not an approved installation
+  mechanism. Host exclusion, native target identity/order, first-delivery coverage and safe
+  restoration/lifetime remain mandatory adapter acceptance evidence under §6.1.2, not facts
+  established by a layout record. Existing pass-end samples retain native_step_capture=0 and
+  no input-fidelity credit; LV2/LV7 remain unresolved runtime verification. No algorithm,
+  math, golden or sampling changes.
+
+<!-- from: re-landvalue-step-abi4 (2026-10-22), partial static LV6 evidence -->
+LV6 static follow-up (2026-10-22, re-landvalue-step-abi4): §6.1.1 and §11.3 now establish
+canonical L/M bases, synchronous slot-3 before/forward/after ordering, reference ownership,
+iterator semantics and per-developer capture. Exact-width layout proposal:
+`build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` (coordinator must review/apply to
+`docs/abi/layouts.md` and run the full train gate; no direct ABI edit or gate verdict here).
+LV6 remains open: no installation path has been proved that intercepts existing native agent
+deliveries while preserving identity/order, shutdown removal, notification lifetime and early
+loaded-map capture. QueryInterface alone installs nothing. Until ABI application and that proof,
+retain `input_capture=pass-end-sample; native_step_capture=0`; no input-fidelity credit.
+
+<!-- from: re-landvalue-step-abi4 (2026-10-22), round-2 bounded installation proof -->
+LV6 installation/startup follow-up: §6.1.2 now proves synchronous pre-init `0x26D31EC0`
+before city Init on both NewCity (`0x00454937` / `0x00454941`) and LoadCity
+(`0x00455898` / `0x004558A2`), and synchronous pre-shutdown `0x26D31EC2`
+(`0x00454ABF`) before city Shutdown (`0x00454AC9`). NewCity's pre-init occurs
+**before** creation of the land-value owner; a QI-only object forwarder installed there
+does not cover that branch. Native DoMessage needs a six-byte whole-instruction prefix
+for a five-byte entry branch; continuation `0x006BF0D6`, with M as this and callee pop 4.
+No replacement bytes or installed hook are supplied. The precise remaining question is:
+which reconciled observer-registration/host body executes before both pre-init sends,
+and what excludes OnTick, notification callbacks and in-flight entries while installing
+and restoring (including at pre-shutdown)? For an object-only route, identify the callback
+after CreateCityComponents and before land-value's first AddAgent; none is established.
+Post-init is queued and its simulator handler HiddenResumes, so it cannot substitute for
+that proof merely by name. Layout proposal now includes initialized/refcount widths and
+entry-span evidence. LV6 stays open; ABI application/full train gate, real adapter capture,
+and LV2/LV7 runtime verification remain prerequisites. No sampling/math/output adjustment.
+
+The two historical follow-ups above are preserved verbatim. Their pending-publication wording
+is superseded by this answer; their installation warnings remain acceptance requirements.
+
 <!-- from: From the land value and flammability shadows (2026-10-14) -->
 - ~~**LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
   compared]~~ **ANSWERED 2026-10-14** from the exe (tuning reader `0x006BE110`; developer creation `0x006991A0` from
