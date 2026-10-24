@@ -150,9 +150,8 @@ void HookRemove(void*, uint64_t prop) {
     }
 }
 
-// A creation of ours "succeeds" with a stand-in token (set_prop_requester on
-// it is a no-op in the read-only host): select-and-create then goes on as
-// the original's would after a successful CreateLotProp.
+// A captured insertion supplies its genuine occupant token. Native creation
+// arguments and failed attempts are not yet captured; never call this exact.
 uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t id) {
     ++g_created;
     if (g_pendingUncertain) g_uncertain = true;
@@ -832,11 +831,10 @@ void PropDevShadowStartup(bool simulatorReplaced, bool propdevReplaced) {
     } else {
         Log("propdev shadow: ON (propdev_shadow from %s): a shadow core (read-only host) starts from the ORIGINAL "
             "prop developer's record at its first block step and follows the messages of section 3.3 and the "
-            "animation tick; every block step of the original is wrapped: the scan flag and the scanner (raw, "
-            "+0x14/+0x18) compared after it, and when every keep check of ours was certain, the props the original "
-            "removed from the block against ours (count; the not-kept ones each). Monthly: the original's record "
-            "read into a second core and compared with ours (state, requesters, lists, trigger map). Not compared: "
-            "which kept prop is removed (member generator) and the creations (member and wealth generators)",
+            "animation tick; block inputs freeze before the native operation, genuine selectors replay after it. "
+            "Compare complete selector arguments/order/count, scanner, all removal identities and saved-state "
+            "projections per eligible operation. Creation attempts/failures and dated effects remain incomplete; "
+            "operation-output-matches does not mean full-operation exactness. No native state resynchronization",
             src);
     }
 }
@@ -938,7 +936,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " selector-matched=" + std::to_string(g_month.selectorMatched) +
                              " replay-complete=" + std::to_string(g_month.replayComplete) +
                              " replay-invalid=" + std::to_string(g_month.replayInvalid) +
-                             " operations-exact=" + std::to_string(g_month.operationsExact) +
+                             " operation-output-matches=" + std::to_string(g_month.operationsExact) +
+                             " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());

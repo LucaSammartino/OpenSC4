@@ -698,6 +698,11 @@ fn shadow_preview_does_not_advance_and_wealth_uses_host_transcript() {
     let preview = e.d.shadow_prepare();
     assert_eq!(record(&e.d), before);
     assert_eq!(e.d.shadow_prepare(), preview);
+    e.d.block_step(); // advance setup flag 1 to scanning flag 2
+    let before = record(&e.d);
+    assert_eq!(e.d.shadow_prepare(), Some((0, 0)));
+    assert_eq!(e.d.shadow_prepare(), Some((0, 0)));
+    assert_eq!(record(&e.d), before);
     e.d.update_block(0, 0);
     assert_eq!(e.d.last_block().created, 2);
     assert!(e.wealth.draws().is_empty());

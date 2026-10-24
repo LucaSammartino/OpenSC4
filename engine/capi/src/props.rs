@@ -523,7 +523,10 @@ mod tests {
             let frozen = fc4_props_clone(original);
             assert!(fc4_props_set_u32s(original, 7, [99].as_ptr(), 1));
             fc4_props_destroy(original);
-            assert_eq!(fc4_core::props::u32s(props_ref(frozen).unwrap(), 7), Some(vec![11, 23, 11]));
+            assert_eq!(
+                fc4_core::props::u32s(props_ref(frozen).unwrap(), 7),
+                Some(vec![11, 23, 11])
+            );
             fc4_props_destroy(frozen);
         }
     }
