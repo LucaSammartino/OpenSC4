@@ -47,7 +47,7 @@ No new scope, questions, C ABI export changes, or ABI version bump.
 
 ## Real-city result
 
-[Run 382: lotrec-r3-triple-2032-381](../runs/lotrec-r3-triple-2032-381-382.md):
+[Run 382: lotrec-r3-triple-2032-381](../runs/lotrec-r3-triple-2032-381-389.md):
 Konradshohe, turbo to 2032-01-01, clean, ref_warnings=0, every harness
 problem count zero; real_seconds=42.813, wall=54 s. Tested DLL SHA256
 prefix `f1ecb12d`. All three shadows were exact:

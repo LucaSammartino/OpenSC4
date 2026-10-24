@@ -1,5 +1,5 @@
 tag: lotrec-autumn-integrated
-run: 374
+run: 388
 date: 2026-10-24
 lane: glue-simgrid-lotrec5
 dll: f4b8f269e / FreeCity4.dll sha256 prefix 54d7c5ee

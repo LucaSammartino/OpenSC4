@@ -1,5 +1,5 @@
-tag: ordshadow6-20261024-turbo-a-374
-run: 374
+tag: ordshadow6-20261024-turbo-a-392
+run: 392
 date: 2026-10-24
 lane: glue-ordinance-shadow6
 dll: FreeCity4-glue-ordinance-shadow6, SHA256 87f628e2ec1faa93c51744e6e00b0307d8da5fe6af08df80d6a73fa89199ea25

@@ -1,5 +1,5 @@
-tag: lotconf-sim-shadow6-native-2032-20261024b-375
-run: 375
+tag: lotconf-sim-shadow6-native-2032-20261024b-387
+run: 387
 date: 2026-10-24
 lane: glue-lotconf-sim-shadow6
 dll: FreeCity4-glue-lotconf-sim-shadow6 sha256-prefix b5bb8553

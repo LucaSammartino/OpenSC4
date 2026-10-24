@@ -19,7 +19,7 @@ The native test seam exercises null/empty snapshots and snapshots with live flag
 - Focused return-channel check: **0 unreviewed uses, 76 reviewed**.
 - Earlier failed evidence retained: `build-runs/gate1-fc4verify-build.log` (incorrect date member, fixed); `build-runs/gate2-fc4verify-build.log` and `gate2-fc4verify-ctest.log` (71/72; missing section 4.2 bool-return citations, fixed). Each retry followed that specific correction.
 - Real city: **`ordshadow6-20261024-turbo-a 72/72`**, every monthly line exact from 2026-02-01 through **2032-01-01**. **20 records, 43 effect properties, 956 checks/month; 68832 checks total.** Verdict **clean**, **ref_warnings=0**, foreign exceptions/stalls/RTC/overruns all zero. Runtime 83.437 s, harness wall 96 s.
-- [Run 374](../runs/ordshadow6-20261024-turbo-a-374.md) records the request, DLL SHA256 and evidence paths. Final line: `ordinance shadow 2032-01-01: records=20 checks=956 effects=43 captured=1 mismatches=0 months=72 clean=72`.
+- [Run 374](../runs/ordshadow6-20261024-turbo-a-392.md) records the request, DLL SHA256 and evidence paths. Final line: `ordinance shadow 2032-01-01: records=20 checks=956 effects=43 captured=1 mismatches=0 months=72 clean=72`.
 
 ## Scope and questions
 

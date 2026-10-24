@@ -19,7 +19,7 @@ The simulator shadow captures the ORIGINAL simulator's Write through its public 
 
 ## Real-city measurements
 
-Final label **lotconf-sim-shadow6-native-2032-20261024b**, [run 375](../runs/lotconf-sim-shadow6-native-2032-20261024b-375.md): Konradshohe, normal speed, end date **2032-01-01**, DLL SHA256 prefix **b5bb8553**. Verdict **clean**, 126.328s; watchdog stalls, foreign exceptions, reference warnings, RTC, overruns, panics, structured exceptions, incomplete shadow lines and other warnings **all 0**. Independent log counts:
+Final label **lotconf-sim-shadow6-native-2032-20261024b**, [run 375](../runs/lotconf-sim-shadow6-native-2032-20261024b-387.md): Konradshohe, normal speed, end date **2032-01-01**, DLL SHA256 prefix **b5bb8553**. Verdict **clean**, 126.328s; watchdog stalls, foreign exceptions, reference warnings, RTC, overruns, panics, structured exceptions, incomplete shadow lines and other warnings **all 0**. Independent log counts:
 
 ```
 lotconf 73/73
@@ -28,7 +28,7 @@ simulator 73/73
 
 Every dated shadow line has `mismatches=0`. Each lotconf line: **1909/1909 configurations**, **97752 pairs**, **25210 objects**, detail **1**, refused **0**. Every simulator line: **89 pairs**, **79-byte record**, **11 counter/fired pairs**. Both final dated lines are **2032-01-01**. Raw appended-foundation tags differ for **1908 objects per line**: these are uninitialised native values explicitly excluded by the existing numbered **PL23** contract, separately logged as `raw_foundation_tags=1908`. Defined fields are exact; whole-array raw identity is not claimed.
 
-First label **lotconf-sim-shadow6-native-2032-20261024a**, [run 374](../runs/lotconf-sim-shadow6-native-2032-20261024a-374.md): also clean through 2032, ref_warnings=0, lotconf **73/73**, simulator **73/73**. It diagnosed six unknown-key warnings, fixed by registering both keys. One watchdog sample followed the clean verdict during shutdown. Final run has neither issue. Full logs/verdicts remain at `build-runs/game-results/<label>.{log,verdict}`. No game/native requests are outstanding.
+First label **lotconf-sim-shadow6-native-2032-20261024a**, [run 374](../runs/lotconf-sim-shadow6-native-2032-20261024a-386.md): also clean through 2032, ref_warnings=0, lotconf **73/73**, simulator **73/73**. It diagnosed six unknown-key warnings, fixed by registering both keys. One watchdog sample followed the clean verdict during shutdown. Final run has neither issue. Full logs/verdicts remain at `build-runs/game-results/<label>.{log,verdict}`. No game/native requests are outstanding.
 
 ## Open work for the coordinator
 
