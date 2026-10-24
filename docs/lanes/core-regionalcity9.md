@@ -13,7 +13,9 @@
 - Evidence: build-runs/qbuild-test.log, qbuild-clippy.log, focused-1.log.
 - Slot audit corrected: world position is a longitude/latitude pair with separate base-elevation getter/setter; tests verify independent updates and copied strings.
 - Conformance crate now includes all foundations §14.20–22 header/version and four-deal claiming vectors (four tests total).
-- Next: collect focused conformance check session 30063, then final qbuild all and requested verify; report/queue.
+- Focused conformance PASS 4/4 (build-runs/conformance-final.log); final explicit-file fmt PASS 5 files / zero diff lines.
+- Final all gate started on source 803244736; collect SAME exec session 34762 (no other native request outstanding).
+- Next: collect final all, run requested qbuild verify, then report/queue. No code edits pending.
 - Question RY7 records literal Read edge-case choices; raw codec round-trip is separate from object Read normalization.
 - q.py Bash wrapper fails CreateFileMapping before execution; direct Cargo works.
 - Required final checks: qbuild all and verify; no game integration in this lane.
