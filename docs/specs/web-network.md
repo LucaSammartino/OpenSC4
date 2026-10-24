@@ -1153,13 +1153,13 @@ Named nonvirtual inventory:
 | Entry | Method / role | Qualified behavior |
 |---|---|---|
 | `00817d80` | TimeToSeconds | conversion boundary below |
-| `00817df0` | WeekdayStringToInteger | date helper; full input contract remains Q13 |
+| `00817df0` | WeekdayStringToInteger | HTTP wire supplement section 4 |
 | `00817ed0` | SendNotification | section 5.2 |
 | `00818020` | DoJobUpdate | section 5.3 |
-| `00818490`, `00818680`, `00818bd0` | GetDateTypeFromString, ParseDateTimeString, TimeStringToSeconds | date parsing residual Q13 |
+| `00818490`, `00818680`, `00818bd0` | GetDateTypeFromString, ParseDateTimeString, TimeStringToSeconds | HTTP wire supplement section 4 |
 | `008196e0` | DoJobCompletion | linked HTTP lifetime section 2 |
-| `00819800` | ReadMessage | body framing/spill residual Q13 |
-| `0081a470` | DoJobFinalization | residual Q13 |
+| `00819800` | ReadMessage | HTTP wire supplement section 2 |
+| `0081a470` | DoJobFinalization | HTTP wire supplement section 3 |
 | `0081ba80`, `0081c9b0` | WorkerThreadFunction, static wrapper | bounded stop/completion/exit ordering in linked HTTP lifetime |
 
 Constructor defaults include timeout=15, suffix `.tmp`, null target and worker, empty request
@@ -1171,8 +1171,8 @@ notification payloads; drawing/layout belongs to HTML specs.
 TimeToSeconds takes weekday/day/month/year/yearday/hour/minute/second, creates runtime calendar
 fields with month/year offsets -1/-1900, weekday/yearday offsets -1, **tm_isdst=1**, and returns
 32-bit mktime result minus the global word at `00b18ba8` (`00817d80–00817de5`). Do not replace
-this with an unconditional UTC conversion: the runtime timezone and global adjustment are
-dependencies, still Q13. TimeStringToSeconds returns zero on parser failure (`00818bd0`).
+this with an unconditional UTC conversion: the HTTP wire supplement section 4 specifies
+the runtime timezone dependency. TimeStringToSeconds returns zero on parser failure (`00818bd0`).
 
 ### 5.2 Notifications are synchronous borrowed-payload calls
 
@@ -1217,6 +1217,22 @@ These vectors qualify helper behavior, not an entire HTTP transaction. The
 closes Q13, including the date/runtime and destructor dependencies listed in 5.1.
 Its contracts supersede the Q13 residual labels in that inventory. Do not claim
 live transport equivalence from progress/lifetime tests.
+
+### 5.5 HTTP Q13 closure
+
+*[compat]* Request building preserves URL fragments and header record order. Response
+framing recognizes only exact lowercase `chunked`, removes chunk suffix bytes without
+validating CRLF, and spills only after an append crosses 16384 bytes. Finalization
+follows at most five redirects: GET/HEAD read response Location and resolve relative
+URLs; POST reads request Location without that resolution. Date parsing uses fixed
+positions, a 50-year pivot and forced daylight input to CRT mktime, then subtracts
+the runtime timezone word with 32-bit wrapping, including on mktime failure.
+
+The [HTTP wire supplement](web-network-http-wire.md) is part of this section's
+contract: sections 1–5 specify wire/retry, framing/storage failure, finalization,
+date acceptance/runtime and destructor cleanup respectively; section 6 supplies
+HTTP10–HTTP35 independent proposed vectors. Q13 is answered; runtime inputs and
+unsafe native-memory domains are explicit dependencies, not unanswered behavior.
 
 ## 6. NetworkFileCache — storage and IO contract
 
