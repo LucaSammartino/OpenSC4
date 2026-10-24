@@ -144,7 +144,8 @@ input calls InsertTextHighLevel only when the window is not capturing;
 the normal exit clears pending bytes and returns false. A true return
 therefore does not prove text changed. The exact helper byte tables and
 malformed-input outcomes are specified in [text-edit-encoding.md](text-edit-encoding.md)
-(TE1); composed/UTF16 conversion and system selector services remain foreign.
+(TE1/TE5), including composed lengths and UTF16 conversion. The system
+selector service and Windows code-page tables remain environment inputs.
 
 `InsertTextHighLevel` (`0x009C07E1`) handles replacement, independently of
 the raw insert primitive. If editor bit `0x200` is set and the candidate's
@@ -285,6 +286,48 @@ limit zero, insertion-only counts are 1,2,3,4,4,...; deletion-only recording
 can continue growing. A preexisting larger stack is reduced by a quarter
 per insertion, rather than instantly resized to the configured limit.
 
+### History storage and failure boundary (TE8)
+
+Each action owns a separately copy-constructed string. Construction copies
+the Boolean fields at offsets 0 and 12, words at 4, 8 and 16, the string at
+20, and five saved state words at 40–56; padding is not a meaningful action
+field (`009BF530–577`). Destroying an action destroys its string; destroying
+a vector destroys actions in forward order, then frees its single storage
+block (`009BEA0D–A27`, `009BF518–52F`, `009BFA74–A91`). Copied actions do
+not borrow the source action's string buffer.
+
+With spare capacity, append constructs at the old end and advances the end
+by 60 only after construction returns. Otherwise, for n actions and insertion
+of k actions, new capacity is n+max(n,k); ordinary single append uses 1 from
+empty and doubles a full nonempty vector. It copies the old prefix,
+constructs the new actions and, for an insertion retaining a suffix, copies
+that suffix in order. Only after these steps return does it destroy/free
+old storage and install new begin/end/capacity (`009C0145–17C`,
+`009BFE4B–F02`, `009BFA92–AE2`). Allocation count zero returns null; other
+counts request the low 32 bits of count*60 without an overflow check
+(`009BDE3E–E56`). Capacity rules require valid representable vectors.
+
+There is **no local exception handler or partial-copy cleanup** in these
+append, range-copy or growth bodies. If a dependency does not return, later
+steps do not occur: an in-capacity append has not advanced its end; a growth
+copy has not replaced the old vector, but its new allocation and constructed
+prefix have no local cleanup. This does not undo earlier caller edits,
+evictions or writes. A null allocation is not treated as a failed append:
+range helpers skip construction only when the current destination is exactly
+null, then advance it by 60, potentially attempting later construction at a
+low invalid address. Even empty-vector single append can install
+begin=0/end=60/capacity=60. This is a native failure quirk, not a supported
+empty-history result or an exception guarantee.
+
+TE8's remaining foreign outcomes are the explicit service boundaries in
+sections 5 and 8–10 and the layout/adapters supplements: fonts supply metrics
+and drawing, windows/bars supply geometry and callback results, timers supply
+delivery, and dispatch/clipboard services supply success and payloads. The
+editor consumes these inputs at documented call sites; it does not provide
+fallback implementations, catch a nonreturning dependency, or guarantee
+cancellation, rollback or reentrant atomicity. This closes the editor-side
+question without claiming the foreign owners or whole widget family.
+
 ## 7. Key routing and clipboard boundary
 
 GZOnKeyDown (`0x009C0A95`, 2938 bytes) interprets modifier bits 0/1/2 as
@@ -326,8 +369,8 @@ insertion is LF. It does not change insertion line or selection itself.
 New native byte/word stepping, line/index conversion, horizontal visible
 spans, scroll offsets, scrollbar geometry/range arithmetic, page scrolling
 and drag-timer routing are specified in [text-edit-layout.md](text-edit-layout.md).
-Foreign TE5 composition results are parked there individually; the native
-owner navigation/view paths have final-round instruction proofs.
+Composition and conversion results are specified in the encoding supplement;
+the native owner navigation/view paths have instruction proofs.
 
 CalculateVisibleWidth/Height (`0x009BCBC5`, `0x009BCC0E`) subtract twice
 the corresponding gutter plus the orthogonal scrollbar thickness from
@@ -654,6 +697,7 @@ These are specification examples derived from bodies, not game-run results.
 | Setup and action | Required observation |
 |---|---|
 | Fresh editor, before Init/layout | Colors at W+0x1C0/+0x1C4/+0x1C8 all `0xFF000000`; visible metrics and horizontal offsets zero; line height 1; image edge option true |
+| Fresh editor, before Init; inspect history limit and preferred X | Maximum undo levels `0x4000`; preferred X `0xFFFFFFFF` (unset), rather than zero |
 | Preexisting distinct bytes in W+0x27C..+0x288; construct editor with flags zero | Those sound words are untouched; no assertion of zero IDs |
 | Initialized A reflows with shared counter 0; automatic check reenters B's RecalculateAll | A checks at counter 1; B updates layout but performs no automatic check; normal return restores counter 0 |
 | Shared counter -1 versus 1, otherwise initialized editor | -1 permits a check (temporary 0); 1 skips it; normal return retains the original counter |
@@ -741,6 +785,18 @@ Final-round proposed vectors (61-64), also not executed:
 | Stored flags include only bit 1; IsFlagSet(mask 3) | True because any requested bit suffices |
 | Controlled color service records slots; set caret then highlight fill colors | Caret setter uses primary +0x200; highlight setter uses +0x1FC; neither invalidates |
 
+TE8 distinguishing vectors (65–71), proposed with controlled dependencies:
+
+| Independent case | Expected behavior |
+|---|---|
+| Text `ababa`, pattern `aba`, start 4, reverse | 2; overlapping matches are eligible |
+| Same text/pattern, start 1, forward | 2 |
+| Text `abc`, empty pattern, forward positions 2 and 3 | 2 then 0xFFFFFFFF |
+| Same text, empty pattern, reverse positions 1 and 0xFFFFFFFF | 1 then 0xFFFFFFFF |
+| Filter `a NUL LF b`, selector 0, original count 4 | Removed count 1, retained count 3, bytes `61 00 00 00` |
+| Full history has two actions, append one; allocations/copies succeed | Capacity 4; action order and independent strings preserved; old storage destroyed after copies |
+| Same growth; second action-string construction does not return | Old vector pointers not replaced, no appended action, no local cleanup of new block/first copy; no rollback of preceding caller work |
+
 ## 12. Whole-owner checklist and current limits
 
 The name search contains 146 matching functions including adjusted thunks,
@@ -757,16 +813,16 @@ is claimed while body and foreign-boundary residuals remain.
 | Area | Current evidence disposition |
 |---|---|
 | Identity, state, whole-text replacement, selection, overwrite, character input, high-level insertion, caret timer | Rules above; external helper contracts remain bounded |
-| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout extension; TE3/TE4 domains/eviction and page/arrow arguments resolved; foreign composition results parked TE5 |
+| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout/encoding extensions; TE3/TE4 domains/eviction, page/arrow arguments and TE5 composition resolved |
 | Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9 and layout extension; password coordinates, caret-in-view and AddScrollBar owner ordering specified; individual residual bodies remain TE8 |
 | Init/shutdown, images/font ownership, flags/messages | Section 10 specifies owner cleanup, including absent background-image release; foreign resource implementations remain boundaries |
 | Every label, folded alias, thin method and helper | Companion inventory and questions required; no credit beyond documented contracts |
 
 Final round 3/3 adds [byte helper contracts](text-edit-encoding.md) and
 [individual adapters/repair contracts](text-edit-adapters.md). TE1 is
-answered; TE5's exact foreign residual and TE8's remaining per-body gaps
-are **parked**. Preserve the original worktree. **No fourth round or
-automatic restart is authorized.** The 150-body attribution is not a
+answered; TE5 conversion/composition and TE8 history/search/copy boundaries
+were completed on 2026-10-24. Foreign services remain bounded inputs as
+specified above. The 150-body attribution is not a
 150-body behavioral proof, and no whole-widget-family credit is claimed.
 
 Open contracts live in [questions/text-edit.md](questions/text-edit.md).

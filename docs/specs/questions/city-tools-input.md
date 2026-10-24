@@ -83,3 +83,12 @@
   automatic facing/configuration lookup fails. Which rule applies, and what are the retained cost/text/position
   outputs when the gate is false? [follow the detailed 3.7 unconditional validation for now; no native callback]
 
+<!-- from: glue-querytool-shadow13 (2026-10-24) -->
+- **CT27 - section 8 native observation fixture:** specify a nonmodal deterministic fixture contract for
+  replaying a loaded-city cell/occupant as a renderer hit and capturing the native selected target and
+  displayed query fields without entering the dialog message pump. What exact renderer hit record layout,
+  pixel/cell conversion and native output snapshot API can an observer use? CT13 already covers the callout
+  interface, and CT14/CT20 cover writer bodies; this question asks for the fixture seam rather than those
+  bodies. [default-off shadow measures only live hover/describe predicates from copied type/property inputs;
+  full target, displayed strings/fields and highlight verification are not claimed]
+

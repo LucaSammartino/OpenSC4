@@ -1,5 +1,13 @@
 # win-filebrowser: answered questions
 
+<!-- from: re-filebrowser4 (2026-10-22) -->
+- **FBQ2 - sections 8.2 / 8.5 / A:** Full control creation/configuration sequence, geometry/layout, size constraints, popup visibility/focus and message dispatch in `009A1F77`, `009A0ACC` and `009A0A17`?
+  **ANSWERED 2026-10-24 (re-widget-controls-te13b):** DIFFERS — 8.2 specifies all twelve eagerly created children, order, factory/fallback policy, retained interfaces, numeric child configuration and unsafe failures; it sets no child rectangles or minimum browser dimensions. Init's 396 × 236 is actual size; popup placement/sizing/focus are in 8.1.5. Section 8.2.2 specifies every recognized message, ID/pointer test, payload, operation order and final base delegation, including temporary borrowed selection notification. Section 8.5 specifies paint rectangle and dirty-refresh order; slot 92 is a folded true-return hook, not invalidation. FB-C32–33 and FB-C39–43 distinguish these rules. Foreign child/style/property/pixel implementations retain their existing boundaries; FBQ1/FBQ4 remain separate.
+
+<!-- from: re-filebrowser4 (2026-10-22) -->
+- **FBQ5 - sections 8.1 / A.1:** Directory/drive population order and configuration in `009A4B2E` and `009A473F`, and remaining file-row configuration in `009A4EBA`?
+  **ANSWERED 2026-10-24 (re-widget-controls-te13b):** DIFFERS — 8.1.3–8.1.6 specify unsigned column sizing, first sorted restoration/fallback, depth-record removal and component insertion order, collapsed display, popup dimensions/indentation/scroll/focus, icons, styles and fitted display copies. Native popup column count is span+8, correcting pseudocode's +2. No matching drive preserves old collapsed cells; disabled filename columns still receive text; empty grids still receive selection/visibility calls. FB-C28–31 and FB-C34–38 distinguish the behavior. No new question or whole-browser attribution claim is needed; FBQ6 remains the existing ownership question.
+
 FinalRelease qualification for FBQ3: primary slot 89 (`009CFA1D`) calls virtual
 browser Shutdown, then secondary deleting-destructor slot 148 with flag 1.
 Normal final Release supplies the required Shutdown call; direct destruction

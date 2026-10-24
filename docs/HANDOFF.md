@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 632 (lot configuration editor partial closure and effects, budget window and network tool answers landed (run 5); second stall-free regress.); 631 (amarret's audio and UI spec PRs (OpenSC4#11, #12) landed, specified 78.0% -> 82.0%; lot unit and base texture shadows verified; first stall-free regress after the Defender exclusions.); 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).); 644 (partial DX7 transition shadow, gdriver 72/72 exact, 35 samples to 2032); 643 (query tool predicate shadow landed (run 5); no owner credit (partial shadow).); 642 (default-off query tool hover/describe predicate fixture exact 73/73 through 2032, partial scope with CT27 open); 641 (pedestrian, map view, text edit and legacy control answers, legacy control shadow and a partial map view closure landed (run 5); no new owner credit (map view keeps one open closure row).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

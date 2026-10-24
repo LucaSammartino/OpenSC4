@@ -201,9 +201,9 @@ answered, not newly reopened. The remaining exact scope is:
 | Input/focus: 009BC6D8, 009BC705, 009BC75D, 009BC79D, 009BD1CD, 009BD1F6, 009BE862 | Manager/capture, focus, timer delivery and callback/reentrancy behavior; section 10 specifies owner gates and calls, not foreign delivery outcomes. |
 | Flags/font/gutters: 009BC7DD, 009BC81C, 009BC904, 009BCA09, 009BFCEF, 009BFDC6, 009BFE03 | Base geometry/flag effects, foreign font/style reference and metric outcomes, recalc/bar callbacks. Do not promote foreign implementations from owner ordering. |
 | Layout: 009BCBC5, 009BCC0E, 009BD19B, 009BE179, 009BE239, 009BE7AF, 009BF3E0, 009BF98B | Window dimensions/bar thickness, font prefix/wrapping/height and service callbacks remain controlled inputs; progress and invalid/incoherent array domains are not universal recovery promises. |
-| Raw/history: 009BCA39, 009BCA6B, 009BCA9D, 009BF8A8, 009C027E, 009C0396 | Wrapper/replay call contracts are present; generated vector/action copy/allocation failure and partial-update/unwind semantics remain unproved. |
+| Raw/history: 009BCA39, 009BCA6B, 009BCA9D, 009BF8A8, 009C027E, 009C0396 | Wrapper/replay call contracts plus section 6's generated storage/copy/failure boundary; allocator and string-service nonreturn remain external inputs, without local rollback. |
 | Lifecycle/messages: 009BD003, 009BD0E1, 009BFB9C, 009BFF52 | Owner cleanup/forwarding order is present; base lifecycle, timer cancellation/late delivery and external callbacks/allocations are not specified here. |
-| Composition/filter/search: 009BE614, 009BF335, 009BE96A | TE5 UTF16/Thai helper values, lib::_strncpy exact padding/termination, 004427F0/005C23E0 empty-pattern/direction/error behavior. |
+| Composition/filter/search: 009BE614, 009BF335, 009BE96A | TE5 encoding supplement and TE8 adapters now specify UTF16/Thai, fixed-count padding and exact byte-search edges. Valid-range and environment code-page boundaries still apply. |
 | Paint/key: 009BEA28, 009C0A95 | Owner paint/key branches and byte/cache behavior are present; font raster/draw/clip, base conversions, dispatch/clipboard service and foreign composed-motion outcomes remain boundaries. |
 
 No P/B row is promoted merely because it was inventoried, renamed or cited
@@ -211,8 +211,9 @@ by another method. Eight additional attributed thunks/helpers have their
 small body contracts documented; eight retain bounded roles, including
 generated-action failure/copy scope, in text-edit-attribution.md. The folded
 maximum setter is specified but remains outside the actual 150-body set.
-Thus zero direct U rows does **not** close TE5/TE8 or authorize whole-owner
-coverage. The exact parked questions take precedence over an aggregate.
+TE5/TE8 are now answered by those contracts, rather than by the zero-U
+count. External service implementations and execution remain outside this
+owner-side specification; no aggregate authorizes whole-owner coverage.
 
 - [x] Trace largest actual primary methods first: key handling 2938B, paint
   1850B, member initialization 471B, scrollbar sizes 454B, raw insertion
@@ -227,8 +228,9 @@ coverage. The exact parked questions take precedence over an aggregate.
   and owner resource/callback failure semantics (TE3/TE4/TE6/TE7).
 - [x] Publish a method-specific contract for each direct entry, including
   exact label/signature corrections and valid/unsafe domains; TE1 answered.
-- [ ] Complete all P/B dependencies and the generated-helper failure/copy
-  contracts; exact residuals TE5/TE8 are parked at final round 3/3. A partial
-  body is not complete-owner evidence. No fourth round; preserve worktree.
+- [x] Complete TE5 conversion/composition and TE8 generated-helper
+  failure/copy/search contracts, preserving foreign-service boundaries.
+- [ ] Prove foreign-owner implementations; a bounded body is not evidence
+  of those dependencies or complete-owner execution.
 - [ ] Implementation, conformance execution, shadow/game verification and
   replacement: none performed or claimed by this RE-only lane.

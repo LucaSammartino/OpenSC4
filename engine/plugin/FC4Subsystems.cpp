@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Subsystems.h"
+#include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 
 #include "FC4Autotest.h"
@@ -745,6 +746,7 @@ void Resolve() {
     IndustrialShadowStartup(enabledKey("industrial"));
     OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
+    LegacyCtlShadowStartup();
 }
 
 }  // namespace
