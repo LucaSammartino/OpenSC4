@@ -9,6 +9,42 @@ pub trait WordOutputs {
 }
 
 impl TextEdit {
+    /// The owner filters chunks; only lib::_strncpy itself is a TE8 foreign
+    /// input. In particular the count passed to it is the original count.
+    pub fn remove_bad_buffer(
+        &self,
+        buffer: &mut [u8],
+        count: &mut u32,
+        copy: impl FnOnce(&mut [u8], &[u8], u32),
+    ) -> Result<u32> {
+        if self.flags & 0x200 == 0 {
+            return Ok(0);
+        }
+        let original = *count;
+        let mut at = 0usize;
+        let mut kept = Vec::new();
+        let mut removed = 0u32;
+        while at < original as usize {
+            let tail = buffer
+                .get(at..)
+                .ok_or(Unsupported::Precondition("TextEdit filter readable source"))?;
+            let length = self.encoding.char_length(tail, original as usize - at)?;
+            let chunk = tail
+                .get(..length)
+                .ok_or(Unsupported::Precondition("TextEdit filter readable character"))?;
+            if chunk[0] == b'\n' {
+                removed = removed.wrapping_add(length as u32);
+            } else {
+                kept.extend_from_slice(chunk);
+            }
+            at += length;
+        }
+        if removed != 0 {
+            copy(buffer, &kept, original);
+            *count = kept.len() as u32;
+        }
+        Ok(removed)
+    }
     /// Export GetTextLength is a string copy adapter, despite its name.
     pub fn copy_to_string<R>(&self, assign: impl FnOnce(&[u8]) -> R) -> R {
         assign(&self.text)

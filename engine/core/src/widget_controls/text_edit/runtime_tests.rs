@@ -219,6 +219,30 @@ fn te_live_character_and_output_adapters_vectors_9_48_49_54_55() {
 }
 
 #[test]
+fn te_buffer_filter_preserves_original_copy_count_and_constructor_string() {
+    let (mut e, _) = fixture(b"");
+    assert_eq!(e.auxiliary, b"-");
+    let mut count = u32::MAX;
+    assert_eq!(
+        e.remove_bad_buffer(&mut [], &mut count, |_, _, _| panic!("copy")),
+        Ok(0)
+    );
+    assert_eq!(count, u32::MAX);
+    e.flags = 0x200;
+    let mut bytes = *b"a\n\rb";
+    count = 4;
+    let mut call = None;
+    assert_eq!(
+        e.remove_bad_buffer(&mut bytes, &mut count, |_, text, original| {
+            call = Some((text.to_vec(), original));
+        }),
+        Ok(1)
+    );
+    assert_eq!(call, Some((b"a\rb".to_vec(), 4)));
+    assert_eq!(count, 3);
+}
+
+#[test]
 fn te_exact_height_preserves_origin_and_background_excludes_bars() {
     let (mut e, mut f) = fixture(b"abc");
     e.runtime.size = [100, 25];

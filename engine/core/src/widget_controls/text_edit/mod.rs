@@ -77,6 +77,8 @@ pub struct TextEdit {
     pub redo: Vec<Action>,
     pub preferred_x: u32,
     pub pending: Vec<u8>,
+    /// W+0x144 is a separate constructed string; no semantic name is specified.
+    pub auxiliary: Vec<u8>,
     pub gutters: [u32; 2],
     pub first_visible_line: u32,
     pub mask: u8,
@@ -113,6 +115,7 @@ impl TextEdit {
             redo: Vec::new(),
             preferred_x,
             pending: Vec::new(),
+            auxiliary: b"-".to_vec(),
             gutters: [5, 0],
             first_visible_line: 0,
             mask: b'*',

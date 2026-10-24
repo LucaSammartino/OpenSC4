@@ -344,6 +344,7 @@ impl TextEdit {
         self.redo.clear();
         self.undo.clear();
         self.pending.clear();
+        self.auxiliary.clear();
         self.lines.clear();
         self.text.clear();
     }
