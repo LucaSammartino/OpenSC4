@@ -212,3 +212,36 @@ fn reverse_throttle_gate_only_blocks_backward_ground_motion() {
         );
     }
 }
+
+#[test]
+fn force_sum_uses_supplied_lift_frame_and_vertical_ground_load() {
+    // Independent scalar-stage fixture: Q=50, K=2, alpha=0 gives aerodynamic
+    // drag 10. Half the 980-unit weight leaves ground resistance 50.
+    let terms = ForceScalars {
+        speed: 10.0,
+        direction: [1.0, 0.0, 0.0],
+        angle: 0.0,
+        coefficient: 9.8,
+        pressure: 50.0,
+        lift: 490.0,
+        drag_normalization: 2.0,
+        gravity: -980.0,
+        thrust: 100.0,
+    };
+    for (phase, expected) in [
+        (0, [-60.0, -490.0, 100.0]),
+        (1, [-60.0, -490.0, 100.0]),
+        (2, [-10.0, -490.0, 100.0]),
+    ] {
+        let force = terms.force_with_lift([0.0, 490.0, 0.0], [0.0, 0.0, 1.0], 100.0, phase);
+        for (actual, expected) in force.into_iter().zip(expected) {
+            near(actual, expected, 0.0001);
+        }
+    }
+    // The same 490-unit lift tilted to (294,392,0) supports only 40% of the
+    // weight: rolling resistance is 60, not 50, and total drag is 70.
+    let force = terms.force_with_lift([294.0, 392.0, 0.0], [0.0, 0.0, 1.0], 100.0, 1);
+    for (actual, expected) in force.into_iter().zip([224.0, -588.0, 100.0]) {
+        near(actual, expected, 0.0001);
+    }
+}

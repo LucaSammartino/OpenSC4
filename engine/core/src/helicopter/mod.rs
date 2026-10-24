@@ -67,8 +67,8 @@ pub trait DriveParameterSource {
     fn parent(&self) -> Option<&dyn DriveParameterSource>;
 }
 
-/// Existing rotor preset. AF4 leaves its construction defaults unspecified,
-/// so unknown fields remain None until supplied or overlaid by a nonzero value.
+/// Rotor parameters before or after runtime allocation. Before InitInstance
+/// fields may be absent; first allocation installs §4.1.1's exact preset 0.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DriveParameters(pub [Option<f32>; 13]);
 
@@ -247,8 +247,8 @@ impl Helicopter {
                     self.base_mut().pop_state();
                     Ok(AircraftGoalOutcome::Popped)
                 } else {
-                    // AF3: geometry is exposed, but distance gates and AI
-                    // controls must not be delegated to a foreign flight model.
+                    // The settled distance gates are exposed separately by
+                    // pursue_chase_stage; complete steering remains AF3.
                     Err(AircraftUnsupported::GoalControl)
                 }
             }

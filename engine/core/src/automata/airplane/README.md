@@ -16,7 +16,8 @@ Other constructor fields remain unknown under AF4.
 Named parameter import selects whole ancestor records and preserves nonzero
 negative/non-finite values. Numerical helpers expose the velocity limiter,
 converted/capped time, candidate integration, ground projection, lift coefficient,
-pressure, gravity, thrust, drag normalization and rolling resistance. They use f64
+pressure, gravity, thrust, drag normalization, rolling resistance and the force sum
+with a caller-supplied stored lift vector. They use f64
 intermediates to approximate x87 and binary32 stage stores. These stages do not
 commit a complete flight tick; AF2 still lacks lift frame, angular update and
 environment corrections. Non-finite native equivalence remains AF10.
@@ -39,7 +40,7 @@ all under `engine/conformance/tests`.
 | aircraft §3.3.1 LOITER/countdown/ammo | `visit_loiter`, `tick_loiter_with_multiplier`, `read` | `vector20_loiter_spends_on_entry_countdown_expiry_and_unsaved_progress` |
 | aircraft §3.4 full flight | `update_physics` returns Unsupported | open: AF2 (complete force/attitude/corrections), AF5 (full player commands) |
 | aircraft §3.4.1 translational stages | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity` | airplane.rs: `time_conversion_caps_once_without_a_lower_clamp`, `pre_force_limiter_vectors`, `candidate_motion_uses_mean_velocity_and_no_second_cap` (vectors 8–10); non-finite policy: open AF10 |
-| aircraft §3.4.2 force scalars | `force_scalars`, `lift_coefficient`, `ForceScalars` | airplane.rs scalar lift/pressure/resistance/thrust tests (vectors 11–13); full lift frame: open AF2 |
+| aircraft §3.4.2 force scalars/sum | `force_scalars`, `lift_coefficient`, `ForceScalars::force_with_lift` | airplane.rs scalar lift/pressure/resistance/thrust tests (vectors 11–13), `force_sum_uses_supplied_lift_frame_and_vertical_ground_load`; full lift frame: open AF2 |
 | aircraft §3.5 phase sounds | `set_airplane_state` | `vectors21_22_distinct_phase_actions_and_repeat_rules`; physics/collision phase triggers: open AF2/AF4 |
 | aircraft §4 helicopter-only contracts | Other owner: `helicopter` | See helicopter/README.md |
 | aircraft §4.3 common airplane weapon block | `weapon_requests` | `vector23_weapons_fallback_readiness_and_wrapping_use_count`; full translator/projectile/readiness cadence: open AF5 |

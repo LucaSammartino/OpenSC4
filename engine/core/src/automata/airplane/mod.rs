@@ -422,6 +422,21 @@ impl AirplaneDriveParameters {
 }
 
 impl ForceScalars {
+    /// Assemble the settled force sum from the already scaled, stored lift
+    /// vector. Constructing that vector from attitude remains AF2; this stage
+    /// neither chooses a lift frame nor runs the environment corrections.
+    pub fn force_with_lift(&self, lift: Vec3, orientation: Vec3, mass: f32, phase: u32) -> Vec3 {
+        let rolling = self.rolling_resistance(mass, lift[1], phase);
+        let drag = f64::from(self.drag_magnitude(rolling));
+        std::array::from_fn(|i| {
+            // Literal sum from §3.4.2: lift, thrust, gravity, opposing drag.
+            (f64::from(lift[i])
+                + f64::from(self.thrust) * f64::from(orientation[i])
+                + if i == 1 { f64::from(self.gravity) } else { 0.0 }
+                - drag * f64::from(self.direction[i])) as f32
+        })
+    }
+
     /// Vertical lift is a stored binary32 component of the unresolved lift
     /// frame, not the total lift magnitude. Equality with weight has no R.
     pub fn rolling_resistance(&self, mass: f32, vertical_lift: f32, phase: u32) -> f32 {

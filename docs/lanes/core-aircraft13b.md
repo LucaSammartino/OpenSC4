@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | READY: verified partial owner closure; final qbuild all PASS, cargo 7431 passed/0 failed/0 ignored, clippy -D warnings clean, native build 46/46, CTest 81/81; owned conformance suites 50/50. AF2-AF6, AF10, AF11 remain open. No ABI change, game run or new question. | Coordinator review/publish detached commits; retain explicit open rows until the remaining spec contracts settle. |
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | in progress: r3 resumed from `3abcadb76`; previous final gate PASS (cargo 7431, clippy clean, CTest 81/81), owned suites 50/50. AF2-AF6, AF10, AF11 open. | Audit current settled owner contracts against code/tests, finish gaps, collect required gates, report actual HEAD. |
+
+## Handoff
+
+- Goal: close every settled airplane/helicopter core contract, preserving spec-open rows.
+- Done: inherited implementation `5d59a8396`, fixture fix `4ba6b67cd`, clippy fix `32e3f34b2`; prior report `3abcadb76` below.
+- r3: audited settled aircraft §§2–5/§8 and automata §§6.4–6.6; added `ForceScalars::force_with_lift` and an independent ground/airborne/tilted-lift fixture; corrected stale helicopter comments.
+- Focused suites PASS 51/51 (aircraft 16, settled 10, airplane 11, helicopter 14); fmt PASS for all 3 changed Rust files. Log: `build-runs/aircraft-r3-focused.log`.
+- Next: run the stable-source full gate with `build-runs/aircraft-r3-gates.ps1`, collect that same operation to terminal, then finish the report/queue.
+- No operation or game request outstanding. Still intentionally detached; do not publish refs.
+- Bash q.py failed before Cargo launch (`build-runs/q/20261024-214849-13088.log`); native PowerShell focused run passed. Only this lane's Cargo/compiler processes were restored from BelowNormal to Normal.
+- Prior full gate is evidence for prior source only; r3 final gate remains pending.
+- No ABI/plugin/capi work; no game run needed for the portable core.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r3-manifest.json`.
 
 ## Changes
 
