@@ -535,6 +535,7 @@ cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
 cSC4ToolTipManager	windows and panels	ui	-	-	-	-
 cSC4ProgressScreen	windows and panels	ui	-	-	-	-
 cSC4CatalogItem	windows and panels	ui	-	-	-	-
+nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
