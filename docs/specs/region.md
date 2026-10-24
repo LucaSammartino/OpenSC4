@@ -156,7 +156,9 @@ has one heap **holder** (a reference to the city); every cell of its rectangle (
   sizes are not added); all four 0 when there is no location or `x1 ≤ x0` or `z1 ≤ z0` *[quirk]*.
 - **`GetCityLocations(list)`**: a copy of the location list.
 - **`GetBaseTerrainHeight`**: the entry of a two-entry table (`0x00B217B0`, set by the region screen, `0x007AC06A`)
-  for the base terrain type. **`GetWaterPrefs(&min, &max)`**: the two water values as bytes.
+  for the base terrain type. For types outside 0..1 the original reads unchecked process memory;
+  the portable contract reports `Unsupported::BaseTerrainType` while retaining the stored type
+  (RM16; region-model.md §8.1). **`GetWaterPrefs(&min, &max)`**: the two water values as bytes.
 
 ## 8. File helpers *[compat]*
 

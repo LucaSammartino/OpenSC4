@@ -789,17 +789,17 @@ tutorial with successful export followed by failed reload, the adapter performs 
 write, reactivates the tutorial and returns false. On export failure it leaves B and the
 map intact, does not reactivate, and returns true. No matching ID returns false with no export.
 
-**Truncated filenames (RM18).** Use ASCII names, directory `C:\\Regions\\R\\`, and
+**Truncated filenames (RM18).** Use ASCII names, directory `C:\Regions\R\`, and
 serial 0 so every existing candidate requires a suffix. `A^n` below means n repetitions
 of `A`, not a literal caret expression. The prefix `City - ` occupies seven bytes.
 
 | City name and existing files | Expected path or failure |
 |---|---|
-| `A^249`, no existing base | `C:\\Regions\\R\\City - ` + `A^249` (256-byte filename, no extension) |
+| `A^249`, no existing base | `C:\Regions\R\City - ` + `A^249` (256-byte filename, no extension) |
 | `A^249`, that base exists | filename-position failure; original raises out-of-range before testing a suffixed path |
 | `A^248`, base exists | base ends in `.`; insert before it: `City - ` + `A^248` + ` (2).` (260 bytes) |
 | `A^100` + `.` + `A^148`, base exists | `City - ` + `A^100` + ` (2).` + `A^148` (260 bytes) |
-| `A^249`, base exists, directory changed to `C:\\Regions\\R.v1\\` | candidate `C:\\Regions\\R (2).v1\\City - ` + `A^249`; the parent-directory dot receives the suffix |
+| `A^249`, base exists, directory changed to `C:\Regions\R.v1\` | candidate `C:\Regions\R (2).v1\City - ` + `A^249`; the parent-directory dot receives the suffix |
 
 The last vector checks candidate construction, not successful filesystem creation. For a
 nonzero supplied serial and an existing base whose regional-city serial matches or is zero,
