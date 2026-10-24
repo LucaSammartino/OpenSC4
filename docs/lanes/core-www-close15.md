@@ -15,7 +15,8 @@ Failed evidence: focus-www-1.log obsolete Unsupported PUT assertion; focus-www-2
 Done: a1188de1a HTTP framing/slots/destructor milestone; 33 focused tests passed before the CopyHeaders observer addition.
 Done: FTP seven command bodies/dispatcher and scheduler construction/admission added, FTPC01-08 tests; module README distinguishes settled-but-pending engine work.
 Tests: 20918 terminal PASS FTPC01-06; focus-www-4.log terminal PASS 33/33 including CopyHeaders; qbuild fmt PASS 14 files, zero diffs.
-Next: collect existing cargo session 78055 to terminal (filter www::ftp::tests::ftpc; FTPC01-08); do not duplicate it. Full all/verify gates not yet run: source is not final.
+Done: 534af3196 FTP commands/scheduler admission milestone; 78055 terminal PASS both FTPC test groups (FTPC01-08), 2/2. No operation remains outstanding.
+Next: implement HTTP transport worker/header reader, then remaining FTP support and cache; full all/verify gates not yet run because source is not final.
 Next: implement HTTP transport worker/header reader; FTP remaining support (4.15), fix stale initialize/close/name barriers; cache Q11/Q15 and NFC13-19.
 Facts: Session.initialize incorrectly labels scheduler-constructor address 00813d70; compare FTP-control §6 vs §9.1 before resolving this remaining integration.
 Formatting: format-patch.py applies bounded rustfmt diffs via apply_patch; use absolute paths for qbuild fmt (relative paths resolve under engine).
