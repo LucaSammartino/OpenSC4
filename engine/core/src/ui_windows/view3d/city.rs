@@ -91,7 +91,10 @@ impl View3DWin {
                 None
             } else {
                 constructed = true;
-                Some(host.city(CityCall::Construct(kind)).expect("required city object allocation"))
+                Some(
+                    host.city(CityCall::Construct(kind))
+                        .expect("required city object allocation"),
+                )
             }
         });
         if let Some(token) = token {
@@ -116,7 +119,8 @@ impl View3DWin {
         }
         if self.owner.view.filter.is_none() {
             self.owner.view.filter = Some(
-                host.create_realistic_filter([true; 3]).expect("required realistic filter allocation"),
+                host.create_realistic_filter([true; 3])
+                    .expect("required realistic filter allocation"),
             );
         }
         if let Some(renderer) = self.city_object(host, 0xF4, CityObject::Renderer) {

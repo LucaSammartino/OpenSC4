@@ -101,9 +101,7 @@ pub struct OwnedPopup {
 
 impl View3DWin {
     fn close_popup(&mut self, host: &mut impl CommandHost, secondary: bool) {
-        if (secondary && self.secondary_win().is_none())
-            || (!secondary && self.tertiary_win().is_none())
-        {
+        if (secondary && self.secondary_win().is_none()) || (!secondary && self.tertiary_win().is_none()) {
             return;
         }
         if secondary {
@@ -116,10 +114,7 @@ impl View3DWin {
                 if let Some(query) = host.popup(PopupCall::Query(popup.token, 0x8A2C_AD8B)) {
                     let state = host.popup_state(query);
                     if let Some(memory) = popup.memory {
-                        self.owner
-                            .lifecycle
-                            .remembered_catalogs
-                            .insert(memory, state);
+                        self.owner.lifecycle.remembered_catalogs.insert(memory, state);
                     }
                     host.popup(PopupCall::Release(query));
                 }
@@ -214,13 +209,7 @@ impl View3DWin {
         }
     }
 
-    fn finish_popup(
-        &mut self,
-        host: &mut impl CommandHost,
-        secondary: bool,
-        kind: u32,
-        popup: OwnedPopup,
-    ) {
+    fn finish_popup(&mut self, host: &mut impl CommandHost, secondary: bool, kind: u32, popup: OwnedPopup) {
         host.popup(PopupCall::Front(popup.token));
         host.popup(PopupCall::Show(popup.token));
         if secondary {
@@ -245,11 +234,7 @@ impl View3DWin {
             return;
         }
         let items = host.catalog_items(&query);
-        let max_rows = if secondary || host.popup_height() < 601 {
-            6
-        } else {
-            8
-        };
+        let max_rows = if secondary || host.popup_height() < 601 { 6 } else { 8 };
         let remembered = memory
             .and_then(|key| self.owner.lifecycle.remembered_catalogs.get(&key))
             .copied()
@@ -443,10 +428,7 @@ impl View3DWin {
     }
 
     pub fn update_day_night_buttons(&self, host: &mut impl PopupHost, mode: u32) {
-        for (i, id) in [0xCA35_CB74, 0xCA35_CB76, 0xCA35_CB78]
-            .into_iter()
-            .enumerate()
-        {
+        for (i, id) in [0xCA35_CB74, 0xCA35_CB76, 0xCA35_CB78].into_iter().enumerate() {
             host.popup(PopupCall::DayNightButton(id, i as u32 == mode));
         }
     }

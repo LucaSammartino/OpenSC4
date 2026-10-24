@@ -12,7 +12,11 @@ fn vw_t26_dormant_fields_and_panel_extras() {
     }
     for (panel, child) in [(1, 0xE988_9775), (2, 0xABB2_6B0E)] {
         assert!(v.gui_state().panels[panel].contains(&child));
-        let flag = h.ops.iter().position(|o| *o == Op::Gui(GuiCall::Flag(child, 0x800, true))).unwrap();
+        let flag = h
+            .ops
+            .iter()
+            .position(|o| *o == Op::Gui(GuiCall::Flag(child, 0x800, true)))
+            .unwrap();
         assert_eq!(
             &h.ops[flag..flag + 4],
             &[
@@ -23,12 +27,20 @@ fn vw_t26_dormant_fields_and_panel_extras() {
             ]
         );
         assert!(h.ops.contains(&Op::Gui(GuiCall::Filter(child, true))));
-        assert!(h.ops.contains(&Op::Gui(GuiCall::SetWinProc(child, v.gui_state().fields[&0x2D8]))));
+        assert!(h
+            .ops
+            .contains(&Op::Gui(GuiCall::SetWinProc(child, v.gui_state().fields[&0x2D8]))));
     }
-    assert!(h.ops.contains(&Op::Gui(GuiCall::SetWinProc(0xCA1F_1D9C, v.gui_state().fields[&0x2E4]))));
+    assert!(h
+        .ops
+        .contains(&Op::Gui(GuiCall::SetWinProc(0xCA1F_1D9C, v.gui_state().fields[&0x2E4]))));
 
     let mut v = view();
-    h.rejected_gui.push(GuiCall::RecursivePanelChild { parent: 0x69E4_0A1F, id: 0xE988_9775, iid: 0x5386_D516 });
+    h.rejected_gui.push(GuiCall::RecursivePanelChild {
+        parent: 0x69E4_0A1F,
+        id: 0xE988_9775,
+        iid: 0x5386_D516,
+    });
     v.add_gui(&mut h);
     assert!(!v.gui_state().panels[1].contains(&0xE988_9775));
     assert!(v.gui_state().panels[2].contains(&0xABB2_6B0E));
@@ -38,17 +50,29 @@ fn vw_t26_dormant_fields_and_panel_extras() {
 fn vw_t27_factory_fallback_graphics_gate_and_reuse() {
     let mut v = view();
     let mut h = Host::default();
-    h.rejected_city = vec![CityCall::Create(CityObject::Camera), CityCall::QueryGraphics(0xC47B_747C)];
+    h.rejected_city = vec![
+        CityCall::Create(CityObject::Camera),
+        CityCall::QueryGraphics(0xC47B_747C),
+    ];
     v.pre_city_init(&mut h);
     assert!(h.ops.contains(&Op::City(CityCall::Construct(CityObject::Camera))));
-    assert!(!h.ops.iter().any(|o| matches!(o, Op::City(CityCall::WireRenderer { .. }))));
+    assert!(!h
+        .ops
+        .iter()
+        .any(|o| matches!(o, Op::City(CityCall::WireRenderer { .. }))));
     assert!(v.gui_state().fields.contains_key(&0x18C));
     assert_eq!(v.renderer(), Some(CityObject::Renderer.class_id()));
     h.ops.clear();
     h.rejected_city.clear();
     v.pre_city_init(&mut h);
-    assert!(!h.ops.iter().any(|o| matches!(o, Op::City(CityCall::Create(_) | CityCall::Construct(_)))));
-    assert!(h.ops.iter().any(|o| matches!(o, Op::City(CityCall::WireRenderer { .. }))));
+    assert!(!h
+        .ops
+        .iter()
+        .any(|o| matches!(o, Op::City(CityCall::Create(_) | CityCall::Construct(_)))));
+    assert!(h
+        .ops
+        .iter()
+        .any(|o| matches!(o, Op::City(CityCall::WireRenderer { .. }))));
     assert!(h.ops.contains(&Op::Lifecycle(LifecycleCall::Release(0xC47B_747C))));
 }
 
@@ -56,7 +80,10 @@ fn vw_t27_factory_fallback_graphics_gate_and_reuse() {
 fn vw_t27_required_fallback_failure_is_fatal() {
     let mut v = view();
     let mut h = Host::default();
-    h.rejected_city = vec![CityCall::Create(CityObject::Camera), CityCall::Construct(CityObject::Camera)];
+    h.rejected_city = vec![
+        CityCall::Create(CityObject::Camera),
+        CityCall::Construct(CityObject::Camera),
+    ];
     assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.pre_city_init(&mut h))).is_err());
     assert!(!h.ops.iter().any(|o| matches!(o, Op::Gui(_))));
 }
@@ -108,7 +135,13 @@ fn dormant_helpers_stop_but_dormant_reference_only_releases() {
     assert!(h.ops.contains(&Op::Lifecycle(LifecycleCall::Stop(42))));
     assert!(!h.ops.contains(&Op::Lifecycle(LifecycleCall::Stop(43))));
     for token in [41, 42, 43] {
-        assert_eq!(h.ops.iter().filter(|o| **o == Op::Lifecycle(LifecycleCall::Release(token))).count(), 1);
+        assert_eq!(
+            h.ops
+                .iter()
+                .filter(|o| **o == Op::Lifecycle(LifecycleCall::Release(token)))
+                .count(),
+            1
+        );
     }
 }
 
@@ -118,7 +151,10 @@ fn vw_t28_bus_and_pipe_buttons_dispatch_commands_without_parameters() {
     let mut h = Host::default();
     v.handle_button_activated(&mut h, 0xE992_37B4);
     v.handle_button_activated(&mut h, 0x2992_F72C);
-    assert_eq!(h.popup_calls, [PopupCall::Execute(0x6A93_5DC9), PopupCall::Execute(0x6A93_5DEE)]);
+    assert_eq!(
+        h.popup_calls,
+        [PopupCall::Execute(0x6A93_5DC9), PopupCall::Execute(0x6A93_5DEE)]
+    );
     assert!(h.ops.is_empty());
 }
 
@@ -129,7 +165,10 @@ fn vw_t32_landscape_scripts_keep_caller_ids_and_transport_has_no_memory() {
         let mut h = Host::default();
         assert!(v.handle_button_activated(&mut h, button));
         assert!(h.popup_calls.contains(&PopupCall::Script {
-            parent: v.as_igzwin(), group: 0x96A0_06B0, instance: 0xAAA4_4448, data: button,
+            parent: v.as_igzwin(),
+            group: 0x96A0_06B0,
+            instance: 0xAAA4_4448,
+            data: button,
         }));
         assert_eq!(v.secondary_kind(), 0xCA35_CBED);
     }
@@ -143,7 +182,10 @@ fn vw_t32_landscape_scripts_keep_caller_ids_and_transport_has_no_memory() {
         assert_eq!(v.tertiary_kind(), button);
         assert_eq!(v.owner.popups[1].unwrap().memory, None);
         assert!(!v.owner.lifecycle.remembered_catalogs.contains_key(&button));
-        assert!(h.popup_calls.iter().any(|c| matches!(c, PopupCall::Catalog { layout, .. }
+        assert!(h
+            .popup_calls
+            .iter()
+            .any(|c| matches!(c, PopupCall::Catalog { layout, .. }
             if layout.kind == button && layout.background == 0x1421_5ED2)));
     }
 }
@@ -170,7 +212,11 @@ fn vw_t36_background_refresh_latches_mode_and_preserves_it_on_failure() {
     for field in [0x150, 0xF4] {
         v.owner.lifecycle.objects.insert(field, field);
     }
-    h.pictures.push(BackgroundPicture { token: 1, width: 64, height: 64 });
+    h.pictures.push(BackgroundPicture {
+        token: 1,
+        width: 64,
+        height: 64,
+    });
     assert!(v.refresh_background(&mut h));
     assert_eq!(v.owner.background_mode, 1);
     assert_eq!(h.background_requests, [(false, "Background2D".into())]);

@@ -139,7 +139,9 @@ impl View3DWin {
         let (width, height) = host.client_size();
         if let Some(main) = self.gui_script(host, 0xC973_B411, 0x0987_B48F, 0x22BA_0121) {
             self.owner.gui.fields.insert(0x18C, main);
-            let generator = host.gui(GuiCall::Query(main, 0x5386_D516)).expect("required main-panel QI");
+            let generator = host
+                .gui(GuiCall::Query(main, 0x5386_D516))
+                .expect("required main-panel QI");
             self.owner.gui.fields.insert(0x190, generator);
             host.gui(GuiCall::Filter(main, true));
             let (_, panel_height) = host.window_size(main);
@@ -183,7 +185,9 @@ impl View3DWin {
         }
         self.gui_helper(host, 0x2D8, HelperKind::PanelList, None);
         // NewsTicker::Init is delayed until its script window exists.
-        let ticker = host.gui(GuiCall::Helper(HelperKind::NewsTicker)).expect("required news ticker allocation");
+        let ticker = host
+            .gui(GuiCall::Helper(HelperKind::NewsTicker))
+            .expect("required news ticker allocation");
         self.owner.gui.fields.insert(0x2DC, ticker);
         for (i, (script, id, extra)) in [
             (0x69E3_D347, 0xC991_EDA8, None),
@@ -199,7 +203,9 @@ impl View3DWin {
                 self.owner.gui.windows.push(window);
                 self.owner.gui.panels[i].push(window);
                 {
-                    let generator = host.gui(GuiCall::Query(window, 0x5386_D516)).expect("required panel QI");
+                    let generator = host
+                        .gui(GuiCall::Query(window, 0x5386_D516))
+                        .expect("required panel QI");
                     self.owner.gui.fields.insert(0x1E0 + i as u32 * 4, generator);
                     if let Some(&proc) = self.owner.gui.fields.get(&0x2D8) {
                         host.gui(GuiCall::SetWinProc(generator, proc));
@@ -287,7 +293,9 @@ impl View3DWin {
 
     fn add_gui_auxiliary(&mut self, host: &mut impl GuiHost, width: i32, height: i32) {
         {
-            let callout = host.gui(GuiCall::Helper(HelperKind::Callout)).expect("required callout allocation");
+            let callout = host
+                .gui(GuiCall::Helper(HelperKind::Callout))
+                .expect("required callout allocation");
             self.owner.gui.fields.insert(0x3D8, callout);
             host.gui(GuiCall::CalloutStyle(callout, 11, 0xA85F_1A83));
             host.gui(GuiCall::CalloutStyle(callout, 10, 0xE9C8_6C9D));
@@ -310,7 +318,9 @@ impl View3DWin {
             self.owner.gui.fields.insert(0x3E0, image);
         }
         {
-            let bmp = host.gui(GuiCall::Helper(HelperKind::Bmp)).expect("required BMP allocation");
+            let bmp = host
+                .gui(GuiCall::Helper(HelperKind::Bmp))
+                .expect("required BMP allocation");
             self.owner.gui.fields.insert(0x3D4, bmp);
             host.gui(GuiCall::BmpFlag(bmp, 6, true));
             host.gui(GuiCall::Flag(bmp, 0x200000, true));

@@ -317,10 +317,7 @@ impl LifecycleHost for Host {
             _ => None,
         };
         self.ops.push(Op::Lifecycle(call));
-        LifecycleReply {
-            success,
-            object,
-        }
+        LifecycleReply { success, object }
     }
     fn cheat_manager_exists(&self) -> bool {
         true
@@ -381,7 +378,9 @@ impl GuiHost for Host {
                 GuiCall::Create { class, .. } => Some(class),
                 GuiCall::Helper(kind) => Some(100 + kind as u32),
                 GuiCall::Query(token, iid) => Some(token.wrapping_add(iid)),
-                GuiCall::Child { id, .. } | GuiCall::RecursiveChild { id, .. } | GuiCall::RecursivePanelChild { id, .. } => Some(id),
+                GuiCall::Child { id, .. }
+                | GuiCall::RecursiveChild { id, .. }
+                | GuiCall::RecursivePanelChild { id, .. } => Some(id),
                 GuiCall::Image { instance, .. } => Some(instance),
                 GuiCall::CreateBuffer => Some(200),
                 _ => None,
@@ -718,7 +717,11 @@ fn gui_failed_creations_and_shutdown_progress_order() {
     v.owner.lifecycle.progress = Some(42);
     host.ops.clear();
     v.shutdown(&mut host);
-    let gui_end = host.ops.iter().rposition(|o| matches!(o, Op::Gui(_))).unwrap();
+    let gui_end = host
+        .ops
+        .iter()
+        .rposition(|o| matches!(o, Op::Gui(call) if *call != GuiCall::BaseShutdown))
+        .unwrap();
     let progress = host
         .ops
         .iter()

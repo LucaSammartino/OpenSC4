@@ -13,6 +13,11 @@
   overlay lifetime; settled landscape/transport/menu routing; cost visibility.
 - Added closure_tests.rs. Focused cargo operation still compiling; session 73214,
   log build-runs/focused-close12-r2.log. Collect same operation before final.
+- Implementation checkpoint 85f92ba7e. Formatting now passes for seven files
+  (fmt-close12-r2-final-console.log); applied check diffs with apply_patch.
+- Owner table updated with concrete paths/tests; full closure is still incomplete.
+- Context guard measured 107152/150000 at first checkpoint; no new feature work
+  after the two-thirds threshold. Finish diagnostic fixes and all/verify only.
 - No game request outstanding. No plugin/C ABI wiring permitted.
 - Bash q.py fails CreateFileMapping; use PowerShell.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.

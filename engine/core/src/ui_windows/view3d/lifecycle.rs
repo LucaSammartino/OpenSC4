@@ -204,7 +204,10 @@ impl View3DWin {
             return true;
         }
         host.lifecycle(LifecycleCall::Subscribe);
-        assert!(host.lifecycle(LifecycleCall::RegisterCommands).success, "required command registry");
+        assert!(
+            host.lifecycle(LifecycleCall::RegisterCommands).success,
+            "required command registry"
+        );
         for (id, name) in super::COMMANDS {
             host.register_view_command(id, name, 0);
         }
