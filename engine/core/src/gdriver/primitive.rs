@@ -274,37 +274,40 @@ impl PrimitiveManager {
             self.buffer.unlock(self.dd, self.d3d, host);
             // §8.3: unsupported layouts still consume the reservation and queue.
         } else {
-          for n in 0..count {
-            let mut bytes = vec![0; vertex::stride(f) as usize];
-            let read = host.read(
-                source.wrapping_add((minimum.wrapping_add(n)).wrapping_mul(stride)),
-                &mut bytes,
-            );
-            if let Err(error) = read {
-                self.buffer.unlock(self.dd, self.d3d, host);
-                return Err(error.into());
-            }
-            let mut cursor = 0;
-            for (kind, offset, size) in [(0, 0, 12), (5, 12, 4), (7, 16, 8), (7, 24, 8)] {
-                let present = match (kind, offset) {
-                    (7, 24) => vertex::elements(f, 7)? > 1,
-                    _ => vertex::elements(f, kind)? > 0,
-                };
-                if present {
-                    let write = host.write(destination.wrapping_add(n * 32 + offset), &bytes[cursor..cursor + size]);
-                    if let Err(error) = write {
-                        self.buffer.unlock(self.dd, self.d3d, host);
-                        return Err(error.into());
-                    }
-                    cursor += size;
-                } else if kind == 5 {
-                    if let Err(error) = host.write(destination.wrapping_add(n * 32 + offset), &u32::MAX.to_le_bytes()) {
-                        self.buffer.unlock(self.dd, self.d3d, host);
-                        return Err(error.into());
+            for n in 0..count {
+                let mut bytes = vec![0; vertex::stride(f) as usize];
+                let read = host.read(
+                    source.wrapping_add((minimum.wrapping_add(n)).wrapping_mul(stride)),
+                    &mut bytes,
+                );
+                if let Err(error) = read {
+                    self.buffer.unlock(self.dd, self.d3d, host);
+                    return Err(error.into());
+                }
+                let mut cursor = 0;
+                for (kind, offset, size) in [(0, 0, 12), (5, 12, 4), (7, 16, 8), (7, 24, 8)] {
+                    let present = match (kind, offset) {
+                        (7, 24) => vertex::elements(f, 7)? > 1,
+                        _ => vertex::elements(f, kind)? > 0,
+                    };
+                    if present {
+                        let write =
+                            host.write(destination.wrapping_add(n * 32 + offset), &bytes[cursor..cursor + size]);
+                        if let Err(error) = write {
+                            self.buffer.unlock(self.dd, self.d3d, host);
+                            return Err(error.into());
+                        }
+                        cursor += size;
+                    } else if kind == 5 {
+                        if let Err(error) =
+                            host.write(destination.wrapping_add(n * 32 + offset), &u32::MAX.to_le_bytes())
+                        {
+                            self.buffer.unlock(self.dd, self.d3d, host);
+                            return Err(error.into());
+                        }
                     }
                 }
             }
-          }
         }
         self.buffer.unlock(self.dd, self.d3d, host);
         let indices = indices.map(|v| {
@@ -336,11 +339,22 @@ impl PrimitiveManager {
 }
 pub fn expanded(mode: u32, input: &[u16]) -> Result<(u32, Option<Vec<u16>>)> {
     let (primitive, indices, declared) = expanded_writes(mode, input, input.len(), true)?;
-    Ok((primitive, indices.map(|mut v| { v.truncate(declared); v })))
+    Ok((
+        primitive,
+        indices.map(|mut v| {
+            v.truncate(declared);
+            v
+        }),
+    ))
 }
 /// The complete scratch writes and the separately declared submission count.
 /// `input` may include readable sentinel indices after the logical `count`.
-pub fn expanded_writes(mode: u32, input: &[u16], count: usize, indexed: bool) -> Result<(u32, Option<Vec<u16>>, usize)> {
+pub fn expanded_writes(
+    mode: u32,
+    input: &[u16],
+    count: usize,
+    indexed: bool,
+) -> Result<(u32, Option<Vec<u16>>, usize)> {
     let n = count;
     if mode > 7 {
         return Err(Error::InvalidInput);
@@ -370,7 +384,11 @@ pub fn expanded_writes(mode: u32, input: &[u16], count: usize, indexed: bool) ->
             let groups = if indexed { (declared + 5) / 6 } else { (n + 3) / 4 };
             for q in (0..groups * 4).step_by(4) {
                 for i in [q, q + 1, q + 2, q, q + 2, q + 3] {
-                    out.push(if indexed { *input.get(i).ok_or(Error::InvalidInput)? } else { i as u16 });
+                    out.push(if indexed {
+                        *input.get(i).ok_or(Error::InvalidInput)?
+                    } else {
+                        i as u16
+                    });
                 }
             }
             return Ok((4, Some(out), declared));
@@ -381,13 +399,21 @@ pub fn expanded_writes(mode: u32, input: &[u16], count: usize, indexed: bool) ->
             }
             for i in (0..n - 2).step_by(2) {
                 for k in [i, i + 1, i + 3, i, i + 3, i + 2] {
-                    out.push(if indexed { *input.get(k).ok_or(Error::InvalidInput)? } else { k as u16 });
+                    out.push(if indexed {
+                        *input.get(k).ok_or(Error::InvalidInput)?
+                    } else {
+                        k as u16
+                    });
                 }
             }
         }
         _ => unreachable!(),
     }
     // Native interface truncates the generated count, not each queue allocation.
-    let declared = if mode == 7 { (3 * n.saturating_sub(2)) as u16 as usize } else { out.len() as u16 as usize };
+    let declared = if mode == 7 {
+        (3 * n.saturating_sub(2)) as u16 as usize
+    } else {
+        out.len() as u16 as usize
+    };
     Ok((4, Some(out), declared))
 }

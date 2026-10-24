@@ -54,14 +54,25 @@ pub fn select_format(request: u32, candidates: &[Format], _host: &mut impl Devic
     let mut score = (0, 0);
     for f in candidates {
         let (b, a) = (f.words[6], f.alpha_bits);
-        let next = if b == bits && a == alpha { (7, 0) }
-            else if alpha > 0 && a == alpha { (6, 0) }
-            else if alpha > 0 && a > alpha { (5, u32::MAX - a) }
-            else if alpha > 0 && a > 0 { (4, a) }
-            else if b == bits { (3, 0) }
-            else if b > bits { (2, u32::MAX - b) }
-            else { (1, b) };
-        if next > score { best = *f; score = next; }
+        let next = if b == bits && a == alpha {
+            (7, 0)
+        } else if alpha > 0 && a == alpha {
+            (6, 0)
+        } else if alpha > 0 && a > alpha {
+            (5, u32::MAX - a)
+        } else if alpha > 0 && a > 0 {
+            (4, a)
+        } else if b == bits {
+            (3, 0)
+        } else if b > bits {
+            (2, u32::MAX - b)
+        } else {
+            (1, b)
+        };
+        if next > score {
+            best = *f;
+            score = next;
+        }
     }
     Ok(best)
 }
@@ -187,7 +198,11 @@ impl TextureManager {
             for i in 0..count[0] {
                 let mut values = [0; 10];
                 host.dx(device, Call::TextureFormats, &[i], &[], &mut values);
-                candidates.push(Format { words: values[..8].try_into().unwrap(), alpha_bits: values[8], size: values[9] });
+                candidates.push(Format {
+                    words: values[..8].try_into().unwrap(),
+                    alpha_bits: values[8],
+                    size: values[9],
+                });
             }
             let mut formats = [Format::default(); 8];
             for (i, format) in formats.iter_mut().enumerate() {
@@ -197,17 +212,39 @@ impl TextureManager {
         }
         if self.converters.is_none() {
             let formats = self.formats.unwrap();
-            self.converters = Some(std::array::from_fn(|s| std::array::from_fn(|i| converter_available(s, formats[i].words[7]))));
+            self.converters = Some(std::array::from_fn(|s| {
+                std::array::from_fn(|i| converter_available(s, formats[i].words[7]))
+            }));
         }
         let name = self.new_name();
         self.create(name, 0, 4, 1, 1, 1, host)?;
         // The known white pixel is an immediate value, not a foreign address.
         // The foreign allocator supplies temporary readable storage; it is never retained.
         let pixel = host.alloc(4, crate::gdrivers_director::Allocation::Heap);
-        if pixel == 0 { return Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite)); }
-        let result = host.write(pixel, &u32::MAX.to_le_bytes()).map_err(Error::from).and_then(|()| self.load(Upload {
-            name, level: 0, x: 0, y: 0, width: 1, height: 1, format: 3, kind: 0, row_length: 0, pixels: pixel,
-        }, host).map(|_| ()));
+        if pixel == 0 {
+            return Err(Error::Foreign(crate::gdrivers_director::Fault::NullWrite));
+        }
+        let result = host
+            .write(pixel, &u32::MAX.to_le_bytes())
+            .map_err(Error::from)
+            .and_then(|()| {
+                self.load(
+                    Upload {
+                        name,
+                        level: 0,
+                        x: 0,
+                        y: 0,
+                        width: 1,
+                        height: 1,
+                        format: 3,
+                        kind: 0,
+                        row_length: 0,
+                        pixels: pixel,
+                    },
+                    host,
+                )
+                .map(|_| ())
+            });
         host.free(pixel, crate::gdrivers_director::Allocation::Heap);
         result?;
         Ok(())
@@ -354,8 +391,20 @@ impl TextureManager {
             };
             let (width, height, src_pitch, dst_pitch) = if out[3] != 0 {
                 (out[4], 1, out[4], out[4])
-            } else { (u.width, u.height, pitch, out[1]) };
-            convert(source, key, u.pixels, destination, src_pitch, dst_pitch, width, height, host)
+            } else {
+                (u.width, u.height, pitch, out[1])
+            };
+            convert(
+                source,
+                key,
+                u.pixels,
+                destination,
+                src_pitch,
+                dst_pitch,
+                width,
+                height,
+                host,
+            )
         };
         dx(host, surface, Call::UnlockSurface, &[]);
         result.map(|()| true)
@@ -364,10 +413,24 @@ impl TextureManager {
 
 /// Only the settled arithmetic in §9.6 is implemented; RD6 covers the remaining cells.
 #[allow(clippy::too_many_arguments)]
-pub fn convert(source: u32, key: u32, src: u32, dst: u32, src_pitch: u32, dst_pitch: u32, width: u32, height: u32, host: &mut impl Device) -> Result<()> {
+pub fn convert(
+    source: u32,
+    key: u32,
+    src: u32,
+    dst: u32,
+    src_pitch: u32,
+    dst_pitch: u32,
+    width: u32,
+    height: u32,
+    host: &mut impl Device,
+) -> Result<()> {
     let raw = matches!((source, key), (10, 9) | (12, 11) | (11 | 13 | 14, 10..=13));
     if !raw && !(matches!(source, 0 | 5 | 9) && matches!(key, 1 | 2)) {
-        return host.unresolved("RD6", &[source, key, src, src_pitch, dst, dst_pitch, width, height], &mut []);
+        return host.unresolved(
+            "RD6",
+            &[source, key, src, src_pitch, dst, dst_pitch, width, height],
+            &mut [],
+        );
     }
     for y in (0..height).rev() {
         let s = src.wrapping_add(y.wrapping_mul(src_pitch));

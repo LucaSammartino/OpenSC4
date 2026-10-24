@@ -73,7 +73,9 @@ impl Device for Recorder {
         });
         if self.replies.front().is_some_and(|(op, _, _)| *op == call) {
             let (_, hr, words) = self.replies.pop_front().unwrap();
-            for (o, value) in out.iter_mut().zip(words) { *o = value; }
+            for (o, value) in out.iter_mut().zip(words) {
+                *o = value;
+            }
             return hr;
         }
         if self.failures.front().is_some_and(|(op, _)| *op == call) {
@@ -92,22 +94,36 @@ impl Device for Recorder {
                 }
             }
             Call::PixelFormat => {
-                let values = if out.len() == 4 { vec![0xff000000, 0xff0000, 0xff00, 0xff] }
-                    else { vec![32, 0x41, 0, 32, 0xff0000, 0xff00, 0xff, 0xff000000] };
+                let values = if out.len() == 4 {
+                    vec![0xff000000, 0xff0000, 0xff00, 0xff]
+                } else {
+                    vec![32, 0x41, 0, 32, 0xff0000, 0xff00, 0xff, 0xff000000]
+                };
                 out.copy_from_slice(&values);
             }
             Call::EnumerateDevices => {
-                if args.is_empty() { out[0] = 1; }
-                else { out.copy_from_slice(&[1, 2, 3, 4, 0x90000, 16]); }
+                if args.is_empty() {
+                    out[0] = 1;
+                } else {
+                    out.copy_from_slice(&[1, 2, 3, 4, 0x90000, 16]);
+                }
             }
             Call::EnumerateDepthFormats => out.copy_from_slice(&[32, 0, 0, 16, 0, 0, 0, 0]),
             Call::CurrentDisplayMode => out[0] = 32,
             Call::TextureFormats => {
-                if args.is_empty() { out[0] = 1; }
-                else { out.copy_from_slice(&[0xff000000, 0xff0000, 0xff00, 0xff, 0, 0, 32, 1, 8, 32]); }
+                if args.is_empty() {
+                    out[0] = 1;
+                } else {
+                    out.copy_from_slice(&[0xff000000, 0xff0000, 0xff00, 0xff, 0, 0, 32, 1, 8, 32]);
+                }
             }
             Call::SurfaceDescriptor => out.copy_from_slice(&[800, 600, 0x4000]),
-            Call::RestoreContext => { for o in out { self.next += 0x10000; *o = self.next; } }
+            Call::RestoreContext => {
+                for o in out {
+                    self.next += 0x10000;
+                    *o = self.next;
+                }
+            }
             Call::FindVersionFile => out[0] = 0,
             Call::ClientRect => out.copy_from_slice(&self.rect),
             Call::ClientToScreen => {
@@ -424,7 +440,13 @@ fn dx7_15_modes_and_descriptor_enrichment() {
     let mut before = [0; 13];
     d.mode_info(0, &mut before);
     assert_eq!(&before[4..8], &[0; 4]);
-    d.textures.formats = Some([texture::Format { words: [0, 0, 0, 0, 0, 0, 32, 1], alpha_bits: 8, size: 32 }; 8]);
+    d.textures.formats = Some(
+        [texture::Format {
+            words: [0, 0, 0, 0, 0, 0, 32, 1],
+            alpha_bits: 8,
+            size: 32,
+        }; 8],
+    );
     d.textures.converters = Some([[true; 8]; 15]);
     d.set_video_mode(0, 0, false, 0x9000, &mut h).unwrap();
     let mut after = [0; 13];
@@ -1040,7 +1062,11 @@ fn compressed_descriptor_preference_and_ordinary_fallback() {
             let mut words = [0; 8];
             words[7] = key;
             words[6] = if key == 0 { 16 } else { 24 };
-            texture::Format { words, alpha_bits: if key == 0 { 1 } else { 4 }, size: 32 }
+            texture::Format {
+                words,
+                alpha_bits: if key == 0 { 1 } else { 4 },
+                size: 32,
+            }
         })
         .collect();
     for (request, key) in [(5, 9), (6, 11), (7, 13)] {

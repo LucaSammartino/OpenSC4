@@ -31,7 +31,11 @@ pub const FALLBACK: [u32; 4] = [0xa4665c60, 0x11cf2673, 0xaa001aa3, 0x5633b900];
 pub const DIRECT: [u32; 4] = [0x50936643, 0x11d113e9, 0xa000aa89, 0x294105c9];
 pub fn select_device(selector: u32, devices: &[DeviceDescriptor]) -> Result<DeviceDescriptor> {
     if selector == (-3i32) as u32 {
-        return Ok(DeviceDescriptor { guid: DIRECT, caps: 0, render_bits: 0x10 });
+        return Ok(DeviceDescriptor {
+            guid: DIRECT,
+            caps: 0,
+            render_bits: 0x10,
+        });
     }
     if selector != u32::MAX && selector != (-4i32) as u32 {
         // §14.2 explicitly leaves the native stack selection undefined.
@@ -45,7 +49,9 @@ pub fn select_device(selector: u32, devices: &[DeviceDescriptor]) -> Result<Devi
         } else {
             d.guid == PREFERRED || d.guid == FALLBACK && (selected.render_bits == 0 || selected.guid != PREFERRED)
         };
-        if replace { selected = *d; }
+        if replace {
+            selected = *d;
+        }
     }
     Ok(selected)
 }
@@ -113,14 +119,27 @@ impl Context {
     }
     pub fn restore(&mut self, host: &mut impl Device) -> Result<u32> {
         let hr = dx(host, self.dd, Call::RestoreAll, &[]);
-        if failed(hr) { return Ok(hr); }
-        match self.request { Some(r) => self.rebuild(r, host), None => Ok(0) }
+        if failed(hr) {
+            return Ok(hr);
+        }
+        match self.request {
+            Some(r) => self.rebuild(r, host),
+            None => Ok(0),
+        }
     }
     pub fn rebuild(&mut self, r: Request, host: &mut impl Device) -> Result<u32> {
         self.active = false;
         self.flipping = false;
         self.request = Some(r);
-        for token in [&mut self.device, &mut self.depth, &mut self.target, &mut self.primary, &mut self.clipper] { release(host, token); }
+        for token in [
+            &mut self.device,
+            &mut self.depth,
+            &mut self.target,
+            &mut self.primary,
+            &mut self.clipper,
+        ] {
+            release(host, token);
+        }
         let mut out = [0];
         let mut hr = dx(
             host,
@@ -141,12 +160,20 @@ impl Context {
         if matches!(r.selector, u32::MAX | 0xffff_fffc) {
             let mut count = [0];
             hr = host.dx(self.d3d, Call::EnumerateDevices, &[], &[], &mut count);
-            if failed(hr) { return Ok(hr); }
+            if failed(hr) {
+                return Ok(hr);
+            }
             for i in 0..count[0] {
                 let mut words = [0; 6];
                 hr = host.dx(self.d3d, Call::EnumerateDevices, &[i], &[], &mut words);
-                if failed(hr) { return Ok(hr); }
-                devices.push(DeviceDescriptor { guid: words[..4].try_into().unwrap(), caps: words[4], render_bits: words[5] });
+                if failed(hr) {
+                    return Ok(hr);
+                }
+                devices.push(DeviceDescriptor {
+                    guid: words[..4].try_into().unwrap(),
+                    caps: words[4],
+                    render_bits: words[5],
+                });
             }
         }
         self.selected = select_device(r.selector, &devices)?;
@@ -176,9 +203,13 @@ impl Context {
                     return Ok(hr);
                 }
                 self.target = out[0];
-                if self.target == 0 { return Ok(FAIL); }
+                if self.target == 0 {
+                    return Ok(FAIL);
+                }
             }
-            for flag in [1, 4, 8] { dx(host, self.primary, Call::GetColorKey, &[flag]); }
+            for flag in [1, 4, 8] {
+                dx(host, self.primary, Call::GetColorKey, &[flag]);
+            }
         } else {
             hr = host.dx(self.dd, Call::CreateSurface, &[1, 0x200], &[], &mut out);
             if failed(hr) {
@@ -208,29 +239,66 @@ impl Context {
         }
         let mut format = [0; 8];
         // This backend operation cancels enumeration after the first callback.
-        hr = host.dx(self.d3d, Call::EnumerateDepthFormats, &self.selected.guid, &[], &mut format);
-        if failed(hr) { return Ok(hr); }
-        if format[0] == 0 { return Ok(FAIL); }
-        let mut args = vec![0x1007, r.width, r.height, if self.selected.caps & 0x80000 != 0 { 0x20000 } else { 0x20800 }];
+        hr = host.dx(
+            self.d3d,
+            Call::EnumerateDepthFormats,
+            &self.selected.guid,
+            &[],
+            &mut format,
+        );
+        if failed(hr) {
+            return Ok(hr);
+        }
+        if format[0] == 0 {
+            return Ok(FAIL);
+        }
+        let mut args = vec![
+            0x1007,
+            r.width,
+            r.height,
+            if self.selected.caps & 0x80000 != 0 {
+                0x20000
+            } else {
+                0x20800
+            },
+        ];
         args.extend(format);
         out[0] = 0;
         hr = host.dx(self.dd, Call::CreateSurface, &args, &[], &mut out);
-        if failed(hr) { return Ok(hr); }
+        if failed(hr) {
+            return Ok(hr);
+        }
         self.depth = out[0];
         hr = dx(host, self.target, Call::AttachDepth, &[self.depth]);
-        if failed(hr) { release(host, &mut self.depth); return Ok(hr); }
+        if failed(hr) {
+            release(host, &mut self.depth);
+            return Ok(hr);
+        }
         let mut display = [0];
         hr = host.dx(self.dd, Call::CurrentDisplayMode, &[], &[], &mut display);
-        if failed(hr) { return Ok(hr); }
-        if display[0] <= 8 { return Ok(0x88760078); }
+        if failed(hr) {
+            return Ok(hr);
+        }
+        if display[0] <= 8 {
+            return Ok(0x88760078);
+        }
         let mut args = self.selected.guid.to_vec();
         args.push(self.target);
         out[0] = 0;
         hr = host.dx(self.d3d, Call::CreateDevice, &args, &[], &mut out);
-        if failed(hr) { return Ok(hr); }
+        if failed(hr) {
+            return Ok(hr);
+        }
         self.device = out[0];
-        hr = dx(host, self.device, Call::Viewport, &[0, 0, r.width, r.height, 0, 1f32.to_bits()]);
-        if failed(hr) { return Ok(hr); }
+        hr = dx(
+            host,
+            self.device,
+            Call::Viewport,
+            &[0, 0, r.width, r.height, 0, 1f32.to_bits()],
+        );
+        if failed(hr) {
+            return Ok(hr);
+        }
         self.active = true;
         Ok(0)
     }

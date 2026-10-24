@@ -19,9 +19,18 @@ pub struct Stage {
 impl Default for Stage {
     fn default() -> Self {
         Self {
-            dirty: false, enabled: false, alpha: true, name: 0, coordinates: 0,
-            parameters: [0, 0, 3, 3], environment: 0, applied: None,
-            function: [0; 2], sources: [[3; 3]; 2], operands: [[2; 3], [4; 3]], scale: [0; 2],
+            dirty: false,
+            enabled: false,
+            alpha: true,
+            name: 0,
+            coordinates: 0,
+            parameters: [0, 0, 3, 3],
+            environment: 0,
+            applied: None,
+            function: [0; 2],
+            sources: [[3; 3]; 2],
+            operands: [[2; 3], [4; 3]],
+            scale: [0; 2],
         }
     }
 }

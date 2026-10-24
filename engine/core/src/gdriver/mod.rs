@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Clean-room DX7 driver state machine from renderer-driver.md. The foreign
 //! backend extends gdrivers_director::Host; graphics identities use its tokens.
+pub mod auxiliary;
 pub mod backend;
 pub mod context;
 pub mod extended;
@@ -8,14 +9,13 @@ pub mod primitive;
 pub mod stage;
 pub mod texture;
 pub mod vertex;
-pub mod auxiliary;
 use crate::gdrivers_director::FOREIGN_DX7_CLASS;
 use backend::*;
 use context::{Context, Request};
 use primitive::PrimitiveManager;
 use stage::Stage;
-use texture::{TextureManager, Upload};
 use std::sync::{Mutex, MutexGuard};
+use texture::{TextureManager, Upload};
 
 static DRIVER_INFO: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
@@ -117,7 +117,10 @@ impl Driver {
             current_stage: 0,
             stages_dirty: false,
             follow_texture: false,
-            textures: TextureManager { refs: 1, ..TextureManager::default() },
+            textures: TextureManager {
+                refs: 1,
+                ..TextureManager::default()
+            },
             primitives,
             matrix_mode: 0,
             projection: [0.; 16],
@@ -318,8 +321,12 @@ impl Driver {
         self.stages.clear();
         self.textures.shutdown(host);
         self.primitives.stop(host);
-        for token in [&mut self.device, &mut self.dd, &mut self.d3d] { release(host, token); }
-        for token in &mut self.auxiliary_surfaces { release(host, token); }
+        for token in [&mut self.device, &mut self.dd, &mut self.d3d] {
+            release(host, token);
+        }
+        for token in &mut self.auxiliary_surfaces {
+            release(host, token);
+        }
         self.context.destroy(host);
         self.device = 0;
         self.ready = false;
@@ -417,7 +424,9 @@ impl Driver {
         self.device = self.context.device;
         self.dd = self.context.dd;
         self.d3d = self.context.d3d;
-        for token in [self.device, self.dd, self.d3d] { acquire(host, token); }
+        for token in [self.device, self.dd, self.d3d] {
+            acquire(host, token);
+        }
         if failed(hr) {
             self.hr(hr);
             host.dx(
@@ -521,7 +530,9 @@ impl Driver {
                 return Ok(());
             }
             let objects = [self.context.device, self.context.d3d, self.context.dd];
-            for token in objects { acquire(host, token); }
+            for token in objects {
+                acquire(host, token);
+            }
             release(host, &mut self.device);
             release(host, &mut self.d3d);
             release(host, &mut self.dd);
@@ -763,7 +774,10 @@ impl Driver {
         }
         let input: Vec<u16> = (0..count as u32).map(|i| i as u16).collect();
         let (primitive, indices, declared) = primitive::expanded_writes(mode, &input, count as usize, false)?;
-        let indices = indices.map(|mut v| { v.truncate(declared); v });
+        let indices = indices.map(|mut v| {
+            v.truncate(declared);
+            v
+        });
         if let Some(v) = &indices {
             self.primitives.indices(v.len(), host);
         }
@@ -802,9 +816,13 @@ impl Driver {
             _ => return Err(Error::InvalidInput),
         };
         let logical = count as usize;
-        let readable = if mode == 6 { ((3 * (logical / 2)) as u16 as usize + 5) / 6 * 4 }
-            else if mode == 7 { ((logical.saturating_sub(2) + 1) / 2) * 2 + 2 }
-            else { logical };
+        let readable = if mode == 6 {
+            ((3 * (logical / 2)) as u16 as usize + 5) / 6 * 4
+        } else if mode == 7 {
+            ((logical.saturating_sub(2) + 1) / 2) * 2 + 2
+        } else {
+            logical
+        };
         let mut bytes = vec![0; readable.max(logical) * size];
         host.read(address, &mut bytes)?;
         let input: Vec<u16> = bytes
@@ -1235,14 +1253,18 @@ impl Driver {
     }
     fn file_version(&self, version: &mut [u32], host: &mut impl Device) -> Result<()> {
         let mut directory = [0; 2];
-        if failed(host.dx(0, Call::SystemDirectory, &[], &[], &mut directory)) { return Ok(()); }
+        if failed(host.dx(0, Call::SystemDirectory, &[], &[], &mut directory)) {
+            return Ok(());
+        }
         for fragment in ["\\", "\\Drivers\\", "32\\Drivers\\"] {
             for suffix in ["", ".dll", ".vxd", ".sys"] {
                 // The backend uses the identifier's driver filename, not its description.
                 let mut file = [0];
                 let pattern = format!("{fragment}\0{suffix}");
                 let hr = host.dx(0, Call::FindVersionFile, &directory, pattern.as_bytes(), &mut file);
-                if failed(hr) || file[0] == 0 { continue; }
+                if failed(hr) || file[0] == 0 {
+                    continue;
+                }
                 let mut words = [0; 2];
                 if !failed(host.dx(file[0], Call::FileVersion, &[], &[], &mut words)) {
                     version.copy_from_slice(&[words[0] >> 16, words[0] & 65535, words[1] >> 16, words[1] & 65535]);
@@ -1256,22 +1278,42 @@ impl Driver {
     pub fn release(&mut self, host: &mut impl Device) -> Result<u32> {
         self.refs = self.refs.saturating_sub(1);
         let refs = self.refs;
-        if refs != 0 { return Ok(refs); }
+        if refs != 0 {
+            return Ok(refs);
+        }
         self.shutdown(host)?;
-        for token in [&mut self.device, &mut self.dd, &mut self.d3d] { release(host, token); }
-        for token in &mut self.auxiliary_surfaces { release(host, token); }
+        for token in [&mut self.device, &mut self.dd, &mut self.d3d] {
+            release(host, token);
+        }
+        for token in &mut self.auxiliary_surfaces {
+            release(host, token);
+        }
         self.context.destroy(host);
-        for region in &mut self.regions { release(host, &mut region.surface); }
+        for region in &mut self.regions {
+            release(host, &mut region.surface);
+        }
         self.regions.clear();
         self.stages.clear();
         self.lights.clear();
         self.modes.clear();
         self.primitives.refs = self.primitives.refs.saturating_sub(1);
-        if self.primitive_identity != 0 { host.call(self.primitive_identity, crate::gdrivers_director::Op::Release, &[], &[], &mut []); }
-        if self.primitives.refs == 0 { self.primitives.destroy(host); }
+        if self.primitive_identity != 0 {
+            host.call(
+                self.primitive_identity,
+                crate::gdrivers_director::Op::Release,
+                &[],
+                &[],
+                &mut [],
+            );
+        }
+        if self.primitives.refs == 0 {
+            self.primitives.destroy(host);
+        }
         // §4.1: the original AddRefs its texture manager instead of releasing it.
         self.textures.refs = self.textures.refs.wrapping_add(1);
-        if self.texture_identity != 0 { acquire(host, self.texture_identity); }
+        if self.texture_identity != 0 {
+            acquire(host, self.texture_identity);
+        }
         self.texture_identity = 0;
         self.primitive_identity = 0;
         self.device = 0;

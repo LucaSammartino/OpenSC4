@@ -32,7 +32,9 @@ fn dx7_21_flush_returns_last_submission_and_resets_scratch_when_stopped() {
         let (mut d, mut h) = fixture();
         d.draw_arrays(0, 0, 3, &mut h).unwrap();
         d.draw_arrays(3, 0, 1, &mut h).unwrap();
-        for hr in results { h.replies.push_back((Call::DrawBuffer, hr, vec![])); }
+        for hr in results {
+            h.replies.push_back((Call::DrawBuffer, hr, vec![]));
+        }
         assert_eq!(d.primitives.flush(&mut h), results[1]);
         assert_eq!(positions(&h, Call::DrawBuffer).len(), 2);
         assert_eq!(d.primitives.flush(&mut h), 0);
@@ -58,7 +60,10 @@ fn dx7_22_23_incomplete_quad_writes_and_declared_counts() {
         let expected = [10, 11, 12, 10, 12, 13, 14, 15, 90, 14, 90, 91];
         assert_eq!(generated.unwrap(), expected[..if count == 5 { 6 } else { 12 }]);
     }
-    assert_eq!(primitive::expanded_writes(6, &input[..6], 6, true), Err(Error::InvalidInput));
+    assert_eq!(
+        primitive::expanded_writes(6, &input[..6], 6, true),
+        Err(Error::InvalidInput)
+    );
     let (_, generated, _) = primitive::expanded_writes(7, &[], 5, false).unwrap();
     assert_eq!(generated.unwrap(), [0, 1, 3, 0, 3, 2, 2, 3, 5, 2, 5, 4]);
 }
@@ -114,14 +119,30 @@ fn dx7_27_shutdown_does_not_assign_error_from_mode_list_end() {
 }
 
 fn request() -> Request {
-    Request { selector: u32::MAX, fullscreen: false, flip: 0, window: 1, width: 800, height: 600, back_buffers: 2 }
+    Request {
+        selector: u32::MAX,
+        fullscreen: false,
+        flip: 0,
+        window: 1,
+        width: 800,
+        height: 600,
+        back_buffers: 2,
+    }
 }
 
 #[test]
 fn dx7_28_device_ranking_sentinel_and_selectors() {
     use context::*;
-    let a = DeviceDescriptor { guid: [1; 4], caps: 0x10000, render_bits: 16 };
-    let b = DeviceDescriptor { guid: [2; 4], caps: 0x90000, render_bits: 16 };
+    let a = DeviceDescriptor {
+        guid: [1; 4],
+        caps: 0x10000,
+        render_bits: 16,
+    };
+    let b = DeviceDescriptor {
+        guid: [2; 4],
+        caps: 0x90000,
+        render_bits: 16,
+    };
     let c = DeviceDescriptor { guid: [3; 4], ..b };
     assert_eq!(select_device(u32::MAX, &[a, b, c]).unwrap(), b);
     let empty_sentinel = DeviceDescriptor { render_bits: 0, ..b };
@@ -139,14 +160,29 @@ fn dx7_29_30_first_depth_format_and_terminal_failures() {
     let (mut c, hr) = Context::create(request(), &mut h).unwrap();
     assert_eq!(hr, 0);
     assert_eq!(positions(&h, Call::EnumerateDepthFormats).len(), 1);
-    let depth = h.calls.iter().find(|c| c.call == Call::CreateSurface && c.args[0] == 0x1007).unwrap();
+    let depth = h
+        .calls
+        .iter()
+        .find(|c| c.call == Call::CreateSurface && c.args[0] == 0x1007)
+        .unwrap();
     assert_eq!(&depth.args[4..], &[32, 0, 0, 16, 0, 0, 0, 0]);
     c.destroy(&mut h);
-    for (call, result) in [(Call::EnumerateDepthFormats, 0), (Call::AttachDepth, FAIL), (Call::Viewport, LOST)] {
+    for (call, result) in [
+        (Call::EnumerateDepthFormats, 0),
+        (Call::AttachDepth, FAIL),
+        (Call::Viewport, LOST),
+    ] {
         let mut h = Recorder::default();
         h.replies.push_back((call, result, vec![]));
         let (c, hr) = Context::create(request(), &mut h).unwrap();
-        assert_eq!(hr, if call == Call::EnumerateDepthFormats { FAIL } else { result });
+        assert_eq!(
+            hr,
+            if call == Call::EnumerateDepthFormats {
+                FAIL
+            } else {
+                result
+            }
+        );
         assert_eq!(c.depth, 0);
         assert_eq!(positions(&h, Call::EnumerateDevices).len(), 2);
         if call == Call::AttachDepth {
@@ -176,10 +212,19 @@ fn dx7_31_final_reference_manager_ownership_without_submission() {
 fn dx7_32_38_auxiliary_lighting_and_material_vectors() {
     assert_eq!(D3DLight::default().range.to_bits(), 0x5f7fffff);
     let (mut d, mut h) = fixture();
-    for v in [2, 2, 0x102, 0] { d.lighting_enable(v, &mut h); }
-    let values: Vec<_> = h.calls.iter().filter(|c| c.call == Call::RenderState && c.args[0] == 137).map(|c| c.args[1]).collect();
+    for v in [2, 2, 0x102, 0] {
+        d.lighting_enable(v, &mut h);
+    }
+    let values: Vec<_> = h
+        .calls
+        .iter()
+        .filter(|c| c.call == Call::RenderState && c.args[0] == 137)
+        .map(|c| c.args[1])
+        .collect();
     assert_eq!(values, [2, 0]);
-    for _ in 0..2 { d.light_enable(17, 0x102, &mut h); }
+    for _ in 0..2 {
+        d.light_enable(17, 0x102, &mut h);
+    }
     assert_eq!(positions(&h, Call::LightEnable).len(), 2);
     assert!(d.lights.is_empty());
     d.global_ambient([0., 0.5, 1.], &mut h);
@@ -209,7 +254,11 @@ fn dx7_32_38_auxiliary_lighting_and_material_vectors() {
 }
 
 fn descriptor(bits: u32, alpha: u32, key: u32) -> texture::Format {
-    texture::Format { words: [0, 0, 0, 0, 0, 0, bits, key], alpha_bits: alpha, size: 32 }
+    texture::Format {
+        words: [0, 0, 0, 0, 0, 0, bits, key],
+        alpha_bits: alpha,
+        size: 32,
+    }
 }
 
 #[test]
@@ -235,7 +284,9 @@ fn dx7_39_40_ordinary_format_ranks_and_stable_ties() {
 #[test]
 fn dx7_41_42_empty_formats_dxt5_fallback_and_all_availability_cells() {
     let mut h = Recorder::default();
-    for request in 0..8 { assert_eq!(texture::select_format(request, &[], &mut h).unwrap().words, [0; 8]); }
+    for request in 0..8 {
+        assert_eq!(texture::select_format(request, &[], &mut h).unwrap().words, [0; 8]);
+    }
     let (mut d, mut h) = fixture();
     let chosen = texture::select_format(7, &[descriptor(32, 8, 1)], &mut h).unwrap();
     d.textures.formats = Some([chosen; 8]);
@@ -249,8 +300,16 @@ fn dx7_41_42_empty_formats_dxt5_fallback_and_all_availability_cells() {
     let keys = [0, 1, 3, 4, 7, 9, 11, 13];
     for source in 0..15 {
         let row = keys.map(|key| texture::converter_available(source, key));
-        let expected = match source { 0..=9 => "11111000", 10 => "01011100", 12 => "01011010", _ => "00000011" };
-        assert_eq!(row.map(|v| if v { '1' } else { '0' }).iter().collect::<String>(), expected);
+        let expected = match source {
+            0..=9 => "11111000",
+            10 => "01011100",
+            12 => "01011010",
+            _ => "00000011",
+        };
+        assert_eq!(
+            row.map(|v| if v { '1' } else { '0' }).iter().collect::<String>(),
+            expected
+        );
     }
 }
 
@@ -263,8 +322,12 @@ fn dx7_43_pixel_expansions_and_independent_padding() {
             h.write(0x1004, &word.to_le_bytes()).unwrap();
             h.write(0x2000, &[0xa5; 16]).unwrap();
             texture::convert(source, key, 0x1000, 0x2000, 4, 8, 1, 2, &mut h).unwrap();
-            for address in [0x2000, 0x2008] { assert_eq!(memory(&mut h, address, 4), pixel.to_le_bytes()); }
-            for address in [0x2004, 0x200c] { assert_eq!(memory(&mut h, address, 4), [0xa5; 4]); }
+            for address in [0x2000, 0x2008] {
+                assert_eq!(memory(&mut h, address, 4), pixel.to_le_bytes());
+            }
+            for address in [0x2004, 0x200c] {
+                assert_eq!(memory(&mut h, address, 4), [0xa5; 4]);
+            }
         }
     }
 }
@@ -275,7 +338,10 @@ fn dx7_44_linear_copy_ignores_dimensions_and_nonzero_offset_copy_result() {
     d.textures.formats = Some([descriptor(8, 0, 11); 8]);
     let name = d.create_texture(6, 4, 4, 1, 0, &mut h).unwrap();
     let mut u = upload(name);
-    u.width = 1; u.height = 1; u.row_length = 99; u.format = 9;
+    u.width = 1;
+    u.height = 1;
+    u.row_length = 99;
+    u.format = 9;
     let src: Vec<u8> = (0..32).collect();
     h.write(u.pixels, &src).unwrap();
     for x in [0, 1] {
@@ -283,7 +349,10 @@ fn dx7_44_linear_copy_ignores_dimensions_and_nonzero_offset_copy_result() {
         h.write(0x8000, &[0xa5; 32]).unwrap();
         h.replies.push_back((Call::LockSurface, 0, vec![0x8000, 256, 8, 1, 32]));
         assert!(d.textures.load(u, &mut h).unwrap());
-        assert_eq!(memory(&mut h, 0x8000, 32), if x == 0 { src.clone() } else { vec![0xa5; 32] });
+        assert_eq!(
+            memory(&mut h, 0x8000, 32),
+            if x == 0 { src.clone() } else { vec![0xa5; 32] }
+        );
     }
     assert_eq!(positions(&h, Call::UnlockSurface).len(), 2);
 }
@@ -318,11 +387,20 @@ fn dx7_47_48_region_direction_retries_and_restore_guards() {
     for save in [true, false] {
         h.calls.clear();
         h.failures.push_back((Call::Blt, FAIL));
-        assert!(d.transfer_region(save, [handle, 10, 20, 30, 40, 50, 60], &mut h).unwrap());
+        assert!(d
+            .transfer_region(save, [handle, 10, 20, 30, 40, 50, 60], &mut h)
+            .unwrap());
         let blts: Vec<_> = h.calls.iter().filter(|c| c.call == Call::Blt).collect();
         assert_eq!(blts.len(), 2);
         assert_eq!(blts[0].target, if save { surface } else { 14 });
-        assert_eq!(&blts[0].args[1..9], if save { &[10, 20, 40, 60, 50, 60, 80, 100] } else { &[50, 60, 80, 100, 10, 20, 40, 60] });
+        assert_eq!(
+            &blts[0].args[1..9],
+            if save {
+                &[10, 20, 40, 60, 50, 60, 80, 100]
+            } else {
+                &[50, 60, 80, 100, 10, 20, 40, 60]
+            }
+        );
         assert_eq!(blts[0].args[9], 0x01000200);
         assert_eq!(blts[1].args[9], 0x01000000);
     }
@@ -331,7 +409,9 @@ fn dx7_47_48_region_direction_retries_and_restore_guards() {
     assert!(!d.transfer_region(false, [handle, 0, 0, 1, 1, 0, 0], &mut h).unwrap());
     assert!(positions(&h, Call::Blt).is_empty());
     d.auxiliary_surfaces[1] = 13;
-    for _ in 0..2 { h.failures.push_back((Call::Blt, LOST)); }
+    for _ in 0..2 {
+        h.failures.push_back((Call::Blt, LOST));
+    }
     assert!(!d.transfer_region(false, [handle, 0, 0, 1, 1, 0, 0], &mut h).unwrap());
     assert_eq!(positions(&h, Call::SurfaceLost).len(), 1);
     assert!(positions(&h, Call::RestoreSurface).is_empty());
@@ -343,12 +423,22 @@ fn dx7_49_partial_save_clears_but_returns_false_after_recovery() {
         let (mut d, mut h) = fixture();
         let handle = d.new_region(kind, &mut h);
         h.calls.clear();
-        for _ in 0..2 { h.failures.push_back((Call::Blt, LOST)); }
+        for _ in 0..2 {
+            h.failures.push_back((Call::Blt, LOST));
+        }
         let (w, height) = if full { (800, 600) } else { (30, 40) };
-        assert_eq!(d.transfer_region(true, [handle, 0, 0, w, height, 0, 0], &mut h).unwrap(), full);
+        assert_eq!(
+            d.transfer_region(true, [handle, 0, 0, w, height, 0, 0], &mut h)
+                .unwrap(),
+            full
+        );
         assert_eq!(positions(&h, Call::RestoreContext).len(), 1);
         assert_eq!(positions(&h, Call::PrimitiveRecovery).len(), 1);
-        let clears: Vec<_> = h.calls.iter().filter(|c| c.call == Call::Blt && c.data.len() == 100).collect();
+        let clears: Vec<_> = h
+            .calls
+            .iter()
+            .filter(|c| c.call == Call::Blt && c.data.len() == 100)
+            .collect();
         assert_eq!(clears.len(), usize::from(!full && kind < 2));
         if let Some(clear) = clears.first() {
             assert_eq!(clear.args[2], if kind == 0 { 0x01000400 } else { 0x03000000 });
@@ -385,12 +475,20 @@ fn manager_destructors_do_not_submit() {
     assert!(h.refs.contains(&(buffer, Op::Release)));
     assert!(positions(&h, Call::DrawBuffer).is_empty());
     d.create_texture(4, 8, 8, 1, 0, &mut h).unwrap();
-    let surfaces: Vec<_> = d.textures.records.iter().map(|r| r.surface).filter(|s| *s != 0).collect();
+    let surfaces: Vec<_> = d
+        .textures
+        .records
+        .iter()
+        .map(|r| r.surface)
+        .filter(|s| *s != 0)
+        .collect();
     d.textures.destroy(&mut h);
     assert!(d.textures.records.is_empty() && d.textures.freed.is_empty());
     assert!(d.textures.formats.is_none() && d.textures.converters.is_none());
     assert_eq!((d.textures.dd, d.textures.device), (0, 0));
-    for token in surfaces { assert!(h.refs.contains(&(token, Op::Release))); }
+    for token in surfaces {
+        assert!(h.refs.contains(&(token, Op::Release)));
+    }
     assert!(positions(&h, Call::LockSurface).is_empty());
 }
 
@@ -400,9 +498,12 @@ fn context_rebuild_releases_previous_surfaces() {
     let (mut c, hr) = Context::create(request(), &mut h).unwrap();
     assert_eq!(hr, 0);
     let old = [c.device, c.depth, c.target, c.primary, c.clipper];
-    h.calls.clear(); h.refs.clear();
+    h.calls.clear();
+    h.refs.clear();
     assert_eq!(c.restore(&mut h), Ok(0));
-    for token in old { assert_eq!(h.refs.iter().filter(|r| **r == (token, Op::Release)).count(), 1); }
+    for token in old {
+        assert_eq!(h.refs.iter().filter(|r| **r == (token, Op::Release)).count(), 1);
+    }
     assert_ne!(old[0], c.device);
     assert_eq!(h.calls[0].call, Call::RestoreAll);
     assert_eq!(positions(&h, Call::LoadLibrary).len(), 0);
@@ -420,21 +521,41 @@ fn adapter_version_search_and_shared_information() {
     let mut d = Driver::new(1, 2);
     let mut h = Recorder::default();
     h.write(0x7000, b"Test").unwrap();
-    h.replies.push_back((Call::AdapterInfo, 0, vec![0x7000, 4, 0, 0, 0, 0, 0x7100, 1, 2, 3, 4]));
-    for _ in 0..5 { h.replies.push_back((Call::FindVersionFile, 0, vec![0])); }
+    h.replies
+        .push_back((Call::AdapterInfo, 0, vec![0x7000, 4, 0, 0, 0, 0, 0x7100, 1, 2, 3, 4]));
+    for _ in 0..5 {
+        h.replies.push_back((Call::FindVersionFile, 0, vec![0]));
+    }
     h.replies.push_back((Call::FindVersionFile, 0, vec![0x9000]));
-    h.replies.push_back((Call::FileVersion, 0, vec![0x00010002, 0x00030004]));
+    h.replies
+        .push_back((Call::FileVersion, 0, vec![0x00010002, 0x00030004]));
     d.init(&mut h).unwrap();
     assert!(d.driver_info().windows(8).any(|w| w == b"1.2.3.4,"));
-    let searches: Vec<_> = h.calls.iter().filter(|c| c.call == Call::FindVersionFile).map(|c| c.data.clone()).collect();
-    assert_eq!(searches, [b"\\\0".to_vec(), b"\\\0.dll".to_vec(), b"\\\0.vxd".to_vec(), b"\\\0.sys".to_vec(), b"\\Drivers\\\0".to_vec(), b"\\Drivers\\\0.dll".to_vec()]);
+    let searches: Vec<_> = h
+        .calls
+        .iter()
+        .filter(|c| c.call == Call::FindVersionFile)
+        .map(|c| c.data.clone())
+        .collect();
+    assert_eq!(
+        searches,
+        [
+            b"\\\0".to_vec(),
+            b"\\\0.dll".to_vec(),
+            b"\\\0.vxd".to_vec(),
+            b"\\\0.sys".to_vec(),
+            b"\\Drivers\\\0".to_vec(),
+            b"\\Drivers\\\0.dll".to_vec()
+        ]
+    );
     let second = Driver::new(3, 4);
     let info = d.driver_info().clone();
     assert_eq!(*second.driver_info(), info);
     // A matched file with unreadable version resource terminates the search.
     let mut d = Driver::new(5, 6);
     let mut h = Recorder::default();
-    h.replies.push_back((Call::AdapterInfo, 0, vec![0x7000, 0, 0, 0, 0, 0, 0x7100, 0, 0, 0, 0]));
+    h.replies
+        .push_back((Call::AdapterInfo, 0, vec![0x7000, 0, 0, 0, 0, 0, 0x7100, 0, 0, 0, 0]));
     h.replies.push_back((Call::FindVersionFile, 0, vec![0x9000]));
     h.replies.push_back((Call::FileVersion, FAIL, vec![]));
     d.init(&mut h).unwrap();
@@ -451,7 +572,8 @@ fn auxiliary_noops_unchecked_properties_and_nonzero_results() {
     d.lighting_noop(0, 0);
     assert!(h.calls.is_empty());
     assert_eq!(d.error, 91);
-    d.light_property(1, 2, Some([f32::from_bits(0x7fc01234); 4]), &mut h).unwrap();
+    d.light_property(1, 2, Some([f32::from_bits(0x7fc01234); 4]), &mut h)
+        .unwrap();
     assert_eq!(d.lights[1].colors[2].map(f32::to_bits), [0x7fc01234; 4]);
     d.material_property(1, Some(&[2., 3., 4., 5.]), &mut h).unwrap();
     assert_eq!(&d.material[..4], &[2., 3., 4., 5.]);
