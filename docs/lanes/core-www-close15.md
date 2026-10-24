@@ -17,3 +17,4 @@ Then replace Handoff with final report, commit, write merge-queue/core-www-close
 No ABI/plugin/capi changes or game requests; no shadow/replace key. Main shared refs read-only; packed-refs.lock warnings do not prevent detached commits.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-www-close15-r2-manifest.json.
 New implementation stopped at two-thirds context; only formatting, diagnostics, gates and reporting remain.
+Gate 1 at 9e16b0f8a: cargo 7228/0; clippy failed four field_reassign_with_default fixtures, corrected to struct initialization. Native queue qbuild-20261024-145237-build-ctest still outstanding; collect session 28766 before rerunning. Logs all-r2.log/qbuild-test.log/qbuild-clippy.log must be preserved before next all.

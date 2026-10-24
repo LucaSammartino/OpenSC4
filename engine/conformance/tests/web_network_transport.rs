@@ -114,14 +114,16 @@ fn fixture(url: &[u8]) -> (Client, Job, Peer) {
 }
 #[test]
 fn header_fragmentation_informational_status_zero_and_interrupts() {
-    let mut io = Io::default();
-    io.reads = [
-        ReadStep::Pending,
-        ReadStep::Data(Vec::new()),
-        ReadStep::Data(b"HTTP/1.1 200 OK\r\nX: a\r\nX: b\r\n\r".to_vec()),
-        ReadStep::Data(b"\nabc".to_vec()),
-    ]
-    .into();
+    let mut io = Io {
+        reads: [
+            ReadStep::Pending,
+            ReadStep::Data(Vec::new()),
+            ReadStep::Data(b"HTTP/1.1 200 OK\r\nX: a\r\nX: b\r\n\r".to_vec()),
+            ReadStep::Data(b"\nabc".to_vec()),
+        ]
+        .into(),
+        ..Io::default()
+    };
     let mut result = 1;
     let response = read_header(&mut io, 100, 15, false, &mut result).unwrap();
     assert_eq!((response.status, response.major, response.minor), (200, 1, 1));
@@ -150,12 +152,14 @@ fn header_fragmentation_informational_status_zero_and_interrupts() {
 #[test]
 fn worker_short_sends_numeric_lookup_reuse_and_framing() {
     let (mut client, mut job, mut peer) = fixture(b"http://1.2.3.4/a");
-    let mut io = Io::default();
-    io.sends = [Some(0), Some(3)].into();
-    io.reads = [ReadStep::Data(
-        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabcXY".to_vec(),
-    )]
-    .into();
+    let mut io = Io {
+        sends: [Some(0), Some(3)].into(),
+        reads: [ReadStep::Data(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabcXY".to_vec(),
+        )]
+        .into(),
+        ..Io::default()
+    };
     let Outcome::Complete {
         response,
         body,
@@ -181,12 +185,14 @@ fn worker_short_sends_numeric_lookup_reuse_and_framing() {
 fn worker_failure_retry_redirect_and_error_codes() {
     for (version, retry) in [(b"1.0".as_slice(), false), (b"1.1", true)] {
         let (mut client, mut job, mut peer) = fixture(b"http://h/a");
-        let mut io = Io::default();
-        io.reads = [
-            ReadStep::Data([b"HTTP/".as_slice(), version, b" 200 OK\r\nContent-Length: 2\r\n\r\n"].concat()),
-            ReadStep::Failed,
-        ]
-        .into();
+        let mut io = Io {
+            reads: [
+                ReadStep::Data([b"HTTP/".as_slice(), version, b" 200 OK\r\nContent-Length: 2\r\n\r\n"].concat()),
+                ReadStep::Failed,
+            ]
+            .into(),
+            ..Io::default()
+        };
         let outcome = execute(&mut client, &mut io, &mut job, &mut peer, 100, None).unwrap();
         assert_eq!(matches!(outcome, Outcome::Requeued), retry);
         assert_eq!(client.queue.len(), usize::from(retry));
@@ -194,11 +200,13 @@ fn worker_failure_retry_redirect_and_error_codes() {
         assert!(!peer.initialized);
     }
     let (mut client, mut job, mut peer) = fixture(b"http://h/a");
-    let mut io = Io::default();
-    io.reads = [ReadStep::Data(
-        b"HTTP/1.1 302 Found\r\nLocation: b\r\nContent-Length: 1\r\n\r\na".to_vec(),
-    )]
-    .into();
+    let mut io = Io {
+        reads: [ReadStep::Data(
+            b"HTTP/1.1 302 Found\r\nLocation: b\r\nContent-Length: 1\r\n\r\na".to_vec(),
+        )]
+        .into(),
+        ..Io::default()
+    };
     assert_eq!(
         execute(&mut client, &mut io, &mut job, &mut peer, 100, None).unwrap(),
         Outcome::Requeued
