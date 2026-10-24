@@ -11,5 +11,7 @@
 - Added engine/conformance/tests/landvalue_capture_contract_test.cpp: six deterministic reference-host fixtures 26-31. They require pre-fetch leases and explicitly do not install an actual host. Production startup explains closed LV8 and missing host exclusion.
 - Filed LV9 integration dependency in docs/specs/questions/landvalue.md; no native signature or installation API inferred. Native capture stays off.
 - Source milestone: 9ddac837c (six LV8 fixtures and LV9).
-- Stable-source qbuild all operation 79019: cargo6917/0/0, clippy0 diagnostics; native queue qbuild-20261024-052425-build-ctest waiting behind coordinator regress. No duplicate verify started.
-- Next: collect operation79019 to terminal result; then unique 2032 game requests and event-based waits without qwait. Requested a clean-room copy of canonical house settings at build-runs/house-profile.req; cannot read tools/regress.ps1.
+- Stable-source qbuild all operation79019: cargo6917/0/0, clippy0 diagnostics; native queue qbuild-20261024-052425-build-ctest: build244/244, CTest76/76. No duplicate verify started; collecting terminal operation result.
+- Run410: lvcapture7-20261024-isolated-t1 71/73, clean/ref0, through2032-01-02, real37.110s. Startup383 total differences and pass3 one slope difference; LV7/LV2 evidence appended. DLL SHA256ABAD0198BAA9D88E545B6FC76BAD3EF57350671A28F928F2A14C95FB62C18B59.
+- Outstanding normal request lvcapture7-20261024-isolated-normal; event wait operation52833. Collect same operation to terminal result (no qwait, no polling).
+- Next: collect normal run, record gate/game milestones and decide further repeats. Canonical house settings requested at build-runs/house-profile.req; none supplied yet. Cannot read tools/regress.ps1.
