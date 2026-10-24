@@ -1031,7 +1031,7 @@ edge cases remain that helper's contract, not a decimal-only validation rule.
 ### 16.2 Slope and fence options
 
 DoSet3DViewSlopeUI (`0x0047DDF0`) titles its dialog `Set Slope of Displayed Lot`
-and initializes text from the unsigned integer at editor `+0x1E0`.
+and initializes text with signed `%d` from the bits at editor `+0x1E0` (§24.3).
 Acceptance parses using RZConvertToUint32A (`0x0090FE93`). For comparison it
 loads the signed 32-bit result into x87 and, if the sign bit was set, adds
 binary32 2^32; no binary32 store intervenes before the lot-limit tests.
@@ -1626,7 +1626,7 @@ Successful Read must call manager `FixLotConfiguration(currentConfiguration)`
 at interface `+0x5C`, returning a 32-bit result, **on the same mutable
 configuration just installed**, before the warning/dirty handling in §8.1
 (`0x00483C80..0x00483D98`). The typed bridge is the already-published
-[manager slot 23](prop-lotconfig.md#b5-methods): mutable ordered records and
+[manager slot 23](prop-lotconfig.md#b5-behaviour-of-the-queries): mutable ordered records and
 their ID lists, mutable retaining-wall ID list, dimensions, and that manager's
 held building/prop/flora validity and footprint dependencies. It must execute
 that manager contract, preserve its mutations and return its first-problem
