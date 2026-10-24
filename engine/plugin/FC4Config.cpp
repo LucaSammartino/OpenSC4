@@ -398,6 +398,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "city_shadow",
                                   // AF11 partial helicopter metadata observation, default off.
                                   "helicopter_shadow",
+                                  // LR14/T79 construction live getters only, default off.
+                                  "construction_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
