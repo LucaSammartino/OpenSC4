@@ -19,9 +19,9 @@
 - Powerline valid13/0,cost65/0; bridge valid17/0,cost974/0. No fitted correction.
 - Round2 all FAIL, session24883 terminal: cargo6652/1, clippy0, build91/91, CTest71/72.
 - Sole round2 diagnostic: legacy tests_power_line::cost_of_solution_shipped_values lacks counts.
-- Corrected fixture supplies counted_poles; round3 cargo6894/0 and clippy0; seven-file fmt clean.
-- NEXT: collect gate session65514 (active collector functions cell77), native request
-  qbuild-20261024-034154-build-ctest; then unique city label (run383+ after grep docs/runs).
+- Final all PASS, session65514 terminal: cargo6894/0,clippy0,build46/46,CTest72/72;fmt7 clean.
+- Final DLL be0734d79f6197316a2a1d35588e1a671ff1ce6e1465952981007d7a6a621a56.
+- NEXT: collect normal city nettoolexactsix20261024b (session46511, active collector cell80).
 - Then trace four corner inventories per NT30; wire actual powerline and bridge resources/hosts.
-- Only round3 gate outstanding. Round2 full logs preserved as build-runs/r2-*.log.
+- Only normal city request outstanding. Round2 full logs preserved as build-runs/r2-*.log.
 - Focused failed fixture evidence: build-runs/nt31-fixture-*. q.py Bash fails here; direct cargo works.
