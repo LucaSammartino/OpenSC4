@@ -709,8 +709,8 @@ cGZPropertySet*	persistence and resources	framework	property-sets.md	-	-	-
 cPropertySet*	persistence and resources	framework	property-sets.md	-	-	-
 cSLTokenRecord	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 cSLTokenSerialRecordIO_Text	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
-cSL*	persistence and resources	framework	-	-	-	-
-SL	persistence and resources	framework	-	-	-	-
+cSL*	persistence and resources	framework	sl-library.md	-	-	-
+SL	persistence and resources	framework	sl-library.md	-	-	-
 nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-

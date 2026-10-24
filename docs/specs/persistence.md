@@ -43,7 +43,8 @@ services. Still outside this spec: the persist-buffer factory
 ([persist-buffer-factory.md](persist-buffer-factory.md)),
 `cGZPersistBinaryReader`/`Writer` and `cGZPersistSurveyorWriter`
 ([persist-graph.md](persist-graph.md)), `cGZPropertySet*`/`cPropertySet*`
-([property-sets.md](property-sets.md)), and the remaining `cSL*`/`SL` owners.
+([property-sets.md](property-sets.md)), and the remaining `cSL*`/`SL` owners
+([sl-library.md](sl-library.md)).
 
 ## 2. DB record (`cGZPersistDBRecord`, `cIGZPersistDBRecord` IID `0xE56B8F03`)
 
