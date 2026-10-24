@@ -279,10 +279,10 @@ void NetworkStep(void* p) {
         const uint32_t mismatches = cellDiffs + (c->ok != s.ok) + (failure != s.failure) +
             (valid != s.geom.valid) + (straight != s.geom.straight_count) +
             (total != s.geom.dragged_count) + (cost != coreCost);
-        Log("nettool shadow (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
+        Log("nettool shadow %s (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
             "cells=%u/%u cell_diffs=%u ok=%d/%d failure=%08X/%08X valid=%u/%u straight=%u/%u "
             "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires contract=NT27-NT29",
-            a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
+            harness::FormatDate(a.date).c_str(), a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
             static_cast<uint32_t>(cells.size()), static_cast<uint32_t>(s.cells.size()), cellDiffs,
             c->ok ? 1 : 0, s.ok ? 1 : 0, failure, s.failure, valid, s.geom.valid,
             straight, s.geom.straight_count, total, s.geom.dragged_count, cost, coreCost);
@@ -322,7 +322,8 @@ std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
         } else if (shadow.Prepare(a, city)) {
             c.shadow = &shadow;
         } else {
-            Log("nettool shadow (type=%d setup): mismatches=1 unavailable=core", a.type);
+            Log("nettool shadow %s (type=%d setup): mismatches=1 unavailable=core",
+                harness::FormatDate(a.date).c_str(), a.type);
         }
     }
     const bool clean = SehGuard("script PlaceNetworkOccupants", &NetworkStep, &c);

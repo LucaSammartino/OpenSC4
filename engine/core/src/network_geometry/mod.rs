@@ -555,6 +555,63 @@ impl NetworkGeometry {
         if !self.flags().grading {
             return Grading::default();
         }
-        update_terrain_heights(&self.terrain, t)
+        let grading = update_terrain_heights(&self.terrain, t);
+        self.refresh_committed_corners(t, &grading.changed);
+        grading
+    }
+
+    /// Real commit's two post-grading refreshes (network-tools §6.5, NT30).
+    /// The caller supplies actual grading output order; terrain and network
+    /// satisfiers remain separate. Existing solved entries keep their index.
+    pub fn refresh_committed_corners<T: GeometryTerrain + ?Sized>(&mut self, t: &T, changed: &[i32]) {
+        let mut solved: std::collections::BTreeSet<_> = self.solved.iter().copied().collect();
+        // Preserve the supplied smoothing iteration order. Its construction
+        // currently uses key order rather than the native hash order (NG5).
+        for key in &self.smoothing.cells {
+            let Some(ci) = self.cells.get_mut(key) else { continue };
+            let off = if ci.connection_node {
+                smoothing::CONNECTION_NODE_OFFSET
+            } else {
+                0
+            };
+            let corners = ci.vertices.map(|v| {
+                self.network
+                    .height(v + off)
+                    .unwrap_or_else(|| t.vertex_altitude(v + off))
+            });
+            let differs = ci.corners != corners;
+            ci.corners = corners;
+            if differs && ci.placed && solved.insert((ci.x, ci.z)) {
+                self.solved.push((ci.x, ci.z));
+            }
+        }
+        let (cx, cz) = t.cells();
+        let stride = i64::from(cx) + 1;
+        for &v in changed {
+            let vx = (i64::from(v) % stride) as i32;
+            let vz = (i64::from(v) / stride) as i32;
+            for z in (vz - 1).max(0)..=vz.min(cz as i32 - 1) {
+                for x in (vx - 1).max(0)..=vx.min(cx as i32 - 1) {
+                    if solved.contains(&(x, z)) {
+                        continue;
+                    }
+                    let Some(ci) = self.cells.get_mut(&cell_key(x, z)) else {
+                        continue;
+                    };
+                    if !ci.placed {
+                        continue;
+                    }
+                    // Ordinary ids, direct network lookups: missing heights
+                    // preserve cached corners, even at connection nodes.
+                    for (corner, vertex) in ci.corners.iter_mut().zip(ci.vertices) {
+                        if let Some(height) = self.network.height(vertex) {
+                            *corner = height;
+                        }
+                    }
+                    solved.insert((x, z));
+                    self.solved.push((x, z));
+                }
+            }
+        }
     }
 }

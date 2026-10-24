@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use super::params::TYPE_COUNT;
-use crate::x87::{ftol32, r24, rhe, u32_to_float};
+use crate::x87::{ftol32, r24, rhe};
 
 /// Network flag: a draft (preview) occupant (§10.3).
 pub const FLAG_DRAFT: u32 = 0x8000_0000;
@@ -161,13 +161,14 @@ pub fn cost_of_solution(c: &CostInputs) -> i32 {
 }
 
 /// `cSC4PowerLineTool::GetCostOfSolution` (`0x0064F0F0`, §11): 0 for at
-/// most one pole; else `trunc(r24((float)(uint32)wire × per_wire)) +
-/// per_pole × poles`.
+/// most one pole; else `trunc((uint32)wire × per_wire) + per_pole × poles`.
+/// NT31: the multiply remains in x87 precision until truncation, with no
+/// intervening float32 store (network-tools §8.3.1).
 pub fn power_line_cost(poles: u32, wire_cells: u32, per_pole: i32, per_wire: f32) -> i32 {
     if poles <= 1 {
         return 0;
     }
-    let w = ftol32(r24(u32_to_float(wire_cells as i32) * f64::from(per_wire)));
+    let w = ftol32(f64::from(wire_cells) * f64::from(per_wire));
     w.wrapping_add(per_pole.wrapping_mul(poles as i32))
 }
 
