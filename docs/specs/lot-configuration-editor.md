@@ -286,6 +286,34 @@ It Releases each non-null object in the owned reference array
 This body does not release the current configuration directly; destruction and
 container cleanup must not be invented from this Shutdown list (LE5).
 
+### 7.1 Shutdown ownership and observable order (LE8)
+
+The initialized Shutdown protocol is ordered as follows. Every listed operation
+skips a null reference; offsets identify ownership slots, not portable layout
+requirements (`0x0047C520..0x0047C648`).
+
+| Order | Reference or collection | Effect |
+|---:|---|---|
+| 1 | Chooser `+0x15C` | Notify editor closed, while the chooser reference is still held. |
+| 2 | Font `+0x130` | Release, then clear slot. |
+| 3 | View/service `+0x134`, `+0x138`, `+0x13C`, in that order | Clear each slot before its Release. |
+| 4 | Chooser `+0x15C`, then configuration manager `+0x160` | Clear each slot before its Release. |
+| 5 | Identity references `+0x188`, then `+0x18C` | Release each, then clear its slot. |
+| 6 | Network objects `+0x194`, then `+0x198` | For each: invoke stop/shutdown slot `+0x10`, Release, then clear. |
+| 7 | Owned reference array, begin `+0x1D0`, end `+0x1D4` | Release each non-null element in forward order. Do not clear the elements, change the logical end, or free storage here. |
+| 8 | Base window | Invoke base Shutdown, including when the editor was not initialized. |
+
+All editor-specific steps are skipped when the base initialized flag is false.
+The seven cursor slots `+0x140..+0x158`, the current configuration `+0x190`,
+identity path/key/ID and collection storage survive this body. The destructor
+in §21.1 subsequently Releases the cursors in reverse slot order. The font is
+`+0x130`, not one of `+0x134/+0x138/+0x13C`. The array Release loop leaves
+dangling element values until storage destruction; raw destruction alone omits
+those Releases. Do not add an extra Release pass or promise idempotence for
+an initialized reentrant call. These distinctions follow the native stores
+around Release (`0x0047C533..0x0047C5DA`) and the unchanged array loop
+(`0x0047C61B..0x0047C648`).
+
 ## 8. New, open, save and close *[compat]*
 
 ### 8.1 Configuration creation and opening
@@ -1354,8 +1382,11 @@ the selected item?` with title `Are you sure`. Only result `0x5301814A`
 continues.
 
 Deletion requires the identity's backing file to exist and be writable.
-Otherwise show the native non-existent/write-protected error (native text
-spells it `non-existant`), with title `No can do`. A failed backing-store
+Otherwise show exactly `The exemplar you are trying to delete is either non-existant or write-protected.\n\n`,
+where each `\n` denotes an LF byte (two trailing line feeds), with title
+`No can do`. Preserve `exemplar`, the spelling `non-existant` and the trailing
+blank line (`0x00A8DB98`, used by `0x0047ED90`). The chooser invokes its
+message service with raw options `(0x10000,1,0)` for this error. A failed backing-store
 delete (`+0x6C`) shows `Unknown error trying to delete item.` with that title.
 Neither failure removes a row or unregisters a manager type. On success,
 remove the row identified by the identity ID, then ask the global manager
@@ -1471,3 +1502,29 @@ invented NaN/overflow expectations.
 Unresolved questions are in [the question file](questions/lot-configuration-editor.md).
 This addition does not claim complete numeric/raster contracts, game verdicts,
 ABI exports or ownership of shared decoding helpers.
+
+## 23. Portable window/core composition (LE8) *[compat]*
+
+Chooser edit acquisition and registration may be staged around the **core
+editor's** Open result (§20.4). The acquired editor executes §8.1, including
+PostInit and the key-dependent new/read path; only its successful completion
+allows registration. A failure takes the existing error/removal/Shutdown/Release
+path, even if Read has already installed a configuration. Similarly, chooser
+user-close dispatch invokes the corresponding core editor Close with `(true,true)`
+and consumes that result while reexamining its live tracked set (§20.1).
+The notification can remove the editor from that set before dispatch returns.
+These are composition boundaries, not alternative policy providers: an adapter
+must not supply an arbitrary Open/Close verdict to bypass unresolved core
+behavior in LE4/LE5, nor decide prompts, verification, reconciliation or save
+policy on the editor's behalf. An unsupported core continuation stays
+unsupported rather than becoming success. No extra question is required about
+staging itself; the native calls already impose the sequence
+(`0x0047E0E0`, `0x0047B6F0`, `0x00486530`, `0x004865D0`).
+
+| Vector | Setup/action | Required observation |
+|---|---|---|
+| LEI01 | Confirm deletion; identity resolves; file absent or not writable | Error text above including both trailing LF bytes, title `No can do`, raw options `(0x10000,1,0)`; no backing-store delete, row removal or unregister. |
+| LEI02 | Initialized editor with all owned slots non-null; Shutdown then destroy | Notification first; exact §7.1 Release/clear order; no cursor/current-configuration Release until destruction; array elements released before storage is freed. |
+| LEI03 | Uninitialized editor with non-null cursor and current configuration; Shutdown | Base Shutdown only; references remain for destruction. |
+| LEI04 | Chooser obtains an editor whose Open fails after Read installed its configuration | No tracked registration; error, removal, Shutdown, Release; do not turn the partial Read effects into a successful Open. |
+| LEI05 | First tracked editor closes and its notification removes it; next refuses | Reexamine live set; first remains removed, refusing editor and chooser stay open. No forced success or snapshot traversal. |

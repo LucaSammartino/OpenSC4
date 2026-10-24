@@ -1,5 +1,18 @@
 # Native lot configuration editor answered questions
 
+**LE8 — Window addendum text and integration boundaries**
+
+**ANSWERED 2026-10-24 (re-lotcfg-editor-le9):** DIFFERS — The exact error is
+`The exemplar you are trying to delete is either non-existant or write-protected.\n\n`
+(two trailing LF bytes), title `No can do`. Shutdown's font is `+0x130`;
+§7.1 now specifies every release, clearing order and the unchanged array
+elements. Seven cursor references survive for the destructor. Staged chooser
+Open/Close may consume the corresponding core editor results, retaining all
+core unsupported boundaries; no foreign policy verdict is authorized. See
+[§7.1, §20.5 and §23](../../lot-configuration-editor.md), vectors LEI01–05.
+Original scope: full file-unavailable text, exact Shutdown field mapping/order,
+cursor retention, and staged core/window Open/Close integration.
+
 **LE1 — Compatibility multi-selection maps and first scalar write-back**
 
 **ANSWERED 2026-10-22 (re-loteditor-window4):** DIFFERS — The three grids use
