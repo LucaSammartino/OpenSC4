@@ -49,11 +49,13 @@ fn vw_t26_dormant_fields_and_panel_extras() {
 #[test]
 fn vw_t27_factory_fallback_graphics_gate_and_reuse() {
     let mut v = view();
-    let mut h = Host::default();
-    h.rejected_city = vec![
-        CityCall::Create(CityObject::Camera),
-        CityCall::QueryGraphics(0xC47B_747C),
-    ];
+    let mut h = Host {
+        rejected_city: vec![
+            CityCall::Create(CityObject::Camera),
+            CityCall::QueryGraphics(0xC47B_747C),
+        ],
+        ..Host::default()
+    };
     v.pre_city_init(&mut h);
     assert!(h.ops.contains(&Op::City(CityCall::Construct(CityObject::Camera))));
     assert!(!h
@@ -79,11 +81,13 @@ fn vw_t27_factory_fallback_graphics_gate_and_reuse() {
 #[test]
 fn vw_t27_required_fallback_failure_is_fatal() {
     let mut v = view();
-    let mut h = Host::default();
-    h.rejected_city = vec![
-        CityCall::Create(CityObject::Camera),
-        CityCall::Construct(CityObject::Camera),
-    ];
+    let mut h = Host {
+        rejected_city: vec![
+            CityCall::Create(CityObject::Camera),
+            CityCall::Construct(CityObject::Camera),
+        ],
+        ..Host::default()
+    };
     assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.pre_city_init(&mut h))).is_err());
     assert!(!h.ops.iter().any(|o| matches!(o, Op::Gui(_))));
 }

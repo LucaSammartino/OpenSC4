@@ -20,7 +20,9 @@
 - Final all running on corrected 9296596a7 source, RUST_TEST_THREADS=1,
   session 12931; output build-runs/all-close12-r3-console.log.
 - Owner tests 88/88 PASS, including all four new tests and trigger T40–T44.
-- Workspace currently 7394 passed/0 failed (39 result lines); not final yet.
+- Workspace test phase PASS: 7408 passed/0 failed; owner 88/88.
+- Clippy failed two field_reassign_with_default diagnostics in closure_tests.rs;
+  both initializers corrected after this failed gate's Rust phase. Recheck needed.
 - Native verify qbuild-20261024-205703-build-ctest PASS: build 211/211 (208.3 s),
   CTest 81/81 (288.1 s), total 498.6 s; verify-close12-r3-console.log.
   It reports tree changed during run (test fix/docs); production source unchanged.
