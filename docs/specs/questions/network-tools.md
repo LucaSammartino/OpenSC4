@@ -117,19 +117,6 @@
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
 
 <!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
-- **NT35 - live piece/plane/support inputs beyond NT34:** the NT34 nonflat A/B/C
-  solve/grading/refresh fixtures pass. Applying network-geometry §9.1's SGI bucket/chain
-  iteration, including resize-before-duplicate and retained bucket count on shutdown,
-  changes the shared-endpoint city replay cost from 98 to 93 (native 90). Clean turbo
-  run nettool-close7-r2-20261024-b812 still has four native/core prices 110/113,
-  170/192, 90/93 and 55/61; ordered drag cells and status agree. What admitted
-  callable observation or fully specified live piece/plane/support input fixture lets
-  the adapter obtain the native retained solved-entry inventory and corner constraints
-  for these probes, beyond the controlled NT30/NT34 boundary vectors? Public totals
-  cannot identify those inputs. [keep literal solving and pricing; no residual fitting,
-  tolerance, native-total substitution or exact city-cost credit; replacement default-off]
-
-<!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
 - **NT36 - occupied-cell and subclass/model host integration boundary:** in the same
   clean 2032 run the NT33 live renderer/lot/terrain/zoning/tuning adapter performs
   10 rays and 40 lot reads with straight prefix 13, but reports selection complete=0.

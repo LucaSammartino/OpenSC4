@@ -662,6 +662,26 @@ solve-input/result difference, while a correct terrain solution with different r
 later terrain mutation. Keep 110/113, 170/192, 90/98 and 55/61 as city mismatches. This fixture supplies no
 recovered native city constraint snapshot and licenses no adjustment to match those totals.
 
+#### 8.1.4 Live inventory cannot be extracted from the tool getters (NT35)
+
+There is **no admitted public call that copies the native retained solved-entry inventory or its piece/plane/
+support constraints**: §2.1's coordinate/count getters do not expose these objects. Neither occupied-cell
+queries nor model getters on committed occupants recover an ordered, possibly uncommitted solution or its
+per-smoothing-level constraints. A host must observe the live environment through its public services and
+reconstruct the solution using network-geometry §§8–10 and the rule/model resources, or start from an explicitly
+supplied constraint-boundary fixture such as NT34. NT30/NT34 are such fixtures, not extracted city snapshots.
+The four prices 110/113, 170/192, 90/93 and 55/61 in `nettool-close7-r2-20261024-b812` do not determine a unique
+inventory or corner fixture. Retaining SGI bucket order resolves an ordering input but cannot identify missing
+piece heights, plane anchors or support constraints. Report a missing observation as unavailable; do not read
+the private solved vector, fit the residual, or return a native total as the reconstructed price. This is the
+observation limit, not a second solver rule (`0x0062CA30`–`0x0062CA3F`, `0x00625647`–`0x0062568D`).
+
+| Boundary conformance vector | Expected observation / permitted conclusion |
+|---|---|
+| NT34 A and B, identical drag/counts and network corners, support clearance 10 versus 1 | Earthwork 12 versus 4; coordinate/count equality does not select the support input |
+| Slot 23 called after either fixture | Copy of drag coordinates only; no corner heights, support record or solved-entry ordering is returned |
+| Live replay has coordinates/status and public price, but lacks piece/plane/support inputs | Drag/status and native price remain observable; reconstructed live price is unavailable, not zero and not the native price |
+
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
 Only the player's tool UI withdraws money:

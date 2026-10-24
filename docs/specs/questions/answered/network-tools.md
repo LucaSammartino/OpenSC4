@@ -219,3 +219,21 @@
   pricing multiplies in x87 without an intervening float32 store (qualifying the older r24 shorthand).
   Actual city bridge span/model and pole inventory are not inferable from public totals: no injected 974/65,
   guessed model choice, or owner coverage credit; city differences remain visible and default-off.
+
+<!-- from: glue-nettool-close7 (engine lane, 2026-10-24) -->
+- ~~**NT35 - live piece/plane/support inputs beyond NT34:** the NT34 nonflat A/B/C
+  solve/grading/refresh fixtures pass. Applying network-geometry §9.1's SGI bucket/chain
+  iteration, including resize-before-duplicate and retained bucket count on shutdown,
+  changes the shared-endpoint city replay cost from 98 to 93 (native 90). Clean turbo
+  run nettool-close7-r2-20261024-b812 still has four native/core prices 110/113,
+  170/192, 90/93 and 55/61; ordered drag cells and status agree. What admitted
+  callable observation or fully specified live piece/plane/support input fixture lets
+  the adapter obtain the native retained solved-entry inventory and corner constraints
+  for these probes, beyond the controlled NT30/NT34 boundary vectors? Public totals
+  cannot identify those inputs. [keep literal solving and pricing; no residual fitting,
+  tolerance, native-total substitution or exact city-cost credit; replacement default-off]~~
+  **ANSWERED 2026-10-24 (re-nettools-ng9):** MATCHES — network-tools §8.1.4.
+  No public tool getter extracts that inventory or those constraints. Reconstruct from public
+  environment observations and resources, or use labelled constraint-boundary fixtures;
+  the measured totals cannot specify a unique native live fixture. Three boundary vectors
+  distinguish coordinate observation, supplied constraints and unavailable reconstructed cost.

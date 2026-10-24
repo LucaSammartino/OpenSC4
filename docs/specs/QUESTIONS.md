@@ -283,14 +283,14 @@ generated index: the questions live one file per spec, so read only the file for
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
-| network-geometry | 1 | 7 | NG9 | questions/network-geometry.md |
+| network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 19 | 27 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 18 | 12 | NT37 | questions/network-tools.md |
+| network-tools | 17 | 13 | NT37 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -373,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1527** | | |
+| **total** | **597** | **1529** | | |
