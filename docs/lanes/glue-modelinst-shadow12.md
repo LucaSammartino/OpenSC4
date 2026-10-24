@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | ready: merged origin/main b5f3bb118 in a907efa2d, preserving both registration sets; cargo 7408/0, clippy clean, build 62/62, CTest 81/81; run 632 clean modelinst-mi14-merge-2032-r3 145/145 (static 73/73, live 72/72) to 2032-01-10, ref_warnings=0; previous runs 520 and 521 exact; ABI unchanged; no new questions | (1) Land refreshed full-tip READY entry. (2) Review scoped coverage and existing regression shadows profile; no whole-owner credit. |
+| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | in progress: b5f3bb118 merge passed cargo 7408/0, clippy clean, build 62/62, CTest 81/81 and exact 145/145 to 2032; origin/main advanced during gate to 625733fc6, adding conflicts at both registration sites | (1) Preserve new view-utility and model-instance registrations. (2) Gate changed merged inputs and confirm in game. (3) Refresh READY full tip. |
+
+## Handoff
+
+- Prior tested merge a907efa2d, report commit 63285ec8d: all gate PASS; modelinst-mi14-merge-2032-r3 145/145 clean to 2032-01-10.
+- Diagnostic: final ancestry check found origin/main advanced to 625733fc6 during the long gate; diff adds viewutil_shadow at both exact conflict sites. Merge this advancement to avoid another skipped tip.
+- Run 632 was concurrently taken by train206; rename this lane's r3 record to free run 640 before merging.
+- Next: merge origin/main preserving all registrations; changed engine inputs justify another all gate and one confirmation, not a duplicate unchanged-source check.
+- No check or game request outstanding. No new owners/questions; no public ABI changes.
 
 ## Current-main refresh
 
@@ -8,7 +16,7 @@ The skipped READY tip `25e148fcdf7722d1ffabbaa69a950a6acb3f5f93` is refreshed by
 
 Final stable-source `qbuild.py all`: **PASS**, session 53110 collected to terminal. Cargo **7,408 passed / 0 failed / 0 ignored**, 51 summaries; clippy **exit=0, diagnostics=0**. Queued native `qbuild-20261024-201508-build-ctest`: build **62/62 PASS** (192.7 s), CTest **81/81 PASS** (261.8 s), total 456.7 s. Logs: `build-runs/modelinst-r3-final-all.log`, `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Engine source stayed at a907efa2d throughout; the tree-change annotation reflects lane-record commits only. No duplicate gate or native verify was launched.
 
-[Run 632](../runs/modelinst-mi14-merge-2032-r3-632.md): **`modelinst-mi14-merge-2032-r3 145/145`**, comprising **73/73 (modelinst)** and **72/72 (modelinst-live)**. Every dated line has mismatches=0 and resyncs=0. Clean to **2032-01-10** in 27.953 s, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Live observer ON: 90,579 natural calls encountered, 4,096 captured, 86,483 dropped; 12,288 unique counter/padding bytes compared. First live line captured 1,427 calls / 4,281 fields. DLL SHA256 `8aa62a855f8d2d8f6994b976b46e2e4a509b5dafda1784f0896663b8c855607f`.
+[Run 640](../runs/modelinst-mi14-merge-2032-r3-640.md): **`modelinst-mi14-merge-2032-r3 145/145`**, comprising **73/73 (modelinst)** and **72/72 (modelinst-live)**. Every dated line has mismatches=0 and resyncs=0. Clean to **2032-01-10** in 27.953 s, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Live observer ON: 90,579 natural calls encountered, 4,096 captured, 86,483 dropped; 12,288 unique counter/padding bytes compared. First live line captured 1,427 calls / 4,281 fields. DLL SHA256 `8aa62a855f8d2d8f6994b976b46e2e4a509b5dafda1784f0896663b8c855607f`.
 
 Konradshohe, turbo, target 2032-01-01, default replacements and only modelinst_shadow=1, matching the previous exact run. Evidence: `build-runs/game-results/modelinst-mi14-merge-2032-r3.verdict` and `.log`; bounded counter `build-runs/modelinst-summary.py`. The single blocking file-watcher wait (session 9863) was collected to terminal; no request or check remains outstanding. No normal-speed rerun is required because no shadow differs. Coverage remains scoped as described below. Final queue entry uses the actual detached HEAD's full 40-character hash; the supervisor publishes it to the reserved lane branch.
 
