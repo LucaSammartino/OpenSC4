@@ -16,4 +16,4 @@
 - Full gate terminal PASS: cargo 7409/7409 (0 ignored), clippy 0 diagnostics, native 265/265 edges (309.0 s), CTest 81/81 (401.9 s); total native 713.2 s. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
 - Next: submit unique gdriver13-r2-turbo-2032-20261024a game request using engine/build-x86/FreeCity4.dll, then collect its one blocking verdict wait.
 - Focused initial source cargo log: build-runs/gdriver-focused-1.log (still compiling); later source adds viewport/capability coverage. q.py Bash startup failed (sandbox); use direct local commands/qbuild.
-- No game requests started. Formatting checks use absolute explicit Rust paths. build-runs/wait-verdict.ps1 provides one blocking file-system notification wait (no qwait).
+- Outstanding game request: gdriver13-r2-turbo-2032-20261024a, turbo to 2032-01-01, 900 s timeout, gdriver_shadow=1. Never resubmit this label; an existing completed verdict is valid. Collect build-runs/game-results/<label>.verdict via build-runs/wait-verdict.ps1 (one blocking file-system notification wait, no qwait).
