@@ -866,6 +866,33 @@ fn no_core_objects(_: u32, _: *mut c_void) -> Option<Rc<dyn SaveObject>> {
     None
 }
 
+/// Tooling: enable selector transcripts and preview the next block, without stepping.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_prop_developer_shadow_prepare(
+    p: *const fc4_prop_developer,
+    x: *mut i32,
+    z: *mut i32,
+) -> bool {
+    with_p(p, false, |h| {
+        let Some((bx, bz)) = h.sim.shadow_prepare() else {
+            return false;
+        };
+        if let Some(out) = x.as_mut() {
+            *out = bx;
+        }
+        if let Some(out) = z.as_mut() {
+            *out = bz;
+        }
+        true
+    })
+}
+
+/// Tooling: purpose of the selector currently being delivered to the host.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_prop_developer_shadow_selector_creation(p: *const fc4_prop_developer) -> bool {
+    with_p(p, false, |h| h.sim.selection_is_creation())
+}
+
 /// PV14: import a coherent observed generator into independent storage.
 /// `words` points to exactly 624 words; no native pointer is retained.
 #[no_mangle]

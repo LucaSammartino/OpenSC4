@@ -688,6 +688,23 @@ fn example_lot(e: &Env, occ: f32) {
     e.f.profiles.borrow_mut().insert(0x501, (WEALTH_SATISFACTION, 3));
 }
 
+#[test]
+fn shadow_preview_does_not_advance_and_wealth_uses_host_transcript() {
+    let e = env();
+    city(&e);
+    example_lot(&e, 0.5);
+    e.member.push(&[2, 1]);
+    let before = record(&e.d);
+    let preview = e.d.shadow_prepare();
+    assert_eq!(record(&e.d), before);
+    assert_eq!(e.d.shadow_prepare(), preview);
+    e.d.update_block(0, 0);
+    assert_eq!(e.d.last_block().created, 2);
+    assert!(e.wealth.draws().is_empty());
+    assert!(e.d.selection_is_creation());
+    assert_eq!(e.f.log.borrow().iter().filter(|s| s.starts_with("select ")).count(), 2);
+}
+
 // §12 test 5 (worked example A) and test 6 (example C).
 #[test]
 fn t5_t6_examples_a_b_c() {
@@ -1239,7 +1256,10 @@ fn scanner_state_byte_above_two() {
     t[3] = 5;
     assert!(read(&e.d, &t));
     let s = e.d.snapshot();
-    assert_eq!((s.scanner.state, s.scan_byte, s.scanner.x, s.scanner.z), (ScanState::Running, 5, 7, 14));
+    assert_eq!(
+        (s.scanner.state, s.scan_byte, s.scanner.x, s.scanner.z),
+        (ScanState::Running, 5, 7, 14)
+    );
     assert_eq!(record(&e.d), t);
     assert_eq!(e.d.block_step(), Some((8, 14)));
     assert_eq!(e.d.snapshot().scan_byte, 5);

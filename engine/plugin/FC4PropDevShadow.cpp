@@ -23,6 +23,7 @@
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
 #include "FC4PropDevTranscript.h"
+#include "FC4PropDevSnapshot.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -108,6 +109,20 @@ uint32_t g_created = 0;
 bool g_uncertain = false;
 bool g_pendingUncertain = false;
 uint32_t g_messageRemovals = 0;
+PropSelectorReplay* g_selectorReplay = nullptr;
+bool g_nativeOperation = false;
+std::vector<fc4_prop_message> g_nested;
+size_t g_nestedCursor = 0;
+fc4_prop_developer* ReplayCore();
+
+bool ReplayNested(uint32_t type, uint64_t prop) {
+    if (g_nestedCursor == g_nested.size()) return false;
+    const auto& m = g_nested[g_nestedCursor];
+    if (m.msg_type != type || m.object != prop) return false;
+    ++g_nestedCursor;
+    fc4_prop_developer_do_message(ReplayCore(), &m);
+    return true;
+}
 
 cISC4PropManager* PropManager() {
     cISC4City* c = propcity::AppCity();
@@ -129,6 +144,7 @@ const fc4_prop_host& RunHost();
 void HookRemove(void*, uint64_t prop) {
     if (g_inStep) {
         g_removed.push_back(prop);
+        if (!ReplayNested(0x99EF1143, prop)) g_uncertain = true;
     } else {
         ++g_messageRemovals;
     }
@@ -137,11 +153,23 @@ void HookRemove(void*, uint64_t prop) {
 // A creation of ours "succeeds" with a stand-in token (set_prop_requester on
 // it is a no-op in the read-only host): select-and-create then goes on as
 // the original's would after a successful CreateLotProp.
-uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t) {
+uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t id) {
     ++g_created;
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
-    return 1;
+    // Insertions observe success, not the native creation attempt's lot/index
+    // or failed attempts. This operation remains incomplete.
+    g_uncertain = true;
+    if (g_nestedCursor == g_nested.size()) return 0;
+    const auto& m = g_nested[g_nestedCursor];
+    if (m.msg_type != 0x99EF1142) return 0;
+    auto* frozen = PropBlockSnapshot::active;
+    PropBlockSnapshot::active = nullptr;
+    const bool match = PropBlockSnapshot::base.prop_type(nullptr, m.object) == id;
+    const uint64_t token = m.object;
+    if (match) ReplayNested(0x99EF1142, token);
+    PropBlockSnapshot::active = frozen;
+    return match ? token : 0;
 }
 
 // A host requester's SelectProp (crime, a custom selector of a mod) is never
@@ -149,7 +177,12 @@ uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t) {
 // 3.7): a crime prop with incident ID 0 is kept for certain (crime.md §11.6:
 // the generic list of one); anything else is answered "kept" and the step
 // marked uncertain unless a creation follows (select and create, §4.4).
-uint32_t HookSelect(void* user, uint64_t r, const uint32_t* ids, size_t count, int32_t, int32_t) {
+uint32_t HookSelect(void* user, uint64_t r, const uint32_t* ids, size_t count, int32_t x, int32_t z) {
+    if (g_selectorReplay) {
+        const auto purpose = fc4_prop_developer_shadow_selector_creation(ReplayCore())
+            ? PropSelectorTrace::Purpose::Creation : PropSelectorTrace::Purpose::Kept;
+        return g_selectorReplay->Select(static_cast<uintptr_t>(r), purpose, ids, count, x, z);
+    }
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;
     if (ids == nullptr || count == 0) return 0;
@@ -201,6 +234,7 @@ struct CoreBox {
 };
 
 CoreBox g_run;  // the running shadow core
+fc4_prop_developer* ReplayCore() { return g_run.core; }
 
 const fc4_prop_host& RunHost() { return g_run.host; }
 
@@ -214,6 +248,7 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.ctx->onSelect = &HookSelect;
     b.ctx->hookCtx = b.ctx.get();
     b.host = MakePropHost(b.ctx.get());
+    PropBlockSnapshot::Bind(b.host);
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
         b.ctx.reset();
@@ -391,6 +426,8 @@ struct MonthStats {
     uint32_t origRemoved = 0, oursRemoved = 0, notKept = 0, origCreated = 0, oursCreated = 0;
     uint32_t messages = 0, ticks = 0;
     uint32_t selectorEvents = 0, selectorZero = 0;
+    uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
+    uint32_t operationsExact = 0, operationsIncomplete = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -480,6 +517,10 @@ struct Step {
     fc4_prop_block blk{};
     std::vector<uint64_t> before;
     propcity::CallPool pool;
+    fc4_prop_message message{};
+    PropBlockSnapshot inputs;
+    const PropSelectorTrace* trace = nullptr;
+    bool nativeFinished = false;
 };
 
 void StepBefore(void* ctx) {
@@ -496,8 +537,7 @@ void StepBefore(void* ctx) {
         s.incomplete = "random input unavailable (PV14)";
         return;
     }
-    fc4_prop_message m{};
-    if (!PropMessageOf(s.msg, g_run.ctx->pool, &m)) {
+    if (!PropMessageOf(s.msg, g_run.ctx->pool, &s.message)) {
         s.incomplete = "the message could not be read";
         return;
     }
@@ -505,27 +545,58 @@ void StepBefore(void* ctx) {
     g_created = 0;
     g_uncertain = false;
     g_pendingUncertain = false;
-    g_inStep = true;
-    fc4_prop_developer_do_message(g_run.core, &m);
-    g_inStep = false;
-    if (g_pendingUncertain) g_uncertain = true;
-    g_pendingUncertain = false;
-    g_run.ctx->pool.Drain();
     s.ran = true;
-    s.block = st0.scan_flag == 2;
+    s.block = fc4_prop_developer_shadow_prepare(g_run.core, &s.blk.bx, &s.blk.bz);
     if (s.block) {
-        s.blk.struct_size = sizeof(s.blk);
-        if (!fc4_prop_developer_last_block(g_run.core, &s.blk, nullptr, nullptr, 0)) {
-            s.block = false;
-            return;
-        }
+        s.inputs.Capture(g_run.ctx.get(), s.blk.bx, s.blk.bz, ListOf(g_run.core, FC4_PROP_LIST_REQUESTERS));
         s.before = BlockProps(s.blk.bx, s.blk.bz, s.pool);
     }
+    if (s.type == 0x66956814 && st0.dated_count) g_uncertain = true;
 }
 
 void StepAfter(void* ctx) {
     Step& s = *static_cast<Step*>(ctx);
     if (!s.ran) return;
+    const uint32_t mismatchesBefore = g_month.d.mismatches;
+    PropSelectorReplay replay(s.trace->Events());
+    g_selectorReplay = &replay;
+    if (s.block) PropBlockSnapshot::active = &s.inputs;
+    g_inStep = true;
+    const bool oursFinished = fc4_prop_developer_do_message(g_run.core, &s.message);
+    g_inStep = false;
+    PropBlockSnapshot::active = nullptr;
+    g_selectorReplay = nullptr;
+    const bool complete = s.trace->Valid() && replay.Complete();
+    g_month.selectorMatched += U(replay.Matched());
+    if (complete) ++g_month.replayComplete; else {
+        ++g_month.replayInvalid;
+        g_month.d.Add("selector replay invalid: consumed=%u matched=%u native=%u", U(replay.Consumed()),
+                      U(replay.Matched()), U(s.trace->Events().size()));
+    }
+    if (!s.inputs.valid) g_month.d.Add("frozen block input missing");
+    if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
+    if (g_nestedCursor != g_nested.size()) g_uncertain = true;
+    while (g_nestedCursor < g_nested.size()) {
+        const auto m = g_nested[g_nestedCursor++];
+        fc4_prop_developer_do_message(g_run.core, &m);
+    }
+    struct Result {
+        Step& step;
+        uint32_t before;
+        bool eligible;
+        ~Result() {
+            if (eligible && g_month.d.mismatches == before) {
+                WriteCapture cap;
+                CoreBox native;
+                if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(step.orig))) ||
+                    !ReadInto(native, cap, step.orig)) g_month.d.Add("operation record unavailable");
+                else CompareCores(g_run.core, native.core, g_month.d);
+            }
+            if (eligible && g_month.d.mismatches == before) ++g_month.operationsExact;
+            else ++g_month.operationsIncomplete;
+        }
+    } result{s, mismatchesBefore, !g_uncertain && complete && s.inputs.valid};
+    g_run.ctx->pool.Drain();
     ++g_month.steps;
     const fc4_prop_state st = StateOf(g_run.core);
     Raw r;
@@ -535,8 +606,10 @@ void StepAfter(void* ctx) {
             g_month.d.Add("step %u: scanner orig flag %d (%u %d,%d) ours flag %d (%u %d,%d)", g_month.steps, r.flag,
                           r.state, r.v[0], r.v[1], st.scan_flag, st.scanner_state, st.scanner_x, st.scanner_z);
         }
-    }
+    } else g_month.d.Add("operation scanner unavailable");
     if (!s.block) return;
+    s.blk.struct_size = sizeof(s.blk);
+    fc4_prop_developer_last_block(g_run.core, &s.blk, nullptr, nullptr, 0);
     ++g_month.blocks;
     const std::vector<uint64_t> after = BlockProps(s.blk.bx, s.blk.bz, s.pool);
     std::vector<uint64_t> removed, created;
@@ -550,15 +623,19 @@ void StepAfter(void* ctx) {
     const size_t notKept = g_removed.size() - step5;
     g_month.notKept += U(notKept);
     if (g_uncertain) {
-        g_month.d.Add("selector input unavailable (PV14 transcript not captured)");
+        g_month.d.Add("operation incomplete (creation attempt, nested event or dated effect)");
         return;
     }
     ++g_month.certain;
+    auto oursRemoved = g_removed;
+    std::sort(oursRemoved.begin(), oursRemoved.end());
+    if (oursRemoved != removed) g_month.d.Add("full removal identities differ");
+    if (created.size() != g_created) g_month.d.Add("creation outputs orig %u ours %u", U(created.size()), g_created);
     if (removed.size() != g_removed.size()) {
         g_month.d.Add("block (%d,%d) removed orig %u ours %u", s.blk.bx, s.blk.bz, U(removed.size()),
                       U(g_removed.size()));
     }
-    for (size_t i = 0; i < notKept; ++i) {
+    for (size_t i = 0; i < g_removed.size(); ++i) {
         if (!std::binary_search(removed.begin(), removed.end(), g_removed[i])) {
             g_month.d.Add("block (%d,%d) prop %p not kept by ours, still there in the original", s.blk.bx, s.blk.bz,
                           static_cast<void*>(FromToken(g_removed[i])));
@@ -595,6 +672,11 @@ void OnMessage(cIGZMessage2* msg) {
         ++g_month.ticks;
     } else {
         ++g_month.messages;
+    }
+    if (g_nativeOperation) {
+        fc4_prop_message m{};
+        if (PropMessageOf(msg, g_run.ctx->pool, &m)) g_nested.push_back(m);
+        return;
     }
     Msg m{msg};
     if (!SehGuard("propdev shadow (followed message)", &CallMessage, &m)) {
@@ -791,8 +873,14 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     PropSelectorTrace trace;
     const auto* version = compat::IdentifiedVersion();
     const bool recording = version && trace.Begin(requesters, version->imageBase);
+    g_nested.clear();
+    g_nestedCursor = 0;
+    g_nativeOperation = true;
     *finished = target->DoMessage(msg);  // the original's step, exactly once
+    g_nativeOperation = false;
     trace.Finish();
+    s.trace = &trace;
+    s.nativeFinished = *finished;
     if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
     g_month.selectorEvents += U(trace.Events().size());
     for (const auto& event : trace.Events()) if (event.result == 0) ++g_month.selectorZero;
@@ -801,6 +889,8 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
         g_run.Abandon();
     }
     s.pool.Drain();
+    PropBlockSnapshot::active = nullptr;
+    g_selectorReplay = nullptr;
     static bool loggedIncomplete = false;
     if (s.incomplete != nullptr && !loggedIncomplete) {
         loggedIncomplete = true;
@@ -844,7 +934,12 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
              mo.st.is_night, mo.resynced ? " (resynced from the record)" : "");
     const std::string line = std::string(head) + "; mismatches=" + std::to_string(g_month.d.mismatches) +
                              "; selector-events=" + std::to_string(g_month.selectorEvents) +
-                             " selector-zero=" + std::to_string(g_month.selectorZero) + " replay=pending" +
+                             " selector-zero=" + std::to_string(g_month.selectorZero) +
+                             " selector-matched=" + std::to_string(g_month.selectorMatched) +
+                             " replay-complete=" + std::to_string(g_month.replayComplete) +
+                             " replay-invalid=" + std::to_string(g_month.replayInvalid) +
+                             " operations-exact=" + std::to_string(g_month.operationsExact) +
+                             " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     g_month = MonthStats{};

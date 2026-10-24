@@ -3,7 +3,7 @@
 | glue-weather-propdev6: weather and prop developer shadows | Codex / `glue-weather-propdev6` (engine, detached HEAD) | in progress; latest full gate 6878/0, clippy clean, CTest 73/73; runs 374-377 clean, weather 1/73; propdev replay unfinished | Continue frozen-input transcript replay; WE1 precision contract pending |
 
 ## Handoff
-- Goal: record-only default-off weather shadow, then complete prop developer same-input shadow against main; weather-alone-first requirement fulfilled.
+- Goal (round 2): consume genuine prop selector transcripts after native execution, measure full-operation scope honestly, run one unique normal-speed combined shadow through 2032, and enqueue READY default-off shadows. Weather is frozen pending RE lane re-weather-we1.
 - Worktree detached by supervisor; do not switch refs/branches. Initial main 5b14b8109; engine milestones 4d5f5b227 (weather), 6e4c3c165 (prop MT snapshots/no resync), 599207dca (genuine selector collector). Latest engine source remains 599207dca.
 - Near context limit: preserve this continuation instead of claiming finished propdev or verified coverage. No merge-queue entry written. Neither shadow belongs in regress profile yet.
 - Weather: bootstraps once after native PostCityInit, replays real day/week/month deliveries using observed CRT, compares all saved bytes, forwards public moisture additions. Default off; no native model-state resynchronization.
@@ -24,4 +24,7 @@
 - ABI exports changed (weather CRT import + prop random import), version not bumped. No tools/ or coverage/profile edits. Both keys default off. Owned capi fmt passed; core mod fmt recursively sees an existing unowned tests.rs layout difference, left alone.
 - Transport: q.py Git Bash fails CreateFileMapping in this sandbox; use direct PowerShell. qbuild fmt paths relative to engine/. Native checks only qbuild verify/all queue. Wait script build-runs/wait-verdict.ps1 uses one notification wait without qwait; summary script build-runs/shadow-summary.py prints counts and next free run.
 - Next after replay code: meaningful focused tests, stable qbuild all (verify queue), one unique combined turbo run to 2032; normal too if a difference is turbo-only; number records by scanning current docs/runs. Finish report and READY queue only with honest measured scope.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-weather-propdev6-r1-manifest.json.
+- Round 2 started from detached HEAD 7448c796f. Implemented post-native selector replay, eager frozen block inputs (ordered props/config IDs/full property holders), own scanner preview and wealth-selector transcript routing. No weather edits.
+- Focused Rust shadow_preview test passed 1/1. Full qbuild all running, unified session 93423; collect SAME operation to terminal. No game request outstanding. Need fmt check after diagnostic if any, native gate, then unique normal combined 2032 run.
+- Replay validates identity/purpose/depth/ordered candidates/x/z and full event count, preserves zero/out-of-list results; native requester never called twice. Nested removals replay at matching host callbacks; creations remain explicitly incomplete (native attempt lot/index and failure capture absent). Exact-operation counter also requires scanner, full removal identities/output counts and all saved-state projections to match. No exact-through-date claim.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-weather-propdev6-r2-manifest.json.

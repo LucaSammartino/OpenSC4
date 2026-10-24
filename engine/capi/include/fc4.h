@@ -935,6 +935,8 @@ typedef struct fc4_props fc4_props;
 
 fc4_props* fc4_props_create(void);
 void fc4_props_destroy(fc4_props* p);
+/* A NEW independent holder for frozen host inputs; NULL for NULL input. */
+fc4_props* fc4_props_clone(const fc4_props* p);
 /* Set (replace) property `id` to an ARRAY of `count` values (one value
  * included; ABI 50, data-formats §5.2 EX39: the core's vector readers read a
  * scalar as empty, so a scalar is set with fc4_props_set_typed). `values` may
@@ -7524,6 +7526,11 @@ fc4_prop_developer* fc4_prop_developer_create(const fc4_prop_host* host, uint32_
 void fc4_prop_developer_destroy(fc4_prop_developer* p);
 /* QueryInterface (§1): the developer's sub-object offset (0, 4 or 8), the
  * wealth requester's (0 or 4); false for another IID. */
+/* Tooling only: enable genuine selector replay (including wealth), preview the
+ * next block without stepping. False means this delivery has no block.
+ * The purpose getter is valid inside the requester_select callback. */
+bool fc4_prop_developer_shadow_prepare(const fc4_prop_developer* p, int32_t* bx, int32_t* bz);
+bool fc4_prop_developer_shadow_selector_creation(const fc4_prop_developer* p);
 bool fc4_prop_developer_query_interface(uint32_t iid, uint32_t* offset);
 bool fc4_wealth_requester_query_interface(uint32_t iid, uint32_t* offset);
 uint32_t fc4_prop_developer_add_ref(fc4_prop_developer* p);

@@ -135,4 +135,30 @@ private:
     bool started_ = false, valid_ = false;
     std::vector<Event> events_;
 };
+
+// A scoped operation transcript, never a live requester fallback. Reentrant
+// selectors require nested replay support; reject them here.
+class PropSelectorReplay {
+public:
+    explicit PropSelectorReplay(const std::vector<PropSelectorTrace::Event>& events) : events_(events) {}
+    uint32_t Select(uintptr_t requester, PropSelectorTrace::Purpose purpose,
+                    const uint32_t* ids, size_t count, int32_t x, int32_t z) {
+        if (cursor_ == events_.size()) { valid_ = false; return 0; }
+        const auto& e = events_[cursor_++];
+        if (e.requester != requester || e.depth != 0 || e.purpose != purpose || e.x != x || e.z != z ||
+            e.candidates.size() != count || (count && !ids)) {
+            valid_ = false; return 0;
+        }
+        for (size_t i=0; i<count; ++i) if (ids[i] != e.candidates[i]) { valid_ = false; return 0; }
+        ++matched_;
+        return e.result;
+    }
+    bool Complete() const { return valid_ && cursor_ == events_.size(); }
+    size_t Matched() const { return matched_; }
+    size_t Consumed() const { return cursor_; }
+private:
+    const std::vector<PropSelectorTrace::Event>& events_;
+    size_t cursor_ = 0, matched_ = 0;
+    bool valid_ = true;
+};
 }

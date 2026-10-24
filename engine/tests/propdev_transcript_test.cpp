@@ -37,6 +37,37 @@ int main() {
     reinterpret_cast<Function>(table[6])(&requester, nullptr, &words, 0, 0);
     trace.Finish();
     if (!trace.Valid() || requester.calls != 4 || trace.Events().size() != 1) return 8;
+    using Purpose = fc4::PropSelectorTrace::Purpose;
+    auto recorded = events;
+    recorded[0].purpose = Purpose::Kept;
+    fc4::PropSelectorReplay replay(recorded);
+    // Current trace has one genuine call after reuse, including duplicates.
+    if (replay.Complete()) return 9;
+    if (replay.Select(reinterpret_cast<uintptr_t>(&requester), Purpose::Kept, ids, 3, 0, 0) != 23 ||
+        !replay.Complete() || replay.Matched() != 1 || requester.calls != 4) return 10;
+    recorded[0].result = 0;
+    fc4::PropSelectorReplay zero(recorded);
+    if (zero.Select(reinterpret_cast<uintptr_t>(&requester), Purpose::Kept, ids, 3, 0, 0) != 0 ||
+        !zero.Complete()) return 11;
+    recorded[0].result = 0xFFFFFFFF;
+    fc4::PropSelectorReplay outside(recorded);
+    if (outside.Select(reinterpret_cast<uintptr_t>(&requester), Purpose::Kept, ids, 3, 0, 0) != 0xFFFFFFFF ||
+        !outside.Complete()) return 12;
+    for (unsigned mismatch=0; mismatch<7; ++mismatch) {
+        auto changed = recorded;
+        if (mismatch==0) ++changed[0].requester;
+        if (mismatch==1) changed[0].purpose=Purpose::Creation;
+        if (mismatch==2) ++changed[0].x;
+        if (mismatch==3) ++changed[0].z;
+        if (mismatch==4) ++changed[0].depth;
+        if (mismatch==5) changed[0].candidates.pop_back();
+        if (mismatch==6) std::swap(changed[0].candidates[0],changed[0].candidates[1]);
+        fc4::PropSelectorReplay invalid(changed);
+        if (invalid.Select(reinterpret_cast<uintptr_t>(&requester),Purpose::Kept,ids,3,0,0) != 0 ||
+            invalid.Complete()) return 13;
+    }
+    if (outside.Select(reinterpret_cast<uintptr_t>(&requester),Purpose::Kept,ids,3,0,0) != 0 ||
+        outside.Complete()) return 14;
     std::puts("propdev transcript: duplicate order, coordinates, zero return, once-only call and restoration PASS");
     return 0;
 }
