@@ -13,6 +13,7 @@
 - Formatting passed for both owned Rust files (0 diff lines); diff check clean. All three gdriver::shadow unit tests passed within the full workspace operation; installed-game-data sweep still running at 20:25 local.
 - Cargo workspace finished: 7409 passed, 0 failed, 0 ignored (sum of every test-result line). Full operation 69886 now runs clippy; retain/collect it through native stage.
 - Clippy passed: exit=0, diagnostics=0. The same `qbuild all` operation automatically queued native build+CTest as qbuild-20261024-204323-build-ctest; do not launch duplicate verify. Collect operation 69886 to terminal.
-- Next: finish the already queued native gate, then submit unique game request to 2032.
+- Full gate terminal PASS: cargo 7409/7409 (0 ignored), clippy 0 diagnostics, native 265/265 edges (309.0 s), CTest 81/81 (401.9 s); total native 713.2 s. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+- Next: submit unique gdriver13-r2-turbo-2032-20261024a game request using engine/build-x86/FreeCity4.dll, then collect its one blocking verdict wait.
 - Focused initial source cargo log: build-runs/gdriver-focused-1.log (still compiling); later source adds viewport/capability coverage. q.py Bash startup failed (sandbox); use direct local commands/qbuild.
 - No game requests started. Formatting checks use absolute explicit Rust paths. build-runs/wait-verdict.ps1 provides one blocking file-system notification wait (no qwait).
