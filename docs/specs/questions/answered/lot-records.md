@@ -114,3 +114,20 @@
   this +0x1C. Which offset and view does that slot actually return, and are the section 3.1 QI view offsets
   correct? [no runtime view/cast implemented; preserve both published sources until reconciled]~~
   **ANSWERED 2026-10-22 (re-lotrecords-boundary4):** DIFFERS — section 3.1 offsets match native bytes; slot 3 is the borrowed property holder (+8), slot 4 the borrowed traffic source (+0x1C). The old ABI method label is wrong. Constructor writes, exact QI/adjustor bytes and native TrafficSourceIterator caller 0x00710841 prove the distinction. QI accepts only IID 1, lot and Serializable. Sections 3.1/13.2 and T26-T27 specify it; four exact ABI row corrections are proposed under build-runs/pending-abi, awaiting coordinator review/application/gate.
+
+<!-- from: glue-automata-ctor7 (2026-10-24); recovered from the ready lane worktree before its merge -->
+- ~~**LR13 - section 9 construction references, native writer versus reader:** In the train180
+  house-shadow run at 2028-06-01, a construction occupant captured 254 bytes but replay wrote
+  250, first difference at byte 142, consuming all input. Immediately afterward destruction
+  of the retained reference table released the last reference to a bare cSC4Occupant
+  (class 0xA9BC9AB6, serializable vtable 0x00AA41BC). Please specify the full writer-facing
+  pointer/interface and QI ownership contracts for fields 10-13 and 15, especially field 13's
+  pointer+0x10 view: does QI(cIGZSerializable) always return the derived effect record, or can
+  it return an embedded bare occupant which does not answer the reader IID? Does any Write
+  create/release temporary occupants or mutate reference identity? What is the required
+  same-input comparison outcome when the saved reference does not answer its reader IID?
+  Need the documented native identity/ownership contract rather than coercing a reference
+  to a guessed effect interface or preserving a rejected non-null token. [keep the existing
+  literal IID-checked codec and owners shadow default-off; add bounded replay diagnostics
+  and explicit acquisition accounting, then measure the remaining shadows]~~
+  **ANSWERED 2026-10-24 (re-lotrec-lr13):** MATCHES — §9.1.1 and T66–T73 specify native views and balanced QI lifetimes. Field 12 uses effect O+4; field 13 uses O+0x10; both query to derived effect Serializable O+0x10, not a separate bare occupant. Read owns successful literal-IID QI results and releases temporary Serializables. Rejected nonnull references become null; construction Read ignores helper failure and can return true with no stream error. This is a comparison mismatch, never an exact round trip. Construction Write does not replace occupants; effect Write's temporary is an empty string. Static facts do not diagnose the historical size loss or require it.
