@@ -1,5 +1,28 @@
 # lot-records: answered questions (archive)
 
+<!-- from: glue-lots-shadow12 (2026-10-24); filed in that lane's worktree -->
+- ~~**LR15 - sections 4, 6, 7 and 14.1, separate excluded-owner shadows:** section 14.1 now
+  explicitly excludes business-unit payloads, base textures and retaining walls from `lotrec_shadow`.
+  For separately named default-off shadows of these three owners, please specify the live inventory
+  and completeness criterion, native discovery signatures and reference ownership. In particular,
+  does the union of master lots' `GetUnit()` results exhaust business units, and is that getter's
+  result borrowed? For base textures/walls, which occupant-manager enumeration covers each object
+  exactly once (including objects outside lot bounds), what are its bounds/filter arguments and
+  list-element retain/release rules, and how is successful empty enumeration distinguished from
+  failure? The public SDK declares getters/queries but does not state these ownership/completeness
+  contracts. This is a follow-up for the explicitly excluded owners, not an expansion of LR12's
+  resolved master-lot inventory. [do not call these discovery paths or claim these owners verified
+  until specified; continue measuring master lots and their inline trips under section 14.1]~~
+  **ANSWERED 2026-10-24 (re-lotrec-lr15):** DIFFERS — §14.2 and §17.9 T80–T88 define separate
+  default-off master-rooted unit and full-grid registered texture/wall inventories. GetUnit is
+  borrowed; its distinct union is not an unconditional all-unit census (empty/off-master units
+  can be absent). Occupant-manager slot 39 uses explicit inclusive (0,0)…(191,191) world cells,
+  target GetType constants and maxCount=−1; one retained list element per registered match,
+  including outside lot bounds. Slot 48 releases list references/nodes; caller frees sentinel
+  with allocator A. Serializable QI acquires an independent reference. True plus empty means
+  successful empty; false is failure, not empty success. No all-allocation or replacement claim
+  is authorized; hash-induced wall-mask growth remains a comparison mismatch.
+
 <!-- from: glue-simgrid-lots-shadow5 round 2 (2026-10-23); filed in that lane's worktree -->
 - ~~**LR12 - sections 1, 3.1, 14: lotrec_shadow observation inventory:** please define the exhaustive
   record-only load/month shadow scope and discovery contract. Is the denominator the lot manager's

@@ -1489,6 +1489,133 @@ substituted with their base record, or silently included in an all-class exactne
 all-class shadow requires a separately named inventory and discovery contract; a save-class record
 walk can validate saved off-list objects (§17.1), but is not equivalent to this live master-list walk.
 
+### 14.2 Separate unit, base-texture and retaining-wall record inventories (LR15)
+
+**Scope [choice].** Three separately named, default-off observations may extend §14.1:
+`lotunit_shadow` for distinct units referenced by current master lots, `lotbasetexture_shadow`
+for registered base-texture occupants, and `lotwall_shadow` for registered retaining-wall occupants.
+These names describe record observations, not original game options. Keep their counts and verdicts
+separate from `lotrec_shadow` and inline trips. They authorize no replacement, simulation mutation,
+native Read/Init, or all-allocation owner census. Use the same synchronous, known-live,
+PostCityInit/month boundary and isolated Write/reference-identity comparison as §14.1. Do not
+observe during Shutdown, destruction or concurrent membership changes.
+
+**Business units [compat and scope].** Lot slot 25 (+0x64), `GetUnit()`, is `__thiscall`,
+no stack arguments, EAX = nullable borrowed `cISC4BusinessUnit*`. Its target `0x0068D1C0`
+only reads lot +0x4C and returns (`0x0068D1C0–0x0068D1C3`); the export's shared
+`GetTransientAuraGrid` name does not change its meaning on the lot vtable. Reading it neither
+AddRefs nor transfers the lot's reference. Never Release the getter result. `SetUnit` owns that
+reference (§4; `0x006C20BF–0x006C20D3`). A unit may be shared by several lots: equality of
+their nonnull unit-interface pointers denotes one unit, not several payloads.
+
+Enumerate every master lot with §14.1's iterator/count rules, including lots whose unit is null.
+The unit denominator U is the number of **distinct nonnull GetUnit results**, not the lot count,
+number of nonnull edges, or sum of unit member counts. Acquire Serializable through QI
+(`0xE4FDA3D4`, slot 0, `__thiscall`, pop 8, bool in AL, out pointer); retain that acquisition
+until its capture completes, and Release it once on every success/failure path. Unit QI
+`0x006BF390` returns unit +4 and AddRefs (`0x006BF3AC–0x006BF3BE`); its unit IID is
+`0x6A233069`. Use Serializable slot 5 to require class `0x4A232DA8`, then slot 3
+`Write(stream&)`, pop 4, AL success (`0x006C0370`). Do not use a guessed primary-to-Serializable
+offset in place of QI. A later observer pin, if needed, is a separate owned reference.
+
+The union of master lots' getters is exhaustive **for this explicitly rooted inventory**, not
+unconditionally for all extant units. Native constructor `0x006C0800` creates an empty member
+list (`0x006C082E–0x006C0844`); the factory `0x006C0EB0` can create it without adding a lot.
+Unit Write accepts an empty list and writes count zero (`0x006C0382–0x006C039C`). Conversely,
+the normal developer path creates a unit and adds its chosen lot and the candidate lot
+(`PickUnitToJoin`, `0x006CB260`, new-unit call `0x006CB45C`); membership retains both directions
+(§4). Those normal-path invariants and the agreement observed in saves do not turn GetUnit
+into a global unit enumerator. An empty unit, a unit referenced exclusively by off-master lots,
+or an inconsistent unit whose members lack reciprocal getters is not independently discovered
+by this walk. Do not recursively enlarge U from the unit's member-list references or silently
+claim all allocated/saved units verified. A unit reached from a master lot is still captured
+in full, with every member reference in its original order, including off-master members.
+
+For example, master lots A/B/C returning X/X/null give U=1 and one X payload. If X's payload
+lists A/B/D, D is preserved as a reference identity; D is not added to the lot inventory.
+A separate empty unit Y with no master-lot getter is outside U, not a missed X record.
+An available empty master list, or a complete nonempty list whose getters all return null,
+gives valid empty U=0; report which case occurred and retain the master-lot counts.
+If the master walk is incomplete, no unit census is exact even when every discovered unit matched.
+
+**Registered occupant inventory [compat].** Obtain the borrowed manager with current city
+slot 34 (+0x88), `GetOccupantManager()`, `__thiscall`, no stack arguments, EAX nullable.
+`0x00423710–0x00423716` only reads city +0x12C; do not Release this borrowed getter result.
+For each of the two observations use a fresh empty native `ilist<cISC4Occupant*>` and the
+following native query. These are manager-vtable calls, not calls on texture/wall interfaces:
+
+| Boundary | Arguments and result |
+|---|---|
+| Slot 39 (+0x9C), `0x0049DD80`, `GetOccupantsByOccupantManagerCells(list&, min2*, max2*, type, maxCount)` | ECX = manager; five 32-bit stack arguments, pop 20; bool in AL. Pass explicit signed integer corners min=(0,0), max=(191,191), type `0x497F6D9D` for base textures or `0x895D1169` for walls, maxCount=`0xFFFFFFFF` (−1/all). Corners are inclusive world-grid indices, not lot cells or world metres. |
+| Slot 38 (+0x98), `0x004A0A70`, same signature except fourth argument is a filter pointer | Equivalent filter overload: full-grid corners as above, null filter to get all types, maxCount=−1. If used, select the target by occupant slot 7 `GetType()` and validate its Serializable class; do not treat unrelated classes as target records. |
+| Slot 48 (+0xC0), `0x0049EF30`, `ReleaseOccupantList(list&)` | ECX = manager; pop 4; no meaningful return. Releases each list element's reference and clears/frees its nodes; the caller still frees the list sentinel with allocator A. |
+
+Slot 39 installs the nonzero type in the shared type filter and dispatches slot 38
+(`0x0049DD87–0x0049DDA2`). The filter matches GetType, not GetGZCLSID. Do not substitute the
+class IDs for these type constants. Use Serializable QI/slot 5 to require actual class
+`0xC97F987C` or `0x49C05C9F` before capturing §6 or §7. A selected occupant of an unexpected
+class is an explicit unsupported/mismatch result, not permission to parse it as the expected
+base record. QI for Serializable from either occupant view owns one additional reference:
+base occupant QI `0x005E89E3–0x005E89F7` returns its +4 Serializable view and AddRefs.
+The derived native views adjust through that base (texture `0x005DEA8F–0x005DEA92`, wall
+`0x005E28CF–0x005E28D2`). Use QI; the list pointer need not be the allocation's start.
+
+**Bounds and uniqueness.** Slot 38 clamps explicit coordinates to 0…191
+(`0x0049DEC0–0x0049DEFA`), visits x outer/z inner inclusively
+(`0x004A0CD3–0x004A0CFA`), and applies no bounding-box intersection test. Full-grid corners
+cover every registered cell, including the padding beyond city terrain, without depending on
+whether a lot exists or contains the occupant's box. Null corners are **not equivalent**:
+they default to (64,64)…(city manager-cell counts +63), a smaller city-cell range
+(`0x004A0AE4–0x004A0AE9`, `0x004A0B19–0x004A0B29`). Standard-city-cell and BBox queries
+also have geometry filtering and are not substitutes. In a valid native grid, occupants in
+several cells are suppressed by the query's duplicate set (`0x004A0C00–0x004A0C22`); each
+selected occupant appears once, in first-visited-cell order, then newest-first within that
+cell. The manager's single-cell marker bypasses that set; malformed indexing is not repaired
+by the observer. A duplicate or null result is an explicit inventory error, never an extra
+exact payload or a silently dropped record. See [occupant-manager.md](occupant-manager.md)
+§§4, 8 and 12 for the native grid/list invariants and allocator A.
+
+The resulting denominator B or W is all distinct selected occupants **registered in this
+manager's full grid**. It includes registered objects outside all lot bounds and objects
+whose lot reference is null/off-master. It excludes unregistered allocations and objects
+removed before this observation; the query cannot establish an all-allocation census.
+Missing/null manager is unavailable, not an empty city. No lots are needed for this query.
+
+**List ownership and empty/failure distinction.** The list holder contains a pointer to a
+12-byte circular sentinel; each 12-byte node is next/prev/occupant at +0/+4/+8. Sentinel and
+nodes use allocator A, not the manager grid's STL allocator. Start empty (both sentinel links
+self), as the query appends without clearing. Every appended occupant is AddRef'd once
+(`0x004A0C38–0x004A0C3C`) before node allocation/linking
+(`0x004A0C8B–0x004A0CA9`). The list owns that reference until slot 48 releases it
+(`0x0049EF40–0x0049EF50`); do not separately Release a borrowed node value and then also call
+slot 48. Release QI's separate Serializable acquisition once, on every outcome. Always clear
+the list and free its sentinel, including after a failed capture or reader rejection. Do not
+keep a node pointer after cleanup. Allocation failure/foreign exception is an incomplete
+observation; native query success is not a checked-allocation guarantee.
+
+Not initialized, or maxCount=0, returns false with the list untouched
+(`0x004A0A8A–0x004A0AB5`). Otherwise the query returns true even with no matches
+(`0x004A0D10`, `0x004A0D5A–0x004A0D62`); true does not mean nonempty. Thus true plus an
+empty fresh list is successful empty B/W=0, while false plus the same empty list is failure.
+Use the list query rather than callback iteration to distinguish these cases: the callback
+iteration's uninitialized-true quirk (occupant-manager §9) is unsuitable as an availability test.
+No finite positive maxCount is authorized for a complete census: it can truncate while still
+returning true. Never reuse a nonempty list as the census denominator.
+
+**Comparison and verdict [choice].** Count complete discovery separately from capture and exact
+payload counts. Unit discovery must finish its full master walk; occupant discovery must return
+true from the full-grid unlimited query and finish a well-formed distinct-node traversal.
+Capture every selected record using §14.1's stream/reference map and §13.1's return channel;
+base-texture/wall Write return EAX=0/1, unit Write returns AL. Preserve reference aliases,
+texture record ordering/all 14 bytes per record, wall masks/hashes, and floating-point bits.
+An exact observation requires complete discovery and exactly U/B/W successful full-consumption,
+equal records. Failure to QI/identify/Write/read/consume, reference-map error or any unequal
+field remains in the denominator as an error/mismatch. In particular, §7's hash-induced
+edge-mask growth on Read is a real same-input mismatch, not a reason to normalize native
+bytes or suppress a wall. Successful empty is reported as empty and supplies no nonempty
+record evidence. These observations can credit only their named rooted/registered record
+inventories; they do not establish complete-owner replacement or simulation equivalence.
+
 ## 15. Replaceability
 
 ### 15.1 New-object paths bypass the class registry (LR8)
@@ -1865,3 +1992,20 @@ passive traces for destruction cases; never invoke a method through freed game s
 | T77 | Two observations: valid live bare Serializable supplied as field-13 read token; separately a raw stale field value after T76 | First follows T69: rejection/null, temporary release, mismatch. Second is incomplete lifetime observation with no QI/Read/Release on stale storage; not an alternative valid bare-effect encoding. |
 | T78 | Original Write/helper/slot-26 trace includes construction/object/view addresses and lifetime events; compare with trace having only class ID, 254/250 bytes and final release zero | First can distinguish view framing, intervening teardown and pin lifetime using §9.1.2. Second is insufficient to attribute the crash or require bare serialization. Preserve mismatch and later exception as separate observations. |
 | T79 | Invoke only known-live GetPosition/GetBoundingBox/GetGZCLSID; separately passively observe Draw and DoAnimationTick(0) | Getter results match §9.2/class identity without schedule advancement. Draw/tick may change caches or state; do not invoke them as pure probes or credit them from a Write comparison. |
+
+### 17.9 Separate unit/texture/wall discovery vectors (LR15)
+
+These are behavioural fixtures for §14.2, not measured real-city results. Use known-live native
+interfaces at a synchronous boundary; keep discovery, capture and exact counts separate.
+
+| Test | Setup / stimulus | Required result |
+|---|---|---|
+| T80 | Complete master walk of A/B/C with GetUnit = X/X/null; X members A/B/D; unrelated empty unit Y | U=1, one X payload, ordered A/B/D reference identities. No capture of Y or added lot D. Three getter calls acquire no references. One successful X Serializable QI and one Release balance; class 0x4A232DA8. Result explicitly describes master-rooted units, not all allocated units. |
+| T81 | Available master count=0; repeat with count=3 and all unit getters null; repeat with iterator failure after discovering X | First two are valid empty U=0 with distinct master counts. Third is incomplete despite X's exact capture; never report a complete 1/1 census. |
+| T82 | Valid grid: texture P spans two cells; texture Q only in padding cell (0,191) outside every lot; wall R spans two cells; no other target occupants | Two slot-39 full-grid queries, min=(0,0), max=(191,191), types 0x497F6D9D / 0x895D1169, maxCount=−1: B=2, W=1. P/R each occur once; Q is included. Null corners or lot BBox queries are not equivalent evidence. |
+| T83 | Initialized grid with no selected type; repeat not initialized; repeat initialized with maxCount=0 | First returns true, empty list, valid empty 0/0. Others return false, untouched empty list, unavailable/invalid query rather than exact empty. Successful empty supplies no nonempty evidence. |
+| T84 | Caller preloads one list node; query appends two matches; separately repeat on a fresh empty list | Native call preserves preloaded node and appends two, acquiring exactly two references. Observation rejects the nonempty initial list. Fresh-list census counts two, not three. Slot 48 releases each node-owned reference and clears nodes; caller frees sentinel with A. |
+| T85 | One query result with a node-owned occupant reference; Serializable QI succeeds; force Write failure, reader rejection and comparison mismatch in separate trials | Each trial releases QI once, then slot 48 releases node reference once, then sentinel is freed. No Release of city-manager getter or borrowed node value. All failures remain in selected denominator; no cleanup-dependent exact result. |
+| T86 | Full grid has three walls; query with finite maxCount=1; repeat with unlimited; inject duplicate/null result into a separate malformed fixture | Finite call can return true with one result but is not complete evidence. Unlimited yields three distinct walls. Malformed duplicate/null observation is an explicit inventory error, never a deduplicated exact verdict. |
+| T87 | Target type selected but Serializable class differs, or QI fails; separately unregistered target allocation exists | Selected unsupported/unqueryable object remains error in B/W; do not decode as base class or skip it. Unregistered allocation is outside registered-grid scope and cannot be credited by that census. |
+| T88 | Selected wall writes mask=0, hashes=(1,0,0,0), otherwise valid record; independently select a base texture with nondefault unnamed/frame bytes | Wall Read ORs mask to 1 (§7), producing a mismatch even after full successful consumption; no mask normalization. Texture comparison preserves all 14 record bytes, including unnamed/frame bytes, without randomizing saved frames. |
