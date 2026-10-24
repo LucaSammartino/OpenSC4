@@ -103,6 +103,7 @@
 //! replacement-side behaviour that makes the observation true and are marked
 //! accordingly in their `description`.
 
+pub mod base;
 pub mod catalog;
 pub mod dialog;
 pub mod message;
