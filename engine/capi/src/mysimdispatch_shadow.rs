@@ -25,7 +25,9 @@ fn constructor_payload() -> Vec<u8> {
 fn assigned_byte(index: usize) -> bool {
     // §7.2.3: +20 location tuning, +28 opaque word, +2C/+30 leg
     // indices and +58 retry count have no promised constructor stores.
-    !matches!(index, 17..=20 | 25..=36 | 73..=76)
+    // Auxiliary +10/+FC/+100 are also unpromised: compare only the
+    // prefix through four locations, without assuming a tail ref shape.
+    index < 229 && !matches!(index, 4 | 17..=20 | 25..=36 | 73..=76)
 }
 
 // Static-link transport only. Exclude unassigned words, not differences found
@@ -33,7 +35,7 @@ fn assigned_byte(index: usize) -> bool {
 #[no_mangle]
 unsafe extern "C" fn fc4_mysimdispatch_shadow_constructor(native: *const u8, length: usize) -> u32 {
     let expected = constructor_payload();
-    if native.is_null() || length != expected.len() {
+    if native.is_null() || length < 229 {
         return u32::MAX;
     }
     // SAFETY: plugin supplies its captured payload and exact byte count.
@@ -79,7 +81,7 @@ mod tests {
     fn constructor_compares_all_and_only_promised_payload_bytes() {
         let mut payload = constructor_payload();
         assert_eq!(payload.len(), 269);
-        assert_eq!((0..payload.len()).filter(|i| assigned_byte(*i)).count(), 249);
+        assert_eq!((0..payload.len()).filter(|i| assigned_byte(*i)).count(), 208);
         assert_eq!(
             unsafe { fc4_mysimdispatch_shadow_constructor(payload.as_ptr(), payload.len()) },
             0
@@ -100,7 +102,7 @@ mod tests {
         }
         assert_eq!(
             unsafe { fc4_mysimdispatch_shadow_constructor(payload.as_ptr(), payload.len()) },
-            249
+            208
         );
     }
 

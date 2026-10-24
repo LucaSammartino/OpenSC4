@@ -42,7 +42,7 @@ bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint3
     if (constructor) {
         const uint32_t result = fc4_mysimdispatch_shadow_constructor(bytes.data(), bytes.size());
         if (result == UINT32_MAX) return false;
-        fields += 249; // independently predicted assigned payload bytes
+        fields += 208; // independently predicted guaranteed prefix bytes
         differences += result;
     }
     return true;
@@ -88,7 +88,7 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     ++months;
     if (differences == 0 && errors == 0) ++clean;
     Log("mysimdispatch shadow %04d-%02d-%02d: constructor=%u live_headers=%u fields=%u errors=%u "
-        "scope=assigned-constructor-payload-and-writer-identity live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
+        "scope=guaranteed-constructor-prefix-and-writer-identity live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
         date.year, date.month, date.day_of_month, fixtures, live, fields, errors, differences + errors);
 }
 
