@@ -7,9 +7,10 @@
 - Worktree reused at reserved detached HEAD; no branch changes permitted.
 - Done: added opt-in disasters_scripted fire/riot schedule and cumulative monthly dated comparison lines; native gate next.
 - Implementation commit: 6345f0625. DS47 filed for observation contracts for short-form disasters; DS28 remains open.
-- Gate in progress: qbuild all, unified exec session 64395 (collect this operation; do not duplicate). build-runs/qbuild-test.log.
+- Gate: qbuild all Rust PASS 7119/0, clippy PASS 0 diagnostics. Native queued as qbuild-20261024-121859-build-ctest; unified exec session 64395 still active (collect this operation; do not duplicate).
+- Spec diagnostic: riot leader spawning can sustain the emergency pause. After the current native operation terminates, bound the fixture by removing leaders via occupant manager slot 21 after 200 riot samples. Keep AddRef holds until teardown so the mirror can inspect removed leaders after native releases them; do not force a phase/resume.
 - Prepared request: build-runs/house11.req.pending, label house11-fire-riot-01, not submitted yet. build-runs/wait-house11.py waits without qwait.
-- Next: qbuild all and queued verify, then house request with train193 switches plus disaster keys, timeout 1800.
+- Next: collect current gate, implement bounded fixture, final queued gate; then submit prepared house request with train193 switches plus disaster keys, timeout 1800.
 - Monthly failures include numbered differences, refused ignition resyncs, unfollowable inputs, missing leaders, call-result differences and guarded-core failures.
 - Schedule uses original manager start APIs and waits for natural lifecycle completion, with turbo held off then restored; no forced resume.
 - Constraints: no tools/ reads or edits; propose regress profile change in report only. Native verify uses queued qbuild verify. No qwait for game requests.
