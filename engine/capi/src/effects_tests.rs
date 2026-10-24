@@ -13,6 +13,58 @@ use std::ffi::{c_char, c_void, CString};
 use crate::effects::*;
 use crate::terrain::fc4_brush_params;
 
+#[test]
+fn effects_record_names_native_case_membership_and_refusals() {
+    unsafe extern "C" fn native(user: *mut c_void, name: *const c_char) -> u32 {
+        let name = std::ffi::CStr::from_ptr(name).to_str().unwrap();
+        let inject_difference = !user.is_null() && name == "MiXeD";
+        u32::from(
+            !inject_difference && (name.eq_ignore_ascii_case("mixed") || name == "disabled" || name == "DISABLED"),
+        )
+    }
+    let mut directory = fc4_core::effects::shipped::volcano_directory();
+    directory.names = vec![("MiXeD".into(), 0), ("disabled".into(), 0)];
+    // HasVisualEffect means name existence even if priority disqualifies it.
+    directory.effects[0].priority = 0;
+    directory.reindex();
+    let bytes = directory.to_bytes();
+    let mut counts = [99; 3];
+    unsafe {
+        assert!(fc4_effects_verify_names(
+            bytes.as_ptr(),
+            bytes.len(),
+            Some(native),
+            std::ptr::null_mut(),
+            counts.as_mut_ptr()
+        ));
+        assert_eq!(counts, [2, 9, 0]);
+        assert!(fc4_effects_verify_names(
+            bytes.as_ptr(),
+            bytes.len(),
+            Some(native),
+            counts.as_mut_ptr().cast(),
+            counts.as_mut_ptr()
+        ));
+        assert_eq!(counts, [2, 9, 1]);
+        assert!(!fc4_effects_verify_names(
+            bytes.as_ptr(),
+            1,
+            Some(native),
+            std::ptr::null_mut(),
+            counts.as_mut_ptr()
+        ));
+        assert_eq!(counts, [0; 3]);
+        assert!(!fc4_effects_verify_names(
+            bytes.as_ptr(),
+            bytes.len(),
+            None,
+            std::ptr::null_mut(),
+            counts.as_mut_ptr()
+        ));
+        assert_eq!(counts, [0; 3]);
+    }
+}
+
 #[derive(Default)]
 struct Game {
     log: RefCell<Vec<String>>,

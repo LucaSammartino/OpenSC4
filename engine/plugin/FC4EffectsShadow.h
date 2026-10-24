@@ -45,6 +45,9 @@ void EffectsShadowStop();
 void EffectsShadowCityLoaded(cISC4City* city);
 void EffectsShadowCityShutdown();
 
+// Native record-only directory name membership, at load and each month.
+void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load);
+
 // One animation tick: the mirror is ticked with `us` and its finish hook runs.
 void EffectsShadowOnTick(uint32_t us);
 
