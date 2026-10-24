@@ -1,15 +1,16 @@
 {
   "format":1,"name":"EF21-8_dynamic_ids_and_anonymous_sequence","spec":["effects 18.8.3","effects 18.8.4","effects EF21-8"],
-  "description":"Scalar ID 7 and duplicate list [8,8] stay distinct. Anonymous wait/play entries preserve order and case. Sequence flags remain unavailable (EF23).",
-  "steps":[{"op":"ef_payload","size":32768,"collection":256,"readable":true,"supported":false,"writes":[
+  "description":"Scalar ID 7 and duplicate list [8,8] stay distinct. Anonymous wait/play entries preserve order and case. EF23 captures the full retained sequence flags without the stream Read mask.",
+  "steps":[{"op":"ef_payload","size":32768,"collection":256,"readable":true,"supported":true,"writes":[
     {"at":"0x158","words":[4096,4100,4116]},{"at":4096,"words":[8192]},
     {"at":"0x2030","words":[7,12288,12296,12312]},{"at":12288,"words":[8,8]},
     {"at":"0x1c4","words":[1024,1440,1456]},{"at":"0x474","words":[4352,4356,4372]},
     {"at":4352,"words":[9216]},{"at":"0x240c","words":[12544,12584,12600]},
     {"at":12544,"words":[1065353216,1073741824,0,0,0,0,0,12800,12809,12816]},
-    {"at":12800,"text":"MixedCase"}
+    {"at":12800,"text":"MixedCase"},{"at":"0x2418","words":[2147483653]}
   ],"checks":[
     {"family":1,"slot":0,"offset":48,"value":7},{"family":1,"slot":0,"offset":52,"value":[8,8]},
+    {"family":8,"slot":0,"offset":24,"value":2147483653},
     {"family":8,"names":[],"slots":1,"slot":0,"offset":12,"value":[
       {"0":1065353216,"4":1073741824,"8":[]},{"0":0,"4":0,"8":[77,105,120,101,100,67,97,115,101]}
     ]}
