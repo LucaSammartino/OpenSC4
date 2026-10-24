@@ -9,6 +9,7 @@
 - Final round: full `qbuild all` is running as session 59094, output `build-runs/all-final-r3.log`; collect this operation only.
 - Added `viewutil-subset` accounting for 33 bodies, explicitly excluding object-angle/camera-angles/city-width. Original all-36 and individual family lines remain intact.
 - Rust source unchanged. Logger change made during Rust compilation, before native request; final native build must include it.
+- Logger committed as f1b647211. At 18:20 BST, the same gate was still compiling core tests: worktree-specific rustc PID 28804 alive, 3063s elapsed, 106 CPU seconds, 4103 MiB resident. No terminal gate result; no game request outstanding.
 - Next: collect gate, submit unique turbo run to 2032, wait once without qwait; record next free run (currently max 521); finish READY partial queue with full HEAD.
 - No new contracts or questions. Existing runs 520/521 and VU12/VU13/VU17/VU18/VU19 remain as below.
 
