@@ -15,7 +15,8 @@
 - Corrected gate c44e2ba59: Rust/clippy pass, build pass, CTest 79/80; exact-count fixture included RefAudit first-vtable QIs. Fixed by warming audit cache. Evidence build-runs/lr13-corrected-gate-failure.txt.
 - Final-source gate PASS: qbuild all cargo 6985/6985, clippy 0 diagnostics, native build 48/48, CTest 80/80. Queue qbuild-20261024-082644-build-ctest, terminal collected.
 - Final-source turbo run 470 corrupt on 2027-01-09: automataowners 12/13 incl load, construction 107/108, rejected bare effect field 13 reproduced 254/250 at offset 158, then capture-pin last release and foreign exception. LR14 filed; spec forbids coercion. Default off unchanged.
-- Next: run final-source house profile at normal speed to 2032 (unique label c), record free run 471, then READY for measured implementation with LR14 open (no coverage credit claim).
+- Normal-speed final-source request outstanding: construction-lr13-r1-house-2032-20261024c-normal, seconds 1800/timeout 2000/end date 2032-01-01, same house profile. Watcher session 84351 (20-minute event wait); collect this same operation.
+- Next: collect normal verdict, summarize it, record free run 471, then READY for measured implementation with LR14 open (no full construction coverage credit claim). If normal also corrupts, measure automata with owners off to 2032 before finalizing.
 - Failed tooling evidence: fmt relative paths rejected; q.py Bash could not CreateFileMapping; direct PowerShell cargo works.
 - Comparison scope: all 15 serialized fields, inherited holder and all reference identities/membership; crane presence explicitly seeded from captured bit, no lifecycle claim.
 - Required: qbuild all plus queued verify; house profile to 2032, unique request label, collect same operation.
