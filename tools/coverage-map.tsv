@@ -751,3 +751,28 @@ cSC4*	other SC4 classes	other	-	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
+# ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)
+m:cSC4RenderProperties::GetBoolCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetIntCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetFloatCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetBoolName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetIntName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetFloatName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindBool	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindInt	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindFloat	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4App::GetDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetCDDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetCDPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetSkuSpecificDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetUserDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetRegionsDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetUserPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetMySimDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAlbumDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetHTTPCacheDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetTestScriptDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAppIniFileName	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAppPreferencesFileName	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4TrafficSimulator::GetCommercialTrafficMap	traffic	simulation	traffic-simulator.md	core/src/traffic_simulator	app_shadow	traffic
