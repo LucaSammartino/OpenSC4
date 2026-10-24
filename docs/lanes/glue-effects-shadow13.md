@@ -1,21 +1,89 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-effects-shadow13: EF22 native observation | Codex / `glue-effects-shadow13` (detached HEAD) | in progress | Read EF22/EF23; extend measurable shadow; gate and city run to 2032. |
+| glue-effects-shadow13: EF23 capture and EF22 scope | Codex / `glue-effects-shadow13` (detached HEAD, engine lane) | ready partial: merged re-effects-ef24 ee82b9c36; cargo 7408/0/0, Clippy clean, CTest 81/81; runs 631 and 632 clean, effects 73/73 each, ref_warnings=0; ABI unchanged; no new questions | 1. Publish reserved commits. 2. Credit only measured name membership. 3. Supply EF22 host capabilities before broader observation; coordinator reconcile effects_shadow in current shadows profile. |
 
-## Handoff
-- Goal: extend default-off effects_shadow using EF22, compare manager/resource live state.
-- Worktree reused at 4fc6d9275; merged re-effects-ef24 at ee82b9c36.
-- Prior lane report read: name membership only, 73/73 exact; broader observation needs EF22.
-- EF22 read: no native observer API; attachment requires host capabilities absent here. Closed refusal is required, not a missing spec signature; no duplicate EF22 question.
-- EF23 capture fix and named/anonymous/truncation tests implemented; plugin reports exact measured scope and EF22 refusal explicitly. Implementation committed with validation pending; no native payload credit claimed.
-- Done: implementation db988ae7a; focused effects::capture tests 8/8 PASS (including both EF23 tests), owned-file fmt 2 files / 0 diff lines.
-- Next: collect lingering final-artifact game watcher session 3054 to terminal (completed clean verdict already read); write final report and ready queue. All gates terminal PASS; no game request outstanding. Prior watcher 76609 terminal timeout after missing valid completed run 631; no resend.
-- Resume: prior interrupted round left only an incomplete qbuild-test.log, no native verdict or DLL. Current full gate started on unchanged final source; retain its actual terminal result. Run number scan maximum 630 (recheck before recording).
-- Corrected all gate PASS: cargo 7408/0/0, Clippy 0 diagnostics; qbuild-20261024-212917-build-ctest PASS build 209/209, CTest 81/81. Final DLL SHA256 A31928046E28EF21587535861C20FEF840DB8A187938D755B2699CFE48E8C534 differs from run 631 artifact; one new unique game request submitted to test final DLL exactly.
-- Diagnostic: first workspace test phase failed only ef21_08_dynamic_sequence's stale supported=false expectation (EF23 now answered). Updated vector to supported=true and explicitly check retained 0x80000005 flags. Focused existing turbo_off test executable: 1/1 PASS in 2.07 s. First all gate still collecting remaining phases; preserve failed logs at terminal, then rerun all with corrected vector.
-- First all gate terminal FAIL: cargo 993 passed/1 failed (stale vector fixed in 6a1824077), Clippy 0 diagnostics; queued qbuild-20261024-203520-build-ctest PASS, build 264/264, CTest 81/81. Failed Rust logs preserved in build-runs/gate-r1-failed/, unique native verdict in build-runs/build-results/. Next: corrected all gate, then game to 2032.
-- Game milestone: run 631, effects13-names-2032-20261024r2a 73/73 exact name-membership samples through 2032-01-01 month; clean, ref_warnings=0; terminal date 2032-01-12, 28.407 s city runtime. No native payload/history credit. DLL SHA256 2F74E136F3AFECAF1F7910531A346D507BFFA9779B285FEE4F9478B889DB5556. No game request outstanding.
-- Final artifact game: run 632, effects13-names-2032-20261024r2b 73/73, clean, ref_warnings=0; final DLL A31928046E28EF21587535861C20FEF840DB8A187938D755B2699CFE48E8C534. Last sample 2032-01-01 month, terminal date 2032-01-21, 28.828 s runtime, slot 1, wall 42 s. No normal-speed rerun needed (no differences). No new questions or C ABI exports.
-- Focus log build-runs/effects-focused.log: first compilation completed successfully under heavy shared Rust contention. Session 75954 finished. Initial fmt relative-path invocation failed; absolute-path invocation passed, no source change.
-- q.py cannot start Bash (CreateFileMapping permission error); use local Python foreground runner for focused Cargo. All full gates through qbuild.
-- No tools/ or analysis content read. Do not switch detached HEAD or update shared refs.
+## Changes and coverage boundary
+
+Merged `re-effects-ef24` at `ee82b9c36` and built on glue-effects-shadow7's
+73/73 name-membership measurement. Implementation `db988ae7a` captures EF23's
+complete sequence extent through D+1B and retained u32 flags at D+18 for named
+and anonymous descriptions. Capture preserves high bits; stream Read's mask
+does not apply. Truncated objects refuse complete payload support. Two focused
+tests cover extent boundaries, empty vectors, names and unmasked flags.
+`6a1824077` updates the existing EF21-8 vector to assert complete support and
+retained flags 80000005 after EF23's answer.
+
+The default-off `effects_shadow` now labels its dated measurements explicitly
+as `scope=name-membership`, and separately reports EF22 attachment refusal and
+unavailable payload/history. Name comparisons use the existing SDK manager
+getter and Rust directory parsing; native answers do not seed or repair core
+state. No C ABI export changed and no ABI version was bumped.
+
+**This is ready partial work, not whole-manager/resource verification.** EF22
+section 18.8.6 provides a guarded attachment recipe, not an observer API. This
+host lacks pre-Init attachment, exception-transparent gateways, and exclusion
+covering every writer. The spec requires refusal when those capabilities are
+missing. No hooks, executable probes, guessed signatures or live payload reads
+were added. Retained resource fields, sequence state, active instances and
+native history remain unavailable and earn no coverage credit. The EF23 tests
+are synthetic conformance evidence, not native sequence observation.
+
+No new question was filed: EF22 and EF23 are answered, and EF22's closed host
+refusal is explicit. No answered question was duplicated.
+
+## Validation
+
+Final engine changes are committed through `6a1824077`; later commits record
+evidence. Corrected `qbuild all` completed **PASS** on stable final source:
+
+- Cargo **7408 passed, 0 failed, 0 ignored**, summed across all result lines.
+- Clippy **0 diagnostics**, with `-D warnings`.
+- Queued native operation `qbuild-20261024-212917-build-ctest`: build
+  **209/209** edges (8.5 s), CTest **81/81** (116.2 s), overall **126.9 s**.
+- Focused capture tests **8/8**; owned Rust formatting **2 files, 0 diff lines**.
+  Corrected vector's focused turbo-off suite **1/1** (2.07 s).
+
+The first full gate failed on the old EF21-8 `supported=false` expectation;
+its Rust logs are preserved in `build-runs/gate-r1-failed/`. That gate reported
+993 passed/1 failed, Clippy clean, native build 264/264 and CTest 81/81 under
+`qbuild-20261024-203520-build-ctest`. The diagnosed vector correction justified
+the second full gate. Final logs remain in `build-runs/qbuild-*.log`,
+`fc4verify-*.log` and the unique `build-results/*.verdict` files.
+
+## Real-city evidence
+
+Final counted line:
+
+```text
+effects13-names-2032-20261024r2b 73/73
+```
+
+[Run 632](../runs/effects13-names-2032-20261024r2b-632.md) tests the final
+queued build's DLL, SHA256
+`A31928046E28EF21587535861C20FEF840DB8A187938D755B2699CFE48E8C534`.
+Konradshohe, turbo through 2032-01-01: **clean**, `ref_warnings=0`, all other
+problem counts zero. All 73 dated name-membership lines have `refusal=0`,
+`resyncs=0`, `mismatches=0`; first 2026-01-27 load, last 2032-01-01 month.
+First and last samples each capture 1,094,484 bytes, 1,154 entries and 3,465
+queries. Terminal date 2032-01-21, 28.828 s city runtime, slot 1, wall 42 s.
+Each sample explicitly retains `payload_unavailable=1 history_unavailable=1
+attachment_refused=1`; these unavailable fields are not exact comparisons.
+
+[Run 631](../runs/effects13-names-2032-20261024r2a-631.md) separately records
+the earlier DLL: `effects13-names-2032-20261024r2a 73/73`, clean,
+`ref_warnings=0`, 28.407 s runtime. The final build changed the DLL hash, so
+run 632 tested that exact artifact. No normal-speed rerun was needed because
+neither run had a difference. Full game logs and verdicts remain under
+`build-runs/game-results/`.
+
+Both blocking filesystem watchers missed the already completed verdict files
+and were collected to terminal timeout; the valid unique clean verdicts were
+retained without resending. No build or game operation remains outstanding.
+
+## Next steps
+
+The coordinator can publish this ready partial work and reconcile
+`effects_shadow` with the current single shadows-profile string after review.
+No tools files, coverage tables or shared refs were read or edited here.
+Broader observation requires implementing and validating EF22's missing host
+attachment/exclusion capabilities before enabling native payload capture.
