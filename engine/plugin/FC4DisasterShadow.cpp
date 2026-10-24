@@ -23,6 +23,7 @@
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4Turbo.h"
 #include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
@@ -200,6 +201,11 @@ struct Shadow {
     int quiet = 0;
     // Lines.
     Counts fire, riot, quietLines, calls;
+    // Regression tooling only: cumulative failures cannot disappear between months.
+    uint64_t differences = 0, failures = 0;
+    int32_t reportMonth = 0;
+    bool scripted = false, restoreTurbo = false;
+    uint32_t scriptStage = 0;
     uint64_t unfollowable = 0, radiusCalls = 0, cellFallbacks = 0, extinguishCalls = 0;
 };
 Shadow g;
@@ -291,6 +297,7 @@ bool CoreCall(const char* what, bool fireClock, F f) {
     g.inCore = true;
     CoreStep<F> s{&f};
     const bool ok = SehGuard(what, &CoreStep<F>::Run, &s);
+    if (!ok) ++g.failures;
     g.inCore = false;
     DisasterHostReleaseHeld(&g.ctx);
     return ok;
@@ -397,6 +404,7 @@ struct Diffs {
 private:
     void Put(const char* q, const char* fmt, va_list ap) {
         ++n;
+        ++g.differences;
         if (q == nullptr) ++unexplained;
         std::string kind = std::string(scope) + " " + std::string(fmt).substr(0, std::string(fmt).find('%'));
         while (!kind.empty() && (kind.back() == ' ' || kind.back() == '(')) kind.pop_back();
@@ -878,7 +886,10 @@ uint32_t __fastcall SetCauseFwd(void* self, void* edx, uintptr_t c) {
     uint32_t ours = 0;
     CoreCall("disasters shadow SetCause (ours)", true,
              [&] { ours = fc4_disasters_set_cause(g.core, static_cast<uint32_t>(c)); });
-    if (ours != r) Log("disasters shadow SetCause(%u): orig returned %u ours %u", static_cast<unsigned>(c), r, ours);
+    if (ours != r) {
+        ++g.failures;
+        Log("disasters shadow SetCause(%u): orig returned %u ours %u", static_cast<unsigned>(c), r, ours);
+    }
     return r;
 }
 
@@ -1580,6 +1591,11 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.origD1.clear();
     g.origD2.clear();
     g.fire = g.riot = g.quietLines = g.calls = Counts{};
+    g.differences = g.failures = 0;
+    g.reportMonth = 0;
+    g.scriptStage = 0;
+    g.restoreTurbo = false;
+    g.scripted = SettingInt("disasters_scripted", "FC4_DISASTERS_SCRIPTED", 0) != 0;
     g.dirty = false;
     g.quiet = 0;
     g.core = fc4_disasters_create(&g.host, 0x00D15A57u);
@@ -1652,9 +1668,66 @@ void ResyncTick() {
     }
 }
 
+// The schedule is harness policy, not disaster behaviour. Wait for a new month
+// after load, then run one fire and one riot serially. Animation ticks use wall
+// time even during the disaster's emergency pause. Never force a phase or resume
+// the simulator behind the layer's back. Other disaster types remain off (DS28).
+void ScriptedDisasters(const fc4_date& date) {
+    if (!g.scripted || g.scriptStage == 3) return;
+    cISC4DisasterLayer* layer = Layer();
+    if (!layer || layer->IsADisasterOngoing() || g.dirty) return;
+    if (g.scriptStage == 0) {
+        if (date.year < 2026 || (date.year == 2026 && date.month < 2)) return;
+        g.restoreTurbo = TurboConfig().on;
+        TurboScriptSet(false);
+        Log("disasters scripted: fire: %s", DisasterScriptAction(g.city, 0, -1, -1).c_str());
+        if (OrigFireCount() <= 0) ++g.failures;
+        g.scriptStage = 1;
+    } else if (g.scriptStage == 1) {
+        Log("disasters scripted: riot: %s", DisasterScriptAction(g.city, 1, -1, -1).c_str());
+        if (g.riots.empty()) ++g.failures;
+        g.scriptStage = 2;
+    } else {
+        g.scriptStage = 3;
+        if (g.restoreTurbo) TurboScriptSet(true);
+        Log("disasters scripted: complete: fire=%llu riot=%llu resyncs=%llu",
+            (unsigned long long)g.fire.lines, (unsigned long long)g.riot.lines,
+            (unsigned long long)g.resyncs);
+    }
+}
+
+void MonthlyLine(const fc4_date& date) {
+    Diffs d;
+    d.scope = "month";
+    char layer[96];
+    CompareLayer(d, layer, sizeof(layer), nullptr);
+    const uint64_t mismatches = g.differences + g.failures + g.calls.lines + g.resyncs +
+                                g.unfollowable + g.ctx.leadersMissing;
+    Log("disasters shadow %04d-%02d-%02d: fire=%llu/%llu riot=%llu/%llu quiet=%llu/%llu "
+        "%s script=%u resyncs=%llu unfollowable=%llu failures=%llu mismatches=%llu",
+        date.year, date.month, date.day_of_month,
+        (unsigned long long)g.fire.clean, (unsigned long long)g.fire.lines,
+        (unsigned long long)g.riot.clean, (unsigned long long)g.riot.lines,
+        (unsigned long long)g.quietLines.clean, (unsigned long long)g.quietLines.lines,
+        layer, g.scriptStage, (unsigned long long)g.resyncs, (unsigned long long)g.unfollowable,
+        (unsigned long long)g.failures, (unsigned long long)mismatches);
+}
+
 void DisastersShadowOnTick() {
     if (g.core == nullptr || GetCurrentThreadId() != g.mainTid) return;
     ResyncTick();
+    auto* sim = g.city ? AsGame(g.city->GetSimulator()) : nullptr;
+    fc4_date date{};
+    if (sim) {
+        fc4_date_from_julian(sim->GetSimDateNumber(), &date);
+        ScriptedDisasters(date);
+        const int32_t month = date.year * 12 + date.month;
+        if (month != g.reportMonth) {
+            // Include the load sample; thereafter one line per observed month.
+            g.reportMonth = month;
+            MonthlyLine(date);
+        }
+    }
     if (!g.dirty) return;
     const int64_t ongoing = g.origBegun - g.origEnded;
     const fc4_disasters_state s = CoreState();

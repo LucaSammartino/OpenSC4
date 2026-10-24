@@ -16,6 +16,11 @@
 // default:
 //
 //   disasters_shadow = 1        (env FC4_DISASTERS_SHADOW)
+//   disasters_scripted = 1      (env FC4_DISASTERS_SCRIPTED; requires shadow)
+// Starts one surveyed fire followed by one surveyed riot after the first new
+// month. Holds turbo off until both natural lifecycles finish, then restores
+// configured turbo. Tooling only; no UI, forced phase changes or forced resumes.
+// Monthly dated summaries retain all earlier differences, failures and resyncs.
 //
 // The original layer runs unchanged. On the identified executable only
 // (compat table, DisasterHook), entries of the original's vtables are pointed

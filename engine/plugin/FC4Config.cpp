@@ -392,6 +392,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "dbpf_shadow",
                                   // HG8 bounded read-only city geometry (default off).
                                   "city_shadow",
+                                  // Deterministic fire/riot house regression schedule (default off).
+                                  "disasters_scripted",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
