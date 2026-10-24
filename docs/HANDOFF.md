@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 402 (Natural scres command-token observation and the SCR10 file-line ABI answer landed; all house shadows exact (run 5).); 399 (Lua label fix and automata owners capture fix landed; all house shadows exact, automata owner rows verified (run 5).); 393 (Simgrid/lotrec, ordinance and lot-configuration shadows landed with weather and effects RE answers; landvalue flake once (run 5).); 392 (ordinance shadow exact 72/72 to 2032, run 374); 389 (Round 3 shared native variant encoder; automata, SG3 and LR12 exact through 2032). See `docs/manual-checks.md`.
+- **Latest in-game run:** 409 (Simgrid/lotrec now counted, effects closure, live overlays and OV15 landed; sim grids, master lots and automata generator/attractor rows verified (run 5).); 403 (simgrid and lotrec dated summaries, exact 73/73 each through 2032, lists as run 400); 402 (Natural scres command-token observation and the SCR10 file-line ABI answer landed; all house shadows exact (run 5).); 399 (Lua label fix and automata owners capture fix landed; all house shadows exact, automata owner rows verified (run 5).); 393 (Simgrid/lotrec, ordinance and lot-configuration shadows landed with weather and effects RE answers; landvalue flake once (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

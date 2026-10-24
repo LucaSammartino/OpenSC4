@@ -14,12 +14,12 @@ Both round-2 runs used DLL SHA256 `de013955b8774f76364b5c68277cbf4d9ee0ba09fe7c3
 
 | Run record | Mode / final date | Dated overlays shadow | Record observations | Controlled replay |
 |---|---|---|---|---|
-| [403: ovlive6-r2-ro-2032-20261024d](../runs/ovlive6-r2-ro-2032-20261024d.md) | default read-only /2032-01-17 |73/73 exact;7300/7300 checks |292/292 zero-mismatch lines; empty arenas,0/0 live checks |0 lines; fixture omitted |
-| [404: ovlive6-r2-fixture-2032-20261024e](../runs/ovlive6-r2-fixture-2032-20261024e.md) | fixture /2032-01-12 |73/73 exact;7300/7300 checks |292/292 exact;12264/12264 checks;292 live overlays/handles/bindings,584 entries |0/292 fully exact;9928/10220 fields exact;292 differences, all OV15 |
+| [403: ovlive6-r2-ro-2032-20261024d-407](../runs/ovlive6-r2-ro-2032-20261024d-407.md) | default read-only /2032-01-17 |73/73 exact;7300/7300 checks |292/292 zero-mismatch lines; empty arenas,0/0 live checks |0 lines; fixture omitted |
+| [404: ovlive6-r2-fixture-2032-20261024e-408](../runs/ovlive6-r2-fixture-2032-20261024e-408.md) | fixture /2032-01-12 |73/73 exact;7300/7300 checks |292/292 exact;12264/12264 checks;292 live overlays/handles/bindings,584 entries |0/292 fully exact;9928/10220 fields exact;292 differences, all OV15 |
 
 Every fixture sample matched34/35 fields. The only difference is the complete flags word's bit7 (native0xD1/core0x51), already present in all four managers at load before turbo. `question=OV15` is emitted only when the comparison differs solely by that bit. This reproduces the existing original-behaviour question [OV15](../specs/questions/overlay-manager.md); no new question or capture/harness fix was needed. Since it is present before turbo, no turbo-only normal-speed rerun is required. OV13 still limits original mutation history/Init reconstruction and image bytes. These checks do not establish complete rendering or original-history replay.
 
-Earlier committed fixture evidence is preserved: [a/run400](../runs/ovlive6-2032-20261024a.md), [b/run401](../runs/ovlive6-2032-20261024b.md), [c/run402](../runs/ovlive6-2032-20261024c.md). They describe their own tested sources; the round-2 runs verify the final merged source. The initial focused test's fixture-flags expectation was corrected from65 to81; production arithmetic was unchanged. Prior milestones include implementation3e887dd25, corrected source09fe48059, ABI diagnostic761836e97, and round-2 gate recorde071118bd/read-only recordb078b820b.
+Earlier committed fixture evidence is preserved: [a/run400](../runs/ovlive6-2032-20261024a-404.md), [b/run401](../runs/ovlive6-2032-20261024b-405.md), [c/run402](../runs/ovlive6-2032-20261024c-406.md). They describe their own tested sources; the round-2 runs verify the final merged source. The initial focused test's fixture-flags expectation was corrected from65 to81; production arithmetic was unchanged. Prior milestones include implementation3e887dd25, corrected source09fe48059, ABI diagnostic761836e97, and round-2 gate recorde071118bd/read-only recordb078b820b.
 
 ## Handoff
 
