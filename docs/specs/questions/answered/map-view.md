@@ -1,5 +1,13 @@
 # map-view: answered questions
 
+<!-- from: re-mapview (2026-10-20) -->
+- **QV1 - §2, §3.1:** what the terrain (slots 84, 86), zone manager (slots 17, 18) and `0x4A0B47E6` calls display.
+  (The 3D view filter a data view installs is occupant-manager.md §13.2.8, re-occfilters 2026-10-21.) [as read]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv17):** DIFFERS — §§2/3.1 and vector 35 specify plumbing
+  coverage and surface-water display flags, configured-default versus current zone opacity, reset
+  behavior, setter refreshes and F1's filter-only override after E3's city/terrain selection.
+
 <!-- from: core-map-view4 (2026-10-23) -->
 - **QV11 - §4.1: developer layers:** which raw grid does the documented default layer 1 select? Are layers 3
   and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the

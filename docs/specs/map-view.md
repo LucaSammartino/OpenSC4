@@ -85,9 +85,9 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 | `0x4A0B47E1` | bool | the filter shows every type but the listed ones; without it, a list shows only its types and no list shows every type |
 | `0x4A0B47E2` | bool | the filter hides the base textures of empty lots, and the signposts and text decals the type test leaves out |
 | `0x4A0B47F0` | bool | passed (false when absent) to the lot developer's `SetForceEmptyLotBaseTextures` (building development simulator slot 36, then lot developer slot 47) |
-| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | terrain view mode 0 → 1, 1 → 3, 2 → 2 (normal, pipes, subway *[inferred]*) |
+| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | E3 selects city level plus terrain display; F1 subsequently overrides the filter's level options only; 0 → 1 normal, 1 → 3 pipes, 2 → 2 subway (§3.1) |
 | `0x6B7C5CDD` | u32 list | up to eight bytes kept for the source (the travel types of the traffic volume views) |
-| `0x4A0B47E6` | u8 | a zone display option *[summary]* |
+| `0x4A0B47E6` | u8 | zone display alpha; absent → zone manager's default, not the previous view's alpha (§3.1) |
 | `0x4A0B47EB` | u32 | a GZCOM class made with IID `0x8A175D6B` (the pipe, subway and regional transport tools' views) |
 | `0x4A0B47F5` | bool | sets a flag of the map's child `0x4203` (IID `0xCA318385`) |
 
@@ -163,6 +163,43 @@ shut down and released, the update subscriptions dropped (`UnhookUpdateMessages`
   their alpha (`floor((c × a + 128) / 256)`); the city view gets the filter and the terrain the view mode; then
   `UpdateHighlights`, `Update`, the child `0x4203` flag, the current view := `n`, `HookUpdateMessages` (§7).
 
+#### Terrain and zone display (QV1) *[compat]*
+
+These settings affect the **3D city**, independently of the minimap's data source. E3 chooses the
+city-view level and the two terrain display flags. Start at normal level 1; E3 values 0/1/2 choose
+normal/pipes/subway levels 1/3/2. An absent or unrecognized E3 leaves normal level 1.
+
+| E3 / selected level | Plumbing coverage display (terrain slot 86) | Surface water display (terrain slot 84) |
+|---|---|---|
+| absent, 0, or invalid / 1 | off | on |
+| 1 / 3 (pipes) | on | off |
+| 2 / 2 (subway) | off | off |
+
+The plumbing flag enables the terrain view's pipe-coverage rendering (terrain-view §8.2), rather
+than changing the source grid of this map. The water flag controls the visible surface-water pass;
+turning it off does not remove water from the simulation. Slot 86 stores a global display byte;
+slot 84 stores the terrain's water-display byte and, on change, emits `0x6AB97795` carrying the new
+byte so the terrain view updates. Repeating the same flag does not emit another water-state change.
+F1 is read **after** these terrain flags and the city level have been set. Its mapped mode controls
+the occupant filter's underground/level options; it does not rerun the terrain settings. Thus
+E3=1,F1=2 keeps the plumbing display on and surface water off, while using the subway filter options.
+The detailed occupant-filter type rules remain in occupant-manager §13.2.8.
+
+E6 is an **opacity byte**, not a zone-type mask or a choice of zone grid. Before each nonzero view,
+obtain the zone manager's default alpha (slot 17, its retained configuration default). A present E6
+replaces that byte; apply the result through slot 18. Zero makes zone display transparent; 255 is
+full alpha. The setter changes the common current zone alpha and refreshes affected zone/lot visuals
+only when the byte differs. It does not change the retained default. Selecting none restores the
+default alpha, disables plumbing display and enables surface water, alongside the normal city level
+and default filter. An absent E6 likewise restores the configured default even after an explicitly
+transparent prior view. No owner-side alpha interpolation or alpha scaling is performed here.
+
+Evidence: none reset `0x007A4A67`–`0x007A4AB5`; E3 level/terrain setup
+`0x007A4D7B`–`0x007A4DA5`, later F1/filter options `0x007A4DB2`–`0x007A4E42`;
+E6 default/override/application `0x007A4EBC`–`0x007A4F00`; terrain setters
+`0x00741FF0`–`0x00741FFB`, `0x007434E0`–`0x0074354C`; zone default getter
+`0x004DC370`–`0x004DC376` and current-alpha setter `0x004DCF60`–`0x004DD04F`.
+
 #### Selection completion and foreign failures *[compat]*
 
 Selection is not atomic. In particular, a failed exemplar lookup returns false **after** the old custom view
@@ -194,7 +231,7 @@ This describes normally returning primitives. It does not make a null required s
 handle, a fault or an exception into a native false result. Several required interfaces are dereferenced
 without null checks. A portable adapter may diagnose those invalid inputs *[choice]*, but an opaque adapter
 error and immediate stop is not the native rule for the ordinary false results listed above. Property/ramp
-domains and the meanings of reset primitives remain the separate questions QV1 and QV6;
+domains and reset primitives are specified in §2.1 and the QV1 subsection above;
 palette construction and building reconciliation are specified below (QV7–QV8).
 
 ### 3.2 Buttons (`DoMessage`, `0x007A56E0`; tutorial-filtered commands `0x287259F6`)
@@ -288,8 +325,8 @@ is the ordinary x-outer/z-inner grid walk, independent of record order after the
 Layer 6 temporarily disables interpolation while passing this grid through the ordinary signed-16
 conversion/drawing path, then restores the previous interpolation flag. It does not change the
 exemplar's saved layer. The debug override chooses layer 6 even when ED is absent or names another
-layer. Evidence: layer dispatch and shared 3/4 branch `0x007A4387`–`0x007A44A7`, debug-grid construction,
-entry replacement and interpolation restoration `0x007A44A8`–`0x007A4578`.
+layer. Evidence: layer dispatch and shared 3/4 branch `0x007A4408`–`0x007A44A4`, debug-grid construction,
+entry replacement and interpolation restoration `0x007A44E1`–`0x007A45F1`.
 
 #### Layer 5: capacity percentage (QV4) *[compat]*
 
@@ -695,10 +732,10 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV1 (the 3D view filter options and the terrain and zone display
-calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels, the group buttons and the toggle
-`0x8100`/`0x8101`), QV5 (16-bit conversions), QV11 (other developer layers), and QV14 (ring precision).
-QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
+See [questions/map-view.md](questions/map-view.md): QV2 (traffic volume source 76), QV3 (panels, group
+buttons and the toggle `0x8100`/`0x8101`), QV14 (ring precision), and QV15 (missing lot-mean prose).
+QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
+[answered record](questions/answered/map-view.md).
 
 ## 10. Conformance tests
 
@@ -815,3 +852,9 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
     conversion (`36000` wraps to −29536). Interpolation initially true is false during this draw
     and true afterwards. An empty available sequence draws zero values; unavailable sequence draws
     nothing. Debug override plus ED=2 uses this same layer-6 result.
+35. **3D display flags/alpha:** default zone alpha 96, prior current alpha 0: E3 absent/E6 absent →
+    level 1, plumbing off, surface water on, zone alpha 96. E3=1,E6=255 → level 3, plumbing on,
+    surface water off, alpha 255. E3=2,E6=0 → level 2, plumbing off, water off, alpha 0.
+    E3=1,F1=2 retains level 3/plumbing on/water off while changing only filter options to mode 2.
+    Selecting none restores level 1/plumbing off/water on/alpha 96. Applying the same current
+    water/alpha bytes again emits no additional setter-side visual refresh.
