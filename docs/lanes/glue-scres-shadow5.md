@@ -22,8 +22,12 @@
   terminal FAIL: native 47/49, missing fc4 qualification on compat namespace;
   CTest skipped. Full failed log preserved as
   build-runs/fc4verify-build-failed-985f7d3a4-r2.log. Namespace corrected.
-- Next: rerun qbuild all on corrected source, collect to terminal, then enqueue
-  a uniquely named constructed-input city run. No game request outstanding.
+- Corrected source ac743eddc: second qbuild all cargo 6807/6807, clippy zero;
+  native request qbuild-20261024-015022-build-ctest queued, not yet terminal.
+- Next: collect the SAME qbuild operation (exec session 53605) to terminal,
+  then enqueue a uniquely named constructed-input city run with
+  scres_constructed=1, sim_turbo=1, end_date=2032-01-01 (scres_shadow off).
+  Wait using build-runs/wait-scres-verdict.ps1, not qwait. No game outstanding.
 - tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
   verification credit; unsupported owners/signatures remain SCR8/SCR9.
 - No outstanding game request. HEAD is intentionally detached.
