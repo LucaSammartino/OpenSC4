@@ -629,8 +629,22 @@ active entry is examined. Waiting jobs receive no progress forwarding through th
 The HTTP terminal handler obtains foreign-job information and incoming success, then locks and finds an
 active entry by its foreign ID. It copies the Job into a local temporary and removes the live entry before
 unlocking. A missing foreign pointer or absent match causes no callback; it still returns true. A matched
-job without a target similarly skips delivery. No source/type discriminator is tested during the ID scan
+  job without a target skips the entire suffix described below. No source/type discriminator is tested during the ID scan
 (008f8c5a).
+
+**Matched null-target quirk (Q10).** The active entry has already been copied and erased,
+but the null-target test branches directly to local Job destruction/true return
+(`008f8d0f–008f8d14` → `008f8fea`). It performs no representation conversion, cache insertion,
+cookie processing, original notification, waiting-job selection/fan-out, or foreign-resource
+flag/data clearing. The waiting list remains unchanged and the foreign resource retains its
+bytes and file-data flag, whether the incoming completion succeeded or failed. This is a
+normal true return with the active entry removed, not an unsupported native outcome.
+
+Proposed/unexecuted distinguishing vector WWW-21: an active matched Job with null target,
+a same-URL waiting Job and a foreign resource containing file-data=true and filename `x.tmp`;
+complete with incoming success=true. Expect true, active ID absent, waiting Job still queued,
+resource unchanged, and zero conversion/cache/cookie/notification calls. Repeat with false
+incoming success: the same suffix omissions apply.
 
 Success requires both incoming success and a nonnull foreign resource pointer. Otherwise form result=0,
 progress=0 and attach the foreign-job pointer. On success, preserve the underlying resource's bytes or

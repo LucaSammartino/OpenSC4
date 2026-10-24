@@ -1,28 +1,5 @@
 # Open questions: web-network.md
 
-## Q1 (re-webnet4, 2026-10-21) — cookie Port list length
-ParseCookieText (008f94f9) stores n-1 of the n comma-separated `Port` values. Does HTTPMessage::GetSeparatedStringList
-return the item count plus one (so all values are kept), or is the last port really dropped? Needs a read of
-HTTPMessage::GetSeparatedStringList; spec section web-network.md §3.2.
-
-## Q3 (re-webnet4, 2026-10-21) — cookie file format
-Write/ReadCookieDataFile (008f7784, 008f9e2b): byte layout of each `CookieData%05u` entry and the encryption chosen
-by SetShouldEncryptCookieDataFile. Spec section web-network.md §3.6.
-
-Partial evidence 2026-10-23 (re-www-ww5): section 3.6 now specifies clear-before-read/write,
-text re-admission, unsigned expiration filtering, contiguous naming and 10000-entry read cap.
-The 50-byte helper `008f7752` calls string-copy/assignment helpers; exact binary transform,
-character conversion and the writer marker literal still need qualification. No cipher is claimed.
-
-## Q11 (re-www-ww5, 2026-10-23) — cache persistence and source-file admission
-
-Section 6 qualifies byte admission, reads and expiration. What are exact source-file overload
-`008fd76c` ownership/copy behavior, filename generation/reservation (`008fcd49`, `008fceeb`),
-INI-loader token acceptance/escaping (`008fdb0d`), orphan cleanup (`008fc6e0`) and holder buffer
-deallocation semantics? Verify the default INI-name pointer `00b16144`. Do file/RAM capacity
-settings have enforcement outside the specified periodic expiration sweep? Failed allocation
-and reference-count overflow remain outside the published domain.
-
 ## Q12 (re-www-ww5, 2026-10-23) — command-generator wire grammar and execution
 
 Section 7 specifies message/poll/accept boundaries. Settle address-helper `0081e7d0` and exact
@@ -77,26 +54,3 @@ its companion completion/stop/drain bodies are evidence only, not WWW inventory 
 No full Q9 answer is claimed: all residual support/adapters retain their exact O/P checklist rows.
 Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.
 
-<!-- from: core-ftp4 (2026-10-22) -->
-## Q10 — matched HTTP completion with no WWW target
-Section 4.7 says a matched job without a target skips delivery, and distinguishes
-resource cleanup on absent active matches. For a matched job whose target is null,
-does it still convert/cache/process cookies, select waiting jobs and clear the foreign
-resource, or skip some/all of that suffix? The portable core removes the matched live
-entry then returns Unsupported for this exceptional snapshot; it makes no suffix
-equivalence claim. This does not request a new RE round or reopen the parked owner.
-
-<!-- from: core-www5 (2026-10-23) -->
-- **Q15 - sections 3.2, 3.4, 3.6 and 6.4 literal edge cases:** what exactly are
-  the cookie splitter's blank characters and empty-item convention, and does it trim
-  name/value separately after trimming each item? What is atol overflow behavior?
-  Do skipped first cookie attributes still cause the header's leading separator?
-  Are the cookie path/binary setters plain assignments, and what is the cookie
-  constructor path literal at `00b16134`? Does the cache writer
-  materialize records directly, or call the public file getter with its expiration,
-  counter and access effects, and in which map enumeration order? [Current core uses
-  ASCII whitespace, preserves empty semicolon items in nonempty input, trims only
-  items, uses wrapping 32-bit decimal conversion, follows literal pair indices for
-  separators, assigns cookie settings directly, and directly materializes cache
-  records in byte-key order without read-side effects. These are literal choices,
-  not measured native behavior; no new round is requested for parked Q7/Q9.]
