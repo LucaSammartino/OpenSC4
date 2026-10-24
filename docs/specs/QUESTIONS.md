@@ -146,6 +146,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RE | resource-exemplar-editor |
 | REV | resource-editor-views |
 | RG | residential-education-health |
+| RGV | region-view |
 | RM | region-model |
 | RN | foundations |
 | RND | render3d |
@@ -322,6 +323,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 1 | RM15 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
+| region-view | 6 | 0 | RGV7 | questions/region-view.md |
 | regional-city | 6 | 0 | RY7 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
@@ -376,4 +378,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1439** | | |
+| **total** | **612** | **1439** | | |

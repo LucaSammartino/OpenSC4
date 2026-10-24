@@ -263,8 +263,10 @@ fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
 cSC4Region	region	region	region-model.md, region.md	-	-	-
+cSC4RegionSignpostAnimatorWinProc	region	region	region-view.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
+cSC4WinRegionView	region	region	region-view.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
@@ -524,7 +526,7 @@ fn:GZWinIsVisibleRecursive	windows and panels	ui	minimap.md	-	-	-
 fn:GZCOM_cSC4WinMiniMapCLSID	windows and panels	ui	minimap.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
-cSC4TiledScrollingCanvas	windows and panels	ui	-	-	-	-
+cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
 cSC4ToolTipManager	windows and panels	ui	-	-	-	-
 cSC4ProgressScreen	windows and panels	ui	-	-	-	-
 cSC4CatalogItem	windows and panels	ui	-	-	-	-
