@@ -14,6 +14,8 @@
 - Implementation committed at f90a7edfc. Final owned formatting PASS, zero diffs.
 - qbuild all Rust gate PASS: 6936 tests passed, 0 failed/ignored; clippy 0 diagnostics.
 - Native build/CTest queued by that same operation as qbuild-20261024-052626-build-ctest; session59001 still outstanding. Collect it, do not duplicate verify.
+- Native result still pending after roughly twelve minutes; source unchanged. No native failure has been returned.
+- Prepared event-driven build-runs/wait-verdict.py for the required single blocking game wait without qwait; summarize-scres.py counts dated exact lines.
 - Predecessor run records remain in merged replay7 branch: their 403–406 IDs collide with current main records; do not re-add them with duplicate IDs.
 - Next: collect native terminal verdict, then combined/default 2032 turbo runs with unique labels and free run numbers.
 - No game request outstanding. No ABI export additions intended beyond inherited replay branch.
