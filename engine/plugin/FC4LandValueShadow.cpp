@@ -489,7 +489,8 @@ void LandValueShadowStartup(bool landValueReplaced) {
         "inputs as each state read them (input_capture=pass-end-sample; native_step_capture=0; "
         "settled=0 means dirty OR running, not proof of an input change). LV1 section 6.1 describes native "
         "progress fields; their docs/abi layout record is published (LV6 closed), but safe native interceptor "
-        "installation/exclusion and lifetime remain unproved (section 6.1.2, LV8). A clean sampled "
+        "installation/exclusion and lifetime remain unproved. LV8 (section 6.1.4) confirms lifecycle ordering "
+        "is not dispatch exclusion; no host exclusion mechanism is installed. A clean sampled "
         "comparison is not independent per-Step input evidence");
 }
 

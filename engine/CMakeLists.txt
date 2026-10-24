@@ -1075,3 +1075,7 @@ endif()
 add_executable(fc4_landvalue_progress_test tests/landvalue_progress_test.cpp)
 target_include_directories(fc4_landvalue_progress_test PRIVATE plugin)
 add_test(NAME landvalue_progress_test COMMAND fc4_landvalue_progress_test)
+
+# LV8 host admission/lifetime acceptance fixtures; no native interceptor implied.
+add_executable(fc4_landvalue_capture_contract_test conformance/tests/landvalue_capture_contract_test.cpp)
+add_test(NAME landvalue_capture_contract_test COMMAND fc4_landvalue_capture_contract_test)
