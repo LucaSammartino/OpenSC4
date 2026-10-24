@@ -13,10 +13,12 @@
 - Done: 582d19fda implements the capture accounting and LR13 diagnostics.
 - Gate: qbuild all PASS, Rust 6933/0, clippy diagnostics=0, native 245/245,
   CTest 76/76; queued request qbuild-20261024-054455-build-ctest collected to terminal PASS.
-- Next: collect mandated verify (exec session 90719), request
-  qbuild-20261024-054910-build-ctest; then diagnostic house run.
+- Gate: mandated verify PASS, native 46/46 and CTest 76/76;
+  qbuild-20261024-054910-build-ctest collected to terminal PASS.
+- Next: collect house run ctor7-house-2032-20261024-a1 (event waiter exec session 68550).
 - Required gates: stable final qbuild all and queued verify; three unique turbo house shadow runs to 2032.
-- No game requests outstanding. LR13 filed in docs/specs/questions/lot-records.md.
+- Game outstanding: ctor7-house-2032-20261024-a1, exact train180 house switches,
+  turbo to 2032; sole request. LR13 filed in docs/specs/questions/lot-records.md.
 - Exact train180 house INI available at main/build-runs/regress-train180-shadows.ini;
   copied settings in build-runs/ctor7-house-template.txt (not yet submitted).
 - Event-based blocking verdict waiter: build-runs/wait-verdict.py (no qwait/polling).
