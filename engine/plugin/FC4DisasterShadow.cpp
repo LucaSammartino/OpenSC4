@@ -1706,7 +1706,9 @@ void ScriptedDisasters(const fc4_date& date) {
                 (unsigned long long)samples, removed);
         }
     }
-    if (layer->IsADisasterOngoing() || g.dirty) return;
+    // An ended riot remains subscribed and keeps marking the shadow dirty
+    // (section 6.7). Wait for both layers to end, not for tick traffic to stop.
+    if (layer->IsADisasterOngoing() || CoreState().ongoing != 0) return;
     if (g.scriptStage == 0) {
         if (date.year < 2026 || (date.year == 2026 && date.month < 2)) return;
         g.restoreTurbo = TurboConfig().on;
