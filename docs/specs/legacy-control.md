@@ -263,6 +263,120 @@ create `0x592`, the control gets params `0xE85EEBDE = 0x592`, `0x08D6E462 = 0x21
 `0x0094E516` and then Common run with `true`, the control is initialised and added to the pending parent (or the
 manager's window), pulled to front, then Text and Common run again with `false`.
 
+### 6.1 Native observation boundary (LC15)
+
+The build unit is one invocation of `SetParameters`, including a rejected/missing class and a
+factory failure. Successful creation is observed through the resulting control and effects, not
+through its return: only AL is a defined result and it is always zero. Do not compare all of EAX.
+Capture properties before the native invocation; native post-state is comparison evidence, not
+input to the replay. Properties retain their typed entries, duplicates and ordering (§7.5).
+
+**Native dispatch evidence.** `cGZUIScriptService::BeginExecuteTag` creates the current script
+object with IID `0x1A356083` at `0x0094B393`, sets its parent at `0x0094B3D7` and obtains its
+vocabulary at `0x0094B3E6`. For a legacy object this is the complete object pointer and primary
+vtable of §3. `cGZUIScriptService::ScriptTag` (`0x0094BABC`) delivers a property block when its
+current object and execute-tag state are non-null: the dispatch at `0x0094BADA` calls primary
+slot 3 (`+0x0C`). ECX is that current object, loaded from the ScriptTag receiver's `+0x44`;
+the sole argument is the properties pointer from its incoming stack argument at entry ESP+12
+(EBP+16 after its frame is established). The native return address is `0x0094BADD`.
+The call result is ignored: the service then publishes the object through its tag state and
+releases its current reference (`0x0094BAE5`, `0x0094BAED`). Thus false from SetParameters does
+not prevent this service from publishing the object. This is the confirmed native build
+dispatcher; the other `+0x0C` calls on interpreter/service/resource interfaces are not evidence
+of additional legacy builds merely because they use the same slot offset.
+
+The Windows export has **zero direct calls** to `0x00957A9B` and exactly one data reference to
+it, primary slot word `0x00AD536C`. These static counts do not enumerate runtime indirect
+callers. In particular the observed owner-only run's builds cannot be dismissed as evidence
+of direct-call bypass. A primary-vtable hook observes the confirmed dispatcher, but cannot
+establish coverage of arbitrary direct invocation or independently invoked interpreters.
+
+**SetParameters entry and completion.** The native entry is x86 `__thiscall`: ECX is the
+complete owner pointer, entry ESP holds the caller return address, ESP+4 the properties
+pointer. The owner is not the +8 legacy interface pointer used in §7.2. The callee removes
+four argument bytes. The half-open span `[0x00957A9B,0x00957AA1)` is six bytes consisting of
+complete frame-setup instructions, with no relative branch/call or absolute data operand.
+It can be relocated as the displaced prefix of a five-byte entry detour; continuation is
+`0x00957AA1`. Both direct and virtual entry calls then reach the same observation boundary.
+All normal exits converge on the epilogue at `0x00957C7F`; AL becomes zero at `0x00957C81`,
+and `0x00957C85` is the sole callee-clean return. A wrapper around the original invocation
+can compare completion there or after the original has returned. A failure that does not
+return normally must not be recorded as a completed exact replay. These are byte-verified
+boundaries for the named executable, not permission to patch an unchecked runtime image.
+
+### 6.2 Interpreter observation boundary (LC15)
+
+The type callbacks in §4.1 and Common are static x86 `__cdecl` functions, **without an owner
+this pointer**: entry ESP+4 is the window pointer, ESP+8 properties, ESP+12 a four-byte
+argument carrying the first-pass boolean. The boolean is consumed as a byte; the builder
+supplies exactly 1 or 0. ECX/EDX have no input contract. They return no comparison result;
+the caller removes 12 argument bytes. The builder supplies type then Common before Init,
+and type then Common after attach/front (§6). Evidence: type calls `0x00957C02` and
+`0x00957C6B`, Common calls `0x00957C0E` and `0x00957C77`, and their respective stack cleanup
+sites `0x00957C04`, `0x00957C6D`, `0x00957C13`, `0x00957C7C`. Common's first-pass byte test
+is `0x00956613`; Text's is `0x0094E53D`. In particular the export pseudocode's pointer-shaped
+third Common argument is not a pointer ABI.
+
+To observe independently invoked non-empty interpreters as well as builder calls, their
+entries provide these complete displaced prefixes. Each span is half-open, starts at the
+published function entry, and contains no relative branch/call or address needing relocation.
+Lengths and continuations were verified from the instruction bytes, including Outline's
+long frame allocation and the five functions with a different frame layout. Copy the whole
+prefix before continuing; a blanket five-byte overwrite would split instructions in most rows.
+
+| Interpreter | Entry | Prefix bytes | Continuation |
+|---|---|---|---|
+| Common | `0x0095660D` | 6 | `0x00956613` |
+| TextTicker | `0x0094CE28` | 6 | `0x0094CE2E` |
+| Folders | `0x0094D17E` | 6 | `0x0094D184` |
+| FlatRect | `0x0094E33B` | 6 | `0x0094E341` |
+| Text | `0x0094E516` | 6 | `0x0094E51C` |
+| TextEdit | `0x0094E7C8` | 6 | `0x0094E7CE` |
+| ListBox | `0x0094EE39` | 6 | `0x0094EE3F` |
+| Combo | `0x0094F36D` | 6 | `0x0094F373` |
+| Btn | `0x0094F757` | 5 | `0x0094F75C` |
+| BMP | `0x0095002C` | 6 | `0x00950032` |
+| Slider | `0x00950218` | 6 | `0x0095021E` |
+| Scrollbar | `0x009503AB` | 6 | `0x009503B1` |
+| LineInput | `0x009505B6` | 6 | `0x009505BC` |
+| Spinner | `0x00950AF6` | 6 | `0x00950AFC` |
+| Outline | `0x00951084` | 9 | `0x0095108D` |
+| SC3WinGen | `0x009513BC` | 6 | `0x009513C2` |
+| FileBrowser | `0x00954212` | 5 | `0x00954217` |
+| OptGrp | `0x00956C46` | 5 | `0x00956C4B` |
+| TreeView | `0x009586B0` | 5 | `0x009586B5` |
+| Grid | `0x0095A250` | 5 | `0x0095A255` |
+
+There are no exported direct callers of the 19 non-empty per-type functions. The map dispatch
+is indirect; replacing a map callback alone does not observe independent direct entry calls.
+Common has the two direct builder callers listed above.
+
+**Custom no-op exception.** Custom's callback `0x00A6D837` is a one-byte return shared with
+unrelated functions (147 exported direct calls to that address). It has no widget/property
+effects and no scalar result. There is no five-byte entry span belonging to this callback;
+do not overwrite its neighbours or classify all callers to the shared address as legacy calls.
+Within a build, Custom can be identified by the selected IID and callback target. The two
+type dispatch spans `[0x00957C02,0x00957C07)` and `[0x00957C6B,0x00957C70)` each cover the
+two-byte indirect call and its three-byte caller cleanup. At either span start EDI is the
+callback target; ESP, ESP+4, ESP+8 already hold window, properties, firstPass (there is no
+return-address word yet). The owner is EBX, its control-slot address ESI. Completion before
+cleanup is at `0x00957C04`/`0x00957C6D`; after cleanup it is at the respective span end. A
+relocated span must preserve this call's arguments and target, perform the cleanup exactly
+once, and preserve the native calling convention. This is a builder-local alternative to
+callback-entry observation and includes Custom. An isolated direct call to the shared return
+cannot be uniquely attributed to Custom from the callee address; it contributes no effects to
+property replay. No unresolved widget behavior is hidden by that identity limitation.
+
+**Replay accounting.** Keep an invocation identity and nesting context: observing both the
+SetParameters entry and its interpreter entries must not replay their mutations twice.
+Capture standalone interpreter inputs separately; do not invent an owner from ECX. For a
+whole build compare the factory/metadata/type/common/attach effects and owner post-state of
+§6, with foreign outcomes supplied independently of native post-state. A null selected
+callback means two Common invocations and zero type invocations; a failed build before
+creation means neither. Entry coverage alone is not a claim that all foreign setters or
+unsupported inputs (§13.3) have been replayed. Run 520 remains evidence for owner-only
+comparison, not for these additional boundaries.
+
 ## 7. Small methods *[compat]*
 
 ### 7.1 `SetParent(obj)` (`0x0094C31E`)
@@ -1375,6 +1489,11 @@ successfully obtained per-type interface is released once. String-font metadata 
 | LCV43 | Default procedure QI IID `0x22E85D8E`, then unknown IID with sentinel output | first returns same pointer and adds one reference; second false, sentinel and count unchanged |
 | LCV44 | For each of ForceControl/UseWinProc: slot A, new B, both non-null and distinct | AddRef B, Release A, store B; other owner slots and own-control unchanged; void result, ignore EAX/AL |
 | LCV45 | For each method: A to A; null to null; null to B; A to null | equal cases have no reference effects; null to B retains B once; A to null releases A once; all return void, including both equal cases |
+| LCV46 | ScriptTag has current legacy owner and active tag; properties describe valid Text; observe primary slot and entry | dispatch at `0x0094BADA` enters owner `0x00957A9B` once with the same properties; false AL does not prevent service publication/release; count one build despite two hook layers |
+| LCV47 | Invoke SetParameters directly with valid Text, then with missing clsid | entry boundary sees both; first has Text/Common first, Init/attach/front, Text/Common second; second has no interpreter calls; both complete with AL=0, upper EAX ignored |
+| LCV48 | Invoke Text interpreter directly with window W, properties P, firstPass=1, outside any owner build | entry captures `(W,P,true)` from stack, performs §9.10 first-pass effects once; no owner inferred from ECX, no Init/attach invented, no scalar result compared |
+| LCV49 | Valid Custom build; observe builder type-call spans; also execute unrelated call to shared `0x00A6D837` | Custom records two no-op type invocations with `(W,P,1)` and `(W,P,0)` and two Common passes; unrelated shared-return caller is not counted as a legacy interpreter; no five-byte Custom entry patch |
+| LCV50 | Valid control with no interpreter-map match, then factory failure | first has two Common passes and no type callback; failure before creation has neither; each completed SetParameters invocation is still a build, never a success count derived from AL |
 
 Existing Slider, TreeView, FileBrowser, Grid, Folders, FlatRect and Outline worked examples in §9.1–§9.8
 remain the corresponding test inputs for those earlier contracts. LCV01–LCV33 supplement those examples;
