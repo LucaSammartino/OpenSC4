@@ -320,7 +320,7 @@ object the owner additions are:
 | Owner | Initialization contract |
 |---|---|
 | Traffic | Run Automaton Init. Only on success and when the loaded-occupant byte `+0x3C` is clear, refresh behaviour (slot 105) unless flag `0x4000` is set, then invoke slot 134 unless flag `0x2000` is set. Return the inherited result. |
-| Vehicle | Set flag 8 to the runtime boolean at `0x00B0A0A8`; load drive parameters (slot 158), then initialize Traffic. After that call, enable slot 176 with `(true,0)` if the city option queried through `0x00B43DDC` is true or the global override `0x00B2296C` is true. Return Traffic's result. |
+| Vehicle | Set flag 8 to the runtime boolean at `0x00B0A0A8`; pick the lateral offset (slot 158, §12.7), then initialize Traffic. After that call, enable slot 176 with `(true,0)` if the city option queried through `0x00B43DDC` is true or the global override `0x00B2296C` is true. Return Traffic's result. |
 | TrainCar | Initialize Vehicle; set flags `0x10000`, `0x4000`, `0x10000000` even if Vehicle returned false. Set classification byte `+0x2B8` to membership in either family `0x4217` or `0x4208`; return Vehicle's result. |
 | Train | Initialize TrainCar and clear flag `0x10000000`. Select default speed with a floating range draw between the unsigned train speed bounds after conversion to m/ms; choose family/count below; zero `+0x2F4` and clear `+0x2F8`. Return TrainCar's result. |
 
@@ -593,3 +593,96 @@ model automatically. Evidence: `0x00508F80–0x00509067`, especially `0x00508FD5
 | Attached selector 1, count 5, current frame 4 | Pop and return true |
 | Attached null model, saved bool false/true | Return false/true respectively; state remains |
 | Attached property value 0.8, T 1000 ms, dt 200 ms | Set `(1,1)` after clamping |
+
+### 12.7 Init lateral offset and initial path (VH10)
+
+**Slot 158** (`0x0055B690`) takes no explicit arguments and changes only the lateral-offset float
+at `+0x200`: draw `RandomDoubleRangeUniform` from the two binary32 tuning inputs at
+`0x00B21CF0` and `0x00B21CF4`, promoted to double, then narrow the returned value once to
+binary32. It neither reads an exemplar nor fills drive-parameter storage. It runs after setting flag 8
+and before Traffic Init, even if that Init subsequently fails. **Slot 134** is `0x00550B60`, a
+position-to-network-path initializer with no explicit arguments. It is distinct from `BeginRoute`
+(`0x00554AB0`, which takes a bool and can consume a route front). Traffic Init discards slot 134's
+result and returns the inherited Init result. Consequently lack of an initial path is not an Init
+failure. The existing fresh/loaded, flag `0x4000`, and flag `0x2000` conditions in §12.3 still apply.
+
+The initial-path contract is:
+
+- If all three position components are within a **strict** binary32 `0.0001` of `(-1,-2,-3)`,
+  return false before querying network geometry. The epsilon is bits `0x38D1B717`.
+- Obtain the city network service and the owner's traffic manager (slot 174). Convert current X/Z
+  to cell coordinates through the city service and ask for that cell's network occupant (service
+  slot 11). A missing occupant or missing path-info interface (occupant slot 49) returns false.
+  This routine does not check the returned traffic manager for null before using it.
+- Ask the traffic manager for the owner's transport/path type (manager slot 68). Initialize the
+  desired exit byte to `0xFF`. The owner's attraction-vector getter (slot 122) can supply a heading;
+  if it succeeds, normalize that vector in place and ask owner slot 171 for an exit on this occupant,
+  with the final bool true. Otherwise do that only when flag `0x4000` is clear, a behavior template
+  exists, and the stored attraction vector has length strictly greater than `0.00001`. The successful
+  getter branch has no extra zero-length guard before normalization. *[quirk]*
+- Ask path-info slot 5 for a path with that transport type, entry `0xFF`, selected exit, the current
+  position, an output path-selection byte, and final bool false. No route deque entry is read or
+  consumed. A null path returns false; any preceding attraction-vector changes remain.
+- For a path, call placement slot 132 with `(occupant, selection byte, path, true)`. Copy the current
+  position and ask path-info slot 19 to project that copy onto the path and return its segment index.
+  Save the index at `+0x1FC`, replacing negative results by zero. The projected copy is the final
+  MoveTo position; it is not simply the first point of the selected path.
+- With at least two path points, use point 1 minus point 0 for the facing direction; if its length is
+  strictly below `0.00001`, try last point minus first. If that is also strictly below the threshold,
+  use existing facing. Normalize the selected vector and narrow its components to binary32.
+  With fewer than two points, copy existing facing without this normalization. MoveTo receives
+  the projected position and that facing; return true. There is no rollback or final MoveTo-result
+  check. Geometry selection/projection are network services, not a callback to a game vehicle owner.
+
+Instruction evidence: slot-158 double arguments and single float store `0x0055B690–0x0055B6BA`;
+Vehicle ordering `0x0055B9C3–0x0055B9E0`; Traffic result handling `0x0054D7A3–0x0054D7EF`;
+slot-134 sentinel and service calls `0x00550B60–0x00550C6A`, heading selection
+`0x00550C70–0x00550D58`, path selection and placement `0x00550D5E–0x00550DA1`, projection/index
+`0x00550DA1–0x00550DD8`, facing fallbacks and MoveTo `0x00550DD8–0x00550F30`.
+The constructor installs primary table `0x00A9C068` (`0x005544FB`); its slot 134 word at
+`0x00A9C280` is `0x00550B60`. This also resolves the misleading drive-parameter name in §12.3.
+
+| Conformance setup | Required observation |
+|---|---|
+| Slot 158 bounds 0.25 and 0.75; range primitive returns 0.5 | One double-range draw with those bounds; float `+0x200 = 0.5`; drive-parameter storage untouched |
+| Fresh Vehicle, inherited model Init fails | Offset draw still precedes inherited Init; no slot 134; return false |
+| Successful fresh Traffic Init; initial position exactly `(-1,-2,-3)` | Slot 134 false with no geometry queries; Traffic Init true |
+| Successful fresh Traffic Init; network occupant or its path-info absent | Slot 134 false; Traffic Init true; no placement or MoveTo |
+| Empty route; valid network path selected at current position | Empty route is permitted and stays empty; placement/projection proceed |
+| Selected path `[ (0,0,0), (3,0,4) ]`; projection returns `(1.5,0,2)`, index −1 | Save index 0; MoveTo projected position with facing `(0.6,0,0.8)` (binary32 components) |
+| Selected path has one point; existing facing `(0,0,2)` | MoveTo uses `(0,0,2)` unchanged |
+| Path selection returns null after attraction normalization | False; no placement/MoveTo; normalized attraction remains; no route-front pop |
+
+### 12.8 Train references are runtime car references (VH11)
+
+There is no train-specific second identity-to-runtime binding phase after §12.1's Read: the shared
+stream supplies the actual shared serializable object, which is immediately queried for car IID
+`0x4A416254`; the resulting retained car interface is the list entry used by runtime operations.
+A portable implementation must resolve a reference to that same object instance through its shared
+object registry, rather than construct another TrainCar from an ID. If the reference reader yields
+null, cannot resolve an object, or cannot obtain that IID, no entry is appended; Train ignores the
+helper's failure return and continues to its tail, retaining the nested Vehicle Read result.
+No missing-entry placeholder or later train retry is created. If two references resolve to the same
+car, both are appended in order, aliasing one runtime object, with the reference ownership obtained
+for each occurrence; there is no duplicate-ID rejection or deduplication. Existing list entries are
+also retained. A valid live TrainCar supplies its serializable interface as part of the same COM
+object; a separate optional serializable identity is not native car state. The generic writer queries
+that interface (`0xE4FDA3D4`) and sends it to the shared stream: a null object or failed query can
+produce a null reference, not a train-level early validation error. This does not make a valid
+TrainCar's serializable interface optional. Preserve stream errors separately from Train's own
+return value. *[quirk]* Train's permissive loading and duplicate aliases must not be replaced by
+atomic validation or by copying a car per list entry.
+
+Evidence: reference helper interface acquisition `0x005D9739–0x005D9773`; shared-object Read and car
+QueryInterface `0x005D96D6–0x005D970E`; Train null test/append without a duplicate search
+`0x0055AB50–0x0055ABB0`; TrainCar's car-interface query `0x00557040`; generic writer's serializable
+query/null forwarding `0x005D99BE–0x005D99EB`. The decompiler removes reachable Train append blocks;
+the append contract here is verified against instructions, not that pseudocode omission.
+
+| Conformance setup | Required observation |
+|---|---|
+| Registry maps references A and B to distinct live cars | Read appends those same runtime objects in A/B order; no post-load owner binding callback |
+| References `[A, missing, A]`, successful nested Vehicle Read | Append two entries aliasing A; skip missing; consume all three; Train result true |
+| Reference resolves to an object without the car IID | Skip it; no guessed car allocation; continue Train tail |
+| Existing `[X]`, load `[A,A]` | Result `[X,A,A]`; both A entries share one runtime state |
+| Valid live TrainCar written twice | Query its serializable interface for each list occurrence; use shared-stream identity semantics, not two cloned runtime records |
