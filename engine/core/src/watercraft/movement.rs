@@ -225,7 +225,10 @@ impl Watercraft {
         } else {
             self.still_elapsed += dt;
             if self.still_elapsed > 250.0 {
-                self.events.extend(super::WAKES.map(super::Event::StopWake));
+                for key in super::WAKES {
+                    self.events.push(super::Event::StopWake(key));
+                    self.events.push(super::Event::EffectUpdate);
+                }
             }
         }
     }

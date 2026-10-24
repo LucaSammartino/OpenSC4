@@ -109,6 +109,60 @@ impl super::Watercraft {
 }
 
 impl super::Fleet {
+    /// Owner search (§5.2). Only cell conversion/navigation are foreign inputs.
+    pub fn pick_location(
+        &mut self,
+        id: super::BoatId,
+        terrain: &dyn super::Terrain,
+        mut centre: impl FnMut(Cell) -> Vec3,
+        manager: &mut Option<&mut dyn super::DockManager>,
+    ) -> super::Result<bool> {
+        if self.boat(id)?.neighbor.is_some() || self.boat(id)?.ferry {
+            return self.fill_route_points(id, terrain, manager);
+        }
+        let initial = terrain.cell_at(self.boat(id)?.position);
+        let start = self.boat(id)?.travel.last().map_or(initial, |p| p.cell);
+        if !terrain.contains(start) {
+            return Ok(false);
+        }
+        let radius = match self.boat(id)?.group.id {
+            0x4414 => 3,
+            0x4413 => 2,
+            _ => 1,
+        };
+        for _ in 0..15 {
+            if self.boat(id)?.travel.len() >= 10 {
+                break;
+            }
+            let boat = self.boat(id)?;
+            let (cell, direction, tried) = boat.travel.last().map_or_else(
+                || (initial, quantize_heading(boat.heading), 0),
+                |p| (p.cell, p.direction, p.tried),
+            );
+            let mut backed_up = false;
+            // Literal §5.2: a round scans this point's ordered candidates;
+            // only the first eligible failure performs the backtrack.
+            for direction in super::candidate_directions(direction, tried) {
+                let candidate = direction_step(cell, direction);
+                let offset = math::sub(centre(candidate), self.boat(id)?.position);
+                if terrain.navigable(candidate, radius, None) && self.find_overlapping_boat(id, offset, 1.0)?.is_none()
+                {
+                    self.boat_mut(id)?.travel.push(super::TravelPoint {
+                        cell: candidate,
+                        tried: 0,
+                        direction: direction as u32,
+                    });
+                    break;
+                }
+                if !backed_up {
+                    self.boat_mut(id)?.backtrack_travel();
+                    backed_up = true;
+                }
+            }
+        }
+        Ok(!self.boat(id)?.travel.is_empty())
+    }
+
     /// Fill the settled neighbor/ferry branches. Wandering has no reader and
     /// is deliberately rejected here rather than mistaken for exhaustion.
     pub fn fill_route_points(
