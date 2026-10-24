@@ -12,7 +12,8 @@
 - Game r1 COMPLETE: lighting9-house-2032-r1-20261024 clean, foreign_exceptions/ref_warnings/rtc=0, date 2029-10-22 at 601.828 s. lighting9-house-2032-r1-20261024 0/46; each line one texture mismatch (69D3A23B native vs 69D3BC3B literal table), all other 13 fields exact. Record docs/runs/lighting9-house-2032-r1-20261024-469.md; LT15 filed. No game request outstanding.
 - Diagnostic revision: capture all six §5.6 properties from independent public resource 6534284A/A9189CF0/00000001 once at load; feed Parameters::initial().read(inputs), never lighting outputs. Focused tests now 3/3.
 - Final gate r2 PASS on source fad1dbe42: Rust workspace 6987/6987, clippy 0 diagnostics, native build 207/207 edges, CTest 79/79. Queued qbuild-20261024-090555-build-ctest and exec session 8711 collected to terminal PASS. Do not repeat.
-- Next: submit prepared build-runs/lighting-house-r2.pending (label lighting9-house-2032-r2-20261024, seconds=1500, timeout=1800) and wait on that exact label to completion. No game request outstanding yet. Preserve r1 evidence.
+- Game r2 OUTSTANDING: lighting9-house-2032-r2-20261024, seconds=1500, timeout=1800, exact house switches plus lighting_shadow=1. Wait on build-runs/game-results/lighting9-house-2032-r2-20261024.verdict with wait-lighting-verdict.py; if its 540-second bound expires, wait AGAIN on SAME label, never resubmit. No other request outstanding.
+- Next: collect r2 final verdict/counts; record free run number 470 (recheck local docs/runs), update full report and READY queue for measured work. Preserve r1 evidence. Full owner remains blocked by LT14.
 - Prepared request: exact house ini switches (Compare-Object verified), plus lighting_shadow=1, turbo to 2032-01-01. DLL engine/build-x86/FreeCity4.dll.
 - Constraints: no prohibited source or tools; no agents; no branch changes; shared files additive.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r1-manifest.json
