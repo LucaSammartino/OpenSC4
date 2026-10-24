@@ -11,9 +11,9 @@
 - Implementation: live NT33 renderer/lot/terrain/tuning callbacks in bounded selection replay; scoped renderer QI, no persistent game references/patches.
 - NT34 exposed insertion-order defect; now SGI193 bucket/chain picks, resize-before-duplicate, retained bucket count on shutdown; propagation no longer grants pin priority.
 - Initial focused failure recorded build-runs/nt34-initial-failure.txt; second run 39/40 geometry tests passed, fixture C incorrectly called pre-boundary equality construction; fixture corrected to specified post-plane constraints.
-- Final all active: session 39790, Rust 6927 passed/0 failed, clippy0. Native verify queued by all as qbuild-20261024-053010-build-ctest; do NOT start another verify.
+- First all session39790 terminal FAIL: Rust6927/0, clippy0, native240/240, CTest73/74. ABI scanner invalidated SDK CellWidth waiver because of same-named corrected-interface call; changed to explicit float/ST0 slot6 call. Verifier also flagged docs/HEAD changed while queued. Preserve failed evidence in build-runs/failed-r1 before retry.
 - Fmt3 clean. No game request yet. Next: collect session39790 terminal result, then unique2032 game with engine/tests/nettool-shadow.script and shutdown audit.
-- Native queue request remains unclaimed (build-runs/build-queue/qbuild-20261024-053010-build-ctest.req). No DLL exists yet. Do not bypass queue or duplicate verify.
+- Native DLL now exists. Next: corrected full gate once, keep HEAD and tracked files fixed throughout verification; then unique2032 game run.
 - Reserved docs/runs/nettool-close7-r1-20261024-f31a-410.md (max existing run was409). Submit label nettool-close7-r1-20261024-f31a only after native PASS; no request is currently outstanding.
 - Use build-runs/wait-verdict.ps1 for one event-based wait (no qwait), then build-runs/summarize-nettool.py on the run log. Both scripts were created with apply_patch.
 - Ownership: no vtable writes in exact6/close7. Script factory tool AddRef -> Shutdown -> RELEASE_CREATED; SC4Vector uses game allocator; resources/DB records scoped, no cached game objects. Renderer QI is scoped to selection; borrowed terrain/zone/lot/occupant services and borrowed lot lookup are never released.

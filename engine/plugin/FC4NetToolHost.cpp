@@ -1099,7 +1099,13 @@ bool ReadNetToolPowerlineSelection(NetToolContext* ctx, fc4_powerline_selection*
         ++r.lotCalls;
         return true;
     };
-    h.width = [](void* u) { return static_cast<Reads*>(u)->terrain->CellWidth(); };
+    h.width = [](void* u) {
+        // Terrain slot 6 returns ST0. Use an explicit float call boundary:
+        // the SDK's same-named uint32 method has an unused-method ABI waiver.
+        auto* t = static_cast<Reads*>(u)->terrain;
+        using ReadWidth = float (__thiscall*)(void*);
+        return reinterpret_cast<ReadWidth>((*reinterpret_cast<void***>(t))[6])(t);
+    };
     h.height = [](void* u, float x, float z) { return static_cast<Reads*>(u)->terrain->GetWaterLevelAt(x, z); };
     h.special = [](void* u, int32_t x, int32_t z) {
         return static_cast<Reads*>(u)->terrain->CellHasWater(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
