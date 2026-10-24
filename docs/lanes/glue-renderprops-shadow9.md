@@ -15,7 +15,9 @@
 - Gate 1 logs preserved as build-runs/renderprops-r2-gate1-{test,clippy,build,ctest}.log; queue qbuild-20261024-094717-build-ctest terminal fail.
 - Diagnostic fixes: specific fixture termination name; capi_smoke mismatch includes source provenance and forces a current-source rebuild. Header and Rust are both ABI98; no version edit.
 - Gate 2 on 1d55acf7c PASS: Rust 6999/6999, clippy zero diagnostics, native 49/49 edges (2.1s), CTest 80/80 (79.9s); queue qbuild-20261024-095420-build-ctest terminal pass.
-- Next: submit unique label renderprops-shadow9-r2-fixture2032-20261024a, house profile to 2032, collect watcher operation to terminal result. No source edits after gate.
+- Outstanding: renderprops-shadow9-r2-fixture2032-20261024a, submitted house profile to 2032 (1800s, timeout 2100s, turbo). Do not resend/overwrite this label.
+- DLL SHA256 FD4B31E3C96B9D591E829A27E1AD32EE87420F9B3BF202F35991BE7B92DD506E; source 1d55acf7c; no source edits after passing gate.
+- Next: collect event watcher to terminal result; then run build-runs/renderprops-r2-evidence.py on this label, report all scope gaps, final commit and full-tip ready queue entry.
 - Constructor is specified at render-properties.md §1.3: 0x007E3650, complete object 0x30 bytes.
 - No new game request outstanding; previous evidence below is historical round 1.
 - tools/questions.py index is excluded by non-bending clean-room tools rule; coordinator must regenerate index.
