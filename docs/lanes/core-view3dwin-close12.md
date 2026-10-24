@@ -18,6 +18,11 @@
 - Owner table updated with concrete paths/tests; full closure is still incomplete.
 - Context guard measured 107152/150000 at first checkpoint; no new feature work
   after the two-thirds threshold. Finish diagnostic fixes and all/verify only.
+- Native verify qbuild-20261024-191649-build-ctest PASS: build 162/162 edges
+  (311.8 s), CTest 81/81 (503.5 s), total 817.5 s. Evidence:
+  build-runs/verify-close12-r2-console.log. Full logs fc4verify-{build,ctest}.log.
+- Final all started on stable 884472e54 source with RUST_TEST_THREADS=1;
+  session 13320, all-close12-r2-console.log. Waiting for focused-build lock.
 - No game request outstanding. No plugin/C ABI wiring permitted.
 - Bash q.py fails CreateFileMapping; use PowerShell.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.
