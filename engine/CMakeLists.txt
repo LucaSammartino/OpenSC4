@@ -1155,6 +1155,11 @@ add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
 target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
 add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
 
+# VU16: read-only partial view utility shadow; no speculative native signatures.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ViewUtilShadow.cpp plugin/FC4ViewUtilShadow.h)
+endif()
+
 # MI14 finite native model-instance fixture, opt-in only.
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)

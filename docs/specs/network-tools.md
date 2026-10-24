@@ -662,6 +662,26 @@ solve-input/result difference, while a correct terrain solution with different r
 later terrain mutation. Keep 110/113, 170/192, 90/98 and 55/61 as city mismatches. This fixture supplies no
 recovered native city constraint snapshot and licenses no adjustment to match those totals.
 
+#### 8.1.4 Live inventory cannot be extracted from the tool getters (NT35)
+
+There is **no admitted public call that copies the native retained solved-entry inventory or its piece/plane/
+support constraints**: §2.1's coordinate/count getters do not expose these objects. Neither occupied-cell
+queries nor model getters on committed occupants recover an ordered, possibly uncommitted solution or its
+per-smoothing-level constraints. A host must observe the live environment through its public services and
+reconstruct the solution using network-geometry §§8–10 and the rule/model resources, or start from an explicitly
+supplied constraint-boundary fixture such as NT34. NT30/NT34 are such fixtures, not extracted city snapshots.
+The four prices 110/113, 170/192, 90/93 and 55/61 in `nettool-close7-r2-20261024-b812` do not determine a unique
+inventory or corner fixture. Retaining SGI bucket order resolves an ordering input but cannot identify missing
+piece heights, plane anchors or support constraints. Report a missing observation as unavailable; do not read
+the private solved vector, fit the residual, or return a native total as the reconstructed price. This is the
+observation limit, not a second solver rule (`0x0062CA30`–`0x0062CA3F`, `0x00625647`–`0x0062568D`).
+
+| Boundary conformance vector | Expected observation / permitted conclusion |
+|---|---|
+| NT34 A and B, identical drag/counts and network corners, support clearance 10 versus 1 | Earthwork 12 versus 4; coordinate/count equality does not select the support input |
+| Slot 23 called after either fixture | Copy of drag coordinates only; no corner heights, support record or solved-entry ordering is returned |
+| Live replay has coordinates/status and public price, but lacks piece/plane/support inputs | Drag/status and native price remain observable; reconstructed live price is unavailable, not zero and not the native price |
+
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
 Only the player's tool UI withdraws money:
@@ -846,6 +866,112 @@ needed to instantiate a city fixture; they are not exposed by slot 23. Keep the 
 powerline 65/0 differences visible, default-off and record-only until the corresponding hosts/resources are
 wired and a fresh comparison passes. These contracts close the input-boundary question without claiming
 pole/wire/model coverage or exact whole-owner coverage from a public-total match.
+
+### 8.3.3 Occupied cells and the subclass/model host boundary (NT36)
+
+**An occupied cell is an observation, not a refusal.** For power lines the admitted observation boundary is
+the occupant manager, the returned occupants' interfaces, and the zone/lot/terrain services in §8.3.1.1.
+Use the complete classifier and pole/wire probes in [power-line-tool §6.1](power-line-tool.md#61-classifier-and-occupant-probes),
+then its §§4–5 placement rules. A list containing an occupant cannot be reduced to a Boolean blocked bit:
+some occupants do not affect classification, network-capable road occupants leave it unchanged, and an
+existing pole can be reused. Successful ray and lot calls alone do not complete these inputs.
+
+#### 8.3.3.1 Callable observations and reference ownership
+
+The following are existing interfaces, not new callbacks or new C ABI exports. Slot numbers are zero-based;
+the x86 interface calls are thiscall with the particular interface pointer in ECX. The
+[ABI interface tables](../abi/interfaces.tsv) and [allocator contract](../abi/allocators.md) apply.
+
+| Observation / operation | Callable boundary and payload | Ownership / meaning |
+|---|---|---|
+| Occupants of one standard city cell | `cISC4OccupantManager` slot 40, pop 20: output ilist, min2, max2, null filter, maximum count `0xFFFFFFFF`; both points are `(x,z)` | Appends in manager order, one AddRef per returned occupant; AL indicates the query operation, not whether the list is nonempty |
+| Occupant identity and position | `cISC4Occupant` slot 7, pop 0, class/type in EAX; slot 8, pop 4, writes a three-float world position | Query-list pointers are occupant interfaces, not subclass object bases |
+| Network/pole/wire capability | Occupant slot 0 QI `(IID,out)`, pop 8; test AL; IIDs `0x4A10AFC2`, `0xA8C86142`, `0xC98F3B24` respectively | Each successful query supplies a separate reference to release, even when the same object is already in the result list |
+| Pole cell after selecting a pole | Pole primary slot 8, pop 8, two integer out-pointers (`0x00649210`) | This is a different slot 8 from occupant GetPosition; preserve the interface type |
+| World position to standard cell | Manager slot 19, pop 16: x,z float arguments and two integer out-pointers | The pole probe compares both converted coordinates with the requested cell; a bounding-box hit alone does not qualify |
+| Insert a prepared occupant | Manager slot 20, pop 8: occupant interface, data4; AL result | Power poles pass data4=0; bridge pieces pass the tool's data4. A failed insertion remains a failed insertion, not successful host completion |
+
+In the older shorthand “flags 0 and mask -1” in the power-line spec, these final slot-40 arguments mean
+**null filter and unlimited maximum count**, not an occupant-flags mask. This follows the manager slot-40
+contract and the actual pushes at `0x0064FDB0`–`0x0064FDC9`. Supply a distinct, initially empty output list
+for each probe. The crossing ilist uses allocator A, a circular 12-byte sentinel and 12-byte nodes
+`{next,prev,occupant}`; it is not the manager's internal cell-holder list (allocator B). Preserve list order.
+After consuming it, release every element reference and free the nodes and sentinel with the matching
+allocator. Manager slot 48 can release/clear result elements and nodes; the caller still frees the head
+([occupant-manager §12](occupant-manager.md#12-containers-and-allocators-compat)). A recorder may copy value
+observations and stable test identities, but native pointers remain valid only while their references live.
+
+Classification starts at 0. The zone test can return 1 before any occupant read, including its literal third
+probe at `(z,z)`. On the occupant path class `0x278128A0` writes 2; class `0xC772BF98` writes 3 only when
+network QI fails. Successful network QI leaves the result unchanged. All other classes leave it unchanged.
+The walk continues after assignments, so the **last qualifying assignment wins**. Only a final 0 permits
+the lot probe, whose nonnull result writes 2. Preserve the full integer 0/1/2/3 result in EAX
+(`0x0064FD87`–`0x0064FE64`); a Boolean classifier loses behavior needed by pole selection.
+
+Pole and wire selection also scans the whole result list. The selected output is the last accepted QI;
+replace it by releasing the previously selected QI reference. Pole acceptance additionally requires its
+GetPosition/manager-slot-19 cell to match; wire acceptance has no endpoint or direction filter. Release
+all query-list occupant references independently. A DeterminePolePositions probe is released there;
+CreatePowerPole queries again rather than inheriting that earlier selection (`0x0064FFE0`–`0x0065013A`,
+`0x0065015E`–`0x0065016E`). Keep query failure or a missing service distinct from a successful empty query
+in the adapter's availability reporting; it is not evidence of a clear cell.
+
+#### 8.3.3.2 Placement is a separate host responsibility
+
+The public observations do not create a complete pole/wire or bridge model host. The host must implement
+the following effects, whether recording them in a fixture or placing actual occupants. Recording these
+effects certifies the recording scope only. Replacement-owned records may carry these values in any
+representation; they must not be passed as original STLport containers or original class objects.
+
+| Host responsibility | Required behavior and lifetime |
+|---|---|
+| Pole create/reuse | Requery the cell; reuse the last accepted pole, merge its existing direction mask with the requested mask, choose the merged-mask exemplar, and update its model. With no reusable pole create a pole and initialise it with exemplar and mask. Set the computed world position and draft state in either case. Keep a record reference until placement consumes it (`0x00650140`–`0x00650241`) |
+| Connections and wires | Create all pole records before connecting any. Reuse existing connections rather than duplicating them. Draft connections are temporary; real missing wire-cell occupants are initialised with endpoints, pivot, position and mode. Preserve both endpoint updates, saved endpoint references and undo/repair lifetimes; power-line-tool §5.2 includes the index-0 wire-release quirk |
+| Pole publication | Insert only newly created poles through manager slot 20. Draft reused/new lists acquire their own references; real poles refresh connections. Release and null the per-record pole reference in both modes. Releasing pole records does not erase retained pricing counts (NT32) |
+| Bridge geometry | Construct the selected specialised or parametric piece records before the ordinary solve, retaining all corner heights, model offsets, supports and cable data. The 0x50-byte piece record in network-bridges §9.2 is a transient geometry record, not an occupant or a renderer handle |
+| Bridge publication | Create a bridge-class network occupant (`0x49CC1BCD`) from the piece/cell corners, apply exemplar/rotation/model offset, flags, columns and suspended structures, then publish through the occupant manager. Real mode clears conflicting network occupants first; optional output-list retention takes a separate AddRef; release the local occupant reference at the end (`0x0062F55F`–`0x0062F5FC`) |
+
+For original pole pointers, QI `0xA8C86142` returns the primary base; its occupant subobject is base+8.
+Use that primary for pole methods and its occupant interface for manager insertion. The existing admitted
+direct-call contract for detachment is [RemoveConnection](../abi/direct-calls.md#csc4powerpoleoccupantremoveconnection-0x0064da00):
+thiscall on the first original pole base, second original pole base and false, pop 8, no result.
+This is not callable on a replacement-owned record. In particular the 48-byte pole record's interface at
+`+0x10`, created byte at `+0x14`, direction byte at `+0x15`, link vector at `+0x18` and saved endpoint
+references at `+0x24/+0x28` are **tool-owned transient data**, not the layout of the pole itself.
+Wire-cell records have stride 16, coordinates at +0/+4, owned line reference at +8 and pivot byte at +12.
+The complete ownership and repair rules are in power-line-tool §§4–5; neither record is publicly extracted
+from a live tool.
+
+There is no general “place model” method accepting either transient record. Original CreatePowerPole and
+PlacePoles depend on the original power-line subclass and directly construct their objects. Base-tool slot
+54 likewise depends on the original cell-info layout, terrain service and mode; for bridge class it directly
+allocates/constructs a bridge occupant (`0x006242D3`–`0x006242ED`). Calling slot 54 on the replacement, or
+calling an original helper with a replacement's record, does not outsource those dependencies. QI and manager
+insertion are admitted interface operations; these internal constructors/helpers are not a newly admitted
+factory ABI. A host must supply the class/model implementation and its documented effects, or leave that
+placement scope unavailable. A model-id list or successful resource selection alone cannot satisfy it.
+
+Bridge model geometry also affects simulation: the selected piece's corners enter the height constraints;
+its model origin and support-column top need not coincide. Follow network-bridges §§8–11, including the
+highest-corner position and model offset; omitting rendering may be a recording choice, but omitting
+those heights or support records changes the solve. The bridge insertion AL result is retained as the cell's
+placed byte (`0x0062F587`–`0x0062F5AB`). Neither that result nor a price certifies all pieces' model effects.
+
+The NT36 city observations (10 rays, 40 lot reads, straight prefix 13, selection complete=0;
+powerline valid 13/0 and price 65/0; bridge valid 17/0 and price 974/0) therefore remain partial observations.
+They do not describe an empty-city fixture or authorise substituting native totals. Supply these occupied-cell
+observations and class/model effects, then compare fresh results. Keep missing scopes unavailable and the
+replacement default-off until verified. No new game or whole-owner coverage is established by this answer.
+
+| NT36 boundary conformance vector | Required result |
+|---|---|
+| Zone path reaches occupant query; list is building-class then road-class with failed network QI | Classifier 3, both list references released, no lot query; reversing that list gives 2 |
+| Only a road-class occupant with successful network QI, lot null | Classifier 0; release QI and list references separately; no blanket occupied-cell refusal |
+| Cell `(4,5)` query returns pole A at converted `(4,5)`, B at `(5,5)`, C at `(4,5)` in that order | Select C with one caller-owned QI reference; release B's rejected QI, A's superseded QI and all three list references; a later creation probe must query anew |
+| Same list, wire probe accepts all three wire QIs | Select the last QI without applying the pole coordinate filter |
+| One reused pole with old mask 1 and requested mask 4, and one new pole | Reused pole uses merged mask 5 and is not inserted again; new pole uses requested mask and is inserted with data4=0; record references are released independently of draft-list references |
+| Bridge selection succeeds but model/corner host is absent | Selection scope can pass; reconstructed placement/price scope is unavailable, not successful placement or native 974 |
+| One fully supplied bridge piece, manager insertion returns false, optional output list supplied | Cell placed byte false; optional list acquires its reference; local reference released; model requests alone do not turn insertion into success |
 
 ---
 
@@ -1176,6 +1302,9 @@ original's layout *[choice]*. The pops agree with docs/abi/interfaces.tsv.
 
 ## 16. Answers given here
 
+- **NT35:** §8.1.4 defines the observation limit for retained live piece/plane/support inputs.
+- **NT36:** §8.3.3 defines occupied-cell callable observations, reference ownership and subclass/model
+  host responsibilities, with seven boundary vectors; observation completion is separate from placement.
 - **NT27:** §2.1 and §14 define the public copy/count contract. No public solved-record getter exists;
   drag/status/cost comparisons cannot certify solved pieces, types or orientation.
 - **NT28:** §3.5 specifies staircase rows and increasing width order; §5.3 corrects slot 14 to a Boolean.

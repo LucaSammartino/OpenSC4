@@ -184,7 +184,7 @@ cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, 
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md, automata-managers.md	-	-	-
-cSC4Pedestrian	automata (vehicles, animation)	simulation	pedestrians.md, automata.md	-	-	-
+cSC4Pedestrian	automata (vehicles, animation)	simulation	pedestrians.md, automata.md	core/src/pedestrians	-	-
 cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4FireTruck	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-

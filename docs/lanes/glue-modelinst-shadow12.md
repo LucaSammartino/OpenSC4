@@ -6,8 +6,9 @@
 
 - Prior tested merge a907efa2d, report commit 63285ec8d: all gate PASS; modelinst-mi14-merge-2032-r3 145/145 clean to 2032-01-10.
 - Diagnostic: final ancestry check found origin/main advanced to 625733fc6 during the long gate; diff adds viewutil_shadow at both exact conflict sites. Merge this advancement to avoid another skipped tip.
-- Run 632 was concurrently taken by train206; rename this lane's r3 record to free run 640 before merging.
-- Next: merge origin/main preserving all registrations; changed engine inputs justify another all gate and one confirmation, not a duplicate unchanged-source check.
+- Run 632 was concurrently taken by train206; this lane's r3 record is now run 640 (free on current main).
+- Merge of 625733fc6 resolves five additive conflicts: CMake, capi module, ini key/docs, observer shutdown. Keep both viewutil and modelinst throughout.
+- Next: commit merge, run final all gate on these changed inputs and one confirmation modelinst-mi14-merge-2032-r4; do not duplicate an active check.
 - No check or game request outstanding. No new owners/questions; no public ABI changes.
 
 ## Current-main refresh

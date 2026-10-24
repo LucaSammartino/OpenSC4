@@ -1166,5 +1166,7 @@ mod city_shadow;
 mod lighting_shadow;
 // LR14/T79 read-only live construction geometry; private static-link transport.
 mod construction_shadow;
+// VU16: private partial view-utilities comparison transport.
+mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;

@@ -653,6 +653,10 @@ std::string IniPath();
 // No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
+// viewutil_shadow = 0 / 1 (default 0): bit-exact cdecl rotation helper on
+// live cached view inputs and fixed vectors; 1/50 bodies only. VU16 blocks
+// min/max and other native signatures. No whole-owner verification claim.
+
 // modelinst_shadow = 0 / 1 (default 0): finite isolated static-instance
 // transform and bounds fixture plus the first 4096 natural static GetTransform
 // calls' destination counter/padding. MI14 bindings; no live enumeration.
