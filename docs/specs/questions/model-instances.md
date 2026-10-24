@@ -1,4 +1,5 @@
 # model-instances: open questions
+
 <!-- Questions about [model-instances.md](../model-instances.md). Append new entries at the END; when one is answered, move it to answered/model-instances.md. Rules: README.md. -->
 
 <!-- from: re-modelinst (2026-10-20) -->
@@ -18,3 +19,6 @@
 
 <!-- from: core-model-instances-contractfix4 (2026-10-22) -->
 - **MI13 - §6.1 wrapped interior-zero sheet keys:** for I=0x80000001 and input keys (0,0,0x7FFFFFFF,0,0), unsigned normalization gives (I,I,0,I,I). "A zero key cannot supply a downward source" does not specify whether encountering this interior zero fails immediately, resets the source, or fails only for a later equal-zero key. Does ReadAnim succeed, and what exact scales/source zooms are written? Also specify an initially zero key at zoom 4 after wrapping. [literal conservative failure whenever a normalized key is zero; this is marked a portable choice, separate from the proved I=0 false result and nonzero unsigned-wrap vector. No exact claim for wrapped-zero native resources.]
+
+<!-- from: glue-modelinst-shadow11 (2026-10-24) -->
+- **MI14 - Live shadow observation and native binding:** publish a deterministic read-only route to live basic/static/animated instances, processor outputs and sprite resources, including enumeration capacity/count, ownership and safe phase. SDK GetModelsInVolume has no published capacity/ownership contract; network GetModelInstances arguments are unknown. Specify animation/processor/resource getter signatures and layouts, and reconcile SDK pointer-returning GetDrawAttributes with §1's output record. Can bounds getters refresh original caches during a strictly read-only shadow? Confirm receiver-only thiscall constructor 0x00802950/nondeleting destructor body 0x00802620 on separate 0xA4-byte fixture storage. [Only a finite isolated static constructor/getter/transform/bounds fixture is measured; no live enumeration, native private-state reads, playback, processor or sprite whole-owner credit. Constructor/body-destructor binding follows the literal receiver-only interpretation used by existing isolated renderer fixtures.]

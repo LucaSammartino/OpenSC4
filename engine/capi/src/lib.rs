@@ -1162,3 +1162,5 @@ mod mysimdispatch_shadow;
 // Private production-core render-properties registry expectations.
 mod renderprops_shadow;
 mod city_shadow;
+// Private finite model-instance fixture transport; no DLL export changes.
+mod modelinst_shadow;

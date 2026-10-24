@@ -104,6 +104,7 @@
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
 #include "FC4RenderPropsShadow.h"
+#include "FC4ModelInstShadow.h"
 #include "FC4DbpfNative.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -674,6 +675,7 @@ public:
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 GZMsgShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 RenderPropsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                ModelInstShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
@@ -732,6 +734,7 @@ public:
                 PersistShadowCityShutdown();
                 GZMsgShadowCityShutdown();
                 RenderPropsShadowCityShutdown();
+                ModelInstShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
@@ -786,6 +789,7 @@ public:
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
                 RenderPropsShadowMonth(julian);
+                ModelInstShadowMonth(julian);
                 CityShadowObserve(CurrentCity(), julian, false);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
