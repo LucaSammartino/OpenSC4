@@ -133,6 +133,40 @@ The goal stack drives a set of behaviours, each a steering routine over the flig
   it and drops water *[summary]*.
 - Dispatch states: dispatch.md §4.3 (3, 4, 5, 6, 0).
 
+#### 3.3.1 Airplane LOITER countdown and ammunition (AF3) *[compat]*
+
+Airplane LOITER (53) requests dispatch state 5. On the first visit with the
+water-drop flag clear it sets that flag, installs a **2.0-second remaining
+countdown**, and subtracts one from the ammunition count. This subtraction has
+no positive-ammunition gate: entering LOITER with zero ammunition produces −1.
+While the flag is already set, visiting the goal does not reset the countdown
+or subtract another unit. The goal clears the flag and pops when the countdown
+is **less than or equal to zero**, including exactly zero. Thus neither a strict
+`>2000 ms` elapsed test nor an uncapped wall-clock timer describes this goal.
+
+The animation tick first subtracts its physics step from a positive countdown,
+before pursuing the goal. That step is in seconds, uses the AI time multiplier,
+and has the 0.2-second upper cap of §3.4.1. It is subtracted only once per tick;
+a countdown that crosses below zero is not clamped to zero. The first LOITER
+visit installs 2.0 **after** that tick's countdown update. Floating rounding can
+therefore move expiry between neighboring ticks even when their nominal total
+is two seconds. Compare the actual remaining value with zero.
+
+Construction gives ammunition **3**, a clear drop flag and countdown **0**.
+`Read` does not read or reset those three fields: a newly constructed object
+keeps those defaults, while reading into an existing object leaves its current
+values alone. A restored LOITER goal on a fresh object consequently starts a
+new 2.0-second drop and changes ammunition from 3 to 2; saved drop progress and
+ammunition are not reconstructed from the goal record. A change into flight
+phase 1 refills ammunition to 3; asking for phase 1 again does not refill (§3.5).
+The positive-ammunition checks in PUT_OUT_FIRE select future goals; they do not
+protect LOITER's own decrement.
+
+Evidence: countdown installation/decrement and inclusive expiry
+`0x0050472C–0x00504776`; animation time conversion/cap and countdown update
+`0x00504981–0x005049F7`, goal call `0x00504A6A–0x00504A71`; constructor
+`0x004FD059–0x004FD065`; Read `0x004FD3C0–0x004FD416`.
+
 ### 3.4 Flight model *[summary]*
 
 `UpdatePhysics` (`0x00503CB0`) integrates `CalculateForces` (thrust, lift, drag and the control surfaces, 3 KB),
@@ -272,6 +306,25 @@ arithmetic operation to binary32. The original uses x87 intermediate arithmetic
 and binary32 stores. Compare floating conformance results with an explicit tolerance;
 do not replace the cited encoded constants with the rounded decimal text.
 
+### 3.5 Flight-phase sound actions (AF4) *[compat]*
+
+The airplane's flight phase is independent of its goal stack. A request for the
+current phase is a complete no-op, including ammunition and sounds. For a
+different phase, the following table gives the ordered actions; sound requests
+are conditional on the aircraft's player-drive flag. Here **start** is an AEMS
+events-service request at slot `+0x14`, and **end** one at `+0x18`; the numbers
+are event groups, not effect resource IDs.
+
+| Requested phase | Non-sound action | Ordered sound requests when player-driven |
+|---|---|---|
+| 0 | store phase 0 | end 9, end 8, end 10, start 10 |
+| 1 | refill ammunition to 3; store phase 1 | from old phase 0: start 9; from old phase 3: end 13, start 13; from any other old phase: none |
+| any other value, including 3 | store requested phase | none in this setter |
+
+In particular, merely setting phase 3 does not start group 13 here. This table
+defines the setter's actions; collision and flight-physics triggers for other
+audio requests remain part of AF2/AF4. Evidence: `0x004FCEF8–0x004FCFA8`.
+
 ## 4. The helicopter *[compat]*
 
 ### 4.1 Drive-parameter record (AF1)
@@ -363,13 +416,152 @@ it is called on that existing model.
 - `PhysicsInit` and `InitInstance` set up the rotor model; `NextFrame` (`0x005397C0`) computes the engine power,
   then yaw, pitch, roll and slide (`YawPitchRollSlideReal`, with limits ±890 and 250), the
   horizontal move (`MoveXZReal`) and the vertical move (`MoveYReal`, kept above `GetAltitude`) *[summary]*.
-- **AI controls**: `AI_ControlReset`, `AI_ControlHover` (bounds −150 and 100 *[inferred: vertical rates]*),
+- **AI controls**: `AI_ControlReset`, `AI_ControlHover` (§4.2.1),
   `AI_ControlMoveXZ` (bands ±10 and ±20 *[inferred]*), `AI_ControlLiftOverBuildings` (climbs when the ground ahead
   is higher), and `AI_PursueGoal` (automata.md §6.6, including the chase of case `0x34`).
 - **Spotlight** (`UpdateSpotlight`, 2 KB): the light cone follows the ground below or the target *[summary]*.
 - **States** (`SetHelicopterState`): each starts or stops its AEMS rotor sounds.
 - **U-Drive-It**: `OnPlayerTakeOver` loads the player parameters; `TranslatePlayerDriveCommands` (2.4 KB) flies it
-  and fires `helicoptermissle` or, for the UFO, `ufolaser`.
+  and attempts the named weapon effects (§4.3).
+
+#### 4.2.1 Reset and hover controls (AF3) *[compat]*
+
+These are updates of the rotor **control record**, not complete motion ticks.
+Let its four binary32 controls be `b` (lateral, record +0), `p` (longitudinal,
++4), `c` (collective, +8), and `r` (yaw, +12). The record belongs to the
+helicopter at +0x258; the runtime rotor belongs to it at +0x254. Offsets here
+identify observed fields, not additional serialized data. For finite inputs
+and a nonnegative step `h` in **seconds**, let `limit(x,L,U)` keep x within the
+inclusive bounds L and U. The constants below are binary32 operands; the
+original performs the arithmetic with x87 intermediates and stores binary32
+results. These rules do not assert non-finite equivalence for the wider rotor
+model (AF2).
+
+**Reset** approaches `b`, `p` and `r` toward zero and `c` toward −100, each by
+at most `100*h` per call. More explicitly, each new control is its old value
+plus the target-minus-old difference limited to `[−100*h,100*h]`. It then
+updates two runtime angular demands using the **new** controls:
+
+| Runtime output | Value |
+|---|---|
+| bank demand (+0x104) | `limit((b * BankChangeRate) * 0.025, −BankMax, BankMax)` |
+| pitch demand (+0x10C) | `limit(((g * PitchChangeRate) * (−p)) * 0.025, −PitchMax, PitchMax)` |
+
+`g` is the runtime pitch factor (+0x1C8), supplied by the rotor simulation;
+reset neither replaces it with 1 nor recomputes it. `0.025` has bits
+`3CCCCCCD`. The longitudinal sign is deliberate: reset stores `p` back in the
+control record but uses **−p** for the pitch demand. The yaw/collective changes
+do not make reset a call to the motion integrator. Evidence: control updates
+`0x00534F79–0x005350B3`, demands `0x005350B6–0x0053516B`.
+
+**Hover** changes only `c`. Let `vy` be rotor vertical velocity (+0xD4), `y`
+the aircraft's current world Y, and `H` the requested **absolute world height**.
+First form `u = vy * 0.3`, then a predicted height `y + u*0.5`. The desired
+collective increment is `((H − (y + u*0.5))*0.1 − u)*0.5`. The native
+expression adds the old collective and subtracts it again before limiting this
+increment; retain that operation order when reproducing rounding. Limit the
+increment to `[−100*h,100*h]`, add it to the old collective, and finally limit
+the result to **[−150,100]**. These last two constants bound a control value,
+not a world altitude or a vertical velocity. There is no direct assignment of
+position or vertical velocity. The binary32 operands 0.3, 0.1 and 0.5 have bits
+`3E99999A`, `3DCCCCCD` and `3F000000`. Evidence:
+`0x005353C9–0x0053547D`, including both final bound stores.
+
+The animation caller converts milliseconds to seconds with binary32
+`3A83126F`, then applies the AI multiplier where eligible and caps the result
+at binary32 `3E4CCCCD` (0.2). This step is passed to both `AI_PursueGoal` and
+`UpdatePhysics` (`0x0053C647–0x0053C69E`). Thus the `h` supplied to reset,
+hover and chase is already in seconds. In this caller the AI multiplier is
+suppressed when the helicopter is player-driven, or when its chase state
+references a target containing PLAYER_DRIVE (`0x0053C613–0x0053C645`).
+
+#### 4.2.2 Chase distance gates (AF3) *[compat]*
+
+For CHASE (52), a null target or a target whose **top** state is not
+PLAYER_DRIVE (16) makes the helicopter pop the chase goal and return before
+steering. A valid target supplies position `T`, orientation `D` and speed `s`.
+The lead position is `L = T + D*(s*1000*h)`, with the multiplication by 1000
+literal. The caller has already converted milliseconds to seconds (§4.2.1):
+do not multiply an unconverted millisecond delta by 1000 again. The speed's
+unit convention and conversion are preserved rather than replaced by a
+conventional `s*h` lead. Evidence: `0x0053BBD4–0x0053BC90`.
+
+Let `v=(L.x−x,0,L.z−z)` and `d=length(v)`. The horizontal direction is formed
+by dividing v by d before the distance branches; there is no zero-distance
+guard on this normalization. The helicopter requests engine startup, enables
+the spotlight and asks its aim helper to track L before the following gates.
+
+| Condition, evaluated with the pre-teleport d | Behavior |
+|---|---|
+| d > 192 and current opacity exactly 0 | place X/Z at `L − normalize(v)*128`, preserve the old world Y, synchronize the rotor's scaled position, request opacity 1 |
+| d > 192 and current opacity exactly 1 | request opacity 0; no teleport on this visit |
+| d > 192 and opacity strictly between 0 and 1 | no teleport or new opacity request |
+| d > 32 | call horizontal movement with v, speed argument 2 and h, then building-clearance lift |
+| d ≤ 32 | call the same horizontal movement, then hover at `L.y+20` |
+
+The opacity operations precede the last two rows. Teleportation does not
+recompute d or v for the subsequent controls on that visit. At exactly 192
+there is no fade/teleport operation; at exactly 32 the hover branch is used.
+There is no positive-opacity teleport. The opacity request duration is the
+shared runtime fade-duration value; no new literal duration is assigned here.
+Evidence: `0x0053BC94–0x0053BE5A`; binary32 distances 192, 128, 32 at
+`0x00B09FDC`, `0x00B09FD8`, `0x00B09FD4`; height offset 20 at `0x00A98F94`.
+The rotor position synchronization multiplies each world component by binary32
+`40555555` (approximately 3.33333325386). Spotlight aim smoothing and the
+movement/building-lift laws remain AF5/AF3.
+
+#### 4.2.3 Helicopter phase requests (AF4) *[compat]*
+
+The helicopter's phase setter does **not** have the airplane's same-phase
+early return. Every invocation stores the requested runtime phase and applies
+the actions below. The engine flag is independent of the phase number for
+requests other than 0, 1 and 4. Sound requests use the §3.5 AEMS operations and
+are conditional on the player-drive flag.
+
+| Requested phase | Engine and motion effects | Ordered sound requests |
+|---|---|---|
+| 0 | engine off; clear landing latch; reduce each nonzero finite linear/angular velocity vector to zero | end 9, end 8, end 10, start 10 |
+| 1 | engine on | none |
+| 4 | engine on | start 9 |
+| any other value, including 3 | preserve engine flag and velocities | none |
+
+Afterward, on **every** call, notify the base engine hook of whether the engine
+flag is nonzero. When the engine is off, send operation `+0x1C(1)` to the
+embedded object at helicopter +0x240 and `+0x18(0)` to the one at +0x22C;
+when on, send `+0x18(0)` to +0x240 and `+0x1C(1)` to +0x22C. These paired
+rotor model/animation notifications repeat even for an unchanged phase. Their
+concrete attachment construction remains in AF4; they are not extra AEMS sound
+group requests. Phase 0's velocity operation divides zero by the vector's
+length and multiplies each component only when squared length is positive;
+it does not replace that operation with unconditional zero stores.
+
+Evidence: request dispatch `0x00533DC0–0x00533E27`, phase-0 velocity operations
+`0x00533E31–0x00533EE7`, sound actions `0x00533EF3–0x00533F1C`, unconditional
+phase write and notifications `0x00533F20–0x00533F96`. This corrects any summary
+that applies the airplane's repeated-phase no-op rule to the helicopter.
+
+### 4.3 Named player weapon requests (AF5, partial) *[compat]*
+
+Both aircraft command translators first run the base command translator. They
+then examine command slot 7 (the binary32 value at player record +0x98). For
+a finite value below zero no weapon request is made. A nonnegative value,
+including zero, calls operation +0x14 on the aircraft's embedded effect object
+at +0x18C. Only when the player record's readiness byte at +0x1FF is nonzero
+does the owner then attempt a named effect, through operation +0x30 with the
+name and two zero arguments. The airplane attempts `jetbomb`. The helicopter
+attempts **`helicoptermissle` first and `ufolaser` only if that attempt fails**.
+The latter is a failure fallback, not an aircraft-type/UFO branch. Preserve
+the original `missle` spelling.
+
+On named-effect success, the owner clears the player record's repeat timer at
++0x1E0 and readiness byte at +0x1FF, and increments its slot-7 use count at
++0x178 by one (32-bit wrapping). If all attempts fail, those three fields are
+unchanged by this owner block. It does not decrement the airplane's water-drop
+ammunition, install a fixed weapon cooldown, or construct a projectile itself
+here. Cadence comes from base command readiness and effect processing; effect
+attachment, projectile setup and the rest of the player-control contract are
+still AF5. Evidence: airplane `0x0050114C–0x005011ED`, helicopter
+`0x00539A61–0x00539B50`.
 
 ## 5. The air dispatch sources *[compat]*
 
@@ -464,3 +656,47 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
     the base goal remains available independently. On an existing runtime model,
     change Mass to 7, then call InitInstance again: Mass remains 7. A direct
     PhysicsInit resets phase to 0 but does not recopy Mass from the preset.
+17. Isolate helicopter reset with controls `(b,p,c,r)=(30,−30,0,−20)`,
+    `h=0.1`, `g=1` and the normal preset. Expect controls approximately
+    `(20,−20,−10,−10)`, bank demand +200 and pitch demand +200. Tolerance
+    0.0001. Repeat at `h=0`: controls stay fixed but angular demands are still
+    recomputed. A step of 1 reaches `(0,0,−100,0)` without overshooting.
+18. Isolate hover with `y=100`, `vy=10`, old collective 0, target height 100,
+    `h=0.1`: expect collective approximately −1.575 (tolerance 0.00001).
+    With zero velocity, target 1000 and the same old collective/step, expect
+    +10 due to the increment limit. Starting at collective 99 instead gives
+    100 after the final bound. A very low target, old collective −149 and
+    `h=0.1` gives −150. Position and velocity are unchanged by this helper.
+19. Chase lead: target `(10,20,30)`, orientation `(1,0,0)`, speed 0.02 and
+    already converted step 0.1 seconds gives lead approximately `(12,20,30)`.
+    Use tolerance 0.00001. Do not feed 100 milliseconds directly to the helper.
+    With target stationary, helicopter `(0,40,0)` and target `(200,10,0)`,
+    opacity 0: teleport to approximately `(72,40,0)`, synchronize the scaled
+    rotor position, request opacity 1, then use the pre-teleport movement branch
+    (`d=200>32`). At opacity 1 request opacity 0 without moving instantly;
+    at opacity 0.5 make neither opacity request nor teleport. Distances exactly
+    192 and 32 exercise respectively the no-fade and hover branches.
+20. Airplane LOITER with a clear drop flag and ammunition 0 installs countdown
+    2.0, sets the flag and changes ammunition to −1. Another goal visit without
+    a countdown advance makes no further decrement. With the flag set, direct
+    countdown values `0.0001`, `0`, `−0.0001` respectively keep, pop and pop the
+    goal; popping clears the flag. An animation tick starting with countdown
+    0.125 and a 0.125-second physics step reaches zero and expires that visit.
+    Read on a fresh airplane does not restore the saved drop progress or ammo:
+    its first restored LOITER visit starts 2.0 with ammunition 2 (§3.3.1).
+21. Airplane phase 0→1 refills ammo to 3 and, if player-driven, requests start
+    group 9. Set ammo to 1 and request 1 again: ammo stays 1, no sound request.
+    Phase 3→1 refills and requests end 13, start 13. Phase 1→0 requests end 9,
+    end 8, end 10, start 10. Clear the player flag: phase/refill changes still
+    occur, with no sound requests.
+22. Helicopter phase 4→4, player flag set: engine remains enabled and start 9
+    and the base/model notifications repeat. Phase 0→0 repeats end 9, end 8,
+    end 10, start 10 and the engine-off notifications. Phase 3 preserves an
+    already enabled engine; requesting it from an engine-off object keeps the
+    engine off. Neither case adds a sound request.
+23. Ready helicopter weapon command 0: successful `helicoptermissle` makes no
+    `ufolaser` attempt. Failed missile followed by successful laser counts as
+    one use and clears readiness/repeat timer. Both failing preserves those
+    fields. Not-ready command 0 still makes the preliminary +0x14 call but no
+    named attempt. Command −1 makes neither call. Successful airplane `jetbomb`
+    changes the player use count, not its water-drop ammunition.
