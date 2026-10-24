@@ -16,7 +16,8 @@
 - Added expected-path and stored-input diagnostics; startup now waits for a published positive Julian. Formatting fix applied in place. This source change requires final all after diagnosis.
 - Diagnostic gate exec session 35565 collected to exit=0: cargo 7407/0/0, clippy 0 diagnostics, native qbuild-20261024-203333-build-ctest 177/177 edges and 81/81 CTests PASS.
 - AP18 filed for observed lazy slot65/66 base/suffix/pre-cache-input disagreement. Supported app/app-startup now compare 17 fields; app_shadow_path_cache=1 separately enables app-path-cache diagnostics, default off. Literal core unchanged; no resync.
-- Normal-speed request app-shadow13-2032-r2normal submitted to 2032 with app_shadow=1 and app_shadow_path_cache=1 (AP18 diagnostic).
+- Normal app-shadow13-2032-r2normal completed clean to 2032-01-01, ref_warnings=0: app 72/72, app-startup 1/1, separate AP18 app-path-cache 0/73 (run 632). Same differences without turbo; exact native/expected inputs appended to AP18.
 - Final stable-source all runs via build-runs/run-app-final-gate.py, console build-runs/app-closure-gate-console.log; previous evidence saved under build-runs/app-diagnostic-gate/.
-- Next: collect normal game and final gate, then turbo supported app_shadow (cache diagnostic off) to 2032; record exact labels and finish ready partial scope.
+- Final gate exec session 90866 running on stable engine source d0cad6574; collect to terminal. Turbo supported-only request app-shadow13-2032-r2exact outstanding, wait exec session 63480.
+- Next: collect exact turbo game and final gate; record exact labels and finish ready partial scope. No new engine work remains; AP17/AP18 stay open.
 - Clean-room: no analysis sources, tools/, or game binaries read.
