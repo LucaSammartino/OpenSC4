@@ -486,8 +486,10 @@ cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
-cRZSpanList	2D drawing and fonts	renderer	-	-	-	-
-cRZRGBColorConverter	2D drawing and fonts	renderer	-	-	-	-
+cRZSpanList	2D drawing and fonts	renderer	gz-graphics.md, rz-draw.md	-	-	-
+cRZRGBColorConverter	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+cRZRGBColorConverter::Format	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:SC4CreateSpanList	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 cGZGimexFactory	2D drawing and fonts	renderer	-	-	-	-
 cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-

@@ -3,8 +3,9 @@
 Scope: the free-function owners `fn:RZDrawDrawCircle` (6,749 bytes), `fn:RZDrawBltEdge` (2 functions, 1,746),
 `fn:RZDrawBltTiled` (1,101), `fn:RZDrawBltStretch` (829), `fn:RZDrawRectangleOutline` (263),
 `fn:RZDraw3DRectangleOutline` (210), `fn:RZDrawRaisedRect` (2, 184), `fn:drr_get_color` (160),
-`fn:DrawRectangleOutline` (146), `fn:DrawLineAntialiased` (1,584) and `fn:DrawTriangle` (106) as tools/coverage.py
-assigns them. They draw
+`fn:DrawRectangleOutline` (146), `fn:DrawLineAntialiased` (1,584) and `fn:DrawTriangle` (106), plus the span
+lists (`cRZSpanList`, 13 functions, 2,529 bytes, with gz-graphics.md; `fn:SC4CreateSpanList`, 911) and the colour
+converter (`cRZRGBColorConverter` and `::Format`, 5 functions, 2,586 bytes), as tools/coverage.py assigns them. They draw
 into a buffer (`cIGZBuffer`) or a draw context; the windows of the toolkit call them for frames, edges, bars and
 outlines.
 
@@ -82,13 +83,56 @@ buffer's slot 29 `(picture, &src, &dst, flags)` or a draw context's slot 38 `(pi
   the three points as a simple polygon (`SetPolygonSimple(points, 3)`) is drawn with the last two arguments
   (`cRZSpanList::Draw`), then freed.
 
-## 4. Quirks
+## 4. Span lists (`cRZSpanList`, `fn:SC4CreateSpanList`) *[compat]*
+
+A span list is a vector of 8-byte spans `{int32 y, int16 x1, int16 x2}` (half-open `[x1, x2)`), in row order. The
+polygon fill (`SetPolygonSimple`, `0x00932700`, with its edge stepping `0x00932450` and edge setup `0x00931220`) is
+specified in gz-graphics.md §3.2 (the two-chain fill and its 16.16 edge accumulators). The rest:
+
+- **Constructor** (`0x00932170`): an empty vector. Vector helpers: copy a range (`0x00931FF0`), fill n copies
+  (`0x00932030`), reserve (`0x009320D0`), insert-and-grow (`0x00932180`), `AddSpan(x1, x2, y)` (`0x00932260`, a
+  push-back), and a 12-byte-element vector of n zeroed entries for the edges (`0x00932070`).
+- **`SetEllipse(L, T, R, B)`** (`0x009322D0`): the list is emptied; rows `y` from `ceil(T − 0.5)` to `ceil(B − 0.5)`;
+  with centre `cx = (L + R)/2 − 0.5`, `cy = (T + B)/2 − 0.5` and `h = B − T`: `d = h² / 4 − (y − cy)²`; when `d > 0`,
+  `half = √d · (R − L) / h` and the span `[ceil(cx − half), ceil(cx + half))` is added when it is not empty.
+- **`Draw(buffer, colour)`** (`0x00931EF0`): clipped to the buffer's bounds (slot 12): spans above the top are
+  skipped, drawing stops at the first span at or below the bottom, each span is cut to `[max(x1, L), min(x2, R))` and,
+  when not empty, filled one row high with the buffer's slot 19 `(colour, x1, y, x2, y + 1, 0)`, all under lock
+  `0x8001`.
+- **`FillEllipse(buffer, L, T, R, B, colour)`** (`0x00932670`): under lock `0x8001`, `SetEllipse(L, T, R + 1, B + 1)`
+  then `Draw` (the circle's filled case, §3).
+- **`SC4CreateSpanList(buffer, out, shift, withValues)`** (`0x007AD400`): scans a 32-bit buffer under lock `0x800`, row
+  by row; a run is a stretch of pixels whose byte `(pixel >> shift) & 0xFF` is not 0. For each run it appends the
+  run's start and end as linear indices (`row · width + x`) to `out` (a vector of `uint32`), and with `withValues`
+  the run's byte values after its end index. The output is used for region masks (region-screen.md).
+
+## 5. The RGB colour converter (`cRZRGBColorConverter`) *[compat]*
+
+Converts pixels between formats through four 256-entry lookup tables, one per source byte.
+
+- **Formats** (`Format::Format(type)`, `0x009312C0`): `{bits, A, R, G, B masks}` for the colour types: 4 → 16-bit
+  `0x7C00/0x03E0/0x001F`, no alpha; 5 → 16-bit 565 (`0xF800/0x07E0/0x001F`); 6 → 1555 (alpha `0x8000`); 7 → 4444
+  (`0xF000/0x0F00/0x00F0/0x000F`); 8 → 32-bit `0xFF0000/0xFF00/0xFF`, no alpha; 9 → 8888 (alpha `0xFF000000`); others
+  all zero.
+- **`SetFormats(dst, src)`** (`0x009313B0`): for each source byte position k (0–3) and value v, the table entry is the
+  sum over the four channels of `((v << 8k) & srcMask) >> srcShift`, scaled by `0xFFFFFFFF / (srcMask >> srcShift)`
+  to 32 bits, shifted down to the destination channel's top bit and masked with `dstMask`; the first table also adds
+  the full destination mask of every channel the source lacks (so a missing alpha becomes opaque). The bytes per pixel
+  of both formats (bits / 8) are kept (`+0x1000`, `+0x1004`). `0x009312A0` is the shift of a mask's lowest set bit.
+- **`Convert(dst, dstPitch, src, srcPitch, width, height)`** (`0x009317F0`): each destination pixel is the sum of the
+  table entries of its source bytes, for every pair of 2-, 3- or 4-byte source and destination pixels.
+
+## 6. Quirks
 
 - `RZDrawRectangleOutline` misses the top-right pixel and is only consistent for `t = 1` (§1).
 - `RZDrawDrawCircle` writes 16-bit pixels whatever the buffer's format.
 - `DrawRectangleOutline` stops at the first failing line, leaving the outline partly drawn.
 
-## 5. Function inventory
+## 7. Function inventory
+
+§4: `0x00931EF0`, `0x00931FF0`, `0x00932030`, `0x00932070`, `0x009320D0`, `0x00932170`, `0x00932180`,
+`0x00932260`, `0x009322D0`, `0x00932670` (and `0x00931220`, `0x00932450`, `0x00932700`, gz-graphics.md), `0x007AD400`.
+§5: `0x009312A0`, `0x009312C0`, `0x009313B0`, `0x009317F0`. §1–§3:
 
 `0x008D6CF0` `RZDrawDrawCircle`; `0x008D8760` `drr_get_color`; `0x008D8800`, `0x008D9550` `RZDrawBltEdge`;
 `0x008D8BC0` `RZDrawBltTiled`; `0x008D9020` `RZDrawBltStretch`; `0x008D9360` `RZDrawRectangleOutline`; `0x008D9470`
