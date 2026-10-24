@@ -6,9 +6,10 @@
 
 - Goal: round 3 merge fix only; RP8 remains open and shadow remains partial.
 - Prior measured result: `3b91d3b8f`, renderprops 73/73 exact to 2032, clean, ref_warnings=0.
-- Merging main: resolved additive conflicts in capi modules, CMake sources and observer load/month calls, preserving both sides.
-- RP7 open entry already removed; answered archive pointer remains. RP8 remains open.
-- Next: run explicitly requested questions index, commit merge, qbuild all to terminal result, update report and queue with full HEAD.
+- Merge committed as `e1480c430`; additive conflicts in capi modules, CMake sources and observer load/month calls preserve both sides.
+- RP7 open entry already removed; answered copy confirmed. RP8 remains open. Requested questions index regenerated and committed with merge.
+- Round 3 qbuild all: workspace 7056 passed, 0 failed/ignored; clippy zero diagnostics.
+- Next: collect SAME qbuild session 98888 / native queue `qbuild-20261024-102805-build-ctest` to terminal result, update report and queue with full HEAD.
 - No new game request outstanding; prior unique completed verdict remains valid.
 
 ## Result and coverage
