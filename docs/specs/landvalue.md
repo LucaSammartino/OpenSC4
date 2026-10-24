@@ -416,7 +416,8 @@ arguments; DoMessage receives M and the single four-byte message argument, retur
 and removing four bytes. This span evidence supplies neither a branch displacement nor
 permission to patch executable memory.
 
-**Installation and restoration preconditions (still required, not implemented).**
+**Installation and restoration preconditions (adapter obligations, not native guarantees).**
+LV8's distinction between a lifecycle notification and exclusion is specified in §6.1.4.
 
 1. Register the observer for synchronous pre-init and pre-shutdown early enough to receive
    them for every supported city entry path. Validate executable identity, entry bytes and
@@ -442,16 +443,17 @@ permission to patch executable memory.
    the native reference-count field. Clear all owner identity/progress at city teardown;
    an address reused by the next city is a new owner.
 
-**Adapter installation evidence still required.** The native lifecycle and the six-byte DoMessage span
+**Adapter installation evidence still required (LV8: host-owned).** The native lifecycle and the six-byte DoMessage span
 are established, but a complete safe installation is not. The unproved branches are
 (a) observer registration/executable-mutation availability before the synchronous calls
 at `0x00454937` and `0x00455898`, (b) exclusion of OnTick/notification/in-flight entry
 while installing or restoring, including during the pre-shutdown call `0x00454ABF`, and
 (c), for an object-only route, the interval from CreateCityComponents's return to
 land-value registration on the new-city path. No native callback into the observer has
-been established in that interval. These obligations need a reconciled adapter/host
-lifecycle or additional native dispatch proof, not guessed detour bytes or proxy
-re-registration. Keep `input_capture=pass-end-sample; native_step_capture=0` until they,
+been established in that interval. Section 6.1.4 closes the native-boundary question:
+none of these lifecycle notifications provides a mutation/drain barrier. The host must
+satisfy the explicit dispatch contract there; this is adapter acceptance work, not an
+unpublished native installation API. Keep `input_capture=pass-end-sample; native_step_capture=0` until they,
 the actual capture implementation and full train gate are satisfied. The field ABI is published;
 it does not supply these host guarantees. LV2/LV7
 still require runtime traces at the real read boundaries.
@@ -523,7 +525,65 @@ claim of complete input provenance. A partial trace may describe its observed in
 does not prove a complete pass. Until those conditions are demonstrated, existing output
 comparisons remain `input_capture=pass-end-sample; native_step_capture=0`, even if exact.
 LV2 and LV7 remain open runtime questions. No result in this static ABI answer changes their
-algorithms, sampling, golden outputs or fidelity credit. Conformance examples are §16.19–25.
+algorithms, sampling, golden outputs or fidelity credit. Conformance examples are §16.19–31.
+
+### 6.1.4 LV8: lifecycle ordering versus host dispatch exclusion *[compat]*
+
+**Answer.** No native city lifecycle notification in §6.1.2 supplies the requested
+guarantee of no tick, notification or in-flight entry during interceptor installation
+or restoration. Synchronous pre-init orders the sender before city Init; synchronous
+pre-shutdown orders it before city Shutdown. Neither operation acquires an exclusion
+barrier for the observer. Ordinary pause still permits idle dispatch
+(`0x00703F2C–0x00703F4E`); HiddenPause changes a count and posts a message, without waiting
+for an existing delivery (`0x00702200–0x0070221B`). OnTick's reentrancy byte governs that
+OnTick loop (`0x00703F05–0x00703F0C`, cleared at `0x00703F67`), not arbitrary message-server
+dispatch or mutation by an observer. The message server releases its collection lock
+before calling its retained target snapshot (`0x0092EAF1–0x0092EB15`). Consequently
+LV8's proposed lifecycle-only installation guarantee **differs** from the original.
+The contract below defines what a host must supply; it does not name an existing game
+installation API or certify any particular plugin callback.
+
+**Native closure table.** These answers replace any reading of §6.1.2's candidate
+boundaries as an approved installer. All addresses refer to GOG 1.1.641.
+
+| Obligation | Native behavior and conclusion |
+|---|---|
+| Subscribe before pre-init | NewCity sends pre-init at `0x00454937` and calls city Init at `0x00454941`; LoadCity sends it at `0x00455898` and calls Init at `0x004558A2`. A subscription already present observes that ordering. The sends do not install or register an observer, replay a missed notification, or prove when an external host registered it. |
+| Both construction paths | NewCity's land-value owner is created inside city Init, after pre-init (§6.1.2). A QI of an owner during loaded pre-init therefore does not establish coverage for a new city. A global native M route can cover future owners, but only if the host safely establishes it before their first initialized delivery. No new per-object callback is implied. |
+| Pause or post-init as installation point | Ordinary pause permits idle; HiddenPause does not drain. Post-init is queued and the simulator resumes on its handler (§6.1.2); subscription order does not certify observation before the first Step. None is a mutation barrier. |
+| Pre-shutdown as restoration point | PartialCloseCity pauses and makes application dispatch calls at `0x00454A98` and `0x00454AAB`, then sends pre-shutdown at `0x00454ABF` and calls Shutdown at `0x00454AC9`. This is notice before destruction, without a wait for all observer entries or retained notification targets. |
+| Unsubscribe and hold L/M | Shutdown clears initialized at `0x006BDF81`, removes M's agents at `0x006BDF9E`, then removes subscriptions and destroys inputs. A retained reference preserves allocation, not the grids. A target already copied by message-server dispatch remains callable after unsubscription. Neither operation retires a forwarder. |
+
+**Required host dispatch contract.** This is a behavioral acceptance contract for an
+adapter, separate from native simulation behavior. An installer must identify the host
+mechanism satisfying each row, or leave native capture disabled. Calling an arbitrary
+callback “pre-init,” “paused,” or “on the simulation thread” is insufficient evidence.
+
+| Phase | Required observable guarantee |
+|---|---|
+| Admission and exclusion | Before changing a shared native M slot, affected vptr or executable span, prevent new affected calls from resolving/entering that route and let previously admitted calls finish. This covers calendar and idle deliveries, message-server notifications, nested dispatch and every thread allowed to use the route. For a global route it covers all owners, not only the city currently observed. A lock or counter entered only inside the forwarder cannot exclude a caller that has already fetched a destination or is executing the native prefix. |
+| Publication | Validate identity and ownership under that exclusion, publish a complete usable forwarding route, and keep the native target, message identity, registration order, budget and result unchanged (§6.1.1). Validation failure leaves the native route intact and capture disabled. No byte sequence, memory-protection API, atomic-publication primitive or detour implementation is specified here. |
+| Startup coverage | The route must be ready before the first initialized delivery on **each** new and loaded city path. Do not read progress during construction/Init; native Init registers M before its final initialized store at `0x006BE79D`. The host must exclude delivery in that interval, then observe actual deliveries after Init completes. A route discovered later may collect a partial diagnostic trace but cannot label the missed startup pass complete. |
+| Observation interval | Keep owner inputs valid throughout the before/native/after interval and prevent relevant world mutation between the copies and native reads. Do not pump dispatch from observation. If nested or concurrent entry cannot be excluded, do not claim a faithful record for that interval. Every real native delivery still forwards exactly once; observation must not suppress a delivery, replay one or synthesize a Step. |
+| Owner shutdown | Stop admitting private reads for that owner and complete any admitted before/native/after interval **before** native Shutdown destroys its inputs. Quiescence cannot be obtained by waiting for the currently executing callback to return from inside that same callback. A host that cannot arrange this ordering must not start capture. Clear city identity and borrowed pointers; retain only owned input records. A later city at the same address is a different owner. |
+| Restoration and retirement | Under route-wide exclusion, restore only a route still owned by this installer. A foreign replacement must not be overwritten. Prove that no executing call, fetched destination, retained target or nested callback can still reach the observer's code, table, continuation or context before reclaiming them or unloading its module. A zero count of calls already inside the observer, an unsubscribe, or the queued post-shutdown message is not that proof. Separately held L/M references are released after their last use and any owner-specific restoration; their reference counts are never edited directly. |
+
+**Global and owner lifetimes are distinct.** A host may keep a global forwarding route
+installed across city changes, provided it remains valid and resident and obeys the
+owner-read rules above. Pre-shutdown then ends that city's capture, not necessarily the
+global route's lifetime. A surviving route forwards uncaptured messages without reading
+retired owner state. Retaining code/table/continuation resources until process exit can
+avoid reclaiming them between cities; it does not excuse unsafe initial publication,
+lost startup deliveries, reads after Shutdown, or a module unload while still reachable.
+Conversely, restoring the route does not by itself retire a callback already in flight.
+
+**Acceptance result.** LV8 is closed as a native-contract question: the game supplies
+lifecycle ordering, not the requested exclusion facility. A host implementation must
+demonstrate the contract above with install/restore and lifetime evidence; there is no
+further native field or signature to infer for this answer. Until that evidence and the
+actual before/forward/after capture exist, retain
+`input_capture=pass-end-sample; native_step_capture=0`. Closing LV8 does not close LV2 or
+LV7, certify an installed adapter, or upgrade exact sampled output to input provenance.
 
 ## 7. Formulas *[compat]*
 
@@ -912,6 +972,11 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
    lifetime and real input-provenance validation remain adapter acceptance work; LV2/LV7
    remain open. The existing pass-end sample earns no per-Step fidelity credit.
 
+6. *(resolved)* LV8, installation/exclusion contract: §6.1.4. Native pre-init and
+   pre-shutdown provide ordering only. The host must supply route admission, draining,
+   safe publication and retirement; vectors 26–31 distinguish these from notifications.
+   This static answer grants no native capture or LV2/LV7 runtime verification credit.
+
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
 Shipped tuning unless stated; S = 2.
@@ -999,5 +1064,51 @@ Shipped tuning unless stated; S = 2.
     acceptance evidence; these static vectors alone do not certify an installed adapter or
     settle the LV2/LV7 runtime incidents.
 
-Vectors 19–25 are specified here for an engine/adapter lane to implement; this RE lane has
+26. **LV8 lifecycle-only rejection vector.** With no host exclusion mechanism, receive
+    synchronous pre-init, obtain QI, ordinary-pause the simulator and request installation.
+    Expected: installation is ineligible; capture stays off. Replace ordinary pause with
+    HiddenPause or a queued post-init callback: still ineligible. None drains affected
+    callers. Native deliveries retain their original identity/order and occur once;
+    no test may manufacture a Step to make this case pass.
+27. **LV8 startup coverage vector.** Test new and loaded cities separately. With proven
+    host exclusion, publish the validated global route before city Init; allow no private
+    reads while Init is running, including after agent registration and before the final
+    initialized store. After successful Init, the first real delivery has exactly one
+    before/native/after record. A loaded city's first state-7 record uses its actual
+    pre-call D (§16.24). Repeat with installation after the first delivery: startup
+    completeness is false even if all later outputs match. An object-only installation
+    demonstrated for the loaded city does not satisfy the new-city case.
+28. **LV8 fetched-destination vector.** Hold caller A after it has obtained the old
+    route's destination but before entering the observer; its observer-entry count is 0.
+    Caller B requests restoration/reclamation. Expected: B cannot reclaim on that count.
+    Admission exclusion must account for A and let it finish before mutation/retirement;
+    while excluded, caller C cannot begin an affected call. A's native message is
+    forwarded exactly once and its native bool is returned unchanged.
+29. **LV8 retained-notification vector.** Message dispatch copies referenced targets A
+    and B, unlocks, and calls A. A removes B's subscription. Expected native behavior:
+    B is still in this dispatch's snapshot and is invoked once before snapshot cleanup.
+    B's observer code/context remains valid until that invocation and its cleanup finish.
+    With no admitted capture interval left, owner Shutdown may invalidate grids; a late
+    uncaptured callback must not read the retired owner's progress/iterators/maps. The
+    dispatch's reference alone does not make those inputs valid.
+30. **LV8 shutdown/reuse vector.** Hold an admitted capture between its native return
+    and after-copy. Request city shutdown. Under the host contract, complete the copy
+    and end that interval before native Shutdown; no new owner reads are admitted.
+    After Shutdown, keep an L/M reference: no retired input may be read even though
+    the allocation survives. After the final references are safely released, reuse
+    that numerical address for a later city: old identity/progress/maps must not be
+    reused. For a global route
+    kept across both cities, no per-city executable/table restoration is required, but
+    its resources remain resident and the new city requires its own initialization
+    and complete first-delivery coverage. Never block inside a callback waiting for
+    that callback itself to finish.
+31. **LV8 ownership/failure vector.** Under exclusion, make executable/interface validation
+    fail: leave the native route intact, capture off, no private reads. In a separate
+    case validation succeeds, then another installer replaces the route: restoration
+    must not overwrite that replacement, and resource retirement still requires proof
+    that no caller can reach the former route. Exact pass-end comparisons in either
+    case retain `input_capture=pass-end-sample; native_step_capture=0`; these acceptance
+    fixtures do not settle LV2/LV7 or count as real-game native capture evidence.
+
+Vectors 19–31 are specified here for an engine/adapter lane to implement; this RE lane has
 not added executable vectors or run native capture. They do not change vectors 1–18.

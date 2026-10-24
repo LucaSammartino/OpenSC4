@@ -1,6 +1,20 @@
 # landvalue: answered questions (archive)
 <!-- Archive for [landvalue.md](../../landvalue.md). Lanes do not read this file. Open questions are in ../landvalue.md. -->
 
+<!-- from: glue-landvalue-step6 (2026-10-24); copied from that lane before train178 -->
+- ~~**LV8 - adapter installation/exclusion contract after LV6 layout closure:** Sections 6.1.2 and 6.1.3 explicitly retain unproved observer-registration, executable-mutation and callback-exclusion obligations. Which supported host lifecycle boundary guarantees no OnTick/notification/in-flight entry while a global native M slot or entry interceptor is installed/restored, covers both loaded and newly constructed owners before the first initialized delivery, and retires the forwarder safely? The published field/forwarding ABI does not establish that boundary, and a QI proxy/re-registration is explicitly rejected. Please reconcile the host acceptance checklist or publish the missing dispatch contract; no detour bytes, native signatures, mutation barrier or installation API are inferred. This lane implements/tests owned progress interval decoding and retains `input_capture=pass-end-sample; native_step_capture=0` until installation can satisfy that checklist. LV2/LV7 remain open; exact sampled comparisons will not be credited as per-Step provenance.~~
+  **ANSWERED 2026-10-24 (re-landvalue-lv8):** DIFFERS — no native city lifecycle
+  notification supplies the proposed exclusion/drain guarantee. Pre-init/pre-shutdown
+  order Init/Shutdown; ordinary pause permits idle, HiddenPause does not wait for existing
+  calls, and message-server targets copied before unsubscription remain callable. Section
+  6.1.4 reconciles the checklist with an explicit host dispatch contract covering admission,
+  drain, publication, both startup paths, owner-read lifetime, restoration ownership and
+  retirement of reachable code/context. A persistent global route and per-city capture
+  have different lifetimes. Conformance vectors 26–31 cover these distinctions. This
+  closes the native-contract question, not host implementation or runtime acceptance;
+  keep native_step_capture=0 until demonstrated. LV2/LV7 remain open. No additional native
+  field, signature, installation API, executable patch or C ABI export is established.
+
 <!-- from: verify-landvalue-step4 (2026-10-22) -->
 - ~~**LV6 - section 6.1 native Step capture ABI record:** please record the already specified native progress layouts in `docs/abi/layouts.md`: the land-value interface-relative pipeline state, both iterator pointers, ignoreZoning, developer cursor/header, iterator fields and developer map node fields, including their widths and the canonical interface base. The message-target slot 3 / `DoMessage` ABI is present in `interfaces.tsv` and section 11.3, but these field layouts are absent from `docs/abi`. CONTRIBUTING requires game layout dependencies to be recorded there before engine glue uses them. Is a version-gated, QueryInterface-obtained message-target slot-3 forwarder, with progress read through the separately obtained land-value interface before/after each native SimIdle/SimNewDay delivery, the supported boundary? Please document any additional ABI needed for that adapter. [Stop the native-layout/hook path until recorded; retain and explicitly label the existing pass-end sample. No input-boundary fidelity credit, even for zero output differences. No algorithm, math, golden or sampling adjustment.]~~
   **ANSWERED 2026-10-23 (re-landvalue-lv6):** DIFFERS — the layouts are already published in
