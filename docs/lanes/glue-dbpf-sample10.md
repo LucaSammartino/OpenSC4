@@ -14,12 +14,13 @@
 - Changed source to retain the independent Rust reader and next index entry, yielding after ~800 ms between records. No native record object or cursor is retained.
 - Autotest quit drains the final pending sample through normal framework ticks; wall deadline/watchdog/external timeout remain active. Other shutdowns explicitly report unfinished work non-exact.
 - Corrected source commit 3c2f8c290. Final qbuild all PASS: Rust 6988/0/0, clippy clean; native job qbuild-20261024-092912-build-ctest PASS, build 50/50 (2.8 s), CTest 80/80 (74.8 s), total 82.8 s. Session 59934 collected to exit 0.
-- Outstanding: gdbs10-r2-house2032-20261024b submitted after corrected gate; collect original blocking wait exec session 89442. Never resubmit this label; completed verdicts are valid.
+- R2 terminal stalled, session 89442 collected: gdbs10-r2-house2032-20261024b 37/37 exact to 2029-02-04, wall 520 s; record 470. Three annual rotation cycles each 11/11 files and 111826/111826 records.
+- R2 watchdog wait: main CPU +0, outside FreeCity4. Own PDB symbols resolve common_vsnprintf_s and Pollution AfterStep (FC4PollutionShadow.cpp:416), not DBPF. Retain failed evidence; retry unchanged DLL once with a unique R3 label, no rebuild.
 - R2 DLL SHA256: 59359D2DB7EE5786E53B44DCCC2F7A04B8824204CE40EACDD551ECB03BBAE1A9.
 - Game request: train187 house ini plus dbpf_shadow=1; Konradshohe, turbo to 2032-01-01, seconds=1800/timeout=2100.
 - Wait for game via build-runs/wait-dbpf-game.ps1, a single filesystem event wait without qwait or polling loops.
 - No new spec ambiguity: rotation is explicitly requested shadow policy. Existing EX56 remains open.
 - Clean-room restriction forbids opening/editing tools/regress.ps1; coordinator must append the profile key after measured exact run.
 - HEAD is intentionally detached; never update shared refs. EX56 remains open; resource-manager packed files only.
-- Next: collect R2, summarize with build-runs/summarize-dbpf.py gdbs10-r2-house2032-20261024b, record it with a free run number, finalize report and queue.
+- Next: submit fresh gdbs10-r3-house2032-20261024c with identical house switches and existing corrected DLL; wait without qwait, collect terminal result and report. No game outstanding now.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-092912-build-ctest.verdict (prior source gate verdict 090545 retained).
