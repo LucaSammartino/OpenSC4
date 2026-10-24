@@ -37,8 +37,9 @@ no maintenance run. Supervisor publication of the actual final tip is required.
 ## Handoff
 
 - Round 2 active (2026-10-24): reuse detached HEAD 198b9cd62; WC5/WC9 already answered.
-- Done round 2: §5.2.2 AI targets/publication and §5.1.6 shared tween, 14 vectors; instruction audit confirms first-branch absolute turn versus second-branch signed turn and NaN-preserving angle cap.
-- Next: bind shared cSC4ModelRegEffects owner to graphics-formats §3.11; document LoadModels result/failure behavior and narrow transitive model residuals.
+- Done round 2: 562a56ff9, §5.2.2 AI targets/publication and §5.1.6 shared tween, 12 vectors; first-branch absolute turn versus second-branch signed turn and NaN-preserving angle cap.
+- Done round 2: §3.6 LoadModels control/results, §5.1.7 shared effects binding and seven more vectors; scoped WC3/WC4 answers archived, exact model-only residuals filed as WC10/WC11.
+- Next: run final docs/questions/whitespace checks, replace this old report/handoff with round-2 READY report, commit, write ready re queue using full actual HEAD.
 - Required endpoint: READY re queue for certified spec additions; retain exactly scoped unresolved model/effect questions if necessary.
 - Goal: answer WC9, WC3, WC4, WC5 with prose and conformance vectors; no engine reads or edits.
 - Worktree reused at detached HEAD; main/export are read only.

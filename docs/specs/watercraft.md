@@ -313,7 +313,58 @@ a nonzero +0x1D4 causes sound event `0x6A451908` with that identifier before
 the identifier is zeroed and occupant Shutdown is called. Normal return is
 true; service results do not create an early false return or rollback. The
 controller is required. These are lifecycle boundaries, not complete contracts
-for the transitive model-loading and effect-controller bodies (still WC3/WC4).
+for transitive model loading. The controller binding is specified in §5.1.7.
+
+### 3.6 Model-loading result and partial-failure contract (WC3)
+
+Inherited slot 97 is `LoadModels` (`0x0050E8B0`), with no explicit arguments
+and a boolean result in AL. Its result means **at least one model newly loaded
+by this call**, rather than whether the final model vector is nonempty.
+Initialize that result false. With models already installed (+0x110 vector
+nonempty), skip all resource loading and auxiliary-property processing, call
+owner slot 83 with float zero followed by slot 106 with no arguments, and
+return false. An empty resource-key list with no models also reaches these
+two calls and returns false. There is no implicit model-available true result.
+
+When the model vector is empty, use its resource-key vector at +0xC0 in
+order. If the key vector is empty and the saved key's third word at +0x124
+is nonzero, first append the three saved words at +0x11C to that vector;
+helper `0x0050DA30` is a three-word append, not resource lookup/conversion.
+For each key, request an animated model (`0x007FEDE0`) into an output
+pointer initialized null before the loop. A false request immediately
+returns false: no rollback, release of previous successful models, auxiliary
+loading or trailing slots 83/106. Successful requests append the returned
+reference to the model vector without an extra owner AddRef. The success
+contract requires a usable nonnull result: it is dereferenced without a
+null check, and false-with-nonnull has no owner cleanup.
+
+For each successful request, obtain its instance via animated-model slot 0.
+For the first key only, ask instance slot 8 for its bounds, set occupant
++0x7C to half the z extent (last bound component minus third component),
+and cap only values strictly above 32 to 32. There is no lower clamp or
+NaN repair. Then invoke animated-model slot 18 with `(1,0)`,
+PositionModelInstance with that instance, instance slot 4 with the occupant
+interface (+4), instance slot 14 with 3, and animated-model slot 8 with
+the view's current zoom/rotation. Set the local result true after this
+sequence. Other call results are not tested here.
+
+After all keys, read property `0xCC21420D` as a vector of unsigned words.
+When available, traverse it in order and invoke LoadAuxiliaryModel (owner
+slot 99) only for values 1, 2 or 3, using an output initialized null for
+each call. Ignore its return; release a nonnull returned reference. Missing
+property, other values and null outputs do not fail LoadModels. Dispose
+of the temporary property vector. Finally invoke slots 83(0) and 106(),
+then return the local newly-loaded boolean. A failure after the first
+successful key leaves a nonempty model vector: a retry takes the already
+installed branch and does not resume the remaining keys.
+
+Evidence: entry/fallback `0x0050E8B0–0x0050E916`, request/append
+`0x0050E920–0x0050E97D`, bounds/setup `0x0050E97D–0x0050EA51`,
+auxiliary/filter/finalization `0x0050EA57–0x0050EB12` (instructions with
+bytes); fallback append `0x0050DA30–0x0050DA6F`.
+This resolves the loader's own ordering/results, not the full internals of
+animated-resource acquisition, auxiliary loading or PositionModelInstance;
+the remaining exact helper boundary is recorded in §10.2.
 
 ## 4. States *[compat]*
 
@@ -534,7 +585,7 @@ or a multiplication by p[10]. The helper receives one float dt, returns no
 boolean, and does not clamp dt internally. Callers supply its movement-time
 limit where documented. Negative time/rates do not get repaired: the ordered
 comparison and signed increment can move away from the target. Target
-selection itself remains WC4. Evidence: `0x005721C4–0x0057230A`.
+selection itself is specified in §5.2.2. Evidence: `0x005721C4–0x0057230A`.
 
 Entry 26 is a **world-height** tolerance, not a speed or angle. In the early
 shore-slide part of helper `0x0056AF90`, form proposed horizontal position
@@ -603,7 +654,8 @@ primary slot 104 after each key. Thus six stop requests imply six such update
 calls, before the owner's later effect/model updates. Evidence:
 `0x0056EFE0–0x0056F1DB`, `0x0056F1E0–0x0056F3E1`,
 `0x004FADF0–0x004FAE29`. Effect-controller internals and the full slot-104/107
-computation remain WC4; these are request and ordering contracts.
+computation are bound to the shared controller contract in §5.1.7; these
+are request and ordering contracts.
 
 ### 5.1.5 Subsidiary animation and publication boundaries (WC3/WC4)
 
@@ -659,6 +711,45 @@ their callers use the same elapsed-time update or reset policy.
 Evidence: duration branch `0x004FA961–0x004FA974`, ratio store
 `0x004FA977`, clamp/interpolation `0x004FA97A–0x004FA9D0`, direct target
 return `0x004FA9D2–0x004FA9D6` (instructions with bytes).
+
+### 5.1.7 Model-effects controller binding (WC3/WC4)
+
+The inherited object embedded at +0x18C is `cSC4ModelRegEffects`, constructed
+at `0x0051429E`, with table `0x00AA4060`. Apply the complete shared contract
+in [graphics-formats.md §3.11](graphics-formats.md#311-regp-12-and-later-compat):
+the Consumer 1 equations and §§3.11.1–3.11.4 specify its lifetime, entry
+discovery, name matching, creation failure, record sampling, transform flags
+and update arithmetic. These are required owner computations, not an opaque
+provider returning a completed effect transform. In particular:
+
+- Watercraft slot 104 calls controller slot 4 (`0x005E6B40`), passing an
+  unused pointer-shaped first word, inherited H and measured speed. The
+  pointer to P does not place effects. Placement comes from the attached
+  model-instance transform and the selected REGP record.
+- Traverse exact REGP keys in ascending byte order; null or stopped effects
+  get neither transform nor speed parameter. Sample the animated instance's
+  current integer frame, or frame 0 when its animation interface is absent.
+  A nonnull record vector is indexed by frame times 28 without a count
+  check or frame interpolation. Null records use local identity; zero axes
+  in present records retain the native unguarded normalization. The shared
+  spec's GF13 repair is a documented implementation choice, not a new native
+  watercraft rule.
+- Send the composed transform (effect slot 8) **before** parameter slot 11
+  `(15,vector,1)`. Its vector components are separately stored
+  `f32(measured_speed*H.component)`, without normalization, instance rotation
+  or unit conversion. Boat speed +0x2DC is not the scalar used here.
+- A detached controller or empty map performs no effect updates and returns
+  true. It does not authorize a null controller object at the caller.
+  Start/stop wake requests match stored effect names with CRT `_stricmp`;
+  resource keys and effect names are distinct. Attachment alone does not
+  initialize/discover/start effects.
+
+The binding and speed-store/order were checked against owner construction,
+the bounded controller decomp and `0x005E74C2–0x005E7508` instructions with
+bytes; the shared spec supplies the earlier transform-composition audit.
+No render visibility or model-creation policy may be inferred from the
+controller's true return. Transitive model-instance positioning and loading
+are the remaining model-side audit, separately from this controller.
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -1685,37 +1776,38 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Area | Attributed entry addresses | Contract status |
 |---|---|---|
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
-| Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
+| Base animation step attributed by reachability | 00508740 | §§5.1.4–5.1.7; do not count as a watercraft-specific public method |
 | Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.4, 5.1.1, 5.2, 5.4.1; angular proximity and direction-quantization signatures/results now included |
 | Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3.5, §5.2; tuning void result, fallback and readable-list preconditions specified |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
-| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
+| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.5 give boat selection/response, SAT, rollback, footprint construction, shore corners and crash transforms |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
 | Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 and §5.7.5 give dispatch, ramps, heights, endpoints, sinking and grounding/contact bases, heading feedback and publication |
-| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
-| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.3, 5.4; docking helper signatures, distance and manager-null contracts specified; inherited teardown audit still WC3 |
+| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; remaining inherited model publication is WC11 |
+| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.5, 5.4; docking signatures, distance, manager-null and inherited lifecycle contracts |
 | Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
 | Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
-| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
-| Wake stop/start | 0056EFE0, 0056F1E0 | §5.1.4 gives signatures, six-key ordering, arguments, ignored results and adapter forwarding; controller/update internals remain WC4 |
+| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3–3.6, 4, 6.2; transitive model initialization remains WC10 |
+| Wake stop/start | 0056EFE0, 0056F1E0 | §§5.1.4, 5.1.7 give signatures, ordering, ignored results, adapter forwarding and shared controller computations |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
-| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final and far approach expanded; full AI selection remains WC4 |
-| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; debug borrowed-string lifetime/signature specified; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
+| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3 include full AI target selection, direct publication, final and far approach |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation/tween/effects arithmetic and debug lifetime; only the model-publication helpers remain WC11 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
 This document supplies individually named spec-side vectors. It does **not** certify
-complete owner closure: WC3–WC4 remain open; WC1–WC2 and WC5–WC9 are answered. In particular,
+complete owner closure: WC3–WC4 have scoped archived answers with their exact
+model-only residuals carried by WC10–WC11. WC1–WC2 and WC5–WC9 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
 
 | Open item | Evidence delivered | Remaining work before claiming closure |
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
-| WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, adjustors, geometry/movement/docking/angular/quantization signatures, land/tow/debug, tuning and inherited lifecycle/subsidiary dispatch boundaries | Transitive model-loading/effect-controller contracts and shared tween sampling arithmetic. Historical 79 is not the current measured attribution (§10.1). |
-| WC4 | Commands, drive ordering, routes/following/final/far docking, integration, normal visual basis, slew, generic seeking, wake order, subsidiary animation gates, publication boundaries and AI midpoint/consumption gates | Full AI target-production branches, common tween sampling, and effect-controller internals. §5.1.5 expands slots 83/103/104/107 without claiming transitive renderer/effect closure. |
+| WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question. AI target selection and crash contact basis are now specified separately. |
+| WC10 (WC3 residual) | 75-entry attribution inventory, Init/record boundaries, construction/destruction, adjustors, geometry/movement/docking/angular/quantization signatures, land/tow/debug, tuning, inherited dispatch, shared tween arithmetic (§5.1.6), LoadModels control/results (§3.6), and shared effects contract (§5.1.7) | Transitive animated-resource acquisition `0x007FEDE0` (sprite `0x007FD7D0`, mesh `0x007FED50`), LoadAuxiliaryModel `0x0050EB20`, and complete PositionModelInstance `0x005094A0` / heading-basis helper `0x0080B830`. Historical 79 is not the current measured attribution (§10.1). |
+| WC11 (WC4 residual) | Commands, drive ordering, routes/following/final/far docking, integration, normal visual basis, slew, generic seeking, wake order, subsidiary animation, shared tween arithmetic, full AI targets/publication (§5.2.2), and shared effects computation (§5.1.7) | Inherited model publication slot 100 `0x00508610` and complete model-instance positioning/heading-basis helpers `0x005094A0` / `0x0080B830`. Model acquisition/auxiliary creation remains WC10; the effect-controller arithmetic is supplied by graphics-formats §3.11 rather than an opaque provider. |
 | WC5 (answered) | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, footprint, inanimate corners, sinking and grounding/contact bases and publication (§5.7.5) | None for this question; required-service preconditions and degenerate bases are explicit. |
 
 These gaps are not answered by an inventory count or by the existing summary
@@ -2024,4 +2116,16 @@ for trigonometric results, and inspect NaN classification separately.
 | WC4-AI08 | AI07 with dt=5000 | Allowance about 12.5, travel 10: P=(8,6,0), speed target about 0.08. Target is scaled by the used fraction; there is no time clamp in this function. |
 | WC4-AI09 | AI03 with dt=0 | Rotation magnitude zero, H remains forward; turn-target division produces NaN rather than a forced zero. Publication precedes slew. |
 | WC4-AI10 | Translation setup AI06, dt=-100 | Negative allowance/travel about -0.25 moves P.x backward to approximately -0.25; target speed still about 0.1. No absolute-time repair. |
+
+### 11.19 Model loading and shared effects binding vectors
+
+| ID | Setup | Required result |
+|---|---|---|
+| WC3-ML01 | LoadModels with an existing nonempty model vector and three pending resource keys | No acquisition or auxiliary-property lookup; slots 83(0),106() in order, false result. |
+| WC3-ML02 | Empty models/keys and saved key third word zero | No acquisition; process optional auxiliary property, then slots 83(0),106(); false result. |
+| WC3-ML03 | Empty models, two keys; first acquisition succeeds, second returns false | First reference remains installed and fully configured; false result, no auxiliary pass or trailing 83/106 calls. Retry skips remaining acquisition and returns false after 83/106. |
+| WC3-ML04 | Empty models, one successful key; bounds z-min=-40, z-max=40; auxiliary values [0,1,4,3,2,0xFFFFFFFF] | +0x7C=32; auxiliary requests only 1,3,2 in that order. Null outputs/false auxiliary results do not change the true newly-loaded result; release nonnull outputs. |
+| WC4-FX01 | Attached identity instance, started effect with null record vector, H=(2,3,4), measured speed=-0.5; boat speed arbitrary | SetTransform receives the instance transform, then parameter `(15,(-1,-1.5,-2),1)`. No heading normalization, boat-speed substitution or conversion. |
+| WC4-FX02 | Two entries: key A stopped, key B started; animation current frame=3; B records nonnull | A gets no transform/parameter. B samples record at base+84, then sends transform before speed parameter. Neither interpolation nor count clamp occurs. Records must cover this frame for a safe native read. |
+| WC4-FX03 | Controller detached, then attached with empty map | Both updates return true without transforms or speed parameters. A null controller at the watercraft caller is a separate invalid precondition. |
 | WC9-01 | Default tuning, L=R=100, T=0, dt=10 | Final T=-0.1 and both channels stay 100, matching corrected WC8-08. |
