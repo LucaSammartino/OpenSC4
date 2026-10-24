@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 456 (DBPF contracts answered and the gzmsg diagnostic landed clean (run 5).); 453 (propmgr shutdown crash fixed at its root; overlay manager verified; weather exact again (run 5).); 449 (PL21 final house repeat 3, propmgr 220/220 and lotcfg 293/293); 448 (PL21 final house repeat 2, propmgr 220/220 and lotcfg 293/293); 447 (PL21 final house repeat 1, propmgr 220/220 and lotcfg 293/293). See `docs/manual-checks.md`.
+- **Latest in-game run:** 462 (Lot configuration verified with capacity; propdev night callbacks exercised (run 5).); 461 (lotconf capacity included, 73/73 exact through 2032, clean shutdown); 458 (native propdev safe to 2032, selectors exact, no night callback exercise); 457 (native propdev safe, selector streams and requester-tag projections exact, full verification open); 456 (DBPF contracts answered and the gzmsg diagnostic landed clean (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

@@ -1,5 +1,5 @@
-tag: gpc7-r2-light-normal-2032-a-436
-run: 436
+tag: gpc7-r2-light-normal-2032-a-459
+run: 459
 date: 2026-10-24
 lane: glue-propdev-close7
 dll: 0a9789a1
