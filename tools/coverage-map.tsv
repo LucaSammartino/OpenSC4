@@ -525,6 +525,7 @@ cSC4WinLotConfigurationChooser	windows and panels	ui	lot-configuration-editor.md
 cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-
 fn:GZWinIsVisibleRecursive	windows and panels	ui	minimap.md	-	-	-
 fn:GZCOM_cSC4WinMiniMapCLSID	windows and panels	ui	minimap.md	-	-	-
+cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
 cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
