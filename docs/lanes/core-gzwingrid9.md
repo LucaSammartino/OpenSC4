@@ -1,94 +1,64 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gzwingrid9 (cGZWinGrid round 2) | Codex / core-gzwingrid9 | in progress | Implement settled WG5–WG9 and 19 vectors; gate and enqueue |
+| core-gzwingrid9 (cGZWinGrid round 2) | Codex / core-gzwingrid9 | ready; ABI unchanged; Rust 7039/0, clippy clean, CTest 80/80 | Coordinator publish detached tip and land; portable owner fully implemented |
 
-## Handoff
-- Goal: merge re-wingrid-wg9, implement settled contracts and close owner table.
-- Done: merged settled specs/index at 825b81f96; retained WG3/WG4 only.
-- Prior round tip: 751c3f546; round 2 uses detached HEAD as instructed.
-- Implemented WG5–WG9 dependencies, setters, sorting, paint, and 19 vectors at 44e74bfa6.
-- Focused changed-source snapshot: 73/73 widget tests including all 19 vectors.
-- Earlier focused snapshot: 69/73 (four obsolete provisional assertions); corrected.
-- Closure table updated: all 198 specified portable owner functions implemented.
-- Final eight-file absolute-path qbuild fmt PASS (zero diff lines).
-- Full qbuild all Rust terminal results: test PASS 7039/0/0; clippy PASS zero diagnostics.
-- Initial all native terminal: build 216/216 PASS, CTest 79/80 FAIL capi_smoke (header97/Rust98).
-- Diagnostic: stale smoke object (09:25:32) Ninja dependency points to train-integration header, not this worktree.
-- Failed native logs preserved as build-runs/r2-abi97-failed-fc4verify-*.log; unique verdict retained.
-- Local header and Rust both ABI98; no source/ABI change. Cleaned generated native build inputs with Ninja.
-- Corrected qbuild verify queued as qbuild-20261024-102220-build-ctest; original exec session 6899 still running.
-- Next: collect that exact operation to terminal; report and READY queue. No duplicate checks.
-- Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
-- No round 2 game request. Core-only; ABI unchanged.
+## Implementation and owner closure
 
-## Previous round report
+Merged `re-wingrid-wg9` at 825b81f96. Removed duplicate open WG5–WG9 entries,
+retaining WG3/WG4, and regenerated the question index with the explicitly
+requested local `python tools/questions.py index`. The initial invocation of
+the main-checkout script failed on its main-checkout output path; it changed
+no main files. The local invocation succeeded.
 
-## Implementation
+Implementation commit 44e74bfa6 replaces all provisional WG5–WG9 paths:
+- Signed/unlimited bounds independent of fixed flags; format-only used ranges;
+  mode-dependent selection membership; viewport-filling relative scrolling.
+- Field-by-field default/row/column/cell formatting; sentinel construction;
+  host RGB/font initialization; axis-format copies reset both size words.
+- Terminal editor-allocation fault after clearing the old cell; acquired
+  editor-window interface balanced separately from the created editor.
+- Partial cell-format and plain-extra setters; grow-only window-width resize;
+  sparse stable SortColumn/SortRow, including the selection old-row quirk.
+  Null comparator uses host CRT CTYPE byte comparison; C-locale helper supplied.
+- Text draw flags, cross-field vertical placement, corrected color slots,
+  header rectangle quirks, and whole-cell-area right-edge extension for text
+  and bitmap clipping while retaining bitmap alignment within its cell.
 
-The implemented column is `engine/core/src/widget_controls/grid.rs`, extended by
-`grid/data.rs`, `grid/runtime.rs` and `grid/paint.rs`. The existing sparse cell,
-row/column and ownership model now has live mutation hooks, recursive layout,
-scroll-bar creation/removal/position/ranges/images, hit testing, mouse/modifier
-selection, keyboard/wheel/focus routing, editable cell windows and painting.
-`GridHost`/`PaintHost` extend the existing widget host interfaces; drawing emits
-ordered primitives, clipping/capability operations and owner-draw callbacks.
-No capi, plugin, ABI exports or coverage-map changes were made.
+All 19 new spec vectors are individually named tests in `grid/vectors.rs`.
+The owner closure table is `engine/core/src/widget_controls/grid/README.md`.
+**The cGZWinGrid portable owner is now fully implemented against the current
+spec**, including all 198 inventory functions through owner methods or equivalent
+Rust container operations. This is a portable-core closure claim; there is no
+new C ABI export, native vtable, renderer adapter, or in-game parity claim.
+WG3 delayed cell gutters and WG4 extra-object storage quirks remain preserved.
 
-Preserved quirks include the horizontal bar's row-limit test, page scrolling by
-four cells, negative scroll positions, two-level shared layout recursion, delayed
-cell gutters, independent handle-keyed child-window ordering and unchanged window
-set coordinates after a cell move. Default color setters and whole-default-format
-replacement now update the same logical storage. Code milestones: `c780222cc`
-(runtime/painting), `129c929f3` (owner quirks), `b06a63a4f` (color alias regression).
+## Validation
 
-The section-by-section **Owner closure** table is in
-`engine/core/src/widget_controls/grid/README.md`. All six win-grid conformance
-vectors remain covered; additional owner tests cover input, layout, resources,
-painting, window movement and default-format/color aliasing.
+- Focused corrected snapshot: 73/73 widget tests, including all 19 new vectors.
+  An earlier 69/73 snapshot exposed four assertions of superseded provisional
+  behavior; they now assert settled row membership and text-color slots.
+- Final eight-file absolute-path `qbuild fmt`: PASS, zero diff lines.
+  Formatting fixes were applied using apply_patch from rustfmt check diffs.
+- Stable final source `qbuild all`: workspace 7039 passed, zero failed,
+  zero ignored; clippy -D warnings zero diagnostics. Initial native build
+  216/216 passed, but CTest was 79/80: capi_smoke linked ABI98 against a stale
+  object compiled with ABI97. Ninja recorded that object's header dependency
+  in train-integration rather than this worktree. Local header and Rust are
+  both ABI98. No ABI bump or source correction was made.
+- After cleaning generated native inputs, `qbuild verify`: PASS, native build
+  255/255 (15.6s), full CTest 80/80 (120.6s), total 138.8s.
+  Requests `qbuild-20261024-101502-build-ctest` (failed stale inputs)
+  and `qbuild-20261024-102220-build-ctest` (corrected inputs) were separately
+  collected to their actual terminal results. Rust source stayed unchanged.
+  Failed native logs remain as `build-runs/r2-abi97-failed-fc4verify-*.log`.
+- Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`,
+  `fc4verify-build.log`, `fc4verify-ctest.log`, and the matching build-results
+  verdict. Documentation-only commits during the gate did not change Rust.
 
-## Measured results
+## Questions, game, and next steps
 
-- Final six-file `qbuild fmt`: PASS, zero diff lines.
-- Focused intermediate snapshots: 50/50 and 53/53 widget tests passed.
-- Corrected stable-source `qbuild all`: PASS, **6993 passed, 0 failed, 0 ignored**;
-  clippy **0 diagnostics**; native build **47/47** edges (74.5 s); full CTest
-  **79/79** (151.2 s), native total 227.6 s.
-- Explicit `qbuild verify`: PASS, native build **46/46** (4.0 s), CTest **79/79**
-  (104.5 s), total 110.6 s. Request `qbuild-20261024-094413-build-ctest` completed.
-  Its tree-change note was the handoff-only commit while waiting; Rust source
-  stayed unchanged. All asynchronous operations reached terminal PASS.
-- Logs: `build-runs/qbuild-{test,clippy}.log`,
-  `build-runs/final-all-fc4verify-{build,ctest}.log`, and final
-  `build-runs/fc4verify-{build,ctest}.log`. The earlier full gate (6992 tests,
-  253/253 build, 79/79 CTest) is preserved separately as
-  `build-runs/before-color-fix-*.log`; the repeat followed the actual color-storage
-  diagnostic and changed source/test inputs.
-
-## Questions and remaining spec contracts
-
-Appended **WG7–WG9** to `docs/specs/questions/win-grid.md`. Existing WG3/WG4
-quirks are preserved. The generated question index was not edited or regenerated
-with prohibited `tools/` scripts; the coordinator can regenerate it.
-
-Spec-only open sections (no full parity claim for these contracts):
-
-- **3 and 5.7:** pending owner-slot bodies and comparator locale/encoding (WG8).
-  Named pending operations explicitly return Unsupported.
-- **5.1:** default-format initialization (WG6); Init still returns true.
-- **5.3, 5.8, 5.9, 5.10, 5.11:** bounds, relative-scroll body, selection predicate
-  and effective format inheritance remain WG5. Existing literal choices are
-  documented; painting takes resolved formats explicitly.
-- **5.11:** failed editable-window factory result (WG7), reported Unsupported.
-- **5.12:** inherited formats (WG5), horizontal text alignments 3/4/5 (WG6),
-  header rectangles/content-right paint field (WG9). Unknown text positioning
-  returns Unsupported; literal header/clip choices are marked in code.
-- **5.14:** axis-format size-word copy remains Unsupported (WG6).
-
-## Game and next steps
-
-No game run was requested: this lane was explicitly core-only. No shadow result
-or reference-warning count is claimed. An in-game **geometry/selection/input
-shadow is feasible next** through a coordinator-owned probe and renderer/host
-adapter. Full drawing comparison needs WG5/WG6/WG9 resolved. The coordinator
-should review the owner table, claim coverage rows, and publish these detached
-HEAD commits to the reserved branch before landing.
+No new questions. WG5–WG9 answered copies remain in the spec merge; only WG3/WG4
+remain open. No game request was needed for this core-only change, so no game
+shadow or reference-warning measurement is claimed. A coordinator-owned host
+adapter/probe can validate actual rendering/selection later. READY queue uses
+the final full 40-character detached HEAD; the supervisor publishes the branch.
