@@ -224,12 +224,14 @@ the context the fourth. Both return true. Each visits a child `c` with ID `k` (s
 The walkers' actions:
 - **Reset walker** (`0x00442B30`):
   - when `c` has the button interface `0x8810`, `c` gets `SetFlag(2, 1)`;
-  - when `c` has interface `0x49D98264`, that interface gets slot 18 `(-1, 1)` (TUW6).
+  - when `c` is a catalog view (interface `0x49D98264`, catalog-view.md), its slot 18 gets `(-1, 1)`. Slot 18
+    sets every item except the given ID, so every item is enabled (TUW6, answered).
 - **Hint walker** (`0x00442EF0`), context = the task `T`:
   1. `allowed` := `T` slot 7 `(k)`.
   2. When `c` has the button interface, `c` gets `SetFlag(2, allowed)`.
   3. When `allowed`, walk `c`'s children with the reset walker.
-  4. When `c` has interface `0x49D98264`, that interface gets slot 18 `(T slot 19, 0)`.
+  4. When `c` is a catalog view, its slot 18 gets `(T slot 19, 0)`: every item except the task's item ID is
+     disabled.
 
   A null child or task skips steps 1–4, not the walk.
 
@@ -263,7 +265,7 @@ Highlight and unhighlight:
 4. `v` := slot 19 of the task at index `+0x30`. There is no bound check.
 5. When `+0x2C` is set: its slot 21 `(-1, 0, 0)`.
 6. `+0x38` := 1.
-7. `menu` slot 20 `(v)`.
+7. `menu` slot 20 `(v)`: the catalog view scrolls item `v` into view (catalog-view.md §2).
 8. `tick_self(3, v, 1, menu, menu)`.
 
 ### 5.4 `tick_self(kind, a, b, c, d)` (`0x00442200`)
@@ -381,7 +383,7 @@ Task slots as this window uses them *[inferred]*:
 | 14 | start |
 | 15 | event-1 action |
 | 16 | end |
-| 19 | value for `0x49D98264` and the catalog menu |
+| 19 | the catalog item ID to keep enabled and scroll to |
 | 20 | type |
 | 22 | zoom |
 | 23, 24 | window offset `x`, `y` |

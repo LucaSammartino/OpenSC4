@@ -23,7 +23,3 @@
 - **TUW5 - §8:** the `cSC4TutorialTask` slot uses are read only from this window (3 build, 7 allowed ID, 8 and 9
   texts, 11 and 12 hint window, 14 start, 16 end, 19 value, 20 type, 22 zoom, 23 and 24 offset). Do the task's own
   bodies confirm them, and what are task types 1, 4, 8, 0xB–0xD and 0x10? [inferred]
-
-<!-- from: re-tutwin7 (2026-10-23) -->
-- **TUW6 - §5.1:** interface `0x49D98264` gets slot 18 `(-1, 1)` from the reset walker and `(task slot 19, 0)`
-  from the hint walker. Which window class has it, and what is the value? [unknown]

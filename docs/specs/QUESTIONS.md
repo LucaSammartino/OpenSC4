@@ -53,6 +53,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CRH | coverage-radius-effect-helper |
 | CS | city-situation |
 | CT | city-tools, city-tools-input |
+| CV | catalog-view |
 | CY | region-city-dialogs |
 | DC | draw-context |
 | DG | building-development |
@@ -230,6 +231,7 @@ generated index: the questions live one file per spec, so read only the file for
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
 | camera | 2 | 8 | CA11 | questions/camera.md |
+| catalog-view | 2 | 0 | CV3 | questions/catalog-view.md |
 | cheat-dialog | 3 | 0 | CCD4 | questions/cheat-dialog.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -370,7 +372,7 @@ generated index: the questions live one file per spec, so read only the file for
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 94 | TG27, TS69 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
-| tutorial-window | 6 | 0 | TUW7 | questions/tutorial-window.md |
+| tutorial-window | 5 | 1 | TUW7 | questions/tutorial-window.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
@@ -390,4 +392,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **636** | **1439** | | |
+| **total** | **637** | **1440** | | |

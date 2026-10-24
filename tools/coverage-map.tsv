@@ -528,13 +528,14 @@ cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-
 fn:GZWinIsVisibleRecursive	windows and panels	ui	minimap.md	-	-	-
 fn:GZCOM_cSC4WinMiniMapCLSID	windows and panels	ui	minimap.md	-	-	-
 cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
+cSC4WinCatalogView	windows and panels	ui	catalog-view.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
 cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
 cSC4ToolTipManager	windows and panels	ui	-	-	-	-
 cSC4ProgressScreen	windows and panels	ui	-	-	-	-
-cSC4CatalogItem	windows and panels	ui	-	-	-	-
+cSC4CatalogItem	windows and panels	ui	catalog-view.md	-	-	-
 nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
