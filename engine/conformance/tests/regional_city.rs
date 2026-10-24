@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Published regional-city statistics and foundations §14 vectors 20–22.
 use fc4_core::neighbors::{deal_type, DealData, NeighborConnection, NeighborDeal};
-use fc4_core::regional_city::{DealRegion, Lifecycle, ReadContext, RegionalCity};
+use fc4_core::regional_city::{DealRegion, Lifecycle, ReadContext, RecordError, RegionalCity};
 use fc4_core::stream::{ByteReader, ByteWriter};
 
 struct Host;
@@ -91,4 +91,104 @@ fn foundations_record_and_deal_lifecycle() {
     assert!(c.other_deals.is_empty());
     c.return_local_deals();
     assert_eq!(c.other_deals.len(), 1);
+}
+
+#[test]
+fn foundations_record_header_and_versions() {
+    let mut c = RegionalCity::new(2);
+    c.position = (6, 5);
+    c.size = (2, 2);
+    c.population = 2564;
+    c.commercial_jobs = 297;
+    c.industrial_jobs = 652;
+    c.workforce = 0.48;
+    c.mayor_rating = 51;
+    c.serial = 0x53E3CBFB;
+    let mut out = ByteWriter::new();
+    assert!(c.write_record(&mut out));
+    assert_eq!(
+        &out.bytes()[..41],
+        &[
+            13, 0, 6, 0, 0, 0, 5, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 4, 10, 0, 0, 41, 1, 0, 0, 140, 2, 0, 0, 143, 194,
+            245, 62, 51, 2, 0, 251, 203, 227, 83
+        ]
+    );
+    for version in [9_u16, 10, 12, 14] {
+        let mut bytes = out.bytes().to_vec();
+        bytes[..2].copy_from_slice(&version.to_le_bytes());
+        if version < 13 {
+            bytes.remove(35);
+        }
+        if version == 10 {
+            bytes[30..34].copy_from_slice(&48_f32.to_le_bytes());
+        }
+        if version < 10 {
+            bytes.drain(30..34);
+        }
+        if version < 12 {
+            bytes.truncate(bytes.len() - 4);
+        }
+        let result = RegionalCity::decode_record(&mut ByteReader::new(&bytes), 1);
+        if version == 14 {
+            assert_eq!(result.unwrap_err(), RecordError::Version);
+        } else {
+            let decoded = result.unwrap();
+            assert_eq!(decoded.difficulty, 2);
+            assert_eq!(
+                decoded.workforce,
+                match version {
+                    9 => 0.5,
+                    10 => 48.0 * 0.01,
+                    _ => 0.48,
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn foundations_claiming_prunes_caller_and_reverses_local_list() {
+    use std::rc::Rc;
+    let make = |a, b| {
+        NeighborDeal::from_data(DealData {
+            city_side: a,
+            other_side: b,
+            deal_type: deal_type::BUY_POWER,
+            amount: 100,
+            ..DealData::default()
+        })
+    };
+    let xc = make((0, 0), (1, 0));
+    let cd = make((1, 0), (2, 0));
+    let xd = make((0, 0), (2, 0));
+    let broken = make((0, 0), (9, 9));
+    let mut c = RegionalCity::new(2);
+    c.other_deals = vec![xc.clone(), cd.clone(), broken.clone()];
+    c.update_local_deals(2, &Host);
+    assert_eq!(c.local_deals.len(), 1);
+    assert!(Rc::ptr_eq(&c.local_deals[0], &xc));
+    assert_eq!(c.other_deals.len(), 1);
+    assert!(Rc::ptr_eq(&c.other_deals[0], &cd));
+    assert!(!cd.is_silent());
+    let mut list = vec![xc.clone(), cd, xd.clone(), broken];
+    c.set_local_deals(&mut list, 1, &Host);
+    assert_eq!(list.len(), 3);
+    assert_eq!(c.local_deals.len(), 2);
+    assert!(Rc::ptr_eq(&c.local_deals[0], &xc));
+    assert!(Rc::ptr_eq(&c.local_deals[1], &xd));
+    c.return_local_deals();
+    assert_eq!(c.other_deals.len(), 3);
+    assert!(Rc::ptr_eq(&c.other_deals[1], &xd));
+    assert!(Rc::ptr_eq(&c.other_deals[2], &xc));
+    for mask in [0x80, 0x04] {
+        xc.set_flags(0xBC, false);
+        xc.set_flags(mask, true);
+        c.other_deals = vec![xc.clone()];
+        c.update_import_export(1, &Host);
+        assert_eq!(c.get_imported(1), 0.0);
+    }
+    c.other_deals = vec![make((0, 0), (1, 0))];
+    c.other_deals[0].set_type(0xFFFF);
+    c.update_import_export(1, &Host);
+    assert_eq!(c.get_imported(1), 0.0);
 }

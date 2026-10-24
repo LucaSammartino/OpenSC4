@@ -9,9 +9,11 @@
 - Added engine/conformance/tests/regional_city.rs and module README owner-closure table; formatted explicit owned files via apply_patch from rustfmt check diffs.
 - Diagnostic: first cargo check found a closure borrow overlapping job-field assignment; fixed by computing both results before assignment.
 - Gate at 84843e218: qbuild all Rust tests 6999 passed / 0 failed, clippy zero diagnostics; fmt 5 explicit files clean.
-- Outstanding native request: qbuild-20261024-085154-build-ctest; collecting SAME qbuild all exec session 37542 (currently wrapped by functions cell 45). Native is queued behind game regression.
+- First all gate completed PASS: qbuild-20261024-085154-build-ctest, build 253/253 edges (118.1s), CTest 79/79 (177.3s), total native 300.0s. No outstanding request.
 - Evidence: build-runs/qbuild-test.log, qbuild-clippy.log, focused-1.log.
-- Next: collect native terminal result, then correct separate world-position/base-elevation accessors found in SDK slot audit and extend conformance-crate version/claiming vectors; recheck changed final source with qbuild all and requested verify, then report/queue.
+- Slot audit corrected: world position is a longitude/latitude pair with separate base-elevation getter/setter; tests verify independent updates and copied strings.
+- Conformance crate now includes all foundations §14.20–22 header/version and four-deal claiming vectors (four tests total).
+- Next: collect focused conformance check session 30063, then final qbuild all and requested verify; report/queue.
 - Question RY7 records literal Read edge-case choices; raw codec round-trip is separate from object Read normalization.
 - q.py Bash wrapper fails CreateFileMapping before execution; direct Cargo works.
 - Required final checks: qbuild all and verify; no game integration in this lane.

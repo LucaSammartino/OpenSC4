@@ -54,6 +54,18 @@ fn defaults_identity_life_and_simple_slots() {
     assert_eq!(c.commodities.len(), 3);
     assert_eq!(*c.get_workforce_percentage(), 0.5);
     assert!(std::ptr::eq(c.get_workforce_percentage(), &c.workforce));
+    c.set_world_position(12.0, 34.0);
+    c.set_world_base_elevation(56.0);
+    assert_eq!(c.get_world_position(), (12.0, 34.0));
+    assert_eq!(c.get_world_base_elevation(), 56.0);
+    assert_eq!(c.get_world_hemisphere(), 1);
+    c.set_world_position(78.0, 90.0);
+    assert_eq!(c.get_world_base_elevation(), 56.0);
+    c.set_city_name(b"Copied");
+    let mut copy = Vec::new();
+    c.get_city_name(&mut copy);
+    copy[0] = b'X';
+    assert_eq!(c.city_name, b"Copied");
     for iid in [1, INTERFACE_ID, 0x452294AA, 0xE4FDA3D4] {
         assert!(c.query_interface(iid));
     }

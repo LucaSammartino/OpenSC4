@@ -26,7 +26,7 @@ the published output on a subsequent finish failure.
 | cSC4RegionalCity / regional-city §0 | RegionalCity | defaults_identity_life_and_simple_slots |
 | cSC4RegionalCity / regional-city §1 identity and lifecycle | answers_iid, query_interface, add_ref, release; read_package | defaults_identity_life_and_simple_slots; path_gate_output_preservation_finish_and_one_record |
 | cSC4RegionalCity / regional-city §2 fields | RegionalCity::new and public saved fields | defaults_identity_life_and_simple_slots; wire_round_trip_header_and_object_read |
-| cSC4RegionalCity / regional-city §3 slots | copy_slots, string_slots, explicit population/statistics/position/deal/cache methods | defaults_identity_life_and_simple_slots; moving_and_copy_outputs; preferences_and_setup_city_order |
+| cSC4RegionalCity / regional-city §3 slots | copy_slots, string_slots, separate world-position/base-elevation accessors, explicit population/statistics/position/deal/cache methods | defaults_identity_life_and_simple_slots; moving_and_copy_outputs; preferences_and_setup_city_order |
 | cSC4RegionalCity / regional-city §4.1 | init, shutdown | defaults_identity_life_and_simple_slots |
 | cSC4RegionalCity / regional-city §4.2 | get_tax_rate, update_city_cache | statistics_conformance_and_insertion_quirks; message_handlers_cache_preservation_and_reconciliation_cases |
 | cSC4RegionalCity / regional-city §4.3 | get_population, get_extrapolated_population, get_allowable_extrapolation, extrapolate_growth, reset_growth | statistics_conformance_and_insertion_quirks |

@@ -55,6 +55,7 @@ fn count(inp: &mut dyn InStream, max: u32) -> Result<u32, RecordError> {
     }
 }
 fn map_read(inp: &mut dyn InStream) -> Result<BTreeMap<u32, i32>, RecordError> {
+    // RY7: literal wire-map replacement, duplicate keys keep the last value.
     let mut map = BTreeMap::new();
     for _ in 0..count(inp, 0x2000_0000)? {
         map.insert(
@@ -137,6 +138,7 @@ impl RegionalCity {
         }
         c.budget = get!(get_f64);
         c.income = get!(get_f64);
+        // RY7: decode the actual wire map rather than constructor-only entries.
         c.commodities.clear();
         for _ in 0..count(inp, 0x100000)? {
             let t = get!(get_i32);

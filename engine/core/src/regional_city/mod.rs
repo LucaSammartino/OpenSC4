@@ -456,7 +456,6 @@ copy_slots! {
     get_serial_number, set_serial_number, serial, u32;
     get_birth_date, set_birth_date, birth_date, u32;
     get_established, set_established, established, bool;
-    get_world_position, set_world_position, world, [f32; 3];
     get_budget, set_budget, budget, f64;
     get_income, set_income, income, f64;
     get_tutorial_guid, set_tutorial_guid, tutorial_id, i32;
@@ -477,6 +476,22 @@ string_slots! {
     get_description, set_description, description;
 }
 impl RegionalCity {
+    pub fn get_world_position(&self) -> (f32, f32) {
+        (self.world[0], self.world[1])
+    }
+    pub fn set_world_position(&mut self, longitude: f32, latitude: f32) {
+        self.world[0] = longitude;
+        self.world[1] = latitude;
+    }
+    pub fn get_world_base_elevation(&self) -> f32 {
+        self.world[2]
+    }
+    pub fn set_world_base_elevation(&mut self, elevation: f32) {
+        self.world[2] = elevation;
+    }
+    pub fn get_world_hemisphere(&self) -> u32 {
+        self.world_hemisphere()
+    }
     pub fn get_position(&self) -> (i32, i32) {
         self.position
     }
