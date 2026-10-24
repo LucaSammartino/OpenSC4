@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-overlays-shadow5: terrain overlay getter shadow | Codex; glue-overlays-shadow5 (detached worktree; supervisor publishes branch) | ready for measured subset: cargo 6696/0, clippy clean, CTest 69/69; 73/73 exact through 2032; live records blocked by OV12 | Resolve OV12 and extend record walk before crediting full overlays coverage |
+| glue-overlays-shadow5: terrain overlay full observation | Codex; glue-overlays-shadow5 (detached worktree) | in progress, round 2 | Implement OV12 observation/replay; final gate and game through 2032 |
+
+## Handoff
+- Goal: default-off record/cell/texture shadow to OV12; measure available contracts through 2032.
+- Merged re-overlays-ov12 at e30d7b66a, preserving both sides of CMake/config/lib.rs additions, then merged main.
+- Next: read OV12 observation/replay sections and extend plugin/Rust transport with focused tests.
+- Merge main again immediately before final all gate.
+- No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.
+- Previous round evidence below is retained until round 2 report replaces it.
 
 ## Result and scope
 
