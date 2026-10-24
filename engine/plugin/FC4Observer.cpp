@@ -682,6 +682,7 @@ public:
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 break;
             case kMsgPreSave:
+                DbpfShadowBeforeSave();
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
                 IndustrialShadowProbe(CurrentCity(), "presave");
                 FontSysVerify("presave");

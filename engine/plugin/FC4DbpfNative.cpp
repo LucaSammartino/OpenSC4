@@ -5,6 +5,7 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Observer.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
 #include "cIGZCOM.h"
@@ -18,10 +19,12 @@
 #include "GZServPtrs.h"
 #include "cIGZPersistResourceManager.h"
 #include "cIGZPersistDBSegmentMultiPackedFiles.h"
+#include "cISC4City.h"
 #include <windows.h>
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <cctype>
 #include <deque>
 #include <iterator>
 #include <map>
@@ -45,6 +48,8 @@ struct HeldFile {
     cIGZPersistDBSegment* segment;
     cIGZDBSegmentPackedFile* packed;
     std::string path;
+    bool owned = false, city = false;
+    WIN32_FILE_ATTRIBUTE_DATA stamp{};
 };
 struct HeldRead {
     fc4_dbpf* rust = nullptr;
@@ -64,6 +69,10 @@ struct HeldSample {
     size_t available = 0, first = 0;
     std::unique_ptr<HeldRead> read;
     unsigned ticks = 0, maxSliceMs = 0;
+    std::string cityPath;
+    unsigned roots = 0, children = 0, nonpacked = 0, closed = 0;
+    unsigned cityDiscovered = 0, citySelected = 0, cityCompared = 0;
+    uint64_t generation = 0;
 };
 // Main-thread only. Retain only references explicitly acquired by QI, never
 // borrowed manager/index pointers. Both readers run together for each file.
@@ -75,7 +84,32 @@ std::deque<HeldSample>* pending = nullptr;
 bool shadowLoaded = false;
 uint64_t shadowMonth = 0, completedFiles = 0, completedRecords = 0;
 uint64_t coverageCycle = 0;
+uint64_t saveGeneration = 0;
+bool cityAfterSave = false;
 std::map<std::string, unsigned> covered, rotationCovered;
+
+std::string NormalPath(std::string path) {
+    for (char& c : path) c = c == '/' ? '\\' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return path;
+}
+void ReleaseHeld(HeldFile& file) {
+    if (!file.packed) return;
+    // Only our fallback reader may be closed. Live game segments are untouched.
+    if (file.owned) {
+        file.segment->Close();
+        FC4_RELEASE_CREATED(file.packed);
+    } else FC4_RELEASE(file.packed);
+    file.packed = nullptr;
+}
+bool Stable(const HeldFile& file) {
+    WIN32_FILE_ATTRIBUTE_DATA now{};
+    cRZBaseString path;
+    file.packed->GetPath(path);
+    return file.segment->IsOpen() && NormalPath(path.ToChar()) == NormalPath(file.path) &&
+        GetFileAttributesExA(file.path.c_str(), GetFileExInfoStandard, &now) &&
+        now.nFileSizeHigh == file.stamp.nFileSizeHigh && now.nFileSizeLow == file.stamp.nFileSizeLow &&
+        CompareFileTime(&now.ftLastWriteTime, &file.stamp.ftLastWriteTime) == 0;
+}
 
 unsigned CoverageRecords(const std::map<std::string, unsigned>& files) {
     unsigned records = 0;
@@ -417,16 +451,24 @@ bool CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
         original.assign(size_t(w[5]) + 2, 0xcc);
         own.clear();
         got = w[5];
-        // EX56: literal public SDK ReadRecord route; no record object is opened,
-        // repositioned or closed by the shadow. Return is not specified here;
-        // compare the logical bytes and in/out size, not an inferred return ABI.
-        segment->ReadRecord(key, original.data(), got);
+        // Section 8.3: unsigned byte count, not Boolean; no record-object operation.
+        const uint32_t payloadResult = segment->ReadRecord(key, original.data(), got);
         const bool payloadRead = fc4_dbpf_read_record(rust, w[0], w[1], w[2], false, Bytes, &own);
         ++c.payload;
-        if (!payloadRead || got != w[5] || own.size() != w[5] ||
+        if (!payloadRead || payloadResult != w[5] || got != w[5] || own.size() != w[5] ||
             !std::equal(own.begin(), own.end(), original.begin()) ||
             original[w[5]] != 0xcc || original[size_t(w[5]) + 1] != 0xcc)
             Difference(c, path.ToChar(), "held-payload", pair.first);
+        if (!w[6] && w[5]) {
+            got = 1;
+            uint8_t prefix = 0xcc;
+            if (segment->ReadRecord(key, &prefix, got) != 1 || got != 1 ||
+                own.empty() || prefix != own.front())
+                Difference(c, path.ToChar(), "held-payload-prefix", pair.first);
+        }
+        got = 99;
+        if (segment->ReadRecord(key, nullptr, got) != w[5] || got != 0)
+            Difference(c, path.ToChar(), "held-null-payload-return/size", pair.first);
         // Return between records, rather than after a potentially >5 s file.
         // A single SDK call cannot be preempted; report the observed max slice.
         if (GetTickCount() - started >= 800) return false;
@@ -438,10 +480,14 @@ bool CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
     uint32_t size = 99;
     if (packed->ReadRecordRaw(key, nullptr, size) != UINT32_MAX || size != 99)
         Difference(c, path.ToChar(), "held-missing-raw", absent);
+    size = 99;
+    if (segment->ReadRecord(key, nullptr, size) != UINT32_MAX || size != 0)
+        Difference(c, path.ToChar(), "held-missing-payload", absent);
     return true;
 }
 
-void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, HeldSample& sample) {
+void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, HeldSample& sample,
+    bool child = false) {
     auto& c = sample.counts;
     if (!segment) { ++c.refusal; Log("dbpf refusal: null indexed segment"); return; }
     if (!visited.insert(segment).second) return;
@@ -453,9 +499,16 @@ void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& v
         if (segment->IsOpen()) {
             cRZBaseString path;
             packed->GetPath(path);
-            sample.files.push_back({segment, packed, path.ToChar()});
+            HeldFile file{segment, packed, path.ToChar()};
+            file.city = NormalPath(file.path) == NormalPath(sample.cityPath);
+            if (!GetFileAttributesExA(file.path.c_str(), GetFileExInfoStandard, &file.stamp)) ++c.refusal;
+            sample.files.push_back(file);
+            if (child) ++sample.children; else ++sample.roots;
+            sample.cityDiscovered += file.city;
+            if (sample.full || file.city)
+                Log("dbpf discovery: class=%s city=%d path=%s", child ? "packed-child" : "packed-root", file.city, file.path.c_str());
         }
-        else FC4_RELEASE(packed);
+        else { ++sample.closed; FC4_RELEASE(packed); }
         return;
     }
     cIGZPersistDBSegmentMultiPackedFiles* multi = nullptr;
@@ -465,10 +518,37 @@ void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& v
         const uint32_t count = multi->GetSegmentCount();
         // EX56: SDK gives direct pointers; treat them as borrowed, never Release
         // a pointer whose reference the shadow did not acquire.
-        for (uint32_t i = 0; i < count; ++i) VisitHeld(multi->GetSegmentByIndex(i), visited, sample);
+        for (uint32_t i = 0; i < count; ++i) VisitHeld(multi->GetSegmentByIndex(i), visited, sample, true);
         FC4_RELEASE(multi);
+        return;
     }
     // Directory/streaming segments do not expose the packed-file interface.
+    ++sample.nonpacked;
+}
+
+void AddCityReader(cIGZCOM* com, HeldSample& sample) {
+    // Section 8.3 explicitly permits a separate read-only reader if discovery
+    // misses the current backing path. Never register it or change the live file.
+    void* object = nullptr;
+    if (!com || sample.cityPath.empty() ||
+        !com->GetClassObject(GZCLSID_cGZDBSegmentPackedFile, GZIID_cIGZDBSegmentPackedFile, &object) || !object) {
+        ++sample.counts.refusal; return;
+    }
+    auto* packed = static_cast<cIGZDBSegmentPackedFile*>(object);
+    FC4_ACQUIRED(packed, "DBPF city fallback factory");
+    if (!Interface(packed, 39)) { ++sample.counts.refusal; return; }
+    auto* segment = packed->AsIGZPersistDBSegment(); // borrowed, held by packed
+    cRZBaseString path(sample.cityPath.c_str());
+    // [abi-ret] SDK persistence Open(bool,bool) returns bool, as in CompareFile;
+    // this packed reader view is distinct from SC4's streaming interface.
+    if (!Interface(segment, 30) || !packed->Init() || !packed->SetPath(path) || !segment->Open(true, false)) {
+        ++sample.counts.refusal; FC4_RELEASE_CREATED(packed); return;
+    }
+    HeldFile file{segment, packed, sample.cityPath, true, true};
+    if (!GetFileAttributesExA(file.path.c_str(), GetFileExInfoStandard, &file.stamp)) ++sample.counts.refusal;
+    sample.files.push_back(file);
+    ++sample.cityDiscovered;
+    Log("dbpf discovery: class=city-readonly-fallback city=1 path=%s", file.path.c_str());
 }
 } // namespace
 
@@ -479,6 +559,10 @@ void DbpfShadowObserve(int32_t julian) {
     pending->emplace_back();
     auto& sample = pending->back();
     sample.julian = julian;
+    sample.generation = saveGeneration;
+    cRZBaseString cityPath;
+    if (auto* city = ObserverCity()) city->GetCitySaveFilePath(cityPath);
+    sample.cityPath = cityPath.ToChar();
     sample.full = !shadowLoaded;
     shadowLoaded = true;
     sample.month = sample.full ? 0 : shadowMonth++;
@@ -493,6 +577,9 @@ void DbpfShadowObserve(int32_t julian) {
         for (uint32_t i = 0; i < manager->GetSegmentCount(); ++i)
             VisitHeld(manager->GetSegmentByIndex(i), visited, sample);
     }
+    if (!sample.cityDiscovered) AddCityReader(com, sample);
+    Log("dbpf city discovery: path=%s discovered=%u save_generation=%llu", sample.cityPath.c_str(),
+        sample.cityDiscovered, static_cast<unsigned long long>(saveGeneration));
     std::sort(sample.files.begin(), sample.files.end(), [](const HeldFile& a, const HeldFile& b) {
         return a.path < b.path;
     });
@@ -502,11 +589,14 @@ void DbpfShadowObserve(int32_t julian) {
         sample.first = subset.first;
         std::vector<HeldFile> selected;
         for (size_t i = 0; i < sample.files.size(); ++i) {
-            if (subset.Contains(i, sample.available)) selected.push_back(std::move(sample.files[i]));
-            else FC4_RELEASE(sample.files[i].packed);
+            if (subset.Contains(i, sample.available) || (cityAfterSave && sample.files[i].city))
+                selected.push_back(std::move(sample.files[i]));
+            else ReleaseHeld(sample.files[i]);
         }
         sample.files = std::move(selected);
     }
+    for (const auto& file : sample.files) sample.citySelected += file.city;
+    cityAfterSave = false;
 }
 
 namespace {
@@ -516,10 +606,11 @@ void HeldSummary(const HeldSample& sample) {
     fc4_date date{};
     fc4_date_from_julian(sample.julian, &date);
     Log("dbpf shadow %04d-%02d-%02d: files=%u opened=%u indexes=%u records=%u raw=%u payload=%u "
-        "compressed=%u empty=%u refusals=%u scope=resource-manager-packed "
+        "compressed=%u empty=%u refusals=%u scope=registered-packed-roots+multi-children+city-backing transient=unobserved "
         "subset=%s first=%u selected=%u available=%u completed=%u/%u "
         "cumulative_files=%llu cumulative_records=%llu covered_files=%u/%u covered_records=%u "
-        "rotation_cycle=%llu rotation_files=%u/%u rotation_records=%u/%u ticks=%u max_slice_ms=%u mismatches=%u",
+        "rotation_cycle=%llu rotation_files=%u/%u rotation_records=%u/%u ticks=%u max_slice_ms=%u "
+        "packed_roots=%u packed_children=%u nonpacked=%u closed=%u city_discovered=%u city_selected=%u city_compared=%u save_generation=%llu mismatches=%u",
         date.year, date.month, date.day_of_month, c.files, c.opened, c.indexes, c.records, c.raw, c.payload,
         c.compressed, c.empty, c.refusal, sample.full ? "full" : "rotate",
         static_cast<unsigned>(sample.first), static_cast<unsigned>(sample.files.size()),
@@ -529,7 +620,9 @@ void HeldSummary(const HeldSample& sample) {
         static_cast<unsigned>(covered.size()), static_cast<unsigned>(sample.available), CoverageRecords(covered),
         static_cast<unsigned long long>(coverageCycle), static_cast<unsigned>(rotationCovered.size()),
         static_cast<unsigned>(sample.available), CoverageRecords(rotationCovered), CoverageRecords(covered),
-        sample.ticks, sample.maxSliceMs, c.differ + c.refusal);
+        sample.ticks, sample.maxSliceMs, sample.roots, sample.children, sample.nonpacked, sample.closed,
+        sample.cityDiscovered, sample.citySelected, sample.cityCompared,
+        static_cast<unsigned long long>(sample.generation), c.differ + c.refusal);
 }
 }
 
@@ -551,11 +644,18 @@ void DbpfShadowTick() {
             sample.read = std::make_unique<HeldRead>();
             sample.read->before = sample.counts;
         }
-        if (!com || !file.segment->IsOpen()) ++sample.counts.refusal;
+        if (!com || sample.generation != saveGeneration || !Stable(file)) {
+            ++sample.counts.refusal;
+            Log("dbpf refusal: changed/closed/save-transition path=%s; rediscover at next sample", file.path.c_str());
+        }
         else {
             const DWORD fileStarted = GetTickCount();
             const bool done = CompareHeld(com, file.segment, file.packed, sample.counts, *sample.read, started);
             sample.read->elapsed += GetTickCount() - fileStarted;
+            if (!Stable(file)) {
+                ++sample.counts.refusal;
+                Log("dbpf refusal: file changed during slice path=%s", file.path.c_str());
+            }
             if (!done) break;
             const auto before = sample.read->before;
             // Coverage credit requires the entire file to finish exactly. The
@@ -566,6 +666,9 @@ void DbpfShadowTick() {
                 if (!sample.full) rotationCovered[file.path] = records;
                 ++completedFiles;
                 completedRecords += records;
+                sample.cityCompared += file.city;
+                if (file.city) Log("dbpf city compared: path=%s records=%u save_generation=%llu", file.path.c_str(),
+                    records, static_cast<unsigned long long>(sample.generation));
             }
             if (sample.read->elapsed > 2000)
                 Log("dbpf slow file: path=%s records=%u active_ms=%lu", file.path.c_str(),
@@ -573,8 +676,7 @@ void DbpfShadowTick() {
                     static_cast<unsigned long>(sample.read->elapsed));
         }
         sample.read.reset();
-        FC4_RELEASE(file.packed);
-        file.packed = nullptr;
+        ReleaseHeld(file);
         ++sample.next;
         if (GetTickCount() - started >= 800) break;
     }
@@ -587,6 +689,21 @@ void DbpfShadowTick() {
 
 bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
 
+void DbpfShadowBeforeSave() {
+    if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
+    ++saveGeneration;
+    cityAfterSave = true;
+    // Release acquired views while the game's owners are still registered;
+    // do not become the last holder of an old city segment after re-registration.
+    for (auto& sample : pending)
+        for (auto& file : sample.files)
+            ReleaseHeld(file);
+    // Literal section 8.3: in-flight reads lose stable-read status. Tick reports
+    // refusals for them; the next monthly discovery uses the new registration.
+    Log("dbpf save transition: generation=%llu rediscovery=next-month transient=unobserved",
+        static_cast<unsigned long long>(saveGeneration));
+}
+
 void DbpfShadowShutdown() {
     // Never silently discard an unfinished monthly sample. A deadline that
     // interrupts it is explicitly non-exact, while all acquired QIs are released.
@@ -594,7 +711,7 @@ void DbpfShadowShutdown() {
     for (auto& sample : *pending) {
         ++sample.counts.refusal;
         for (size_t i = sample.next; i < sample.files.size(); ++i)
-            FC4_RELEASE(sample.files[i].packed);
+            ReleaseHeld(sample.files[i]);
         HeldSummary(sample);
     }
     pending->clear();
@@ -602,6 +719,8 @@ void DbpfShadowShutdown() {
     shadowMonth = completedFiles = completedRecords = coverageCycle = 0;
     covered.clear();
     rotationCovered.clear();
+    saveGeneration = 0;
+    cityAfterSave = false;
 }
 
 void DbpfNativeCityLoaded() {
