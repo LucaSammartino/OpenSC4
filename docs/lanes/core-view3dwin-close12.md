@@ -17,24 +17,14 @@
 - Focused native cargo completed with E0382 in the new test's repeated button
   vector; fixed consumption to iter().copied(). Preserve the failed log at
   build-runs/focused-close12-r3-native.log (no test results were reached).
-- Final all must run once on the corrected source, with RUST_TEST_THREADS=1.
+- Final all running on corrected 9296596a7 source, RUST_TEST_THREADS=1,
+  session 12931; output build-runs/all-close12-r3-console.log.
 - Native verify already running on unchanged production source, session 93719,
   queue qbuild-20261024-205703-build-ctest; collect exactly this operation.
 - Next: collect final all/verify to terminal, then report and enqueue actual HEAD.
-- Guard stopped this round at 150k; write no merge-queue entry this round.
-- Resumed d81c354bf. First merge re-view3dwin-vw20 was already up to date;
-  ancestry confirmed. Git emits packed-refs.lock permission errors but commits succeed.
-- Code 85f92ba7e, final formatting/coverage checkpoint 884472e54; latest docs c52c50af8.
-- Implemented required city fallbacks/reuse/graphics QI, GUI panel extras/MySim,
-  parent-owned overlay base teardown, resolved menu routes/caller IDs/null memory,
-  bus/pipe command dispatch, explicit cost visibility; tests in closure_tests.rs.
-- Seven-file fmt PASS: build-runs/fmt-close12-r2-final-console.log.
-- Native verify qbuild-20261024-191649-build-ctest PASS: build 162/162 (311.8 s),
-  CTest 81/81 (503.5 s), total 817.5 s; verify-close12-r2-console.log.
-- Focused operation fully collected: 84 passed/1 failed, old GUI ordering assertion;
-  fixed BEFORE final all. Preserve build-runs/focused-close12-r2.log.
-- README retains 16 settled coverage/audit deficits; full owner closure NOT claimed.
-  T29/T33/T34/T36 incomplete. No new questions, ABI/plugin edits, or game requests.
+- README retains 14 settled coverage/audit deficits; full owner closure NOT claimed.
+- No new questions, ABI/plugin edits, or game requests. Prior logs were copied to
+  build-runs/gate-evidence-before-r3-all before qbuild overwrote its shared logs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r3-manifest.json.
 
 ## Previous report
