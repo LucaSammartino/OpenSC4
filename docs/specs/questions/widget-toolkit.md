@@ -20,3 +20,6 @@
 
 <!-- from: core-key-accelerator4 (2026-10-22) -->
 - **WT9 - section 13.3 published interface conflict:** the public SDK cIGZWinKeyAccelerator.h lists the type registration overload before the record overload, message lookups before primitive lookups, and a bool GetKeysForAccelerator return, whereas section 13/ABI slots put record registration at 5, primitive lookups at 9/10, message lookups at 11/12 and return the total count at 13. Please confirm the authoritative native signatures/order and return width before an adapter is wired. [pure-core methods follow section 13; no C ABI or native vtable adapter added]
+
+<!-- from: re-gzwin-spec9 (2026-10-24) -->
+- **WTG1 - widget-generator.md sections 1, 4 and 5:** finish the secondary generator interface inventory and user-data overload signatures; verify inverse title geometry, all generator flag side effects, title/side/color-bar construction resources, close-result constants, edge/cursor selection and bitmap mode pixel contracts. The new spec deliberately closes only lifetime, procedure routing and the client-layout boundary. [keep owner partial; do not infer signatures from misleading exported method names]
