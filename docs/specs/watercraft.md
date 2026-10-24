@@ -612,7 +612,7 @@ must not be replaced with an externally supplied final boat movement result.
 
 | Slot / body | Behavior |
 |---|---|
-| 83 / `0x005091C0`, void `(float a)` | Sample visibility tween +0x1B0, then advance elapsed +0x1BC by `a*f32(0.001)` only when elapsed < duration +0x1B8. On reaching duration, zero elapsed and duration and copy target +0x1B4 to start +0x1B0. Sample again. Only a changed float sample updates instances: in vector order skip null entries; sample >=1 requests model slot 18 `(false,1.0)`, otherwise `(true,sample)`. No negative-sample clamp. This is separate from speed tween +0x1A0; the common tween sampling body still needs its own numeric audit. |
+| 83 / `0x005091C0`, void `(float a)` | Sample visibility tween +0x1B0, then advance elapsed +0x1BC by `a*f32(0.001)` only when elapsed < duration +0x1B8. On reaching duration, zero elapsed and duration and copy target +0x1B4 to start +0x1B0. Sample again. Only a changed float sample updates instances: in vector order skip null entries; sample >=1 requests model slot 18 `(false,1.0)`, otherwise `(true,sample)`. No negative-sample clamp. This is separate from speed tween +0x1A0; both sample by §5.1.6. |
 | 103 / `0x005089F0`, true `(float a)` | Query global animation service slot 17; only when false query slot 15. Suppress animation only when the first is false and the second true. Otherwise advance each nonnull instance through model slot 15 with a in vector order. If the inherited attachment list and model vector are both nonempty, inspect the first model's frame count (slot 12) and current frame (slot 11); current >= count-1 notifies `(1,0)` through owner slot 102. Then add a to +0x1C0. Suppression does none of these writes. The first model must be nonnull for this completion branch. |
 | 104 / `0x00505940`, void `()` | Call required effect-controller slot 4 with pointers to inherited position +0x40, heading +0x58, and measured speed +0x94 by value. No boat-speed substitution, dt, null check or result test. |
 | 107 / `0x00509290`, void `()` | Skip lighting when owner flag `0x100000` is set, global lighting is absent, or no processed model is installed at +0x12C. Otherwise compare inherited heading with last-lit heading +0x70 and inherited position with last-lit position +0x64. Relight only if any absolute heading-component delta strictly exceeds its configured component threshold, or squared 3D position distance strictly exceeds its configured squared-distance threshold. Equality does not relight. Request LightModel with the global lighting service and false, then copy position and heading to the last-lit records. |
@@ -635,6 +635,30 @@ without a null check (`0x00572D79–0x00572E53`). Failed creation can thus retur
 true from Init but is not safe here. It is a required-effect precondition,
 not an absent-effect success contract. No owner-computed endpoint or offset
 is added. Animation time and movement time remain distinct (§5.1.4).
+
+### 5.1.6 Shared tween sampling arithmetic (WC3/WC4)
+
+`TweenStruct::GetCurrent` (`0x004FA960`) takes no arguments beyond the
+tween receiver, returns a floating-point sample, and writes none of its four
+float fields. Their relative offsets are start 0, target 4, duration 8 and
+elapsed 12. Duration is tested first: a nonpositive **or unordered (NaN)**
+duration returns the stored target directly. This does not clear duration,
+elapsed or start; completion/reset belongs to the calling tick.
+
+For positive duration, compute `q=f32(elapsed/duration)`. Clamp q to [0,1]
+using ordered comparisons; NaN q survives both comparisons. Return
+`start+(target-start)*q`, using the clamped q. The subtraction, multiplication
+and addition execute on the x87 stack without intervening float stores;
+the ratio alone has an explicit float store. The return stays on that stack
+until the caller consumes/stores it. Do not round each arithmetic operation
+to float or replace the endpoint cases by returning start/target directly.
+In particular an infinite endpoint can make even a clamped-zero product
+NaN. Sampling neither advances time nor reports success/failure. This rule
+applies to the inherited speed and visibility tweens; it does not imply that
+their callers use the same elapsed-time update or reset policy.
+Evidence: duration branch `0x004FA961–0x004FA974`, ratio store
+`0x004FA977`, clamp/interpolation `0x004FA97A–0x004FA9D0`, direct target
+return `0x004FA9D2–0x004FA9D6` (instructions with bytes).
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -699,11 +723,73 @@ succeeds, clear +0x2B1, erase the first travel point, and slew speed/turn
 toward zero using §5.1.3. That consumption branch does not publish a position
 or runtime heading. The angle helper still normalizes inherited heading.
 
-The remaining target-production branches are not fully certified by this
-subsection; notably the two turning branches must not be assumed to have
-identical sign/target formulas. Evidence: refill/reset `0x00571880–0x005718D0`,
+The remaining target-production branches are specified in §5.2.2; their
+turn targets have different sign formulas. Evidence: refill/reset `0x00571880–0x005718D0`,
 scan/count `0x005718D0–0x00571A1A`, midpoint/short-distance checks
 `0x00571A20–0x00571B59`, consumption `0x00571B77–0x00571BD8`.
+
+#### 5.2.2 AI target production and direct publication (WC4)
+
+After §5.2.1's early exits and consumption test, let P be inherited occupant
+position, H inherited heading, d0 the horizontal distance to M0, and U0/U1
+the normalized horizontal directions to M0/M1. Initialize local target speed
+and target turn to zero on every invocation, even when no refill occurs.
+Replace a NaN H.y with zero (infinities are not replaced), then normalize the
+complete H in place. The angular-proximity helper used below also normalizes
+H, as specified in §3.4. Runtime movement heading is a separate record.
+
+Evaluate the following branches in order. The latch is byte +0x2B1.
+
+| Condition | Work and selected targets |
+|---|---|
+| Latch clear and angular proximity to U0 fails | Rotate H toward U0 by the signed limited angle below. Leave speed target zero. Turn target is `abs(signed_angle)*p[2]/q`, always nonnegative for positive p[2] and dt. Leave the latch unchanged. |
+| Otherwise, d0 strictly below 7 | Test proximity to U1 again. On failure set the latch to 1 and rotate H toward U1; speed target stays zero and turn target is `signed_angle*p[2]/q`. On success both targets remain zero. This latter result normally took the earlier consumption path already. |
+| Otherwise (d0 >= 7) | Move P directly toward `(M0.x,water_height,M0.z)` by the limited displacement below. Turn target stays zero; speed target is `travel*p[0]/allowance`. Leave the latch unchanged. |
+
+For either turning branch, `q=f32(f32(0.1)*dt)` degrees. Compute
+`angle=acos(dot(U,H))*f32(57.29578)` without clamping the dot product.
+Limit the nonnegative angle to q, then store the limited magnitude as float:
+an ordered negative angle selects zero; otherwise cap it only when it is
+strictly greater than q. An unordered angle survives as NaN. The sign is -1 if the float
+cross term `U.x*H.z-U.z*H.x` is strictly negative, +1 otherwise (including
+zero or NaN). Multiply magnitude by sign to obtain signed_angle. Rotate
+using `X'=cos(r)*H.x+sin(r)*H.z`, `Y'=H.y`,
+`Z'=-sin(r)*H.x+cos(r)*H.z`, where r is signed_angle times
+`f32(0.017453292)`. Store cosine and the resulting components as floats;
+trigonometric evaluation and unstored products use the x87 intermediates.
+The first branch stores signed_angle to float before its later sign lookup
+and target calculation; its extra multiplication by sign(signed_angle)
+produces the absolute numerator. The second branch retains the signed
+intermediate through its target multiplication/division. Do not add that
+extra sign factor to the second branch. Evidence:
+`0x00571C69–0x00571D34`, `0x00571E2E–0x00571E45`,
+`0x00571F3F–0x00572005`, `0x005720F6–0x00572100`;
+sign helper `0x00566E00–0x00566E22`.
+
+In the translation branch, sample terrain water-level slot 29 (no x/z
+arguments), form float component differences V to that 3D target, and
+compute L=length(V). The allowance is `f32(f32(0.0025)*dt)`;
+travel is min(L,allowance) for nonnegative L, otherwise zero. Normalize V
+using the stored float L, multiply by travel, and add the displacement to
+P with float component stores. This can change y as well as x/z. The speed
+target uses travel, not the z displacement or a horizontal distance.
+Evidence: `0x00571E5F–0x00571F36`.
+
+All three non-consumption branches then normalize H again, publish the
+inherited P/H through MoveTo (slot 16), shift the old current position and
+heading snapshots to previous, and copy inherited P/H into current snapshots
+(+0x2F4 and +0x30C). This happens even for turning with unchanged P. Finally
+slew speed/turn toward the selected targets by §5.1.3. Consumption instead
+jumps straight to slew with zero targets, without this publication.
+Evidence: `0x00572104–0x005721C4`.
+
+The function does not clamp dt or protect either target division against
+zero q/allowance. At dt=0 the relevant 0/0 can produce NaN. Negative dt
+can select a negative limited magnitude or negative travel; it is not
+converted to a positive allowance. No zero-length-heading fallback exists.
+For finite nonnegative dt the table gives the ordinary executable branches;
+invalid normalizations retain the original floating-point behavior rather
+than silently choosing a replacement heading or provider-computed target.
 
 ### 5.3 Ferries: requests and docking
 
@@ -1914,4 +2000,28 @@ comparisons allow ordinary float/trigonometric tolerance; branch tests do not.
 | WC4-AN03 | Configured lighting deltas all exactly at their thresholds | No relight or last-lit cache writes. Exceed one threshold to request relight and copy both caches; owner flag 0x100000 suppresses both. |
 | WC4-AI01 | Picker succeeds but leaves two travel points | Refill path resets speed/turn; no three-point motion target or publication. A false picker also leaves speed/turn reset. |
 | WC4-AI02 | Three points; distance to either midpoint 0.05 | Clear points, push state 72, return without target slew. Distance exactly 0.1 alone does not trigger removal. |
+
+### 11.18 Shared tween and AI target vectors (round 2)
+
+Tween values below are (start,target,duration,elapsed). Sampling leaves all
+four fields unchanged. AI vectors describe the selected targets **before**
+§5.1.3 slew/clamp. Supply at least ten points to bypass refill/reset; listed
+midpoints are world-space results of the first three point conversions.
+Float expectations use the stored constants in §5.2.2; use numeric tolerance
+for trigonometric results, and inspect NaN classification separately.
+
+| ID | Setup | Required result |
+|---|---|---|
+| WC3-T01 | Tween (2,10,4,1), then elapsed -1, 8 | Samples 4, 2, 10 respectively; no reset or elapsed advance. |
+| WC3-T02 | Tween (2,10,0,99), then duration -1, then NaN | Sample 10 in all three cases. Invalid duration is the direct-target branch. |
+| WC3-T03 | Tween (2,10,4,NaN) | NaN sample; positive duration does not repair an unordered ratio. |
+| WC3-T04 | Tween (2,+infinity,4,-1) | NaN sample from the clamped-zero interpolation; returning start directly would incorrectly give 2. |
+| WC4-AI03 | P=(0,0,0), H=(0,0,1), M0=(10,0), M1=(20,0), latch=0, dt=100, p[2]=0.002 | First turning branch: signed angle about +10 degrees, turn target about +0.002, speed target 0; H becomes approximately (0.173648,0,0.984808). P unchanged; MoveTo and both snapshot shifts occur before slew. |
+| WC4-AI04 | Same as AI03 but M0=(-10,0), M1=(-20,0) | H.x approximately -0.173648, yet turn target still about +0.002. First branch uses absolute signed angle in its target. |
+| WC4-AI05 | P=(0,0,0), H=(0,0,1), M0=(3,0), M1=(-10,0), latch=1, dt=100, p[2]=0.002 | Consumption proximity fails; second turning branch sets latch=1, H.x approximately -0.173648, turn target about -0.002 and speed target 0. Publication still occurs. |
+| WC4-AI06 | P=(0,0,0), H=(1,0,0), M0=(7,0), M1=(17,0), water=0, latch=0, dt=100, p[0]=0.1 | Exact distance 7 chooses translation: allowance/travel about 0.25, P approximately (0.25,0,0), target speed 0.1, target turn 0. No point erase; current snapshot captures the moved inherited position. |
+| WC4-AI07 | P=(0,0,0), H=(1,0,0), M0=(8,0), M1=(18,0), water=6, latch=0, dt=1000, p[0]=0.1 | L=10, allowance/travel about 2.5: P approximately (2,1.5,0), speed target 0.1. A horizontal-only move is incorrect. |
+| WC4-AI08 | AI07 with dt=5000 | Allowance about 12.5, travel 10: P=(8,6,0), speed target about 0.08. Target is scaled by the used fraction; there is no time clamp in this function. |
+| WC4-AI09 | AI03 with dt=0 | Rotation magnitude zero, H remains forward; turn-target division produces NaN rather than a forced zero. Publication precedes slew. |
+| WC4-AI10 | Translation setup AI06, dt=-100 | Negative allowance/travel about -0.25 moves P.x backward to approximately -0.25; target speed still about 0.1. No absolute-time repair. |
 | WC9-01 | Default tuning, L=R=100, T=0, dt=10 | Final T=-0.1 and both channels stay 100, matching corrected WC8-08. |

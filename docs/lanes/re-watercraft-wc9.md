@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-watercraft-wc9: WC9 and owner closure contracts | Codex / re-watercraft-wc9 (detached HEAD) | wip | WC5/WC9 answered; finish WC3/WC4 before claiming owner closure. |
+| re-watercraft-wc9: watercraft behavior contracts | Codex / re-watercraft-wc9 (detached HEAD) | in progress | Round 2: audit AI targets and shared tween; narrow any transitive model/effect residual. |
 
 ## Report
 
@@ -36,6 +36,10 @@ no maintenance run. Supervisor publication of the actual final tip is required.
 
 ## Handoff
 
+- Round 2 active (2026-10-24): reuse detached HEAD 198b9cd62; WC5/WC9 already answered.
+- Done round 2: §5.2.2 AI targets/publication and §5.1.6 shared tween, 14 vectors; instruction audit confirms first-branch absolute turn versus second-branch signed turn and NaN-preserving angle cap.
+- Next: bind shared cSC4ModelRegEffects owner to graphics-formats §3.11; document LoadModels result/failure behavior and narrow transitive model residuals.
+- Required endpoint: READY re queue for certified spec additions; retain exactly scoped unresolved model/effect questions if necessary.
 - Goal: answer WC9, WC3, WC4, WC5 with prose and conformance vectors; no engine reads or edits.
 - Worktree reused at detached HEAD; main/export are read only.
 - Read core-watercraft9's lane report in its worktree: WC9 exists there but has not reached this worktree.
