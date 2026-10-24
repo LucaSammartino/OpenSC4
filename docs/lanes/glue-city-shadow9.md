@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-city-shadow9: bounded city geometry shadow | Codex / glue-city-shadow9 | in progress (final citation gate) | Collect final gate; resolve HG8 before whole-owner credit. |
+| glue-city-shadow9: bounded city geometry shadow | Codex / glue-city-shadow9 | ready (measured slice; HG8 open) | Land measured geometry; resolve HG8 before whole-owner credit. |
 
 ## Result and scope
 
@@ -32,11 +32,14 @@ serializable capture route. No invented city record parser or native-seeded pers
 ## Verification
 
 - Final audit found the floor rule citation was mislabeled §17; corrected to budget round-2 errata item 6.
-  Implementation statements and the measured behavior are unchanged. A second full gate is being collected
-  on the final source comment; no additional game run is required for a comment-only correction.
+  Implementation statements and the measured behavior are unchanged. Correction commit `e1a929dca` changes
+  only the core's citation comment and documentation. No additional game run is required for this correction.
+  Final stable-source `qbuild.py all` **PASS**: **6986 tests passed, 0 failed, 0 ignored**, clippy **0 diagnostics**;
+  native queue `qbuild-20261024-091941-build-ctest` terminal PASS, build **205/205** (82.1 s),
+  CTest **79/79** (172.1 s), native verification 258.0 s total. This final gate has no tree-change annotation.
 - Owned-file formatting passes. Focused city-filter tests: **157 passed**, including both new tests for
   signed boundary flooring and counting every differing axis/width independently.
-- Stable-source `qbuild.py all`: **PASS**, workspace **6986 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**.
+- Initial `qbuild.py all`: **PASS**, workspace **6986 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**.
   The same operation delegated native verification to queue `qbuild-20261024-083721-build-ctest` and was
   collected to terminal PASS: build **254/254**, full CTest **79/79**. No duplicate native verify was started.
   Its tree-change annotation refers only to a lane-documentation commit; implementation source stayed fixed.
