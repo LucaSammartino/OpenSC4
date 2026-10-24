@@ -1,26 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-construction-lr13: construction reference verification | Codex / glue-construction-lr13 | in progress | Implement LR13, gate, measure house shadows to 2032 |
+| glue-construction-lr13: construction reference verification | Codex / glue-construction-lr13 (detached HEAD, reserved branch) | ready: measured implementation; LR14 open | Review LR14 before claiming complete construction closure |
 
-## Handoff
-- Goal: LR13 construction reference codec/replay, T66-T73, complete defined-field comparisons.
-- Done: initial handoff 7af10565c; LR13 literal-IID acquisition/release and canonical Serializable mapping implemented.
-- Done: T66-T73 native DLL fixture added; CAPI rejection/continuation test passes (1/1).
-- Done: construction codec preserves rejected entries as null even when the helper returns false without stream error; full record equality remains strict.
-- Done: focused CAPI and core tests pass (1 each); formatting passes on all three owned Rust files.
-- Gate: qbuild all PASS: cargo 6985/6985, clippy 0 diagnostics, queued native build 255/255 and CTest 80/80 (including T66-T73).
-- Native verification label: qbuild-20261024-081024-build-ctest; all invoked the queued verify path, no second build requested.
-- Diagnostic: review found replay omitted the reader's temporary Serializable acquisition (capture pin was separate but not an equivalent helper sequence). Corrected it and asserted exact successful/rejected acquisition counts in T66/T69/T70.
-- Game 469 complete: preliminary source 65fe7b81e, automataowners 73/73, construction 182/182, clean to 2032, foreign_exceptions=0, ref_warnings=0. Record docs/runs/construction-lr13-r1-house-2032-20261024a-469.md.
-- Corrected gate c44e2ba59: Rust/clippy pass, build pass, CTest 79/80; exact-count fixture included RefAudit first-vtable QIs. Fixed by warming audit cache. Evidence build-runs/lr13-corrected-gate-failure.txt.
-- Final-source gate PASS: qbuild all cargo 6985/6985, clippy 0 diagnostics, native build 48/48, CTest 80/80. Queue qbuild-20261024-082644-build-ctest, terminal collected.
-- Final-source turbo run 470 corrupt on 2027-01-09: automataowners 12/13 incl load, construction 107/108, rejected bare effect field 13 reproduced 254/250 at offset 158, then capture-pin last release and foreign exception. LR14 filed; spec forbids coercion. Default off unchanged.
-- Normal-speed final-source request outstanding: construction-lr13-r1-house-2032-20261024c-normal, seconds 1800/timeout 2000/end date 2032-01-01, same house profile. Watcher session 84351 (20-minute event wait); collect this same operation.
-- Next: collect normal verdict, summarize it, record free run 471, then READY for measured implementation with LR14 open (no full construction coverage credit claim). If normal also corrupts, measure automata with owners off to 2032 before finalizing.
-- Failed tooling evidence: fmt relative paths rejected; q.py Bash could not CreateFileMapping; direct PowerShell cargo works.
-- Comparison scope: all 15 serialized fields, inherited holder and all reference identities/membership; crane presence explicitly seeded from captured bit, no lifecycle claim.
-- Required: qbuild all plus queued verify; house profile to 2032, unique request label, collect same operation.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-construction-lr13-r1-manifest.json.
-- Preliminary run 469 used production source 65fe7b81e; never substitute it for the final-source run.
-- Game wait is a single FileSystemWatcher wait (no qwait); first attempt failed because directory was absent, then directory created and session 20481 started. Do not duplicate the request.
-- Full logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+## Changes
+LR13 literal-IID replay now owns the actual field QI result, separately from the reader's temporary Serializable acquisition and the observer's capture pin. Canonical Serializable mapping preserves shared identity across interface views. Rejected references become null without dropping list entries, changing crew flags/order, retaining rejected tokens, or stopping consumption when the stream has no error. Strict byte equality reports a nonnull-to-null change as a mismatch; there is no four-byte normalization or guessed interface.
+
+The comparison covers every serialized construction field in §9: version, inherited occupant block and holder, lot/building references, full transform, both bounds, captured crane-presence bit, crane position, ground/roof props, effects/current effect, every scalar, and crew flags/references. Existing dated `automataowners` lines retain construction record counts. Native T66-T73 fixtures exercise the production DLL capture/replay path; the Rust tests additionally check false-helper continuation and repeated live-effect empty-name serialization.
+
+## Gate
+Final stable source: production correction c44e2ba59; fixture correction cbf50be94. `qbuild all` PASS: cargo **6985 passed, 0 failed**, clippy **0 diagnostics**, queued native build **48/48**, full CTest **80/80**. Native queue label: `qbuild-20261024-082644-build-ctest`. The all command used the coordinator's queued verify path; no duplicate verify was started. Formatting passed on the three owned Rust files. C ABI exports did not change.
+
+An earlier corrected-source CTest run was 79/80: the exact acquisition-count fixture included RefAudit's initial class-discovery QIs. The fixture now warms that cache before counting. Failed evidence remains in `build-runs/lr13-corrected-gate-failure.txt`; the original failed queue was `qbuild-20261024-082310-build-ctest`. Initial relative-path fmt invocation and q.py Bash startup failures are also distinct from passing final checks.
+
+## Game measurements
+- [Run 469](../runs/construction-lr13-r1-house-2032-20261024a-469.md): preliminary source, turbo to 2032, clean; **automataowners 73/73**, construction **182/182** exact, foreign_exceptions=0/ref_warnings=0.
+- [Run 470](../runs/construction-lr13-r1-house-2032-20261024b-470.md): final production source, turbo, corrupt on 2027-01-09; **automataowners 12/13**, construction **107/108**. Field 13 captured bare class 0xA9BC9AB6, rejected effect IID 0x2977AA49, and replayed 254/250 bytes. Capture-pin cleanup reached zero; a foreign exception followed. foreign_exceptions=1/ref_warnings=1. This remains a real failure, filed as LR14.
+- [Run 471](../runs/construction-lr13-r1-house-2032-20261024c-normal-471.md): final source, normal speed, house train187 shadows profile to **2032-01-01**, clean shutdown; **automataowners 73/73**, construction **169/169** exact, foreign_exceptions=0/ref_warnings=0, 1033.781 real seconds. DLL SHA256 prefix f7fe29c4.
+
+Exact dated-line result for run 471: **`automataowners 72/72`**. Including the undated load observation: **`automataowners 73/73`**. Shutdown independently reports 73 lines, 73 with mismatches=0. All dated lines retain the required label and format through 2032-01-01. Request/log/verdict labels are the run filenames without their numeric suffix; full evidence stays in `build-runs/game-results/`. Every operation was collected to terminal; none remains outstanding.
+
+## Limits and questions
+**LR14** is appended to [lot-records questions](../specs/questions/lot-records.md): explain the observed native bare field-13 callback and its ownership/lifetime despite §9.1.1's valid-live-effect contract. Normal-speed exactness does not explain or erase the turbo failure. Keep this feature default-off and do not claim reliable full construction closure from this lane. The supplied house profile already contains the existing ini key; no tools files or shared profile were edited.
+
+Only the native **Write record surface** is shadowed against Rust Read/Write. Native **Read and every non-Write construction method remain uncompared**, including Init/Shutdown, SetLot, DoDailySim, DoMessage/DoAnimationTick, AnimateCrane and Attempt*Crane, RebuildModel/CreateCrane/CreateSparks, prop/crew placement, rendering/rotation/lighting, live getters, and native QI/AddRef/Release behavior as independent behavioral comparisons. QI/refcount contracts have normative native-double tests and are exercised by transport, not a separate method shadow. Crane presence is explicitly seeded from the captured bit; post-load refresh/model allocation is not measured. Discovery follows saved owner/occupant-manager references, not a census of unreferenced/unindexed live constructions (the existing LR12 inventory question remains relevant).
+
+Ready for review/landing of measured codec, ownership and tests under the task's partial-work rule. Resolve LR14 and inventory scope before full coverage credit; coordinator regenerates the question index and reviews coverage bookkeeping. No game files, tools changes, ABI version change, or merge into main.
