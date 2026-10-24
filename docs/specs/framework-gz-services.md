@@ -7,7 +7,8 @@ Behaviour spec for the GZ framework's second-generation messaging service: the m
 `bin/SimCity4.exe`; the REA session was unavailable this round (no binary open), so no REA pseudocode
 was used. Addresses are VAs in that exe.
 
-Outline: §1 owners and identity. §2 message queue. §3 queue manager. §4 message server 2
+Outline: §1 owners and identity. §2 message queue. §3 queue manager (including §3.1 observation
+limits and §3.2 optional-service acquisition, GZ11/GZ12). §4 message server 2
 (§4.1 layout, §4.2 notification registry, §4.3 send, §4.4 post and tick, §4.5 directed (general)
 messages, §4.6 message creation, §4.7 service lifecycle). §5 worked example. §6 open questions.
 
@@ -112,8 +113,99 @@ reference, guarded by a critical section. Vtable `0x00AD1B80`:
 | 6 | `0x0092DED7` | RemoveQueue(queue): linear scan for the entry holding that queue pointer, erase it, true; false if none. |
 | 7 | `0x0092DE86` | RemoveQueue(id): erase the entry, true; false if absent. |
 | 8 | `0x0092E3FC` | RemoveAllQueues: clear the map; always true. |
+| 9 | `0x009DB663` | GetQueueCount: return the unsigned 32-bit number of registered IDs, without acquiring the manager lock. |
 
 Erasing releases the map's reference; a queue nobody else holds is destroyed then.
+
+### 3.1 Public observation limits (GZ11)
+
+There is **no complete read-only enumeration or snapshot interface on these owners**. The
+manager exposes lookup by supplied ID and a count, not iteration over IDs. Its last slot,
+slot 9 at vtable `0x00AD1BA4`, reads the map's stored count at manager +0x30, with no lock
+(`0x009DB663`–`0x009DB666`). This is the number of **ID entries**, not distinct queue objects
+or messages: two IDs may hold the same queue pointer. Construction clears that count
+(`0x0092E73D`, `0x00892027`); insertion increments it (`0x0093804E`), erasure decrements it
+(`0x00968DBD`), and RemoveAll clears it (`0x0092DC7B`). No extra slot supplies the missing
+keys. The inherited system-service and reference-count faces expose identity, lifetime,
+running state and lifecycle callbacks, not queue enumeration (tables `0x00AD1B4C` and
+`0x00AD1B34`). Thus the answer is a limitation of the native interface, not an unknown
+enumerator signature to guess. A complete live shadow cannot be seeded through these
+interfaces alone; no complete public mutation-observer hook is supplied either.
+
+| State to observe | Available public observation | Limit |
+|---|---|---|
+| Manager registry | GetQueue(id, out), GetQueueCount | Lookup needs a known ID. Count supplies no IDs or identities. |
+| A held queue | Count (slot 22), front/back type, front/back peek, type/equality searches (§2) | No index/iterator or nondestructive traversal of arbitrary contents. Equality search needs a supplied message and returns only its first match. Taking and reinserting messages changes the queue and its references/signals. |
+| Server-2 ordinary posted messages | Posted-message count (slot 10) | Counts the embedded ordinary post queue only; supplies neither message identities/order nor the separate directed deque. |
+| Server-2 directed posts and pending registration changes | No enumeration | Post/cancel/send/tick and add/remove notification are actions, not observation APIs. |
+| Server-2 notification registry | No enumeration | Registering a wildcard target changes registrations; receiving future deliveries does not reconstruct existing registrations, pending records or all prior mutations. |
+
+Evidence for the boundary is the constructor-installed manager table `0x00AD1B80` (slots
+0–9), queue table `0x00AD1AD0` (slots 0–24), and server-2 table `0x00AD1BF4` (slots 0–13).
+The server's posted-count body locks its post region and calls only the embedded queue's
+count (`0x0092D0FC`–`0x0092D10D`); its registry and directed deque are separate (§4.1).
+The server constructs that queue directly (`0x0092EB70`–`0x0092EB73`): it is not evidence
+of a queue-manager service or a manager registration for the embedded queue.
+
+**Synchronization and lifetime.** GetQueue locks one lookup and AddRefs a found queue before
+unlocking; a miss writes null and returns false (`0x0092DBC6`–`0x0092DBFD`). Release each
+successful result through that returned queue interface after use. A held queue can outlive
+its removal from the registry; the hold does not preserve its ID binding or freeze its contents.
+Peeks likewise return counted messages. These are read-only with respect to the requested
+container operation, not reference-neutral: AddRef/Release and message type/equality methods
+can execute foreign code. There is no public cross-object snapshot lock, mutation sequence
+number, or atomic count-plus-lookups operation. In particular, the unlocked manager count
+does not make a series of locked lookups one consistent snapshot. The private layout in §4.1
+does not authorize a live memory walk: it provides no public lock/lifetime protocol for one.
+
+**Diagnostic scope.** A finite ID probe establishes only the answers to those lookups at
+those call times. IDs 0–255, `0x64FA8434`, `0x652294BC` and `0xFFFFFFFF` are not an enumeration
+contract or reserved queue-ID namespace. Equal numeric pointers on later samples do not prove
+absence of intervening mutations or address reuse. A mismatch against an immutable baseline
+must remain a mismatch; resynchronizing would hide it. A host may arrange a quiescent fixture
+with known IDs for bounded conformance tests (§5.3), but neither that fixture nor an unchanged
+monthly probe establishes whole-owner native verification. Full-state shadow needs a separately
+established complete capture/replay facility; this answer does not supply one.
+
+### 3.2 Optional service and existing-manager acquisition (GZ12)
+
+The requested service/IID pair **is correct**: `0x64FA8434` / `0x652294BC`. The constructor
+sets that service ID (`0x0092E720`), and manager QI accepts that IID, returns its primary
+interface and AddRefs it (`0x0092D033`–`0x0092D04A`). However, the shipped application startup
+does **not install this manager as a system service**. It registers a COM **class factory**
+for class ID `0x452294DF` (`0x0092D02D`–`0x0092D032`, director registration
+`0x004601F6`–`0x00460203`), which makes the class constructible, not an existing service.
+Application AddSystemServices (`0x00450350`; [application §4.2](application.md#42-system-services-addsystemservices-0x00450350))
+installs the generation-1 and generation-2 message servers, not this manager. There is no
+guaranteed city-load or monthly phase at which an existing manager appears. The failed
+lookup at load and all 72 monthly samples in `gzmsg-shadow8-r1-2032` is therefore consistent
+with a genuinely absent optional service; it is not evidence for another manager ID or IID.
+
+Read-only acquisition means querying the framework for that exact pair **if another owner
+has already registered a manager**. GetSystemService searches the existing service registry
+and, only on a hit, forwards the requested IID and output to that service's QI
+(`0x0087A0C4`–`0x0087A0ED`). It does not instantiate classes, search inside message servers,
+or wait for service creation. On a missing service it returns false and **leaves the output
+unchanged** (`0x0087A0D5`–`0x0087A0EF`); initialize the output to null before probing and
+use it only on success. A successful manager lookup gives the caller one owning reference;
+balance it with manager-interface Release (slot 2, `0x00930577`, forwarding through
+`0x0091DD89` to `0x0090D997`). Keep that hold across any queue lookups; acquiring the manager
+does not hold all its queues or prevent registry mutations. Availability depends on actual
+registration, not the service's running flag. A diagnostic host should finish its reads and
+release its holds before framework teardown; a counted hold is not a guarantee that shutdown
+leaves the service operational.
+
+The factory `0x0092EA44` allocates a **new**, initially empty 0x38-byte manager and returns its
+system-service face at object +4; it neither retrieves an existing instance nor registers one
+(`0x0092EA44`–`0x0092EA64`, constructor `0x0092E714`). Substituting class ID `0x452294DF`
+for the service ID, calling that factory, or inserting its result cannot repair an observation
+of the original registry. The export's only direct manager-constructor caller is that factory,
+and its factory pointer is registered by the director above; this is static provenance, not a
+claim that optional plugins or arbitrary indirect clients can never instantiate/register it.
+No unsupported EnumSystemServices callback, object-layout cast or fallback service is needed
+for this acquisition contract. When no manager is registered, report **unavailable**, retain
+the default-off diagnostic and its mismatch result, and give no queue-manager verification
+credit. An absent service is not an acquired manager with an empty registry.
 
 ## 4. Message server 2 (`cGZMessageServer2`)
 
@@ -426,9 +518,34 @@ are added here. No File/INI/Directory/CmdLine/SysServPtr owner completion is cla
 acquisition helpers are caller provenance only. No aggregate GZ/RZ owner or byte coverage increase
 follows from this contract pass. GZ1–GZ7 are resolved in their named sections and archived.
 
+### 5.3 Observation and acquisition vectors (GZ11/GZ12)
+
+These are independent, instruction-derived expectations, not new game measurements. Registry
+fixtures are host-controlled and quiescent; do not create or insert native services in a live
+city to run them. Keep explicit external holds on fixture queues and messages. The negative
+observability cases state what a diagnostic may conclude, not a new native snapshot API.
+
+| Vector | Setup / action | Required observation |
+|---|---|---|
+| GZ-V15 optional service absent | Framework with no service `0x64FA8434`; initialize output to null, then GetSystemService with IID `0x652294BC`. Repeat separately with a nonnull sentinel output. | False in both calls. Output remains null/sentinel respectively; no factory invocation, manager or queue creation. Diagnostic records unavailable, not exact-empty. |
+| GZ-V16 existing service | Host registers a fixture manager under its own service ID, then looks up `0x64FA8434` / `0x652294BC`. | True, primary manager interface returned, one AddRef for the caller. Balance with slot-2 Release. Looking up class ID `0x452294DF` as a service ID fails when no service has that ID. |
+| GZ-V17 ID cardinality | Empty manager; AddQueue(7,Q), AddQueue(8,Q), AddQueue(7,R), RemoveQueue(7), RemoveAllQueues; read slot 9 after each action without concurrent writers. | Counts 0 initially, then 1,2,2,1,0. Duplicate ID fails; aliasing Q under two IDs counts twice. Count reads acquire no queue references and make no manager lock call. |
+| GZ-V18 hidden key | Register Q only at `0x00010000`. Probe 0–255, `0x64FA8434`, `0x652294BC`, `0xFFFFFFFF`; separately read manager count. | Every probe misses and writes null; count is 1. The finite probe is not an empty-registry observation. Slot 9 supplies no missing key. |
+| GZ-V19 held lookup survives removal | Register Q at 7; GetQueue(7,out); remove 7 while caller retains out; GetQueue(7,other). | First lookup succeeds and AddRefs Q; second misses and writes null. The first returned queue remains alive through the caller hold, but ID 7 is absent and count is 0. Release the held result after use. |
+| GZ-V20 equal bounded samples | Between two quiescent sample times, replace hidden ID `0x10000` with `0x10001`, keeping all probed IDs unchanged and the same total count. | Bounded membership/identity answers and count match, although the registry changed. No complete-state equality or absence-of-mutation conclusion is allowed. |
+| GZ-V21 ordinary count boundary | Fresh server 2: add a notification; post one directed pair; then post one ordinary message. Observe slot 10 after each action, without Send or Tick. | Counts 0 initially, then 0,0,1. Neither a notification nor a directed pair appears in ordinary posted count. Nothing enumerates the registered target or directed pair. |
+| GZ-V22 endpoints are not contents | Distinct queues contain [A,B,C] and [A,D,C], with four distinct messages of the same type. Read queue count and front/back peeks only. | Both counts are 3 and both endpoint identities/types match. These observations cannot distinguish the middle message. Peeks AddRef their returned endpoints; release those results. Do not drain/refill either queue to claim a read-only snapshot. |
+
+GZ-V15/V16 follow framework lookup `0x0087A0AC` and manager QI `0x0092D033`.
+GZ-V17–V20 follow manager slots 3–9, including the unlocked count getter, and
+GZ-V21/V22 follow server count `0x0092D0F4` and the queue interfaces in §2. They do not
+resolve the separate cleanup, forwarding or complete-body-inventory questions GZ8–GZ10.
+
 ## 6. Open questions
 
-None in the GZ1–GZ7 contract scope. Native indirect-caller enumeration and invalid-iterator
+GZ1–GZ7 and GZ11/GZ12 are answered; GZ8–GZ10 remain open. GZ11's answer is an explicit
+native observation limit and GZ12's is optional-service absence, not new shadow verification.
+Native indirect-caller enumeration and invalid-iterator
 behaviour are bounded as stated in §4.5; they are not claims of exhaustive runtime coverage.
 
 See docs/specs/questions/framework-gz-services.md.
