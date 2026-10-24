@@ -188,3 +188,4 @@ pub mod nation;
 pub mod city_geometry;
 pub mod regional_city;
 pub mod region;
+pub mod pedestrians;
