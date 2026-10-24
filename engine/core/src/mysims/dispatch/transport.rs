@@ -106,8 +106,7 @@ impl MySimDispatch {
     }
 
     /// The flag-10 stop/boarding operation with a route marker supplied by the
-    /// route controller. Route index selection remains MS18; this does not guess
-    /// which stored index is the next marker.
+    /// route controller. The live owner supplies R[start] through MS21 selection.
     pub fn transit_stop_update(&self, sim: i32, marker: RouteData, services: &dyn TripServices) -> TripOutcome {
         let st = self.get_state(sim);
         if st.search.flags & 0x10 == 0 {
@@ -159,7 +158,7 @@ impl MySimDispatch {
         } else {
             None
         };
-        let Some(travel) = services.dispatch_next_leg(sim, automaton) else {
+        let Some(travel) = self.dispatch_selected_leg(sim, automaton, services) else {
             return TripOutcome::UnsupportedMs18;
         };
         if travel == 0xFF {

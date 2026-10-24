@@ -86,9 +86,25 @@ pub trait TripServices {
     fn boarding_automata(&self, _cell: (i32, i32)) -> Option<Vec<BoardingAutomaton>> {
         None
     }
-    /// Attempt a real next leg, optionally with a selected boarding automaton.
-    /// Returns its travel type (FF is failure); never a synthetic arrival.
-    fn dispatch_next_leg(&self, _sim: i32, _automaton: Option<u64>) -> Option<u32> {
+    /// Ordered MS21 presence query. None means the adapter lacks the input;
+    /// zero means absent. The returned object is never installed in a location.
+    fn route_network_probe(&self, _x: u32, _z: u32, _mask: u32, _last: u32) -> Option<u32> {
+        None
+    }
+    /// Submit the owner-extracted range; FF is failure, not arrival.
+    fn basic_dispatch(&self, _sim: i32, _route: &VecDeque<RouteData>, _automaton: Option<u64>) -> Option<u32> {
+        None
+    }
+    fn remaining_automaton_route(&self, _occupant: u64) -> Option<VecDeque<RouteData>> {
+        None
+    }
+    fn submit_remaining_route(
+        &self,
+        _occupant: u64,
+        _route: &VecDeque<RouteData>,
+        _accept: bool,
+        _last: bool,
+    ) -> Option<()> {
         None
     }
     fn register_deferred_setup(&self, _sim: i32, _register: bool) {}
@@ -102,6 +118,8 @@ impl Default for DispatchState {
             destination: DispatchLocation::default(),
             queue: VecDeque::new(),
             tuning: DispatchTuning::default(),
+            // MS22: deterministic storage only; native +10 is unwritten
+            // before Init, unlike the guaranteed null +FC and zero +100.
             auxiliary_flag: false,
             opaque_28: 0,
             path_indices: (0, 0),
@@ -448,7 +466,7 @@ impl MySimDispatch {
                     self.set_state(sim, -1);
                     return TripOutcome::Accepted;
                 }
-                TripOutcome::UnsupportedMs18
+                self.update_selected_route(sim, services)
             }
             2 => match services.search_trip(sim, &st) {
                 TripSearch::Suspended => TripOutcome::Accepted,

@@ -30,9 +30,31 @@ impl MySimDispatch {
                 }
             }
             5 if st.search.state == 2 && st.search.flags & 0x10000 == 0 => {
-                // Remaining-route submission needs a captured route-interface
-                // result. Absence never synthesizes an arrival or next leg.
-                TripOutcome::UnsupportedMs18
+                let Some(occupant) = st.automata_occupant else {
+                    return TripOutcome::UnsupportedMs18;
+                };
+                let Some(mut route) = services.remaining_automaton_route(occupant) else {
+                    return TripOutcome::UnsupportedMs18;
+                };
+                if route.len() > 1 {
+                    route.pop_front();
+                    return match services.submit_remaining_route(occupant, &route, true, false) {
+                        Some(()) => TripOutcome::Accepted,
+                        None => TripOutcome::UnsupportedMs18,
+                    };
+                }
+                let Some(world) = services.automaton_position(occupant) else {
+                    return TripOutcome::UnsupportedMs18;
+                };
+                self.edit(sim, |state| {
+                    state.current.world = world;
+                    state.current.cell = (world_to_cell(world.0), world_to_cell(world.1));
+                });
+                self.change_flags(sim, |flags| flags | 0x420);
+                if self.select_next_leg(sim, services).is_none() {
+                    return TripOutcome::UnsupportedMs18;
+                }
+                self.update_selected_route(sim, services)
             }
             9 if matching => {
                 if let Some(occupant) = st.current.occupant {
