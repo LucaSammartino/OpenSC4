@@ -1104,3 +1104,8 @@ add_test(NAME landvalue_progress_test COMMAND fc4_landvalue_progress_test)
 # LV8 host admission/lifetime acceptance fixtures; no native interceptor implied.
 add_executable(fc4_landvalue_capture_contract_test conformance/tests/landvalue_capture_contract_test.cpp)
 add_test(NAME landvalue_capture_contract_test COMMAND fc4_landvalue_capture_contract_test)
+
+# Process hash state survives app shutdown; only nodes and buckets are freed.
+add_executable(fc4_process_hash_state_test tests/process_hash_state_test.cpp)
+target_include_directories(fc4_process_hash_state_test PRIVATE plugin)
+add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
