@@ -32,8 +32,7 @@ pub fn build_palettes(pairs: &[u32]) -> Result<OwnedPalettes, Unsupported> {
         if index < pairs[stop] || stop + 3 >= pairs.len() {
             continue;
         }
-        let weight = index.wrapping_sub(pairs[stop]).wrapping_mul(256)
-            / pairs[stop + 2].wrapping_sub(pairs[stop]);
+        let weight = index.wrapping_sub(pairs[stop]).wrapping_mul(256) / pairs[stop + 2].wrapping_sub(pairs[stop]);
         *color = 0;
         for shift in [0, 8, 16, 24] {
             let a = i64::from((pairs[stop + 1] >> shift) & 255);

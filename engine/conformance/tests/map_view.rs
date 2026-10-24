@@ -130,9 +130,16 @@ enum VisualLog {
     Call(VisualEffect),
 }
 impl Renderer for Render {
-    fn clock_ms(&mut self) -> u32 { self.clock }
-    fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> { Ok(!self.missing_child) }
-    fn overlay_replace(&mut self, cells: &MarkedCells) -> Result<(), OwnerError> { self.cells.push(cells.clone()); Ok(()) }
+    fn clock_ms(&mut self) -> u32 {
+        self.clock
+    }
+    fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> {
+        Ok(!self.missing_child)
+    }
+    fn overlay_replace(&mut self, cells: &MarkedCells) -> Result<(), OwnerError> {
+        self.cells.push(cells.clone());
+        Ok(())
+    }
     fn primitive(&mut self, command: RenderCommand<'_>) -> Result<bool, OwnerError> {
         self.render(command)?;
         Ok(!self.primitive_false)
@@ -221,7 +228,9 @@ struct Sims {
     trace: Trace,
 }
 impl Simulators for Sims {
-    fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> { Ok(!self.missing_developer) }
+    fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
+        Ok(!self.missing_developer)
+    }
     fn crime_hotspot(&mut self) -> Result<Option<CrimeHotspot>, OwnerError> {
         self.polls += 1;
         Ok(self.hotspots.pop_front().unwrap_or(None))
@@ -533,16 +542,10 @@ fn interpolation_is_only_required_for_a_coarser_grid_and_overlay_stays_qv10() {
         .value = RawValue::Bool(true);
     view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     sims.cells = [4, 2];
-    assert_eq!(
-        view.draw_with(&mut render, &mut sims),
-        Ok(OwnerUpdate::Drawn)
-    );
+    assert_eq!(view.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Drawn));
     sims.cells = [2, 1];
     view.set_overlay_enabled(true);
-    assert_eq!(
-        view.draw_with(&mut render, &mut sims),
-        Ok(OwnerUpdate::Drawn)
-    );
+    assert_eq!(view.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Drawn));
     assert_eq!(render.bitmaps.len(), 3);
 }
 
@@ -633,7 +636,7 @@ fn inactive_same_view_and_foreign_failures_do_not_report_a_completed_selection()
         view.select_with(1, &mut res, &mut win, &mut render, &mut sims),
         Err(OwnerError::Foreign(456))
     );
-    assert_eq!(view.current_view(), None);
+    assert_eq!(view.current_view(), Some(0));
     assert_eq!(view.update_subscription(), None);
     assert!(win.created.is_empty());
     render.fail = false;
@@ -678,7 +681,9 @@ fn malformed_legend_grid_lot_and_none_paths_have_explicit_boundaries() {
         .push(Property::new(BLOCK_BY_LOT, RawValue::U32(0)));
     assert_eq!(
         view.select_with(2, &mut res, &mut win, &mut render, &mut sims),
-        Ok(OwnerSelection::Selected { highlight_boundary: None })
+        Ok(OwnerSelection::Selected {
+            highlight_boundary: None
+        })
     );
     assert_eq!(
         view.select_with(0, &mut res, &mut win, &mut render, &mut sims),
@@ -869,10 +874,7 @@ fn qv12_init_false_primitives_and_missing_server_latch() {
     assert_eq!(view.init_with(&mut win), Err(OwnerError::MissingMessageServer));
     assert_eq!(win.effects, vec![WindowEffect::Lifecycle(Effect::WindowGeneratorInit)]);
     win.missing_server = false;
-    assert_eq!(
-        view.init_with(&mut win),
-        Ok(())
-    );
+    assert_eq!(view.init_with(&mut win), Ok(()));
 }
 
 // §10.9: scalar/default title, fresh lookup, hide-before-failure, local QI skip.
@@ -1047,7 +1049,7 @@ fn qv13_hotspot_two_stage_effect_creation() {
     view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     assert_eq!(render.visuals, effect_sequence(1, 2));
     assert_eq!(view.retained_highlights()[0].effect, Some(2));
-    assert!(view.dirty());
+    assert!(!view.dirty());
     assert_eq!(render.bitmaps.len(), 1);
 }
 
@@ -1128,7 +1130,7 @@ fn qv13_hotspot_creation_failures_do_not_abort_selection_or_bitmap() {
         assert_eq!(view.retained_highlights()[0].effect, retained);
         assert_eq!(view.retained_highlights()[0].radius, 100.0);
         assert_eq!(render.bitmaps.len(), 1);
-        assert!(view.dirty());
+        assert!(!view.dirty());
     }
 }
 

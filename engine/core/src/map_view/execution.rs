@@ -65,14 +65,30 @@ pub enum RenderCommand<'a> {
 
 pub trait Renderer {
     /// Fresh low word of CRT wall-clock milliseconds, sampled at Update tail.
-    fn clock_ms(&mut self) -> u32 { 0 }
-    fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> { Ok(true) }
-    fn bitmap_size(&mut self) -> Result<[usize; 2], OwnerError> { Ok([1, 1]) }
-    fn overlay_register(&mut self) -> Result<(), OwnerError> { Ok(()) }
-    fn overlay_replace(&mut self, _cells: &MarkedCells) -> Result<(), OwnerError> { Ok(()) }
-    fn orientation(&mut self) -> u32 { 0 }
-    fn incident_icon(&mut self, _key: [u32; 3], _flag: u32) -> Result<IncidentIcon, OwnerError> { Err(OwnerError::Foreign(12)) }
-    fn release_incident_icon(&mut self, _handle: u64) -> Result<(), OwnerError> { Ok(()) }
+    fn clock_ms(&mut self) -> u32 {
+        0
+    }
+    fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> {
+        Ok(true)
+    }
+    fn bitmap_size(&mut self) -> Result<[usize; 2], OwnerError> {
+        Ok([1, 1])
+    }
+    fn overlay_register(&mut self) -> Result<(), OwnerError> {
+        Ok(())
+    }
+    fn overlay_replace(&mut self, _cells: &MarkedCells) -> Result<(), OwnerError> {
+        Ok(())
+    }
+    fn orientation(&mut self) -> u32 {
+        0
+    }
+    fn incident_icon(&mut self, _key: [u32; 3], _flag: u32) -> Result<IncidentIcon, OwnerError> {
+        Err(OwnerError::Foreign(12))
+    }
+    fn release_incident_icon(&mut self, _handle: u64) -> Result<(), OwnerError> {
+        Ok(())
+    }
     fn render(&mut self, command: RenderCommand<'_>) -> Result<(), OwnerError>;
     fn primitive(&mut self, command: RenderCommand<'_>) -> Result<bool, OwnerError> {
         self.render(command)?;
@@ -137,17 +153,38 @@ pub struct RawMapGrid {
 }
 
 pub trait Simulators {
-    fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> { Ok(true) }
-    fn lots(&mut self) -> Result<Vec<MapLot>, OwnerError> { Ok(Vec::new()) }
-    fn incidents(&mut self) -> Result<Vec<MapIncident>, OwnerError> { Ok(Vec::new()) }
-    fn zone_grid(&mut self) -> Result<RawMapGrid, OwnerError> {
-        Ok(RawMapGrid { width: 0, height: 0, cell_size: [16.0; 2], values: GridValues::U8(Vec::new()) })
+    fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
+        Ok(true)
     }
-    fn zone_occupant(&mut self, _x: usize, _z: usize) -> Result<Option<u64>, OwnerError> { Ok(None) }
-    fn occupant_position(&mut self, _occupant: u64) -> Result<[f32; 3], OwnerError> { Ok([0.0; 3]) }
-    fn retain_occupant(&mut self, _occupant: u64) -> Result<(), OwnerError> { Ok(()) }
-    fn release_building_list(&mut self) -> Result<(), OwnerError> { Ok(()) }
-    fn developer_words(&mut self, _source: u32, _slot: u8) -> Result<WordGrid, OwnerError> { Err(OwnerError::Foreign(15)) }
+    fn lots(&mut self) -> Result<Vec<MapLot>, OwnerError> {
+        Ok(Vec::new())
+    }
+    fn incidents(&mut self) -> Result<Vec<MapIncident>, OwnerError> {
+        Ok(Vec::new())
+    }
+    fn zone_grid(&mut self) -> Result<RawMapGrid, OwnerError> {
+        Ok(RawMapGrid {
+            width: 0,
+            height: 0,
+            cell_size: [16.0; 2],
+            values: GridValues::U8(Vec::new()),
+        })
+    }
+    fn zone_occupant(&mut self, _x: usize, _z: usize) -> Result<Option<u64>, OwnerError> {
+        Ok(None)
+    }
+    fn occupant_position(&mut self, _occupant: u64) -> Result<[f32; 3], OwnerError> {
+        Ok([0.0; 3])
+    }
+    fn retain_occupant(&mut self, _occupant: u64) -> Result<(), OwnerError> {
+        Ok(())
+    }
+    fn release_building_list(&mut self) -> Result<(), OwnerError> {
+        Ok(())
+    }
+    fn developer_words(&mut self, _source: u32, _slot: u8) -> Result<WordGrid, OwnerError> {
+        Err(OwnerError::Foreign(15))
+    }
     fn grid(&mut self, request: SourceSelection) -> Result<RawMapGrid, OwnerError>;
     /// City slots 93/94, used only to decide whether resampling is needed.
     fn city_cells(&mut self) -> Result<[usize; 2], OwnerError>;
@@ -194,10 +231,10 @@ pub struct OwnerTick {
 
 impl RawExemplar {
     pub(super) fn bool_or(&self, id: u32, absent: bool) -> Result<bool, Unsupported> {
-        match self.find(id)? {
-            Some(RawValue::Bool(value)) => Ok(*value),
-            Some(_) => Err(Unsupported::MalformedProperty(id)),
-            None => Ok(absent),
+        if self.find(id)?.is_some() {
+            self.bool_field(id)
+        } else {
+            Ok(absent)
         }
     }
 
@@ -276,7 +313,9 @@ impl MapView {
         self.store_selection(&raw)?;
         self.highlight_style = HighlightStyle::from_exemplar(&raw)?;
         if raw.find(RAMP)?.is_some() {
-            self.palettes = Some(build_palettes(&self.config.as_ref().expect("stored selection").ramp_pairs)?);
+            self.palettes = Some(build_palettes(
+                &self.config.as_ref().expect("stored selection").ramp_pairs,
+            )?);
         }
         for setting in raw.render_settings()? {
             renderer.primitive(RenderCommand::Setting(setting))?;
@@ -346,36 +385,57 @@ impl MapView {
         let mut buildings = if (1..=9).contains(&kind) {
             let buildings = simulators.buildings(highlight_request(kind)?)?;
             buildings
-        } else { Vec::new() };
+        } else {
+            Vec::new()
+        };
         if kind == 6 {
             let zones = simulators.zone_grid()?;
             if let GridValues::U8(values) = zones.values {
-                for x in 0..zones.width { for z in 0..zones.height {
-                    if values.get(x*zones.height+z) == Some(&0x0e) {
-                        if let Some(id) = simulators.zone_occupant(x,z)? {
-                            buildings.push(RawBuilding { id,kind:BuildingKind::GarbageBuilding,coverage:Coverage::default() });
+                for x in 0..zones.width {
+                    for z in 0..zones.height {
+                        if values.get(x * zones.height + z) == Some(&0x0e) {
+                            if let Some(id) = simulators.zone_occupant(x, z)? {
+                                buildings.push(RawBuilding {
+                                    id,
+                                    kind: BuildingKind::GarbageBuilding,
+                                    coverage: Coverage::default(),
+                                });
+                            }
                         }
                     }
-                } }
+                }
             }
         }
-        let collection = collect_highlights(kind,&buildings)?;
+        let collection = collect_highlights(kind, &buildings)?;
         let mut candidates = Vec::new();
         for candidate in collection.candidates {
-            if candidate.id == 0 { continue; }
+            if candidate.id == 0 {
+                continue;
+            }
             simulators.retain_occupant(candidate.id)?;
             candidates.push(HighlightRecord {
-                occupant:Some(candidate.id),position:simulators.occupant_position(candidate.id)?,
-                radius:match candidate.radius { HighlightRadius::Value(v) => v, _ => 0.0 },effect:None,
+                occupant: Some(candidate.id),
+                position: simulators.occupant_position(candidate.id)?,
+                radius: match candidate.radius {
+                    HighlightRadius::Value(v) => v,
+                    _ => 0.0,
+                },
+                effect: None,
             });
         }
-        if (1..=9).contains(&kind) { simulators.release_building_list()?; }
-        self.reconcile_buildings(candidates,renderer)?;
+        if (1..=9).contains(&kind) {
+            simulators.release_building_list()?;
+        }
+        self.reconcile_buildings(candidates, renderer)?;
         Ok(None)
     }
 
     /// Signed-pointer ordered multiset merge. Equal non-null keys retain old geometry/effects.
-    pub fn reconcile_buildings(&mut self, mut candidates: Vec<HighlightRecord>, renderer: &mut impl Renderer) -> Result<bool, OwnerError> {
+    pub fn reconcile_buildings(
+        &mut self,
+        mut candidates: Vec<HighlightRecord>,
+        renderer: &mut impl Renderer,
+    ) -> Result<bool, OwnerError> {
         let key = |record: &HighlightRecord| record.occupant.unwrap_or(0) as u32 as i32;
         candidates.sort_by_key(key);
         self.retained_highlights.sort_by_key(key);
@@ -383,17 +443,25 @@ impl MapView {
         let mut new = candidates.into_iter().peekable();
         let mut changed = false;
         while old.peek().is_some() || new.peek().is_some() {
-            match (old.peek(),new.peek()) {
-                (Some(a),Some(b)) if a.occupant.is_some() && key(a) == key(b) => {
+            match (old.peek(), new.peek()) {
+                (Some(a), Some(b)) if a.occupant.is_some() && key(a) == key(b) => {
                     let temporary = new.next().expect("peeked");
-                    if let Some(occupant) = temporary.occupant { renderer.release_occupant(occupant)?; }
+                    if let Some(occupant) = temporary.occupant {
+                        renderer.release_occupant(occupant)?;
+                    }
                     self.retained_highlights.push(old.next().expect("peeked"));
                 }
-                (Some(a),Some(b)) if key(a) < key(b) => { old.next().expect("peeked").remove(renderer)?; changed = true; }
-                (Some(_),None) => { old.next().expect("peeked").remove(renderer)?; changed = true; }
+                (Some(a), Some(b)) if key(a) < key(b) => {
+                    old.next().expect("peeked").remove(renderer)?;
+                    changed = true;
+                }
+                (Some(_), None) => {
+                    old.next().expect("peeked").remove(renderer)?;
+                    changed = true;
+                }
                 _ => {
                     let mut record = new.next().expect("new key");
-                    record.add(&self.highlight_style.name,renderer)?;
+                    record.add(&self.highlight_style.name, renderer)?;
                     self.retained_highlights.push(record);
                     changed = true;
                 }
@@ -408,7 +476,9 @@ impl MapView {
         renderer: &mut impl Renderer,
         simulators: &mut impl Simulators,
     ) -> Result<OwnerUpdate, OwnerError> {
-        if !self.active { return Ok(OwnerUpdate::Inactive); }
+        if !self.active {
+            return Ok(OwnerUpdate::Inactive);
+        }
         self.dirty = false;
         if self.overlay_enabled && !self.overlay.registered() {
             renderer.overlay_register()?;
@@ -422,12 +492,18 @@ impl MapView {
             return Ok(OwnerUpdate::DrawNothing);
         }
         let result = self.draw_body(renderer, simulators)?;
-        if let Some(handle) = self.custom_view { renderer.update_custom_view(handle)?; }
+        if let Some(handle) = self.custom_view {
+            renderer.update_custom_view(handle)?;
+        }
         self.last_redraw_ms = u64::from(renderer.clock_ms());
         Ok(result)
     }
 
-    fn draw_body(&mut self, renderer: &mut impl Renderer, simulators: &mut impl Simulators) -> Result<OwnerUpdate, OwnerError> {
+    fn draw_body(
+        &mut self,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<OwnerUpdate, OwnerError> {
         if !self.active {
             return Ok(OwnerUpdate::Inactive);
         }
@@ -439,12 +515,21 @@ impl MapView {
                 return Ok(OwnerUpdate::Cleared);
             }
             SourceSelection::DrawNothing => {
-                let [width,height] = renderer.bitmap_size()?;
-                let mut pixels = vec![0; width*height];
-                self.decorate_bitmap(width,height,&mut pixels,renderer,simulators)?;
-                renderer.primitive(RenderCommand::Bitmap { class: 0x2073_2180, iid: 0xc470_d325, bits: 32, width,height,cell_size:[16.0;2],own_cells:false,pixels:&pixels })?;
+                let [width, height] = renderer.bitmap_size()?;
+                let mut pixels = vec![0; width * height];
+                self.decorate_bitmap(width, height, &mut pixels, renderer, simulators)?;
+                renderer.primitive(RenderCommand::Bitmap {
+                    class: 0x2073_2180,
+                    iid: 0xc470_d325,
+                    bits: 32,
+                    width,
+                    height,
+                    cell_size: [16.0; 2],
+                    own_cells: false,
+                    pixels: &pixels,
+                })?;
                 return Ok(OwnerUpdate::DrawNothing);
-            },
+            }
             SourceSelection::TrafficVolumeQV2 => return Err(Unsupported::TrafficQV2.into()),
             SourceSelection::Grid(request) => request.value_type,
             SourceSelection::Developer { grid, .. } => match grid {
@@ -454,11 +539,19 @@ impl MapView {
                 DeveloperGrid::DebugEntriesTimes12 => return Err(Unsupported::DeveloperDebugLayout.into()),
             },
         };
-        let mut grid = if matches!(request, SourceSelection::Developer { grid: DeveloperGrid::CapacityPercentage, .. }) {
-            let population = simulators.developer_words(self.source,15)?;
-            let capacity = simulators.developer_words(self.source,14)?;
-            capacity_percentage(&population,&capacity,simulators.city_cells()?)?
-        } else { simulators.grid(request)? };
+        let mut grid = if matches!(
+            request,
+            SourceSelection::Developer {
+                grid: DeveloperGrid::CapacityPercentage,
+                ..
+            }
+        ) {
+            let population = simulators.developer_words(self.source, 15)?;
+            let capacity = simulators.developer_words(self.source, 14)?;
+            capacity_percentage(&population, &capacity, simulators.city_cells()?)?
+        } else {
+            simulators.grid(request)?
+        };
         let count = grid
             .width
             .checked_mul(grid.height)
@@ -481,24 +574,29 @@ impl MapView {
                     return Err(Unsupported::GridGeometry.into());
                 }
                 if grid.width < cells[0] || grid.height < cells[1] {
-                    grid = resample_grid(&grid,cells)?;
+                    grid = resample_grid(&grid, cells)?;
                 }
             }
             if let Some(mask) = config.block_by_lot {
                 if let GridValues::I8(values) = &grid.values {
                     grid.values = GridValues::U8(values.iter().copied().map(i8_index).collect());
                 }
-                block_lots(&mut grid,mask,&simulators.lots()?)?;
+                block_lots(&mut grid, mask, &simulators.lots()?)?;
             }
         }
         if self.overlay_enabled {
             // Source 9's separate damaged-road rule remains unsettled QV2.
-            if self.source == 9 { return Err(Unsupported::TrafficMarkersQV4.into()); }
-            let cells = marked_cells(&grid,&self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight)?;
+            if self.source == 9 {
+                return Err(Unsupported::TrafficMarkersQV4.into());
+            }
+            let cells = marked_cells(
+                &grid,
+                &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+            )?;
             renderer.overlay_replace(&cells)?;
         }
         let count = grid.width * grid.height;
-        let (_,values) = grid.values.raw();
+        let (_, values) = grid.values.raw();
         let palette = &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.premultiplied;
         let mut pixels = Vec::new();
         pixels
@@ -510,16 +608,24 @@ impl MapView {
             let city = simulators.city_cells()?;
             let turn = renderer.orientation().wrapping_neg() & 3;
             for incident in simulators.incidents()? {
-                let icon = renderer.incident_icon(incident.key,1)?;
-                let center = incident_center(incident.cell,grid.width,city[0]);
+                let icon = renderer.incident_icon(incident.key, 1)?;
+                let center = incident_center(incident.cell, grid.width, city[0]);
                 // Each false lock skips this incident only; always release its created reference.
-                let blend = if renderer.acquire_bitmap(0x8040,grid.width,grid.height)?.is_some() {
-                    let source_lock = renderer.acquire_bitmap(0x8040,icon.width,icon.height)?;
-                    let result = if source_lock.is_some() { blit_incident(&mut pixels,[grid.width,grid.height],&icon,center,turn) } else { Ok(()) };
-                    if source_lock.is_some() { renderer.release_bitmap()?; }
+                let blend = if renderer.acquire_bitmap(0x8040, grid.width, grid.height)?.is_some() {
+                    let source_lock = renderer.acquire_bitmap(0x8040, icon.width, icon.height)?;
+                    let result = if source_lock.is_some() {
+                        blit_incident(&mut pixels, [grid.width, grid.height], &icon, center, turn)
+                    } else {
+                        Ok(())
+                    };
+                    if source_lock.is_some() {
+                        renderer.release_bitmap()?;
+                    }
                     renderer.release_bitmap()?;
                     result
-                } else { Ok(()) };
+                } else {
+                    Ok(())
+                };
                 renderer.release_incident_icon(icon.handle)?;
                 blend?;
             }

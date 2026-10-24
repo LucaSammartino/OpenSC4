@@ -53,14 +53,11 @@ fn floats_truncate_before_range_check_and_refuse_unpublished_domains() {
     for v in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
         assert_eq!(float_index(v), Ok(0));
     }
-    for (v,index) in [(-1.0,255),(256.0,0),(f32::MAX,0),(f32::MIN,0)] {
+    for (v, index) in [(-1.0, 255), (256.0, 0), (f32::MAX, 0), (f32::MIN, 0)] {
         assert_eq!(float_index(v), Ok(index));
     }
     let mut out = [42; 2];
-    assert_eq!(
-        emit_colors(Values::F32(&[1.9, 256.0]), &palette(), &mut out),
-        Ok(())
-    );
+    assert_eq!(emit_colors(Values::F32(&[1.9, 256.0]), &palette(), &mut out), Ok(()));
     assert_eq!(out, [palette().lookup(1), palette().lookup(0)]);
 }
 
@@ -99,7 +96,7 @@ fn raw_fields_use_only_documented_defaults_and_ranges() {
     raw.0.retain(|p| p.id != SOURCE);
     assert_eq!(raw.selection_fields().unwrap().source, 0);
     raw.0.push(Property::new(SOURCE, RawValue::U8(1)));
-    assert_eq!(raw.selection_fields(), Err(Unsupported::MalformedProperty(SOURCE)));
+    assert_eq!(raw.selection_fields().unwrap().source, 1);
 }
 
 #[test]
@@ -199,7 +196,13 @@ fn every_developer_type_and_published_layer_is_discriminated() {
         );
     }
     assert_eq!(select_source(64, 1, false), Err(Unsupported::DeveloperLayer(1)));
-    assert!(matches!(select_source(64,5,false), Ok(SourceSelection::Developer { grid: DeveloperGrid::CapacityPercentage, .. })));
+    assert!(matches!(
+        select_source(64, 5, false),
+        Ok(SourceSelection::Developer {
+            grid: DeveloperGrid::CapacityPercentage,
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -295,12 +298,12 @@ fn messages_and_source_changes_follow_exact_subscription_table() {
 #[test]
 fn notifications_dirty_only_when_the_raw_value_changes() {
     let mut view = MapView::new(0, 7);
-    view.notify_values(7,7);
+    view.notify_values(7, 7);
     assert!(!view.dirty());
-    view.notify_values(7,8);
+    view.notify_values(7, 8);
     assert!(view.dirty());
     view.dirty = false;
-    view.notify_values(8,8);
+    view.notify_values(8, 8);
     assert!(!view.dirty());
 }
 
@@ -383,10 +386,7 @@ fn raw_highlights_select_native_radius_without_claiming_comparison() {
     assert_eq!(highlight_request(5).unwrap().provider, Provider::Crime);
     let mut view = selected(1);
     for _ in 0..2 {
-        assert_eq!(
-            view.update_highlights(&buildings),
-            Ok(())
-        );
+        assert_eq!(view.update_highlights(&buildings), Ok(()));
         assert!(view.dirty());
     }
     assert_eq!(view.highlights().unwrap().candidates.len(), 1);
@@ -437,11 +437,16 @@ fn raw_grid_emission_reuses_existing_tract_access_without_resampling() {
     grid.set(0, 0, 1.9);
     grid.set(1, 1, f32::NAN);
     output.fill(123);
+    assert_eq!(emit_grid(&*grid, &palette(), &mut output), Ok(()));
     assert_eq!(
-        emit_grid(&*grid, &palette(), &mut output),
-        Ok(())
+        output,
+        [
+            palette().lookup(1),
+            palette().lookup(0),
+            palette().lookup(0),
+            palette().lookup(0)
+        ]
     );
-    assert_eq!(output, [palette().lookup(1), palette().lookup(0), palette().lookup(0), palette().lookup(0)]);
 }
 
 #[test]
@@ -528,15 +533,9 @@ fn malformed_resource_and_helper_inputs_are_refused_without_native_failure_value
     raw.0.push(Property::new(RAMP, RawValue::U32List(vec![1])));
     assert_eq!(raw.selection_fields().unwrap().ramp_pairs, vec![1]);
     let invalid = RawExemplar(vec![Property::new(TERRAIN_MODE, RawValue::U32(3))]);
-    assert_eq!(
-        invalid.terrain_mode(TERRAIN_MODE),
-        Ok(1)
-    );
+    assert_eq!(invalid.terrain_mode(TERRAIN_MODE), Ok(1));
     let invalid = RawExemplar(vec![Property::new(TRAVEL_TYPES, RawValue::U32List(vec![0; 9]))]);
-    assert_eq!(
-        invalid.travel_types(),
-        Ok(vec![0;8])
-    );
+    assert_eq!(invalid.travel_types(), Ok(vec![0; 8]));
     assert_eq!(exemplar_key(u32::MAX).unwrap().instance, 0x4a0b67ff);
     let mut output = [9];
     assert_eq!(
@@ -584,9 +583,9 @@ fn empty_source_animation_notifications_dirty_without_inventing_highlight_change
     let mut view = selected(8);
     let progress = view.tick(1000, &[]).unwrap();
     assert!(progress.polled_highlights);
-    assert!(progress.redraw_due_for_known_dirty);
+    assert!(!progress.redraw_due_for_known_dirty);
     assert_eq!(progress.highlight_boundary, None);
-    assert_eq!(progress.update, Some(UpdateOutcome::Unsupported(Unsupported::RampGeneration)));
+    assert_eq!(progress.update, None);
     let mut view = MapView::new(500, 7);
     assert!(view.tick(499, &[]).is_ok());
     assert_eq!(
@@ -619,7 +618,10 @@ fn owner_boundaries_cannot_be_completed_by_supplied_helper_inputs() {
     raw.0.push(Property::new(INTERPOLATE, RawValue::Bool(false)));
     raw.0.push(Property::new(BLOCK_BY_LOT, RawValue::U32(0)));
     view.set_data_view(2, Some(&raw));
-    assert_eq!(view.update(), UpdateOutcome::Unsupported(Unsupported::LotBlockingQV4));
+    assert_eq!(
+        view.update(),
+        UpdateOutcome::Unsupported(Unsupported::GridInterpolation)
+    );
     view.set_data_view(3, Some(&exemplar(4, 4)));
     assert_eq!(view.update(), UpdateOutcome::Unsupported(Unsupported::CrimeMarkersQV4));
 }

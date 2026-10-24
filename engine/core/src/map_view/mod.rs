@@ -16,18 +16,18 @@ mod exemplar;
 mod highlights;
 mod overlay;
 mod palette;
+mod settled;
 mod source;
 mod window;
-mod settled;
 
 pub use execution::*;
 pub use exemplar::*;
 pub use highlights::*;
 pub use overlay::*;
 pub use palette::*;
+pub use settled::*;
 pub use source::*;
 pub use window::*;
-pub use settled::*;
 
 /// Refusal of an unpublished/out-of-domain contract, not a native failure code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -221,7 +221,10 @@ impl MapView {
     /// is represented, and no invented Init return value is provided.
     pub fn init(&mut self) -> Result<Initialization, Unsupported> {
         if self.init_planned {
-            return Ok(Initialization { effects: vec![Effect::WindowGeneratorInit], boundary: Unsupported::NativeAllocation });
+            return Ok(Initialization {
+                effects: vec![Effect::WindowGeneratorInit],
+                boundary: Unsupported::NativeAllocation,
+            });
         }
         self.init_planned = true;
         Ok(Initialization {
@@ -457,16 +460,24 @@ impl MapView {
         self.dirty |= old != new;
     }
 
-    pub fn retained_travel_types(&self) -> &[u8] { &self.travel_types }
+    pub fn retained_travel_types(&self) -> &[u8] {
+        &self.travel_types
+    }
 
     /// Collect from raw building records only. Equality/order and therefore
     /// change-induced dirty state are deliberately not manufactured (QV7).
     pub fn update_highlights(&mut self, buildings: &[RawBuilding]) -> Result<(), Unsupported> {
         let kind = self.config.as_ref().map_or(0, |c| c.highlight_kind);
         let mut collection = collect_highlights(kind, buildings)?;
-        collection.candidates.sort_by_key(|candidate| candidate.id as u32 as i32);
-        self.dirty |= self.highlights.as_ref().map(|old| old.candidates.iter().map(|c| c.id).collect::<Vec<_>>())
-            != Some(collection.candidates.iter().map(|c| c.id).collect());
+        collection
+            .candidates
+            .sort_by_key(|candidate| candidate.id as u32 as i32);
+        self.dirty |= self
+            .highlights
+            .as_ref()
+            .map(|old| old.candidates.iter().map(|c| c.id).collect::<Vec<_>>())
+            .unwrap_or_default()
+            != collection.candidates.iter().map(|c| c.id).collect::<Vec<_>>();
         self.highlights = Some(collection);
         Ok(())
     }

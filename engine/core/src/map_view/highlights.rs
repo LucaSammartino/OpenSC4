@@ -110,7 +110,12 @@ pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<Highli
         7 => BuildingKind::PowerPlant,
         8 => BuildingKind::WaterProducer,
         9 => BuildingKind::TransitSwitch,
-        _ => return Ok(HighlightCollection { kind, candidates: Vec::new() }),
+        _ => {
+            return Ok(HighlightCollection {
+                kind,
+                candidates: Vec::new(),
+            })
+        }
     };
     let mut candidates = Vec::new();
     for building in buildings.iter().filter(|b| b.kind == building_kind) {

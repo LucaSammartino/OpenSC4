@@ -83,6 +83,10 @@ impl RawExemplar {
     pub fn u32_field(&self, id: u32) -> Result<u32, Unsupported> {
         match self.raw_field(id)? {
             RawValue::U32(v) => Ok(*v),
+            RawValue::U8(v) => Ok(u32::from(*v)),
+            RawValue::Bool(v) => Ok(u32::from(*v)),
+            RawValue::Uninterpreted(v) if v.len() >= 4 => Ok(u32::from_le_bytes([v[0], v[1], v[2], v[3]])),
+            // Pointer payloads are not dereferenced by the portable core.
             _ => Err(Unsupported::MalformedProperty(id)),
         }
     }
@@ -90,6 +94,8 @@ impl RawExemplar {
     pub fn bool_field(&self, id: u32) -> Result<bool, Unsupported> {
         match self.raw_field(id)? {
             RawValue::Bool(v) => Ok(*v),
+            RawValue::U8(v) => Ok(*v != 0),
+            RawValue::U32(v) => Ok(*v as u8 != 0),
             _ => Err(Unsupported::MalformedProperty(id)),
         }
     }
@@ -102,16 +108,20 @@ impl RawExemplar {
     }
 
     pub(super) fn optional_u32(&self, id: u32) -> Result<Option<u32>, Unsupported> {
-        match self.find(id)? {
-            Some(RawValue::U32(v)) => Ok(Some(*v)),
-            Some(_) => Err(Unsupported::MalformedProperty(id)),
-            None => Ok(None),
+        if self.find(id)?.is_some() {
+            self.u32_field(id).map(Some)
+        } else {
+            Ok(None)
         }
     }
 
     pub fn selection_fields(&self) -> Result<SelectionFields, Unsupported> {
         let source = self.optional_u32(SOURCE)?.unwrap_or(0);
-        let ramp = if self.find(RAMP)?.is_some() { self.u32_list(RAMP)? } else { &[] };
+        let ramp = if self.find(RAMP)?.is_some() {
+            self.u32_list(RAMP)?
+        } else {
+            &[]
+        };
         let scale = match self.optional_u32(SCALE)? {
             Some(s) if s > 1 && s < (1 << 24) => s,
             _ => 256,
@@ -143,7 +153,11 @@ impl RawExemplar {
         if property != TERRAIN_MODE && property != TERRAIN_MODE_SECOND {
             return Err(Unsupported::MalformedProperty(property));
         }
-        let entering = if property == TERRAIN_MODE_SECOND { self.terrain_mode(TERRAIN_MODE)? } else { 1 };
+        let entering = if property == TERRAIN_MODE_SECOND {
+            self.terrain_mode(TERRAIN_MODE)?
+        } else {
+            1
+        };
         match self.optional_u32(property)? {
             Some(0) => Ok(1),
             Some(1) => Ok(3),
@@ -157,6 +171,10 @@ impl RawExemplar {
     /// This never selects or renders the traffic volume grid (QV2).
     pub fn travel_types(&self) -> Result<Vec<u8>, Unsupported> {
         let list = self.u32_list(TRAVEL_TYPES)?;
-        Ok(list.iter().take((list.len() as u8).min(8) as usize).map(|v| *v as u8).collect())
+        Ok(list
+            .iter()
+            .take((list.len() as u8).min(8) as usize)
+            .map(|v| *v as u8)
+            .collect())
     }
 }
