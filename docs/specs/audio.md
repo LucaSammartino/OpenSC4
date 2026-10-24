@@ -1468,7 +1468,8 @@ record.
    above) are used together as `(clsid, iid)`;
 3. `QueryInterface(0xFD584467, …)` on the returned object;
 4. stores two `cRZAutoRefCount<cIGZBuffer>` at `tSound+0x0C` and `+0x10`, reads property `0x38` from the
-   second buffer and derives `+0x34 = value`, `+0x38 = value * 4.0` (the pause-for-distance radii);
+   second buffer and derives the two pause-for-distance radii using the signed conversion,
+   multiply order and separate f32 stores in §8.3.1;
 5. sets property `0x10` to 3 with third argument 0, then plays the holder via vtable
    `+0x14(instanceId, managerMasterVolume, 0x200, 0)`. The volume is **manager** `+0x14`, not
    instance `+0x14` (which holds the manager reference). See §8.6 for the instruction-checked correction.
@@ -1484,9 +1485,9 @@ Load path:
 |---|---|---|
 | `cSC4AudioAEMSEventSystem::LoadSoundBank` | `0x004E1E10` | reads property key `0xEBF44DF7` for the bank instance id, `StopAllSounds`, then builds TGI `{type=0x00000000, group=0x8A5971C5, instance=<prop>}` and calls `LoadBankFromResource` |
 | `…::LoadBankFromResource` | `0x004E1DA0` | `new(0x24)` → `cSC4AudioAEMSSoundBank` ctor → `LoadFromResource` → `AddBank` |
-| `cSC4AudioAEMSSoundBank::LoadFromResource` | `0x004E24E0` | `SC4GetResourceAsFile(tgi, &file, 0)`; on success copies the TGI into `bank+0x14/+0x18/+0x1C` and calls `LoadFromFile` |
+| `cSC4AudioAEMSSoundBank::LoadFromResource` | `0x004E24E0` | acquires file, calls `LoadFromFile`, copies TGI only after successful Read, then closes/releases file; final success also requires Close (§10.7.1) |
 | `…::LoadFromFile` | `0x004E2490` | `file->GetSize()` twice, `file->Read(bank+0x08, size)` — a raw slurp; **no validation here** |
-| `…::AddBank` | `0x004E1BB0` | `SNDAEMSI_addmodulebank(bank, name, userdata, allocFn=FUN_004E2410)`; on success links into `field231_0x138` |
+| `…::AddBank` | `0x004E1BB0` | registrar receives `(raw image,0,0,identity callback 0x004E2410)`; result zero links into `+0x138` (§10.7.1) |
 | `SNDAEMSI_addmodulebank` | `0x00867800` | the EA-library bank registrar |
 | `_SNDAEMSI_resolvemodulebank` | `0x00864F60` | the pointer-relocation pass (every offset becomes an absolute pointer) |
 
