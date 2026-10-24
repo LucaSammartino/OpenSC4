@@ -3,6 +3,7 @@
 | glue-weather-boot8: timing-independent weather shadow bootstrap | Codex, `glue-weather-boot8` | in progress | Reproduce train183, fix native date stepping, validate to 2032 |
 
 ## Handoff
+- Final measurement: weather-boot8-fixed-on-05 73/73; clean to 2032-01-01, ref_warnings=0; run record docs/runs/weather-boot8-fixed-on-05-442.md.
 - Goal: weather shadow exact 73/73 through 2032 with scres_file_shadow on and off.
 - Worktree reused, detached HEAD; initial tree clean.
 - Baseline verify: build PASS 249/249, CTest PASS 78/78, logs in build-runs/fc4verify-{build,ctest}.log.
