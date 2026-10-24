@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlaysObservation.h"
 #include "FC4Log.h"
+#include "fc4.h"
 #include "cISTEOverlayManager.h"
 #include <Windows.h>
 #include <array>
+#include <algorithm>
 #include <cstring>
 #include <map>
 #include <set>
 #include <vector>
 
 extern "C" uint32_t fc4_overlays_observe(const uint32_t*, uint32_t, uint32_t*);
+extern "C" uint32_t fc4_overlays_replay_decal(const uint32_t*, uint32_t*);
 
 namespace fc4 {
 namespace {
@@ -120,15 +123,15 @@ struct Capture {
         return true;
     }
     bool Cells() {
-        uint32_t count;
-        if (!Span(header[0xf0 / 4], header[0xf4 / 4], header[0xf8 / 4], 4, count)) return false;
         const bool dynamic = (header[0x14 / 4] & 0xff00) != 0;
         if (dynamic) {
-            // OV12-I: no static index is applicable to ordinary dynamic managers.
-            if (count != 0) return false;
+            // OV14: even retained storage after repeat Init is inactive. Do not
+            // validate or dereference any inactive vector/scalar index words.
             wire.push_back(0);
             return true;
         }
+        uint32_t count;
+        if (!Span(header[0xf0 / 4], header[0xf4 / 4], header[0xf8 / 4], 4, count)) return false;
         const int32_t nx = header[0xe8 / 4], nz = header[0xec / 4];
         if (nx < 0 || nz < 0 || uint64_t(nx) * nz != count) return false;
         heads.resize(count);
@@ -280,32 +283,100 @@ struct Capture {
         return wire.size() <= 16777216;
     }
 };
+
+// Explicit test action, separate from the read-only observer. Copy resource and
+// cached geometry inputs BEFORE the add (OV13); never seed native M/bounds into
+// the production owner. This tests a controlled suffix, not missing Init/history.
+struct Fixture {
+    cISTEOverlayManager* object = nullptr;
+    uint32_t id = kNone;
+    std::array<uint32_t, 35> expected{};
+    bool Start(cISTEOverlayManager* manager) {
+        object = manager;
+        Capture input{};
+        const uint32_t address = reinterpret_cast<uint32_t>(manager);
+        if (!ReadWords(address, input.header) || !(input.header[5] & 255)) return false;
+        const uint32_t binding = input.header[0xd4 / 4];
+        if (!binding || !input.Factory(input.header[0x90 / 4])) return false;
+        const auto found = input.bindingRecords.find(binding);
+        if (found == input.bindingRecords.end()) return false;
+        float scale;
+        std::memcpy(&scale, &input.header[0x68 / 4], 4);
+        const float width = 1.0f / scale;
+        uint32_t widthBits;
+        std::memcpy(&widthBits, &width, 4);
+        const uint32_t args[] = {input.header[0x5c / 4], input.header[0x60 / 4], widthBits,
+            found->second[7], found->second[8], (input.header[5] >> 8) & 255,
+            (input.header[5] >> 16) & 255};
+        if (!fc4_overlays_replay_decal(args, expected.data())) return false;
+        auto** table = *reinterpret_cast<void***>(manager);
+        using Add = uint32_t (__thiscall*)(void*, const void*, const float*, float, float);
+        const float position[] = {128.0f, 128.0f};
+        id = reinterpret_cast<Add>(table[4])(manager, reinterpret_cast<void*>(binding), position, 32.0f, 0.0f);
+        if (id == kNone) return false;
+        using Position = void (__thiscall*)(void*, uint32_t, const float*);
+        const float moved[] = {144.0f, 160.0f};
+        reinterpret_cast<Position>(table[12])(manager, id, moved);
+        manager->SetOverlayAlpha(id, 0.5f);
+        using Color = void (__thiscall*)(void*, uint32_t, const float*);
+        const float rgb[] = {0.25f, 0.5f, 0.75f};
+        reinterpret_cast<Color>(table[18])(manager, id, rgb);
+        manager->SetOverlayDrawMode(id, 3);
+        using SelfLit = void (__thiscall*)(void*, uint32_t, uint32_t);
+        reinterpret_cast<SelfLit>(table[20])(manager, id, 1);
+        return true;
+    }
+    bool Compare(const Capture& capture, uint32_t& differences) const {
+        if (id == kNone || !(id & 0x80000000) || !capture.handles.Has(id & 0x7fffffff)) return false;
+        const auto* handle = capture.handles.Record(id & 0x7fffffff);
+        if (!capture.overlays.Has(handle[11])) return false;
+        const auto* record = capture.overlays.Record(handle[11]);
+        std::array<uint32_t, 35> actual{};
+        actual[0] = record[1]; actual[1] = record[2] & 255;
+        std::copy(record + 3, record + 23, actual.begin() + 2);
+        std::copy(record + 39, record + 43, actual.begin() + 22);
+        std::copy(handle + 1, handle + 10, actual.begin() + 26);
+        for (size_t i = 0; i < actual.size(); ++i) {
+            if (actual[i] == expected[i]) continue;
+            ++differences;
+            Log("overlays fixture diff: field=%u original=%08x core=%08x", static_cast<unsigned>(i), actual[i], expected[i]);
+        }
+        return true;
+    }
+    ~Fixture() { if (id != kNone) object->RemoveOverlay(id); }
+};
 }
 void OverlaysObservationReset() {
     g_lines = g_clean = g_incomplete = 0;
     g_checks = g_differences = 0;
     g_counts.fill(0);
 }
-void OverlaysObservationSample(cISTEOverlayManager* manager, uint32_t type, const char* phase, int32_t julian) {
+void OverlaysObservationSample(cISTEOverlayManager* manager, uint32_t type, const char* phase, int32_t julian, bool fixtureEnabled) {
     ++g_lines;
     Capture capture{};
+    Fixture fixture;
+    const bool fixtureOK = !fixtureEnabled || (manager && fixture.Start(manager));
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
     std::array<uint32_t, 14> r{};
-    if (!manager || !capture.Run(manager) || !fc4_overlays_observe(capture.wire.data(), static_cast<uint32_t>(capture.wire.size()), r.data())) {
+    if (!fixtureOK || !manager || !capture.Run(manager) || !fc4_overlays_observe(capture.wire.data(), static_cast<uint32_t>(capture.wire.size()), r.data()) ||
+        (fixtureEnabled && !fixture.Compare(capture, r[1]))) {
         ++g_incomplete;
         ++g_checks; ++g_differences;
-        Log("overlays records shadow: 0/1 mismatches=1 incomplete=1 type=%u phase=%s julian=%d stage=%s dynamic=%u shift=%u nx=%d nz=%d overlay_slots=%u handle_slots=%u group_slots=%u scope=observation-invariants", type, phase, julian, capture.stage,
+        Log("overlayrecords shadow %04d-%02d-%02d type=%u phase=%s: 0/1 mismatches=1 incomplete=1 julian=%d stage=%s dynamic=%u shift=%u nx=%d nz=%d overlay_slots=%u handle_slots=%u group_slots=%u scope=observation-invariants", date.year, date.month, date.day_of_month, type, phase, julian, capture.stage,
             (capture.header[5] >> 8) & 255, capture.header[0xe4 / 4], capture.header[0xe8 / 4], capture.header[0xec / 4],
             static_cast<uint32_t>(capture.overlays.live.size()), static_cast<uint32_t>(capture.handles.live.size()), static_cast<uint32_t>(capture.groups.live.size()));
         return;
     }
+    if (fixtureEnabled) r[0] += 35;
     g_checks += r[0]; g_differences += r[1];
     if (!r[1]) ++g_clean;
     for (size_t i = 0; i < g_counts.size(); ++i) g_counts[i] += r[2 + i];
-    Log("overlays records shadow: %u/%u mismatches=%u type=%u phase=%s julian=%d overlays=%u handles=%u groups=%u cells=%u entries=%u bindings=%u sources=%u unknown_bindings=%u observed_words=%u digest=%08x%08x data=unavailable replay=unavailable(OV12) scope=observation-invariants",
-        r[0] - r[1], r[0], r[1], type, phase, julian, r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[12], r[11]);
+    Log("overlayrecords shadow %04d-%02d-%02d type=%u phase=%s: %u/%u mismatches=%u julian=%d overlays=%u handles=%u groups=%u cells=%u entries=%u bindings=%u sources=%u unknown_bindings=%u observed_words=%u digest=%08x%08x data=unavailable history=unavailable(OV13) fixture_fields=%u scope=observation-invariants",
+        date.year, date.month, date.day_of_month, type, phase, r[0] - r[1], r[0], r[1], julian, r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[12], r[11], fixtureEnabled ? 35 : 0);
 }
 void OverlaysObservationSummary() {
-    Log("overlays records shadow: %u/%u lines exact mismatches=%llu incomplete=%u checks=%llu overlays=%llu handles=%llu groups=%llu cells=%llu entries=%llu bindings=%llu sources=%llu unknown_bindings=%llu observed_words=%llu image_bytes=0 data=unavailable replay=unavailable(OV12) scope=observation-invariants",
+    Log("overlays records summary: %u/%u lines exact mismatches=%llu incomplete=%u checks=%llu overlays=%llu handles=%llu groups=%llu cells=%llu entries=%llu bindings=%llu sources=%llu unknown_bindings=%llu observed_words=%llu image_bytes=0 data=unavailable history=unavailable(OV13) scope=observation-invariants-and-controlled-suffix",
         g_clean, g_lines, static_cast<unsigned long long>(g_differences), g_incomplete, static_cast<unsigned long long>(g_checks),
         g_counts[0], g_counts[1], g_counts[2], g_counts[3], g_counts[4], g_counts[5], g_counts[6], g_counts[7], g_counts[8]);
 }

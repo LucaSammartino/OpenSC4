@@ -4,6 +4,6 @@
 class cISTEOverlayManager;
 namespace fc4 {
 void OverlaysObservationReset();
-void OverlaysObservationSample(cISTEOverlayManager*, uint32_t type, const char* phase, int32_t julian);
+void OverlaysObservationSample(cISTEOverlayManager*, uint32_t type, const char* phase, int32_t julian, bool fixtureEnabled = false);
 void OverlaysObservationSummary();
 }
