@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | in progress; shadow remains 8/14 | Corrected fixture needs final gate; finish city replay inputs. |
+| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | continue; gate passed, shadow 8/14 | Finish retained-height replay and subclass hosts; no READY entry. |
 
 ## Handoff
 - Goal: exact network tools shadow; six residual probes remain, no READY entry.
@@ -21,7 +21,7 @@
 - Sole round2 diagnostic: legacy tests_power_line::cost_of_solution_shipped_values lacks counts.
 - Final all PASS, session65514 terminal: cargo6894/0,clippy0,build46/46,CTest72/72;fmt7 clean.
 - Final DLL be0734d79f6197316a2a1d35588e1a671ff1ce6e1465952981007d7a6a621a56.
-- NEXT: collect normal city nettoolexactsix20261024b (session46511, active collector cell80).
-- Then trace four corner inventories per NT30; wire actual powerline and bridge resources/hosts.
-- Only normal city request outstanding. Round2 full logs preserved as build-runs/r2-*.log.
+- Run383 nettoolexactsix20261024b normal: clean2032-01-01,refs0,exceptions0,117.422s,nettool8/14.
+- NEXT: trace four replay corner inventories per NT30; wire actual powerline and bridge resources/hosts.
+- No operation/request outstanding. Round2 full logs preserved as build-runs/r2-*.log.
 - Focused failed fixture evidence: build-runs/nt31-fixture-*. q.py Bash fails here; direct cargo works.
