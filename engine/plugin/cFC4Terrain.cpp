@@ -657,7 +657,7 @@ cFC4STETerrain::~cFC4STETerrain() {
     DestroyCore();
     if (f_.view != nullptr) {
         // The view came from GZCOM()->GetClassObject: its QI took one reference.
-        static_cast<cIGZUnknown*>(f_.view)->Release();
+        FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(f_.view));
         f_.view = nullptr;
         f_.renderObject = nullptr;
     }
@@ -860,10 +860,13 @@ void cFC4STETerrain::DoPostCityInit() {
         if (f_.view == nullptr) {
             cIGZCOM* com = GZCOM();
             void* view = nullptr;
-            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, GZIID_cIGZUnknown, &view) &&
+            // §15.5.1 step 3: the factory's requested interface is at
+            // base+0x0C. Store the base at +0xE8, as the native layout requires.
+            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, 0x6771477Du, &view) &&
                 view != nullptr) {
-                f_.view = view;
-                f_.renderObject = view;
+                f_.view = static_cast<unsigned char*>(view) - 0x0C;
+                FC4_ACQUIRED(static_cast<cIGZUnknown*>(f_.view), "terrain view factory");
+                f_.renderObject = f_.view;
                 Log("terrain: created the terrain 3D view (class 0x%08X) at DoPostCityInit",
                     kFC4_CLSID_cSTETerrainView);
             } else {
