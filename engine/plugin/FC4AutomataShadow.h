@@ -75,4 +75,5 @@ void AutomataShadowMonth(int32_t julian);
 class cIGZUnknown;
 namespace fc4 {
 intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid);
+intptr_t ConstructionCaptureTest(cIGZUnknown* object);
 }
