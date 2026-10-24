@@ -474,6 +474,35 @@ stream size and compares the remaining byte count to **wrapping u32** (32+8n), w
 32-byte minimum (`0x00808957`–`0x00808988`). Checked arithmetic and rejection of short headers or wrapped
 counts in a portable reader are memory-safety choices, not evidence that the native parser rejected them.
 
+### 6.3 Resource observation bindings (MI14)
+
+Sprite-animation interface slot 3 (vtable `0x00ABD6B4`) is thiscall with no stack arguments, returning a
+borrowed pointer to inline data at receiver `+0x1C` (`0x008085F0`–`0x008085F3`). The 64-byte record is:
+
+| Data-relative bytes | Meaning |
+|---|---|
+| `+0x00..+0x13` | Five opaque header words in file order |
+| `+0x14..+0x27` | Five normalized unsigned sheet keys, zoom 0 through 4 |
+| `+0x28..+0x3B` | Five binary32 scales, zoom 0 through 4 |
+| `+0x3C..+0x3F` | Final opaque input word |
+
+The tag is validated, not stored here. The final word is stored after the scale area despite being
+read before scale calculation (`0x00808761`–`0x00808769`; key/scale stores `0x0080873F`–`0x00808748`,
+`0x00808787`, `0x00808836`, `0x0080887F`). Source-zoom indices are temporary calculation state, not another
+stored array. MI1's semantic unknowns remain opaque. Require a successfully read resource, not an unread
+constructor allocation.
+
+Table-interface slot 3 (vtable `0x00ABD6FC`) likewise takes no stack arguments, but returns the block
+pointer **stored at** receiver `+0x1C`, not that field's address (`0x00808620`–`0x00808623`). It is null
+before reading; its format is §6.2. Both getters return borrowed data without AddRef. Neither transfers
+ownership, and the inline-animation and separate-table-block layouts are distinct.
+
+Factory SerialRead (`0x00808B20`) is thiscall with resource-persistence-interface and stream arguments,
+returning Boolean AL. Its resource argument is allocation `+4`; it subtracts 4 before dispatching to
+ReadAnim/ReadTable (`0x00808B44`–`0x00808B64`). Copy parsed data after an existing successful read.
+Sprite slot 4 CreateModelInstance takes one output-pointer argument and returns Boolean AL
+(`0x00808A30`–`0x00808A9D`); it allocates/binds an instance and is not an observation getter.
+
 ## 7. Users
 
 Every scene object (lots, buildings, props, networks, automata) holds model instances; the occupant and automata
@@ -493,6 +522,7 @@ model-based particle effects (`SortMeshes`, `LightModel`); the effects model pro
 See [questions/model-instances.md](questions/model-instances.md) MI1–MI2: what the five header values and the last
 value of a sprite animation hold; what `flip` in `LightModel` is used for. MI3–MI10 are resolved in §§1.1–1.2,
 2.1, 3.1, 4.1, 6.1–6.2 and 9.1; the answers distinguish native behaviour from portable safety choices.
+MI14's native binding and observation answers are in §§1.3, 2.2, 3.2, 4.2, 6.3 and 9.2.
 
 ### 9.1 Valid input and memory-safety boundary (MI9)
 
@@ -512,6 +542,46 @@ headers (§6.2), absent material 0 in SetModel (§2), reference overflow (§1.1)
 released/dangling processor pointers (§4.1) do not acquire safe semantics merely by entering a portable API.
 Floating-point NaNs/infinities have the explicit comparison behaviour above and in §§2.1/4.1; invalid memory
 access has no deterministic portable outcome to reproduce.
+
+### 9.2 Live discovery and observation boundary (MI14)
+
+The SDK-named GetModelsInVolume entry has **no working enumeration in this build**: folded body
+`0x005BE2E0` returns false, consumes three stack words and writes neither list nor count
+(`0x005BE2E0`–`0x005BE2E2`). False does not mean an empty city. There is no successful-path capacity or
+ownership contract at that entry.
+
+Ordinary network GetModelInstances is a **mutating** producer. Its thiscall shape has five stack words:
+two leading arguments, output pointer-array, fourth argument, writable 32-bit count pointer
+(`0x0061AF90`–`0x0061B001`). This body ignores words 1, 2 and 4; their meaning in overrides is not thereby
+established. It resets count to 0, writes one instance-interface pointer at array[0], sets count to 1,
+and calls the occupant's AddRef. The interface belongs to that same occupant allocation and carries a
+counted reference. There is no capacity read or null-array count query: this body requires at least one
+writable pointer slot and a count word. It also replaces embedded translation, ORs kind with 1 and
+increments the byte counter modulo 256 (`0x0061AFBB`–`0x0061AFF7`). Balancing the reference cannot undo
+those mutations. The prebuilt override calls this body and then does model-maker work
+(`0x0061E8B9`–`0x0061E953`); one element is not an override capacity guarantee or a universal buffer size.
+
+A deterministic **observer design**, distinct from native enumeration, can copy data at the game's
+existing call boundaries: basic/static getter outputs; animated getter/playback inputs and outputs;
+successful processor SetModel/LightModel outputs; successful sprite SerialRead outputs. The bindings
+are §§1.3, 2.2, 3.2, 4.2 and 6.3. Add no Advance, SetModel, bounds query, resource read, interface query
+or retain/release merely to discover state. Observing an existing bounds return permits the game's
+normal cache refresh; adding a bounds call can introduce another mutation. Processor output access in
+§4.2 applies to the known container accessor bodies, not an arbitrary unexamined virtual override.
+
+Copy synchronously on the original call's thread before returning to its caller, while receiver and
+caller-owned outputs remain live. Keep only copied values afterward. That call lifetime supplies the
+safe observation phase; a month boundary, pause or city load alone does not validate saved pointers.
+The observer owns no native references and must not release the original consumer's counted results.
+
+For finite sampling, an implementation may choose capacity C, keep the first C eligible records in
+original call order per interval, and report encountered and dropped counts separately. C and the
+interval are **portable instrumentation choices**, not native limits. Record owner/call kind and copy
+lengths; an unclassified basic interface does not authorize animated private offsets. Compare an
+operation only after capturing its independent input baseline. This supplies observed-operation
+coverage, not a global registry: encounter order across game runs and encounter of every offscreen or
+unused owner are not promised. Neither this route nor isolated fixtures authorize whole-owner coverage
+or a read-only monthly global sweep.
 
 ## 10. Conformance tests
 
@@ -577,3 +647,35 @@ from a reimplementation:
     an IID fails and leaves the supplied query-output sentinel untouched; factory CreateInstance failure
     instead writes null. On a separately constructed zero-count resource, Release returns `0xFFFFFFFF`
     without destruction. These distinguish resource count policy, instance policy and type-vs-IID.
+21. **Complete fixture binding (MI14):** on independent aligned `0xA4`-byte storage, complete construction
+    with flag 1 returns that storage; its container is at +0 and instance interface at +0xA0. Verify §2
+    defaults through the correct interface and clean up once with body destructor `0x00802620`, without
+    pool-freeing outer storage. The constructor consumes one argument word; the destructor body consumes
+    none. A receiver-only constructor binding fails this call-shape test and has no valid expected fixture
+    result. This vector does not execute a deliberately malformed call.
+22. **Draw getter destination (MI14):** install a record with distinct bytes, including opaque bytes
+    `+2..3`, on an isolated instance. Fill a separate 20-byte output with a different pattern, bracketed
+    by canaries. GetDrawAttributes copies all 20 bytes, returns the output pointer, preserves both canaries,
+    and leaves the instance record unchanged. Repeat for basic and static receiver bindings.
+23. **Cache observation (MI14):** an isolated static instance with stale box and a valid model whose slot-7
+    result is min=(1,2,3), max=(4,5,6) calls that getter once on its first GetBounds and clears stale.
+    The next GetWorldBounds with identity returns the same box without another model call. Copying the
+    first call's output in an observer adds no model calls. With no bound model, two GetBounds calls keep
+    the constructor's inverted local box and leave stale set; there are no model calls.
+24. **Animation getter widths (MI14):** a bound animation with F=4, current frame 3 and null subrange returns
+    frame 3 and count 4 without changing speed, direction or accumulator. For a separately supplied valid
+    subrange with index 0, start[0]=5, current word at +12 equal to 3 and count word at +4 equal to 2,
+    GetFrame returns `0xFFFFFFFE` and GetFrameCount returns 2. Do not truncate the subtraction to 65534.
+25. **Resource getter layouts (MI14):** after a successful animation read, slot 3 returns receiver+0x1C.
+    For I=1000 and five input keys 0, its data+0x14 holds five keys 1000, data+0x28 holds the §10 vector-12
+    scales, and data+0x3C holds the final input word unchanged. The first five words match the opaque
+    inputs; there is no copied type tag. A new unread table's slot 3 instead returns null; after successful
+    ReadTable it returns the table-owned block, not receiver+0x1C. Getter calls add no resource references.
+26. **Enumeration and finite capture (MI14):** output/count sentinels remain unchanged when the volume
+    enumeration stub returns false; do not turn the count sentinel into a scene count. For the ordinary
+    network body on a valid isolated occupant, count starts at any sentinel and ends at 1, array[0] is
+    the occupant's instance interface, one reference is added and its transform counter advances modulo
+    256 even if the translation was already equal. This expectation excludes overrides. Separately, an
+    observer configured for C=2 seeing three eligible native call records reports encountered=3,
+    retained=2, dropped=1 and keeps the first two in call order, with no additional native calls. The latter
+    counts test the declared instrumentation choice, not a native enumeration capacity.
