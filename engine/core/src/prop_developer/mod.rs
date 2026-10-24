@@ -554,6 +554,80 @@ struct Slot {
     index: usize,
 }
 
+#[derive(Default)]
+struct DatedList {
+    nodes: Vec<Option<DatedNode>>,
+    free: Vec<usize>,
+    head: Option<usize>,
+    tail: Option<usize>,
+}
+
+struct DatedNode {
+    value: PropRef,
+    prev: Option<usize>,
+    next: Option<usize>,
+}
+
+impl DatedList {
+    fn node(&self, id: usize) -> &DatedNode {
+        // PV17 gives no valid native outcome for a reentrantly erased current
+        // node. Fail explicitly rather than inventing a deferred-removal walk.
+        self.nodes[id].as_ref().expect("invalidated dated-list node")
+    }
+
+    fn push(&mut self, value: PropRef) {
+        let node = Some(DatedNode {
+            value,
+            prev: self.tail,
+            next: None,
+        });
+        let id = if let Some(id) = self.free.pop() {
+            self.nodes[id] = node;
+            id
+        } else {
+            self.nodes.push(node);
+            self.nodes.len() - 1
+        };
+        if let Some(tail) = self.tail {
+            self.nodes[tail].as_mut().unwrap().next = Some(id);
+        } else {
+            self.head = Some(id);
+        }
+        self.tail = Some(id);
+    }
+
+    fn values(&self) -> Vec<PropRef> {
+        let mut out = Vec::new();
+        let mut node = self.head;
+        while let Some(id) = node {
+            out.push(self.node(id).value);
+            node = self.node(id).next;
+        }
+        out
+    }
+
+    fn swap_remove(&mut self, token: u64) -> bool {
+        let mut node = self.head;
+        while let Some(id) = node {
+            if self.node(id).value.token == token {
+                let tail = self.tail.unwrap();
+                self.nodes[id].as_mut().unwrap().value = self.node(tail).value;
+                let last = self.nodes[tail].take().unwrap();
+                self.free.push(tail);
+                if let Some(prev) = last.prev {
+                    self.nodes[prev].as_mut().unwrap().next = None;
+                } else {
+                    self.head = None;
+                }
+                self.tail = last.prev;
+                return true;
+            }
+            node = self.node(id).next;
+        }
+        false
+    }
+}
+
 /// The prop developer.
 pub struct PropDeveloper {
     host: Rc<dyn PropHost>,
@@ -566,7 +640,7 @@ pub struct PropDeveloper {
     managers: Cell<[PropRef; 3]>,
     night: RefCell<Vec<PropRef>>,
     triggers: RefCell<StlHashMap<Vec<PropRef>>>,
-    dated: RefCell<Vec<PropRef>>,
+    dated: RefCell<DatedList>,
     tod: RefCell<Vec<PropRef>>,
     power: RefCell<Vec<PropRef>>,
     signs: RefCell<Vec<PropRef>>,
@@ -608,7 +682,7 @@ impl PropDeveloper {
             managers: Cell::new([PropRef::default(); 3]),
             night: RefCell::new(Vec::new()),
             triggers: RefCell::new(StlHashMap::with_hint(100)),
-            dated: RefCell::new(Vec::new()),
+            dated: RefCell::new(DatedList::default()),
             tod: RefCell::new(Vec::new()),
             power: RefCell::new(Vec::new()),
             signs: RefCell::new(Vec::new()),
@@ -656,7 +730,7 @@ impl PropDeveloper {
         self.night.borrow().clone()
     }
     pub fn dated_list(&self) -> Vec<PropRef> {
-        self.dated.borrow().clone()
+        self.dated.borrow().values()
     }
     pub fn time_of_day_list(&self) -> Vec<PropRef> {
         self.tod.borrow().clone()
@@ -779,7 +853,7 @@ impl PropDeveloper {
         let tod = std::mem::take(&mut *self.tod.borrow_mut());
         self.release_all(tod);
         let dated = std::mem::take(&mut *self.dated.borrow_mut());
-        self.release_all(dated);
+        self.release_all(dated.values());
         // [choice] cleared (the original keeps dangling entries).
         let power = std::mem::take(&mut *self.power.borrow_mut());
         self.release_all(power);
@@ -1189,10 +1263,15 @@ impl PropDeveloper {
             MSG_DAY => {
                 self.block_step();
                 let date = self.host.sim_date();
-                for p in self.dated_list() {
+                let mut node = self.dated.borrow().head;
+                while let Some(id) = node {
+                    let p = self.dated.borrow().node(id).value;
                     if !p.is_null() {
                         self.host.tick_date(p.token, date);
                     }
+                    // PV17: read the live link only after slot 16 returns.
+                    // No temporary occupant reference or deferred removal.
+                    node = self.dated.borrow().node(id).next;
                 }
             }
             MSG_ANIMATION_TICK => {
@@ -1431,7 +1510,8 @@ impl PropDeveloper {
                     let duration = u32_prop(&props, PROP_DATE_DURATION).unwrap_or(1);
                     let flag = u8_prop(&props, PROP_DATE_FLAG).unwrap_or(0);
                     h.set_date_range(prop, date, duration, flag);
-                    self.held(&self.dated, p);
+                    self.host.hold(p.token);
+                    self.dated.borrow_mut().push(p);
                 }
             }
             // Mask 8.
@@ -1509,7 +1589,10 @@ impl PropDeveloper {
             self.erase_from(&self.tod, prop, true, true);
         }
         if props.has(PROP_DATE) {
-            self.erase_from(&self.dated, prop, true, true);
+            let removed = self.dated.borrow_mut().swap_remove(prop);
+            if removed {
+                self.host.release(prop);
+            }
         }
         if props.has(PROP_NEEDS_POWER) {
             self.erase_from(&self.power, prop, true, true);
@@ -1871,7 +1954,9 @@ impl SaveObject for PropDeveloper {
             }
         }
         self.tod.borrow_mut().extend(p.tod);
-        self.dated.borrow_mut().extend(p.dated);
+        for value in p.dated {
+            self.dated.borrow_mut().push(value);
+        }
         self.power.borrow_mut().extend(p.power);
         self.signs.borrow_mut().extend(p.signs);
         true

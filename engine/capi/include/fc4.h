@@ -12987,6 +12987,8 @@ bool fc4_powerline_select(const fc4_powerline_selection_host* host,
     fc4_powerline_selected_pole* poles, uint32_t capacity, fc4_powerline_selection* out);
 /* Smoothing hash iteration order used by NT30's first refresh. */
 uint32_t fc4_netgeom_get_smoothing_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+/* PV16 tooling only: copy/restore the shadow-owned night CRT, never native state. */
+bool fc4_prop_developer_shadow_crt(fc4_prop_developer* p, uint32_t* state, bool restore);
 #ifdef __cplusplus
 }
 #endif
