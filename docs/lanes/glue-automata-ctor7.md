@@ -10,6 +10,13 @@
   guarded releases, and abandoned replay cleanup. Added malformed/truncated/failed writer tests.
 - Filed LR13: native construction writer identity/QI/temporary lifetime contract missing.
   Kept literal IID checks; no guessed non-null coercion. Added unavailable-IID diagnostics.
-- Next: collect running qbuild all (exec session 5260), then queued verify and diagnostic house run.
+- Done: 582d19fda implements the capture accounting and LR13 diagnostics.
+- Gate: qbuild all PASS, Rust 6933/0, clippy diagnostics=0, native 245/245,
+  CTest 76/76; queued request qbuild-20261024-054455-build-ctest collected to terminal PASS.
+- Next: collect mandated verify (exec session 90719), request
+  qbuild-20261024-054910-build-ctest; then diagnostic house run.
 - Required gates: stable final qbuild all and queued verify; three unique turbo house shadow runs to 2032.
-- No requests outstanding; no questions filed yet.
+- No game requests outstanding. LR13 filed in docs/specs/questions/lot-records.md.
+- Exact train180 house INI available at main/build-runs/regress-train180-shadows.ini;
+  copied settings in build-runs/ctor7-house-template.txt (not yet submitted).
+- Event-based blocking verdict waiter: build-runs/wait-verdict.py (no qwait/polling).
