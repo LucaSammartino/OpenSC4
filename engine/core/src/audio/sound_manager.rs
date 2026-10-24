@@ -19,6 +19,7 @@
 
 use std::collections::BTreeMap;
 
+pub mod execution;
 /// Settled foreign call stages; full native helper execution: AU46/AU49.
 pub mod owner;
 

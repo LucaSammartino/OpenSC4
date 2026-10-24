@@ -431,7 +431,7 @@ fn defaults_agree_and_no_capability_is_released_without_acquisition() {
 }
 
 #[test]
-fn complete_dispatch_table_has_only_four_automata_types() {
+fn au45_complete_dispatch_table_has_five_automata_routes() {
     let cases = [
         (0x89F1_0866, MessageRoute::Construction),
         (0xA9F1_0E45, MessageRoute::Construction),
@@ -445,6 +445,7 @@ fn complete_dispatch_table_has_only_four_automata_types() {
         (MSG_AUTOMATA_A, MessageRoute::Automata),
         (MSG_AUTOMATA_STOP_SFX, MessageRoute::Automata),
         (MSG_AUTOMATA_B, MessageRoute::Automata),
+        (0x49E6_4801, MessageRoute::Automata),
         (0xAA61_1B6E, MessageRoute::RadioSlot7),
         (0xAA65_0861, MessageRoute::RadioSlot30),
         (0xC9F1_011A, MessageRoute::Lab),
@@ -456,14 +457,26 @@ fn complete_dispatch_table_has_only_four_automata_types() {
         assert_eq!(message_route(ty), expected);
         assert_eq!(
             AudioEventHandler::route_to_automata(ty).is_some(),
-            expected == MessageRoute::Automata
+            expected == MessageRoute::Automata && ty != 0x49E6_4801
         );
     }
     for ty in init_message_types().into_iter().chain(city_message_types()) {
-        if !super::super::automata_message_types().contains(&ty) {
+        if !super::super::automata_message_types().contains(&ty) && ty != 0x49E6_4801 {
             assert_ne!(message_route(ty), MessageRoute::Automata);
         }
     }
+}
+
+#[test]
+fn au45_fifth_automata_route_is_an_accepted_noop() {
+    let mut host = Host::new();
+    let mut handler = handler(&mut host);
+    host.take();
+    let mut message = host.message(0x49E6_4801);
+    let result = handler.do_message(Some(&mut message), &mut host);
+    assert_eq!(result.returned, 1);
+    assert_eq!(result.gap, None);
+    assert_eq!(host.take(), [Call::Query(PAYLOAD_IID), Call::ReleasePayload]);
 }
 
 #[test]

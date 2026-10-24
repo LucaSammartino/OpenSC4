@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Raw AEMS bank IO from audio §10.7; the library registrar is foreign IO.
-//! Missing event-system inventory, failure and final lifetime contracts: AU48.
+//! Owner execution and backend lifetime: audio §10.7.1.
+
+pub mod owner;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BankTgi {
@@ -12,6 +14,9 @@ pub struct BankTgi {
 pub trait BankFile {
     fn size(&mut self) -> usize;
     fn read(&mut self, destination: &mut [u8]) -> bool;
+    fn close(&mut self) -> bool;
+    /// Reports the original unsafe read request without corrupting Rust storage.
+    fn oversized_read(&mut self, allocated: &mut [u8], requested: usize) -> bool;
 }
 
 pub trait BankResources {
@@ -22,23 +27,20 @@ pub trait BankResources {
 #[derive(Debug, Default)]
 pub struct AemsSoundBank {
     pub image: Vec<u8>,
-    /// None means not yet set by a successful resource lookup. Constructor
-    /// TGI bits are unspecified (AU48), so no fabricated cached TGI is exposed.
+    /// None is the all-zero constructor TGI; only a successful Read changes it.
     pub cached_tgi: Option<BankTgi>,
 }
 
 impl AemsSoundBank {
     /// Raw slurp: do not impose a magic/version/header validator here (§10.7).
     /// The returned boolean is IO status, not a claimed native return contract.
-    pub fn read_file(&mut self, file: &mut impl BankFile) -> bool {
+    pub fn read_file(&mut self, file: &mut (impl BankFile + ?Sized)) -> bool {
         let allocated = file.size();
         let read_size = file.size();
-        // [choice: AU48] An unstable size has no native failure contract. Do
-        // not overflow Rust storage; report it rather than inventing a bank.
-        if read_size > allocated {
-            return false;
-        }
         self.image.resize(allocated, 0);
+        if read_size > allocated {
+            return file.oversized_read(&mut self.image, read_size);
+        }
         file.read(&mut self.image[..read_size])
     }
 
@@ -46,8 +48,12 @@ impl AemsSoundBank {
         let Some(mut file) = resources.resource_as_file(tgi, 0) else {
             return false;
         };
-        self.cached_tgi = Some(tgi);
-        self.read_file(&mut file)
+        let read = self.read_file(&mut file);
+        if read {
+            self.cached_tgi = Some(tgi);
+        }
+        let closed = file.close();
+        read && closed
     }
 }
 
@@ -92,9 +98,7 @@ impl AemsEventSystem {
         }
     }
 
-    /// Settled continuation after loading: only a successful registrar result
-    /// links the bank. AU48 leaves the native result convention unspecified,
-    /// so success is explicitly supplied from the library adapter.
+    /// Compatibility continuation. The owner maps registrar result zero to true.
     pub fn link_registered_bank(&mut self, bank: AemsSoundBank, succeeded: bool) -> Option<AemsSoundBank> {
         if succeeded {
             self.banks.push(bank);
@@ -108,11 +112,85 @@ impl AemsEventSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct ScriptedFile {
+        sizes: [usize; 2],
+        size_calls: usize,
+        read: bool,
+        closed: bool,
+        requested: Rc<Cell<usize>>,
+        drops: Rc<Cell<u32>>,
+    }
+    impl Drop for ScriptedFile {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    impl BankFile for ScriptedFile {
+        fn size(&mut self) -> usize {
+            let size = self.sizes[self.size_calls];
+            self.size_calls += 1;
+            size
+        }
+        fn read(&mut self, destination: &mut [u8]) -> bool {
+            self.requested.set(destination.len());
+            self.read
+        }
+        fn close(&mut self) -> bool {
+            self.closed
+        }
+        fn oversized_read(&mut self, destination: &mut [u8], requested: usize) -> bool {
+            assert_eq!(destination.len(), 4);
+            self.requested.set(requested);
+            self.read
+        }
+    }
+    struct ScriptedResources(Option<ScriptedFile>);
+    impl BankResources for ScriptedResources {
+        type File = ScriptedFile;
+        fn resource_as_file(&mut self, _: BankTgi, _: u32) -> Option<ScriptedFile> {
+            self.0.take()
+        }
+    }
+    #[test]
+    fn au48_two_sizes_read_close_cache_and_owned_file_destruction() {
+        let requested = Rc::new(Cell::new(0));
+        let drops = Rc::new(Cell::new(0));
+        let tgi = AemsEventSystem::bank_tgi(7);
+        for (sizes, read, closed, cache) in [
+            ([8, 4], false, true, false),
+            ([8, 4], true, false, true),
+            ([4, 8], true, true, true),
+        ] {
+            let mut bank = AemsSoundBank::default();
+            let mut resources = ScriptedResources(Some(ScriptedFile {
+                sizes,
+                size_calls: 0,
+                read,
+                closed,
+                requested: requested.clone(),
+                drops: drops.clone(),
+            }));
+            assert_eq!(bank.read_resource(tgi, &mut resources), read && closed);
+            assert_eq!(bank.image.len(), sizes[0]);
+            assert_eq!(requested.get(), sizes[1]);
+            assert_eq!(bank.cached_tgi, cache.then_some(tgi));
+        }
+        assert_eq!(drops.get(), 3);
+    }
     struct File {
         sizes: usize,
         image: Vec<u8>,
     }
     impl BankFile for File {
+        fn close(&mut self) -> bool {
+            true
+        }
+        fn oversized_read(&mut self, _: &mut [u8], _: usize) -> bool {
+            panic!("unexpected oversized read")
+        }
         fn size(&mut self) -> usize {
             self.sizes += 1;
             self.image.len()
