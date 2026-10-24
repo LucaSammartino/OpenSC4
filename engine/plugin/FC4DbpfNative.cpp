@@ -695,9 +695,10 @@ void DbpfShadowBeforeSave() {
     cityAfterSave = true;
     // Release acquired views while the game's owners are still registered;
     // do not become the last holder of an old city segment after re-registration.
-    for (auto& sample : pending)
-        for (auto& file : sample.files)
-            ReleaseHeld(file);
+    if (pending != nullptr)
+        for (auto& sample : *pending)
+            for (auto& file : sample.files)
+                ReleaseHeld(file);
     // Literal section 8.3: in-flight reads lose stable-read status. Tick reports
     // refusals for them; the next monthly discovery uses the new registration.
     Log("dbpf save transition: generation=%llu rediscovery=next-month transient=unobserved",
