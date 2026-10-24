@@ -1,9 +1,9 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-traffic-flake6 (deterministic house traffic and land value) | Codex / `glue-traffic-flake6` | in progress | Trace train166 first differences; reproduce and fix shared input nondeterminism. |
+| glue-traffic-flake6 (deterministic house traffic) | Codex / `glue-traffic-flake6` | in progress | Collect queued t2, run one unique t3, merge main, enqueue after three exact traffic repeats. |
 
 ## Handoff
-STOP: guard reported OVER at150k after029eb1c52 (first exact game record). Resume the already queued t2 request; no watcher has been started for it. No merge-queue file written.
+Round2: collecting queued t2 with build-runs/wait-game.ps1, operation2373; no new request or merge-queue entry.
 Goal: deterministic traffic and landvalue house shadows through 2032; repeated exact real-game runs.
 Done: train166 landvalue failure is May2026, traffic first failure June2027: independent.
 Traffic evidence: 2027-06-13 log rejects removed lot211D072C twice immediately before missing counters (8 trips/58 routed commuters); live lists/grids remain exact.
@@ -18,4 +18,4 @@ Outstanding: traffic-flake6-637a-house-t2.req queued; turbo house profile to2032
 DLL SHA256561DDEE7F4CA1984790215A9D44B131C321230261703B751FA5DCC292D199B39. Max local run351 after this milestone. No build/wait operation or functions cell outstanding. No merge-queue entry.
 First q.py focused attempt failed Bash CreateFileMapping Win32 error5; preserved build-runs/q/20261024-013630-2352.log. Direct cargo operation is the replacement, not a duplicate.
 Wait helper build-runs/wait-game.ps1 uses one FileSystemWatcher wait, accepts existing completed unique verdicts; do not use qwait per transport. House request matches main/build-runs/regress-train166-shadows.ini (excludes harness-owned autoload path).
-Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-traffic-flake6-r1-manifest.json.
+Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-traffic-flake6-r2-manifest.json. Run numbers are left to the coordinator; prior t1 claim351 removed because351 is already reserved.
