@@ -279,6 +279,19 @@ writes `this+0x10` = object `+0x18`; `ForceControl` (`0x0094C3A1`) writes `this+
 control. Both do the same thing to their slot: if the new pointer differs from the stored one, `AddRef` the new
 one (if non-null), release the old one (if non-null), store the new one. Equal pointers: nothing. `ForceControl` does not set own-control.
 
+**Native return and call contract (LC14): both methods return void.** They are x86 `__thiscall`
+entries: ECX is the legacy interface pointer (complete object +8), the new pointer is one 32-bit
+stack argument at entry ESP+4, and the callee removes those four argument bytes. Preserve the
+usual nonvolatile registers; there is no scalar or pointer result to compare. This applies to
+non-null replacement, clearing a slot, equal non-null pointers, and null-to-null calls alike.
+In particular an unchanged slot does not imply a true/false return, nor does clearing return the
+old pointer. EAX/AL is unspecified: these bodies do not establish it on all paths, and on a
+replacement it can contain a foreign AddRef/Release result. A shadow compares slot identity and
+reference effects only; it must not compare that residue or substitute it as a return value.
+Instruction evidence: equal-pointer exits `0x0094C380`/`0x0094C3AC`, optional reference calls
+`0x0094C38A`/`0x0094C396` and `0x0094C3B6`/`0x0094C3C2`, slot stores
+`0x0094C399`/`0x0094C3C5`, callee-clean returns `0x0094C39E`/`0x0094C3CA`.
+
 ### 7.3 `DoExceptions(win, flag)` (`0x0094C77D`)
 
 Only when `flag` is true: ask `win` for `cIGZWinGen` (`0x5386D516`). If that succeeds **and** object `+0x18` is
@@ -1360,6 +1373,8 @@ successfully obtained per-type interface is released once. String-font metadata 
 | LCV41 | New SC3 default proc: structured notification; scalar IDs D0, D1, D5, D6, D8 with prefix `0xA2BF8A` | structured returns false unchanged; scalar returns true, true, false, false, false; no drawing/forwarding |
 | LCV42 | Default procedure count 0; install P, install same P, replace with caller Q | first install retains P to 1, sends D5 then D8; same pointer no effects; replacement sends D6 to P and releases/destroys P, retains Q and sends D5 then D8; notification payloads initially zero |
 | LCV43 | Default procedure QI IID `0x22E85D8E`, then unknown IID with sentinel output | first returns same pointer and adds one reference; second false, sentinel and count unchanged |
+| LCV44 | For each of ForceControl/UseWinProc: slot A, new B, both non-null and distinct | AddRef B, Release A, store B; other owner slots and own-control unchanged; void result, ignore EAX/AL |
+| LCV45 | For each method: A to A; null to null; null to B; A to null | equal cases have no reference effects; null to B retains B once; A to null releases A once; all return void, including both equal cases |
 
 Existing Slider, TreeView, FileBrowser, Grid, Folders, FlatRect and Outline worked examples in §9.1–§9.8
 remain the corresponding test inputs for those earlier contracts. LCV01–LCV33 supplement those examples;

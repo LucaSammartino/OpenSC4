@@ -7,5 +7,6 @@
 - Goal: publish ForceControl/UseWinProc returns and complete build interception boundaries, with vectors.
 - Merge of glue-legacyctl-shadow12 in progress; conflicts in engine/capi/src/lib.rs and engine/plugin/FC4Config.cpp resolved with current HEAD versions without reading either file. Other branch changes retained. Integration must be reviewed by coordinator.
 - Read requested main owner closure table; report stale open references as well as actual remaining questions.
-- Next: commit merge, query native owner functions and build callers through re_query.py; no REA binary available.
+- Done: merge commit `6301e53bb`; LC14 void contracts and LCV44–45 written from byte-verified instructions.
+- Next: settle LC15; ScriptTag call 0x0094BADA uses primary slot +0x0C; SetParameters has zero exported direct callers and one data reference at 0x00AD536C. Entry span is six bytes to 0x00957AA1; sole return at 0x00957C85. Custom interpreter is a shared one-byte RET, so cannot receive a five-byte entry detour.
 - No game request needed; inherited run 520 evidence is owner-only, 72/72 exact, not full replay.
