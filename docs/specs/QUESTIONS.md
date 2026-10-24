@@ -226,7 +226,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 4 | 56 | EX56 | questions/data-formats.md |
+| data-formats | 2 | 58 | EX56 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -243,7 +243,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
 | foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
-| framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
+| framework-gz-services | 5 | 7 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
@@ -368,4 +368,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1448** | | |
+| **total** | **599** | **1450** | | |
