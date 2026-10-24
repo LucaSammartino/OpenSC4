@@ -179,9 +179,11 @@ mod tests {
     fn resource(file: bool) -> http::Resource {
         http::Resource {
             refs: 1,
-            strings: [b"http://host/x".to_vec(), b"payload".to_vec(), vec![]],
+            strings: [b"GET".to_vec(), b"http://host/x".to_vec(), vec![]],
+            body: b"payload".to_vec(),
             file,
             redirects: 0,
+            ..http::Resource::default()
         }
     }
     #[test]
@@ -470,7 +472,7 @@ mod tests {
         assert!(h.callbacks[1].0.file);
         assert_eq!(h.callbacks[1].0.preference, 3);
         assert_eq!(h.effects.iter().filter(|e| **e == Effect::ReleaseTarget(9)).count(), 2);
-        assert!(r.strings[1].is_empty());
+        assert!(r.body.is_empty());
         assert!(!r.file);
     }
     #[test]

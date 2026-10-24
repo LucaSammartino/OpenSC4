@@ -1,6 +1,5 @@
 //! FTP owner state transitions. External operations are primitives, never owner callbacks.
-//! O helpers (initialization, control creation, receive options and close helper) remain
-//! explicit barriers; callers may exercise supported bodies on existing state snapshots.
+//! Session initialization and listing socket lifetimes follow FTP control §7.1.
 use super::{leaf, listing, Contract, Unsupported};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -336,9 +335,9 @@ impl Default for Session {
 
 impl Session {
     pub fn initialize(&mut self) -> Contract<()> {
-        // 00813d70 was corrected to scheduler construction, not this operation.
-        // The actual session-initialization contract is still absent (WWW Q19).
-        Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
+        // Q19: the reached outer-worker step is only this byte assignment.
+        self.initialized = true;
+        Ok(())
     }
     pub fn query_interface(&mut self, io: &mut impl Io, identity: u32, iid: u32, output: &mut u32) -> bool {
         if !matches!(iid, 1 | 0x452294aa) {
@@ -425,6 +424,16 @@ impl Session {
         if io.is_open(socket) {
             io.close(socket);
         }
+    }
+    /// 00811f00: ignore the primitive close result; leave all session state alone.
+    pub fn close_listener(&mut self, io: &mut impl Io) -> bool {
+        Self::close_if_open(io, Socket::Listener);
+        true
+    }
+    /// 00811f90: the accepted data socket survives the earlier listener close.
+    pub fn close_data(&mut self, io: &mut impl Io) -> bool {
+        Self::close_if_open(io, Socket::Data);
+        true
     }
     fn command_reply(&mut self, io: &mut impl Io, command: &[u8]) -> Contract<bool> {
         if !self.send_command(io, command) {
@@ -871,8 +880,7 @@ impl Session {
         let result = self.responses.completed(io, self.timeout)? && self.responses.class == 2;
         Ok((result, true))
     }
-    /// 008163d0 entry + control acquisition. The published data loop cannot be
-    /// reached portably through the still-O 00811f00 option helper; see `listing_bytes`.
+    /// 008163d0 entry, control acquisition, listener close, data read and close.
     pub fn acquire_listing(&mut self, io: &mut impl Io, path: &[u8], borrowed_list: Option<u32>) -> Contract<bool> {
         if self.state != 2 {
             self.work = false;
@@ -929,15 +937,12 @@ impl Session {
             self.finish_listing(io, false, &[]);
             return Ok(false);
         }
-        // Latest parent section 4.15 qualifies 00811f00 as closing +0xf0,
-        // superseding the older receive-options label in the companion.
-        Self::close_if_open(io, Socket::Listener);
+        self.close_listener(io);
         let bytes = self.listing_bytes(io)?;
-        Self::close_if_open(io, Socket::Data);
+        self.close_data(io);
         self.finish_listing_bytes(io, &bytes, output)
     }
-    /// Supported interior of 008163d0, on a snapshot AFTER the O receive-option
-    /// helper. This does not implement or bypass that helper at the entry point.
+    /// Receive from the accepted data socket after closing the listener.
     pub fn listing_bytes(&mut self, io: &mut impl Io) -> Contract<Vec<u8>> {
         let mut bytes = Vec::new();
         let mut capacity = self.buffer.len();
@@ -965,7 +970,7 @@ impl Session {
         self.buffer = bytes.clone();
         Ok(bytes)
     }
-    /// Supported suffix after the O 00811f90 helper; temporary lists die after callback.
+    /// Final control reply after closing data; temporary lists die after callback.
     pub fn finish_listing_bytes(
         &mut self,
         io: &mut impl Io,
@@ -1106,6 +1111,8 @@ mod tests {
         reenter: bool,
         worker_effects: Vec<super::super::worker::Effect>,
         worker_callbacks: Vec<(u32, u32, bool)>,
+        socket_trace: Vec<(&'static str, Socket)>,
+        refuse_close: bool,
     }
     fn index(socket: Socket) -> usize {
         match socket {
@@ -1141,7 +1148,10 @@ mod tests {
             true
         }
         fn close(&mut self, s: Socket) {
-            self.open[index(s)] = false;
+            self.socket_trace.push(("close", s));
+            if !self.refuse_close {
+                self.open[index(s)] = false;
+            }
         }
         fn local_address(&mut self, _: Socket) -> Address {
             Address {
@@ -1166,6 +1176,7 @@ mod tests {
             true
         }
         fn receive(&mut self, s: Socket, capacity: usize) -> IoResult<Vec<u8>> {
+            self.socket_trace.push(("receive", s));
             if s == Socket::Control {
                 self.replies.pop_front().ok_or(IoFailure)
             } else {
@@ -1193,6 +1204,9 @@ mod tests {
         }
         fn file_close(&mut self) {}
         fn effect(&mut self, effect: Effect) {
+            if matches!(effect, Effect::ReleaseTarget(_)) {
+                self.socket_trace.push(("release_target", Socket::Control));
+            }
             if effect == Effect::DestroyFile {
                 self.destroyed = true;
             }
@@ -1220,6 +1234,98 @@ mod tests {
             },
             ..Session::default()
         }
+    }
+    #[test]
+    fn www19_1_fresh_session_initialization() {
+        let mut s = Session::default();
+        s.address = Address {
+            host: [1, 2, 3, 4],
+            port_word: 0x1500,
+        };
+        s.initialize().unwrap();
+        assert!(s.initialized);
+        assert_eq!(
+            (s.state, s.operation, s.login_stage, s.transfer_stage),
+            (0, 100, 400, 500)
+        );
+        assert_eq!(
+            (s.selector, s.requested_type, s.current_type, s.timeout),
+            (310, 203, 201, 15000)
+        );
+        assert_eq!(
+            (s.user.as_slice(), s.password.as_slice()),
+            (b"anonymous".as_slice(), b"user".as_slice())
+        );
+        assert_eq!(s.address.host, [1, 2, 3, 4]);
+        assert_eq!(s.buffer, vec![0; 2048]);
+        assert_eq!(s.target, None);
+        // initialize takes no host: no socket, thread or reference operation can occur.
+    }
+    #[test]
+    fn www19_2_already_initialized_preserves_state() {
+        let mut s = session();
+        s.initialized = true;
+        s.timeout = 91;
+        s.user = b"custom".to_vec();
+        s.work = true;
+        s.async_preference = true;
+        let before = format!("{s:?}");
+        s.initialize().unwrap();
+        assert_eq!(format!("{s:?}"), before);
+    }
+    #[test]
+    fn www19_3_fresh_target_released_before_shutdown_disconnect() {
+        let mut s = Session::default();
+        let mut io = Fake::ready(b"221 bye\r\n");
+        s.initialize().unwrap();
+        s.set_target(&mut io, Some(9));
+        s.state = 2;
+        s.shutdown(&mut io).unwrap();
+        assert_eq!(io.effects.iter().filter(|e| **e == Effect::AddTarget(9)).count(), 1);
+        assert_eq!(io.effects.iter().filter(|e| **e == Effect::ReleaseTarget(9)).count(), 1);
+        assert_eq!(io.socket_trace[0], ("release_target", Socket::Control));
+        assert!(io.socket_trace.iter().any(|e| e.0 == "close"));
+        assert_eq!((s.target, s.initialized, s.state), (None, false, 0));
+    }
+    #[test]
+    fn www19_4_listing_closes_listener_then_data_then_final_reply() {
+        let mut s = session();
+        let mut io = Fake::ready(b"200 port\r\n");
+        io.replies
+            .extend([b"150 listing\r\n".to_vec(), b"226 done\r\n".to_vec()]);
+        io.data
+            .push_back(Ok(b"-rw-r--r-- 1 a b 1 Jan 1 2020 name\r\n".to_vec()));
+        let mut entries = Vec::new();
+        assert_eq!(s.acquire_listing_into(&mut io, b"/dir/", Some(&mut entries)), Ok(true));
+        assert_eq!(
+            entries,
+            [listing::Entry {
+                name: b"name".to_vec(),
+                kind: 8
+            }]
+        );
+        let trace = &io.socket_trace;
+        let listener = trace.iter().position(|e| *e == ("close", Socket::Listener)).unwrap();
+        let receive = trace.iter().position(|e| *e == ("receive", Socket::Data)).unwrap();
+        let data = trace.iter().position(|e| *e == ("close", Socket::Data)).unwrap();
+        let reply = trace.iter().rposition(|e| *e == ("receive", Socket::Control)).unwrap();
+        assert!(listener < receive && receive < data && data < reply);
+        assert!(io.open[0] && !io.open[1] && !io.open[2]);
+    }
+    #[test]
+    fn www19_5_close_helpers_ignore_closed_or_failed_close() {
+        let mut s = session();
+        let before = format!("{s:?}");
+        let mut io = Fake::default();
+        assert!(s.close_listener(&mut io) && s.close_data(&mut io));
+        assert!(io.socket_trace.is_empty());
+        io.open = [true; 3];
+        io.refuse_close = true; // Primitive failure is discarded by the void close boundary.
+        assert!(s.close_listener(&mut io) && s.close_data(&mut io));
+        assert_eq!(io.socket_trace, [("close", Socket::Listener), ("close", Socket::Data)]);
+        assert_eq!(io.open, [true; 3]);
+        assert!(io.effects.is_empty());
+        assert_eq!(format!("{s:?}"), before);
     }
     #[test]
     fn sup01_sup04_sup05_sup08_and_scheduler_destruction() {
@@ -1462,7 +1568,7 @@ mod tests {
     }
 
     #[test]
-    fn outer_worker_init_barrier_and_rejected_login_true_is_not_transfer_success() {
+    fn outer_worker_fresh_init_and_rejected_login_true_is_not_transfer_success() {
         use super::super::worker::{Job, Record, Scheduler};
         let job = Job {
             id: 8,
@@ -1482,10 +1588,17 @@ mod tests {
             ..Scheduler::default()
         };
         let mut io = Fake::default();
-        assert_eq!(
-            worker.process_current(&mut io),
-            Err(Unsupported::OwnedBody("Q19 FTP session initialization"))
-        );
+        worker.process_current(&mut io).unwrap();
+        assert_eq!(io.worker_callbacks, [(3, 100, false)]);
+        worker.record.as_mut().unwrap().current = Some(Job {
+            id: 8,
+            status: 3,
+            url: b"ftp://1.2.3.4/x".to_vec(),
+            destination: vec![],
+            time: 0,
+            progress: 0,
+            custom: 9,
+        });
         let mut s = Session {
             initialized: true,
             address: Address {

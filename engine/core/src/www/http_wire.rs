@@ -91,8 +91,8 @@ pub fn reusable(major: u32, minor: u32) -> bool {
 }
 /// Mutates the supplied job exactly once; callers do not complete a requeued job.
 pub fn retry(client: &mut Client, host: &mut impl Host, job: &mut Job, reuse: bool) -> bool {
-    if job.0[2] < 3 && reuse && !matches!(job.0[1], 5 | 7) {
-        job.0[2] = job.0[2].wrapping_add(1);
+    if job.0[3] < 3 && reuse && !matches!(job.0[1], 5 | 7) {
+        job.0[3] = job.0[3].wrapping_add(1);
         job.0[1] = 1;
         job.0[4] = 0;
         host.effect(Effect::Lock);

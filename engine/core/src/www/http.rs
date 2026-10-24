@@ -45,12 +45,75 @@ pub struct Request {
     pub original_url: Vec<u8>,
     pub redirects: u32,
 }
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Resource {
     pub refs: u32,
+    /// Method, current URL, original URL; never the response body (Q20).
     pub strings: [Vec<u8>; 3],
     pub redirects: u32,
     pub file: bool,
+    pub raw_header: Vec<u8>,
+    pub headers: Vec<(Vec<u8>, Vec<u8>)>,
+    pub body: Vec<u8>,
+    pub major: i32,
+    pub minor: i32,
+}
+impl Default for Resource {
+    fn default() -> Self {
+        Self {
+            refs: 0,
+            strings: Default::default(),
+            redirects: 0,
+            file: false,
+            raw_header: Vec::new(),
+            headers: Vec::new(),
+            body: Vec::new(),
+            major: -1,
+            minor: -1,
+        }
+    }
+}
+impl Resource {
+    /// HTTP wire §1.1, CRT C-locale scanner, C-string bytes and wrapping atoi.
+    pub fn status(&self) -> i32 {
+        let Some((name, _)) = self.headers.first() else {
+            return 0;
+        };
+        if name.len() >= 384 {
+            return 0;
+        }
+        let text = name.split(|b| *b == 0).next().unwrap_or_default();
+        let mut tokens = text
+            .split(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | 11 | 12))
+            .filter(|t| !t.is_empty());
+        tokens.next();
+        let Some(token) = tokens.next() else { return 0 };
+        // The first byte is left untouched; truncate from the second byte onward.
+        let end = token
+            .iter()
+            .enumerate()
+            .skip(1)
+            .find(|(_, b)| !b.is_ascii_digit())
+            .map_or(token.len(), |(i, _)| i);
+        super::cookies::decimal(&token[..end])
+    }
+    pub fn version(&mut self) -> (i32, i32) {
+        if self.major == -1 {
+            self.major = 0;
+            self.minor = 0;
+            if let Some((name, _)) = self.headers.first() {
+                if name.len() >= 8 && name.starts_with(b"HTTP") {
+                    if name[5].is_ascii_digit() {
+                        self.major = i32::from(name[5] - b'0');
+                    }
+                    if name[7].is_ascii_digit() {
+                        self.minor = i32::from(name[7] - b'0');
+                    }
+                }
+            }
+        }
+        (self.major, self.minor)
+    }
 }
 impl Request {
     pub fn normalize(&mut self) {
@@ -138,6 +201,10 @@ pub enum Effect {
     Lock,
     Unlock,
     ConstructRequest(u32),
+    ConstructResponse(u32),
+    AddResponse(u32),
+    PublishResponse(u32),
+    FinalBoundary(Job, bool),
     CopyHeaders(Vec<(Vec<u8>, Vec<u8>)>),
     AddRequest(u32),
     ReleaseRequest(u32),
@@ -281,9 +348,14 @@ impl Client {
         }
     }
     fn identity(&mut self) -> u32 {
-        let id = self.next_identity;
-        self.next_identity = id.wrapping_add(1);
-        id
+        loop {
+            let id = self.next_identity;
+            self.next_identity = id.wrapping_add(1);
+            if id != 0 && !self.requests.contains_key(&id) && !self.resources.contains_key(&id)
+                && !self.workers.contains_key(&id) {
+                return id;
+            }
+        }
     }
     /// 00819650: copy and normalize only a nonempty directory.
     pub fn set_directory(&mut self, path: &[u8]) {
@@ -405,6 +477,38 @@ impl Client {
         host.effect(Effect::AllocateNode(job));
         self.queue.push_back(job);
     }
+    /// Lifetime §2.1: unlink only the node, publish a shallow copy, timestamp it.
+    pub fn dequeue(&mut self, host: &mut impl Host, worker: u32, now: u32) -> Contract<Option<Job>> {
+        let record = self
+            .workers
+            .get_mut(&worker)
+            .ok_or(Unsupported::NativeInputDomain("worker identity"))?;
+        if record.current.is_some() {
+            return Err(Unsupported::NativeInputDomain("dequeue with current job"));
+        }
+        host.effect(Effect::Lock);
+        let job = self.queue.pop_front().map(|mut job| {
+            host.effect(Effect::FreeNode(job));
+            job.0[2] = now;
+            record.current = Some(job);
+            job
+        });
+        host.effect(Effect::Unlock);
+        Ok(job)
+    }
+    pub fn create_response(&mut self, host: &mut impl Host) -> u32 {
+        let id = self.identity();
+        host.effect(Effect::ConstructResponse(id));
+        self.resources.insert(
+            id,
+            Resource {
+                refs: 1,
+                ..Resource::default()
+            },
+        );
+        host.effect(Effect::AddResponse(id));
+        id
+    }
     /// Reached foreign activation dependency, not another WWW inventory row.
     pub fn activate(&mut self, host: &mut impl Host) {
         host.effect(Effect::Lock);
@@ -468,24 +572,24 @@ impl Client {
         }
         Ok(())
     }
-    /// FOREIGN 008196e0: copy content, callback, then internal/external releases.
+    /// Lifetime §2.1: metadata copy, callback, then request and response releases.
     pub fn complete(&mut self, host: &mut impl Host, mut job: Job) -> Contract<()> {
-        let internal = job.0[4];
+        let internal = job.0[5];
         let external = job.0[6];
         if internal != 0 && external != 0 {
             let source = self
-                .resources
+                .requests
                 .get(&internal)
-                .ok_or(Unsupported::NativeInputDomain("internal resource"))?
+                .ok_or(Unsupported::NativeInputDomain("completion request"))?
                 .clone();
             let destination = self
                 .resources
                 .get_mut(&external)
                 .ok_or(Unsupported::NativeInputDomain("external resource"))?;
-            destination.strings = source.strings;
+            destination.strings = [source.method, source.url, source.original_url];
             destination.redirects = source.redirects;
         }
-        job.0[2] = 100;
+        job.0[4] = 100;
         if self.target.is_some() {
             host.effect(Effect::AddClient);
             host.effect(Effect::CreateMessage);
@@ -495,7 +599,9 @@ impl Client {
             host.effect(Effect::ReleaseMessage);
             host.effect(Effect::ReleaseClient);
         }
-        self.release_resource(host, internal)?;
+        if internal != 0 {
+            self.release_request(host, internal)?;
+        }
         self.release_resource(host, external)?;
         Ok(())
     }
@@ -513,7 +619,11 @@ impl Client {
             job.0[1] = 7;
         }
         let stop = record.stop;
+        if !stop {
+            job.0[4] = 100;
+        }
         record.current = Some(job);
+        host.effect(Effect::FinalBoundary(job, stop));
         if !stop {
             self.complete(host, job)?;
         }
