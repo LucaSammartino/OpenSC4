@@ -90,7 +90,7 @@ pub enum GuiCall {
 /// Query, child lookup, script/create/image/buffer and helper calls return an
 /// owned reference or None. Other operations return None. Width/height are
 /// foreign window geometry; script keys always have type 0/group 96A006B0.
-pub trait GuiHost: CommandHost + LifecycleHost + super::StateHost {
+pub trait GuiHost: CommandHost + LifecycleHost + super::StateHost + super::GraphHost {
     fn gui(&mut self, call: GuiCall) -> Option<u32>;
     fn client_size(&self) -> (i32, i32);
     fn window_size(&self, window: u32) -> (i32, i32);
@@ -277,6 +277,9 @@ impl View3DWin {
                 self.gui_align(host, window);
                 if let Some((offset, kind)) = helper {
                     self.gui_helper(host, offset, kind, Some(window));
+                    if kind == HelperKind::Graphs {
+                        self.setup_graph(host);
+                    }
                 }
             }
         }

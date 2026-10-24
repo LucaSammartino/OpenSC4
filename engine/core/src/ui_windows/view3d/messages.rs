@@ -36,8 +36,6 @@ pub enum Refresh {
     Alert,
     PausedOverlay,
     Mission(u32, u32),
-    /// VW18: retain raw activation payload until its derived argument is known.
-    MissionActivation(u32),
     Zoom,
     Background,
     CursorPosition,
@@ -81,6 +79,17 @@ pub trait MessageHost:
     fn city_view_hidden(&self) -> bool;
     fn paused_overlay_exists(&self) -> bool;
     fn filter_window_passthrough(&self) -> bool;
+    /// One acquired resource reference, or None. The main resource manager is
+    /// supplied by the owner, never inferred from the selector.
+    fn advice_resource(&mut self, manager: u32, id: u32, iid: u32) -> Option<u32>;
+    fn advice_activate(&mut self, resource: u32, first: u32, second: u32);
+    fn advice_release(&mut self, resource: u32);
+    fn hide_city_dialog(&mut self);
+    fn show_graph_type(&mut self, procedure: u32, selector: u32);
+    /// Borrowed return from the required budget procedure.
+    fn budget_window(&mut self, procedure: u32) -> Option<u32>;
+    /// Window slot 147, with the literal type-3/button envelope.
+    fn dispatch_child(&mut self, window: u32, message: WindowMessage);
 }
 
 impl View3DWin {
@@ -110,8 +119,9 @@ impl View3DWin {
             Refresh::Background => {
                 self.refresh_background(host);
             }
-            // VW10/VW18: the remaining refresh boundaries lack sufficient
-            // owner contracts; never infer mission data from an integer token.
+            Refresh::Mission(attachment, flag) => {
+                self.update_mission_progress(host, (attachment != 0).then_some(attachment), flag);
+            }
             _ => {}
         }
     }
@@ -271,9 +281,75 @@ impl View3DWin {
             0xE4A8_5D91 => !host.open_url(&message.text),
             0x6A5B_DFCD | 0x6A72_0993 | 0xEA5B_DFBC => {
                 host.message_call(MessageCall::Advice(message.kind, message.data));
+                self.handle_advice_link(host, message.kind, a);
                 host.base_message(&message)
             }
             _ => host.base_message(&message),
+        }
+    }
+
+    pub fn handle_advice_link(&mut self, host: &mut impl MessageHost, kind: u32, selector: u32) {
+        let Some(&manager) = self.owner.gui.fields.get(&0x18C) else {
+            return;
+        };
+        let Some(resource) = host.advice_resource(manager, 0xC988_BC79, 0x8810) else {
+            return;
+        };
+        host.advice_activate(resource, 1, 1);
+        host.advice_release(resource);
+        let (panel, buttons) = match kind {
+            0x6A5B_DFCD => (0x9988_7755, vec![0x4A32_CA92, selector]),
+            0x6A72_0993 => (0x1520_0002, Vec::new()),
+            0xEA5B_DFBC => match selector {
+                0x4A5B_DFB8 => (0x41, vec![0xAA3A_C40E]),
+                0xCA5B_DFB0 => (0x41, vec![0xAA3A_C40F]),
+                // Literal §6l: other budget selectors do not select a panel.
+                _ => (self.owner.panels.mayor_subpanel, vec![selector]),
+            },
+            _ => return,
+        };
+        let selects = kind != 0xEA5B_DFBC || matches!(selector, 0x4A5B_DFB8 | 0xCA5B_DFB0);
+        if selects {
+            if !self.owner.panels.mayor_none_shown {
+                host.hide_city_dialog();
+                for other in [0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125] {
+                    if other == panel || host.mayor_subpanel_visible(other) {
+                        host.mayor_subpanel(other, other == panel);
+                    }
+                }
+            }
+            self.owner.panels.mayor_subpanel = panel;
+            self.owner.panels.mayor_none_shown = false;
+        }
+        if kind == 0x6A72_0993 {
+            if let Some(&procedure) = self.owner.gui.fields.get(&0x2F8) {
+                host.show_graph_type(procedure, selector);
+            }
+        } else {
+            let window = if kind == 0x6A5B_DFCD {
+                self.owner.gui.fields.get(&0x300).copied()
+            } else {
+                let procedure = self
+                    .owner
+                    .gui
+                    .fields
+                    .get(&0x2E8)
+                    .copied()
+                    .expect("required budget procedure");
+                host.budget_window(procedure)
+            };
+            if let Some(window) = window {
+                for button in buttons {
+                    host.dispatch_child(
+                        window,
+                        WindowMessage {
+                            kind: 3,
+                            data: [0x2872_59F6, button, 0],
+                            ..WindowMessage::default()
+                        },
+                    );
+                }
+            }
         }
     }
 

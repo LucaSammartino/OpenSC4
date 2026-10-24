@@ -140,7 +140,7 @@ pub struct LifecycleReply {
     pub object: Option<u32>,
 }
 
-pub trait LifecycleHost: InputHost {
+pub trait LifecycleHost: InputHost + super::CoverageHost {
     fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply;
     fn cheat_manager_exists(&self) -> bool;
     fn development_cheats(&self) -> bool;
@@ -227,6 +227,7 @@ impl View3DWin {
         host.lifecycle(LifecycleCall::VisibleEnabled);
         host.set_cursor(0xC16C_4E1B);
         host.lifecycle(LifecycleCall::InitCoverage);
+        self.owner.coverage.recalculate(host);
         host.lifecycle(LifecycleCall::StartTimer);
         self.owner.motion.paint_enabled = true;
         let resource = host
@@ -269,6 +270,7 @@ impl View3DWin {
         }
         self.remove_all_controls(host, false);
         self.remove_all_persistent_controls(host);
+        self.owner.coverage.clear(host);
         for (offset, token) in std::mem::take(&mut self.owner.lifecycle.objects) {
             if matches!(offset, 0x184 | 0x188) {
                 // §6m: Stop asks whether running before invoking slot 5(false).

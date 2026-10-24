@@ -8,8 +8,16 @@
 - Round r3 resumed df1b3d5ca; required VW20 merge is already an ancestor.
 - Previous r2 operation cannot be collected: session 13320 is unknown, console
   log empty and qbuild-test.log ends mid-test. Preserve as incomplete evidence.
-- Current next step: finish the README's settled coverage deficits, focused tests,
-  then one all/verify on final changed source; no ABI/plugin wiring.
+- Round r3 source complete for this context: mission/progress selection, advice
+  destinations and literal dispatch, Init/Shutdown coverage, AddGUI graph setup.
+- Four new integration tests in closure_round3_tests.rs, including owner T29,
+  T33/T34 and coverage/graph lifetime. Full owner closure is still not claimed.
+- Six changed child modules fmt PASS; view3d.rs checked with skip_children=true
+  and applied using apply_patch. Preserve the failed relative-path fmt log.
+- Focused native cargo is running, session 60122; collect this exact operation.
+  Output: build-runs/focused-close12-r3-native.log. No terminal result yet.
+- Next: collect focused cargo; fix only diagnostics; run one final all and verify,
+  collecting both to terminal, then report and enqueue full actual HEAD.
 - Guard stopped this round at 150k; write no merge-queue entry this round.
 - Resumed d81c354bf. First merge re-view3dwin-vw20 was already up to date;
   ancestry confirmed. Git emits packed-refs.lock permission errors but commits succeed.

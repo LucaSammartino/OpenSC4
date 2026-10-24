@@ -4,6 +4,7 @@ use crate::ui_windows::win::WinStore;
 include!("resolved_tests.rs");
 include!("trigger_load_tests.rs");
 include!("closure_tests.rs");
+include!("closure_round3_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
@@ -55,6 +56,13 @@ enum Op {
 }
 
 struct Host {
+    mission_status: Option<MissionStatus>,
+    mission_updates: Vec<(u32, String, bool, Option<String>)>,
+    advice_calls: Vec<AdviceCall>,
+    advice_available: bool,
+    budget_window: Option<u32>,
+    coverage: CoverageRecorder,
+    graph: GraphRecorder,
     registry: Vec<(u32, &'static str, u32)>,
     funds_value: i32,
     hover: Vec<(bool, u32, u32)>,
@@ -98,6 +106,13 @@ struct Host {
 impl Default for Host {
     fn default() -> Self {
         Self {
+            mission_status: None,
+            mission_updates: Vec::new(),
+            advice_calls: Vec::new(),
+            advice_available: true,
+            budget_window: Some(0x41),
+            coverage: CoverageRecorder::default(),
+            graph: GraphRecorder::default(),
             registry: Vec::new(),
             funds_value: 100,
             hover: Vec::new(),
@@ -367,6 +382,29 @@ impl MessageHost for Host {
     }
     fn filter_window_passthrough(&self) -> bool {
         false
+    }
+    fn advice_resource(&mut self, manager: u32, id: u32, iid: u32) -> Option<u32> {
+        self.advice_calls.push(AdviceCall::Resource(manager, id, iid));
+        self.advice_available.then_some(77)
+    }
+    fn advice_activate(&mut self, resource: u32, first: u32, second: u32) {
+        self.advice_calls.push(AdviceCall::Activate(resource, first, second));
+    }
+    fn advice_release(&mut self, resource: u32) {
+        self.advice_calls.push(AdviceCall::Release(resource));
+    }
+    fn hide_city_dialog(&mut self) {
+        self.advice_calls.push(AdviceCall::HideDialog);
+    }
+    fn show_graph_type(&mut self, procedure: u32, selector: u32) {
+        self.advice_calls.push(AdviceCall::Graph(procedure, selector));
+    }
+    fn budget_window(&mut self, procedure: u32) -> Option<u32> {
+        self.advice_calls.push(AdviceCall::Budget(procedure));
+        self.budget_window
+    }
+    fn dispatch_child(&mut self, window: u32, message: WindowMessage) {
+        self.advice_calls.push(AdviceCall::Dispatch(window, message));
     }
 }
 
@@ -2079,6 +2117,17 @@ impl StatusHost for Host {
     fn delete_mission_panel(&mut self, _: u32) {}
     fn mission_text(&mut self, _: u32, time: &str, red: bool, _: &str) {
         self.ops.push(Op::Mission(time.into(), red));
+    }
+    fn active_mission_status(&mut self) -> Option<MissionStatus> {
+        self.mission_status.clone()
+    }
+    fn mission_fallback(&mut self, group: u32, instance: u32) -> String {
+        assert_eq!((group, instance), (0x6A23_1EA4, 0xAC2B_D618));
+        "localized fallback".into()
+    }
+    fn mission_update(&mut self, panel: u32, time: &str, red: bool, progress: Option<&str>) {
+        self.mission_updates
+            .push((panel, time.into(), red, progress.map(str::to_owned)));
     }
 }
 
