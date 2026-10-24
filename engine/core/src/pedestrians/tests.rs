@@ -505,7 +505,9 @@ fn record_roundtrip_and_empty_inherited_tick() {
     assert!(p.write(&mut bytes));
     let mut read = Pedestrian::default();
     assert!(read.read(&mut ByteReader::new(bytes.bytes())));
-    assert_eq!(read.record, p.record);
+    let mut expected = p.record.clone();
+    expected.traffic.base.occupant.status = 2; // shared occupant Read marks loaded state
+    assert_eq!(read.record, expected);
     assert_eq!(read.runtime, Runtime::default());
     assert_eq!(read.state_tick(1.0, movement(), &mut w), Ok(false));
     assert!(w.calls.is_empty());
@@ -531,6 +533,8 @@ fn record_version_and_one_shot_record_inheritance() {
     assert!(one.write(&mut output));
     let mut loaded = PedestrianOneShot::default();
     assert!(loaded.read(&mut ByteReader::new(output.bytes())));
-    assert_eq!(loaded.pedestrian.record, one.pedestrian.record);
+    let mut expected = one.pedestrian.record.clone();
+    expected.traffic.base.occupant.status = 2;
+    assert_eq!(loaded.pedestrian.record, expected);
     assert_eq!(loaded.play_count, 0);
 }
