@@ -10,7 +10,6 @@
 #include "cISC4Occupant.h"
 #include "cISC4OccupantFilter.h"
 #include "cISCPropertyHolder.h"
-#include "cSC4BaseOccupantFilter.h"
 #include <unordered_set>
 
 extern "C" uint32_t fc4_querytool_shadow_pick(uint32_t, uint32_t);
@@ -71,8 +70,9 @@ void QueryToolShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     } else {
         s.hover = {hover, record, 0};
         s.describe = {describe, record, 0};
-        cSC4BaseOccupantFilter all;
-        if (!manager->IterateOccupantsFilter(&Sample::Visit, &s, nullptr, nullptr, &all)) ++s.mismatches;
+        // OM 9.1: a null filter includes all occupants; no SDK concrete class
+        // implementation or owned filter reference is needed for this walk.
+        if (!manager->IterateOccupantsFilter(&Sample::Visit, &s, nullptr, nullptr, nullptr)) ++s.mismatches;
     }
     if (s.occupants == 0) ++s.mismatches; // no vacuous exact observation
     Log("querytool shadow julian=%d %s: occupants=%u fields=%u hover_hits=%u query_hits=%u "

@@ -5,13 +5,14 @@
 ## Handoff
 - Goal: verify portable query tool against native observations in a city through 2032.
 - Done: initial record c0720c215; added default-off live hover/describe native predicate comparison and private core adapter.
-- Next: collect current qbuild all session 43636 to terminal completion; then game queue through 2032.
+- Next: rerun final-source all after the SDK filter linker diagnostic; then game queue through 2032.
 - Constraints: no private native signatures; no tools/ access; default-off querytool_shadow.
 - CT27 filed for nonmodal hit/output fixture contract; CT13/14/20 remain existing output gaps.
 - Measured scope is predicates only, explicitly partial; no displayed output or full owner verification claim.
 - Previous transport lost session 75526 (Unknown process id); partial logs preserved in build-runs/incomplete-previous-round/.
 - Current final-source all: cargo 7407 passed / 0 failed; clippy exit 0 / diagnostics 0.
-- Native build/ctest queued as qbuild-20261024-195550-build-ctest, still collected through session 43636.
+- Native qbuild-20261024-195550-build-ctest FAILED: SDK concrete filter methods are declarations only; CTest skipped.
+- Fixed walk to use OM 9.1's null filter (all occupants); failed evidence in build-runs/failed-sdk-filter-link/.
 - Focused q.py Bash failed CreateFileMapping (log build-runs/q/20261024-184438-17952.log).
 - No game requests outstanding. fmt fixed after one-line diff; relative fmt path rejected, absolute path worked.
 - Game wait helper: build-runs/wait-querytool-game.ps1 (file events; no qwait).
