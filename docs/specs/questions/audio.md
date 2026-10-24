@@ -38,3 +38,21 @@
   failure ordering? Section 10.6 supplies lookup/start facts, not these contracts.
   [Retain existing instance-table fixture; do not guess these missing owner bodies or claim
   full SoundManager closure. Implement settled routing/state/IO separately while awaiting answers.]
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU47 — SC4 director complete lifetime and ordering:** §§1.1/1.3/11 give the five-director
+  add/start order and 92 registrations, but not the constructor interleaving of the nine named
+  classes with the 83 leaves, OnStart return/failure policy, or full PostAppInit service creation,
+  initialization, failure unwind and shutdown/destruction ordering. What are those contracts?
+  [Execute the settled add/start sequence; register the measured class set in literal table order.
+  Leave unspecified application lifetime unsupported rather than invent service success.]
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
+  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
+  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
+  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
+  them, plus AddBank result convention, file reference ownership, allocation/read failures and
+  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
+  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
+  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]

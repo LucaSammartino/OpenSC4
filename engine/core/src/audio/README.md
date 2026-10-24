@@ -50,8 +50,11 @@ completed dispatch table's conflict with the older four-operation fixture list.
 | AmbienceManager, audio-ambience §§1–7,10 | Existing portable owner | [Owner table](../audio_ambience/README.md); AA10 open |
 | AmbienceLayer, audio-ambience §8, §10.9–18 | **Pending implementation**; existing manager uses a foreign layer | Family closure still in progress |
 | SoundManager, audio §8 | Existing instance-table fixture; **pending complete owner execution** | Existing tests; foreign owner tests needed |
-| COMDirector, audio §§1.1,11 | Existing identity/order records; **pending executable lifetime** | Existing fixtures |
-| AEMSEventSystem / AEMSSoundBank, audio §10.7 | Existing data/header model; **pending owner lifetime/IO** | Existing fixtures; AU1 open for bank magic only |
+| COMDirector, audio §§1.1,1.2,11 | `director::on_start`, `register_classes`, identity/class tables | `executable_startup_interleaves_add_start_and_registers_92_classes`; existing identity/order tests |
+| COMDirector, audio §1.1/1.3 application lifetime | open: AU47 service creation/failure/unwind and teardown, constructor interleaving | Measured class set and add/start sequence implemented; no full lifetime claim |
+| AEMSSoundBank, audio §10.7 raw file/resource IO | `aems::AemsSoundBank::read_file/read_resource`, twice-size/raw read, cached TGI | `bank_raw_slurp_calls_size_twice_and_never_checks_magic`; `resource_cache_and_success_only_bank_linkage` |
+| AEMSEventSystem, audio §§10.7–10.8 settled state/linkage | `aems::AemsEventSystem` service ID/priority, known tuning defaults, successful bank linkage continuation; `data` bank/header layout | `resource_cache_and_success_only_bank_linkage`; existing `data` header tests |
+| AEMSEventSystem / AEMSSoundBank, remaining §10.7–10.8 inventory/lifetime | open: AU48 full owner dispatch/lifetime/failure/allocator and tuning error policy; AU1 bank magic | No invented StopAllSounds/registrar success or native error return |
 | EmanationModel2D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::TwoD`: constructor, QI views/AddRef/Release, ID/capability | `emanation::tests::au9_06_constructors_and_shared_interfaces` |
 | EmanationModel3D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeD`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
 | EmanationModel3DEffects, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeDEffects`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
@@ -61,8 +64,12 @@ completed dispatch table's conflict with the older four-operation fixture list.
 | Listener, contracts §18.1–18.2 settled stages | `listener::AudioListener` constructor/QI/Init/Shutdown/city subscriptions/dispatch | `au9_01_02_dispatch_city_lifetime_and_explicit_geometry_gap` |
 | Listener, contracts §18.3 output/zoom, §21.4 AU9-03–05 | `calculate_zoom`, `publish_geometry`, `tuning_recalculated`; measured-geometry continuation only | `au9_03_04_threshold_order_and_live_pointer_payload`; `au9_05_zoom_defaults_and_no_intermediate_store` |
 | Listener, contracts §18.1–18.3 unsettled stages | open: AU40 camera geometry, tuning array decoding/fallback, cheat, service/allocation/delivery/final lifetime | Dispatcher reports AU40; no claim of full update closure |
-| ScapeManager, audio §20 | **Pending settled interface/local cleanup**; full groups/resources open: AU42 | AU9-07–09 pending |
-| EventHandlerDisasterFire, audio §7.4/20.3 | **Pending settled lifetime IO**; full owner open: AU44 | Owner tests pending |
+| ScapeManager, contracts §20.1 constructor/QI/service values | `scape::ScapeManager`, factory service view, defaults/QI, priority/enabled fields | `au9_07_08_factory_qi_duplicate_and_mask_contracts` |
+| ScapeManager, contracts §20.1 group index/missing-key rules | `register_group`, `remove_group`, `matching_groups`, `missing_group_instance`; resource creation remains separate | `au9_07_08_factory_qi_duplicate_and_mask_contracts`; `au9_09_removal_without_sound_system_still_cleans_local_state` |
+| ScapeManager, contracts §20.2 lifetime/local instance cleanup | `initialize`, `shutdown`, `remove_instance`, explicit `ScapeGlobals` acquired reference | `scape_service_initialization_and_reference_balance`; AU9-09 test |
+| ScapeManager, contracts §20.1–20.2 remaining slots/resources | open: AU42 group format/allocation/resource ownership, parameter smoothing, tick/timer widths, service getters/complete destruction | Local index is not a full group resource implementation |
+| EventHandlerDisasterFire, audio §7.4 / contracts §20.3 | `scape::DisasterFireHandler` idempotent Init, subscriptions/acquisition, Shutdown, nonnull occupant forwarding | `fire_requires_server_and_forwards_only_nonnull_occupants` |
+| EventHandlerDisasterFire, remaining §20.3 inventory | open: AU44 construction/defaults/QI/message dispatch/removal/full lifetime | Torch belongs to EventHandler, not this owner |
 | PreferencesWinProc, contracts §21.1 | Retained window/preferences state; open: AU43 constructor, QI/full dialog/song inventory | No guessed defaults |
 | PreferencesWinProc, contracts §21.2 | `preferences::PreferencesWinProc` preference copy, sound-system acquisition/event/message, EndDialog/Shutdown | `au9_10_service_failure_still_posts_and_update_copies`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |
 | PreferencesWinProc, contracts §21.3–21.4 | `slider_volume`, accepted window/enable gates, Escape/special control, 30-entry arrays | `au9_11_12_slider_endpoints_offsets_and_banks`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |

@@ -94,6 +94,10 @@ pub mod emanation;
 pub mod preferences;
 /// Listener settled stages; camera geometry and failure lifetime: AU40.
 pub mod listener;
+/// Scape/service and fire-handler settled stages; remaining bodies: AU42/AU44.
+pub mod scape;
+/// AEMS raw bank IO; full event system remains AU48.
+pub mod aems;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 
