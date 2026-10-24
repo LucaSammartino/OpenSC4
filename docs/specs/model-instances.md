@@ -122,6 +122,27 @@ the 13 binary32 words at `+4..+0x34`, then copies byte `+1`; it does not return 
 (`0x00801B80`). SetTransform increments the **instance's existing** counter, copies the same words and byte
 `+1`, and ignores the supplied counter (`0x00801BE0`). Neither operation copies bytes `+2..3`.
 
+### 1.3 Native getter bindings (MI14)
+
+These are 32-bit Windows thiscall operations: the receiver is the **instance-interface pointer**, not
+necessarily the allocation start. Call the interface's published vtable entry, including its adjustment
+thunk. The body addresses in the tables are evidence addresses, not interchangeable receiver bindings.
+Bounds take one writable 24-byte box pointer; transform takes one writable 56-byte transform pointer;
+sort value takes one writable 32-bit word pointer. None transfers ownership of the output storage.
+
+GetDrawAttributes takes **one writable 20-byte destination pointer** and returns that same pointer in EAX.
+It copies the record; it does not expose a borrowed pointer into the instance. This holds for both basic
+and static bodies (`0x00801E10`–`0x00801E3F`, `0x00801F00`–`0x00801F2F`). Thus an SDK declaration interpreted
+as a zero-argument pointer getter does not describe this executable's call ABI. The pointer-shaped return
+does not eliminate the destination argument. SetDrawAttributes takes one readable record pointer.
+The getter does not change the receiver, and the destination's two opaque bytes are overwritten too.
+
+Owner and model getters return borrowed pointers without AddRef; custom data and properties return
+32-bit scalar results (static properties are zero-extended from 16 bits). A successful QueryInterface,
+in contrast, adds a reference. No observation-only consumer may release a borrowed result as if it had
+queried an interface. Transform getters can change the **destination's** counter/dirty state (§1.2);
+that is distinct from changing the instance. Getter names alone do not promise absence of writes (§2.2).
+
 ## 2. Static model instances (`cS3DModelInstance`) *[compat]*
 
 An object of `0xA4` bytes from a pool (`operator new` `0x00801B00`, released by `0x008020F0`; constructor
@@ -197,6 +218,37 @@ origin can therefore update a **positive** nearest distance. MeshPick returns af
 within that mesh; ModelPick still visits subsequent meshes (view-utilities §7). Nonunit directions do not
 change the distance to a given hit point.
 
+### 2.2 Fixture construction and cache noninterference (MI14)
+
+The complete-object constructor at `0x00802950` is **not receiver-only**: it takes a 32-bit construction
+flag in addition to the receiver and returns the receiver. The standalone factory allocates `0xA4` bytes
+and passes flag **1** (`0x008040E2`–`0x008040F9`). The constructor tests that flag before initializing the
+virtual-base table pointer and virtual-base vptr, and removes four argument bytes on return
+(`0x00802950`–`0x0080296D`, `0x00802AFC`). Flag 0 is the base-subobject construction path: the animated
+constructor supplies the required virtual-base setup before calling it with 0 (`0x007FD87F`–`0x007FD8B1`).
+Passing 0 on arbitrary standalone storage, or omitting the argument, is not a valid fixture binding.
+
+A separate, suitably aligned `0xA4`-byte fixture may use the complete constructor with flag 1 and the
+receiver-only **nondeleting** destructor body `0x00802620`. The latter releases contained references and
+arrays, but does not return the outer storage to the instance pool (`0x00802644`–`0x0080268C`, cleanup
+`0x008025C0`–`0x00802615`). Its receiver is the allocation start. The deleting destructor `0x00802B00`
+instead takes a flags argument and can pool-free the outer allocation; it must not free foreign fixture
+storage. Nor may a zero-count foreign fixture be cleaned up by Release (§2). This is a binding contract,
+not evidence that any previously measured receiver-only constructor fixture was valid.
+
+For this standalone object, the container interface is at allocation `+0`, and the instance interface at
+`+0xA0`: constructor table `0x00ABD578` contains displacement `0x80` relative to the virtual-base pointer
+at `+0x20`. Derived allocations use their own adjustment tables; do not apply `+0xA0` to every subclass.
+
+Both bounds getters can write the original instance: a stale local box plus a nonnull model causes a
+model slot-7 call into the instance's cached 24-byte box and clears the stale byte
+(`0x00801FC3`–`0x00801FDA`, `0x00802013`–`0x0080202A`). A null model leaves the stale flag set. World bounds
+are then transformed into the caller's output, without replacing the local cache. Therefore an extra
+GetBounds/GetWorldBounds on a live object is not guaranteed to be read-only, even if the returned box is
+discarded. Basic GetBounds delegates to virtual slot 8, so the basic wrapper supplies no stronger
+noninterference guarantee. Observe the result of the game's existing call, or operate on a separate
+fixture; do not clear a live cache in the name of sampling it.
+
 ## 3. Animated model instances (`cS3DModelInstanceAnimated`) *[compat]*
 
 The playback (constructor `0x007FD870`, `SetFrame`, `SetSpeed`, `Advance`, `Step`, `SetAnimMode`) is
@@ -232,6 +284,29 @@ catch-up=false state, Step runs once, accumulator is overwritten with 1.0, and A
 (`0x007FC27B`–`0x007FC292`). If an external API exposes catch-up=true, infinity can keep its native loop
 running indefinitely; that flag has no setter in this published native owner. For finite ordinary inputs the
 playback rules in graphics-formats §3.9 continue to apply.
+
+### 3.2 Animation observation bindings (MI14)
+
+The animation interface used by slots 9–16 above has its own receiver; it is not the basic-instance
+interface. In the complete animated object its vtable is `0x00ABD088` at allocation `+0`
+(`0x007FD8B9`). GetFrame (slot 11) and GetFrameCount (slot 12) take no stack arguments and return their
+integer result in EAX; they do not advance playback or retain a resource. Do not call Advance, Step or
+BuildFrame to discover the current frame.
+
+With no subrange, GetFrame zero-extends the 16-bit word at complete-object `+0x9C`
+(`0x007FAFAB`). GetFrameCount calls slot 3 of the bound model at complete-object `+0x30`, then zero-extends
+the first 16-bit header word (`0x007FC15F`–`0x007FC167`). This requires a bound live model; it is not a
+null-safe getter on an unbound constructor fixture. With a subrange pointer at `+0xA4`, the frame result
+is the 16-bit word at subrange `+12` minus the indexed 16-bit start word in the table at subrange `+8`;
+the unsigned 16-bit index is at subrange `+0`. The subtraction is returned in 32 bits, without a final
+16-bit mask. The count is the zero-extended 16-bit word at subrange `+4`
+(`0x007FAF90`–`0x007FAFAA`, `0x007FC150`–`0x007FC15E`). These are borrowed reads, not a new table reference.
+
+For a snapshot of an already identified complete animated receiver, the additional state is speed
+binary32 at `+0xBC`, accumulator binary32 at `+0xC0`, mode byte at `+0xC4`, signed direction byte at
+`+0xC5`, and catch-up byte at `+0xC6` (constructor stores `0x007FD910`–`0x007FD934`). Copy only while that
+receiver is live on the game thread. A basic-instance pointer does not by itself authorize reading these
+offsets or guessing the derived allocation start.
 
 ## 4. The model processor (`cS3DModelProcessor`) *[compat]*
 
@@ -299,6 +374,27 @@ Sort's centre computation uses each original container mesh's current vertex-blo
 output list, not the container mesh array (`0x00802DF8`, `0x00802E22`). The three min+max sums and dot product
 use x87 operations; the score is stored as binary32 before comparison (`0x00802E28`–`0x00802E79`). The insertion
 rule above applies literally to NaNs as well as finite scores; it does not establish a total order for NaNs.
+
+### 4.2 Observing processor outputs (MI14)
+
+The processor is a concrete state holder, not an instance-interface vtable: its constructor starts with
+null instance/container words at `+0`/`+4` and target-format word 10 at `+8`
+(`0x00803060`–`0x00803069`). SetModel is thiscall with one instance pointer and a Boolean result in AL
+(`0x008038D0`, return `0x00803A3B`–`0x00803A41` on multi-frame refusal). Its successful result is the converted
+mesh container retained at processor `+4`, not a separately returned output allocation
+(`0x00803A8B`–`0x00803AAE`, `0x00803B74`). There is no need to query the instance a second time to inspect
+this result. That query would add a reference and could execute derived code.
+
+After a successful existing SetModel, or after the game's existing LightModel completes, the retained
+container can be inspected synchronously through container slot 3 (no arguments, 32-bit mesh count),
+slots 4/5 (one 32-bit index, borrowed 12-byte mesh pointer), and slots 6/7 (one 32-bit index, borrowed
+52-byte material pointer). These accessors do not retain their results; GetMesh directly computes
+array-start + 12×index (`0x00801AD0`–`0x00801AFF`). Check the count first; no native bounds check exists.
+The mesh's three counted block pointers are owned by the container, not by the observer; their formats
+and material fields remain graphics-formats §3.8 and §3.12. Copy the required data before returning to
+the game; do not save borrowed mesh/block pointers for a monthly callback. ReleaseModel and restoration
+are the mutating lifetime operations in §4.1, never observation getters. These output bindings provide
+no global processor registry or guarantee that every processor has been encountered.
 
 ## 5. Bounding boxes and small types *[compat]*
 
