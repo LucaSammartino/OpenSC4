@@ -1,16 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | in progress: round 3 main merge, additive header and regress profile conflicts resolved | Full gate, unique 2032 run, second main merge, final gate if merged, ready queue. |
+| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | ready: round 3 main merged 8d2fa3027; cargo 6854/0, clippy clean, CTest 71/71; run 360 clean through 2032, automata/automataowners/netocc each 72/72 exact; run 359 interrupted with DLL AV, preserved | Coordinator publish detached HEAD and land; investigate intermittent construction-shadow AV from run 359. |
 
-## Handoff
+## Round 3 report
 
-- Goal: round 3 integration only; no new implementation scope.
-- Done: merged main content; retained both automata construction and netrules C declarations. lib.rs merged automatically with strings_shadow; exactly one regress shadows line, main keys plus automata_owners_shadow.
-- Gate: source 8d2fa3027 qbuild all PASS: cargo 6854/0/0, clippy zero diagnostics, native build 198/198, CTest 71/71; request qbuild-20261024-015855-build-ctest terminal pass. Logs build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log.
-- Next: game through 2032 label automata-ext5-r3-2032-20261024-a (no qwait), merge main again immediately before queue and repeat native gate if merged. Run 359 free when checked.
-- Detached HEAD intentionally; do not switch branches or update refs. ABI true from round 1 export.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-automata-ext5-r3-manifest.json.
-- Run 359 label automata-ext5-r3-2032-20261024-a terminal exited, not clean; DLL AV +0xEEE79D maps via local PDB to CaptureIn::GetRef line 195, construction reference list read. Load/one month exact. Source unchanged, preserve failed evidence; next reproduce once with new label before deciding source correction. No outstanding request.
+Merged main `c11352c3428378ef5114c876e2fedd3eb6209528` in `8d2fa3027`. Resolved the header conflict by retaining both complete extern-C declaration groups: automata construction roundtrip and main's netrules capture/snapshot/replay. `engine/capi/src/lib.rs` merged automatically, retaining the automata module and main's strings_shadow module. Resolved regress profile to exactly one line matching `^\s*shadows\s*=`: main's full line, including netrules and strings, plus automata_owners_shadow at the end. No implementation changes beyond integration. ABI remains true from round 1's construction export; no version bump.
+
+Stable source `8d2fa3027`: `qbuild all` **PASS**, **6854 Rust tests passed, 0 failed, 0 ignored**, clippy **0 diagnostics**, full native verification **build 198/198, CTest 71/71**. The same asynchronous operation was collected through its terminal pass, including native request `qbuild-20261024-015855-build-ctest`. Logs: `build-runs/qbuild-{test,clippy}.log`, `build-runs/fc4verify-{build,ctest}.log`; verdict: `build-runs/build-results/qbuild-20261024-015855-build-ctest.verdict`. Final `git merge --no-edit main` returned **Already up to date**; no inputs changed and no redundant gate was run.
+
+[Run 360](../runs/automata-ext5-r3-2032-20261024-b-360.md), label **automata-ext5-r3-2032-20261024-b**: Konradshohe, turbo through **2032-01-01**, **clean**, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, other WARNING lines=0. Automata, automataowners and netocc each **72/72 monthly exact**; owner and automata shutdown summaries **73/73 including load**. No resynced samples. DLL SHA256 `9bbd223c75da6e523b0df79eff75a93c2998e744f88ddeb24338a84e1eecb5d0`. Unique requests were waited to their actual terminal verdict using the existing filesystem watcher; no qwait and no duplicate request labels. Exact lines:
+
+```text
+automataowners shadow ? load: cSC4AutomataManager=4/4 bytes=5784 mismatches=0; cSC4TrafficAutomataManager=2/2 bytes=5512 mismatches=0; cSC4Automaton=649/649 bytes=208728 mismatches=0; cSC4AutomataController=288/288 bytes=23128 mismatches=0; cSC4ConstructionOccupant=7/7 bytes=1810 mismatches=0; mismatches=0
+automata shadow 2032-01-01 month: script: 2 bytes identical cm: 4858 bytes identical vehicle: 1304 bytes identical pedestrian: 4088 bytes identical aircraft: 146 bytes identical watercraft: 126 bytes identical; mismatches=0
+automataowners shadow 2032-01-01 month: cSC4AutomataManager=4/4 bytes=5664 mismatches=0; cSC4TrafficAutomataManager=2/2 bytes=5392 mismatches=0; cSC4Automaton=634/634 bytes=203832 mismatches=0; cSC4AutomataController=287/287 bytes=27043 mismatches=0; cSC4ConstructionOccupant=1/1 bytes=262 mismatches=0; mismatches=0
+netocc shadow month 2032-01-01: mismatches=0 fixups=857 records=1283 bytes=478251 network=857 prebuilt=0 bridge=0 tunnel=0 underground=0 pipe=403 subway=0 connection=0 pipe_connection=2 subway_connection=0 pole=3 line=18 pylon=0
+automata shadow: city shutdown: 73 lines, 73 with mismatches=0; components compared 438, bytes compared 772636, mismatches 0
+automataowners shadow: city shutdown: 73 lines, 73 with mismatches=0
+AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, julian=2463233, date=2032-01-01, real_seconds=38.297, days_per_second=56.55, switches_off=-, disabled=-)
+```
+
+Evidence: `build-runs/game-results/automata-ext5-r3-2032-20261024-b.{log,verdict}`. These are codec comparisons only, with the same coverage limits described below.
+
+Preserved limitation: [run 359](../runs/automata-ext5-r3-2032-20261024-a-359.md), label `automata-ext5-r3-2032-20261024-a`, exited code -1 without a verdict just after 2026-03-01. Its log shows a DLL access violation at +0xEEE79D; local plugin PDB symbols map it to `CaptureIn::GetRef`, `FC4AutomataShadow.cpp:195`, during construction reference-list reading. Load and one monthly sample were exact. The repeat used the identical DLL and completed clean; **the intermittent AV is unresolved**, not fixed or discarded. No speculative source correction was made in this integration-only round. Both logs/verdicts are retained separately. Run numbers 359 and 360 were checked for collisions in docs/runs before use.
+
+Questions: none; no shadow differences. No outstanding operations. Coordinator should publish the actual detached HEAD, land the additive integration, and track the intermittent construction-shadow AV as follow-up work. No branch/ref updates, pushes or ABI version changes were made.
 
 ## Round 2 report
 
