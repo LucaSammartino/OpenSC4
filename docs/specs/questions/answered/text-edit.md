@@ -1,5 +1,21 @@
 # text-edit: answered questions
 
+<!-- from: core-widgets5 (2026-10-23) -->
+- **TE9 - section 1 constructor / section 6 history limit:** what initial values are stored in the maximum-undo-level word W+0x184 and preferred-X W+0x170? [The portable byte/state stage requires explicitly resolved history-limit and preferred-X values; no native constructor default is inferred.]
+  **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — the same stores inspected for TE10 explicitly initialize maximum undo levels to `0x4000` and preferred X to `0xFFFFFFFF`. Section 1 Runtime defaults supplies both, citing `0x009BFFBF` and `0x009C000D`; this does not reopen TE5/TE8.
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE10 - section 1 runtime constructor defaults:** initial colors, four sound IDs, horizontal offsets, visible metrics and line height?
+  **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — section 1 Runtime defaults specifies three `0xFF000000` colors, zero offsets/metrics, initial line height 1 and true image edge option. The four sound words W+0x27C..+0x288 are not initialized by construction; zero is a portable substitute only. Preferred X is `0xFFFFFFFF`, maximum undo levels `0x4000`.
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE11 - section 8 shared automatic-reflow counter:** exact comparison and increment/decrement scope?
+  **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — section 8 specifies signed counter < 1, increment/call/decrement around only RecalculateAll's automatic check, normal return only. One check at ordinary counter zero matches the provisional rule, but exception-safe restoration does not.
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE12 - section 9 background image mode:** Boolean polarity for direct versus edge drawing?
+  **ANSWERED 2026-10-24 (re-widgettk-wt13):** MATCHES — false is direct, true is edge. Section 9 also specifies mode 1, signed division of source right/bottom by three and scrollbar strip exclusion only on the edge branch. Section 11 adds distinguishing vectors for all three answers.
+
 <!-- from: re-textedit4 (2026-10-22) -->
 - **TE1 - section 4:** Exact byte-length/count and pending-input helper encodings and malformed-input outcomes?
   **ANSWERED 2026-10-22 (re-textedit4):** DIFFERS — text-edit-encoding.md records permissive selector-8 byte tables, no remaining-length clamp or later-byte validation in forward length, backward all-continuation N+1, non-continuation glyph counting, exact numeric lead ranges for 932/936/949/950 and byte behavior for 100. Pending C0/C1 lead acceptance disagrees with its expected-tail table; eligible later bytes are counted without trail validation. System selector and composed/UTF16 services remain explicit foreign inputs; no modern Unicode/grapheme claim.

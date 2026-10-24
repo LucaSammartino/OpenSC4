@@ -47,6 +47,33 @@ It sets white base fill and clears six explicit font-color overrides.
 These are constructor defaults, not a claim that every subsequent Init
 repeats the constructor.
 
+### Runtime defaults (TE10)
+
+Before the constructor's final SetFlags call, the following are explicit
+stores, not values to be supplied by layout. All offsets below use **W**.
+
+| State | Offset | Initial value |
+|---|---|---|
+| Caret color | +0x1C0 | `0xFF000000` |
+| Selection highlight fill | +0x1C4 | `0xFF000000` |
+| Focus outline color | +0x1C8 | `0xFF000000` |
+| Visible width, height, row count | +0x160/+0x164/+0x168 | All zero |
+| Horizontal byte offset, pixel offset | +0x174/+0x178 | Both zero |
+| Line height | +0x1CC | **1**, before RecalculateAll replaces it |
+| Image edge option | +0x180 byte | **true** |
+| Preferred X, maximum undo levels | +0x170/+0x184 | `0xFFFFFFFF`, `0x4000` |
+| Sound IDs 0 through 3 | +0x27C..+0x288 | **Not initialized by construction** |
+
+Evidence: `0x009BFFB8–0x009C002F`, `0x009C0081–0x009C00A2`;
+the line-height source is the integer 1 established at `0x009BFF85–87`.
+The sound setter uses **T+0x1A4+4*index**, hence W+0x27C, not W+0x1A4
+(`0x009BCC57–71`). Neither constructor `0x009C01AF` nor member initialization
+`0x009BFF6E` assigns those four words; SetFlags exits its runtime side effects
+before initialization (`0x009BFD3A–4A`). Consequently there is no native zero
+sound default: a portable model must represent these as unspecified until
+assigned, or explicitly label any deterministic substitute. Do not confuse
+them with the zeroed image/scrollbar fields at W+0x1D4..+0x1E0.
+
 ## 2. Byte text and whole-text replacement
 
 Indices and selection endpoints are **byte offsets**, not UTF-16 units or
@@ -319,6 +346,18 @@ validity; first visible line becomes zero for no lines or at most last
 line otherwise. Automatic scrollbar checking is guarded by a shared
 recursion counter at `0x00BAC098`, not an unlimited recursive reflow.
 
+**Exact automatic-check guard (TE11):** interpret that shared 32-bit word as
+signed and perform the automatic check only when it is **less than 1**.
+Increment it immediately before TestForPossibleScrollBarAdditionOrRemoval
+(`0x009BE7AF`) and decrement it immediately after that call returns normally
+(`0x009BFA56–6C`). Thus an ordinary outer call changes 0 to 1 to 0; reentrant
+RecalculateAll on this or another editor still performs layout and scrollbar
+value updates, but skips its own automatic addition/removal check at 1.
+Direct calls of the automatic-check helper do not acquire this guard. This
+is not an exception-safe reset: no unwind handler restores the word if the
+helper fails to return normally. A negative word also passes the literal
+signed comparison; it is not an equality-to-zero test.
+
 CalculateAllLineLengths (`0x009BF3E0`) requires a font. Empty text clears
 line starts and zeroes insertion coordinates. Nonempty text ensures an
 initial zero line start. With width zero or editor bit 0x200 it consumes
@@ -387,9 +426,20 @@ does not establish correct mapping for every multibyte line arrangement;
 the exact mixed-coordinate behavior is specified below.
 
 With background bit 0x20 it fills when no image exists, or draws the image.
-The boolean stored with the image chooses direct blit versus edge drawing
-using image dimensions divided by three, excluding existing scrollbar
-strips. With nonzero visible width it draws each visible line, stepping y
+The boolean stored with the image is **false for direct blit, true for edge
+drawing** (TE12; byte W+0x180, `0x009BEBAC–BC`). False submits the image's
+reported source rectangle and the full draw area to context slot +0x9C
+with final arguments 0, 0. True copies that source rectangle, divides its
+right and bottom words by 3 using signed integer division toward zero,
+and calls RZDrawBltEdge with final mode **1**. Its destination is the draw
+area with an existing vertical bar's width removed from the right and an
+existing horizontal bar's height removed from the bottom. The direct
+branch does **not** perform those strip subtractions
+(`0x009BEBBE–0x009BEC53`). These are source right/bottom words, not a
+general computation of `(right-left)/3` and `(bottom-top)/3`; ordinary
+zero-origin images make the distinction invisible. Pixel behavior within
+the foreign blit helpers remains a separate contract. With nonzero visible
+width it draws each visible line, stepping y
 by line height and clipping to draw area minus gutters and scrollbar
 strips. Wrapping without horizontal bar uses the line span directly;
 otherwise horizontal metrics choose the visible span and x displacement.
@@ -603,6 +653,11 @@ These are specification examples derived from bodies, not game-run results.
 
 | Setup and action | Required observation |
 |---|---|
+| Fresh editor, before Init/layout | Colors at W+0x1C0/+0x1C4/+0x1C8 all `0xFF000000`; visible metrics and horizontal offsets zero; line height 1; image edge option true |
+| Preexisting distinct bytes in W+0x27C..+0x288; construct editor with flags zero | Those sound words are untouched; no assertion of zero IDs |
+| Initialized A reflows with shared counter 0; automatic check reenters B's RecalculateAll | A checks at counter 1; B updates layout but performs no automatic check; normal return restores counter 0 |
+| Shared counter -1 versus 1, otherwise initialized editor | -1 permits a check (temporary 0); 1 skips it; normal return retains the original counter |
+| Image source `(0,0,30,18)`, draw area `(0,0,100,60)`, vertical width 7, horizontal height 5 | Option false: direct source `(0,0,30,18)`, destination `(0,0,100,60)`; true: edge source `(0,0,10,6)`, destination `(0,0,93,55)`, mode 1 |
 | Text `abcde`; SetSelection(4,1) | Endpoints remain (4,1); insertion is 1, not 4 |
 | Same text; SetSelection(0xFFFFFFFF,2) | Endpoints (5,2); insertion 2; first argument does not clamp to zero |
 | Existing `abcde`; lower maximum to 2 | Text remains `abcde` immediately after setter |
