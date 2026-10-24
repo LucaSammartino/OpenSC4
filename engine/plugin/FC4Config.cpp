@@ -372,6 +372,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "scres_shadow",
                                   // Fixed native adapter vectors and shipped resource prefix.
                                   "scres_constructed",
+                                  // Controlled live native overlay actions; independent of observe.
+                                  "overlays_fixture",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

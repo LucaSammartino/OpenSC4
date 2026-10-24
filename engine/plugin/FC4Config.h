@@ -624,4 +624,9 @@ std::string IniPath();
 // overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
 // city load and each month. Live records/cells/textures await OV12; no rendering.
 
+// overlays_fixture = 0 / 1 (default 0): with overlays_shadow, add/move/set/remove
+// one real decal per manager per sample and compare 35 production-core fields.
+// Read-only record observation runs with overlays_shadow alone, including when
+// observe=0. Original Init/history and image bytes remain unavailable (OV13).
+
 }  // namespace fc4

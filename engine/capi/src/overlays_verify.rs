@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 // Controlled suffix replay only. Init's cached geometry is an external input
 // boundary, not independent verification of native Init, resources or pixels.
+// OV15: preserve the literal specified ordinary flags; native bit 7 on this
+// controlled suffix is an unresolved comparison, never masked or seeded here.
 struct FixtureInputs([u32; 7]);
 impl TerrainProvider for FixtureInputs {
     fn cells(&self) -> [u32; 2] {
