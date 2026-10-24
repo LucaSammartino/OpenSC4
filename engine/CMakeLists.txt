@@ -586,6 +586,9 @@ if(FC4_IS_WIN32_X86)
         # LR14/T79 default-off live construction getters.
         plugin/FC4ConstructionShadow.cpp
         plugin/FC4ConstructionShadow.h)
+        # Default-off public network-tool draw projection (private native tools).
+        plugin/FC4NetToolDragShadow.cpp
+        plugin/FC4NetToolDragShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
