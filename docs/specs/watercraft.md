@@ -362,9 +362,131 @@ Evidence: entry/fallback `0x0050E8B0–0x0050E916`, request/append
 `0x0050E920–0x0050E97D`, bounds/setup `0x0050E97D–0x0050EA51`,
 auxiliary/filter/finalization `0x0050EA57–0x0050EB12` (instructions with
 bytes); fallback append `0x0050DA30–0x0050DA6F`.
-This resolves the loader's own ordering/results, not the full internals of
-animated-resource acquisition, auxiliary loading or PositionModelInstance;
-the remaining exact helper boundary is recorded in §10.2.
+The transitive acquisition and positioning contracts are supplied below.
+
+### 3.7 Animated-resource and auxiliary acquisition (WC10)
+
+`GetAnimatedModelFromResourceKey` (`0x007FEDE0`) takes a three-word resource
+key and writable model-reference output, returning a boolean in AL. Dispatch
+depends only on the first word: `0x29A5D1EC` selects mesh, `0x5AD0E817`
+selects sprite. Every other type returns false **without writing the output**;
+there is no type substitution or second-provider attempt. The upper return
+register bytes are not a boolean contract (`0x007FEDE0–0x007FEE08`).
+
+| Acquisition | Observable contract |
+|---|---|
+| Sprite, `0x007FD7D0` | Ask the resource manager at `0x00B43CA8`, slot 3, for `(key, 0x9AD0E7E3, &resource, 0, 0)`, with local resource initially null. False returns false and leaves the caller's output untouched. True invokes resource slot 4 with `(0, output)`, then releases the resource through slot 2, and returns the creation boolean, including when creation failed. No additional output clearing, validation, AddRef or failed-output release is performed by this wrapper. |
+| Mesh, `0x007FED50` | Acquire a new mesh object from the pool (refill the pool when its free list is empty), construct it with argument 1, and AddRef its common reference interface once. Invoke animated-model slot 22 with the key. True writes the model to output and returns true, transferring that reference. False releases the acquired reference, explicitly writes null to output, and returns false. No null-allocation recovery or alternative resource path exists in this body. |
+
+Required service/resource interfaces and writable output storage are
+preconditions, not optional dependencies. In particular, a true resource
+lookup with a null sprite resource is dereferenced; a true model acquisition
+with null model is dereferenced by the owner. The sprite service decides its
+creation result/output; the owner does not replace that service result with
+its own final-transform provider. Distinguish untouched output on lookup or
+unsupported-type failure from explicit null on mesh load failure. Evidence:
+sprite `0x007FD7D0–0x007FD81E`; mesh `0x007FED50–0x007FEDD3`.
+
+`LoadAuxiliaryModel` (owner slot 99, `0x0050EB20`) takes an unsigned selector
+and writable animated-model-reference output. Selectors map to occupant
+properties as follows; any other selector is itself the property ID:
+
+| Selector | Property ID |
+|---|---|
+| 1 | `0x09C80417` |
+| 2 | `0xC9E69AF6` |
+| 3 | `0xEC214180` |
+
+Resolve that property through occupant slot 6, reading a three-word resource
+key into an initially all-zero local key. The resource-key property reader
+(`0x005FD5B0`) requests the property's value through slot 9; no value returns
+false without copying a key. An available value supplies exactly three words
+through value slot 5 then slot 103. These calls do not validate key type or
+repair a null property interface. On property-read failure, return false
+without writing the caller's output. Otherwise invoke AddModelInstance with
+the key and **write its result, including null**, to output. A nonnull result
+receives one extra common-interface AddRef for the caller and returns true;
+null returns false. This extra reference is the one §3.6 releases after its
+auxiliary request. Evidence: `0x0050EB20–0x0050EBAE`, `0x005FD5B0–0x005FD5F1`.
+
+**Auxiliary insertion.** AddModelInstance (`0x0050E4D0`) returns null with no
+owner work when the key's third word is zero. Otherwise, if the saved key's
+third word +0x124 is zero, copy this key to +0x11C and also copy its third
+word to +0x128, **before** acquisition. Failed acquisition does not undo that
+saved-key change. Capture bit 1 of byte +0x33; when set, call owner slot 71
+with false before acquisition and with true afterwards, even on failure.
+The acquisition output is initialized null. On success, obtain model slot 0's
+instance, associate it with occupant +4 through instance slot 4, set instance
+slot 14 to 1, set animated-model slot 8 to the current view zoom/rotation,
+then position its common model-instance interface by §3.8. Append the acquired
+reference to +0x110 without another AddRef and append the original three-word
+key to +0xC0, in that order. No first-model bounds/radius calculation or
+slot 18 `(1,0)` request from §3.6 is repeated here. After the optional
+slot 71 restoration, call owner slot 106, whether acquisition succeeded or
+failed. Return the local acquisition output. No rollback, failed-output
+cleanup or check of the setup-call results exists. Consequently, a malformed
+sprite provider returning false with nonnull output can propagate that pointer
+without insertion; normal success must supply a usable model. Evidence:
+`0x0050E4D0–0x0050E614`, especially saved key `0x0050E4EC–0x0050E513`,
+setup `0x0050E546–0x0050E5A3`, insertion/finalization `0x0050E5A8–0x0050E609`.
+
+### 3.8 Model positioning and inherited publication (WC10–WC11)
+
+**PositionModelInstance** (`0x005094A0`) is void, with one required instance
+argument. Read its complete transform through instance slot 9, starting with
+identity rotation, zero translation, scale 1, revision byte 0 and flags byte 0.
+Replace rotation using inherited heading at +0x58 and translation using
+inherited position at +0x40; these are not the watercraft runtime copies.
+Preserve the transform's returned uniform scale and other uninterpreted fields.
+Publish once through instance slot 10. Each call advances the returned revision
+byte by two modulo 256 and ORs flags with 5 (translation and rotation dirty),
+even when the new values equal the old ones. It does not force scale 1 or
+clear pre-existing flags, normalize the heading, or check either virtual
+call's result. Null instance is not a false-return path. Evidence: transform
+read `0x005094A0–0x00509526`, inherited inputs/basis `0x00509529–0x00509596`,
+revision/flags/write `0x0050959A–0x005095EE` (instruction bytes).
+
+For heading `H=(hx,hy,hz)`, helper `0x0080B830` produces rotation columns
+`(R,U,H)`. Compute `q=-sqrt(hx*hx+(-hz)*(-hz))` with x87 intermediates.
+For q strictly below zero, let `s=1/q`, then store each component of
+`R=((-hz)*s, 0*s, hx*s)` as float before computing and float-storing
+`U=(Rz*hy-Ry*hz, Rx*hz-Rz*hx, Ry*hx-Rx*hy)`, namely `H cross R`.
+Do not normalize U or H. For q zero or unordered, use R=(0,0,1) and U=(1,0,0),
+leaving H as supplied. This is an explicit vertical/zero-heading fallback,
+unlike the unguarded normalization in the crash-contact basis. A negative
+vertical heading still gets **positive** X as U, a compatibility quirk.
+The reciprocal and products use the instruction ordering above; R's three
+float stores precede the cross product. Constant `0x00B0EC64` is float 1;
+`0x00A81054` is float zero. Evidence: `0x0080B830–0x0080B906`.
+
+**Inherited publication, slot 100** (`0x00508610`), is void and takes two
+booleans, called here `full` and `partial`. It does not reposition models by
+calling PositionModelInstance. Whenever the model vector is nonempty, first
+read bounds from the **first** entry's common instance slot 8 into owner
++0x170. This precedes all visibility and flag gates, even with both arguments
+false. A null first entry is dereferenced; only the later per-model loop
+skips null entries. Next query occupant +4 slot 32 with 4. False skips scene
+publication, but does not skip the trailing event test described below.
+
+For a true occupant test, let b0/b1 be bits 0/1 of byte +0x33:
+
+| Owner flags | Scene-publication behavior |
+|---|---|
+| b1 set | Traverse models in vector order, skipping nulls. With full=true, get each instance through animated-model slot 0 and request renderer (`0x00B43DD0`) slot 30 with that instance. Otherwise, with partial=true, request renderer slot 31 with `(instance,3)`. Full takes precedence; both false sends no per-model requests. Afterwards, if b0 is set, request occupant manager (`0x00B43D0C`) slot 24 with `(occupant +4,0)`, irrespective of the two arguments. |
+| b1 clear, b0 clear | Request owner slot 70 with true. Re-read b0 afterwards; if now set, request owner slot 71 with true. The two publication arguments do not gate this path. |
+| b1 clear, b0 set | Request occupant-manager slot 24 with `(occupant +4,0)`, then re-read b0; if still set, request owner slot 71 with true. |
+
+After every path, test float +0x1C0 against 100 with a strict greater-than
+comparison. Greater invokes owner slot 102 `(9,0)`, then clears +0x1C0 to zero.
+Exactly 100 and unordered/NaN leave it unchanged and send no event. This is
+independent of model count, visibility and both boolean inputs. No scene-call
+return value is tested and there is no owner rollback or AddRef/Release of
+the submitted instances. Required manager/renderer interfaces are used
+without null checks on the paths that need them. Evidence:
+bounds/gate `0x00508613–0x00508656`; per-model requests and full precedence
+`0x0050865C–0x005086BF`; occupant/flag paths `0x005086C2–0x00508708`;
+event/reset `0x0050870E–0x0050873D`. In particular the constant 3 belongs to
+the renderer slot 31 request; it is not an argument to the instance getter.
 
 ## 4. States *[compat]*
 
@@ -1812,9 +1934,10 @@ untraced helper bodies still prevent a whole-owner closure claim.
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies individually named spec-side vectors. It does **not** certify
-complete owner closure: WC3–WC4 have scoped archived answers with their exact
-model-only residuals carried by WC10–WC11. WC1–WC2 and WC5–WC9 are answered. In particular,
+This document supplies individually named spec-side vectors. WC1–WC12 are
+answered, including the model-only residuals of WC3–WC4 in §§3.7–3.8 and
+the WC12 contact correction in §5.7.5. This does **not** certify implemented
+owner closure or completion of every named engine vector. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
 
@@ -1822,13 +1945,14 @@ substitute an opaque provider result for missing owner computation.
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question. AI target selection and crash contact basis are now specified separately. |
-| WC10 (WC3 residual) | 75-entry attribution inventory, Init/record boundaries, construction/destruction, adjustors, geometry/movement/docking/angular/quantization signatures, land/tow/debug, tuning, inherited dispatch, shared tween arithmetic (§5.1.6), LoadModels control/results (§3.6), and shared effects contract (§5.1.7) | Transitive animated-resource acquisition `0x007FEDE0` (sprite `0x007FD7D0`, mesh `0x007FED50`), LoadAuxiliaryModel `0x0050EB20`, and complete PositionModelInstance `0x005094A0` / heading-basis helper `0x0080B830`. Historical 79 is not the current measured attribution (§10.1). |
-| WC11 (WC4 residual) | Commands, drive ordering, routes/following/final/far docking, integration, normal visual basis, slew, generic seeking, wake order, subsidiary animation, shared tween arithmetic, full AI targets/publication (§5.2.2), and shared effects computation (§5.1.7) | Inherited model publication slot 100 `0x00508610` and complete model-instance positioning/heading-basis helpers `0x005094A0` / `0x0080B830`. Model acquisition/auxiliary creation remains WC10; the effect-controller arithmetic is supplied by graphics-formats §3.11 rather than an opaque provider. |
+| WC10 (answered WC3 residual) | Prior lifecycle/LoadModels contracts plus §3.7 resource dispatch, output/reference failures, auxiliary mapping/insertion; §3.8 complete positioning arithmetic | None for this question. Historical 79 is not the current measured attribution (§10.1). |
+| WC11 (answered WC4 residual) | Prior motion/effects contracts plus §3.8 inherited slot 100 publication, positioning, heading basis, scale/revision/flags and preconditions | None for this question. The shared effect-controller arithmetic remains supplied by graphics-formats §3.11. |
+| WC12 (answered) | §§5.7.2, 5.7.5; corrected WC5-H09 and WC12-H11–H13 | None for this question; p[24] governs heel and the banked second terrain sample supplies contact V. |
 | WC5 (answered) | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, footprint, inanimate corners, sinking and grounding/contact bases and publication (§5.7.5) | None for this question; required-service preconditions and degenerate bases are explicit. |
 
-These gaps are not answered by an inventory count or by the existing summary
-sections. An engine lane can implement the newly specified arithmetic, but cannot
-mark every owner-closure row closed using this document yet.
+Question closure supplies implementation requirements, not a passing engine
+gate: owner integration, the named vectors and game evidence remain the
+implementer's separate obligations.
 
 ## 11. Conformance tests
 
@@ -2148,3 +2272,34 @@ for trigonometric results, and inspect NaN classification separately.
 | WC4-FX02 | Two entries: key A stopped, key B started; animation current frame=3; B records nonnull | A gets no transform/parameter. B samples record at base+84, then sends transform before speed parameter. Neither interpolation nor count clamp occurs. Records must cover this frame for a safe native read. |
 | WC4-FX03 | Controller detached, then attached with empty map | Both updates return true without transforms or speed parameters. A null controller at the watercraft caller is a separate invalid precondition. |
 | WC9-01 | Default tuning, L=R=100, T=0, dt=10 | Final T=-0.1 and both channels stay 100, matching corrected WC8-08. |
+
+### 11.20 Resource, auxiliary and inherited publication vectors (WC10–WC11)
+
+Use ordered call observations and distinct reference identities. Resource/scene
+services supply only their interface results; the owner computes the mapping,
+basis, output handling and publication decisions specified in §§3.7–3.8.
+Null required interfaces and true-with-null acquisition are native-invalid
+preconditions, not successful no-op vectors.
+
+| ID | Setup | Required result |
+|---|---|---|
+| WC10-R01 | Unsupported key type; output initially sentinel S | False; S unchanged; neither sprite manager nor mesh pool called. |
+| WC10-R02 | Sprite key; resource lookup false; output S | One lookup with IID 0x9AD0E7E3 and trailing zeros; false, S unchanged; no creation or release. |
+| WC10-R03 | Sprite lookup true returns resource A; creation `(0,out)` returns false and leaves S | Release A exactly once after creation; false, S unchanged; no output release/clear. Repeat with creation true/output M: true, M retained without wrapper AddRef. |
+| WC10-R04 | Mesh key; pool supplies M; model slot 22 returns false; output S | Constructor argument 1; AddRef before keyed load; Release after failure, output null, false. With load true, output M, true and no failure Release. |
+| WC10-A01 | Auxiliary selectors 1,2,3,0x12345678; property values unavailable; output S each time | Lookup IDs 0x09C80417,0xC9E69AF6,0xEC214180,0x12345678 respectively; false, S untouched, no insertion. |
+| WC10-A02 | Property returns a key with third word zero; output S | AddModelInstance returns null immediately; caller output becomes null; false. No model request, slot 71 or slot 106. |
+| WC10-A03 | Nonzero key K; saved third word zero; b1 set; keyed mesh load fails | Save K at +0x11C and K's third word at +0x128 before request. Owner 71(false), failed acquisition, 71(true),106(). No insertion; saved key persists; output null, false. |
+| WC10-A04 | Nonzero K; successful M; b1 set; caller uses §3.6 auxiliary pass | 71(false), acquire M, instance association, instance slot14(1), view update, positioning, model append, key append,71(true),106(), caller-output AddRef. Auxiliary pass releases only the extra output reference; vector retains acquired reference. No primary radius calculation or slot18(1,0). |
+| WC10-A05 | Successful auxiliary M then repeat with same K; saved key already nonzero | Each call appends another model/key and returns another output reference; no deduplication or saved-key overwrite. |
+| WC11-P01 | Inherited H=Z, position (1,2,3), runtime position (9,8,7); instance read returns scale 3, revision 254, flags 0x20 | Instance slot9 then slot10 once; rotation identity, translation (1,2,3), scale 3, revision 0, flags 0x25. No runtime-position substitution or equality suppression. |
+| WC11-P02 | H=(3,0,4) | R approximately (0.8,-0,-0.6), U=(0,5,0), F=(3,0,4); U and F are not normalized. |
+| WC11-P03 | H=(0,-2,0), then H=(0,0,0) | Both use R=Z and U=X; F remains the supplied H, including zero. No failure result or normalization. |
+| WC11-P04 | Returned transform already equals requested pose, revision 255, flags 0xFF | Still publish once with revision 1 and flags 0xFF; retain scale. |
+| WC11-U01 | Nonempty models; occupant slot32(4)=false; counter +0x1C0=101 | First model bounds read into +0x170 precedes occupant query. No renderer/occupant-manager publication; event (9,0) then counter=0. |
+| WC11-U02 | b1 set, b0 clear, visible; model vector [A,null,B]; full=true, partial=true | Bounds from A first; renderer slot30(A instance),slot30(B instance) in order; no slot31 calls, no occupant-manager call. Only the per-model pass skips null. |
+| WC11-U03 | U02 but full=false, partial=true, b0 set | Renderer slot31(A instance,3),slot31(B instance,3), then occupant-manager slot24(occupant,0). |
+| WC11-U04 | U03 but full=false, partial=false | No per-model submissions; bounds/query and occupant-manager request still occur. |
+| WC11-U05 | Visible, b1/b0 clear, both inputs false; owner70(true) sets b0 | Bounds if models exist, occupant query, owner70(true), owner71(true). If 70 leaves b0 clear, omit 71. |
+| WC11-U06 | Visible, b1 clear/b0 set; occupant-manager request clears b0 | Manager slot24(occupant,0), then no owner71 call. If b0 stays set, call71(true). |
+| WC11-U07 | Empty model vector, visibility false; counters 100, next representable float above 100, NaN | No bounds read; occupant query in every case. Only the above-100 case notifies (9,0) and clears the counter; 100 and NaN remain unchanged. |

@@ -4,6 +4,6 @@
 
 ## Handoff
 Goal: close WC10, WC11 and WC12 with behavior and conformance vectors.
-Done: prerequisite merge 0c46c082b; initial lane record 258c93051. WC12 corrected and archived: p[24] endpoint; banked second terrain normal, not -H, supplies contact V.
-Next: finish WC10 acquisition/auxiliary and WC11 positioning/publication contracts and vectors; regenerate index and run doccheck.
+Done: prerequisite merge 0c46c082b; WC12 d978026d6. WC10/WC11 contracts and 20 vectors added in §§3.7–3.8/11.20; all three questions archived, no residual splits.
+Next: regenerate questions index, doccheck in foreground, final report and queue.
 Facts: no engine edits authorized; only the explicitly requested owner README is read. REA unavailable; use main checkout export and decomp. No game runs or ABI changes planned.
