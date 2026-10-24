@@ -7,6 +7,7 @@ enum Trace {
     Window(WindowEffect),
     Effect(Effect),
     Call(&'static str),
+    Message(String, String, (u32, u32, u32)),
 }
 #[derive(Default)]
 struct Fake {
@@ -23,6 +24,9 @@ struct Fake {
     types: Vec<(u32, String)>,
     family_reads: usize,
     family_unavailable: bool,
+    read_result: Option<Configuration>,
+    manager: Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>>,
+    prompt: u32,
 }
 impl Fake {
     fn windows(&self) -> Vec<WindowEffect> {
@@ -64,7 +68,17 @@ impl Host for Fake {
         vec![]
     }
     fn prompt(&mut self, _: &str, _: u32) -> u32 {
+        self.prompt
+    }
+    fn message_box(&mut self, text: &str, title: &str, options: (u32, u32, u32)) -> u32 {
+        self.trace.push(Trace::Message(text.into(), title.into(), options));
         0
+    }
+    fn read_configuration(&mut self, _: [u32; 3]) -> Result<Option<Configuration>> {
+        Ok(self.read_result.take())
+    }
+    fn configuration_manager(&self) -> Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>> {
+        self.manager.clone()
     }
     fn register_configuration(&mut self, _: &Configuration, _: bool) {}
     fn parse_hex(&mut self, text: &str) -> Result<u32> {
@@ -366,7 +380,7 @@ fn lew12_user_close_rechecks_callbacks_and_preserves_partial_progress() {
     assert!(h.windows().contains(&WindowEffect::ControllerClose(42, false)));
 }
 #[test]
-fn lew13_14_delete_failure_order_row_zero_and_false_return() {
+fn lew13_14_lei01_delete_failure_order_row_zero_and_false_return() {
     for failure in 0..4 {
         let (c, mut h) = chooser();
         match failure {
@@ -381,7 +395,14 @@ fn lew13_14_delete_failure_order_row_zero_and_false_return() {
             h.windows().contains(&WindowEffect::RemoveRow(10, 0, 1, 0)),
             failure == 3
         );
-        assert_eq!(h.windows().contains(&WindowEffect::FileUnavailableError), failure == 1);
+        assert_eq!(
+            h.trace.contains(&Trace::Message(
+                "The exemplar you are trying to delete is either non-existant or write-protected.\n\n".into(),
+                "No can do".into(),
+                (0x10000, 1, 0)
+            )),
+            failure == 1
+        );
         assert_eq!(
             h.windows().contains(&WindowEffect::Error(
                 "No can do",
@@ -401,6 +422,165 @@ fn lew13_14_delete_failure_order_row_zero_and_false_return() {
     h.trace.clear();
     assert_eq!(c.remove_row(9, &mut h), Ok(false));
     assert!(!h.windows().iter().any(|e| matches!(e, WindowEffect::RemoveRow(..))));
+}
+
+#[test]
+fn lei02_shutdown_exact_release_clear_order_and_retained_array() {
+    let mut w = EditorWindow {
+        initialized: true,
+        ..Default::default()
+    };
+    let mut e = Editor::default();
+    let mut h = Fake::default();
+    for offset in [0x130, 0x134, 0x138, 0x13C, 0x15C, 0x160, 0x190] {
+        w.references.insert(offset, u64::from(offset));
+    }
+    e.current = Some(Configuration::default());
+    e.identity = Identity {
+        references: [Some(0x188), Some(0x18C)],
+        id: 99,
+        key: [1, 2, 3],
+        path: "keep".into(),
+    };
+    e.cursors = [Some(1), Some(2), Some(3), Some(4), Some(7), Some(6), Some(5)];
+    w.networks = [Some(0x194), Some(0x198)];
+    w.owned_references = vec![30, 0, 31, 30];
+    w.storage.extend([0x1D0, 0x1C4, 0x1A0, 0x178]);
+    w.shutdown(&mut e, &mut h);
+    use Trace::{Effect as E, Window as W};
+    use WindowEffect::{ClearReference as Clear, NetworkStop, NotifyClosed};
+    assert_eq!(
+        h.trace,
+        [
+            W(NotifyClosed(0x15C)),
+            E(Effect::Release(0x130)),
+            W(Clear(0x130)),
+            W(Clear(0x134)),
+            E(Effect::Release(0x134)),
+            W(Clear(0x138)),
+            E(Effect::Release(0x138)),
+            W(Clear(0x13C)),
+            E(Effect::Release(0x13C)),
+            W(Clear(0x15C)),
+            E(Effect::Release(0x15C)),
+            W(Clear(0x160)),
+            E(Effect::Release(0x160)),
+            E(Effect::Release(0x188)),
+            W(Clear(0x188)),
+            E(Effect::Release(0x18C)),
+            W(Clear(0x18C)),
+            W(NetworkStop(0x194)),
+            E(Effect::Release(0x194)),
+            W(Clear(0x194)),
+            W(NetworkStop(0x198)),
+            E(Effect::Release(0x198)),
+            W(Clear(0x198)),
+            E(Effect::Release(30)),
+            E(Effect::Release(31)),
+            E(Effect::Release(30)),
+            W(WindowEffect::BaseShutdown),
+        ]
+    );
+    assert_eq!(w.owned_references, [30, 0, 31, 30]);
+    assert_eq!(w.references.get(&0x190), Some(&0x190));
+    assert!(e.current.is_some());
+    assert_eq!(
+        (e.identity.id, e.identity.key, e.identity.path.as_str()),
+        (99, [1, 2, 3], "keep")
+    );
+    assert!(e.cursors.iter().all(Option::is_some));
+    h.trace.clear();
+    w.destroy(&mut e, 0, &mut h);
+    assert_eq!(
+        &h.trace[..5],
+        &[
+            W(WindowEffect::FreeStorage(0x1D0)),
+            W(WindowEffect::FreeStorage(0x1C4)),
+            W(WindowEffect::FreeStorage(0x1A0)),
+            E(Effect::Release(0x190)),
+            W(WindowEffect::FreeStorage(0x178)),
+        ]
+    );
+    assert_eq!(
+        &h.trace[5..12],
+        &(1..=7).rev().map(|p| E(Effect::Release(p))).collect::<Vec<_>>()
+    );
+    assert_eq!(h.releases(30), 0);
+    assert_eq!(h.releases(31), 0);
+}
+
+#[test]
+fn lei03_uninitialized_shutdown_leaves_references_for_destruction() {
+    let mut w = EditorWindow::default();
+    let mut e = Editor::default();
+    let mut h = Fake::default();
+    w.references.insert(0x190, 9);
+    e.current = Some(Configuration::default());
+    e.cursors[0] = Some(8);
+    w.shutdown(&mut e, &mut h);
+    assert_eq!(h.windows(), [WindowEffect::BaseShutdown]);
+    assert_eq!(w.references.get(&0x190), Some(&9));
+    assert!(e.current.is_some());
+    assert_eq!(e.cursors[0], Some(8));
+    w.destroy(&mut e, 0, &mut h);
+    assert_eq!((h.releases(8), h.releases(9)), (1, 1));
+}
+
+#[test]
+fn lei04_partial_read_never_registers_or_swallows_unsupported_open() {
+    let (mut c, mut h) = chooser();
+    h.manager = Some(super::fix_test_host::manager());
+    h.read_result = Some(Configuration {
+        name: "installed".into(),
+        ..Default::default()
+    });
+    let pending = c.begin_edit(false, &mut h).unwrap().unwrap();
+    let mut e = Editor::default();
+    // The independently initialized stage reaches the still-open SetLotSize
+    // continuation after installing Read's state, rather than fabricating Open.
+    let opened = e.open_configuration_stage(pending.key, &mut h);
+    assert_eq!(opened, Err(Unsupported::Dependency("LE4 SetLotSize")));
+    assert_eq!(c.finish_core_edit(pending, &e, opened.clone(), &mut h), opened);
+    assert_eq!(e.config().unwrap().name, "installed");
+    assert!(c.editors.is_empty());
+    assert_eq!(h.releases(100), 1);
+    assert!(h.windows().ends_with(&[
+        WindowEffect::Error("No can do", "Unable to open the lot for editing."),
+        WindowEffect::RemoveCreated(100),
+        WindowEffect::ShutdownEditor(100),
+    ]));
+}
+
+#[test]
+fn lei05_core_close_notification_changes_live_set_before_refusal() {
+    let (mut c, mut h) = chooser();
+    c.editors.extend([(10, 1), (20, 2)]);
+    c.controller = Some(42);
+    let mut editors = std::collections::BTreeMap::new();
+    for p in [10, 20] {
+        let mut e = Editor {
+            chooser: true,
+            ..Default::default()
+        };
+        e.create_new(&mut h);
+        e.dirty = 1;
+        editors.insert(p, e);
+    }
+    let mut visited = vec![];
+    let result = c.user_close(&mut h, |c, p, ask, save, h| {
+        visited.push(p);
+        h.prompt = if p == 10 { 0x53018149 } else { 0x53018147 };
+        let before = h.trace.len();
+        let result = editors.get_mut(&p).unwrap().close(ask, save, h);
+        if h.trace[before..].contains(&Trace::Effect(Effect::NotifyChooser)) {
+            c.editor_closed(p, h);
+        }
+        result
+    });
+    assert_eq!(result, Ok(false));
+    assert_eq!(visited, [10, 20]);
+    assert_eq!(c.editors.keys().copied().collect::<Vec<_>>(), [20]);
+    assert!(!h.windows().contains(&WindowEffect::ControllerClose(42, false)));
 }
 #[test]
 fn chooser_forced_shutdown_and_raw_destructor_are_distinct() {

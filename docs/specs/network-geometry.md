@@ -297,9 +297,82 @@ staircase is drawn as (minor + 1) steps along the major axis.
 2. Networks wider than one cell are widened across the pen axis, and their cells are snapped to an existing network of
    the same type through the placed-network filter (edge flags `0x4000400`, `0x20000`, `0x4040404`) *[inferred:
    alignment with an existing parallel run]*.
-3. A width-1 network with ≥ 3 steps (or a 2-step straight drag) whose end is diagonal is **extended by one step** when
-   the next cell in the end direction holds an auto-connect occupant (slots 65 and 67) or, for road, a cell info with
-   edge bits. This lets a diagonal run join an existing piece.
+3. A width-1 network with ≥ 3 steps (or a 2-step wholly straight drag) can extend at **both ends**, including on a
+   wholly straight drag. Each end requires an in-city candidate, `ShouldAutoConnect` (slot 64), and a successful
+   `TestForAutoConnectOccupant` (slot 65). **Slot 67 is not part of this decision.** See §3.3.1.
+
+### 3.3.1 Underground extension and the observation boundary (NG8)
+
+*[compat]* Pipe and subway return true from slot 64. Their slot-65 override (`0x00659470`, two signed cell
+coordinates, pop 8, AL) accepts an occupant of the tool's **own underground layer**, not any occupied tile.
+The layer discriminator is slot 81: pipe `0x49C05B9F`, subway `0xCA16374F`. First enumerate occupants overlapping
+the one standard-city cell: occupant-manager slot 40, `GetOccupantsByStandardCityCells(list, &cell, &cell,
+null filter, 0xFFFFFFFF)`. Both bounds are the same pair of signed 32-bit coordinates. This is an unfiltered
+spatial query, not a surface-only query, a network-type filter or an occupant-manager-cell query. Its bounding
+box and ordering contract are [occupant-manager.md](occupant-manager.md) §8.4; do not replace it with an
+occupant's declared home-cell equality test. Query each returned occupant for the layer discriminator. Any
+successful QI makes this first search succeed (`FindUndergroundOccupant`, `0x006584D0`).
+
+Only if that search finds no matching interface, enumerate the same cell again with the same arguments.
+QI each result for **`0x8A139184`**, the underground-connection interface. Accept it when its main slot 38
+(+0x98, no arguments, u32 in EAX) equals the tool's layer discriminator. The pipe/subway connection getters
+are `0x00648F40` / `0x00653D90`; these return matching **occupant class IDs**, not network numbers 4/7,
+connection class IDs or `GetType` values. See [underground-occupants.md](underground-occupants.md) §4.
+An unattached matching connection is sufficient: no attached-occupant, edge, orientation, height, immovable,
+connection-node-flag or model-readiness test is added (`0x00658690`–`0x006586D9`).
+
+Both helpers visit the complete returned list and retain the **last** acceptable interface; replacement releases
+the preceding accepted reference. Release every enumerated occupant reference, every rejected connection QI,
+and finally the accepted QI after the predicate consumes it. A first-search hit skips the second enumeration
+(`0x006594A2`–`0x006594BA`). The list storage is caller-owned and must also be destroyed. An unavailable manager
+or failed host observation is unavailable, not evidence that the tile is empty. A complete successful empty
+enumeration makes the predicate false. These public occupant calls suffice to reproduce the predicate without
+reading tool fields; they do not expose the tool's solved inventory.
+
+**Which ends and what changes.** The start end is considered before the finish end, with the latter using the
+updated step vector. For a wholly straight drag use the displacement from the second step's first cell back
+to the first step's first cell as the outward start direction. Otherwise use the second and third steps'
+first cells. Add that displacement to the first step's first cell for the candidate. At the finish, use
+last minus penultimate first-cell coordinates for wholly straight, or penultimate minus antepenultimate for
+the other case; add it to the last step's first cell. Candidates must satisfy unsigned x<city-width and
+z<city-height, so negative coordinates are rejected before occupant queries. The qualifying drag-length
+test is performed once, before either end extension (`0x0063A1A1`–`0x0063A1C9`).
+
+An accepted end inserts an outward translated copy of that end's step and increments total steps. Normally
+straight steps also increment. With straight-prefix zero, straight steps remain zero; if the terminal step
+is a singleton, move that singleton to the candidate and insert the translated adjacent step inside it.
+Thus a diagonal extension can add two cells while adding only one step. New step kind is copied from the
+first step. Existing steps' cell indices shift to retain their original cells. Start/finish anchor arguments
+are not rewritten by this extension. Evidence: start geometry/gates `0x0063A20C`–`0x0063A2C8`, start count
+updates `0x0063A3CE`–`0x0063A3D9`, finish geometry/gates `0x0063A3DC`–`0x0063A4AB`, finish insertion/count
+updates `0x0063A4B1`–`0x0063A60B`.
+
+**Reserved cells are a separate concern.** Slot 67 returns true for a reserved cell (§5.1), but neither end
+gate calls it, positively or negatively. Underground overrides slot 68 (the later reserved-tile pass), not
+slot 67. Consequently an otherwise reserved cell does not veto a matching pipe/subway extension *[quirk]*.
+The base tool's slot 64 is false; the width-one branch does not bypass that gate for road. The wider-network
+alignment logic is a separate operation. This corrects the former §3.3 sentence combining those operations.
+
+**Conformance vectors.** Use an in-bounds 128-cell city, a fresh pipe tool, snap=false, and draw `(4,4)` to
+`(6,4)` unless stated otherwise. All unlisted candidate-cell enumerations are complete and empty. Initial
+cells are `(4,4),(5,4),(6,4)`, straight=total=3. Each listed predicate success is the public QI rule above.
+
+| Fixture | Expected ordered cells / counts or predicate result |
+|---|---|
+| Empty candidates `(3,4)` and `(7,4)` | Original three cells; straight=total=3; predicate false at each end |
+| Pipe occupant QI succeeds at `(3,4)` | `(3,4),(4,4),(5,4),(6,4)`; straight=total=4; no second enumeration at `(3,4)` |
+| No pipe QI, connection QI succeeds and slot 38=`0x49C05B9F` at `(7,4)` | `(4,4),(5,4),(6,4),(7,4)`; straight=total=4; two enumerations at `(7,4)` |
+| Matching connections at both candidates | `(3,4)` through `(7,4)` in ascending x; straight=total=5 |
+| Only subway QI or connection slot 38=`0xCA16374F` at `(7,4)` | No extension for pipe; with subway tool, finish extends to `(7,4)` |
+| Landfill plus matching pipe at `(7,4)` | Finish extends; a separate slot-67 query returns reserved=true |
+| Two matching pipe QIs A then B at one candidate | Predicate true; release A when B replaces it, then B after consumption; release both list references |
+| One-cell draw `(4,4)` to itself, matching occupants next to it | No extension and no candidate queries; straight=total=1 |
+| Two-cell straight draw `(0,4)` to `(1,4)`, empty finish candidate | Start candidate `(-1,4)` rejected without query; cells unchanged; straight=total=2 |
+
+Runs 512/513's type-4 `(16,44)`–`(10,40)` observation remains native/core cells 12/10, straight 0/0,
+total 7/6 for both snap modes. A dimension-only adapter supplies neither occupant search. The native totals
+do not identify which candidate matched, and must not be substituted for the missing observations. Re-run
+that matrix with these occupant inputs before claiming narrow-drag exactness; this answer adds no game verdict.
 
 ---
 

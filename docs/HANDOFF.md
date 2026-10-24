@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.); 622 (Failed initial attempt retained separately; no coverage credit claimed.); 619 (MS21/MS22 applied and constructor scope extended; 73/73 exact samples. Live owner and transport remain unverified under MS20.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 641 (pedestrian, map view, text edit and legacy control answers, legacy control shadow and a partial map view closure landed (run 5); no new owner credit (map view keeps one open closure row).); 640 (legacyctl owner-method shadow clean, 72/72 exact through 2032, run 520); 639 (pedestrians engine, watercraft and lot configuration editor answers, viewutil apply and two partial closures landed (run 5); cSC4Pedestrian credited implemented.); 638 (measured partial view utilities: 33-family subset 73/73 exact through 2032; complete aggregate 0/73); 632 (lot configuration editor partial closure and effects, budget window and network tool answers landed (run 5); second stall-free regress.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

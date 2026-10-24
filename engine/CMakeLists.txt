@@ -1157,3 +1157,13 @@ endif()
 add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
 target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
 add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
+
+# Default-off legacy owner-method differential; no full build replay claim.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4LegacyCtlShadow.cpp plugin/FC4LegacyCtlShadow.h)
+endif()
+
+# VU16: read-only partial view utility shadow; no speculative native signatures.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ViewUtilShadow.cpp plugin/FC4ViewUtilShadow.h)
+endif()

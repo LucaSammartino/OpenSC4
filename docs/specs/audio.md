@@ -138,11 +138,11 @@ marked.
 
 | Layer | Classes | Detailed here |
 |---|---|---|
-| framework sound system | `cGZSndSys` (`0xE41CE9FD`), `cGZSndMgr` (`0x7AF85B98`), WAV and "UTalk" data sources | §3.2, §8.3 |
+| framework sound system | `cGZSndSys` (`0xE41CE9FD`), `cGZSndMgr` (`0x7AF85B98`), WAV and "UTalk" data sources | §3.2, §8.3; [sound-system.md](sound-system.md) §7–§8; [sound-framework.md](sound-framework.md); the DirectSound back end [sound-renderer.md](sound-renderer.md) |
 | EA sound library (SNDSYS / AEMS) | the unnamed range `0x00864000`–`0x00879000`, `cSC4AudioAEMSEventSystem` | §10.2 |
-| Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | §11 (boundary only) |
-| freshness (adaptive score) | `cFreshPlayer`, `cFreshScore`, `cFreshCell` | §11 (boundary only) |
-| radio | `cRZRadio` (`0x5CFBDBBF`), `cRZDiskRadioStation` (`0x5CFBDBD5`) | §11 (boundary only) |
+| Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | [sound-system.md](sound-system.md) §3–§5; [hit-music.md](hit-music.md) |
+| freshness (adaptive score) | `cFreshPlayer`, `cFreshScore`, `cFreshCell` | [sound-system.md](sound-system.md) §6; [freshness.md](freshness.md) |
+| radio | `cRZRadio` (`0x5CFBDBBF`), `cRZDiskRadioStation` (`0x5CFBDBD5`) | [radio.md](radio.md) |
 | SC4 audio managers | `cSC4AudioSoundManager` and the other §1.2 classes | **§5–§9** |
 
 ---
@@ -2179,8 +2179,8 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 | **AU5** | What is the role of the 83 leaf classes of §11? They are now measured in shape, size and IIDs; what they *do* is not. | a lookup of their 83 CLSIDs in the tuning data |
 | **AU6** | What does the pool's `0x40000045` threshold mean? | the pool vtable slot 2 implementation (the initial value written to `page+0x0C`) |
 | ~~AU7~~ | **ANSWERED** (§10.11): `0x9D796DB4` has no hard-coded reader; it is bound to the `tlo` extension at runtime by `cHitIniFile::ProcessDBSegmentDirectoryFilesEntry` `0x00936707`. | — |
-| **AU8** | Hit tracks, the radio and the freshness score are named here but not specified. | a later spec (INVENTORY-M6 §11 item 11 covers them) |
-| **AU9** | What does the `0xFF000000` tag in `cGZSndMgr::GetSound` (`0x00968AE7`) mean? | a survey of the sound-id values the game uses |
+| ~~AU8~~ | **ANSWERED** (2026-10-22): Hit is [hit-music.md](hit-music.md), the freshness score [freshness.md](freshness.md), the radio [radio.md](radio.md). | — |
+| ~~AU9~~ | **ANSWERED** ([sound-framework.md](sound-framework.md) §3.2): `FUN_00932F76` is `nRZHash::CRC24`; the name form of `GetSound` asks for `CRC24(name) \| 0xFF000000`, the id of a sound named by a string. | — |
 | **AU10** | What is the CLSID `0x00436EB4` registered for type `0x2026960B` at `0x00457EDF`? The factory implementation is pinned (`0x00AD8B28` → `FUN_0098419A` → `cRZStringResource`) but the id is not in `re/class_id_table.tsv`. | resolve it through the live GZCOM class registry |
 | **AU11** | The `.tlo` entry layout is variable-stride (32–40 bytes). | the extension-dispatch target registered at `0x00936707`, or a trace of a TKDT field-4 reference |
 | **AU12** | Property-key *names* for the audio exemplar keys of §10.8 are unrecovered (the reader takes raw 32-bit ids). | the shipped property-name table |
