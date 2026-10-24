@@ -10,6 +10,7 @@
 - Game r1 terminal CLEAN: renderprops-shadow9-20261024-r1 43/43 exact, 542 fields/sample, no duplicate months; ended at 2029-07-11 after 602.094 s, before 2032 target. foreign_exceptions=0, ref_warnings=0. Run record docs/runs/renderprops-shadow9-20261024-r1-469.md; unique evidence retained.
 - Diagnostic: unknown-key warning despite active shadow; appended renderprops_shadow to FC4Config.cpp known-key list. This real source fix requires repeat all gate. No game outstanding.
 - Graphics-rules spec sections 1/5/8 confirm startup/preferences ordered writes and persistence, but no read-only history/observation service; RP7 remains valid.
-- Next: final all gate on corrected source, then new unique r2 game label with seconds=1800 timeout=2100 to reach 2032; wait script supports label-independent verdict path. Never resend r1.
+- Corrected-source all gate: cargo PASS 6985/6985 and clippy zero diagnostics. Native queued as qbuild-20261024-085733-build-ctest; collect SAME exec session 84602 to terminal; no duplicate verify. Code stable at e1937e01f.
+- Next: collect corrected-source native gate, then submit prepared build-runs/renderprops-shadow9-20261024-r2.pending by moving into game-queue/*.req (apply_patch). New r2 label, seconds=1800 timeout=2100, end_date=2032-01-01. Wait script supports label-independent verdict path. Never resend r1.
 - Initial fmt invocation used wrong relative path; retry with capi/src/renderprops_shadow.rs. q.py Bash failed CreateFileMapping (Win32 5); use PowerShell cargo directly.
 - Constraints: no native signatures may be inferred; questions go in render-properties questions file. No DR registers without shared protocol.
