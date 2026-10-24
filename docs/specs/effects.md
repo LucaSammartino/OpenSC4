@@ -142,6 +142,87 @@ Types 3–15 index the description tables that the resource reader filled in sec
 with index `i` is brush record `i`, and a type 5 component with index `i` is game record `i` (`0x0059192A`–
 `0x0059196F`).
 
+### 3.1 Legacy placement decoding and component world positions (EF19) *[compat]*
+
+The 56 file bytes in the placement column are **not a memory image** of the
+56-byte transform. All offsets in the following table are relative to the
+placement, not the containing component. Words use the resource stream's scalar
+byte order (little endian in the shipped resource).
+
+| File offset | Value | Transform memory destination |
+|---|---|---|
+| `00,04,08` | binary32 matrix row 0: `m00,m01,m02` | `+04,+08,+0C` |
+| `0C,10,14` | row 1: `m10,m11,m12` | `+10,+14,+18` |
+| `18,1C,20` | row 2: `m20,m21,m22` | `+1C,+20,+24` |
+| `24,28,2C` | binary32 translation `tx,ty,tz` | `+28,+2C,+30` |
+| `30` | binary32 uniform scale `s` | `+34` |
+| `34` | unsigned 32-bit revision word | low byte replaces memory byte `+00`; upper 24 bits discarded |
+
+There is no transpose, axis exchange, Euler/quaternion conversion or matrix
+normalisation. Memory byte `+01` is a separate transform flag byte: loading ORs
+in rotation bit 4 and translation bit 1 **even for an identity matrix and a zero
+translation**. Scale bit 2 is cleared if the loaded scale compares equal to 1,
+and set otherwise (including unordered/NaN). Other flag bits are retained.
+The setters increment revision byte `+00` three times, but the final file word
+overwrites those increments. Memory bytes `+02,+03` are not file fields.
+Writing emits the nine matrix words, three translation words, scale word, then
+the revision byte zero-extended to a 32-bit word. Thus arbitrary upper revision
+bits are lost in native load/write even though a framing-only adapter may retain
+the original 56 bytes. Float words are copied without a numeric conversion.
+Evidence: matrix read `005DA650–005DA675`, placement destinations
+`005DA975–005DA9C3`, translation `005DA9DF–005DAA24`, scale/revision
+`005DAA26–005DAA6B`, writer `005DAA80–005DAACB`.
+
+For component placement, write L for the local transform and P for the parent.
+Rows are defined by this observable convention: world coordinate i is parent
+translation i plus parent scale times row i dotted with **L's translation**.
+L's own matrix and scale do not affect its world position. Both brush
+(`00581560`) and game (`005BC3B0`) use these shortcuts, in this precedence:
+
+1. If L's flag byte is zero, use P's translation directly.
+2. Otherwise, if P's flag byte is zero, use L's translation directly.
+3. Otherwise evaluate the arithmetic below, even when L's translation is zero.
+
+The test is the entire flag byte, not a test of just one bit or an inspection
+of the matrix. In particular, a legacy-loaded identity has a nonzero flag byte.
+Direct paths preserve finite binary32 translation bits, including negative zero.
+Brush stores x and z; game stores x, y and z before deriving its cell/map bounds.
+Do not substitute a zero-offset shortcut for rule 3: arithmetic can change zero
+signs and can propagate NaNs from a parent matrix.
+
+For exact arithmetic let `R` mean rounding an individual x87 arithmetic operation
+to the caller's precision (normally 24 significant bits, nearest/even; foundations
+§18), with x87 exponent range. Let `S` mean a binary32 memory store/reload.
+For each row i, form three products in the order z, x, y and define
+`di = R(R(R(mi2 × L.tz) + R(mi0 × L.tx)) + R(mi1 × L.ty))`.
+There is no fused multiply-add and the first sum is **z-product + x-product**,
+not x-product + y-product. The following store boundaries also apply if the
+caller has leaked 53-bit precision:
+
+| Component | Scaled offsets | World translation stores |
+|---|---|---|
+| brush | `qx = S(R(P.s × d0))`, `qz = S(R(d2 × P.s))` | `x = S(R(P.tx + qx))`, `z = S(R(P.tz + qz))` |
+| game | `qx = S(R(P.s × d0))`, `qy = S(R(d1 × P.s))`; first store `d2s = S(d2)`, then `qz = R(d2s × P.s)` kept in x87 | `x = S(R(P.tx + qx))`, `y = S(R(P.ty + qy))`, `z = S(R(P.tz + qz))` |
+
+The brush does not compute y. The game's extra composed matrix/scale work does
+not change these translations. Evidence: brush dot/order/scale stores
+`005815B6–005815F9`, translation stores `005815FB–00581615`, shortcuts
+`005815AD–005815B4`, `0058161E–00581631`; game dots and z spill
+`005BC426–005BC46D`, scale/translation `005BC471–005BC4B9`, shortcuts
+`005BC412–005BC420`, `005BC5FF–005BC67B`.
+
+**EF19 conformance vectors (proposed, unexecuted).** Supply transform flags
+explicitly; normal numeric vectors use the normal 24-bit precision.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF19-1 | File matrix words 1 through 9, translation (10,11,12), scale 2, revision `123456AB` hex; destination flags initially zero | matrix rows (1,2,3), (4,5,6), (7,8,9); translation (10,11,12); scale 2; flags 7; revision `AB`; writing ends with word `000000AB` |
+| EF19-2 | Legacy numeric identity, zero translation, scale 1, revision 0 | flags 5, revision 0; this is not a flag-zero identity |
+| EF19-3 | L translation (1,2,3), nonzero flags; P rows (1,2,3), (4,5,6), (7,8,9), scale 2, translation (10,20,30), nonzero flags | game world (38,84,130), cell (2,8); brush current (38,130) |
+| EF19-4 | L.tx and L.tz are negative zero, P flag byte zero; repeat with L flag byte zero and P negative-zero translation | direct paths preserve negative-zero bits; the first test has precedence if both flags are zero |
+| EF19-5 | Both flags nonzero; L translation (1,1,1); P row 0=(1,`−16777216`,`16777216`), scale 1, translation zero | x=0: first sum rounds `16777216+1` to `16777216`, then cancellation gives zero; x+y+z order would give 1 |
+| EF19-6 | Both flags nonzero; L translation zero; P scale 1, P.tx=negative zero and row 0 all positive zero | x is positive zero under nearest rounding; a direct zero-offset shortcut would incorrectly retain negative zero |
+
 ## 4. Creating an effect
 
 ### 4.1 By name: slot 7 `CreateVisualEffect(const char* name, cISC4VisualEffect** out)` (`0x005939B0`) *[compat]*
