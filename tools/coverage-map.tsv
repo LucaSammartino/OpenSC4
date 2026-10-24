@@ -639,10 +639,10 @@ cGZWWWSystem	web and network	framework	web-network.md	-	-	-
 cRZHTTPClient	web and network	framework	web-network.md	-	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
 cRZURL	web and network	framework	web-network.md	core/src/rzurl.rs	-	-
-cRZCookieManager	web and network	framework	web-network.md	-	-	-
+cRZCookieManager	web and network	framework	web-network.md	core/src/www	-	-
 cRZNet*	web and network	framework	-	-	-	-
 cRZName*	web and network	framework	-	-	-	-
-NetworkFileCache	web and network	framework	web-network.md	-	-	-
+NetworkFileCache	web and network	framework	web-network.md	core/src/www	-	-
 HTTPMessage	web and network	framework	-	-	-	-
 cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
@@ -721,7 +721,7 @@ MiscGraphRect	widget toolkit	ui	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
-CookieData	web and network	framework	-	-	-	-
+CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	-	-	-	-
 cEaseSound	audio	audio	-	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
