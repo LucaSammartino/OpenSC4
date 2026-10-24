@@ -11,7 +11,7 @@
 - Focused capi shadow test passed (1/1), including injected float/state differences and missing-record rejection; explicit fmt passed.
 - Source milestone: 69aeea81b.
 - Stable-source qbuild all: workspace tests 7212 passed, 0 failed; clippy 0 diagnostics. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
-- Native build/CTest outstanding inside SAME qbuild all operation (session 80862): qbuild-20261024-144618-build-ctest. Do not enqueue another verify.
-- Next: collect its terminal result; submit unique game request to 2032 after DLL exists.
+- qbuild all terminal PASS: native build 262/262 edges, CTest 81/81; logs fc4verify-build.log and fc4verify-ctest.log. Native queue qbuild-20261024-144618-build-ctest completed. Tree-change note is docs-only commit 3d1728678; engine source unchanged since 69aeea81b.
+- Next: collect flora12-20261024-r1 house-city turbo verdict to 2032, inspect exact owner lines and ref warnings.
 - Forbidden tools/ coverage maps and regress profile will remain coordinator-owned.
-- No game request outstanding. File-event wait helper: build-runs/wait-flora-verdict.ps1 (no qwait).
+- Game request about to submit: flora12-20261024-r1; default Konradshohe, enable=simulator, flora_shadow=1, turbo to 2032-01-01. File-event wait helper: build-runs/wait-flora-verdict.ps1 (no qwait).
