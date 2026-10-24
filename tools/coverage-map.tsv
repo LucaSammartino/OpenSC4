@@ -774,6 +774,11 @@ cGZStringCommandGenerator	command system	framework	command-system.md	core/src/co
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	core/src/commands	-	-
 cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	core/src/commands	-	-
 fn:RZParseDelimitedText	command system	framework	command-system.md	core/src/commands	-	-
+cGZRegistry	framework services (GZ)	framework	framework-misc.md	-	-	-
+cGZRESIDtoExtensionMap	framework services (GZ)	framework	framework-misc.md	-	-	-
+cGZFileNameToResKeyConverterDefault	framework services (GZ)	framework	framework-misc.md	-	-	-
+cRZTextFile	framework services (RZ)	framework	sc-resources.md, graphics-rules.md, framework-misc.md	-	-	-
+fn:GetTrueName	framework services (RZ)	framework	framework-misc.md	-	-	-
 # the GZ catch-all sits below cGZDate and the command-system rows, which it used to hide (first match wins)
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
