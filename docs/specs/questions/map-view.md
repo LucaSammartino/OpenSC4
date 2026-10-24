@@ -2,26 +2,11 @@
 <!-- Questions about [map-view.md](../map-view.md). Append new entries at the END; when one is answered, move it to answered/map-view.md. Rules: README.md. -->
 
 <!-- from: re-mapview (2026-10-20) -->
-- **QV1 - §2, §3.1:** what the terrain (slots 84, 86), zone manager (slots 17, 18) and `0x4A0B47E6` calls display.
-  (The 3D view filter a data view installs is occupant-manager.md §13.2.8, re-occfilters 2026-10-21.) [as read]
 - **QV2 - §4.1:** source 76 (traffic volume): which grid it draws for the kept travel types (`0x6B7C5CDD`) and how.
   [as read]
 - **QV3 - §1, §3.2:** the panels `0x8A2871B1`-`0x8A2871C4`, `0xAA32BCD4`/`0xAA32BCD5`; the groups' remembered views
   behind the buttons `0x5005`, `0x5008` and `0x8002`; the toggle `+0x9AC` of `0x8100`/`0x8101`; the command
   `0x6A935CF1`. [as read]
-
-<!-- from: core-map-view4 (2026-10-23) -->
-- **QV5 - §4.2, §10: contradictory 16-bit conversions:** at scale 1024 the written signed factor is
-  floor(0x7FFF00 / 1024) = 8191, and (-512 * 8191) arithmetic-shifted right 16 is -64, hence index 64;
-  §10 instead requires 65. At scale 256 the written unsigned/signed factors are 65535/32767, whereas the prose
-  says the default factors are 256 and unsigned values are divided by 256. Which formulas, default factors and
-  negative rounding rule are authoritative? [both 16-bit conversions Unsupported; no replacement convention]
-
-<!-- from: core-map-view4 (2026-10-23) -->
-- **QV11 - §4.1: developer layers:** which raw grid does the documented default layer 1 select? Are layers 3
-  and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the
-  slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
-  preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
 
 <!-- from: core-map-view5b (2026-10-23) -->
 - **QV14 - §5.2: ring intermediate precision:** which x87 precision-control and rounding-control modes
@@ -39,11 +24,3 @@
   [literal inclusive cell rectangle, nearest integer with positive halves up and minimum one;
   vector 24 implemented; general lot rounding remains bounded pending the missing contract]
 
-<!-- from: core-map-view-close12 (2026-10-24) -->
-- **QV16 - §4.3 / §10.21 fixed-point centre:** for S=2, D=3 the prescribed
-  q=trunc(131072/3)=43690 and j=1 samples 32767, not 32768. For x rows
-  [0,1], [1,2], the two inner rounded values are 0 and 1, and the outer
-  rounded value is 0. Vector 21 instead requires 2 using exact halfway samples.
-  Which rule is authoritative? [literal §4.3 truncated-step formula implemented;
-  vector's 2-to-3 expected centre remains unsettled; exact halfway two-stage
-  rounding is tested separately using a 2-to-1 resample]
