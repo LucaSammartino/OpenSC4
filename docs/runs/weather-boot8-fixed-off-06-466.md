@@ -1,5 +1,5 @@
-tag: weather-boot8-fixed-off-06-443
-run: 443
+tag: weather-boot8-fixed-off-06-466
+run: 466
 date: 2026-10-24
 lane: glue-weather-boot8
 dll: 8f81c08cb (final weather/SCRes source)

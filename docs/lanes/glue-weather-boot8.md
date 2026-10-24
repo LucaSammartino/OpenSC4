@@ -15,16 +15,16 @@ Default-off switches and the C ABI are unchanged. Core algorithms are unchanged.
 ## Validation
 
 - Final stable-source `qbuild.py all`: Rust **6960 passed, 0 failed, 0 ignored**, clippy **0 diagnostics**, native build **48/48 edges**, full CTest **78/78**. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; native queue verdict `build-runs/build-results/qbuild-20261024-070503-build-ctest.verdict`. All asynchronous operations collected to terminal.
-- `weather-boot8-fixed-on-05 73/73` — SCRes file replay on, house train183 switches, turbo to **2032-01-01**, **clean**, `ref_warnings=0`, 655.437 seconds. [Run 442](../runs/weather-boot8-fixed-on-05-442.md).
-- `weather-boot8-fixed-off-06 73/73` — SCRes file replay off, otherwise the same profile, turbo to **2032-01-01**, **clean**, `ref_warnings=0`, 700.750 seconds. [Run 443](../runs/weather-boot8-fixed-off-06-443.md).
+- `weather-boot8-fixed-on-05 73/73` — SCRes file replay on, house train183 switches, turbo to **2032-01-01**, **clean**, `ref_warnings=0`, 655.437 seconds. [Run 442](../runs/weather-boot8-fixed-on-05-467.md).
+- `weather-boot8-fixed-off-06 73/73` — SCRes file replay off, otherwise the same profile, turbo to **2032-01-01**, **clean**, `ref_warnings=0`, 700.750 seconds. [Run 443](../runs/weather-boot8-fixed-off-06-466.md).
 - SCRes remained exact in the on run: summary **146/146**; final raw file replay and native command token lines both `mismatches=0`, `refused=0`; raw replay `resyncs=0`.
 - Evidence for each run: `build-runs/game-results/<label>.log` and `.verdict`. Counts use every dated weather shadow line, including load and 72 month lines, with zero cumulative mismatches throughout.
 
 ## Reproduction evidence
 
-- [Run 439](../runs/weather-boot8-before-on-02-439.md): `weather-boot8-before-on-02 2/27`; March `mismatches=54102`, first byte 108. Clean/ref_warnings=0; the initial 240-second limit ended at 2028-03-24, so this is not credited as a 2032 run.
-- [Run 440](../runs/weather-boot8-diag-on-03-440.md): `weather-boot8-diag-on-03 2/4`, clean through 2026-04-02, February steps=5; first record difference step=7, byte=107.
-- [Run 441](../runs/weather-boot8-diag-on-04-441.md): `weather-boot8-diag-on-04 2/4`, clean through 2026-04-02; native and delivered dates agree, first week observer refuses `DR7=0x55`, followed by first record difference at step 7.
+- [Run 439](../runs/weather-boot8-before-on-02-463.md): `weather-boot8-before-on-02 2/27`; March `mismatches=54102`, first byte 108. Clean/ref_warnings=0; the initial 240-second limit ended at 2028-03-24, so this is not credited as a 2032 run.
+- [Run 440](../runs/weather-boot8-diag-on-03-464.md): `weather-boot8-diag-on-03 2/4`, clean through 2026-04-02, February steps=5; first record difference step=7, byte=107.
+- [Run 441](../runs/weather-boot8-diag-on-04-465.md): `weather-boot8-diag-on-04 2/4`, clean through 2026-04-02; native and delivered dates agree, first week observer refuses `DR7=0x55`, followed by first record difference at step 7.
 - `weather-boot8-before-on-01` was rejected before DLL construction; retained verdict, no game run credit.
 
 Questions: none. No missing native contract was needed for this plugin observer coordination. No game requests remain outstanding. Coordinator next: review the scoped breakpoint loan, credit weather's exact 73/73 run evidence, and land the ready entry. No merge or ref update was performed from this detached worktree.
