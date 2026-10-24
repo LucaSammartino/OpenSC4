@@ -322,10 +322,10 @@ adapter need not invoke it: factory `+0x2C/+0x30` delimit the vector of bucket p
 nodes contain next at `+0`, binding pointer at `+4`, record pointer at `+8`. Search for exact binding pointer
 equality in bounded chains. The 0x34-byte binding record has binding at `00`, frame-handle-array pointer at
 `04`, in-use byte at `08`, instance/group at `0C/10`, frame/level counts at `14/18`, width/height at `1C/20`,
-accounted byte size at `24`, RGBA bit counts at `28–2B`, bits-per-texel byte at `2C`, and internal-format word
+accounted byte size at `24`, RGBA bit counts at `28–2B`, bits-per-texel byte at `2C`, and 32-bit internal format
 at `30`; intervening padding has no comparison contract. This lookup can independently distinguish an
 unknown binding from a valid all-zero info result. Evidence: map lookup and output `0x00809E10–0x00809E9A`,
-record construction `0x0080A110–0x0080A31C`. Use the binding's own factory identity when testing ownership;
+record construction `0x0080A110–0x0080A319`. Use the binding's own factory identity when testing ownership;
 do not assume an externally passed binding belongs to manager `+0x90`.
 
 Instance zero denotes an unkeyed record. Nonzero instance with group identifies the current resource image
@@ -346,8 +346,9 @@ pointer/vtable identifies sharing and implementation locally; calling an unknown
 not a guaranteed mutation-free observation of dimensions or pixels.
 
 **CPU texture data cannot be enumerated from these overlay records or binding-info fields.** Factory upload
-takes transient image-info data and forwards it to driver slot 37; the binding record retains handles and
-metadata, not those level-data pointers (`0x00809B90–0x00809CC7`; texture-bindings §§1.5,1.12). A keyed
+takes transient image-info data and forwards it to driver slot 61 (vtable byte offset `0xF4`); the binding
+record retains handles and metadata, not those level-data pointers (`0x00809B90–0x00809CC6`, upload call
+`0x00809C87`; texture-bindings §§1.5,1.12). A keyed
 resource can be loaded independently and decoded under graphics-formats, but that is a source-resource
 comparison, not proof of the current GPU contents: unkeying, runtime uploads and restore can change that
 relationship. Unkeyed bindings and arbitrary sources have no general CPU-byte recovery through this owner.
