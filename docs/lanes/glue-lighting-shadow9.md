@@ -9,7 +9,9 @@
 - LT14 §1.6 explicitly forbids snapshot reconstruction and native mutations to create a checkpoint. Direct tint/settings/ordered history are unavailable with current observer: whole-owner credit cannot be claimed.
 - Done: corrected core texture; five new vectors 23–27; visual driver input arithmetic; 64 nonnull-holder masks and two empty projections, 610 additional fields per monthly capture. Focused tests 64/64 PASS (59 core + 5 C API).
 - Failed focused compile (f64 passed to f32 register constructor) preserved in build-runs/lighting-focused-r3.log; corrected evidence lighting-focused-r3-corrected.log. q.py failed Bash startup; Python runner used instead. No full gate yet.
-- Next: final explicit-file fmt, commit source, full qbuild all; unique house request to 2032, wait without qwait.
+- Source milestone d441508d5; explicit-owned-file fmt PASS. First full gate: 7021 Rust tests PASS, clippy zero diagnostics, native 217/217 edges PASS, CTest 79/80: capi_smoke used an inherited stale object (compiled header ABI97, actual/header now ABI98). Failure reports compiled path train-integration; no ABI version changed here.
+- Failed evidence preserved as build-runs/lighting-r3-stale-abi-*.log; diagnostic removes only generated capi_smoke.cpp.obj to force current-header compilation.
+- Next: repeat full gate after this diagnosed generated-input invalidation; unique house request to 2032, wait without qwait.
 - No request outstanding. Prior accepted r4 evidence below belongs to round 2, not new source.
 - Main run numbers through at least 478 are occupied; choose new number after reading main docs/runs.
 - Detached HEAD is intentional; do not update refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r3-manifest.json.
