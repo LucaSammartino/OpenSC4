@@ -13,6 +13,7 @@
 - Filed NQ1–NQ3 in docs/specs/questions/nation.md; NQ1 blocks full filesystem closure (explicit Unsupported).
 - Formatting passes for all 3 new Rust files. Focused Cargo session 96352 finished: 7/7 nation tests pass, no failures.
 - q.py focused-test launch failed before Cargo: Bash CreateFileMapping Win32 error 5; evidence build-runs/q/20261024-101514-11952.log. Running Cargo directly instead.
-- Final stable-source qbuild all launched once: session 69436 is outstanding. Collect this same session with 30–60 second waits; do not duplicate it.
-- Next: collect all results, then required qbuild verify if all has not already queued it; finish report and wip queue (NQ1 prevents owner closure).
+- Final stable-source qbuild all launched once: session 69436 is outstanding. Workspace tests PASS 7020/7020; clippy PASS, zero diagnostics.
+- qbuild all has queued native build/ctest as qbuild-20261024-102200-build-ctest; waiting behind a game regress. It uses the coordinator queue; do not start duplicate native verification.
+- Next: collect session 69436 with 30–60 second waits, record terminal native verdict; finish report and wip queue (NQ1 prevents owner closure).
 - No game requests outstanding; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-nation10-r1-manifest.json.
