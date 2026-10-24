@@ -3,7 +3,7 @@
 | glue-traffic-flake6 (deterministic house traffic) | Codex / `glue-traffic-flake6` | in progress | Collect queued t2, run one unique t3, merge main, enqueue after three exact traffic repeats. |
 
 ## Handoff
-Round2: collecting queued t2 with build-runs/wait-game.ps1, operation2373; no new request or merge-queue entry.
+Round2: t2 clean/exact recorded; unique traffic-flake6-637a-house-t3-r2 queued. No merge-queue entry.
 Goal: deterministic traffic and landvalue house shadows through 2032; repeated exact real-game runs.
 Done: train166 landvalue failure is May2026, traffic first failure June2027: independent.
 Traffic evidence: 2027-06-13 log rejects removed lot211D072C twice immediately before missing counters (8 trips/58 routed commuters); live lists/grids remain exact.
@@ -14,7 +14,8 @@ Final qbuild all Rust gate:6840 passed/0 failed, clippy0 diagnostics. Logs build
 Final qbuild all/native gate PASS: build223/223 edges (104.1s), CTest70/70 (169.0s), total276.7s. Verdict build-runs/build-results/qbuild-20261024-014257-build-ctest.verdict. Operation2046 terminal exit0. No duplicate verify.
 Game1 PASS: traffic-flake6-637a-house-t1 72/72 traffic, 72/72 landvalue; clean/ref0/rtc0,2032-01-01,758.875s(real)/773s(wall). No INCOMPLETE, traffic resync or stale-lot refusal. Run351 docs/runs/traffic-flake6-637a-house-t1.md. First watcher57431 timed out; second watcher21296 completed terminal exit0. No wait operation outstanding.
 Next: wait for unique traffic-flake6-637a-house-t2 verdict (accept existing completed verdict), record it; run at least one more unique house repeat and normal speed if any turbo difference. Target N>=3 exact traffic repeats before ready; landvalue native capture remains blocked LV6 even if sampled outputs exact. No source change since passing full gate; do not repeat it without a diagnostic reason.
-Outstanding: traffic-flake6-637a-house-t2.req queued; turbo house profile to2032-01-01,seconds900/timeout1100. NO watcher started for t2 yet. Use build-runs/wait-game.ps1, then collect same returned session60sec at a time; first run required13min, so another9min watcher on timeout is normal.
+Game2 PASS: traffic-flake6-637a-house-t2 traffic72/72, landvalue72/72; clean/ref0/rtc0/incomplete0,2032-01-01,654.656s(real)/669s(wall), traffic resync0. Wait2373 timed out normally; wait10925 terminal exit0. Run number left to coordinator.
+Outstanding: traffic-flake6-637a-house-t3-r2.req queued, identical house profile. Next wait with build-runs/wait-game.ps1, then merge main; incoming plugin changes require native gate. No wait currently outstanding.
 DLL SHA256561DDEE7F4CA1984790215A9D44B131C321230261703B751FA5DCC292D199B39. Max local run351 after this milestone. No build/wait operation or functions cell outstanding. No merge-queue entry.
 First q.py focused attempt failed Bash CreateFileMapping Win32 error5; preserved build-runs/q/20261024-013630-2352.log. Direct cargo operation is the replacement, not a duplicate.
 Wait helper build-runs/wait-game.ps1 uses one FileSystemWatcher wait, accepts existing completed unique verdicts; do not use qwait per transport. House request matches main/build-runs/regress-train166-shadows.ini (excludes harness-owned autoload path).
