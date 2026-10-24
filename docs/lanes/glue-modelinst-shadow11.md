@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow11 (finite static fixture) | `Codex` / `glue-modelinst-shadow11` (engine lane) | blocked on game queue; cargo 7141/0, clippy PASS, CTest 81/81; run 498 pending, modelinst exact/total unavailable; MI14 open; public ABI unchanged | (1) Collect modelinst-static-2032-20261024-a verdict without resubmitting. (2) Measure and record exact/total, shutdown and house shadows. (3) Resolve MI14 before live or whole-owner coverage. |
+| glue-modelinst-shadow11 (finite static fixture) | `Codex` / `glue-modelinst-shadow11` (engine lane) | in progress; previous gate cargo 7141/0, clippy PASS, CTest 81/81; run 498 harness no-load; retry run 499 pending; MI14 open; public ABI unchanged | (1) Collect modelinst-static-2032-20261024-b. (2) Final gate and measured report. (3) Queue measured work ready; retain MI14. |
+
+## Handoff
+
+- Goal: finish finite static shadow measurement; no new owners or questions.
+- Done: source d230f041b; previous gate passed; prior run 498 ended no-load (harness failure confirmed by coordinator).
+- New request: modelinst-static-2032-20261024-b, same train193 switches plus modelinst_shadow=1, turbo to 2032-01-01.
+- Next: wait once via build-runs/wait-verdict.py, summarize, run final qbuild all, commit report and queue full HEAD ready for measured work.
+- MI14 stays open; no live or whole-owner coverage claims; public ABI unchanged.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r3-manifest.json.
 
 ## Change and scope
 
