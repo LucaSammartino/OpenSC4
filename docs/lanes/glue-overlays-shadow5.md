@@ -9,8 +9,8 @@
 - Focused Rust OV12 A-L plus corruption test: 13/13 PASS. Initial J fixture index typo failed 12/13; corrected and rerun. q.py shell bootstrap failed before Cargo; direct PowerShell Cargo worked.
 - Filed OV13 (capture boundary for future full independent history replay); current snapshots explicitly report unavailable replay and image bytes per OV12.
 - Implementation commit: f2bdcff61. Required pre-gate main merge was already up to date.
-- Full gate in progress: workspace 6818/0/0; clippy 0 diagnostics. Native queue label qbuild-20261024-012924-build-ctest; same qbuild operation remains outstanding (exec session 33815).
-- Next: collect terminal full gate, fix only diagnosed failures; game overlays-shadow5-r2-2032a through 2032. Event-based build-runs/wait-verdict.ps1 avoids qwait as requested.
+- Full gate PASS: workspace 6818/0/0; clippy 0 diagnostics; native build 212/212 (145.2s), CTest 71/71 (181.1s), gate total 330.2s. Queue qbuild-20261024-012924-build-ctest collected to terminal PASS.
+- Next: game overlays-shadow5-r2-2032a through 2032. Request will be submitted with this milestone; collect via event-based build-runs/wait-verdict.ps1 (no qwait).
 - Merge main again immediately before final all gate.
 - No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.
