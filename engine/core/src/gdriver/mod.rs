@@ -7,6 +7,7 @@ pub mod capture;
 pub mod context;
 pub mod extended;
 pub mod primitive;
+pub mod shadow;
 pub mod stage;
 pub mod texture;
 pub mod vertex;
