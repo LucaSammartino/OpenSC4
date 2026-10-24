@@ -17,6 +17,43 @@ fn cell(x: i32, z: i32) -> fc4_network_rules_cell {
     }
 }
 
+#[test]
+fn detached_capture_distinguishes_missing_no_match_and_empty_match() {
+    unsafe {
+        let r = fc4_network_rules_create();
+        load(r, 8, "#T#\n1,0,2,0,0\n2,3,0,0,0,2\n3,0,0x200,0,0\n");
+        let mut capture = fc4_network_rules_capture {
+            centre: 0x200,
+            edges: [0; 256],
+            edge_known: [0; 256],
+            validity: [0; 256],
+        };
+        let mut out = [fc4_network_rules_output::default(); 1];
+        assert_eq!(fc4_network_rules_replay(r, 0, 0, &capture, out.as_mut_ptr(), 1), -2);
+        capture.edges[3] = 0x0200_0000;
+        capture.edge_known[3] = 1;
+        assert_eq!(fc4_network_rules_replay(r, 0, 0, &capture, out.as_mut_ptr(), 1), -2);
+        capture.validity[0] = 2;
+        assert_eq!(fc4_network_rules_replay(r, 0, 0, &capture, out.as_mut_ptr(), 1), 1);
+        assert_eq!(out[0].id, 0x200);
+        capture.validity[0] = 1;
+        assert_eq!(fc4_network_rules_replay(r, 0, 0, &capture, out.as_mut_ptr(), 1), -1);
+        // A failing condition short circuits before uncaptured validity.
+        capture.edges[3] = 0;
+        capture.validity[0] = 0;
+        assert_eq!(fc4_network_rules_replay(r, 0, 0, &capture, out.as_mut_ptr(), 1), -1);
+        load(r, 7, "#T#\n1,0,2,0,0\n1,0,0,0,0\n");
+        assert_eq!(fc4_network_rules_replay(r, 0, 1, &capture, out.as_mut_ptr(), 1), 0);
+        // NR16 snapshot excludes capacities/padding and retains duplicate keys.
+        let size = fc4_network_rules_snapshot(r, 0, 0, std::ptr::null_mut(), 0);
+        let mut words = vec![0; size as usize];
+        assert_eq!(fc4_network_rules_snapshot(r, 0, 0, words.as_mut_ptr(), size), size);
+        assert_eq!(words, [0x200, 0xFF, 1, 1, 3, 0x0200_0000, u32::MAX, 0x200, 0, 0]);
+        assert_eq!(fc4_network_rules_replay(r, 99, 0, &capture, out.as_mut_ptr(), 1), -3);
+        fc4_network_rules_destroy(r);
+    }
+}
+
 fn road(x: i32, z: i32, e: u32) -> fc4_network_rules_cell {
     let mut c = cell(x, z);
     c.flags = 1;

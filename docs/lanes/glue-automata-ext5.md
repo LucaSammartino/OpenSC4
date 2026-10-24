@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | ready: main merged ee9db8e59; cargo 6804/0, clippy clean, CTest 70/70; run 349 clean through 2032, automata/automataowners/netocc each 72/72 exact; ABI export added in round 1 | Coordinator publish detached HEAD, land and credit coverage. |
+| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | in progress: round 3 main merge, additive header and regress profile conflicts resolved | Full gate, unique 2032 run, second main merge, final gate if merged, ready queue. |
+
+## Handoff
+
+- Goal: round 3 integration only; no new implementation scope.
+- Done: merged main content; retained both automata construction and netrules C declarations. lib.rs merged automatically with strings_shadow; exactly one regress shadows line, main keys plus automata_owners_shadow.
+- Next: commit merge, run qbuild all on stable source, game through 2032 with new unique label (no qwait), merge main again immediately before queue and repeat native gate if merged.
+- Detached HEAD intentionally; do not switch branches or update refs. ABI true from round 1 export.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-automata-ext5-r3-manifest.json.
+- No outstanding game/build request. Previous rounds' evidence below remains valid for those source revisions.
 
 ## Round 2 report
 

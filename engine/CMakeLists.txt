@@ -26,6 +26,11 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 enable_testing()
 
+# NR17 reference/byte-mutation/base/cleanup lifetime fixtures (no game image).
+add_executable(fc4_netrules_observation_test tests/netrules_observation_test.cpp)
+target_include_directories(fc4_netrules_observation_test PRIVATE plugin)
+add_test(NAME netrules_observation_test COMMAND fc4_netrules_observation_test)
+
 # Checked plugin build (in-game bisection tooling): no optimisation and the
 # MSVC run-time checks (/RTC1: ESP verified after every call through a
 # pointer or vtable, local-variable frames guarded), plus out-parameter
@@ -553,7 +558,14 @@ if(FC4_IS_WIN32_X86)
         plugin/compat/FC4PropOccupantAuthority.h
         # Record-only, opt-in network occupant shadow.
         plugin/FC4NetOccShadow.cpp
-        plugin/FC4NetOccShadow.h)
+        plugin/FC4NetOccShadow.h
+        # NR16/NR17 default-off record-only network-rule observation.
+        plugin/FC4NetRulesShadow.cpp
+        plugin/FC4NetRulesShadow.h
+        plugin/FC4NetRulesObservation.h
+        # Default-off constructed ORIGINAL cRZString monthly shadow.
+        plugin/FC4StringsShadow.cpp
+        plugin/FC4StringsShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

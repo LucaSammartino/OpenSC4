@@ -279,10 +279,10 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 21 | 25 | NO46 | questions/network-occupants.md |
+| network-occupants | 19 | 27 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 2 | 12 | NR18 | questions/network-rules.md |
+| network-rules | 4 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 7 | NT30 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
@@ -292,7 +292,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 6 | OV12 | questions/overlay-manager.md |
+| overlay-manager | 5 | 7 | OV13 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 9 | 4 | PT14 | questions/particles.md |
@@ -305,7 +305,7 @@ generated index: the questions live one file per spec, so read only the file for
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
-| prop-developer | 0 | 15 | GLUE22, PV15 | questions/prop-developer.md |
+| prop-developer | 0 | 16 | GLUE22, PV16 | questions/prop-developer.md |
 | prop-lotconfig | 8 | 9 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
@@ -327,7 +327,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 5 | 2 | RZS8 | questions/rz-strings.md |
+| rz-strings | 10 | 2 | RZS12 | questions/rz-strings.md |
 | sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **587** | **1414** | | |
+| **total** | **592** | **1418** | | |

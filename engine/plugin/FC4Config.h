@@ -244,6 +244,9 @@
 // netocc_shadow = 0 / 1: record-only network occupant load/month comparison,
 // default 0. Documented Read fixups counted separately (NO45 harness decision).
 
+// netrules_shadow = 0 / 1: NR16/NR17 record-only tile evaluator observer,
+// default off. Requires fingerprint and all three exact observation sites.
+
 #include <string>
 
 namespace fc4 {

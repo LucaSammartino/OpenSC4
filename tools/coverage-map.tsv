@@ -127,8 +127,8 @@ cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	-	
 cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 nSC4Networks*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
-cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	-	propmgr
-cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	lotcfg
+cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	propmgr_shadow	propmgr
+cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	lotcfg_shadow	lotcfg
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	-
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
@@ -210,6 +210,7 @@ cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.m
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4NetworkOccupantModelInstance	network occupants	simulation	network-occupants.md	core/src/network_occupants	-	-
+cSC4NetworkOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-
@@ -219,15 +220,15 @@ fn:GZCOM_CreatecSC4NetworkOccupant	network occupants	simulation	network-occupant
 fn:SC4WriteGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
 fn:SC4ReadGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
 (anonymous_namespace)::ConvertV5FlagsToCurrentFlags	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
+cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
+cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
 # the pole's connection records and the two factories (network-occupants.md §4, §5)
 cSC4PowerPoleOccupant::tConnection	network occupants	simulation	network-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PipeOccupant	network occupants	simulation	network-occupants.md	-	-	-
+cSC4PipeOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
 cSC4SubwayOccupant	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
+cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	netocc_shadow	-
 cSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
@@ -289,7 +290,7 @@ fn:WriteEntry	data formats (DBPF, exemplars)	framework	data-formats.md	formats/s
 fn:RemoveUnnecessaryFloatingPointDigits	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 (anonymous_namespace)::cExemplarReader	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	-	-
+cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	variant_shadow	-
 # the two generator classes of foundations.md §6.1, specified operation by operation (cRZRandom's lcg / mul states and
 # cRZRandomSuper's reload), and the session seeding of §6.3 that core/src/seeding.rs derives from the host seed with a
 # per-generator constant K; core/src/rng.rs is the two generators. cRZRandomSuper is listed before cRZRandom* so the
@@ -362,12 +363,12 @@ fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	
 fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetSpriteAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 cS3DMeshBuilder	geometry utilities	renderer	geometry-utilities.md	-	-	-
-cS3DModelInstanceBasic	model instances	renderer	model-instances.md	-	-	-
-cS3DModelInstance	model instances	renderer	model-instances.md	-	-	-
-cS3DModelInstanceAnimated	model instances	renderer	model-instances.md	-	-	-
-cS3DModelProcessor	model instances	renderer	model-instances.md	-	-	-
-cS3DResSpriteAnim*	model instances	renderer	model-instances.md	-	-	-
-cS3DTransform	model instances	renderer	model-instances.md	-	-	-
+cS3DModelInstanceBasic	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DModelInstance	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DModelInstanceAnimated	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DModelProcessor	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DResSpriteAnim*	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DTransform	model instances	renderer	model-instances.md	core/src/model_instances	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43DPlaceableObject	occupants and props	simulation	prop-occupant.md	-	-	-
@@ -390,9 +391,9 @@ cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules
 _GLOBAL__N_*SC4RuleParser.cpp*	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_CreatecSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
 fn:GZCOM_cSC4ConfigRuleManagerCLSID	graphics rules	renderer	graphics-rules.md	-	-	-
-cSC4CellTextureModel	lot models	renderer	lot-models.md	-	-	-
-cSC4FoundationModel	lot models	renderer	lot-models.md	-	-	-
-cSC4LotRetainingWallModel	lot models	renderer	lot-models.md	-	-	-
+cSC4CellTextureModel	lot models	renderer	lot-models.md	core/src/lot_models	-	-
+cSC4FoundationModel	lot models	renderer	lot-models.md	core/src/lot_models	-	-
+cSC4LotRetainingWallModel	lot models	renderer	lot-models.md	core/src/lot_models	-	-
 cSC4AnimationCoordinator	animation coordinator	renderer	animation-coordinator.md	-	-	-
 cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
@@ -599,7 +600,7 @@ fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
-cRZString	strings and language	framework	rz-strings.md	-	-	-
+cRZString	strings and language	framework	rz-strings.md	core/src/language	-	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
 cGZWWWSystem	web and network	framework	web-network.md	-	-	-
@@ -630,7 +631,7 @@ cRZIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	
 cRZNullIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	-
 cRZPath	paths and directories	framework	paths.md	-	-	-
 cRZDirectory	framework services (RZ)	framework	framework-rz-files.md	-	-	-
-cSC4FeatureManager	feature manager	framework	feature-manager.md	-	-	-
+cSC4FeatureManager	feature manager	framework	feature-manager.md	-	feature_shadow	-
 cRZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cGZDate	dates and times	framework	dates.md	core/src/dates	-	-
 cRZTime	dates and times	framework	dates.md	core/src/dates	-	-

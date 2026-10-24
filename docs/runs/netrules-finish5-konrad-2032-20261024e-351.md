@@ -1,0 +1,10 @@
+tag: netrules-finish5-konrad-2032-20261024e-351
+run: 351
+date: 2026-10-24
+lane: glue-netrules-finish5
+dll: engine/build-x86/FreeCity4.dll; SHA256 94e16e4afe82425af2bc7bc9cda06c411082a926d32ee81b7117cc59e71b9224
+pacing: turbo
+verdict: clean
+switches: Konradshohe; enable=simulator,budget,landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports (38 actual providers); native netmgr/netlot/nettool/demolition; netrules_shadow=1; script=build-runs/netrules-finish-peripheral-actions.txt; seconds=600; timeout=750; end_date=2032-02-01; popup_dialogs=0; close_dialogs=1; autotest_end=quit. Same inputs as run345, new DLL/report guard only.
+result: Clean to 2032-02-01 in 242.484 seconds; ref_warnings=0, foreign_exceptions=0, structured exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, dialogs_closed=0, Rust panics=0. netrules-finish5-konrad-2032-20261024e 74/74: all 73 monthly comparisons and shutdown exact=1, mismatch-clean, ready=1; final evaluations=84, tables=24, epoch=1, mismatches=0, table_mismatches=0, incomplete=0, unavailable=0, resynced=0. The initial epoch0/evaluations0 load notification is a separate netrules status line, not a comparison; no comparison has ready=0. All 19 scripted actions executed, including January2032 mark and digest. Intersections remain explicitly unobserved. Request, script, terminal verdict and full log retained in this worktree build-runs/. Native full gate passed cargo6696/0, clippy0 diagnostics, build198/198, CTest70/70 before this run. tools/regress.ps1 profile edit awaits coordinator because the lane's clean-room rules forbid opening tools/; no exception was received.
+summary: Network-rules shadow exact 74/74 in clean real-city run to 2032; pre-readiness status excluded from comparison counts without changing any comparison logic.

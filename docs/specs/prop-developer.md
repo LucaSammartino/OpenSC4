@@ -145,6 +145,16 @@ and `0xC9DA96E8` when it rises above it (`SetTimeOfDay`, `0x007D9F0D`–`0x007D9
 it is on *[inferred: name IsNight]*. In the forced visual time modes (1 always day, 2 always night) the
 DayNightChanged handler also switches everything at once.
 
+**PostCityInit input (PV15).** The input is the current lighting manager's `IsNight` return at this delivery,
+before the prop developer handles it; it is independent of the developer's saved `isNight` byte. The original
+reads that return, stores it and switches all night props immediately (§4.8; `0x006F502F`–`0x006F505B`), even if
+the stored byte already has that value. Section 8.5 specifies an interface-only way to obtain the same manager.
+An observer must capture this input at the matching delivery on the original thread, before any intervening
+lighting change; substituting the resulting developer byte would compare an output with itself. *[choice]* If
+the active view, renderer or lighting manager is unavailable, record the observation as unavailable; do not
+invent a daytime input or claim that operation as an exact comparison. The original handler has no null check
+on its lighting-manager global (`0x006F502F`–`0x006F5037`).
+
 **Cadence of the block step.** One block per Idle delivery, plus one per sim day. Idle is delivered from the
 leftover frame time (simulator.md §5.4), also while the game is paused, so the number of blocks per sim day depends
 on the frame rate. *[choice]* FreeCity4 delivers Idle as its simulator does; the **order** of blocks and every
@@ -699,6 +709,53 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
 | `cISC4City` | 41, 42, 91–95 |
 | others | power simulator 37 `IsPowered(x, z)`; simulator 7 `GetSimDate`, `AddAgent`/`RemoveAgent`; zone manager 12; 24-hour clock `GetHour`, `GetMinute`, slot 6 `GetVisualTimeMode`; lighting manager 9; terrain 13 and 30; occupant manager 24 |
 
+### 8.5 Lighting-manager acquisition and lifetime (PV15, *[compat]*)
+
+**Answer: pointer return, borrowed ownership.** On the active city's `cISC4View3DWin` interface (IID
+`0xFA47B3F9`), slot 4 `GetRenderer` returns a borrowed `cISC43DRender*` (IID `0x681BD529`). On that renderer
+interface, slot 9 `GetLightingManager` returns a borrowed `cISC4LightingManager*` (IID `0x681BD52A`). Both
+getters take only `this` in ECX, no stack arguments and no hidden result buffer; both return the 32-bit pointer
+in EAX and pop zero argument bytes. No object is returned by value or constructed/copied, and neither getter
+AddRefs. The SDK's by-value lighting-manager declaration **differs** from this native contract. Evidence:
+`GetRenderer` `0x0043FD00`–`0x0043FD06`, `GetLightingManager` `0x007C1910`–`0x007C1916`; renderer QI
+`0x007C1894`–`0x007C18DE`, lighting QI `0x007D65E0`–`0x007D6607`.
+
+This path returns exactly the manager used by the prop developer, rather than another lighting object:
+`SL::OnView3DInit` obtains the active view, calls its slot 4, calls the resulting renderer's slot 9, and stores
+that return in `0x00B43DDC` (`0x0060259A`–`0x006025E7`). The prop developer's PostCityInit handler calls slot 9
+on that stored manager (`0x006F502F`–`0x006F5037`). These globals establish identity as evidence; an
+interface-only consumer need not access them. The active view's construction and interface identity are
+specified in [view3d-window.md](view3d-window.md) §§1, 6; use the current city view already supplied by the host,
+not a newly created view or renderer.
+
+| Call on the indicated primary interface | Slot / offset | Arguments besides ECX | Result / cleanup | Ownership effect |
+|---|---|---|---|---|
+| View `GetRenderer` (`0x0043FD00`) | 4 / `+0x10` | none | EAX pointer; pop 0 | borrow |
+| Renderer `GetLightingManager` (`0x007C1910`) | 9 / `+0x24` | none | EAX pointer; pop 0 | borrow |
+| Lighting `QueryInterface` (`0x007D65E0`) | 0 / `+0x00` | u32 IID, pointer to pointer-sized output | AL success; callee pops 8 | success AddRefs once |
+| Lighting `AddRef` (`0x004664A0`) | 1 / `+0x04` | none | EAX new count; pop 0 | acquire one reference |
+| Lighting `Release` (`0x007D6650`) | 2 / `+0x08` | none | EAX remaining count, 0 on deletion; pop 0 | release one reference |
+| Lighting `IsNight` (`0x007D6680`) | 9 / `+0x24` | none | AL boolean byte; pop 0 | none |
+
+The lighting interface uses primary vtable `0x00ABB530`, with `this` at the object base. Its IID
+`0x681BD52A` and IID 1 return that same primary pointer, adding one reference; IID `0x452294AA` returns the
+message-target sub-object at +4 instead. An unsupported IID returns false and leaves the output untouched
+(`0x007D65E0`–`0x007D6642`); initialize the output before querying. At native entry the IID is the first stack
+argument and output address the second. `IsNight` reads one byte at object +`0x24` into AL; upper EAX bits are
+unspecified (`0x007D6680`–`0x007D6683`). It does not advance time, send a message, or consume randomness.
+
+**Lifetime.** Renderer initialization creates the manager if absent, stores it and AddRefs once
+(`0x007C65DB`–`0x007C6609`); the manager starts with reference count zero (`0x007DA0BE`). Getter-only use
+incurs **no Release**. A consumer retaining the manager may AddRef it, or QI the borrowed manager for
+`0x681BD52A`; each such acquired reference requires one Release. This IID is supported on the manager itself;
+it is not a claim of a separately registered framework service. Reacquire from the active view for each city
+lifetime. Renderer shutdown calls manager slot 4 `Shutdown`, then slot 2 `Release`, and clears its pointer
+(`0x007C71EF`–`0x007C7209`); view shutdown clears the cached globals (`0x00602130`–`0x0060214B`). A retained
+reference can keep storage alive but cannot keep a shut-down manager operational or make it the next city's
+manager. Release retained references when leaving that view; do not sample an old city's manager. Holding a
+renderer reference alone likewise does not prevent its explicit Shutdown. A synchronous sample from the live
+view during PostCityInit needs only the borrowed pointers, with no refcount change.
+
 ## 9. Who reaches in
 
 | Caller | Use |
@@ -819,6 +876,32 @@ unchanged by every observation; only the original's own subsequent calls advance
 22. **PV14-08, unavailable observation:** wrong executable identity, a torn/invalid table, or lost nested
     selector events → observation unavailable/invalid. Preserve native state; do not seed or call a selector
     to fill the gap. Equal serialized records after such an operation do not certify random-output equivalence.
+
+The PV15 vectors below specify interface observations and lifecycle obligations, not live-game measurements.
+Pointer labels V, R and L denote distinct synthetic objects with the primary interfaces of §8.5.
+
+23. **PV15-01, borrowed path:** active view V returns renderer R; R returns lighting manager L. Each getter
+    receives only its own primary pointer in ECX, returns its pointer in EAX, leaves the caller's argument stack
+    unchanged, and makes zero AddRef/Release calls. No hidden buffer is supplied or written. Repeating the
+    getters during the same initialized view lifetime returns the same R and L without a refcount change.
+24. **PV15-02, night input:** L reports AL = 1 with arbitrary upper EAX bits, while the loaded developer has
+    `isNight = 0`. PostCityInit input is night. For night props [A powered, B unpowered], resulting states are
+    [1, 0], `isNight = 1`, cursor = 0 and mode = 0. With AL = 0 and a saved `isNight = 1`, both states become 0
+    and `isNight = 0`. Switch-all consumes no shuffle draws. AL = 0 must remain false even if upper EAX is nonzero.
+25. **PV15-03, acquired reference:** L initially has count 1 (renderer ownership). QI on L for `0x681BD52A`
+    returns true in AL, writes L to the output and raises count to 2; it pops the two 4-byte arguments. One
+    subsequent Release returns count 1. QI for IID 1 has the same pointer/refcount result. Unsupported IID
+    `0xDEADBEEF` returns false, leaves an initialized-null output null and leaves the count unchanged.
+26. **PV15-04, city transition:** renderer shutdown with only its reference calls L.Shutdown once, releases L
+    to count 0 and clears the getter's stored pointer. A consumer with one additional acquired reference
+    instead sees count 1 after the renderer's Release; it must still stop sampling L and release its reference.
+    The next initialized city's getter returns its current manager L2; reusing L's cached night value is invalid.
+27. **PV15-05, unavailable or late sample:** null active view, null renderer, null manager, or a sample taken
+    across a lighting change instead of at the corresponding PostCityInit delivery means observation unavailable
+    or invalid. No fallback false, stale L, or developer output byte may certify this operation as exact.
+28. **PV15-06, equal saved byte:** with saved `isNight = 1`, live input 1, powered A in state 0, mode 2 and
+    cursor 7, PostCityInit still switches A to 1 and clears mode/cursor to 0. Equal saved and live night values
+    do not skip switch-all. Sampling the getter and IsNight alone leaves all those developer fields unchanged.
 
 ## 13. How `CreateProp` actually gets an occupant (GLUE21-2 — DIFFERS, answered 2026-10-16 by re-answers31)
 

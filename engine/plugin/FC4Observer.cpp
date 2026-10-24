@@ -16,6 +16,7 @@
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
 #include "FC4AdvisorsShadow.h"
+#include "FC4StringsShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -58,6 +59,7 @@
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
+#include "FC4NetRulesShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
 #include "FC4DemolitionPriceShadow.h"  // the glue23 lane: demolition_price_shadow
@@ -612,6 +614,7 @@ public:
                 HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
                 Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
+                NetRulesShadowCityLoaded();
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
@@ -675,6 +678,7 @@ public:
                 CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
                 ParksShadowCityShutdown();  // parks_shadow: the same
                 NetMgrShadowCityShutdown();  // netmgr_shadow: the shadow cores and their references go
+                NetRulesShadowCityShutdown();
                 OccMgrShadowCityShutdown();  // occmgr_shadow: the probe, the shadow core and its references go
                 PropDevShadowCityShutdown();  // propdev_shadow: the shadow cores and their references go with the city
                 DisastersShadowCityShutdown();  // disasters_shadow: the mirror core and its references go with the city
@@ -734,6 +738,7 @@ public:
                 AutomataShadowMonth(julian);                    // automata_shadow = 1 only
                 AdvisorsShadowMonth(julian);
                 fc4::NetOccShadowMonth(julian);
+                StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
@@ -747,6 +752,7 @@ public:
                 DemolitionShadowMonth(CurrentCity(), julian);  // demolition_shadow = 1 only
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
+                NetRulesShadowMonth(julian);
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)

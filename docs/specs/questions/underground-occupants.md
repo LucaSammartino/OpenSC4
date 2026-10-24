@@ -26,3 +26,8 @@
   descriptor-dependent geometry, Draw, transform/view behavior, bounds and messages are still open.
   Export address `0x00648360` is the pipe-interface query, not a transform getter; do not infer a
   transform contract from its stale decompiler label.
+  **Progress 2026-10-24 (re-netocc-answers5d):** network §3.6.4/tests 60–61 and underground §4
+  specify all four message decisions, query-reference lifetime, equal-pointer reattachment, the
+  own-primary-pointer fallback, removal lower-height update, linked-removal teardown and context
+  +4-word comparison. The model bounds wrapper delegates after −0x24C adjustment; `0x00654160`
+  is attached Refresh, not GetWorldBounds. Geometry, Draw and generated transforms/bounds remain open.

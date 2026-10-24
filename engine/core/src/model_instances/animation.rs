@@ -12,19 +12,24 @@ pub struct AnimatedInstance {
     accumulator: f32,
 }
 impl AnimatedInstance {
-    pub fn new(model: &ModelReference, attributes: DrawAttributes) -> Option<Self> {
-        let mut instance = StaticInstance::new(attributes);
-        if !instance.set_model(Some(model)) {
-            return None;
-        }
-        Some(Self {
-            instance,
+    /// Native constructor state, before the resource supplies frame zero.
+    pub fn unbound(attributes: DrawAttributes) -> Self {
+        Self {
+            instance: StaticInstance::new(attributes),
             frame: 0,
             mode: 3,
             direction: 1,
             speed: -100.,
             accumulator: 0.,
-        })
+        }
+    }
+    /// Portable bind-and-build convenience, separate from construction.
+    pub fn new(model: &ModelReference, attributes: DrawAttributes) -> Option<Self> {
+        let mut result = Self::unbound(attributes);
+        if !result.instance.set_model(Some(model)) {
+            return None;
+        }
+        Some(result)
     }
     pub fn frame(&self) -> u16 {
         self.frame
@@ -51,14 +56,23 @@ impl AnimatedInstance {
         0
     }
     pub fn set_frame(&mut self, frame: u16) -> u32 {
-        if frame == self.frame {
-            return 2;
+        if self.build_frame(frame) {
+            2
+        } else {
+            0
         }
-        if frame >= self.frame_count() || !self.instance.build_frame(frame) {
-            return 0;
+    }
+    /// Same-frame success bypasses the provider. Failed builds preserve the
+    /// frame word; range validation belongs to GetModelFrame (§3.12).
+    pub fn build_frame(&mut self, frame: u16) -> bool {
+        if frame == self.frame {
+            return true;
+        }
+        if !self.instance.build_frame(frame) {
+            return false;
         }
         self.frame = frame;
-        2
+        true
     }
     pub fn set_speed(&mut self, speed: f32) {
         self.speed = if speed == -200. {

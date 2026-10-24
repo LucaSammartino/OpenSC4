@@ -4,16 +4,18 @@
 //! These owners retain their textures and geometry; providers supply only texture
 //! resources and lighting/height samples, never an original owner's result.
 //! Ordered position/BGRA/UV records implement the settled LM3–7 subset.
-//! Native object layouts, inherited behaviour and pool/GZCOM lifetime remain
-//! unsupported. See `README.md` for the numeric and foreign-boundary limits.
+//! Published basic lifetime is modeled without native layouts or pool allocation.
+//! Unpublished inherited operations remain open (LM2). See `README.md`.
 //! All getters borrow immutable state.
 
 mod cell;
 mod foundation;
+mod lifetime;
 mod wall;
 
 pub use cell::*;
 pub use foundation::*;
+pub use lifetime::*;
 pub use wall::*;
 // Reuse the existing portable coordinate primitive, without a camera dependency
 // in the model algorithms themselves.
@@ -91,6 +93,11 @@ pub enum TextureKey {
 }
 
 pub trait Texture {
+    /// Override when separate acquired leases can refer to the same binding.
+    /// The default distinguishes ordinary Rust-owned resource objects.
+    fn same_binding(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
     /// First WORD (32 bits) of the underlying texture, not the resource key.
     fn id(&self) -> u32;
     fn has_alpha(&self) -> bool;
@@ -219,5 +226,7 @@ pub struct Bounds {
     pub max: Vec3,
 }
 
+#[cfg(test)]
+mod lifetime_tests;
 #[cfg(test)]
 mod tests;
