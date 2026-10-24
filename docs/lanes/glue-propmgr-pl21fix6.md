@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-pl21fix6: PL21 round 2 crash investigation | Codex; glue-propmgr-pl21fix6 (detached HEAD) | blocked; no root cause established; cargo6891 passed, clippy clean, CTest72/72 | Authorize a main merge or provide train179-based inputs; reproduce before fixing; queue held WIP |
+| glue-propmgr-pl21fix6: PL21 round 3 current-main reproduction | Codex; glue-propmgr-pl21fix6 (detached HEAD) | in progress; merged main 454438d47 at 2c1ab60e1 | Gate merged source, run both house profiles twice, inspect shutdown evidence |
+
+## Handoff
+
+- Goal: reproduce train shutdown heap AV on current main; fix only prop/lot capture if causal evidence warrants it.
+- Done: merged main 454438d47 without conflicts, merge commit 2c1ab60e1; prior lane tip c46bbdeae.
+- Next: qbuild all on merged stable source, save DLL under build-runs/dlls, run requested regress profiles twice.
+- Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
+- Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
+- No game request or build currently outstanding. No implementation changes this round.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
+- Historical round-2 and original implementation evidence follows; it used an older base.
 
 ## Round 2 report
 
