@@ -43,6 +43,7 @@ generated index: the questions live one file per spec, so read only the file for
 | BW | budget-window |
 | CA | camera |
 | CB | civic-buildings |
+| CCD | cheat-dialog |
 | CD | city-detail |
 | CK | clock24 |
 | CL | command-line |
@@ -228,6 +229,7 @@ generated index: the questions live one file per spec, so read only the file for
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
 | camera | 2 | 8 | CA11 | questions/camera.md |
+| cheat-dialog | 3 | 0 | CCD4 | questions/cheat-dialog.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 7 | 0 | CT18 | questions/city-tools.md |
@@ -386,4 +388,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **630** | **1439** | | |
+| **total** | **633** | **1439** | | |
