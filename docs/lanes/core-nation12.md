@@ -12,6 +12,7 @@
 - The q.py Bash wrapper failed before cargo (CreateFileMapping Win32 error 5); preserved build-runs/q/20261024-132652-34868.log; direct cargo invocation is running.
 - qbuild all completed PASS (session 19117 collected to terminal). Workspace: 7,224 passed, 0 failed, 0 ignored across 48 result lines; clippy -D warnings: 0 diagnostics.
 - Native request qbuild-20261024-140500-build-ctest: verdict pass; build 262/262 edges (131.3 s), CTest 81/81 (188.2 s), combined 324.0 s. Logs: build-runs/nation12-all-console.log, qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
-- Next: run the task's separately specified qbuild verify once via the coordinator queue (no direct fc4verify invocation); collect its terminal result, commit final report and write READY queue with actual full HEAD.
+- The task's separately specified qbuild verify is now running via the coordinator queue, exec session 22626. Collect this same operation to terminal result; do not duplicate it. Console: build-runs/nation12-verify-console.log.
+- Next: collect session 22626, commit final report and write READY queue with actual full HEAD.
 - No ABI, capi or plugin changes; no game request outstanding.
 - Required final checks: qbuild all and queued qbuild verify; manifest run4-core-nation12-r1-manifest.json.
