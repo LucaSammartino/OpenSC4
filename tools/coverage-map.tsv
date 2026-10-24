@@ -530,6 +530,7 @@ cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
 cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
 cSC4TipOfTheDayWinProc	windows and panels	ui	tip-of-the-day.md	-	-	-
 cSC4MySimBalloonWinProc	windows and panels	ui	mysim-balloon.md	-	-	-
+cSC4BuildingSelectWinProc	windows and panels	ui	building-styles-panel.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
