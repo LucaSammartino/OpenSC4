@@ -7,9 +7,9 @@
 - Goal: resolve the skipped READY tip against current origin/main, then gate and confirm in game.
 - Previous ready tip: 25e148fcdf7722d1ffabbaa69a950a6acb3f5f93; shadow11 and MI14 already implemented and measured below.
 - Merge committed: a907efa2d77f809ad96645dba321ab661ef5f06f incorporates origin/main b5f3bb118b66601e8898bfb4545716c287cc27f3; preserves construction_shadow and modelinst_shadow modules and every ini key.
-- Running: qbuild.py all session 53110, started on stable engine source a907efa2d; collect THAT SAME session with write_stdin until terminal. Output pipe: build-runs/modelinst-r3-final-all.log; current Rust progress in build-runs/qbuild-test.log.
-- Completed Rust milestone: workspace cargo tests 7,408 passed / 0 failed / 0 ignored across 51 summaries; test compilation 31m29s. Clippy exit=0, diagnostics=0. Native build/CTest queued as qbuild-20261024-201508-build-ctest by the SAME all gate; continue collecting session 53110, no duplicate verify.
-- Next: finish collecting all gate (no duplicate), then request unique modelinst-mi14-merge-2032-r3 to 2032 and wait without qwait. Prior run numbers max 631; recheck before reserving a new number.
+- Final all gate PASS, session 53110 collected to terminal: cargo 7,408 passed / 0 failed / 0 ignored across 51 summaries; clippy exit=0, diagnostics=0; native qbuild-20261024-201508-build-ctest build 62/62 (192.7 s), CTest 81/81 (261.8 s), total 456.7 s.
+- Evidence: build-runs/modelinst-r3-final-all.log, qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Stable engine source a907efa2d; git diff a907efa2d HEAD -- engine is empty. Tree-change annotation is lane records only.
+- Next: submit unique modelinst-mi14-merge-2032-r3 to 2032 and wait without qwait, then record run 632 (free on current checkout; max 631) and final READY queue full tip.
 - No new owner, spec question, ABI export, or coverage claim. No outstanding game request yet. Engine source is frozen during gate; only this record changed.
 - Detached HEAD is intentional; supervisor publishes commits. Do not change branch refs.
 
