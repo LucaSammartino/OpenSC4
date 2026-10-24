@@ -92,6 +92,10 @@ impl Pedestrian {
         let Some(route) = world.find_path_to_box(self.base().vectors[0], target) else {
             return Ok(false);
         };
+        if route.is_empty() {
+            return Ok(false);
+        }
+        self.runtime.traffic.has_path = true;
         self.traffic_owner().set_route_info(&route, 1.0);
         self.traffic_owner().begin_route(world)?;
         Ok(true)

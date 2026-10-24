@@ -4,7 +4,7 @@
 
 ## Handoff
 - Goal: close cSC4Pedestrian and cSC4PedestrianOneShot in engine/core/src/pedestrians using automata records.
-- Done: bf0b16ff6 initial handoff; implemented both core owners, shared records/traffic, ten focused tests and Owner closure README. Formatting passes (3 owned files).
+- Done: bf0b16ff6 initial handoff; 7c2648fdf both core owners, shared records/traffic and Owner closure README. Eleven focused tests, including route installation, empty path, version rejection, inherited one-shot serialization and crowd push consumption. Formatting fixes applied.
 - Next: collect focused cargo sessions 41288 (old syntax error, still terminating) and 12709 (corrected source, queued behind its lock); fix diagnostics, then all and verify once stable.
 - PN1 initial-parameter operation is now specified in pedestrian PR conformance; play-count consumer remains open. PN2 belongs to fire crew outside these owners.
 - No game requests; no ABI or plugin wiring planned.

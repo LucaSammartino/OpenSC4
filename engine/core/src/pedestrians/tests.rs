@@ -393,7 +393,10 @@ fn bee_line_crowd_reaction_and_animation_transitions() {
     assert_eq!(p.base().vectors[2], [1.0, 0.0, 0.0]);
     state(&mut p, 3);
     w.attractor = Some([10.0, 0.0, 0.0]);
+    p.runtime.pending_push = Some([0.25, 0.0, 0.0]);
     assert_eq!(p.state_tick(1.0, movement(), &mut w), Ok(true));
+    assert_eq!(p.runtime.pending_push, None);
+    assert!(p.base().vectors[0][0] > 0.25);
     assert!(w.calls.contains(&"anim:202".into()));
     state(&mut p, 2);
     p.base_mut().v2 = [1.0, 0.0, 0.0];
@@ -439,6 +442,15 @@ fn queue_strike_and_ignite_dispatch() {
             max: [16.0, 0.0, 16.0]
         })
     );
+    assert!(w.calls.contains(&"source".into()));
+    w.calls.clear();
+    w.path = Some(vec![[1, 2, 3], [2, 2, 3]]);
+    p.strike_tick(&mut w).unwrap();
+    assert!(p.runtime.traffic.has_path);
+    assert!(!w.calls.contains(&"source".into()));
+    p.base_mut().vectors[0] = [50.0, 0.0, 0.0];
+    w.path = Some(Vec::new());
+    p.strike_tick(&mut w).unwrap();
     assert!(w.calls.contains(&"source".into()));
     state(&mut p, 12);
     p.base_mut().states[0].base.controller = reference(3);
@@ -500,4 +512,25 @@ fn record_roundtrip_and_empty_inherited_tick() {
     state(&mut read, 1);
     assert_eq!(read.state_tick(1.0, movement(), &mut w), Ok(true));
     assert!(w.calls.contains(&"remove".into()));
+}
+
+#[test]
+fn record_version_and_one_shot_record_inheritance() {
+    let mut p = pedestrian();
+    p.record.version = 4;
+    let mut output = ByteWriter::new();
+    assert!(p.write(&mut output));
+    let mut loaded = Pedestrian::default();
+    assert!(!loaded.read(&mut ByteReader::new(output.bytes())));
+    p.record.version = 5;
+    let one = PedestrianOneShot {
+        pedestrian: p,
+        play_count: 9,
+    };
+    let mut output = ByteWriter::new();
+    assert!(one.write(&mut output));
+    let mut loaded = PedestrianOneShot::default();
+    assert!(loaded.read(&mut ByteReader::new(output.bytes())));
+    assert_eq!(loaded.pedestrian.record, one.pedestrian.record);
+    assert_eq!(loaded.play_count, 0);
 }
