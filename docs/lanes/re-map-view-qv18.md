@@ -66,6 +66,14 @@ checkpoint at `6d8395af4`; no partial work remains for QV2/QV3/QV14.
 No engine, plugin, capi, ABI-table or coverage-map edits were authored; predecessor changes are carried
 only through the expressly requested merge.
 
+Resume verification (round 3): recovered the complete committed result at `f9cfd7eea` and confirmed
+`re-map-view-qv17` is already an ancestor of HEAD; no repeated merge was needed. Reviewed the three
+answer entries, their behavior sections and conformance vectors 36–48. All requested IDs occur only
+in the answered file; QV15 remains the sole open map-view question. Regenerated the questions index
+and reran foreground doccheck and `git diff --check`: **passed**, log
+`build-runs/doccheck-re-map-view-qv18-r3.log`. No new RE investigation or spec change was required.
+The ready queue entry is refreshed to this resume's full actual HEAD after committing the report.
+
 ## Handoff
 - Goal complete: QV2/QV3/QV14 answered without a new split; QV15 is outside this lane's requested scope.
 - Done: qv17 merge `8f269ba2a`, QV2 `465ada3f5`, QV3 `ee9d2ef1b`, QV14 `aa6200ce1`.
@@ -74,4 +82,4 @@ only through the expressly requested merge.
 - Measured/calculated weights and gate evidence are in the Report above; no game request is outstanding.
 - Worktree stays detached. Queue tip must be the full actual HEAD; supervisor publishes the reserved branch.
 - No ABI proposal, REA operation, engine edit or external artifact was made by this round.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-map-view-qv18-r2-manifest.json.
+- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-map-view-qv18-r3-manifest.json.
