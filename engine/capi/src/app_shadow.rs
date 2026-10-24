@@ -181,6 +181,23 @@ unsafe extern "C" fn fc4_app_shadow_compare(shadow: *mut Shadow, field: u32, byt
     u32::from(!shadow.seeded || expected(shadow, field).as_deref() != Some(sample))
 }
 
+#[no_mangle]
+unsafe extern "C" fn fc4_app_shadow_expected(shadow: *mut Shadow, field: u32, out: *mut u8, cap: u32) -> u32 {
+    if shadow.is_null() || out.is_null() || cap == 0 {
+        return 0;
+    }
+    // SAFETY: private diagnostic transport; caller owns the handle and cap output bytes.
+    let Some(value) = expected(unsafe { &mut *shadow }, field) else {
+        return 0;
+    };
+    let count = value.len().min(cap as usize - 1);
+    unsafe {
+        std::ptr::copy_nonoverlapping(value.as_ptr(), out, count);
+        *out.add(count) = 0;
+    }
+    count as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

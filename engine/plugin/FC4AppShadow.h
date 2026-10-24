@@ -6,6 +6,6 @@ namespace fc4 {
 void AppShadowStart();
 void AppShadowMessage(uint32_t kind);
 void AppShadowObserve(int32_t julian, bool load);
-void AppShadowTick();
+void AppShadowTick(int32_t julian);
 void AppShadowStop();
 }

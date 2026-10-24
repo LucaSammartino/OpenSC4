@@ -19,6 +19,7 @@ uint32_t fc4_app_shadow_input(void*, uint32_t, const char*, uint32_t);
 void fc4_app_shadow_message(void*, uint32_t);
 uint32_t fc4_app_shadow_mode(const void*, uint32_t);
 uint32_t fc4_app_shadow_compare(void*, uint32_t, const char*, uint32_t);
+uint32_t fc4_app_shadow_expected(void*, uint32_t, char*, uint32_t);
 }
 
 namespace {
@@ -55,6 +56,7 @@ void Report(int32_t julian, bool load) {
                 const auto* path = *reinterpret_cast<const char* const*>(object + offsets[i]);
                 if (!path) path = "";
                 differences += fc4_app_shadow_input(model, i, path, static_cast<uint32_t>(std::strlen(path)));
+                fc4::Log("app: input=%u stored=%s", i, path);
             }
             cRZBaseString name;
             app->GetAppName(name);
@@ -74,7 +76,11 @@ void Report(int32_t julian, bool load) {
             const uint32_t mismatch = fc4_app_shadow_compare(model, i, out.ToChar(), out.Strlen());
             differences += mismatch;
             ++fields;
-            if (mismatch) fc4::Log("app: field=%u slot=%u differs (AP3/AP7); native=%s", i, slot, out.ToChar());
+            if (mismatch) {
+                char expected[32769]{};
+                fc4_app_shadow_expected(model, i, expected, sizeof(expected));
+                fc4::Log("app: field=%u slot=%u differs (AP3/AP7); native=%s expected=%s", i, slot, out.ToChar(), expected);
+            }
         }
         // Compare after dispatch has completed (next observer tick for load,
         // monthly quiet point thereafter), so notification order is immaterial.
@@ -93,7 +99,6 @@ void Report(int32_t julian, bool load) {
     else { ++lines; clean += differences == 0; }
 }
 bool loadDue = false;
-int32_t loadJulian = 0;
 }
 
 namespace fc4 {
@@ -113,12 +118,13 @@ void AppShadowMessage(uint32_t kind) {
 }
 void AppShadowObserve(int32_t julian, bool load) {
     if (!model) return;
-    if (load) { loadDue = true; loadJulian = julian; return; }
+    if (load) { loadDue = true; return; }
     Report(julian, false);
 }
 // A tick is an observation scheduling point, not a native frame/tick comparison.
-void AppShadowTick() {
-    if (model && loadDue) { loadDue = false; Report(loadJulian, true); }
+void AppShadowTick(int32_t julian) {
+    // Published date is unavailable during PostCityInit; wait for a dated quiet tick.
+    if (model && loadDue && julian > 0) { loadDue = false; Report(julian, true); }
 }
 void AppShadowStop() {
     if (!model) return;

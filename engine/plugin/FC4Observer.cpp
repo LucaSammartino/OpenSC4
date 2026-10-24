@@ -583,7 +583,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
-        AppShadowTick();
+        AppShadowTick(static_cast<int32_t>(PublishedJulian()));
         FpuTick();
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
         // (modal-dialogs.md §2.3); before the script and the autotest.
