@@ -10,7 +10,7 @@
   ASCII string slots 22/23 are object/char-pointer respectively. Neither token
   record nor ASCII writer offers a universal raw-byte snapshot getter: observe
   existing raw IO/sink writes, or use the guarded read/seek fallback in 10.2
-  with exact cursor restoration. Vectors SCR-V69–73 and SCR-V75–79 apply.
+  with exact cursor restoration. Vectors SCR-V69–73 and SCR-V75–80 apply.
 
 <!-- from: glue-scres-shadow5 (2026-10-24) -->
 - **SCR9 - natural resource/token capture dispatch:** In real-city run `scres5-r1-2032-a` (Konradshohe, turbo through 2032-01-19), the specified binary/text adapter vtables installed successfully before PreAppInit, but every numeric/descriptor/key slot had zero observations (73 dated lines, `scres 0/73`, no refusal or native difference). Which natural resource-file paths use these tables, which call implementations directly, and which earlier lifecycle/capture entry is required to see the game's actual parser/token/image/writer traffic? Please specify the complete argument/result ABI and safe passive capture route for those paths. [Try installation at OnStart before framework initialization; never credit an empty sample or substitute constructed inputs for real file traffic.]

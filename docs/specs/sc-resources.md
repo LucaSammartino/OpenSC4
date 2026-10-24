@@ -866,7 +866,7 @@ as replay values. Native STL containers are not portable C arrays.
 | ParseFiles(all) `0x00680990` | file main interface | none | bool from range call; 0 |
 | SetModified `0x00680900` | file main interface | bool | void; 4 |
 | ErrorString `0x00680910` | file main interface | none | borrowed `const char*`; 0 |
-| GetParser (slot 11 of file table) | file main interface | none | raw parser pointer; 0 |
+| GetParser `0x0040CE60` (slot 11 of file table) | file main interface | none | raw parser pointer; 0 |
 | NumInputFiles `0x006809C0` | file main interface | none | s32; 0 |
 | InputFilePath `0x00680A30` | file main interface | `s32 index` | borrowed `const char*`; 4 |
 | Modified `0x00680920` | file main interface | none | bool; 0 |
@@ -989,9 +989,8 @@ string getter. The public string slot supplies its own delimiter.
 The last three functions do not use ECX as a factory state pointer; treat
 them as callee-cleanup stack functions. Forward all option words unchanged
 when observing an existing call; they are not output addresses or extra
-this pointers. Section 7 defines the decoding behavior, including ignored
-options, and section 7.3 defines the factory save formats. These factory
-serial formats are not token descriptors. LoadBMP/TGA take the second stack
+this pointers. Section 7 defines BMP/TGA decoding behavior. The factory
+serial formats are separate image formats, not token descriptors. LoadBMP/TGA take the second stack
 word even when a pseudocode listing omits it: the wrapper pushes both and the
 BMP routine removes eight bytes (`0x00979177`–`0x009791A2`,
 `0x009790EA`). The file resource entry removes 20 bytes
@@ -1021,7 +1020,7 @@ ASCII writer ECX is the writer itself, table `0x00ADA288`:
 | 24 WriteObject `0x0098298A` | `const char* fieldName`, serializable-object pointer | void; 8 |
 | 25 WriteObjectRef `0x009811C8` | `const char* fieldName`, unknown-interface pointer | void; 8 |
 | 26 WriteObjectRef `0x00982F2B` | `const char* fieldName`, referent-interface pointer | void; 8 |
-| 27 WriteTypeInfo `0x00982A1F` | type-info interface pointer | void; 4 |
+| 27 WriteTypeInfo `0x00982A1F` | const reference to type-info record `{S* name,u32 classID,u32 version}` | void; 4 |
 | 28 OutputStream `0x00982F1C` | none | EAX output-stream pointer; 0 |
 | nonvirtual WriteUint32InHex `0x009828A5` / WriteKey `0x009828EA` | u32 by value / `const K&` | void; 4 |
 
@@ -1034,6 +1033,9 @@ durable-write success. Evidence for f64 by-value width is
 `0x00982823`, `0x0098284C`, `0x00982869`, `0x00982892`; their order in
 section 8.1 is corrected accordingly. Slot 25 queries for a referent and
 releases that temporary after slot 26 (`0x009811D3`–`0x00981202`).
+The type-info argument is a twelve-byte data record, **not** an object with
+a vptr: the first word points to an S, and the following two words are
+read directly (`0x00982A25`, `0x00982A43`, `0x00982A52`, `0x00982A71`).
 
 OutputStream merely forwards the active surveyor's stream getter; it is not
 an output-byte snapshot. Calling it after WriteRoot has popped the surveyor
@@ -1130,3 +1132,4 @@ Use section 9's wire/format vectors for payload content as well.
 | SCR-V77 | Native record call ends at position q, observer snapshots via raw read/seek | Resume at q with native result/output unchanged; refuse comparison if copy or restoration fails |
 | SCR-V78 | No token adapter calls during a dated city interval | Zero observations, no natural equality/coverage credit; constructed adapter successes stay a separate verdict |
 | SCR-V79 | ASCII WriteRoot has returned and popped its last surveyor | Do not call OutputStream to capture bytes; use the observed sink transcript from the original active root |
+| SCR-V80 | ASCII WriteTypeInfo record names S `Thing`, classID 42, version 7 | `      TypeName: Thing GZCLSID: 0x0000002a Version: 7` and LF; read the record fields, do not invoke a type-info vtable |
