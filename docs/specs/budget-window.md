@@ -586,7 +586,9 @@ only after both (§2 step 5).
 
 ## 7. Budget panel message hooks (`cSC4BudgetUIWinProc::DoMessage`, `0x00768620`) *[compat]*
 
-Messages `0x08DAC3E7` and `0x08DAC3E8` set a dirty byte (`+0x192`); message `0x86AD10EE` (a frame/update tick), when
+Messages `0x08DAC3E7` and `0x08DAC3E8` set a dirty byte (`+0x192` of the `+0x0C` message-target interface that
+`DoMessage` runs on, i.e. object `+0x19E`, the byte slot 8 `Update` also sets: budget-window-bodies.md §11.5);
+message `0x86AD10EE` (a frame/update tick), when
 the byte is set, clears it and runs `UpdateBalanceSheetInfo`. So the panel refreshes at most once per tick however
 many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately and sets `+0x19D := 1`.
 
@@ -597,7 +599,8 @@ BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-
 at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
 only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
 the balance-sheet drawing, the formatting helpers and the taxes and loan windows are budget-window-bodies.md
-§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18). Not covered: pixel layout of the four populate routines, the fill point of
+§4.2–§4.3 and §8–§10. The panel's construction labels, `Init`, the loan limits and the loan rows are §11 there (BW18
+answered, re-budgetui7 2026-10-23). Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 

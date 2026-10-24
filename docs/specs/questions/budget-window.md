@@ -20,16 +20,11 @@ or same-owner callback boundary is implied.
   `007795A0` property-reference replacement, `0077BEC0` empty-window and `0077A480`/`0077A6F0`/`0077A960`
   setup/failure ownership, widget/popup factory failures. (The panel's loan, tax, formatting and balance-sheet
   rendering bodies left this list: budget-window-bodies.md §4.2–§4.3, §8–§10, re-budgetwin 2026-10-22; their
-  summary parts are BW18.)
+  summary parts were BW18, answered in §11 by re-budgetui7 2026-10-23.)
   See companion sections 1 and 7 for the full inventory; these remain questions, not accepted host inputs.
 
 The original request follows.
 - **BW17 - sections 1, 4, 4.1, 5.2, 5.6 and 8 whole-owner inventory / omitted bodies:** please publish the full method/slot inventory for `cSC4SubBudgetWindow` and the owned budget-panel paths, and the non-layout algorithms still omitted: ordinance enumeration/filtering, A/B counts and row-map construction in `initOrdinanceBudget`; proposed-deal enumeration, section/count rules and `+0x50` selection edits in `initNeighborBudget`/combo handling; occupant enumeration and the exact creation/ownership of `+0x44` individual restore records; all four per-mode refreshes (including group row reuse on scroll), empty/popup window creation and failure reference rules, and the panel loan-display/balance-sheet bodies. Which public external interface calls and arguments supply their raw inputs? [unimplemented: existing same-class populate/refresh host callbacks remain explicit gaps, not core coverage; no native own-class result may count as an external input. BW14/BW15 ownership and BW16 visibility are implemented from their settled text; the documented BW13 null-content divergence is retained. No whole-owner completion claimed.]
-
-<!-- from: re-budgetwin (2026-10-22) -->
-- **BW18 - budget-window-bodies.md §8, §10, the panel's summary parts:** the construction (`0x007658A0`) and
-  `InitBalanceSheet` (`0x00764DF0`) labels, the rest of `Init` (`0x00766E10`), the loan slider's limits in
-  `DisplayLoanWindow` (`0x00765C30`) and the row drawing of `UpdateLoanDisplay` (`0x00766680`). [summary]
 
 <!-- from: core-budget-window5 (2026-10-23) -->
 - **BW19 - budget-window-bodies.md §3.2 and §6 invalid raw inputs:** what safe replacement behavior is required when combo-edit signed division has a zero divisor or INT_MIN/-1, or UpdateValues receives an empty budget-group vector? The literal native operations would fault. Core returns InvalidDivision for the affected row (continues matching rows and records the single pending neighbor refresh), or None for the empty group vector while clearing its busy guard. These are explicit safe divergences, not successful empty rows. [open]

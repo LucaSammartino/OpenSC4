@@ -87,3 +87,15 @@
 <!-- from: re-budget-slider-ownership4 (2026-10-22) -->
 - **BW16 - section 4.1 row-visibility ID test direction (static):** §4.1 rule 2 says an item is shown if `GetID() > 100` or its amount is non-zero. The bytes at all four sites (count A `0x007880D3`, count B `0x00788147`, build A `0x007886ED`, build B `0x00788F33`) are `CMP EAX,0x64; JBE <shown>`, then for ID > 100 a 64-bit amount test (`OR EAX,EDX; JZ <hidden>`): i.e. ID ≤ 100 is always shown (subject to display flag bit 0) and ID > 100 is hidden when its amount is zero. Is slot 3 really `GetID`, and should §4.1 (and its worked example) be inverted? [open: needs a reviewer of §4.1; BW15 tests avoid the case]
   **ANSWERED 2026-10-22 (re-budget-slider-ownership4):** DIFFERS — slot 3 is GetID: line item primary vtable 0x00AB0F58 slot 3 = 0x006AAEB0 returns object +0x54, which the department line-item factory FUN_006AB040 sets from its first argument (0x006AB076) and uses as the key of the department map +0x4C (0x006AB0A8). At all four sites (0x007880D3, 0x00788147, 0x007886ED, 0x00788F33) CMP ID,0x64 / JBE goes to "shown"; only ID > 100 reaches the 64-bit amount test, zero hides. Rule: a flagged item is shown if ID <= 100 or its amount is non-zero. Spec section 4.1 rule 2 and worked example corrected; tests 26-27.
+
+<!-- from: re-budgetwin (2026-10-22) -->
+- ~~**BW18 - budget-window-bodies.md §8, §10, the panel's summary parts:** the construction (`0x007658A0`) and
+  `InitBalanceSheet` (`0x00764DF0`) labels, the rest of `Init` (`0x00766E10`), the loan slider's limits in
+  `DisplayLoanWindow` (`0x00765C30`) and the row drawing of `UpdateLoanDisplay` (`0x00766680`). [summary]~~
+  **ANSWERED 2026-10-23 (re-budgetui7):** budget-window-bodies.md §11, read on the bytes. §11.1 gives the
+  construction order and the 18 label captions with their monthly and yearly strings; the yearly set is never used,
+  because construction is the only caller and runs in the monthly view *[quirk]*. §11.2 gives the 72 notification
+  targets and the initial period toggles. §11.3 gives the slider's limits: range `(increment, min(room, bond limit))`,
+  ties to the limit, 32-bit; zero room gives `(0, 0)` and Accept off. §11.4 gives the row cells, the payment total
+  and the scroll-button tests. The list redraw drops the bond-limit cap *[quirk]*. §11.5 identifies `DoMessage`'s
+  dirty byte with slot 8's `+0x19E`.
