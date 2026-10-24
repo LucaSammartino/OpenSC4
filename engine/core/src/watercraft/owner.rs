@@ -36,7 +36,14 @@ pub const EFFECTS: [&str; 6] = [
     "tugropeconnection",
     "waterski",
 ];
-pub const WAKES: [&str; 6] = ["SMLWake", "SMLWash", "MEDWake", "MEDWash", "LargeWake", "LargeWash"];
+pub const WAKES: [&str; 6] = [
+    "SMLWake",
+    "SMLWash",
+    "MEDWake",
+    "MEDWash",
+    "LargeWake",
+    "LargeWash",
+];
 
 /// Resource identity; owning an Arc takes precisely one Rust reference.
 #[derive(Debug, PartialEq, Eq)]
@@ -213,6 +220,7 @@ pub struct Watercraft {
     pub docking_in_progress: bool,
     pub being_towed: bool,
     pub tow_armed: bool,
+    pub ai_turn_latch: bool,
     pub player: PlayerState,
     pub travel: Vec<TravelPoint>,
     pub stations: [Option<Arc<Station>>; 2],
@@ -277,6 +285,7 @@ impl Watercraft {
             docking_in_progress: false,
             being_towed: false,
             tow_armed: false,
+            ai_turn_latch: false,
             player: PlayerState::default(),
             travel: vec![
                 TravelPoint {
@@ -311,7 +320,11 @@ impl Watercraft {
     }
 
     pub fn has_state(&self, state: u32) -> bool {
-        self.record.base.states.iter().any(|s| s.state_type == state)
+        self.record
+            .base
+            .states
+            .iter()
+            .any(|s| s.state_type == state)
     }
 
     pub fn load_drive_parameters(&mut self) {
@@ -399,7 +412,11 @@ impl Watercraft {
         }
     }
 
-    pub fn set_neighbor_route(&mut self, mut route: NeighborRoute, cell_position: impl Fn(Cell) -> Vec3) {
+    pub fn set_neighbor_route(
+        &mut self,
+        mut route: NeighborRoute,
+        cell_position: impl Fn(Cell) -> Vec3,
+    ) {
         route.next = 0;
         while route.next < route.cells.len() {
             let point = cell_position(route.cells[route.next]);

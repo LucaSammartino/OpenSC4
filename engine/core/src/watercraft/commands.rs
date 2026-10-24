@@ -43,10 +43,11 @@ pub struct SpeedTween {
 
 impl SpeedTween {
     pub fn sample(&self) -> f32 {
-        if self.duration <= 0.0 {
+        if self.duration.is_nan() || self.duration <= 0.0 {
             self.target
         } else {
-            self.start + (self.elapsed / self.duration).clamp(0.0, 1.0) * (self.target - self.start)
+            let ratio = (self.elapsed / self.duration).clamp(0.0, 1.0);
+            (self.start as f64 + ratio as f64 * (self.target as f64 - self.start as f64)) as f32
         }
     }
 
@@ -155,7 +156,11 @@ impl Watercraft {
         let (a, b, n, positive) = curve_constants();
         let negative = (n as f64 * b as f64).atan() as f32;
         let x = q.max(p[30]).min(p[31]);
-        let u = if x > 0.0 { x * a / p[31] } else { x * n / p[30] };
+        let u = if x > 0.0 {
+            x * a / p[31]
+        } else {
+            x * n / p[30]
+        };
         let angle = u as f64 * b as f64;
         let w = if gear == Gear::Forward {
             angle.tan()
@@ -181,7 +186,11 @@ impl Watercraft {
             s * negative / p[6]
         };
         let h = z.atan() * 0.636_619_75;
-        let q = if h > 0.0 { h * p[31] / a } else { h * p[30] / n };
+        let q = if h > 0.0 {
+            h * p[31] / a
+        } else {
+            h * p[30] / n
+        };
         q.max(p[30]).min(p[31])
     }
 }
@@ -311,7 +320,12 @@ impl Watercraft {
         Some(gear)
     }
 
-    pub fn complete_drive_commands(&mut self, dt: f32, command: &mut DriveCommand, effects: &mut dyn PlayerEffects) {
+    pub fn complete_drive_commands(
+        &mut self,
+        dt: f32,
+        command: &mut DriveCommand,
+        effects: &mut dyn PlayerEffects,
+    ) {
         self.turn = command.steering.max(self.drive.0[8]).min(self.drive.0[9]);
         command.steering = self.turn;
         command.rudder = [-0.125 * self.turn, 0.0, std::f32::consts::TAU];
@@ -347,7 +361,8 @@ impl Fleet {
             .is_some()
         {
             self.tow_button(id, command.tow, manager)?;
-            self.boat_mut(id)?.complete_drive_commands(dt, command, effects);
+            self.boat_mut(id)?
+                .complete_drive_commands(dt, command, effects);
         }
         Ok(())
     }

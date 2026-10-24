@@ -5,6 +5,7 @@
 mod collision;
 mod commands;
 mod crash;
+pub use crash::{CrashEffect, CrashEffects, GroundingTerrain};
 mod following;
 mod inherited;
 mod math;
@@ -15,6 +16,10 @@ mod physics;
 mod record;
 mod routes;
 mod states;
+mod subsidiary;
+mod targets;
+pub use subsidiary::{AnimatedModel, AnimationService, Lighting, Subsidiary};
+pub use targets::AiTargets;
 
 pub use collision::{CollisionQueries, Footprint, ModelGeometry};
 pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
@@ -26,6 +31,8 @@ pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
 pub use routes::{direction_step, quantize_heading, sign, RouteError, RouteReader};
 pub use states::CrashCase;
 
+#[cfg(test)]
+mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
 #[cfg(test)]
@@ -43,9 +50,9 @@ impl Default for DriveParameters {
     #[allow(clippy::approx_constant)] // Exact decimal constants in watercraft §2.
     fn default() -> Self {
         Self([
-            0.1, 0.001, 1.0, 0.05, 0.2, 5.0, -0.1, 0.3, -2.0, 2.0, 0.001, 50.0, 5.0, 0.001, 0.001, 0.1, 0.5, 1.0472,
-            0.3142, 0.1309, 0.2618, 8000.0, 0.7854, 0.95, 2.1817, 1.0472, 10.0, 0.5, 0.25, 0.75, -2000.0, 3000.0,
-            150.0, 0.0, 2.0, 100.0, 300.0, 90.0, 1.0, 1.0,
+            0.1, 0.001, 1.0, 0.05, 0.2, 5.0, -0.1, 0.3, -2.0, 2.0, 0.001, 50.0, 5.0, 0.001, 0.001,
+            0.1, 0.5, 1.0472, 0.3142, 0.1309, 0.2618, 8000.0, 0.7854, 0.95, 2.1817, 1.0472, 10.0,
+            0.5, 0.25, 0.75, -2000.0, 3000.0, 150.0, 0.0, 2.0, 100.0, 300.0, 90.0, 1.0, 1.0,
         ])
     }
 }
