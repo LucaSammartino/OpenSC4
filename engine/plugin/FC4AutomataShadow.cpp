@@ -29,6 +29,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"  // TokenOf
 #include "FC4WriteCapture.h"
+#include "FC4Interfaces.h"
 
 #include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
@@ -275,6 +276,12 @@ private:
 void HelicopterCompare(int32_t julian) {
     if (!g_helicopterEnabled || !g_city) return;
     fc4_date date{};
+    // PublishedJulian is not populated yet at PostCityInit. Read the date
+    // through the specified simulator interface for the load observation.
+    if (julian <= 0) {
+        auto* simulator = AsGame(g_city->GetSimulator());
+        if (simulator) julian = simulator->GetSimDateNumber();
+    }
     if (julian <= 0) return;
     fc4_date_from_julian(julian, &date);
     const int32_t month = date.year * 12 + date.month;
@@ -321,6 +328,7 @@ void HelicopterCompare(int32_t julian) {
         cIGZSerializable* object = nullptr;
         if (com && com->GetClassObject(0x8BA98EDA, 0xE4FDA3D4,
                                       reinterpret_cast<void**>(&object)) && object) {
+            FC4_ACQUIRED(object, "helicopter metadata factory reference");
             ++fixtures;
             compare(object);
             FC4_RELEASE_CREATED(object);
