@@ -578,12 +578,64 @@ Evidence: instructions `0x004364E5`–`0x0043658B`.
 For a successful skip, current's cell becomes the marker immediately before the
 new switch, and travel takes that marker's mode. This is a cell relocation, not a
 destination arrival. If no switch remains, send `0xEBA06C12` and select state −1.
-`jumpToNextSwitch` advances only while the leg-start index is below the leg-end index,
-and rejects a resulting end-of-route/FE marker (`0x00434DF0`–`0x00434E23`). Leg
-partitioning skips equal-mode markers, snaps the segment to the network, and advances
-past an unsnappable zero-length non-FE segment; it is not random route selection
-(`0x00434230`). The successful skip and failure masks are verified at
-`0x00436459`–`0x004364DD`.
+The successful skip and failure masks are verified at `0x00436459`–`0x004364DD`.
+
+**Route indices and partitioning (MS21).** Let R be the stored deque, N its marker
+count, S the signed 32-bit index at object +30 and E the signed 32-bit index at +2C.
+The selected leg is the half-open range R[S..E): S is inclusive, E is exclusive.
+The route-ready table below consumes **R[S]**, not R[E], R[E−1], current's cell,
+or an independently supplied marker. Reset clears the route and sets S=E=0;
+installation of a newly found route also starts S=E=0 and selects a leg after
+appending the terminal FE marker. These are initialized route indices, not
+constructor defaults (`0x00432F1D`–`0x00432F24`, selection at `0x00436E83`).
+
+Selecting the next leg discards the preceding range: its new S is the old E.
+E becomes the first following index whose mode differs from R[S]'s mode, or N
+when the run reaches the end. Network validation then trims the front of this
+range: in ascending index order, ask the network service's +20 accessor for
+`(unsigned x byte, unsigned z byte, 0x1FCF, 0)` at R[S]. A zero return advances
+S by one; the first nonzero return leaves S on that marker and ends validation
+successfully. No marker at E is probed for this leg. With S≥E there are no calls
+and validation returns false. This operation neither rewrites marker coordinates
+nor copies the returned network object into a location: the return is only a
+presence test, and E is unchanged. All four arguments and their order, unsigned
+byte widening and the full-width nonzero test are instruction-verified at
+`0x00433296`–`0x004332D4`.
+
+If validation consumes the whole run, selection continues with the next mode run
+only when the consumed run's original mode was not FE and S=E<N. Consequently an
+unsnappable non-FE run does not remain selected as a zero-length leg: all its
+probes occur before any probes of the following run. Exhaustion at N stops;
+an FE run also stops even when all its probes failed. These are cell-presence
+probes, not the separate nearest-road search used by idle recovery. Selection
+does not mutate current, travel, flags, queue or notices. The scan, front trimming
+and repeat conditions are `0x00434240`–`0x0043434F`.
+
+`jumpToNextSwitch` returns false without selecting anything when S≥E on entry.
+Otherwise it selects exactly the next leg by the rules above, then returns true
+only when the resulting S<E and R[S].mode is not FE. A rejected FE leg and an
+exhausted leg retain their newly selected indices; there is no rollback or
+additional skip past FE (`0x00434DF3`–`0x00434E20`). The caller relocates current
+to R[S−1] and takes that marker's mode **only on true**. It does not relocate to
+R[E−1] or to the first successfully probed marker. Failure uses the notice/state
+rules above; no index change itself reports arrival.
+
+Extracting a leg copies precisely R[S..E) in deque order, with no endpoint from
+the next mode and no dispatch-index updates. The ordinary new-leg dispatch
+attempt uses this selected range: it does **not** first select another leg.
+Zero or one extracted markers return FF without calling basicDispatch; two or
+more pass the extracted deque and the supplied automaton/dispatch arguments to
+basicDispatch and return its result. Neither success nor FF advances S/E
+(`0x00434E30`, `0x00435589`–`0x004355F2`). Thus a failed attempt followed by
+jump advances once; success preserves the selected leg. In callback subtype 5's
+at-most-one-remaining-marker branch, the ordered operations are sample position
+into current, add flag mask 420 with its normal notice, select the next leg,
+then updateState. There is no extra index increment between those operations
+(`0x00437678`–`0x004376BD`; the counter increment at 004376B1 is object +34,
+not either leg index). The longer-remaining-route branch retains both indices.
+Selection expects a valid marker at its old E; do not invoke it on an empty or
+already exhausted deque. The specified exhaustion case comes from consuming the
+last valid run, not dereferencing R[N]. Worked index/probe cases are in §12.30.
 
 | Switch-ready marker/source | Effect and notices before common effects | C | A |
 |---|---|---|---|
@@ -1419,6 +1471,12 @@ This distinction matters: the first location is object+`0x5C`, serializer+`0x50`
 | 12 | s32 | route/switch marker at `+0x15C` |
 | 13 | u32 count; count × location payload | destination queue in front-to-back order |
 
+Constructor values for the auxiliary fields are deliberately asymmetric (MS22):
++FC is null and +100 is zero, while +10 has no constructor-assigned value; see
+§7.2.3. Serialization does not create a false default for that unwritten flag.
+The two persisted path indices have the S/E meanings in §4.6.3, not two current
+marker selectors; deserialization preserves them without repartitioning the route.
+
 Each **location payload** is: occupant ref; world x/z as two f32; cell x/z as two s32; regional city x/z
 as two s32; in-city and by-commute as two u8 booleans; duration and deadline as two s32. It has no own
 version or padding (`0x004314F0`–`0x00431587`, read `0x00431590`). The occupant IID on read is
@@ -1760,6 +1818,19 @@ capacity are likewise not semantic defaults. Init/Lua tuning and deserialization
 can subsequently replace constructor values. No replay claim may assume the
 entire allocated object was zero-filled.
 
+**Auxiliary constructor fields (MS22).** The constructor does not assign the
+auxiliary flag byte at +10, so pre-Init comparisons must exclude it; an allocator's
+zeroed memory is not a native false guarantee. It explicitly assigns the auxiliary
+occupant +FC to null and the 32-bit auxiliary scalar +100 to zero
+(`0x00433C4A`, `0x00433C50`, with zero register established at `0x00433A94`).
+Those two values may be compared before Init; the variable reference encoding
+still follows the stream's reference protocol, not a fixed raw-pointer byte pattern.
+There is no +10 store anywhere in `0x00433A60`–`0x00433D37`, and its base constructor
+only writes the vtable and reference count (`0x0090DA1E`–`0x0090DA2A`). Init's normal
+setup path subsequently clears +10 after resetting the path (`0x00434066`–`0x00434072`);
+that later store is not a constructor default. This resolves the omitted fields
+without promising defaults for the other excluded words.
+
 ## 8. Random numbers *[compat]*
 
 | Draw | Generator | Method | Draws |
@@ -2061,3 +2132,27 @@ are configured inputs; expected dispatch state is computed independently.
 | MS20-01 interface extent | QI EB8B6F9A, 452294AA and E4FDA3D4 | Returned pointers base/base+8/base+C each own one added reference. Primary slots 3/4/5 are destructor/RemoveRef/GetRefCount, never Init/Shutdown/queue. Release QI references normally; do not call destructor/RemoveRef in a live observation fixture |
 | MS20-02 constructor | Construct without Init, null owner | Four invalid local locations with cell/region −1, world −16f and zero timing; tuning 10/10/5/5 only at +14/+18/+1C/+24; counters/timestamp zero and tracking/model type −1. Exclude +20 and leg indices from default comparisons |
 | MS20-03 observability | Only minute/animation subscriptions and serialized outputs; an owner directly calls GoTo between samples | Capture is incomplete; no independent live replay verdict. Native output cannot supply the missing request input. Fresh class-factory object and active-only enumeration do not discover an inactive owner's dispatch |
+
+### 12.30 MS21 route indices and MS22 auxiliary defaults *[compat]*
+
+These are normative conformance vectors for an implementation fixture, not claims
+of measured live trip equivalence. Unless overridden, R is the five-marker deque
+`[(200,201,0), (201,201,0), (202,201,1), (203,201,1), (204,201,FE)]`;
+indices are zero-based and written **(S at +30, E at +2C)**. Probe outcomes are
+ordered foreign inputs; every probe has arguments `(x,z,0x1FCF,0)` and returns
+the indicated zero/nonzero value. Isolate selection from a following updateState
+when checking intermediate values. No RNG is consumed by selection or probing.
+
+| Case | Input / action | Required result |
+|---|---|---|
+| MS21-01 selected marker | Select next leg from (0,0); probe (200,201) returns 7 | Final (0,2); route-ready marker R[0], mode 0. Extracted leg is R[0],R[1], excluding R[2]. An accepted basicDispatch result 0 leaves (0,2), current and R unchanged; it does not select mode 1 |
+| MS21-02 front trim and one marker | Select from (0,0); probes (200,201)→0, (201,201)→9 | Final (1,2); route-ready marker R[1]. Ordinary new-leg dispatch returns FF without basicDispatch because the extracted leg has one marker; no extra probes or index changes |
+| MS21-03 successful jump | From (1,2), jump; probes (202,201)→0, (203,201)→1 | Jump true, final (3,4). Its caller relocates current's cell to R[2]=(202,201) and selects travel 1, not R[3]'s cell. In the no-switch-ready FF recovery row, removal 2/addition 220; no arrival notice |
+| MS21-04 FE rejection | From (3,4), jump; probe (204,201)→1 | Final (4,5), false because R[4] is FE despite successful probing. No rollback to (3,4), no R[3] relocation. No-switch-ready recovery sends EBA06C12 and selects state −1; current stays unchanged |
+| MS21-05 exhaustion | From (3,4), jump; probe (204,201)→0 | Final (5,5), false; exactly one probe, no access to R[5] and no relocation. Repeat jump from (5,5): false, no selection or probe, indices retained |
+| MS21-06 unsnappable ordinary run | Select from (0,0); (200,201)→0, (201,201)→0, (202,201)→0, (203,201)→5 | Intermediate collapsed range (2,2) is skipped; next run is [2,4), front trim gives final (3,4). Calls use unsigned 200…203 and 201, never negative signed bytes. Current/travel/flags/queue remain unchanged by selection |
+| MS21-07 all runs absent | Select from (0,0); all five probes return 0 | Calls in index order 0,1,2,3,4; final (5,5). Non-FE collapsed ranges are skipped; consumed FE run stops. No wraparound, nearest-road search, synthesized success or notice |
+| MS21-08 empty selected range | Jump from (2,2) | False with (2,2) retained and no calls, even though more markers exist. Ordinary new-leg dispatch of this range separately returns FF without basicDispatch; jump does not repair it by selecting R[2] |
+| MS21-09 dispatch failure preserves indices | From (0,2), basicDispatch receives [R[0],R[1]] and returns FF | (0,2) retained until the caller explicitly jumps. Subsequent jump with probe (202,201)→1 gives (2,4), true, and recovery relocates to R[1]. No automatic selection before the failed dispatch |
+| MS21-10 callback 5 progression | State 2, not active-player, held automaton's remaining count ≤1; selected (0,2); next probe (202,201)→1 | Sample position into current, add 420 with normal changed-flags notice/counter, then select from old E=2 to (2,4), then updateState using R[2]. For count >1, submit remaining automaton route excluding its first marker with true/false acceptance arguments, retaining (0,2) and making no network probes |
+| MS22-01 auxiliary constructor | Construct without Init over storage whose +10 byte was 1; supplied owner null; serialize via the reference protocol | +10 remains 1 and is excluded from semantic default comparison; +FC is null, +100 is u32 zero. Repeat with +10 initially 0: it remains 0. Decode order-5 reference as null and order-6 scalar as zero, without assuming reference byte width or treating other unwritten words as native zero defaults |
