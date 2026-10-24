@@ -59,6 +59,8 @@ pub struct DisplayState {
 pub trait StatusHost {
     fn funds(&self) -> i32;
     fn draw_cost(&mut self, display: CostDisplay);
+    /// Visibility is independent of redraw and surface alpha (§6k supplement).
+    fn cost_visibility(&mut self, visible: bool);
     fn cursor_callout(&mut self, entry: Option<&CursorText>, position: (i32, i32));
     fn project(&mut self, point: [f32; 3]) -> (i32, i32);
     fn clock_time(&self) -> (u32, u32);
@@ -181,6 +183,7 @@ impl View3DWin {
         if old != self.owner.display.cost {
             host.draw_cost(self.owner.display.cost);
         }
+        host.cost_visibility(true);
     }
 
     pub fn set_cost_amount(&mut self, host: &mut impl StatusHost, amount: i32) {
@@ -199,6 +202,7 @@ impl View3DWin {
             cost.mode = CostMode::Hidden;
             cost.alpha = 0;
             cost.fade_left_ms = 0.0;
+            host.cost_visibility(false);
         }
         host.draw_cost(*cost);
     }
@@ -211,6 +215,7 @@ impl View3DWin {
             if remaining <= 0.0 {
                 cost.mode = CostMode::Hidden;
                 cost.alpha = 0;
+                host.cost_visibility(false);
             } else {
                 cost.alpha = (remaining * f64::from(0.17_f32)) as u8;
                 let origin = self.owner.display.fade_origin;

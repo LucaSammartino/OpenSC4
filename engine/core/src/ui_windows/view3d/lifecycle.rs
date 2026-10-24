@@ -84,6 +84,7 @@ impl Default for Lifecycle {
                 (0x280, [0x31, 0]),
                 (0x288, [0x29, 0]),
                 (0x290, [0x2992_37BF, 0]),
+                (0x2A0, [0, 0]),
                 (0x2A8, [0x6A33_E1BA, 0]),
                 (0x2B0, [0x2A33_E1A3, 0]),
                 (0x2B8, [0xEA35_3064, 0]),
@@ -203,7 +204,7 @@ impl View3DWin {
             return true;
         }
         host.lifecycle(LifecycleCall::Subscribe);
-        host.lifecycle(LifecycleCall::RegisterCommands);
+        assert!(host.lifecycle(LifecycleCall::RegisterCommands).success, "required command registry");
         for (id, name) in super::COMMANDS {
             host.register_view_command(id, name, 0);
         }
@@ -266,8 +267,8 @@ impl View3DWin {
         self.remove_all_controls(host, false);
         self.remove_all_persistent_controls(host);
         for (offset, token) in std::mem::take(&mut self.owner.lifecycle.objects) {
-            if matches!(offset, 0x184 | 0x188 | 0x410) {
-                // VW8: unidentified helper. Preserve the specified stop/release.
+            if matches!(offset, 0x184 | 0x188) {
+                // §6m: Stop asks whether running before invoking slot 5(false).
                 host.lifecycle(LifecycleCall::Stop(token));
             }
             host.lifecycle(LifecycleCall::Release(token));

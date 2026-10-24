@@ -3,6 +3,7 @@ use super::*;
 use crate::ui_windows::win::WinStore;
 include!("resolved_tests.rs");
 include!("trigger_load_tests.rs");
+include!("closure_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
@@ -68,6 +69,8 @@ struct Host {
     read_record: Option<ObjectRecord>,
     helper_calls: Vec<(u32, u32)>,
     pictures: Vec<BackgroundPicture>,
+    background_requests: Vec<(bool, String)>,
+    cost_visibility: Vec<bool>,
     ops: Vec<Op>,
     takers: Vec<u32>,
     init_fail: Option<u32>,
@@ -88,6 +91,8 @@ struct Host {
     filter_allocation: bool,
     tabs: std::collections::BTreeMap<u32, bool>,
     established: bool,
+    rejected_gui: Vec<GuiCall>,
+    rejected_city: Vec<CityCall>,
 }
 
 impl Default for Host {
@@ -107,6 +112,8 @@ impl Default for Host {
             read_record: None,
             helper_calls: Vec::new(),
             pictures: Vec::new(),
+            background_requests: Vec::new(),
+            cost_visibility: Vec::new(),
             ops: Vec::new(),
             takers: Vec::new(),
             init_fail: None,
@@ -127,6 +134,8 @@ impl Default for Host {
             filter_allocation: true,
             tabs: std::collections::BTreeMap::new(),
             established: true,
+            rejected_gui: Vec::new(),
+            rejected_city: Vec::new(),
         }
     }
 }
@@ -248,6 +257,13 @@ impl ReferenceHost for Host {
 }
 
 impl HelperHost for Host {
+    fn background_candidates(&mut self, three_d: bool, basename: &str) -> Vec<String> {
+        self.background_requests.push((three_d, basename.into()));
+        self.background_files(three_d)
+    }
+    fn background_zoom(&self) -> u8 {
+        self.zoom as u8
+    }
     fn background_mode(&self) -> bool {
         self.moved
     }
@@ -293,6 +309,7 @@ impl LifecycleHost for Host {
         self.registry.push((id, name, flags));
     }
     fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply {
+        let success = !matches!(call, LifecycleCall::BaseInit) || self.init_fail != Some(0);
         let object = match call {
             LifecycleCall::LoadKeyMap { .. } if self.filter_allocation => Some(11),
             LifecycleCall::Create { class, .. } if self.filter_allocation => Some(class),
@@ -301,7 +318,7 @@ impl LifecycleHost for Host {
         };
         self.ops.push(Op::Lifecycle(call));
         LifecycleReply {
-            success: self.init_fail != Some(0),
+            success,
             object,
         }
     }
@@ -358,13 +375,13 @@ impl MessageHost for Host {
 
 impl GuiHost for Host {
     fn gui(&mut self, call: GuiCall) -> Option<u32> {
-        let token = if self.filter_allocation {
+        let token = if self.filter_allocation && !self.rejected_gui.contains(&call) {
             match call {
                 GuiCall::Script { id, .. } => Some(id),
                 GuiCall::Create { class, .. } => Some(class),
                 GuiCall::Helper(kind) => Some(100 + kind as u32),
                 GuiCall::Query(token, iid) => Some(token.wrapping_add(iid)),
-                GuiCall::Child { id, .. } | GuiCall::RecursiveChild { id, .. } => Some(id),
+                GuiCall::Child { id, .. } | GuiCall::RecursiveChild { id, .. } | GuiCall::RecursivePanelChild { id, .. } => Some(id),
                 GuiCall::Image { instance, .. } => Some(instance),
                 GuiCall::CreateBuffer => Some(200),
                 _ => None,
@@ -385,9 +402,10 @@ impl GuiHost for Host {
 
 impl CityHost for Host {
     fn city(&mut self, call: CityCall) -> Option<u32> {
-        let token = if self.filter_allocation {
+        let token = if self.filter_allocation && !self.rejected_city.contains(&call) {
             match call {
-                CityCall::Create(kind) => Some(kind.class_id()),
+                CityCall::Create(kind) | CityCall::Construct(kind) => Some(kind.class_id()),
+                CityCall::QueryGraphics(iid) => Some(iid),
                 CityCall::AcquireSimulator => Some(0x8695_664E),
                 CityCall::CreateSituationControl => Some(1234),
                 _ => None,
@@ -597,15 +615,14 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
 }
 
 #[test]
-fn city_allocation_failures_are_null_and_obliteration_hides_panel4() {
+fn city_allocation_failure_is_fatal_and_obliteration_hides_panel4() {
     let mut v = view();
     let mut host = Host {
         filter_allocation: false,
         established: false,
         ..Host::default()
     };
-    v.pre_city_init(&mut host);
-    v.post_city_init(&mut host);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.pre_city_init(&mut host))).is_err());
     assert!(v.owner.lifecycle.objects.is_empty());
     assert_eq!(v.persistent_controls(), 0);
     assert_eq!(v.owner.view.filter, None);
@@ -644,7 +661,7 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
     assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
     let fields = v.gui_state().fields.clone();
     let windows = v.gui_state().windows.clone();
-    let overlay = v.gui_state().overlay.unwrap();
+    let overlay = 0xCA5D_3294;
     // Creation reference released as soon as the parent owns the overlay.
     assert!(host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
     host.ops.clear();
@@ -674,12 +691,11 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
             1
         );
     }
-    assert!(host.ops.contains(&Op::Gui(GuiCall::Destroy(overlay))));
+    assert!(!host.ops.contains(&Op::Gui(GuiCall::Destroy(overlay))));
     assert!(!host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
     assert!(v.gui_state().fields.is_empty());
     assert!(v.gui_state().windows.is_empty());
     assert!(v.gui_state().panels.iter().all(Vec::is_empty));
-    assert_eq!(v.gui_state().overlay, None);
 }
 
 #[test]
@@ -689,7 +705,7 @@ fn gui_failed_creations_and_shutdown_progress_order() {
         filter_allocation: false,
         ..Host::default()
     };
-    v.add_gui(&mut host);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.add_gui(&mut host))).is_err());
     assert!(v.gui_state().fields.is_empty());
     v.remove_gui(&mut host);
     assert!(!host
@@ -709,7 +725,7 @@ fn gui_failed_creations_and_shutdown_progress_order() {
         .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(42)))
         .unwrap();
     assert!(gui_end < progress);
-    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+    assert_eq!(host.ops.last(), Some(&Op::Gui(GuiCall::BaseShutdown)));
 }
 
 #[test]
@@ -2019,6 +2035,9 @@ fn accelerator_replacement_acquires_before_release_and_null_clears() {
 }
 
 impl StatusHost for Host {
+    fn cost_visibility(&mut self, visible: bool) {
+        self.cost_visibility.push(visible);
+    }
     fn funds(&self) -> i32 {
         self.funds_value
     }

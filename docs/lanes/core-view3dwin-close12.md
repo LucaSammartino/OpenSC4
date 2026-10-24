@@ -1,8 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-view3dwin-close12 (cSC4View3DWin VW19 and closure audit) | Codex / `core-view3dwin-close12` (engine lane) | Ready partial implementation, code `18db8cb78`: VW19 closed; cargo 7394/0 with serialized scheduling, clippy 0 diagnostics, CTest 81/81; ABI unchanged; no game runs or new questions; 19 settled owner coverage gaps remain | (1) Complete the 19 settled implementation/test gaps listed below and in the module README. |
+| core-view3dwin-close12 (cSC4View3DWin closure) | Codex / `core-view3dwin-close12` (engine lane) | in progress | Complete settled gaps; collect focused compilation; run all/verify. |
 
-## Report
+## Handoff
+
+- Resumed from d81c354bf; VW19 implementation 18db8cb78 is already present.
+- First merge re-view3dwin-vw20: Already up to date, with packed-refs.lock
+  permission error. No shared refs changed.
+- Goal: complete the settled owner gaps identified below, then run all/verify.
+- Next: audit and implement GUI failure/extras and remaining conformance vectors.
+- Added required city fallbacks/reuse/graphics QI; GUI extras and parent-owned
+  overlay lifetime; settled landscape/transport/menu routing; cost visibility.
+- Added closure_tests.rs. Focused cargo operation still compiling; session 73214,
+  log build-runs/focused-close12-r2.log. Collect same operation before final.
+- No game request outstanding. No plugin/C ABI wiring permitted.
+- Bash q.py fails CreateFileMapping; use PowerShell.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.
+
+## Previous report
 
 Merged `re-view3dwin-vw20` first, fast-forwarding to `c13d5f600`. Implementation is
 `18db8cb78`. This patch closes VW19, not the entire owner. The supplied closure
