@@ -11,9 +11,9 @@
 - Native verify qbuild-20261024-023540-build-ctest FAILED: FC4MySimsShadow.cpp:1189 C2280; WriteCapture deleted copy operations suppressed the move assignment needed by SimCapture.
 - The all gate's native request qbuild-20261024-023814-build-ctest also FAILED with the same C2280; both terminal verdicts remain in build-runs/build-results/.
 - Corrected in 208aa2159: explicit ownership-transferring WriteCapture move constructor/assignment; the native seam destroys both moved-from captures before replaying the retained temporary.
-- Corrected all: workspace tests 6881 passed, clippy diagnostics=0. Native request qbuild-20261024-024340-build-ctest pending (exec session 21026).
-- Additional corrected native verify: qbuild-20261024-024436-build-ctest pending (exec session 10735). Collect these operations to terminal results; do not submit duplicates.
-- Next: collect both native results, then three unique 2032 game runs. Use build-runs/wait-verdict.ps1 (filesystem event wait, existing completed results accepted), NOT qwait; summarize with build-runs/summarize-automata.py.
+- Corrected all PASS: workspace tests 6881 passed, clippy diagnostics=0; native qbuild-20261024-024340-build-ctest build 208/208 and CTest 73/73. Tree-change note was the handoff-only aa13bc251 commit; engine source unchanged from 208aa2159.
+- Additional corrected native verify PASS: qbuild-20261024-024436-build-ctest build 46/46, CTest 73/73 (includes automata_capture_test). Both operations collected to terminal results.
+- Next: three unique 2032 game runs. Use build-runs/wait-verdict.ps1 (filesystem event wait, existing completed results accepted), NOT qwait; summarize with build-runs/summarize-automata.py.
 - Required: focused native bad-ID test; final all and queued verify; three unique exact 2032 game runs.
 - Keep owners shadow default-off. Coordinator should add automata_owners_shadow to the house profile after exact validation (tools are outside lane scope).
 - No outstanding game request. No spec behavior or ABI export changes; this is capture tooling ownership.
