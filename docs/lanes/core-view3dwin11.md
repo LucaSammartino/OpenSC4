@@ -13,6 +13,8 @@
 - c9dc50ae0: implementation milestone. README now has authoritative per-section Owner closure table and explicit remaining implementation gaps; owner closure is partial.
 - Focused diagnostic completed: 67 passed / 1 failed (VW-T21 fixture logged hidden-pause timer restarts); build-runs/focused-1.log preserved. Corrected fixture to report no renderer change so it isolates requested zoom values.
 - Formatting checked via qbuild fmt: relative paths unsupported; absolute paths exposed pre-existing recursive child diffs. Scoped skip_children rustfmt differences were applied using generated apply_patch hunks (never stdout-to-source).
+- b4b0756a480d4cfc7eec74c48a03ed3ff3a2db4a corrects the focused fixture. Final explicit new-file qbuild fmt passes: 3 files, 0 diff lines (registry.rs, coverage.rs, resolved_tests.rs).
+- all/verify remain running without terminal verdicts. Continue collecting existing sessions 46408 and 42276 with 30–60 second write_stdin waits; no duplicate operations. If all captured the pre-fix fixture, preserve its failure and rerun once using a different log filename.
 - Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/core-view3dwin11.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin11-r1-manifest.json.
 - No game requests outstanding; core-only task.
