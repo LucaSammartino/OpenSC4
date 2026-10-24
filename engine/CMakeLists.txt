@@ -591,7 +591,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4NetToolDragShadow.h
         # Default-off live regional-city record/getter differential.
         plugin/FC4RegionalCityShadow.cpp
-        plugin/FC4RegionalCityShadow.h)
+        plugin/FC4RegionalCityShadow.h
+        # Default-off live query pick predicates (partial owner observation).
+        plugin/FC4QueryToolShadow.cpp
+        plugin/FC4QueryToolShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1157,3 +1160,44 @@ endif()
 add_executable(fc4_dbpf_rotation_test tests/dbpf_rotation_test.cpp)
 target_include_directories(fc4_dbpf_rotation_test PRIVATE plugin)
 add_test(NAME dbpf_rotation_test COMMAND fc4_dbpf_rotation_test)
+
+# Read-only application paths/lifecycle shadow, default off (AP17 scope).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4AppShadow.cpp plugin/FC4AppShadow.h)
+endif()
+
+# Default-off sampled DX7 cached-state transition observer.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4GDriverShadow.cpp plugin/FC4GDriverShadow.h)
+endif()
+
+# Default-off legacy owner-method differential; no full build replay claim.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4LegacyCtlShadow.cpp plugin/FC4LegacyCtlShadow.h)
+endif()
+
+# VU16: read-only partial view utility shadow; no speculative native signatures.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ViewUtilShadow.cpp plugin/FC4ViewUtilShadow.h)
+endif()
+
+# MI14 finite native model-instance fixture, opt-in only.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
+endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_advisors_registration
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
+    add_test(NAME plugin_advisors_default_off
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-advisors)
+endif()
+
+if(TARGET FreeCity4)
+    add_executable(fc4_advisor_message_test tests/advisor_message_test.cpp
+        plugin/cFC4Message2Standard.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_advisor_message_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_advisor_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
+endif()

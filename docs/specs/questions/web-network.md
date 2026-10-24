@@ -8,17 +8,6 @@ malformed percent escapes in `0081ebd0`; ExecuteCommand `0081eb30` service/resul
 and exact response concatenation plus zero-progress/error behavior in `0081f180`. Pseudocode
 for CheckForCommands incorrectly removes the accepted-command branch; instructions retain it.
 
-## Q13 (re-www-ww5, 2026-10-23) — remaining HTTP wire and date behavior
-<!-- from: core-www-close15 r2 (2026-10-24) -->
-- **Q19 - FTP initialization and conflicting listing helper descriptions:** after the correction of `00813d70` to scheduler construction in FTP-control 9.1, FTP-control 6 still requires initializing a fresh session before login, but section 7 specifies only construction/shutdown/destruction. Which actual entry and effects implement that initialization? Also confirm that parent 4.15's close-listener `00811f00` / close-data `00811f90` replace FTP-control 3's older receive-options labels. [Fresh-session initialization stays Unsupported; listing uses the later parent 4.15 close contracts literally. No added options or thread join.]
-
-<!-- from: core-www-close15 r2 (2026-10-24) -->
-- **Q20 - HTTP response parsing and worker record/resource transition:** wire 1 specifies header delimiter/status-zero handling but does not qualify status/version token parsing, proxy connect destination selection, or how the admission record `[ID,1,0,1,0,request,0,custom]` transitions into the completion record: lifetime 2 calls word +0x14 the internal resource, whereas admission puts the request there. Please specify the dequeue/response-resource construction and field transition before completion, and malformed status-line behavior. [Portable transaction accepts a dequeued timestamp, parses literal `HTTP/major.minor decimal-status`, returns body/header outcomes, and reuses the specified retry/finalization helpers. Native resource publication and proxy endpoint selection remain unconnected; no invented request-to-resource cast.]
-
-2026-10-24 (re-www-q17), resumed round: §5.1 now settles slots 0/3 (ID-1-only
-QueryInterface preserving miss output; deleting-destructor wrapper/free flag). The
-destructor dependency's full cleanup and the other wire/date items remain open.
-
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing

@@ -22,6 +22,7 @@
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4LotDevInterfaces.h"  // animation-tick manager slots 5/6
 #include "FC4RefAudit.h"
 #include "cFC4Message2Standard.h"
 
@@ -35,6 +36,7 @@
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZOStream.h"
+#include "cIGZWinMgr.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
 #include "cISC4Lot.h"
@@ -538,7 +540,12 @@ public:
     bool GetUIElementsForBrush(uint32_t, uint32_t*) const override { return false; }  // 63
     void UpdateWaveProducers() override {}                                     // 64  render
     bool IsGoodWaveProducerLocation(float, float, float) const override { return false; }  // 65  render
-    cISTETerrainView* GetView() override { return static_cast<cISTETerrainView*>(f_.view); }  // 66
+    cISTETerrainView* GetView() override {  // 66
+        // terrain.md §15.5.6: +0xE8 holds the object base, while callers
+        // require IID 0x6771477D at base+0x0C (a different vtable).
+        return f_.view == nullptr ? nullptr : reinterpret_cast<cISTETerrainView*>(
+            static_cast<unsigned char*>(f_.view) + 0x0C);
+    }
     void DoLighting(SC4Rect<int32_t> const&) override {}                       // 67  render
     void RedisplayTerrainRect(bool terrain, bool water, SC4Rect<int32_t> const& r,
                               uint32_t data4) override;                        // 68
@@ -563,7 +570,7 @@ public:
     void SetPlumbingInfoDisplayState(bool on) override { plumbingDisplay_ = on; }  // 86
     void BeginLongTerrainOperation() override;                                 // 87
     void EndLongTerrainOperation() override;                                   // 88
-    void ReconcileEdgesWithNeighboringCities(bool, bool, bool) override {}     // 89
+    void ReconcileEdgesWithNeighboringCities(bool, bool, bool) override;       // 89
     bool SaveObliterated(cIGZPersistDBSegment*) override { return false; }     // 90
     void DeletingDestructor(uint32_t flags) override;                          // 91
     float GetWaterDepthAtFlatIndex(int32_t index) override;                    // 92
@@ -604,6 +611,9 @@ private:
     void Subscribe();
     void Unsubscribe();
     void OnViewUpdate(cIGZMessage2Standard* s);
+    void OnAnimationTick();
+    void PostReconcile();
+    void SetAnimationTick(bool enable);
 
     cFC4STESurfaceWater* water_ = nullptr;  // the terrain's own (§1, +0x24)
     HostContext host_{};
@@ -613,6 +623,7 @@ private:
     bool destroying_ = false;
     bool subscribed_ = false;
     bool plumbingDisplay_ = false;  // §15.1: a global byte, not a field
+    bool tickRegistered_ = false;
     int32_t scrubbing_ = 0;
 
     mutable CRITICAL_SECTION lock_;
@@ -652,7 +663,7 @@ cFC4STETerrain::~cFC4STETerrain() {
     DestroyCore();
     if (f_.view != nullptr) {
         // The view came from GZCOM()->GetClassObject: its QI took one reference.
-        static_cast<cIGZUnknown*>(f_.view)->Release();
+        FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(f_.view));
         f_.view = nullptr;
         f_.renderObject = nullptr;
     }
@@ -789,6 +800,7 @@ bool cFC4STETerrain::Init() {
         if (!CreateCore(cx, cz)) break;
         f_.initialized = 1;
         Subscribe();
+        SetAnimationTick(true);
         Log("terrain: replacement ON (enable = terrain): %u x %u cells, sea=%.9g, default brush level=%d", cx,
             cz, fc4_terrain_sea_level(core_), f_.defaultBrushLevel);
         ok = true;
@@ -809,6 +821,7 @@ bool cFC4STETerrain::Shutdown() {
                 host_.guardRefused.load(std::memory_order_relaxed));
         }
     }
+    SetAnimationTick(false);
     Unsubscribe();
     DestroyCore();
     f_.initialized = 0;
@@ -837,7 +850,8 @@ void cFC4STETerrain::Unsubscribe() {
 
 void cFC4STETerrain::DoPostCityInit() {
     Enter();
-    if (core_ != nullptr) {
+    if (core_ != nullptr && f_.postCityInit == 0) {
+        f_.postCityInit = 1;  // §2.3 / §15.5.1: mark before any collaborator call
         // TR9 (§2.3): the original copies the 3D camera's zoom (global
         // 0x00B43DD8, +0xC) into +0xBC here. The plugin has no camera
         // interface, so the level keeps its constructor value 0 until the
@@ -855,10 +869,13 @@ void cFC4STETerrain::DoPostCityInit() {
         if (f_.view == nullptr) {
             cIGZCOM* com = GZCOM();
             void* view = nullptr;
-            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, GZIID_cIGZUnknown, &view) &&
+            // §15.5.1 step 3: the factory's requested interface is at
+            // base+0x0C. Store the base at +0xE8, as the native layout requires.
+            if (com != nullptr && com->GetClassObject(kFC4_CLSID_cSTETerrainView, 0x6771477Du, &view) &&
                 view != nullptr) {
-                f_.view = view;
-                f_.renderObject = view;
+                f_.view = static_cast<unsigned char*>(view) - 0x0C;
+                FC4_ACQUIRED(static_cast<cIGZUnknown*>(f_.view), "terrain view factory");
+                f_.renderObject = f_.view;
                 Log("terrain: created the terrain 3D view (class 0x%08X) at DoPostCityInit",
                     kFC4_CLSID_cSTETerrainView);
             } else {
@@ -871,25 +888,14 @@ void cFC4STETerrain::DoPostCityInit() {
     Leave();
 }
 
-// TR9 (§2.3): "each view-update message 0xA6B79602 whose first data word
-// differs from it stores that word". [choice] the literal reading is data1.
-// zones.md / cFC4ZoneDeveloper read the same message's *void2 (a pointer to a
-// u32); the lane run logs both so the difference can be settled. A word above
-// the five brush levels is not stored: the level is an index 0-4 (§9.2).
+// TR23 (§2.3): the zoom index is the u32 pointed to by GetVoid2, not data1.
 void cFC4STETerrain::OnViewUpdate(cIGZMessage2Standard* s) {
     if (s == nullptr || core_ == nullptr) return;
-    const uint32_t d1 = static_cast<uint32_t>(s->GetData1());
-    uint32_t viaPtr = 0;
-    bool havePtr = false;
-    if (s->GetVoid2() != nullptr) {
-        std::memcpy(&viaPtr, s->GetVoid2(), sizeof(viaPtr));
-        havePtr = true;
-    }
-    const int32_t want = (d1 <= 4) ? static_cast<int32_t>(d1) : 0;
-    if (havePtr && viaPtr != d1) {
-        Log("terrain: TR9 view update 0xA6B79602 data1=%u *void2=%u -> brush level %d (was %d)", d1, viaPtr,
-            want, f_.defaultBrushLevel);
-    }
+    const void* zoom = s->GetVoid2();
+    // SPEC-GAP: a missing zoom payload leaves the current level unchanged.
+    if (zoom == nullptr) return;
+    int32_t want = 0;
+    std::memcpy(&want, zoom, sizeof(want));
     if (want != f_.defaultBrushLevel) {
         f_.defaultBrushLevel = want;
         fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
@@ -925,8 +931,15 @@ bool cFC4STETerrain::DoMessage(cIGZMessage2* msg) {
             }
             Leave();
             break;
-        case kMsgAnimationTick: break;  // §12.1: render work and the debug flood only
-        case kMsgReconcile: break;      // §12.1: the deferred edge reconciliation
+        case kMsgAnimationTick: OnAnimationTick(); break;
+        case kMsgReconcile: {
+            cIGZWinMgrPtr wm;
+            if (wm) {
+                if (wm->IsModal()) PostReconcile();
+                else ReconcileEdgesWithNeighboringCities(false, true, true);
+            }
+            break;
+        }
         case kMsgSimNewDay:
             Enter();
             if (core_ != nullptr) fc4_terrain_bodies_on_new_day(core_);  // §10.3
@@ -936,6 +949,63 @@ bool cFC4STETerrain::DoMessage(cIGZMessage2* msg) {
     }
     if (s != nullptr) FC4_RELEASE(s);
     return true;
+}
+
+void cFC4STETerrain::PostReconcile() {
+    if (host_.testMode) return;
+    cIGZMessageServer2Ptr ms;
+    if (!ms) return;
+    auto* message = FC4MakeMessage(kMsgReconcile, 0, 0, 0);
+    if (message == nullptr) return;
+    ms->GeneralMessagePostToTarget(message, Target());
+    message->Release();
+}
+
+void cFC4STETerrain::SetAnimationTick(bool enable) {
+    if (host_.testMode || tickRegistered_ == enable) return;
+    cIGZFrameWork* fw = RZGetFrameWork();
+    void* service = nullptr;
+    if (fw == nullptr || !fw->GetSystemService(kFC4_SID_AnimationTickManager,
+                                              kFC4_IID_AnimationTickManager, &service) ||
+        service == nullptr) return;
+    auto* manager = static_cast<cFC4ISC4AnimationTickManager*>(service);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(manager), "terrain animation manager");
+    // SPEC-GAP: TR42: terrain's priority is unspecified; use water's 0xC0.
+    if (enable) {
+        manager->AddTickableObject(Target(), 0xC0);
+        tickRegistered_ = true;
+    }
+    else {
+        manager->RemoveTickableObject(Target(), 0xC0);
+        tickRegistered_ = false;
+    }
+    FC4_RELEASE(static_cast<cIGZUnknown*>(manager));
+}
+
+void cFC4STETerrain::OnAnimationTick() {
+    // §12.1: count only ticks after view creation; never wrap and retrigger.
+    if (f_.view == nullptr || f_.reconcileTick >= 2) return;
+    if (++f_.reconcileTick != 2) return;
+    // SPEC-GAP: TR42: preference access is unspecified; use its default (1).
+    PostReconcile();
+}
+
+void cFC4STETerrain::ReconcileEdgesWithNeighboringCities(bool requested, bool, bool) {
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw != nullptr ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) ||
+        sc4 == nullptr) return;
+    FC4_ACQUIRED(sc4, "terrain reconciliation app");
+    const bool enabled = sc4->GetPopupDialogsEnabled();
+    FC4_RELEASE(sc4);
+    if (!enabled) return;  // foundations §11.6: no completion with popups off
+    // SPEC-GAP: TR43: no edge-comparison contract; report no mismatch/change.
+    fc4_terrain_post post{};
+    post.msg_type = 0xCA63D517;
+    post.data1 = requested ? 1 : 0;
+    HostPost(&host_, &post);
+    Log("terrain: reconciliation complete (TR43: no edge mismatch comparison)");
 }
 
 // ---- the height queries (§4) ----------------------------------------------------------------------
@@ -1490,6 +1560,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         check(!t->LocationIsInBounds(-1.0f, 0.0f));
         check(t->CellCountX() == t->CellCountX());
 
+        // Slot 66 must preserve null and select the view sub-interface,
+        // rather than handing consumers the five-slot object-base vtable.
+        check(t->GetView() == nullptr);
+        unsigned char viewLayout[0x10]{};
+        t->f_.view = viewLayout;
+        check(reinterpret_cast<void*>(t->GetView()) == viewLayout + 0x0C);
+        t->f_.view = nullptr;  // borrowed test storage, never Release it
+
         // TR18: a host callback from inside a brush must be refused.
         t->Host()->inside = 1;
         (void)HostRandomUniform(t->Host(), 5);
@@ -1501,6 +1579,51 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         // A change: one message posted per RedisplayTerrain (§8.1 posts three,
         // of which the simulation reads 0x278E6003 / 0x678E6E3A).
         t->DoPostCityInit();
+        check(t->f_.postCityInit == 1);
+        // A second post must not repeat core/view initialization. A distinct
+        // field value makes an unintended core default-level write visible.
+        const int32_t originalLevel = fc4_terrain_default_brush_level(core);
+        t->f_.defaultBrushLevel = originalLevel + 1;
+        t->DoPostCityInit();
+        check(fc4_terrain_default_brush_level(core) == originalLevel);
+        t->f_.defaultBrushLevel = originalLevel;
+
+        // Exercise the actual message-target/QI path. Data1 deliberately
+        // disagrees with the pointed-to zoom; neither value nor pointer is
+        // owned by the terrain. An unaligned payload is also legal here.
+        auto* zoomMessage = cFC4Message2Standard::New();
+        zoomMessage->AddRef();
+        zoomMessage->SetType(kMsgViewUpdate);
+        zoomMessage->SetData1(1);
+        unsigned char payload[sizeof(uint32_t) + 1]{};
+        zoomMessage->SetVoid2(payload + 1);
+        for (uint32_t zoom : {3u, 3u, 7u, 0u}) {
+            std::memcpy(payload + 1, &zoom, sizeof(zoom));
+            check(t->Target()->DoMessage(zoomMessage));
+            check(static_cast<uint32_t>(t->f_.defaultBrushLevel) == zoom);
+            check(static_cast<uint32_t>(fc4_terrain_default_brush_level(core)) == zoom);
+        }
+        zoomMessage->SetVoid2(nullptr);
+        zoomMessage->SetData1(4);
+        check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.defaultBrushLevel == 0);
+        check(fc4_terrain_default_brush_level(core) == 0);
+        // §12.1: view-less ticks do not start reconciliation. Once a view
+        // exists, only its second tick posts; repeated PostCityInit/ticks
+        // must neither reset nor wrap the once-per-object counter.
+        zoomMessage->SetType(kMsgAnimationTick);
+        check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.reconcileTick == 0);
+        t->f_.view = viewLayout;
+        check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.reconcileTick == 1);
+        check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.reconcileTick == 2);
+        t->DoPostCityInit();
+        for (int i = 0; i < 4; ++i) check(t->Target()->DoMessage(zoomMessage));
+        check(t->f_.reconcileTick == 2);
+        t->f_.view = nullptr;  // borrowed layout; never release it
+        zoomMessage->Release();
         SC4Rect<int32_t> r(0, 0, 1, 1);
         t->SetAltitudeRect(r, 123.0f, true, 3);
 

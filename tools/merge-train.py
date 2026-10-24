@@ -1451,10 +1451,18 @@ def cmd_land(args):
     st.setdefault("history", []).append({**cur, "main": main_sha, "landed_at": time.strftime("%Y-%m-%d %H:%M:%S")})
     st["current"] = None
     save_state(st)
-    # the queue files for landed lanes go away so they are not merged twice
+    # the queue files for landed lanes go away so they are not merged twice; a lane that re-queued a
+    # newer tip after the cut keeps its entry (glue-terrain-replace14 lost da32e440e that way in train218)
     for lane in cur["lanes"]:
         for f in queue_files():
             if f.stem == lane:
+                try:
+                    tip = json.loads(f.read_text(encoding="utf-8")).get("tip", "")
+                except (OSError, ValueError):
+                    tip = ""
+                if tip and git(["merge-base", "--is-ancestor", tip, main_sha], check=False).returncode != 0:
+                    log(f"{lane}: queue tip {tip[:10]} is newer than the landed batch; kept for the next batch")
+                    continue
                 dst = f.with_suffix(".merged.json")
                 if dst.exists():  # a stale marker from a batch that crashed mid-land
                     dst.unlink()

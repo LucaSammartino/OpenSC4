@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 100;
+pub const FC4_ABI_VERSION: u32 = 102;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1168,3 +1168,15 @@ mod lighting_shadow;
 mod construction_shadow;
 // Private live regional-city record/getter differential; no public DLL exports.
 mod regionalcity_shadow;
+// Private application path/lifecycle observation transport; no DLL ABI exports.
+mod app_shadow;
+// Private sampled DX7 cached-state transition replay.
+mod gdriver_shadow;
+// Private live query predicate comparison; no public DLL exports.
+mod querytool_shadow;
+// Private legacy owner-method observation replay (no public DLL exports).
+mod legacyctl_shadow;
+// VU16: private partial view-utilities comparison transport.
+mod viewutil_shadow;
+// Private finite model-instance fixture transport; no DLL export changes.
+mod modelinst_shadow;

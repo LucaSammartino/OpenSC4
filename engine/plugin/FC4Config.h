@@ -646,11 +646,26 @@ std::string IniPath();
 
 // scres_file_shadow = 0 / 1 (default 0): physical file-parser replay.
 // renderprops_shadow = 0 / 1 (default 0): C-locale ASCII registry counts,
-// names and Find probes. Live configured values await setter-input contract RP7.
+// names and Find probes plus isolated values/setters/registry stability/lifetime.
+// RP7 live configured values require a complete independent input/copy observer;
+// the current late attach reports that observer and private view as unavailable.
 
 // dbpf_shadow = 0 / 1 (default 0): each city load/month, compare public
 // resource-manager packed segments against the production Rust Package reader.
 // No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
+// querytool_shadow = 0 / 1 (default 0): live hover/describe pick predicates
+// only. Display, selected target and highlight capture require CT27 / CT13.
+
+// viewutil_shadow = 0 / 1 (default 0): bit-exact cdecl rotation helper on
+// live cached view inputs and fixed vectors; 1/50 bodies only. VU16 blocks
+// min/max and other native signatures. No whole-owner verification claim.
+
+// modelinst_shadow = 0 / 1 (default 0): finite isolated static-instance
+// transform and bounds fixture plus the first 4096 natural static GetTransform
+// calls' destination counter/padding. MI14 bindings; no live enumeration.
+
 }  // namespace fc4
+// app_shadow = 0 / 1: application paths/lifecycle mode comparison (default 0).
+// app_shadow_path_cache = 0 / 1: AP18 unresolved slots65/66 diagnostics (default 0).

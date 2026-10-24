@@ -12,10 +12,6 @@
 #include "cISC4RenderProperties.h"
 #include "cRZCOMDllDirector.h"
 #include "fc4.h"
-#include <cstring>
-
-extern "C" int32_t fc4_renderprops_shadow_count(uint32_t);
-extern "C" int32_t fc4_renderprops_shadow_query(uint32_t, uint32_t, uint32_t, char*, uint32_t);
 
 namespace {
 bool active = false;
@@ -37,35 +33,12 @@ void Compare(int32_t julian, bool load) {
         FC4_ACQUIRED(sc4, "QueryInterface");
         // Spec 1.4: keep acquired application live throughout borrowed use.
         auto* p = sc4->GetRenderProperties();
-        for (uint32_t kind = 0; kind < 3; ++kind) {
-            const int32_t count = fc4_renderprops_shadow_count(kind);
-            const int32_t nativeCount = !p ? -1 : kind == 0 ? p->NumBoolProperties() :
-                kind == 1 ? p->NumIntProperties() : p->NumFloatProperties();
-            ++fields;
-            mismatches += nativeCount != count;
-            for (int32_t i = 0; i < count; ++i) {
-                const bool valid = p && i < nativeCount;
-                for (uint32_t probe = 0; probe < 6; ++probe) {
-                    char query[128]{};
-                    const int32_t expected = fc4_renderprops_shadow_query(kind, i, probe, query, sizeof(query));
-                    if (probe == 0) {
-                        const char* name = !valid ? nullptr : kind == 0 ? p->NameFromBoolPropertyID(i) :
-                            kind == 1 ? p->NameFromIntPropertyID(i) : p->NameFromFloatPropertyID(i);
-                        ++fields;
-                        mismatches += !name || std::strcmp(name, query) != 0;
-                    }
-                    ++fields;
-                    const int32_t actual = !p ? INT32_MIN : kind == 0 ? p->BoolPropertyIDFromName(query) :
-                        kind == 1 ? p->IntPropertyIDFromName(query) : p->FloatPropertyIDFromName(query);
-                    mismatches += actual != expected;
-                }
-            }
-        }
+        fc4::RenderPropsRegistry(p, fields, mismatches);
         uint32_t fixtureFields = 0, fixtureMismatches = 0;
         const bool fixture = fc4::RenderPropsFixture(p, fixtureFields, fixtureMismatches);
         // RP7-7/8: late application attach, no continuous independent observer,
         // and no complete-view bridge. Never bootstrap expected state from P/S.
-        fc4::Log("renderprops fixture: available=%u fields=%u mismatches=%u plan=finite-v1 setters=462 live_trace=unavailable view_snapshot=unavailable",
+        fc4::Log("renderprops fixture: available=%u fields=%u mismatches=%u plan=finite-v2 setters=462 registry_samples=9 live_trace=unavailable view_snapshot=unavailable",
             fixture ? 1u : 0u, fixtureFields, fixtureMismatches);
         fields += fixtureFields;
         mismatches += fixtureMismatches + (fixture ? 0 : 1);
@@ -87,7 +60,7 @@ void RenderPropsShadowCityLoaded(cISC4City* city, int32_t julian) {
     lines = clean = 0;
     lastMonth = -1;
     if (!active) return;
-    Log("renderprops: ON; C-locale ASCII registry (542 fields) plus isolated native values/setters/P-U lifetime; RP7 live trace and private view snapshot unavailable; no whole-owner credit");
+    Log("renderprops: ON; C-locale ASCII registry (542 fields) plus isolated native values/setters/registry stability/P-U lifetime; RP7 live trace and private view snapshot unavailable; no whole-owner credit");
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian, true);
 }

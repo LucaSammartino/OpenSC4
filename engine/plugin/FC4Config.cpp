@@ -408,6 +408,19 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
                                   // Read-only regional-city live-record differential, default off.
                                   "regionalcity_shadow",
+                                  // Application path and message-mode observation, default off (AP17).
+                                  "app_shadow",
+                                  // Unresolved native lazy-path cache diagnostics only (AP18).
+                                  "app_shadow_path_cache",
+                                  // Sparse DX7 cached-state transitions, default off.
+                                  "gdriver_shadow",
+                                  "querytool_shadow",
+                                  // Published legacy owner-method comparisons; default off.
+                                  "legacyctl_shadow",
+                                  // VU16 partial view utility differential, default off.
+                                  "viewutil_shadow",
+                                  // MI14 finite isolated model-instance fixture, default off.
+                                  "modelinst_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -157,6 +157,51 @@ fn ef21_capture_has_aggregate_byte_budget() {
     assert!(r.bytes(1, 4).is_none());
 }
 
+fn sequence_fixture(flags: u32, named: bool) -> Image {
+    // Exactly the EF23 object extent is readable: no byte at D+1C exists.
+    let mut m = Image(vec![0; 0x201c]);
+    m.vector(0x1c4, 0x1000, 4 * 0x20);
+    m.vector(0x1074, 0x1800, 4);
+    m.put(0x1800, 0x2000);
+    m.put(0x2018, flags);
+    if named {
+        m.vector(0x1064, 0x1900, 4);
+        m.put(0x1070, 1);
+        m.put(0x1900, 0x1920);
+        m.string(0x1924, 0x1940, b"sequence");
+    }
+    m
+}
+
+#[test]
+fn ef23_complete_named_and_anonymous_sequence_flags() {
+    use super::payload::{copy_builtins, Kind, Value};
+    for named in [false, true] {
+        for flags in [0, 7, 0x80000005] {
+            let capture = copy_builtins(sequence_fixture(flags, named), 0x100).unwrap();
+            assert!(capture.supported());
+            let sequence = capture.families.iter().find(|f| f.kind == Kind::Component(6)).unwrap();
+            assert_eq!(sequence.names.len(), usize::from(named));
+            let payload = sequence.slots[0].payload.as_ref().unwrap();
+            assert_eq!(payload.get(&0x18), Some(&Value::Word(flags)));
+            assert_eq!(payload.get(&0xc), Some(&Value::Rows(vec![])));
+        }
+    }
+    let full = copy_builtins(sequence_fixture(0x80000005, false), 0x100).unwrap();
+    let masked = copy_builtins(sequence_fixture(5, false), 0x100).unwrap();
+    assert_ne!(full, masked);
+}
+
+#[test]
+fn ef23_vector_only_sequence_is_not_complete() {
+    use super::payload::copy_builtins;
+    for readable in [0x18, 0x1b] {
+        let mut m = sequence_fixture(7, false);
+        m.0.truncate(0x2000 + readable);
+        assert!(copy_builtins(m, 0x100).is_none());
+    }
+}
+
 #[test]
 fn ef21_resource_repeated_leases_and_released_publication_refuse() {
     use super::observation::{Event, Observation};

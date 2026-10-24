@@ -1,74 +1,59 @@
-# cSC4Airplane core
+# cSC4Airplane core owner
 
-The owner is `engine/core/src/automata/airplane/mod.rs`, re-exported as
-`fc4_core::automata::Airplane`. Shared aircraft placement and record codecs
-remain in `../aircraft.rs`; shared state stacks remain in `../automaton.rs`.
-There is no plugin wiring, C ABI change or foreign implementation of owner laws.
+`mod.rs` owns the airplane, re-exported as `automata::Airplane`. Shared placement,
+state and save codecs remain in `automata::aircraft` and `automaton`; ordered weapon
+requests are shared in `aircraft_actions`. No plugin or C ABI changes.
 
-`Airplane` stores its base record, home placement/loaded flag, independent AI and
-explicitly supplied player parameter records, optional flight phase/ammunition
-and optional LOITER timer. Unknown construction defaults remain unknown; the
-spec has not established a native Init/Shutdown contract (AF4). Reads need no
-city and replace an owner only on success. Read resets transient state; first
-placement Init restores saved home or captures the new placement once.
+Construction supplies three rounds, a clear drop flag and a zero remaining timer.
+Read replaces only the saved record, preserving these unsaved values on existing
+objects. LOITER requests dispatch state 5, spends one round on first visit without
+a positive-ammo gate, and expires at countdown <= 0. Animation's countdown stage
+uses converted/capped physics seconds before pursuing the goal. Phase requests
+return ordered sound actions; repeating the airplane phase is a complete no-op.
+The player-driven boolean is a supplied flag input independent of the goal stack.
+Other constructor fields remain unknown under AF4.
 
-Parameter import uses named binary32 fields, whole-record ancestor selection,
-encoded defaults, signed-zero fallback, and no range/non-finite sanitization.
-An empty table is 18 zeros. Short raw records violate the input precondition;
-they are never padded. Ancestor lookup deliberately has no cycle detector.
-The adapter supplies the selected airplane record after group import; the Lua
-importer's airplane/helicopter/watercraft alternative precedence is not an
-airplane-owner decision. Native playerdrive selection remains AF5.
-
-Numerical helpers expose the finite-input pre-force limiter, converted/capped
-time step, candidate integration, final ground projection, scalar lift curve,
-pressure, gravity, thrust gate, drag normalization and rolling resistance.
-They do not commit a flight tick. The force frame, angular update and environmental
-corrections remain AF2. No callback can provide substitute owner physics.
-Intermediates use f64 to approximate x87, with binary32 stores at stage boundaries;
-the conformance tests use the spec's explicit tolerances. Non-finite physics
-comparison details are open under AF10; literal comparisons do not sanitize them.
+Named parameter import selects whole ancestor records and preserves nonzero
+negative/non-finite values. Numerical helpers expose the velocity limiter,
+converted/capped time, candidate integration, ground projection, lift coefficient,
+pressure, gravity, thrust, drag normalization, rolling resistance and the force sum
+with a caller-supplied stored lift vector. They use f64
+intermediates to approximate x87 and binary32 stage stores. These stages do not
+commit a complete flight tick; AF2 still lacks lift frame, angular update and
+environment corrections. Non-finite native equivalence remains AF10.
 
 ## Owner closure
 
-Tests are in `engine/conformance/tests/airplane.rs` (new numerical vectors) or
-`engine/conformance/tests/aircraft.rs` (shared owner/record tests).
-Every unsettled row references an existing spec question; it is not a claim of
-a functioning native flight owner. Only explicitly specified stages are closed.
+All rows concern cSC4Airplane. New tests are in `aircraft_settled.rs`; prior
+parameter/record tests are in `aircraft.rs` and numerical tests in `airplane.rs`,
+all under `engine/conformance/tests`.
 
-| Owner | Spec section | Code item and covering test, or open question |
+| Spec section | Code item | Test or explicit open question |
 |---|---|---|
-| cSC4Airplane | aircraft §0 | `Airplane`; `aircraft_records_nest_base_and_home_without_traffic`; open: AF2/AF3 for full flight |
-| cSC4Airplane | aircraft §1 | `Airplane::class_id`, `CLSID_AIRPLANE`; `aircraft_records_nest_base_and_home_without_traffic` |
-| cSC4Airplane | aircraft §2 | `aircraft_altitude`, `clip_aircraft_to_world`; `altitude_uses_highest_surface_and_clip_keeps_outward_margin`; open: AF5 for DoPlayerDriveTick |
-| cSC4Airplane | aircraft §3.1 | `import_airplane_record`, `AirplaneDriveParameters::{load,from_list,default}`, `Airplane::init_data`; `airplane_default_and_explicit_speed_parameters`, `airplane_derived_defaults_and_explicit_overrides`, `named_record_missing_fields_and_whole_record_inheritance`, `parameters_preserve_negative_nonfinite_and_signed_zero_rules`, `raw_short_record_is_not_zero_padded`; open: AF5 for LoadPlayerDriveParameters selection |
-| cSC4Airplane | aircraft §3.2 | `init_data`, `airplane_effect_names`; `first_init_restores_loaded_home_and_never_recaptures_it`, `airplane_effect_resources_choose_fire_plane_propellers`; open: AF4 for probes, effect attachments, Init/Shutdown allocation, cleanup and failures |
-| cSC4Airplane | aircraft §3.3 | `pursue_goal`, `begin_loiter`, `tick_loiter`; `chase_rejection_obeys_shared_final_state_and_stack_indices`, `phase_and_loiter_ammo_are_independent_of_goal_stack`; open: AF3 for AI_GotoDestination/Land/TakeOff/Taxi/Stop/TurnToVector/FollowRay/FollowVectorAndTurn/ApproachAltitude, PickRunwayDirection/EvaluateClearance/PickApproachBox/FindFireNearLocation, failures, timer boundary/restore and empty ammo; open: AF6 for dispatch transitions |
-| cSC4Airplane | aircraft §3.4 | `set_airplane_state`, `update_physics` (Unsupported AF2); `phase_and_loiter_ammo_are_independent_of_goal_stack`, `unsettled_models_do_not_mutate_owners`; open: AF2 for CalculateForces complete frame, UpdatePhysics corrections, DetectCollisions and DoAnimationTick; AF4 for sound/effect actions; AF5 for TranslatePlayerDriveCommands and bombs |
-| cSC4Airplane | aircraft §3.4.1 | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity`; `time_conversion_caps_once_without_a_lower_clamp`, `pre_force_limiter_vectors`, `candidate_motion_uses_mean_velocity_and_no_second_cap`; open: AF2 for post-candidate correction/commit/collision/clip/attitude sequence, AF10 for non-finite comparison policy |
-| cSC4Airplane | aircraft §3.4.2 | `force_scalars`, `lift_coefficient`, `ForceScalars::{rolling_resistance,drag_magnitude}`; `scalar_lift_curve_and_horizontal_inverse_cosine`, `pressure_ground_resistance_and_drag_normalization`, `reverse_throttle_gate_only_blocks_backward_ground_motion`; open: AF2 for attitude-derived lift direction and complete vector force |
-| cSC4Airplane | aircraft §4 | Other owner (helicopter); no airplane behavior assigned |
-| cSC4Airplane | aircraft §5 | Other owner (dispatch sources); shared `initialize_fire_plane_station_units` updated to settled signed count and wrapping mask; `fire_plane_station_with_three_units_sets_available_property_to_seven` covers vectors 3/6 |
-| cSC4Airplane | aircraft §6 | `clip_aircraft_to_world`; `altitude_uses_highest_surface_and_clip_keeps_outward_margin` |
-| cSC4Airplane | aircraft §7 | Open: AF2–AF6, AF10; AF1/AF7/AF8 have been settled for airplane parameters/station masks |
-| cSC4Airplane | aircraft §8 | Vectors 1/2 in aircraft.rs parameter tests; 3/6 in station test; 4/5 and 8–13 in airplane.rs tests named above. Vector 7 belongs solely to helicopter §4.1, outside this owner assignment |
-| cSC4Airplane | automata §6.1 | Shared `AutomatonBase` codec; `aircraft_records_nest_base_and_home_without_traffic` |
-| cSC4Airplane | automata §6.2 | Shared state stack; `chase_rejection_obeys_shared_final_state_and_stack_indices` |
-| cSC4Airplane | automata §6.4 | `AircraftRecord`, `AircraftPlacementRecord`, `Airplane::{read,write}`; `aircraft_records_nest_base_and_home_without_traffic` includes same-input byte round-trip, `concrete_versions_accept_zero_but_aircraft_base_requires_one`, `truncated_owner_reads_are_atomic_at_every_byte_boundary`, `failed_aircraft_write_never_attempts_home_vector` |
-| cSC4Airplane | automata §6.5 | `pursue_goal` pops name-only CROP_DUST; `name_only_airplane_crop_dust_pops_without_a_flight_model`; open: AF3 for the destination sentinel/arrival, landed and fire-goal control contracts |
-| cSC4Airplane | automata §6.6 | Independent phase, phase-1 ammo refill, CHASE pop, separate LOITER timer; `phase_and_loiter_ammo_are_independent_of_goal_stack`, `unsettled_models_do_not_mutate_owners`; open: AF3/AF4/AF6 as above |
-| cSC4Airplane | automata §14 vector 15 | `AircraftRecord`, `AircraftPlacementRecord`; `aircraft_records_nest_base_and_home_without_traffic`, `concrete_versions_accept_zero_but_aircraft_base_requires_one` |
-| cSC4Airplane | automata-managers §1 | Class ID matches director registration; `aircraft_records_nest_base_and_home_without_traffic`; COM factory allocation remains outside core owner |
-| cSC4Airplane | automata-managers §2 | Foreign manager slot tables; no new airplane-owned behavior assigned |
-| cSC4Airplane | automata-managers §3 | Foreign traffic population; no airplane-owned behavior assigned |
-| cSC4Airplane | automata-managers §4 | Manager constructors/base helpers; no airplane-owned behavior assigned |
-| cSC4Airplane | automata-managers §5 | Vehicle-family slots; no additional airplane-owned behavior assigned |
-| cSC4Airplane | automata-managers §6 | No additional airplane quirk assigned |
-| cSC4Airplane | automata-managers §7 | No additional airplane open question assigned |
-| cSC4Airplane | automata-managers §8 | Manager conformance vectors; airplane owner vectors are aircraft §8 and automata §14 above |
+| aircraft §0 scope | `Airplane` | `vector20_loiter_spends_on_entry_countdown_expiry_and_unsaved_progress` |
+| aircraft §1 identity | `class_id` | aircraft.rs: aircraft record round-trip test |
+| aircraft §2 altitude/world bounds | shared `aircraft_altitude`, `clip_aircraft_to_world` | aircraft.rs: `altitude_uses_highest_surface_and_clip_keeps_outward_margin` |
+| aircraft §2 player tick | Full native tick unavailable | open: AF2/AF5 |
+| aircraft §3.1 parameter import/defaults | `AirplaneDriveParameters`, `import_airplane_record` | aircraft.rs parameter/default/ancestor tests; airplane.rs named record/non-finite tests (vectors 1/2/4/5) |
+| aircraft §3.2 Init/effects | `init_data`, shared `airplane_effect_names` | aircraft.rs: `init_loads_independent_ai_and_player_lists`; probes/attachment/Init/Shutdown: open AF4 |
+| aircraft §3.3 goals/runway/fire | `pursue_goal`, default CHASE/CROP_DUST pop | airplane.rs: `name_only_airplane_crop_dust_pops_without_a_flight_model`; complete steering/runway/fire sequencing: open AF3/AF6 |
+| aircraft §3.3.1 LOITER/countdown/ammo | `visit_loiter`, `tick_loiter_with_multiplier`, `read` | `vector20_loiter_spends_on_entry_countdown_expiry_and_unsaved_progress` |
+| aircraft §3.4 full flight | `update_physics` returns Unsupported | open: AF2 (complete force/attitude/corrections), AF5 (full player commands) |
+| aircraft §3.4.1 translational stages | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity` | airplane.rs: `time_conversion_caps_once_without_a_lower_clamp`, `pre_force_limiter_vectors`, `candidate_motion_uses_mean_velocity_and_no_second_cap` (vectors 8–10); non-finite policy: open AF10 |
+| aircraft §3.4.2 force scalars/sum | `force_scalars`, `lift_coefficient`, `ForceScalars::force_with_lift` | airplane.rs scalar lift/pressure/resistance/thrust tests (vectors 11–13), `force_sum_uses_supplied_lift_frame_and_vertical_ground_load`; full lift frame: open AF2 |
+| aircraft §3.5 phase sounds | `set_airplane_state` | `vectors21_22_distinct_phase_actions_and_repeat_rules`; physics/collision phase triggers: open AF2/AF4 |
+| aircraft §4 helicopter-only contracts | Other owner: `helicopter` | See helicopter/README.md |
+| aircraft §4.3 common airplane weapon block | `weapon_requests` | `vector23_weapons_fallback_readiness_and_wrapping_use_count`; full translator/projectile/readiness cadence: open AF5 |
+| aircraft §5 dispatch sources | Shared `initialize_fire_plane_station_units`, foreign source owners | aircraft.rs: station signed-count/wrapping-mask test (vectors 3/6); airplane dispatch/message conditions: open AF6 |
+| aircraft §6 world margin | shared clip helper | aircraft.rs altitude/world-margin test |
+| aircraft §7 open questions | Explicit Unsupported boundaries | open: AF2–AF6, AF10, AF11 (native helicopter adapter, no new airplane behavior) |
+| aircraft §8 conformance | Parameter/numerical vectors 1–6/8–13 plus new airplane vectors 20/21/23 | Tests above; helicopter-only vectors are covered by the helicopter owner |
+| automata §6.1/§6.2 shared base/stack | reused `AutomatonBase` | aircraft.rs: chase final-state/stack-index and nested record tests |
+| automata §6.4 codec/home | `read`, `write`, shared placement | aircraft.rs: round-trip, accepted concrete version zero, atomic truncation, failed-write home-vector gate |
+| automata §6.5 goal handlers | `pursue_goal`, `begin_loiter` | default pop tests and vector 20; full destination/land/fire sequencing: open AF3/AF6 |
+| automata §6.6 independent phases/LOITER | phase setter/countdown | vectors 20/21; full AI switch: open AF3 |
+| automata §14 vector 15 | shared aircraft records | aircraft.rs nested codec round-trip tests |
+| automata §15 creation | Foreign manager/director | Full native allocation/lifecycle: open AF4 |
 
-An in-game shadow needs an adapter to observe matching native airplane parameter
-records and pre-correction candidate/scalar inputs/results. Those isolated stages
-are feasible comparison targets with the documented tolerances. An end-to-end
-trajectory shadow awaits AF2–AF6 and lifecycle integration; no game request is
-made by this core-only change.
+No full game shadow or trajectory equivalence is claimed while AF2–AF6 remain
+open. This lane supplies portable core behavior and independent conformance inputs.

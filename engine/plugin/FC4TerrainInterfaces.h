@@ -242,7 +242,9 @@ public:
 // Every offset below is the struct-relative one; the object offset is +0x0C.
 struct TerrainFields {
     uint8_t initialized;                 // 0x00  (object +0x0C)  slot 5
-    uint8_t _p01[0x0B];                  // 0x01..0x0B
+    uint8_t _p01[7];                     // 0x01..0x07
+    uint8_t postCityInit;                // 0x08  (+0x14)  once-only guard
+    uint8_t _p09[3];                     // 0x09..0x0B
     int32_t terrainType;                 // 0x0C  (+0x18)  slots 41/42
     void* city;                          // 0x10  (+0x1C)
     uint32_t _p14;                       // 0x14  (+0x20)
@@ -280,6 +282,7 @@ struct TerrainFields {
     uint8_t _pE1[3];
 };
 static_assert(offsetof(TerrainFields, initialized) == 0x00, "+0x0C");
+static_assert(offsetof(TerrainFields, postCityInit) == 0x08, "+0x14");
 static_assert(offsetof(TerrainFields, terrainType) == 0x0C, "+0x18");
 static_assert(offsetof(TerrainFields, city) == 0x10, "+0x1C");
 static_assert(offsetof(TerrainFields, surfaceWater) == 0x18, "+0x24");

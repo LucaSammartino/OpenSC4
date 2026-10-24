@@ -56,6 +56,9 @@ Shared and unattributed code stays in the denominator and never counts as done.
 ## Owners to subsystems: `tools/coverage-map.tsv`
 
 Each owner matches the first row whose glob matches (classes, `ns::*`, `fn:<name>`; catch-all rows at the end). A row
+whose pattern is `m:<Class>::<Method>` names one function (exact name, as `re/names_windows.tsv` gives it) and wins over
+the owner rows: it credits a partial shadow with only the functions it really compares on a game path, so the
+owner's other methods keep the owner row's statuses. A row
 gives the subsystem, its area (simulation, framework, renderer, ui, audio, region, other) and four things the
 statuses are computed from: spec files, core module paths, shadow ini key, replace ini key. The report warns about
 missing spec or core files, unknown keys and rows that match nothing; it also lists the biggest owners only a

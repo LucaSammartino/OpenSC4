@@ -1,5 +1,13 @@
 # legacy-control: answered questions
 
+<!-- from: glue-legacyctl-shadow12 (2026-10-24) -->
+- **LC15 - sections 6 and 9 observable build boundary:** which native callers dispatch SetParameters through the primary vtable, and what published interception boundary also covers direct SetParameters/per-type calls? Please specify calling conventions, input registers/stack, and a safe hook span or return site for that boundary. [choice: patch only the published primary vtable entry; count builds seen there but exclude full property/interpreter replay from the owner-only shadow. No inline patch or inferred instruction boundary.]
+  **ANSWERED 2026-10-24 (re-legacyctl-lc16):** DIFFERS — sections 6.1–6.2 identify ScriptTag's primary-slot dispatch at 0x0094BADA, publish SetParameters thiscall entry/sole return and cdecl interpreter inputs, and give byte-verified entry prefixes for Common and 19 non-empty type callbacks. SetParameters has zero exported direct callers; runtime indirect callers are not exhaustively enumerable from that list. Custom is a shared one-byte return, so its build invocations use the two published builder call spans; arbitrary shared-return calls have no uniquely recoverable Custom identity or widget effects. LCV46–LCV50 cover direct, virtual, standalone, no-op and failure accounting. No implementation or full-shadow verdict is claimed.
+
+<!-- from: glue-legacyctl-shadow12 (2026-10-24) -->
+- **LC14 - section 7.2 native return contracts:** what are the return contracts of ForceControl and UseWinProc, including equal-pointer and null-pointer paths? The ABI inventory labels these via-call and the prose specifies ownership effects without a return type. [choice: do not intercept these methods until the return contract is published; owner-only shadow intercepts only published scalar/pointer/void methods.]
+  **ANSWERED 2026-10-24 (re-legacyctl-lc16):** DIFFERS — section 7.2 publishes void x86 thiscall contracts for every path, including equal/null pointers. EAX/AL is unspecified, not a comparable scalar; compare reference effects and slot identity. LCV44–LCV45 cover replacement and equal/null cases.
+
 <!-- from: re-legacycontrol4 (2026-10-21) -->
 - **LC5 - section 6:** is cIGZWinMgr slot 3 (+0x0C), used as the default parent in SetParameters step 11, the root/main window? [inferred: yes]
   **ANSWERED 2026-10-23 (re-legacy-control5b):** MATCHES — the manager's current main/root window, also returned by cGZWin::GetMainWindow; borrowed result, replaceable through manager slot 4, not necessarily the initially created base window. See section 6.

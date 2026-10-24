@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 631 (amarret's audio and UI spec PRs (OpenSC4#11, #12) landed, specified 78.0% -> 82.0%; lot unit and base texture shadows verified; first stall-free regress after the Defender exclusions.); 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.); 622 (Failed initial attempt retained separately; no coverage credit claimed.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 659 (modelinst partial shadow landed (run 5); renderprops and app exact in the house regress; demand and landvalue flaked.); 652 (partial shadow method audit landed (run 5): 44 functions, 4,070 bytes.); 651 (map view answers complete; render property and application partial shadows landed (run 5).); 649 (renderprops registry and owned fixture exact 73/73 through 2032); 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

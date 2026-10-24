@@ -33,8 +33,7 @@ loads the exemplar; the map is redrawn when the source's simulator reports new d
 - **Activation**: `0x26D31EC1` registers the view for animation ticks and marks it active (`+0x142`);
   `0x26D31EC2` unregisters it and clears the flag. While inactive, `SetDataView` and `Update` do nothing.
 - **`ShowWindow`** (`0x007A6290`) / **`HideWindow`** (`0x007A64D0`) / **`ShowLargeWindow`** (`0x0079DE70`) show and hide
-  the panels `0x8A2871B1`, `0x8A2871B2`, `0xAA32BCD4`, `0xAA32BCD5`, `0x8A2871C3` and `0x8A2871C4` (the small map,
-  the large map, the legend) *[summary]*; showing also redraws the legend and resets the data view (§3.3).
+  the panels specified in §1.2; showing also redraws the legend and resets the data view (§3.3).
 
 `Init` does not propagate the window generator's return value or the three subscription results. If it needs
 the message server and that server is absent, it returns false, after setting its initialization latch; it
@@ -63,6 +62,52 @@ Two hooks without an intervening unhook therefore repeat subscription attempts f
 the owner neither rejects repeated hooks nor promises that the foreign message server delivers duplicates
 (`0x007A17B9`–`0x007A17FE`, `0x007A193A`–`0x007A1974`).
 
+### 1.2 Panel visibility and opening/closing (QV3) *[compat]*
+
+The four layout operations set the following child visibility flags (window flag 1). A dash means
+**leave the existing flag alone**, including on a previously visible child; it does not mean hide.
+These are child flags, not a promise that an ancestor is visible. IDs, rather than inferred artwork
+names, identify the panels. `L` is the current legend-content flag (`+0x9B6`, maintained by §6).
+
+| Child ID | Small | Standard large | Desirability group | Traffic group |
+|---|---|---|---|---|
+| `0x8A2871B1` (B1) | show | hide | hide | hide |
+| `0x8A2871B2` (B2) | show | show | show | show |
+| `0xAA32BCD4` (D4) | hide | show | hide | hide |
+| `0xAA32BCD5` (D5) | hide | hide | show | show |
+| `0x8A2871C3` (C3, legend container) | hide | show | show | show |
+| `0x8A2871C4` (C4, legend rows) | hide | L | hide | hide |
+| `0xCB72F247` (CB) | — | — | hide | show |
+| `0x8100`, `0x8101` | — | hide | hide | show |
+
+Visibility setters search below the root window and ignore missing children. None of these four
+operations selects a view, updates memories, or changes subgroup enable/selection flags.
+Evidence: standard large `0x0079DE70`–`0x0079DF06`, desirability `0x0079DF10`–`0x0079DFAD`,
+traffic `0x0079DFB0`–`0x0079E04D`, small `0x0079E050`–`0x0079E0BD`.
+
+`ShowWindow` shows B1 only when C3 is currently hidden, always shows B2, assigns this window as
+message target to each existing child in its 82-entry control-ID table, and requests view zero's
+legend. It does not indiscriminately apply one of the four layouts. When desirability memory D is
+still its construction sentinel 99, it additionally selects buttons 5001/6001/8001/8100/8003 where
+their button interfaces exist, disables 8003–800C and changes D to `0x28`. Later shows preserve
+those selections, subgroup enable states, traffic memory and alternate byte. Every show sets the
+map-enabled byte and calls ResetDataView (`0x007A6290`–`0x007A64BE`).
+
+`HideWindow` first requires child B1 to exist; otherwise it does nothing. With B1 present it hides
+`0x4200`, B1, B2, D4, D5, C3 and C4, clears the map-enabled byte, then calls ResetDataView.
+The group's memories, CB and the alternate controls are not individually reset/hidden by this
+operation (`0x007A64D0`–`0x007A6574`).
+
+Accepted commands `0xCA2871F0`/`0xCA2871F1` refresh highlights and bitmap, then apply standard large
+and consume the message. `0xA32CACD4`, `0x0A32CAC3`, `0xEA8B80A7` and `0xEA8B80A8` apply small.
+Commands `0x4A32CA92`/`0xEA8B80A6` expand according to the controls/current source: a selected
+queryable 5005 takes precedence and applies desirability with D; otherwise source 76 applies traffic
+with T, source 9 applies traffic with 9, and every other source applies standard large with M.
+Each of those expansions requests the chosen view and legend but does not update D/T/M or change
+subgroup enable/selection. A failed 5005 button query takes the source-based path. The hide buttons
+`0xEA2871D9`/`0xEA2871E9` invoke HideWindow. Except for the two consumed CA commands, these accepted
+paths continue through the base window handler (`0x007A5E4B`–`0x007A60BF`).
+
 ## 2. The data view exemplar *[compat]*
 
 Data view `n` is the exemplar with key (type `0x6534284A`, group `0x690F693F`, instance `0x4A0B6800 + n`), loaded
@@ -72,7 +117,7 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 |---|---|---|
 | `0x4A0B47E5` | u32 | the **source** (§4.1) |
 | `0x4A0B47E4` | u32 pairs | the colour ramp: (value, ARGB) pairs, interpolated into a 256-entry palette |
-| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); used when `1 < s < 2^24`, else 256 |
+| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); absence/invalid range leaves conversion factors 256; explicit valid 256 recomputes them |
 | `0x4A0B47E7` | bool | **interpolate**: a coarse grid is resampled to cells before drawing |
 | `0x4A0B47E8` | u32 | **block by lot**: present → every lot is drawn as one value, with this argument (§4.3) |
 | `0x4A0B47ED` | u32 | the desirability layer for the per-wealth sources (default 1, §4.1) |
@@ -85,9 +130,9 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 | `0x4A0B47E1` | bool | the filter shows every type but the listed ones; without it, a list shows only its types and no list shows every type |
 | `0x4A0B47E2` | bool | the filter hides the base textures of empty lots, and the signposts and text decals the type test leaves out |
 | `0x4A0B47F0` | bool | passed (false when absent) to the lot developer's `SetForceEmptyLotBaseTextures` (building development simulator slot 36, then lot developer slot 47) |
-| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | terrain view mode 0 → 1, 1 → 3, 2 → 2 (normal, pipes, subway *[inferred]*) |
+| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | E3 selects city level plus terrain display; F1 subsequently overrides the filter's level options only; 0 → 1 normal, 1 → 3 pipes, 2 → 2 subway (§3.1) |
 | `0x6B7C5CDD` | u32 list | up to eight bytes kept for the source (the travel types of the traffic volume views) |
-| `0x4A0B47E6` | u8 | a zone display option *[summary]* |
+| `0x4A0B47E6` | u8 | zone display alpha; absent → zone manager's default, not the previous view's alpha (§3.1) |
 | `0x4A0B47EB` | u32 | a GZCOM class made with IID `0x8A175D6B` (the pipe, subway and regional transport tools' views) |
 | `0x4A0B47F5` | bool | sets a flag of the map's child `0x4203` (IID `0xCA318385`) |
 
@@ -163,6 +208,43 @@ shut down and released, the update subscriptions dropped (`UnhookUpdateMessages`
   their alpha (`floor((c × a + 128) / 256)`); the city view gets the filter and the terrain the view mode; then
   `UpdateHighlights`, `Update`, the child `0x4203` flag, the current view := `n`, `HookUpdateMessages` (§7).
 
+#### Terrain and zone display (QV1) *[compat]*
+
+These settings affect the **3D city**, independently of the minimap's data source. E3 chooses the
+city-view level and the two terrain display flags. Start at normal level 1; E3 values 0/1/2 choose
+normal/pipes/subway levels 1/3/2. An absent or unrecognized E3 leaves normal level 1.
+
+| E3 / selected level | Plumbing coverage display (terrain slot 86) | Surface water display (terrain slot 84) |
+|---|---|---|
+| absent, 0, or invalid / 1 | off | on |
+| 1 / 3 (pipes) | on | off |
+| 2 / 2 (subway) | off | off |
+
+The plumbing flag enables the terrain view's pipe-coverage rendering (terrain-view §8.2), rather
+than changing the source grid of this map. The water flag controls the visible surface-water pass;
+turning it off does not remove water from the simulation. Slot 86 stores a global display byte;
+slot 84 stores the terrain's water-display byte and, on change, emits `0x6AB97795` carrying the new
+byte so the terrain view updates. Repeating the same flag does not emit another water-state change.
+F1 is read **after** these terrain flags and the city level have been set. Its mapped mode controls
+the occupant filter's underground/level options; it does not rerun the terrain settings. Thus
+E3=1,F1=2 keeps the plumbing display on and surface water off, while using the subway filter options.
+The detailed occupant-filter type rules remain in occupant-manager §13.2.8.
+
+E6 is an **opacity byte**, not a zone-type mask or a choice of zone grid. Before each nonzero view,
+obtain the zone manager's default alpha (slot 17, its retained configuration default). A present E6
+replaces that byte; apply the result through slot 18. Zero makes zone display transparent; 255 is
+full alpha. The setter changes the common current zone alpha and refreshes affected zone/lot visuals
+only when the byte differs. It does not change the retained default. Selecting none restores the
+default alpha, disables plumbing display and enables surface water, alongside the normal city level
+and default filter. An absent E6 likewise restores the configured default even after an explicitly
+transparent prior view. No owner-side alpha interpolation or alpha scaling is performed here.
+
+Evidence: none reset `0x007A4A67`–`0x007A4AB5`; E3 level/terrain setup
+`0x007A4D7B`–`0x007A4DA5`, later F1/filter options `0x007A4DB2`–`0x007A4E42`;
+E6 default/override/application `0x007A4EBC`–`0x007A4F00`; terrain setters
+`0x00741FF0`–`0x00741FFB`, `0x007434E0`–`0x0074354C`; zone default getter
+`0x004DC370`–`0x004DC376` and current-alpha setter `0x004DCF60`–`0x004DD04F`.
+
 #### Selection completion and foreign failures *[compat]*
 
 Selection is not atomic. In particular, a failed exemplar lookup returns false **after** the old custom view
@@ -194,7 +276,7 @@ This describes normally returning primitives. It does not make a null required s
 handle, a fault or an exception into a native false result. Several required interfaces are dereferenced
 without null checks. A portable adapter may diagnose those invalid inputs *[choice]*, but an opaque adapter
 error and immediate stop is not the native rule for the ordinary false results listed above. Property/ramp
-domains and the meanings of reset primitives remain the separate questions QV1 and QV6;
+domains and reset primitives are specified in §2.1 and the QV1 subsection above;
 palette construction and building reconciliation are specified below (QV7–QV8).
 
 ### 3.2 Buttons (`DoMessage`, `0x007A56E0`; tutorial-filtered commands `0x287259F6`)
@@ -209,10 +291,10 @@ palette construction and building reconciliation are specified below (QV7–QV8)
 | `0x5006`, `0x5007` | 10 water, 7 power |
 | `0x5009`, `0x500A`, `0x500B`, `0x500C`, `0x500D` | `0x20` age, 2 land value, 1 mayor rating, `0x1E` zones, `0x1C` HQ |
 | `0x500E`, `0x500F`, `0x5010`, `0x5011` | 8 air, `0x18` water, `0x19` garbage, `0x1A` radiation pollution |
-| `0x5005`, `0x5008` | a group's last view (`0x5008`: 9 traffic when the toggle `0x8001` is down) *[summary]* |
+| `0x5005`, `0x5008` | the remembered group request, as specified in §3.2.1 |
 | `0x6001`–`0x600C` | `0x28`–`0x2A`, `0x32`–`0x36`, `0x3C`–`0x3F` (desirability by wealth) |
 | `0x8001` | 9 traffic; `0x8002` the last traffic volume view; `0x8003`–`0x800C` views `0x4C`–`0x55` |
-| `0x8100`, `0x8101` | a two-way toggle (`+0x9AC` := 0 / 1) and `ResetDataView` *[summary]* |
+| `0x8100`, `0x8101` | normal/alternate traffic data (`+0x9AC` := 0 / 1) and ResetDataView (§3.2.1) |
 
 The buttons `0x51xx` and `0x61xx` act as `0x50xx` and `0x60xx`. `0xCA2871F0`, `0xCA2871F1` redraw and show the
 large map; `0x8A2871D5` posts the command `0x6A935CF1` (`0x00B43CB0` slot 20); `0xA32CACD4` and `0x0A32CAC3` return
@@ -224,10 +306,60 @@ then remembers the requested view for the mode button. This also happens after a
 selection failure. It does not substitute the still-current view in the legend request
 (`0x007A0F54`–`0x007A0F91`).
 
+### 3.2.1 Panels and remembered group selections (QV3) *[compat]*
+
+There are three independent remembered **requested** view IDs: desirability `D` (owner `+0x9A0`),
+traffic volume `T` (`+0x9A4`) and top-level mode `M` (`+0x9A8`). Construction gives
+`D=99,T=0x4C,M=0`, and the alternate-traffic byte `A` (`+0x9AC`) is zero. The sentinel 99 is replaced
+by `0x28` on the first `ShowWindow`; it is not a selectable data view. These memories are separate
+from the currently loaded view and from ResetDataView's saved/queued request.
+
+Button exclusion selects the named button and deselects the others in its contiguous group, querying
+IID `0x8810`; absent/nonbutton children are skipped. The groups are `0x5001`–`0x5011`,
+`0x6001`–`0x600C`, `0x8001`–`0x8002`, `0x8003`–`0x800C`, and `0x8100`–`0x8101`.
+The `0x51xx`/`0x61xx` aliases use the canonical `0x50xx`/`0x60xx` button for exclusion.
+
+| Accepted button | Selection, legend and memory behavior |
+|---|---|
+| Ordinary `0x50xx`/`0x51xx` in §3.2 | Exclude in the top-level group; request its mapped view and legend; if `0xAA32BCD5` is visible, switch to the standard large layout (§1.2); set `M` to the requested ID. Leave `D,T` alone. |
+| `0x5005` / `0x5105` | Exclude in the top-level group; show the desirability layout; request `D` and its legend; set `M=D`. |
+| `0x6001`–`0x600C` / `0x6101`–`0x610C` | Exclude in the desirability group; request the mapped view and its legend; set `D` to that ID. Leave `M,T` and the layout alone. |
+| `0x5008` / `0x5108` | Exclude in the top-level group; show the traffic layout. If button `0x8001` can be queried and is selected, request 9 and its legend and set `M=9`; otherwise request `T` and its legend and set `M=T`. Leave `T` alone. |
+| `0x8001` | Exclude in `0x8001`–`0x8002`; disable `0x8003`–`0x800C`; request view 9 and its legend. Leave `D,T,M` and the layout alone. |
+| `0x8002` | Exclude in `0x8001`–`0x8002`; enable `0x8003`–`0x800C`; request `T` and its legend. Leave `D,T,M` and the layout alone. |
+| `0x8003`–`0x800C` | Exclude in the volume subgroup; request the corresponding view `0x4C`–`0x55` and its legend; set `T` to that ID. Leave `D,M` and the layout alone. |
+| `0x8100` / `0x8101` | Exclude in the two-button group; set `A=0` / `A=1`; call ResetDataView. Leave `D,T,M` alone. |
+
+Enable/disable acts on window flag 2, querying IID `0x22BA0121` for each of the ten volume controls;
+missing controls are skipped. The handler itself does not reject a synthetically delivered volume
+button merely because its window is disabled. Group entry does not recompute the subgroup's enable
+state. All memories, exclusion, legend requests and layout changes above still occur when SetDataView
+returns false or uses its same-view shortcut. Consequently selecting a subgroup can leave `M` stale
+until its top-level group is entered again. The alternate byte selects the traffic simulator's
+normal/alternate density data (and ferry counts in §4.1); it is not a new view ID. Resetting does not
+force a bitmap draw past the ordinary same-view guard.
+
+The accepted command button `0x8A2871D5` dispatches registered command **Cancel**, `0x6A935CF1`, through
+the command service (`0x00B43CB0`, slot 20) with arguments zero/zero. This path does not itself select
+view zero, hide a panel or change a remembered group; the registered command handler performs the
+cancellation (see [view3d-window.md](view3d-window.md), command inventory).
+As with the other accepted button paths, processing then continues through `cGZWinGen::DoMessage`.
+A tutorial-filter rejection consumes the message before these effects.
+
+Evidence: initial memories in constructor `0x007A0D50`–`0x007A0F05`; exclusion `0x0079E540`–`0x0079E59B`;
+ordinary/subgroup helpers `0x007A0F30`–`0x007A101C`; group entries `0x007A57D6`–`0x007A5918`;
+traffic enable/selection `0x007A5C0A`–`0x007A5CC7`; alternate flag and Cancel dispatch
+`0x007A5E12`–`0x007A5EFC`; enable helper `0x0079E5A0`–`0x0079E5FB`.
+
 ### 3.3 `ResetDataView` (`0x007A5610`)
 
-Sets the view of the current mode button again and redraws the legend when the legend panel `0x8A2871C3` is visible
-*[summary]*.
+Select the front queued view request if there is one; otherwise select the saved view (`+0x9D4`)
+while the map-enabled byte (`+0x9D8`) is set, or zero while it is clear. This is not a lookup of `M`
+or the selected mode button. A queued request takes precedence even while the map is hidden.
+Controls `0x8A2871D6` and `0x8A2871C5`, if present, receive visibility flag 1 as follows: only the
+saved-view case shows D6 and hides C5; the queued and disabled/no-queue cases hide D6, show C5 and
+invalidate C5. Redraw the selected request's legend if `0x8A2871C3` is visible
+(`0x007A5615`–`0x007A56CC`).
 
 The selection is an ordinary `SetDataView` call; it does **not** bypass the same-view guard. Its result does not
 gate the remaining panel updates or the visible legend refresh (`0x007A5644`–`0x007A56D1`). Thus resetting an
@@ -257,7 +389,7 @@ from the source's grid:
 | 29 | the city slot 70 object (`0x00B43DAC`, the weather simulator *[inferred]*), slot 18 | unsigned 8-bit, own cells |
 | 30 | residential slot 41 (the age map) | unsigned 8-bit |
 | 64–75 | the growth developer of the source's type (below; building development slot 32) | by layer (below) |
-| 76 | the traffic volume of the kept travel types *[summary; QV2]* | — |
+| 76 | fresh volume/direction grids from the kept travel types; ferry view `0x54` uses routes (below) | unsigned 16-bit, with animated bands |
 
 The developer types of sources 64–75 are `0x1010`, `0x1020`, `0x1030` (R), `0x3110`, `0x3120`, `0x3130` (CS),
 `0x3320`, `0x3330` (CO), `0x4100`, `0x4200`, `0x4300`, `0x4400` (I), in that order.
@@ -266,6 +398,30 @@ Sources 11, 13–23 and 31–63 draw nothing *[quirk: the shipped zones and the 
 (sources 11, 20–23) leave the map empty]*. For sources 64–75 the layer (`0x4A0B47ED`, or 6 when the debug flag
 `+0x9E0` is set) picks the developer's grid: 2 → slot 14 (unsigned 16-bit), 3 and 4 → slot 13 (signed 16-bit),
 5 → a grid built by `0x007A2080` (signed 16-bit), 6 → a debug grid of slot 11's entries × 12 (signed 16-bit).
+
+#### Remaining developer layers (QV11) *[compat]*
+
+**Layer 1 selects no grid.** It is the exemplar default but is not a handled developer layer; like
+any layer other than 2–6 it leaves the newly cleared map empty. It is neither slot 12 nor a synonym
+for layer 3. Layers **3 and 4 are identical** at this owner: the same slot-13 signed-16 grid, geometry,
+conversion, lot handling and overlay are used. The selected layer need not be collapsed in stored
+exemplar state, but no distinct rendering rule exists for those two values.
+
+Layer 6 constructs a fresh zero-filled signed-16 grid. Its x/z dimensions are the slot-13 grid's
+dimensions (grid slots 12/13); its world cell width/height are also that grid's (slots 14/15).
+Developer slot 10 is the availability predicate: if false, no debug values are drawn. If true,
+developer slot 11 supplies an ordered flat sequence of **12-byte records**, three signed 32-bit words
+`(x,z,value)`. For each record, replace cell `(x,z)` with the low 16 bits of `value×12`, interpreted
+as signed 16-bit. Unmentioned cells remain zero; later duplicate coordinates overwrite earlier ones.
+There is no summation, sorting, normalization or saturation. The owner does not bounds-check record
+coordinates; malformed coordinates/storage are unsafe inputs, not clipped records. The rendering walk
+is the ordinary x-outer/z-inner grid walk, independent of record order after these replacements.
+
+Layer 6 temporarily disables interpolation while passing this grid through the ordinary signed-16
+conversion/drawing path, then restores the previous interpolation flag. It does not change the
+exemplar's saved layer. The debug override chooses layer 6 even when ED is absent or names another
+layer. Evidence: layer dispatch and shared 3/4 branch `0x007A4408`–`0x007A44A4`, debug-grid construction,
+entry replacement and interpolation restoration `0x007A44E1`–`0x007A45F1`.
 
 #### Layer 5: capacity percentage (QV4) *[compat]*
 
@@ -290,6 +446,93 @@ the percentage operation (`0x0068C270`, `0x006B4710`; signed/unsigned loads `0x0
 two arithmetic shifts `0x0068C403`/`0x0068C40A`, `0x006B48A3`/`0x006B48AA`). The resulting grid then uses
 the ordinary signed-16 display path; its palette conversion is separate (QV5).
 
+#### Traffic volume (QV2) *[compat]*
+
+Source 76 is a reconstruction, not a simulator-owned scalar map. Each update creates three zero-filled
+city grids at tract size 1 (shift 0, one value per city cell): unsigned-16 volume `V` and signed-16 directional
+balances `X,Z`. There is no reuse of the preceding update's values. The retained travel-type bytes
+from §2 are an ordered list, including duplicates. The alternate-count flag is true exactly when
+`+0x9AC == 1`; the two traffic buttons set it to 0 or 1 (§3.2).
+Construction and widths: `0x007A3621`–`0x007A376F`; tract-size geometry `0x00465643`–`0x00465699`.
+
+**Ordinary views (current view other than `0x54`).** At each cell, a travel type contributes only when
+traffic slot 23, `GetCapacity(networkType,x,z)`, returns a value strictly greater than zero. Capacity
+is only an eligibility test; there is no division by it. The mapping is:
+
+| Retained travel byte | Capacity network type |
+|---|---|
+| 0 | 0 |
+| 1, 2, 4 | 1 |
+| 3, 5 | 2 |
+| 6 | 3 |
+| 7 | 4 |
+| 8 | 5 |
+| any other byte | 1 |
+
+For an eligible entry, traffic slot 12 `GetTrafficEdgeDensity(x,z,travelByte,alternate)` supplies
+17 unsigned words. Write `h[k]` for its word at byte offset `2k`; these are raw directional counts,
+not signed shorts. The scalar count is `h[16]`. Its two balance contributions are:
+
+- `X = 2(h[2]−h[8])−h[4]−h[9]−h[12]−h[11]+h[3]+h[1]+h[6]+h[14]`.
+- `Z = 2(h[7]−h[13])−h[9]−h[12]−h[1]−h[14]+h[4]+h[3]+h[11]+h[6]`.
+
+Sum each balance across the eligible list in signed 32-bit arithmetic, then saturate each final
+cell balance to `−32768…32767`. Before adding each eligible scalar count, if the scalar accumulator
+is still zero, replace it with `B = low16(((s+383) mod 2^32) >> 8)`. After the list, cap the scalar
+accumulator at `L = low16(((s×255) mod 2^32) >> 8)` and store it in `V`. Here `s` is the stored unsigned
+scale field, including an absent scale's default 256; this bias/cap is independent of the palette
+factors in §4.2. No eligible entry means zero, even when `B` is nonzero. Duplicate entries contribute
+again. The per-cell sums fit signed 32 bits for the eight retained entries; the scale products/addition
+have the explicit unsigned wrapping just stated. Mapping, eligibility and record arithmetic:
+`0x007A3AB2`–`0x007A3D6D`; scale shifts `0x007A371A`–`0x007A373C`.
+
+**Ferry view `0x54`.** The view identity, rather than a travel byte, selects this path. Obtain the
+ordered routes in use from traffic slot 31. For each route, traverse its first compressed path and
+then its second with `cSC4CompressedRouteReader` (`SetData`/`GetNext`). Every returned point adds the
+path's unsigned count to `V` modulo 65536. The first/second counts are the route words at offsets
+`0x14/0x16`, or `0x18/0x1A` with alternate counts. There is no ordinary-path bias, cap, capacity test
+or travel-list filtering. Repeated points, including endpoints, contribute again. Each point's outgoing
+direction byte contributes to one balance: 0 subtracts the count from X, 1 subtracts it from Z,
+2 adds it to X, 3 adds it to Z; any other direction (including the terminal `0xFF`) changes neither.
+Saturate the affected signed balance **after each point**, preserving route/path order, rather than
+saturating a final sum. Coordinates are the reader's signed 16-bit cell coordinates and index the
+grids directly; out-of-city routes are unchecked native inputs, not a clipping policy.
+Evidence: `0x007A3789`–`0x007A3AAD`, direction tables `0x007A4920/30`, reader `0x006D6510`.
+
+**Drawing and animation.** Before drawing V, stamp the damaged-road sprite into the bitmap at every
+cell for which traffic slot 16 is true (`0x0079F4D0`). Load the bitmap key stored at `0x00B0DB80`
+once per update, on the first damaged cell; a null result stops this sprite pass only. Place the
+sprite centred at `(trunc(x×q),trunc(z×q))`, where `q = binary32(bitmapWidth/cityCellWidth)`, rotating
+by the negative camera orientation modulo four, and clip to the bitmap. Sprite blending uses its
+alpha `a`: each RGB channel is `floor((D×(256−a)+S×a+128)/256)` and output alpha is
+`min(255, Da−floor((Da×a+128)/256)+a)`. See `0x0079F509`–`0x0079F5E4`, sprite helper `0x0079E600`.
+
+When the 3D overlay is enabled, collect marked cells **before** animation: every damaged cell is
+included with colour zero; an undamaged cell is included iff V is nonzero, with palette index
+`low16(trunc(V×255/s))`. This index is not clamped; a zero scale or index outside the owned palette
+is an unsafe numeric/access domain, not a native fallback colour. Publish the cells, parallel
+colours and the temporary grid's cell sizes (`0x007A3D8B`–`0x007A3F84`).
+
+A process-wide phase counter increments on each source-76 draw and wraps from 15 to 0. For `V>10`,
+compare `abs(X/V)` with `abs(Z/V)`. Strictly larger X selects coordinate x; ties select z. A selected
+ratio greater than binary64 `0.9` uses that coordinate; less than binary64 `−0.9` uses its bitwise
+complement; otherwise the value is unchanged. If the chosen coordinate's low four bits equal the
+phase, replace V by `low16(s)`. X/V is stored to binary64 before its threshold comparisons; Z/V
+remains in x87, and the magnitude comparison uses the unspilled quotients. Thus ordinary integer
+cases follow the rule above without imposing a binary32 ratio rounding. Values 0…10 never animate
+(`0x007A376F`–`0x007A3789`, `0x007A3FF0`–`0x007A40D4`).
+
+Finally draw the modified V using the standard unsigned-16 conversion (§4.2) and the temporary grid's
+cell sizes. The 3D overlay flag is temporarily disabled for this draw and restored afterwards, so
+the standard draw cannot replace the separately collected marked cells. The view's interpolation
+and lot-block settings still apply. Before drawing, straight palette entry 255 is set to `0xCFFFFFFF`
+and its premultiplied counterpart to `0xFFFFFFFF` (an explicit override, not the usual premultiplication
+of `0xCFFFFFFF`). These two entries persist until a later selection rebuilds them. The conversion
+factor is unchanged: absent scale 256 and explicit valid scale 256 still differ as in §4.2.
+The sprite remains visible where the later palette draw is transparent. All three grids are shut down
+and released. Palette overrides/overlay suppression: `0x007A3FB2`–`0x007A3FC6`,
+`0x007A40ED`–`0x007A415D`; normal factor use `0x007A2BBF`–`0x007A2BE8`.
+
 ### 4.2 Values to palette indices
 
 | Grid | Index |
@@ -300,8 +543,22 @@ the ordinary signed-16 display path; its palette conversion is separate (QV5).
 | signed 16-bit | `128 + ((v × ⌊0x7FFF00 / s⌋) >> 16)` (64-bit, arithmetic shift), clamped to 0–255 |
 | float | low byte of the signed-64-bit truncation; see §4.2.1 |
 
-With the default scale 256 the factors are 256 (so an unsigned 16-bit value is divided by 256). Each index selects
-the alpha-multiplied palette entry (`MakeMapColorBuffer`).
+The formulas in the table apply only to a **present** scale with `1 < s < 2^24`.
+Every new nonzero selection first sets both 64-bit factors to **256**, independently of the stored scale
+field (initially 256). An absent scale leaves those factors unchanged; a present out-of-range value
+(`0`, `1`, or at least `2^24`) is retained in the scale field but also leaves both factors 256.
+A present valid value replaces them with the two quotients in the table. Consequently absent scale
+and explicit scale 256 are observably different: explicit 256 gives unsigned factor 65535 and signed
+factor 32767. With default factors, the unsigned index is `min(floor(v/256),255)` and the signed index
+is `clamp(128+floor(v/256),0,255)`. The previous selection's factors never carry into a new nonzero view.
+
+Products are 64-bit integer products; signed samples are sign-extended and negative right shifts round
+**down**, not toward zero. Saturation follows the shift (and the signed path's addition of 128).
+Thus explicit scale 1024 gives factors 16383/8191: unsigned 512 gives 127, while signed −512 gives
+**64**, correcting the earlier vector's 65. Each resulting byte selects the alpha-multiplied palette
+entry (`MakeMapColorBuffer`). Evidence: factor initialization/range/division/stores
+`0x007A51FD`–`0x007A5287`; unsigned load/product/shift/clamp `0x007A2BBB`–`0x007A2BE3`;
+signed load/product/arithmetic shift/clamp `0x007A2D49`–`0x007A2D78` (QV5).
 
 ### 4.2.1 Float conversion outside the byte domain (QV10) *[compat]*
 
@@ -356,6 +613,16 @@ The owner upsamples to the city's x/z cell counts if interpolation is enabled an
 dimension is smaller (`0x007A23EC`–`0x007A23FE`); destination cell sizes then become the city's world
 width/height divided by its respective cell counts (16 m for an ordinary city).
 Block-property presence forces interpolation on, even when its mask is zero.
+
+The step is truncated **before** constructing the half-step origin; `q/2` here is integer division.
+For S=2,D=3, q=43690 and the three fixed-point positions are −10923, 32767, 76457.
+The middle is just below halfway. Do not replace it with exact rational cell-centre coordinates or
+round the step to 43691. A 2×2 source with x rows `[0,1]`, `[1,2]` therefore has centre **0** at 3×3:
+the inner rounded values are 0 and 1, followed by outer result 0. The same source reduced to 1×1
+has exact half fractions on both axes and gives **2**. This latter case distinguishes the two integer
+roundings from one bilinear rounding. Evidence: signed step divisions `0x0079EB8B`–`0x0079EBA7`,
+integer halves/origins `0x0079EBBE`–`0x0079EBDD`, rounded inner/outer products
+`0x0079ECB9`–`0x0079ECF5` (QV16).
 
 #### Lot mask and crime icons (QV4) *[compat]*
 
@@ -532,17 +799,80 @@ entire decoration pass (`0x007A5303`–`0x007A535D`, `0x007A45F6`–`0x007A481E`
   (`0x007A474E`–`0x007A47D4`, helper `0x0079E130`–`0x0079E3F4`).
 
 For finite ordinary bitmap coordinates, the ring helper offsets the supplied centre by +0.5 on both axes.
-For supplied centre `(u,v)` and radius `r`, candidate rows run inclusively from `ceil(v−r−0.5)` to
-`floor(v+r+0.5)`, clipped to the buffer. At row `j`, store `dy² = binary32((j−binary32(v+0.5))²)` and
+For supplied centre `(u,v)` and radius `r`, candidate rows run inclusively from `floor(v−r−0.5)` to
+`ceil(v+r+0.5)`, clipped to the buffer. At row `j`, store `dy² = binary32((j−binary32(v+0.5))²)` and
 `R² = binary32((r+1)²)`. If `R²−dy²` is negative, draw no pixels in that row. Otherwise candidates run
-from `ceil(binary32(u+0.5)−sqrt(R²−dy²))` to the corresponding `floor` with a plus sign, clipped to the
+from `floor(binary32(u+0.5)−sqrt(R²−dy²))` to the corresponding `ceil` with a plus sign, clipped to the
 buffer. A candidate pixel `(i,j)` has distance error
 `e = abs(sqrt((i−binary32(u+0.5))²+dy²)−r)`.
 Only `e < 2` is blended, with weight `b = 255−floor(128×e)`. This is a soft ring, not a filled disk.
-The native square roots and intermediate arithmetic use x87 precision between the stated binary32 stores
+The native square roots and intermediate arithmetic use the x87 mode and rounding schedule below
 (`0x0079E156`–`0x0079E3B3`; constants 0.5, 1, 2, 128 at `0x00A84D2C`, `0x00A81228`,
 `0x00A8825C`, `0x00AB7E10`). Ring-helper invalid geometric inputs are unsafe numeric inputs;
-the float-grid conversion rule is separately specified in §4.2.1. Exact ring precision remains QV14.
+the float-grid conversion rule is separately specified in §4.2.1.
+
+#### Ring precision and integer bounds (QV14) *[compat]*
+
+The ring helper **inherits the calling thread's x87 precision control (PC) and rounding control (RC)**;
+it neither establishes a local mode nor restores a different one on return. Its geometry uses x87
+instructions, including both square roots; there is no SSE or library-square-root substitute.
+PC applies to every add, subtract, multiply and square root, not merely to explicit stores.
+PC=00/10/11 means 24/53/64 significant bits respectively, with the x87 exponent range between stores.
+An explicit binary32 store separately rounds to that format's significand and exponent range using RC.
+Loads of binary32 values and signed 32-bit pixel coordinates are exact. Sign changes/absolute value
+and comparisons introduce no extra rounding.
+
+The executable does **not** establish one immutable precision for its lifetime. CRT initialization
+requests PC=53 (`0x009F1718`–`0x009F171F`, `0x009F1E04`–`0x009F1E13`,
+`0x009EEEE5`–`0x009EEF02`, `0x009F6C30`–`0x009F6C41`). Application framework setup later
+changes PC to **24** (`cSC4App::PreFrameWorkInit`, `0x0045236C`, through `0x005F85E0`–`0x005F85E8`).
+The setter changes only PC bits 8–9 of the hardware control word (`0x008929E0`–`0x00892A09`);
+it preserves RC. Ordinary Windows thread entry supplies round-to-nearest, ties-to-even (RC=00),
+which neither of these precision setters changes. Thus the unmodified post-framework context is
+**PC=24, RC=nearest**, not the earlier CRT's PC=53 and not the hardware's 64-bit reset precision.
+
+Subsequent calling context matters. For example, the expression reader `0x0067BA40` changes PC24 to
+PC53 at `0x0067BA5A`–`0x0067BA6A` and has no restoring store before its return `0x0067BAD4`.
+Lua wrappers can temporarily select 53 bits and restore the previous precision (e.g.
+`cGZLua5Thread::Pause`, `0x008B6C35`–`0x008B6C65`). Plugins/foreign callbacks can also change the
+thread state. A ring called in such a context uses that actual PC/RC; assuming that startup forces
+all later rings to PC24, or imposing PC53 for portability, is not the native rule. No runtime
+frequency of those contexts is asserted here. The inherited-state contract resolves the varying
+contexts without a new unresolved question. In particular, these are caller state and operation
+rounding rules, not a claim that every finite expression has its exact-real-number result.
+
+For the schedule below, `P(x op y)` means one x87 operation rounded at the inherited PC/RC,
+`sqrtP` means the similarly rounded square root, and `S(x)` means an explicit binary32 store/reload
+using RC. Apply nested operations in the order written. For ordinary finite coordinates and
+RC=nearest, the floor/ceil notation in the preceding paragraph has the following exact schedule:
+
+| Quantity | Rounded evaluation and retained format |
+|---|---|
+| Outer squared radius | `a=P(r+1)`, then `R²=S(P(a×a))`. No store of a before its square. |
+| Inclusive row bounds | Lower argument `P(P(v−r)−0.5)` uses the floor conversion below; upper argument `P(P(v+r)+0.5)` uses ceil. Use the original supplied v, before its centre offset; intersect with `[clip.top,clip.bottom−1]`. |
+| Shifted centre | `cx=S(P(u+0.5))`, `cy=S(P(v+0.5))`, once each. |
+| Row displacement | `d=P(j−cy)`, `dy²=S(P(d×d))`, once per row. |
+| Row half-width | `t=P(R²−dy²)`; a negative t skips the row, otherwise `h=sqrtP(t)`. There is **no** store of t or h. |
+| Inclusive column bounds | Floor conversion of `P(cx−h)` and ceil conversion of `P(h+cx)`, intersected with `[clip.left,clip.right−1]`. Both use the same retained h, not a binary32 h. |
+| Pixel distance error | `dx=P(i−cx)`, `s=P(dx×dx)`, `s=P(s+dy²)`, `d=sqrtP(s)`, `e=abs(P(d−r))`. None of dx/s/d/e is stored to binary32. |
+| Blend weight | If `e<2`, apply floor conversion to `P(e×128)` and subtract the resulting integer from 255. Equality at 2 does not blend. |
+
+The integer-bound/weight conversion itself includes rounding: with input z retained on the x87 stack,
+form `S(P(P(z+bias)+12582912))` and interpret its binary32 **bits** plus `0xB4C00000`, modulo 2³²,
+as signed integer n. For floor, bias is −0.5 and exact equality `z=n+1` corrects the result to n+1;
+for ceil, bias is +0.5 and exact equality `z=n−1` corrects it to n−1. The integer ±1 is signed
+32-bit wrapping arithmetic. These conversions agree with mathematical floor/ceil for the ordinary
+nearest-mode bitmap domain (in particular arguments within ±4194303). For a caller-modified RC,
+use this bias/store/equality rule with that RC rather than replacing it with a host integer cast
+or silently resetting RC. The rule specifies the inherited-mode behavior; invalid/unsafe geometric
+domains remain as bounded above, not a new split of QV14.
+
+The explicit stores are at `0x0079E17B` (R²), `0x0079E246`/`0x0079E258` (cx/cy),
+and `0x0079E26E` (dy²); conversion stores are `0x0079E1A1`, `0x0079E1F5`,
+`0x0079E2AB`, `0x0079E2F7` and `0x0079E37D`. The row square root is `0x0079E28D`;
+pixel arithmetic and square root are `0x0079E344`–`0x0079E35A`; the strict comparison/weight
+are `0x0079E35C`–`0x0079E3AC`. The binary64 0.5 at `0x00A92D28` and binary32
+0.5/12582912 at `0x00A84D2C`/`0x00AB7E08` are exact constants, not precision-setting operations.
 
 Both passes share the pixel blend (`0x0079DC00`–`0x0079DCD8`). For source RGB `S`, destination ARGB `D`
 and weight `b`, each output RGB byte is `floor((Dchannel×(256−b)+Schannel×b+128)/256)`;
@@ -647,15 +977,18 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV1 (the 3D view filter options and the terrain and zone display
-calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels, the group buttons and the toggle
-`0x8100`/`0x8101`), QV5 (16-bit conversions), QV11 (other developer layers), and QV14 (ring precision).
-QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
+See [questions/map-view.md](questions/map-view.md): QV15 (missing lot-mean prose).
+QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
+[answered record](questions/answered/map-view.md).
 
 ## 10. Conformance tests
 
-1. **Index:** with scale 1024, an unsigned 16-bit value of 512 gives index 127; a signed 16-bit value of −512
-   gives index 65.
+1. **Index:** with explicit scale 1024, unsigned 512 gives index 127; signed −512 gives 64.
+   With scale absent (also with 0, 1 or `0x1000000`), unsigned `[0,255,256,65535]` gives
+   `[0,0,1,255]`, signed `[-32768,-257,-256,-1,0,255,256,32767]` gives
+   `[0,126,127,127,128,128,129,255]`. With explicit scale 256 the factors are 65535/32767:
+   unsigned `[0,1,255,256,512]` gives `[0,0,254,255,255]`, signed `[-512,-1,0,1,256]`
+   gives `[0,127,128,128,255]`. Selecting an absent-scale resource after this restores factors 256.
 2. **Mayor rating:** a signed 8-bit value of −128 gives index 0, +127 gives 255.
 3. **Throttle:** two pollution messages 200 ms apart cause one redraw at the first tick after 1000 ms.
 4. **Empty view:** choosing view `0x14` (residential desirability) leaves the map empty.
@@ -715,8 +1048,9 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
 21. **Resampling:** a 1×2 unsigned grid `[0,100]` resampled to 1×4 gives `[0,25,75,100]`.
     The same shape with signed `[-100,100]` gives palette indices `[28,78,178,228]`.
     A constant 1×1 grid fills the entire destination. For source x rows `[0,1]`, `[1,2]`,
-    resampling 2×2 to 3×3 gives centre value 2 (inner-axis halfway results 1 and 2, then 2),
-    discriminating two-stage rounding from the unrounded bilinear centre value 1.
+    resampling 2×2 to 3×3 gives x rows `[0,0,1]`, `[0,0,1]`, `[1,1,2]`, with centre **0**.
+    Resampling that source to 1×1 gives **2** (inner halfway results 1 and 2, then 2),
+    discriminating two-stage rounding from the unrounded bilinear value 1.
 22. **Float index wrap:** samples `[-1.75,-0.75,255.75,256.75,511.75,NaN,+Inf,-Inf,2^63]`
     give `[255,0,255,0,255,0,0,0,0]` under masked invalid exceptions. These cases must not be
     implemented as clamping or finite-domain rejection.
@@ -755,3 +1089,87 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
     Update preserves all three. A normally returning custom false does not undo a replacement or restore dirty.
 33. **Notification comparison:** supplied old/new records' second words 5/5 leave a clean map clean;
     5/6 mark it dirty, independent of prior notifications or constructor clock.
+34. **Developer layers:** valid developer and child, ED absent or 1 or 99 → cleared empty map, no
+    developer grid selected. ED=3 and ED=4 with the same inputs produce identical images/marked cells.
+    For ED=6, slot-13 dimensions 2×2, slot-10 true, ordered records
+    `[(1,0,2),(0,1,-1),(1,0,3000)]` give signed x rows `[0,-12]`, `[-29536,0]` before palette
+    conversion (`36000` wraps to −29536). Interpolation initially true is false during this draw
+    and true afterwards. An empty available sequence draws zero values; unavailable sequence draws
+    nothing. Debug override plus ED=2 uses this same layer-6 result.
+35. **3D display flags/alpha:** default zone alpha 96, prior current alpha 0: E3 absent/E6 absent →
+    level 1, plumbing off, surface water on, zone alpha 96. E3=1,E6=255 → level 3, plumbing on,
+    surface water off, alpha 255. E3=2,E6=0 → level 2, plumbing off, water off, alpha 0.
+    E3=1,F1=2 retains level 3/plumbing on/water off while changing only filter options to mode 2.
+    Selecting none restores level 1/plumbing off/water on/alpha 96. Applying the same current
+    water/alpha bytes again emits no additional setter-side visual refresh.
+36. **Traffic eligibility and counts:** stored scale 256, types `[0,1,1,8,99]`; capacities positive
+    for network 0/1, zero for 5. Type-0 record has `h[16]=3,h[2]=10`; type-1 has
+    `h[16]=5,h[7]=4`; type-99 has `h[16]=7`; all other words zero. Requests use networks
+    `[0,1,1,5,1]`, with three separate network-1 reads. Before animation the cell is
+    `V=22,X=20,Z=16` (bias 2, then 3+5+5+7). Empty list or nonpositive capacities gives zero grids.
+    Scale 1024 with an eligible total 2000 gives `V=1020`; a positive capacity's magnitude has no effect.
+37. **Traffic record width and balance clamp:** one eligible record with `h[2]=65535,h[13]=65535`,
+    total zero and scale 256 gives `V=2,X=32767,Z=−32768`, rather than signed-word input arithmetic.
+    Alternate flag 1 is passed as true to every density request; flag 0 as false. Repeated updates
+    rebuild from zero rather than retaining these values.
+38. **Ferry accumulation order:** view `0x54`, empty travel list; successive visits to one cell with
+    counts/directions `(40000,2),(40000,0),(40000,0)` give `V=54464,X=−32768,Z=0`.
+    A subsequent terminal point with count 7 gives `V=54471` with the same balances. Replacing normal
+    first/second path counts 3/5 by alternate 7/11 gives V=18 instead of 8 for a shared endpoint.
+39. **Traffic animation and draw:** phase before update 0 becomes 1. Cells `(1,4)` with
+    `V=20,X=20,Z=0` and `(14,4)` with `V=20,X=−20,Z=0` become V=256 at scale 256;
+    `V=10` stays 10. A tie `X=Z=20` selects z, so `(4,1)` animates and `(1,4)` does not.
+    The overlay uses the original volumes/colours, with damaged cells colour zero. Final bitmap
+    conversion at explicit scale 256 gives indices 19/255 for V=20/256, while absent scale gives
+    indices 0/1. Straight/premultiplied palette entry 255 becomes `0xCFFFFFFF`/`0xFFFFFFFF`.
+    The overlay flag is restored and all three temporary grids released.
+40. **Panel matrix:** begin with every named child visible. ShowSmallWindow leaves B1/B2 visible,
+    hides D4/D5/C3/C4 and leaves CB/8100/8101 alone (ID suffixes as in §1.2).
+    Desirability then shows D5/B2/C3 and hides B1/D4/C4/CB/8100/8101. Traffic shows
+    D5/B2/C3/CB/8100/8101 and hides B1/D4/C4. Standard large with legend-content flag false/true
+    shows D4/B2/C3, hides B1/D5/8100/8101, sets C4 false/true and leaves CB unchanged.
+41. **Independent memories:** start `D=0x28,T=0x4C,M=0`, normal active selection. Press 5005,
+    6002, 5002, 5105 → requests `[0x28,0x29,5,0x29]`, ending `D=M=0x29,T=0x4C`.
+    Immediately after 6002, `D=0x29` but `M=0x28`. Missing the 6002 exemplar still remembers
+    `D=0x29` and requests its legend; it does not restore D to the previous successfully loaded view.
+42. **Traffic group:** `T=0x4C,M=5`, 8001 selected. Press 5008 → traffic layout, request 9, `M=9`.
+    Press 8002 → enable all ten volume controls, request `0x4C`, `M` still 9. Press 800B →
+    `T=0x54`, `M` still 9. Press 5002 then 5008 → requests 5 then `0x54`, ending `M=0x54`.
+    An absent/unqueryable 8001 chooses T on entry. 8001 disables volume controls but preserves T;
+    a directly delivered 800C command still selects/remembers `0x55`.
+43. **Alternate/reset:** queue empty, saved view `0x54`, enabled, current view also `0x54`.
+    Press 8101 → `A=1`, D6 shown/C5 hidden, Reset requests `0x54`, and no forced bitmap rebuild
+    occurs through the same-view shortcut. A later actual volume rebuild uses alternate counts.
+    Hide with no queue → Reset requests zero, D6 hidden/C5 visible and invalidated; with queued
+    request 7 → request 7 instead. These actions do not change D/T/M. 8100 restores `A=0`.
+44. **First show and layout commands:** construction gives `D=99,T=0x4C,M=0,A=0`. First ShowWindow
+    selects 5001/6001/8001/8100/8003 and disables 8003–800C, replaces D by `0x28`, enables the map
+    and resets it. Reopening does not repeat that initialization. With 5005 selected, expand
+    0xEA8B80A6 chooses the desirability layout and D even if the current source is traffic.
+    Without 5005 selected, source 76 chooses traffic/T, source 9 traffic/9, and other sources
+    standard large/M. Cancel button dispatches `(0x6A935CF1,0,0)` without direct memory/layout
+    changes; tutorial rejection dispatches nothing.
+45. **Ring PC24 versus wider precision:** one ring, clip `[0,8)×[0,8)`, supplied binary32
+    `u=−511/1024` (bits `0xBEFF8000`), `v=−0.5`, `r=513/128=4.0078125`, pixel `(0,4)`.
+    Use nearest/ties-even for operations and stores. Here `cx=1/1024,cy=0,dy²=16` and
+    `R²=410881/16384`. The pre-square-root pixel sum is 16 under PC24 (the half-ulp addition
+    rounds to even), but `16+2⁻²⁰` under PC53/64. Weights are respectively **254/255/255**.
+    Source `0x00FF0000`, destination `0xFF000000` gives **`0xFFFD0000`/`0xFFFE0000`/`0xFFFE0000`**.
+    This is a calculated instruction-rounding vector, not a game screenshot measurement.
+46. **Ring PC53 versus PC64:** same setup and pixel, but `u=−0.5+2⁻²⁵`
+    (bits `0xBEFFFFFF`, exact decimal `−0.4999999701976776123046875`). Then `cx=2⁻²⁵`.
+    PC24/53 round the pixel sum to 16 and distance to 4. PC64 retains `16+2⁻⁵⁰`, yielding
+    distance `4+2⁻⁵³` and `128×e=1−2⁻⁴⁶`. The conversion correction therefore gives floor 0
+    under PC64 instead of 1. Weights **254/254/255**, red-on-black results
+    **`0xFFFD0000`/`0xFFFD0000`/`0xFFFE0000`**. A binary32 store of the distance would fail this case.
+47. **Ring candidate bounds:** nearest mode, PC24, clip `[0,4)×[0,4)`, supplied `(u,v,r)=(0,0,1)`.
+    Row bounds before clipping are `floor(−1.5)=−2` through `ceil(1.5)=2`. Row 2 has
+    `dy²=2.25`, `h=sqrtP(1.75)`, column bounds −1 through 2 before clipping. Pixel `(2,2)` is
+    visited and has `e=1.121320247650146484375`, weight 112. Red-on-black gives `0xFF700000`.
+    Reversing the lower/upper conversions to ceil/floor wrongly omits this pixel.
+48. **Inherited rounding control:** PC24, same clip/pixel as vector 45, but supplied
+    `u=v=−0.5`, `r=2049/512=4.001953125`. Distance is exactly 4, `e=1/512` and `128×e=1/4`.
+    Under RC nearest/down/up/toward-zero, the native integer bias conversion returns respectively
+    **0/−1/0/−1**, so weights are **255/256/255/256**. Source red on opaque black gives red byte
+    **254/255/254/255**. This deliberately caller-modified state demonstrates why the helper's
+    conversion cannot be replaced with mathematical floor for every RC. The helper leaves RC intact.

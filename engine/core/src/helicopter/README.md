@@ -1,69 +1,73 @@
-# Helicopter core owner
+# cSC4Helicopter core owner
 
-`mod.rs` owns `cSC4Helicopter` (CLSID `8BA98EDA`). The legacy
-`automata::Helicopter` name re-exports this same owner. No C ABI or plugin wiring.
-Sources: aircraft.md §§2/4/8; automata.md §§6.2/6.4/6.6/14.
+`mod.rs` owns the helicopter; `automata::Helicopter` re-exports the same type.
+`settled.rs` contains the independently testable rotor controls, clearance,
+takeover, chase decisions and runtime ownership records. Shared codecs remain
+in `automata::aircraft`; shared weapon actions remain in `aircraft_actions`.
+There is no plugin, C ABI or game-memory access here.
 
-The named Lua record is a typed thirteen-float record, not a numeric exemplar
-property or variable-length list. Group lookup is foreign; record selection,
-zero fallback and conversion are owned here. An empty present record stops
-inheritance. Multiplications use binary32 operands in the specified order.
-Recordless parent cycles deliberately have no fabricated terminating fallback.
+The runtime is absent before InitInstance. First allocation copies preset 0,
+refreshes player parameters, overlays the first present AI record, then allocates
+the ten transforms in specified order. PhysicsInit selects phase 0. Read restores
+only the saved record; it creates no runtime and does not reset existing unsaved
+state. Unknown constructor/control/velocity values remain optional under AF4/AF2.
+The player-driven boolean is a caller-supplied flag input, independent of goals.
 
-Preset construction and reconstruction after Read are unsettled (AF9, AF4).
-`DriveParameters` therefore stores each unknown value as `None`; callers can
-supply a known preset with `from_preset`. Zero fields preserve even unknown or
-non-finite preset values. There is no guessed mass, power, flight phase or
-player preset.
+Phase changes return ordered AEMS/base/embedded notifications. Chase decisions
+return startup, spotlight aim, fade, movement and height requests; the core applies
+the settled teleport and scaled-position synchronization. MoveXZ and aim geometry
+remain open, so this stage does not claim a complete chase tick. Spotlight activation
+returns NeedsGeometry even for an inactive pair. Weapon requests call the base
+translator before testing readiness, and preserve the missile spelling/fallback.
 
-Save/load delegates to the existing aircraft and automaton codecs. Read needs
-no city and replaces the owner only after complete success. The placement step
-captures a fresh home's position once, or restores a loaded home once.
-Phase changes return metadata; native sound actions remain open.
+Runtime allocation faults report an unusable partial runtime without rollback;
+they are not a clean native false return. A repeated call cannot turn that partial
+runtime into success. Post-base Shutdown returns ordered cleanup actions and the
+base result, including false. Present external slots represent retained owning
+references; an adapter must execute their stop/clear/release in that order and must
+never populate them from unretained borrowed pointers. Rust models ownership and
+requests; it does not allocate native-size byte buffers or execute COM operations.
+
+Floating helpers use binary32 operands/stores and f64 intermediates to approximate
+x87, with the spec's tolerances. No non-finite flight equivalence is claimed (AF10).
 
 ## Owner closure
 
-All rows below concern cSC4Helicopter. Tests are in
-`engine/conformance/tests/helicopter.rs` unless a different file is named.
-An explicit Unsupported result is an open contract, not a successful flight tick.
+Tests below are in `engine/conformance/tests/aircraft_settled.rs` unless stated.
+Every row concerns cSC4Helicopter. An open row is an explicit Unsupported boundary,
+not a successful native flight/control tick.
 
-| Spec section | Code item | Test or open question |
+| Spec section | Code item | Test or explicit open question |
 |---|---|---|
-| aircraft §0 scope | `Helicopter` | `vector15_same_input_record_round_trip_nests_base_and_home_without_traffic` |
-| aircraft §1 class identity | `Helicopter::class_id` | same record test, CLSID 8BA98EDA |
-| aircraft §2 altitude/world clip | `get_altitude`, `clip_to_world`; shared aircraft helpers | `placement_capture_altitude_and_world_margin_reuse_aircraft_contracts` |
-| aircraft §2 player tick | `do_player_drive_tick` | `open_rotor_ai_lifecycle_and_player_methods_never_report_success_or_mutate`; open: AF5 |
-| aircraft §3.1 import/ancestor rules referenced by §4.1 | `DriveRecord::import`, `DriveParameters::load`, typed `DriveParameterSource` | `missing_fields_are_zero_and_record_selection_uses_first_present_ancestor`, `vector7_zero_record_preserves_preset_and_bank_only_does_not_merge_parent_pitch` |
-| aircraft §4.1 thirteen fields, exact conversions | `DriveField`, `DRIVE_FIELDS`, `DriveParameters::overlay`, `load_drive_parameters` | `all_thirteen_named_fields_use_the_specified_destinations_and_exact_constants` |
-| aircraft §4.1 signed zero, NaN/infinity, negatives | `DriveParameters::overlay` | `overlay_preserves_signed_zero_and_does_not_sanitize_negative_nan_or_infinity` |
-| aircraft §4.1 initial preset | `DriveParameters::default/from_preset` | `unknown_constructor_preset_is_not_fabricated_and_known_overlay_can_fill_it`; open: AF9 / AF4 |
-| aircraft §4.2 PhysicsInit, InitInstance | `physics_init`, `init_instance`; known home step `init_placement` | open: AF4; `open_rotor_ai_lifecycle_and_player_methods_never_report_success_or_mutate`, placement test |
-| aircraft §4.2 NextFrame/engine power | `next_frame` | open: AF2; open-methods test |
-| aircraft §4.2 YawPitchRollSlideReal (±890/250), MoveXZReal, MoveYReal | corresponding snake-case methods | open: AF2 (limits alone do not settle integration); open-methods test |
-| aircraft §4.2 AI_ControlReset/Hover/MoveXZ/LiftOverBuildings | corresponding snake-case methods | open: AF3 (rate/band summaries do not settle controls); open-methods test |
-| aircraft §4.2 AI_PursueGoal | `pursue_goal`, `push_mission_loiter` | dispatch/chase/loiter tests below; complete goals/claims/RESCUE ordering and control/teleport gates open: AF3; messages/dispatch open: AF6 |
-| aircraft §4.2 UpdateSpotlight | `update_spotlight`, `HelicopterChaseGeometry` | geometry in chase test; cone/terrain update open: AF5; open-methods test |
-| aircraft §4.2 SetHelicopterState/AEMS | `set_helicopter_state`, `update_rotor_sounds` | `phase_changes_are_independent_of_stack_and_mission_loiter_has_6000ms_timeout`; sound mapping open: AF4 |
-| aircraft §4.2 OnPlayerTakeOver/TranslatePlayerDriveCommands, helicoptermissle/ufolaser | corresponding snake-case methods | open: AF5; open-methods test; no fabricated command encoding/projectile behavior |
-| aircraft §6 world margin | `clip_to_world` | placement/altitude/world-margin test |
-| aircraft §7 open questions | explicit `AircraftUnsupported` categories; unknown preset fields | AF2–AF6 / AF9, open-methods test |
-| aircraft §8 vector 7 | loader and overlay | `vector7_zero_record_preserves_preset_and_bank_only_does_not_merge_parent_pitch` (other vectors belong to airplane/dispatch owners) |
-| automata §6.1 shared fields/stack | `Helicopter::base/base_mut`, reused `AutomatonBase` | record round-trip and default/final dispatch tests; no duplicate base implementation |
-| automata §6.2 CHASE reference/default state records | reused `StateExtra::Chase` codec, `pursue_goal` | record round-trip and chase rejection tests |
-| automata §6.2 default numeric dispatch (AT17), CROP_DUST | `pursue_goal` | `default_dispatch_pops_every_unlisted_numeric_goal_including_crop_dust` |
-| automata §6.4 concrete/base versions, nested record, loaded placement | `read/write`, `AircraftPlacementRecord`, `init_placement` | `vector15_same_input_record_round_trip_nests_base_and_home_without_traffic`, `reads_are_atomic_at_every_truncation_and_reject_bad_nested_versions` |
-| automata §6.4 write-failure gate before home vector | reused `AircraftPlacementRecord::write` | aircraft.rs: `failed_aircraft_write_never_attempts_home_vector` |
-| automata §6.6 flight phases 0/1/3, repeat no-op, separate goal stack | `set_helicopter_state` | phase/mission-loiter test; sound actions open: AF4 |
-| automata §6.6 valid/invalid chase, lead vector, spotlight aim, hover +20 | `pursue_goal`, `HelicopterChaseGeometry::for_target` | `chase_rejects_null_unresolved_and_nonplayer_targets_and_keeps_valid_targets`; literal ×1000×dt; distance/teleport/control gates open: AF3 |
-| automata §6.6 0/50/51/53/54/55/56 handlers | `pursue_goal`, `push_mission_loiter` | `unsettled_goal_handlers_are_explicit_and_preserve_the_owner`, phase/loiter test; complete switch bodies open: AF3 |
-| automata §12 final states/stack indices | reused `AutomatonBase::pop_state` | `default_pop_obeys_final_state_rules_and_empty_stack_has_no_handler`, default-dispatch test |
-| automata §14 vectors 15/31 | record/chase methods | round-trip/chase tests above (remaining vectors concern shared or other owners) |
-| automata §15 creation | no registration; foreign manager/director | Outside this core-only owner; native creation/lifecycle failure details open: AF4 |
+| aircraft §0 scope | `Helicopter` | `vectors14_16_preset_overlay_order_and_read_reconstruction` |
+| aircraft §1 identity | `class_id` | helicopter.rs: `vector15_same_input_record_round_trip_nests_base_and_home_without_traffic` |
+| aircraft §2 altitude/world clipping | `get_altitude`, `clip_to_world`, shared helpers | helicopter.rs: `placement_capture_altitude_and_world_margin_reuse_aircraft_contracts` |
+| aircraft §2 player tick | `do_player_drive_tick` | open: AF5 (full controls), AF2 (physics) |
+| aircraft §3.1 inherited named-record rules | `DriveRecord::import`, `DriveParameters::load` | helicopter.rs: `missing_fields_are_zero_and_record_selection_uses_first_present_ancestor` |
+| aircraft §3 other airplane contracts | Other owner: `automata::Airplane` | See airplane/README.md |
+| aircraft §4.1 fields/conversion/zero fallback | `DriveField`, `DriveParameters::overlay` | helicopter.rs: `all_thirteen_named_fields_use_the_specified_destinations_and_exact_constants`, signed-zero/non-finite overlay test |
+| aircraft §4.1.1 preset/reconstruction | `preset0`, `init_instance_with`, `physics_init`, `read` | `vectors14_16_preset_overlay_order_and_read_reconstruction` (vectors 14–16) |
+| aircraft §4.2 rotor physics overview | `next_frame`, `yaw_pitch_roll_slide_real`, `move_xz_real`, `move_y_real` | open: AF2; helicopter.rs: `open_rotor_ai_lifecycle_and_player_methods_never_report_success_or_mutate` |
+| aircraft §4.2 complete goal switches/claims | `pursue_goal`, `push_mission_loiter` | open: AF3; helicopter.rs: numeric default/final/chase rejection/mission timeout tests |
+| aircraft §4.2.1 reset/hover/time | `RotorControls::{reset,hover}`, owner control methods, `helicopter_physics_seconds` | `vectors17_18_reset_hover_and_time_multiplier_eligibility` |
+| aircraft §4.2.2 chase gates | `chase_actions`, `pursue_chase_stage`, `HelicopterChaseGeometry` | `vector19_chase_lead_opacity_and_distance_boundaries`; remaining MoveXZ/aim: open AF3/AF5 |
+| aircraft §4.2.3 phase requests | `set_helicopter_state` | `vectors21_22_distinct_phase_actions_and_repeat_rules`; phase triggers/attachment creation: open AF2/AF4 |
+| aircraft §4.2.4 building lift | `building_clearance_height`, `ai_control_lift_over_buildings` | `vector24_two_samples_home_floor_and_descending_demand` |
+| aircraft §4.2.5 allocation/post-base Shutdown | `RuntimeOwnership`, `init_instance_with`, `shutdown_after_base` | `vector25_allocation_cleanup_order_false_propagation_and_fault_diagnostic`; pre-base scale/full native Init: open AF4 |
+| aircraft §4.3 weapons | `weapon_requests`, shared `aircraft_actions::weapon_requests` | `vector23_weapons_fallback_readiness_and_wrapping_use_count`; remaining translator/projectiles/readiness cadence: open AF5 |
+| aircraft §4.3.1 takeover | `refresh_player_parameters`, `on_player_take_over` | `vector26_takeover_direct_precedence_zero_fallback_and_gain_refresh` |
+| aircraft §4.3.2 spotlight pair | `spotlight_activation_stage` | `vector27_spotlight_pair_gate_idempotence_and_geometry_continuation`; transform/aim continuation: open AF5 |
+| aircraft §5 dispatch source owners | Other classes; no helicopter source implementation here | Aircraft-owned message/dispatch transitions: open AF6 |
+| aircraft §6 world margin | `clip_to_world` | helicopter.rs: placement/altitude/world-margin test |
+| aircraft §7 remaining questions | explicit Unsupported results; optional unknown constructor fields | open: AF2–AF6, AF10, AF11 (native shadow adapter) |
+| aircraft §8 conformance | Existing helicopter vectors 7/record codecs; new vectors 14–19/22–27 above | `aircraft_settled.rs`, `helicopter.rs`, `aircraft.rs`; airplane vectors belong to airplane owner |
+| automata §6.1/§6.2 base and state records | reused `AutomatonBase`, `StateExtra::Chase` | helicopter.rs: record round-trip and numeric/default/final-state tests |
+| automata §6.4 concrete codec/home | `read`, `write`, `init_placement` | helicopter.rs: atomic truncation and round-trip tests; aircraft.rs: failed-write home-vector gate |
+| automata §6.5 mission sequencing | `pursue_goal`, `push_mission_loiter` | Known default pop/6000-ms push covered in helicopter.rs; full claim/return/destination/LOITER switches: open AF3/AF6 |
+| automata §6.6 phases/chase | phase setter and chase stage | vectors 19/22; complete movement/goal ordering: open AF3 |
+| automata §12 stack quirks | reused `pop_state` | helicopter.rs: `default_pop_obeys_final_state_rules_and_empty_stack_has_no_handler` |
+| automata §14 vectors 15/31 | reused record/state codec and chase target handling | helicopter.rs round-trip and chase rejection tests |
+| automata §15 COM creation | Foreign director/manager, outside portable owner | Native lifecycle integration: open AF4; native shadow input access: open AF11 |
 
-## Next shadow
-
-A narrow in-game shadow is feasible after the coordinator adds a read-only
-adapter: compare imported thirteen-field records and pre/post preset bits;
-compare concrete/base versions and saved home vectors; compare phase no-op,
-invalid-chase pops and numeric default pops. No flight-position/velocity shadow
-can be exact until AF2/AF3 are answered. No game request is made by this lane.
+No end-to-end game shadow is claimed. It requires AF11's safe independent native
+inputs and the coordinator's adapter; complete trajectories also require AF2/AF3.

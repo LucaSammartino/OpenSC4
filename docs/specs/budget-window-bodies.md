@@ -47,9 +47,9 @@ the already identified unlabelled owner helpers. An address is a native body, no
 | set/get_window_indiv_item | `007795A0`; `00779600` | Existing property contract; setter reference rules still need audit |
 | add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | Widget creation/options; set_comboBox is owner logic, not a row provider |
 | add_Bitmap; add_image_button1/2 | `0077A250`; `0077B7B0`; `0077B960` | Presentation/factory helpers; failure/ref rules not yet fully specified |
-| GetBudgetSegment | `0077A390` | Raw-input selection helper; body remains to specify |
+| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation; not a budget data provider; full failure/reference contract BW25 |
 | SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Setup/failure body gaps |
-| init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population; refresh audit remains |
+| init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population, scale and refresh; widget failure contracts remain BW25 |
 | init/updateNeighborBudget | `0077E600`; `00781C90` | Section 3; remaining rendering/refresh audit recorded below |
 | init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, restore acquisition and viewport; service-query arithmetic remains open |
 | UpdateValues | `007898A0` | Section 6 raw providers and A traversal/reuse slice; B and slider rebuilding remain open |
@@ -129,13 +129,67 @@ the ninth still contribute to category totals: the off-screen A branch is `0x007
 64-bit multiplication entry `0x009F0D10` (its imported template name is misleading): multiply monthly income
 by the signed-64-bit scale at +0xB0/+0xB4, retaining the low 64 product bits. A adds that product; B subtracts
 it, including the off-screen branches. Enabled visible A rows display the product through SC4MakeMoneyString;
-disabled rows display an empty string (`0x0077CC2E`–`0x0077CCB0`). This scale is owner state, not a refreshed
-total supplied externally. Its initialization and B's visible money formatting remain in the refresh audit.
+disabled rows display an empty string (`0x0077CC2E`–`0x0077CCB0`). Enabled visible B rows display the
+**negated low64 product**, using two-word negation before SC4MakeMoneyString, and subtract the unnegated
+product from the total (`0x0077D11B`–`0x0077D164`). This is not absolute-value formatting: a positive
+monthly income classified as expense displays a negative amount. Disabled B rows have empty amount text.
+The scale is owner state, not a refreshed total supplied externally; see §2.3.
 
 Discriminators: available IDs [10 expense/on, 20 income/off, 30 income/on] produce counts A=2, B=1 and map
 [1,2,0], including the off ordinance and all zero amounts. With ten income ordinances, only indices 0..8
 have initial controls/map entries, but index 9 contributes to the total if edited/on. A provider that changes
 IsOrdinanceOn between the two initialization calls can produce original != edited before user interaction.
+
+### 2.3 Period scale and ordinance refresh (BW17)
+
+Initialization chooses signed-64 scale 1 for period +0x28 == 0, and 12 for **every nonzero** period,
+with high word 0 (`0x007878C8`–`0x007878D1`, `0x007879A9`, `0x00787A8A`–`0x00787A94`).
+The constructor's default is 1; CreateSubBudgetWindow stores the period but does not calculate this scale.
+These rules apply to the common init preceding mode selection. Do not restrict the ordinance scale to
+period exactly 1 merely because normal buttons supply only 0 or 1. Multiplication and signed two-word
+addition/subtraction retain low64 bits, including overflow; there is no saturation or floating conversion.
+
+Refresh `0x0077ADA0` obtains the available-ID array again through ordinance simulator slot 12 with the
+**existing** +0xA4 buffer and in/out +0xA0 count (`0x0077ADED`–`0x0077AE0B`). It neither re-allocates the
+buffer/state pairs nor calls IsOrdinanceOn to replace the original/edited bytes. It clears the row-map
+logical end to its begin (+0x78 := +0x74, retaining capacity, `0x0077AE0E`–`0x0077AE3A`). The stored
+A/B counts gate their respective passes; refresh does not recompute those counts. Stable available-ID
+order/count and classification are therefore preconditions for interpreting the saved state pairs as
+the same ordinances. **Quirk:** refreshed IDs are associated with edits by array position, not by ID;
+a provider that reorders the array reassigns those edits positionally. No new reconciliation is implied.
+
+For each enabled category pass, scan all returned IDs in order. Read signed-64 monthly income (slot 5)
+and classification (slot 22), through separate borrowed GetOrdinanceByID lookups, as in initialization.
+For a matching category, let q be its zero-based ordinal, independent of the source-array index. Render
+only q >= its offset (+0x11C for A, +0x120 for B), at most nine rows. This viewport quota advances only
+for rows at/after the offset; it is not the unusual group-refresh item quota described in §6.
+Tests are unsigned (`0x0077AE70`–`0x0077AEC5`, B `0x0077B354`). Reuse the existing controls, set the
+name from ordinance slot 7/+0x1C, update the checkbox from the edited byte, and replace amount text
+with the money string or empty string. Append each rendered row's **source-array index** to the row map,
+A first then B. Checkbox/info IDs still start at 300/500 across the combined rendered list; scroll does
+not change their interpretation into ordinance IDs (`0x0077B4EC`–`0x0077B539` for B append).
+
+Each nonempty category pass resets +0x90/+0x94 to zero and recomputes its total over **all** matching
+edited/on entries, including entries before the scroll offset and beyond the nine rows. A adds the low64
+scaled amount and displays it directly. B subtracts it and displays its two-word negation
+(`0x0077AF3A`–`0x0077AF7C`, `0x0077B427`–`0x0077B474`; off-screen B `0x0077B570`–`0x0077B586`).
+Off entries contribute nothing. Each category's total is formatted and assigned to its total text control
+before the next category starts; +0x90/+0x94 is reused scratch, not storage for both totals. A total
+format call is at `0x0077B28B`; B's reset is `0x0077B2EC`–`0x0077B2F2`. This refresh does not apply
+edits to the simulator; application still compares original versus edited pairs (§5.6 of the main spec).
+Factory/QI failure contracts and exceptional stale controls remain part of BW25, not raw row inputs.
+
+Conformance vectors (money formatter inputs below; locale chooses the actual currency text):
+
+| Raw input / action | Required result |
+|---|---|
+| Available [expense/on -3, income/off 7, income/on 5], period 0 | Counts A=2/B=1; initial map [1,2,0]; A row texts empty then money(5); B text money(3); total inputs A=5/B=3 |
+| Same inputs, period 7 | Scale=12, A total=60/B total=36; off amount remains empty, not money(0) |
+| Expense/on with income +3, period 1 | B row and B total receive money(-36); no absolute-value conversion |
+| Ten income/on IDs followed by two expense/on IDs; A offset 8/B offset 0 | Refresh map [8,9,10,11]; A total still includes all ten incomes; four checkbox IDs 300..303 refer to these source indices |
+| Same array, change only edited byte from on to off, then refresh | Original byte unchanged; amount becomes empty, total excludes it, map/category count unchanged |
+| Reverse two same-category IDs during refresh, saved edits [on,off] | The newly first ID uses on, the newly second uses off; no ID-keyed edit restoration |
+| Signed amount 0x4000000000000000, scale 12, enabled A | low64 product=0; row/total formatter input 0, with no overflow error |
 
 ## 3. Neighbour population (`0x0077E600`)
 
@@ -473,6 +527,15 @@ A item rendering and final stale-row cleanup; (3) popup/empty/setup
 failure references and setup helpers. (The panel's loan, tax, formatting and balance-sheet rendering bodies are
 §4.2–§4.3 and §8–§11, re-budgetwin 2026-10-22 and re-budgetui7 2026-10-23; `cSC4BudgetUIWinProc` is now
 specified whole, and BW17's remaining audits concern `cSC4SubBudgetWindow` only.) The inventory
+BW17's broad request is archived with a partial-closure answer; it does **not** mean whole-owner completion.
+The remaining work is numbered separately in questions/budget-window.md: BW22 covers neighbour combo
+options/set_comboBox, +8/+12 metadata, temporary-list references and updateNeighborBudget; BW23 covers
+individual service-query calls, float/amount derivation (including the +0x44 saved floats), remaining
+control reuse and the malformed `00786F62` initializer continuation/`007875C5` rebuild call; BW24 covers
+group A item rendering, B refresh/slider rebuilding and final stale-row cleanup; BW25 covers
+property replacement, popup/empty/setup and widget failure references and unclassified helpers.
+The panel's loan, tax, formatting and balance-sheet rendering bodies are
+§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts remain BW18. The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
 owned references cannot be delegated as already computed results of these same owners.
 

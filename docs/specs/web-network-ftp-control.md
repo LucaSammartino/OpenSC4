@@ -98,13 +98,14 @@ send `LIST <trimmed path>\r\n`. Read reply lines until a final line; require cla
 then accept the data connection with both boolean results true. Control waits set
 stage=507. There is no PASV or retry loop for failed commands.
 
-After accept, 00811f00 sets data-receive options. Initial receive capacity is the current
+After accept, 00811f00 closes the active listener if open; it does not set data-receive
+options. Initial receive capacity is the current
 length of buffer +0x1ec. Wait on the data socket with timeout +0x20; receive into
 buffer+byte-count, adding each nonzero successful count. Exactly when the total equals
 the current buffer length, grow by 256 zero bytes and reset the next requested count
 to 256. A partial receive leaves its returned count as the next capacity; it is not
 reset to remaining space (008167f0–00816873). When wait/receive fails or count is zero,
-resize to the accumulated byte count, call 00811f90, and read a final control reply.
+resize to the accumulated byte count, close the data socket with 00811f90, and read a final control reply.
 A successful class-2 final reply parses the collected bytes and determines success;
 data-loop failure is not separately latched. No progress event is sent by this loop.
 
@@ -189,7 +190,8 @@ job status=3 and destroys the fresh session. Use the low 16 bits of URL port, by
 into the address port (00816f93–008170c1). URL user/password are not extracted here:
 the new session's anonymous/user credentials apply.
 
-Initialize the session if needed; retain the scheduler as its target (AddRef new before
+Initialize the session if needed by setting its initialized byte (section 7.1); retain
+the scheduler as its target (AddRef new before
 Release old); set timeout to the low 32 bits of scheduler+0x18 multiplied by 1000;
 disable async; set representation +0x10=203; clear pending host; copy resolved address,
 using stored default port only for zero address-port. Before login and again after a
@@ -269,7 +271,46 @@ frees storage only when deleting flag bit 0 is set, returning this. 00816d90 (23
 calls shutdown and then virtual deleting destructor +0xc with flag 1 if this is nonnull.
 00816210 (30 B) is a different deleting wrapper: call scheduler destructor 00813e10,
 conditionally free on bit 0, return this. The latter callee remains an independently
-open checklist entry; the wrapper does not establish scheduler draining.
+open checklist entry in the earlier round; parent §4.15 now qualifies its cleanup.
+
+### 7.1 Fresh-session initialization (Q19, 2026-10-24)
+
+The reached initialization entry is **inline in outer worker 00816ee0**, at
+008170c6–008170d7, not scheduler constructor 00813d70. After constructing the
+session at 00816fde–00816fe5 and successfully obtaining its server address, set
+session initialized byte +0x1b0 to true if it is false. An already true byte is
+preserved. No fallible initialization operation, socket creation, service lookup,
+thread startup, notification or reference operation belongs to this step. There
+is no separate initialization call to fail or mark Unsupported on this reached path.
+Instruction offsets identify the object unambiguously: its stack base is +0x170,
+and the initialized byte is stack +0x320 (difference 0x1b0).
+
+Initialization does not reset credentials, timeout, representation, sockets or
+state. The subsequent worker configuration described in section 6 is separate:
+retain the scheduler target, set timeout, disable async, choose representation 203,
+clear pending host and copy the resolved address. Login then creates/binds/connects
+the control socket according to section 1. Initializing the byte enables shutdown's
+target Release and socket/state cleanup in section 7; it does not itself log in.
+This contract covers the fresh session actually used by WWW's worker, without
+inventing a public initializer at a different function address.
+
+The listing helper correction is authoritative at both call sites and cleanup:
+00811f00 checks the listener at +0xf0 and closes it through socket slot +0xc if open;
+00811f90 does the same for data +0x150. Both return true, ignore the close result,
+and leave other session fields alone (00811f00–00811f20, 00811f90–00811fb0).
+Section 3's former receive-options description is superseded. The accepted data
+socket survives the listener close until the receive loop ends; no receive-option
+changes or join are implied.
+
+**Constructed conformance vectors (PROPOSED / UNEXECUTED).**
+
+| ID | Setup / observation boundary | Required behavior |
+|---|---|---|
+| WWW19-1 | Newly constructed session; successful address resolution; pause before target assignment | +0x1b0 becomes true; constructor defaults remain; no socket/thread/target calls yet |
+| WWW19-2 | Same initialization step, byte already true | No repeated setup or cleanup; all other fields preserved |
+| WWW19-3 | Fresh worker session receives scheduler target, then exits through shutdown | Initialization permits target Release before forced disconnect; no extra initialization reference |
+| WWW19-4 | LIST accepted; listener and data both open | 00811f00 closes only listener; receive uses still-open data; 00811f90 closes data before final control reply |
+| WWW19-5 | Either close helper's socket already closed, or its close operation reports failure | Helper returns true; no options, state reset, other-socket close or thread join |
 
 ## 8. Further discriminating vectors
 
