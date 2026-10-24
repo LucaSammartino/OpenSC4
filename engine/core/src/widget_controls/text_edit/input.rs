@@ -4,6 +4,36 @@ use super::{layout::Vertical, runtime::TextHost, *};
 use crate::widget_controls::Message;
 
 impl TextEdit {
+    /// Live character entry: manager queries precede even the noneditable path.
+    pub fn character(&mut self, byte: u8, f: &mut impl TextHost) -> Result<bool> {
+        f.key_state(0x11);
+        f.key_state(0x12);
+        if self.flags & 1 == 0 {
+            return Ok(false);
+        }
+        let byte = if byte == b'\r' { b'\n' } else { byte };
+        if byte < 0x20 && byte != b'\n' {
+            return Ok(true);
+        }
+        if self.encoding.accumulates() {
+            if self.pending.is_empty() && self.encoding.input_lead(byte) {
+                self.pending.push(byte);
+                return Ok(true);
+            }
+            self.pending.push(byte);
+            if self.pending.len() < 1 + self.encoding.trailing_count(self.pending[0]) {
+                return Ok(true);
+            }
+        } else {
+            self.pending.clear();
+            self.pending.push(byte);
+        }
+        if !f.capturing(self.window) {
+            self.insert_text(&self.pending.clone(), f)?;
+        }
+        self.pending.clear();
+        Ok(false)
+    }
     pub fn step(&mut self, delta: i32, composed: bool, f: &mut impl TextHost) -> Result<()> {
         let special = if composed {
             self.encoding.accumulates()

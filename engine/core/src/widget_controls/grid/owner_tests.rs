@@ -25,6 +25,21 @@ pub(super) struct Events {
     veto: bool,
 }
 
+#[test]
+fn owner_final_release_destroys_storage_after_double_shutdown() {
+    let mut f = Recording::default();
+    let mut g = Grid::new(100, 0);
+    g.default_format.font = Some(44);
+    let mut owner = grid::GridOwner::new(g);
+    assert_eq!(owner.add_ref(), 2);
+    assert_eq!(owner.release(&mut f), 1);
+    assert!(owner.grid.is_some());
+    assert!(f.refs.is_empty());
+    assert_eq!(owner.release(&mut f), 0);
+    assert!(owner.grid.is_none());
+    assert_eq!(f.refs.iter().filter(|r| **r == (false, 44)).count(), 1);
+}
+
 impl GridHost for Recording {
     fn grid_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
         u32::from_be_bytes([0x7f, rgb[0], rgb[1], rgb[2]])

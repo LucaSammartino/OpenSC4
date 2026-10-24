@@ -3,6 +3,7 @@
 //! records for fixtures; live callers execute them with `execute_repairs`.
 //! Layout, input, painting and foreign service orchestration are separate modules.
 //! No plugin or ABI uses this owner.
+pub mod adapters;
 pub mod edits;
 pub mod encoding;
 pub mod input;

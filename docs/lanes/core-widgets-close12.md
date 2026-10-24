@@ -17,4 +17,6 @@
 - No FileBrowser/Grid/TreeView source edits yet; no owner closure claim for this continuation. Grid release already shuts down and expects caller drop; audit if owning final-release adapter is still required.
 - No final all/verify gate run yet (source not final); no game needed for unwired core, no game requests outstanding; ABI unchanged.
 - Formatting helper build-runs/format-owned.py emits an apply_patch diff; apply its output, never write rustfmt stdout to source. It now explicitly decodes rustfmt UTF-8. A one-time mojibake mistake was repaired; fmt passed afterward.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r1-manifest.json.
+- Round 2 milestone: live character entry/key queries, text/output/resource adapters, origin-preserving exact-height resize and background image thirds/bar strips; TextEdit focused 20/20 passed (session 89531 terminal exit 0). Grid owning final-release adapter added; its compile/test pending.
+- Next: finish FileBrowser settled init/paint orchestration and TreeView audit, reconcile README tables, format/test then final all/verify. No build/game operation outstanding.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r2-manifest.json.

@@ -45,6 +45,35 @@ pub enum Input {
     Focus(bool),
 }
 
+/// Owning adapter for FinalRelease. The non-owning `Grid::release` remains
+/// available to embeddings whose allocator controls storage separately.
+pub struct GridOwner {
+    pub grid: Option<Box<Grid>>,
+    pub references: u32,
+}
+impl GridOwner {
+    pub fn new(grid: Grid) -> Self {
+        Self { grid: Some(Box::new(grid)), references: 1 }
+    }
+    pub fn add_ref(&mut self) -> u32 {
+        assert!(self.grid.is_some(), "released Grid owner");
+        self.references = self.references.wrapping_add(1);
+        self.references
+    }
+    pub fn release(&mut self, f: &mut impl GridHost) -> u32 {
+        let grid = self.grid.as_mut().expect("released Grid owner");
+        if self.references > 1 {
+            self.references -= 1;
+            return self.references;
+        }
+        grid.shutdown(f); // FinalRelease virtual Shutdown.
+        grid.shutdown(f); // Deleting destructor repeats Shutdown before storage cleanup.
+        self.grid.take();
+        self.references = 0;
+        0
+    }
+}
+
 /// Live counterparts of the data-stage methods: unlike direct state edits,
 /// these execute the documented recalculation hook before returning.
 pub enum Mutation<'a> {

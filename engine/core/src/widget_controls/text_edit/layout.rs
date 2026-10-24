@@ -457,10 +457,8 @@ impl TextEdit {
         let new_height = rows.wrapping_mul(line_height);
         if new_height != height {
             self.runtime.size[1] = new_height.wrapping_add(self.gutters[1].wrapping_mul(2));
-            f.base_area(
-                self.window,
-                [0, 0, self.runtime.size[0] as i32, self.runtime.size[1] as i32],
-            );
+            // The primary SetHeight slot preserves the existing origin/width.
+            f.base_height(self.window, self.runtime.size[1]);
         }
         self.bar_sizes(f);
         self.bar_values(true, f)?;

@@ -9,7 +9,7 @@ pub use contracts::{compare_c_locale, CellComparator};
 pub use data::GridDataForeign;
 pub use paint::{PaintHost, PaintOp, PaintRecord};
 pub use runtime::{compare_cell_values, equal_record, signed_gcd, stable_sort_values};
-pub use runtime::{GridHost, Input, Mutation};
+pub use runtime::{GridHost, GridOwner, Input, Mutation};
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;

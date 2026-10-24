@@ -30,6 +30,8 @@ pub trait TextHost: TextForeign {
     fn base_init(&mut self, window: Handle);
     fn base_shutdown(&mut self, window: Handle);
     fn base_area(&mut self, window: Handle, area: Rect);
+    fn base_height(&mut self, window: Handle, height: u32);
+    fn key_state(&mut self, key: u32) -> bool;
     fn base_message(&mut self, window: Handle, message: Message) -> bool;
     fn base_show(&mut self, window: Handle, show: bool);
     fn base_focus(&mut self, window: Handle, gained: bool) -> bool;
@@ -76,7 +78,8 @@ pub trait TextHost: TextForeign {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Paint {
     Fill(Rect, u32),
-    Image(Handle, Rect, bool),
+    Image(Handle, Rect),
+    EdgeImage { image: Handle, area: Rect, thirds: [i32; 2] },
     Text {
         font: Handle,
         bytes: Vec<u8>,

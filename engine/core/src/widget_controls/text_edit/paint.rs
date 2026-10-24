@@ -142,12 +142,27 @@ impl TextEdit {
             area[0].wrapping_add(self.gutters[0].wrapping_add(self.runtime.visible[0]) as i32),
             area[1].wrapping_add(self.gutters[1].wrapping_add(self.runtime.visible[1]) as i32),
         ];
+        let background_area = [
+            area[0],
+            area[1],
+            area[2].wrapping_sub(self.runtime.bars[0].map_or(0, |b| f.bar_dimensions(b).0) as i32),
+            area[3].wrapping_sub(self.runtime.bars[1].map_or(0, |b| f.bar_dimensions(b).1) as i32),
+        ];
         if self.flags & 0x20 != 0 {
             if let Some(image) = self.runtime.background {
-                f.draw(Paint::Image(image, clip, self.runtime.background_option != 0));
+                if self.runtime.background_option != 0 {
+                    let r = f.image_rect(image);
+                    f.draw(Paint::EdgeImage {
+                        image,
+                        area: background_area,
+                        thirds: [r[2].wrapping_sub(r[0]) / 3, r[3].wrapping_sub(r[1]) / 3],
+                    });
+                } else {
+                    f.draw(Paint::Image(image, background_area));
+                }
             } else {
                 let color = f.convert_color(self.runtime.fill_color, true);
-                f.draw(Paint::Fill(clip, color));
+                f.draw(Paint::Fill(background_area, color));
             }
         }
         let password = self.flags & 0x2000 != 0;

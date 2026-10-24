@@ -26,6 +26,13 @@ impl TextHost for Services {
     fn base_area(&mut self, _: Handle, r: Rect) {
         self.events.push(format!("area{r:?}"));
     }
+    fn base_height(&mut self, _: Handle, height: u32) {
+        self.events.push(format!("height{height}"));
+    }
+    fn key_state(&mut self, key: u32) -> bool {
+        self.events.push(format!("key{key:x}"));
+        false
+    }
     fn base_message(&mut self, _: Handle, _: Message) -> bool {
         self.events.push("base-message".into());
         false
@@ -172,6 +179,90 @@ fn fixture(text: &[u8]) -> (TextEdit, Services) {
             ..Services::default()
         },
     )
+}
+
+#[test]
+fn te_live_character_and_output_adapters_vectors_9_48_49_54_55() {
+    let (mut e, mut f) = fixture(b"abc");
+    e.flags = 1;
+    assert_eq!(e.character(b'\t', &mut f), Ok(true));
+    assert_eq!(f.events, ["key11", "key12"]);
+    assert_eq!(e.text, b"abc");
+    e.encoding.selector = 8;
+    e.position.index = 3;
+    e.position.anchor = 3;
+    e.position.active = 3;
+    assert_eq!(e.character(0xc0, &mut f), Ok(true));
+    assert_eq!(e.character(0x41, &mut f), Ok(false));
+    assert!(e.pending.is_empty());
+    assert_eq!(&e.text[3..], &[0xc0, 0x41]);
+    let mut output = [0xfe; 4];
+    let mut count = 2;
+    e.get_text_buffer(&mut output, &mut count).unwrap();
+    assert_eq!(output, [b'a', b'b', 0xfe, 0xfe]);
+    assert_eq!(count, 2);
+    struct Outputs(u32);
+    impl adapters::WordOutputs for Outputs {
+        fn write(&mut self, _: Handle, value: u32) { self.0 = value; }
+    }
+    let mut outputs = Outputs(0);
+    e.position.anchor = 1;
+    e.position.active = 4;
+    assert!(e.get_selection(99, 99, &mut outputs));
+    assert_eq!(outputs.0, 4);
+    let mut style = 42;
+    assert!(!e.get_font_style(&mut style));
+    assert_eq!(style, 42);
+    assert_eq!(e.copy_to_string(|s| s.to_vec()), e.text);
+}
+
+#[test]
+fn te_exact_height_preserves_origin_and_background_excludes_bars() {
+    let (mut e, mut f) = fixture(b"abc");
+    e.runtime.size = [100, 25];
+    e.gutters[1] = 2;
+    e.exact_line_heights(&mut f).unwrap();
+    assert_eq!(e.runtime.size[1], 24);
+    assert!(f.events.iter().any(|event| event == "height24"));
+    assert!(!f.events.iter().any(|event| event.starts_with("area")));
+    e.runtime.bars = [Some(8), Some(9)];
+    e.flags = 0x20;
+    e.runtime.background = Some(20);
+    e.paint([30, 40, 130, 90], &mut f).unwrap();
+    assert_eq!(f.paints[0], Paint::Image(20, [30, 40, 120, 82]));
+    e.runtime.background_option = 1;
+    f.paints.clear();
+    e.paint([30, 40, 130, 90], &mut f).unwrap();
+    assert_eq!(f.paints[0], Paint::EdgeImage { image: 20, area: [30, 40, 120, 82], thirds: [0, 0] });
+}
+
+#[test]
+fn te_single_line_threshold_bar_failure_and_preferred_x_vectors_50_51_53() {
+    let (mut e, mut f) = fixture(b"abcdefgh\nabcdefgh\nabcdefgh");
+    e.flags = 0x200;
+    e.runtime.visible[0] = 40;
+    e.position.index = 6;
+    e.position.column = 6;
+    e.insertion_in_view(&mut f).unwrap();
+    assert_eq!(e.runtime.horizontal_byte, 4);
+    e.flags = 12;
+    f.bar_success = false;
+    e.add_bars(true, true, &mut f).unwrap();
+    assert_eq!(e.flags & 12, 0);
+    assert_eq!(e.runtime.bars, [None; 2]);
+    e.flags = 1;
+    e.lines = vec![0, 9, 18];
+    e.runtime.rows = 1;
+    e.runtime.line_height = 10;
+    e.position = Position { line: 1, column: 2, index: 11, anchor: 11, active: 11 };
+    e.preferred_x = 70;
+    e.key_down(0x28, 0, &mut f).unwrap();
+    assert_eq!(e.position.column, 6);
+    assert_eq!(e.preferred_x, 70);
+    e.position = Position { line: 1, column: 2, index: 11, anchor: 11, active: 11 };
+    e.key_down(0x22, 0, &mut f).unwrap();
+    assert_eq!(e.position.column, 1);
+    assert_eq!(e.preferred_x, 70);
 }
 
 #[test]
