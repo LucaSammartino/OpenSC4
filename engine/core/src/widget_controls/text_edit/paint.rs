@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! TextEdit Ã‚Â§9: original byte coordinates, mask-only drawing, pixel selection.
+//! TextEdit section 9: original byte coordinates, mask-only drawing, pixel selection.
 use super::{
     runtime::{Paint, TextHost},
     *,

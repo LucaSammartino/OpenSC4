@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Window/resource/timer owner paths, text-edit Ã‚Â§Ã‚Â§1,5,10 and adapters.
+//! Window/resource/timer owner paths, text-edit sections 1, 5, 10 and adapters.
 use super::*;
 use crate::widget_controls::{Message, Rect};
 

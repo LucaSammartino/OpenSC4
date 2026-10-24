@@ -35,6 +35,7 @@ fn words(source: &[u8], count: usize) -> Result<Vec<u16>> {
 
 /// `aliased` models pointer identity without manufacturing overlapping Rust borrows.
 /// In that case `source` is the pre-call snapshot, and `output` is the same storage.
+#[allow(clippy::too_many_arguments)] // Native counted selector pair plus alias/environment inputs.
 pub fn convert(
     source: &[u8],
     count: usize,
