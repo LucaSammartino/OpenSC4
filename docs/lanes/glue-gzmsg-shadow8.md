@@ -7,7 +7,10 @@
 - Goal: land the existing default-off diagnostic after merging main; no new feature work.
 - Round 2: merged main; resolved private Rust module and known config-key list conflicts by retaining both sides.
 - Public exports from main are retained; no ABI version bump or generated ABI list edits.
-- Next: run qbuild all on final merged source, collect the same operation to completion, record results, commit report and enqueue READY at actual HEAD.
+- Merge commit: 808a5612d (main parent 03482006f); Rust 6962/0, clippy zero diagnostics.
+- First round-2 native gate qbuild-20261024-064225-build-ctest: build PASS 91/91; CTest 77/78, capi_smoke stale object compiled ABI 95 from train-integration while current header/Rust both 96. Build relinked but did not recompile capi_smoke.cpp.
+- Failed evidence: build-runs/round2-failed-fc4verify-{build,ctest}.log and build-results/qbuild-20261024-064225-build-ctest.verdict.
+- Next: invalidate only capi_smoke compiler artifacts via Ninja clean rule, rerun qbuild all on unchanged merged source, collect to completion, report and enqueue READY.
 - Existing game labels gzmsg-shadow8-r1-2032 and gzmsg-shadow8-r2-2032 are completed and clean with ref_warnings=0; gzmsg 0/73, covered by GZ11/GZ12. No requests outstanding or new game run required for this merge-only resolution.
 - Prior implementation and measurements follow below.
 
