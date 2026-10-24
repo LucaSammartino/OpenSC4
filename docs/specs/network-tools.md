@@ -593,6 +593,75 @@ terrain refresh; network lookup hit/value (including offset ids); and live terra
 Compare that trace with these controlled fixtures first. NT27 supplies no public native getter for this trace;
 the four observed city totals remain evidence of differences, not admitted internal inputs.
 
+#### 8.1.3 Nonflat solve, grading and refresh fixture (NT34)
+
+This is an admitted **constraint-boundary fixture**: it starts after piece/model selection and plane/range
+construction, at the inputs to the two height solves. It certifies those solves and commit refresh, not that
+the shipped road picker selects these synthetic piece constraints for a particular city drag. Use a fresh
+193-bucket satisfier for each solve, a 128-cell square city, stride 129, and one available solved cell `(4,4)`
+at index 0, also the sole smoothing cell. Connection, intersection, placed and run flags are false; the
+boundary set and all extra/intersection constraints are empty. No other occupants are available. Other
+terrain vertices are 100. All numbers below are exactly representable float32 values; no tolerance is needed.
+
+| Corner | Vertex | Initial live terrain t | Post-piece network target n |
+|---|---:|---:|---:|
+| 0 | 520 | 100 | 102 |
+| 1 | 649 | 101 | 104 |
+| 2 | 650 | 102 | 106 |
+| 3 | 521 | 101 | 104 |
+
+Set cached network corners to n. In variants A/B the piece is fixed, newly placed=false, and its model supplies
+these four fixed network heights; support lookup succeeds. These are fixed corners, not a flat-cell equality.
+The network solve fixes them individually (network-geometry §9.3). In C the piece is regular, not fixed,
+support lookup fails, and each post-plane allowed range is the singleton `[n,n]`, preferred range `[n,n]`;
+there are no additional slope/equality constraints. Thus C also has exactly the same network solution.
+Use network default range [0,1000], grading raise/cut limits 10/10, with support clearance as below.
+
+| Variant | Fixed / support clearance | Terrain allowed ranges in corner order | Terrain preferred values | Terrain solution in corner order |
+|---|---|---|---|---|
+| A | true / 10 | [92,102], [94,104], [96,106], [94,104] | t | (100,101,102,101) |
+| B | true / 1 | [101,102], [103,104], [105,106], [103,104] | t | (101,103,105,103) |
+| C | false / no supports | [102,102], [104,104], [106,106], [104,104] | fixed at n | (102,104,106,104) |
+
+Both solves succeed. In ascending hash-bucket iteration/pick order the network solution is
+`(649,104),(650,106),(520,102),(521,104)`. Terrain solutions in that same order are respectively
+A: `(649,101),(650,102),(520,100),(521,101)`;
+B: `(649,103),(650,105),(520,101),(521,103)`;
+C: `(649,104),(650,106),(520,102),(521,104)`.
+There are no bucket collisions or constraint-propagation neighbours. Equal-width ranges therefore pick
+649,650,520,521; preferred t is kept in A and clamped to the lower bound in B. C's ranges are singletons.
+
+On real commit A writes no terrain vertices. B and C write all four in terrain-solution iteration order
+649,650,520,521, since every change exceeds 0.001. The first NT30 refresh retains corners
+`(102,104,106,104)` in **all three** variants: it reads the network solution. No solved entry is appended.
+Getter-time live terrain equals the respective terrain-solution row. At earthwork factor=1 the cell's
+earthwork contribution is A=12, B=4, C=0; shared vertices would still count per corner per solved entry.
+There is no run-cell charge in this fixture. Supplying a bridge model's fixed heights does not by itself
+supply a charged bridge record.
+
+The discriminating rule is in the terrain-support solve, before commit: `hi=min(n,t+raise)`,
+`lo=t-cut`, then `lo=max(lo,n-clearance)` for supports. A fixed but unplaced cell prefers **t** within that
+range. A regular unsupported cell must grade exactly to **n** (and fails if the raise limit cannot reach n).
+A fixed **and placed** cell instead fixes terrain at t, before these support calculations. Changing A to
+fixed-and-placed therefore keeps t even with clearance=1. Changing B's raise limit to 0 makes its ranges
+infeasible and the support pass returns false; it must not commit the proposed grading.
+Evidence: fixed/placed gate `0x00644CAB`–`0x00644CC4`, bounds `0x00644CDD`–`0x00644D79`, unsupported rule
+`0x00644D7C`–`0x00644D9C`, fixed-cell preference `0x00644DD6`–`0x00644DEA`. All arithmetic in this fixture
+is exact even across the float32 stores visible at those addresses. Solver order is network-geometry §9.1;
+commit and refresh are §6.5 here.
+
+**What the city observation establishes.** At the question's vertex 659 the replay already has both network
+and terrain solutions 273.388092 and refresh keeps that value, whereas native getter-time terrain is
+271.987152. Refreshing that same network result again cannot manufacture the native grading target.
+The first unresolved boundary is the replay's piece/height constraints and terrain-support solution versus
+the native grading/writes, not the number of refreshed entries. Those two scalar observations do not reveal
+which native model height, support record, fixed/placed flag, allowed/preferred range, smoothing boundary,
+intersection constraint or earlier terrain input differs. Record these inputs before each smoothing level,
+both ordered solutions, and the actual terrain-write/readback stream; a mismatch before writes locates a
+solve-input/result difference, while a correct terrain solution with different readback locates commit or
+later terrain mutation. Keep 110/113, 170/192, 90/98 and 55/61 as city mismatches. This fixture supplies no
+recovered native city constraint snapshot and licenses no adjustment to match those totals.
+
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
 Only the player's tool UI withdraws money:
@@ -688,6 +757,54 @@ both counters before selection (`0x00652983`–`0x00652997`); a placement too sh
 prices zero. Do not resynchronise the saved count with the empty vector. This corrects the older shorthand in
 network-geometry §11 equating the cost count with the vector size at getter time; equality holds when selection
 finishes, not after release. The getter reads the saved count directly at `0x0064F0F5`.
+
+#### 8.3.1.1 Callable power-line observations (NT33)
+
+The clearance ray is **renderer** `cISC43DRender::PickTerrain`, not a method of `cISTETerrain`.
+The active renderer is the view-lifetime service cached at `0x00B43DD0`. Its primary table is `0x00ABAB60`;
+QI accepts primary IID `0xE9C622D8` (also `0x681BD529` and Unknown=1), returning the same pointer with an
+AddRef (`0x007C1890`–`0x007C18DE`). Use the interface pointer acquired for the active view; do not treat a
+terrain pointer or terrain-view subobject as that pointer. Balance an owned QI reference with Release.
+
+| Observation | Callable boundary, in logical argument order | Result and ownership |
+|---|---|---|
+| Clearance ray | Renderer slot **61**, byte offset **+0xF4**, target `0x007C35C0`; `this` in ECX; arguments: pointer to origin A, pointer to normalized direction, pointer to writable hit XYZ, zero, zero. Callee pops **20** bytes. | bool in **AL**; true supplies hit XYZ as three contiguous float32 values (12 bytes). The caller owns this ordinary value storage; no object, AddRef or release is involved. False means no successful pick; never consume the hit storage on false. |
+| Final `World::blocked(x,z,0)` probe | City slot **33** `GetLotManager` (`0x00472E70`), then lot-manager slot **6**, byte offset **+0x18**, target `0x0072B410`; ECX=manager, arguments signed x, signed z, false. Callee pops **12** bytes. Primary IID **0xE818ED2B**, table `0x00AB37C0` (`0x00729EF0`–`0x00729F55`). | borrowed lot pointer in **EAX**; non-null means blocked and maps to classifier result 2. Do not release this lookup result. Null means no lot, including out-of-bounds coordinates. |
+
+The fourth ray argument is the false ground-plane-fallback flag: after terrain picks fail the renderer calls
+RayIntersectsGroundPlane only when it is nonzero (`0x007C374E`–`0x007C3768`). The fifth stack word is also
+zero on this power-line call; pass it literally as zero, without inventing a hit-distance return argument.
+The only hit output consumed by powerline selection is the third argument. The renderer can return false
+when its terrain view is absent (`0x007C35C6`–`0x007C35D0`); this does not supply a synthetic hit. It also
+retries a failed pick from an origin raised by 4 before optional ground-plane fallback
+(`0x007C3696`–`0x007C374C`). Calling the renderer preserves that behavior. At the powerline call site there
+is no null-renderer guard. An integration adapter lacking the active service must report unavailable,
+not reinterpret unavailable as a successful clear/no-hit observation.
+
+Use the origin, normalization, numeric order and inclusive finite-segment test in power-line-tool §4.1.
+The actual call setup is `0x00650CF5`–`0x00650DA4`; the distance test consumes hit XYZ rather than an ST0
+distance. For A=(8,17.5,8), B=(40,17.5,8), normalized direction=(1,0,0): false does not request a pole;
+true with hit=(40,17.5,8) does; true with hit=(41,17.5,8) does not. A hit beyond B is still a successful
+renderer pick but is outside the clearance segment.
+
+The lot probe is only the **last** classifier test, after zoning and occupant checks leave result 0
+(`0x0064FE41`–`0x0064FE5C`). It is not a substitute for the complete CellIsOKForPlacement contract in
+power-line-tool §3. The manager lookup itself is a bounds-checked borrowed grid read with no failure/HRESULT
+channel (`0x0072B410`–`0x0072B471`). False skips its extra location validation; powerline uses false.
+Missing service pointers are not an ordinary no-lot result. The full classifier's integer result is in EAX,
+not AL; preserve clear=0, zone=1, building/lot=2 and road=3 and the classifier's literal quirks.
+
+**Prefix correction.** DeterminePolePositions has no explicit prefix argument; it reads tool `+0x74`.
+That field is the **straight-step prefix count**, not a history count of previously placed occupants.
+DrawNetworkLine supplies it via BreakIntoStraightAndDiagSegments (`0x0063AFCC`–`0x0063AFD9`;
+axis outputs at `0x006380F6`–`0x0063811D`). A fresh in-bounds width-1 axis slot-7 drag from (4,32) to
+(16,32) has dragged=13 and prefix=13, even on empty land. Slot 7 initially zeros it, then DrawNetworkLine
+recomputes it before subclass placement (`0x00629329`–`0x0062932C`). For a diagonal/mixed drag use the
+straight prefix from network-geometry §3, including any subsequent drag-cell extension; do not set it to
+zero merely because no occupants have been committed. The pivot helper uses the step's first cell while
+step<prefix; later steps use the anchor-distance search (`0x0064F244`–`0x0064F29F`). The separate forced
+transition point exists only when 0<prefix<valid. This corrects the older “previously placed” terminology
+in power-line-tool §§1,4.1; it does not change the literal pivot or transition behavior.
 
 #### 8.3.2 Bridge
 
@@ -1222,3 +1339,12 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
 38. **NT32 release and reset.** Complete test 35, release all generated records, then release again:
     vector length=0, retained poles=3, wire cells=10, price=65 after both releases. Start a new slot-53
     placement with dragged=1: valid=0 (empty generated vector), both cost counts=0, price=0.
+39. **NT33 renderer and lot boundaries.** Use §8.3.1.1's three ray outcomes; verify the two zero words,
+    12-byte hit output and AL result. Distinguish a failed renderer acquisition from a callable renderer's
+    false result. In an otherwise clear cell, lot lookup null gives classifier 0, non-null gives 2;
+    neither borrowed lookup result causes a Release. Earlier zone/occupant classification skips this probe.
+40. **NT33 fresh prefix.** The empty-land axis fixture (4,32)–(16,32) supplies prefix=13 and dragged=13.
+    Every step chooses its first cell as pivot, and no prefix-transition forced point exists.
+41. **NT34 nonflat stages.** Run §8.1.3 A/B/C: identical nonflat network solutions and refreshed corners;
+    terrain solutions and earthwork contributions respectively (t,12), (n−1,4), (n,0).
+    B with raise=0 fails support before commit; fixed-and-placed bypasses support bounds and keeps t.

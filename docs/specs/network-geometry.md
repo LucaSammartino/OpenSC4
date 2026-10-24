@@ -909,11 +909,13 @@ the final step; an all-zone walk can retain the original count. See power-line-t
 with defaults 10, 20 and 0.1. Shipped values: §2.4. A flat straight road of 11 cells on empty land costs 11 × 10 = 110
 (no earthwork, no demolition).
 
-**NT3, cost.** `cSC4PowerLineTool::GetCostOfSolution` (`0x0064F0F0`): with `poles` = `+0x388` = (`+0x370` −
-`+0x36C`) / 48 (the pole records are 48 bytes):
+**NT3, cost.** `cSC4PowerLineTool::GetCostOfSolution` (`0x0064F0F0`): `poles` is the retained count at
+`+0x388`. DeterminePolePositions snapshots (`+0x370` − `+0x36C`) / 48 there; releasing the records later
+does not reset either pricing count (network-tools §8.3.1, NT32):
 
 - poles ≤ 1: 0;
-- otherwise `trunc(r24((float)(uint32)+0x384 × +0x3B0)) + +0x3AC × poles`.
+- otherwise truncate the x87 product of uint32 wire count `+0x384` and float32 `+0x3B0`, then add
+  `+0x3AC × poles`. No intermediate float32 rounding (network-tools §8.3.1, NT31).
 
 `+0x384` is counted up by `DeterminePolePositions` *[inferred: the number of wire cells]*. The values come from the
 exemplar (type `0x6534284A`, group `0xE7E2C2DB`, instance `0xC911E35B`): `0x4A5F5953` = 15 (cost per pole, `+0x3AC`),
