@@ -3,6 +3,13 @@ use super::*;
 use crate::effects::transform::ParentTransform;
 
 #[test]
+fn identity_parent_uses_local_translation_directly() {
+    let local = [-0., 3., 7.];
+    let position = ParentTransform::default().world_position(local);
+    assert_eq!(position.map(f32::to_bits), local.map(f32::to_bits));
+}
+
+#[test]
 fn semantic_transform_rotates_scales_then_translates_both_owners() {
     let parent = ParentTransform {
         rotation: [[0., 0., 1.], [0., 1., 0.], [-1., 0., 0.]],

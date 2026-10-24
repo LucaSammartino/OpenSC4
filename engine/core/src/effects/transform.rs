@@ -26,6 +26,9 @@ impl ParentTransform {
     /// Literal semantic implementation: binary32 products and left-to-right sums;
     /// native intermediate-store/order qualification remains open in EF19.
     pub fn world_position(&self, local_offset: [f32; 3]) -> [f32; 3] {
+        if *self == Self::default() {
+            return local_offset;
+        }
         if local_offset == [0.; 3] {
             return self.translation;
         }

@@ -14,3 +14,5 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
 
 <!-- from: core-effects-close5 (2026-10-24) -->
 - **EF19 - §§3, 8.3, 9.2 component transform decoding and numeric order:** what is the mapping from the 56-byte `S3DTransformLegacyLoad` placement to rotation/scale/translation, and the intermediate operation/store order for component world positions? [Implement the literal semantic parent translation + parent rotation/scale of local offset using binary32 products and left-to-right sums, with direct parent translation for a zero local offset. Do not decode the opaque placement bytes or claim native numeric equivalence. Manager legacy placement decoding remains outside this component API.]
+
+  Clarification: effects-parser §13 already settles the parser's in-memory matrix/offset/scale storage and rotation stores, without requiring a renderer row/column convention. EF19 concerns the legacy resource-load mapping and component world-position convention/order, not those settled parser stores. An identity parent returns local translation directly, including its original binary32 bits.

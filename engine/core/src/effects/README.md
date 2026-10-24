@@ -37,6 +37,10 @@ this lane has no complete shipped resource fixture and does not manufacture one
 from the expected counts. Existing behavior vectors and scoped shipped tables
 remain separate from a complete data-corpus census.
 
+`identity_parent_uses_local_translation_directly` additionally checks the §8.3
+identity-parent fast path preserves the original translation bits, including
+negative zero.
+
 Transforms accept semantic rotation/scale/translation rather than guessing the
 opaque legacy bytes. Binary32 operation order is a literal portable choice,
 recorded in EF19, not a measured native numeric match. Map tokens are opaque
