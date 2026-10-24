@@ -30,17 +30,24 @@ the receiver. Ordinary receiver identity is preserved by edit/assignment returns
 
 Sprintf parses typed arguments in core, builds output separately and assigns
 only on completion. Integer conversion, glyph-based field padding and valid
-multibyte string precision are implemented here. The exact float/pointer digit
-conversion is not stated by §5; FormatPrimitives exposes that boundary pending
-RZS6. Its test double verifies conversion selection and padding, not native
-float/pointer parity. Unvectored integer zero/precision/alternate combinations use
-the conventional literal interpretation, identified in code and RZS6. No
-whole-format host printf substitution is used.
+multibyte string precision are implemented here. RZS6 §5.1 integer prefix and
+precision rules, sign/field ordering and eight-uppercase-digit pointers are
+implemented without host printf. NumericPrimitives implements floating decimal
+rounding, fixed/exponential/general layout, the 512 precision cap, zero-sign
+normalization and the legacy infinity/NaN text (including letter rounding).
+
+Finite nonzero extraction uses the default LegacyDecimal provider in
+legacy_decimal.rs, implementing §5.1.1 (RZS7): exact widening including
+subnormals, adjusted stored scaling constants in base-eight order, truncated
+16-bit limb products with local ties-to-even rounding, one-step correction,
+88-bit fixed-point extraction and decimal half-up guard rounding. The provider
+remains injectable. All numeric conformance tests use the shipped default;
+RZ41–RZ50 assert raw eighteen digits, rounded intermediate and final output.
 
 ## Owner closure
 
-Every §9 vector is an executable core unit test in rz_tests.rs; test names keep
-RZ01–RZ20 and DT01–DT19 identifiers. “Not assigned” identifies sections about
+Every §9 vector is an executable core unit test in rz_tests.rs or numeric_tests.rs;
+test names keep RZ01–RZ50 and DT01–DT19 identifiers. “Not assigned” identifies sections about
 the other owner rather than claiming an additional implementation.
 
 | Owner | Spec section | Code item / boundary | Covering test |
@@ -49,12 +56,15 @@ the other owner rather than claiming an additional implementation.
 | cRZString | §2 inventory and dispatch | Public string methods, StringSource counted copy, assign receiver return; no new native vtable | string_inventory_wrappers_and_range_errors, rz06_replace_old_count_and_identity, rz18_sprintf_assignment_and_identity |
 | cRZString | §3 assignment and edits | from_char, set_c_string, copy, resize, append, insert, replace, erase, strcat, strncpy; open: RZS3 invalid/overlapping inputs | rz02–rz07, string_inventory_wrappers_and_range_errors |
 | cRZString | §4 equality, ordering, search | is_equal, compare_to, compare_string, find/rfind and object overloads, begins_with/ends_with; open: RZS2 non-ASCII folding | rz08–rz13, rz20_prefix_suffix_counted, open_boundaries_are_explicit_and_do_not_fabricate_results |
-| cRZString | §5 transforms and formatting | trim, mid/left/right, split_token, make_lower/upper, sprintf; open: RZS2 non-ASCII mapping, RZS4 other split variants, RZS5 formatter edges, RZS6 numeric conversion details | rz14–rz19, settled_format_syntax_modifiers_and_multibyte_precision, formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last, open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §5 transforms and formatting | trim, mid/left/right, split_token, make_lower/upper, sprintf; open: RZS2 non-ASCII mapping, RZS4 other split variants, RZS5 formatter edges | rz14–rz19, settled_format_syntax_modifiers_and_multibyte_precision, formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last, open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §5.1 numeric conversion and assembly | sprintf sign/prefix/padding and integer digits; NumericPrimitives decimal rounding/layout, pointer digits, zero and special values | rz21–rz40, rounding_before_first_significant_digit_and_exponent_carry, default_legacy_provider_formats_finite_and_zero |
+| cRZString | §5.1.1 finite decimal primitive (RZS7 answered) | legacy_decimal::convert, Extended::multiply, extract; default LegacyDecimal for () | rz41–rz50: raw digits, intermediate and output; rz21–rz40 use same default provider |
+| cRZString | §5.1.2 signs, special values and owner field assembly | NumericPrimitives special markers and zero normalization; sprintf sign/field assembly | rz24–rz25, rz35–rz39, rz46_legacy_truncation_three_quarters_and_sign |
 | cRZString | §6 detokenizer lifetime | Not assigned | — |
 | cRZString | §7 detokenizer registry | Not assigned | — |
 | cRZString | §8 detokenizer parsing/resource IO | Not assigned | — |
-| cRZString | §9 conformance | All RZ01–RZ20 plus both-owner DT17 | rz01–rz20, dt17_query_failure_preserves_sentinel |
-| cRZString | §10 open boundaries | RZS2–RZS5 tracked explicitly; additional §5 gap filed as RZS6 | open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §9 conformance | All RZ01–RZ50 plus both-owner DT17; numeric vectors exercise shipped extraction | rz01–rz50, dt17_query_failure_preserves_sentinel |
+| cRZString | §10 open boundaries | RZS2–RZS5 tracked explicitly; numeric §5.1 and §5.1.1 closed | open_boundaries_are_explicit_and_do_not_fabricate_results, invalid_decimal_provider_is_rejected_without_assignment |
 | cSCStringDetokenizer | §1 string lifetime | Not assigned | — |
 | cSCStringDetokenizer | §2 string inventory | No subscriptions, rendering, persistence or async contract | Base synchronous API only |
 | cSCStringDetokenizer | §3 string edits | Not assigned | — |
@@ -65,3 +75,31 @@ the other owner rather than claiming an additional implementation.
 | cSCStringDetokenizer | §8 parsing and resource IO | perform_detokenize, detokenize_in_place, detokenize_resource, ResourceStrings | dt04–dt06, dt13–dt16, dt18–dt19, virtual_parser_converter_and_resource_dispatch |
 | cSCStringDetokenizer | §9 conformance | All DT01–DT19 | dt01–dt19 |
 | cSCStringDetokenizer | §10 open boundaries | open: RZS1 reentrancy and RZS2 non-ASCII collation | API excludes reentrant mutation; explicit Unsupported for non-ASCII registration |
+
+The inherited utility/manager coverage is mapped below to its own specifications.
+LocaleHost supplies the explicitly delegated platform operations; these rows
+describe the core contract and unit coverage, not measured Windows locale parity.
+
+| Owner | Spec section | Code item / boundary | Covering test |
+|---|---|---|---|
+| cRZLanguageUtility | language-utility §1, §1.1 identity and output | LanguageUtility lifecycle, counted byte outputs | utility_identity_and_lifetime, case_and_compare |
+| cRZLanguageUtility | language-utility §2 IDs and attributes | language/country state and attribute/character-set queries | attribute_queries, character_sets |
+| cRZLanguageUtility | language-utility §3.1–§3.2 currency/separators | currency_symbol, separators and flags | currency_symbol, separators_and_currency_flags |
+| cRZLanguageUtility | language-utility §4.1–§4.3 grouping/integer formatting | grouped, make_number_string, make_money_string | number_strings, money_strings |
+| cRZLanguageUtility | language-utility §4.4–§4.5 floating formatting | make_formatted_money_string, make_formatted_number_string; explicit LocaleHost printf | formatted_money_strings, formatted_number_string_uses_host_printf |
+| cRZLanguageUtility | language-utility §4.6–§4.7 time/date | make_time_string, make_date_string | time_strings, date_strings |
+| cRZLanguageUtility | language-utility §4.8 case/comparison | convert_case, compare_strings; explicit LocaleHost ANSI operations | case_and_compare |
+| cRZLanguageUtility | language-utility §5.1–§5.4 names | names tables, day_name/abbr_day_name/month_name/abbr_month_name | day_and_month_names |
+| cRZLanguageUtility | language-utility §6 open questions | open: Q1 external currency-flag writer, Q2 callers, Q3 runtime negative-zero spelling; host policy stays explicit | currency_symbol, formatted_money_strings; no caller/Windows parity claim |
+| cRZLanguageManager | strings-language §1, §4.1 identity/state | lang constants, LanguageManager, embedded LanguageUtility, query_interface | manager_identity_and_utilities |
+| cRZLanguageManager | strings-language §4.2 switching/availability | set_current_language/country, available-set methods; LocaleHost locale changes | manager_switching, manager_available_lists |
+| cRZLanguageManager | strings-language §4.3 system mapping | current_system_language, system_language_from_language, language_from_system_language | manager_system_language |
+| cRZLanguageManager | strings-language §4.4–§4.5 names/codes/runtime names | language name, alias, directory, ISO639 and runtime-library lookups | manager_names_and_codes |
+| cRZLanguageManager | strings-language §4.6 countries | country names, ISO3166 and language/country mappings | manager_countries |
+| cRZLanguageManager | strings-language §4.7 reverse lookup | reverse and language/country lookup methods; specified safe choice for recursive native lookup | manager_reverse_lookups |
+| cRZLanguageManager | strings-language §4.8 money | exchange_rate_for_locale, convert_money | manager_identity_and_utilities |
+| cRZLanguage | named owner in brief | No separate behavior assigned by these specs; language IDs/state are implemented by lang, LanguageUtility and LanguageManager | attribute_queries, manager_identity_and_utilities |
+
+strings-language §2 delegates encoding to string-encoding.md; §3 delegates to
+language-utility.md. Its §9 explicitly leaves UTF-16/Thai helpers, advice
+detokenization, caller selection and startup language outside the settled contract.

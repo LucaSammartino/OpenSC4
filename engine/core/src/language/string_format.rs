@@ -14,10 +14,9 @@ pub enum FormatArg<'a> {
     Pointer(u32),
 }
 
-/// Raw numeric conversion boundary. The spec names float/pointer families but
-/// does not define their digit conversion, rounding, exponent or pointer form
-/// (RZS6). Supply those primitives, never an arbitrary whole-format host printf.
-/// These methods return digits before field padding; float input is a magnitude.
+/// Raw numeric conversion boundary, before field padding (rz-strings §5.1).
+/// Negative nonzero non-NaN inputs become magnitudes; NaNs retain their sign.
+/// NumericPrimitives supplies the specified legacy conversion; hosts may inject a provider.
 pub trait FormatPrimitives {
     fn float_digits(
         &self,
@@ -187,6 +186,7 @@ impl RzString {
                 return Err(StringFault::Unsupported("RZS5"));
             }
             let arg = next_arg(args, &mut argument)?;
+            let mut sign = Vec::new();
             let mut prefix = Vec::new();
             let mut digits;
             let numeric;
@@ -222,11 +222,8 @@ impl RzString {
                         _ => 10,
                     };
                     digits = integer_digits(value, base, conversion == b'X');
-                    // Literal conventional digit/precision interpretation where
-                    // §5 lists syntax but gives no zero/alternate vector (RZS6).
-                    if precision == Some(0) && value == 0 {
-                        digits.clear();
-                    }
+                    // §5.1: precision never suppresses zero; alternate prefixes
+                    // are unconditional and precede the precision zeros.
                     if let Some(n) = precision {
                         if n as usize > digits.len() {
                             let mut padded = vec![b'0'; n as usize - digits.len()];
@@ -236,51 +233,57 @@ impl RzString {
                     }
                     if signed {
                         if flags.plus {
-                            prefix.push(b'+');
+                            sign.push(b'+');
                         } else if flags.space {
-                            prefix.push(b' ');
+                            sign.push(b' ');
                         }
                     }
                     if flags.alternate {
-                        if base == 16 && value != 0 {
+                        if base == 16 {
                             prefix.extend_from_slice(if conversion == b'X' { b"0X" } else { b"0x" });
                         }
-                        if base == 8 && digits.first() != Some(&b'0') {
+                        if base == 8 {
                             prefix.push(b'0');
                         }
                     }
                     numeric = true;
                 }
                 (b'e' | b'E' | b'f' | b'g' | b'G', FormatArg::Float(value)) => {
-                    digits = primitives.float_digits(conversion, value.abs(), precision, flags.alternate)?;
-                    if value.is_sign_negative() {
-                        prefix.push(b'-');
+                    let negative = value < 0.0;
+                    let magnitude = if negative { -value } else { value };
+                    digits = primitives.float_digits(conversion, magnitude, precision, flags.alternate)?;
+                    if negative {
+                        sign.push(b'-');
                     } else if flags.plus {
-                        prefix.push(b'+');
+                        sign.push(b'+');
                     } else if flags.space {
-                        prefix.push(b' ');
+                        sign.push(b' ');
                     }
                     numeric = true;
                 }
                 (b'p', FormatArg::Pointer(pointer)) => {
-                    digits = primitives.pointer_digits(pointer, precision)?;
+                    // The owner calls the runtime with bare %p, ignoring precision.
+                    digits = primitives.pointer_digits(pointer, None)?;
                     numeric = true;
                 }
                 (b's' | b'c' | b'e' | b'E' | b'f' | b'g' | b'G' | b'p', _) => return Err(StringFault::Argument),
                 _ => return Err(StringFault::Unsupported("RZS5")),
             }
-            let length = glyphs(&prefix)? + glyphs(&digits)?;
+            let length = sign.len() + glyphs(&prefix)? + glyphs(&digits)?;
             let padding = (width as usize).saturating_sub(length);
             if flags.left {
+                result.extend(sign);
                 result.extend(prefix);
                 result.extend(digits);
                 result.resize(result.len() + padding, b' ');
             } else if flags.zero && numeric {
-                result.extend(prefix);
+                result.extend(sign);
                 result.resize(result.len() + padding, b'0');
+                result.extend(prefix);
                 result.extend(digits);
             } else {
                 result.resize(result.len() + padding, b' ');
+                result.extend(sign);
                 result.extend(prefix);
                 result.extend(digits);
             }

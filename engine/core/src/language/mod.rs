@@ -12,12 +12,16 @@
 //! them.
 
 mod detokenizer;
+mod legacy_decimal;
 mod manager;
 mod names;
+mod numeric_format;
 mod rz_string;
 mod string_format;
 mod utility;
 
+#[cfg(test)]
+mod numeric_tests;
 #[cfg(test)]
 mod rz_tests;
 
@@ -25,6 +29,7 @@ pub use detokenizer::{
     perform_detokenize, Detokenizer, DetokenizerDispatch, ReplacementMethod, ResourceStrings, StringRetrieval,
     IID_DETOKENIZER,
 };
+pub use numeric_format::{DecimalIntermediate, LegacyDecimal, NumericPrimitives};
 pub use rz_string::{RzString, StringFault, StringSource, IID_STRING, NOT_FOUND};
 pub use string_format::{FormatArg, FormatPrimitives};
 
