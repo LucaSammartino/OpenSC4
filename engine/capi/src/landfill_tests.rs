@@ -90,8 +90,8 @@ fn occupant_probe_authored_record_mutation_and_boolean_normalization() {
 }
 
 #[test]
-fn occupant_probe_rejects_versions_truncation_and_invalid_pointers() {
-    for offset in [0, 2, 16, 57] {
+fn occupant_probe_version_boundaries_truncation_and_invalid_pointers() {
+    for offset in [0, 2, 16, 18, 57] {
         let mut b = occupant_probe_fixture(0);
         if offset == 57 {
             b.pop();
@@ -111,7 +111,15 @@ fn occupant_probe_rejects_versions_truncation_and_invalid_pointers() {
                 &mut r,
             )
         });
-        assert_eq!((r.read_ok, r.write_ok), (0, 0));
+        // LG33: nested holder rejection leaves a good stream and the
+        // landfill tail is read at that cursor, unlike outer/base rejection.
+        let accepted = u32::from(offset == 16 || offset == 18);
+        assert_eq!((r.read_ok, r.write_ok), (accepted, accepted));
+        if accepted != 0 {
+            let z_bits = if offset == 16 { 0x0010_0000 } else { 0x02F1_0010 };
+            assert_eq!(r.position.map(f32::to_bits), [0, 0, z_bits]);
+            assert_eq!(r.bounds, [-8.0, 0.0, -8.0, 8.0, 16.0, 8.0]);
+        }
     }
     let mut r = fc4_landfill_occupant_probe_result::default();
     assert!(!unsafe {
