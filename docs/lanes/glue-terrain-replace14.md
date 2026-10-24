@@ -1,26 +1,33 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-terrain-replace14 (terrain replacement interface audit) | `Codex` / `glue-terrain-replace14` (engine lane) | in progress: commits 2e7504714, 69cd3b6be; cargo 7484 passed / 0 failed; clippy clean; CTest 81/81; game pending; TR44 filed; ABI unchanged | (1) Collect shadow gtr14-r2-shadow-2032-a; (2) measure replacement to 2032; (3) resolve remaining terrain contracts. |
+| glue-terrain-replace14 (terrain replacement interface audit) | `Codex` / `glue-terrain-replace14` (engine lane) | ready, partial: 2e7504714 and 69cd3b6be interface corrections; cargo 7484/0, clippy clean, CTest 81/81; run 14644 shadow clean 98/98 through 2032-01-03; run 14645 terrain-only replacement stalled 2026-05-03; TR44 filed; ABI unchanged; terrain replacement remains default-off and uncredited | (1) Resolve TR42/TR43/TR44 and the specified direct-array/view lifecycle gaps; (2) coordinator supplies house profile and measures 48 keys plus terrain through 2032; (3) credit replacement and update regress profile only after success. |
 
-## Handoff
-Goal: make terrain replacement pass the house replace run through 2032 and retain exact shadows.
-Done: 2e7504714 corrects slot 66 per terrain.md §15.5.6 to return the view sub-interface at base+0x0C, preserving null.
-Done: 69cd3b6be requests factory IID 0x6771477D and stores base per §15.5.1; acquisition/release audited; replacement seam invoked by the terrain native test.
-Measured: qbuild all began before the companion edit; workspace tests and doc-tests completed, summed 7484 passed / 0 failed.
-Gate: clippy still compiling after a long contended build; interrupted for requested context wind-down. Original session 67957 collected terminal exit 1. No native verify or game request outstanding.
-Evidence: build-runs/qbuild-initial-test.log and qbuild-initial-clippy.log preserve this incomplete check, separate from future final-source checks.
-Next exact step: measure terrain-only replacement with unique label gtr14-r2-replace-2032-a; no game request outstanding.
-Then: shadow on originals (terrain_shadow=1, turbo, end_date=2032-01-01), replacement trial and house profile; choose unique labels, one outstanding request.
-Waiting helper: build-runs/wait-terrain-verdict.ps1 uses one filesystem-event wait and accepts an already completed verdict; no qwait per transport instruction.
-Question: TR44 in docs/specs/questions/terrain.md requests the reported crash receiver/slot and slot 54 render-object identity/lifecycle.
-Known remaining contracts: native view Init is not called; surface-water direct array layout and other §15.5 requirements remain unaudited. Do not claim replacement success from this pointer correction alone.
-Clean room: no RE sources, forbidden tools/, game executables or main checkout edits accessed. House profile edits and coverage credit remain coordinator work.
-No game run records or exactness counts yet; last observed free run number was 644 (rescan before use). Terrain remains default-off; C ABI exports unchanged.
-Worktree intentionally detached. Sandbox rejected taskkill of own gate; original session interrupt successfully returned terminal exit 1.
-Resume round r2: final-source qbuild all launched once; workspace/doc tests: 7484 passed, 0 failed; clippy: exit=0 diagnostics=0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
-Native explicit verify qbuild-20261024-225556-build-ctest: PASS 267/267 build, CTest 81/81, qbuild PASS, session 5782 terminal exit 0. Tree-change note is documentation commits only, no engine source changes.
-Final-source all: PASS; qbuild-20261024-230142-build-ctest passed build 46/46 (incremental), CTest 81/81, qbuild PASS; session 41130 terminal exit 0. No gate outstanding. The redundant overlap was an error; do not repeat either gate without changed source/inputs.
-Game: gtr14-r2-shadow-2032-a clean through 2032-01-03, ref_warnings=0; 97/97 exact. Record docs/runs/gtr14-r2-shadow-2032-a.md, run 14644. Waiter 98432 terminal exit 1/timeout after missed event; completed valid verdict retained, no resend.
-Spec audit: section 15.5.1 step 5 requires direct view Init(terrain); section 15.5.3 publishes no Init slot. Native addresses are not a supported game interface. Do not guess a slot.
-Spec audit: section 15.5.11 requires live terrain+0x6C and water+0x18 arrays; current plugin does not populate either. No replacement safety claim from the pointer correction alone.
-Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-terrain-replace14-r2-manifest.json.
+## Report
+
+Partial closure: the interface corrections are gated and the original-terrain shadow is exact through 2032. The replacement target is not achieved. Terrain remains default-off; no replacement credit or house-profile change is requested.
+
+### Changes
+
+- `2e7504714`: terrain slot 66 returns the view interface at object base+0x0C, preserving null, per terrain.md section 15.5.6.
+- `69cd3b6be`: request factory IID `0x6771477D`, store the returned interface minus 0x0C as the object base, per section 15.5.1; retain acquisition/release accounting. The native terrain test now invokes the replacement seam.
+- This resume round completes final-source gates and real-game measurements; no engine source changed after those two implementation commits. C ABI exports are unchanged.
+
+### Validation
+
+Final-source `qbuild all` passed: workspace and doc tests summed **7484 passed, 0 failed**, clippy `-D warnings` exit 0 / diagnostics 0, queued native build and full **CTest 81/81**. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+
+The separately required `qbuild verify` also passed: build 267/267 edges, CTest 81/81, terminal exit 0. I started it before `all` reached its native stage, causing redundant native requests `qbuild-20261024-225556-build-ctest` and `qbuild-20261024-230142-build-ctest`; both were collected to completion. The latter build was incremental, 46/46 edges. Tree-change notes reflect documentation commits only. No gate remains outstanding. Prior-round interrupted evidence remains separately in `qbuild-initial-test.log` / `qbuild-initial-clippy.log`.
+
+`gtr14-r2-shadow-2032-a 98/98` — [run 14644](../runs/gtr14-r2-shadow-2032-a.md), clean through **2032-01-03**, foreign_exceptions=0, watchdog_stalls=0, ref_warnings=0. The harness counts 98 exact lines including shutdown; the plugin's internal counter is 97/97 comparison lines. All 72 month lines through 2032-01-01 are present; 16932 other checks have zero mismatches; unfollowed, followed-late and pending vertices are all zero. Evidence: `build-runs/game-results/gtr14-r2-shadow-2032-a.{log,verdict}`. No normal-speed rerun was needed because no shadow differed. The filesystem-event waiter missed the notification and terminated; the already completed clean verdict was retained without resending.
+
+`gtr14-r2-replace-2032-a` — [run 14645](../runs/gtr14-r2-replace-2032-a.md), **stalled at 2026-05-03**, watchdog_stalls=1, foreign_exceptions=0, ref_warnings=0. This used `enable=terrain` only. It logged view creation, no ConnectionsReady within 30 game days, and hidden=1 at the final heartbeat. It neither reproduced the house profile nor establishes that the reported 0x41800000 crash is fixed. Evidence: `build-runs/game-results/gtr14-r2-replace-2032-a.{log,verdict}`. Waiter completed; no game request remains outstanding.
+
+### Open contracts and next steps
+
+1. **TR44**, filed in [questions/terrain.md](../specs/questions/terrain.md), requests the reported crash receiver/slot plus slot 54 render-object identity and lifecycle. No new duplicate question was filed this round. Existing **TR42/TR43** cover reconciliation preferences and the missing comparison that controls TerrainReconciliation / ConnectionsReady. The new stall is evidence of failure, not proof of its cause.
+2. Implement the specified live direct arrays at terrain+0x6C and water+0x18 (section 15.5.11). Current plugin code does not populate them. Complete the view lifecycle: section 15.5.1 requires Init(terrain), while section 15.5.3 exposes no Init vtable slot. Do not invent a native virtual signature or call an executable address as an interface.
+3. A clean-room spec/RE lane must supply the missing receiver contract; the coordinator must supply the permitted house-profile inputs and run the 48 keys plus terrain through 2032. Only after a clean replacement run should the coordinator credit terrain owners and append terrain to the regress replace list.
+
+No forbidden RE paths, tools/ files/scripts, game executable, main checkout source, coverage-map or coverage-shadows file was accessed or edited. The requested tools/ edits and coverage-script execution conflict with the lane's clean-room restrictions and remain coordinator work. Shadows remain default-off except through their ini key.
+
+Worktree is intentionally detached; the supervisor publishes commits. Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-terrain-replace14-r2-manifest.json`.
