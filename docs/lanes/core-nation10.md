@@ -8,10 +8,11 @@
 - Read nation.md sections 1–5 and demand.md sections 8.2/11.2.
 - Spec declares no nation save record. Do not invent a nation codec.
 - Region filesystem methods have names but no detailed contracts; file questions before choosing behavior.
-- Implemented engine/core/src/nation: economy, process tuning, catalog getters/activation, subscriptions/message routing.
+- Implemented engine/core/src/nation at 0920be534: economy, process tuning, catalog getters/activation, subscriptions/message routing.
 - Added owner closure README, 7 focused core tests and 2 nation §5 conformance tests.
 - Filed NQ1–NQ3 in docs/specs/questions/nation.md; NQ1 blocks full filesystem closure (explicit Unsupported).
-- Formatting passes for all 3 new Rust files. Focused Cargo session 96352 still running.
+- Formatting passes for all 3 new Rust files. Focused Cargo session 96352 finished: 7/7 nation tests pass, no failures.
 - q.py focused-test launch failed before Cargo: Bash CreateFileMapping Win32 error 5; evidence build-runs/q/20261024-101514-11952.log. Running Cargo directly instead.
-- Next: collect session 96352, then run final qbuild all and required queued verify. No full build has been launched yet.
+- Final stable-source qbuild all launched once: session 69436 is outstanding. Collect this same session with 30–60 second waits; do not duplicate it.
+- Next: collect all results, then required qbuild verify if all has not already queued it; finish report and wip queue (NQ1 prevents owner closure).
 - No game requests outstanding; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-nation10-r1-manifest.json.
