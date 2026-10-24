@@ -1,5 +1,9 @@
 # text-edit: answered questions
 
+<!-- from: re-textedit4 (2026-10-22); residual narrowed in round 1 -->
+- **TE5 - sections 7–8 and encoding/layout/adapters supplements:** Exact conversion selectors/malformed-input results, Thai context levels and composed lengths?
+  **ANSWERED 2026-10-24 (re-widget-controls-te13b):** DIFFERS — text-edit-encoding.md now specifies conversion counts, alias behavior, prefix/error handling, Windows call parameters, intermediate conversion, Thai classes/levels and both composed-length directions. Quirks include low-16 truncation of long UTF8 forms, consumed-but-unwritten UTF16 units, forward/backward 0E33 asymmetry and the unguarded fourth-word read. New vectors distinguish each; Windows code-page tables remain explicit environment inputs rather than unresolved owner behavior.
+
 <!-- from: core-widgets5 (2026-10-23) -->
 - **TE9 - section 1 constructor / section 6 history limit:** what initial values are stored in the maximum-undo-level word W+0x184 and preferred-X W+0x170? [The portable byte/state stage requires explicitly resolved history-limit and preferred-X values; no native constructor default is inferred.]
   **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — the same stores inspected for TE10 explicitly initialize maximum undo levels to `0x4000` and preferred X to `0xFFFFFFFF`. Section 1 Runtime defaults supplies both, citing `0x009BFFBF` and `0x009C000D`; this does not reopen TE5/TE8.

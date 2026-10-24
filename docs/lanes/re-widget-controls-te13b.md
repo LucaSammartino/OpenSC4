@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widget-controls-te13b: TextEdit and FileBrowser closure | Codex; re-widget-controls-te13b | ready: partial closure; doccheck passed | Implement settled rules; residual TE5/TE8, FBQ2/FBQ5 remain parked |
+| re-widget-controls-te13b: TextEdit and FileBrowser closure | Codex; re-widget-controls-te13b | in progress: round 2 | Resolve TE5/TE8 and FBQ2/FBQ5 from export; verify existing TE9–TE12 closure |
 
 ## Report
 
@@ -49,10 +49,16 @@ completed on detached HEAD; no refs/config were changed manually.
 
 ## Handoff
 
-- Ready partial specification closure; no active game requests or ABI proposals.
-- Implementers can consume the added vectors and reconciled TE9–TE12 immediately.
-- Remaining research is exactly the four retained question IDs above, not new
-  duplicates. Budget was reserved for verification/reporting rather than
-  promoting unreviewed helpers or completing the larger AddControls body.
+- Round 2 goal: close TE5/TE8 conversion, allocation/unwind and C-library edges;
+  FBQ2 full controls/message behavior; FBQ5 all population branches.
+- Baseline milestones: 5000f7668 reconciled TE9–TE12; 71ba3ab06 added adapter,
+  restoration and paint rules; eb14e8ea7 reported passing partial closure.
+- Owner closure rows read from main engine README as explicitly requested.
+- TE5 complete in encoding supplement: selector/error/count rules, Thai
+  class/level tables, composed lengths and 14 additional vectors; answered
+  record moved and index regenerated. Instruction-verified arithmetic.
+- Next: TE8 generated history storage, strncpy and both search primitives;
+  then FBQ2 AddControls/DoMessage and FBQ5 population.
+- No active game requests or ABI proposals. Do not recreate answered TE9–TE12.
 - Detached HEAD is intentional; the supervisor publishes commits to the lane.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-widget-controls-te13b-r1-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-widget-controls-te13b-r2-manifest.json.

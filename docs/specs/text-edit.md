@@ -144,7 +144,8 @@ input calls InsertTextHighLevel only when the window is not capturing;
 the normal exit clears pending bytes and returns false. A true return
 therefore does not prove text changed. The exact helper byte tables and
 malformed-input outcomes are specified in [text-edit-encoding.md](text-edit-encoding.md)
-(TE1); composed/UTF16 conversion and system selector services remain foreign.
+(TE1/TE5), including composed lengths and UTF16 conversion. The system
+selector service and Windows code-page tables remain environment inputs.
 
 `InsertTextHighLevel` (`0x009C07E1`) handles replacement, independently of
 the raw insert primitive. If editor bit `0x200` is set and the candidate's
@@ -326,8 +327,8 @@ insertion is LF. It does not change insertion line or selection itself.
 New native byte/word stepping, line/index conversion, horizontal visible
 spans, scroll offsets, scrollbar geometry/range arithmetic, page scrolling
 and drag-timer routing are specified in [text-edit-layout.md](text-edit-layout.md).
-Foreign TE5 composition results are parked there individually; the native
-owner navigation/view paths have final-round instruction proofs.
+Composition and conversion results are specified in the encoding supplement;
+the native owner navigation/view paths have instruction proofs.
 
 CalculateVisibleWidth/Height (`0x009BCBC5`, `0x009BCC0E`) subtract twice
 the corresponding gutter plus the orthogonal scrollbar thickness from
@@ -758,16 +759,15 @@ is claimed while body and foreign-boundary residuals remain.
 | Area | Current evidence disposition |
 |---|---|
 | Identity, state, whole-text replacement, selection, overwrite, character input, high-level insertion, caret timer | Rules above; external helper contracts remain bounded |
-| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout extension; TE3/TE4 domains/eviction and page/arrow arguments resolved; foreign composition results parked TE5 |
+| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout/encoding extensions; TE3/TE4 domains/eviction, page/arrow arguments and TE5 composition resolved |
 | Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9 and layout extension; password coordinates, caret-in-view and AddScrollBar owner ordering specified; individual residual bodies remain TE8 |
 | Init/shutdown, images/font ownership, flags/messages | Section 10 specifies owner cleanup, including absent background-image release; foreign resource implementations remain boundaries |
 | Every label, folded alias, thin method and helper | Companion inventory and questions required; no credit beyond documented contracts |
 
 Final round 3/3 adds [byte helper contracts](text-edit-encoding.md) and
 [individual adapters/repair contracts](text-edit-adapters.md). TE1 is
-answered; TE5's exact foreign residual and TE8's remaining per-body gaps
-are **parked**. Preserve the original worktree. **No fourth round or
-automatic restart is authorized.** The 150-body attribution is not a
+answered; TE5 conversion/composition was completed on 2026-10-24. TE8's
+allocation and C-library dependencies are tracked separately below. The 150-body attribution is not a
 150-body behavioral proof, and no whole-widget-family credit is claimed.
 
 Open contracts live in [questions/text-edit.md](questions/text-edit.md).

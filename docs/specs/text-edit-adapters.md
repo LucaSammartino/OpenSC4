@@ -136,9 +136,10 @@ that chunk and adds its byte count without advancing offset or changing
 previous; nonzero level advances offset and replaces previous with current.
 The loop compares offset against the candidate's new length after each
 erase, returning total removed bytes. No owner validation of helper bounds,
-UTF16 values, nonprogress or context index is present. The conversion and
-Thai-level helper implementations are explicit foreign inputs, not inferred
-from their names (`0x009BE63C`, `0x009BE66D`, `0x009BE689`).
+UTF16 values, nonprogress or context index is present (`0x009BE63C`,
+`0x009BE66D`, `0x009BE689`). Conversion and Thai-level outcomes are specified
+in [text-edit-encoding.md](text-edit-encoding.md#conversion-te5), including
+the zero-consumption and invalid-mark cases.
 
 ## Flags, images and color adapters
 
