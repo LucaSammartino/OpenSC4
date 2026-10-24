@@ -16,7 +16,9 @@
 - Gate 2 on 1e450c22b (collected terminal FAIL): E0308 Host::City vs Region::City in test/clippy/native build; CTest skipped. Evidence r2-attempt2-* logs. Native job qbuild-20261024-111717-build-ctest.
 - Corrected Host to derive its city type solely from Region::City; standalone diagnostic build-runs/nation-city-type-check.rs compiles.
 - Focused owner tests on corrected source: 11/11 pass, cargo terminal exit 0.
-- Next: final full gate; no operation outstanding.
+- Corrected source committed ba5abdafb; final full gate Rust results: 7070 tests passed, 0 failed/ignored; clippy exit 0, diagnostics 0. fmt 4/4 explicit files clean.
+- Outstanding: same qbuild session 22480; native job qbuild-20261024-112454-build-ctest queued. Collect terminal result, do not duplicate check.
+- Next: after native PASS, replace Handoff with full READY report, commit, and write merge queue with full HEAD and engine/core/src/nation path; open contracts none.
 - Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
 - No game request outstanding; portable core has no plugin wiring/shadow.
 - Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.
