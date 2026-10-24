@@ -265,8 +265,11 @@ file. Otherwise accept a file if **any** pattern matches through WildcardMatch,
 passing the configured match option. An empty matching result omits that file.
 Directories do not pass through these filename-pattern tests. This is not
 intersection-of-patterns filtering. The filter group's index is used without
-a local bounds check. The exact directory-service filter syntax and wildcard
-option semantics are outside the proved portion (FBQ5).
+a local bounds check. The match option at primary `+0x15C` is a byte:
+**zero lowercases copies of both candidate and pattern; nonzero preserves
+both** before MatchPattern. Original stored names/patterns are not changed
+(`009A5104–5116`, `00918F08–2F`). This settles its case-folding polarity;
+the directory service's own filter syntax remains an external input.
 
 After enumeration the entry vector is sorted, then grid rows are populated
 with optional icons, names and extension text. File extension text has a
@@ -276,7 +279,43 @@ the common font is used. Display strings are fitted to column width before
 being installed in cells; stored entry names remain available separately.
 The exact comparator, complete column sizing and pending-selection restore
 were originally deferred together. The comparator and string fitting are now
-specified below; complete column sizing and selection restoration remain FBQ5.
+specified below, as are file-column sizing and pending-selection restoration.
+Directory-list and drive-popup population remain the residual FBQ5 scope.
+
+#### 8.1.3 File column sizing and selection restoration (FBQ5)
+
+After sorting, set the stored filename-column width at primary `+0x1F0` to
+the file grid's window width minus 2. Compute capacity by **unsigned integer
+division** of the grid's window height by row height `+0x224`. Subtract
+scrollbar width `+0x314` only when the entry count is greater than this
+capacity. Then subtract each enabled column's configured width: icon
+(`+0x1DC`/`+0x1E4`), auxiliary (`+0x218`/`+0x220`), extension
+(`+0x1F4`/`+0x1FC`), in that order. The filename width is calculated even
+when its enabled byte `+0x1E8` is false. Each enabled column is installed
+individually, including the filename column using this residual width.
+There is no lower clamp or zero-row-height fallback: these are 32-bit
+subtractions and an unsigned divide (`009A51E2–530D`). Thus narrow layouts
+can produce a negative fitting width rather than a minimum usable column.
+
+Restoration searches the **sorted** entry rows, choosing at most one.
+Pending type `+0x198` equal to 1 considers directory-tag `0xBAA88502` rows;
+type 2 considers rows whose tag is neither parent nor directory. Parent rows
+never match. An empty pending string chooses the first eligible row.
+Otherwise compare lowercased copies of the entry name and pending string
+for equality; the first match wins. This comparison is independent of the
+wildcard case option. Other pending types select no match. The candidate row
+starts at **zero**, so no eligible row or no matching name leaves row zero
+as the fallback (`009A530D–5412`, `009A5508–55B2`).
+
+After installing rows and row heights, set the grid's first visible row to
+zero, request selection at column 0 and the candidate row with option true,
+then update the grid. Query whether that cell is visible; if false, ask the
+grid to bring it into view. These calls occur even for an empty entry vector.
+Only when the vector is nonempty invoke the browser's primary slot 102
+(selection-change handling) with the candidate row. Return true. There is no
+separate missing-name error or owner-side skip of the empty-grid selection
+request (`009A56DE–5744`). What the Grid does with an empty-row request belongs
+to its own contract; it is not a synthetic file entry.
 
 #### 8.1.1 Default comparison (`009A3FA7`, 547 bytes)
 
@@ -538,13 +577,22 @@ four-field loop. Evidence: `0099EC9D`–`0099ECBE`, scalar sequence
 `0099ECBE`–`0099EDCA`, seven/four iteration counts `0099EDCB`–`0099EE01`,
 and final fields/tail call `0099EE03`–`0099EE55`.
 
-GZPaint (`009A0A17`, 173 bytes) optionally paints a background using the
-configured buffer or solid color. If the primary dirty byte `+0x31C` is set,
-it invalidates and invokes UpdatePath, then clears that byte. This occurs
-after background painting; list population can therefore happen during paint.
+GZPaint (`009A0A17`, 173 bytes) uses the secondary window pointer W (primary
+P = W-4). If byte P+0x309 is nonzero, copy the window area at W+0x24 through
+W+0x30. Without background buffer P+0x310, set the draw context's color to
+P+0x30C and fill that copied rectangle. With a buffer, ask its slot +0x30 for
+a rectangle using that area and options `(0,0)`, then submit buffer and returned
+rectangle to context slot +0x9C. The owner does not center, tile, divide into
+thirds, or subtract child/scrollbar strips (`009A0A20–98`). The foreign buffer
+operation determines its returned rectangle; no pixel sampling rule is implied.
+If primary dirty byte `+0x31C` is set, invoke primary slots 92 then 95
+(invalidation and UpdatePath), then clear that byte. These calls follow the
+background even when background painting is disabled, and the clear is after
+both calls, so dirtiness set during them is also cleared. Return true
+(`009A0A98–C3`). List population can therefore happen during paint.
 SetArea (`009A0089`, 45 bytes) sets that byte, invalidates, then delegates its
 four original arguments to base SetArea (`009A008E`–`009A00AD`). Exact
-background placement remains FBQ2.
+AddControls and message dispatch remain FBQ2; this paint body is specified.
 
 ### 8.6 Constructor and destruction (native lifecycle contract)
 
@@ -691,10 +739,15 @@ browser flag implementation. It is counted with thunks in the audit below.
 | FB-C25 | Icon resource exists but destination lock fails | No resource copy; color key still set, icon setter called, local reference released and loader returns true. |
 | FB-C26 | Icon buffer obtained but initialization fails | Loader returns false and releases local buffer; icon setter is not called. |
 | FB-C27 | Select valid filter index twice; repeat with index equal to group count | Each valid call updates combo when present, marks dirty and invalidates without immediate file population. Out-of-range call returns false without those actions. |
+| FB-C28 | Candidate `Report.TXT`, pattern `*.txt`; instrument matcher arguments | Match option zero submits lowercased copies `report.txt`/`*.txt`; nonzero submits original case; stored strings remain unchanged. |
+| FB-C29 | Grid width 200, height 60, row height 20; icon/aux/extension widths 16/20/30 enabled; scrollbar width 12 | Three entries give filename width 132; four give 120. Equality with capacity does not reserve the scrollbar. |
+| FB-C30 | Sorted rows parent, directory `Alpha`, file `Beta`; pending type 1/name `ALPHA`, then type 2/name `missing` | Restore row 1 first; missing file name falls back to row 0, including selection-change handling of the parent row. |
+| FB-C31 | Empty sorted entry vector | Request grid selection at `(0,0,true)`, update and visibility/bring-into-view operations; do not invoke browser selection-change handler. |
+| FB-C32 | Paint with background disabled and dirty set; UpdatePath sets dirty again | No background operations; primary slots 92 then 95; final dirty byte clear; true result. |
+| FB-C33 | Background enabled, no buffer, area `(5,7,105,67)` | Set context color to primary +0x30C; fill exactly `(5,7,105,67)` before any dirty refresh. |
 
-Cases involving unproved pixel geometry, layout, comparator order or pending
-selection are intentionally absent. Filling those cases to match an existing
-implementation would not settle the native contract.
+The added cases specify owner calls and arithmetic; they do not claim foreign
+rendering pixels or complete control layout.
 
 ## 10. Coverage limits and reconciliation
 
@@ -818,7 +871,7 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A08FA` | 145 | - | reach | FBQ6 |
 | `009A098B` | 56 | - | reach | FBQ6 |
 | `009A09C3` | 84 | - | reach | FBQ6 |
-| `009A0A17` | 173 | - | name-high | 8.5 partial / FBQ2 |
+| `009A0A17` | 173 | - | name-high | 8.5 |
 | `009A0AC4` | 8 | 88 | neighbour | 8.7 (adjustor thunk) |
 | `009A0ACC` | 687 | - | name-high | FBQ2 |
 | `009A0D7B` | 80 | 26 | neighbour | 8 |
@@ -948,9 +1001,9 @@ and the constructor is 61 / 7,739 B. Partial sections receive no full-body credi
 | Parked question | Exact residual entries | Export bytes | Missing contract |
 |---|---:|---:|---|
 | FBQ1 | 4 | 6,055 | Procedural pixel recipes, selectors and failure/success channels |
-| FBQ2 | 3 | 4,009 | AddControls remainder, message dispatch and background placement |
+| FBQ2 | 2 | 3,836 | AddControls remainder and message dispatch; paint placement settled in 8.5 |
 | FBQ4 | 62 | 3,835 | Remaining primary methods, notably style/font ownership and filter/custom-entry mutation |
-| FBQ5 | 3 | 4,156 | File/directory/drive population remainder: column arithmetic, wildcard option meaning and pending-selection restore |
+| FBQ5 | 3 | 4,156 | Directory/drive population and remaining file-row configuration; file-column arithmetic, wildcard case option and pending-selection restore settled in 8.1.3 |
 | FBQ6 | 42 | 3,823 | Unresolved helper ownership / export boundaries |
 | **Total unresolved within the original union** | **114** | **21,878** | Every address and size is individually enumerated in its FBQ row above |
 

@@ -100,6 +100,40 @@ does not fill or clear a pending sequence. Ready input is offered to the
 high-level insertion path unless capturing, and normal completion clears
 pending bytes and returns false as specified in section 4.
 
-The selector source/service and composed/UTF16 conversion helpers used by
-other methods remain foreign contracts; this proof does not claim those
-implementations or modern Unicode validation.
+### UTF16 character adapters (TE5, partial closure)
+
+GetUTF16Character (`0x009115F0`) accepts a source pointer, an in/out byte-count
+word and a selector; its result is a 16-bit value. A zero input count returns
+zero without reading the source. For selectors other than 16, a first byte
+strictly below `0x7F` returns that unsigned byte immediately. **Quirk:** this
+fast path leaves the count unchanged, even when its input exceeds one. DEL
+(`0x7F`) is not included. Otherwise it requests conversion from the selected
+encoding to selector 16 with capacity for one output unit, starting with a
+zeroed output word. The count is replaced by ConvertStringEncoding's return
+value, and the output word is returned (`0x00911602–38`). This wrapper does
+not synthesize a replacement character or check conversion success.
+
+GetPreviousUTF16Character (`0x0091163F`) takes an end pointer and available
+byte count. Zero count likewise returns zero without a source read. Unless
+the selector is 16, a byte immediately before the end strictly below `0x7F`
+returns directly, again leaving the count unchanged. Otherwise ask
+GetPreviousCharLength for the span before the end, store that span in the
+count, and request conversion of exactly that span to one selector-16 output
+unit. Replace the count with the conversion return and return the output word
+(`0x00911652–97`). This is a byte-span adapter, not a promise to return a
+complete supplementary Unicode scalar. The preconversion count store is
+observable when the conversion operation is instrumented.
+
+| Input/action | Required observation |
+|---|---|
+| Forward count 0 with unreadable source pointer | Result 0; count stays 0; no conversion/source read |
+| Forward source starts `41`, selector 8, count 7 | Result `0x0041`; count remains 7; no conversion |
+| Backward end preceded by `41`, selector 100, count 9 | Result `0x0041`; count remains 9; no length/conversion call |
+| Forward source `7F`, selector 8, count 1 | Conversion is requested; the ASCII shortcut is not used |
+| Selector 16, first byte `41` | Conversion is requested despite the byte being below `0x7F` |
+| Instrumented backward length result 2, conversion return 0 and untouched output | Count becomes 2 before conversion, then 0; result 0 |
+
+These adapter contracts reduce TE5's foreign boundary but do not specify
+ConvertStringEncoding's selector/malformed-input outcomes, Thai character
+levels or composed-character lengths. The selector source/service also remains
+a foreign contract. No modern Unicode validation is inferred.
