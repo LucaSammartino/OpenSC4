@@ -1,0 +1,59 @@
+pattern	subsystem	area	spec
+cDumpSubTreeVisitor	tree diagnostics	framework	-
+cWinBMPViewGVExtra	windows and panels	ui	-
+cSTEChangeTerrainUI	city tools and input	ui	-
+(anonymous_namespace)::cParser	network rules	simulation	-
+nsGZWinUtils	widget toolkit	ui	-
+RZ	framework services (RZ)	framework	-
+nsTexUtil	3D scene and models	renderer	-
+MiscGraphTextInfo	widget toolkit	ui	-
+SCLuaTableRef	Lua host	framework	-
+cSourceFileDebugInfo	audio	audio	-
+tControllerTime	automata (managers, records)	simulation	-
+cADVString	advisors	simulation	-
+fn:gAdviceMessageBox	advisors	simulation	-
+LinearRandomIterator	occupants and props	simulation	-
+MatrixRow	widget toolkit	ui	-
+FerryStationInformation	network manager	simulation	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-
+MiscGraphPicture	widget toolkit	ui	-
+cGXCOMDirector	2D drawing and fonts	renderer	-
+SFX	audio	audio	-
+SC43DGridElement	3D scene and models	renderer	-
+MiscGraphArrow	widget toolkit	ui	-
+cTablePropertyReader	advisors	simulation	-
+SC4CellRegion	sim grids	simulation	-
+cTutorialString	tutorial	simulation	-
+BoundaryIterator	sim grids	simulation	-
+tBehaviorTemplate	automata (managers, records)	simulation	-
+cGroup_SC4RH	audio	audio	-
+MiscGraphRect	widget toolkit	ui	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-
+CookieData	web and network	framework	-
+ilist	container helpers	framework	-
+cEaseSound	audio	audio	-
+cAmbienceOccupantFilterIsNature	audio	audio	-
+ThreadPlatformData	framework services (RZ)	framework	-
+SC4QuadGridQuadrant	3D scene and models	renderer	-
+AnyString	persistence and resources	framework	-
+cAutomataOccupantFilter	automata (managers, records)	simulation	-
+LimitTimer	timers	framework	-
+cPortLot	port developers	simulation	-
+ScanningIterator	sim grids	simulation	-
+tCrimePropOccupantFilter	crime	simulation	-
+nsSC4TutorialSystem	tutorial	simulation	-
+CacheData	web and network	framework	-
+cISTETerrain::tBrushParameters	terrain	simulation	-
+cCompletionObj	framework services (GZ)	framework	-
+cSTEWaterWave	3D scene and models	renderer	-
+SignalPlatformData	framework services (RZ)	framework	-
+PieGraphSeriesInfo	widget toolkit	ui	-
+ibasic_string	framework services (GZ)	framework	-
+RZFileTimeSort	framework services (RZ)	framework	-
+RZFileFindData	framework services (RZ)	framework	-
+FileChangeNotification	framework services (RZ)	framework	-
+icf::cGZApp	application	framework	-
+icf::cGZCheatCodeManager	cheats	framework	-
+icf::cSC4AudioEventHandlerDisasterFire	audio	audio	-

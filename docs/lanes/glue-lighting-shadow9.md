@@ -1,6 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lighting-shadow9: lighting parameter shadow | Codex, `glue-lighting-shadow9` | ready; default-off partial shadow, gate PASS, house 73/73 exact and clean | Land scoped shadow; resolve LT14/LT15 before broader lighting credit. |
+| glue-lighting-shadow9: lighting owner shadow | Codex, `glue-lighting-shadow9` | in progress; round 3 | Extend independent queries, full gate, house through 2032. |
+
+## Handoff
+
+- Goal: round 3, merge re-lighting-lt14; extend comparison within LT14's independent-input limits; READY queue with full HEAD.
+- Merge conflicts resolved additively in CMakeLists.txt, FC4Config.cpp, FC4Observer.cpp; LT14/LT15 open duplicates removed; question index regenerated.
+- LT14 §1.6 explicitly forbids snapshot reconstruction and native mutations to create a checkpoint. Direct tint/settings/ordered history are unavailable with current observer: whole-owner credit cannot be claimed.
+- Next: correct core shipped texture to LT15, add nonnull-holder query scenarios and vectors 23–27; full qbuild all; unique house request to 2032, wait without qwait.
+- No request outstanding. Prior accepted r4 evidence below belongs to round 2, not new source.
+- Main run numbers through at least 478 are occupied; choose new number after reading main docs/runs.
+- Detached HEAD is intentional; do not update refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r3-manifest.json.
 
 ## Changes and scope
 

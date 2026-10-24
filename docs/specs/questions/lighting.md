@@ -34,22 +34,3 @@
   specify those encodings. [Core returns true and propagates quiet NaN values without a finite fallback;
   its integer register primitive canonicalizes payloads. NaN bit-pattern equivalence is not claimed.]
 
-<!-- from: glue-lighting-shadow9 (2026-10-24) -->
-- **LT14 - §§1.3, 2, 3, 6 live-owner input replay:** what public/serializable interfaces provide the lighting
-  owner's complete ordered external inputs at city load and thereafter: the time-of-day driver (independent
-  of GetTimeOfDay), tint/reset events, render settings including the unidentified LT1 byte, view changes and
-  terrain notifications? There is no owner Read/Write slot in §7. Please specify a safe input snapshot/replay
-  contract, including initial state and notification ordering, rather than copying native lighting outputs
-  into the expected model. [Default-off shadow measures only §5.6 GetShadowParams and
-  GetDecalShadowParams(null), using §1.4's explicitly shipped parameter inputs in the Rust core. The published
-  §0 global locates the borrowed owner; no hardware observers, setters or native lifecycle calls. Slots
-  0–13, 15, 17–29 and nonnull-holder slot 16 remain uncompared; whole-owner verification is not claimed.]
-
-<!-- from: glue-lighting-shadow9 (2026-10-24) -->
-- **LT15 - §1.4 shipped decal texture:** the table gives `0x69D3BC3B` for property `0x085489C8`, but the
-  house-switch run lighting9-house-2032-r1-20261024 returns `0x69D3A23B` in slot 16(null) on all 46 captures
-  (2026-01-27 through 2029-10-01). Is the shipped texture value in the table a transcription error?
-  [The first literal shipped-input measurement is preserved as 0/46 exact, one mismatch per line. The
-  next revision captures the six §5.6 input properties independently from resource
-  `6534284A/A9189CF0/00000001` through the public resource/property interfaces, then feeds the Rust
-  property-reading implementation; no expected value is copied from a native lighting getter.]

@@ -981,6 +981,14 @@ fn t22_visual_effect_record_quirk() {
     assert_eq!(got.head, (EffectRecordHead { byte0: 1, byte1: 0 }));
     assert_eq!(r.remaining(), 0);
 
+    // LR13 T73: repeated live-effect serialization drops the name/trailer
+    // each time without mutating the stored name or creating a bare occupant.
+    let mut repeated = ByteWriter::new();
+    assert!(write_effect_record(&rec, true, &mut repeated));
+    assert_eq!(repeated.into_bytes(), bytes);
+    assert_eq!(rec.name, b"welding_sparks");
+    assert_eq!(rec.trailer, 0x99);
+
     // Not live: the name and the trailer are written out.
     let mut w2 = ByteWriter::new();
     assert!(write_effect_record(&rec, false, &mut w2));
