@@ -28,7 +28,7 @@ Each fixture sample has **36,520 checks**: 36,058 native comparisons and 462 Rus
 
 ## Measured game result
 
-**`renderprops-shadow9-r2-fixture2032-20261024a`: clean, renderprops 73/73 exact**, including all 73 available native-fixture records, **2026-01-27 through 2032-01-01**. Zero duplicate months, zero resyncs. Total **2,705,526 checks** (2,671,800 native comparisons plus 33,726 replay-acceptance checks); **33,726 native setter invocations** completed on isolated fixtures. See [run 492](../runs/renderprops-shadow9-r2-fixture2032-20261024a-492.md).
+**`renderprops-shadow9-r2-fixture2032-20261024a`: clean, renderprops 73/73 exact**, including all 73 available native-fixture records, **2026-01-27 through 2032-01-01**. Zero duplicate months, zero resyncs. Total **2,705,526 checks** (2,671,800 native comparisons plus 33,726 replay-acceptance checks); **33,726 native setter invocations** completed on isolated fixtures. See [run 492](../runs/renderprops-shadow9-r2-fixture2032-20261024a-489.md).
 
 Konradshohe, the previous train187 house switches plus renderprops_shadow=1, turbo, end_date=2032-01-01, seconds=1800, timeout=2100. Clean shutdown at target after **712.203 seconds**, 725 seconds queue wall, slot 3. foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, Rust panics=0, structured exceptions=0, other WARNING lines=0. Two expected startup x87 warning lines occurred, as recognized by the harness. No turbo-only difference occurred, so no normal-speed repeat was required.
 
@@ -53,4 +53,4 @@ This is ready to land as a measured extension of partial coverage. **Do not awar
 
 **RP8** appended to `docs/specs/questions/render-properties.md` asks confirmation of the literal receiver-only private constructor/caller-owned-storage ABI used by these successful fixtures; its interpretation is marked in code. RP7 was removed from the open file in favor of its answered copy. Round 3 explicitly requested `tools/questions.py index`; it ran successfully and its output is committed. No new questions were filed in round 3. Generated coverage tables and shared regress profiles were not manually edited.
 
-Historical registry-only results remain unchanged in [run 490](../runs/renderprops-shadow9-20261024-r1-490.md) and [run 491](../runs/renderprops-shadow9-20261024-r2-491.md).
+Historical registry-only results remain unchanged in [run 490](../runs/renderprops-shadow9-20261024-r1-487.md) and [run 491](../runs/renderprops-shadow9-20261024-r2-488.md).

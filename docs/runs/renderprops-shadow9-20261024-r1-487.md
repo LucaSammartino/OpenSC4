@@ -1,5 +1,5 @@
-tag: renderprops-shadow9-20261024-r1-490
-run: 490
+tag: renderprops-shadow9-20261024-r1-487
+run: 487
 date: 2026-10-24
 lane: glue-renderprops-shadow9
 dll: FreeCity4-glue-renderprops-shadow9, source aa6a2508b, DLL SHA256 prefix 0775c3ab

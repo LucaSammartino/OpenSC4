@@ -1,5 +1,5 @@
-tag: renderprops-shadow9-r2-fixture2032-20261024a-492
-run: 492
+tag: renderprops-shadow9-r2-fixture2032-20261024a-489
+run: 489
 date: 2026-10-24
 lane: glue-renderprops-shadow9
 dll: FreeCity4-glue-renderprops-shadow9, final engine source 1d55acf7c, SHA256 FD4B31E3C96B9D591E829A27E1AD32EE87420F9B3BF202F35991BE7B92DD506E
