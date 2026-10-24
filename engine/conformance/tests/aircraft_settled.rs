@@ -86,7 +86,7 @@ fn vectors14_16_preset_overlay_order_and_read_reconstruction() {
     let mut out = ByteWriter::new();
     assert!(heli.write(&mut out));
     let mut loaded = Helicopter::default();
-    assert!(loaded.read(&mut ByteReader::new(&out.bytes())));
+    assert!(loaded.read(&mut ByteReader::new(out.bytes())));
     assert!(loaded.runtime.is_none());
     assert_eq!(loaded.phase(), None);
     loaded.init_placement();
@@ -201,11 +201,11 @@ fn vector20_loiter_spends_on_entry_countdown_expiry_and_unsaved_progress() {
     let mut out = ByteWriter::new();
     assert!(plane.write(&mut out));
     let mut loaded = Airplane::default();
-    assert!(loaded.read(&mut ByteReader::new(&out.bytes())));
+    assert!(loaded.read(&mut ByteReader::new(out.bytes())));
     loaded.pursue_goal().unwrap();
     assert_eq!(loaded.ammunition(), Some(2));
     assert_eq!(loaded.loiter_remaining_seconds, 2.0);
-    assert!(plane.read(&mut ByteReader::new(&out.bytes())));
+    assert!(plane.read(&mut ByteReader::new(out.bytes())));
     assert_eq!(plane.ammunition(), Some(-1));
     for remaining in [0.0001, 0.0, -0.0001] {
         let mut plane = loaded.clone();

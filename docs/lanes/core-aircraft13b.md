@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | In progress (r2): cargo 7431 passed/0 failed/0 ignored, including aircraft suites 50/50; clippy running in the same qbuild all. Prior native verify PASS, CTest 81/81. No ABI change, game run or new question. | Collect clippy and native gate terminal result; fix diagnostics if any; report verified partial closure. |
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | In progress (r2): cargo 7431/0/0; clippy found 3 needless test borrows, now corrected; focused aircraft_settled 10/10 and fmt 1 file PASS. Initial native gate pending; final qbuild all required. No ABI change, game run or new question. | Collect initial native operation, then run final qbuild all on committed correction; report verified partial closure. |
 
 ## Handoff
 
@@ -10,10 +10,13 @@
 - Prior cargo/clippy attempts terminated; none remains running or outstanding.
 - r2 Cargo PASS: 7431/0/0; aircraft 16, aircraft_settled 10, airplane 10, helicopter 14.
 - Evidence: `build-runs/qbuild-test.log`; transport `build-runs/aircraft-r2-all-initial.log`.
-- Same foreground qbuild all remains running, session 44670; clippy now compiling.
+- Initial qbuild all still running, session 44670; Cargo PASS, clippy FAILED (3 needless test borrows), native queued.
+- Native request: `qbuild-20261024-212010-build-ctest`; no duplicate request.
+- Corrected all 3 borrows in `aircraft_settled.rs`; focused suite PASS 10/10; fmt PASS (1 owned file).
+- Evidence: `build-runs/aircraft-r2-focused.log`, `aircraft-r2-fmt-corrected-absolute.log`.
 - One Cargo job/debug=0. Diagnosed BelowNormal starvation (59 CPU s/19 min); restored only lane compilers/Cargo to Normal.
 - Owner audit: settled sections and vectors 1-27 already covered; no additional settled behavior identified.
-- Next: collect session 44670 to terminal; inspect clippy/native result and finish report/queue.
+- Next: collect session 44670 to terminal; run `build-runs/aircraft-r2-gate.py all final` on this correction.
 - Keep AF2-AF6, AF10 and AF11 explicit; no capi/plugin/ABI wiring.
 - Existing detailed r1 report below preserves incomplete gate evidence.
 - Detached HEAD: commit normally; supervisor publishes reserved lane branch.
