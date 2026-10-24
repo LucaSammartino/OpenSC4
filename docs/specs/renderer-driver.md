@@ -814,7 +814,53 @@ initialized but unreachable through §9.4's format/type translator. Evidence: `0
 `0x0088F310`–`0x0088F737` and their byte/dword switch tables; compressed selectors
 `0x0088D210`–`0x0088D2A2`; per-request installation `0x0088F890`–`0x0088F8C8`.
 
-#### Verified copy and bit-expansion arithmetic; remaining arithmetic boundary
+#### Uncompressed pixel arithmetic (RD6)
+
+All available ordinary cells in the matrix above obey the following channel rule. Packed words/dwords
+are little-endian; the notation below lists fields from most to least significant bit, except explicit
+byte lists. Source numbers are converter rows, not public request numbers.
+
+| Source | Input fields |
+|---|---|
+| 0 / 1 | A8,R8,G8,B8 / A8,B8,G8,R8 |
+| 2 / 3 | Increasing-address bytes B8,G8,R8 / R8,G8,B8 |
+| 4 / 5 | A4,R4,G4,B4 / A4,B4,G4,R4 |
+| 6 / 7 | A1,R5,G5,B5 / A1,B5,G5,R5 |
+| 8 / 9 | R5,G6,B5 / B5,G6,R5 |
+
+| Destination key | Output fields |
+|---|---|
+| 0 | Increasing-address bytes B8,G8,R8; discard alpha |
+| 1 or 2 | A8,R8,G8,B8 |
+| 3 | R5,G6,B5; discard alpha |
+| 4 or 5 | A1,R5,G5,B5 |
+| 7 | A4,R4,G4,B4 |
+
+For each RGB channel independently, narrowing keeps its most significant bits (no rounding,
+dither or saturation). Equal widths preserve the value. Widening repeats the source's high bits:
+4→5 is `2v+floor(v/8)`, 4→6 is `4v+floor(v/4)`, 4→8 is `17v`, 5→6 is
+`2v+floor(v/16)`, 5→8 is `8v+floor(v/4)`, and 6→8 is `4v+floor(v/16)`.
+Alpha uses the same significant-bit narrowing; 1→4/8 becomes 0 or all ones, 4→8 becomes 17v.
+An absent source alpha supplies all ones in the output alpha field. There is no multiplication by
+255 followed by division for these uncompressed texture cells. Thus source-4 `1234` to key 4 is
+`10C8` (A1=0,R5=4,G5=6,B5=8), whereas source-6 `8000` to key 7 is `F000`.
+The source-0/key-1 copy and source-6/key-4, source-8/key-3, source-4/key-7 and source-2/key-0
+equal-layout copies follow this same rule; source padding is not pixel data.
+
+Width is a pixel count; both ordinary strides are byte distances. Non-copy rows visit logical
+rows from last to first and pixels left to right, preserving row orientation and destination padding.
+The source-2/3 converters that quantize through a dword load may read a fourth byte past the
+three-byte pixel, but mask it away; those bytes must be readable and do not affect the result.
+Negative dimensions/overflow and overlapping buffers have no general safe conversion promise.
+Instruction evidence by family: table-based quantization `0088CA17`–`0088CA57`,
+`0088CAD7`–`0088CB17`, `0088CC40`–`0088CC7D`, `0088CE69`–`0088CF56` (tables
+`00B12DE0`–`00B1326C` contain shifted channel values); byte reordering `0088CB40`–`0088CBBE`,
+`0088CCB0`–`0088CD37`, `0088CDC2`–`0088CDE0`; scalar packing/expansion
+`0088D390`–`0088D3C5`, `0088D460`–`0088DA80`, `0088DB60`–`0088EA9D`,
+`0088EB40`–`0088F025`, `0088F250`–`0088F30C`. These are integer loads/shifts/masks/additions,
+not float conversion. Examples below retain the two previously verified expansions.
+
+#### Verified copy and bit-expansion examples
 
 Converter arguments are destination/source pointers, destination/source byte strides, width and height.
 Ordinary conversions below process width pixels per row without copying padding. Their row addresses
@@ -836,10 +882,48 @@ bytes, with no 4×4 rounding, endpoint inspection, alpha processing or partial-b
 must cover that size. Nonzero x/y returns false from the copy helper; LoadTextureLevel ignores this return,
 unlocks and still succeeds. The ordinary-surface path passes the pixel dimensions/strides instead.
 
-RD6 now retains only the arithmetic of the other available non-copy cells: channel packing/quantization
-and expansion outside the three rows above, plus the DXT1/DXT3 software decoders and partial-block/stride
-handling when their destination is ordinary. Availability, request ranking, raw compressed copying and the
-above expansions are settled; they must not be inferred again from an internal request's number.
+#### DXT1/DXT3 software decoding to ordinary keys (RD6)
+
+The six decoder selections are DXT1→keys 1/2, 4/5, 7 at `0080A6A0`, `0088CF90`,
+`0088CFC0`, and DXT3→the same keys at `0080A6D0`, `0088CFF0`, `0088D020`.
+These wrappers use signed width/4 and height/4 rounded down for nonnegative sizes; both
+source-block row length and blocks-to-decode equal width/4. The supplied source byte stride
+is ignored. Process those whole 4×4 blocks in increasing block-row/block-column order,
+reading tightly packed 8-byte DXT1 or 16-byte DXT3 blocks. Destination pitch remains the
+supplied byte pitch. A partial right column or bottom row of pixels is left untouched, not
+decoded from a padded block; width<4 or height<4 decodes nothing. This is distinct from the
+raw compressed copy path. Evidence: wrapper shifts/arguments `0080A6AC`–`0080A6C0`,
+`0088CF9C`–`0088CFB0`, `0088CFFC`–`0088D010`; block/row advances
+`008D11FD`–`008D122D`, `008D20F2`–`008D212C` and `008D15E0`–`008D1617`.
+
+Read the two colour endpoints as unsigned RGB565 words c0,c1 (DXT3 has eight alpha bytes
+before them). Form palette colours P0,P1 in the **destination's RGB channel widths**:
+keys 1/2 expand 5/6→8 by replication, keys 4/5 retain R5/B5 and truncate G6→5,
+key 7 truncates R5/B5→4 and G6→4. Interpolation happens after that conversion.
+For each destination RGB channel independently:
+
+| Endpoint order | P2 | P3 |
+|---|---|---|
+| c0>c1, keys 1/2 | floor((171P0+85P1+128)/256) | floor((85P0+171P1+128)/256) |
+| c0>c1, keys 4/5 | floor((21P0+11P1+16)/32) | floor((11P0+21P1+16)/32) |
+| c0>c1, key 7 | floor((11P0+5P1+8)/16) | floor((5P0+11P1+8)/16) |
+| c0≤c1, every key | ceil((P0+P1)/2) | zero RGB |
+
+These are integer weighted sums, not exact division by three. DXT1 supplies full alpha for
+P0/P1/P2 and, when c0>c1, P3; otherwise P3 is the all-zero transparent pixel. DXT3 uses
+the **same endpoint-order branch**, including zero RGB for code 3 when c0≤c1; it does not
+force four-colour mode. Its alpha comes independently from the block's sixteen nibbles:
+17v for keys 1/2, the high bit of v for keys 4/5, and v for key 7. It remains present even
+for code 3 with zero RGB. No premultiplication occurs. A block's two-bit colour selectors
+and DXT3 alpha nibbles run least-significant first, left-to-right, then top-to-bottom.
+
+For c0=FFFF,c1=0000, code 2 produces `FFAAAAAA`, `D294`, `FAAA` for DXT1 to
+keys 1,4,7. For c0=0000,c1=FFFF, code 2 produces `FF808080`, `C210`, `F888`,
+and code 3 is zero. With DXT3 alpha nibble F the latter code 3 instead gives `FF000000`,
+`8000`, `F000`. Evidence: endpoint/order and weights `008D1090`–`008D11E1`,
+`008D1FD6`–`008D20DB`, `008D2196`–`008D22B7`; DXT3 endpoint/order and weights
+`008D12D0`–`008D13F4`, `008D16C0`–`008D1800`, `008D1AA0`–`008D1C40`;
+alpha placement `008D13F4`–`008D15D0`, `008D1800`–`008D19D0`, `008D1C40`–`008D1DFF`.
 
 ## 10. Texture stages (slots 27-29, 51-57, 62; records applied at draw time)
 
@@ -1455,15 +1539,28 @@ unless the setup column says otherwise. Observe calls, output sentinels, errors,
 | DX7-48 | Restore type 0 with owner `+230` null; then restore with both Blts surface-lost | First returns false after accepted-rectangle flush without Blt despite non-null type-0 surface; second calls region IsLost once and returns false without recovery retry |
 | DX7-49 | Partial save loses surface twice; region Restore=0, context recovery succeeds, retry succeeds | Region clear occurs (type 0/1 flags as §12.5), then retry; final Boolean false despite successful copy. Full-region save retries without clear and can return true |
 
+| DX7-50 | Encode A=8/15,R=1/15,G=8/15,B=15/15 as source 4, then source 5; convert to all ordinary keys | Both encodings give bytes `FF 88 11` at key 0, `881188FF` at keys 1/2, `145F` at key 3, `8A3F` at keys 4/5 and `818F` at key 7; padding untouched |
+| DX7-51 | Source-6 R5=4,G5=16,B5=31,A1=1; repeat equivalent source 7; convert to 8/6/4-bit destinations | Key 1 `FF2184FF`; key 3 `243F`; key 7 `F28F`. Bit replication differs from floor(255v/31), e.g. v=4 gives 33 versus 32 |
+| DX7-52 | Source 0 pixel `7F123456`, equivalent source 1, and source 2/3 RGB bytes; ordinary keys | Keys 4/5 give `08CA` for alpha 7F and `88CA` for absent alpha; key 7 `7135` versus `F135`. RGB quantization drops low bits; key 0 always B,G,R bytes |
+| DX7-53 | DXT1 white/black endpoints FFFF,0000, selectors cycle 0,1,2,3 each row | To key 1: FFFFFFFF,FF000000,FFAAAAAA,FF555555; to key 4: FFFF,8000,D294,AD6B; to key 7: FFFF,F000,FAAA,F555 |
+| DX7-54 | DXT1 endpoints 0000,FFFF; codes 2,3; repeat DXT3 with alpha F | DXT1 midpoint FF808080/C210/F888; code 3 zero. DXT3 midpoint identical RGB with explicit full alpha; code 3 FF000000/8000/F000, proving endpoint-order branch retained |
+| DX7-55 | DXT3 c0=c1=0, selector 0; alpha nibbles 0,7,8,F | Key 1 alpha bytes 00,77,88,FF; key 4 alpha bits 0,0,1,1; key 7 alpha nibbles unchanged |
+| DX7-56 | Decode 6×5 ordinary pixels from tightly packed DXT blocks; vary source stride while holding bytes fixed | Only top-left 4×4 changes; last two columns and last row stay sentinel; source-stride changes have no effect. Width 3 or height 3 writes nothing |
+| DX7-57 | CopyColorBuffer first probe fails; call again, change mode, recover loss, call again | First and every later non-lost call flush then returns null without another probe/actual lock. During loss returns null before flush. Probe cache survives lifecycle changes |
+| DX7-58 | Successful probe, actual lock fails, supplied destination D; then actual lock succeeds but destination init or copy lock fails | First returns D with no surface unlock/destination calls; later returns same D and unlocks surface. No destination AddRef/Release; null-input factory failure returns null after surface unlock |
+| DX7-59 | Initialized 4×4 destination, request (−1,0,3,2) against larger 32-bit target | Black clear attempted, then source x=0..1,y=0..1 copied to destination origin; no horizontal offset or vertical flip. Working dimensions max to 4 but source right remains 2 |
+| DX7-60 | CopyColorBuffer 16-bit R5=4,G6=0,B5=0 in 565; separately 24-bit bytes 12,34,56; then non-RGB format | 16-bit result FF200000 (division, unlike texture FF210000); 24-bit output bytes FF,12,34,56; non-RGB attempts fill FF00FFFF. Unsupported 16-bit masks instead unlock without copying |
+| DX7-61 | Setup separate primary P, target T, depth Z, then first loss and successful recovery to P2,T2,Z2 | Owner 228=P,22C=T,230=Z,234=null; acquired owner references separate from context. Loss releases/nulls Z,P,T; recovery acquires Z2,P2 then owned GetRenderTarget T2. Type-2 region creation returns zero |
+| DX7-62 | Fullscreen zero-back-buffer fallback, then failed recovery and full cleanup | Primary and target owner slots hold separately owned references to same surface. Failed rebuild keeps owner lost/null slots; cleanup releases each remaining owned reference independently, without resetting CopyColorBuffer probe |
+
 ## 16. Remaining proof boundaries
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).
 
 The checklist covers the 83-slot graphics interface, including explicit no-ops. It does not assert full
-coverage of every pixel conversion or CopyColorBuffer. RD6 now retains only the non-copy converter arithmetic
-and DXT1/DXT3 software-decoder cases explicitly excluded in §9.6. RD7 retains only CopyColorBuffer's behavior
-beyond table attribution; auxiliary lighting/materials and buffer regions are specified in §§12.4–12.5.
-RD6/RD7 settled portions have vectors DX7-32–49. RD8–RD11 are
+coverage of undefined invalid-pointer/overflow inputs. Available pixel converters and CopyColorBuffer
+are specified in §§9.6 and 12.6; RD12 surface aliases/ownership are in §14.2. RD6/RD7/RD12
+have vectors DX7-32–62. RD8–RD11 are
 answered in §§2, 4.1, 8.3, 8.6, 10.1 and 14.2 with vectors DX7-19–31. RD1, RD3 and RD4 retain their
 specifically listed caller, descriptor and message gaps.
 No C ABI proposal or implementation behavior is inferred from those open items.

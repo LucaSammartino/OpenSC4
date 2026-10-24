@@ -21,18 +21,3 @@
   *Further narrowed 2026-10-23 (re-gdriver5): §14.3 establishes Flip versus Blt presentation, empty-client
   result and retry flags. Still open: the `0xAACB92A3` handler.*
 
-<!-- from: re-gdriver5 (2026-10-23) -->
-- **RD6 - section 9.6 (remaining arithmetic only):** instruction-check the pixel arithmetic of available
-  non-copy converters other than source 5 → keys 1/2 and source 9 → keys 1/2: the remaining uncompressed
-  channel pack/quantization/expansion cells, and DXT1/source 10 or DXT3/source 12 → ordinary keys 1/2, 4/5, 7,
-  including endpoint interpolation, alpha and partial-block/stride handling. Source 0 → keys 1/2 is an
-  established bitwise copy. Ordinary ranking, all 120 descriptor-dependent availability cells, compressed
-  preference/fallback, direct compressed byte copying and the two named expansions are answered and archived
-  (2026-10-23, re-gdriver-rd11); do not reopen them. [needs: converter bodies selected by 0088F310–0088F737,
-  0088D210/0088D270, with shared decode helpers 0080A6A0/0080A6D0]
-- **RD7 - section 12.5 (CopyColorBuffer only):** establish the behavior of owner+4 slot 3 (`0x00883950`):
-  lock-probe cache lifetime, destination allocation/refcount ownership, clipping/orientation, pixel-format
-  conversion and every failure return. Table/identity attribution, all light/material operations, exact
-  D3DLight range, constant/no-op slots, absence of independently returned vertex buffers in these tables,
-  and region handles/transfers/recovery are answered and archived (2026-10-23, re-gdriver-rd11).
-  [needs: instruction checks of 00883950–00883EB7; decompiler has unreliable pointer/stack aliases]
