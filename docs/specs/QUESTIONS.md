@@ -152,6 +152,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RA | radio |
 | RB | rigid-body-2d |
 | RC | resource-catalog |
+| RCI | demand-trend-bars |
 | RD | renderer-driver |
 | RE | resource-exemplar-editor |
 | REV | resource-editor-views |
@@ -265,6 +266,7 @@ generated index: the questions live one file per spec, so read only the file for
 | data-formats | 3 | 60 | EX58 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
+| demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
 | dispatch | 1 | 12 | DP14 | questions/dispatch.md |
@@ -424,4 +426,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **669** | **1567** | | |
+| **total** | **670** | **1567** | | |
