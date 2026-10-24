@@ -20,6 +20,7 @@
 #include "FC4LuaShadow.h"
 #include "FC4OverlaysShadow.h"
 #include "FC4WeatherShadow.h"
+#include "FC4PersistShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -660,6 +661,7 @@ public:
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
+                PersistShadowCityLoaded(static_cast<int32_t>(PublishedJulian()));
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
@@ -709,6 +711,7 @@ public:
                 AdvisorsShadowCityShutdown();
                 fc4::NetOccShadowCityShutdown();
                 LuaShadowCityShutdown();
+                PersistShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
@@ -761,6 +764,7 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
+                PersistShadowMonth(julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
