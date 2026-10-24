@@ -1,5 +1,5 @@
-tag: gtr14-r2-replace-2032-a
-run: 14645
+tag: gtr14-r2-replace-2032-a-675
+run: 675
 date: 2026-10-24
 lane: glue-terrain-replace14
 dll: 2a3daf10e (engine source 69cd3b6be; DLL sha256 prefix 51c0a1ee)

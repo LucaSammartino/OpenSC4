@@ -1,5 +1,5 @@
-tag: adv-replace15-r2-only-2032-654
-run: 654
+tag: adv-replace15-r2-only-2032-671
+run: 671
 date: 2026-10-24
 lane: glue-advisors-replace15
 dll: FreeCity4-glue-advisors-replace15 fb42fb2e8, sha256 prefix 8fd49163
