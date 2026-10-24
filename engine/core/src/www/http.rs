@@ -560,7 +560,8 @@ impl Client {
         host.effect(Effect::Unlock);
         false
     }
-    fn release_resource(&mut self, host: &mut impl Host, id: u32) -> Contract<()> {
+    /// Release a completion or caller-owned response hold (HTTP lifetime §2.1).
+    pub fn release_resource(&mut self, host: &mut impl Host, id: u32) -> Contract<()> {
         if id == 0 {
             return Ok(());
         }
