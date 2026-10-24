@@ -235,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 1 | 25 | EF22, EFP7 | questions/effects.md |
+| effects | 1 | 26 | EF22, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -285,7 +285,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 4 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 19 | 12 | NT35 | questions/network-tools.md |
+| network-tools | 21 | 12 | NT37 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -329,7 +329,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
-| sc-resources | 0 | 10 | SCR11 | questions/sc-resources.md |
+| sc-resources | 0 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 3 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
@@ -368,4 +368,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **595** | **1444** | | |
+| **total** | **597** | **1446** | | |
