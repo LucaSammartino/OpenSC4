@@ -811,7 +811,7 @@ callers read only AL, so declaring them `uint8_t` is correct.
 
 This interface's native `this` is M = L + 4, where L is the separately queried land-value
 interface. Slot 0's thunk subtracts 4 (`0x006BDDB0`); slot 3 expects M directly. The forwarding
-contract and the unresolved installation boundary are in §6.1.1. Obtaining M by QueryInterface
+contract and installation acceptance requirements are in §6.1.1–§6.1.3. Obtaining M by QueryInterface
 does not install a forwarder or change the simulator's existing agent targets.
 
 ## 12. Dependencies (methods the original calls) *[compat]*
