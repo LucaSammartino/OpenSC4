@@ -71,7 +71,7 @@ default. Message `0x26D31EC1` (§7) reloads the list.
 | 1 | 0.001 | held-input steering gain per ms (§6.2.2) | 21 | 8000 | crash duration, ms (automata.md §6.6) |
 | 2 | 1.0 | steering return rate per second (§6.2.2) | 22 | 0.7854 | sinking angle endpoint (§5.7.2) |
 | 3 | 0.05 | coasting drag | 23 | 0.95 | shore-slide speed retention (§5.7.2) |
-| 4 | 0.2 | movement distance scale (§5.1.1) | 24 | 2.1817 | crash attitude parameter; not the normal bow cap (§5.7) |
+| 4 | 0.2 | movement distance scale (§5.1.1) | 24 | 2.1817 | grounding/heel ramp endpoint (§§5.7.2, 5.7.5) |
 | 5 | 5.0 | counter-steer boost | 25 | 1.0472 (60°) | run-aground angle (automata.md §6.6) |
 | 6 | −0.1 | lowest speed (reverse) | 26 | 10 | strict shore-slide terrain-height tolerance (§5.1.3) |
 | 7 | 0.3 | highest speed | 27 | 0.5 | player boat-to-boat crash threshold |
@@ -313,7 +313,8 @@ a nonzero +0x1D4 causes sound event `0x6A451908` with that identifier before
 the identifier is zeroed and occupant Shutdown is called. Normal return is
 true; service results do not create an early false return or rollback. The
 controller is required. These are lifecycle boundaries, not complete contracts
-for transitive model loading. The controller binding is specified in §5.1.7.
+for transitive model loading, which is specified in §§3.6–3.8. The controller
+binding is specified in §5.1.7.
 
 ### 3.6 Model-loading result and partial-failure contract (WC3)
 
@@ -871,7 +872,7 @@ the bounded controller decomp and `0x005E74C2–0x005E7508` instructions with
 bytes; the shared spec supplies the earlier transform-composition audit.
 No render visibility or model-creation policy may be inferred from the
 controller's true return. Transitive model-instance positioning and loading
-are the remaining model-side audit, separately from this controller.
+are specified separately in §§3.7–3.8.
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -1922,15 +1923,15 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.5 give boat selection/response, SAT, rollback, footprint construction, shore corners and crash transforms |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
 | Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 and §5.7.5 give dispatch, ramps, heights, endpoints, sinking and grounding/contact bases, heading feedback and publication |
-| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; remaining inherited model publication is WC11 |
+| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; inherited model publication is specified in §3.8 |
 | Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.5, 5.4; docking signatures, distance, manager-null and inherited lifecycle contracts |
 | Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
 | Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
-| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3–3.6, 4, 6.2; transitive model initialization remains WC10 |
+| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3–3.8, 4, 6.2 include transitive model initialization |
 | Wake stop/start | 0056EFE0, 0056F1E0 | §§5.1.4, 5.1.7 give signatures, ordering, ignored results, adapter forwarding and shared controller computations |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
 | AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3 include full AI target selection, direct publication, final and far approach |
-| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation/tween/effects arithmetic and debug lifetime; only the model-publication helpers remain WC11 |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation/tween/effects arithmetic and debug lifetime; model-publication helpers in §3.8 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
