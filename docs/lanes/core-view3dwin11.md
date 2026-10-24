@@ -10,9 +10,9 @@
 - Source audit corrected the new queue fixtures: only BudgetFailure enqueues through notification; a second distinct queue entry must explicitly acquire its fixture reference. Earlier focused compile remains diagnostic evidence.
 - Added safe/disabled modal-tail reference/drop vector, locale SizeOf vector, VW-T24 date boundaries and VW-T39 graph/conditional-stop vectors.
 - Prior VW-T21 fixture correction (b4b0756a4) is present; final verification must confirm it.
-- Current focused diagnostic: exec session 27274, build-runs/focused-resume.log. Launched before the last test additions: diagnostic only. Collect the same operation to termination.
+- Focused diagnostic terminated: build-runs/focused-resume.log, 69 passed / 2 failed, both new queue fixture errors fixed in d084e399b. Compiled before latest fixtures/date/graph additions; preserve as failed evidence, not final verification. Session 27274 is complete.
 - Sessions 46408/42276 from previous round are gone per coordinator; do not wait on them. Earlier evidence remains in all-final.log, focused-1.log and build-queue/.
-- Running all: session 14828, build-runs/all-resume.log (started before fixture correction; preserve verdict, rerun only if stale source captured).
+- Running all: session 14828, build-runs/all-resume.log. Cargo waited for focused build lock until after d084e399b; final-source tests must include all five new vectors (73 owner tests).
 - Running verify: session 64643, build-runs/verify-resume.log, request qbuild-20261024-135533-build-ctest. No native source changed in this round.
 - Next: collect these same operations to terminal results. Final all must cover corrected queue fixtures; then report and READY queue.
 - qbuild fmt passes for lifecycle.rs, owner_tests.rs and resolved_tests.rs (3 files, zero differences).

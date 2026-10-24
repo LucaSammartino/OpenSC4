@@ -20,7 +20,8 @@ claim measurement in the real game.
 
 | Spec section | Code item (implemented column) | Test / closure status |
 |---|---|---|
-| view3d-window §1, §1.1 identity and overrides | `query_interface`, `slots`, `on_command` | `vw_t1_qi_exact_interfaces_and_shared_count`, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command`; no-op slot 143 covered; remaining: unified override adapter |
+| view3d-window §1 identity | `query_interface`, shared reference count | `vw_t1_qi_exact_interfaces_and_shared_count` |
+| §1.1 window overrides | `slots`, `on_command`, typed window handlers | `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command`; no-op slot 143 covered; remaining: unified override adapter |
 | §2 construction | `OwnerState`, `Lifecycle`, `Motion`, `ViewState`, `PanelState` defaults | VW-T12/T13/T14, lifecycle tests; remaining: full VW-T26 dormant/panel-extra vector |
 | §3 Init | `init`, `registry::COMMANDS`, `LifecycleHost::register_view_command` | `init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure`, `vw_t28_registry_is_literal_and_ordered` |
 | §3.1 cheats | `process_cheat`, decimal-prefix `atof`, `CheatHost::decimal_separator` | VW-T5/T6; `vw_t31_sizeof_crt_grammar`, `sizeof_uses_host_locale_decimal_separator` |
@@ -28,7 +29,8 @@ claim measurement in the real game.
 | §5 notifications | `notification`, `pre_city_shutdown`, object-record methods | VW-T3, reference tests, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command` |
 | §5.1 pause / mission | `notification`, borrowed `Notification::attachment` | `notification_view_hidden_pause_mission_and_progress_guards`; remaining: target/fallback caption work and complete VW-T33 |
 | §5.2 view updates | `notification`, `refresh_background`, temporary hidden pause | notification and paint tests; remaining: complete VW-T36 basename/failure vector |
-| §6, §6.1 window messages / focus | `window_message` | VW-T4 and `window_focus_accelerator_button_filter_and_clock_routes`; remaining: advice-link destination integration |
+| §6 window messages | `window_message` | VW-T4 and `window_focus_accelerator_button_filter_and_clock_routes`; remaining: advice-link destination integration |
+| §6.1 focus loss | `window_message` focus-loss branch | `window_focus_accelerator_button_filter_and_clock_routes` |
 | §6.3 filter | `filter_message`, `apply_panel_tab` | `child_filter_uses_existing_tab_state_and_special_type12_branch`; remaining: audit common button follow-up |
 | §6a city init | `pre_city_init`, `post_city_init`, `read_tunable_values`, `CityHost` | existing city init tests; remaining: required concrete fallbacks and graphics-system QI gate, VW-T27 |
 | §6b GUI lifetime | `add_gui`, `remove_gui`, `GuiState` | existing GUI ownership tests; remaining: exact required failures, parent-owned overlay and panel extras, VW-T26/T27 |
@@ -46,6 +48,7 @@ claim measurement in the real game.
 | §6n paint completion | `paint`, `paint_deferred`, `MotionHost` | `vw_t19_t20_deferred_tail_and_timer_boundaries`, `vw_t19_safe_but_disabled_modal_drops_one_message_without_repost`, existing ordered paint and decay tests |
 | §7 conformance | `owner_tests`, `resolved_tests` | Existing VW-T1–T18 plus T19/T20/T21/T22/T23/T24/T25/T28/T30/T31/T35/T37/T38/T39; T26/T27/T29/T32/T33/T34/T36 are not fully covered |
 | §8 questions | `state::load_triggers` | open: VW19; no older VW question is treated as still open |
+| view3d §1 window identity | `View3DWin`, `slots`, save-record constants | QI/shared-count, layout and save-record tests |
 | view3d §5.1 paint order | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw`, decay/pause tests, VW-T19/T20; cost → scroll → resume → context time → one renderer Draw → tail |
 | view3d §5.2 draw fields | `Motion` | paint gating, timing, decay and hidden pause tests |
 | view3d §5.3 save | four-reference object-record adapter | opaque identities/reference-resolution tests; trigger load order open: VW19 |
