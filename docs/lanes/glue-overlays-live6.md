@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-overlays-live6: live terrain overlays | Codex; glue-overlays-live6 (detached HEAD) | in progress | Apply OV13/OV14; native gate; unique 2032 real-city run |
+| glue-overlays-live6: live terrain overlays | Codex; detached HEAD | continue: measured subset passes; latest main merge unverified | qbuild all on current HEAD, new unique city run, final merge/report/queue |
 
 ## Handoff
 
@@ -21,5 +21,6 @@
 - Merge a18d780d3 full qbuild terminal: workspace6900/0/0 PASS, clippy0; native217/217 build PASS, CTest72/73 FAIL capi_smoke ABI equality. Both source constants92; failure refers to cached train-integration __FILE__, so no guessed ABI bump. Full failed CTest log preserved as build-runs/fc4verify-ctest-failed-a18d780d3.log.
 - Added actual/expected ABI failure diagnostics in capi_smoke.cpp to identify linked Rust vs compiled-header values and force recompilation of that input. Need qbuild all on this diagnostic source, then c game run if green. Owned overlay source unchanged vs09fe48059. No game request outstanding; next c label ovlive6-2032-20261024c, next run388.
 - Diagnostic source761836e97 full gate terminal PASS:6900 tests,0 failures/ignored,clippy0; native48/48 edges,CTest73/73,total85.6s. capi_smoke recompilation resolved ABI equality without ABI changes. Tree-change note reflects handoff docs only. Next unique c request, then final main merge/report/queue; if budget OVER commit handoff, no queue.
-- Outstanding c request ovlive6-2032-20261024c, waiter session11581: collect SAME operation; never repeat label. DLL450713cd8176417abc657ccc5baa008ef2db9a5b7fcf5e69868836bb68edc254. Assign run394 (latest grep max393); a/b IDs386/387 may now collide after main merge: check before final report. After c inspect counts/questions, merge main again immediately before READY. No merge-queue file yet.
+- c finished clean2032-01-14, ref_warnings=0, all harness problems0; overlays73/73, overlayrecords292/292, overlayreplay0/292 all OV15. No outstanding operation or game request. Latest required main merge3b19ef279 added automata/Lua/CMake inputs: NOT verified yet. a/b/c numbered400/401/402 after merged main max399, avoiding collisions; label-only run files committed9473ca08b.
+- CONTINUATION: context149604/150000 before this handoff. Exact next: qbuild all on current source (new main inputs justify repeat), then unique ovlive6-2032-20261024d request and event wait (no qwait), grep counts/questions; final main merge again, report and queue only if verified. Last gate6900/clippy0/build48/48/CTest73/73 applies to761836e97, NOT latest merge. Preserve failed CTest log; never bump ABI. No merge-queue file written. Question OV15 needs coordinator index regeneration. This handoff commit is the actual tip.
 - Worktree reserved and detached; do not change refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-live6-r1-manifest.json.
