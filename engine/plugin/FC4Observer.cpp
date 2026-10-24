@@ -103,6 +103,7 @@
 #include "FC4SimGridRecordShadow.h"
 #include "FC4LotRecordShadow.h"
 #include "FC4ConstructionShadow.h"
+#include "FC4RegionalCityShadow.h"
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
 #include "FC4RenderPropsShadow.h"
@@ -660,6 +661,7 @@ public:
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 ConstructionShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
+                RegionalCityShadowObserve(static_cast<int32_t>(PublishedJulian()), true);
                 EffectsShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
@@ -783,6 +785,7 @@ public:
                 SimGridRecordShadowObserve(CurrentCity(), julian, false);
                 LotRecordShadowObserve(CurrentCity(), julian, false);
                 ConstructionShadowObserve(CurrentCity(), julian, false);
+                RegionalCityShadowObserve(julian, false);
                 EffectsShadowObserve(CurrentCity(), julian, false);
                 if (observe_) {
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
