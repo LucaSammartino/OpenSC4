@@ -1,24 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-watercraft-close12 | `core-watercraft-close12` / engine lane, detached reserved worktree | continue: context guard OVER; cargo 7388/0, clippy clean, CTest 81/81; ABI unchanged | Finalize passing partial batch and READY queue entry in fresh context; full owner closure remains incomplete. |
+| core-watercraft-close12 | `core-watercraft-close12` / engine lane, detached reserved worktree | ready: passing partial batch; cargo 7388/0, clippy clean, CTest 81/81; ABI unchanged; no game run; existing WC12 | 1. Land passing batch. 2. Track remaining owner debt in module README; full owner closure remains incomplete. |
 
-## Handoff
+## Final disposition
 
-- Goal: settled WC4/WC5 cSC4Watercraft owner closure, except actual spec gaps; this batch remains partial.
-- Done: `5e9b9abae` runtime/picker/effect integration and six tests; `a26b57f59` README paths; `21c73dc85` actual test/clippy corrections; `454da7fad` gate handoff.
-- Final corrected all PASS: cargo 7388/0, clippy zero diagnostics, queued build 46/46 and CTest 81/81; `build-runs/all-r2-corrected.log`.
-- Explicit verify PASS: build 46/46, CTest 81/81; `build-runs/verify-r2-final.log`. Formatting nine owned files PASS.
-- All three gate operations collected to terminal. No outstanding game/gate operation; no game run; no ABI/plugin/capi changes.
-- Failed initial evidence preserved as `failed-r2-1-qbuild-test.log`, `failed-r2-1-qbuild-clippy.log`, `all-r2-final-1.log`.
-- Full report follows. README owner table remains honest about settled implementation/test debt and WC10/WC11/WC12.
-- Exact next step: finalize this passing partial batch, commit final report as needed, then write READY `build-runs/merge-queue/core-watercraft-close12.json` with actual full HEAD. Do not rerun gates without a new diagnostic/source change.
-- Guard OVER at finalization prevented queue write; no merge-queue file was written this round.
-- Existing WC12 is not answered; no questions newly filed this round. Never imply complete owner closure.
+Final round: finalize the already passing partial batch for landing, as instructed.
+No new owner, question or source change was started. The stable engine source is
+unchanged since `21c73dc85`; both completed gates below remain applicable. They
+were not repeated: the lane rules prohibit redundant gates without changed source
+or diagnostic inputs. No asynchronous operation remains outstanding.
 
-## Final report (this round)
+The READY merge-queue entry uses the full actual detached HEAD after this report
+commit. READY means this tested batch can land; it does not claim full owner
+coverage. The module README retains section-by-section implementation/test debt.
+Existing WC12 was filed in the earlier implementation round; no question was
+filed in this finalization round. No ABI, capi or plugin changes, and no game run.
+
+## Implementation report
 
 **This passing batch does not achieve complete cSC4Watercraft owner closure.**
-The standing two-thirds context stop ended new implementation work; remaining
+The previous round's standing two-thirds context stop ended new implementation work; remaining
 settled debt stays explicitly pending in the module README, rather than being
 misrepresented as a spec gap.
 
@@ -80,7 +81,7 @@ Next round should finish these rows before claiming the requested full closure.
 Commits this round: `5e9b9abae` implementation, `a26b57f59` coverage map,
 `21c73dc85` diagnostic corrections, `454da7fad` corrected gate handoff.
 
-## Earlier checkpoints (superseded by final results above)
+## Archived checkpoints (superseded by final results above)
 
 - Goal: cSC4Watercraft closure in `engine/core/src/watercraft/`, except spec-open WC10/WC11.
 - Prior implementation: `7fc6ee83f`; fixture/format corrections: `015caaa14`; native pass: `d23d651e4`.
