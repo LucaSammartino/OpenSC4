@@ -22,7 +22,10 @@ itself is [docs/harness.md](../harness.md).
   against the previous PASS of the same pacing (`-Baseline <tag>`; the original's results depend on days/s, DG31).
   `-ShadowSplit N` (1..5, default 1) partitions the current single house shadow profile and any `-AddShadows`
   extras into N groups; N > 1 requires `-Queue`. All groups and the replacement request are submitted before
-  waiting. Longest-first balancing uses train196 timestamp cost estimates; helper keys stay with their owner.
+  waiting. Longest-first balancing uses isolated traffic/demand/pollution/resource timings projected to the
+  actual 2032 horizon, the measured residential group, and train196 proxies for remaining shadows.
+  Probe dates can overshoot during shutdown: project the simulation interval to the end-date event and
+  retain the measured shutdown tail separately. Helper keys stay with their owner.
   Occupant/property/lot readers, automata/owners, resource-cache/weather readers, and overlay/simgrid readers
   each stay together. Per-group logs remain as evidence; `regress-<tag>-shadows.log` concatenates them with
   named headers. The ordinary summary sums shadow lines and uses the worst group verdict (missing or blocked

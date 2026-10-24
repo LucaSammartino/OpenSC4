@@ -14,6 +14,9 @@
 - R2 milestone: combined is merge-train default; --split explicitly enables 3 groups with fourth-batch combined cadence. CLI flags mutually exclusive.
 - R2 tests: python build-runs/check-main-tooling.py printed main WorkflowDryRun 7 tests, six failures; lane all tooling 147 tests, same six failures (141 pass). Logs main-workflow-tests.out and tooling-tests-r2.out prove pre-existing failures against main's source.
 - R2 timing probe is waiting for train199 to clear, then snapshots coordinator integration DLL to split11-r2-main.dll and submits four independent families to 2026-07-01. qwait session 41038 waits for split11-r2-costs.json.
+- R2 probe finished: run 614, all four clean; DLL SHA256 4853374130ffde73a29adf15e197802a7b4f79d307141fdb23983bc4eb3bdfd1. Traffic projects ~384 s. Resources have a 152 s shutdown tail, project ~367 s total; do not normalize their overshot final date as simulation cost.
+- Updated LPT weights give traffic and resources separate groups; all other house shadows should share the third group. Regression grouping/cadence tests passed 2/2 before final resource-tail correction; rerun with full suite below.
+- Next exact step: python build-runs/validate-split.py (combined then split on immutable R2 snapshot); output split11-r2-measurements.json. Full games not started yet. Then tooling suite and qbuild verify, record parity/wall results.
 
 ## Report
 

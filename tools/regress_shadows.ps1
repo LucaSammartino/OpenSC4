@@ -1,11 +1,18 @@
 # Helpers for regress.ps1. No staging or game side effects when dot-sourced.
 function Split-RegressShadows([string]$Ini, [int]$Count) {
-    # Timestamp gaps immediately before each shadow's log lines in train196 (seconds).
-    # These are cost proxies, not CPU profiles; stable longest-first assignment avoids
-    # putting residential, development and demand on the same game slot.
-    $cost = @{ residential=198.290; development=66.596; demand=59.856; pollution=31.582;
-        parks=24.575; dbpf=12.814; power=10.437; landvalue=8.849; flammability=8.432;
-        traffic=7.892; occmgr=5.094; automata=4.417; lotconf=4.321; simgrid=4.036;
+    # Seconds projected to the 2167 simulated days of the 2032 house horizon.
+    # split11-r2-cost-* isolated probes, same DLL 48533741: traffic 27.781 s / 157 days;
+    # resources reached 2026-07-01 in 15.625 s but took 151.734 s more to quit;
+    # project only the simulation interval (157 days), then retain that fixed tail.
+    # Its final date overshot during shutdown, so final days/s is unsuitable here.
+    # Residential uses the measured
+    # ~65 s simulation time of split11-s3-fixed group 1; remaining weights are
+    # train196 timestamp proxies until isolated measurements replace them.
+    # Resource family cost is charged once to scres_file, with its peers kept together.
+    $cost = @{ residential=65.0; development=66.596; demand=42.5; pollution=62.6;
+        parks=24.575; dbpf=0.0; weather=0.0; scres=0.0; scres_file=367.4;
+        power=10.437; landvalue=8.849; flammability=8.432;
+        traffic=383.5; occmgr=5.094; automata=4.417; lotconf=4.321; simgrid=4.036;
         plumbing=3.697; netocc=3.261; history=3.028; overlays=2.663; advisors=2.395;
         terrain=2.216; flora=2.132 }
     # Keep stateful families and their configuration in one process. In particular,
