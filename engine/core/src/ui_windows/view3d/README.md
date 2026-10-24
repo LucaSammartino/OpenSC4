@@ -15,7 +15,8 @@ this partial implementation.
 ## Owner closure
 
 Every row refers to cSC4View3DWin. Tests are in `owner_tests.rs` and its included
-`resolved_tests.rs`, `trigger_load_tests.rs` and `closure_tests.rs`, unless qualified. Entries describe core coverage; they do not
+`resolved_tests.rs`, `trigger_load_tests.rs`, `closure_tests.rs` and
+`closure_round3_tests.rs`, unless qualified. Entries describe core coverage; they do not
 claim measurement in the real game.
 
 | Spec section | Code item (implemented column) | Test / closure status |

@@ -14,10 +14,13 @@
   T33/T34 and coverage/graph lifetime. Full owner closure is still not claimed.
 - Six changed child modules fmt PASS; view3d.rs checked with skip_children=true
   and applied using apply_patch. Preserve the failed relative-path fmt log.
-- Focused native cargo is running, session 60122; collect this exact operation.
-  Output: build-runs/focused-close12-r3-native.log. No terminal result yet.
-- Next: collect focused cargo; fix only diagnostics; run one final all and verify,
-  collecting both to terminal, then report and enqueue full actual HEAD.
+- Focused native cargo completed with E0382 in the new test's repeated button
+  vector; fixed consumption to iter().copied(). Preserve the failed log at
+  build-runs/focused-close12-r3-native.log (no test results were reached).
+- Final all must run once on the corrected source, with RUST_TEST_THREADS=1.
+- Native verify already running on unchanged production source, session 93719,
+  queue qbuild-20261024-205703-build-ctest; collect exactly this operation.
+- Next: collect final all/verify to terminal, then report and enqueue actual HEAD.
 - Guard stopped this round at 150k; write no merge-queue entry this round.
 - Resumed d81c354bf. First merge re-view3dwin-vw20 was already up to date;
   ancestry confirmed. Git emits packed-refs.lock permission errors but commits succeed.

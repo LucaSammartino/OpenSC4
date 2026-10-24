@@ -164,7 +164,8 @@ fn vw_t34_advice_destinations_and_literal_envelopes() {
             assert_eq!(
                 dispatched,
                 buttons
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|button| (window, 3, [0x2872_59F6, button, 0]))
                     .collect::<Vec<_>>()
             );
