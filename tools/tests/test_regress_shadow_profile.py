@@ -33,7 +33,7 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertTrue(record["ok"])
         self.assertEqual(record["extra_shadows"], "occmgr_shadow,occmgr_shadow_follow")
         run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr",
-                                    "occmgr_shadow,occmgr_shadow_follow")
+                                    "occmgr_shadow,occmgr_shadow_follow", shadow_split=1)
 
     def invoke(self, extra="formats_shadow", gate_error=""):
         state = {"current": {"id": "trial", "worktree": "wt", "regress": {"ok": True, "verdict": "PASS"}}}
@@ -51,7 +51,7 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertTrue(record["ok"])
         self.assertEqual(record["replace"], "aura,occmgr")
         self.assertEqual(record["extra_shadows"], "formats_shadow")
-        run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr", "formats_shadow")
+        run.assert_called_once_with(Path("wt"), "trial", Path("gated.dll"), "aura,occmgr", "formats_shadow", shadow_split=1)
 
     def test_candidate_cannot_bypass_gate_or_retain_invalid_retry_pass(self):
         for kwargs in ({"gate_error": "wrong DLL hash"}, {"extra": "enable=terrain"}):
