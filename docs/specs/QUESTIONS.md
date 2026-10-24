@@ -208,6 +208,7 @@ generated index: the questions live one file per spec, so read only the file for
 | WGN | widget-wingen |
 | WLI | widget-lineinput |
 | WR | water-ripples |
+| WSL | widget-slider |
 | WT | widget-toolkit |
 | WTC | widget-toolkit |
 | WTG | widget-toolkit |
@@ -408,10 +409,11 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
+| widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
 | widget-toolkit | 12 | 8 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
 | win-filebrowser | 3 | 3 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **663** | **1566** | | |
+| **total** | **665** | **1566** | | |

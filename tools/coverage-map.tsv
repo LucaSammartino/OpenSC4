@@ -573,6 +573,8 @@ cGZWinTextTicker	widget toolkit	ui	widget-ticker.md	-	-	-
 cGZWinCOMDirector	widget toolkit	ui	widget-comdirector.md	-	-	-
 cGZWinMsgBox	widget toolkit	ui	widget-dialogs.md	-	-	-
 cGZWinGenDlg	widget toolkit	ui	widget-dialogs.md	-	-	-
+cGZWinSlider	widget toolkit	ui	widget-slider.md	-	-	-
+cGZWinScrollbar	widget toolkit	ui	widget-slider.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
