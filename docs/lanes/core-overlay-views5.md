@@ -1,24 +1,65 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-overlay-views5: overlay view owners | Codex, `core-overlay-views5` | in progress | Implement pure Rust owners and conformance tests |
+| core-overlay-views5: overlay view owners | Codex, `core-overlay-views5` | ready | Coordinator review and landing; published owner contracts closed |
 
-## Handoff
-- Goal: close overlay-views and network-overlay-views owners in engine/core/src/overlay_views; no ABI or plugin wiring.
-- Done: f972aa84d plan; 515748276 implements published algorithms and 26 owner tests plus README Owner closure table.
-- Found previous partial module and nine JSON fixtures despite brief saying none; replaced partial owner APIs and adapted existing conformance runner. Corrected provisional OVV3 strip vector to current spec.
-- Spec qualifications retained: OVV4/OVV6, NOV2 initializer/setters, NOV3 rotation/state/setters; no new questions.
-- Focused check: 25 passed/1 failed (short test index source); corrected fixture. Evidence: build-runs/focused-overlay-evidence.md.
-- First all: tests 807 passed/1 failed (old stable-tie fixture); clippy adapter initializer diagnostic. Both corrected; full failed logs preserved in build-runs/qbuild-{test,clippy}-attempt1.log.
-- Done: 7c35c9d7d fixes earlier gate diagnostics. Corrected focused tests: 26 passed, 0 failed (session 70427 terminal).
-- Review correction after focused result: ribbon primitive must be 1 per view-utilities §7.1 (not 4). Command and assertion corrected; final gate must include this change.
-- Done: 7b3cc977f fixes ribbon primitive; focused final-source lib tests (session 40073 terminal) PASS 26/26, 4419 filtered, 0.05s.
-- First all terminal: cargo 807/1 failure and clippy diagnostics were corrected; native build PASS 220/220 edges, CTest PASS 69/69, 239.6s, but tree changed during run. First native logs preserved as fc4verify-{build,ctest}-attempt1.log.
-- Focused conformance turbo_off terminal PASS 2/2, including every vector.
-- Final all terminal PASS on stable source (session 27940, qbuild-20261024-010135-build-ctest): cargo 6758 passed/0 failed, clippy 0 diagnostics; native build 49/49 edges, CTest 69/69, 84.1s. Logs: qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log.
-- Round 2: reviewed Owner closure table against both spec outlines; every normative owner subsection and conformance section has a row. No remaining closure rows or new source changes needed.
-- Round 2: merged main as explicitly requested at 20b61b645, without conflicts; Git reported a denied packed-refs maintenance lock after creating the merge. No maintenance or ref changes attempted.
-- Round 2 all terminal PASS (session 24130): Rust tests 6804/0 failed, clippy 0 diagnostics, native build 206/206 edges (94.2s), CTest 70/70 (179.1s), overall native 277.7s. Queue label qbuild-20261024-011710-build-ctest. Source unchanged.
-- Next: run explicit qbuild verify, collecting to terminal; final report/queue.
-- Formatting uses engine/rustfmt.toml max_width=120; apply_patch applied stdin-generated formatting diffs, no filename headers written.
-- Native verification required; pure core changes need no game run.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-overlay-views5-r2-manifest.json.
+## Report
+
+Implemented the published contracts for cSC4PathView, PathInfo, SC4MarkedCellView,
+cSTEVertBufExtn's overlay helper, SC4PathInfoView and SC4TrainJunctionView in the
+pure Rust `engine/core/src/overlay_views` module. Geometry, ordering, traversal,
+batching, failure boundaries, process state, resource ownership and shared view
+reference/deletion chains are covered. Hosts supply external services through
+Rust traits. No plugin/capi wiring or C ABI export changes.
+
+The module README's Owner closure table maps every normative owner subsection
+and both conformance sections to code/tests or existing open questions. Round 2
+review found no missing rows. All established behavior is implemented; the
+following portions remain qualified by the specs themselves:
+
+- OV 2.2: independent outline-disable API (OVV4).
+- OV 1.2, 3.2 and 3.3: additional public surface/standalone record ABI,
+  exceptional arithmetic, allocation failure and unsafe caller sequences (OVV6).
+- NO 1.2 and OV 3.3: pulse initializer and unpublished filter/depth setters (NOV2).
+- NO 2.1 and OV 3.3: marker rotation/model state, stored-cell identities/setters,
+  provider failure-output contents and caller Shutdown discipline (NOV3).
+- OVV1/NOV1 semantic flag/key names and external cheat activation remain unnamed;
+  established raw-bit behavior is implemented. No new questions filed.
+
+### Implementation and integration
+
+- 515748276: owner implementation, 26 focused tests, closure table and conformance
+  adapter updates. Nine pre-existing JSON fixtures retained; provisional strip
+  and obsolete stable-tie expectations corrected to the published contracts.
+- 7c35c9d7d: corrected earlier gate diagnostics; 7b3cc977f: triangle-strip
+  primitive correction. Focused final-source tests passed 26/26; focused
+  conformance turbo_off passed 2/2, including every vector.
+- 20b61b645: explicitly requested main merge, conflict-free. No implementation
+  edits were necessary in Round 2. Git emitted a denied packed-refs maintenance
+  lock after successful commits; no manual maintenance/ref operations attempted.
+
+### Measured checks
+
+Post-merge stable-source `qbuild all` completed successfully (session 24130,
+`qbuild-20261024-011710-build-ctest`): cargo **6804 passed, 0 failed, 0 ignored**,
+clippy **0 diagnostics**, native build **206/206** edges (94.2 s), full CTest
+**70/70** (179.1 s), native total 277.7 s.
+
+Explicitly requested `qbuild verify` also completed successfully (session 49546,
+`qbuild-20261024-013022-build-ctest`): native build **92/92** edges (6.6 s), full
+CTest **70/70** (112.4 s), total 121.5 s. Source unchanged between these checks.
+Queue verdicts are in `build-runs/build-results/`; logs are
+`build-runs/qbuild-{test,clippy}.log` and `build-runs/fc4verify-{build,ctest}.log`.
+
+Earlier-source evidence is distinct: first focused run 25/1 (fixture corrected);
+first full Rust run 807/1 plus clippy diagnostic (corrected), with native 220/220
+and CTest 69/69 while source changed. Failed logs remain in
+`build-runs/qbuild-{test,clippy}-attempt1.log`; earlier native logs remain in
+`build-runs/fc4verify-{build,ctest}-attempt1.log`. Before merging main, the final
+stable full run passed 6758 Rust tests, clippy, and CTest 69/69.
+
+Game runs: none, as scoped for a pure Rust module without plugin wiring. Native
+build/CTest is measured; native owner execution, game shadows and replacement
+are not claimed. ABI unchanged. Coverage map intentionally not edited.
+
+Next: coordinator review and landing via the READY merge-queue entry. Remaining
+spec qualifications above require spec publication before future implementation.
