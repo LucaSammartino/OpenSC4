@@ -8,7 +8,7 @@
 //! unresolved domains; no foreign callback supplies an owner algorithm.
 //!
 //! Effects are generic primitive intents, not native calls or success reports.
-//! Partial updates never acknowledge a redraw, clear dirty, or move its clock.
+//! Active Update clears dirty on entry and samples its clock only at the tail.
 //! All state reads use ordinary shared references; no RefCell or native pointers.
 
 mod execution;
@@ -18,6 +18,7 @@ mod overlay;
 mod palette;
 mod source;
 mod window;
+mod settled;
 
 pub use execution::*;
 pub use exemplar::*;
@@ -26,6 +27,7 @@ pub use overlay::*;
 pub use palette::*;
 pub use source::*;
 pub use window::*;
+pub use settled::*;
 
 /// Refusal of an unpublished/out-of-domain contract, not a native failure code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,7 +166,6 @@ pub struct MapView {
     resource: Option<RawExemplar>,
     dirty: bool,
     last_redraw_ms: u64,
-    notification_value: u32,
     update_subscription: Option<UpdateSubscription>,
     animation_registered: bool,
     init_planned: bool,
@@ -177,23 +178,24 @@ pub struct MapView {
     overlay_enabled: bool,
     retained_highlights: Vec<HighlightRecord>,
     highlight_style: HighlightStyle,
+    hooked_messages: Vec<u32>,
+    travel_types: Vec<u8>,
 }
 
 impl MapView {
     /// Explicit raw clock and notification baselines, not native defaults.
     /// No accepted parameter is a completed MapView/selection/highlight result.
-    pub fn new(last_redraw_ms: u64, notification_value: u32) -> Self {
+    pub fn new(last_redraw_ms: u64, _legacy_notification_value: u32) -> Self {
         Self {
             active: false,
-            current_view: None,
+            current_view: Some(0),
             requested_view: None,
             source: 0,
             developer_debug: false,
             config: None,
             resource: None,
             dirty: false,
-            last_redraw_ms,
-            notification_value,
+            last_redraw_ms: u64::from(last_redraw_ms as u32),
             update_subscription: None,
             animation_registered: false,
             init_planned: false,
@@ -203,17 +205,23 @@ impl MapView {
             custom_view: None,
             mode_button: None,
             two_way_toggle: None,
-            overlay_enabled: false,
+            overlay_enabled: true,
             retained_highlights: Vec::new(),
             highlight_style: HighlightStyle::default(),
+            hooked_messages: Vec::new(),
+            travel_types: Vec::new(),
         }
+    }
+
+    pub fn from_clock(renderer: &mut impl Renderer) -> Self {
+        Self::new(u64::from(renderer.clock_ms()), 0)
     }
 
     /// Ordered Â§1 primitive intents. No native pointer/lifetime/allocation
     /// is represented, and no invented Init return value is provided.
     pub fn init(&mut self) -> Result<Initialization, Unsupported> {
         if self.init_planned {
-            return Err(Unsupported::RepeatedInit);
+            return Ok(Initialization { effects: vec![Effect::WindowGeneratorInit], boundary: Unsupported::NativeAllocation });
         }
         self.init_planned = true;
         Ok(Initialization {
@@ -294,20 +302,18 @@ impl MapView {
     }
 
     pub fn hook_update_messages(&mut self) -> Result<Vec<Effect>, Unsupported> {
-        // QV9: duplicate registration/ref-count semantics are unpublished.
-        if self.update_subscription.is_some() {
-            return Err(Unsupported::RepeatedHook);
-        }
         let update = subscription(self.source);
         self.animation_registered = true;
         self.update_subscription = Some(update);
-        Ok(vec![
-            Effect::RegisterAnimation(AnimationPriority::Explicit(update.priority)),
-            Effect::Subscribe(update.message),
-        ])
+        self.hooked_messages.push(update.message);
+        self.hooked_messages.sort_unstable();
+        let mut effects = vec![Effect::RegisterAnimation(AnimationPriority::Explicit(update.priority))];
+        effects.extend(self.hooked_messages.iter().copied().map(Effect::Subscribe));
+        Ok(effects)
     }
 
     pub fn unhook_update_messages(&mut self) -> Vec<Effect> {
+        self.hooked_messages.clear();
         let effect = Effect::DropUpdateSubscriptions {
             subscription: self.update_subscription.take(),
             animation_registered: self.animation_registered,
@@ -358,9 +364,8 @@ impl MapView {
             progress.effects.push(Effect::ReleaseCustomView(handle));
         }
         progress.effects.extend(self.unhook_update_messages());
-        self.palettes = None;
         self.requested_view = Some(view);
-        if view == 0 {
+        if view == 0 || exemplar_key(view).is_ok_and(|key| key.instance == 0) {
             // [literal, QV1/QV9] The default occupant filter is the first
             // unknown none-stage decision. Do not skip to later resets,
             // clearing state/highlights, Update or a current-view commit.
@@ -381,6 +386,9 @@ impl MapView {
 
     fn store_selection(&mut self, raw: &RawExemplar) -> Result<(), Unsupported> {
         let fields = raw.selection_fields()?;
+        if raw.find(TRAVEL_TYPES)?.is_some() {
+            self.travel_types = raw.travel_types()?;
+        }
         self.source = fields.source;
         self.config = Some(fields);
         self.resource = Some(raw.clone());
@@ -432,11 +440,9 @@ impl MapView {
             ACTIVATE => return Ok(self.activate()),
             DEACTIVATE => return Ok(self.deactivate()),
             VALUE_CHANGED => {
-                let value = value.ok_or(Unsupported::MissingNotificationValue)?;
-                if self.notification_value != value {
-                    self.notification_value = value;
-                    self.dirty = true;
-                }
+                // One word cannot describe this message: use notify_values(old,new).
+                let _ = value;
+                return Err(Unsupported::MissingNotificationValue);
             }
             _ => {}
         }
@@ -446,12 +452,23 @@ impl MapView {
         Ok(Vec::new())
     }
 
+    /// Second words of the message's two data records; no retained baseline.
+    pub fn notify_values(&mut self, old: u32, new: u32) {
+        self.dirty |= old != new;
+    }
+
+    pub fn retained_travel_types(&self) -> &[u8] { &self.travel_types }
+
     /// Collect from raw building records only. Equality/order and therefore
     /// change-induced dirty state are deliberately not manufactured (QV7).
     pub fn update_highlights(&mut self, buildings: &[RawBuilding]) -> Result<(), Unsupported> {
         let kind = self.config.as_ref().map_or(0, |c| c.highlight_kind);
-        self.highlights = Some(collect_highlights(kind, buildings)?);
-        Err(Unsupported::HighlightComparison)
+        let mut collection = collect_highlights(kind, buildings)?;
+        collection.candidates.sort_by_key(|candidate| candidate.id as u32 as i32);
+        self.dirty |= self.highlights.as_ref().map(|old| old.candidates.iter().map(|c| c.id).collect::<Vec<_>>())
+            != Some(collection.candidates.iter().map(|c| c.id).collect());
+        self.highlights = Some(collection);
+        Ok(())
     }
 
     /// One delivered animation tick. Highlights are polled even if the source
@@ -459,10 +476,7 @@ impl MapView {
     /// Only a known dirty cause establishes a due redraw while equality is
     /// unpublished. An unsupported attempt retains dirty and last-redraw time.
     pub fn tick(&mut self, now_ms: u64, buildings: &[RawBuilding]) -> Result<TickProgress, Unsupported> {
-        // [literal bounded clock, QV9] No guessed wrapping/subtraction width.
-        let elapsed = now_ms
-            .checked_sub(self.last_redraw_ms)
-            .ok_or(Unsupported::ClockRegression)?;
+        let elapsed = u64::from((now_ms as u32).wrapping_sub(self.last_redraw_ms as u32));
         self.notify(ANIMATION_TICK, None)?;
         let highlight_boundary = self.update_highlights(buildings).err();
         let interval_ms = if self.source == 76 {

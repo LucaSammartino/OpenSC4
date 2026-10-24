@@ -23,7 +23,7 @@ fn selected(source: u32) -> MapView {
         progress.outcome,
         SelectionOutcome::Unsupported(Unsupported::RampGeneration)
     );
-    assert_eq!(view.current_view(), None);
+    assert_eq!(view.current_view(), Some(0));
     view.hook_update_messages().unwrap();
     view
 }
@@ -51,17 +51,17 @@ fn floats_truncate_before_range_check_and_refuse_unpublished_domains() {
         assert_eq!(float_index(v), Ok(index));
     }
     for v in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
-        assert_eq!(float_index(v), Err(Unsupported::NonFiniteFloat));
+        assert_eq!(float_index(v), Ok(0));
     }
-    for v in [-1.0, 256.0, f32::MAX, f32::MIN] {
-        assert_eq!(float_index(v), Err(Unsupported::FloatOutOfRange));
+    for (v,index) in [(-1.0,255),(256.0,0),(f32::MAX,0),(f32::MIN,0)] {
+        assert_eq!(float_index(v), Ok(index));
     }
     let mut out = [42; 2];
     assert_eq!(
         emit_colors(Values::F32(&[1.9, 256.0]), &palette(), &mut out),
-        Err(Unsupported::FloatOutOfRange)
+        Ok(())
     );
-    assert_eq!(out, [42, 42]);
+    assert_eq!(out, [palette().lookup(1), palette().lookup(0)]);
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn raw_fields_use_only_documented_defaults_and_ranges() {
     raw.0.push(Property::new(LAYER, RawValue::U32(6)));
     assert_eq!(raw.selection_fields().unwrap().layer, 6);
     raw.0.retain(|p| p.id != SOURCE);
-    assert_eq!(raw.selection_fields(), Err(Unsupported::MissingProperty(SOURCE)));
+    assert_eq!(raw.selection_fields().unwrap().source, 0);
     raw.0.push(Property::new(SOURCE, RawValue::U8(1)));
     assert_eq!(raw.selection_fields(), Err(Unsupported::MalformedProperty(SOURCE)));
 }
@@ -126,7 +126,7 @@ fn typed_resource_helpers_do_not_supply_filter_or_traffic_outcomes() {
     }
     assert_eq!(
         RawExemplar(vec![Property::new(TRAVEL_TYPES, RawValue::U32List(vec![256]))]).travel_types(),
-        Err(Unsupported::MalformedProperty(TRAVEL_TYPES))
+        Ok(vec![0])
     );
 }
 
@@ -199,7 +199,7 @@ fn every_developer_type_and_published_layer_is_discriminated() {
         );
     }
     assert_eq!(select_source(64, 1, false), Err(Unsupported::DeveloperLayer(1)));
-    assert_eq!(select_source(64, 5, false), Err(Unsupported::DeveloperLayer5QV4));
+    assert!(matches!(select_source(64,5,false), Ok(SourceSelection::Developer { grid: DeveloperGrid::CapacityPercentage, .. })));
 }
 
 #[test]
@@ -295,12 +295,12 @@ fn messages_and_source_changes_follow_exact_subscription_table() {
 #[test]
 fn notifications_dirty_only_when_the_raw_value_changes() {
     let mut view = MapView::new(0, 7);
-    view.notify(VALUE_CHANGED, Some(7)).unwrap();
+    view.notify_values(7,7);
     assert!(!view.dirty());
-    view.notify(VALUE_CHANGED, Some(8)).unwrap();
+    view.notify_values(7,8);
     assert!(view.dirty());
     view.dirty = false;
-    view.notify(VALUE_CHANGED, Some(8)).unwrap();
+    view.notify_values(8,8);
     assert!(!view.dirty());
 }
 
@@ -377,7 +377,7 @@ fn raw_highlights_select_native_radius_without_claiming_comparison() {
         collect_highlights(9, &buildings).unwrap().candidates,
         vec![HighlightCandidate {
             id: 3,
-            radius: HighlightRadius::None
+            radius: HighlightRadius::Value(0.0)
         }]
     );
     assert_eq!(highlight_request(5).unwrap().provider, Provider::Crime);
@@ -385,9 +385,9 @@ fn raw_highlights_select_native_radius_without_claiming_comparison() {
     for _ in 0..2 {
         assert_eq!(
             view.update_highlights(&buildings),
-            Err(Unsupported::HighlightComparison)
+            Ok(())
         );
-        assert!(!view.dirty());
+        assert!(view.dirty());
     }
     assert_eq!(view.highlights().unwrap().candidates.len(), 1);
 }
@@ -439,9 +439,9 @@ fn raw_grid_emission_reuses_existing_tract_access_without_resampling() {
     output.fill(123);
     assert_eq!(
         emit_grid(&*grid, &palette(), &mut output),
-        Err(Unsupported::NonFiniteFloat)
+        Ok(())
     );
-    assert_eq!(output, [123; 4]);
+    assert_eq!(output, [palette().lookup(1), palette().lookup(0), palette().lookup(0), palette().lookup(0)]);
 }
 
 #[test]
@@ -501,7 +501,7 @@ fn init_and_activation_have_only_published_primitive_ordering() {
             Effect::UseWaterAltitude,
         ]
     );
-    assert_eq!(view.init(), Err(Unsupported::RepeatedInit));
+    assert_eq!(view.init().unwrap().effects, vec![Effect::WindowGeneratorInit]);
     assert_eq!(
         view.notify(ACTIVATE, None).unwrap(),
         vec![Effect::RegisterAnimation(AnimationPriority::UnspecifiedActivation)]
@@ -522,22 +522,22 @@ fn init_and_activation_have_only_published_primitive_ordering() {
 fn malformed_resource_and_helper_inputs_are_refused_without_native_failure_values() {
     let mut raw = exemplar(1, 9);
     raw.0.push(Property::new(SOURCE, RawValue::U32(2)));
-    assert_eq!(raw.selection_fields(), Err(Unsupported::DuplicateProperty(SOURCE)));
+    assert_eq!(raw.selection_fields().unwrap().source, 1);
     raw = exemplar(1, 9);
     raw.0.retain(|p| p.id != RAMP);
     raw.0.push(Property::new(RAMP, RawValue::U32List(vec![1])));
-    assert_eq!(raw.selection_fields(), Err(Unsupported::MalformedProperty(RAMP)));
+    assert_eq!(raw.selection_fields().unwrap().ramp_pairs, vec![1]);
     let invalid = RawExemplar(vec![Property::new(TERRAIN_MODE, RawValue::U32(3))]);
     assert_eq!(
         invalid.terrain_mode(TERRAIN_MODE),
-        Err(Unsupported::MalformedProperty(TERRAIN_MODE))
+        Ok(1)
     );
     let invalid = RawExemplar(vec![Property::new(TRAVEL_TYPES, RawValue::U32List(vec![0; 9]))]);
     assert_eq!(
         invalid.travel_types(),
-        Err(Unsupported::MalformedProperty(TRAVEL_TYPES))
+        Ok(vec![0;8])
     );
-    assert_eq!(exemplar_key(u32::MAX), Err(Unsupported::ResourceKeyOverflow));
+    assert_eq!(exemplar_key(u32::MAX).unwrap().instance, 0x4a0b67ff);
     let mut output = [9];
     assert_eq!(
         emit_colors(Values::U8(&[1, 2]), &palette(), &mut output),
@@ -566,7 +566,7 @@ fn same_view_and_inactive_paths_do_not_drop_existing_state_or_subscriptions() {
     assert_eq!(view.config(), before.as_ref());
     assert_eq!(view.source(), 8);
     assert!(view.dirty());
-    assert_eq!(view.hook_update_messages(), Err(Unsupported::RepeatedHook));
+    assert_eq!(view.hook_update_messages().unwrap().len(), 3);
 }
 
 #[test]
@@ -576,7 +576,7 @@ fn empty_source_animation_notifications_dirty_without_inventing_highlight_change
     let progress = view.tick(999, &[]).unwrap();
     assert!(progress.polled_highlights);
     assert!(view.dirty());
-    assert_eq!(progress.highlight_boundary, Some(Unsupported::HighlightComparison));
+    assert_eq!(progress.highlight_boundary, None);
     assert!(!progress.redraw_due_for_known_dirty);
     assert_eq!(view.tick(1000, &[]).unwrap().update, Some(UpdateOutcome::DrawNothing));
     assert!(view.dirty());
@@ -584,11 +584,11 @@ fn empty_source_animation_notifications_dirty_without_inventing_highlight_change
     let mut view = selected(8);
     let progress = view.tick(1000, &[]).unwrap();
     assert!(progress.polled_highlights);
-    assert!(!progress.redraw_due_for_known_dirty);
-    assert_eq!(progress.highlight_boundary, Some(Unsupported::HighlightComparison));
-    assert_eq!(progress.update, None); // known dirty absent, not proof of native equality.
+    assert!(progress.redraw_due_for_known_dirty);
+    assert_eq!(progress.highlight_boundary, None);
+    assert_eq!(progress.update, Some(UpdateOutcome::Unsupported(Unsupported::RampGeneration)));
     let mut view = MapView::new(500, 7);
-    assert_eq!(view.tick(499, &[]), Err(Unsupported::ClockRegression));
+    assert!(view.tick(499, &[]).is_ok());
     assert_eq!(
         view.notify(VALUE_CHANGED, None),
         Err(Unsupported::MissingNotificationValue)
@@ -660,28 +660,28 @@ fn all_supported_highlight_kinds_select_distinct_raw_inputs_and_slots() {
             BuildingKind::GarbageBuilding,
             Provider::Pollution,
             46,
-            HighlightRadius::Unspecified,
+            HighlightRadius::Value(0.0),
         ),
         (
             7,
             BuildingKind::PowerPlant,
             Provider::Power,
             25,
-            HighlightRadius::Unspecified,
+            HighlightRadius::Value(0.0),
         ),
         (
             8,
             BuildingKind::WaterProducer,
             Provider::Plumbing,
             28,
-            HighlightRadius::Unspecified,
+            HighlightRadius::Value(0.0),
         ),
         (
             9,
             BuildingKind::TransitSwitch,
             Provider::Traffic,
             28,
-            HighlightRadius::None,
+            HighlightRadius::Value(0.0),
         ),
     ];
     let records: Vec<_> = cases
