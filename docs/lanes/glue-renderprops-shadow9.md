@@ -11,7 +11,10 @@
 - Fixture plan finite-v1: two owners; 462 completed setters, all 77 values after every setter, second-instance independence, P/U QI/count/ref operations, U destructor flags 0/2.
 - Focused transport tests 2/2 passed; owned-file fmt passed after two local formatting fixes.
 - RP8 appended for literal receiver-only constructor/outer-storage ABI; no freeing Release at 0/1 is attempted.
-- Next: full qbuild all on final source, then unique-label house request through 2032 and collect that same operation.
+- Gate 1 on 5739fb9f1: Rust 6999/6999, clippy clean, native 221/221; CTest 78/80 (ret-channel falsely associated fixture Destroy with Lua Destroy; capi_smoke cached train-integration ABI97 object linked Rust98).
+- Gate 1 logs preserved as build-runs/renderprops-r2-gate1-{test,clippy,build,ctest}.log; queue qbuild-20261024-094717-build-ctest terminal fail.
+- Diagnostic fixes: specific fixture termination name; capi_smoke mismatch includes source provenance and forces a current-source rebuild. Header and Rust are both ABI98; no version edit.
+- Next: repeat full qbuild after these diagnosed changes, then unique-label house request through 2032.
 - Constructor is specified at render-properties.md §1.3: 0x007E3650, complete object 0x30 bytes.
 - No new game request outstanding; previous evidence below is historical round 1.
 - tools/questions.py index is excluded by non-bending clean-room tools rule; coordinator must regenerate index.

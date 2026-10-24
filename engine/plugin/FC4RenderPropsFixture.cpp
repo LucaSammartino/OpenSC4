@@ -58,7 +58,7 @@ struct NativeOwner {
     }
     NativeOwner(const NativeOwner&) = delete;
     NativeOwner& operator=(const NativeOwner&) = delete;
-    void* Destroy(uint32_t flags) {
+    void* TerminateFixtureStorage(uint32_t flags) {
         using DestroyFn = void*(__thiscall*)(void*, uint32_t);
         auto** vtable = *reinterpret_cast<void***>(u());
         return reinterpret_cast<DestroyFn>(vtable[3])(u(), flags);
@@ -139,11 +139,11 @@ bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, ui
     // termination. Record it in the audit, without issuing a freeing Release.
     const auto owned = RefBefore(a.u());
     const uint32_t offset = fc4_renderprops_fixture_ref(a.expected, 1, 4, 2);
-    Equal(a.Destroy(2) == a.storage + offset, 1, fields, mismatches);
+    Equal(a.TerminateFixtureStorage(2) == a.storage + offset, 1, fields, mismatches);
     RefNote(owned, -1, 0, "owned fixture nonfree destruction", FC4_SITE, true, true);
     Values(b.p(), b.expected, fields, mismatches);
     const uint32_t otherOffset = fc4_renderprops_fixture_ref(b.expected, 1, 4, 0);
-    Equal(b.Destroy(0) == b.storage + otherOffset, 1, fields, mismatches);
+    Equal(b.TerminateFixtureStorage(0) == b.storage + otherOffset, 1, fields, mismatches);
     // No access to either terminated native object's contents beyond here.
     return true;
 }
