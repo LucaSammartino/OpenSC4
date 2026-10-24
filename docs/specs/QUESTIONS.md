@@ -264,7 +264,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 3 | 8 | LV10 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 11 | LC14 | questions/legacy-control.md |
-| lighting | 6 | 7 | LT14 | questions/lighting.md |
+| lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
@@ -371,4 +371,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1455** | | |
+| **total** | **606** | **1457** | | |

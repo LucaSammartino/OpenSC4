@@ -5,6 +5,8 @@
 ## Handoff
 - Goal: answer LT14/LT15 with behavior and conformance vectors; no engine reads or edits.
 - Worktree reused at detached HEAD as instructed.
-- Initial finding: neither LT14/LT15 nor glue-lighting-shadow9 lane file exists in this snapshot or main checkout.
-- Next: locate reserved glue lane worktree and read only its lane report/question records for exact questions.
+- Initial finding: LT14/LT15 and glue lane report are in its reserved worktree, absent from this snapshot and main.
+- Done: verified installed exemplar texture 69D3A23B; driver visual hour/minute and delivery-time reads; no owner serialization.
+- Done: drafted §§1.4/1.6/2.4, vectors 23–27, and archived original questions from glue lane (no local open entries to remove).
+- Next: regenerate question index, run checks, review spec scope and commit answer milestone.
 - Export and original decomp must be read from main checkout by absolute path.
