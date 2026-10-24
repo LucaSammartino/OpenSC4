@@ -2,10 +2,6 @@
 <!-- Engine questions for docs/specs/audio.md; append new entries below. -->
 
 <!-- from: re-audio9 (2026-10-23) -->
-- **AU40 — listener geometry and failure lifetime:** complete the camera/terrain-to-listener numerical
-  contract at `0x004F14B0`, tuning fallback/array sizing at `0x004F1A80`, cheat helper `0x004F1470`,
-  missing message-server handling and final message delivery/allocation path. Supplement §18 settles
-  dispatch, payload shape, zoom multiply order and strict squared-distance threshold only.
 - **AU41 — SEM and emanation arithmetic:** settle model slot 5/6 transformations (`0x004ED210`,
   `0x004ED2A0`, `0x004ED3F0`, `0x004ECDA0`, `0x004ECE70`, `0x004ECF90`) against instructions;
   numeric decompilation is corrupt. Recover SEM construction/defaults and registration rollback at

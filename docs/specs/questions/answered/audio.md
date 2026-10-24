@@ -1,5 +1,16 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU40: audio.md §18.4 and supplement
+§18 specify camera-centered geometry, sea-plane correction, x87 rounding, tuning sizes and
+literal failure lifetime. Notifications measure camera movement; absent server and null
+message allocation fault; the cheat helper only queries/releases its payload view.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU40 — listener geometry and failure lifetime:** complete the camera/terrain-to-listener numerical
+  contract at `0x004F14B0`, tuning fallback/array sizing at `0x004F1A80`, cheat helper `0x004F1470`,
+  missing message-server handling and final message delivery/allocation path. Supplement §18 settles
+  dispatch, payload shape, zoom multiply order and strict squared-distance threshold only.
+
 **ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU48: audio.md §10.7.1 specifies AEMS
 views/defaults, latched lifetime, backend calls/results, bank/file ownership and failure
 quirks. The raw reader uses two unchecked sizes; resource success also depends on Close.

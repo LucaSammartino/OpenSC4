@@ -83,8 +83,12 @@ QueryInterface accepts `1`, message-target IID `0x452294AA`, and `0xCA4A66B9`, r
 the object base and acquiring a reference. Other IDs return false. Init is idempotent;
 it subscribes city init `0x26D31EC1`, city shutdown `0x26D31EC2`, and tuning change
 `0xC53D10AA`. Shutdown removes those subscriptions and clears its initialized state.
-The decompiler's apparent unconditional null dereference during service assignment is not a
-usable failure contract; absent message-server behavior remains AU40.
+Init stores the acquired message-server reference, then dereferences it without a null gate
+(`0x004F13BC`). An absent framework/server therefore faults before setting initialized; it
+does not return false. Shutdown, when initialized, unsubscribes the three types in that order,
+clears/releases message server, clears/releases sound system, then clears initialized and
+returns true. An uninitialized Shutdown returns true without work. Destruction releases server,
+sound system and the four vector allocations in reverse member order; it does not call Shutdown.
 
 ### 18.2 Message dispatch
 
@@ -94,7 +98,7 @@ usable failure contract; absent message-server behavior remains AU40.
 | `0x26D31EC2` | Unsubscribe those two camera notifications and release the city sound-system reference. |
 | `0xA6B79602`, `0xA6B79612` | Update listener. |
 | `0xC53D10AA` | Read tuning, recalculate zoom, request sound-system event `0xAA36D9B6` if its city sound-system reference exists, then update listener. |
-| `0x230E27AC` | Invoke cheat-message helper. The helper's actual command interpretation is unsettled (AU40). |
+| `0x230E27AC` | Invoke cheat-message helper: QI for `0x65297976`, release the acquired view and return true; null input/missing view returns false. It interprets no command and changes no listener state (`0x004F1470`–`0x004F14A4`). |
 | Other non-null input | No action, return true. |
 
 The outer dispatcher returns true after recognized helper calls even if their own result is
@@ -103,11 +107,8 @@ Do not subscribe the listener to its own output `0x8A4A69C7`.
 
 ### 18.3 Position output and zoom arithmetic
 
-Listener update reads the camera position, look target, orientation and zoom index, and may use
-the terrain plane when locating the target. It updates sound-system listener orientation and
-position before considering whether to send a position notification. Complete camera-to-listener
-geometry and degenerate-vector behavior remain AU40; do not infer them from corrupted pointer
-expressions in pseudocode.
+The full geometry and failure rules are in [audio §18.4](audio.md#184-listener-geometry-tuning-and-failure-contract-au40).
+Sound-system listener orientation and position are updated before notification gating.
 
 The settled zoom rule is: for each of five indices, multiply the f32 value in the `+0x48`
 array by the f32 value in the `+0x3C` array, then by the f32 scalar at `+0x6C`, and store
@@ -115,9 +116,9 @@ the result as f32 in the corresponding process-global zoom-height entry. Instruc
 `0x004F18C3`–`0x004F1921` use x87 intermediates and round at the final f32 store; they
 do not store a rounded intermediate between the two multiplies. *[compat]*
 
-The notification threshold compares **squared** displacement from the last-notified position
+The notification threshold compares **squared camera** displacement from the saved camera position
 against the current zoom's f32 threshold. Only strictly greater sends; equality and unordered
-comparison do not (`0x004F1826`–`0x004F1845`). The saved notification position is updated
+comparison do not (`0x004F1826`–`0x004F1845`). The saved camera position is updated
 before message allocation. `0x004F1880`–`0x004F18A0` constructs a standard message:
 
 | Field | Value |
@@ -129,8 +130,9 @@ before message allocation. `0x004F1880`–`0x004F18A0` constructs a standard mes
 The payload is a pointer into listener state, not three copied message integers. Consumers must
 use the payload interface described in audio §3.2; persistence of a position snapshot must not be
 assumed. Sound-manager and ambience-manager consumers are linked in §17.2.
-Allocation failure and precise message delivery/lifetime require the remaining instruction
-audit in AU40; no successful notification is specified on allocation failure.
+The message is AddRef'd, filled, delivered through server `+0x10(message, 0)`, then Released;
+the server's return is ignored. Allocation failure reaches a null message dereference after
+saving the camera position (`0x004F1866`, `0x004F18BB`); it is not a recoverable false return.
 
 ## 19. SEM registration and the three emanation owners
 

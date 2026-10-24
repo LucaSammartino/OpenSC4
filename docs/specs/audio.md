@@ -2096,6 +2096,108 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 
 ---
 
+## 18.4 Listener geometry, tuning and failure contract (AU40)
+
+This completes [owner supplement §§18.1–18.3](audio-owner-contracts.md#18-listener-camera-inputs-and-position-notifications).
+All coordinates and tuning elements are f32. Update (`0x004F14B0`) returns false immediately
+if the global renderer reference is absent; with a renderer but no camera it returns true
+without work. Otherwise terrain, city, sound-system and tuning prerequisites are unchecked.
+Missing prerequisites are native invalid accesses, not successful updates or false returns.
+The zoom index is a signed 32-bit value and is used directly for table indexing; there is no clamp.
+
+Let C be camera position (`+0x3C`), T its look target (`+0x48`), U its orientation vector
+(`+0x6C`), and z its zoom index (`+0x0C`). For z < 2, obtain two integer dimensions via the
+city interface `+0x178(&width,&depth)`; pass its return through city `+0x174`, then pass
+that return, width and depth to renderer `+0x48`. Use half the returned width/depth as T.x/T.z;
+T.y remains the camera target height. This is the low-zoom city-centering rule, not half of
+the original target coordinates (`0x004F1524`–`0x004F1577`).
+
+The listener geometry is defined by these vectors, in this order:
+
+| Quantity | Rule / observable |
+|---|---|
+| Initial direction F | Normalize T − C; right vector R = F × U. R is not normalized here. |
+| Sea-plane target | Read terrain `+0x74` (sea level S). Only if T.y < S, replace T by the ray/plane intersection from C along F with plane `(0,1,0,−S)`. The helper result is ignored; F and R are not recomputed. |
+| Height H | Process-global zoom height at index z, calculated as supplement §18.3 specifies. |
+| Position L, member `+0x0C` | `(T.x, T.y + H, T.z)`; H is a vertical offset. |
+| Auxiliary position, member `+0x18` | T − H × F. Products for x/y are rounded to f32 before subtraction; z's product stays in x87 until subtraction. |
+| Target, member `+0x24` | Copy of the possibly sea-adjusted T. |
+| Final direction D | Normalize T − L. |
+| Final up V | Negate Normalize(R × D). |
+| Foreign sound calls | Get sound-system listener with `+0x0C`; call returned listener `+0x24(D.x,D.y,D.z,V.x,V.y,V.z)`. Get it again; call `+0x1C(L.x,L.y,L.z)`. No acquired reference or null gate is added around these two gets. |
+
+Numeric audit: `0x004F157B`–`0x004F1617`, `0x004F1669`–`0x004F17DC` use x87
+arithmetic. Each normalization stores its reciprocal length as f32, then multiplies components
+by that stored reciprocal. In the first and final-direction normalization, x/y differences
+remain extended until multiplication; the z difference is first stored as f32. Sum order is
+z² + y² + x² for the first direction, x² + z² + y² for the final direction. Cross R's
+components are stored as f32. The final-up cross x/y remain extended, z is stored f32;
+its length sum is x² + z² + y². Normalized components are stored f32 (the final-up y/z
+products stay extended until their negated f32 stores). There is no zero-length test: zero
+height, coincident C/T or parallel vectors may propagate infinities/NaNs with ordinary masked
+x87 exceptions. No fallback direction or epsilon is substituted. *[quirk]*
+
+The sea-plane helper (`0x005D7360`) treats absolute denominator < f32(0.01) as parallel.
+If the absolute plane distance is also < f32(0.01), it writes C and returns true;
+otherwise it writes zero and returns false. For a nonparallel ray it writes C + tF with
+t = −planeDistance / stored-f32 denominator, without a t >= 0 gate. The caller uses that
+output even on false. Its strict T.y < S test leaves equality and unordered values alone.
+
+Notification movement is measured between C and saved camera member `+0x30`, not between L
+and its prior value (`0x004F1826`–`0x004F185B`). Strictly greater squared movement than
+the current zoom threshold copies C into that member before allocating the message. Equality
+or unordered comparison suppresses notification. Changes to T, H or orientation can therefore
+change L without sending a message. The payload still points to L. The standard-message path
+allocates 44 bytes, AddRefs, sets type, Pointer1 and payload as supplement §18.3, calls server
+`+0x10(message,0)`, Releases, and returns true regardless of delivery result. A null allocation
+reaches a null virtual call after saving C. There is no false-return allocation recovery.
+
+Tuning (`0x004F1A80`) acquires the global resource manager and requests
+TGI `(0x6534284A,0xCA25875D,0x6A359C5C)`, IID `0xA52160F5`, flags 0,0.
+A failed resource lookup leaves all tuning unchanged and releases the resource/manager
+references. A missing resource manager is an unchecked dereference. With the resource present,
+read its property holder (`+0x1C`) and apply the following in order:
+
+| Property | Destination / missing-property rule |
+|---|---|
+| `0x2A36E3CB` | Scalar `+0x70`, retains previous value (constructor 4). If sound system exists, get `+0x10`, AddRef, call returned object `+0x28(scalar)`, Release. A null returned object is unchecked. |
+| `0xCA359F17` | Height array `+0x3C`; missing writes bits `[44A70000,4426C000,43A68000,43110000,42920000]` directly into its first five entries, without resizing. |
+| `0x6A359F22` | Multiplier array `+0x48`; missing writes five 1.0 values directly, without resizing. |
+| `0x2A35A25F` | Scalar `+0x6C`, retains previous value (constructor 1). |
+| `0xEA4A7C55` | Array `+0x54`; missing resizes to five then assigns `[1,0.75,0.5,0.25,0]`. |
+| `0x2AA40CCC` | Movement array `+0x60`; missing resizes to five then assigns `[26,13,6.5,3.25,1.625]`. Regardless of lookup success, square each of its first five entries and multiply by 256, storing f32 only after both multiplies. |
+
+The vector property helper (`0x005FFCC0`) resizes successful reads to the actual property count
+and copies the f32 data; it neither pads to five nor rejects short arrays. Consequently first-use
+missing height/multiplier properties write through empty storage; successful arrays shorter
+than five also permit out-of-bounds access in calculation/update. The fallback for the last two
+arrays alone guarantees five elements. There is no global "all tuning missing" fallback when
+the exemplar itself is unavailable. Repeated reads of a missing movement property reset before
+squaring; a fresh successful property copy is squared each time. *[quirk]*
+
+The city helper requires payload QI `0x65297976` even though no payload values are used. Null
+message/missing view returns false. City init acquires the global sound system; if absent it
+releases the payload and returns false before camera subscriptions or tuning. Otherwise it
+subscribes the two camera types, reads tuning, computes heights and updates. City shutdown
+unsubscribes those types and clears/releases sound system. It does not reset vectors or tuning.
+The outer dispatcher still returns true for either recognized city message. Init/Shutdown and
+the deliberately empty cheat helper are specified in supplement §§18.1–18.2.
+
+### AU40 conformance vectors
+
+| ID | Input/action | Expected |
+|---|---|---|
+| AU40-01 | z=2, C=(0,10,0), T=(0,0,0), U=(0,0,1), sea=-1, H=2 | L=(0,2,0), auxiliary=(0,2,0), target=(0,0,0); orientation D=(0,−1,0), V=(0,0,−1), ignoring signed-zero differences. Orientation call precedes position call. |
+| AU40-02 | Same, sea=4 | Target becomes (0,4,0), L=(0,6,0), auxiliary=(0,6,0); initial F/R retained. |
+| AU40-03 | z=0, host renderer writes dimensions 200,100, camera target initially (9,3,7) | Geometry uses T=(100,3,50) before sea adjustment. |
+| AU40-04 | Saved C=(0,0,0), C=(3,4,0), threshold=25 | No message; threshold below 25 sends. Changing only H never triggers movement. |
+| AU40-05 | Movement triggers; message delivery returns false | Saved C already changed; message AddRef/fill/deliver(message,0)/Release still occurs; update returns true. Null allocation instead reaches invalid access and does not return false. |
+| AU40-06 | Missing movement property with any old contents | Size five, squared thresholds `[173056,43264,10816,2704,676]`. Repeating read gives same values. |
+| AU40-07 | Present movement array `[1,2,3,4,5]` | Thresholds `[256,1024,2304,4096,6400]`. Present length three is not padded or rejected; five-entry transformation is invalid access. |
+| AU40-08 | Fresh constructor; present exemplar missing height property | No allocation/resizing before five fallback writes; native invalid access. Exemplar lookup failure instead leaves empty arrays unchanged. |
+| AU40-09 | Init without message server; cheat with/without payload QI | Init faults before initialized becomes true. Cheat returns true after releasing successful QI, false otherwise; no command parsing or state mutation. |
+| AU40-10 | H=0, or C=T, or R parallel to final D | No normalization fallback; NaNs may reach orientation. Position writes and movement gate still follow normal ordering. |
+
 ## 16. Conformance tests
 
 Each test names the behaviour, the address that produces it, and the observable. A replacement passes when
