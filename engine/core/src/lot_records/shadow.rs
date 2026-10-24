@@ -83,6 +83,31 @@ pub fn reencode_with_trip_count(bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
     Some((output.0.into_bytes(), trips))
 }
 
+/// LR15 isolated owner records; identities are never resolved into live lots.
+/// Read effects (including wall-mask growth) remain visible in the output.
+pub fn reencode_owner(class_id: u32, bytes: &[u8]) -> Option<Vec<u8>> {
+    use super::{CLSID_BASE_TEXTURE_OCCUPANT, CLSID_BUSINESS_UNIT, CLSID_RETAINING_WALL_OCCUPANT};
+    if !matches!(
+        class_id,
+        CLSID_BUSINESS_UNIT | CLSID_BASE_TEXTURE_OCCUPANT | CLSID_RETAINING_WALL_OCCUPANT
+    ) {
+        return None;
+    }
+    let RefValue::Object(owner) = super::create(class_id)? else {
+        return None;
+    };
+    let mut ids = Identities;
+    let mut input = ByteReader::with_resolver(bytes, &mut ids);
+    if !owner.read(&mut input) || input.remaining() != 0 {
+        return None;
+    }
+    let mut output = IdentityWriter(ByteWriter::new());
+    if !owner.write(&mut output) {
+        return None;
+    }
+    Some(output.0.into_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
