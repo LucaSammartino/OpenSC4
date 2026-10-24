@@ -1072,6 +1072,8 @@ if(TARGET FreeCity4)
     target_compile_definitions(fc4_automata_capture_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_automata_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME automata_capture_test COMMAND fc4_automata_capture_test "$<TARGET_FILE:FreeCity4>")
+endif()
+
 # PV14 genuine selector capture preserves the original ABI and return value.
 if(TARGET FreeCity4)
     add_executable(fc4_propdev_transcript_test tests/propdev_transcript_test.cpp)
