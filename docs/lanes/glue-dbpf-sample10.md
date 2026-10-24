@@ -22,6 +22,7 @@
 - No new spec ambiguity: rotation is explicitly requested shadow policy. Existing EX56 remains open.
 - Clean-room restriction forbids opening/editing tools/regress.ps1; coordinator must append the profile key after measured exact run.
 - HEAD is intentionally detached; never update shared refs. EX56 remains open; resource-manager packed files only.
-- Outstanding: gdbs10-r3-house2032-20261024c submitted with identical switches and DLL (no source changes/rebuild). Collect existing blocking wait exec session 89566; its verdict is valid if already present. Never duplicate this request.
-- Next: summarize R3, record a free run number (469/470 used here), then finalize lane and ready queue if clean 73/73 to 2032. Target house under 800 s; report actual elapsed and all limitations.
+- R3 terminal CLEAN, session 89566 collected: gdbs10-r3-house2032-20261024c 73/73 exact, record 471. 863.406 s simulation / 880 s wall, date 2032-01-04 after final sample drain; all problem counters zero including ref_warnings=0.
+- R3: all six rotation cycles 11/11 files and 111826/111826 records; cumulative 83 files, 876020 records (89.27% fewer); max slice 953 ms. Slow-file active time total 79543 ms (26 entries, max 4734 ms spread over ticks).
+- Under-800 target NOT MET. Next: identical house run with DBPF off (unique R4 label, unchanged DLL, no build) to diagnose baseline versus DBPF cost; then optimize only a measured bottleneck. No operation outstanding. No merge queue yet.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-092912-build-ctest.verdict (prior source gate verdict 090545 retained).
