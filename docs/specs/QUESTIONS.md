@@ -239,7 +239,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 2 | 26 | EF24, EFP7 | questions/effects.md |
+| effects | 0 | 28 | EF24, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -373,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1527** | | |
+| **total** | **597** | **1529** | | |
