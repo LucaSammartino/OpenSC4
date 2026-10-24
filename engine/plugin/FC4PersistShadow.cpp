@@ -3,6 +3,7 @@
 // Read-only projection, NOT a reconstruction of factory/cache history (PR9).
 #include "FC4PersistShadow.h"
 #include "FC4Config.h"
+#include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "GZServPtrs.h"
@@ -94,10 +95,16 @@ void Compare(const char* phase, int32_t julian) {
     clean += differences == 0;
 }
 }
-void PersistShadowCityLoaded(int32_t julian) {
+void PersistShadowCityLoaded(cISC4City* city, int32_t julian) {
     enabled = SettingInt("persist_shadow", nullptr, 0) != 0;
     lines = clean = 0;
     if (enabled) Log("persist: ON; read-only cache type projection only; PR9 registry/refcount replay unavailable; SCR11 buffer replay unavailable; no whole-owner coverage credit");
+    // PublishedJulian is not initialized yet during the city-load message.
+    // Match the house shadows: this getter is borrowed and read-only.
+    if (enabled && city) {
+        auto* sim = AsGame(city->GetSimulator());
+        if (sim) julian = sim->GetSimDateNumber();
+    }
     Compare("load", julian);
 }
 void PersistShadowMonth(int32_t julian) { Compare("month", julian); }

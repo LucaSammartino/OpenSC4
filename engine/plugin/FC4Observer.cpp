@@ -661,7 +661,7 @@ public:
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
-                PersistShadowCityLoaded(static_cast<int32_t>(PublishedJulian()));
+                PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them

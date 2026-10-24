@@ -13,8 +13,10 @@
 - Final all PASS: native qbuild-20261024-061927-build-ctest, build 205/205 edges, CTest 78/78.
 - Scope: core Filter::Type and KeyList append vs native GetResourceListForType, all key fields/order/duplicates.
 - Questions: PR9 registry/cache/refcount independent replay; SCR11 buffer replay inputs. No whole-owner credit.
-- Next: collect game verdict with build-runs/wait-persist-verdict.ps1 (file-event wait, no qwait).
+- Next: full gate for load-date fix, then corrected 2032 game request r2; use event wait script.
 - Constraints: clean-room; no tools reads/edits; no branch/ref changes; no agents.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-persist-shadow8-r1-manifest.json.
-- Game request: persist-shadow8-r1-2032-20261024a, turbo to 2032, persist_shadow=1, enable=simulator.
-- Planned run record: docs/runs/persist-shadow8-r1-2032-20261024a-434.md (existing max 433).
+- Run r1 complete, clean/ref0/exceptions0, 73/73 projection comparisons, 0 resyncs; diagnostic load date -4713-11-24 invalid.
+- Run record: docs/runs/persist-shadow8-r1-2032-20261024a-434.md; preserved full logs/verdict.
+- Fixed load date via borrowed simulator getter (same house Lua shadow pattern); previous gate covers prior source only.
+- No outstanding game request; next record 435, label persist-shadow8-r2-2032-20261024a.
