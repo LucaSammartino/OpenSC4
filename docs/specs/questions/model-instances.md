@@ -1,5 +1,4 @@
 # model-instances: open questions
-
 <!-- Questions about [model-instances.md](../model-instances.md). Append new entries at the END; when one is answered, move it to answered/model-instances.md. Rules: README.md. -->
 
 <!-- from: re-modelinst (2026-10-20) -->
