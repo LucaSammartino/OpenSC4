@@ -8,7 +8,7 @@
 - Coverage: primary QI/AddRef/SetOwnControl, legacy GetControl/SetOwnControl; all five owner fields compared.
 - SetParameters counts and post-build GetControl probes are separate; property/interpreter replay excluded.
 - Questions: LC14 return contracts; LC15 observable direct-call boundary, in docs/specs/questions/legacy-control.md.
-- Next: submit game draft legacyctl12-owner-2032-971d183e3-r1 to game-queue, then wait with build-runs/wait-legacyctl-verdict.ps1. No game request outstanding yet.
+- Next: ONE game request OUTSTANDING: legacyctl12-owner-2032-971d183e3-r1 (turbo to 2032). Wait with build-runs/wait-legacyctl-verdict.ps1 on build-runs/game-results/legacyctl12-owner-2032-971d183e3-r1.verdict. Never discard an existing verdict or duplicate request. Then count legacyctl shadow exact/total and create run record/finish report/queue.
 - Final all session 43105 TERMINAL PASS: cargo 7375/0, clippy 0 diagnostics, native build 159/159 edges, CTest 81/81. Queue qbuild-20261024-184451-build-ctest; source fix 021be6fe6; log build-runs/legacyctl-final-all-console.log. No further build required without source changes.
 - Focused result: terminal, 2 passed/0 failed (4870 filtered), 55m41s compile; log build-runs/legacyctl-focused.log. PowerShell wrapper exit 1 reflects normal cargo stderr NativeCommandError, not a test failure.
 - First all: PASS, cargo 7375/0, clippy 0 diagnostics, native build 263/263 edges and CTest 81/81. Queue qbuild-20261024-182826-build-ctest; all delegates native verification correctly, do not separately enqueue verify.
