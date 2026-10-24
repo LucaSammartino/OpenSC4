@@ -26,9 +26,11 @@
   clippy zero, native 91/91 (6.3 s), CTest 70/70 (96.5 s), total 104.6 s.
   Request qbuild-20261024-015022-build-ctest. Only this lane report changed
   during the run; implementation source stayed stable.
-- Next: enqueue scres5-r2-constructed-birch, scres_constructed=1,
-  sim_turbo=1, end_date=2032-01-01 (scres_shadow off). Wait using
-  build-runs/wait-scres-verdict.ps1, not qwait. No game outstanding yet.
+- Outstanding game: scres5-r2-constructed-birch, scres_constructed=1,
+  sim_turbo=1, end_date=2032-01-01 (scres_shadow off). DLL SHA256
+  90e90cf88f45cbd1196cc87abfc65b4b3f9d2c3ba95de4690cc11f9d1d6c8dc0.
+- Next: collect SAME event-driven verdict wait (exec session 23160), then
+  inspect its log's scres lines. Do not resend or discard a completed verdict.
 - tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
   verification credit; unsupported owners/signatures remain SCR8/SCR9.
 - No outstanding game request. HEAD is intentionally detached.
