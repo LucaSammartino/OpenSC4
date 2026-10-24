@@ -58,8 +58,7 @@ impl ProcessDirectories {
 /// Game/platform adapter operations. Paths and directory enumeration order are
 /// supplied by this interface; no host filesystem or COM ownership is guessed.
 pub trait NationHost {
-    type Region: NationRegion<City = Self::City>;
-    type City: TutorialCity;
+    type Region: NationRegion;
     fn has_app(&self) -> bool;
     fn has_live_city(&self) -> bool;
     fn user_regions_root(&mut self) -> String;
@@ -89,7 +88,7 @@ pub trait NationHost {
     fn destroy_screen(&mut self);
     fn recreate_region_screen(&mut self);
     fn export_tutorial(&mut self, resource: (u32, u32, u32), path: &str) -> i32;
-    fn read_tutorial_city(&mut self, path: &str) -> Option<Self::City>;
+    fn read_tutorial_city(&mut self, path: &str) -> Option<<Self::Region as NationRegion>::City>;
     fn set_tutorial_active(&mut self, id: u32, active: bool);
 }
 

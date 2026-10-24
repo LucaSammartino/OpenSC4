@@ -148,7 +148,6 @@ impl Host {
 }
 impl NationHost for Host {
     type Region = Region;
-    type City = City;
     fn has_app(&self) -> bool {
         self.app
     }
