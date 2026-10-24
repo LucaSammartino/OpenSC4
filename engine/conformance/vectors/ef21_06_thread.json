@@ -1,0 +1,14 @@
+{
+  "format":1,"name":"EF21-6_thread_and_reentry_refusal","spec":["effects 18.8.2","effects EF21-6"],
+  "description":"No calendar label or repeated header can replace verified owner thread, operation depth and writer exclusion.",
+  "steps":[{"op":"ef_observation","owner":1,"late":true,"actions":[
+    {"method":"enter","scope":"tick"},{"method":"enter","scope":"parse"},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":false,"generation":0},
+    {"method":"leave","scope":"parse"},{"method":"leave","scope":"tick"},
+    {"method":"expect","thread":2,"writers_excluded":true,"retained":false,"history":false,"generation":1},
+    {"method":"expect","writers_excluded":false,"retained":false,"history":false,"generation":1},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":false,"generation":1},
+    {"method":"modified","thread":2,"value":true},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":false,"generation":1}
+  ]}]
+}

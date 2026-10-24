@@ -6,20 +6,33 @@ use std::collections::BTreeSet;
 #[cfg(test)]
 mod tests;
 
+pub mod observation;
+pub mod payload;
+
 /// The host copies readable spans at an owner-thread quiescent boundary.
 pub trait Memory {
     fn read(&mut self, address: u32, bytes: &mut [u8]) -> bool;
 }
 
-struct Reader<M>(M);
+struct Reader<M> {
+    memory: M,
+    remaining: usize,
+}
 impl<M: Memory> Reader<M> {
+    fn new(memory: M) -> Self {
+        Self {
+            memory,
+            remaining: 16 * 1024 * 1024,
+        }
+    }
     fn bytes(&mut self, address: u32, length: usize) -> Option<Vec<u8>> {
-        if length > 16 * 1024 * 1024 || (length != 0 && address == 0) {
+        if length > self.remaining || (length != 0 && address == 0) {
             return None;
         }
         address.checked_add(u32::try_from(length).ok()?)?;
+        self.remaining -= length;
         let mut bytes = vec![0; length];
-        (length == 0 || self.0.read(address, &mut bytes)).then_some(bytes)
+        (length == 0 || self.memory.read(address, &mut bytes)).then_some(bytes)
     }
     fn word(&mut self, address: u32) -> Option<u32> {
         Some(word(&self.bytes(address, 4)?, 0))
@@ -147,7 +160,7 @@ fn inline_vector<M: Memory>(r: &mut Reader<M>, bytes: &[u8], offset: usize, stri
 /// names and stable vector indices. Hash bucket order is an allocation detail.
 /// This deliberately does not claim the other families or whole-owner closure.
 pub fn compare_visuals(memory: impl Memory, collection: u32, directory: &EffectDirectory) -> Option<Comparison> {
-    let mut r = Reader(memory);
+    let mut r = Reader::new(memory);
     let records = r.vector(collection.checked_add(24)?, 56)?;
     let mut c = Comparison {
         records: (records.len() / 56) as u32,

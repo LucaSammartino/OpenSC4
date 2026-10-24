@@ -1,0 +1,15 @@
+{
+  "format":1,"name":"EF21-9_decal_padding_shake_enum_light_duration","spec":["effects 18.8.3","effects EF21-9"],
+  "description":"Decal byte modes omit padding, shake table remains u32, light duration and shake fade are separate records.",
+  "steps":[{"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":true,"writes":[
+    {"at":"0x178","words":[4096,4196,4212]},{"at":"0x1008","words":[4294902273]},
+    {"at":"0x198","words":[4352,4392,4408]},{"at":"0x1104","words":[1077936128]},
+    {"at":"0x1124","words":[1]},
+    {"at":"0x1b8","words":[4608,4636,4652]},{"at":"0x1218","words":[1082130432]}
+  ],"checks":[
+    {"family":2,"slot":0,"offset":8,"value":1},{"family":2,"slot":0,"offset":9,"value":2},
+    {"family":2,"slot":0,"absent":10},
+    {"family":3,"slot":0,"offset":4,"value":1077936128},{"family":3,"slot":0,"offset":36,"value":1},
+    {"family":4,"slot":0,"offset":24,"value":1082130432}
+  ]}]
+}

@@ -4,7 +4,11 @@
 
 ## Handoff
 - Goal: apply EF21, extend default-off effects shadow, measure to 2032 and report exact coverage boundary.
-- Initial requested merge re-effects-ef21 has conflicts in four spec/question files; no engine edits yet.
+- Done: 7050b5688 merged re-effects-ef21, preserving EF20 and removing open EF21.
+- Added bounded EF21 payload copies (all listed built-in fields, foreign/indeterminate markers), observation bookkeeping, thirteen synthetic conformance vectors.
+- EF22 requests safe interceptor/thunk/patch installation contract; EF23 requests contradictory sequence flags extent. No native hooks guessed.
+- Plugin no longer traverses private payloads on unverified load/month boundaries. Names remain measured; payload/history explicitly unavailable.
 - Prior capture8 credits no whole owners; 73/73 exact visual subset, 0 resyncs.
-- Next: resolve merge retaining existing spec content and EF21 answer; remove open EF21; inspect observation contracts.
-- No build or game request outstanding. Detached HEAD; do not update shared refs.
+- Focused core test first attempt 5/6: corrected a test that incorrectly rejected spare capacity. Transport Bash failures retained in build-runs/q.
+- Focused conformance operation session 81166 running; collect same operation. Next: focused results, fmt, all gate, queued verify, real-city name comparison to 2032.
+- No native build or game request outstanding. Detached HEAD; do not update shared refs.

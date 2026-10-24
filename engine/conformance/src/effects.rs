@@ -26,6 +26,8 @@ use crate::scalar::{
     self, arg, arr, bool_of, check_expect, check_state, i64_of, jf, ji, opt, str_of, u32_of, EventLog, R,
 };
 
+mod ef21;
+
 struct Env {
     dilation: Option<f32>,
     cells: (i32, i32),
@@ -190,6 +192,8 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "select" => select(op),
         "dilation" => dilation(op),
         "particles" => particles(op),
+        "observation" => ef21::observation(op),
+        "payload" => ef21::payload(op),
         "expect_events" => w.events.expect_events(op),
         "expect_event_count" => w.events.expect_count(op),
         "clear_events" => {

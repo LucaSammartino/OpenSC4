@@ -1,0 +1,13 @@
+{
+  "format":1,"name":"EF21-12_original_flags_and_parse_order","spec":["effects 18.8.1","effects EF21-12"],
+  "description":"Two registrations/parses with different watch flags and diagnostics remain distinct even when a future retained directory is identical.",
+  "steps":[{"op":"ef_observation","owner":1,"late":true,"actions":[
+    {"method":"enter","scope":"tick"},{"method":"register","path":"MixedCase.fx","flags":1},
+    {"method":"enter","scope":"parse"},{"method":"parse_result","success":false,"diagnostic":"first failure"},
+    {"method":"leave","scope":"parse"},{"method":"modified","value":true},
+    {"method":"register","path":"MixedCase.fx","flags":3},{"method":"enter","scope":"parse"},
+    {"method":"parse_result","success":true,"diagnostic":""},{"method":"leave","scope":"parse"},
+    {"method":"modified","value":false},{"method":"leave","scope":"tick"},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":false,"generation":1,"events":12,"registration_flags":[1,3]}
+  ]}]
+}
