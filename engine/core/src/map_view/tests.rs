@@ -721,7 +721,8 @@ fn all_supported_highlight_kinds_select_distinct_raw_inputs_and_slots() {
         coverage: Coverage::default(),
     }];
     assert_eq!(collect_highlights(1, &missing), Err(Unsupported::HighlightRadius(1)));
-    assert_eq!(collect_highlights(0, &records), Err(Unsupported::HighlightKind(0)));
+    assert!(collect_highlights(0, &records).unwrap().candidates.is_empty());
+    assert!(collect_highlights(100, &records).unwrap().candidates.is_empty());
 }
 
 #[test]

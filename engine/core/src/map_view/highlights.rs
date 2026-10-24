@@ -92,7 +92,7 @@ pub struct HighlightCollection {
 }
 
 pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<HighlightCollection, Unsupported> {
-    highlight_request(kind)?;
+    // Section 5.0: zero and unrecognized kinds reconcile against an empty set.
     let building_kind = match kind {
         1 => BuildingKind::School,
         2 => BuildingKind::Hospital,

@@ -131,7 +131,11 @@ fn v21_center_aligned_resampling_and_two_stage_rounding() {
     );
     assert_eq!(
         ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [3, 3]).unwrap())[4],
-        2
+        0 // QV16: literal truncated-step formula, not vector 21's exact halfway.
+    );
+    assert_eq!(
+        ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [1, 1]).unwrap()),
+        [2] // Exact half on both axes distinguishes two-stage rounding.
     );
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(2);
     set_property(res.raw.as_mut().unwrap(), INTERPOLATE, RawValue::Bool(true));
@@ -140,6 +144,7 @@ fn v21_center_aligned_resampling_and_two_stage_rounding() {
     view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     let p = &view.owned_palettes().unwrap().premultiplied;
     assert_eq!(render.bitmaps[0], [0, 25, 75, 100].map(|i| p.lookup(i)));
+    assert_eq!(render.bitmap_cell_sizes, [[256.0, 32.0]]);
 }
 
 #[test]
@@ -207,6 +212,23 @@ fn v24_lot_masks_means_and_block_presence() {
     }
     let raw = RawExemplar(vec![Property::new(BLOCK_BY_LOT, RawValue::U32(0))]);
     assert!(raw.selection_fields().unwrap().interpolate);
+    let mut grid = bytes(1, 3, vec![0, 0, 4]);
+    block_lots(
+        &mut grid,
+        8,
+        &[
+            MapLot {
+                lot_type: 3,
+                cells: [0, 0, 0, 1],
+            },
+            MapLot {
+                lot_type: 3,
+                cells: [0, 0, 0, 2],
+            },
+        ],
+    )
+    .unwrap();
+    assert_eq!(ubytes(grid), [1, 1, 1]); // 4/3, read original zeros after first lot.
 }
 
 #[test]

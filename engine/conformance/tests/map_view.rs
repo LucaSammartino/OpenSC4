@@ -108,6 +108,7 @@ struct Render {
     cells: Vec<MarkedCells>,
     settings: Vec<RenderSetting>,
     bitmaps: Vec<Vec<u32>>,
+    bitmap_cell_sizes: Vec<[f32; 2]>,
     clears: usize,
     fail: bool,
     own_cells: bool,
@@ -206,7 +207,7 @@ impl Renderer for Render {
             } => {
                 assert_eq!((class, iid, bits), (0x2073_2180, 0xc470_d325, 32));
                 assert_eq!(width * height, pixels.len());
-                assert_eq!(cell_size, [4.0, 4.0]);
+                self.bitmap_cell_sizes.push(cell_size);
                 self.own_cells = own_cells;
                 self.bitmaps.push(pixels.to_vec());
             }
@@ -245,6 +246,9 @@ impl Simulators for Sims {
     }
     fn city_world_width(&mut self) -> Result<f32, OwnerError> {
         Ok(256.0)
+    }
+    fn city_world_height(&mut self) -> Result<f32, OwnerError> {
+        Ok(128.0)
     }
     fn grid(&mut self, request: SourceSelection) -> Result<RawMapGrid, OwnerError> {
         self.reads.push(request);

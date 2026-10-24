@@ -202,6 +202,9 @@ pub trait Simulators {
     fn city_world_width(&mut self) -> Result<f32, OwnerError> {
         Err(OwnerError::Foreign(93))
     }
+    fn city_world_height(&mut self) -> Result<f32, OwnerError> {
+        Err(OwnerError::Foreign(94))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -383,8 +386,7 @@ impl MapView {
             return Ok(None);
         }
         let mut buildings = if (1..=9).contains(&kind) {
-            let buildings = simulators.buildings(highlight_request(kind)?)?;
-            buildings
+            simulators.buildings(highlight_request(kind)?)?
         } else {
             Vec::new()
         };
@@ -575,6 +577,10 @@ impl MapView {
                 }
                 if grid.width < cells[0] || grid.height < cells[1] {
                     grid = resample_grid(&grid, cells)?;
+                    grid.cell_size = [
+                        simulators.city_world_width()? / cells[0] as f32,
+                        simulators.city_world_height()? / cells[1] as f32,
+                    ];
                 }
             }
             if let Some(mask) = config.block_by_lot {

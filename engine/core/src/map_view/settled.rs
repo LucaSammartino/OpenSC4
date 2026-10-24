@@ -33,6 +33,8 @@ pub fn marked_cells(grid: &RawMapGrid, palette: &RawPalette) -> Result<MarkedCel
 }
 
 fn axis(j: usize, source: usize, destination: usize) -> (usize, usize, i64) {
+    // Literal section 4.3 formula; its truncated step conflicts with vector 21
+    // at the 2-to-3 centre (QV16). Do not silently substitute exact ratios.
     let step = (source as i64 * 65536) / destination as i64;
     let position = step / 2 - 32768 + j as i64 * step;
     if position <= 0 {
@@ -99,6 +101,8 @@ pub fn block_lots(grid: &mut RawMapGrid, mask: u32, lots: &[MapLot]) -> Result<(
     let GridValues::U8(values) = &mut grid.values else {
         return Err(Unsupported::SixteenBitConflict);
     };
+    // Means always read the source copy, even for overlapping lot rectangles.
+    let source = values.clone();
     for lot in lots.iter().filter(|lot| mask & (1u32 << (lot.lot_type & 31)) != 0) {
         let [x0, z0, x1, z1] = lot.cells;
         if x1 >= grid.width || z1 >= grid.height || x0 > x1 || z0 > z1 || values.len() != grid.width * grid.height {
@@ -108,10 +112,10 @@ pub fn block_lots(grid: &mut RawMapGrid, mask: u32, lots: &[MapLot]) -> Result<(
         let mut sum = 0i32;
         for x in x0..=x1 {
             for z in z0..=z1 {
-                sum = sum.wrapping_add(i32::from(values[x * grid.height + z]));
+                sum = sum.wrapping_add(i32::from(source[x * grid.height + z]));
             }
         }
-        // Literal vector 24: nearest integer, positive half up, minimum one.
+        // Section 4.3: nearest integer, positive half up, minimum one.
         let value = ((sum + area as i32 / 2) / area as i32).max(1) as u8;
         for x in x0..=x1 {
             for z in z0..=z1 {

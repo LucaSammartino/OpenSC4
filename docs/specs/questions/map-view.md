@@ -38,3 +38,12 @@
   for means such as 4/3. What is the exact numerator/rounding rule and rectangle coordinate domain?
   [literal inclusive cell rectangle, nearest integer with positive halves up and minimum one;
   vector 24 implemented; general lot rounding remains bounded pending the missing contract]
+
+<!-- from: core-map-view-close12 (2026-10-24) -->
+- **QV16 - §4.3 / §10.21 fixed-point centre:** for S=2, D=3 the prescribed
+  q=trunc(131072/3)=43690 and j=1 samples 32767, not 32768. For x rows
+  [0,1], [1,2], the two inner rounded values are 0 and 1, and the outer
+  rounded value is 0. Vector 21 instead requires 2 using exact halfway samples.
+  Which rule is authoritative? [literal §4.3 truncated-step formula implemented;
+  vector's 2-to-3 expected centre remains unsettled; exact halfway two-stage
+  rounding is tested separately using a 2-to-1 resample]
