@@ -140,6 +140,7 @@ cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/ci
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
+cSC4AdvisorUIAdvisorWinProc	windows and panels	ui	advisor-window.md	-	-	-
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
 cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
 cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
@@ -255,8 +256,8 @@ cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
 cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	render3d.md	-	-	-
-cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
-cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
+cSC4TutorialRegistry	tutorial	simulation	tutorial-registry.md	core/src/tutorial	-	-
+cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
@@ -266,8 +267,10 @@ fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
 cSC4Region	region	region	region-model.md, region.md	-	-	-
+cSC4RegionSignpostAnimatorWinProc	region	region	region-view.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
+cSC4WinRegionView	region	region	region-view.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
@@ -320,6 +323,9 @@ cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-
 cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
 cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
+cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
+cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
+cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
@@ -387,6 +393,8 @@ fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
 fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
 cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/render_properties	-	-
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	core/src/model_reg_effects	-	-
+cSC4ModelMaker	model maker	renderer	model-maker.md	-	-	-
+cSC4ModelBackgroundLoader	model background loader	renderer	model-maker.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
@@ -494,7 +502,7 @@ cSC4SignOrLabelFilter	city tools and input	ui	view-input-controls.md	-	-	-
 cSC4ViewInputControlFlora	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlTorch	city tools and input	ui	city-tools.md	-	-	-
 # TerrainScrubber owner credit awaits CT3: mislabeled 0x008AE57B / library-boundary attribution.
-cSC4ViewInputControlTerrainScrubber	city tools and input	ui	-	-	-	-
+cSC4ViewInputControlTerrainScrubber	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlCitySituations	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControlDemolish	city tools and input	ui	bulldozer-tool.md	-	-	-
@@ -506,21 +514,36 @@ cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
+cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-
 cSC4BudgetUI*	windows and panels	ui	-	-	-	-
 cSC4WinSnapshotAlbum	windows and panels	ui	snapshots.md	-	-	-
 cSC4WinSnapshotTaker	windows and panels	ui	snapshots.md	-	-	-
 cSC4MySimWinProc	windows and panels	ui	mysim-windows.md, mysims.md	-	-	-
 cSC4PickSimWinProc	windows and panels	ui	mysim-windows.md, mysims.md	-	-	-
+cSC4GraphsViewWinProc	windows and panels	ui	graphs-window.md	-	-	-
+cSC4LineGraph	windows and panels	ui	graphs-window.md	-	-	-
+cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
+cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
+cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinLotConfigurationChooser	windows and panels	ui	lot-configuration-editor.md	-	-	-
+cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-
+fn:GZWinIsVisibleRecursive	windows and panels	ui	minimap.md	-	-	-
+fn:GZCOM_cSC4WinMiniMapCLSID	windows and panels	ui	minimap.md	-	-	-
+cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
+cSC4WinCatalogView	windows and panels	ui	catalog-view.md	-	-	-
+cSC4WinAdviceList	windows and panels	ui	advice-list.md	-	-	-
+cSC4WinIntroVideoScreen	windows and panels	ui	intro-video.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
+cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
-cSC4TiledScrollingCanvas	windows and panels	ui	-	-	-	-
+cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
 cSC4ToolTipManager	windows and panels	ui	-	-	-	-
 cSC4ProgressScreen	windows and panels	ui	-	-	-	-
-cSC4CatalogItem	windows and panels	ui	-	-	-	-
+cSC4CatalogItem	windows and panels	ui	catalog-view.md	-	-	-
+nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
