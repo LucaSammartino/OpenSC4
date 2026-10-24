@@ -8,8 +8,16 @@
 - Starting tip: d44eead99c; detached HEAD, do not update refs.
 - Audit: slot-40 hook installed only in PropQueries; replace mode disables prop shadow.
 - Capture/replay each acquire one reference; comparison and input destruction each release one.
-- Current suspects not yet proven causal; no implementation changes or new game requests.
-- Next: inspect replacement activity and heap ownership; implement a diagnosed fix.
+- No implementation changes; no causal defect proven in the three suspects.
+- New diagnostic: regress-pl21fix-r2-diag-20261024a (both profiles via explicitly requested regress -Queue).
+- Unchanged DLL f86ce9002955b95e10fe2658e67fed08daa72d81db7760b517e7ad35f63b1a59.
+- Replace finished clean2032, foreign_exceptions/stalls/ref_warnings=0, 175.313 s.
+- Shadows remains active; collect existing exec session 96006 to terminal; do not resubmit.
+- Results currently in MAIN/build-runs/game-results/regress-pl21fix-r2-diag-20261024a-*.verdict.
+- Main has train176 observer/write-capture changes absent from reserved HEAD; train179 included them.
+- Both build caches are Debug/FC4_CHECKED=OFF (configuration difference ruled out).
+- Async permission requested to merge main into detached HEAD to reproduce actual failing inputs; pending.
+- Next: collect diagnostic shadows, then reproduce on newer base if authorized; no speculative fix.
 - Required gate: qbuild all on stable final source, then both house profiles twice.
 - Manifest: main build-runs/run4-glue-propmgr-pl21fix6-r2-manifest.json.
 - Prior round report below is historical and does not establish round-2 acceptance.
