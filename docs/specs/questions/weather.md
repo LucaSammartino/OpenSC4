@@ -6,3 +6,6 @@
 
 <!-- from: glue-weather-propdev6 (2026-10-24), WE1 evidence continuation -->
 - WE1 normal-speed confirmation: run 375 `gwp6-weather-2032-normal-a` reaches 2032-01-01 clean with ref_warnings=0 and **1/73** exact lines. The first difference is again step 3 byte 65833, original/ours 118/117; the last line has cumulative mismatches=1611, steps=2554. The contradiction is not turbo-only. No arithmetic was changed.
+
+<!-- from: glue-weather-propdev6 (2026-10-24), WE1 combined evidence -->
+- WE1 persists with propdev enabled: run 376 `gwp6-both-2032-a` (turbo) and run 377 `gwp6-both-2032-normal-capture-a` (normal, genuine selector capture) both finish clean through 2032 with ref_warnings=0 and weather **1/73**. Both first differences are again step 3 byte 65833 118/117. Last cumulative mismatches are 1612 and 1613 respectively. The weather core arithmetic remains unchanged and no model resynchronization occurs.
