@@ -61,10 +61,10 @@ is **clean**, foreign_exceptions=0, ref_warnings=0. No request is outstanding.
 
 | Label suffix (`nettool-shadow5-r2-20261024-`) | Pacing | Last date | Seconds | DLL | Exact/total | Record |
 |---|---|---|---|---|---|---|
-| a | turbo | 2032-01-04 | 50.172 | bc85eb39 | 8/14 | [342](../runs/nettool-shadow5-r2-20261024-a-342.md) |
-| b | normal | 2032-01-01 | 133.250 | bc85eb39 | 8/14 | [343](../runs/nettool-shadow5-r2-20261024-b-343.md) |
-| c | turbo | 2032-01-07 | 72.734 | 28231e1b | 8/14 | [344](../runs/nettool-shadow5-r2-20261024-c-344.md) |
-| d | turbo, final artifact | 2032-01-15 | 40.468 | a980ec0b | 8/14 | [345](../runs/nettool-shadow5-r2-20261024-d-345.md) |
+| a | turbo | 2032-01-04 | 50.172 | bc85eb39 | 8/14 | [342](../runs/nettool-shadow5-r2-20261024-a-365.md) |
+| b | normal | 2032-01-01 | 133.250 | bc85eb39 | 8/14 | [343](../runs/nettool-shadow5-r2-20261024-b-366.md) |
+| c | turbo | 2032-01-07 | 72.734 | 28231e1b | 8/14 | [344](../runs/nettool-shadow5-r2-20261024-c-367.md) |
+| d | turbo, final artifact | 2032-01-15 | 40.468 | a980ec0b | 8/14 | [345](../runs/nettool-shadow5-r2-20261024-d-368.md) |
 
 All fourteen comparison lines are identical across a/b/c/d after stripping
 timestamps/thread prefixes. Each final relink was confirmed in game; run d

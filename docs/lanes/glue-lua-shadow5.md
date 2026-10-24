@@ -51,7 +51,7 @@ bounded result from masquerading as that coverage.
 
 ## Real-city result
 
-[Run 349](../runs/lua-registry-shadow5-9e2b85d-turbo-2032-349.md), label
+[Run 349](../runs/lua-registry-shadow5-9e2b85d-turbo-2032-361.md), label
 `lua-registry-shadow5-9e2b85d-turbo-2032`, Konradshohe, turbo, `lua_shadow=1`,
 requested end 2032-01-01, actual verdict date **2032-01-03**: **clean**,
 `ref_warnings=0`, foreign exceptions/watchdog stalls/rtc/overruns all 0.

@@ -1,5 +1,5 @@
-tag: lua-registry-shadow5-9e2b85d-turbo-2032-349
-run: 349
+tag: lua-registry-shadow5-9e2b85d-turbo-2032-361
+run: 361
 date: 2026-10-24
 lane: glue-lua-shadow5
 dll: FreeCity4-glue-lua-shadow5; source 9e2b85dd3; SHA256 prefix 608b8211

@@ -1,5 +1,5 @@
-tag: nettool-shadow5-r2-20261024-b-343
-run: 343
+tag: nettool-shadow5-r2-20261024-b-366
+run: 366
 date: 2026-10-24
 lane: glue-nettool-shadow5
 tip: 0027a6926

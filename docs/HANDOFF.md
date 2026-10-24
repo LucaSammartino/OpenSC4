@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 358 (strings shadow exact 73/73 through 2032, run 343); 356 (Spandau control clean but short of 2032; emergency pauses and pre-observation samples prevent full shadow verification; key stays out of shadows profile.); 355 (Clean real-city 2032 network-rules measurement, 75/75 mismatch-clean and 74/75 exact; pre-readiness load report keeps profile key excluded pending review.); 354 (Fault-free but bankrupt before 2032; mismatch-clean observed shadow retained, script input corrected for peripheral placement retry.); 353 (Reached 2032 with mismatch-clean shadow, but caught demolition faults and later shutdown exception invalidate clean-run acceptance; key stays out of shadows profile.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 373 (Strings and network-rules shadows exact in the house regress and credited; nettool, lua, overlays and overlay views landed; traffic flake recurred (run 5).); 372 (OV12 observer 292/292 exact on empty state; getters 73/73 exact); 371 (OV12 diagnostic run; getter exact, dynamic observer rejected); 361 (bounded lua-registry 73/73 exact through 2032, clean, full Lua replay open LH6-LH7; lists as run 349); 358 (strings shadow exact 73/73 through 2032, run 343). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

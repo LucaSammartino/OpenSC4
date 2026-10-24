@@ -14,7 +14,7 @@ Implementation milestones: `f2bdcff61` (observer), `dd3e4c626` (dynamic inactive
 
 ## Measured game result
 
-[Final run 351](../runs/overlays-shadow5-r2-2032b-351.md), label `overlays-shadow5-r2-2032b`: Konradshohe, turbo, clean through **2032-01-02**, **ref_warnings=0**, all harness problem counts zero. DLL SHA256 prefix `055c5720`; 60.437 game-run seconds, 74 seconds harness wall, slot 1. Load plus 72 months sampled all four managers. Exact summary lines:
+[Final run 351](../runs/overlays-shadow5-r2-2032b-372.md), label `overlays-shadow5-r2-2032b`: Konradshohe, turbo, clean through **2032-01-02**, **ref_warnings=0**, all harness problem counts zero. DLL SHA256 prefix `055c5720`; 60.437 game-run seconds, 74 seconds harness wall, slot 1. Load plus 72 months sampled all four managers. Exact summary lines:
 
 ```text
 overlays records shadow: 292/292 lines exact mismatches=0 incomplete=0 checks=0 overlays=0 handles=0 groups=0 cells=2392064 entries=0 bindings=0 sources=0 unknown_bindings=0 observed_words=2398196 image_bytes=0 data=unavailable replay=unavailable(OV12) scope=observation-invariants
@@ -23,7 +23,7 @@ overlays contract shadow: 73/73 lines exact mismatches=0 fields=7300 scope=senti
 
 **This is READY for measured sentinel getters and empty-state observation only.** All sampled arenas were empty. The observer read 2,392,064 empty static lists and 2,398,196 transport words; no live records, cell entries, binding metadata or source objects were exercised in the real city. Thus the record/getter comparison count is honestly zero, even though every complete empty-state observation line is exact. Do not credit full overlay-owner arithmetic, live-record/cell-order or texture verification from this run.
 
-[Diagnostic run 349](../runs/overlays-shadow5-r2-2032a-349.md), label `overlays-shadow5-r2-2032a`: clean through 2032-01-09, ref_warnings=0; getter 73/73 exact, records 146/292 exact with 146 incomplete dynamic samples. An observer constraint incorrectly treated dynamic shift/dimension words as an applicable static grid. OV12-I explicitly marks that index N/A; the fix accepts inactive words without using them and adds a poisoned-header regression. OV14 records the unspecified inactive values. The rejection occurred at load and every month, rather than constituting a turbo-only numerical difference. Both unique verdicts and full logs remain under `build-runs/game-results/`; the failed observation evidence was preserved. No request or wait remains outstanding. Both waits used the existing event-based PowerShell waiter, without qwait.
+[Diagnostic run 349](../runs/overlays-shadow5-r2-2032a-371.md), label `overlays-shadow5-r2-2032a`: clean through 2032-01-09, ref_warnings=0; getter 73/73 exact, records 146/292 exact with 146 incomplete dynamic samples. An observer constraint incorrectly treated dynamic shift/dimension words as an applicable static grid. OV12-I explicitly marks that index N/A; the fix accepts inactive words without using them and adds a poisoned-header regression. OV14 records the unspecified inactive values. The rejection occurred at load and every month, rather than constituting a turbo-only numerical difference. Both unique verdicts and full logs remain under `build-runs/game-results/`; the failed observation evidence was preserved. No request or wait remains outstanding. Both waits used the existing event-based PowerShell waiter, without qwait.
 
 ## Verification
 
