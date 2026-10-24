@@ -15,9 +15,12 @@
   clippy 0 diagnostics, native 233/233, CTest 72/72; native check 346.7 seconds.
   Logs: build-runs/qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log.
 - DLL SHA256 d37c42349d4ad1f0fe28dd6365886aa285de10a78bdda5e6221a41ed267fe352.
-- Outstanding city request: nettoolexactsix20261024a (turbo to 2032, original tools).
-  Wait via build-runs/wait-nettoolexactsix20261024a.ps1; never resubmit same label.
-- Next: collect city verdict; finish subclass resource/host replay. No exactness claimed.
+- City nettoolexactsix20261024a collected terminal result: clean to 2032-01-06,
+  refs=0, foreign_exceptions=0, 49.266 seconds; `nettool 8/14` (run 382).
+- Same six differences: costs 110/113,170/192,90/98,55/61; powerline 65/0 valid13/0;
+  bridge 974/0 valid17/0. New NT30 refresh/overlay did not change these city projections.
+- No request outstanding. Next: trace retained replay cell/corner inputs for four costs;
+  finish subclass resource/host replay. No exactness claimed, no READY queue entry.
 - q.py Bash failed CreateFileMapping access (log build-runs/q/20261024-025713-33616.log);
   direct PowerShell cargo succeeded. fmt requires absolute file paths; fixes applied.
 - Full native gate and unique 2032 city run required; no request outstanding.
