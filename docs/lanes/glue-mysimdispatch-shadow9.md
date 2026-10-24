@@ -11,5 +11,5 @@
 - Filed MS20 in docs/specs/questions/mysims.md. Coordinator must regenerate QUESTIONS index (tools forbidden here).
 - MS18 remains partial: explicitly inventory uncompared methods; do not infer missing native signatures.
 - Milestone cdaea5883: scoped shadow implemented. Focused fc4-capi comparator tests pass 2/2. q.py could not start Git Bash (mapping access denied); direct cargo worked. Applied explicit fmt fix and calendar-month deduplication.
-- Gate milestone: stable qbuild all passed cargo 6986/6986, clippy diagnostics=0; it automatically queued native build+full CTest as qbuild-20261024-084135-build-ctest. Collect SAME running exec session 6200; do NOT duplicate verify. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
-- No game requests outstanding. After queued native terminal PASS, submit unique house game run to 2032. Use build-runs/wait-mysimdispatch-verdict.ps1 for one blocking FileSystemWatcher wait (task forbids qwait).
+- Gate terminal PASS: stable qbuild all cargo 6986/6986, clippy diagnostics=0; queued native qbuild-20261024-084135-build-ctest PASS build 254/254 edges, CTest 79/79. Logs build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Owned Rust fmt PASS.
+- Game label mysimdispatch-shadow9-20261024-ctor01 queued with full train187 house switches plus key; turbo to 2032, Konradshohe. Await build-runs/game-results/<label>.verdict using build-runs/wait-mysimdispatch-verdict.ps1 (one blocking FileSystemWatcher wait; task forbids qwait).
