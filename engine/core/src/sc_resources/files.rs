@@ -179,13 +179,27 @@ pub fn parse_file_with(
     };
     let mut line_number = 0;
     let mut inclusive = 0;
+    // SCR11: this flag is local to each file invocation, including children.
+    let mut block = false;
     let result = (|| {
         while let Some(line) = lines.read_line() {
             line_number += 1;
             inclusive += 1;
-            // SCR11: literal section-2 # line comments only. The physical
-            // file parser's block-comment grammar is not yet specified.
-            let tokens = lexical::split(&line)?;
+            // Literal opener search precedes closer search, even in quotes or
+            // ordinary comments. Erasing the opener tail may erase a closer.
+            let mut line = line.as_slice();
+            if let Some(opener) = line.windows(2).position(|s| s == b"#<") {
+                block = true;
+                line = &line[..opener];
+            }
+            if block {
+                let Some(closer) = line.windows(2).position(|s| s == b"#>") else {
+                    continue;
+                };
+                block = false;
+                line = &line[closer + 2..];
+            }
+            let tokens = lexical::split(line)?;
             if tokens
                 .first()
                 .is_some_and(|t| matches!(t.bytes.as_slice(), b"include" | b"sinclude"))
@@ -209,7 +223,7 @@ pub fn parse_file_with(
                     },
                 }
             } else {
-                dispatch(path, line_number, &line, tokens)?;
+                dispatch(path, line_number, line, tokens)?;
             }
         }
         Ok(inclusive)
@@ -220,3 +234,7 @@ pub fn parse_file_with(
         error => error,
     })
 }
+
+#[cfg(test)]
+#[path = "files_tests.rs"]
+mod tests;
