@@ -12,6 +12,6 @@
 - Done: 3e887dd25 implementation; corrected focused Rust test PASS (1/1); owned Rust formatting PASS.
 - Full qbuild all terminal PASS: workspace 6889/0/0, clippy 0 diagnostics, native build 233/233 edges, CTest 72/72. Native total333.4s. Logs qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log in build-runs.
 - Native gate noted tree changed: only handoff docs commits changed after engine commit 3e887dd25; engine diff from that commit remains empty.
-- Next: submit unique ovlive6-2032-20261024a to 2032 with observe=0, overlays_fixture=1. Event waiter build-runs/wait-overlays-verdict.ps1 exists (no qwait).
-- No game requests outstanding as of gate commit. Next run number382 (docs/runs maximum381).
+- Outstanding game request ovlive6-2032-20261024a to 2032 with observe=0, overlays_fixture=1. Event waiter exec session81483 is running; collect SAME operation. Results path build-runs/game-results/ovlive6-2032-20261024a.verdict (completed result is valid; never discard/resend same label).
+- Next: collect verdict, inspect overlay lines; write run382 (docs/runs maximum381), merge main as explicitly requested, final report/queue.
 - Worktree reserved and detached; do not change refs. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-live6-r1-manifest.json.
