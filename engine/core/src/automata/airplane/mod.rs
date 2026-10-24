@@ -142,11 +142,12 @@ impl Airplane {
 
     pub fn pursue_goal(&mut self) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
         match self.base().states.last().map(|s| s.state_type) {
-            Some(state_type::CHASE) => {
+            Some(state_type::CHASE | 58) => {
+                // automata §6.5: name-only CROP_DUST has no control law;
+                // the literal specified default is PopState, just like CHASE.
                 self.base_mut().pop_state();
                 Ok(AircraftGoalOutcome::Popped)
             }
-            Some(58) => Ok(AircraftGoalOutcome::NoAircraftHandler), // CROP_DUST is name-only.
             Some(50 | 51 | 53 | 57) => Err(AircraftUnsupported::GoalControl),
             _ => Ok(AircraftGoalOutcome::NoAircraftHandler),
         }

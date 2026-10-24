@@ -2,7 +2,16 @@
 //! aircraft.md §8 tests 4–5, 8–13; full owner codec tests are in aircraft.rs.
 
 use fc4_core::automata::airplane::*;
-use fc4_core::automata::{AirplaneDriveParameters, DriveParameterSource};
+use fc4_core::automata::{AircraftGoalOutcome, Airplane, AirplaneDriveParameters, DriveParameterSource, SetStateArgs};
+
+#[test]
+fn name_only_airplane_crop_dust_pops_without_a_flight_model() {
+    let mut plane = Airplane::default();
+    assert!(plane.base_mut().push_state(51, SetStateArgs::default()));
+    assert!(plane.base_mut().push_state(58, SetStateArgs::default()));
+    assert_eq!(plane.pursue_goal(), Ok(AircraftGoalOutcome::Popped));
+    assert_eq!(plane.base().states.last().unwrap().state_type, 51);
+}
 
 fn near(actual: f32, expected: f32, tolerance: f32) {
     assert!(

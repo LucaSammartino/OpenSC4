@@ -471,11 +471,11 @@ fn helicopter_chase_pops_invalid_target_but_reports_missing_controls_for_valid_t
 }
 
 #[test]
-fn name_only_crop_dust_and_unsettled_models_do_not_mutate_owners() {
+fn unsettled_models_do_not_mutate_owners() {
     let mut plane = Airplane::default();
-    plane.base_mut().push_state(58, SetStateArgs::default());
+    plane.base_mut().push_state(51, SetStateArgs::default());
     let before = plane.record.clone();
-    assert_eq!(plane.pursue_goal(), Ok(AircraftGoalOutcome::NoAircraftHandler));
+    assert_eq!(plane.pursue_goal(), Err(AircraftUnsupported::GoalControl));
     assert_eq!(
         plane.update_physics(1000.0, &World),
         Err(AircraftUnsupported::FlightModel)
