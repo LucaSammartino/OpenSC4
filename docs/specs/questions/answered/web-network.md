@@ -1,5 +1,87 @@
 # Answered questions: web-network.md
 
+## Q1 (re-webnet4, 2026-10-21) — cookie Port list length
+
+ParseCookieText (008f94f9) stores n-1 of the n comma-separated `Port` values. Does HTTPMessage::GetSeparatedStringList
+return the item count plus one (so all values are kept), or is the last port really dropped? Needs a read of
+HTTPMessage::GetSeparatedStringList; spec section web-network.md §3.2.
+
+**ANSWERED 2026-10-24 (re-www-q17):** MATCHES — §3.2 confirms a genuine final-item
+drop. The splitter returns the actual item count; a single explicit port leaves a zero first
+entry (unrestricted), while an empty Port attribute selects the URL port/80. CK07–CK08 distinguish these.
+
+## Q3 (re-webnet4, 2026-10-21) — cookie file format
+
+Write/ReadCookieDataFile (008f7784, 008f9e2b): byte layout of each `CookieData%05u` entry and the encryption chosen
+by SetShouldEncryptCookieDataFile. Spec section web-network.md §3.6.
+
+Partial evidence 2026-10-23 (re-www-ww5): section 3.6 specifies clear-before-read/write,
+text re-admission, unsigned expiration filtering, contiguous naming and 10000-entry read cap.
+The 50-byte helper `008f7752` calls string-copy/assignment helpers; exact binary transform,
+character conversion and the writer marker literal still need qualification. No cipher is claimed.
+
+**ANSWERED 2026-10-24 (re-www-q17):** DIFFERS — §3.6 establishes identity-copy text
+followed by uppercase hexadecimal INI encoding, not encryption or raw CookieData serialization.
+The marker is Admin/Binary=`1`; byte-string conversions preserve length-bearing bytes. Read accepts
+either hex case and stops on a failed/zero binary read. Odd-length hex is outside the safe paired
+input domain. CK11 supplies an exact encoded value.
+
+## Q11 (re-www-ww5, 2026-10-23) — cache persistence and source-file admission
+
+Section 6 qualifies byte admission, reads and expiration. What are exact source-file overload
+`008fd76c` ownership/copy behavior, filename generation/reservation (`008fcd49`, `008fceeb`),
+INI-loader token acceptance/escaping (`008fdb0d`), orphan cleanup (`008fc6e0`) and holder buffer
+deallocation semantics? Verify the default INI-name pointer `00b16144`. Do file/RAM capacity
+settings have enforcement outside the specified periodic expiration sweep? Failed allocation
+and reference-count overflow remain outside the published domain.
+
+**ANSWERED 2026-10-24 (re-www-q17):** DIFFERS — §6.4.1 specifies destructive source-file
+admission, forced copying across directories, CREATE_NEW reservations with 10000 descending-time
+candidates, rightmost-seven-comma parsing without escaping, unsigned acceptance limits and time
+clamps, exact-filename orphan matching, and 16-bit holder release through GlobalHeapFree.
+The default is FileCache.ini; this owner has no size-based eviction. NFC13–NFC19 cover observable
+distinctions; allocation failure and reference overflow remain outside the input domain.
+
+## Q10 (core-ftp4, 2026-10-22) — matched HTTP completion with no WWW target
+
+Section 4.7 says a matched job without a target skips delivery, and distinguishes
+resource cleanup on absent active matches. For a matched job whose target is null,
+does it still convert/cache/process cookies, select waiting jobs and clear the foreign
+resource, or skip some/all of that suffix? The portable core removes the matched live
+entry then returns Unsupported for this exceptional snapshot; it makes no suffix
+equivalence claim. This does not request a new RE round or reopen the parked owner.
+
+**ANSWERED 2026-10-24 (re-www-q17):** DIFFERS — §4.7 specifies true return after removing
+the active entry, skipping conversion, caching, cookies, notifications, waiting-job selection and
+resource clearing. WWW-21 preserves both the waiting entry and foreign resource on this path.
+
+## Q15 (core-www5, 2026-10-23) — cookie and cache literal edge cases
+
+What exactly are the cookie splitter's blank characters and empty-item convention, and does
+it trim name/value separately after trimming each item? What is atol overflow behavior?
+Do skipped first cookie attributes still cause the header's leading separator? Are the cookie
+path/binary setters plain assignments, and what is the constructor path at `00b16134`?
+Does the cache writer materialize directly or call the public getter, and in what order?
+The core's literal choices were ASCII whitespace, empty items in nonempty input, whole-item
+trimming, wrapping decimal conversion, index-based separators, plain setters and direct cache
+materialization in byte-key order without read-side effects.
+
+**ANSWERED 2026-10-24 (re-www-q17):** DIFFERS — §§3.2/3.4/3.6 and §6.4 qualify space/tab
+only, delimiter-completed empties with no extra terminal empty, no name/value retrim, wrapping
+32-bit atol, index-based leading separators, plain binary assignment but path-change reload,
+CookieData.ini, direct materialization without getter effects, and native hash bucket/chain order.
+CK09/CK12/CK13 and NFC15/NFC19 distinguish the literal choices.
+
+## Q16 (core-www-close13, 2026-10-24) — copying cookie lookup miss
+
+Does GetCookieDataForURL's copying overload leave the output record untouched when no k-th
+match exists? Section 3.4 qualified assignment on a match without stating a miss-side effect.
+The engine lane's literal success-only assignment leaves output unchanged and returns false.
+This question was supplied on branch core-www-close13 rather than present in this base.
+
+**ANSWERED 2026-10-24 (re-www-q17):** MATCHES — §3.4 confirms success-only CookieData
+assignment; the miss branch never writes the supplied output. CK10 uses a prefilled sentinel record.
+
 ## Q8 (re-web-largest4, 2026-10-22) — WWW response cache-insertion policy
 Section 4.7 calls 008f7a50 (1062 B) after successful HTTP conversion and before response-cookie handling.
 What precise Pragma/Cache-Control token matching, Date/Expires/max-age precedence, integer overflow behavior

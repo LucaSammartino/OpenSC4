@@ -1,28 +1,5 @@
 # Open questions: web-network.md
 
-## Q1 (re-webnet4, 2026-10-21) — cookie Port list length
-ParseCookieText (008f94f9) stores n-1 of the n comma-separated `Port` values. Does HTTPMessage::GetSeparatedStringList
-return the item count plus one (so all values are kept), or is the last port really dropped? Needs a read of
-HTTPMessage::GetSeparatedStringList; spec section web-network.md §3.2.
-
-## Q3 (re-webnet4, 2026-10-21) — cookie file format
-Write/ReadCookieDataFile (008f7784, 008f9e2b): byte layout of each `CookieData%05u` entry and the encryption chosen
-by SetShouldEncryptCookieDataFile. Spec section web-network.md §3.6.
-
-Partial evidence 2026-10-23 (re-www-ww5): section 3.6 now specifies clear-before-read/write,
-text re-admission, unsigned expiration filtering, contiguous naming and 10000-entry read cap.
-The 50-byte helper `008f7752` calls string-copy/assignment helpers; exact binary transform,
-character conversion and the writer marker literal still need qualification. No cipher is claimed.
-
-## Q11 (re-www-ww5, 2026-10-23) — cache persistence and source-file admission
-
-Section 6 qualifies byte admission, reads and expiration. What are exact source-file overload
-`008fd76c` ownership/copy behavior, filename generation/reservation (`008fcd49`, `008fceeb`),
-INI-loader token acceptance/escaping (`008fdb0d`), orphan cleanup (`008fc6e0`) and holder buffer
-deallocation semantics? Verify the default INI-name pointer `00b16144`. Do file/RAM capacity
-settings have enforcement outside the specified periodic expiration sweep? Failed allocation
-and reference-count overflow remain outside the published domain.
-
 ## Q12 (re-www-ww5, 2026-10-23) — command-generator wire grammar and execution
 
 Section 7 specifies message/poll/accept boundaries. Settle address-helper `0081e7d0` and exact
@@ -40,6 +17,10 @@ DoJobFinalization `0081a470`, exact date-parser acceptance `00818490`/`00818680`
 adjustment at `00b18ba8`, and residual native slots 0/3. This is HTTP-owner work, not a reopening
 of parked WWW-owner Q9. Proposed vectors do not certify complete HTTP transaction equivalence.
 
+2026-10-24 (re-www-q17), resumed round: §5.1 now settles slots 0/3 (ID-1-only
+QueryInterface preserving miss output; deleting-destructor wrapper/free flag). The
+destructor dependency's full cleanup and the other wire/date items remain open.
+
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing
@@ -56,6 +37,12 @@ Still unresolved: commands 00815a60 (717 B), 00814cc0 (657 B), 00814f60/008153a0
 scheduler admission 00817600, lifecycle/container/control helpers and exact per-address O: Q7
 rows in web-network-www-bodies.md. No full Q7 answer is claimed. Final round 3/3: **PARK**,
 no fourth round; the combined Q7/Q9 residual is exactly 57 bodies / 7292 B.
+
+2026-10-24 (re-www-q17), resumed round: web-network-ftp-control.md §9 now qualifies
+all seven command entries listed above, scheduler constructor 00813d70 and admission
+00817600, with FTPC01–FTPC08 proposed/unexecuted fixtures. These nine rows are now C;
+remaining O scheduler lifecycle/control/container rows still keep Q7 open. The preceding
+PARK and 57-body count describe the earlier round, not the current checklist totals.
 
 ## Q9 (re-web-largest4, 2026-10-22) — other reached scheduler/resource and support bodies
 Complete the still-open bodies in web-network-www-bodies.md outside Q7/Q8, especially HTTP job submission and
@@ -77,14 +64,9 @@ its companion completion/stop/drain bodies are evidence only, not WWW inventory 
 No full Q9 answer is claimed: all residual support/adapters retain their exact O/P checklist rows.
 Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.
 
-<!-- from: core-ftp4 (2026-10-22) -->
-## Q10 — matched HTTP completion with no WWW target
-Section 4.7 says a matched job without a target skips delivery, and distinguishes
-resource cleanup on absent active matches. For a matched job whose target is null,
-does it still convert/cache/process cookies, select waiting jobs and clear the foreign
-resource, or skip some/all of that suffix? The portable core removes the matched live
-entry then returns Unsupported for this exceptional snapshot; it makes no suffix
-equivalence claim. This does not request a new RE round or reopen the parked owner.
+2026-10-24 (re-www-q17): cookie constructor `008f9bad`, including its CookieData.ini
+path literal, is now qualified in §3.6 and marked C in the owner checklist. This does not
+close Q9's other support/adapters, WWW cookie-header construction or HTTP request normalization.
 
 <!-- from: core-www5 (2026-10-23) -->
 - **Q15 - sections 3.2, 3.4, 3.6 and 6.4 literal edge cases:** what exactly are
@@ -107,3 +89,8 @@ equivalence claim. This does not request a new RE round or reopen the parked own
   3.4 qualifies assignment on a match but does not state a miss-side output effect.
   [Literal success-only assignment: core `lookup_into` returns false and leaves
   the supplied record unchanged on a miss. This does not reopen parked Q7/Q9.]
+2026-10-24 (re-www-q17), resumed round: §4.4 now qualifies the one-record Cookie header
+construction and temporary ownership; §4.14 qualifies raw-text parsing, preservation with
+preexisting pairs, and single first-empty-value erasure. WWW-22a–c and NORM01–NORM08 are
+proposed/unexecuted distinguishing fixtures. Those two blockers are resolved; Q9 remains
+open only for the residual O support/adapters in the owner checklist.
