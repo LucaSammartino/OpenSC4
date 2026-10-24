@@ -12,7 +12,9 @@
 - Focused Rust test passed 1/1; fmt passed on absolute owned path. Evidence build-runs/focused-construction.log (17m compile under shared load).
 - q.py cannot start Git Bash here (CreateFileMapping access denied); focused Python runner logs subprocess output locally instead.
 - Workspace test stage passed: 7,294 passed, 0 failed over 48 result groups (build-runs/qbuild-test.log).
-- Next: collect existing final all operation (exec session 41598), currently clippy; do not duplicate it. Then queued native verify if all does not provide it, then game to 2032.
+- Final qbuild all PASS: workspace 7,294/0, clippy 0 diagnostics; queued native qbuild-20261024-160226-build-ctest passed build 263/263 and CTest 81/81. Operation 41598 collected to terminal exit 0.
+- Native evidence: build-runs/fc4verify-build.log and fc4verify-ctest.log; Rust evidence qbuild-test.log and qbuild-clippy.log.
+- Next: submit reserved construction game label to 2032-01-01; wait once with build-runs/wait-construction-game.ps1 (event notification, not qwait).
 - Existing open LD39 covers missing texture scales; do not duplicate it. Full lifecycle/render comparison requires passive tracing; this lane measures only getters.
 - No game request outstanding. Run 512 reserved in docs/runs/occprops12-t79-20261024-a-512.md; request label occprops12-t79-20261024-a.
 - Clean-room exclusions apply. Only task-named coverage-map.tsv and regress.ps1 are exceptions under tools; no tools scripts run.
