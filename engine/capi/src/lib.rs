@@ -1176,3 +1176,5 @@ mod querytool_shadow;
 mod legacyctl_shadow;
 // VU16: private partial view-utilities comparison transport.
 mod viewutil_shadow;
+// Private finite model-instance fixture transport; no DLL export changes.
+mod modelinst_shadow;

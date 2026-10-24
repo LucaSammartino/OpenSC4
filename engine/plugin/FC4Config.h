@@ -662,6 +662,10 @@ std::string IniPath();
 // live cached view inputs and fixed vectors; 1/50 bodies only. VU16 blocks
 // min/max and other native signatures. No whole-owner verification claim.
 
+// modelinst_shadow = 0 / 1 (default 0): finite isolated static-instance
+// transform and bounds fixture plus the first 4096 natural static GetTransform
+// calls' destination counter/padding. MI14 bindings; no live enumeration.
+
 }  // namespace fc4
 // app_shadow = 0 / 1: application paths/lifecycle mode comparison (default 0).
 // app_shadow_path_cache = 0 / 1: AP18 unresolved slots65/66 diagnostics (default 0).

@@ -417,6 +417,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "legacyctl_shadow",
                                   // VU16 partial view utility differential, default off.
                                   "viewutil_shadow",
+                                  // MI14 finite isolated model-instance fixture, default off.
+                                  "modelinst_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
