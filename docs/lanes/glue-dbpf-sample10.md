@@ -1,27 +1,29 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-dbpf-sample10: rotate packed DBPF shadow coverage | Codex / glue-dbpf-sample10 | in progress | Implement rotation; gate and measure house to 2032 |
+| glue-dbpf-sample10: rotate packed DBPF shadow coverage | Codex / glue-dbpf-sample10 | ready: DBPF 73/73 exact to 2032, clean; Rust 6988, clippy clean, CTest 80/80 | Coordinator profile edit and matched-host runtime check; 800 s target unmet even with DBPF off; EX56 open |
 
-## Handoff
-- Goal: full city-load packed-file sweep, deterministic monthly subsets covering all records yearly; house runtime under 800 seconds, dbpf 73/73 exact.
-- Done: prerequisite merge c17f37d71; retained both additive fc4.h declaration groups.
-- Implemented full load sweep, sorted-path monthly ceil(files/12) rotation, completed/cumulative and yearly coverage counters; unfinished samples remain non-exact.
-- Added native portable test checking all rolling twelve-month windows for 1..257 files and 72 house months.
-- Initial implementation 30cdc0adf passed all gate steps (6988 Rust, clean clippy, native 255/255, CTest 80/80); superseded by corrected source 3c2f8c290.
-- R1 completed stalled (wait session 6676 terminal exit 0): gdbs10-r1-house2032-20261024a 7/7 exact, but only to 2026-07-04; record docs/runs/gdbs10-r1-house2032-20261024a-469.md. Immutable failed evidence retained under its unique label.
-- Diagnostic: SimCity_3.dat 5203 ms tripped 5157 ms watchdog; another file reached 5421 ms. Rotation alone is insufficient on this host.
-- Changed source to retain the independent Rust reader and next index entry, yielding after ~800 ms between records. No native record object or cursor is retained.
-- Autotest quit drains the final pending sample through normal framework ticks; wall deadline/watchdog/external timeout remain active. Other shutdowns explicitly report unfinished work non-exact.
-- Corrected source commit 3c2f8c290. Final qbuild all PASS: Rust 6988/0/0, clippy clean; native job qbuild-20261024-092912-build-ctest PASS, build 50/50 (2.8 s), CTest 80/80 (74.8 s), total 82.8 s. Session 59934 collected to exit 0.
-- R2 terminal stalled, session 89442 collected: gdbs10-r2-house2032-20261024b 37/37 exact to 2029-02-04, wall 520 s; record 470. Three annual rotation cycles each 11/11 files and 111826/111826 records.
-- R2 watchdog wait: main CPU +0, outside FreeCity4. Own PDB symbols resolve common_vsnprintf_s and Pollution AfterStep (FC4PollutionShadow.cpp:416), not DBPF. Retain failed evidence; retry unchanged DLL once with a unique R3 label, no rebuild.
-- R2 DLL SHA256: 59359D2DB7EE5786E53B44DCCC2F7A04B8824204CE40EACDD551ECB03BBAE1A9.
-- Game request: train187 house ini plus dbpf_shadow=1; Konradshohe, turbo to 2032-01-01, seconds=1800/timeout=2100.
-- No new spec ambiguity: rotation is explicitly requested shadow policy. Existing EX56 remains open.
-- Clean-room restriction forbids opening/editing tools/regress.ps1; coordinator must append the profile key after measured exact run.
-- HEAD is intentionally detached; never update shared refs. EX56 remains open; resource-manager packed files only.
-- R3 terminal CLEAN, session 89566 collected: gdbs10-r3-house2032-20261024c 73/73 exact, record 471. 863.406 s simulation / 880 s wall, date 2032-01-04 after final sample drain; all problem counters zero including ref_warnings=0.
-- R3: all six rotation cycles 11/11 files and 111826/111826 records; cumulative 83 files, 876020 records (89.27% fewer); max slice 953 ms. Slow-file active time total 79543 ms (26 entries, max 4734 ms spread over ticks).
-- Under-800 target NOT MET. Outstanding R4 baseline: gdbs10-r4-housebase2032-20261024d, identical house switches but dbpf_shadow=0, unchanged DLL, no build. Collect original blocking wait exec session 85663 (without qwait); never resubmit or discard an existing verdict.
-- Next: record R4 under next free run number (469-471 used here), attribute remaining cost versus R3, optimize only a measured bottleneck. No merge queue yet; no 800-second claim.
-- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log and build-results/qbuild-20261024-092912-build-ctest.verdict (prior source gate verdict 090545 retained).
+## Implementation
+
+Required prerequisite merge `c17f37d71` retained both additive header declaration groups. Rotation implementation `30cdc0adf` keeps the full load sweep and sorts paths before choosing ceil(files/12) whole files monthly. Any twelve consecutive months cover a stable file set. Summary lines retain the dated DBPF prefix and final mismatches count, and add subset positions, available/completed files, cumulative comparisons and twelve-month unique coverage.
+
+Corrected source `3c2f8c290` retains the independent Rust reader and next record between framework ticks, yielding after roughly 800 ms. Both readers compare each record together; no native record object or cursor is retained. Autotest quit drains the final dated sample through framework ticks. Other shutdowns explicitly emit non-exact pending samples and release acquired QIs. The rotation test checks rolling years for pools of 1..257 files and all 72 house months. Default remains off.
+
+## Gate
+
+Final `qbuild.py all`: PASS, Rust **6988 passed, 0 failed, 0 ignored**, clippy **0 diagnostics**. Queued native verify `qbuild-20261024-092912-build-ctest`: build **50/50** (2.8 s), CTest **80/80** (74.8 s), total 82.8 s. Collected to terminal exit 0. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`, and the native job verdict under `build-results/`. Earlier source also passed its gate; its `090545` verdict is retained. No source changed after the final gate.
+
+## Game results
+
+`gdbs10-r3-house2032-20261024c 73/73`
+
+[Run 471](../runs/gdbs10-r3-house2032-20261024c-471.md): **clean**, all DBPF lines mismatches=0/refusals=0, **ref_warnings=0**; all other problem counters zero. Train187 house switches plus DBPF, Konradshohe, turbo request end_date=2032-01-01. Quit completed 2032-01-04 after draining January's sample. **863.406 s**, 2.51 days/s, **880 s wall**. Full load: 11 files, 111826 records. Every one of six rotation years reached **11/11 files and 111826/111826 records**. Total **83 completed file comparisons, 876020 record/raw/payload comparisons**, 89.27% fewer records than predecessor 8163298. Maximum DBPF slice **953 ms**. Twenty-six slow-file entries totaled 79543 ms active time, max 4734 ms per file spread across ticks.
+
+[Run 472](../runs/gdbs10-r4-housebase2032-20261024d-472.md), `gdbs10-r4-housebase2032-20261024d`: identical DLL and house switches, DBPF off; **clean**, **863.609 s**, 2.50 days/s, **879 s wall**, date 2032-01-01; all problem counters zero, DBPF sample lines zero. **The 800-second target is unmet even in this DBPF-off baseline.** Different slots/CPU affinity and simulation paths prevent a precise overhead estimate. Both runs satisfy the 1800-second ceiling; neither supports an under-800 claim. Coordinator should repeat a matched-host benchmark before claiming it.
+
+Failed evidence remains separate: [R1/run 469](../runs/gdbs10-r1-house2032-20261024a-469.md) stalled at July 2026, 7/7 exact, whole-file reads took >5 s; this led to record slicing. [R2/run 470](../runs/gdbs10-r2-house2032-20261024b-470.md) stalled at February 2029, 37/37 exact; own PDB snapshot resolved CRT formatting and Pollution AfterStep, main CPU +0. R3 retried the unchanged gated DLL. All waits collected their original operation to terminal result. No operation remains outstanding. Unique log/verdict files are in `build-runs/game-results/`.
+
+## Scope and integration
+
+Existing **EX56** remains open in [data-formats questions](../specs/questions/data-formats.md); no new question. Scope remains strictly resource-manager-packed. No all-open-files, city-streaming, native record lifetime or ReadRecord return contract is claimed. The prerequisite merge adds three C exports (packed_count, packed_keys, read_raw); this lane never bumps ABI version.
+
+The clean-room prohibition on opening any part of `tools/` prevents this lane from editing `tools/regress.ps1`. Coordinator: append `dbpf_shadow=1` to the current single shadows string after reviewing the measured result and runtime limitation; no profile/coverage-map file was read or edited here. Publish the detached HEAD to the reserved branch and credit the exact run. Further runtime investigation belongs to a matched-host house benchmark, since the DBPF-off baseline also exceeds 800 s.
