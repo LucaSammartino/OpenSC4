@@ -18,12 +18,6 @@ pub const CLSID_ONE_SHOT: u32 = 0xAA09_DC28;
 pub const RIOT_ANIMATION: u32 = 0x3AB6_0B61;
 pub const IID_AUTOMATON: u32 = 0xA9B4_0F05;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Unsupported {
-    /// PN1: no specified reader or lifetime policy for the play count.
-    PlayCountConsumerPn1,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tuning {
     pub speed: (i32, i32),
@@ -63,6 +57,7 @@ pub trait PedestrianWorld: VehicleWorld + InitWorld {
     fn stopped_animation(&mut self);
     fn play_idle(&mut self);
     fn model_count(&mut self) -> usize;
+    fn model_present(&mut self, index: usize) -> bool;
     fn instance_value(&mut self, index: usize, value: f32);
     fn exemplar_play_count(&mut self, property: u32) -> Vec<u8>;
     fn controller_attractor(&mut self, controller: &RefValue) -> Option<Vec3>;
@@ -78,6 +73,15 @@ pub trait PedestrianWorld: VehicleWorld + InitWorld {
     fn acquire_leader(&mut self, iid: u32) -> RefValue;
     fn leader_position(&mut self, leader: &RefValue) -> Option<Vec3>;
     fn ignite_target(&mut self, controller: &RefValue, cause: u32);
+}
+
+/// Foreign animated-model operations used by the one-shot's slot-72 body.
+pub trait OneShotWorld: PedestrianWorld {
+    /// Publish the inherited opacity tween's updated value to the renderer.
+    fn opacity_updated(&mut self, dt_ms: f32, opacity: f32);
+    fn advance_model(&mut self, index: usize, dt_ms: f32) -> u32;
+    fn model_frame(&mut self, index: usize) -> i32;
+    fn model_frame_count(&mut self, index: usize) -> i32;
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -315,10 +319,19 @@ impl Pedestrian {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PedestrianOneShot {
     pub pedestrian: Pedestrian,
-    pub play_count: u32,
+    pub play_count: u8,
+}
+
+impl Default for PedestrianOneShot {
+    fn default() -> Self {
+        Self {
+            pedestrian: Pedestrian::default(),
+            play_count: 5,
+        }
+    }
 }
 
 impl PedestrianOneShot {
@@ -337,7 +350,7 @@ impl PedestrianOneShot {
     pub fn construct(id: u64, tuning: Tuning, random: &mut impl VehicleRandom) -> Self {
         Self {
             pedestrian: Pedestrian::construct(id, tuning, random),
-            play_count: 0,
+            play_count: 5,
         }
     }
 
@@ -350,7 +363,10 @@ impl PedestrianOneShot {
         let success = self.pedestrian.init(tuning, random, world)?;
         if success {
             for index in 0..world.model_count() {
-                world.instance_value(index, 0.01);
+                if world.model_present(index) {
+                    // PN1: SetSpeed only; preserve frame, accumulator and playback mode.
+                    world.instance_value(index, 0.01);
+                }
             }
             let values = world.exemplar_play_count(0xEA95_8845);
             let bounds = if values.len() >= 2 {
@@ -358,13 +374,60 @@ impl PedestrianOneShot {
             } else {
                 tuning.play_count
             };
-            self.play_count = random.signed_range(i32::from(bounds.0), i32::from(bounds.1)) as u32;
+            let span = u32::from(bounds.1).wrapping_sub(u32::from(bounds.0)).wrapping_add(1);
+            self.play_count = u32::from(bounds.0).wrapping_add(random.uniform(span)) as u8;
         }
         Ok(success)
     }
 
-    pub fn consume_play_count(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported::PlayCountConsumerPn1)
+    /// Slots 177/178 are byte accessors without any playback or lifetime effects.
+    pub fn play_count(&self) -> u8 {
+        self.play_count
+    }
+
+    pub fn set_play_count(&mut self, count: u8) {
+        self.play_count = count;
+    }
+
+    /// Charge one sampled final frame, rather than one completed animation loop.
+    pub fn consume_play_count(&mut self, world: &mut impl PedestrianWorld) -> bool {
+        self.play_count = self.play_count.saturating_sub(1);
+        if self.play_count == 0 {
+            // The shared removal path marks the automaton: ordinary Remove(false).
+            self.pedestrian.traffic_owner().remove(world);
+            false
+        } else {
+            true
+        }
+    }
+
+    /// PN1 slot 72: opacity first, then every live model, with one final-frame sample.
+    pub fn animation_tick(&mut self, _dt_us: u32, dt_ms: f32, world: &mut impl OneShotWorld) -> bool {
+        // Only opacity is advanced here, not the speed tween or animation/state clock.
+        let opacity = &mut self.pedestrian.base_mut().f3[4..8];
+        opacity[3] += dt_ms / 1000.0;
+        if opacity[3] >= opacity[2] {
+            opacity[0] = opacity[1];
+        }
+        world.opacity_updated(dt_ms, tween_value(opacity));
+
+        let mut first = true;
+        let mut keep = true;
+        for index in 0..world.model_count() {
+            if !world.model_present(index) {
+                continue;
+            }
+            let _ = world.advance_model(index, dt_ms);
+            if first {
+                first = false;
+                let frame = world.model_frame(index);
+                let final_frame = world.model_frame_count(index).wrapping_sub(1);
+                if frame >= final_frame {
+                    keep = self.consume_play_count(world);
+                }
+            }
+        }
+        keep
     }
 }
 
