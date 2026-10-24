@@ -15,7 +15,9 @@
 - Failed logs archived as `build-runs/failed-r2-1-qbuild-test.log` and `failed-r2-1-qbuild-clippy.log`; summary `all-r2-final-1.log` retained.
 - Both original all and explicit verify are waiting on native queue: operations 10089 / 56577, labels `qbuild-20261024-182755-build-ctest` / `qbuild-20261024-182822-build-ctest`. Collect both to terminal; do not duplicate them.
 - Guard reached two-thirds at context 101135/150000: stop new feature work, finish validation/corrections and report partial closure honestly.
-- Next: collect both original native waits, then repeat all on corrected stable source (real test/clippy diagnostics justify it), commit final report and queue entry.
+- Corrected stable-source all operation 51053 is now active (`build-runs/all-r2-corrected.log`); source changed only for the actual test/clippy diagnostics. Prior Rust stage logs are archived. Collect all three operations; do not duplicate any.
+- Formatting corrected source: PASS nine owned files, zero differences (`build-runs/fmt-r2-corrected.log`).
+- Next: collect all three gate operations to terminal, then commit final report and queue entry. Current context at last guard: 140903/150000; reserve the remainder for collection/finalization.
 - WC12 already filed; inspect current answers before adding questions.
 - No game request. No plugin/capi/ABI changes. WC12 remains open; README's other pending rows remain implementation debt.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close12-r2-manifest.json`.
