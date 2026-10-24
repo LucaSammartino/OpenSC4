@@ -610,7 +610,7 @@ terrain vertices are 100. All numbers below are exactly representable float32 va
 | 2 | 650 | 102 | 106 |
 | 3 | 521 | 101 | 104 |
 
-Set cached network corners to n. In variants A/B the piece is fixed, newly placed=false, and its model supplies
+Set cached network corners to n. In variants A/B the piece is fixed, placed=false (new), and its model supplies
 these four fixed network heights; support lookup succeeds. These are fixed corners, not a flat-cell equality.
 The network solve fixes them individually (network-geometry §9.3). In C the piece is regular, not fixed,
 support lookup fails, and each post-plane allowed range is the singleton `[n,n]`, preferred range `[n,n]`;
