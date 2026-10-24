@@ -18,6 +18,7 @@
 - AP18 filed for observed lazy slot65/66 base/suffix/pre-cache-input disagreement. Supported app/app-startup now compare 17 fields; app_shadow_path_cache=1 separately enables app-path-cache diagnostics, default off. Literal core unchanged; no resync.
 - Normal app-shadow13-2032-r2normal completed clean to 2032-01-01, ref_warnings=0: app 72/72, app-startup 1/1, separate AP18 app-path-cache 0/73 (run 632). Same differences without turbo; exact native/expected inputs appended to AP18.
 - Final stable-source all runs via build-runs/run-app-final-gate.py, console build-runs/app-closure-gate-console.log; previous evidence saved under build-runs/app-diagnostic-gate/.
-- Final gate exec session 90866 running on stable engine source d0cad6574; collect to terminal. Turbo supported-only request app-shadow13-2032-r2exact outstanding, wait exec session 63480.
-- Next: collect exact turbo game and final gate; record exact labels and finish ready partial scope. No new engine work remains; AP17/AP18 stay open.
+- Final gate exec session 90866 running on stable engine source d0cad6574; collect to terminal. No game request outstanding.
+- Turbo supported-only app-shadow13-2032-r2exact completed clean to 2032-01-20 (run 633), ref_warnings=0: app 72/72, app-startup 1/1, all mismatches=0, resyncs=0. Same DLL sha256 prefix 5df41eb8 as normal run 632.
+- Next: collect final gate only, then final report and ready queue for measured partial scope. Source work is finished; AP17/AP18 stay open. Coordinator must append app_shadow to the current regress shadows string after integration (tools/ is forbidden and HEAD is detached here), and regenerate the question index.
 - Clean-room: no analysis sources, tools/, or game binaries read.
