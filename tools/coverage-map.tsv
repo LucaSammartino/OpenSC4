@@ -169,14 +169,14 @@ cSC4COMSerializer	city and save file	simulation	foundations.md	core/src/save.rs	
 # the save-game object file (0x005D9490-0x005DC0xx: cSC4AutoLoad/AutoSave streams and records, then the typed stream
 # operators, then SC4OpenSaveGame / SC4ReadBinaryRecord); the operators are called from the Read / Write of the simulators'
 # records (weather, traffic, residential, flora, sim grids, automata, effects, occupants). Two operator<< overloads of the
-# same name live elsewhere (0x005192E0 automata, 0x005AFFF0 effects resource, 1,110 bytes) and share the owner. No spec
-# has them as its subject
+# same name live elsewhere (0x005192E0 automata, 0x005AFFF0 effects resource, 1,110 bytes) and share the owner. The
+# operators (and those two) are stream-helpers.md
 cSC4AutoLoadStream	city and save file	simulation	-	-	-	-
 cSC4AutoSaveStream	city and save file	simulation	-	-	-	-
 cSC4AutoLoadRecord	city and save file	simulation	-	-	-	-
 cSC4AutoSaveRecord	city and save file	simulation	-	-	-	-
-fn:operator>>	city and save file	simulation	-	-	-	-
-fn:operator<<	city and save file	simulation	-	-	-	-
+fn:operator>>	city and save file	simulation	stream-helpers.md	-	-	-
+fn:operator<<	city and save file	simulation	stream-helpers.md	-	-	-
 # ---- simulation: no spec yet
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
