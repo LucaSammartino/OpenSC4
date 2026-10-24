@@ -12,7 +12,7 @@
 - Prior VW-T21 fixture correction (b4b0756a4) is present; final verification must confirm it.
 - Focused diagnostic terminated: build-runs/focused-resume.log, 69 passed / 2 failed, both new queue fixture errors fixed in d084e399b. Compiled before latest fixtures/date/graph additions; preserve as failed evidence, not final verification. Session 27274 is complete.
 - Sessions 46408/42276 from previous round are gone per coordinator; do not wait on them. Earlier evidence remains in all-final.log, focused-1.log and build-queue/.
-- Running all: session 14828, build-runs/all-resume.log. Cargo waited for focused build lock until after d084e399b; final-source log confirms all 74 view3d tests pass, including all five new vectors and VW-T21. Workspace sweep tests still running: no final gate pass yet.
+- Running all: session 14828, build-runs/all-resume.log. Final-source workspace tests complete: 7,155 passed / 0 failed / 0 ignored summed over 45 summaries in qbuild-test.log. All 74 view3d tests pass, including five new vectors and VW-T21. Clippy is running; full gate not yet terminal.
 - Running verify: session 64643, build-runs/verify-resume.log, request qbuild-20261024-135533-build-ctest. No native source changed in this round.
 - Next: collect these same operations to terminal results. Final all must cover corrected queue fixtures; then report and READY queue.
 - qbuild fmt passes for lifecycle.rs, owner_tests.rs and resolved_tests.rs (3 files, zero differences).
