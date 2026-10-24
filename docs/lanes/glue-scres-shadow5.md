@@ -12,7 +12,8 @@
 - Game scres5-r1-2032-a completed clean to 2032-01-19, ref_warnings=0, but scres 0/73: no natural adapter reads. Record docs/runs/scres5-r1-2032-a-349.md. No game outstanding.
 - Diagnostic changes committed 77c1e6c05: register scres_shadow key, resolve load date through borrowed simulator, install at OnStart (earlier than PreAppInit). SCR9 asks for natural/direct capture dispatch.
 - Corrected-source gate 77c1e6c05: Rust 6806/6806 and clippy clean, but native compile failed: CurrentCity is observer-local. CTest skipped. Preserved build-runs/fc4verify-build-failed-77c1e6c05.log; native queue qbuild-20261024-012626-build-ctest is terminal (no outstanding verify).
-- Fix: pass the borrowed city from the observer to the load-date fallback. Next: re-gate this correction, then game scres5-r1-2032-b to 2032; if still empty, WIP only (nothing measured). No game outstanding.
+- Final source a8f493cbe passes qbuild all: Rust 6806/6806, clippy 0 diagnostics; native queue qbuild-20261024-013221-build-ctest terminal PASS, build 49/49 edges, CTest 70/70 (112.2 s).
+- Outstanding/next: game scres5-r1-2032-b to 2032 with earlier OnStart capture and corrected ini/date diagnostics. Collect its unique verdict before any other request; if still empty, WIP only (nothing measured).
 - Evidence: first q.py invocation failed because sandbox denies Bash CreateFileMapping; direct cargo focused test completed successfully. fmt requires absolute file path and passes.
 - Clean room: no tools/ or reverse-engineering sources may be read; lane wrappers allowed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-scres-shadow5-r1-manifest.json.
