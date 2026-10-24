@@ -186,6 +186,177 @@ Evidence: `0x00737EB8–0x00737EED`, `0x00738078–0x007380B0`, `0x00738128–0x
 Paper reuse vector: allocate indices 0,1,2; remove 1 then 0; the next allocations reuse 1 then 0, then append 3
 if no other frees occur. For a group with differing part colours/alpha, getters observe part 0 only.
 
+### 2.4 Native observation: arena headers and liveness (OV12)
+
+These are **32-bit process addresses**, relative to the complete manager/interface at `+0x00`, not to its
+draw interface at `+0x04`. Each arena is a contiguous constructed range followed by reserved storage.
+The end pointers are exclusive byte addresses, not counts, last-element pointers, or public handles.
+
+| Arena | Begin | Constructed end | Allocation end | Free head | Free tail | Record stride |
+|---|---|---|---|---|---|---|
+| Overlays | `98` | `9C` | `A0` | `A4` | `A8` | `B4` |
+| Placement handles | `AC` | `B0` | `B4` | `B8` | `BC` | `30` |
+| Groups | `C0` | `C4` | `C8` | `CC` | `D0` | `24` |
+
+All offsets and strides in this table are hexadecimal. For stride s and header `(b,e,c)`, constructed count
+is `(e-b)/s`, including freed entries; reserved count is `(c-b)/s`. Record i is at `b+i*s`, for
+`0 <= i < constructedCount`. Never enumerate `[e,c)`. All-null is the constructor's empty state; a retained
+allocation may instead have `b=e` with nonzero addresses. Growth may move the entire arena. No record address
+is a stable identity across mutations. Evidence: constructor `0x0073BD22–0x0073BD79`; append/reuse
+`0x00739ECC–0x00739F29`, `0x00739FC0–0x0073A06D`, `0x0073AECC–0x0073AF7B`; overlay relocation
+`0x0073A070–0x0073A16C`.
+
+For **each** arena, a constructed record's first signed word is exactly −1 when live. Removal changes it to
+zero, then links the previous free tail to that record's **zero-based index** and updates the tail. Thus a
+free tail has word zero, including a singleton free entry at index zero. Zero is not a null record address
+and does not terminate a multi-entry queue: index zero can be the next free entry. To enumerate the queue,
+start at head, emit that index, and stop **after emitting tail**, without interpreting tail's link. Empty has
+both head and tail −1. A live last constructed record still has word −1; it is not the free tail. There is
+no live/free ambiguity requiring guesses from flags, resource pointers, rectangle area, or whether an entry
+is referenced by a placement handle. Evidence: handle free `0x00736210–0x0073624D`; group free
+`0x0073894A–0x00738980`; overlay free `0x007389B5–0x00738A04`; allocation restores −1 after copying.
+
+A read-only observer can emit live records in ascending arena index and separately emit the exact FIFO free
+queue. That ascending enumeration is a diagnostic convention, not a claim of creation order: reuse preserves
+indices and destroys generation information. Resolve public indirect ID `0x80000000 | i` through live handle
+i's `+0x2C`; a nonnegative target is an overlay, a high-bit target is group `target & 0x7FFFFFFF`. Its eight
+part words are overlay indices in part order. Direct overlay IDs need no handle. Enumerate all three arenas
+independently, so direct/model-shadow overlays are not omitted and group parts are not counted twice.
+
+The original supplies no snapshot lock, public enumerator, or corruption-validation protocol. The observation
+contract therefore requires a quiescent point on the owning thread, outside add/remove/placement/draw/shutdown
+and factory changes. Copy the data while addresses remain valid; retain no native pointers afterward. An
+adapter must bound/check address ranges, aligned/divisible extents, indices and queue/list cycles before
+following them, and report a failed/incomplete sample if inconsistent. These checks are observer safeguards,
+not native validation behavior. A changed header invalidates a sample; an unchanged header alone does not
+prove no intervening in-place mutation. Do not call AddRef, getters with unknown side effects, collection or
+Draw to make a sample: collection itself writes stamps and Draw changes counters/state.
+
+### 2.5 Complete constructed-record fields (OV12)
+
+Offsets below are hexadecimal and relative to the **record**, not the manager. Numeric payloads are
+little-endian; floats are stored binary32 words. Preserve their bit patterns when reporting observations.
+
+| Overlay offset | Width | Meaning |
+|---|---|---|
+| `00` | 4 | Signed liveness/free-queue link (§2.4) |
+| `04` | 4 | Flags (§2.1); retain the complete word, including bits not named there |
+| `08` | 1 | Draw-state index; not a 32-bit field |
+| `09` | 1 | Padding; not initialized/copied as a semantic field |
+| `0A` | 2 | Last static-collection stamp, compared to manager `+0xE0` |
+| `0C,10,14,18` | 4 each | Signed covered-cell bounds `(x0,z0,x1,z1)` |
+| `1C–58` | 16 × 4 | Primary matrix M, four consecutive rows; entry `(r,c)` at `1C+4*(4*r+c)` |
+| `5C–98` | 16 × 4 | Separate secondary shadow matrix N, same storage convention |
+| `9C` | 4 | Alpha |
+| `A0,A4,A8` | 4 each | Colour R,G,B |
+| `AC` | 4 | Retained `cS3DTextureBinding*`, or null |
+| `B0` | 4 | Retained texture-source interface pointer, or null |
+
+The two matrices occupy different fields; the secondary is neither a pointer nor an ownership/geometry
+record. Its keyed-shadow derivation is §3.5 and model-shadow derivation §3.7. The default constructor fills
+the primary identity and secondary from its sixteen default-word loads; rectangle-helper creation does not
+derive a secondary transform (§3.6). Do not assume every shadow's N can be derived by the keyed-shadow rule.
+Evidence for byte/stamp/padding distinction: `0x00735F44–0x00735F4A`, `0x00735A02–0x00735A0C`;
+matrix/scalar/reference extents: `0x00735F4E–0x007360F9`, copy `0x007359F0–0x00735CA6`;
+model secondary destination `0x0073C7A2–0x0073C82B`.
+
+| Placement-handle offset | Width | Meaning |
+|---|---|---|
+| `00` | 4 | Liveness/free link |
+| `04–24` | 9 × 4 | Public placement words in §3.2 order |
+| `28` | 4 | Retained texture aspect used by placement; not the public record's ninth word |
+| `2C` | 4 | Overlay index or high-bit group index |
+
+| Group offset | Width | Meaning |
+|---|---|---|
+| `00` | 4 | Liveness/free link |
+| `04–20` | 8 × 4 | Part 0 through part 7 overlay indices |
+
+Handle copies cover all twelve words (`0x00736280–0x007362DB`, `0x00739F54–0x00739FB1`);
+group copies cover nine (`0x00739FC0–0x0073A06D`). These records contain no texture key, model pointer,
+creation timestamp or call-history pointer. The overlay's reference fields own references independently of
+the placement/group records. Freeing leaves payloads, including references, in constructed storage; those
+payloads are **not live overlays**. Copy/reuse/disposal performs reference operations; observation does not.
+Compare named fields, not a raw `memcmp` over padding, allocator addresses or reference counts.
+
+### 2.6 Read-only static-cell enumeration (OV12)
+
+Manager `+0xE4` is the 32-bit index shift, `+0xE8/+0xEC` the signed coarse X/Z dimensions, and
+`+0xF0/+0xF4/+0xF8` the begin/constructed-end/allocation-end of a vector of **4-byte list-head pointers**.
+These are not selected-overlay IDs. `BuildCellIndex` sets shift zero, dimensions to terrain `+0x5C/+0x60`,
+resizes to nx*nz null heads and resets the 16-bit stamp at `+0xE0` (`0x0073CB10–0x0073CB57`,
+resize `0x0073CAB0–0x0073CB0A`). On an ordinarily initialized static manager, cell `(x,z)` uses head
+`heads[z*nx+x]`. Each heap node is eight bytes: next pointer at `+0`, direct overlay ID at `+4`; null ends
+the list. Read the head then next pointers, preserving duplicates and encounter order. There is no sentinel
+node and no per-cell count. Nodes do not embed overlays and their next words are addresses, unlike arena
+free links. Evidence: `0x00738280–0x007382B5`, unlink `0x00738344–0x00738378`.
+
+Emit cells in row order (Z outer, X inner) with each stored list intact for a deterministic diagnostic dump;
+native insertion traversal is still X outer/Z inner and **prepending**, as §2.2 says. Neither sorting IDs nor
+rebuilding lists from current rectangles recovers their native order. A static re-placement can change that
+order without changing the set of live records. Dynamic managers do not maintain this index; a normally
+initialized dynamic manager's null index is not a missing sample. Repeated Init/shutdown quirks in §1 still
+apply: leftover storage is not proof that a dynamic manager uses an index. Selection order and stamp wrapping
+are §4.5. Merely reading a cell must leave both per-record and manager stamps untouched.
+
+### 2.7 Texture identity, dimensions and the limit of resident data (OV12)
+
+The overlay stores **references**, not image pixels or a resource key. For a binding at overlay `+0xAC`,
+the binding's 16 bytes are `+0` pointer to a per-frame array of 32-bit driver texture handles, `+4` frame
+count, `+8` owning factory pointer, `+0xC` reference count (`0x008090C0–0x008090DD`). A texture handle is
+opaque driver identity, never a CPU image pointer. Decal drawing uses frame zero (`0x0073688A–0x0073689B`),
+even if the binding has more frames. Binding pointer equality can establish sharing **within one sample**;
+neither a native pointer nor a driver handle is a portable resource identity across executions.
+
+For a binding belonging to the manager's factory `+0x90`, factory slot 8 (`0x00809E10`) writes this info:
+
+| Output offset | Width | Value |
+|---|---|---|
+| `00,04` | 4 each | Resource group, instance |
+| `08,0C,10` | 4 each | Binding level count, width, height |
+| `14,15,16,17` | 1 each | R,G,B,A bit counts |
+| `18` | 1 | Bits per texel |
+
+The function has no success boolean contract; an unknown binding leaves output untouched. A read-only
+adapter need not invoke it: factory `+0x2C/+0x30` delimit the vector of bucket pointers in its binding map;
+nodes contain next at `+0`, binding pointer at `+4`, record pointer at `+8`. Search for exact binding pointer
+equality in bounded chains. The 0x34-byte binding record has binding at `00`, frame-handle-array pointer at
+`04`, in-use byte at `08`, instance/group at `0C/10`, frame/level counts at `14/18`, width/height at `1C/20`,
+accounted byte size at `24`, RGBA bit counts at `28–2B`, bits-per-texel byte at `2C`, and 32-bit internal format
+at `30`; intervening padding has no comparison contract. This lookup can independently distinguish an
+unknown binding from a valid all-zero info result. Evidence: map lookup and output `0x00809E10–0x00809E9A`,
+record construction `0x0080A110–0x0080A319`. Use the binding's own factory identity when testing ownership;
+do not assume an externally passed binding belongs to manager `+0x90`.
+
+Instance zero denotes an unkeyed record. Nonzero instance with group identifies the current resource image
+key `(type=0x7AB50E44,group,instance)`, as texture-bindings §§1.8–1.10 specifies. These dimensions are the
+**binding** dimensions after power-of-two/LOD processing (§1.4 of that spec), not necessarily source image
+dimensions. An indirect placement's stored aspect is the value retained at creation; deriving it again from
+today's binding info is not proof of the original input. Changing the factory resource group can unkey live
+records without changing the overlay pointer or its pixels.
+
+For a source at overlay `+0xB0`, the owner requests dimensions through source slot 3 (`+0x0C`, output prefix
+two unsigned 32-bit words width,height), retains the source with slot 1, releases with slot 2, and asks slot 4
+(`+0x10`) for the texture handle during drawing. The zero pushed at `0x00736892` is SetTexture's stage
+argument, **not** a proved source-slot-4 argument. Evidence: source dimensions and aspect
+`0x0073B035–0x0073B06D`, references `0x0073B09E–0x0073B0C7`, draw `0x0073689D–0x007368AB`.
+There is no universal source-object field layout or resource key: the retained pointer is an interface whose
+implementation owns its state. With a binding present drawing takes that route first. Copying the source
+pointer/vtable identifies sharing and implementation locally; calling an unknown source implementation is
+not a guaranteed mutation-free observation of dimensions or pixels.
+
+**CPU texture data cannot be enumerated from these overlay records or binding-info fields.** Factory upload
+takes transient image-info data and forwards it to driver slot 61 (vtable byte offset `0xF4`); the binding
+record retains handles and metadata, not those level-data pointers (`0x00809B90–0x00809CC6`, upload call
+`0x00809C87`; texture-bindings §§1.5,1.12). A keyed
+resource can be loaded independently and decoded under graphics-formats, but that is a source-resource
+comparison, not proof of the current GPU contents: unkeying, runtime uploads and restore can change that
+relationship. Unkeyed bindings and arbitrary sources have no general CPU-byte recovery through this owner.
+An observer must report `data unavailable` rather than treating a handle as pixels or manufacturing a hash.
+Verifying contents requires observing the original image-info/frame/level upload inputs (and subsequent
+uploads/restores), or a separately specified driver/source readback contract. This limitation is deterministic,
+not a nondeterministic exclusion from a purported full-record/texture shadow.
+
 ## 3. The interface (`0x00AB39E8`) *[compat]*
 
 | Slot | VA | Call | Behaviour |
@@ -589,6 +760,56 @@ Independent paper vectors, conditional on the named lighting output (not an inve
 - Cached quality 0 suppresses all lighting work even when current global quality is 6. Cached quality 2
   with current global quality 6 selects lighting slot 18, demonstrating the two distinct quality reads.
 
+### 3.8 Independent replay versus observation of existing records (OV12)
+
+There is **no complete snapshot-to-creation-input inverse** in this owner. Sections 2.4–2.7 make the extant
+records observable, but those records are results, not an event log. Public vtable slots (§3) provide no
+enumeration, source-image readback, original resource-key getter or model-shadow input getter. In particular,
+model shadows are direct overlays with no placement record; their geometry pointer, point count, pairs,
+world box and projection descriptor are not retained. Their primary/secondary matrices and clipped rectangle
+do not uniquely encode those inputs. Keyed shadows likewise retain no flipV byte or indication of which
+creation method was used. Slot 21 replaces M without changing placement, and slot 13 can subsequently
+re-place the same overlay. Thus placement plus current flags/aspect is insufficient to explain every current
+matrix. Evidence: model creation/service inputs `0x0073C14E–0x0073C208`, final stores
+`0x0073C7A2–0x0073C838`; key/flip creation §3.5; replacement `0x00738160–0x00738220`; complete fields §2.5.
+
+For a shadow which recomputes owner results independently, the sufficient **input boundary** is the original
+ordered calls and the services/resources they consume, starting before the first overlay allocation:
+
+| Creation family | Inputs to retain/reproduce independently of computed records |
+|---|---|
+| Source/binding/key decal (§3, §3.2) | Creation slot and arguments: source or binding identity, or key/ID and factory group; centre, width and turns; resource dimensions returned then; manager cell scale and city dimensions |
+| Round decal (§3.1) | Its binding/key and original placement, dimensions/aspect at creation; eight parts are owner outputs, not eight caller rectangles |
+| City-wide keyed decal (§3.6) | Key/ID and factory group, resource lookup result, nx/nz and static/dynamic mode; direct ID is the output |
+| Keyed shadow (§3.5) | Original resource key, centre, width, turns and flipV low byte; cached quality and dimensions at creation; later placement/matrix mutations in order |
+| Model shadow (§3.7) | All six original arguments, including pointed-to data valid at the call, cached and current global quality, lighting/terrain state consumed by slots 13/17/18, resource binding identity, cell scale and city dimensions |
+| Rectangle helper (§3.6, internal) | A genuinely caller-supplied binding/rectangle/matrix/flags is an input to this helper only; its use by model-shadow creation does not turn that creation's computed P/rectangle into independent inputs |
+
+Include failed calls and null-resource outcomes; they determine whether any indices were allocated. Retain
+Init/shutdown, removals and subsequent setter calls in actual order, including repeated/equal calls where
+native tolerance or redisplay rules matter. FIFO allocation must run from the same empty arena state to
+compare IDs; grouping and direct versus indirect IDs follow the original creation family. Track resource
+identity with observer-owned tokens and map it consistently, rather than passing native addresses into the
+independent owner. Native FP state and the stored binary32 inputs also matter for exact matrix/rectangle
+comparisons (§§3.1–3.7). A dump of live indices cannot reconstruct freed/failed operations or the allocation
+history that produced them.
+
+This describes the information required by a future observation adapter, **not a new native logging API**.
+If an adapter was attached only after city load, it may compare observed record/getter invariants and graph
+relationships, but cannot claim an exact independent full-owner replay by seeding native M/N/rectangles,
+cell lists or resource hashes as answers. Slot 21's original `(size,offset)` is a valid input when actually
+captured; copying its resulting matrix back is not a test of that slot's calculation. For model shadows,
+feeding native lighting outputs P/rectangle into a test can test the downstream overlay arithmetic only,
+with that boundary declared. It does not verify lighting projection/terrain rectangle production (OV1).
+
+Even a complete current rectangle set loses **cell-list history**: a newly inserted overlay is prepended;
+changed-rectangle placement removes and reinserts it, whereas same-rectangle placement preserves the list
+and only marks it. A snapshot can supply expected ordered lists to compare against independently replayed
+operations, but sorting/deduplicating them or reconstructing solely from bounds is a different contract.
+Similarly, comparing texture identities/dimensions does not verify image bytes (§2.7). A full shadow must
+report any missing event/resource/lighting input as incomplete coverage; the absence of those inputs is the
+answer to OV12's snapshot-reconstruction question, not permission to inject computed owner results.
+
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
@@ -859,6 +1080,11 @@ answered in the named sections above. The complete per-body disposition, includi
 is [overlay-manager-native-inventory.md](overlay-manager-native-inventory.md). This final RE round publishes
 bounded contracts and parks the exact residuals; it does not claim complete native rendering equivalence.
 
+OV12 is answered in §§2.4–2.7/3.8: native arenas, complete fields, ordered cell lists and texture metadata
+are observable, but current records do not retain a complete independent creation/mutation or image-upload
+history. In particular there is no model-shadow snapshot inverse. This does not close OV1's outside-owner
+lighting algorithms or OV7/OV8's renderer precision/consumer residuals.
+
 ## 9. Conformance tests
 
 1. **Handles:** a call with handle −1 does nothing.
@@ -874,6 +1100,31 @@ bounded contracts and parks the exact residuals; it does not claim complete nati
    to 1/4 without changing the placement getter; `0x100` and `0x101` discriminate the low-byte test.
 10. **Selection order/stamps:** §4.5's lists yield `[9,2,7]`; stamp wrap does not reset record stamps.
 11. **Camera order:** §4.7's translation vector yields row-3 U=1.5, not 16.5.
+
+### 9.1 Native observation and replay vectors (OV12)
+
+These are paper conformance vectors for an observer and owner replay; hexadecimal words/offsets are
+explicitly prefixed. They require no original-program pointer values in the independent owner.
+
+| Case | Input/state | Required observation/result |
+|---|---|---|
+| OV12-A: constructed versus reserved | Overlay header `b=0x1000,e=0x121C,c=0x1384`, head/tail −1; first words at `0x1000,0x10B4,0x1168` all `0xFFFFFFFF` | Three live overlay IDs `[0,1,2]`; capacity five, not five live records. Do not inspect slots 3/4. The three corresponding field spans end at `e`. |
+| OV12-B: singleton tail zero | Three constructed overlays; free head=tail=0; first words `[0,0xFFFFFFFF,0xFFFFFFFF]` | Free queue `[0]`, live IDs `[1,2]`. Stop at tail before following word zero; do not loop at index zero. |
+| OV12-C: next index zero | Allocate 0,1,2; remove 1, then 0 | Head=1, tail=0, links at indices 1/0 are 0/0; queue `[1,0]`, live `[2]`. Allocate twice: returned IDs 1 then 0, both restored to `0xFFFFFFFF`; next allocation appends 3. Apply independently with strides `0x30` and `0x24` to handles/groups. |
+| OV12-D: tail at last constructed slot | Three constructed entries; head=tail=2, first words `[0xFFFFFFFF,0xFFFFFFFF,0]` | Live `[0,1]`, free `[2]`; a nonzero payload/source in slot 2 does not make it live. With head/tail −1 and all first words −1, slot 2 is live. |
+| OV12-E: direct overlays and groups | Live handle 0 target=`0x80000000`; live group 0 parts=`[0,1,2,3,4,5,6,7]`; live overlay 8 has no handle | Public handle `0x80000000` resolves to eight parts in stated order; overlay enumeration emits nine IDs, including direct 8, once each. Group index 0 is in a different arena from handle index 0. |
+| OV12-F: padding and secondary | Two record dumps differ only at byte `+0x09`; then change N[0,0] at `+0x5C` only | First difference is not a semantic mismatch. Second is a secondary-matrix mismatch; primary M at `+0x1C` and public placement can still be bit-identical. |
+| OV12-G: ordered static lists | Static nx=2,nz=2, shift 0; add overlay 0 on `(0,0,2,1)`, then 1 on `(1,0,2,2)` | Row-major heads yield `(0,0):[0]`, `(1,0):[1,0]`, `(0,1):[]`, `(1,1):[1]`. Nodes are `{nextPointer,id}`, not `{id,nextPointer}`. Reading leaves all stamps unchanged. |
+| OV12-H: list history survives equal bounds | Start with overlays 0 and 1 both covering `(0,0,1,1)`, added in that order | List `[1,0]`. Re-place 0 with the same clipped bounds: still `[1,0]`. Move 0 out, then back: `[0,1]`, though final bounds/live IDs match the initial snapshot. A bounds-only reconstruction cannot choose correctly. |
+| OV12-I: empty and dynamic | Constructor has all-null arena/index headers; separately, an ordinary initialized dynamic manager has live overlays and no static index | Empty constructor sample has zero constructed records (no division/dereference of null); it does not license pre-Init getters. Dynamic sample reports static index not applicable, not zero live overlays. |
+| OV12-J: binding metadata and absent bytes | Known binding-info output group G, instance I≠0, levels 2, width 64,height 32; binding frame count 3 | Report keyed identity `(0x7AB50E44,G,I)`, binding size 64×32/2 levels/3 frames and local sharing token. Driver-handle array is three words, not pixel bytes. Pixel-data verification is unavailable without independent upload/resource evidence. An unknown binding leaves an initialized info buffer unchanged, not all zeros. |
+| OV12-K: model input loss | Two successful model calls have equal P, bounding rectangle and pair extrema but different interior projected pairs | Same resulting record is possible; no handle, point-count field or original geometry/pairs pointer appears in either overlay. Do not infer original geometry from identical M/N. Independent projection verification needs the original geometry/descriptor and lighting state. |
+| OV12-L: overwritten transform history | Add an ordinary indirect decal; call slot 21 with size 16,offset 8, without slot 13 afterward | Placement remains the original nine words while M is §3.4's replacement and bit 5 is set. Replaying only the current placement predicts a different M; capture the slot-21 input/event. |
+
+For every observation sample, a queue/list cycle, out-of-range link or changing arena extent must produce an
+explicit incomplete/failed sample, never an exact verdict based on a truncated prefix. Counts of compared
+records, ordered cell lists, metadata and available image data must be reported separately. These vectors
+specify expected behavior; they are not claims that an in-game live-record shadow has already run.
 
 ### PR review: slot 20 self-lighting
 
