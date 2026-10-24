@@ -17,11 +17,14 @@
 - Private observation now carries consumed length separately from full input;
   focused Rust tests 4/4 and owned-file fmt pass. q.py's Bash startup failed
   with CreateFileMapping error 5; direct cargo test completed successfully.
-- Next: run the required stable-source qbuild all, collect its queued native
-  verification, then enqueue a uniquely named constructed-input city run.
+- Implementation milestone: 985f7d3a4. Stable-source qbuild all: cargo 6807/6807,
+  clippy zero diagnostics; native request qbuild-20261024-014455-build-ctest
+  pending. Existing fc4verify logs/DLL are round-1 evidence until it completes.
+- Next: collect the SAME qbuild operation (exec session 30973) to terminal,
+  then enqueue a uniquely named constructed-input city run.
 - tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
   verification credit; unsupported owners/signatures remain SCR8/SCR9.
-- No outstanding game/build requests. HEAD is intentionally detached.
+- No outstanding game request. HEAD is intentionally detached.
 
 ## Round 1 evidence (retained)
 
