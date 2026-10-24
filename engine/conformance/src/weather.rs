@@ -84,6 +84,48 @@ fn we1_daily_and_accessor_bit_patterns() {
     assert_eq!(s.snapshot().wind_speed, before.wind_speed);
 }
 
+#[test]
+fn we1_moisture_ties_through_terrain_and_blur() {
+    let w = World::new();
+    w.size.set((144.0, 144.0));
+    // A concave ridge makes every cell used by the center's blur a slope
+    // cell (H > S, negative x curvature), with an identical local addend.
+    for x in 0..9 {
+        for z in 0..9 {
+            w.heights
+                .borrow_mut()
+                .insert((x, z), 10_000.0 - 100.0 * ((x - 4) * (x - 4)) as f32);
+        }
+    }
+    let s = WeatherSim::new(w.clone() as Rc<dyn WeatherHost>, 1, w.rng(None).unwrap());
+    s.init();
+    for (normal_x, direction, speed, expected) in [
+        (0x3F00_0000, [1.0, 0.0], 1.0, 50),
+        (0xBF00_0000, [1.0, 0.0], 1.0, 52),
+        (0x3EFF_FF80, [1.0, 0.0], 1.0, 51),
+        // §14.15: accessor rescaling of direction (1,1) gives addend 47.
+        (0x3F00_0000, [1.0, 1.0], 10.0, 47),
+    ] {
+        for x in 0..9 {
+            for z in 0..9 {
+                w.normals
+                    .borrow_mut()
+                    .insert((x, z), [f32::from_bits(normal_x), 0.75f32.sqrt(), 0.0]);
+            }
+        }
+        {
+            let mut d = s.data_mut();
+            d.ambient_moisture = f32::from_bits(0x3E4C_CCCD);
+            d.slope_k = 1.0;
+            d.wind_dir = direction;
+            d.wind_speed = speed;
+            d.moisture_base = vec![vec![0; 9]; 9];
+        }
+        s.simulate_moisture(4, 4, 5, 5);
+        assert_eq!(s.snapshot().moisture[4][4], expected);
+    }
+}
+
 /// A scripted generator: queued values, the last one repeating.
 struct Stub {
     world: Weak<World>,

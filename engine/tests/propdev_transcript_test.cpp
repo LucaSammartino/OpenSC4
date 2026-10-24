@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4PropDevTranscript.h"
+#include "FC4PropDevCreation.h"
 #include <cstdio>
 #include <cstring>
 
@@ -11,6 +12,14 @@ uint32_t __fastcall Select(void* self, void*, const void*, int32_t, int32_t) {
     ++requester->calls;
     return requester->result;
 }
+struct Creator { void** vtable; unsigned calls; void* result; };
+size_t nested=0;
+unsigned retains=0;
+void* __fastcall Create(void* self,void*,void*,uint32_t,uint32_t) {
+    auto* c=static_cast<Creator*>(self); ++c->calls; ++nested; return c->result;
+}
+uint64_t Retain(void*,void* result) { ++retains; return reinterpret_cast<uintptr_t>(result); }
+size_t Nested() { return nested; }
 }
 int main() {
     void* table[7]{};
@@ -74,6 +83,28 @@ int main() {
     if (outside.Select(reinterpret_cast<uintptr_t>(&requester),Purpose::Kept,ids,3,0,0) != 0 ||
         outside.Complete()) return 14;
     if (std::strcmp(outside.Failure(), "extra-call")) return 16;
+    void* lotTable[64]{}; lotTable[63]=reinterpret_cast<void*>(&Create);
+    void* netTable[9]{}; netTable[8]=reinterpret_cast<void*>(&Create);
+    Creator lotCreator{lotTable,0,nullptr}, netCreator{netTable,0,&requester};
+    fc4::PropCreationTrace creations;
+    if (!creations.Begin(&lotCreator,&netCreator,&Retain,nullptr,&Nested)) return 17;
+    const auto lotCall=reinterpret_cast<fc4::PropCreationTrace::Create>(lotTable[63]);
+    const auto netCall=reinterpret_cast<fc4::PropCreationTrace::Create>(netTable[8]);
+    if (lotCall(&lotCreator,nullptr,&lotCreator,4,17)!=nullptr ||
+        netCall(&netCreator,nullptr,&netCreator,8,23)!=&requester) return 18;
+    creations.Finish();
+    const auto& attempts=creations.Events();
+    if (!creations.Valid() || attempts.size()!=2 || retains!=1 || lotCreator.calls!=1 || netCreator.calls!=1 ||
+        attempts[0].lot!=reinterpret_cast<uintptr_t>(&lotCreator) || attempts[0].network ||
+        attempts[0].index!=4 || attempts[0].id!=17 || attempts[0].result || attempts[0].nestedBegin!=0 ||
+        attempts[0].nestedEnd!=1 || !attempts[1].network || attempts[1].index!=8 || attempts[1].id!=23 ||
+        attempts[1].result!=reinterpret_cast<uintptr_t>(&requester) || attempts[1].nestedBegin!=1 ||
+        attempts[1].nestedEnd!=2 || attempts[1].depth) return 19;
+    if (lotTable[63]!=reinterpret_cast<void*>(&Create) || netTable[8]!=reinterpret_cast<void*>(&Create)) return 20;
+    lotCall(&lotCreator,nullptr,&lotCreator,4,17); // loaded forwarding pointer remains valid after restoration
+    if (lotCreator.calls!=2 || creations.Events().size()!=2 || retains!=1) return 21;
+    if (!creations.Begin(&lotCreator,&netCreator,&Retain,nullptr,&Nested)) return 22;
+    creations.Finish();
     std::puts("propdev transcript: duplicate order, coordinates, zero return, once-only call and restoration PASS");
     return 0;
 }

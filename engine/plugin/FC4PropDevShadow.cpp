@@ -24,6 +24,7 @@
 #include "FC4WriteCapture.h"
 #include "FC4PropDevTranscript.h"
 #include "FC4PropDevSnapshot.h"
+#include "FC4PropDevCreation.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
 
@@ -110,6 +111,9 @@ bool g_uncertain = false;
 bool g_pendingUncertain = false;
 uint32_t g_messageRemovals = 0;
 PropSelectorReplay* g_selectorReplay = nullptr;
+PropCreationTrace* g_creationTrace = nullptr;
+size_t g_creationCursor = 0;
+bool g_creationValid = true;
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
 size_t g_nestedCursor = 0;
@@ -150,25 +154,38 @@ void HookRemove(void*, uint64_t prop) {
     }
 }
 
-// A captured insertion supplies its genuine occupant token. Native creation
-// arguments and failed attempts are not yet captured; never call this exact.
-uint64_t HookCreate(void*, uint64_t, bool, uint32_t, uint32_t id) {
+// Replay genuine creation attempts and outcomes, including failures. All
+// remaining writes/dated effects still need independent output comparison.
+uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t id) {
     ++g_created;
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
-    // Insertions observe success, not the native creation attempt's lot/index
-    // or failed attempts. This operation remains incomplete.
+    // Other writes/dated effects still prevent a full-operation exact claim.
     g_uncertain = true;
-    if (g_nestedCursor == g_nested.size()) return 0;
-    const auto& m = g_nested[g_nestedCursor];
-    if (m.msg_type != 0x99EF1142) return 0;
+    if (!g_creationTrace || g_creationCursor == g_creationTrace->Events().size()) {
+        static unsigned extra = 0;
+        if (extra++ < 8) Log("propdev creation invalid: extra call lot=%p network=%u index=%u id=%08x",
+            FromToken(lot), network ? 1u : 0u, index, id);
+        g_creationValid = false; return 0;
+    }
+    const auto& event = g_creationTrace->Events()[g_creationCursor++];
+    if (event.lot != lot || event.network != network || event.index != index || event.id != id ||
+        event.depth != 0 || event.nestedBegin != g_nestedCursor || event.nestedEnd > g_nested.size()) {
+        static unsigned differences = 0;
+        if (differences++ < 8) Log("propdev creation invalid: native/ours lot=%p/%p network=%u/%u index=%u/%u id=%08x/%08x depth=%u nested=%u..%u cursor=%u result=%p",
+            reinterpret_cast<void*>(event.lot), FromToken(lot), event.network ? 1u : 0u, network ? 1u : 0u,
+            event.index, index, event.id, id, event.depth, U(event.nestedBegin), U(event.nestedEnd),
+            U(g_nestedCursor), FromToken(event.result));
+        g_creationValid = false; return 0;
+    }
     auto* frozen = PropBlockSnapshot::active;
     PropBlockSnapshot::active = nullptr;
-    const bool match = PropBlockSnapshot::base.prop_type(nullptr, m.object) == id;
-    const uint64_t token = m.object;
-    if (match) ReplayNested(0x99EF1142, token);
+    while (g_nestedCursor < event.nestedEnd) {
+        const auto message = g_nested[g_nestedCursor];
+        ReplayNested(message.msg_type, message.object);
+    }
     PropBlockSnapshot::active = frozen;
-    return match ? token : 0;
+    return event.result;
 }
 
 // A host requester's SelectProp (crime, a custom selector of a mod) is never
@@ -573,8 +590,8 @@ void StepAfter(void* ctx) {
                       U(replay.Matched()), U(s.trace->Events().size()));
         // Bounded independent diagnostics: monthly mismatch lists can be full
         // before the first selector divergence is reached.
-        static uint32_t diagnosed = 0;
-        if (diagnosed++ < 24) {
+        static std::map<std::string,uint32_t> diagnosed;
+        if (diagnosed[replay.Failure()]++ < 8) {
             const auto* e = replay.Expected();
             const auto& a = replay.Actual();
             Log("propdev replay invalid: reason=%s type=%08x block=%d,%d consumed=%u matched=%u native=%u frozen=%u",
@@ -588,6 +605,12 @@ void StepAfter(void* ctx) {
         }
     }
     if (!s.inputs.valid) g_month.d.Add("frozen block input missing");
+    if (!g_creationTrace || !g_creationTrace->Valid() || !g_creationValid ||
+        g_creationCursor != g_creationTrace->Events().size()) {
+        g_uncertain = true;
+        g_month.d.Add("creation transcript invalid: consumed=%u native=%u", U(g_creationCursor),
+                      g_creationTrace ? U(g_creationTrace->Events().size()) : 0);
+    }
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
@@ -848,7 +871,7 @@ void PropDevShadowStartup(bool simulatorReplaced, bool propdevReplaced) {
             "prop developer's record at its first block step and follows the messages of section 3.3 and the "
             "animation tick; block inputs freeze before the native operation, genuine selectors replay after it. "
             "Compare complete selector arguments/order/count, scanner, all removal identities and saved-state "
-            "projections per eligible operation. Creation attempts/failures and dated effects remain incomplete; "
+            "projections per eligible operation. Creation calls/results are captured; dated effects and all writes remain incomplete; "
             "operation-output-matches does not mean full-operation exactness. No native state resynchronization",
             src);
     }
@@ -884,6 +907,12 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
             if (ref.token) requesters.push_back(FromToken(ref.token));
     }
     PropSelectorTrace trace;
+    PropCreationTrace creations;
+    cISC4City* city = propcity::AppCity();
+    const bool creationRecording = city && creations.Begin(city->GetLotDeveloper(), city->GetNetworkLotManager(),
+        [](void* context,void* result) -> uint64_t {
+            return PropToken(static_cast<Step*>(context)->pool, static_cast<cISC4Occupant*>(result));
+        }, &s, []() -> size_t { return g_nested.size(); });
     const auto* version = compat::IdentifiedVersion();
     const bool recording = version && trace.Begin(requesters, version->imageBase);
     g_nested.clear();
@@ -892,6 +921,10 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     *finished = target->DoMessage(msg);  // the original's step, exactly once
     g_nativeOperation = false;
     trace.Finish();
+    creations.Finish();
+    g_creationTrace = &creations;
+    g_creationCursor = 0;
+    g_creationValid = creationRecording;
     s.trace = &trace;
     s.nativeFinished = *finished;
     if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
@@ -904,6 +937,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     s.pool.Drain();
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
+    g_creationTrace = nullptr;
     static bool loggedIncomplete = false;
     if (s.incomplete != nullptr && !loggedIncomplete) {
         loggedIncomplete = true;
