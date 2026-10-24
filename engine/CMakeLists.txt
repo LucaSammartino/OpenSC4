@@ -589,6 +589,9 @@ if(FC4_IS_WIN32_X86)
         # Default-off public network-tool draw projection (private native tools).
         plugin/FC4NetToolDragShadow.cpp
         plugin/FC4NetToolDragShadow.h
+        # Default-off live regional-city record/getter differential.
+        plugin/FC4RegionalCityShadow.cpp
+        plugin/FC4RegionalCityShadow.h
         # Default-off live query pick predicates (partial owner observation).
         plugin/FC4QueryToolShadow.cpp
         plugin/FC4QueryToolShadow.h)
