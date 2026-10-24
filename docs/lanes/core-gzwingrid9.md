@@ -12,8 +12,11 @@
 - Closure table updated: all 198 specified portable owner functions implemented.
 - Final eight-file absolute-path qbuild fmt PASS (zero diff lines).
 - Full qbuild all Rust terminal results: test PASS 7039/0/0; clippy PASS zero diagnostics.
-- Native build/CTest request qbuild-20261024-101502-build-ctest waiting in same session 77348.
-- Next: collect all gate, correct real diagnostics if any; report and READY queue.
+- Initial all native terminal: build 216/216 PASS, CTest 79/80 FAIL capi_smoke (header97/Rust98).
+- Diagnostic: stale smoke object (09:25:32) Ninja dependency points to train-integration header, not this worktree.
+- Failed native logs preserved as build-runs/r2-abi97-failed-fc4verify-*.log; unique verdict retained.
+- Local header and Rust both ABI98; no source/ABI change. Cleaned generated native build inputs with Ninja.
+- Next: qbuild verify on corrected native inputs; collect terminal; report and READY queue.
 - Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
 - No round 2 game request. Core-only; ABI unchanged.
 
