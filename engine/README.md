@@ -2449,3 +2449,14 @@ their counted bytes. The shadow never changes locale or replacement dispatch.
   stack. No nondeterministic values are excluded. This is bounded registration
   verification: full chunk/global/table/call recording and VM replay remain
   open under lua-host LH6-LH7 and receive no full Lua coverage credit.
+`scres_shadow = 1` enables record-only forwarding of the original binary/text
+token adapter's numeric, descriptor and resource-key reads, starting before
+application initialization. It replays consumed bytes through the production
+core and compares output bytes, status, counter and byte consumption. It defaults
+to off and never replaces a resource service. Dated `scres shadow` lines report
+cumulative observations at city load and monthly; empty samples are failures.
+This is **partial adapter-read coverage**: string, parser, image and writer
+capture remains off pending SCR8 in `docs/specs/questions/sc-resources.md`.
+Capture uses SDK reads with the original post-call position restored; it does
+not claim to be a cursor-free observer. Do not credit the complete subsystem
+or add the key to a general shadow profile from this partial measurement.

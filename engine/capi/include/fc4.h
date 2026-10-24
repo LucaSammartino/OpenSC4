@@ -181,8 +181,9 @@ extern "C" {
  * 87 = merge-train batch train104 (verify-language-native4, verify-cmdline-native4, tools-refill-validation4): merged (no C ABI history entry of its own)
  * 88 = merge-train batch train108 (core-player-drive4, core-persist-runtime4, verify-dbpf-native4, core-legacy-control4): merged (no C ABI history entry of its own)
  * 89 = merge-train batch train155 (re-lotcfg-editor5, glue-netmgr-exact5, re-citytools-ct5, re-effects-ef5, re-view3dwin-vw5): merged (no C ABI history entry of its own)
- * 90 = merge-train batch train167 (glue-netrules-finish5, re-overlays-ov12, glue-rzstrings-shadow5, core-lot-models5): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 90u
+ * 90 = merge-train batch train167 (glue-netrules-finish5, re-overlays-ov12, glue-rzstrings-shadow5, core-lot-models5): merged (no C ABI history entry of its own)
+ * 91 = merge-train batch train169 (glue-automata-ext5): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 91u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12872,6 +12873,18 @@ extern "C" {
 bool fc4_netlot_set_random_state(fc4_netlot* l, const uint32_t* words);
 bool fc4_netlot_get_random_state(const fc4_netlot* l, uint32_t* words);
 uint32_t fc4_netlot_pending_buckets(const fc4_netlot* l);
+#ifdef __cplusplus
+}
+#endif
+
+/* Same-input construction record shadow (lot-records §9). The input transfers
+ * one reference per successful read; refs releases all of them on either result.
+ * Seeds live crane presence from the saved presence flag; does not run Init. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_automata_construction_roundtrip(const fc4_istream* input, const fc4_ostream* output,
+                                         const fc4_automata_ref_host* refs);
 #ifdef __cplusplus
 }
 #endif

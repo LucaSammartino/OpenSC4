@@ -97,6 +97,7 @@
 #include "FC4FeatureShadow.h"
 #include "FC4SimGridRecordShadow.h"
 #include "FC4LotRecordShadow.h"
+#include "FC4SCResShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -655,6 +656,7 @@ public:
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
@@ -774,6 +776,7 @@ public:
                 fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
                 DatesProbe(CurrentCity(), "month");
                 OverlaysShadowMonth(CurrentCity(), julian);
+                SCResShadowLine("month", julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

@@ -26,7 +26,8 @@ struct Sample {
     safelots::Block* block = nullptr;
     safelots::FreeFn freeNode = nullptr, freeBlock = nullptr;
     int removed = -1;
-    WriteCapture capture{true};
+    // LR12 uses the native encoder shared with automata, independent of Rust.
+    WriteCapture capture{false};
     cIGZUnknown* lot = nullptr;
     cIGZSerializable* serializable = nullptr;
     bool captured = false;

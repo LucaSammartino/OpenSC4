@@ -359,6 +359,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "simgrid_shadow", "lotrec_shadow",
                                   // Read-only overlay getter/record/cell/texture observation.
                                   "overlays_shadow",
+                                  // Inherited automata and construction record comparison (default off).
+                                  "automata_owners_shadow",
                                   "netocc_shadow",
                                   // NR16/NR17 record-only evaluator observation (default off).
                                   "netrules_shadow",
@@ -368,6 +370,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_shadow",
                                   // Bounded original Lua registry comparison; default off.
                                   "lua_shadow",
+                                  // Partial SC token adapter read observations (default off).
+                                  "scres_shadow",
+                                  // Fixed native adapter vectors and shipped resource prefix.
+                                  "scres_constructed",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
