@@ -11,10 +11,13 @@
 - Focused cargo test `nt3`: 7 passed (four new NT30/NT31 tests); Rust 1.75 compatible.
 - Done: record-only shadow grades into private terrain overlay, refreshes NT30 corners,
   then discards overlay for live post-native price reads. No game setters forwarded.
-- Gate running: qbuild all, session 40130; cargo 6892/0, clippy 0 diagnostics.
-  Native request qbuild-20261024-030420-build-ctest queued; collect SAME session.
-- Next: collect native gate; run unique 2032 city request; finish subclass resource/host
-  replay. No exactness claimed. First full gate has not reached terminal result yet.
+- Full qbuild all PASS (session 40130 collected terminal exit 0): cargo 6892/0,
+  clippy 0 diagnostics, native 233/233, CTest 72/72; native check 346.7 seconds.
+  Logs: build-runs/qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log.
+- DLL SHA256 d37c42349d4ad1f0fe28dd6365886aa285de10a78bdda5e6221a41ed267fe352.
+- Outstanding city request: nettoolexactsix20261024a (turbo to 2032, original tools).
+  Wait via build-runs/wait-nettoolexactsix20261024a.ps1; never resubmit same label.
+- Next: collect city verdict; finish subclass resource/host replay. No exactness claimed.
 - q.py Bash failed CreateFileMapping access (log build-runs/q/20261024-025713-33616.log);
   direct PowerShell cargo succeeded. fmt requires absolute file paths; fixes applied.
 - Full native gate and unique 2032 city run required; no request outstanding.
