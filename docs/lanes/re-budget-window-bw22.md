@@ -34,7 +34,7 @@ instructions. REA was not queried because the supplied session has no binary ope
 ## Handoff
 
 - Goal complete for this partial-closure round; no whole-owner completion claimed.
-- Done: lane start 1866478f3; BW21 contracts/vectors 2257f2663; ordinance evidence and question split in the final spec commit.
+- Done: lane start 1866478f3; BW21 contracts/vectors 2257f2663; ordinance evidence, question split and passing doccheck 4a7642545.
 - Next: coordinator may land the docs; schedule BW22–BW25 as bounded audits, keeping BW18–BW20 independent.
 - Off-screen shadow adapter must create actual native controls; no runtime recipe verdict exists yet.
 - Local evidence: build-runs/asm-*.txt and asm_slice.py; gate: build-runs/doccheck-bw22.log.
