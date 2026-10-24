@@ -2449,6 +2449,13 @@ their counted bytes. The shadow never changes locale or replacement dispatch.
   stack. No nondeterministic values are excluded. This is bounded registration
   verification: full chunk/global/table/call recording and VM replay remain
   open under lua-host LH6-LH7 and receive no full Lua coverage credit.
+  LH6/LH7 now establish that public access supplies no complete observer or
+  replay-input contract; full replay stays disabled. Current house summaries use
+  `lua shadow YYYY-MM-DD ...: scope=registration ... mismatches=N`, replacing the
+  earlier `lua-registry` summary prefix without broadening verification scope.
+  Capture failures include missing C functions and unbalanced stacks. Portable
+  preferred-address labels are limited to validated executable-image callbacks;
+  comparisons retain exact actual pointers and never execute foreign callbacks.
 `scres_shadow = 1` enables record-only forwarding of the original binary/text
 token adapter's numeric, descriptor and resource-key reads, starting before
 application initialization. It replays consumed bytes through the production

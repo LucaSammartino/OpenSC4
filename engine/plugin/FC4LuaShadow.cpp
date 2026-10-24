@@ -83,6 +83,17 @@ uint32_t FunctionAtTop(cISCLua* lua) {
     return lua->IsCFunction(-1) ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lua->ToCFunction(-1))) : 0;
 }
 
+uint32_t PreferredCallback(uint32_t actual) {
+    // lua-host §8.6: portable evidence labels only for this loaded image.
+    // VirtualQuery validates ownership without reading executable bytes. Foreign
+    // callbacks retain their actual identity; zero means no preferred label.
+    const auto image = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    MEMORY_BASIC_INFORMATION info{};
+    if (actual < image || !VirtualQuery(reinterpret_cast<const void*>(static_cast<uintptr_t>(actual)), &info, sizeof(info)) ||
+        info.Type != MEM_IMAGE || reinterpret_cast<uintptr_t>(info.AllocationBase) != image) return 0;
+    return static_cast<uint32_t>(actual - image + 0x00400000);
+}
+
 void Compare(const char* event, int32_t julian) {
     if (!g_enabled || !g_active) return;
     Comparison result{};
@@ -112,22 +123,27 @@ void Compare(const char* event, int32_t julian) {
                 RawNamed(lua, -1, e.name);
             }
             e.registered = FunctionAtTop(lua);
+            if (!e.registered) ++captureDiffs;  // §8.6 requires a C function, not merely a present value.
             lua->Pop(e.isGlobal ? 1 : 2);
-            Log("lua-registry record %s: target=%s name=%s callback=0x%08X registered=0x%08X",
-                event, e.isGlobal ? "globals" : "game", e.name, e.function, e.registered);
+            Log("lua-registry record %s: target=%s name=%s callback=0x%08X registered=0x%08X callback_preferred=0x%08X registered_preferred=0x%08X",
+                event, e.isGlobal ? "globals" : "game", e.name, e.function, e.registered,
+                PreferredCallback(e.function), PreferredCallback(e.registered));
         }
         RawNamed(lua, -10001, "_tf_");
         scratch = FunctionAtTop(lua);
+        if (!scratch) ++captureDiffs;
         lua->Pop(1);
         stackDiffs += lua->GetTop() != top;
         lua->SetTop(top);
+        stackDiffs += lua->GetTop() != top;
         if (!fc4_lua_registry_shadow_compare(entries.data(), entries.size(), scratch, &result)) ++captureDiffs;
     }
     if (app) FC4_RELEASE(app);
     const uint32_t mismatches = captureDiffs + stackDiffs + result.collectorDiffs + result.bindingDiffs + result.scratchDiffs + result.stackDiffs;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("lua-registry shadow %04d-%02d-%02d %s: entries=%u collector_diffs=%u binding_diffs=%u scratch=0x%08X scratch_diffs=%u stack_diffs=%u capture_diffs=%u; mismatches=%u",
+    // The lane task requests the house-summary label; scope remains §8.6 only.
+    Log("lua shadow %04d-%02d-%02d %s: scope=registration entries=%u collector_diffs=%u binding_diffs=%u scratch=0x%08X scratch_diffs=%u stack_diffs=%u capture_diffs=%u; mismatches=%u",
         date.year, date.month, date.day_of_month, event, result.entries, result.collectorDiffs, result.bindingDiffs,
         scratch, result.scratchDiffs, stackDiffs + result.stackDiffs, captureDiffs, mismatches);
     ++g_lines;
@@ -140,7 +156,7 @@ void LuaShadowCityLoaded(cISC4City* city, int32_t julian) {
     g_active = city != nullptr;
     g_lines = g_clean = 0;
     if (!g_enabled) return;
-    Log("lua-registry: ON; record-only collector and registration state; no nondeterminism exclusions; LH6-LH7 block full chunk/call replay; not full Lua verification");
+    Log("lua: ON; scope=bounded registration state (lua-host 8.6); raw reads only; no nondeterminism exclusions; LH6 public observer unavailable, LH7 no replay injection contract; full chunk/call replay disabled; no full Lua verification credit");
     if (city) {
         auto* sim = AsGame(city->GetSimulator());  // borrowed
         if (sim) julian = sim->GetSimDateNumber();
@@ -149,7 +165,7 @@ void LuaShadowCityLoaded(cISC4City* city, int32_t julian) {
 }
 void LuaShadowMonth(int32_t julian) { Compare("month", julian); }
 void LuaShadowCityShutdown() {
-    if (g_enabled && g_active) Log("lua-registry shadow: city shutdown: %u lines, %u with mismatches=0", g_lines, g_clean);
+    if (g_enabled && g_active) Log("lua shadow: city shutdown: scope=registration %u lines, %u with mismatches=0", g_lines, g_clean);
     g_active = false;
 }
 }
