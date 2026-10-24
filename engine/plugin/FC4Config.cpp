@@ -380,6 +380,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotconf_shadow", "simulator_shadow",
                                   // Controlled live native overlay actions; independent of observe.
                                   "overlays_fixture",
+                                  // Physical file-parser replay, default off.
+                                  "scres_file_shadow",
                                   // GZ11/GZ12 bounded read-only queue-manager lookup diagnostic.
                                   "gzmsg_shadow",
 };

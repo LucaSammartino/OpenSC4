@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-gzmsg-shadow8 (queue manager shadow) | Codex / `glue-gzmsg-shadow8` | WIP: gate PASS; both turbo runs clean, gzmsg 0/73 unavailable; no verification credit | Answer GZ12 acquisition and GZ11 full-state observation, then resume default-off shadow. |
+| glue-gzmsg-shadow8 (queue manager shadow) | Codex / `glue-gzmsg-shadow8` | in progress: round 2 main merge resolved; full gate pending | Run qbuild all, then enqueue READY default-off diagnostic; GZ11/GZ12 remain open. |
+
+## Handoff
+
+- Goal: land the existing default-off diagnostic after merging main; no new feature work.
+- Round 2: merged main; resolved private Rust module and known config-key list conflicts by retaining both sides.
+- Public exports from main are retained; no ABI version bump or generated ABI list edits.
+- Next: run qbuild all on final merged source, collect the same operation to completion, record results, commit report and enqueue READY at actual HEAD.
+- Existing game labels gzmsg-shadow8-r1-2032 and gzmsg-shadow8-r2-2032 are completed and clean with ref_warnings=0; gzmsg 0/73, covered by GZ11/GZ12. No requests outstanding or new game run required for this merge-only resolution.
+- Prior implementation and measurements follow below.
 
 ## Result
 

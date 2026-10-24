@@ -1050,6 +1050,100 @@ void UndergroundRebuild(void* u, uint64_t occ, uint32_t outcome, const float* ve
 
 namespace fc4 {
 
+bool ReadNetToolPowerlineSelection(NetToolContext* ctx, fc4_powerline_selection* out) {
+#if defined(_WIN32) && defined(_M_IX86)
+    if (!ctx || !ctx->city || !ctx->geom || !out) return false;
+    auto* terrain = reinterpret_cast<cFC4ISTETerrain*>(ctx->city->GetTerrain());
+    auto* zones = reinterpret_cast<cFC4ISC4ZoneManager*>(ctx->city->GetZoneManager());
+    auto* lots = reinterpret_cast<cFC4ISC4LotManager*>(ctx->city->GetLotManager());
+    auto* occupants = ctx->city->GetOccupantManager();
+    // NT33: active view service, not a terrain subobject. Own the QI only
+    // during this synchronous replay. Nothing survives to PreAppShutdown.
+    auto* service = *reinterpret_cast<cIGZUnknown**>(0x00B43DD0);
+    cIGZUnknown* renderer = nullptr;
+    if (!terrain || !zones || !lots || !occupants || !service ||
+        !service->QueryInterface(0xE9C622D8, reinterpret_cast<void**>(&renderer)) || !renderer) return false;
+    FC4_ACQUIRED(renderer, "QueryInterface");
+    struct RendererScope {
+        cIGZUnknown* p;
+        ~RendererScope() { FC4_RELEASE(p); }
+    } rendererScope{renderer};
+    struct Reads {
+        cFC4ISTETerrain* terrain;
+        cFC4ISC4ZoneManager* zones;
+        cFC4ISC4LotManager* lots;
+        cISC4OccupantManager* occupants;
+        cIGZUnknown* renderer;
+        uint32_t rayCalls = 0;
+        uint32_t lotCalls = 0;
+    } reads{terrain, zones, lots, occupants, renderer};
+    fc4_netgeom_state state{};
+    if (!fc4_netgeom_get_state(ctx->geom, &state) || state.straight_count != state.dragged_count) return false;
+    std::vector<fc4_netgeom_cell> cells(fc4_netgeom_get_cells(ctx->geom, nullptr, 0));
+    std::vector<fc4_netgeom_step> steps(fc4_netgeom_get_steps(ctx->geom, nullptr, 0));
+    fc4_netgeom_get_cells(ctx->geom, cells.data(), static_cast<uint32_t>(cells.size()));
+    fc4_netgeom_get_steps(ctx->geom, steps.data(), static_cast<uint32_t>(steps.size()));
+    fc4_powerline_selection_host h{};
+    h.struct_size = sizeof(h);
+    h.user = &reads;
+    h.cell = [](void* u, int32_t x, int32_t z, int32_t* zone, bool* blocked) {
+        auto& r = *static_cast<Reads*>(u);
+        cISC4Occupant* o = nullptr;
+        if (r.occupants->GetFirstOccupantByStandardCityCell(o, x, z, static_cast<cISC4OccupantFilter*>(nullptr)) && o) {
+            FC4_ACQUIRED(o, "GetFirstOccupantByStandardCityCell");
+            FC4_RELEASE(o);
+            return false;  // Bounded ABI has no reuse/occupant classification host.
+        }
+        *zone = r.zones->GetZoneType(x, z);
+        *blocked = r.lots->GetLot(x, z, false) != nullptr;  // borrowed; NT33
+        ++r.lotCalls;
+        return true;
+    };
+    h.width = [](void* u) {
+        // Terrain slot 6 returns ST0. Use an explicit float call boundary:
+        // the SDK's same-named uint32 method has an unused-method ABI waiver.
+        auto* t = static_cast<Reads*>(u)->terrain;
+        using ReadWidth = float (__thiscall*)(void*);
+        return reinterpret_cast<ReadWidth>((*reinterpret_cast<void***>(t))[6])(t);
+    };
+    h.height = [](void* u, float x, float z) { return static_cast<Reads*>(u)->terrain->GetWaterLevelAt(x, z); };
+    h.special = [](void* u, int32_t x, int32_t z) {
+        return static_cast<Reads*>(u)->terrain->CellHasWater(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
+    };
+    h.corners = [](void* u, int32_t x, int32_t z, float* outCorners) {
+        static_cast<Reads*>(u)->terrain->GetCellCornerAltitudes(static_cast<uint32_t>(x), static_cast<uint32_t>(z), outCorners);
+    };
+    h.ray = [](void* u, const float* origin, const float* direction, float* hit) {
+        auto& reads = *static_cast<Reads*>(u);
+        ++reads.rayCalls;
+        auto* r = reads.renderer;
+        using Pick = bool (__thiscall*)(void*, const float*, const float*, float*, uint32_t, uint32_t);
+        auto** table = *reinterpret_cast<void***>(r);
+        return reinterpret_cast<Pick>(table[61])(r, origin, direction, hit, 0, 0);
+    };
+    props::Exemplar tuning;
+    if (!tuning.Load(0x6534284A, 0xE7E2C2DB, 0xC911E35B)) return false;
+    std::vector<uint32_t> spacing, poleCost;
+    std::vector<float> clearance, wireCost;
+    props::GetU32s(tuning.Holder(), 0x098B25C8, spacing);
+    props::GetU32s(tuning.Holder(), 0x4A5F5953, poleCost);
+    props::GetF32s(tuning.Holder(), 0x098B27D0, clearance);
+    props::GetF32s(tuning.Holder(), 0x0A5F596B, wireCost);
+    if (spacing.empty() || poleCost.empty() || clearance.empty() || wireCost.empty()) return false;
+    std::vector<fc4_powerline_selected_pole> poles(cells.size());
+    const bool complete = fc4_powerline_select(&h, cells.data(), static_cast<uint32_t>(cells.size()),
+        steps.data(), static_cast<uint32_t>(steps.size()), state.straight_count,
+        spacing[0], clearance[0], poleCost[0], wireCost[0], poles.data(), static_cast<uint32_t>(poles.size()), out);
+    Log("nettool powerline observations complete=%d prefix=%u poles=%u wires=%u cost=%d rays=%u lots=%u scope=selection-only contract=NT32-NT33",
+        complete ? 1 : 0, state.straight_count, out->poles, out->wires, out->cost, reads.rayCalls, reads.lotCalls);
+    return complete;
+#else
+    (void)ctx;
+    (void)out;
+    return false;
+#endif
+}
+
 void LogNetToolReplayResources() {
     static bool tried = false;
     if (tried) return;

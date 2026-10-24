@@ -50,13 +50,14 @@ pub struct VertexRecord {
     pub solved: Option<f32>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct VertexHtConstraintSatisfier {
     initialized: bool,
     lo: f32,
     hi: f32,
-    /// The records in insertion order ([choice] NG1: the tie-break order).
+    /// Stable record indices; pick iteration is the SGI bucket order below.
     recs: Vec<VertexRecord>,
+    buckets: Vec<Vec<usize>>,
     index: HashMap<i32, usize>,
     cons: Vec<Constraint>,
     /// Per record index, the constraints naming it.
@@ -64,6 +65,23 @@ pub struct VertexHtConstraintSatisfier {
     /// Slope constraints by unordered pair (a second one keeps the smaller s).
     slopes: HashMap<(i32, i32), usize>,
     solution: Vec<(i32, f32)>,
+}
+
+impl Default for VertexHtConstraintSatisfier {
+    fn default() -> Self {
+        Self {
+            initialized: false,
+            lo: 0.0,
+            hi: 0.0,
+            recs: Vec::new(),
+            buckets: vec![Vec::new(); 193],
+            index: HashMap::new(),
+            cons: Vec::new(),
+            adj: Vec::new(),
+            slopes: HashMap::new(),
+            solution: Vec::new(),
+        }
+    }
 }
 
 /// `max(a, b)`, `min(a, b)` on floats with the first operand kept on ties
@@ -121,7 +139,15 @@ impl VertexHtConstraintSatisfier {
 
     /// `Shutdown`: forgets everything.
     pub fn shutdown(&mut self) {
-        *self = VertexHtConstraintSatisfier::default();
+        // NG1: clear nodes, retaining the grown bucket count for the tool.
+        let mut buckets = std::mem::take(&mut self.buckets);
+        for bucket in &mut buckets {
+            bucket.clear();
+        }
+        *self = Self {
+            buckets,
+            ..Self::default()
+        };
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -174,10 +200,29 @@ impl VertexHtConstraintSatisfier {
     /// `AddVertexToSolve(v, h)`: range [lo, hi], initial height `h`. Adding
     /// a vertex twice keeps the first record. Returns whether it was new.
     pub fn add_vertex(&mut self, v: i32, initial: f32) -> bool {
+        // SGI insert resizes before checking for a duplicate (NG1).
+        if self.recs.len() + 1 > self.buckets.len() {
+            let count = [
+                389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433, 1572869, 3145739,
+            ]
+            .into_iter()
+            .find(|&n| n > self.recs.len())
+            .expect("network vertex inventory exceeds specified SGI bucket table");
+            let mut buckets = vec![Vec::new(); count];
+            for bucket in &self.buckets {
+                for &i in bucket {
+                    let b = self.recs[i].id as u32 as usize % count;
+                    buckets[b].insert(0, i);
+                }
+            }
+            self.buckets = buckets;
+        }
         if self.index.contains_key(&v) {
             return false;
         }
         self.index.insert(v, self.recs.len());
+        let bucket = v as u32 as usize % self.buckets.len();
+        self.buckets[bucket].insert(0, self.recs.len());
         self.recs.push(VertexRecord {
             id: v,
             min: self.lo,
@@ -262,9 +307,8 @@ impl VertexHtConstraintSatisfier {
     }
 
     /// Narrows record `i` to [a, b]. A solved vertex keeps its height and
-    /// only checks it. Returns false when the range becomes empty; pushes a
-    /// vertex that propagation pinned (width 0) onto `pinned`.
-    fn narrow(&mut self, i: usize, a: f32, b: f32, pinned: &mut VecDeque<usize>) -> bool {
+    /// only checks it. Returns false when the range becomes empty.
+    fn narrow(&mut self, i: usize, a: f32, b: f32, _pinned: &mut VecDeque<usize>) -> bool {
         let r = &mut self.recs[i];
         let (lo, hi) = intersect(r.min, r.max, a, b);
         if lo > hi || lo.is_nan() || hi.is_nan() {
@@ -273,12 +317,8 @@ impl VertexHtConstraintSatisfier {
         if r.solved.is_some() {
             return true;
         }
-        let was_pinned = r.min == r.max;
         r.min = lo;
         r.max = hi;
-        if lo == hi && !was_pinned {
-            pinned.push_back(i);
-        }
         true
     }
 
@@ -335,9 +375,7 @@ impl VertexHtConstraintSatisfier {
         }
     }
 
-    /// `Solve` (§9.1) *[compat]*. The pick's tie-break is the insertion
-    /// order of the vertices [choice NG1: the original iterates its hash
-    /// map].
+    /// `Solve` (§9.1): equal widths use SGI bucket/chain order (NG1).
     pub fn solve(&mut self) -> bool {
         self.solution.clear();
         for r in &mut self.recs {
@@ -371,18 +409,16 @@ impl VertexHtConstraintSatisfier {
                 return false;
             }
         }
-        // 2. Pick, choose, pin, propagate.
+        // Erasing solved nodes cannot change the relative order of survivors.
+        let order: Vec<_> = self.buckets.iter().flatten().copied().collect();
+        // 2. Pick, choose, pin, propagate. The native pending stack is empty;
+        // propagation fixing a range must not give that vertex priority.
         loop {
             let mut pick = None;
-            while let Some(i) = pinned.pop_front() {
-                if self.recs[i].solved.is_none() {
-                    pick = Some(i);
-                    break;
-                }
-            }
             if pick.is_none() {
                 let mut best_w = 0.0f32;
-                for (i, r) in self.recs.iter().enumerate() {
+                for &i in &order {
+                    let r = &self.recs[i];
                     if r.solved.is_some() {
                         continue;
                     }
@@ -390,7 +426,7 @@ impl VertexHtConstraintSatisfier {
                     if w < 0.0 {
                         return false;
                     }
-                    if pick.is_none() || w < best_w {
+                    if !w.is_nan() && (pick.is_none() || w < best_w) {
                         pick = Some(i);
                         best_w = w;
                     }

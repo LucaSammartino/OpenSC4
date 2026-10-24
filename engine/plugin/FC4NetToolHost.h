@@ -62,6 +62,10 @@ struct NetToolContext {
     uint32_t connections = 0;      // §3.3 one-cell joins
 };
 
+// NT32/NT33: bounded read-only selection on fresh straight powerline cells.
+// False means unavailable; no placement/model host or native totals are used.
+bool ReadNetToolPowerlineSelection(NetToolContext* ctx, fc4_powerline_selection* out);
+
 // Layout pin: cFC4NetworkTool embeds this struct and FC4NetToolHost.cpp reads
 // it, so every translation unit that includes this header checks the same
 // size and offsets (a change here must rebuild both, see glue-netrules-impl4).

@@ -349,7 +349,10 @@ without changing modified. This flag is +0x30 relative to the callback
 subobject, not the main-interface pointer.
 
 `DoParseFile` (`0x00680EA0`) sends ordinary lines to the command parser's slot
-5 (byte offset +0x14). It recognizes `include` and `sinclude`, each requiring
+5 (byte offset +0x14), after the physical block-comment preprocessing in
+section 12. Suppressed block lines reach neither include routing nor that
+slot; ordinary empty and line-comment-only lines do reach it. It recognizes
+`include` and `sinclude`, each requiring
 exactly one argument (initializers `0x00A74900`, `0x00A74940`). Both recursively
 parse the named file. `sinclude` suppresses an included-file open error
 (parse-error code 2); `include` propagates it. Other parse errors are not
@@ -1196,7 +1199,8 @@ physical line number while unwinding. Evidence: `0x00680F73`–`0x00680F7B`,
 
 Capture ReadLine output before comment removal, splitting, substitution or
 include dispatch. A successful empty line is an observation even if it
-produces no command. Capture every returned bool, including the terminal
+produces no command. Section 12 specifies the physical block filter that
+accounts for reads without a command/include boundary. Capture every returned bool, including the terminal
 false. For byte offsets use the file's logical position (file slot 6), not
 the operating-system handle position: the base file buffers reads. ReadLine
 reads ahead and seeks back around terminators. Passive observation must
@@ -1276,3 +1280,119 @@ CR/LF. A false read clears a pre-existing output sentinel.
 | SCR-V90 | Bytes `FF FE 41 00 0A 00 42 00`, successful open and first read | Position starts 2; first read scans one payload word but appends two words, yielding S bytes `41 0A`; logical position 6. This exhibits the count quirk without relying on uninitialized bytes |
 | SCR-V91 | Bytes `EF BB BF 41 0A` | Single-byte mode; first true S contains `EF BB BF 41`; UTF-8 BOM is retained |
 | SCR-V92 | Same file address reused after a completed DoParseFile; constructor supplies a different path | New file identity/path and physical count starting at zero; never attach the new reads to the old path |
+
+## 12. Physical block-comment preprocessing (SCR11)
+
+### 12.1 Literal markers and discarded lines
+
+*[compat]* File parsing has a block filter **before** section 2.1's `#`
+line-comment/token rules and before include routing. Its opener is the exact
+two-byte substring `#<`; its closer is `#>`, not `>#`. Neither marker needs
+to start a line or token. Leading/trailing whitespace has no special meaning;
+whitespace between the two marker bytes prevents a match. Matching is literal
+and byte-exact, with no case folding, escaping, quote awareness, or group
+awareness. Markers inside quoted strings, bracketed arguments, or text after
+an ordinary `#` still participate. Direct command parsing alone does not
+perform this file-layer filtering.
+
+The file has a single active/inactive block flag, initially inactive. The
+following table defines the transformations of one true ReadLine output,
+in order. Searches select the first occurrence, starting at byte position 0.
+The retained bytes are not trimmed or joined to any other physical line.
+
+| Condition | Meaning for this physical line |
+|---|---|
+| An opener occurs anywhere, whether the flag was inactive or active | The flag becomes active. Discard the opener and **everything after it**, leaving only the prefix before it for the closer search. This alone never dispatches that prefix. |
+| The flag is active and the remaining line has no closer | Discard the entire remaining line. No include routing, tokenization, or ordinary ParseCommand call occurs. The flag stays active. |
+| The flag is active and the remaining line has a closer | The flag becomes inactive. Discard everything from the beginning through that first closer, including both closer bytes. Send only the suffix through the normal include/ordinary-command routing. |
+| The flag is inactive and no opener occurred | Send the entire physical line through normal include/ordinary-command routing. A stray closer has no block meaning. |
+
+There is no repeated marker scan after the closer is removed and no nested
+block depth. Another opener while active still discards its own line tail;
+it does not require another closer later. The opener search takes precedence
+over the closer search even when both markers occur on the same line.
+Consequently `#< text #>` does **not** close a block: the closer was discarded
+with the opener's tail, so this line and subsequent lines without a surviving
+closer are suppressed. Conversely, `#>set x y #< tail` closes even an initially
+inactive file's block on that same line: the opener activates the flag and
+leaves `#>set x y `, whose closer then leaves `set x y ` to route normally.
+These are compatibility quirks, not a paired inline-comment grammar.
+
+A closer-only line while active produces an empty suffix and **does** reach
+ordinary ParseCommand with an empty string. A blank line while active without
+a closer is suppressed. Outside a block, blank lines and ordinary comment
+lines also reach ParseCommand, even when SplitIntoArguments finds no tokens.
+Thus an empty token list alone cannot identify a suppressed physical read.
+After filtering, the surviving suffix/payload uses the usual `#` line-comment
+rule, include recognition, argument validation and command parser behavior.
+
+Evidence: `DoParseFile` initializes a stack-local byte flag to zero at
+`0x00680F59`; opener search and tail erasure are at
+`0x00680F7E`–`0x00680FA5`; active-state closer search, skipping, flag clearing
+and prefix erasure are at `0x00680FA7`–`0x00680FE0`. The marker pointers
+`0x00B0D10C`/`0x00B0D110` refer to `#<` at `0x00AAF3A0` and `#>` at
+`0x00AAF39C`, respectively. The search helper `0x00442850` uses the
+length-aware, literal string search `0x004427F0`/`0x004426C0`; erase
+`0x004425C0` clamps the requested length to the available tail. Instructions
+confirm tail removal at the opener and prefix removal through the closer;
+these directions must not be reversed. Tokenization starts at `0x00680FE5`,
+and the empty/non-include path calls ordinary ParseCommand at `0x006811BA`–
+`0x006811CD`.
+
+### 12.2 Includes, counts and termination
+
+The flag belongs to one DoParseFile invocation, not to the parser object.
+Every recursive included file begins inactive and ends its own state on
+return. Each registered file also starts inactive. A block's contents do not
+open included files or evaluate commands, quotes or groups; malformed syntax
+there is ignored. An include in a surviving closing-line suffix is routed
+normally and can recurse. A child's unclosed block cannot suppress the next
+parent line. There is no additional block state to restore on the parser
+object after an include.
+
+Every true ReadLine still increments the current file's physical count once,
+including the opener, suppressed content and closer lines. Successful child
+totals are still added to the parent's return count under section 11.2.
+Neither a suppressed line nor a discarded include contributes any child
+count. False ReadLine adds zero and ends the file normally even if the flag
+is active: there is no unterminated-block error, synthetic closing line, or
+dispatch of saved prefix/content. This also applies to the EOF-or-failure
+termination described in section 4.2. Evidence: physical increment
+`0x00680F7B` precedes marker filtering; flag initialization `0x00680F59` is
+inside each invocation; EOF goes directly from `0x00680F75` to cleanup at
+`0x006811D5`, then closes and sums the counts at `0x006811EC`–`0x006811FD`.
+
+The engine lane's supplied Graphics Rules observation (45 physical reads
+without a command/include boundary, among 1107 true reads including the
+child) is consistent with this distinction. It is prior runtime evidence,
+not a new replay measurement of these rules. Full raw-file replay still
+needs implementation and a fresh differential before equality is claimed.
+
+### 12.3 Conformance vectors
+
+These are normative instruction-derived vectors, not new game results.
+Each listed string is one successful physical ReadLine output, in order;
+EOF follows the final string and adds zero. Each file starts inactive.
+`empty` means a zero-byte line, and outputs shown below preserve spaces.
+Use a command sink accepting ordinary lines so the vectors measure file
+routing independently of command execution. Unless a child is named,
+the successful file return equals the number of listed physical lines.
+
+| ID | Physical lines | Required routing and state |
+|---|---|---|
+| SCR-V93 | `#<`; `plain explanation`; `#> set x y` | First two lines suppressed; line 3 ordinary payload ` set x y`; return 3 |
+| SCR-V94 | `set x y #< #> set z w`; `set a b`; `#>set c d` | First two lines suppressed, including line 1's command prefix; only line 3 ordinary payload `set c d`; return 3 |
+| SCR-V95 | `#>set x y #< tail`; `set a b` | Both ordinary, payloads `set x y ` and `set a b`; line 1 closes despite starting inactive; return 2 |
+| SCR-V96 | `#<`; `#<`; `#>set x y`; `set a b` | First two suppressed; lines 3 and 4 ordinary; one closer suffices, no nesting depth; return 4 |
+| SCR-V97 | `#<`; `#< #>`; `set x y`; `#>`; `set a b` | Lines 1–3 suppressed: line 2's closer was erased. Line 4 ordinary empty, line 5 ordinary `set a b`; return 5 |
+| SCR-V98 | `#<`; `include missing.sgr`; `"(`; empty; EOF | All four lines suppressed, no include/open attempt or quote/group error; no unterminated-block error; return 4 |
+| SCR-V99 | `  # <`; `set x y #>`; empty | All three ordinary payloads unchanged; spaced opener does not match and stray closer does not activate a block. Subsequent tokenization still applies section 2's `#` truncation; return 3 |
+| SCR-V100 | `set x "#<"`; `#>set a b` | Line 1 suppressed despite quotes; line 2 ordinary `set a b`; return 2 |
+| SCR-V101 | `# note #<`; `include missing.sgr`; `#>set a b` | First two suppressed: marker search precedes ordinary line-comment handling. No open attempt; line 3 ordinary `set a b`; return 3 |
+| SCR-V102 | Parent: `#<`; `#>include child.sgr`; `set a b`. Child: `set c d`; `#<`; `ignored` | Parent line 1 suppressed; line 2 opens child, whose first line is ordinary and last two suppressed. Child returns 3 without error. Parent line 3 remains ordinary; parent physical count 3, inclusive return 6 |
+| SCR-V103 | `#<`; ` #>sinclude missing.sgr`; `set a b` | Line 1 suppressed; line 2 routes the surviving suffix `sinclude missing.sgr`, optional open failure suppressed under section 4.2; line 3 ordinary. No child lines; return 3 |
+| SCR-V104 | `#<`; `#>`; empty; `# comment` | Only line 1 suppressed; lines 2–4 all ordinary (empty, empty, `# comment`); return 4 |
+| SCR-V105 | `#<`; `prefix #>set x y #>set z w` | Line 1 suppressed; line 2 ordinary payload `set x y #>set z w`; first closer wins, no repeat removal. Later `#` truncates tokenization; return 2 |
+| SCR-V106 | `#<`; `#>set x y #< tail`; `set a b` | Line 1 suppressed; line 2 ordinary `set x y ` because its closer survives before the opener; line 3 ordinary, return 3 |
+| SCR-V107 | `set x (#<)`; `# >`; `#>set a b` | Lines 1 and 2 suppressed: groups do not protect the opener and spaced closer does not match; line 3 ordinary `set a b`; return 3 |
+| SCR-V108 | Registered file A: `#<`; `ignored`. Registered file B: `set x y` | A returns 2 with no ordinary calls or block error; B begins inactive, dispatches its sole line and returns 1 |

@@ -14,6 +14,9 @@ use super::smoothing::{terrain_vertex_constraint, TerrainVertex};
 use super::*;
 use crate::terrain::{msg, Terrain, TerrainTuning};
 
+#[path = "tests_nt34.rs"]
+mod nt34;
+
 fn close(a: f32, b: f32, tol: f32) -> bool {
     (a - b).abs() <= tol
 }
