@@ -5,6 +5,8 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Interfaces.h"
+#include "FC4Watchdog.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
 #include "GZServPtrs.h"
@@ -13,6 +15,7 @@
 #include "cIGZFrameWork.h"
 #include "cIGZApp.h"
 #include "cISC4App.h"
+#include "cISC4City.h"
 #include "cISC4FeatureManager.h"
 #include "cGZPersistResourceKey.h"
 #include "cIGZPersistResourceManager.h"
@@ -33,6 +36,26 @@ uint32_t g_exact = 0, g_diff = 0, g_refusal = 0, g_lifetime = 0, g_lifeDiff = 0,
 bool g_attempted = false;
 std::set<uint32_t> g_ids;
 
+void Report(const char* group) {
+    int32_t julian = static_cast<int32_t>(PublishedJulian());
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4) {
+        FC4_ACQUIRED(sc4, "feature report app QI");
+        cISC4City* city = sc4->GetCity();  // borrowed, reporting only
+        auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+        if (sim) julian = sim->GetSimDateNumber();
+        FC4_RELEASE(sc4);
+    }
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    // Cumulative counters include lifetime probes and any capture refusals.
+    Log("feature shadow %04d-%02d-%02d %s: samples=%u exact=%u diff=%u refusal=%u lifetime_exact=%u lifetime_diff=%u; mismatches=%u",
+        date.year, date.month, date.day_of_month, group, g_samples, g_exact, g_diff, g_refusal,
+        g_lifetime - g_lifeDiff, g_lifeDiff, g_diff + g_refusal + g_lifeDiff);
+}
+
 void Compare(uint32_t kind, uint32_t arg, uint32_t native) {
     const uint32_t rust = fc4_feature_snapshot_query(g_snapshot, kind, arg);
     if (rust == native) ++g_exact;
@@ -50,6 +73,7 @@ void Queries() {
     for (uint32_t base : {0u, 32u, 0x7fffffe0u, 0x80000000u, 0xffffffe0u})
         for (uint32_t i = 0; i < 32; ++i) Compare(1, base + i, g_owned->IsExpansionPackInstalled(base + i));
     Compare(2, 0, g_owned->GetCurrentExpansionPack());
+    Report("sample");
 }
 
 // Public SDK raw record + serial/file adapter, matching the stages published
@@ -195,5 +219,6 @@ void FeatureShadowShutdown() {
     fc4_feature_snapshot_destroy(g_snapshot); g_snapshot = nullptr;
     Log("feature-shadow: totals samples=%u exact=%u diff=%u refusal=%u resync=0 lifetime_exact=%u lifetime_diff=%u app_hold_remaining=%u",
         g_samples, g_exact, g_diff, g_refusal, g_lifetime - g_lifeDiff, g_lifeDiff, remaining);
+    Report("totals");
 }
 }
