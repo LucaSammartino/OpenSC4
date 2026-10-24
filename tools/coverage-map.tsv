@@ -514,7 +514,7 @@ cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
 cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
-cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
+cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
 cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-

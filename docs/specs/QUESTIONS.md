@@ -114,6 +114,7 @@ generated index: the questions live one file per spec, so read only the file for
 | MMW | minimap |
 | MPR | missing-plugin-reporter |
 | MS | mysims |
+| MST | mysim-tools |
 | MW | mysim-windows |
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
@@ -306,6 +307,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 1 | 1 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
+| mysim-tools | 3 | 0 | MST4 | questions/mysim-tools.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 22 | MS23 | questions/mysims.md |
 | nation | 0 | 4 | NQ5 | questions/nation.md |
