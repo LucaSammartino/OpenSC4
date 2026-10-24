@@ -280,7 +280,7 @@ being installed in cells; stored entry names remain available separately.
 The exact comparator, complete column sizing and pending-selection restore
 were originally deferred together. The comparator and string fitting are now
 specified below, as are file-column sizing and pending-selection restoration.
-Directory-list and drive-popup population remain the residual FBQ5 scope.
+Directory-list and drive-popup population are specified in 8.1.4–8.1.5.
 
 #### 8.1.3 File column sizing and selection restoration (FBQ5)
 
@@ -405,6 +405,105 @@ For example, when a partial original fit is reported and the marker measures
 1 pixel, right-trims it, then appends the marker. A fontless call never clears
 the input merely because width is zero or negative.
 
+#### 8.1.4 Directory display and drive records (`009A4B2E`)
+
+The directory/drive list at primary +0x158 contains records with a string,
+type at +0x14, borrowed icon at +0x18 and indentation depth at +0x1C.
+UpdateDirectoryList first removes and destroys all records whose depth is
+nonzero; depth-zero drive records retain their order. Reset current-row
++0x19C to zero and column span +0x234 to 2. Compare lowercased copies of
+the first byte of each surviving record's name and the current directory's
+first byte; the first equality identifies the drive. This is a one-byte
+comparison, not full root/path matching (`009A4B2E–4C68`).
+
+For that drive, SplitDirectory receives capacity 48 and 260-byte component
+slots. Given returned component count N, insert records for components
+N-2, N-3, …, 0 immediately after the matched drive, in that order. Each
+display name loses exactly one trailing path separator, if present. New
+records have type 5, the configured directory icon +0x2D0, and depths
+1,2,…,N-1. Increment current-row and column span for each insertion; the
+row already includes the number of drives preceding the match. No sorting
+of these inserted records occurs (`009A4C68–4D76`). These rules require
+successful allocation and a valid SplitDirectory output within capacity;
+there is no local allocation-failure recovery.
+
+The collapsed directory grid displays only the last inserted record, or the
+matched drive if no component record was inserted. Clear its cells. Install
+the record's icon in cell (0,0) if nonnull and apply icon style +0x280 there.
+Only with an icon set column 0 to icon width+2. Copy the name, fit it to
+grid window width-3-icon-column-width (+0x1E4), using directory style font
++0x2A4 or the common font +0x2C8, then put that fitted name in cell (1,0)
+with directory style +0x2A4. Stored names are not shortened. A null icon
+does not remove the icon-width subtraction. If no drive matches, return
+true without clearing or replacing the collapsed display, although the old
+nonzero-depth records were removed and current-row/span were reset/advanced.
+The function returns true on every normal completion (`009A4D76–4EB9`).
+
+#### 8.1.5 Drive popup (`009A473F`)
+
+Each open obtains a new grid by the factory/built-in policy of 8.2, retained
+at +0xEC with ID `0xBAA55D51`. There is no existing-popup reuse guard in
+this body. Let R be the current record count and M the unsigned maximum
+visible rows +0x230. Visible capacity is min(R,M); reserve scrollbar width
+for text fitting exactly when R>M. Configure **column span+8** columns,
+one initial row and option false. The +8 is instruction-proved at
+`009A47E9–47FB`; the cached pseudocode's +2 is incorrect.
+
+The grid uses the common font when nonnull, selection color words
+`0x40000000,0x40000000`, white background, four unit borders, outline
+(+0x308,0), cleared flags 0x800 and 2 and added flags 0x20000 and 0x80000.
+Its height is row-height*visible-capacity+2, width equals the collapsed
+directory grid's width, and its top is the collapsed grid's bottom minus
+one. Arithmetic is 32-bit, without screen-edge fitting or a minimum-height
+repair. Configure the first column-span columns to width
+unsigned(low32(icon-width*9))>>4; configure the following column to 300
+(`009A4895–4963`).
+
+Rows follow record-list order. Apply directory style +0x2A4 to each whole
+row. A nonnull icon goes in the record's depth column with icon style
++0x280. Fit a copy of the name using directory/common font into
+popup-width-2-(depth+1)*icon-width, additionally subtracting scrollbar width
++0x314 only for R>M; place text in column depth+2 with the fitted explicit
+byte count and options (true,false). There is no lower width clamp
+(`009A497A–4A81`, arithmetic at `009A49E1–4A05`).
+
+Set all R row heights to +0x224, add the grid window to the browser, set
+first visible row zero, select cell (0,current-row) through grid +0xAC,
+and update it. If that cell is not visible, first visible row becomes
+current-row-visible-capacity+1, without an owner clamp. Request focus through
+the manager at primary +8, then grid operation +0x22C, and return true.
+The zero-row case still makes these calls (`009A4A81–4B2D`). Grid and
+manager response semantics remain their own boundary, rather than an
+invented owner-side focus/visibility fallback.
+
+#### 8.1.6 File-row configuration (remainder of `009A4EBA`)
+
+Within directory enumeration, the parent-navigation button, when present,
+gets enable flag 2 set according to SplitDirectory reporting at least two
+components. The flag-4-disabled path does not refresh that enable state.
+File population clears both existing grid cells and column definitions
+before clearing the owned entry vector (`009A4EBA` onward).
+
+Every sorted row receives auxiliary style +0x280 at the configured auxiliary
+column +0x21C, even if that column is disabled. With the icon column enabled,
+parent/directory rows use +0x2CC/+0x2D0 respectively; other rows use their
+own icon when nonnull, otherwise +0x2D4. Missing icons omit the image, but
+icon-cell style +0x280 is still installed. Parent and directory extension
+cells receive extension style when enabled, with no extension text.
+
+Other rows' enabled extension cells contain the lowercased extension, with
+one leading dot removed only when another character follows. Fit it into
+extension-width-2 using extension style font +0x25C or common font, then
+install text with count 0xFFFFFFFF and options (true,false), followed by its
+style. All rows also install a fitted name at +0x1EC using filename-width-2,
+filename style font +0x238 or common font, count 0xFFFFFFFF and the same
+options, then filename style. This name installation is unconditional even
+when the filename column's enabled byte is false. These are display copies;
+entry names used for sorting/restoration remain unchanged. Set the entire
+row range's height to +0x224 before the selection/visibility operations in
+8.1.3 (`009A530D–56DE`). No owner checks convert failed grid/style/font
+operations into an empty-list or alternate success result.
+
 ### 8.2 AddControls (`009A1F77`, 3,149 bytes)
 
 Each enabled control is obtained from the component factory first; if that
@@ -421,20 +520,93 @@ interface offsets use the primary browser origin.
 | `+0x11C` | `+0xE8` | `0xBAA55D50` | directory/drive grid |
 | `+0x11E` | `+0xF0` | `0xBAA55D52` | dropdown arrow button |
 | `+0x121` | `+0xFC` | `0xBAA55D55` | file grid |
-| `+0x11F` | `+0xF4` | `0xBAA55D53` | button |
-| `+0x120` | `+0xF8` | `0xBAA55D54` | button |
+| `+0x11F` | `+0xF4` | `0xBAA55D53` | parent-navigation button |
+| `+0x120` | `+0xF8` | `0xBAA55D54` | new-directory button |
 | `+0x122` | `+0x100` | `0xBAA55D56` | filename text editor |
+| `+0x123` | `+0x104` | `0xBAA55D57` | filter combo |
+| `+0x124` | `+0x108` | `0xBAA55D58` | confirmation button |
 | `+0x125` | `+0x10C` | `0xBAA55D59` | Cancel button |
 | `+0x126` | `+0x110` | `0xBAA55D5A` | Look in label |
+| `+0x127` | `+0x114` | `0xBAA55D5B` | File name label |
+| `+0x128` | `+0x118` | `0xBAA55D5C` | Files of type label |
 
 Grids request component `0xDAA6B9BF`, interface `0xDAA6B9BE`; buttons request
 `0x22ECFC47`/`0x00008810`; the editor requests `0x231A1C58`/`0x231A1C57`.
 The arrow first tries resource `0x68963ED8` and uses the procedural arrow
 buffer if unavailable. A successfully borrowed resource is AddRef'd while
 being assigned and the temporary reference is released afterwards. This table
-is deliberately incomplete: the remaining controls, all creation-failure
-paths and layout belong to FBQ2. The native body is not a contract for
-recovering safely from allocation failure.
+lists all controls created here, in creation/child-addition order. The popup
+grid +0xEC is created separately by 8.1.5, not by enable byte +0x11D here.
+Combo requests component/interface `0x59B`/`0x412CE496`; labels request
+`0x592`/`0x212CDC1F`. Fallback grids use constructor flags 0x19BFF, editor
+0x11FF and combo 1. The fallback's allocation sizes are respectively 744,
+436 (button), 656 (editor), 316 (combo) and 276 (label) bytes. Editor,
+combo and label retained interfaces are at allocation+0xD8; the others
+retain their returned interface directly.
+
+Factory Boolean false triggers fallback even if its output pointer was
+written; true proceeds directly with the supplied interface. Each fallback
+result is AddRef'd without a null guard. Neither graphics-service acquisition,
+GZCOM, fallback allocation nor a missing generated arrow buffer has a graceful
+failure path here. Child-addition/configuration return values are ignored;
+normal completion returns true. Existing retained controls are not released
+or reused first, so this body is not an idempotent rebuild.
+
+The following configuration requests define the child boundary. Offsets are
+byte offsets on the retained child interface (window operations are named
+explicitly). They preserve numeric options without assuming another control's
+unproved implementation. B and F are graphics-service conversions of black
+(0,0,0) and white (255,255,255), acquired in that order before any child.
+
+| Child | Configuration beyond ID/name and child addition |
+|---|---|
+| Collapsed directory grid | Grid dimensions (2,0,true); common font if nonnull; selection words (0x40000000,0x40000000); background F; four border values 1; outline (+0x308,B); color operations +0x44(B,0), then (F,1); clear flags 0x800,2,4; add flag 0x20000; window height row-height+2; default cell style +0x2A4 at (-1,-1). |
+| Dropdown arrow | Button +0x14(0x20,0); assign resource/procedural arrow to image state 2 using its bounds; release temporary reference. |
+| File grid | Grid dimensions (+0x228,1,false); common font if nonnull; selection words (+0x304,+0x300); background F; colors (B,0),(F,1); four unit borders; outline (+0x308,B); clear flag 2 and add 0x20000. |
+| Parent/new-directory buttons | Button +0x14(0x20,0); when respective buffer +0x2F8/+0x2FC is nonnull, +0x44(buffer) and image-state assignment (2,buffer,0). |
+| Filename editor | Clear flags 0x200 and 0x800; set common font even when null; color indices 0 and 5 to B, 1 and 4 to F. |
+| Filter combo | +0x54(0); set common font; window fill F; color indices 0 to B and 2 to F; +0x40(B). Append every 20-byte filter-label string in vector order with its zero-based index; when labels exist, select stored filter index with notify=false. |
+| Confirmation/Cancel | Window captions default string referenced at `00B17B18` / `Cancel`; image-state assignment (2,0,0); +0x14(0x20,0); pass corresponding +0x2F0/+0x2F4 buffer to +0x44 only if nonnull. |
+| Three labels | Captions `Look in:`, `File name:`, `Files of type:` respectively; +0x28(B) and +0x1C(4,0). |
+
+Each child also receives its built-in window name from the consecutive name
+objects at `00B17B2C` through `00B17BDC`, step 16, in the table's order.
+Creation does not assign child rectangles or enforce a minimum browser size.
+Init's actual browser dimensions and row height are specified in 8.5;
+SetArea delegates geometry to the base window. In particular the file grid
+and filename editor remain independently enabled. Pixel recipes of resources
+requested here remain FBQ1; primary property mutations remain FBQ4.
+
+#### 8.2.2 Message routing (`009A0ACC`, 687 bytes)
+
+This receives window pointer W, primary P=W-4. Messages are word arrays:
+type at +0, sender/subtype at +4 and data/ID at +8. Every normal branch,
+including recognized messages, finally calls base DoMessage with W and the
+original message and returns its result (`009A0D6C–D7A`). Recognition is not
+an unconditional handled=true result. There are no local sender/payload
+validity checks or exception recovery. Sender IDs below are obtained through
+the sender's window interface; the editor-change row instead tests identity.
+
+| Message and eligibility | Browser response before base handling |
+|---|---|
+| Type 3, subtype 0x287259F6, ID 0xBAA55D52 | Open popup through primary slot 98. |
+| Same subtype, ID 0xBAA55D53 / 0xBAA55D54 | Parent navigation / create directory (primary slots 30 / 32). |
+| Same subtype, ID 0xBAA55D58 or 0xBAA55D59 | Forward the original message through window +0x244 to notification target W+0x4C. |
+| Type 3, subtype 0xE8711255, ID 0xBAA55D57 | Read selected combo index (+0x78); call filter setter slot 26 only when different from P+0x154. |
+| Type 0x9A1552D2, sender ID 0xBAA55D55 | Read payload word at +4; call selection-change slot 102 only when different from P+0x22C. |
+| Type 0x9A1552D3, sender ID 0xBAA55D51 | If payload word 0 is 5, pass payload word 2 to directory-selection slot 101; always then close popup through slot 99. |
+| Same type, sender ID 0xBAA55D50 | Clear retained collapsed-grid cells, then open popup. |
+| Type 0x9A1552D4, sender ID 0xBAA55D55, payload word 0 is 5 | Pass payload word 2 first to selection-double-click slot 103, then file-list-double-click slot 100. Other payload tags do neither. |
+| Type 0x9A1552D5, popup ID 0xBAA55D51, data Enter (13) | Get the sender's current cell through +0xA8, pass returned row to directory-selection slot 101, then close popup. |
+| Same type/ID, data Escape (27) | Close popup. Other key values have no browser action. |
+| Type 0x9A1552D7, popup ID 0xBAA55D51 | Close popup. |
+| Type 0x9B1552D8, sender pointer equals retained filename editor P+0x100 | Obtain five-word selection descriptor through primary slot 90. Synchronously forward a temporary notification with type 0x7ABE7203, browser window ID, pointer to that descriptor and final word zero, through window +0x244 to W+0x4C. |
+
+The synthetic descriptor and notification are stack temporaries, not owned
+payload transfers; their borrowed members obey section 6. Unlisted IDs,
+types and subtypes perform no browser-specific action before base handling.
+Evidence: `009A0ACC–0BE3` (identity/key routes), `009A0BE3–0CDA`
+(selection payloads), `009A0CDA–0D6C` (commands/filter/forwarding).
 
 #### 8.2.1 EnableChildControl (`0099FDE6`, 615 bytes, primary slot 11)
 
@@ -586,13 +758,14 @@ rectangle to context slot +0x9C. The owner does not center, tile, divide into
 thirds, or subtract child/scrollbar strips (`009A0A20–98`). The foreign buffer
 operation determines its returned rectangle; no pixel sampling rule is implied.
 If primary dirty byte `+0x31C` is set, invoke primary slots 92 then 95
-(invalidation and UpdatePath), then clear that byte. These calls follow the
+(the folded true-return hook and UpdatePath), then clear that byte. Slot 92
+does no invalidation itself (`00949ADE–AE0`). These calls follow the
 background even when background painting is disabled, and the clear is after
 both calls, so dirtiness set during them is also cleared. Return true
 (`009A0A98–C3`). List population can therefore happen during paint.
 SetArea (`009A0089`, 45 bytes) sets that byte, invalidates, then delegates its
 four original arguments to base SetArea (`009A008E`–`009A00AD`). Exact
-AddControls and message dispatch remain FBQ2; this paint body is specified.
+AddControls and message dispatch are specified in 8.2 and 8.2.2.
 
 ### 8.6 Constructor and destruction (native lifecycle contract)
 
@@ -695,7 +868,7 @@ Invalidate (secondary offset `0x170`); they do this even for repeated values.
 | 28 / `009A323A` (113 B) | Store the first 32-bit argument at `+0x198`, assign string `+0x1A0` from the second string interface, copy the third string interface into a temporary, append all its bytes to `+0x1A0` with no separator, then dirty/invalidate and return true. Both strings must be valid. There is no immediate selection or validation of the first word. |
 | 29 / `009A0131` (20 B) | Copy the input string into new-directory label `+0x1C8` through its slot 13 and return true; no dirty/invalidate. |
 | 34 / `009A0170` (29 B) | Write words `+0x12C` and `+0x130` to two 32-bit outputs, in that order; return true. |
-| 35 / `009A0145` (43 B) | Store two unvalidated 32-bit sort-setting arguments at `+0x12C` and `+0x130`, dirty/invalidate, return true. Comparator interpretation remains FBQ5. |
+| 35 / `009A0145` (43 B) | Store two unvalidated 32-bit sort-setting arguments at `+0x12C` and `+0x130`, dirty/invalidate, return true. Comparator interpretation is in 8.1.1. |
 | 36 / `009A01AE` (17 B) | Write the entire wildcard-option word `+0x134` to one 32-bit output and return true. |
 | 37 / `009A018D` (33 B) | Store an unvalidated 32-bit option at `+0x134`, dirty/invalidate, return true; no immediate population. |
 | 76 / `009A0DE9` (30 B) | Copy parent-label bytes `+0x1B4` to the caller's string via its slot 3, using exact end-minus-begin length; return true. |
@@ -711,7 +884,7 @@ is distinct from clear-file-entries slot 104 (`009A2EC7`). Slot 28's third
 argument is a string interface (`0040AE00` reads its byte pointer and length),
 and `00408C20` appends its range. For example strings `report` and `.txt`
 store pending name `report.txt`; slot 27 later returns that concatenated name
-and leaves its third argument untouched. Restoration on population remains FBQ5.
+and leaves its third argument untouched. Restoration on population is in 8.1.3.
 
 The separate `0099FCFF` entry (5 bytes) is only a tail-forwarder to base-window
 SetFlag `0099DB6B`. Its exported browser name does not make it an additional
@@ -745,9 +918,19 @@ browser flag implementation. It is counted with thunks in the audit below.
 | FB-C31 | Empty sorted entry vector | Request grid selection at `(0,0,true)`, update and visibility/bring-into-view operations; do not invoke browser selection-change handler. |
 | FB-C32 | Paint with background disabled and dirty set; UpdatePath sets dirty again | No background operations; primary slots 92 then 95; final dirty byte clear; true result. |
 | FB-C33 | Background enabled, no buffer, area `(5,7,105,67)` | Set context color to primary +0x30C; fill exactly `(5,7,105,67)` before any dirty refresh. |
+| FB-C34 | A retained drive followed by old depth-one record, then another drive; new SplitDirectory count 4 on the first drive | Old depth-one record destroyed; components 2,1,0 inserted in that order with depths 1,2,3; current-row 3 and column span 5; collapsed display uses component 0. |
+| FB-C35 | No drive's lowercased first byte matches current directory | Nonzero-depth records removed; old collapsed cells not cleared/replaced; normal true result. |
+| FB-C36 | Popup has 5 records, maximum visible 3, row height 20, column span 5 | Height 62, grid column count 13 (not 7), all five row heights installed, scrollbar fitting reservation enabled. |
+| FB-C37 | Popup width 160, icon width 16, depth 2, R>M, scrollbar width 12 | Text fitting width 98; indentation-column width 9; text at column 4. |
+| FB-C38 | File row has no own icon, default file icon nonnull; filename column disabled | Default icon installed if icon column enabled; fitted filename and style still requested; auxiliary style requested even when auxiliary column disabled. |
+| FB-C39 | All setup enable bytes zero | Both graphics colors acquired; no children created; normal true result. Popup enable byte is not an AddControls creation request. |
+| FB-C40 | Factory returns true with null child, or fallback allocation returns null | No owner recovery/false result; next required interface use is unsafe. |
+| FB-C41 | Popup receives Enter, then Escape in a separate call | Enter gets current row, requests directory selection, closes, then base handling; Escape only closes before base handling. |
+| FB-C42 | File-grid type 0x9A1552D4 has payload tag 5 and row 7 | Primary slots 103 then 100 both receive 7; base receives original message afterwards. |
+| FB-C43 | Type 0x9B1552D8 from the retained filename editor versus an equal-ID different pointer | Only pointer identity produces the temporary 0x7ABE7203 descriptor notification; both reach base handling. |
 
-The added cases specify owner calls and arithmetic; they do not claim foreign
-rendering pixels or complete control layout.
+These proposed cases specify owner calls and arithmetic; they have not been
+executed and do not claim foreign rendering pixels or foreign layout policy.
 
 ## 10. Coverage limits and reconciliation
 
@@ -873,7 +1056,7 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A09C3` | 84 | - | reach | FBQ6 |
 | `009A0A17` | 173 | - | name-high | 8.5 |
 | `009A0AC4` | 8 | 88 | neighbour | 8.7 (adjustor thunk) |
-| `009A0ACC` | 687 | - | name-high | FBQ2 |
+| `009A0ACC` | 687 | - | name-high | 8.2.2 |
 | `009A0D7B` | 80 | 26 | neighbour | 8 |
 | `009A0DCB` | 30 | 14,16 | neighbour | 8.7 |
 | `009A0DE9` | 30 | 76 | neighbour | 8.7 |
@@ -912,7 +1095,7 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A1F25` | 23 | - | reach | FBQ6 |
 | `009A1F3C` | 31 | - | neighbour | 8.6 (record helper) |
 | `009A1F5B` | 28 | - | reach | 8.6 (record helper) |
-| `009A1F77` | 3149 | 91 | name-high | 8.2 partial / FBQ2 |
+| `009A1F77` | 3149 | 91 | name-high | 8.2 (child-call boundary) |
 | `009A2BC4` | 107 | 30 | name-medium | 2.2 |
 | `009A2C2F` | 160 | 33 | neighbour | FBQ4 |
 | `009A2CCF` | 215 | - | name-medium | 3.1 |
@@ -948,9 +1131,9 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A43A5` | 259 | 18 | new | FBQ4 |
 | `009A44A8` | 114 | 31 | new | 2.1 |
 | `009A451A` | 549 | 32 | name-high | 7 |
-| `009A473F` | 1007 | 98 | name-high | FBQ5 |
-| `009A4B2E` | 908 | 97 | name-medium | FBQ5 |
-| `009A4EBA` | 2241 | 96 | name-high | 8.1 partial / FBQ5 |
+| `009A473F` | 1007 | 98 | name-high | 8.1.5 |
+| `009A4B2E` | 908 | 97 | name-medium | 8.1.4 |
+| `009A4EBA` | 2241 | 96 | name-high | 8.1 / 8.1.3 / 8.1.6 |
 | `009A5AAB` | 195 | 21 | new | FBQ4 |
 | `009A5B6E` | 132 | 22 | new | FBQ4 |
 | `009B689C` | 36 | - | reach | FBQ6 |
@@ -989,27 +1172,28 @@ entries, `009A3FA7`, is an owned global comparator callback rather than a
 member method. The 42 unattributed entries prevent an exact total-owned-method
 denominator or complete-owner claim.
 
-Disposition audit: **60 original entries / 7,029 B have complete contracts**
+Disposition audit, updated 2026-10-24: **66 original entries / 15,194 B have
+complete owner-side contracts**
 in the cited sections, counting shared targets, thunks and helpers separately
 as above. This is not 60 unique browser methods. Of the 113 attributed browser
-body entries / 24,748 B, **41 / 6,693 B** are specified and **72 / 18,055 B**
-retain missing behavior. Adding the constructor gives 42 specified browser
-method/callback bodies / 7,403 B; this count still excludes unproved ownership.
+body entries / 24,748 B, **47 / 14,858 B** are specified and **66 / 9,890 B**
+retain missing behavior. Adding the constructor gives 48 specified browser
+method/callback bodies / 15,568 B; this count still excludes unproved ownership.
 The complete-contract inventory count including all specified wrappers/helpers
-and the constructor is 61 / 7,739 B. Partial sections receive no full-body credit.
+and the constructor is 67 / 15,904 B. Partial sections receive no full-body
+credit. The gain from the earlier 60-entry audit is paint (173 B), FBQ2's
+two bodies (3,836 B), and FBQ5's three (4,156 B). Child/service calls are
+specified at their boundary; their foreign implementations are not credited.
 
 | Parked question | Exact residual entries | Export bytes | Missing contract |
 |---|---:|---:|---|
 | FBQ1 | 4 | 6,055 | Procedural pixel recipes, selectors and failure/success channels |
-| FBQ2 | 2 | 3,836 | AddControls remainder and message dispatch; paint placement settled in 8.5 |
 | FBQ4 | 62 | 3,835 | Remaining primary methods, notably style/font ownership and filter/custom-entry mutation |
-| FBQ5 | 3 | 4,156 | Directory/drive population and remaining file-row configuration; file-column arithmetic, wildcard case option and pending-selection restore settled in 8.1.3 |
 | FBQ6 | 42 | 3,823 | Unresolved helper ownership / export boundaries |
-| **Total unresolved within the original union** | **114** | **21,878** | Every address and size is individually enumerated in its FBQ row above |
+| **Total unresolved within the original union** | **108** | **13,713** | Every address and size is individually enumerated in its FBQ row above |
 
-FBQ3 is answered. The largest residual bodies are `0099EF11` (3,423 B),
-`009A1F77` (3,149 B), `009A4EBA` (2,241 B), `009A1163` (1,938 B),
-`009A473F` (1,007 B), `009A4B2E` (908 B), `009A0ACC` (687 B) and
+FBQ2, FBQ3 and FBQ5 are answered. The largest residual bodies include
+`0099EF11` (3,423 B), `009A1163` (1,938 B) and
 `005C3A63` (575 B, attribution/boundary unproved). This is the final logical
 third-round publication: preserve and park those contracts; no further round
 or full-owner coverage is implied.

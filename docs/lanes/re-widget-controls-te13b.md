@@ -1,12 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widget-controls-te13b: TextEdit and FileBrowser closure | Codex; re-widget-controls-te13b | in progress: final round | Finish FBQ2/FBQ5; run final doccheck and enqueue |
+| re-widget-controls-te13b: TextEdit and FileBrowser closure | Codex; re-widget-controls-te13b | in progress: final gate | Run final doccheck, finalize report and enqueue |
 
 ## Report
 
-Final round in progress: TE8 now closes generated action-copy/growth and
-absent local failure cleanup, exact strncpy padding and byte-search edges.
-Seven proposed vectors added; no whole-owner or foreign-service credit.
+Final-round milestones: `63ca06dc7` closes TE8 generated action-copy/growth,
+absent local failure cleanup, strncpy padding and byte-search edges, with
+seven proposed vectors. FBQ2/FBQ5 now close all requested browser setup,
+messages and population, with ten more vectors. Popup span+8 corrects the
+cached decompiler's +2. Primary slot 92 is a true-return hook, not invalidation.
 
 The requested owner closure tables were read first. No engine, ABI, plugin,
 capi or coverage-map files were changed. All findings use the local export
@@ -62,7 +64,9 @@ completed on detached HEAD; no refs/config were changed manually.
   class/level tables, composed lengths and 14 additional vectors; answered
   record moved and index regenerated. Instruction-verified arithmetic.
 - TE8 complete in section 6/adapters; answered record moved; seven vectors.
-- Next: FBQ2 AddControls/DoMessage and FBQ5 population, then final doccheck.
+- FBQ2/FBQ5 complete: 8.1.4–6, full 8.2 setup, 8.2.2 messages; answered
+  records moved. All eight requested IDs have answered records; no splits.
+- Next: run doccheck once; finalize report, commit, write ready queue/full tip.
 - No active game requests or ABI proposals. Do not recreate answered TE9–TE12.
 - Detached HEAD is intentional; the supervisor publishes commits to the lane.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-widget-controls-te13b-r3-manifest.json.
