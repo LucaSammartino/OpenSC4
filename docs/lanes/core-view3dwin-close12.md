@@ -1,32 +1,34 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-view3dwin-close12 (cSC4View3DWin closure) | Codex / `core-view3dwin-close12` (engine lane) | in progress | Recheck corrected clippy fixtures with all; finish 14 owner coverage rows. |
+| core-view3dwin-close12 (cSC4View3DWin closure) | Codex / `core-view3dwin-close12` (engine lane) | in progress | Collect r4 focused run; finish formatting, tests and closure table; run all/verify. |
 
 ## Handoff
 
-- Goal: finish owner closure and final gate. Guard OVER: no merge-queue entry.
-- Round r3 resumed df1b3d5ca; required VW20 merge is already an ancestor.
-- Commit 855804bd1 implements mission/progress selection, advice
-  destinations and literal dispatch, Init/Shutdown coverage, AddGUI graph setup.
-- Four new integration tests in closure_round3_tests.rs, including owner T29,
-  T33/T34 and coverage/graph lifetime. Full owner closure is still not claimed.
-- Six changed child modules fmt PASS; view3d.rs checked with skip_children=true
-  and applied using apply_patch. Preserve the failed relative-path fmt log.
-- Focused E0382 fixed in 9296596a7; preserve focused-close12-r3-native.log.
-- Final all on 9296596a7 fully collected: session 12931 exited 1; no live checks.
-  Output build-runs/all-close12-r3-console.log. RUST_TEST_THREADS=1.
-- Workspace 7408 passed/0 failed; owner 88/88, all four new tests and T40–T44 PASS.
-- Clippy failed two field_reassign_with_default diagnostics in closure_tests.rs;
-  both initializers corrected in 6f7a5c922; fmt PASS. Recheck needed.
-- Native verify qbuild-20261024-205703-build-ctest PASS: build 211/211 (208.3 s),
-  CTest 81/81 (288.1 s), total 498.6 s; verify-close12-r3-console.log.
-  It reports tree changed during run (test fix/docs); production source unchanged.
-- NEXT: run qbuild all on corrected 6f7a5c922 (serial Rust tests), collect to terminal,
-  then finish the README's 14 settled deficits; no full owner closure claimed.
-- README retains 14 settled coverage/audit deficits; full owner closure NOT claimed.
-- No new questions, ABI/plugin edits, or game requests. Failed Rust/clippy evidence:
-  build-runs/gate-evidence-failed-r3-all; earlier logs gate-evidence-before-r3-all.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r3-manifest.json.
+- Goal: finish owner closure and all/verify; guard OVER at 151k, no queue entry.
+- r4 resumed 5dfaa9c60, detached HEAD. First required merge: already up to date;
+  VW20 is an ancestor. Do not change shared refs. Prior evidence is below.
+- This checkpoint adds literal zone/network/fixed-lot command dispatch with city
+  guards, fixes double UI toggle, initializes city animation/model-maker objects,
+  enforces required main-panel lookup, balances replaced GUI image/surface refs.
+- Adds tutorial follow-up including inert buttons, settled catalog identities,
+  reward-unlock propagation, owner global-terrain dispatch, destruction-only +410.
+- Adds closure_round4_tests.rs: command/control lifetimes, T36 fresh fallback,
+  required/optional creation, edge/capture branches, mayor bookkeeping, catalogs,
+  script/vehicle/disaster identities and ordered shutdown. Existing expectations
+  were updated for tutorial callbacks, terrain dispatch and destruction-only ref.
+- NEXT FIRST: collect native focused exec session 74977 to its terminal result;
+  last poll still running. Log build-runs/focused-close12-r4-native.log. It began
+  before later source edits, so it is diagnostic evidence, not a final-source pass.
+- Cargo command: cargo test --manifest-path engine/Cargo.toml -p fc4-core
+  ui_windows::view3d -- --test-threads=1. Shared machine has many rustc processes.
+- q.py first launch failed Git Bash CreateFileMapping (Win32 error 5); preserve
+  focused-close12-r4-console.log. No r4 focused terminal result or all/verify yet.
+- qbuild fmt found 495 diff lines; applied check-generated hunks with apply_patch,
+  then more source/tests changed. fmt-patch-close12.py names nine files; add
+  lifecycle to its list, apply its output with apply_patch, recheck explicit files.
+- README still retains 14 settled audit deficits; update only after validation.
+- No new questions, ABI/capi/plugin edits or game requests. Full closure unclaimed.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r4-manifest.json.
 
 ## Previous report
 

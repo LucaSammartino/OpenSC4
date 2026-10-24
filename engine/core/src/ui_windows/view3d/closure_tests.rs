@@ -138,6 +138,10 @@ fn dormant_helpers_stop_but_dormant_reference_only_releases() {
     assert!(h.ops.contains(&Op::Lifecycle(LifecycleCall::Stop(41))));
     assert!(h.ops.contains(&Op::Lifecycle(LifecycleCall::Stop(42))));
     assert!(!h.ops.contains(&Op::Lifecycle(LifecycleCall::Stop(43))));
+    assert!(!h.ops.contains(&Op::Lifecycle(LifecycleCall::Release(43))));
+    assert_eq!(v.owner.lifecycle.objects.get(&0x410), Some(&43));
+    v.destroy(&mut h);
+    v.destroy(&mut h); // destruction-only ownership is consumed once
     for token in [41, 42, 43] {
         assert_eq!(
             h.ops
@@ -157,7 +161,12 @@ fn vw_t28_bus_and_pipe_buttons_dispatch_commands_without_parameters() {
     v.handle_button_activated(&mut h, 0x2992_F72C);
     assert_eq!(
         h.popup_calls,
-        [PopupCall::Execute(0x6A93_5DC9), PopupCall::Execute(0x6A93_5DEE)]
+        [
+            PopupCall::Execute(0x6A93_5DC9),
+            PopupCall::TutorialButton(0xE992_37B4),
+            PopupCall::Execute(0x6A93_5DEE),
+            PopupCall::TutorialButton(0x2992_F72C)
+        ]
     );
     assert!(h.ops.is_empty());
 }
@@ -179,7 +188,7 @@ fn vw_t32_landscape_scripts_keep_caller_ids_and_transport_has_no_memory() {
     let mut v = view();
     let mut h = Host::default();
     assert!(v.handle_button_activated(&mut h, 0xABB2_7B91));
-    assert!(h.popup_calls.is_empty());
+    assert_eq!(h.popup_calls, [PopupCall::TutorialButton(0xABB2_7B91)]);
     assert!(h.ops.is_empty());
     for button in [0x2B79_E398, 0xEA6E_379D] {
         assert!(v.handle_button_activated(&mut h, button));

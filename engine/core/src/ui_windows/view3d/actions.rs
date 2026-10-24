@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Command and catalog-item decisions (§§6g, 6i). Numeric zone/network/lot
-//! command inventory and registry order remain open as VW9; typed entry points
-//! implement those tools without inventing IDs.
+//! command IDs and tool arguments follow the settled VW9 registry.
 use super::{CheatHost, CommandHost, ControlCall, InputEvent, View3DWin};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,6 +17,7 @@ pub enum ToolSpec {
     Flora(u32),
     Torch,
     EffectDisaster(DisasterProperties),
+    LevelTerrain,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -47,6 +47,9 @@ pub enum ActionCall {
     AnimationPause(bool),
     AnimationStep,
     GlobalTerrain(u32),
+    ChangeTerrainType,
+    CreateFlatAreas,
+    CreateShoreCliffs,
     StartAutomata(u32),
 }
 
@@ -148,8 +151,25 @@ impl View3DWin {
                 false,
             ),
             0xEA5A_D08D => self.install_tool(host, ToolSpec::Flora(item), false),
-            0x6A5A_C478 => host.action(ActionCall::GlobalTerrain(item)),
+            0x6A5A_C478 => self.run_global_terrain_tool(host, item),
             0x0BB2_E43E => host.action(ActionCall::StartAutomata(item)),
+            _ => {}
+        }
+    }
+
+    pub fn run_global_terrain_tool(&mut self, host: &mut impl ActionHost, item: u32) {
+        host.popup(super::PopupCall::TerrainSound);
+        match item {
+            0 => host.action(ActionCall::ChangeTerrainType),
+            1 => host.action(ActionCall::CreateFlatAreas),
+            2 => host.action(ActionCall::CreateShoreCliffs),
+            3 | 4 => {
+                host.popup(super::PopupCall::TerrainLevel(item == 3));
+            }
+            5 | 6 => {
+                host.popup(super::PopupCall::TerrainPost(0x470B_D214, item - 5));
+            }
+            7 => self.install_tool(host, ToolSpec::LevelTerrain, false),
             _ => {}
         }
     }
@@ -157,6 +177,64 @@ impl View3DWin {
     /// Parameters are required: the original save/quit paths dereference their
     /// parameter set without a null test. Every command returns false.
     pub fn process_command(&mut self, host: &mut impl ActionHost, id: u32, parameters: [u32; 2]) -> bool {
+        // §6g: registration includes unhandled commands; dispatch only the
+        // identified zone/network/lot commands, preserving their city guards.
+        let tool = match id {
+            0x6A93_5CF7 => Some(ToolSpec::Zone(1)),
+            0x6A93_5D0B => Some(ToolSpec::Zone(2)),
+            0x6A93_5D0E => Some(ToolSpec::Zone(3)),
+            0x6A93_5D11 => Some(ToolSpec::Zone(4)),
+            0x6A93_5D17 => Some(ToolSpec::Zone(5)),
+            0x6A93_5D1A => Some(ToolSpec::Zone(6)),
+            0x6A93_5D1D => Some(ToolSpec::Zone(7)),
+            0x6A93_5D25 => Some(ToolSpec::Zone(8)),
+            0x6A93_5D2B => Some(ToolSpec::Zone(9)),
+            0x6A93_5D28 => Some(ToolSpec::Zone(14)),
+            0x6A93_5D2E => Some(ToolSpec::Zone(0)),
+            0x6A93_5DC0 => Some(ToolSpec::Network(0)),
+            0x6A93_5DDA => Some(ToolSpec::Network(1)),
+            0x6A93_5DC5 => Some(ToolSpec::Network(2)),
+            0x6A93_5DC2 => Some(ToolSpec::Network(3)),
+            0x6A93_5DEE => Some(ToolSpec::Network(4)),
+            0x6A93_5DEB => Some(ToolSpec::Network(5)),
+            0x6B73_0F78 => Some(ToolSpec::Network(6)),
+            0x6A93_5DE3 => Some(ToolSpec::Network(7)),
+            0x2B79_E72B => Some(ToolSpec::Network(8)),
+            0x6A93_5DC9 => Some(ToolSpec::Lot(0x0500_0001)),
+            0x6A93_5DDD => Some(ToolSpec::Lot(0x6A8A_358F)),
+            0x6A93_5DDF => Some(ToolSpec::Lot(0x6A38_55D4)),
+            0x6A93_5DE6 => Some(ToolSpec::Lot(0x0500_0002)),
+            0x6A93_5DF1 => Some(ToolSpec::Lot(0x69DE_426B)),
+            0x6A93_5DF4 => Some(ToolSpec::Lot(0x0100_0005)),
+            0x6A93_5DF7 => Some(ToolSpec::Lot(0x0100_0003)),
+            0x6A93_5DFA => Some(ToolSpec::Lot(0xA9DD_1E4C)),
+            0x6A93_5DFD => Some(ToolSpec::Lot(0x0100_0007)),
+            0x6A93_5E0A => Some(ToolSpec::Lot(0x2A27_35A0)),
+            0x6A93_5E0D => Some(ToolSpec::Lot(0xEA27_3867)),
+            0x6A93_5E14 => Some(ToolSpec::Lot(0x89DD_094E)),
+            0x6A93_5E11 => Some(ToolSpec::Lot(0x4A2A_F441)),
+            0x6A93_5E17 => Some(ToolSpec::Lot(0x4A28_29D1)),
+            0x2BFE_11C9 => Some(ToolSpec::Lot(0x4BAF_BA9F)),
+            0x2BFE_1095 => Some(ToolSpec::Lot(0x0B96_AE64)),
+            0x2BFE_0BEA => Some(ToolSpec::Lot(0x6BB9_42D7)),
+            _ => None,
+        };
+        if let Some(tool) = tool {
+            match tool {
+                ToolSpec::Zone(zone) => self.invoke_zoning_tool(host, zone),
+                ToolSpec::Network(network) => self.invoke_network_tool(host, network),
+                ToolSpec::Lot(lot) => self.invoke_catalog_item(host, 0x6A2B_245F, lot, false),
+                _ => unreachable!(),
+            }
+            return false;
+        }
+        // ToggleUIVisibility reads the main window's visibility once. Do not
+        // also run the compatibility motion/panel toggle for this command.
+        if id == 0x6A93_5E3F {
+            let minimized = host.main_panel_visible();
+            self.minimize_ui(host, minimized);
+            return false;
+        }
         self.process_motion_panel_command(host, id);
         match id {
             0x6A93_5CE5 => {
@@ -214,10 +292,6 @@ impl View3DWin {
                 prompt: parameters[0] == 0,
                 parameter1: parameters[1],
             }),
-            0x6A93_5E3F => {
-                let minimized = host.main_panel_visible();
-                self.minimize_ui(host, minimized);
-            }
             0x2A94_A04B => self.toggle_contours(host),
             0x2A94_A5B6 if host.city_established() => host.action(ActionCall::ObliterateDialog),
             0x6AA9_FE51 => {

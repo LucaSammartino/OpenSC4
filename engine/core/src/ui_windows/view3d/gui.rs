@@ -240,7 +240,15 @@ impl View3DWin {
             }
         }
         for (offset, parent, id) in [
-            (0x310, self.owner.gui.fields.get(&0x18C).copied().map(u64::from), 1),
+            // §6m: failed main script skips immediate setup, but the later
+            // unconditional child lookup requires the main panel to exist.
+            (
+                0x310,
+                Some(u64::from(
+                    *self.owner.gui.fields.get(&0x18C).expect("required main panel"),
+                )),
+                1,
+            ),
             (0x314, Some(self.as_igzwin()), 0x09E4_18FE),
             (0x318, Some(self.as_igzwin()), 0xC9E4_1918),
         ] {
@@ -318,7 +326,9 @@ impl View3DWin {
             group: 0x46A0_06B0,
             instance: 0x1441_6160,
         }) {
-            self.owner.gui.fields.insert(0x3E0, image);
+            if let Some(old) = self.owner.gui.fields.insert(0x3E0, image) {
+                host.gui(GuiCall::Release(old));
+            }
         }
         {
             let bmp = host
@@ -329,6 +339,7 @@ impl View3DWin {
             host.gui(GuiCall::Flag(bmp, 0x200000, true));
             host.gui(GuiCall::Flag(bmp, 4, true));
             host.gui(GuiCall::Visible(bmp, false));
+            self.gui_release_field(host, 0x3D0, false, false);
             if let Some(surface) = host.gui(GuiCall::CreateBuffer) {
                 self.owner.gui.fields.insert(0x3D0, surface);
                 host.gui(GuiCall::SurfaceSize(surface, 128, 32, [1, 0]));

@@ -34,6 +34,9 @@ pub enum CityCall {
     AcquireSimulator,
     Viewport(u32, i32, i32),
     CameraInit(u32, [f32; 3]),
+    /// Animation/model-maker Init results do not abort city initialization.
+    InitObject(CityObject, u32),
+    /// Graphics QI gates renderer configuration and Init as one block (§6m).
     WireRenderer {
         renderer: u32,
         camera: Option<u32>,
@@ -139,8 +142,11 @@ impl View3DWin {
             host.city(CityCall::ScriptHook(0x6A23_1EAA, hook));
         }
         host.city(CityCall::Progress);
-        self.city_object(host, 0xE8, CityObject::AnimationManager);
-        self.city_object(host, 0xF8, CityObject::ModelMaker);
+        for (field, kind) in [(0xE8, CityObject::AnimationManager), (0xF8, CityObject::ModelMaker)] {
+            if let Some(object) = self.city_object(host, field, kind) {
+                host.city(CityCall::InitObject(kind, object));
+            }
+        }
         if let Some(simulator) = host.city(CityCall::AcquireSimulator) {
             if let Some(old) = self.owner.lifecycle.objects.insert(0x154, simulator) {
                 host.lifecycle(LifecycleCall::Release(old));

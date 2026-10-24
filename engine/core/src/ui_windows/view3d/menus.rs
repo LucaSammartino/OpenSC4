@@ -9,6 +9,8 @@ pub struct CatalogQuery {
     pub groups: Vec<u32>,
     pub networks: Vec<u32>,
     pub zone: Option<u32>,
+    /// The owner's reward-unlock cheat overrides reward availability (§3.1).
+    pub all_rewards: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +76,9 @@ pub enum PopupCall {
     TerrainPost(u32, u32),
     TerrainBrush(u32, u32),
     ReconcileEdges,
+    /// Common tutorial follow-up after button routing (§6l), even for the
+    /// explicitly inert vehicle/disaster cases. Tutorial internals stay foreign.
+    TutorialButton(u32),
 }
 
 pub trait PopupHost {
@@ -302,7 +307,10 @@ impl View3DWin {
             }
             return true;
         }
-        let mut query = CatalogQuery::default();
+        let mut query = CatalogQuery {
+            all_rewards: self.owner.view.all_rewards,
+            ..CatalogQuery::default()
+        };
         let mut secondary = false;
         let mut background = 0;
         if matches!(button, 0x2B79_E398 | 0xEA6E_379D) {
@@ -330,6 +338,7 @@ impl View3DWin {
                 background = 0x1421_5ED4;
             }
             0x35 | 0x39 | 0x40 => {
+                query.catalog = 0xC8DB_CCBA;
                 query.kind = 0x6A2B_245F;
                 match button {
                     0x35 => {
@@ -387,6 +396,7 @@ impl View3DWin {
                 };
                 query.groups = vec![group];
                 memory = key;
+                background = 0x1421_5ED1;
             }
             0x2992_3215 | 0x1522_31F3 | 0xC992_31DA | 0x6A3D_638C => {
                 query.catalog = 0x6A01_FC2A;
@@ -434,6 +444,12 @@ impl View3DWin {
     }
 
     pub fn handle_button_activated(&mut self, host: &mut impl ActionHost, button: u32) -> bool {
+        let handled = self.dispatch_button(host, button);
+        host.popup(PopupCall::TutorialButton(button));
+        handled
+    }
+
+    fn dispatch_button(&mut self, host: &mut impl ActionHost, button: u32) -> bool {
         let command = match button {
             0x6A4F_BB31 => Some(0x6A93_5CB0),
             0x4A4F_BB60 => Some(0x6A93_5CB2),

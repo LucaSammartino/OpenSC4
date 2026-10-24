@@ -5,6 +5,7 @@ include!("resolved_tests.rs");
 include!("trigger_load_tests.rs");
 include!("closure_tests.rs");
 include!("closure_round3_tests.rs");
+include!("closure_round4_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
@@ -71,6 +72,13 @@ struct Host {
     lighting: Vec<f32>,
     popup_calls: Vec<PopupCall>,
     popup_items: Vec<CatalogItem>,
+    catalog_queries: Vec<CatalogQuery>,
+    ui_visibility: Vec<(&'static str, bool)>,
+    mayor_calls: Vec<(u32, bool)>,
+    mayor_visible: Option<Vec<u32>>,
+    self_scrolling: Vec<u32>,
+    capturing_controls: Vec<u32>,
+    background_2d_absent: bool,
     selection: Option<CatalogItem>,
     reference_calls: Vec<(u64, u32)>,
     written_records: Vec<Option<ObjectRecord>>,
@@ -121,6 +129,13 @@ impl Default for Host {
             lighting: Vec::new(),
             popup_calls: Vec::new(),
             popup_items: Vec::new(),
+            catalog_queries: Vec::new(),
+            ui_visibility: Vec::new(),
+            mayor_calls: Vec::new(),
+            mayor_visible: None,
+            self_scrolling: Vec::new(),
+            capturing_controls: Vec::new(),
+            background_2d_absent: false,
             selection: None,
             reference_calls: Vec::new(),
             written_records: Vec::new(),
@@ -224,7 +239,8 @@ impl PopupHost for Host {
         self.popup_calls.push(call);
         reply
     }
-    fn catalog_items(&mut self, _: &CatalogQuery) -> Vec<CatalogItem> {
+    fn catalog_items(&mut self, query: &CatalogQuery) -> Vec<CatalogItem> {
+        self.catalog_queries.push(query.clone());
         self.popup_items.clone()
     }
     fn popup_state(&mut self, _: u32) -> [u32; 2] {
@@ -274,7 +290,11 @@ impl ReferenceHost for Host {
 impl HelperHost for Host {
     fn background_candidates(&mut self, three_d: bool, basename: &str) -> Vec<String> {
         self.background_requests.push((three_d, basename.into()));
-        self.background_files(three_d)
+        if !three_d && self.background_2d_absent {
+            Vec::new()
+        } else {
+            self.background_files(three_d)
+        }
     }
     fn background_zoom(&self) -> u8 {
         self.zoom as u8
@@ -590,9 +610,10 @@ fn disaster_properties_and_global_terrain_close_level_are_literal() {
     assert!(host.ops.is_empty());
     v.set_secondary(Some(100), 1);
     v.invoke_catalog_item(&mut host, 0x6A5A_C478, 6, true);
+    assert_eq!(host.ops, vec![Op::Close(false)]);
     assert_eq!(
-        host.ops,
-        vec![Op::Close(false), Op::Action(ActionCall::GlobalTerrain(6))]
+        host.popup_calls,
+        [PopupCall::TerrainSound, PopupCall::TerrainPost(0x470B_D214, 1)]
     );
     host.ops.clear();
     v.invoke_disaster(&mut host, 0xA9DE_8784);
@@ -1150,6 +1171,8 @@ impl InputHost for Host {
                 ControlCall::Init => self.init_fail != Some(id),
                 ControlCall::Event(_) => self.takers.contains(&id),
                 ControlCall::CanStack => true,
+                ControlCall::SelfScrolling => self.self_scrolling.contains(&id),
+                ControlCall::Capturing => self.capturing_controls.contains(&id),
                 _ => false,
             },
             cursor: (call == ControlCall::Cursor).then_some(id + 100),
@@ -1794,6 +1817,7 @@ fn popup_restores_state_reinvokes_selected_tool_and_balances_teardown() {
                 parent: v.as_igzwin(),
                 window: 600
             },
+            PopupCall::TutorialButton(0x2992_0899),
         ]
     );
     assert!(!h
@@ -2257,17 +2281,35 @@ impl CommandHost for Host {
     fn panel_buttons(&mut self, id: u32, on: bool) {
         self.ops.push(Op::Panel(id, on));
     }
-    fn mayor_subpanel(&mut self, _: u32, _: bool) {}
-    fn mayor_subpanel_visible(&self, _: u32) -> bool {
-        self.changed
+    fn mayor_subpanel(&mut self, id: u32, visible: bool) {
+        self.mayor_calls.push((id, visible));
     }
-    fn mysim_visible(&mut self, _: bool) {}
-    fn advisor_visible(&mut self, _: bool) {}
-    fn news_ticker_visible(&mut self, _: bool) {}
-    fn control_panel_visible(&mut self, _: bool) {}
-    fn restore_button_visible(&mut self, _: bool) {}
-    fn auxiliary_ui_visible(&mut self, _: bool) {}
-    fn rotation_ui_visible(&mut self, _: bool) {}
+    fn mayor_subpanel_visible(&self, id: u32) -> bool {
+        self.mayor_visible
+            .as_ref()
+            .map_or(self.changed, |ids| ids.contains(&id))
+    }
+    fn mysim_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("mysim", visible));
+    }
+    fn advisor_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("advisor", visible));
+    }
+    fn news_ticker_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("ticker", visible));
+    }
+    fn control_panel_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("control", visible));
+    }
+    fn restore_button_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("restore", visible));
+    }
+    fn auxiliary_ui_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("auxiliary", visible));
+    }
+    fn rotation_ui_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("rotation", visible));
+    }
     fn create_query_tool(&mut self, _: QueryTool) -> Option<u32> {
         Some(7)
     }

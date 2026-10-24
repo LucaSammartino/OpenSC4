@@ -272,10 +272,24 @@ impl View3DWin {
         self.remove_all_persistent_controls(host);
         self.owner.coverage.clear(host);
         for (offset, token) in std::mem::take(&mut self.owner.lifecycle.objects) {
+            if offset == 0x410 {
+                // §6m: this dormant reference belongs to destruction, rather
+                // than Shutdown's helper teardown.
+                self.owner.lifecycle.objects.insert(offset, token);
+                continue;
+            }
             if matches!(offset, 0x184 | 0x188) {
                 // §6m: Stop asks whether running before invoking slot 5(false).
                 host.lifecycle(LifecycleCall::Stop(token));
             }
+            host.lifecycle(LifecycleCall::Release(token));
+        }
+    }
+
+    /// Destruction-only reference from §6m. No creator or active operation is
+    /// assigned to this field; base-window destruction remains the host's job.
+    pub fn destroy(&mut self, host: &mut impl LifecycleHost) {
+        if let Some(token) = self.owner.lifecycle.objects.remove(&0x410) {
             host.lifecycle(LifecycleCall::Release(token));
         }
     }

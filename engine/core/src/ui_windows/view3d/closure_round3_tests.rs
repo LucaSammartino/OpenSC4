@@ -226,7 +226,11 @@ fn vw_t29_owner_posts_whole_map_requests_without_installing_controls() {
         assert!(v.handle_button_activated(&mut h, button));
         assert_eq!(
             h.popup_calls,
-            [PopupCall::TerrainSound, PopupCall::TerrainPost(0x470B_D214, data)]
+            [
+                PopupCall::TerrainSound,
+                PopupCall::TerrainPost(0x470B_D214, data),
+                PopupCall::TutorialButton(button)
+            ]
         );
         assert!(v.input_control().is_none());
     }
