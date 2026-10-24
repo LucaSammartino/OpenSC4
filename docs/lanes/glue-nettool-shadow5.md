@@ -12,11 +12,11 @@
 - Contract implementation committed as 1c9f287c8; final six-file fmt PASS.
 - First qbuild all terminal FAIL: cargo 807 passed/1 failed (two old diagonal fixtures); clippy clean; native build 188/188 PASS, CTest 68/69 (capi_smoke expected raw reason rather than public Boolean). Session 14919 collected to exit 1. Full logs preserved as build-runs/r2-initial-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
 - Updated ng18_03/ng18_04 conformance footprints/descriptions to NT28; these input changes justify one corrected full gate after the queued operation terminates. Preserve initial logs before rerun.
-- Corrected gate in session 72769: cargo 6760/0, clippy clean; native request qbuild-20261024-010417-build-ctest pending. Collect this same operation to terminal.
+- Corrected qbuild all terminal PASS: cargo 6760/0, clippy clean; native 50/50 edges, CTest 69/69 (89.5s), qbuild-20261024-010417-build-ctest. Session 72769 collected to exit 0. DLL relinked as 28231e1b (first two runs used bc85eb39).
 - Round-2 game nettool-shadow5-r2-20261024-a: clean through 2032-01-04, refs=0, DLL bc85eb39, 8/14 exact (record 342). All ordered footprints exact; rail/avenue/crossing failures exact. Six remaining probes: costs 110/113,170/192,90/98,55/61; powerline and bridge adapters.
 - Normal run nettool-shadow5-r2-20261024-b: clean through 2032-01-01, refs=0, 8/14 exact (record 343); all fourteen comparison lines identical to turbo. Both game waits collected to exit 0; no request outstanding.
 - NT30 appended for the four residual retained-corner cost fixtures; NT31 for concrete powerline/bridge replay inputs. Coordinator must regenerate question index (no tools/ access).
-- Next: collect full gate session 72769, final report and READY queue either way. Prior report below remains round-1 evidence only.
+- Next: final artifact confirmation c run to 2032 with DLL 28231e1b; then final report and READY queue either way. Prior report below remains round-1 evidence only.
 - No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
 - Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
