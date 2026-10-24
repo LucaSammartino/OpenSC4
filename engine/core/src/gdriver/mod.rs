@@ -8,12 +8,16 @@ pub mod primitive;
 pub mod stage;
 pub mod texture;
 pub mod vertex;
+pub mod auxiliary;
 use crate::gdrivers_director::FOREIGN_DX7_CLASS;
 use backend::*;
 use context::{Context, Request};
 use primitive::PrimitiveManager;
 use stage::Stage;
 use texture::{TextureManager, Upload};
+use std::sync::{Mutex, MutexGuard};
+
+static DRIVER_INFO: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Mode {
@@ -43,6 +47,7 @@ impl Mode {
 pub struct Driver {
     pub identity: u32,
     pub primitive_identity: u32,
+    pub texture_identity: u32,
     pub refs: u32,
     pub error: u32,
     pub initialized: bool,
@@ -54,6 +59,10 @@ pub struct Driver {
     pub ready: bool,
     pub window: u32,
     pub device: u32,
+    pub dd: u32,
+    pub d3d: u32,
+    /// Exact owner +22C/+230/+234 slots. Their context aliases remain RD12.
+    pub auxiliary_surfaces: [u32; 3],
     pub context: Context,
     pub modes: Vec<Mode>,
     pub current: Mode,
@@ -75,15 +84,20 @@ pub struct Driver {
     pub clear_on_begin: bool,
     pub vertex_colors: [bool; 2],
     pub material: [f32; 17],
+    pub lighting_enabled: u8,
+    pub lights: Vec<D3DLight>,
+    pub regions: Vec<auxiliary::Region>,
     pub arrays: [u32; 3],
-    pub info: Vec<u8>,
     pub client_screen: [u32; 4],
 }
 impl Driver {
     pub fn new(identity: u32, primitive_identity: u32) -> Self {
+        let mut primitives = PrimitiveManager::default();
+        primitives.refs = 1;
         Self {
             identity,
             primitive_identity,
+            texture_identity: 0,
             refs: 0,
             error: 0,
             initialized: false,
@@ -93,6 +107,9 @@ impl Driver {
             ready: false,
             window: 0,
             device: 0,
+            dd: 0,
+            d3d: 0,
+            auxiliary_surfaces: [0; 3],
             context: Context::default(),
             modes: Vec::new(),
             current: Mode::default(),
@@ -100,13 +117,13 @@ impl Driver {
             current_stage: 0,
             stages_dirty: false,
             follow_texture: false,
-            textures: TextureManager::default(),
-            primitives: PrimitiveManager::default(),
+            textures: TextureManager { refs: 1, ..TextureManager::default() },
+            primitives,
             matrix_mode: 0,
             projection: [0.; 16],
             full_viewport: [0; 6],
             clear_color: 0,
-            clear_depth: 0.,
+            clear_depth: 1.,
             clear_stencil: 0,
             row_length: 0,
             fog_capable: false,
@@ -114,8 +131,10 @@ impl Driver {
             clear_on_begin: false,
             vertex_colors: [true; 2],
             material: [0.; 17],
+            lighting_enabled: 0,
+            lights: Vec::new(),
+            regions: Vec::new(),
             arrays: [0; 3],
-            info: Vec::new(),
             client_screen: [0; 4],
         }
     }
@@ -124,10 +143,6 @@ impl Driver {
     }
     pub fn add_ref(&mut self) -> u32 {
         self.refs = self.refs.wrapping_add(1);
-        self.refs
-    }
-    pub fn release(&mut self) -> u32 {
-        self.refs = self.refs.saturating_sub(1);
         self.refs
     }
     pub fn query_interface(&mut self, iid: u32, out: Option<&mut u32>) -> Result<bool> {
@@ -168,8 +183,9 @@ impl Driver {
             self.row_length = value;
         }
     }
-    pub fn driver_info(&self) -> &[u8] {
-        &self.info
+    pub fn driver_info(&self) -> MutexGuard<'static, Vec<u8>> {
+        // Shared borrowed storage; the guard prevents concurrent mutation while read.
+        DRIVER_INFO.lock().unwrap_or_else(|e| e.into_inner())
     }
     pub fn hr(&mut self, hr: u32) {
         if failed(hr) {
@@ -218,9 +234,9 @@ impl Driver {
         // GUID bytes address and PCI identifiers as immediate adapter properties.
         let mut adapter = [0; 11];
         let hr = host.dx(out[0], Call::AdapterInfo, &[], &[], &mut adapter);
-        // Zero-version fallback is explicitly unspecified in §4.1 (RD9).
-        let result = if failed(hr) {
-            Err(Error::Unsupported("RD9-info"))
+        *self.driver_info() = b"Maxis 3D GDriver DirectX 2.0\n".to_vec();
+        let result = if hr != 0 {
+            Ok(())
         } else {
             self.build_info(adapter, host)
         };
@@ -302,6 +318,8 @@ impl Driver {
         self.stages.clear();
         self.textures.shutdown(host);
         self.primitives.stop(host);
+        for token in [&mut self.device, &mut self.dd, &mut self.d3d] { release(host, token); }
+        for token in &mut self.auxiliary_surfaces { release(host, token); }
         self.context.destroy(host);
         self.device = 0;
         self.ready = false;
@@ -397,6 +415,9 @@ impl Driver {
         )?;
         self.context = context;
         self.device = self.context.device;
+        self.dd = self.context.dd;
+        self.d3d = self.context.d3d;
+        for token in [self.device, self.dd, self.d3d] { acquire(host, token); }
         if failed(hr) {
             self.hr(hr);
             host.dx(
@@ -485,11 +506,10 @@ impl Driver {
         }
         self.initialized = false;
         self.set_video_mode(u32::MAX, 0, false, 0, host)?;
-        let result = host.unresolved("RD9-shutdown", &[self.error], std::slice::from_mut(&mut self.error));
         self.modes.clear();
         dx(host, 0, Call::UnregisterClass, &[]);
         self.context.destroy(host);
-        result
+        Ok(())
     }
     pub fn flush(&mut self, host: &mut impl Device) -> Result<()> {
         if self.context.dd == 0 && !self.lost {
@@ -497,18 +517,17 @@ impl Driver {
         }
         let hr = dx(host, self.context.dd, Call::CooperativeLevel, &[]);
         if self.lost {
-            if failed(hr) || failed(dx(host, self.context.dd, Call::RestoreAll, &[])) {
+            if failed(hr) || failed(self.context.restore(host)?) {
                 return Ok(());
             }
-            let mut objects = [0; 3];
-            host.unresolved("RD8-restore", &[self.context.identity], &mut objects)?;
-            release(host, &mut self.context.device);
-            release(host, &mut self.context.d3d);
-            release(host, &mut self.context.dd);
-            self.context.device = objects[0];
-            self.context.d3d = objects[1];
-            self.context.dd = objects[2];
+            let objects = [self.context.device, self.context.d3d, self.context.dd];
+            for token in objects { acquire(host, token); }
+            release(host, &mut self.device);
+            release(host, &mut self.d3d);
+            release(host, &mut self.dd);
             self.device = objects[0];
+            self.d3d = objects[1];
+            self.dd = objects[2];
             self.lost = false;
             self.default_state(host);
             self.primitives.init(objects[2], objects[1], objects[0], host);
@@ -522,11 +541,11 @@ impl Driver {
             dx(host, 0, Call::PostMessage, &[0xaacb92a3]);
             self.textures.lose(host);
             self.primitives.stop(host);
-            release(host, &mut self.context.device);
-            release(host, &mut self.context.d3d);
+            release(host, &mut self.device);
+            release(host, &mut self.d3d);
+            release(host, &mut self.dd);
             let mut placeholder = [0];
             host.dx(0, Call::PlaceholderDevice, &[], &[], &mut placeholder);
-            self.context.device = placeholder[0];
             self.device = placeholder[0];
             self.scene = false;
             return Ok(());
@@ -743,7 +762,8 @@ impl Driver {
             return Ok(());
         }
         let input: Vec<u16> = (0..count as u32).map(|i| i as u16).collect();
-        let (primitive, indices) = primitive::expanded(mode, &input)?;
+        let (primitive, indices, declared) = primitive::expanded_writes(mode, &input, count as usize, false)?;
+        let indices = indices.map(|mut v| { v.truncate(declared); v });
         if let Some(v) = &indices {
             self.primitives.indices(v.len(), host);
         }
@@ -781,7 +801,11 @@ impl Driver {
             5 => 4,
             _ => return Err(Error::InvalidInput),
         };
-        let mut bytes = vec![0; count as usize * size];
+        let logical = count as usize;
+        let readable = if mode == 6 { ((3 * (logical / 2)) as u16 as usize + 5) / 6 * 4 }
+            else if mode == 7 { ((logical.saturating_sub(2) + 1) / 2) * 2 + 2 }
+            else { logical };
+        let mut bytes = vec![0; readable.max(logical) * size];
         host.read(address, &mut bytes)?;
         let input: Vec<u16> = bytes
             .chunks(size)
@@ -791,10 +815,11 @@ impl Driver {
                 _ => u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as u16,
             })
             .collect();
-        let minimum = *input.iter().min().unwrap() as u32;
-        let maximum = *input.iter().max().unwrap() as u32;
-        let (primitive, expanded) = primitive::expanded(mode, &input)?;
-        let indices = expanded.unwrap_or(input);
+        let minimum = *input[..logical].iter().min().unwrap() as u32;
+        let maximum = *input[..logical].iter().max().unwrap() as u32;
+        let (primitive, expanded, declared) = primitive::expanded_writes(mode, &input, logical, true)?;
+        let mut indices = expanded.unwrap_or(input);
+        indices.truncate(declared);
         self.primitives.indices(indices.len(), host);
         let hr = self.primitives.queue(
             self.arrays[0],
@@ -1190,7 +1215,7 @@ impl Driver {
     }
     fn build_info(&mut self, mut adapter: [u32; 11], host: &mut impl Device) -> Result<()> {
         if adapter[2..6] == [0; 4] {
-            host.unresolved("RD9-version", &[], &mut adapter[2..6])?;
+            self.file_version(&mut adapter[2..6], host)?;
         }
         let mut description = vec![0; adapter[1] as usize];
         host.read(adapter[0], &mut description)?;
@@ -1199,25 +1224,69 @@ impl Driver {
         let a = u32::from_le_bytes(guid[0..4].try_into().unwrap());
         let b = u16::from_le_bytes(guid[4..6].try_into().unwrap());
         let c = u16::from_le_bytes(guid[6..8].try_into().unwrap());
-        self.info = b"Maxis 3D GDriver DirectX 2.0\n".to_vec();
-        self.info.extend(description);
-        self.info.extend(format!(
+        let mut info = b"Maxis 3D GDriver DirectX 2.0\n".to_vec();
+        info.extend(description);
+        info.extend(format!(
             "\n{}.{}.{}.{}, GUID: {a:08x}-{b:04x}-{c:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}\nVendor: {:04x}, Device: {:04x}, Board: {:04x}, Chipset: {:04x}",
             adapter[2], adapter[3], adapter[4], adapter[5], guid[8], guid[9], guid[10], guid[11], guid[12], guid[13], guid[14], guid[15], adapter[7], adapter[8], adapter[9], adapter[10]
         ).bytes());
+        *self.driver_info() = info;
         Ok(())
+    }
+    fn file_version(&self, version: &mut [u32], host: &mut impl Device) -> Result<()> {
+        let mut directory = [0; 2];
+        if failed(host.dx(0, Call::SystemDirectory, &[], &[], &mut directory)) { return Ok(()); }
+        for fragment in ["\\", "\\Drivers\\", "32\\Drivers\\"] {
+            for suffix in ["", ".dll", ".vxd", ".sys"] {
+                // The backend uses the identifier's driver filename, not its description.
+                let mut file = [0];
+                let pattern = format!("{fragment}\0{suffix}");
+                let hr = host.dx(0, Call::FindVersionFile, &directory, pattern.as_bytes(), &mut file);
+                if failed(hr) || file[0] == 0 { continue; }
+                let mut words = [0; 2];
+                if !failed(host.dx(file[0], Call::FileVersion, &[], &[], &mut words)) {
+                    version.copy_from_slice(&[words[0] >> 16, words[0] & 65535, words[1] >> 16, words[1] & 65535]);
+                }
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+    /// Final-reference deletion is explicit because foreign COM references need a backend.
+    pub fn release(&mut self, host: &mut impl Device) -> Result<u32> {
+        self.refs = self.refs.saturating_sub(1);
+        let refs = self.refs;
+        if refs != 0 { return Ok(refs); }
+        self.shutdown(host)?;
+        for token in [&mut self.device, &mut self.dd, &mut self.d3d] { release(host, token); }
+        for token in &mut self.auxiliary_surfaces { release(host, token); }
+        self.context.destroy(host);
+        for region in &mut self.regions { release(host, &mut region.surface); }
+        self.regions.clear();
+        self.stages.clear();
+        self.lights.clear();
+        self.modes.clear();
+        self.primitives.refs = self.primitives.refs.saturating_sub(1);
+        if self.primitive_identity != 0 { host.call(self.primitive_identity, crate::gdrivers_director::Op::Release, &[], &[], &mut []); }
+        if self.primitives.refs == 0 { self.primitives.destroy(host); }
+        // §4.1: the original AddRefs its texture manager instead of releasing it.
+        self.textures.refs = self.textures.refs.wrapping_add(1);
+        if self.texture_identity != 0 { acquire(host, self.texture_identity); }
+        self.texture_identity = 0;
+        self.primitive_identity = 0;
+        self.device = 0;
+        Ok(0)
     }
 }
 
-/// §12.1 specifies these fields but leaves the range constant to RD7. `None`
-/// records that boundary without inventing a floating-point literal.
-#[derive(Debug, PartialEq)]
+/// D3DLIGHT7 fields, with the range specified in §12.1.
+#[derive(Clone, Debug, PartialEq)]
 pub struct D3DLight {
     pub kind: u32,
     pub colors: [[f32; 4]; 3],
     pub position: [f32; 3],
     pub direction: [f32; 3],
-    pub range: Option<f32>,
+    pub range: f32,
     pub falloff: f32,
     pub attenuation: [f32; 3],
     pub theta: f32,
@@ -1230,7 +1299,7 @@ impl Default for D3DLight {
             colors: [[0.; 4]; 3],
             position: [0.; 3],
             direction: [0., 0., 10.],
-            range: None,
+            range: f32::from_bits(0x5f7fffff),
             falloff: 1.,
             attenuation: [0.; 3],
             theta: f32::from_bits(0x3f47ae14),
