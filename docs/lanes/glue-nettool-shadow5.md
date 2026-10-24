@@ -16,7 +16,9 @@
 - Round-2 game nettool-shadow5-r2-20261024-a: clean through 2032-01-04, refs=0, DLL bc85eb39, 8/14 exact (record 342). All ordered footprints exact; rail/avenue/crossing failures exact. Six remaining probes: costs 110/113,170/192,90/98,55/61; powerline and bridge adapters.
 - Normal run nettool-shadow5-r2-20261024-b: clean through 2032-01-01, refs=0, 8/14 exact (record 343); all fourteen comparison lines identical to turbo. Both game waits collected to exit 0; no request outstanding.
 - NT30 appended for the four residual retained-corner cost fixtures; NT31 for concrete powerline/bridge replay inputs. Coordinator must regenerate question index (no tools/ access).
-- Next: final artifact confirmation c run to 2032 with DLL 28231e1b; then final report and READY queue either way. Prior report below remains round-1 evidence only.
+- Artifact confirmation c: clean through 2032-01-07, refs=0, 8/14 exact, all comparison lines identical to a/b; record 344, DLL 28231e1b.
+- Final review: newly implemented replacement count getters reached geometry RefCell. Corrected to atomic publication after Init/Reset/draw/place/Shutdown; getters only load atomics. Existing other replacement getters are outside this publication change.
+- Next: repeat full gate for this real threading correction, then new artifact confirmation d, final report and READY queue. Prior report below remains round-1 evidence only.
 - No game request outstanding. Script engine/tests/nettool-shadow.script has 14 actions through December 2031.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r2-manifest.json.
 - Default off; pieces/bridges/poles/wires remain outside public getter observation; no whole-owner coverage.
