@@ -45,13 +45,13 @@ mutation, or complete-owner replacement.
 
 `glue-lots-shadow12-house2032-normal-r2 146/146`
 
-[Run 512](../runs/glue-lots-shadow12-house2032-normal-r2-512.md): Konradshohe at normal speed,
+[Run 512](../runs/glue-lots-shadow12-house2032-normal-r2-518.md): Konradshohe at normal speed,
 clean through 2032-01-01, 114.890 real seconds. All 73 observations for each shadow were nonempty
 and exact; `foreign_exceptions=0`, `watchdog_stalls=0`, `rtc=0`, `overruns=0`, `ref_warnings=0`.
 Final lines: lotrec `exact=668/668 differences=0 errors=0 mismatches=0`;
 lottrip `owner=cSC4TripData lots=668/668 exact=820/820 mismatches=0`.
 
-[Run 511](../runs/glue-lots-shadow12-house2032-r1-511.md) preserves the turbo attempt:
+[Run 511](../runs/glue-lots-shadow12-house2032-r1-517.md) preserves the turbo attempt:
 `glue-lots-shadow12-house2032-r1 118/118` exact shadow lines, but watchdog stalled at
 2030-11-28 before the target. Last heartbeat: main thread outside FreeCity4, last OnTick
 7531 ms ago; `ref_warnings=0`. It is not credited as a clean 2032 run. Both runs used DLL

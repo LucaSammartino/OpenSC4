@@ -18,7 +18,7 @@
 
 ## Real city
 
-Run record: [run 511](../runs/glue-landfill-shadow12-2032-20261024a-511.md). Konradshohe, turbo, original landfill developer, `enable=simulator`, `landfill_shadow=1`, requested end date 2032-01-01.
+Run record: [run 511](../runs/glue-landfill-shadow12-2032-20261024a-516.md). Konradshohe, turbo, original landfill developer, `enable=simulator`, `landfill_shadow=1`, requested end date 2032-01-01.
 
 `glue-landfill-shadow12-2032-20261024a 73/73` — landfill developer monthly shadow lines, every mismatch count zero, resynced lines zero.
 

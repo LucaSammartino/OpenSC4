@@ -22,13 +22,13 @@ Explicit queued `qbuild.py verify` also passed: request `qbuild-20261024-132817-
 
 ## Real-city measurements
 
-`dbpf-ex56-house-492 73/73`
+`dbpf-ex56-house-513 73/73`
 
-[Run 492](../runs/dbpf-ex56-house-492.md): full supplied house switches, turbo to 2032, clean shutdown at 2032-01-03, **916.234 real seconds / 932 wall seconds**, under 1800 s; `ref_warnings=0`, exceptions/stalls/rtc/overruns=0. Eleven packed files (10 roots plus 1 child); current city backing directly registered and compared seven times, 187 records each. Initial full sweep 111826 records; cumulative 876020 records; rotation cycle 6 covered 11/11 files and 111826/111826 records. Maximum slice 828 ms; refusals=0; every shadow line mismatches=0. DLL hash prefix ec17f769.
+[Run 492](../runs/dbpf-ex56-house-513.md): full supplied house switches, turbo to 2032, clean shutdown at 2032-01-03, **916.234 real seconds / 932 wall seconds**, under 1800 s; `ref_warnings=0`, exceptions/stalls/rtc/overruns=0. Eleven packed files (10 roots plus 1 child); current city backing directly registered and compared seven times, 187 records each. Initial full sweep 111826 records; cumulative 876020 records; rotation cycle 6 covered 11/11 files and 111826/111826 records. Maximum slice 828 ms; refusals=0; every shadow line mismatches=0. DLL hash prefix ec17f769.
 
-`dbpf-ex56-save-493 73/73`
+`dbpf-ex56-save-514 73/73`
 
-[Run 493](../runs/dbpf-ex56-save-493.md): focused normal-speed save/re-registration run, clean at 2032-01-02, **236.328 real seconds / 251 wall seconds**; `ref_warnings=0`, exceptions/stalls/rtc/overruns=0. Scripted full SaveCity at 2029-06-15 succeeded in 11156 ms. City compared four times before save (187 records) and four after re-registration (153 records); generation 0 to 1. All 73 samples discovered its path. Cumulative 876071 records; rotation cycle 6 covered 11/11 files and 111792/111792 records after save. Maximum slice 921 ms; refusals=0; every shadow line mismatches=0. Same DLL ec17f769.
+[Run 493](../runs/dbpf-ex56-save-514.md): focused normal-speed save/re-registration run, clean at 2032-01-02, **236.328 real seconds / 251 wall seconds**; `ref_warnings=0`, exceptions/stalls/rtc/overruns=0. Scripted full SaveCity at 2029-06-15 succeeded in 11156 ms. City compared four times before save (187 records) and four after re-registration (153 records); generation 0 to 1. All 73 samples discovered its path. Cumulative 876071 records; rotation cycle 6 covered 11/11 files and 111792/111792 records after save. Maximum slice 921 ms; refusals=0; every shadow line mismatches=0. Same DLL ec17f769.
 
 Run records link the retained verdict/log evidence. Exact/total counts were extracted from every dated DBPF summary line using the lane helper; clean means `mismatches=0`. No tools/coverage.py or other tools/ scripts were read or run. Both runs are terminal; no build or game request remains outstanding.
 

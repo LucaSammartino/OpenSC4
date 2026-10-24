@@ -13,7 +13,7 @@ Missing captured static records now make a month INCOMPLETE instead of allowing 
 - Focused capi shadow test: 1 passed. Explicit owned-file fmt: passed.
 - Stable final engine source: `qbuild.py all` PASS, workspace 7212 passed / 0 failed, clippy 0 diagnostics, native build 262/262 edges, CTest 81/81.
 - Native work was queued by that same all operation as `qbuild-20261024-144618-build-ctest`; no duplicate verify was launched. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. The native tree-change note was docs-only commit `3d1728678`; engine source remained identical to `69aeea81b`.
-- Run [511](../runs/flora12-20261024-r1-511.md): Konradshohe, original flora, `enable=simulator`, `flora_shadow=1`, turbo, requested end 2032-01-01; clean verdict at 2032-01-13, ref_warnings=0, exceptions=0, RTC=0, stalls=0, incomplete lines=0. DLL SHA256 prefix `0e9fc944`.
+- Run [511](../runs/flora12-20261024-r1-515.md): Konradshohe, original flora, `enable=simulator`, `flora_shadow=1`, turbo, requested end 2032-01-01; clean verdict at 2032-01-13, ref_warnings=0, exceptions=0, RTC=0, stalls=0, incomplete lines=0. DLL SHA256 prefix `0e9fc944`.
 
 Exact clean/total lines (counts are log lines, not record counts):
 

@@ -339,7 +339,11 @@ def dispatcher_workers(ctx):
     """Prefer recorded workers; unknown/malformed records keep the old proxy."""
     root = (ctx.main / "build-runs").resolve()
     workers = {}
-    for path in sorted(root.glob("*-coordinator-state.json"), key=lambda p: p.stat().st_mtime):
+    # run5-state.json and later run states are lane_launch --state files too; without them every lane of such a run
+    # fell back to the file-activity proxy, which kept finished lanes "active" for ACTIVE_MIN (2026-10-24: "active
+    # 20 / cap 20" refused launches with 6-12 lanes running)
+    states = set(root.glob("*-coordinator-state.json")) | set(root.glob("run*-state.json"))
+    for path in sorted(states, key=lambda p: p.stat().st_mtime):
         data = read_json(path)
         if not isinstance(data, dict) or not isinstance(data.get("lanes"), dict):
             continue

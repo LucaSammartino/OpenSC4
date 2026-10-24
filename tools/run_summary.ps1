@@ -137,6 +137,10 @@ if ($groups) {
 # <date>" and its day lines, "protection shadow (fire) <date>", "flora shadow month <date>: ... mismatched N",
 # "landfill shadow month to <date>: clean|mismatches=N"). A line differs when any of those counts is non-zero.
 $shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
+# One shadow key can also report owner families of its own: "<name>-<part>-shadow: ... mismatches=N" (flora_shadow's
+# flora-occupant-shadow and flora-static-shadow lines). Each family is its own label, "<name>-<part>".
+$families = Select-String -Path $Log -Pattern "\] ([a-z0-9]+(?:-[a-z0-9]+)+)-shadow: [^\r\n]*mismatches=\d" -CaseSensitive
+$shadows = @($shadows) + @($families) | Where-Object { $_ }
 $differs = "mismatch(es|ed)[= ][1-9]|differences [1-9]"
 # A line with its own total ("; mismatches=N", nothing between "; " and the word) is judged by that total alone:
 # other counts on it can be notes (land value: "with the live map total mismatched=391" when the previous desirability map matched).

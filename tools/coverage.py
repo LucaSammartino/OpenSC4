@@ -608,8 +608,10 @@ def map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress_
         r["verified"] = False
         r["shadow_note"] = "-"
         if sh != "-":
+            # "key:label" credits the owner on one line family of a shared key (flora_shadow:flora-occupant)
+            sh, _, own = sh.partition(":")
             label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
-            label = SHADOW_LABEL_ALIAS.get(label, label)
+            label = own or SHADOW_LABEL_ALIAS.get(label, label)
             if sh in shadow_list and label in reg["shadows"]:
                 clean, lines = reg["shadows"][label]
                 resynced = reg.get("resynced", {}).get(label)
@@ -680,10 +682,10 @@ def read_regress(path, audit_legacy=True):
         if m:
             out["runs"][m.group(1)] = (m.group(2), int(m.group(3)))
             continue
-        m = re.match(r"^\s+([a-z0-9]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
+        m = re.match(r"^\s+([a-z0-9-]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
         if m and run == "shadows":
             out["shadows"][m.group(1)] = (int(m.group(3)), int(m.group(2)))
-        m = re.match(r"^\s+([a-z0-9]+) resynced lines: (\d+)\s*$", line)
+        m = re.match(r"^\s+([a-z0-9-]+) resynced lines: (\d+)\s*$", line)
         if m and run == "shadows":
             label, count = m.group(1), int(m.group(2))
             out["resynced"][label] = max(count, out["resynced"].get(label, 0))

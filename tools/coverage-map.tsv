@@ -37,8 +37,8 @@ cSC4ProtectionSimulator	protection	simulation	protection.md	core/src/protection	
 cSC4CrimeSimulator	crime	simulation	crime.md	core/src/crime	crime_shadow	crime
 cSC4AuraSimulator	aura	simulation	aura.md	core/src/aura	aura_shadow	aura
 cSC4FloraSimulator	flora	simulation	flora.md	core/src/flora	flora_shadow	flora
-cSC4FloraOccupant	flora	simulation	flora.md	core/src/flora	-	-
-cSC4StaticFloraData	flora	simulation	flora.md	core/src/flora	-	-
+cSC4FloraOccupant	flora	simulation	flora.md	core/src/flora	flora_shadow:flora-occupant	-
+cSC4StaticFloraData	flora	simulation	flora.md	core/src/flora	flora_shadow:flora-static	-
 cSC4LandfillDeveloper	landfill	simulation	landfill.md	core/src/landfill	landfill_shadow	landfill
 cSC4LandfillZone	landfill	simulation	landfill.md	core/src/landfill	-	-
 cSC4LandfillOccupant	landfill	simulation	landfill.md	core/src/landfill	-	-
