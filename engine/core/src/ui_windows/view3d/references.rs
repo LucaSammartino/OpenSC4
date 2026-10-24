@@ -66,7 +66,7 @@ impl View3DWin {
                 self.owner.lifecycle.objects.insert(field, object);
             }
         }
-        self.owner.view.triggers = super::state::load_triggers(&record.triggers);
+        super::state::load_triggers(&mut self.owner.view.triggers, &record.triggers);
         self.owner.view.not_loaded = false;
         Ok(())
     }

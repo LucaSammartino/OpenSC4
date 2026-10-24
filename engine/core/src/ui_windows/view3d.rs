@@ -484,7 +484,7 @@ impl View3DWin {
         self.do_load(&record.header)?;
         self.owner.view.references[2] = record.model_maker;
         self.owner.view.references[3] = record.simulator;
-        self.owner.view.triggers = state::load_triggers(&record.triggers);
+        state::load_triggers(&mut self.owner.view.triggers, &record.triggers);
         Ok(())
     }
 

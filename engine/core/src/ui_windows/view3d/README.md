@@ -6,16 +6,16 @@ renderer, control, simulator and window services behind traits. No C ABI or plug
 wiring is included. Picking delegates to the renderer; projection delegates to
 `StatusHost::project`, rather than inventing a second camera projection.
 
-This revision completes several previously unresolved contracts, but **does not
-claim complete owner closure**. `remaining` below denotes implementation or test
-work, not a spec question and not an Unsupported contract. Only VW19 is a newly
-identified spec gap. The coordinator must not claim the whole owner from this
-partial implementation.
+VW19 is settled and implemented in both record adapters. There are no outstanding
+spec questions in this table. This module still **does not claim complete owner
+closure**: `remaining` denotes implementation or test work against settled specs,
+not an Unsupported contract. The coordinator must not claim the whole owner from
+this partial implementation.
 
 ## Owner closure
 
 Every row refers to cSC4View3DWin. Tests are in `owner_tests.rs` and its included
-`resolved_tests.rs`, unless qualified. Entries describe core coverage; they do not
+`resolved_tests.rs` and `trigger_load_tests.rs`, unless qualified. Entries describe core coverage; they do not
 claim measurement in the real game.
 
 | Spec section | Code item (implemented column) | Test / closure status |
@@ -42,16 +42,16 @@ claim measurement in the real game.
 | §6h panels / registry | `PanelState`, panel/filter methods, `COMMANDS` | VW-T14, tab/filter tests, `vw_t28_registry_is_literal_and_ordered`; remaining: mayor pane bookkeeping audit |
 | §6i menus / buttons | `menus`, `actions`, catalog methods | catalog/tool/disaster tests; remaining: resolved VW17 routing and caller-data cases, complete VW-T32 |
 | §6j status | `status`, `DisplayState` | VW-T17/T18, widget/rating/mission tests, `vw_t22_cursor_priorities_and_in_place_update`, `vw_t23_fade_alpha_motion_and_hidden_reset`, `vw_t24_date_formatter_year_boundaries`; remaining: explicit hidden-BMP visibility callback semantics |
-| §6k save / triggers | `save_object_record`, `load_object_record`, `StlHashMap` trigger state | VW-T16, opaque-reference tests, `vw_t30_trigger_wrapping_bucket_heads_and_growth`; open: VW19 load reconstruction |
+| §6k save / triggers | `references::{save_object_record, load_object_record}`, `View3DWin::{save_record, load_record}`, `state::load_triggers`, `StlHashMap` trigger state | VW-T16, opaque-reference tests, `vw_t30_trigger_wrapping_bucket_heads_and_growth`; VW-T40–T44 in `trigger_load_tests.rs` cover both record adapters |
 | §6l helpers | `Coverage`, `CoverageHost`, `refresh_background`, `setup_graph`, `stop_auxiliary`, borrowed getters, empty debug slot | `vw_t35_borrowed_getters_and_debug_no_effect`, `vw_t37_t38_coverage_transform_fallback_and_stale_cache`, `vw_t39_graph_resource_order_and_conditional_stop`; remaining: owner/GUI integration of coverage and graph setup, advice routing, complete VW-T33/T34/T36 |
 | §6m quirks | motion/commands and helper state | VW-T11/T12/T13/T21/T30; remaining: dormant objects, required failures, panel extras |
 | §6n paint completion | `paint`, `paint_deferred`, `MotionHost` | `vw_t19_t20_deferred_tail_and_timer_boundaries`, `vw_t19_safe_but_disabled_modal_drops_one_message_without_repost`, existing ordered paint and decay tests |
-| §7 conformance | `owner_tests`, `resolved_tests` | Existing VW-T1–T18 plus T19/T20/T21/T22/T23/T24/T25/T28/T30/T31/T35/T37/T38/T39; T26/T27/T29/T32/T33/T34/T36 are not fully covered |
-| §8 questions | `state::load_triggers` | open: VW19; no older VW question is treated as still open |
+| §7 conformance | `owner_tests`, `resolved_tests`, `trigger_load_tests` | Existing VW-T1–T18 plus T19/T20/T21/T22/T23/T24/T25/T28/T30/T31/T35/T37/T38/T39/T40–T44; T26/T27/T29/T32/T33/T34/T36 are not fully covered |
+| §8 questions | `state::load_triggers` | VW19 settled; `vw_t40_trigger_collision_round_trip`, `vw_t41_trigger_duplicate_overwrite`, `vw_t42_trigger_load_preserves_existing_and_empty_stream`, `vw_t43_trigger_pair_count_does_not_reserve_or_grow_for_duplicate`, `vw_t44_trigger_load_grows_only_when_inserting_new_key`; no older VW question is treated as still open |
 | view3d §1 window identity | `View3DWin`, `slots`, save-record constants | QI/shared-count, layout and save-record tests |
 | view3d §5.1 paint order | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw`, decay/pause tests, VW-T19/T20; cost → scroll → resume → context time → one renderer Draw → tail |
 | view3d §5.2 draw fields | `Motion` | paint gating, timing, decay and hidden pause tests |
-| view3d §5.3 save | four-reference object-record adapter | opaque identities/reference-resolution tests; trigger load order open: VW19 |
+| view3d §5.3 save | `references::load_object_record`, `state::load_triggers`, four-reference object-record adapter | `save_uses_opaque_identities_subobjects_and_load_interfaces_before_init`; VW-T40–T44 cover trigger load order through both record adapters |
 | view3d §10 window quirks | `paint`, view state and save methods | paint and reference tests; renderer-owned quirks are outside this owner |
 | view3d §11 window vectors 13–15, 20, 25 | `paint`, hidden pause, save methods | gate/timer/draw ordering, pause expiration and reference tests; vector 19 effects sweep remains a renderer/effects integration obligation |
 
@@ -67,5 +67,7 @@ released without a host. `setup_graph` is available as a host-driven operation;
 it is not yet connected to `add_gui`.
 
 The logical records expose trigger pairs in bucket/head order, not sorted key
-order. Literal stream-order loading is tagged VW19. Byte serialization remains
-the foreign serializer's responsibility.
+order. Loading assigns counts in stream order into the existing table, preserving
+absent keys, existing node positions and capacity. Only new-key insertions can
+grow the table. Loading neither pre-sizes from the pair count nor sends trigger
+notifications. Byte serialization remains the foreign serializer's responsibility.

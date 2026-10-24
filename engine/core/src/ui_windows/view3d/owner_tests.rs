@@ -2,6 +2,7 @@
 use super::*;
 use crate::ui_windows::win::WinStore;
 include!("resolved_tests.rs");
+include!("trigger_load_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
