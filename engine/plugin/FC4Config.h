@@ -648,6 +648,7 @@ std::string IniPath();
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
 // modelinst_shadow = 0 / 1 (default 0): finite isolated static-instance
-// transform and bounds fixture. MI14 construction binding; no live enumeration.
+// transform and bounds fixture plus the first 4096 natural static GetTransform
+// calls' destination counter/padding. MI14 bindings; no live enumeration.
 
 }  // namespace fc4

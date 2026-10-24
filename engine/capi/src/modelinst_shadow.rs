@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Private finite native-fixture transport, not a live-state reconstruction.
+//! Private fixture and live destination-counter transport, not a live-state reconstruction.
 use fc4_core::model_instances::{DrawAttributes, StaticInstance, Transform};
 
 #[repr(C)]
@@ -11,7 +11,6 @@ pub struct NativeTransform {
     words: [f32; 13],
 }
 
-#[cfg(test)]
 fn decode(t: NativeTransform) -> Transform {
     Transform {
         change_counter: t.counter,
@@ -94,6 +93,25 @@ unsafe extern "C" fn fc4_modelinst_shadow_fixture(
     true
 }
 
+// MI14: compare only channels with an independent baseline captured before the
+// game's own static GetTransform. Source words/kind are deliberately unmeasured;
+// no source state or additional getter is needed to predict these three bytes.
+#[no_mangle]
+unsafe extern "C" fn fc4_modelinst_shadow_destination(
+    before: *const NativeTransform,
+    after: *const NativeTransform,
+) -> u32 {
+    if before.is_null() || after.is_null() {
+        return 1;
+    }
+    let (before, after) = unsafe { (before.read(), after.read()) };
+    let mut expected = decode(before);
+    StaticInstance::new(DrawAttributes::default()).get_transform(&mut expected);
+    u32::from(expected.change_counter != after.counter)
+        + u32::from(before.reserved[0] != after.reserved[0])
+        + u32::from(before.reserved[1] != after.reserved[1])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,5 +128,18 @@ mod tests {
         assert_eq!(expected.kind, 7);
         assert_eq!(bounds, [4., -10., 14., 6., -8., 16.]);
         assert!(!unsafe { fc4_modelinst_shadow_fixture(2, &mut supplied, &mut expected, bounds.as_mut_ptr()) });
+    }
+
+    #[test]
+    fn live_destination_detects_counter_and_padding_damage_without_source_words() {
+        let before = encode(input(1), [0xA5, 0x5A]);
+        let mut after = encode(Transform::identity(), before.reserved);
+        // The independent destination counter wraps even though the source has
+        // different kind/words; those unknown source channels are not compared.
+        after.counter = 0;
+        assert_eq!(unsafe { fc4_modelinst_shadow_destination(&before, &after) }, 0);
+        after.counter = 255;
+        after.reserved = [0, 0];
+        assert_eq!(unsafe { fc4_modelinst_shadow_destination(&before, &after) }, 3);
     }
 }
