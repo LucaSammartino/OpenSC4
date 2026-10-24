@@ -9,9 +9,11 @@
 - Prior verify passed 81/81; prior all interrupted, not passed. Evidence remains in build-runs.
 - Current batch: core wandering picker, picker-to-AI integration, player-drive/far-docking/state/animation orchestration in `runtime.rs`, concrete crash-effect refresh, six ordered wake-stop updates, six integration tests in `runtime_tests.rs`.
 - Formatting: seven owned files pass (`build-runs/fmt-r2-final.log`).
-- Focused native cargo operation 49453 remains outstanding, compiling on heavily contended host; summary `build-runs/focused-r2-1.log`. Source/tests advanced after compilation started; collect it, then run the stable-source all/verify gates.
+- Checkpoint commit: `5e9b9abae` adds this round's implementation and six tests.
+- Focused native cargo operation 49453 was cancelled and collected to terminal exit 1 because source advanced after its compilation started; `build-runs/focused-r2-1.log` is retained, not a test verdict.
+- Stable-source required `qbuild.py all` operation 10089 is outstanding; `build-runs/all-r2-final-1.log`, detailed `build-runs/qbuild-test.log`. Same operation must be collected; do not duplicate it.
 - Guard reached two-thirds at context 101135/150000: stop new feature work, finish validation/corrections and report partial closure honestly.
-- Next: collect focused operation to terminal; correct diagnostics; run required all and queued verify, then commit final report and queue entry.
+- Next: collect all operation to terminal; correct diagnostics; collect queued verify, then commit final report and queue entry.
 - WC12 already filed; inspect current answers before adding questions.
 - No game request. No plugin/capi/ABI changes. WC12 remains open; README's other pending rows remain implementation debt.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close12-r2-manifest.json`.
