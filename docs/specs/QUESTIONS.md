@@ -119,6 +119,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NR | network-rules |
 | NRT | network-routines |
 | NT | network-tools |
+| NTK | news-ticker |
 | OG | occupant-groups |
 | OM | occupant-manager |
 | OP | occupants-props |
@@ -301,6 +302,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-tools | 19 | 9 | NT32 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
+| news-ticker | 4 | 0 | NTK5 | questions/news-ticker.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 1 | 6 | OM11 | questions/occupant-manager.md |
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
@@ -382,4 +384,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **620** | **1439** | | |
+| **total** | **624** | **1439** | | |

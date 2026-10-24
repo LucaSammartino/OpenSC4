@@ -518,6 +518,7 @@ cSC4MySimWinProc	windows and panels	ui	mysim-windows.md, mysims.md	-	-	-
 cSC4PickSimWinProc	windows and panels	ui	mysim-windows.md, mysims.md	-	-	-
 cSC4GraphsViewWinProc	windows and panels	ui	graphs-window.md	-	-	-
 cSC4LineGraph	windows and panels	ui	graphs-window.md	-	-	-
+cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
