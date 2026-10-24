@@ -19,8 +19,9 @@
   build-runs/focused-close12-r3-native.log (no test results were reached).
 - Final all running on corrected 9296596a7 source, RUST_TEST_THREADS=1,
   session 12931; output build-runs/all-close12-r3-console.log.
-- Native verify already running on unchanged production source, session 93719,
-  queue qbuild-20261024-205703-build-ctest; collect exactly this operation.
+- Native verify qbuild-20261024-205703-build-ctest PASS: build 211/211 (208.3 s),
+  CTest 81/81 (288.1 s), total 498.6 s; verify-close12-r3-console.log.
+  It reports tree changed during run (test fix/docs); production source unchanged.
 - Next: collect final all/verify to terminal, then report and enqueue actual HEAD.
 - README retains 14 settled coverage/audit deficits; full owner closure NOT claimed.
 - No new questions, ABI/plugin edits, or game requests. Prior logs were copied to
