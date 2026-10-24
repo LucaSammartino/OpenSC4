@@ -425,6 +425,38 @@ animation.
 
 A road drawn across a power line therefore removes the pole standing in that cell, but not the wire *[compat]*.
 
+### 6.5 Corner refresh and commit-added neighbours (NT30)
+
+The retained corners used by the price getter are the **post-refresh cell-info corners**, not necessarily the
+corners originally cached when the cell entered the solve. Real commit grades the terrain first (§6.1), then
+performs two different refreshes before inserting occupants:
+
+| Refresh population | Corner rule | Admission to the solved vector |
+|---|---|---|
+| Every cell in the smoothing set `+0xA4` | Replace all four corners by slot 73's network height. This happens even for a cell already in the solved vector, an unplaced cell, or a cell whose refreshed heights compare equal. | Append only when at least one old corner differs, the solved-cell id `+0xB8` is negative, and the cell was already placed (`+0x51 != 0`). |
+| Cells incident to each actually changed terrain vertex, after the first refresh | Only for available, already placed cell infos with negative solved-cell id: copy each available **network** satisfier height at its ordinary vertex id; a missing height leaves that corner unchanged. | Append each qualifying cell, whether its corners changed or not. The newly assigned solved-cell id prevents another append at a later shared vertex. |
+
+Slot 73 (`0x006444F0`) returns the network satisfier's height when present, otherwise the **current terrain**
+height; it does not fall back to the old cached corner. In the first refresh a connection-node cell adds
+**100000** to each vertex id for this lookup. Other cells use the ordinary ids. The second refresh calls the
+network satisfier directly at ordinary ids, without that offset or a terrain fallback *[quirk]*. Neither pass
+copies the terrain satisfier into network corners. A replay must keep these two satisfiers separate.
+
+For a changed vertex `(vx,vz)`, the second population is its incident cells with x from `max(vx-1,0)` through
+`min(vx,X-1)` and z from `max(vz-1,0)` through `min(vz,Z-1)`, inclusive. Vertex coordinates here are obtained by
+division/remainder with the X vertex stride. Visit changed vertices in the grading output order and incident
+cells by increasing z then x. The first pass uses the smoothing set's hash iteration order, not dragged-cell
+order. Both append the existing occupant's piece and orientation and the cell key, recording the new vector
+index in `+0xB8`. They preserve run/intersection membership. Thus an appended non-run neighbour has earthwork
+but no ordinary cell charge. Existing solved entries keep their position while their cached corners can change.
+
+Evidence: first population and float32 corner stores `0x00629CFB`–`0x00629D9E`, append
+`0x00629DC6`–`0x00629E28`; network/terrain fallback `0x006444FE`–`0x0064451C`; incident bounds and traversal
+`0x00629ED2`–`0x00629F69`, eligibility `0x00629F70`–`0x00629F8B`, direct network lookups and append
+`0x0062A026`–`0x0062A07A`. The missing-height helper returns false without writing its destination
+(`0x0065EB1D`–`0x0065EB44`). Grading's changed-vertex threshold is strictly greater than 0.001
+(`0x006445AD`–`0x006445C1`); a solved vertex below that threshold does not by itself admit incident neighbours.
+
 ---
 
 ## 7. Auto-connection
@@ -509,6 +541,58 @@ the full staircase inventory; with road cost 10, zero other charges and flat ter
 run cells cost **170** and **90**, respectively. Bridge and power-line prices additionally require their own
 retained records/resources; the generic per-cell formula cannot stand in for those owners.
 
+#### 8.1.2 Admitted retained-corner fixtures (NT30)
+
+The following are **controlled replay inputs**, not recovered internal snapshots of Konradshohe. They use the
+question's coordinates so an implementer can separate footprint, refresh and pricing errors. Public totals
+110/113, 170/192, 90/98 and 55/61 alone cannot identify a unique native corner/entry fixture. In particular,
+subtracting those totals does not identify a vertex, neighbour, or terrain adjustment. Do not fit residuals to
+those differences, substitute a native total, or claim the city probes exact on these vectors.
+
+Take an otherwise empty square city with 128 cells per side, vertex stride 129 and terrain altitude 100.0 at
+every vertex. For a cell `(x,z)`, its ordered vertex ids are `v, v+129, v+130, v+1`, where `v=129*z+x`.
+Every listed entry is available, in-run, non-intersection, non-connection, with four retained corners
+`(100,100,100,100)`; the network and terrain satisfiers both return 100 at these vertices. Demolition, bridge,
+tunnel and intersection inventories are empty. Use road cost 10, street cost 5 and earthwork factor float32
+0.1. The ordered entries below completely define each fixture's price inputs. They do not assert that piece
+evaluation in an arbitrary occupied city produces this same solved-vector order.
+
+| Fixture | Ordered solved entries (inclusive integer ranges) | Entries / corners | Expected price |
+|---|---|---:|---:|
+| Straight road | `(x,4)` for x=4..14 | 11 / 44 | 110 |
+| Diagonal road | `(20,4)`, then for j=1..8, `(19+j,4+j),(20+j,4+j)` | 17 / 68 | 170 |
+| Shared-endpoint road | `(14,4)`, then for j=1..4, `(13+j,4+j),(14+j,4+j)` | 9 / 36 | 90 |
+| Straight street | `(x,8)` for x=64..74 | 11 / 44 | 55 |
+| Repeat straight road | Same entries as the first row, now placed=true | 11 / 44 | 110 |
+
+The third row is a price fixture with flat equal-height existing endpoint; it does not reset the endpoint's
+run byte merely because an occupant was already there. Shared vertex ids remain repeated corner observations.
+
+Two differential extensions exercise §6.5 rather than fitting the city:
+
+- **Refresh an existing solved entry.** In the straight-road fixture change the cached corners of `(4,4)` to
+  `(110,110,110,110)` before real commit, retaining 100 in the network solution and live terrain. Include it
+  in the smoothing set with solved id 0. Before refresh the fixture costs 114; after the first refresh its
+  four corners are 100 and it costs **110**, with the same eleven entries. An implementation refreshing only
+  appended neighbours incorrectly retains 114. Equal-height network and graded terrain also explain why a
+  repeat can have zero earthwork without suppressing its cell charges.
+- **Admit a terrain neighbour, with one missing network height.** Start from the flat straight-road price
+  fixture after its position refresh. Add one placed, non-run, non-intersection cell `(3,4)` with solved id -1,
+  ordered ids `(519,648,649,520)` and cached corners `(102,103,104,104)`. Keep it outside the smoothing set.
+  Grading changes vertex 520 from 99 to 100, and its output vector contains only 520. All other incident cells
+  have already nonnegative solved ids or are unplaced. The network solution contains heights 100 at ids
+  519/648/649 and no height at 520. The terrain-neighbour pass appends `(3,4)` once and retains corners
+  `(100,100,100,104)`: total **110**, since 4×0.1 rounds to 0. With factor=1 the same inventory costs
+  **114**. Replacing the missing corner by live terrain incorrectly gives 110 in that second check.
+  Calling the price getter before this append ignores the cached neighbour. Repeating vertex 520 in the
+  changed list must not append it a second time.
+
+For a city differential retain, on the replay side, each entry's key and solved index; old and post-refresh
+corners; run/intersection/placed/connection bytes; whether it came from the piece solve, position refresh or
+terrain refresh; network lookup hit/value (including offset ids); and live terrain reads at getter time.
+Compare that trace with these controlled fixtures first. NT27 supplies no public native getter for this trace;
+the four observed city totals remain evidence of differences, not admitted internal inputs.
+
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
 Only the player's tool UI withdraws money:
@@ -538,6 +622,103 @@ zero-extended cost to the budget; whether even a large raw amount is refused is 
 neighbor predicate tests the failure result's low byte. This subsection does not cover the UI lifecycle/input owner.
 A harness that wants the player's economics must withdraw `GetCostOfSolution()` itself before calling
 `PlaceNetworkOccupants` *[choice]*.
+
+### 8.3 Minimum subclass replay fixtures (NT31)
+
+Dispatch type 5 to the separate power-line placement/cost owner, and surface bridges to bridge identification,
+selection and construction before the ordinary solve. A generic surface replay with an empty bridge-type
+enumeration and no pole/wire host has insufficient inputs. Returning a generic refusal is a measured adapter
+difference, not the native subclass result. The smallest useful fixture has three separately reported scopes:
+resource loading/selection, placement with a recording host, and retained pricing. Passing one scope does not
+certify the others. These fixture records are test data, not new public interfaces or guessed native signatures.
+
+#### 8.3.1 Power line
+
+Supply Utilities exemplar TGI `6534284A/E7E2C2DB/C911E35B` with the following **shipped** values:
+
+| Property | Type / value | Purpose |
+|---|---|---|
+| `0x098B25C8` | uint32 10 | maximum drag-step spacing |
+| `0x098B27D0` | float32 7.0 | terrain-test clearance |
+| `0x4A5F5953` | uint32 15 | cost per counted pole |
+| `0x0A5F596B` | float32 2.0 | cost per counted wire cell |
+
+The lookup/read contract is `0x00650630`, especially `0x006506CE`–`0x00650704`; values are also recorded in
+[network-geometry §11](network-geometry.md#11-costs-answers-nt2-and-the-power-line-answers-nt3).
+The fallback values **20, 7, 0, 0** belong to a freshly constructed object with missing properties, not to the
+shipped resource. Preserve the once-only resource latch: adding a resource after a failed first load does not
+make the native process retry it (power-line-tool §1).
+
+For a controlled empty-land placement fixture use anchors `(4,32),(16,32)`, 13 one-cell steps, the pivot
+helper's prefix count `+0x74`=13, flat terrain 100, clear classifier results, no existing poles or wires,
+no terrain-ray hit and neighbourMode=false. The nonzero prefix count makes each step's first cell a pivot;
+do not apply this spacing expectation to a helper fixture with that count zero (power-line-tool §4.1). The
+recording host must support pole create/reuse, bidirectional connections, wire creation, insertion and retained
+reference cleanup as specified in [power-line-tool §§4–5](power-line-tool.md). Record requests and return stable
+test objects; do not silently treat missing host operations as successful. Spacing 10 and the forced endpoint
+give poles at `(4,32),(14,32),(16,32)` and ten non-pole wire cells. The pole links are first-to-middle and
+middle-to-last. Expected valid=13, public failure=0 and retained price **3×15 + 10×2 = 65**. This is an admitted
+empty-land vector, not proof that the Konradshohe line used these same poles. Terrain, existing endpoints,
+zoning and repair can change the retained counts; replay those host inputs for a city comparison.
+
+Loading tuning alone is insufficient for pole placement. The network INI TGI `00000000/8A5971C5/8A5993B9`
+must also supply its `PowerPoles` direction-mask → pole-exemplar-instance mapping. ReadPowerPoleInfos parses
+unsigned keys/values (`0x0064F880`, callback `0x0064F140`–`0x0064F160`); CreatePowerPole indexes that mapping
+with the new direction mask OR the reused pole's previous mask (`0x0065016A`–`0x00650183`,
+`0x006501CD`–`0x006501D9`). A host-only fixture may map the masks it actually receives to explicit synthetic
+pole resources, with stable attachment points and successful initialization. Label that resource set
+**synthetic**; zeros or invented instances are not shipped pole data. To claim model/curve coverage also supply
+the real mapped pole exemplars, their attachment orientation, and all six curve controls in power-line-tool
+§5.5. A count/price replay can omit rendering while reporting those model/curve scopes uncovered.
+
+For a pricing-only fixture the retained inputs are counted poles=3 and counted wire cells=10, with the two
+cost parameters above. Price is 65 even after endpoint references are released. The unsigned pole count ≤1
+returns zero. Otherwise the wire count is converted as uint32, multiplied by the float32 parameter in x87,
+then truncated toward zero, and the integer pole term is added (`0x0064F0F5`–`0x0064F12B`). There is **no
+float32 store between multiply and truncation**. This qualifies the `r24` shorthand in network-geometry §11:
+do not insert that rounding. With wire count=16777217, wire price=1.0, poles=2 and pole price=0 the result is
+16777217, not 16777216. The getter does not add the base tool's demolition or earthwork terms.
+
+#### 8.3.2 Bridge
+
+For a shipped road resource fixture enumerate **nine**, not zero, bridge types, in INI key order:
+keys 1..9 map to exemplar instances `1,2,3,5,6,7,8,9,A`, all T/G `6534284A/A82CA30F`.
+Their minimum spans are respectively `10,16,4,4,22,4,10,12,4`; width=1; maximum span=100000;
+clearance=[0,10000]; fixed/per-step type costs=(0,0). Their water and land eligibility bytes are both true.
+These are loader/selection inputs, not an assertion that a bridge must be constructed for every 17-step drag.
+Use the complete corresponding ramp/deck/pier and height data from
+[network-bridges §§2–3](network-bridges.md#2-bridge-types), including length-specific specialisations keyed
+by network type (road instance `0x1000`) before falling back to the parametric model. Type index is its
+zero-based vector position, not its INI key or exemplar instance.
+
+A concrete **selection-only** vector: candidates in that order, no preferred bridge, start=2, end=17,
+clearance=20 and no padding needed by fitting candidates. Length=16 chooses key 2 / index 1, the exact
+minimum-span fit, ahead of key 8 (minimum 12). Setting preferred key 1's index=0 chooses key 1 instead.
+This follows `0x0062F760` and network-bridges §6; a zero enumeration cannot produce either result.
+
+For placement, the minimum recording-host input inventory is: final ordered drag/step cells and straight/valid
+counts; AllowBridges and land-bridge enable state; current preferred index and altitude override (default -1);
+per-step water flags, surfaces and corner terrain; filtered occupant queries in each step rectangle grown by
+one; existing per-type edges; chosen span's bank/reference elevation; and the selected type's complete model
+resource data. Preserve ordered candidates and length specialisations. The resulting bridge record must
+retain network type, inclusive start/end step indices, selected type index, reference/deck heights and model
+pieces, whose fixed corner heights enter the ordinary solve (network-bridges §§4–10). A host may record model
+requests without drawing, but omitting the pieces' heights changes placement and earthwork. Query failures,
+empty candidate sets and a missing model must remain distinguishable from successful recorded placement.
+
+For an independent **retained-price** vector use one road bridge record with start=2, end=11, selected index=0,
+type costs=(0,0), tool bridge cost=100, no other charges or solved cells. Price is **900**, not 1000: the getter
+uses end-start, not inclusive length (`0x00625740`–`0x0062577F`). Changing deck height or model ids alone does
+not change that term; changing the retained span does. This prices an admitted record; it does not assert
+that identification accepts an isolated record without approach cells.
+
+For the city drag `(42,43)`–`(58,43)`, neither its 17 valid cells nor total 974 identifies the bridge's chosen
+index, span, elevations, approach-cell inventory or earthwork. Do not encode 974 as a model price, infer a
+particular bridge from it, or inject it as the replay result. The native resource/host observations above are
+needed to instantiate a city fixture; they are not exposed by slot 23. Keep the original/core 974/0 and
+powerline 65/0 differences visible, default-off and record-only until the corresponding hosts/resources are
+wired and a fresh comparison passes. These contracts close the input-boundary question without claiming
+pole/wire/model coverage or exact whole-owner coverage from a public-total match.
 
 ---
 
@@ -873,6 +1054,10 @@ original's layout *[choice]*. The pops agree with docs/abi/interfaces.tsv.
 - **NT28:** §3.5 specifies staircase rows and increasing width order; §5.3 corrects slot 14 to a Boolean.
 - **NT29:** §8.1.1 defines retained solved-entry/corner inputs, live terrain, intersection cost exclusion and
   repeated-placement pricing. Tests 20–30 below cover these three answers.
+- **NT30:** §6.5 and §8.1.2 define the two corner refresh populations and complete controlled per-entry fixtures;
+  they do not present public city totals as recovered native corner snapshots.
+- **NT31:** §8.3 defines shipped tuning/bridge selection inputs, recording-host requirements and separate
+  placement/retained-price fixtures; absent subclass resources remain recorded differences.
 - **NM5** (network-manager.md §15): confirmed, §13.2. MATCHES.
 - **zones.md §14.3 Q1(a)**, the street tool's `PlaceNetworkOccupants`:
   - when it fails: §5.1, §5.3;
@@ -1007,3 +1192,20 @@ A "city" is a fresh flat 64 × 64 city with funds 100 000 §, unless stated. Roa
     getters still report the current drag, but their coordinate pairs contain no pole, wire or bridge piece ID.
     Reading them cannot turn an unwired generic adapter into a comparison of those pieces. Use the subclass
     cost and placement contracts; retain a recorded mismatch until the adapters and resources agree.
+31. **NT30 coordinate/corner fixtures.** Expand each row of §8.1.2 with stride 129 and the specified four
+    corners. Require prices 110,170,90,55,110, including the full staircase inventories and repeated vertices.
+32. **NT30 refresh already solved.** The stale-corner variant in §8.1.2 changes 114 to 110 without appending a
+    solved entry. Placed=false does not prevent the first pass's corner refresh.
+33. **NT30 incident neighbour and missing height.** The `(3,4)` variant appends exactly once, retains 104 at
+    the missing network vertex and costs 114 at factor=1. A cached-but-not-admitted neighbour contributes zero.
+34. **NT30 fallback distinction.** A smoothing cell with an absent network height uses current terrain at that
+    vertex; a terrain-neighbour-only cell leaves its old corner unchanged. For connection nodes only the first
+    pass adds 100000 to the lookup id. Supply unequal ordinary/offset answers to detect accidental conflation.
+35. **NT31 power-line scopes.** With the empty-land placement inputs of §8.3.1 require valid=13, failure=0,
+    three poles and ten counted wire cells, price=65. With retained counts only, certify price only. Missing
+    Utilities properties give fresh costs 0, not 15/2; missing pole host is an uncovered placement scope.
+36. **NT31 power-line numeric width.** The large-count retained-price vector in §8.3.1 returns 16777217;
+    count=1 pole returns 0 regardless of wire count. No base earthwork/demolition is added.
+37. **NT31 bridge scopes.** The 16-step selection vector chooses index 1, or index 0 when explicitly
+    preferred. The independent retained bridge record in §8.3.2 costs 900. Neither check certifies model
+    construction, native city span/elevations, nor the observed city total 974.

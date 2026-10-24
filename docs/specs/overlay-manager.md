@@ -299,6 +299,17 @@ initialized dynamic manager's null index is not a missing sample. Repeated Init/
 apply: leftover storage is not proof that a dynamic manager uses an index. Selection order and stamp wrapping
 are §4.5. Merely reading a cell must leave both per-record and manager stamps untouched.
 
+**Inactive headers (OV14).** An ordinary dynamic manager has no static index: shift at `+0xE4` and
+dimensions at `+0xE8/+0xEC` are **not applicable and have no guaranteed values**, including no guarantee
+of zero, positivity, agreement with terrain dimensions, or a usable shift range. The constructor zeros
+only the index vector's three pointers (`0x0073BD85–0x0073BD91`); it does not initialize those three
+scalar words. Init establishes the separate terrain dimensions at `+0x5C/+0x60`, but invokes
+BuildCellIndex only for dynamic byte zero (`0x0073CCF1–0x0073CCF8`). Consequently an observer retains
+inactive scalar words diagnostically without validating, shifting by, multiplying, or dereferencing through
+them. Report no applicable static cells, and still enumerate every live overlay, placement and group.
+This does not waive arena integrity checks. After a static-to-dynamic repeat Init, old index storage and
+header words can remain (§1.1); they are still inactive, not a dynamic cell-membership contract.
+
 ### 2.7 Texture identity, dimensions and the limit of resident data (OV12)
 
 The overlay stores **references**, not image pixels or a resource key. For a binding at overlay `+0xAC`,
@@ -810,6 +821,46 @@ Similarly, comparing texture identities/dimensions does not verify image bytes (
 report any missing event/resource/lighting input as incomplete coverage; the absence of those inputs is the
 answer to OV12's snapshot-reconstruction question, not permission to inject computed owner results.
 
+#### 3.8.1 Capture availability and the earliest boundary (OV13)
+
+There is **no supported native capture-registration or history-export API on this owner**: the §3
+interface exposes overlay operations/getters, not an event subscription for their arguments or consumed
+resources. The concrete earliest boundary for a future instrumented adapter is terrain-view initialization,
+before the four manager Init calls at `0x0075C6BC`, `0x0075C6C8`, `0x0075C6D7`, `0x0075C6E7`:
+static land, static water, dynamic land, dynamic water respectively. These are direct calls, following direct
+construction of the managers (`0x0075C5B2–0x0075C6B3`); replacing only interface slots does not capture Init.
+Capture must precede Init itself, not merely the first successful add, because Init acquires resources and
+settings (§1.1). This is an instrumentation boundary, not a callback the game promises to invoke. A
+post-load read-only observer cannot supply it retrospectively. Its supported result remains the §2
+record/getter/graph observation, with creation replay and image bytes explicitly unavailable. Closing OV13
+does not confer full-owner verification credit on such an observer.
+
+For an adapter that actually records calls from that boundary, the following is the **input contract**;
+the native owner does not retain a copy for it. Keep one ordered stream per manager plus the order of shared
+service/resource changes. Record entry arguments while pointees are valid, and separately record exit
+results as expectations. Nested internal calls are evidence of the enclosing operation, not additional
+public adds to replay (e.g. model-shadow creation's rectangle helper). Snapshotting a pointer address and
+reading it after return is not equivalent to copying its original data.
+
+| Input family | Data required at consumption time |
+|---|---|
+| Lifetime and mutation | Manager identity; original Init parent identity and dynamic/water bytes; all original creation arguments from §§3.1–3.7; removals, placement/scalar/colour/visibility/self-lighting/texture-scale setters, Shutdown and repeat Init, including failures, equal-value calls and sentinel calls in order. Capture quality changes/messages and the settings actually consulted. Do not infer missing calls from live IDs. |
+| Model geometry and UVs | Slot 11's six arguments (§3.7). For ordinary valid positive n, copy n contiguous three-binary32 points (12-byte stride) and n contiguous two-binary32 UV pairs (8-byte stride), not pointers to model objects or interleaved render vertices. UVs are original projection inputs as well as later extrema inputs, not generated owner matrices. |
+| Model box and transform descriptor | Copy the six binary32 box words in §3.7. The descriptor is lighting's transform: flag byte at +1, nine binary32 matrix entries at +4 through +36, translation at +40/+44/+48, scale at +52. Bytes +0/+2/+3 are not matrix entries. Preserve all flag bits; use lighting §5.8 for their meaning and precision. The separate 64-byte outP is an output, never an input descriptor. |
+| Lighting and terrain | Reproduce lighting's original state and terrain inputs under lighting §§5.7–5.8: view-rotated direction, terrain cell counts/width and height samples used by the edge probes. Retain both cached manager quality and current global quality; the latter selects the bounds route. Capturing only returned direction/P/rectangle establishes a downstream service-output test boundary, not independent verification of those services. |
+| Resources and sources | Original source/binding identity as stable observer tokens; original key/ID and factory group/settings/cache history; dimensions and lookup success/failure at each consumption. Source slot 3's two dimension words and arbitrary source implementations need their own capture boundary (§2.7); there is no universal source-object pixel layout. A newly loaded copy of a keyed file alone does not prove the resident resource consumed then. |
+| Image uploads | Independently retain source resource/image-info contents, format/type, source frame/level counts and each consumed level's bytes while valid; retain binding size/levels and all later upload/restore events. Factory slot 7 selects the last binding-level-count entries of each source frame, and forwards format/type and level pointers to driver slot 61 (texture-bindings §§1.5,1.12; graphics-formats §§2.6,2.10). Record frame/level, dimensions and original bytes at that boundary; driver handles and resource hashes are not bytes. Unknown formats/invalid pointers without an established readable extent make byte coverage unavailable, not an invented zero-length image. |
+| Numeric environment | Original binary32 input words and inherited x87 control state at relevant arithmetic, as §§3.1–3.7 and lighting §5.8 require. Do not round-trip inputs through printed decimals or substitute computed native M/N/rectangles. |
+
+The model pointee layouts are proved at `0x007D8C87–0x007D8D05`, array accesses
+`0x007D8F26–0x007D90F3`; original owner forwarding/quality selection is
+`0x0073C14E–0x0073C1D6`. Transform widths were checked against the instructions, not inferred from
+decompiler types. Array sizes above describe the valid caller domain, not new native validation: cached
+quality zero rejects before pointee access, and n≤0 does not become a safe empty-model operation (§3.7).
+Upload pointers are transient (`0x00809B90–0x00809CC6`); neither the owner nor binding metadata supplies a
+complete recording facility. Missing any of these input families limits the claimed coverage to the
+boundary actually captured; it does not block implementing the observation invariants now.
+
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
@@ -1125,6 +1176,21 @@ For every observation sample, a queue/list cycle, out-of-range link or changing 
 explicit incomplete/failed sample, never an exact verdict based on a truncated prefix. Counts of compared
 records, ordered cell lists, metadata and available image data must be reported separately. These vectors
 specify expected behavior; they are not claims that an in-game live-record shadow has already run.
+
+### 9.2 Capture boundary and inactive-header vectors (OV13–OV14)
+
+These are paper conformance vectors, not measured game runs or a claim that an input recorder exists.
+
+| Vector | Setup | Required result |
+|---|---|---|
+| OV14-A: inactive poison words | Ordinary dynamic manager, null index-vector pointers, valid arenas with one live overlay; index shift `0xFFFFFFFF`, nx `0x80000000`, nz `0x7FFFFFFF` | Complete arena observation; static grid N/A and no static cells. Retain raw header words diagnostically; do not reject on shift/shape, multiply dimensions, or drop the live record. |
+| OV14-B: repeat Init | Initialize static, create an overlay, then Init dynamic using the same terrain | Arenas survive repeat Init; old grid storage can survive too. Dynamic observation does not enumerate that retained storage as active cells or require dynamic membership. Terrain counts +5C/+60 remain distinct from inactive index dimensions. |
+| OV14-C: active grid discriminator | Same poison scalar words as A, but ordinarily initialized static manager claiming an active index | A is not permission to accept an invalid active static grid. Apply §2.6's active-grid shape/storage checks; an invalid sample is incomplete/failed. |
+| OV13-A: late attach | Attach after city load; observe valid arena/getter/ordered-cell/metadata data, but no original creation events or upload data | Observation-invariants coverage may be complete for that sample. Creation-history replay and image-byte verification are unavailable; equal matrices or metadata do not change that verdict. |
+| OV13-B: interface-only interception | Record all §3 virtual add/setter calls, but miss the four direct Init calls and initial factory/quality inputs | Not a complete pre-allocation input stream. First successful add does not establish the empty initialized state or original dimensions/settings. |
+| OV13-C: borrowed model inputs | n=3, three packed XYZ points (36 bytes), three packed UV pairs (24 bytes), six-word box (24 bytes), descriptor fields through +52; caller reuses those buffers after return | Replay uses entry copies and original lighting/terrain state. Descriptor +1 is flags, +4 begins the matrix, +52 is scale. Reading buffers later, using a descriptor pointer as outP, or supplying native P/bounds instead fails independent projection coverage. |
+| OV13-D: failed and nested calls | A model call fails projection; a later successful model call invokes the internal rectangle helper once | Keep the failure in the ordered stream with no overlay allocation; replay the successful public model call once, not once plus a second helper add. IDs are compared as outputs. |
+| OV13-E: transient upload | One source frame has three mip levels; binding has two. Bytes at source levels 1 and 2 are uploaded, then the caller changes/frees the table and bytes | Keep original consumed level-1/2 bytes and metadata before return, plus any later upload/restore events. A post-return table or stable binding/driver handle cannot prove original or current image bytes. |
 
 ### PR review: slot 20 self-lighting
 

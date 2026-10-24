@@ -234,7 +234,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 22 | EF17, EFP7 | questions/effects.md |
+| effects | 2 | 22 | EF20, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -267,7 +267,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 10 | LR13 | questions/lot-records.md |
-| lua-host | 2 | 7 | LH8 | questions/lua-host.md |
+| lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
@@ -284,7 +284,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 4 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 21 | 7 | NT32 | questions/network-tools.md |
+| network-tools | 19 | 9 | NT32 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
@@ -292,7 +292,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 8 | 7 | OV15 | questions/overlay-manager.md |
+| overlay-manager | 6 | 9 | OV15 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 9 | 4 | PT14 | questions/particles.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **600** | **1422** | | |
+| **total** | **596** | **1428** | | |

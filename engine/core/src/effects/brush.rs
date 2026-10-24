@@ -64,6 +64,12 @@ impl BrushEffect {
         self.cur = (x, z);
     }
 
+    /// `SetTransform(local, parent)` at the semantic transform boundary (§8.3).
+    pub fn set_transform(&mut self, local_offset: [f32; 3], parent: &super::transform::ParentTransform) {
+        let position = parent.world_position(local_offset);
+        self.set_position(position[0], position[2]);
+    }
+
     /// `Start(mode)` (`0x005812C0`).
     pub fn start(&mut self) {
         self.prev = self.cur;

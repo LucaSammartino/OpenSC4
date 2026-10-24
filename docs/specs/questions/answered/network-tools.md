@@ -98,3 +98,50 @@
   nor the extra-cell vector is the general pricing inventory. Cell +0x52 excludes intersection
   cells, not already-built cells; placed +0x51 does not suppress the charge. Original entry
   recovered from glue-nettool-shadow5; no guessed per-run height residual or compensating price.
+
+<!-- from: glue-nettool-shadow5 round 2 (engine lane, 2026-10-24) -->
+- **NT30 - retained-corner differential fixtures after NT29:** clean same-process
+  run nettool-shadow5-r2-20261024-a reaches 2032-01-04 with all fourteen ordered
+  footprints exact. Four ordinary-road/street public cost totals still differ:
+  road (4,4)-(14,4) 110/113, road (20,4)-(28,12) 170/192, shared-endpoint road
+  (14,4)-(18,8) 90/98, street (64,8)-(74,8) 55/61 (original/core). The repeat
+  road is 110/110. The replay retains solved cell keys, type/run/intersection
+  inputs and final network corners; each getter reads live terrain at each
+  retained vertex ID, without re-solving or deduplicating. Unit fixtures cover
+  NT29's shared vertices, cached-but-unsolved exclusion and repeated charges.
+  Can the spec provide an admitted per-entry/corner fixture for these drags,
+  including commit-added neighbours and corner refreshes, to distinguish the
+  remaining solve/refresh input differences? NT27 rules out discovering those
+  internal inputs through a fabricated public solved-record getter.
+  [keep all four differences; no fitted adjustment, terrain resample of the
+  retained network solution, tolerance, or owner-verification credit]
+  **ANSWERED 2026-10-24 (re-nettool-nt30):** MATCHES — network-tools §6.5/§8.1.2 and tests 31–34
+  supply per-entry/corner fixtures for the four footprints and repeat, plus stale solved-corner refresh and
+  incident-neighbour admission with a missing network height. The first commit pass refreshes all smoothing
+  cells even when already solved; the second appends only placed unsolved incident cells and preserves corners
+  on missing network heights. These are admitted controlled fixtures, not recovered city snapshots; preserve
+  all four city differences until replay solve/refresh inputs agree. No fitted residual or native getter.
+
+<!-- from: glue-nettool-shadow5 round 2 (engine lane, 2026-10-24) -->
+- **NT31 - subclass adapter fixture/resource boundary:** in the same clean
+  round-2 run, the generic replay now correctly propagates refusals instead
+  of discarding the internal reason: powerline (4,32)-(16,32) has original/core
+  ok=1/0, public failure=0/1, valid=13/0, cost=65/0; bridge attempt
+  (42,43)-(58,43) has ok=1/0, failure=0/1, valid=17/0, cost=974/0. Ordered
+  coordinates and straight/total counts match in both. Existing bridge-type
+  enumeration returns zero, and the shadow does not call the separate
+  powerline pole/wire host. Which minimum admitted resource/host fixture can
+  connect those subclass placement and retained-price paths for this city,
+  including the powerline tuning and bridge selection/model inputs, while
+  keeping the comparison record-only? The public boundary in NT27/NT29 is
+  understood; this requests concrete subclass replay inputs rather than a
+  nonexistent public piece getter.
+  [leave the generic-adapter differences visible and default-off; do not
+  substitute native totals, claim pole/wire/model coverage, or guess signatures]
+  **ANSWERED 2026-10-24 (re-nettool-nt30):** DIFFERS — network-tools §8.3 and tests 35–37
+  specify shipped Utilities tuning (10,7,15,2), direction-mask pole resources and recording-host requirements;
+  road bridge enumeration, ordered minimum spans, preferred-index selection, model/height input inventory
+  and independent retained-price vectors. Generic zero resources do not replay these owners. Power-line
+  pricing multiplies in x87 without an intervening float32 store (qualifying the older r24 shorthand).
+  Actual city bridge span/model and pole inventory are not inferable from public totals: no injected 974/65,
+  guessed model choice, or owner coverage credit; city differences remain visible and default-off.
