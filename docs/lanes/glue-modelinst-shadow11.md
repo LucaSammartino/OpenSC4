@@ -7,7 +7,9 @@
 - Goal: finish finite static shadow measurement; no new owners or questions.
 - Done: source d230f041b; previous gate passed; prior run 498 ended no-load (harness failure confirmed by coordinator).
 - New request: modelinst-static-2032-20261024-b, same train193 switches plus modelinst_shadow=1, turbo to 2032-01-01.
-- Next: wait once via build-runs/wait-verdict.py, summarize, run final qbuild all, commit report and queue full HEAD ready for measured work.
+- Final gate: cargo 7141/0 and clippy zero diagnostics; native request qbuild-20261024-145415-build-ctest pending in the same all operation (session 26610).
+- Game wait session 27103 remains active for the unique retry; collect that same operation.
+- Next: collect game/native terminal results, summarize, commit report and queue full HEAD ready for measured work.
 - MI14 stays open; no live or whole-owner coverage claims; public ABI unchanged.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r3-manifest.json.
 
