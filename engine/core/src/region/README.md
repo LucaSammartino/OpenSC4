@@ -21,8 +21,8 @@ is refused. No region savegame record is specified or invented.
 
 Boxes use stable opaque IDs and one Arc reference per allocated box. Overwriting
 a cell retains the replaced box, and zero-area insertion retains an unreachable
-box, as specified. Safe Rust reclaims unreachable allocations when Region itself
-is dropped; the original leaks them. Failed reload leaves the caller's ID stale,
+box, as specified. Drop deliberately forgets these allocated references, preserving
+the specified lifetime even after region destruction. Failed reload leaves the caller's ID stale,
 and looking it up returns None instead of dereferencing freed memory (RM17).
 Getters have no RefCell; Region and CityRef are Send + Sync. Embedders synchronize
 concurrent mutation of Region; individual city projections use RwLock.
@@ -44,7 +44,7 @@ Test names refer to `tests.rs`.
 | region-model §1.1 identity/refcount | query_interface, add_ref, release | identity_fields_and_lifetime |
 | region-model §1.2 all state fields | Region::default, getters/setters, boxes, overflow, locations | identity_fields_and_lifetime; city_boxes_overlap_removal_counted_references_and_list_append |
 | region-model §1.3 all 26 slots | Region methods, BoxId, release | identity_fields_and_lifetime; reload_success_failure_and_delete_city; move_city_collision_serial_rewrite_active_folder_and_source_shutdown |
-| region-model §1.4 construction/destruction | Default, release | identity_fields_and_lifetime |
+| region-model §1.4 construction/destruction | Default, release, Drop | identity_fields_and_lifetime; orphaned_box_references_survive_region_destruction |
 | region-model §2 paths | folder, RegionHost directory services | create_sanitization_templates_starter_and_failure_paths |
 | region-model §2.1 initial naming | set_name, set_directory_name, load_config; nation's enumeration is external | config_conformance_localization_and_range_patch |
 | region-model §2.2 city file selection | load_cities_from_directory | package_version_gate_extensions_and_read_failures |
@@ -58,7 +58,7 @@ Test names refer to `tests.rs`.
 | region-model §5.2 placement | load_cities, overlaps_occupied_cell | load_cities_overflow_and_x_size_only |
 | region-model §5.3 overflow order | overflow, load_cities | duplicate_timbuktu_vector_and_copy_failure; load_cities_overflow_and_x_size_only |
 | region-model §5.4 queries | get_city, get_all_cities, city_locations | city_boxes_overlap_removal_counted_references_and_list_append; bounds_ignore_extents_and_degenerate_axes |
-| region-model §5.5 insertion/removal | insert_city, remove_city | city_boxes_overlap_removal_counted_references_and_list_append; remove_erases_rectangle_by_key_even_after_replacement; open: RM17 |
+| region-model §5.5 insertion/removal | insert_city, remove_city, Drop | city_boxes_overlap_removal_counted_references_and_list_append; remove_erases_rectangle_by_key_even_after_replacement; orphaned_box_references_survive_region_destruction; open: RM17 |
 | region-model §5.6 bounds | bounding_rect | bounds_ignore_extents_and_degenerate_axes |
 | region-model §6.1 Init | init, RegionGlobals::init_seen | init_idempotent_shutdown_writes_resolved_name_and_retains_locations |
 | region-model §6.2 Shutdown | shutdown | shutdown_overflow_and_ignored_write_failures_delete_recursive |

@@ -132,7 +132,7 @@ pub enum Unsupported {
     BaseTerrainType(i32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Region {
     initialized: bool,
     references: u32,
@@ -148,21 +148,13 @@ pub struct Region {
     next_box: u64,
 }
 
-impl Default for Region {
-    fn default() -> Self {
-        Self {
-            initialized: false,
-            references: 0,
-            destroyed: false,
-            unused_word: 0,
-            name: String::new(),
-            directory_name: String::new(),
-            config: Config::default(),
-            locations: Vec::new(),
-            overflow: Vec::new(),
-            cells: BTreeMap::new(),
-            boxes: BTreeMap::new(),
-            next_box: 0,
+impl Drop for Region {
+    fn drop(&mut self) {
+        // §1.4 destroys the cell table without releasing its boxes. Normal boxes have already
+        // been removed by Shutdown; overwritten/zero-area boxes must keep their counted refs
+        // even after the region dies (§5.5). Forget only references we allocated ourselves.
+        for (_, city) in std::mem::take(&mut self.boxes) {
+            std::mem::forget(city);
         }
     }
 }

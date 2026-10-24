@@ -8,6 +8,9 @@
 - Done: initial handoff 5b8e82dd9; region owner, codecs, host boundaries and closure table implemented.
 - Focused pre-final test: 21/21 passed (before synthetic distributions and extra codec/I/O cases).
 - Questions filed: RM15–RM18 and RQ3; invalid height lookup Unsupported only.
-- Next: format added tests, focused final tests, qbuild all and queued verify; then report and enqueue.
+- Gate on b57904ca5: cargo 7035 passed, 0 failed; clippy failed derivable_impls; native queue still outstanding as qbuild-20261024-102643-build-ctest.
+- Preserved Rust gate logs as build-runs/pre-correction-qbuild-{test,clippy}.log.
+- Diagnostic correction: derive Default; preserve orphan-box references after destruction with regression test.
+- Next: collect outstanding gate terminal verdict, commit correction, run final all and explicit verify, report/enqueue.
 - Required final checks: qbuild all and queued qbuild verify; no game request outstanding.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-region10-r1-manifest.json.

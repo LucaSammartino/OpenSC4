@@ -968,3 +968,29 @@ fn bitmap_32_bit_and_rejected_header_paths() {
         assert!(decode_bmp(&bad).is_err(), "offset {offset}");
     }
 }
+
+#[test]
+fn orphaned_box_references_survive_region_destruction() {
+    let orphan = city(0, 0, 1, 1, "orphan", 1).counted();
+    let active = city(0, 0, 1, 1, "active", 2).counted();
+    let empty = city(0, 0, 0, 1, "empty", 3).counted();
+    let mut h = Host::default();
+    {
+        let mut r = region();
+        r.initialized = true;
+        r.insert_city(orphan.clone());
+        r.insert_city(active.clone());
+        r.insert_city(empty.clone());
+        r.release(&mut h);
+        assert_eq!(
+            h.events
+                .iter()
+                .filter(|event| event.starts_with("shutdown:"))
+                .collect::<Vec<_>>(),
+            [&"shutdown:active".to_owned()]
+        );
+    }
+    assert_eq!(Arc::strong_count(&orphan), 2);
+    assert_eq!(Arc::strong_count(&empty), 2);
+    assert_eq!(Arc::strong_count(&active), 1);
+}
