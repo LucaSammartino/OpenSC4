@@ -1,5 +1,29 @@
 # Answered questions: web-network.md
 
+## Q13 (re-www-ww5, 2026-10-23) — remaining HTTP wire and date behavior
+
+Section 5 qualifies progress and synchronous notification, and links existing lifetime/admission
+contracts. Still required for whole-client implementation: request wire generation, worker retry
+and redirect policy, ReadMessage `00819800` body framing/chunk handling/spill-to-file failures,
+DoJobFinalization `0081a470`, exact date-parser acceptance `00818490`/`00818680`, runtime timezone
+adjustment at `00b18ba8`, and residual native slots 0/3. This is HTTP-owner work, not a reopening
+of parked WWW-owner Q9. Proposed vectors do not certify complete HTTP transaction equivalence.
+
+2026-10-24 (re-www-q17), resumed round: §5.1 now settles slots 0/3 (ID-1-only
+QueryInterface preserving miss output; deleting-destructor wrapper/free flag). The
+destructor dependency's full cleanup and the other wire/date items remain open.
+
+**ANSWERED 2026-10-24 (re-www-q18):** DIFFERS — parent section 5 now links
+[the HTTP wire supplement](../../web-network-http-wire.md), sections 1–6, closing
+the residual with instruction-qualified behavior and proposed HTTP10–HTTP35 vectors.
+Wire preserves fragments and record order; framing uses exact lowercase chunked,
+unchecked chunk suffix removal and a strict >16384 spill threshold. Empty chunks
+return zero; GET/HEAD redirect from response Location, POST from request Location,
+with a five-follow limit. Date classification is fixed-position, asctime replaces
+colon+2, tm_isdst is forced to 1, and mktime result minus CRT timezone wraps even
+on mktime failure. Destructor cleanup order is explicit. Native slots remain as
+settled by re-www-q17; no live-transaction equivalence is claimed.
+
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing

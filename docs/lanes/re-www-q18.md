@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-www-q18: WWW residual specifications | Codex / re-www-q18 | ready: Q7/Q9 closed; HTTP Q13 open; doccheck passes | Land documentation; continue HTTP Q13 in a separate bounded round |
+| re-www-q18: WWW residual specifications | Codex / re-www-q18 | in progress: Q7/Q9 closed; finishing HTTP Q13 | Qualify HTTP wire, framing, finalization, dates and destructor; doccheck; enqueue |
 
 ## Report
 
@@ -53,12 +53,16 @@ numeric operation order and runtime date behavior still need instruction checks.
 ## Handoff
 
 - WWW Q7/Q9 complete at documentation level; no O/P inventory rows remain.
-- Next: finish HTTP Q13; leave Q12 untouched unless separately assigned.
+- Q13 contracts drafted in docs/specs/web-network-http-wire.md and linked from section 5.
+- Q13 moved to answered archive; index and doccheck pending. Q12 untouched.
+- Next: regenerate questions index, validate doccheck/check+links and diff; review facts; commit final report and queue.
 - Main source: decomp/cRZHTTPClient.c and decomp/_unnamed/region_00810000.c.
 - Wire builder 0081b160 starts at region line 7341; worker 0081ba80 at HTTP line 1154.
 - ReadMessage 00819800 at HTTP line 542; finalization 0081a470 at line 1026.
 - Date parsers 00818490/00818680 at HTTP lines 164/248; adjustment 00b18ba8.
 - Destructor 0081cee0 at region line 8022: tail instructions read, cleanup not settled.
-- Preliminary pseudocode reads are not qualified facts; verify instructions first.
+- Paged instruction evidence: ignored build-runs/http-*.asm.txt; literal reader http-q13-data.py.
+- Numeric/date checks include unsigned year pivot, table bias, asctime colon+2, mktime subtraction, timezone writes.
+- HTTP10–HTTP35 are proposed/unexecuted; no live IO or runtime timezone measurement.
 - Native slots 0/3 and HTTP normalization are already specified; do not reopen.
 - No ABI changes, pending processes, game requests or outstanding run labels.

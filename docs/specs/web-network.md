@@ -1212,10 +1212,11 @@ IMUL/DIV at `00818058–0081805d`, unsigned threshold at `00818075–0081807a`.
 | HTTP08 | target null; arbitrary valid notification arguments | no message allocation or temporary object hold |
 | HTTP09 | notification with non-null object and target | object AddRef; message delivery; message Release; object Release in that order |
 
-These vectors qualify helper behavior, not an entire HTTP transaction. Redirect limits,
-wire request generation, informational replies, chunk extensions/trailers, connection-close
-framing, body spill failures and finalization remain Q13. Do not silently substitute a browser's
-HTTP policy or claim full-client conformance from progress/lifetime tests.
+These vectors qualify helper behavior, not an entire HTTP transaction. The
+[HTTP wire, framing, finalization and dates](web-network-http-wire.md) supplement
+closes Q13, including the date/runtime and destructor dependencies listed in 5.1.
+Its contracts supersede the Q13 residual labels in that inventory. Do not claim
+live transport equivalence from progress/lifetime tests.
 
 ## 6. NetworkFileCache — storage and IO contract
 
