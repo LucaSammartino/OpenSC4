@@ -11,6 +11,10 @@
 - Implemented production SCR11 filter with invocation-local flag, removed foreign preprocessing replay and stale SCR11 difference label.
 - Focused core SCR-V93–V108:16/16; capi raw replay:3/3 passed. First wrapper attempt failed before execution (Git Bash mapping denial), direct Cargo worked.
 - Applied rustfmt check diffs via apply_patch to the owned tests; final format check and full gate next.
-- Next: qbuild all (native verification must use coordinator queue), then combined/default 2032 turbo runs.
+- Implementation committed at f90a7edfc. Final owned formatting PASS, zero diffs.
+- qbuild all Rust gate PASS: 6936 tests passed, 0 failed/ignored; clippy 0 diagnostics.
+- Native build/CTest queued by that same operation as qbuild-20261024-052626-build-ctest; session59001 still outstanding. Collect it, do not duplicate verify.
+- Predecessor run records remain in merged replay7 branch: their 403–406 IDs collide with current main records; do not re-add them with duplicate IDs.
+- Next: collect native terminal verdict, then combined/default 2032 turbo runs with unique labels and free run numbers.
 - No game request outstanding. No ABI export additions intended beyond inherited replay branch.
 - Worktree detached by supervisor; commit normally, do not update refs.
