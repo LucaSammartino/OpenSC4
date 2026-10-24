@@ -1,6 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gzwingrid9 (cGZWinGrid core owner closure) | Codex / core-gzwingrid9 | ready; ABI unchanged; Rust 6993/0, clippy clean, CTest 79/79 | Coordinator review; resolve WG5–WG9; geometry/input shadow feasible next |
+| core-gzwingrid9 (cGZWinGrid round 2) | Codex / core-gzwingrid9 | in progress | Implement settled WG5–WG9 and 19 vectors; gate and enqueue |
+
+## Handoff
+- Goal: merge re-wingrid-wg9, implement settled contracts and close owner table.
+- Done: resolved merge conflict by retaining WG3/WG4 only.
+- Prior round tip: 751c3f546; round 2 uses detached HEAD as instructed.
+- Main script index failed attempting to write main; use local script next.
+- Next: finish merge/index; read §§5.15–5.16; implement and gate.
+- No round 2 game request or gate outstanding. Core-only; ABI unchanged.
+
+## Previous round report
 
 ## Implementation
 

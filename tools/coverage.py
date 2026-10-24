@@ -510,7 +510,7 @@ class Attribution:
 
 # ---------------------------------------------------------------- map, statuses, regress
 
-SHADOW_LABEL_ALIAS = {"clock24": "clock"}  # the regress summary names a shadow by its log prefix
+SHADOW_LABEL_ALIAS = {"clock24": "clock", "automata_owners": "automataowners"}  # the regress summary names a shadow by its log prefix
 
 
 def read_map(path):

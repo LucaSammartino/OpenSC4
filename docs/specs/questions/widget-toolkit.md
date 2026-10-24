@@ -20,3 +20,10 @@
 
 <!-- from: core-key-accelerator4 (2026-10-22) -->
 - **WT9 - section 13.3 published interface conflict:** the public SDK cIGZWinKeyAccelerator.h lists the type registration overload before the record overload, message lookups before primitive lookups, and a bool GetKeysForAccelerator return, whereas section 13/ABI slots put record registration at 5, primitive lookups at 9/10, message lookups at 11/12 and return the total count at 13. Please confirm the authoritative native signatures/order and return width before an adapter is wired. [pure-core methods follow section 13; no C ABI or native vtable adapter added]
+
+<!-- from: re-gzwin-spec9 (2026-10-24) -->
+- **WTG1 - widget-generator.md sections 7 and 8.5:** remaining closure is the linked pixel contract for RZDrawRaisedRect (008D9900) and RZDrawBltEdge (008D8800), including degenerate destination rectangles and the mode-2 source-cell layout. Round 2 specifies the full secondary table, userdata ownership, inverse title geometry, flag side effects, decoration creation/failures, close records, edge/cursor selection and draw-context calls in section 8. [keep owner partial only for these two helper contracts; title-bar owner is separately ranked]
+
+<!-- from: re-gzwin-spec9 (2026-10-24) -->
+- **WTH1 - widget-html-window.md sections 1, 3 and 4:** finish constructor/defaults and both secondary vtables; WWW request flags, refresh identity and stale completion handling; completion record/error transitions; option masks, key/link notifications, full scrollbar ranges, background phase and HTML drawing metrics. Primary window dispatch is inherited, while 008FBFE5 is the completion-target handler. [keep owner partial; implement the documented status/scroll and parse replacement boundaries only]
+

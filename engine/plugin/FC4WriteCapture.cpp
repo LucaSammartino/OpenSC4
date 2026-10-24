@@ -72,9 +72,9 @@ void WriteCapture::ClearReferences() {
         // Release only acquisitions recorded for this entry, including any
         // replay references abandoned by a partial record. Never infer
         // ownership from the capture-wide policy or from saved output refs.
-        while (ref.replayReferences != 0) {
-            --ref.replayReferences;
-            FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+        while (!ref.replayReferences.empty()) {
+            FC4_RELEASE(ref.replayReferences.back());
+            ref.replayReferences.pop_back();
         }
         if (ref.retained != nullptr) FC4_RELEASE(ref.retained);
     }
@@ -86,16 +86,33 @@ bool WriteCapture::AcquireReplayReference(uint64_t id) {
     if (id == 0 || id > refs_.size()) return false;
     auto& ref = refs_[static_cast<size_t>(id - 1)];
     FC4_ADDREF(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
-    ++ref.replayReferences;
+    ref.replayReferences.push_back(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    return true;
+}
+
+bool WriteCapture::AcquireReplayInterface(uint64_t id, uint32_t iid) {
+    if (id == 0 || id > refs_.size()) return false;
+    auto& ref = refs_[static_cast<size_t>(id - 1)];
+    auto* temporary = static_cast<cIGZSerializable*>(const_cast<void*>(ref.object));
+    // LR13: emulate the reader slot's temporary acquisition separately from
+    // both the observer pin and the successful field-interface acquisition.
+    FC4_ADDREF(temporary);
+    void* field = nullptr;
+    const bool resolved = temporary->QueryInterface(iid, &field);
+    FC4_RELEASE(temporary);
+    if (!resolved || field == nullptr) return false;
+    auto* acquired = static_cast<cIGZUnknown*>(field);
+    FC4_ACQUIRED(acquired, "capture replay field QueryInterface");
+    ref.replayReferences.push_back(acquired);
     return true;
 }
 
 bool WriteCapture::ReleaseReplayReference(uint64_t id) {
     if (id == 0 || id > refs_.size()) return false;
     auto& ref = refs_[static_cast<size_t>(id - 1)];
-    if (ref.replayReferences == 0) return false;
-    --ref.replayReferences;
-    FC4_RELEASE(static_cast<cIGZSerializable*>(const_cast<void*>(ref.object)));
+    if (ref.replayReferences.empty()) return false;
+    FC4_RELEASE(ref.replayReferences.back());
+    ref.replayReferences.pop_back();
     return true;
 }
 
@@ -154,31 +171,27 @@ bool WriteCapture::SetVoid(void const* p, uint32_t n) {
 bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
     if (p == nullptr) return SetUint32(0);
     cIGZSerializable* obj = const_cast<cIGZSerializable*>(p);
+    if (holdReferences_) {
+        // LR13: slot 26 receives Serializable after the native helper's QI.
+        // Take an independent observer pin before that callback returns. QI
+        // canonicalizes identity; never call a derived slot on an input view.
+        void* serial = nullptr;
+        if (!obj->QueryInterface(GZIID_cIGZSerializable, &serial) || serial == nullptr) {
+            good_ = false;
+            return false;
+        }
+        obj = static_cast<cIGZSerializable*>(serial);
+        FC4_ACQUIRED(obj, "capture reference QueryInterface");
+    }
     size_t i = refs_.size();
     const auto it = index_.find(obj);
     if (it != index_.end()) {
         i = it->second;
+        if (holdReferences_) FC4_RELEASE(obj);
     } else {
-        if (holdReferences_) {
-            // Construction effects can be passed as their effect interface
-            // (lot-records §9 #12). Do not retain that foreign interface as a
-            // cIGZSerializable or call its class slot. Resolve the actual
-            // serializable and keep the QI reference through replay; otherwise
-            // a released temporary (including a variant result) leaves a stale
-            // pointer under an apparently valid capture ID.
-            void* serial = nullptr;
-            if (!obj->QueryInterface(GZIID_cIGZSerializable, &serial) || serial == nullptr) {
-                good_ = false;
-                return false;
-            }
-            obj = static_cast<cIGZSerializable*>(serial);
-            FC4_ACQUIRED(obj, "capture reference QueryInterface");
-        }
         refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID(),
                             holdReferences_ ? obj : nullptr});
-        // The incoming interface is the writer's identity, even if QI adjusted
-        // the pointer. IDs must not alias an unrelated interface address.
-        index_.emplace(p, i);
+        index_.emplace(obj, i);
     }
     SetUint32(static_cast<uint32_t>(i + 1));
     return SetUint32(refs_[i].classId);
