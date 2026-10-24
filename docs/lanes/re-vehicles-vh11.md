@@ -18,7 +18,8 @@ failure, signed steps, endpoint equality, overshoot, half-radius front anchors
 and unnormalized direction averaging. No full engine owner closure is claimed.
 
 The questions index is regenerated. Questions/doccheck/diff checks passed after
-VH9; final checks run again after §12.9. All vectors are specification text,
+VH9 and again after §12.9 (terminal exit 0). Commit `024f179a7` contains the
+partial geometry and regenerated index. All vectors are specification text,
 not executed engine tests. Cargo/clippy/CTest, game runs and shadows n/a.
 No C ABI changes, proposed ABI rows or engine/plugin/capi/coverage-map edits.
 REA was not invoked; only local export, decomp and read-only PE evidence used.
@@ -82,7 +83,7 @@ The queue is therefore **wip**, rather than asserting all six were answered.
 ## Handoff
 
 - Goal: finish VH1/VH5/VH7 without engine reads/edits; VH9/VH10/VH11 closed.
-- Done: `c7a38bbff` initial plan; `28fe893ed` VH10/VH11; resumed milestone closes VH9 in §12.6, including native MAGNET (18) and base dispatch slots.
+- Done: `28fe893ed` VH10/VH11; `944898267` VH9; `024f179a7` partial VH7 §12.9 and regenerated index; questions/doccheck/diff PASS.
 - Next exact step: establish Traffic Read's adjusted this pointer from 00554D20 entry before naming record fields; finish VH7 reconstruction, then VH5/VH1. Partial geometry is now §12.9.
 - Main source root C:/Users/tlori/FreeCity4. Existing decomp `_unnamed/region_00500000.c` lines 4997–5162 holds RANDOM_WALK; ZOT candidate 00508E10 is at line 2617 (confirm state mapping before naming).
 - VH5: Train animation source cSC4Train.c starts line 402, StartTrip line 679; unnamed region_00550000.c composition helper 00558510 starts line 4103. These were only inspected, not closed or numerically certified.
