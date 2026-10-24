@@ -52,11 +52,11 @@ Both unique queue operations were collected to terminal with a single file-event
 wait per run, without qwait. Both used Konradshohe, original nettool/netmgr,
 enable=simulator, and both new ini keys. DLL SHA256 prefix: `76cfa9bc`.
 
-- Run [512](../runs/nettools-shadow12-draw-2032-20261024-aeaff8388-512.md):
+- Run [512](../runs/nettools-shadow12-draw-2032-20261024-aeaff8388-526.md):
   `nettools-shadow12-draw-2032-20261024-aeaff8388`, turbo, clean to 2032-01-01,
   real_seconds=31.094, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0,
   rtc=0, overruns=0. `nettool wide drag shadow 73/73`; `nettool drag shadow 0/73`.
-- Run [513](../runs/nettools-shadow12-draw-normal-2032-20261024-aeaff8388-513.md):
+- Run [513](../runs/nettools-shadow12-draw-normal-2032-20261024-aeaff8388-527.md):
   `nettools-shadow12-draw-normal-2032-20261024-aeaff8388`, normal, clean to
   2032-01-01, real_seconds=110.390, same zero problem counters.
   `nettool wide drag shadow 73/73`; `nettool drag shadow 0/73`.

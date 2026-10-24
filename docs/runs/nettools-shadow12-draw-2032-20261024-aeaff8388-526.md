@@ -1,5 +1,5 @@
-tag: nettools-shadow12-draw-2032-20261024-aeaff8388-512
-run: 512
+tag: nettools-shadow12-draw-2032-20261024-aeaff8388-526
+run: 526
 date: 2026-10-24
 lane: glue-nettools-shadow12
 dll: FreeCity4-glue-nettools-shadow12; source aeaff8388; sha256 prefix 76cfa9bc
