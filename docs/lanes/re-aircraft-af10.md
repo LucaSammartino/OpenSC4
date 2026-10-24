@@ -1,23 +1,64 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-aircraft-af10 (aircraft owner closure) | Codex / `re-aircraft-af10` | ready: partial AF3/AF4/AF5 behavior; AF9 already answered; doccheck passed | Implement reset/hover, chase gates, LOITER and phase actions; finish remaining broad questions |
+| re-aircraft-af10 (aircraft owner closure) | Codex / `re-aircraft-af10` | ready: AF9 answered; partial AF3/AF4/AF5 contracts and vectors 14–27; final doccheck passed | Land committed RE documentation; remaining owner contracts are narrowed in questions/aircraft.md |
+
+## Report
+
+Final round completed 2026-10-24. Ready to land the partial closure permitted
+by the final-round brief. AF9 is answered; AF3/AF4/AF5 remain open with precise
+residuals in `docs/specs/questions/aircraft.md`. No new owners or question IDs.
+Only AF9 was moved to the answered file, in round 1. Moving the other original
+questions would incorrectly claim complete owner contracts.
+
+Final milestone `7169ec715` adds aircraft §§4.2.4–4.2.5 and 4.3.1–4.3.2,
+with conformance vectors 24–27:
+
+- AF3: two-point building-clearance sampling at P and P+0.3V, auxiliary/base
+  height maximum, home-height floor, +20 demand and descending subtraction
+  capped at 50. The final requested hover height can fall below the clearance
+  plane; this literal behavior is documented as a quirk.
+- AF4: first runtime allocation ownership (state, parameters, ten transforms),
+  absence of recoverable allocation failure/rollback, post-base Shutdown effect
+  stop/release order, runtime/control-buffer frees and false-result propagation.
+- AF5: takeover direct-record preference/fallback, converted speed and yaw-rate
+  fallback, four zero-preserving gain refreshes, and spotlight pair activation
+  gates/status/start/stop ordering. Inactive demand still continues geometry work.
+
+Instruction evidence: main-checkout re_query.py, class decomp, and file-backed
+PE constants. Numeric checks cite instruction addresses in each section.
+No REA attempted: the brief states no binary is open. No binary/game captures.
+The auxiliary height service is specified by its observed call contract;
+its physical interpretation is deliberately not guessed.
+
+Remaining AF3: airplane steering/runway/approach/clearance/fire-drop behavior,
+helicopter MoveXZ and complete non-chase/claim/RESCUE ordering. Remaining AF4:
+constructor defaults, probes, effect construction, pre-base Shutdown scale
+handling, complete Init/PhysicsInit order and physics/collision phase triggers.
+Remaining AF5: airplane refresh, takeover/release scheduling, full command
+translation, base cadence, projectile construction and spotlight aiming/terrain
+projection. The new sections do not claim a complete flight tick or spotlight.
+
+Validation: question index regenerated; final foreground
+`python tools/doccheck.py check` **passed once**, captured by
+`build-runs/run-doccheck.py` in `build-runs/doccheck-af10.log`.
+`git diff --check` passed. Cargo/clippy/ctest: n/a; game runs/shadow: n/a.
+No engine/plugin/capi/tools coverage-map edits, ABI changes or proposed ABI rows.
+Git printed a packed-refs.lock permission diagnostic while committing, but
+created the detached-HEAD milestone successfully; no ref/config changes attempted.
 
 ## Handoff
 
-Final round in progress (2026-10-24). Goal: extend AF3/AF4/AF5 only where
-instruction evidence settles behavior; AF9 is already answered. No new owners or IDs.
-Prior milestones: AF9 `5fa412f30`; controls/chase/phase/weapon `da05bf073`.
-Owner closure table read at main engine/core/src/helicopter/README.md:35–47.
-Final-round spec milestone: §§4.2.4–4.2.5, 4.3.1–4.3.2 and vectors 24–27
-settle building-clearance demand, runtime ownership/cleanup, takeover refresh
-and spotlight activation. Verified main re_query.py instruction bytes and PE constants.
-AF3/AF4/AF5 retain precise residuals in questions/aircraft.md; no false full closure.
-Next: regenerate question index, run doccheck once, inspect diff and finish report/queue.
-Use build-runs/run-doccheck.py (foreground capture). Detached HEAD is intentional.
-Residual broad questions must remain open if full behavior is not established.
-Finish with report, committed HEAD and ready queue entry using full 40-character tip.
+Final round finished; no additional RE work queued by this lane.
+Land the ready merge-queue entry at its full committed HEAD.
+Prior milestones: AF9 `5fa412f30`; controls/chase/phase/weapon `da05bf073`;
+clearance/cleanup/refresh/spotlight `7169ec715`.
+Owner closure requirements read from main helicopter README lines 35–47.
+AF9 already appears only in answered/aircraft.md; never add another open copy.
+AF3/AF4/AF5 remain the original questions with narrowed residuals, not new IDs.
+Final gate passed; no game runs or ABI proposals outstanding.
+Detached HEAD is intentional; supervisor publishes to the reserved lane branch.
 
-## Prior report
+## Prior round reports
 
 Round 2 adds seven conformance vectors (17–23) and instruction-verified rules:
 aircraft §§3.3.1/4.2.1/4.2.2 give reset/hover controls, chase lead and distance/
