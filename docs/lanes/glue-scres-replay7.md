@@ -15,8 +15,10 @@
 - Diagnostic gate PASS: Rust6904, clippy0, native47/47 (2.5s), CTest74/74 (75.2s), queue qbuild-20261024-042645-build-ctest (79.3s), terminal collected.
 - Birch run404 clean/ref0 to2032-01-15; scres76/149, same raw72 differences; 45 reads skipped starting at physical216 (#<). SCR11 filed for unspecified block grammar.
 - Added separate partial file-control replay with observed preprocessing as explicit foreign input; strict raw replay still reports its differences (no suppression/resync).
-- Focused tests now8/8, fmt PASS. Next: stable-source final full gate, then unique scres7-control-2032-cedar to2032.
+- Focused tests8/8, fmt PASS. Final stable-source all PASS: Rust6905/0failed/ignored, clippy0, native194/194 (123.7s), CTest74/74 (166.6s), total292.0s.
+- Final native request qbuild-20261024-043532-build-ctest collected to terminal; source86831123c unchanged throughout.
+- Next: collect unique scres7-control-2032-cedar; then a separate scres7-default-2032-dogwood with new key off (not yet written).
 - Keep new observation default-off behind ini; no public C ABI changes planned.
-- No game/native operations outstanding. Prior ash/birch evidence retained in build-runs/game-results/; records403/404.
+- Cedar being enqueued. No native operation outstanding. Prior ash/birch evidence retained in build-runs/game-results/; records403/404.
 - Whole cFileParser verification remains blocked on SCR11; do not credit that owner row or append the new key to house profile unless raw replay becomes exact.
 - Current house-profile string is in prohibited tools/regress.ps1; do not read/edit it or merge main. Coordinator must append exact new key after review.
