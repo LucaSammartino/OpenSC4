@@ -278,11 +278,15 @@ void Summary(const char* origin, const Counts& c) {
 void CollectKey(void* context, uint32_t type, uint32_t group, uint32_t instance) {
     static_cast<std::vector<Key>*>(context)->push_back({type, group, instance});
 }
+void CollectNativeKey(const cGZPersistResourceKey& key, void* context) {
+    CollectKey(context, key.type, key.group, key.instance);
+}
 
 // Read the game's actual held segment, never Open/Close/Init/Shutdown it.
 // The independent Rust handle opens only GENERIC_READ with normal sharing:
 // no exclusive lock, changed sharing policy, factory replacement or registration.
 void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPackedFile* packed, Counts& c) {
+    const DWORD started = GetTickCount();
     // Only currently open packed files are in scope; a retained closed segment
     // is not an unreadable open file and must never be opened by this probe.
     if (!segment->IsOpen()) return;
@@ -318,10 +322,9 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
         else {
             const bool listed = segment->GetResourceKeyList(*list);
             std::vector<Key> original, own;
-            for (uint32_t i = 0; i < list->Size(); ++i) {
-                const auto& key = list->GetKey(i);
-                original.push_back({key.type, key.group, key.instance});
-            }
+            // Indexed GetKey on the original linked list is quadratic over a
+            // complete package. EnumKeys visits the same owned list once.
+            list->EnumKeys(CollectNativeKey, &original);
             const uint32_t n = fc4_dbpf_packed_keys(rust, CollectKey, &own);
             std::sort(original.begin(), original.end());
             std::sort(own.begin(), own.end());
@@ -337,7 +340,13 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
         const auto& w = pair.second;
         const cGZPersistResourceKey key(w[0], w[1], w[2]);
         // A bounded allocation refusal is incomplete coverage, never exact.
-        if (w[4] > kLimit || w[5] > kLimit) { ++c.refusal; continue; }
+        constexpr uint32_t liveLimit = 256 * 1024 * 1024;
+        if (w[4] > liveLimit || w[5] > liveLimit) {
+            ++c.refusal;
+            Log("dbpf refusal: path=%s key=%08X/%08X/%08X stored=%u logical=%u limit=%u",
+                path.ToChar(), w[0], w[1], w[2], w[4], w[5], liveLimit);
+            continue;
+        }
         ++c.records;
         c.compressed += w[6] != 0;
         c.empty += w[5] == 0;
@@ -379,12 +388,15 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
     if (packed->ReadRecordRaw(key, nullptr, size) != UINT32_MAX || size != 99)
         Difference(c, path.ToChar(), "held-missing-raw", absent);
     fc4_dbpf_close(rust);
+    if (GetTickCount() - started > 2000)
+        Log("dbpf slow file: path=%s records=%u ms=%lu", path.ToChar(), static_cast<unsigned>(entries.size()),
+            static_cast<unsigned long>(GetTickCount() - started));
 }
 
 void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, Counts& c) {
-    if (!segment) { ++c.refusal; return; }
+    if (!segment) { ++c.refusal; Log("dbpf refusal: null indexed segment"); return; }
     if (!visited.insert(segment).second) return;
-    if (!Interface(segment, 30)) { ++c.refusal; return; }
+    if (!Interface(segment, 30)) { ++c.refusal; Log("dbpf refusal: unsupported segment interface"); return; }
     cIGZDBSegmentPackedFile* packed = nullptr;
     if (segment->QueryInterface(GZIID_cIGZDBSegmentPackedFile, reinterpret_cast<void**>(&packed)) && packed) {
         FC4_ACQUIRED(packed, "DBPF shadow packed QI");

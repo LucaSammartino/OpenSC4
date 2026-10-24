@@ -642,7 +642,10 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
-                fc4::DbpfShadowObserve(static_cast<int32_t>(PublishedJulian()));
+                // PostCityInit precedes the first calendar message; read the
+                // public simulator date rather than dating the load as Julian 0.
+                auto* dbpfSim = CurrentCity() ? AsGame(CurrentCity()->GetSimulator()) : nullptr;
+                fc4::DbpfShadowObserve(dbpfSim ? dbpfSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
                 fc4::FeatureShadowLoaded();
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
