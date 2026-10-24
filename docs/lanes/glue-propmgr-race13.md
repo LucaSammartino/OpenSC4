@@ -8,8 +8,10 @@
 - Prior tip 39b9ee63d reported exact runs but shared slot patches crashed train207; those results do not validate safety.
 - Probe patches OM slot40, occupant slot8, city slot96 in FC4PropLotShadow.cpp.
 - Existing PL24 records native-only props exactly on upper boundaries; retain core half-open contract.
-- Next: replace probe with read-only calls; diagnose conversion inputs; final gate once; two house runs to 2032.
-- No game request outstanding. No new owners or questions this round.
+- Done: 424731910 removed all three shared-slot patches and all capture/replay state; comparison remains strict.
+- Diagnostic verify qbuild-20261024-203951-build-ctest PASS: build 168/168, CTest 81/81. This was to build unpatched diagnostic DLL, not final all gate.
+- Next: inspect diagnostic house result; final gate once; two exact house runs if specification permits.
+- Game request outstanding: propmgr-race13-r3-readonly-a (turbo to 2032). No new owners or questions this round.
 
 ## Previous round (superseded safety evidence)
 
