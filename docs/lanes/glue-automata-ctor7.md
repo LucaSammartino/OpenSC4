@@ -33,9 +33,9 @@ Exact owner clean/total lines and run records:
 
 | Line | Run | Construction exact | Real seconds |
 |---|---|---|---|
-| ctor7-house-2032-20261024-a1 73/73 | [423](../runs/ctor7-house-2032-20261024-a1.md) | 183/183 | 612.515 |
-| ctor7-house-2032-20261024-b1 73/73 | [424](../runs/ctor7-house-2032-20261024-b1.md) | 189/189 | 749.156 |
-| ctor7-house-2032-20261024-c1 73/73 | [425](../runs/ctor7-house-2032-20261024-c1.md) | 191/191 | 707.250 |
+| ctor7-house-2032-20261024-a1-439 73/73 | [423](../runs/ctor7-house-2032-20261024-a1-439.md) | 183/183 | 612.515 |
+| ctor7-house-2032-20261024-b1-440 73/73 | [424](../runs/ctor7-house-2032-20261024-b1-440.md) | 189/189 | 749.156 |
+| ctor7-house-2032-20261024-c1-441 73/73 | [425](../runs/ctor7-house-2032-20261024-c1-441.md) | 191/191 | 707.250 |
 
 The same three lines also apply independently to automata_shadow, each 73/73. Full logs and verdicts are in build-runs/game-results/ under these exact labels. Every unique request used one event-based blocking wait; completed verdicts were accepted and no duplicate request or qwait was used. No requests remain outstanding.
 

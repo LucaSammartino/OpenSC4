@@ -94,7 +94,7 @@ Only this real diagnostic/source change caused the repeated full gate.
 
 Counted line: **effects9-names-2032-20261024a 73/73**
 
-[Run 434](../runs/effects9-names-2032-20261024a-434.md): **clean**, all problem
+[Run 434](../runs/effects9-names-2032-20261024a-442.md): **clean**, all problem
 counts zero, **foreign_exceptions=0, ref_warnings=0**, zero resyncs. Samples run
 from **2026-01-27 load** through **2032-01-01 month**. Each reads **1,094,484**
 resource bytes and checks **1,154** directory name entries through **3,465**

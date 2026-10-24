@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 438 (Raw scres file replay, nettool fixtures and the EF21 answer landed clean; ordinance verified (run 5).); 433 (Effects retained-record shadow and landvalue capture preparation landed clean (run 5).); 422 (Weather exact in the house profile, nettool/propdev/overlays work and their answers landed after a shutdown-crash bisect; automata owners and propmgr flakes on main remain (run 5).); 414 (WE1 weather exact; creation continuation capture diagnosed); 413 (weather exact; propdev selector streams exact, output boundary remains open). See `docs/manual-checks.md`.
+- **Latest in-game run:** 453 (propmgr shutdown crash fixed at its root; overlay manager verified; weather exact again (run 5).); 449 (PL21 final house repeat 3, propmgr 220/220 and lotcfg 293/293); 448 (PL21 final house repeat 2, propmgr 220/220 and lotcfg 293/293); 447 (PL21 final house repeat 1, propmgr 220/220 and lotcfg 293/293); 446 (PL21 diagnostic house profile, propmgr 220/220 and lotcfg 293/293). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

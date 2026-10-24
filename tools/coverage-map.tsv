@@ -404,7 +404,8 @@ cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/src/terrain	terrain_shadow	-
-cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain_overlays	-	-
+# overlays_shadow + overlays_fixture (glue-overlays-flags7 applying OV15; fixture in the house profile from train184) adds, moves, restyles and removes ordinary decal overlays through native interfaces in the regress city and compares all 35 fields: controlled replay 292/292 (10220 fields), record observation 292/292, sentinels 73/73 in regress train184. cSTEVertBufExtn and the path/cell view owners are not compared
+cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain_overlays	overlays_shadow	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	core/src/terrain_ripples	-	-
 cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
