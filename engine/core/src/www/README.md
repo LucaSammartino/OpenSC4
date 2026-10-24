@@ -55,7 +55,8 @@ are implemented and tested, pending spec clarification.
 
 The spec's constructed vectors execute in `engine/conformance/tests` as
 `web_network_cookies.rs`, `web_network_cache.rs`, `web_network_http.rs`,
-`web_network_http_lifetime.rs`, and `web_network_www.rs`, with deterministic foreign
+`web_network_http_lifetime.rs`, `web_network_www.rs`, and
+`web_network_owner_settings.rs`, with deterministic foreign
 replies, rather than as live HTTP/FTP requests. CK01–CK06, HTTP01–HTTP09 and
 NFC01–NFC12 are labeled at their assertions. WWW vectors map as follows:
 
@@ -96,4 +97,4 @@ result, retaining the documented side effects when that final operation fails.
 
 No new game request is required for these unconnected core modules; no shadow key
 or replacement key exists. Successful unit tests qualify the supplied spec contract
-only. Q1/Q3/Q7/Q9/Q10/Q11/Q13 prevent a claim of complete native owner equivalence.
+only. Q1/Q3/Q7/Q9/Q10/Q11/Q13/Q15/Q16 prevent a claim of complete native owner equivalence.
