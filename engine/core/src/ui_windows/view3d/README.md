@@ -1,56 +1,68 @@
 # cSC4View3DWin
 
-This extends `ui_windows::view3d`; it does not introduce another city-window
-owner. Controls, camera, renderer, simulator and window services are foreign
-traits. Tokens are opaque; input callbacks expose reference operations explicitly.
-The implementation is in progress. The table distinguishes implemented contracts
-from work that remains, rather than treating an unimplemented section as open.
+Implemented column: `engine/core/src/ui_windows/view3d.rs` and the modules in
+`engine/core/src/ui_windows/view3d/`. This is one core owner, with foreign camera,
+renderer, control, simulator and window services behind traits. No C ABI or plugin
+wiring is included. Picking delegates to the renderer; projection delegates to
+`StatusHost::project`, rather than inventing a second camera projection.
+
+This revision completes several previously unresolved contracts, but **does not
+claim complete owner closure**. `remaining` below denotes implementation or test
+work, not a spec question and not an Unsupported contract. Only VW19 is a newly
+identified spec gap. The coordinator must not claim the whole owner from this
+partial implementation.
 
 ## Owner closure
 
-All rows below refer to cSC4View3DWin. Test names are in `owner_tests.rs` unless
-qualified with a module. `pending` means implementation work remains.
+Every row refers to cSC4View3DWin. Tests are in `owner_tests.rs` and its included
+`resolved_tests.rs`, unless qualified. Entries describe core coverage; they do not
+claim measurement in the real game.
 
-| Spec section | Code item | Coverage / remaining work |
+| Spec section | Code item (implemented column) | Test / closure status |
 |---|---|---|
-| view3d-window §1, §1.1 identity/interfaces | `View3DWin::query_interface`, `slots`, `VIEW3D_LAYOUT` | `vw_t1_qi_exact_interfaces_and_shared_count`; window override dispatch pending |
-| §2 construction | `OwnerState::default`, `Lifecycle::default`, `constructed`, `ViewState`, `PanelState` | motion defaults VW-T12/T13, panels VW-T14; remembered catalogs and scripting hook; window base stays foreign |
-| §3 Init | `init`, `LifecycleHost` | `init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure`; open: VW9 exact registry records |
-| §3.1 cheats | `process_cheat`, `CheatHost`, `recorder` | VW-T5/T6, render/recorder/control-allocation tests; camera SizeOf old-value guard belongs to foreign camera |
-| §4 Shutdown | `shutdown`, `shutdown_helpers`, `shutdown_tail` | VW-T2, `gui_failed_creations_and_shutdown_progress_order`; open: VW8 unidentified helper creation |
-| §5 notifications | `notification` | VW-T3, command-QI priority, 33-entry subscription set; pre-city-shutdown helper, save adapter and widget refresh integration pending |
-| §5.1 pause/mission | `notification` | `notification_view_hidden_pause_mission_and_progress_guards`; mission derived-data conversion pending |
-| §5.2 view update | `notification` | `notification_view_hidden_pause_mission_and_progress_guards` |
-| §6 window messages | `window_message` | VW-T4 and `window_focus_accelerator_button_filter_and_clock_routes`; advice/catalog helper integration pending |
-| §6.1 focus loss | `window_message` | `window_focus_accelerator_button_filter_and_clock_routes` |
-| §6.3 message filter | `filter_message`, `apply_panel_tab` | `child_filter_uses_existing_tab_state_and_special_type12_branch`; button dispatch integration pending |
-| §6a city init | `pre_city_init`, `post_city_init`, `CityHost` | `city_pre_post_initialization_orders_camera_and_gui_then_releases_progress`, `city_allocation_failures_are_null_and_obliteration_hides_panel4`; foreign renderer/camera and GUI failures tolerated |
-| §6b GUI lifetime | `add_gui`, `remove_gui`, `GuiHost`, `GuiState` | `gui_lifetime_removes_filters_before_destruction_and_releases_queries`, allocation/shutdown tests; open: VW6 per-panel extras and 2EC/2F0 creation |
-| §6c input | `process_key`, `on_character`, `on_mouse`, `edge_scroll` | VW-T7/8/9/10; character bound, tutorial rewriting, exit traversal tests; additional edge/capture branches need tests |
-| §6d fields | `OwnerState`, `Motion`, existing layout constants | input/motion fields implemented; other owner state pending; open: VW8 |
-| §6e input stack | `set_current_control`, `remove_current_control`, persistent methods | `control_modes_init_failure_and_persistent_lifetime`, `remove_control_sets_default_cursor_and_releases_capture`; catalog legacy token path still needs lifecycle integration |
-| §6f scrolling/zoom/views | `Motion`, zoom, filter/level/contour methods, `paint` | VW-T11/12/13, filter reference/message order, contour pairing, edge recalculation, hidden pause and paint tests; terrain selection/picking and tuning pending |
-| §6g commands | `process_command`, `process_motion_panel_command`, `query_tool_command` | VW-T11/12/13/14/15, `command_save_quit_and_animation_guards_preserve_parameters`; typed zone/network/lot and identified dispatch/save/quit/options/animation paths implemented; open: VW9 for incomplete registration/ID inventory |
-| §6h panels | `PanelState`, panel/minimize methods | VW-T14; tab/filter establishment path, established/obliterated callbacks, budget failure and GUI object integration pending; mayor visibility bookkeeping needs audit |
-| §6i buttons/catalogs | existing `catalog`, `invoke_catalog_item`, typed tools and `invoke_disaster` | existing catalog tests, `catalog_item_guards_network_intersections_lot_move_and_null_allocation`, `disaster_properties_and_global_terrain_close_level_are_literal`; button/menu routing, popup geometry/remembered selection pending; open: VW7 for external message meaning |
-| §6j displays | `DisplayState`, `StatusHost`, status methods | VW-T17/T18, rating/alert/mission/speed tests; date/funds/population/name widgets, ambient light and full callback integration pending; cursor ordering/fade exactness open: VW13 |
-| §6k save/triggers | `View3DRecord`, `save_record`, `load_record`, trigger methods | VW-T16 four class references and logical trigger pairs; versions 0–4 accepted, not-loaded cleared; legacy two-reference View3DSave kept compatible; opaque reference identity/resolution adapter pending; byte bucket ordering open: VW12 |
-| §6l helpers | pending | owner-called helper interfaces remain foreign |
-| §6m quirks | `keyboard_scroll`, `recalc_scroll_velocity`, `set_zoom_limits` | VW-T11/12/13; command-result/rotation/save-parameter quirks pending |
-| §7 conformance | `owner_tests` | VW-T1–T18 implemented; all three earlier gaps T2–T4 now exercised |
-| §8 open questions | questions file | VW6–VW13 |
-| ui-windows §2 window model | existing `win` / `message` modules | existing window-model tests; no new foreign window implementation |
-| ui-windows §3.1–§3.3 owner identity/layout/slots | `View3DWin`, `slots` | existing layout/slot tests and VW-T1 |
-| ui-windows §3.3a save | `save_record`, `load_record` | four class-bound references and logical trigger pairs; original opaque identity/resolution adapter pending |
-| ui-windows §4 catalog menus | existing `catalog` | existing catalog tests; host-aware control teardown still pending |
-| ui-windows §7 drawing | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw` |
-| ui-windows §10 quirks, §11 conformance | existing `catalog`, `view3d::tests`, `owner_tests` | existing catalog/identity tests; game-dependent contracts unmeasured |
-| view3d §5.1 paint | `paint` | gate, timer, dt clamp, scrolling, draw-time order tests; post-draw tail details open: VW10 |
-| view3d §5.2 fields | `Motion` | paint/hidden-pause tests |
-| view3d §5.3 save | `save_record`, `load_record` | four-reference logical model; foreign serialization/resolution adapter pending |
-| view3d §10 quirks, §11 conformance (window-owned portions) | `paint`, `do_save` | tests 13–15, 20, 25 covered by paint/hidden-pause/reference tests; effects sweep test 19 requires foreign renderer integration |
+| view3d-window §1, §1.1 identity and overrides | `query_interface`, `slots`, `on_command` | `vw_t1_qi_exact_interfaces_and_shared_count`, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command`; no-op slot 143 covered; remaining: unified override adapter |
+| §2 construction | `OwnerState`, `Lifecycle`, `Motion`, `ViewState`, `PanelState` defaults | VW-T12/T13/T14, lifecycle tests; remaining: full VW-T26 dormant/panel-extra vector |
+| §3 Init | `init`, `registry::COMMANDS`, `LifecycleHost::register_view_command` | `init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure`, `vw_t28_registry_is_literal_and_ordered` |
+| §3.1 cheats | `process_cheat`, decimal-prefix `atof`, `CheatHost::decimal_separator` | VW-T5/T6; `vw_t31_sizeof_crt_grammar`; remaining: comma-locale vector |
+| §4 Shutdown | `shutdown`, `shutdown_helpers`, `shutdown_tail` | VW-T2 and GUI shutdown tests; remaining: dormant helper active flag and exact required-failure teardown audit |
+| §5 notifications | `notification`, `pre_city_shutdown`, object-record methods | VW-T3, reference tests, `vw_t25_precity_shutdown_preserves_city_objects_and_noop_command` |
+| §5.1 pause / mission | `notification`, borrowed `Notification::attachment` | `notification_view_hidden_pause_mission_and_progress_guards`; remaining: target/fallback caption work and complete VW-T33 |
+| §5.2 view updates | `notification`, `refresh_background`, temporary hidden pause | notification and paint tests; remaining: complete VW-T36 basename/failure vector |
+| §6, §6.1 window messages / focus | `window_message` | VW-T4 and `window_focus_accelerator_button_filter_and_clock_routes`; remaining: advice-link destination integration |
+| §6.3 filter | `filter_message`, `apply_panel_tab` | `child_filter_uses_existing_tab_state_and_special_type12_branch`; remaining: audit common button follow-up |
+| §6a city init | `pre_city_init`, `post_city_init`, `read_tunable_values`, `CityHost` | existing city init tests; remaining: required concrete fallbacks and graphics-system QI gate, VW-T27 |
+| §6b GUI lifetime | `add_gui`, `remove_gui`, `GuiState` | existing GUI ownership tests; remaining: exact required failures, parent-owned overlay and panel extras, VW-T26/T27 |
+| §6c input | `process_key`, `on_character`, `on_mouse`, `edge_scroll` | VW-T7/T8/T9/T10 and traversal/tutorial tests; remaining: exhaustive edge/capture branch vectors |
+| §6d fields | `OwnerState`, `Motion`, `ViewState`, `DisplayState` | defaults and input/motion tests; remaining: dormant field audit |
+| §6e control stack | host-aware control push/pop/persistent methods | `control_modes_init_failure_and_persistent_lifetime`, capture-release tests; legacy token-only catalog entry points still require adapter integration |
+| §6f scroll / zoom / views | `Motion`, `change_view`, `set_zoom`, `set_zoom_limits`, `pick_terrain`, `pick_occupant` | VW-T11/T12/T13, `vw_t21_inverted_limits_minimum_first`, picking and hidden-pause tests |
+| §6g commands | `process_command`, `process_motion_panel_command`, typed tool methods | VW-T11–T15 and command guards; remaining: bus/pipe button dispatch and exhaustive registry-to-dispatch audit |
+| §6h panels / registry | `PanelState`, panel/filter methods, `COMMANDS` | VW-T14, tab/filter tests, `vw_t28_registry_is_literal_and_ordered`; remaining: mayor pane bookkeeping audit |
+| §6i menus / buttons | `menus`, `actions`, catalog methods | catalog/tool/disaster tests; remaining: resolved VW17 routing and caller-data cases, complete VW-T32 |
+| §6j status | `status`, `DisplayState` | VW-T17/T18, widget/rating/mission tests, `vw_t22_cursor_priorities_and_in_place_update`, `vw_t23_fade_alpha_motion_and_hidden_reset`; remaining: explicit hidden-BMP visibility callback semantics |
+| §6k save / triggers | `save_object_record`, `load_object_record`, `StlHashMap` trigger state | VW-T16, opaque-reference tests, `vw_t30_trigger_wrapping_bucket_heads_and_growth`; open: VW19 load reconstruction |
+| §6l helpers | `Coverage`, `CoverageHost`, `refresh_background`, `setup_graph`, `stop_auxiliary`, borrowed getters, empty debug slot | `vw_t35_borrowed_getters_and_debug_no_effect`, `vw_t37_t38_coverage_transform_fallback_and_stale_cache`; remaining: owner/GUI integration of coverage and graph setup, advice routing, complete VW-T33/T34/T36/T39 |
+| §6m quirks | motion/commands and helper state | VW-T11/T12/T13/T21/T30; remaining: dormant objects, required failures, panel extras |
+| §6n paint completion | `paint`, `paint_deferred`, `MotionHost` | `vw_t19_t20_deferred_tail_and_timer_boundaries`, existing ordered paint and decay tests; remaining: safe-but-disabled modal drop/recheck vector |
+| §7 conformance | `owner_tests`, `resolved_tests` | Existing VW-T1–T18 plus new T19/T20/T21/T22/T23/T25/T28/T30/T31/T35/T37/T38; T24 behavior exists in `update_date`, exact boundary vector remains. T26/T27/T29/T32/T33/T34/T36/T39 are not fully covered |
+| §8 questions | `state::load_triggers` | open: VW19; no older VW question is treated as still open |
+| view3d §5.1 paint order | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw`, decay/pause tests, VW-T19/T20; cost → scroll → resume → context time → one renderer Draw → tail |
+| view3d §5.2 draw fields | `Motion` | paint gating, timing, decay and hidden pause tests |
+| view3d §5.3 save | four-reference object-record adapter | opaque identities/reference-resolution tests; trigger load order open: VW19 |
+| view3d §10 window quirks | `paint`, view state and save methods | paint and reference tests; renderer-owned quirks are outside this owner |
+| view3d §11 window vectors 13–15, 20, 25 | `paint`, hidden pause, save methods | gate/timer/draw ordering, pause expiration and reference tests; vector 19 effects sweep remains a renderer/effects integration obligation |
 
-The legacy `set_input_control` and `remove_all_view_input_controls` APIs import
-or extract token state for the older catalog model. Real lifecycle adapters must
-use the host-aware methods; otherwise callbacks and ownership cannot be honored.
-No plugin or C ABI wiring is present.
+Other sections of view3d.md assign behavior to cSC43DRender,
+cSTETerrainView3D, effect drawing and span renderers, rather than this owner.
+Their implementations are not claimed here. The owner issues one renderer draw;
+the renderer owns ordering inside that draw.
+
+`Coverage` retains unseen keys with null effects and original cached radii, as
+specified. SetCategories clears even for an unchanged mask. Hosts must release
+the cache using `clear` before destruction because foreign references cannot be
+released without a host. `setup_graph` is available as a host-driven operation;
+it is not yet connected to `add_gui`.
+
+The logical records expose trigger pairs in bucket/head order, not sorted key
+order. Literal stream-order loading is tagged VW19. Byte serialization remains
+the foreign serializer's responsibility.
