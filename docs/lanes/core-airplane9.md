@@ -1,105 +1,75 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-airplane9: cSC4Airplane core | Codex / core-airplane9 (detached reserved lane) | in progress: round 2 merge fix | Validate both aircraft owners and enqueue ready |
+| core-airplane9: cSC4Airplane core | Codex / core-airplane9 (detached reserved lane) | ready: round 2 merge fixed; final gate PASS | Land engine/core/src/automata/airplane; resolve AF2–AF6/AF10 before complete native flight |
 
-## Handoff
+## Implementation and merge
 
-- Goal: merge main, retain airplane and helicopter owners, remove duplicate AF9, run final gate.
-- Done: merge f6da6ee6d retains both owners; airplane question is AF10; index/check and three-file absolute-path fmt pass.
-- First gate terminal FAIL: qbuild-20261024-094908-build-ctest; Rust tests 7021/0/0, clippy unused imports, native build PASS 216/216, CTest 79/80 (capi_smoke cached ABI97 while both sources specify ABI98). Full logs preserved in build-runs/r2-before-unused-import-fix/.
-- Fix: unused imports removed; absolute-path fmt PASS for five files. Standalone recache diagnostic session 24439 hit sccache startup timeout and was interrupted/collected as exit 1; no final-source PASS claimed from it.
-- Build input correction: compile-r2-smoke.cmd compiled ONLY the generated smoke-test object directly with MSVC (exit 0), bypassing the stale ABI97 cache entry; local header/Rust both ABI98. Final queue relinks and tests it.
-- Next: run qbuild all once on corrected stable source. Do not commit while final gate runs (HEAD change invalidates its verdict).
-- Owners: airplane in engine/core/src/automata/airplane; helicopter in engine/core/src/helicopter; shared aircraft storage/helpers retained.
-- No game request outstanding; core-only airplane has no native observation adapter.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-airplane9-r2-manifest.json.
+The airplane owner is `engine/core/src/automata/airplane/mod.rs`, publicly
+re-exported through `automata::Airplane`. It implements the settled parameter,
+placement/record, independent phase/ammunition/LOITER state, CHASE rejection,
+CROP_DUST PopState and isolated numerical-stage contracts. Its README maps
+every assigned row to code, conformance coverage or a numbered spec question.
 
-## Implementation
+Round 2 merged main in `f6da6ee6d`. Helicopter remains owned by
+`engine/core/src/helicopter`; both owners use the shared aircraft codecs,
+placement, altitude, clipping, phase and geometry helpers. The shared
+DriveParameterSource comment describes the airplane's named record correctly.
+`2d291bc71` removes imports left unused after the two owners moved out.
+There are 16 shared aircraft, 10 airplane and 14 helicopter conformance tests.
+The airplane lane adds no C ABI exports or plugin integration. ABI 98 was
+inherited from main; this lane did not bump it.
 
-The module path for the coordinator's implemented column is
-`engine/core/src/automata/airplane/mod.rs`. It owns `Airplane` and
-`AirplaneDriveParameters`, preserving the existing public re-exports. The
-shared aircraft/home-placement codec remains in `automata/aircraft.rs`; shared
-base/state-stack behavior remains in `automata/automaton.rs`.
+## Final validation
 
-Implemented or corrected all settled airplane contracts: exact encoded parameter
-defaults, named-field import and whole-record ancestor lookup, signed-zero and
-non-finite parameter preservation, independent explicit parameter sets, home
-placement/loaded flag and nested record/version/error paths, independent flight
-phase/ammo/LOITER state, CHASE rejection and CROP_DUST PopState. The existing
-same-input owner record round-trip and every-byte truncated-read tests remain.
-The shared station helper now follows the settled signed-count gate and wrapping
-32-bit availability masks rather than rejecting oversized counts.
+Stable source and HEAD during the final gate: `fe75b116f073043df2602ddbf198594d5d722498`.
+The subsequent report commit changes documentation only.
 
-The new module also exposes the specified finite-input time conversion,
-pre-force 3D velocity limiter, candidate integration, ground projection, scalar
-lift curve and angle, pressure, drag normalization, gravity, rolling resistance
-and reverse-throttle gate. These numerical stages are independently testable;
-they do not pretend to complete the unresolved force frame or commit a flight
-tick. No foreign trait implements the owner's missing control/physics laws.
-
-The module README contains the Owner closure table, mapping sections to code,
-tests or open question IDs. Aircraft conformance vectors 1–6 and 8–13 are covered;
-vector 7 belongs exclusively to the unassigned helicopter owner (§4.1).
-There are 16 shared aircraft tests and 10 airplane tests in conformance.
-No plugin, capi, C ABI version/export or coverage-map edit was made.
-
-## Validation
-
-| Check on final Rust source | Result | Evidence in build-runs/ |
+| Check | Result | Evidence under build-runs/ |
 |---|---|---|
-| Owned-file qbuild fmt | PASS, five explicit files, zero diff lines | Terminal verdict |
-| qbuild all workspace tests | PASS, 6994 passed / 0 failed / 0 ignored across 43 result lines (summed independently) | qbuild-test.log |
+| qbuild fmt, five explicit absolute Rust paths | PASS, zero diff lines | Terminal verdict; aircraft.rs, airplane/mod.rs, automata/mod.rs, conformance aircraft.rs and airplane.rs |
+| qbuild all workspace tests | PASS, 7021 passed / 0 failed / 0 ignored, independently summed over 44 result lines | qbuild-test.log |
 | qbuild all clippy -D warnings | PASS, zero diagnostics | qbuild-clippy.log |
-| qbuild all queued native build | PASS, 207/207 edges, 96.8 s | fc4verify-build-all-final.log |
-| qbuild all full CTest | PASS, 79/79, 188.4 s | fc4verify-ctest-all-final.log |
-| Separately required qbuild verify native build | PASS, 46/46 edges, 2.5 s | fc4verify-build.log |
-| Separately required qbuild verify full CTest | PASS, 79/79, 89.6 s | fc4verify-ctest.log |
+| Native verification build | PASS, 48/48 edges, 81.0 s | fc4verify-build.log |
+| Full CTest | PASS, 80/80, 185.3 s | fc4verify-ctest.log |
+| Question index and consistency | PASS; AF11 next free | Generated QUESTIONS.md and questions.py check |
 
-Every asynchronous check was collected to its actual terminal PASS. Final full
-gate queue: `qbuild-20261024-090054-build-ctest`; separately requested native
-verification: `qbuild-20261024-091322-build-ctest`. No operation remains running.
+Final queue label: `qbuild-20261024-100237-build-ctest`. qbuild and native
+verification both reached terminal PASS; no asynchronous operation remains.
+The plugin is present at `engine/build-x86/FreeCity4.dll` (20,806,656 bytes).
 
-The first full gate also passed (6993 tests, native build 253/253, CTest 79/79),
-but a final spec audit found the inherited CROP_DUST handler contradicted the
-explicit PopState rule in automata §6.5. Commit `8f75ad6fe` corrected that behavior
-and added its regression test, justifying the second full gate. The first run's
-logs are preserved separately under `build-runs/pre-crop-dust/`, queue label
-`qbuild-20261024-084314-build-ctest`. The initial focused test operation passed
-25/25 before relocation/correction and is not used as final-source evidence.
-The quiet Bash wrapper failed to initialize (CreateFileMapping error); its
-evidence remains at `build-runs/q/20261024-083301-34388.log`. Direct cargo and
-both qbuild gates succeeded afterward.
+The first merged gate, `qbuild-20261024-094908-build-ctest`, is distinct failed
+evidence in `build-runs/r2-before-unused-import-fix/`: Rust 7021/0/0, clippy unused
+imports, build 216/216, CTest 79/80. The smoke test linked Rust ABI98 against a
+cached C++ object compiled with ABI97, with a train-integration source path in
+its diagnostic. Both local sources declare ABI98. That run also detected HEAD
+changes from progress commits; the final run kept HEAD fixed throughout.
 
-## Open owner contracts and questions
+The standalone recache diagnostic (`refresh-r2-smoke.cmd`, session 24439) hit a
+cache-server startup timeout, was interrupted and collected as exit 1. Its
+result is not a passing gate. `compile-r2-smoke.cmd` then recompiled only the
+generated local smoke-test object directly with MSVC, exit 0. This corrected
+the stale input without changing ABI declarations; the final queued gate
+relinked and passed the smoke test. The failed Bash-wrapper log is retained at
+`build-runs/q/20261024-095505-29352.log`.
 
-This is ready to review/land for the settled owner contract, not an operational
-end-to-end native flight replacement. The spec itself leaves these sections open:
+## Questions, game coverage and next steps
 
-| Section | Remaining contract | Question |
-|---|---|---|
-| aircraft §2, §3.1, §3.4 player path | Native playerdrive selection, controls, takeover, weapons | AF5 |
-| aircraft §3.2 | Probe geometry, full Init/Shutdown order, allocation/failure cleanup, effects and sounds | AF4 |
-| aircraft §3.3 and automata §6.5/§6.6 | AI steering and goal transitions, destination sentinel/arrival, runway/approach/fire queries and failures, LOITER boundary/restore/empty ammo | AF3 |
-| aircraft §3.3/§3.4 | Aircraft dispatch transitions and message callbacks | AF6 |
-| aircraft §3.4, §3.4.1 correction stage, §3.4.2 complete force | Attitude/lift frame, angular update, terrain/runway/collision corrections and complete animation/physics tick | AF2 |
-| aircraft §3.4.1/§3.4.2 non-finite inputs | Unordered comparisons, normalization and caller cap behavior beyond the stated finite-input contract | AF10 |
+Helicopter retains **AF9**. The airplane non-finite physics question is now
+**AF10** in `docs/specs/questions/aircraft.md`; all airplane references and the
+generated index were updated. The task explicitly authorized running
+`tools/questions.py index`; its consistency check also passes.
 
-AF2–AF6 already existed and were reused. New **AF10** was appended to
-`docs/specs/questions/aircraft.md`, with literal comparisons documented in code.
-Round 2 regenerated and checked the question index using the explicit task
-exception for tools/questions.py. Helicopter retains its own AF9 question.
+The remaining spec-settled airplane rows were audited against §§3.1/3.4.1/3.4.2:
+the existing helpers and tests already cover them. Complete flight physics,
+attitude/corrections/collisions, AI control, lifecycle/effects, player commands
+and dispatch still require AF2–AF6. Non-finite numerical equivalence is AF10.
+No substitute owner physics or guessed lifecycle behavior was added.
 
-## In-game shadow and next steps
+No game request was made, and no native shadow or ref-warning measurement is
+claimed. A game comparison needs an observation adapter for matching airplane
+parameter, candidate-motion and scalar-stage inputs/outputs. Full trajectory
+comparison additionally needs the unresolved owner contracts above.
 
-No game requests were made and no shadow/ref-warning claim is made. An in-game
-shadow is not directly runnable from this core-only module: a separate native
-observation seam/adapter must first expose matching inputs and outputs. With
-that seam, compare loaded parameter records, capped seconds, pre-force velocity,
-scalar terms and pre-correction candidate motion with the specified tolerances.
-A trajectory/AI/effect shadow also requires AF2–AF6 to be answered and implemented.
-
-The coordinator can review the owner table and claim the module path, regenerate
-the AF10 question index, and route the remaining questions to spec authors. A
-separate helicopter lane should consume §4.1/vector 7 and audit its default
-CROP_DUST behavior; that owner was deliberately outside this assignment.
+Ready to land the merge fix and settled airplane owner. The coordinator should
+name `engine/core/src/automata/airplane` in the implementation column and route
+the remaining questions to the spec authors.
