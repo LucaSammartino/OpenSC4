@@ -1105,6 +1105,12 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             ctx,
         );
         assert_eq!(n, 0, "{lines:?}");
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("flora-static-shadow: compared=3 mismatches=0")),
+            "{lines:?}"
+        );
         // A wrong type order and a changed float are found.
         let swapped = [0x2000u32, 0x1000];
         let mut r2 = [rec(0x2000), rec(0x1000)];
@@ -1122,6 +1128,12 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             ctx,
         );
         assert_eq!(n, 3, "{lines:?}");
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("flora-static-shadow: compared=3 mismatches=1")),
+            "{lines:?}"
+        );
         assert!(lines.last().unwrap().contains("float[3]"), "{lines:?}");
 
         // Month: census before, the pass, census after.
@@ -1179,6 +1191,11 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             };
             let r = fc4_flora_shadow_month(shadow, &m, Some(sink), ctx);
             assert_eq!(r, 0, "month {month}: {}", lines.last().unwrap());
+            assert!(
+                lines[lines.len() - 2].starts_with("flora-occupant-shadow:"),
+                "{lines:?}"
+            );
+            assert!(lines[lines.len() - 2].contains("mismatches=0"), "{lines:?}");
         }
         let mut st = fc4_flora_shadow_stats::default();
         assert!(fc4_flora_shadow_get_stats(shadow, &mut st));
@@ -1220,7 +1237,16 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             record_count: 2,
         };
         assert_eq!(fc4_flora_shadow_month(shadow, &m, Some(sink), ctx), 1, "{lines:?}");
+        assert!(lines[lines.len() - 2].contains("mismatches=1"), "{lines:?}");
         assert!(lines.last().unwrap().contains("predicted 0"), "{lines:?}");
+        // A missing type record must not turn into a clean unchanged prediction.
+        let mut missing_record = m;
+        missing_record.record_count = 0;
+        assert_eq!(fc4_flora_shadow_month(shadow, &missing_record, Some(sink), ctx), -2);
+        assert!(
+            lines.last().unwrap().contains("static record 0x1000 not captured"),
+            "{lines:?}"
+        );
         // The same record before and after: the iterator did not move (170
         // blocks expected) -> incomplete.
         m.after = b.bytes.as_ptr();

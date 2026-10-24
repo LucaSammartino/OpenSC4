@@ -460,7 +460,7 @@ fn record_diffs(ours: &FloraRecord, theirs: &fc4_flora_record, plop: bool, flags
 /// 0: none is kept). `types`: the original's type array (slot 9);
 /// `records[i]`: the record of `types[i]` (`type_id` 0 = slot 7 returned
 /// null); `key0`: the record under key 0 (NULL = none); `key0_valid`:
-/// `IsFloraTypeValid(0)`. One line goes to `sink`; returns the number of
+/// `IsFloraTypeValid(0)`. Owner and registry lines go to `sink`; returns the number of
 /// differences (-1 on bad arguments).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_shadow_registry(
@@ -512,34 +512,51 @@ pub unsafe extern "C" fn fc4_flora_shadow_registry(
             });
         }
         let mut compared = 0u32;
+        // Keep static-owner evidence separate from simulator registry/order checks.
+        let mut static_diffs = Vec::new();
         for (i, &t) in theirs_types.iter().enumerate() {
             let Some(ours) = reg.get(t) else {
-                diffs.push(format!("{t:#010x} is not in ours"));
+                static_diffs.push(format!("{t:#010x} is not in ours"));
                 continue;
             };
             match theirs.get(i) {
                 Some(r) if r.type_id == t => {
                     compared += 1;
-                    record_diffs(&ours, r, has_plop.get(&t).copied().unwrap_or(false), true, &mut diffs);
+                    record_diffs(
+                        &ours,
+                        r,
+                        has_plop.get(&t).copied().unwrap_or(false),
+                        true,
+                        &mut static_diffs,
+                    );
                 }
-                Some(r) if r.type_id == 0 => diffs.push(format!("{t:#010x}: the original returned no record")),
-                Some(r) => diffs.push(format!("{t:#010x}: the original's record says type {:#x}", r.type_id)),
-                None => {}
+                Some(r) if r.type_id == 0 => static_diffs.push(format!("{t:#010x}: the original returned no record")),
+                Some(r) => static_diffs.push(format!("{t:#010x}: the original's record says type {:#x}", r.type_id)),
+                None => static_diffs.push(format!("{t:#010x}: record values not captured")),
             }
         }
         // The key-0 default record (§3.2): flags and plop cost uninitialised.
         let key0_note = match (key0.as_ref(), reg.get(0)) {
             (Some(k), Some(ours)) if !had_zero => {
                 compared += 1;
-                record_diffs(&ours, k, false, false, &mut diffs);
+                record_diffs(&ours, k, false, false, &mut static_diffs);
                 "compared (flags and plop cost not)"
             }
             (Some(_), _) => "a flora exemplar has type 0: not compared",
             (None, _) => {
-                diffs.push("the original has no key-0 record".into());
+                static_diffs.push("the original has no key-0 record".into());
                 "missing"
             }
         };
+        emit(
+            sink,
+            ctx,
+            &format!(
+                "flora-static-shadow: compared={compared} mismatches={} owner=cSC4StaticFloraData; flags bits 3-7 and uninitialised key-0 flags/cost excluded",
+                static_diffs.len()
+            ),
+        );
+        diffs.extend(static_diffs);
         if !key0_valid {
             diffs.push("IsFloraTypeValid(0) is false in the original".into());
         }
@@ -620,8 +637,8 @@ fn same_pos(a: &Vec3, b: &Vec3) -> bool {
     a.iter().zip(b.iter()).all(|(x, y)| x.to_bits() == y.to_bits())
 }
 
-/// Compares one monthly pass of the original (module docs, 2). One line
-/// goes to `sink`. Returns the mismatches, -2 when nothing could be
+/// Compares one monthly pass of the original (module docs, 2). Owner and month
+/// lines go to `sink`. Returns the mismatches, -2 when nothing could be
 /// compared (the line says why), -1 on bad arguments.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_shadow_month(
@@ -708,9 +725,16 @@ pub unsafe extern "C" fn fc4_flora_shadow_month(
         };
         let boxes: Vec<_> = blocks.iter().map(|&(x, z)| block_box(x, z)).collect();
         let records: HashMap<u32, FloraRecord> = recs.iter().map(|r| (r.type_id, record_of(r))).collect();
+        if let Some(e) = cb
+            .iter()
+            .find(|e| e.is_flora != 0 && !records.contains_key(&e.flora_type))
+        {
+            return incomplete(s, format!("static record {:#x} not captured", e.flora_type));
+        }
         let after_by: HashMap<u64, &fc4_flora_census_entry> = ca.iter().map(|e| (e.token, e)).collect();
         let before_tokens: std::collections::HashSet<u64> = cb.iter().map(|e| e.token).collect();
         let scale = s.elevation_scale;
+        let scalar_mismatches = t.mismatched;
         for e in cb {
             let mut pr = Predicted {
                 fo: fo_of(e),
@@ -807,6 +831,22 @@ pub unsafe extern "C" fn fc4_flora_shadow_month(
             }
         }
         t.appeared = ca.iter().filter(|e| !before_tokens.contains(&e.token)).count() as u32;
+        // predict_visit is the independent Rust rule; observations come from
+        // native occupant getters around the original's delivery. Do not credit
+        // the simulator's scalar checks or random disappearances to this owner.
+        let occupant_mismatches = t.mismatched - scalar_mismatches;
+        emit(
+            sink,
+            ctx,
+            &format!(
+                "flora-occupant-shadow: date={} compared={} mismatches={occupant_mismatches} visited={} owner=cSC4FloraOccupant; random vanished={} new={} excluded",
+                date(m.julian),
+                t.matched + occupant_mismatches,
+                t.visited,
+                t.vanished,
+                t.appeared
+            ),
+        );
         // Totals and the line.
         let st = &mut s.stats;
         st.months += 1;
