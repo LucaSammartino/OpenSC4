@@ -1,39 +1,83 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-scres-shadow5: resource shadow | Codex, `glue-scres-shadow5` (reserved branch, detached HEAD) | in progress: round 2 constructed-input investigation | Exercise the specified adapter ABI; preserve SCR8/SCR9 until published contracts resolve them. |
+| glue-scres-shadow5: resource shadow | Codex, `glue-scres-shadow5` (reserved branch, detached HEAD) | WIP: constructed adapters exact 56/56, clean 2032 city, full gate PASS; broader parser coverage unresolved | Publish SCR8/SCR9 contracts, complete whole-resource parser capture, add the regression profile key through a permitted tooling lane. |
 
-## Handoff
+## Round 2 implementation
 
-- Goal: round 2 constructed native parser differential, then 2032 measurement.
-- Starting tip: cdfb848fd; round 1 gate and two clean city runs below.
-- Clean-room restriction forbids the requested ghidra/decomp/tools inspection,
-  spec edits and question archival. No forbidden source opened or script run.
-- SCR8/SCR9 remain open; do not infer missing parser signatures from addresses.
-- Permitted sc-resources sections 5/6 specify adapter layout and numeric reads;
-  existing shadow compares those with private fc4_scres_shadow_compare.
-- Implemented `scres_constructed` default-off: startup binary/text adapter
-  vectors, plus a fixed shipped pack-1 INI's first 16 raw bytes at city load.
-  Resource-prefix probes exercise binary scalar reads, not an INI parser.
-- Private observation now carries consumed length separately from full input;
-  focused Rust tests 4/4 and owned-file fmt pass. q.py's Bash startup failed
-  with CreateFileMapping error 5; direct cargo test completed successfully.
-- Implementation milestone: 985f7d3a4. Stable-source qbuild all: cargo 6807/6807,
-  clippy zero diagnostics; native request qbuild-20261024-014455-build-ctest
-  terminal FAIL: native 47/49, missing fc4 qualification on compat namespace;
-  CTest skipped. Full failed log preserved as
-  build-runs/fc4verify-build-failed-985f7d3a4-r2.log. Namespace corrected.
-- Corrected source ac743eddc: second qbuild all terminal PASS, cargo 6807/6807,
-  clippy zero, native 91/91 (6.3 s), CTest 70/70 (96.5 s), total 104.6 s.
-  Request qbuild-20261024-015022-build-ctest. Only this lane report changed
-  during the run; implementation source stayed stable.
-- Outstanding game: scres5-r2-constructed-birch, scres_constructed=1,
-  sim_turbo=1, end_date=2032-01-01 (scres_shadow off). DLL SHA256
-  90e90cf88f45cbd1196cc87abfc65b4b3f9d2c3ba95de4690cc11f9d1d6c8dc0.
-- Next: collect SAME event-driven verdict wait (exec session 23160), then
-  inspect its log's scres lines. Do not resend or discard a completed verdict.
-- tools/regress.ps1 remains prohibited and unmodified. No whole-subsystem
-  verification credit; unsupported owners/signatures remain SCR8/SCR9.
-- No outstanding game request. HEAD is intentionally detached.
+Implementation commits: `985f7d3a4`, corrected by `ac743eddc`. Added default-off
+`scres_constructed`, independent of passive `scres_shadow`. At director startup
+it directly calls the specified native binary/text adapter read entry points on
+fixed section-6 inputs (including SCR-V13–15/V26 and boundary/overflow cases).
+Calls are gated by executable identity and original table-entry checks. Unknown
+methods refuse; no unknown constructor or destructor is invoked.
+
+At city load it opens the fixed shipped pack-1 INI through the game's resource
+manager, reads its first 16 bytes, releases only its acquired serial reference,
+and closes the manager-owned record. Those bytes feed the native binary numeric
+adapters and the production Rust port independently. This measures primitive
+reads from a real resource prefix; it does **not** measure the INI parser or a
+complete resource-file parser. The SDK-shaped bounded read-only input record
+counts unsupported operations as refusals. Borrowed adapter pointers are never
+released. The private observation transport now compares full input and consumed
+cursor separately, allowing leftover bytes and strict-boundary failures to be
+checked. No public C ABI exports changed.
+
+## Round 2 validation
+
+- Focused Rust tests **4/4**, owned-file fmt PASS.
+- Final corrected-source `qbuild all` **PASS**: workspace cargo **6807 passed**,
+  zero failed/ignored; clippy `-D warnings` zero diagnostics; native build
+  **91/91** (6.3 s), CTest **70/70** (96.5 s), native total 104.6 s.
+  Request `qbuild-20261024-015022-build-ctest` collected to terminal. Only lane
+  reporting changed while it ran; implementation source remained stable.
+- Initial native attempt `qbuild-20261024-014455-build-ctest` failed at 47/49
+  because the anonymous-namespace helper omitted `fc4::` on `compat`.
+  Corrected in `ac743eddc`; full failed evidence retained at
+  `build-runs/fc4verify-build-failed-985f7d3a4-r2.log`.
+- Initial focused q.py invocation failed before cargo (Bash CreateFileMapping
+  error 5); direct cargo test then passed. Its failed wrapper log remains
+  `build-runs/q/20261024-014247-10060.log`.
+- Final logs: `build-runs/qbuild-{test,clippy}.log`,
+  `build-runs/fc4verify-{build,ctest}.log`.
+
+## Round 2 real-city measurement
+
+[scres5-r2-constructed-birch](../runs/scres5-r2-constructed-birch.md), Konradshohe,
+turbo through **2032-01-07**, **clean**, `ref_warnings=0`. All other problem
+counts and unexpected warnings zero. One unique request, one event-driven
+verdict wait, no qwait, no outstanding operation. DLL SHA256
+`90e90cf88f45cbd1196cc87abfc65b4b3f9d2c3ba95de4690cc11f9d1d6c8dc0`.
+
+| Input group | Exact/total | Refused | Mismatches |
+|---|---|---|---|
+| Fixed binary adapter vectors | 24/24 | 0 | 0 |
+| Fixed text adapter vectors | 22/22 | 0 | 0 |
+| Shipped pack-1 INI raw prefix, numeric binary reads | 10/10 | 0 | 0 |
+
+Total **56/56**, harness summary **scres 3/3** dated lines exact. All lines
+explicitly say `partial=adapter_reads`. Real resource key
+`00000000/8A5971C5/2B563701`, byte window `0:16`, FNV-1a `6AE1A633`.
+No turbo-only mismatch occurred, so a normal-speed rerun was unnecessary.
+
+## Remaining work and clean-room boundary
+
+The task's request to inspect ghidra/decompilation and run tools scripts
+conflicts with the explicit non-bending clean-room rules. No forbidden source
+was opened or listed, no tools script was run, and no spec behavior was invented
+from ABI word counts. **SCR8/SCR9 remain open** in
+`docs/specs/questions/sc-resources.md`, with round-2 implementation and measured
+evidence appended. No question was marked answered; no behavior spec, answered
+archive or generated index was edited.
+
+The command/file parser, strings, token-owner construction, image/buffer and
+ASCII writer signatures/accessors still require publication by a spec/RE lane.
+Natural whole-resource dispatch remains unresolved. `tools/regress.ps1` is
+explicitly prohibited to this lane and remains unmodified; a permitted tooling
+lane must add `scres_constructed` to its single existing `shadows =` string.
+Complete those contracts and full-resource capture, then repeat the game
+measurement before crediting the subsystem or setting the merge entry ready.
+The merge entry is **WIP**, despite the measured adapter checks being exact.
+HEAD remains intentionally detached; no branch/ref was switched or published.
 
 ## Round 1 evidence (retained)
 
