@@ -962,6 +962,9 @@ fn bitmap_32_bit_and_rejected_header_paths() {
     bytes[28..30].copy_from_slice(&32u16.to_le_bytes());
     bytes[57] = 0; // alpha does not affect location classification
     assert_eq!(decode_bmp(&bytes).unwrap(), original);
+    let mut huge_header = bytes.clone();
+    huge_header[14..18].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert!(decode_bmp(&huge_header).is_err()); // checked header addition on 32-bit targets
     for (offset, value) in [(26, 2u8), (28, 16), (30, 1), (18, 0), (22, 0), (10, 1)] {
         let mut bad = bytes.clone();
         bad[offset] = value;

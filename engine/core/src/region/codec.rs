@@ -260,7 +260,8 @@ pub fn decode_bmp(bytes: &[u8]) -> Result<Image, RecordError> {
     if u16_at(26)? != 1 || !matches!(bpp, 24 | 32) || u32_at(30)? != 0 {
         return Err(RecordError::Unsupported);
     }
-    if width <= 0 || signed_height == 0 || signed_height == i32::MIN || offset < 14 + header {
+    let header_end = 14usize.checked_add(header).ok_or(RecordError::TooLarge)?;
+    if width <= 0 || signed_height == 0 || signed_height == i32::MIN || offset < header_end {
         return Err(RecordError::Invalid);
     }
     let width = width as usize;
