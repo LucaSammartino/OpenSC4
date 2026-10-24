@@ -486,6 +486,8 @@ nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+fn:GenericBufferClip	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+fn:GenericBufferClipStretch	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
@@ -723,6 +725,7 @@ cSCStringDetokenizerDefault	strings and language	framework	advice-tokens.md	-	-	
 cSCStringDetokenizer*	strings and language	framework	-	-	-	-
 fn:gAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
 fn:gNeighborDealAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
+fn:SC4LoadString	strings and language	framework	crime.md	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
