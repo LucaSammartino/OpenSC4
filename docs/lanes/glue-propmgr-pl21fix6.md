@@ -6,10 +6,12 @@
 
 - Goal: reproduce train shutdown heap AV on current main; fix only prop/lot capture if causal evidence warrants it.
 - Done: merged main 454438d47 without conflicts, merge commit 2c1ab60e1; prior lane tip c46bbdeae.
-- Next: qbuild all on merged stable source, save DLL under build-runs/dlls, run requested regress profiles twice.
+- Gate: qbuild all PASS; cargo6935/0/0, clippy0 diagnostics, CMake226/226, CTest76/76 (143.7 s), native total222.2 s.
+- Gate verdict: build-runs/build-results/qbuild-20261024-054612-build-ctest.verdict; full logs in build-runs.
+- Next: save gated DLL under build-runs/dlls, run requested regress profiles twice.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No game request or build currently outstanding. No implementation changes this round.
+- No build outstanding. First game pair will be submitted immediately after this milestone; no implementation changes this round.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
 - Historical round-2 and original implementation evidence follows; it used an older base.
 
