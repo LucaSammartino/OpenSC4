@@ -27,3 +27,12 @@
 <!-- from: re-gzwin-spec9 (2026-10-24) -->
 - **WTH1 - widget-html-window.md sections 1, 3 and 4:** finish constructor/defaults and both secondary vtables; WWW request flags, refresh identity and stale completion handling; completion record/error transitions; option masks, key/link notifications, full scrollbar ranges, background phase and HTML drawing metrics. Primary window dispatch is inherited, while 008FBFE5 is the completion-target handler. [keep owner partial; implement the documented status/scroll and parse replacement boundaries only]
 
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT10 - sections 7.2 and 14.3 filter mutation:** what does RemoveMessageFilter do during nested iteration, and are additions visible to the running pass? The deferred list is named but its insertion/removal/ownership rules are not published. [snapshot each pass; defer removals until the outermost pass exits; additions appear on the next pass, including a nested pass]
+
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT11 - section 7.3 type 1:** DoMessage dispatches to the void ChildDelete slot, but what byte return does it expose afterwards? [perform the deletion and return false; do not invent a handled value from a void slot]
+
+<!-- from: core-uiwin-close11 (2026-10-24) -->
+- **WT12 - sections 1, 2, 4 and 8 lifetime boundaries:** please specify cGZWin QueryInterface output/ref effects, initial reference count, final Release/deleting-destructor coupling, manager destruction while old COW blocks retain references, and invalid/self/cyclic parenting inputs. [model valid acyclic registered UI trees with a caller-owned creation reference; implement ordinary wrapping reference arithmetic separately from explicit manager destruction; do not claim native lifetime/ABI closure]
+

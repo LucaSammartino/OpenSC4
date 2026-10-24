@@ -110,6 +110,7 @@ pub mod script;
 pub mod slots;
 pub mod view3d;
 pub mod win;
+pub mod base;
 
 pub use catalog::{
     close_secondary_menu, close_tertiary_menu, invoke_secondary_menu, invoke_tertiary_menu, CatalogHost, InvokeResult,

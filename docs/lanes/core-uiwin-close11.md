@@ -8,5 +8,9 @@
 - Audit wildcard identifies tree/messages only and unclosed widget/toolkit/window algorithms.
 - Read widget-toolkit sections 1-17 (base owner, fade temporary, accelerator wiring); ui-windows section 2 is the legacy tree facade.
 - Plan: add a complete portable base-window runtime under ui_windows/base; native graphics slots remain explicit host operations, not invented pixel algorithms. Preserve existing facade callers.
-- Next: implement runtime, conformance tests 1-21, owner closure README; run focused cargo and required qbuild checks.
-- No builds or game requests launched; no questions filed yet.
+- Implemented base runtime (state, COW tree, flags, geometry, messages/filters, host calls, painting/overlays, fades/temporary, helpers) and owner closure README.
+- Focused cargo output: 21 passed, 0 failed, covering all 21 spec cases plus boundary tests; PowerShell reports exit 1 despite passing output, so final qbuild is authoritative.
+- First q.py failed to launch Bash (Win32 error 5); evidence build-runs/q/20261024-104909-30944.log. Formatting was corrected using in-place apply_patch generated from stdin rustfmt with engine config.
+- Questions WT10-WT12 appended to docs/specs/questions/widget-toolkit.md; existing WT1-3/5-6 and opaque graphics/create-buffer remain explicit boundaries.
+- Next: final qbuild fmt (absolute owned paths), all, and verify; inspect terminal verdicts, fix diagnostics, finalize report/queue.
+- No game requests (core-only, no plugin wiring). Native lifetime/graphics ABI closure is not claimed for either owner.
