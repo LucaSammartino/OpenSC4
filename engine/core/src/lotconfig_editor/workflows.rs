@@ -150,14 +150,16 @@ impl Editor {
         true
     }
     pub fn read(&mut self, key: [u32; 3], h: &mut impl Host) -> Result<bool> {
+        let Some(manager) = h.configuration_manager() else {
+            return Ok(false);
+        };
         let Some(config) = h.read_configuration(key)? else {
             return Ok(false);
         };
         self.current = Some(config);
         self.renumber_loaded_records();
         let c = self.config_mut()?;
-        let code = h
-            .configuration_manager()?
+        let code = manager
             .fix_records(
                 (u32::from(c.size[0]), u32::from(c.size[1])),
                 &mut c.objects,

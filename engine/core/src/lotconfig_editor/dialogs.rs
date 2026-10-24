@@ -57,8 +57,8 @@ pub trait Host {
         0
     }
     /// The held manager and its validity/footprint dependencies, never a Fix verdict.
-    fn configuration_manager(&self) -> Result<&crate::lot_config_manager::LotConfigManager> {
-        Err(Unsupported::Dependency("configuration manager acquisition"))
+    fn configuration_manager(&self) -> Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>> {
+        None
     }
     /// C-locale witness is implemented in core. Other tables remain foreign RZS2.
     fn c_locale(&self) -> bool {

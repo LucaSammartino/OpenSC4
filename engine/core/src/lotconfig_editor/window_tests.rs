@@ -77,10 +77,8 @@ impl Host for Fake {
     fn read_configuration(&mut self, _: [u32; 3]) -> Result<Option<Configuration>> {
         Ok(self.read_result.take())
     }
-    fn configuration_manager(&self) -> Result<&crate::lot_config_manager::LotConfigManager> {
-        self.manager
-            .as_deref()
-            .ok_or(Unsupported::Dependency("configuration manager acquisition"))
+    fn configuration_manager(&self) -> Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>> {
+        self.manager.clone()
     }
     fn register_configuration(&mut self, _: &Configuration, _: bool) {}
     fn parse_hex(&mut self, text: &str) -> Result<u32> {

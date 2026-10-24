@@ -53,10 +53,8 @@ impl Host for Fake {
         self.messages.push((text.into(), title.into(), options));
         self.prompt
     }
-    fn configuration_manager(&self) -> Result<&crate::lot_config_manager::LotConfigManager> {
-        self.manager
-            .as_deref()
-            .ok_or(Unsupported::Dependency("configuration manager acquisition"))
+    fn configuration_manager(&self) -> Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>> {
+        self.manager.clone()
     }
     fn persist(&mut self, _: &Identity, _: &Configuration) -> Result<bool> {
         Ok(self.persist)
@@ -175,8 +173,7 @@ fn lei07_fractional_initial_values_and_ignored_water() {
 #[test]
 fn lei08_decoder_bounds_are_not_editor_normalized() {
     let o =
-        crate::lot_config_manager::object_from_values(&[1, 0, 0, 0, 0, 0, 4 << 16, 5 << 16, 12 << 16, 13 << 16], None)
-            .unwrap();
+        crate::lot_config_manager::object_from_values(&[1, 0, 0, 0, 0, 0, 4 << 16, 5 << 16, 12 << 16, 13 << 16], None);
     assert_eq!([o.min_x, o.min_z, o.max_x, o.max_z], [4.0, 5.0, 12.0, 13.0]);
     assert_eq!(bounds(&o), [12.0, 13.0, 4.0, 5.0]);
 }
@@ -604,7 +601,7 @@ fn save_as_failures_rollback_and_cancellation_never_install() {
 }
 
 #[test]
-fn read_failure_preserves_current_and_success_stops_at_explicit_dependency() {
+fn read_failure_preserves_current_and_success_reconciles() {
     let (mut e, mut h) = editor();
     e.config_mut().unwrap().name = "old".into();
     assert!(!e.read([1, 2, 3], &mut h).unwrap());
@@ -613,7 +610,11 @@ fn read_failure_preserves_current_and_success_stops_at_explicit_dependency() {
         name: "loaded".into(),
         ..Default::default()
     });
-    assert!(matches!(e.read([1, 2, 3], &mut h), Err(Unsupported::Dependency(_))));
+    // An absent manager cannot install even a host's queued configuration.
+    assert_eq!(e.read([1, 2, 3], &mut h), Ok(false));
+    assert_eq!(e.config().unwrap().name, "old");
+    h.manager = Some(super::fix_test_host::manager());
+    assert_eq!(e.read([1, 2, 3], &mut h), Ok(true));
     assert_eq!(e.config().unwrap().name, "loaded");
     assert!(h.events.is_empty());
     assert!(matches!(e.open([0; 3], &mut h), Err(Unsupported::Dependency(_))));
