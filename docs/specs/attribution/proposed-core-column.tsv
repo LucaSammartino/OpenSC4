@@ -1,0 +1,187 @@
+# Proposed column-5 attribution, audit-impl-column11, 2026-10-24.
+# Review input, not a replacement coverage map. Columns are tab-separated.
+# Only HIGH rows in this first section enter the scratch measurement.
+# High means the named owner's published methods and state have executable evidence;
+# it does not mean native binding, verified shadow, replacement, or arbitrary-memory equivalence.
+# Medium rows below retain '-' and receive NO implementation bytes.
+pattern	proposed core value	confidence	evidence
+cSC4GDriversCOMDirector	core/src/gdrivers_director	high	README.md:32-101 exact 65-body checklist; renderer-gdrivers-director.md sections 1/6; GD1-GD80 conformance vectors
+cS3DTextureBinding	core/src/textures_materials	high	texture-bindings.md section 2; tests.rs binding_lifetime_pool_transition_and_standalone_deletion
+cS3DMaterialManager	core/src/textures_materials	high	texture-bindings.md section 3; tests.rs material_manager_interface_fallback_and_deleting_destructor_flags and material_published_vector_preserves_high_byte_and_slot_defaults
+cS3DMaterial	core/src/textures_materials	high	texture-bindings.md sections 3.1/3.2; tests.rs material_counts_zero_one_two_65535_and_reverse_stage_release and material_value_assignment_copies_count_and_acquires_before_release_per_stage
+fn:GZCOM_cS3DTextureBindingFactoryCLSID	core/src/textures_materials	high	texture-bindings.md section 1.1; mod.rs FACTORY_CLASS is the literal class-ID getter result
+fn:GZCOM_cS3DMaterialManagerCLSID	core/src/textures_materials	high	texture-bindings.md section 3; mod.rs MATERIAL_CLASS is the literal class-ID getter result
+fn:NextPowerOfTwo	core/src/textures_materials	high	texture-bindings.md section 1.11; mod.rs next_power_of_two and signed_power_masked_lod_and_wrapped_sizes
+cSCUint32ComboBoxEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 10/14; tests.rs both_combos_sort_map_match_fallback_and_preserve_scalar_or_list
+cSCUint8ComboBoxEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 10/14; tests.rs uint8_combo_wraps_indices_and_reports_native_nontermination_and_invalid_indices
+cSCUint32SpinnerEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 11.1/14; tests.rs spinner_widget_receives_original_uint32_and_range_user_clamps_missing_scalar_preserved
+cSC16ColumnGridEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 11.2/14; tests.rs grid_floors_rows_truncates_integer_widths_and_retains_tail plus float confirmation
+cSCColorSequenceEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 11.3/14; tests.rs colors_add_clone_no_selection_delete_floor_activation_and_inset_paint
+cSCResKeyTableEntryView	core/src/resource_editor	high	resource-exemplar-editor.md sections 12/14; tests.rs table_picker_accept_cancel_noop_edit_invalid_delete_save_getvalue_and_revert
+cRZPath	core/src/paths	high	paths.md sections 2/2.3; contract_tests.rs counted_setters_compare_past_nul_before_deciding_whether_to_split
+cRZDirectoryEntry	core/src/paths	high	paths.md section 3.10; contract_tests.rs entry_lifecycle_copies_the_name_but_never_keeps_the_directory_alive
+cRZDirectory	core/src/paths,core/src/rz_files	high	paths/directory.rs re-export; rz_files/directory.rs owns enumeration/traversal; paths contract_tests.rs stable string-sort vector
+fn:IsPathSeparator	core/src/paths	high	paths.md section 1; helpers.rs is_path_separator byte predicate; path conformance vectors
+fn:IsASCIILetter	core/src/paths	high	paths.md section 1; helpers.rs is_letter byte predicate; full_path_classification_is_literal_and_byte_based
+fn:IsFullPath	core/src/paths	high	paths.md section 1.1; tests.rs full_path_classification_is_literal_and_byte_based
+fn:Fullpath	core/src/paths	high	paths.md sections 1.2/1.3; tests.rs explicit_base_normalisation_vectors and current_directory_drive_root_unc_and_fallback_vectors
+fn:ResolvePath	core/src/paths	high	paths.md section 1.4; tests.rs resolve_preserves_failure_and_bypasses_limits_for_already_full_text
+fn:Splitpath	core/src/paths	high	paths.md section 1.5; tests.rs splitpath_drive_last_dot_separator_and_truncation
+fn:SplitDirectory	core/src/paths	high	paths.md sections 1.6/3.11; contract_tests.rs split_directory_literal_boundaries_signed_capacity_and_partial_writes
+fn:RZFileFind*	core/src/paths	high	paths.md sections 4/4.1; contract_tests.rs repeated_failed_next_retries_the_same_handle_and_finish_alone_closes
+cSC4RegionalCity	core/src/regional_city	high	README.md:24-58 owner closure; tests.rs wire/package/statistics/message/connection vectors; foreign RR3 arguments remain a spec boundary
+cSTEVertBufExtn	core/src/overlay_views	high	README.md:59-60,64,70 all seven static methods; ov_l10_l11_vertex_compaction_source_offsets_and_word_wrap and ov_l12_l13_flush_relock_failure_and_failed_create_counts
+
+# PARTIAL OWNERS: do not apply these as core mappings. '-' is intentional.
+# Evidence names the module and the missing owner work; medium is NOT implemented credit.
+pattern	proposed core value	confidence	evidence
+cS3DTextureBindingFactory	-	medium	textures_materials/tests.rs restore_distinct_records_withholds_unknown_hash_order: ordinary multi-record restore emits no uploads and reports RestoreTableOrder; section 1.8 not closed
+cSC4View3DWin	-	medium	ui_windows/view3d/README.md closure: pending notification/catalog/panel/lifecycle integration and remaining owner state, not just missing bindings
+cGZWin*	-	medium	ui_windows/win.rs models tree/messages only; widget/toolkit owners and window algorithms beyond ui-windows.md section 2 are not closed by this wildcard
+cSC4AudioEventHandler	-	medium	audio/README.md owner closure: AU13-AU16 dispatch/construction/radio/modal/callback/destructor algorithms remain gaps
+cSC4AudioSoundManager	-	medium	audio/sound_manager.rs do_event position event has no position effect; update/tuning model is not complete foreign owner execution
+cGZSndEventStd	-	medium	audio/snd_event.rs payload/QI vectors; pool.rs is a separate model, no owner-wide constructor/allocation/destructor closure table
+cSC4Audio*	-	medium	audio/leaf.rs slot 5 remains unimplemented; director.rs records registration identities/order only; wildcard cannot receive family-wide credit
+cGZSndSys	-	medium	audio/sound_system/README.md closure: SS8 target classification/dispatch and teardown residuals
+cGZSndMgr	-	medium	audio/sound_system/README.md closure: SS9 manager cache/playback/service residuals
+cGZSnd*	-	medium	audio/sound_system has partial system/manager owners, not every owner matched by this wildcard
+cGZSoundCOMDirector	-	medium	audio/sound_system/directors.rs and README.md: registration model, SS10 post-app-init and inherited/lifecycle gaps
+GZSndSysMacCOMDirector	-	medium	audio/sound_system/directors.rs and README.md: identity/registration, unresolved director behavior SS10
+cHitTrackPlayer	-	medium	audio/sound_system/README.md section 3 rows: SS1 restart/interpreter/command/notification/timer algorithms absent
+cHitMan	-	medium	audio/sound_system/README.md section 4.1: SS2 grammar/registration/arbitration/pause/callback/shutdown missing
+cHitChannel	-	medium	audio/sound_system/README.md section 4.2: SS3 patch refresh/pitch/pan/notification dispatch missing
+cHitIniFile	-	medium	audio/sound_system/README.md section 5.1: SS4 full grammar/order/duplicate/failure behavior missing
+cHitPropertySetTrackResource	-	medium	audio/sound_system/README.md section 5.2: SS5 resource parsing/lifetime remains a partial contract
+cFreshPlayer	-	medium	audio/sound_system/fresh.rs returns SS6 for periodic_update/fade_volume/stop_or_shutdown
+cFreshCellPlayer	-	medium	audio/sound_system/fresh.rs returns SS7 for unresolved start/spatial policy and source paths
+cFreshnessCOMDirector	-	medium	audio/sound_system/directors.rs and README.md: SS10 service/registration/lifecycle remainder
+cGZPlayList	-	medium	audio/sound_system/playlist.rs converted-line parsing is not complete Open/path resolution; SS11 remains
+cSC4SoundDescription	-	medium	audio/data.rs tuning/data records do not establish full sound-description owner lifecycle/state
+tSound	-	medium	audio/sound_manager.rs running-instance records lack full position/update/foreign sound owner behavior
+cGZWinGrid	-	medium	widget_controls/README.md: native recalculation dispatch/input/full paint and lifetime adapter pending
+cGZWinTextEdit	-	medium	widget_controls/README.md: byte stage only; caret/timer/clipboard/layout/view/paint/resource dispatch pending
+cGZWinListBox	-	medium	widget_controls/README.md: WC1/WC5 text preprocessing/ellipsis and full paint remain open
+cGZWinTreeView	-	medium	widget_controls/README.md: native ordering insertion WC2, full paint WC3, flatten flags WC6 remain
+cGZWinFileBrowser	-	medium	widget_controls/README.md: automatic refresh/init/paint/drive population/column sizing/restoration pending
+cGZWWWSystem	-	medium	www/README.md closure: Q7/Q9 attribution/admission plus Q10 null-target continuation; no whole-owner closure
+cRZHTTPClient	-	medium	www/README.md closure: Q9 normalization/Q13 wire/framing/date grammar/finalization/residual slots
+cRZCookieManager	-	medium	www/README.md closure: Q1 port interpretation/Q3 binary and character conversion plus provisional Q15 choices
+NetworkFileCache	-	medium	www/README.md closure: Q11 filename/INI loader/source-file admission/native buffer allocation; Q15 writer choices
+nSGLDX7*	-	medium	gdriver/README.md closure: RD6-RD11 ranking/converters/context/auxiliary/lifecycle/vertex/numeric gaps; broad row spans three partial owners
+cSC4WinLotConfigurationEditor	-	medium	lotconfig_editor/README.md closure: LE3-LE6 numeric/edit/3D/title/render bodies and LE8 shutdown detail missing
+cSC4WinLotConfigurationChooser	-	medium	lotconfig_editor/README.md closure: LE7 discovery/acquisition/store identity and LE8 error text; editor Open continuation unresolved
+cSC4PropOccupant	-	medium	prop_occupant/mod.rs/tests.rs cover 25 vectors; prop-occupant.md section 6.1 PO3 placeable reference/storage seam is not modelled
+cSC4PropOccupantVisualEffect	-	medium	prop_occupant/effect.rs/tests.rs t21/t22 cover effect and record; embedded prop PO3 seam and full owner closure not established
+cSC4PropOccupant*	-	medium	prop_occupant does not implement every derived/controller owner; do not promote wildcard from plain/effect records
+cSC4WinMapView	-	medium	map_view/README.md closure: QV1-QV11/QV14 palette/interpolation/overlay/lifecycle domains still unresolved
+cSC4ViewInputControlPlaceLot	-	medium	place_lot/README.md closure: CT25 mouse visibility and CT26 failed-facing validation conflict; independent feedback is not end-to-end owner closure
+cSC4PathView	-	medium	overlay_views/README.md all published path methods tested, OVV6 historical owner inventory/additional methods and numeric closure remain uncertified
+cSC4PathView::PathInfo	-	medium	overlay_views/README.md deque cleanup tests; OVV6 independent record ABI/lifetime inventory not established
+SC4MarkedCellView	-	medium	overlay_views/README.md cell traversal/batch vectors; OVV4 state and OVV6 allocation/inventory residuals
+SC4PathInfoView	-	medium	overlay_views/README.md NO L1-L5 vectors; NOV2 process pulse initializer/filter/depth setters unresolved
+SC4TrainJunctionView	-	medium	overlay_views/README.md NO L6-L9 vectors; NOV3 nonnull marker rotation/model state returns Unsupported
+cS3DMeshBuilder	-	medium	geometry_utilities/README.md 37-body checklist: mesh integration/bounds/reset/allocator behavior partial; no byte completion claim
+nS3D*	-	medium	geometry_utilities/README.md: mixture of bounded texture/clip helpers and partial geometry/numerics, not namespace closure
+SC4GeometryUtilities	-	medium	geometry_utilities/README.md: PC24 adapters/trig/RNG/PC64 resident arithmetic not full owner numeric contract
+cGZDrawContext	-	medium	gz_graphics/README.md: routes/state exist, generic coverage GZG1 and AA/device subdivision GZG2 unimplemented
+cGZDrawContextRenderTo*	-	medium	gz_graphics/README.md: five buffer kernels do not close AA/hardware/SimGL renderers; actual engines reject unresolved routes
+cGZGraphicSystem	-	medium	gz_graphics/README.md: successful lifecycle order only, driver INI resolver/partial-init rollback not closed
+cGZAlphaBlt	-	medium	gz_graphics/README.md: delegate identities only; opened image returns GZG5 instead of alpha/mask loader implementation
+cGZCanvasW32	-	medium	gz_graphics/README.md: saved state/counter/posting/title/service model; realization/event translation foreign, no complete window closure
+cGZPersistDBRecord	-	medium	persistence_runtime/AUDIT.md: explicitly partial PR9 constructor/lifetime allocation domains
+cGZPersistDBSerialRecord	-	medium	persistence_runtime/AUDIT.md: PR1/PR10/PR13 allocation/error state and incomplete native stream view surface
+cGZPersistResource	-	medium	persistence_runtime/AUDIT.md: atomic logical lifetime/key/QI only, native reclamation unsupported
+cGZPersistResourceFactory	-	medium	persistence_runtime/AUDIT.md: BufferResource specialization only, other derived/resource/failure domains unsupported
+cGZBufferResource	-	medium	persistence_runtime/AUDIT.md: PR2/PR3/PR11/PR12 BMP/allocation/malformed domains and padded v1 copy choice
+cGZBufferResourceFactory	-	medium	persistence_runtime/AUDIT.md: PR9/PR13 constructor/close-failure precedence and module/file domains not closed
+cGZPersistResourceKeyList	-	medium	persistence_runtime/AUDIT.md: re-exported persistence_manager KeyList still lacks erase/presence/QI/enumeration/container behavior
+cSC4WinSnapshotAlbum	-	medium	snapshots/OWNER_INVENTORY.md: native controls/lifetime plus SN3/SN4/SN7/SN9 naming/navigation/deletion/import residuals
+cSC4WinSnapshotTaker	-	medium	snapshots/OWNER_INVENTORY.md: capture/input model only, native paint/control/slot/lifetime and SN1-SN9 residuals
+cSC4ViewInputControlCityScroll	-	medium	view_input_controls/README.md: portable movement/input, VIC2 framework/message binding and VIC3-VIC7 inventory/lifecycle/numeric residuals
+cSC4ViewInputControlLevelTerrain	-	medium	view_input_controls/README.md: published tool only, VIC3-VIC7 numeric/lifecycle/inventory remainder
+cSC4ViewInputControlLabelTool	-	medium	view_input_controls/README.md: editing policy present, VIC4 text/VIC6 lifecycle/VIC7 typing-release residuals
+cSC4ViewInputControlSignTool	-	medium	view_input_controls/README.md: sign policy present, VIC4 text/VIC6 lifecycle/VIC7 typing-release residuals
+cSC4ViewInputControlSignLabelDemolish	-	medium	view_input_controls/README.md: pick/delete policy, VIC5/VIC6 owner inventory and lifecycle not closed
+cSC4LabelFilter	-	medium	view_input_controls/README.md: predicate helpers, no complete filter owner lifetime inventory (VIC5/VIC6)
+cSC4SignFilter	-	medium	view_input_controls/README.md: predicate helpers, no complete filter owner lifetime inventory (VIC5/VIC6)
+cSC4SignOrLabelFilter	-	medium	view_input_controls/README.md: predicate helpers, no complete filter owner lifetime inventory (VIC5/VIC6)
+cSC4Watercraft	-	medium	watercraft/README.md: complete drive/crash/debug lifetime and WC3-WC5 prerequisites pending despite WC6/WC8 vectors
+cSC4ViewInputControlFlora	-	medium	city_input_tools/README.md: portable planting only; full base/native constructor/Init failure/QI/refcount/stack absent
+cSC4ViewInputControlTorch	-	medium	city_input_tools/README.md: portable effect/audio intents only; full native lifecycle/base/return contract absent
+cSC4ViewInputControlCitySituations	-	medium	city_input_tools/README.md: portable input/message only; Shutdown/native lifetime explicitly absent
+cSC4TrafficAutomaton	-	medium	vehicles/README.md: VH2 outside connections, VH3-VH9 state/setter/native Init gaps; not full closure
+cSC4Vehicle	-	medium	vehicles/README.md: partial inherited record/path behavior and VH3-VH9 owner/default/mode gaps
+cSC4TrainCar	-	medium	vehicles/README.md: car selection/following/wire/native Init and inherited owner gaps
+cSC4Train	-	medium	vehicles/README.md: train Init/car selection/start/tick/driving/derail/wire gaps, not supplied by foreign callbacks
+cSC4Helicopter	-	medium	helicopter/README.md: AF3 full mission/control/teleport goals, AF4 lifecycle/reconstruction and AF9 presets unresolved
+cSC4AnimationCoordinator	-	medium	animation_coordinator/README.md: 19 public references do not close 45-entry attributed inventory; residual per-body accounting unavailable
+cSC4AnimationTickManager	-	medium	animation_tick_manager/mod.rs: TK4 hash growth/order beyond fixed 193 table and TK3 callback/lifetime boundary; no owner closure table
+cSC4AutoGamePause	-	medium	auto_game_pause/mod.rs: normal algorithms/vector coverage only; AGP1 raw participant/lifetime and copy/allocation/reentry domains unclosed
+cSC4FeatureManager	-	medium	feature_manager/mod.rs: complete-byte provider cannot inject feature-manager.md section 4.1.1 FM3 streaming failures
+cSC4GameOfLifeSimulator	-	medium	game_of_life/mod.rs: GL1-GL3 allocation/RNG/lifetime/additional inline-control operations explicitly partial
+cSC4OccupantGroupTemplate	-	medium	occupant_groups/README.md: OG3 denominator incomplete, OG4 QI acquisition/failure/output/initial count absent
+tKeyEffect	-	medium	occupant_groups/README.md: copy operation only; OG3 separately counted construction/destruction inventory missing
+cRZWinKeyAccelerator	-	medium	key_accelerator.rs and tests/: WT7 constructor/QI effects/deleting destructor flags unpublished; membership predicate is not QI
+cSC4TextDecalOccupant	-	medium	text_decal_occupant.rs and tests/: TDO1 numeric mode restricted to Nearest24Normal, inherited prop seam unclosed
+cSC4GlyphTextureManager	-	medium	glyph_textures/mod.rs GT3-GT6 inherited/lifecycle contracts withheld; glyph-textures.md section 1.1.1 now specifies GT4 construction/shared slots
+cSC4GlyphTextureInfo	-	medium	glyph_textures/mod.rs: GT3-GT6 construction/shared service and info owner lifecycle not closed
+cSC4StringTextureInfo	-	medium	glyph_textures/mod.rs: GT3-GT6 construction/shared service and string info owner lifecycle not closed
+cSC4ViewInputControlPlayerDrive	-	medium	player_drive/mod.rs: partial EnterDrivingMode, missing native Init/Shutdown and dashboard loading; 26 tests establish only the published slices
+fn:GZCOM_CreatecS3DTextureBindingFactory	-	medium	textures_materials new/SystemService primitives do not separately test native factory output/allocation failure wrapper
+fn:GZCOM_CreatecS3DMaterialManager	-	medium	textures_materials new/SystemService primitives do not separately test native factory output/allocation failure wrapper
+fn:GZCOM_CreatecSC4RegionalCity	-	medium	regional_city README closes owner but does not independently demonstrate factory wrapper output/allocation failure contract
+fn:SC4ReadRegionalCity	-	medium	regional_city read_path/read_package vectors do not independently close all outer free-function ownership paths
+
+# UNREFERENCED DIRECTORY INVENTORY (literal comparison with column 5; no tools changes).
+# core/src/: animation_coordinator, animation_tick_manager, audio, auto_game_pause,
+# city_input_tools, cmdline, feature_manager, game_of_life, gdriver, gdrivers_director,
+# geometry_utilities, glyph_textures, gz_graphics, helicopter, key_accelerator,
+# lotconfig_editor, map_view, missing_plugin_reporter, network_transport, occupant_groups,
+# overlay_views, paths, persistence_runtime, place_lot, player_drive, prop_occupant,
+# property_setter_helpers, regional_city, resource_catalog, resource_editor, rigid_body_2d,
+# rz_sparse_matrix, rz_sys_serv_ptr, rzurl, snapshots, text_decal_occupant,
+# textures_materials, ui_windows, utf8_validation, vehicles, video_preferences,
+# view_input_controls, watercraft, www.
+# formats/src/: bin, dbpf.
+# cmdline/key_accelerator/missing_plugin_reporter/rz_sparse_matrix/rzurl/
+# text_decal_occupant/utf8_validation are test-only directories for sibling .rs modules;
+# they must not be mistaken for seven additional production implementations.
+# formats/src/bin is a command-line inspection utility; dbpf holds reader test fixtures.
+# glyph_textures: cSC4GlyphTextureManager, cSC4GlyphTextureInfo, cSC4StringTextureInfo
+# remain partial (mod.rs GT3-GT6 inherited/lifecycle contracts), so no row promoted.
+# player_drive: cSC4ViewInputControlPlayerDrive is partial (mod.rs EnterDrivingMode,
+# Init/Shutdown/dashboard loading deliberately incomplete); broad input wildcard unchanged.
+# resource_catalog: four catalog/key-input owners are partial (ledger V01-V24;
+# resource-catalog.md RC1-RC5 and no byte-total closure), broad cSC*View row unchanged.
+# video_preferences: bounded portable slices only, not complete panel/constructor;
+# no exact video-preference owner row exists. cSC4Preferences is not that owner.
+# network_transport: socket/stream/resolver bodies partial, including unsupported
+# nonzero connect timeout; cRZNet* and cRZName* are too broad to promote.
+# property_setter_helpers: scalar/array overload traces do not close property owners;
+# no exact helper row, and cGZPropertySet*/cPropertySet* must stay uncredited.
+# rz_sys_serv_ptr: service-token normal-call utility, SSP3 unsupported; no exact
+# template-owner row; cRZ* catch-all must not receive this module's credit.
+# rigid_body_2d: seven bounded methods, no integration/response/pair cycle/registration/
+# packed mapping/lifetime; no exact row. Missing-plugin reporter: two OWN algorithms,
+# no construction/subscription/QI; no exact row. UTF8 validator: standalone counted-byte
+# policy/tests, no exact row; fn:UTF16* denotes different algorithms and is not a match.
+# rz_sparse_matrix: sibling .rs already referenced through a matching row; no new directory credit.
+# rzurl and cmdline: sibling .rs already referenced; no new directory credit.
+#
+# UNREFERENCED TOP-LEVEL .rs FILES (exact literal paths, excluding paths already in core).
+# core/src/: calibration.rs, city_geometry.rs, development.rs, font_renderer.rs,
+# grid_interpolation.rs, host.rs, html_ui_hooks.rs, html_ui_hooks_tests.rs, ids.rs,
+# julian.rs, key_accelerator.rs, lib.rs, local_grid_helper.rs, missing_plugin_reporter.rs,
+# number_text.rs, pacing.rs, property.rs, props.rs, rz_sparse_matrix.rs, simgrid.rs,
+# stl.rs, store.rs, text_decal_occupant.rs, utf8_validation.rs, x87.rs.
+# formats/src/: command_values.rs, effects.rs, error.rs, fsh.rs, keys.rs, lib.rs,
+# ltext.rs, reader.rs, s3d.rs, tgi.rs, x87.rs.
+# These are not all missing owners: lib/host/ids/error/reader/tgi are plumbing;
+# calibration/city_geometry/development/grid_interpolation/julian/number_text/pacing/
+# property/props/simgrid/stl/store/x87 and formats command_values/effects/keys/ltext
+# are shared primitives/codecs or already attributed through larger owner modules.
+# fsh.rs and s3d.rs have directory paths already named by existing rows; the audit
+# checks existence only for existing paths, not semantic closure of every existing row.
+# font_renderer.rs withholds FR1 slots and larger holder FR3; html_ui_hooks.rs is
+# HU1-HU4 bounded; local_grid_helper.rs is qualified-dyadic/LGH-limited, not owner closure.
+# No wildcard promotion is inferred from any of these helpers or codecs.
