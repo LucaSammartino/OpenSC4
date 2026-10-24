@@ -498,7 +498,9 @@ cRZSpanList	2D drawing and fonts	renderer	gz-graphics.md, rz-draw.md	-	-	-
 cRZRGBColorConverter	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 cRZRGBColorConverter::Format	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 fn:SC4CreateSpanList	2D drawing and fonts	renderer	rz-draw.md	-	-	-
-cGZGimexFactory	2D drawing and fonts	renderer	-	-	-	-
+cGZGimexFactory	2D drawing and fonts	renderer	gimex.md	-	-	-
+cGZGimexReader	2D drawing and fonts	renderer	gimex.md	-	-	-
+cGZGimexWriter	2D drawing and fonts	renderer	gimex.md	-	-	-
 cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
 cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
