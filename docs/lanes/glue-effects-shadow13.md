@@ -8,7 +8,8 @@
 - Prior lane report read: name membership only, 73/73 exact; broader observation needs EF22.
 - EF22 read: no native observer API; attachment requires host capabilities absent here. Closed refusal is required, not a missing spec signature; no duplicate EF22 question.
 - EF23 capture fix and named/anonymous/truncation tests implemented; plugin reports exact measured scope and EF22 refusal explicitly. Implementation committed with validation pending; no native payload credit claimed.
-- Next: collect foreground focused operation (exec session 75954), then explicit fmt, commit source, qbuild all, city to 2032. No game request outstanding.
-- Focus log build-runs/effects-focused.log: first compilation under heavy shared Rust contention, no errors yet. The same shell runs fmt afterward (relative paths may need correcting). Do not launch a duplicate.
+- Done: implementation db988ae7a; focused effects::capture tests 8/8 PASS (including both EF23 tests), owned-file fmt 2 files / 0 diff lines.
+- Next: collect qbuild all terminal result, then city to 2032. No game request outstanding.
+- Focus log build-runs/effects-focused.log: first compilation completed successfully under heavy shared Rust contention. Session 75954 finished. Initial fmt relative-path invocation failed; absolute-path invocation passed, no source change.
 - q.py cannot start Bash (CreateFileMapping permission error); use local Python foreground runner for focused Cargo. All full gates through qbuild.
 - No tools/ or analysis content read. Do not switch detached HEAD or update shared refs.
