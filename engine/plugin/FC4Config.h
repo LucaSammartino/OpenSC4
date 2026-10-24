@@ -621,6 +621,10 @@ std::string IniPath();
 // placements with a read-only core replay against the same pre-placement city.
 // Reports drag cells, status, failure, step counts and cost; not solved pieces,
 // bridge models or power-line poles/wires (network-tools question NT27).
+// nettool_drag_shadow / nettool_wide_drag_shadow = 0 / 1 (default 0):
+// monthly private-original DrawNetworkLine comparisons, single-cell / wider
+// types respectively. Return, ordered coordinates, straight and total counts
+// only; no placement, validation, cost, solved-piece or subclass credit.
 // overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
 // city load and each month. Live records/cells/textures await OV12; no rendering.
 

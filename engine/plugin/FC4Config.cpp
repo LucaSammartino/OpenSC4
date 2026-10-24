@@ -398,6 +398,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "city_shadow",
                                   // AF11 partial helicopter metadata observation, default off.
                                   "helicopter_shadow",
+                                  // Private original tools, draw-only public result projection.
+                                  "nettool_drag_shadow", "nettool_wide_drag_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
