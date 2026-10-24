@@ -56,6 +56,8 @@ for owner tests. Grid, TextEdit and FileBrowser rows receive no new closure.
 
 - Round 2 resumed 2026-10-24; WC1/WC2/WC3 are open, WC4/WC5/WC6 archived.
 - Round 2 milestone: WC1 answered in section 5.6 and L27-L36, archive/index updated; next WC2 descriptor/property/lifecycle audit.
+- WC1 committed 14590ec17; doccheck and diff whitespace passed. WC2 partial section 6.6/T19-T26 now settles descriptors, ordering, properties and stale-root restart; WC2/WC3 remain open.
+- Cutoff approaching: finish report and queue committed partial closure; no more new RE this round.
 - Read only the expressly requested engine README closure table: TreeView 6.1-6.5/8 still cite WC2/WC3/WC6; no engine edits.
 - Goal remaining: close WC1-WC3; no question was left open because of odd original behavior.
 - Completed: WC6 2cc7327cc; WC4/WC5 819363eb7; doccheck passed.

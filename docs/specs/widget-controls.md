@@ -186,7 +186,7 @@ other IIDs delegate to cGZWin. Constructor `009CA883` installs window table
 
 The list table contains **66 slots**, ending immediately before window table
 `00AE1780`. This inventory gives native targets, not inferred C++ signatures.
-“Unresolved” means interface presence only; see WC1. A slash separates adjacent
+Residual signatures and quirks are specified in section 5.6. A slash separates adjacent
 slots, not alternate targets for one slot. The table was checked against the
 native executable words at `00AE1678`–`00AE177C`.
 
@@ -194,14 +194,14 @@ native executable words at `00AE1678`–`00AE177C`.
 |---|---|---|
 | 0–3 | `009CAA0A` / `0095BA81` / `0095BA8C` / `0095BA6F` | QueryInterface / AddRef / Release / AsIGZWin adapters |
 | 4 | `009C93D7` | Remove entry by index |
-| 5–6 | `009C9E74` / `009CA084` | Removal wrappers; string-to-index search boundary unresolved |
+| 5–6 | `009C9E74` / `009CA084` | Remove first exact text match / clear all; section 5.6 |
 | 7–8 | `009C9F12` / `009C8B24` | Insert text at index with ID / replace text at index |
 | 9 | `009C8A7E` | Resize height to whole lines |
 | 10–13 | `009C8CEE` / `009C9C82` / `009D8564` / `009C9E41` | Select index / select ID / get selected index / get selected ID |
 | 14–18 | `009C8F3C` / `009CEC4A` / `009CB16A` / `009C88D4` / `009C88DE` | Enable sorting / get sorting byte / sort now / set drop byte / get drop byte; section 5.6 |
 | 19 | `009C9AEB` | Text-area output rectangle |
 | 20–21 | `009C8E72` / `009C8E9D` | Previous/next selection without notification |
-| 22–23 | `009C8E29` / `009C8E46` | First/last navigation adapters; WC1 |
+| 22–23 | `009C8E29` / `009C8E46` | Scroll first/last page, without selection; section 5.6 |
 | 24–25 | `009C8EC4` / `009C8EF3` | Page navigation; previous page in section 5.3 |
 | 26–29 | `009C8D71` / `009C8D8F` / `009C9CFA` / `009C8DD1` | Is row visible / make row visible / select first prefix match / set first visible row |
 | 30–33 | `009C8F69` / `009CDC27` / `009D858F` / `009CDC23` | Get count / row height / whole visible rows / first row (signed 32-bit) |
@@ -231,7 +231,7 @@ The W extension is particularly vulnerable to misleading export names:
 | 152 | `009C8BB0` | Character/prefix navigation when not capturing; returns false |
 | 153 | `009C8909` | Replace retained border buffer |
 | 154 | `009CA6D0` | Copy indexed entry's text into an output string; false if lookup fails |
-| 155 | `009C9C20` | Find matching text and output the first matching index; comparison helper boundary WC1 |
+| 155 | `009C9C20` | Find complete case-sensitive byte match and output first matching index |
 | 156 | `009C8666` | Recompute row height and whole visible-line count |
 | 157 | `009C9B9B` | Return indexed entry's string interface through output; false if absent |
 | 158 | `009CA0DF` | Remove a stored entry |
@@ -327,9 +327,9 @@ zero; it caps at count−wholeRows only when count exceeds wholeRows. Previous
 selection fails at the first row, on no selection or an empty list; otherwise
 it selects index−1 without notification. Previous page chooses
 `max(0,first−wholeRows+1)`, sets that origin and selects it without notification.
-First-prefix-match (`009C9CFA`) searches in list order and selects/notifies the
-first BeginsWith match with helper argument 1; missing match returns false.
-Case/encoding details of that helper remain WC1.
+Character navigation (`009C9CFA`) searches in list order and selects/notifies
+the first exact leading-byte match; missing match returns false. It takes one
+character byte, not a string prefix (section 5.6).
 
 HitTest (`009C8F99`) returns −1 for no entries. With clamp=true it clamps y
 into [0,height−1]. The row is signed
@@ -599,10 +599,10 @@ do not extend it into the next pure-call table.
 | O slots | Target(s), in slot order | Role / boundary |
 |---|---|---|
 | 0–2 | `009CFA42` / `0094D34F` / `009D006C` | QueryInterface / AddRef / Release |
-| 3–7 | `009CFA64` / `009CFAA6` / `009CFAB9` / `009CFAF2` / `009CFB0D` | Property/flag adapters, WC2 |
-| 8–11 | `009B002D` / `009CFB32` / `009CFB49` / `009CFB64` | Property/service adapters, WC2 |
-| 12–16 | `00879480` / `009CFB89` / `009CFBBA` / `009CFBC1` / `009CFBF8` | Property/service adapters, WC2 |
-| 17–18 | `009D0081` / `009CFC0C` | Property/service adapters, WC2 |
+| 3–7 | `009CFA64` / `009CFAA6` / `009CFAB9` / `009CFAF2` / `009CFB0D` | Flag at +0x148, margin-pair and margin setters; section 6.6 |
+| 8–11 | `009B002D` / `009CFB32` / `009CFB49` / `009CFB64` | Margin getter, stored pair set/get, row-height setter; section 6.6 |
+| 12–16 | `00879480` / `009CFB89` / `009CFBBA` / `009CFBC1` / `009CFBF8` | Row-height getter, +0x130 set/get, base-color set/get; section 6.6 |
+| 17–18 | `009D0081` / `009CFC0C` | Set/get +0x180 property; section 6.6 |
 | 19–22 | `009D3F7B` / `009D34A7` / `009D0C63` / `009D407E` | Image/resource adapters (22 releases image-list entries after first four); WC2 |
 | 23–25 | `009D3D60` / `009D3CBA` / `009D3A7A` | Insert wrappers / descriptor-based InsertNode |
 | 26–28 | `009D1FAB` / `009D2E07` / `009CFC13` | Move node / removal-family boundary / adapter; WC2 |
@@ -667,7 +667,8 @@ handle. Shutdown clears visible/selection caches, destroys mapped nodes and
 image entries, releases/nulls default font, working buffer and both bars, then
 base shutdown (`009D320F`, W-relative entry). Root and resource allocation
 failures are not safely guarded throughout; do not promise successful partial
-initialization or atomic rollback. Exact restart-after-shutdown behavior WC2.
+initialization or atomic rollback. Shutdown does not reset internal-init,
+root pointer or next handle; restart is not a fresh initialization (section 6.6).
 
 ### 6.3 Node operations and selection *[compat]*
 
@@ -679,9 +680,9 @@ On success it consumes the next handle, copies text/style/data, assigns parent,
 starts unselected and not force-branch, inserts in the parent's ordered list,
 updates child count/map, marks layout dirty and invalidates. Null font uses
 the default. Row height grows to accommodate the font metric, but is not
-reduced by this operation. Ordering sentinels −2, −3, −4 exist; the exact
-prepend/append/sorted helper contracts and invalid-reference mutation/leak
-behavior are WC2. An allocation returning null is subsequently dereferenced;
+reduced by this operation. Ordering sentinels −2, −3, −4 mean prepend, append
+and sorted insertion respectively; explicit references and post-allocation
+failure state follow section 6.6. An allocation returning null is subsequently dereferenced;
 no graceful false/−1 result is established for that case.
 
 SetExpanded `009D23F0` fails for an absent handle. On a changed byte it marks
@@ -710,7 +711,7 @@ for all selected nodes, sends once if nonempty, and returns true even if empty.
 Descriptor get/set at `009D33CD/009D2092` transfers text/data/style and state;
 the setter invokes expanded, make-visible and select/deselect operations as
 needed, preserving their notifications, then dirties layout and invalidates.
-The complete output descriptor ABI and child-handle copy are WC2.
+The output descriptor ABI and child-handle copy are specified in section 6.6.
 
 #### Root inclusion and navigation anchor (WC6)
 
@@ -846,6 +847,119 @@ after transforming X by horizontal scroll minus `mx`, and Y by `−my`.
 Stale/unpainted geometry and out-of-range edge lookup are native quirks;
 no fabricated valid hit is specified for them.
 
+### 6.6 Verified property and descriptor residuals (partial WC2) *[compat]*
+
+This section settles the property, descriptor, ordering and restart portions
+of WC2; it does not close that question's remaining node adapters, image APIs,
+move/removal and wrapper contracts. All offsets here are relative to O.
+Integer/pointer arguments and outputs are 32 bits; byte arguments occupy
+one stack word. Unless explicitly stated otherwise, these property setters
+have no independent boolean return guarantee.
+
+| O slots | Arguments and behavior |
+|---:|---|
+| 3–4 | Set(mask, byte enabled) / get(mask) for word +0x148. Get means any masked bit is set. Enabling does nothing if **any** requested bit is already set; otherwise ORs the entire mask. Disabling does nothing if none are set; otherwise clears all masked bits. A mutation marks layout dirty and invalidates. This is distinct from the main flags at +0x118 |
+| 5–6 | Set(two words) / get(two word-output pointers) for +0x138/13C. Setter marks dirty and invalidates only if either changes; getter writes both |
+| 7–8 | Set(one word) / get() for +0x134. Changed setter dirties and invalidates |
+| 9–10 | Set(two words) / get(two word-output pointers) for +0x16C/170. No dirtying or invalidation |
+| 11–12 | Set(one word) / get() for +0x128 row height. Changed setter dirties and invalidates, with no lower-bound validation |
+| 13–14 | Set(one word) / get() for +0x130. Before comparing/storing, setter clamps the requested word to **+0x118**, using an unsigned minimum. It does not clamp to row height +0x128. A changed value dirties and invalidates |
+| 15–16 | Set(color word) converts through W128 and stores +0x124; dirties/invalidates only on changed converted value. Get() converts stored word through W127 and returns it, including sentinel values |
+| 17–18 | Set(one word) / get() for +0x180. Setter stores on change but dirties/invalidates only if selection sequence is nonempty |
+| 37 | Set default font(pointer): same pointer is a no-op; otherwise AddRef incoming nonnull, Release old nonnull, store. Does not update existing nodes, dirty layout, grow row height or invalidate |
+| 40–41 | Get(index) / set(index, word) for four defaults +0x174..180. Signed index>=4 returns zero/no write. There is **no negative-index check**; negative indices address preceding object words. Setter does not dirty or invalidate |
+
+These rules come from `009CFA64`–`009CFC7D`, the folded getters
+`009B002D`/`00879480` and setter `009D0081`. The odd unsigned clamp and signed
+upper-only index bound are literal instruction behavior, not corrected names.
+Output pointers are mandatory and not checked for null.
+
+**Two different descriptor layouts.** O25 insertion takes a pointer to a
+descriptor with parent at +0, insertion reference +4, text-interface pointer
++8, user data +0xC, four image words +0x10..1C, font pointer +0x20, four color
+words +0x24..30 and expanded byte +0x34. It does not take the layout used by
+O29/O30 below. Text is copied by assignment, user data is an opaque word,
+font is borrowed and null selects the default font. There is no per-node
+font AddRef. The font must exist before metric lookup.
+
+O29 get(handle, output descriptor) and O30 set(handle, input descriptor)
+both return false for an absent handle; getter leaves output untouched in
+that case. Their layout is:
+
+| Offset | Field |
+|---:|---|
+| +0 | Caller-provided string interface; getter assigns node text through it, setter copies from it |
+| +4 | User-data word |
+| +8/+0xC/+0x10/+0x14 | Four image-index words, matching node +0x34/38/3C/40 |
+| +0x18 | Font pointer (borrowed getter result; setter delegates to node-font setter) |
+| +0x1C/+0x20/+0x24/+0x28 | Four raw node color words, matching node +0x24/28/2C/30 |
+| +0x2C/+0x2D/+0x2E/+0x2F | Expanded / force-branch / currently visible / selected bytes |
+| +0x30 | Caller-constructed native list of signed child handles; getter replaces contents with immediate children in child-list order |
+
+The getter computes visibility through O46, so it can refresh dirty layout;
+it does not return the raw flattened-visible byte alone. Its child output is
+a list, not an array plus capacity/count pair, and contains no grandchildren
+(`009D33CD`–`009D34A6`). Setter does not consume the child list or force-branch
+byte. It first changes expanded and emits the corresponding expand/collapse
+message if changed, then calls MakeVisible if the visible byte is nonzero
+(false does not hide), then selects with replacement=false or deselects only
+if selected differs. It copies images, delegates font, copies text/data/colors,
+and finally marks layout dirty and invalidates, returning true. It preserves
+the intermediate notification/visibility side effects even when final stored
+values are unchanged (`009D2092`–`009D219A`).
+
+**Insertion ordering and failure state.** Sentinel −2 prepends; −3 appends.
+Sentinel −4 inserts before the first child whose complete byte string is
+lexicographically >= the new text, or appends if none. Comparisons are case
+sensitive unsigned-byte comparisons with shorter-prefix-first ordering;
+equal new labels precede old equals. This uses the inversion of existing<new
+in `009D1708`/`004B5CA0`, not the language manager used by ListBox sorting.
+List helpers `009D74D9` and `008F6E80` insert before the first link and before
+the end sentinel respectively; `00897C8D` inserts **before** its link.
+
+For a non-sentinel insertion reference, a globally absent handle returns −1
+**after** allocating/constructing the new node, consuming the next handle,
+copying its text/style and possibly growing row height. That node is neither
+linked nor mapped nor freed on this path. There is no child-count update,
+dirtying or invalidation on that failure. A globally existing reference that
+is a child inserts before that child; a globally existing reference outside
+the chosen parent's children appends instead of failing. The stored reference
+word remains the caller's original value (`009D3B82`–`009D3CB3`). Invalid
+parent/map fails before allocation; null node allocation is dereferenced.
+
+**Shutdown is not restart.** W Shutdown clears the two node-pointer caches,
+destroys/frees every mapped node, clears the map, releases each nonnull image
+buffer and clears image entries, then releases/nulls default font, working
+buffer, horizontal bar and vertical bar before base Shutdown. The node
+destructor destroys its text and child-list storage, with no font Release
+(`009D2BD9`). It does not own the opaque data word. Shutdown does **not** reset
+O+0x11C internal-init, O+0x110 root pointer, next handle, or style words
+(`009D320F`–`009D3311`, whose receiver is W=O+4). The ordinary root is freed
+with the map and its stored pointer is left dangling. Repeated Shutdown has
+empty containers/null retained interfaces and does not release them again;
+it still calls base Shutdown. A later Init skips InternalInit and proceeds
+to recalculate with that stale root and released resources. There is no
+supported clean restart or promise that this malformed lifecycle returns
+success safely (`009D3F56`–`009D3F7A`).
+
+InternalInit sets its one-shot byte before fetching resources. A failed
+working-buffer initialization releases/nulls the returned buffer; absent
+graphics service skips creation. Neither this failure nor a missing default
+font resets the one-shot byte for retry. These are observable owner failure
+policies, not an atomic Init transaction (`009D3956`–`009D3A79`). Image-list
+setup and its own failure details remain in WC2/WC3.
+
+| Vector | Setup / operation | Required result |
+|---|---|---|
+| WC-T19 | +0x148 has bit 1 set; enable mask 3 through O3 | No write/invalidation; bit 2 remains clear because any overlap suppresses enabling |
+| WC-T20 | Main flags +0x118=11, row height=16; set O13 to 14 | +0x130 becomes 11, not 14; dirty/invalidate if changed |
+| WC-T21 | Child labels ['B','D']; insert 'C' sorted, then 'C' sorted | ['B',newest C,older C,'D']; equal labels insert before old equals |
+| WC-T22 | Insert before a valid handle belonging to another parent | New node appends to requested parent and retains supplied reference word |
+| WC-T23 | Insert before globally absent reference, with a taller valid font | −1; next handle consumed and row height can grow; no map/child-count/dirty/invalidation commit; allocated node leaks |
+| WC-T24 | Get descriptor with prefilled child list, immediate children [8,3], grandchild 9 | Output list becomes [8,3]; visibility queried through O46; font returned without AddRef |
+| WC-T25 | Set descriptor with force=true, visible=false, altered child list | Force flag/child topology unchanged; false visible does not hide; final dirty/invalidation still occurs |
+| WC-T26 | Init, Shutdown twice, inspect root/init/font state | Root pointer and internal-init remain; font null, map empty; later Init is not a fresh restart |
+
 ## 7. Family conformance vectors
 
 The linked owner vectors are part of this specification. These additional
@@ -904,7 +1018,7 @@ The linked Grid, TextEdit and FileBrowser inventories remain authoritative;
 their pre-existing parked questions are not duplicated here. ListBox's 66
 list slots plus window extensions and TreeView's 60 primary slots plus window
 overrides are inventoried above. **An inventory is not a complete owner spec.**
-WC1–WC3 identify exact unproved adapters, entry ordering/destruction, rendering
+WC2–WC3 identify the remaining unproved TreeView adapters, move/removal, rendering
 and drag boundaries. No engine implementation, binary hook, ABI-table update,
 in-game run or shadow equality is claimed. These contracts are sufficient for
 separately testable state/message portions; the unresolved areas must remain
