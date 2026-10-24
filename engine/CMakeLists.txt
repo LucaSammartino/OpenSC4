@@ -1031,6 +1031,8 @@ endif()
 # Opt-in record-only Lua collector/registration shadow (LH6-LH7 bound scope).
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4LuaShadow.cpp plugin/FC4LuaShadow.h)
+endif()
+
 # OV12 observer safeguards run against the same native adapter as the plugin.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_observation_test tests/overlays_observation_test.cpp)
