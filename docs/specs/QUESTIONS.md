@@ -362,7 +362,7 @@ generated index: the questions live one file per spec, so read only the file for
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 13 | VU17 | questions/view-utilities.md |
-| view3d-window | 1 | 18 | VW20 | questions/view3d-window.md |
+| view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 2 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
@@ -373,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **611** | **1516** | | |
+| **total** | **610** | **1517** | | |
