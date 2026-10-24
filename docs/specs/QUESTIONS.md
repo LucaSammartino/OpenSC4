@@ -245,7 +245,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 7 | 9 | AO4, HG8, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
@@ -278,7 +278,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 1 | 18 | MS20 | questions/mysims.md |
+| mysims | 0 | 20 | MS21 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -317,9 +317,9 @@ generated index: the questions live one file per spec, so read only the file for
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 1 | RM15 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
-| regional-city | 6 | 0 | RY7 | questions/regional-city.md |
+| regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
-| render-properties | 3 | 3 | RP7 | questions/render-properties.md |
+| render-properties | 3 | 4 | RP8 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 9 | 2 | RD12 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
@@ -362,7 +362,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 3 | 5 | WC9 | questions/watercraft.md |
+| watercraft | 4 | 5 | WC10 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
@@ -371,4 +371,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **606** | **1455** | | |
+| **total** | **608** | **1458** | | |
