@@ -1181,6 +1181,8 @@ endif()
 # MI14 finite native model-instance fixture, opt-in only.
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
+endif()
+
 if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_advisors_registration
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
