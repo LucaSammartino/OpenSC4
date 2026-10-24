@@ -12,6 +12,7 @@
 - Focused test: terminal PASS 1/1, session 96548 completed (11m Rust compilation).
 - Workspace gate milestone: all reports test exit=0, 7141 passed / 0 failed / 0 ignored (45 summaries); clippy exit=0, diagnostics=0. Logs qbuild-test.log and qbuild-clippy.log.
 - Native build/CTest queued by the SAME all operation: qbuild-20261024-131855-build-ctest; waiting behind a game regress. Exec session 69153 remains active. Do not start another verify while it is queued.
+- At 13:36 local on 2026-10-24 the native request remained unconsumed: build-runs/build-queue/qbuild-20261024-131855-build-ctest.req (steps=build ctest), no verdict or DLL. Worktree clean; no source changes since d230f041b. Ops coordinating notes confirm build worker waits for games.
 - Next: collect same all operation to terminal; then activate build-runs/modelinst-static-2032-20261024-a.draft as a .req and wait once with build-runs/wait-verdict.py (task forbids qwait).
 - Gate/game: fmt PASS (owned file absolute path). Initial q.py Bash transport failed CreateFileMapping access denied (build-runs/q/20261024-124722-31960.log); direct cargo worked. No game requests outstanding; no DLL yet.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r1-manifest.json.
