@@ -20,6 +20,16 @@ records pending work; native column sizing, drive population and restoration
 remain open FBQ5. It must not be used as a complete browser.
 No owner-wide closure is claimed.
 
+Continuation in `core-widgets-close12` adds TextEdit runtime modules:
+`text_edit/runtime.rs` (references, timers, initialization, flags and colors),
+`layout.rs` (line fitting, metrics, bars and view), `input.rs` (keys, mouse and
+messages), `paint.rs` (byte/mask drawing), and `edits.rs` (live repair ordering).
+The earlier progress rows below have not yet been reconciled with this work.
+This continuation is not a closure claim: its final body/vector audit and full
+gate remain pending, as do FileBrowser's remaining settled owner operations.
+TE10/TE11 record additional default/reflow questions. The runtime tests use
+recording services and establish no pixel/game comparison.
+
 Round 2 adds FB-C19–C21/C25–C27: alternative pattern matching, borrowed icon-strip
 copy/failed-lock behavior, buffer initialization cleanup and repeated filter
 selection. Focused suite: 24 tests passed before the Grid implementation.
