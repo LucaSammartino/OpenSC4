@@ -571,6 +571,41 @@ remains in x87 precision until those uses. Source: `0x0073A1E2–0x0073A34A`, ro
 is performed by this owner. The trigonometric operation itself follows native x87 behavior and caller FP state;
 exceptional-angle/size outcomes are not replaced with a fabricated finite rectangle.
 
+#### 3.2.2 Ordinary decal flags and setter preservation (OV15)
+
+A successful ordinary **binding add (slot 4)** creates a shown, snapshot-eligible decal with the complete
+flags word **`0x00000091`** (bits 0, 4 and 7). Bit 7 is established by the add itself, before allocation and
+placement, not by a later setter or draw. The default record has flags 1 (`0x00735F44`,
+`0x007360EE–0x007360F5`); slot 4 adds both decal and snapshot eligibility with the constant `0x90`
+(`0x0073C009–0x0073C023`). This is unconditional for a nonnull binding on the successful ordinary path:
+binding identity, dimensions/aspect, land/water selection, static/dynamic mode, shadow quality and snapshot
+render state do not select bit 7. Null binding returns −1 before record creation (`0x0073BF18–0x0073BF30`).
+The source add (slot 3) has the same flag rule: its wrapper calls AddOverlay, which also adds `0x90`
+(`0x0073C0C3–0x0073C0C6`, `0x0073B0C7–0x0073B0E1`). Key adds (slots 5/6) inherit slot 4's rule when
+their resolved binding is nonnull (`0x00736189`, `0x007361E9`). This rule concerns ordinary adds; the distinct
+city/model-shadow forms retain their separately specified flags. Bit 7 is eligibility, not proof of an actual
+snapshot submission: the dynamic-manager snapshot skip still applies (§4.4).
+
+For the live6 suffix, the complete flags word after **each completed call** is:
+
+| Call, in order | Flags word |
+|---|---|
+| Slot 4: binding add at `(128,128)`, width 32, turns 0 | `0x00000091` |
+| Slot 12: move the returned indirect handle to `(144,160)` | `0x00000091` |
+| Slot 17: alpha 0.5 | `0x00000091` |
+| Slot 18: RGB `(0.25,0.5,0.75)` | `0x00000091` |
+| Slot 19: draw-state byte 3 | `0x00000091` |
+| Slot 20: self-lighting argument 1 | `0x000000D1` |
+
+Placement changes only repeat bit 1 in this flags word; the ordinary default repeat factors are both exactly
+one, so that bit stays clear (`0x0073ABFB–0x0073AC24`). Slot 12 preserves those factors (§3.2).
+Alpha/color/draw-state write their own fields, not flags (`0x00737FDF`, `0x00737FF6`,
+`0x0073808D–0x0073809E`, `0x0073813A`). Their static redisplay helper only reads the rectangle and
+invalidates terrain (`0x00737D40–0x00737DA3`). Slot 20 ORs `0x40` and preserves every other flag
+(`0x00736558–0x0073656F`); a following argument 0 does not clear self-lighting. Thus the native `0xD1`
+versus replay `0x51` observation is a missing **creation-time bit 7**, not an alpha/RGB/draw-state or
+self-lighting side effect. Slot 19's byte 3 is a separate record field and must not be folded into flags.
+
 ### 3.3 Alpha acceptance (OV6)
 
 Slot 17's argument and stored alpha are binary32; the threshold at `0x00AB39A0` is **binary64**
@@ -1191,6 +1226,19 @@ These are paper conformance vectors, not measured game runs or a claim that an i
 | OV13-C: borrowed model inputs | n=3, three packed XYZ points (36 bytes), three packed UV pairs (24 bytes), six-word box (24 bytes), descriptor fields through +52; caller reuses those buffers after return | Replay uses entry copies and original lighting/terrain state. Descriptor +1 is flags, +4 begins the matrix, +52 is scale. Reading buffers later, using a descriptor pointer as outP, or supplying native P/bounds instead fails independent projection coverage. |
 | OV13-D: failed and nested calls | A model call fails projection; a later successful model call invokes the internal rectangle helper once | Keep the failure in the ordered stream with no overlay allocation; replay the successful public model call once, not once plus a second helper add. IDs are compared as outputs. |
 | OV13-E: transient upload | One source frame has three mip levels; binding has two. Bytes at source levels 1 and 2 are uploaded, then the caller changes/frees the table and bytes | Keep original consumed level-1/2 bytes and metadata before return, plus any later upload/restore events. A post-return table or stable binding/driver handle cannot prove original or current image bytes. |
+
+### 9.3 Ordinary decal flag vectors (OV15)
+
+These are instruction-derived conformance expectations, not newly executed native/game tests. Use valid
+nonnull resources with finite positive dimensions, valid initialized managers and sufficient city bounds;
+inspect the live overlay's complete 32-bit flags word, resolving the returned indirect handle (§2.4).
+
+| Vector | Input / operation | Required result |
+|---|---|---|
+| OV15-A: controlled suffix | Slot 4 with a 64×64 binding, position `(128,128)`, width 32, turns 0; then slots 12/17/18/19/20 with the exact values in §3.2.2 | Flags after the six calls: `[0x91,0x91,0x91,0x91,0x91,0xD1]`. Draw-state byte is 3; it contributes no bits to the flags word. |
+| OV15-B: mode and resource independence | Repeat A on static land, static water, dynamic land and dynamic water; use distinct 64×64 and 128×64 bindings; compare quality 0 with 5 | Every run has the same six flags words as A. Aspect changes placement coverage/matrix as §3.2 specifies, not bit 7. Dynamic snapshot suppression does not remove the stored bit. |
+| OV15-C: creation families | Ordinary slot 3 with a valid source, or slots 5/6 resolving to valid bindings, at A's position/width/turns | New ordinary overlay flags `0x91`; after self-lighting 1, `0xD1`. A null slot-4 binding returns −1 and allocates no overlay/handle. |
+| OV15-D: preserve bit 7 across later setters | Starting after A, slot 20 argument 0; then slot 13 with placement `[144,160,32,0,1,2,1,0,0]`; then slot 13 restoring both repeats to 1 | Flags `0xD1`, then `0xD3`, then `0xD1`. False self-lighting does not clear bit 6; repeat changes affect bit 1 only. |
 
 ### PR review: slot 20 self-lighting
 
