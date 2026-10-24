@@ -144,6 +144,12 @@ bool Replace(Patch& patch, void* value) {
 }
 
 namespace fc4 {
+bool SCResShadowCanLendBreakpoint(uintptr_t address) {
+    return g_parserArmed && GetCurrentThreadId() == g_parserThread &&
+           !g_parserFrame && !g_parserFileDepth && !g_parserForwardLine && !g_parserForwardFile &&
+           address == kParserSites[0];
+}
+
 void SCResShadowStart() {
     if (g_enabled) return;
     g_fileReplay = SettingInt("scres_file_shadow", nullptr, 0) != 0;

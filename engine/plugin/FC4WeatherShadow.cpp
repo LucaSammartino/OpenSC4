@@ -4,6 +4,7 @@
 #include "FC4Log.h"
 #include "FC4PropCityCommon.h"
 #include "FC4RefAudit.h"
+#include "FC4SCResShadow.h"
 #include "FC4Subsystems.h"
 #include "FC4WriteCapture.h"
 #include "cFC4Weather.h"
@@ -62,6 +63,9 @@ void __fastcall ManualAddition(void* self, void* edx, float x0, float z0, float 
 // hardware execution breakpoint observes that point; no game code is patched
 // and no call to __getptd, rand or srand is made. Private continuable exceptions
 // install/restore DR0 through the current thread's genuine exception context.
+// The SCRes observer may lend its idle slot for the synchronous weekly call:
+// weather 5.2 enters no resource parser and posts (does not dispatch) messages.
+// Preserve its full DR0/DR6/DR7 state, including all other enabled breakpoints.
 // All draws in the scoped operation must form a contiguous CRT sequence.
 constexpr DWORD kConfigureObserver = 0xE042FC40;
 constexpr DWORD kRandSite = 0x009EFBA4;
@@ -83,7 +87,11 @@ LONG CALLBACK ObserveRand(EXCEPTION_POINTERS* p) {
         c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
         if (p->ExceptionRecord->ExceptionInformation[0] == 1) {
             g_observedDr7 = c->Dr7;
-            if ((c->Dr7 & 3) != 0) { g_randValid = false; return EXCEPTION_CONTINUE_EXECUTION; }
+            if ((c->Dr7 & 3) != 0 &&
+                !((c->Dr7 & 0xF0000u) == 0 && SCResShadowCanLendBreakpoint(c->Dr0))) {
+                g_randValid = false;
+                return EXCEPTION_CONTINUE_EXECUTION;
+            }
             g_savedDr0 = c->Dr0;
             g_savedDr6 = c->Dr6;
             g_savedDr7 = c->Dr7;
