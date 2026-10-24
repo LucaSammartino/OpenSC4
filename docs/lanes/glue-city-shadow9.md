@@ -58,11 +58,11 @@ Native plugin SHA256 prefix: `f346ce2d`. No request is outstanding.
 
 - `glue-city9-237c3319a-2032a`: **city 42/42**, clean at 2029-06-05; 1 load + 41 months,
   **756/756 fields** exact. The 600-second limit ended this run before target, preserved as
-  [run 469](../runs/glue-city9-237c3319a-2032a-469.md).
+  [run 469](../runs/glue-city9-237c3319a-2032a-479.md).
 - `glue-city9-237c3319a-2032b`: **city 73/73**, clean at **2032-01-01**; 1 load + 72 months,
   **1314/1314 fields** exact, **0 duplicate monthly dates**, real_seconds=985.359. Extended duration cap
   1800 seconds, timeout 2100; ended at the requested date. See
-  [run 470](../runs/glue-city9-237c3319a-2032b-470.md).
+  [run 470](../runs/glue-city9-237c3319a-2032b-480.md).
 - Both verdicts: **foreign_exceptions=0, ref_warnings=0, watchdog_stalls=0, rtc=0, overruns=0**.
   Both waits were collected to actual verdicts; nine-minute wait timeouts did not cause request resubmission.
   No differences were observed, so no turbo-only difference requires a normal-speed diagnostic run.
