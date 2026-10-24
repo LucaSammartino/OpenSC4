@@ -16,18 +16,63 @@ fn retain_identity(i: &Identity, h: &mut impl Host) {
 pub fn default_path(data: &str) -> String {
     format!("{data}\\Exemplar\\Lot Templates")
 }
-fn split_path(path: &str) -> (&str, &str, &str) {
-    // Literal backslash paths only. Non-Windows syntax is not guessed (LE6).
-    let (directory, file) = path.rsplit_once('\\').unwrap_or(("", path));
-    let (stem, ext) = file.rsplit_once('.').unwrap_or((file, ""));
-    (directory, stem, ext)
+pub fn split_identity_path(path: &str) -> crate::paths::PathParts {
+    crate::paths::helpers::splitpath(path.as_bytes())
+}
+/// §24.2 C-locale framework transform, composing string-encoding §§3.1–3.2.
+/// Non-C wide tables belong to foreign question RZS2. This is deliberately
+/// not Rust Unicode folding or its UTF-8 decoder (four bytes produce one word).
+pub fn lowercase_directory(path: &[u8], c_locale: bool) -> Result<Vec<u8>> {
+    if !c_locale {
+        return Err(Unsupported::Dependency("RZS2 non-C lowercase tables"));
+    }
+    if path.iter().all(|&b| b < 0x7f) {
+        return Ok(path.to_ascii_lowercase());
+    }
+    let mut out = Vec::new();
+    let mut at = 0;
+    while at < path.len() {
+        let first = path[at];
+        let (n, mask, minimum) = match first {
+            0..=0x7f => (1, 0x7f, 0),
+            0xc2..=0xdf => (2, 0x1f, 0x80),
+            0xe0..=0xef => (3, 0x0f, if first == 0xe0 { 0xa0 } else { 0x80 }),
+            0xf0..=0xf7 => (4, 0x07, if first == 0xf0 { 0x90 } else { 0x80 }),
+            0xf8..=0xfb => (5, 0x03, if first == 0xf8 { 0x88 } else { 0x80 }),
+            0xfc..=0xfd => (6, 0x01, if first == 0xfc { 0x84 } else { 0x80 }),
+            _ => break,
+        };
+        if path.len() - at < n
+            || (n > 1 && (path[at + 1] < minimum || path[at + 1..at + n].iter().any(|b| !(0x80..=0xbf).contains(b))))
+        {
+            break;
+        }
+        let mut word = u16::from(first & mask);
+        for &byte in &path[at + 1..at + n] {
+            word = (word << 6) | u16::from(byte & 0x3f);
+        }
+        if (0x41..=0x5a).contains(&word) {
+            word += 0x20;
+        }
+        if word < 0x80 {
+            out.push(word as u8);
+        } else if word < 0x800 {
+            out.extend([0xc0 | (word >> 6) as u8, 0x80 | (word & 0x3f) as u8]);
+        } else {
+            out.extend([
+                0xe0 | (word >> 12) as u8,
+                0x80 | ((word >> 6) & 0x3f) as u8,
+                0x80 | (word & 0x3f) as u8,
+            ]);
+        }
+        at += n;
+    }
+    Ok(out)
 }
 pub fn identity_from_path(path: &str, h: &mut impl Host) -> Result<Option<Identity>> {
-    if path.contains('/') {
-        return Err(Unsupported::Dependency("LE6 non-Windows path splitting"));
-    }
-    let (directory, stem, ext) = split_path(path);
-    if !h.directory_exists(directory) {
+    let parts = split_identity_path(path);
+    let directory = [parts.drive, parts.directory].concat();
+    if !h.directory_exists(&directory) {
         return Ok(None);
     }
     let providers = h.providers()?;
@@ -37,13 +82,12 @@ pub fn identity_from_path(path: &str, h: &mut impl Host) -> Result<Option<Identi
         if result.is_none() && !unsupported {
             if let Some(interface) = h.query_provider(provider) {
                 let supplied = h.provider_directory(interface);
-                // Only byte-oriented ASCII lowercasing is supported here. LE6
-                // tracks non-ASCII native lowercasing and path splitter details.
-                if !directory.is_ascii() || !supplied.is_ascii() {
-                    unsupported = true;
-                }
-                if !unsupported && supplied.eq_ignore_ascii_case(directory) {
-                    if let Some(key) = h.provider_key(interface, stem, ext) {
+                let compared = h
+                    .lowercase_path(&directory)
+                    .and_then(|directory| h.lowercase_path(&supplied).map(|supplied| directory == supplied));
+                unsupported = compared.is_err();
+                if compared == Ok(true) {
+                    if let Some(key) = h.provider_key(interface, &parts.name, &parts.extension) {
                         let i = Identity {
                             id: key[2],
                             key,
@@ -60,7 +104,7 @@ pub fn identity_from_path(path: &str, h: &mut impl Host) -> Result<Option<Identi
         h.effect(Effect::Release(provider));
     }
     if unsupported {
-        Err(Unsupported::Dependency("LE6 non-ASCII directory comparison"))
+        Err(Unsupported::Dependency("RZS2 directory lowercase tables"))
     } else {
         Ok(result)
     }
@@ -94,7 +138,12 @@ impl Editor {
     pub fn create_new(&mut self, h: &mut impl Host) -> bool {
         let old = std::mem::take(&mut self.identity);
         release_identity(&old, h);
-        self.current = Some(Configuration::default());
+        self.current = Some(Configuration {
+            name: "New Lot".into(),
+            size: [1, 1],
+            numeric: [5.0, 90.0, 0.0],
+            ..Default::default()
+        });
         // Rust-owned configurations have no COM reference; no borrowed pointer
         // is released. Selection is deliberately not repaired by this method.
         self.set_dirty(0, h);
@@ -106,9 +155,33 @@ impl Editor {
         };
         self.current = Some(config);
         self.renumber_loaded_records();
-        // The existing LotConfigManager::fix requires a configuration-slot
-        // adapter. Never let a host supply a precomputed editor reconciliation.
-        Err(Unsupported::Dependency("LotConfigManager::fix configuration adapter"))
+        let c = self.config_mut()?;
+        let code = h
+            .configuration_manager()?
+            .fix_records(
+                (u32::from(c.size[0]), u32::from(c.size[1])),
+                &mut c.objects,
+                &mut c.retaining_walls,
+                |r| &mut r.data,
+            )
+            .0;
+        if code != 0 {
+            self.set_dirty(1, h);
+            let reason = match code {
+                1 => "The family has changed.",
+                2 => "The family is now empty.",
+                3 => "The footprint has changed.",
+                4 => "The footprint was out of bounds and needs to be fixed.",
+                5 => "The center has changed.",
+                6 => "The retaining walls have changed.",
+                _ => "",
+            };
+            h.effect(Effect::ReconciliationWarning {
+                introduction: "This lot has components that have changed since the last edit.",
+                reason,
+            });
+        }
+        Ok(true)
     }
     fn renumber_loaded_records(&mut self) {
         if let Some(c) = &mut self.current {
@@ -160,7 +233,12 @@ impl Editor {
                 l >= 0.0 && t >= 0.0 && right <= width && bottom <= depth
             };
             if !valid {
-                return Ok(prompt && h.prompt("Continue with objects outside lot bounds?", 0) == 0x5301814A);
+                return Ok(prompt
+                    && h.message_box(
+                        "One or more lot objects don't fit within the lot bounds. Do you want to continue or cancel?",
+                        &c.name,
+                        (1, 1, 0),
+                    ) == 0x5301814A);
             }
         }
         Ok(true)
@@ -193,13 +271,27 @@ impl Editor {
         let initial = if self.identity.key[0] == 0 {
             default_path(&h.data_directory()?)
         } else {
-            split_path(&self.identity.path).0.to_string()
+            let parts = split_identity_path(&self.identity.path);
+            // Counted byte strings preserve the splitter's 255-byte cut even
+            // when it falls inside a UTF-8 sequence.
+            let initial = [parts.drive, parts.directory].concat();
+            return self.save_as_browser(copy, success, error, initial, h);
         };
+        self.save_as_browser(copy, success, error, initial.into_bytes(), h)
+    }
+    fn save_as_browser(
+        &mut self,
+        copy: bool,
+        success: bool,
+        error: bool,
+        initial: Vec<u8>,
+        h: &mut impl Host,
+    ) -> Result<bool> {
         let Some(w) = h.create_dialog(DialogKind::Browser) else {
             return Err(Unsupported::AllocationFault);
         };
         h.effect(Effect::AddRef(w));
-        h.effect(Effect::Seed(w, 0, Value::Text(initial)));
+        h.effect(Effect::Seed(w, 0, Value::Bytes(initial)));
         // Raw browser primitives: size 200x200, mode 2, window flag 0x100.
         h.effect(Effect::BrowserSetup(w, [200, 200], 2, 0x100, true));
         h.effect(Effect::Register(w));
@@ -471,10 +563,11 @@ impl Editor {
         let row = h.popup(&["Set Fence Type...".into(), String::new(), "Help... (F1)".into()]);
         h.effect(Effect::Focus);
         match row {
-            0 => h.effect(Effect::Message(
-                "Fence options are unimplemented until fence functionality is in place".into(),
-                0,
-            )),
+            0 => {
+                h.message_box(
+                "Sorry, the fence options menu isn't implemented yet and won't be implemented until fence functionality is in place.",
+                self.current.as_ref().map_or("", |c| c.name.as_str()), (0, 1, 0));
+            }
             2 => return Err(Unsupported::Dependency("LE5 help page 0")),
             _ => (),
         }

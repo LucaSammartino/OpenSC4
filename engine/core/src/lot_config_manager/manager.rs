@@ -688,22 +688,44 @@ impl LotConfigManager {
         let Some(cfg) = cfg else {
             return 0;
         };
+        let mut objects = h.config_objects(cfg);
+        let mut walls = h.config_retaining_walls(cfg);
+        let (code, objects_changed, walls_changed) =
+            self.fix_records(h.config_size(cfg), &mut objects, &mut walls, |o| o);
+        if objects_changed {
+            h.set_config_objects(cfg, objects);
+        }
+        if walls_changed {
+            h.set_config_retaining_walls(cfg, walls);
+        }
+        code
+    }
+
+    /// Same slot-23 algorithm over typed owned records. The accessor preserves
+    /// editor pointer IDs and raw decoder fields; dependencies stay on this manager.
+    /// Returns (first problem, object mutation, retaining-wall mutation).
+    pub fn fix_records<R>(
+        &self,
+        size: (u32, u32),
+        objects: &mut Vec<R>,
+        walls: &mut Vec<u32>,
+        data: impl Fn(&mut R) -> &mut LotConfigObject,
+    ) -> (u32, bool, bool) {
+        let h = &*self.host;
         let mut code = 0u32;
         let mut note = |c: u32| {
             if code == 0 {
                 code = c;
             }
         };
-        let (sx, sz) = h.config_size(cfg);
+        let (sx, sz) = size;
         let (lw, ld) = (sx as f32 * CELL_METRES, sz as f32 * CELL_METRES);
-        let objects = h.config_objects(cfg);
-        let mut out = Vec::with_capacity(objects.len());
         let mut changed = false;
-        for mut o in objects {
+        objects.retain_mut(|record| {
+            let o = data(record);
             let k = u32::from(o.kind);
             if !matches!(k, kind::BUILDING | kind::PROP | kind::FLORA) {
-                out.push(o);
-                continue;
+                return true;
             }
             let before = o.ids.len();
             o.ids.retain(|&id| self.fix_id_valid(k, id));
@@ -714,7 +736,7 @@ impl LotConfigManager {
             if o.ids.is_empty() {
                 note(2);
                 changed = true;
-                continue;
+                return false;
             }
             let fp = match k {
                 kind::BUILDING => self.footprint_buildings(&o.ids),
@@ -763,18 +785,15 @@ impl LotConfigManager {
                 note(5);
                 changed = true;
             }
-            out.push(o);
-        }
-        if changed {
-            h.set_config_objects(cfg, out);
-        }
-        let mut walls = h.config_retaining_walls(cfg);
+            true
+        });
+        let mut walls_changed = false;
         if let Some(i) = walls.iter().position(|&id| !h.is_retaining_wall_valid(id)) {
             walls.remove(i);
-            h.set_config_retaining_walls(cfg, walls);
+            walls_changed = true;
             note(6);
         }
-        code
+        (code, changed, walls_changed)
     }
 
     // ---- the record (§B6) ----

@@ -52,6 +52,18 @@ pub trait Host {
         None
     }
     fn prompt(&mut self, text: &str, flags: u32) -> u32;
+    /// Raw message-service primitive; title and options are owner policy.
+    fn message_box(&mut self, _: &str, _: &str, _: (u32, u32, u32)) -> u32 {
+        0
+    }
+    /// The held manager and its validity/footprint dependencies, never a Fix verdict.
+    fn configuration_manager(&self) -> Result<&crate::lot_config_manager::LotConfigManager> {
+        Err(Unsupported::Dependency("configuration manager acquisition"))
+    }
+    /// C-locale witness is implemented in core. Other tables remain foreign RZS2.
+    fn c_locale(&self) -> bool {
+        true
+    }
     fn checked(&mut self, window: u64, id: u32) -> bool {
         self.integer(window, id) != 0
     }
@@ -70,7 +82,7 @@ pub trait Host {
     fn data_directory(&mut self) -> Result<String> {
         Err(Unsupported::Dependency("data directory"))
     }
-    fn directory_exists(&mut self, _: &str) -> bool {
+    fn directory_exists(&mut self, _: &[u8]) -> bool {
         false
     }
     /// Enumeration returns individually acquired provider references.
@@ -83,11 +95,14 @@ pub trait Host {
     fn query_provider(&mut self, _: u64) -> Option<u64> {
         None
     }
-    fn provider_directory(&mut self, _: u64) -> String {
-        String::new()
+    fn provider_directory(&mut self, _: u64) -> Vec<u8> {
+        Vec::new()
     }
-    fn provider_key(&mut self, _: u64, _: &str, _: &str) -> Option<[u32; 3]> {
+    fn provider_key(&mut self, _: u64, _: &[u8], _: &[u8]) -> Option<[u32; 3]> {
         None
+    }
+    fn lowercase_path(&mut self, path: &[u8]) -> Result<Vec<u8>> {
+        lowercase_directory(path, self.c_locale())
     }
     /// Path query status is intentionally not used by the editor.
     fn provider_path(&mut self, _: u64, _: [u32; 3]) -> String {
@@ -204,7 +219,7 @@ impl Editor {
         };
         let ignored = h.has_control(w, 0x294053DB);
         if ignored {
-            seed(w, 0x294053DB, Value::Integer(self.config()?.ignored_numeric), h);
+            seed(w, 0x294053DB, Value::Integer(i32::from(self.config()?.byte42)), h);
         }
         let mut numeric = [false; 4];
         for (i, id) in NUMERIC.into_iter().enumerate() {
@@ -214,17 +229,13 @@ impl Editor {
                     i32::from(self.config()?.minimum)
                 } else {
                     let v = f64::from(self.config()?.numeric[i]);
-                    // LE6: the published phrase x87-to-integer does not state
-                    // fractional rounding. Preserve the integral domain only.
-                    if v.fract() != 0.0 && v.is_finite() {
-                        dispose(w, h);
-                        return Err(Unsupported::Dependency("LE6 fractional numeric initialization"));
-                    }
-                    if !v.is_finite() || v < f64::from(i32::MIN) || v > f64::from(i32::MAX) {
+                    // §24.1: truncate to signed 64 bits, then pass the low dword.
+                    // LE3 still blocks invalid/out-of-i64 conversions.
+                    if !v.is_finite() || !(-9223372036854775808.0..9223372036854775808.0).contains(&v) {
                         dispose(w, h);
                         return Err(Unsupported::NumericConversion);
                     }
-                    v as i32
+                    (v as i64) as i32
                 };
                 seed(w, id, Value::Integer(v), h);
                 seed(w, id, Value::ClearFlag(0x4000), h);
@@ -350,7 +361,7 @@ impl Editor {
             .unwrap_or(0);
         let Some((w, accepted, text)) = self.text_dialog(
             DialogKind::NetworkPath,
-            format!("{initial:x}"),
+            format!("{initial:08x}"),
             Some("Set path ID for connection"),
             h,
         ) else {
@@ -374,7 +385,7 @@ impl Editor {
         self.config()?;
         let Some((w, accepted, text)) = self.text_dialog(
             DialogKind::Slope,
-            self.slope.to_string(),
+            (self.slope as i32).to_string(),
             Some("Set Slope of Displayed Lot"),
             h,
         ) else {

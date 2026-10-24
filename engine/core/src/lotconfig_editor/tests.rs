@@ -16,6 +16,12 @@ struct Fake {
     provider_key_result: Option<[u32; 3]>,
     read_result: Option<Configuration>,
     cells: std::collections::BTreeMap<(u32, u32), String>,
+    directory: Option<Vec<u8>>,
+    directories: Vec<Vec<u8>>,
+    popup: Option<i32>,
+    provider_queries: Vec<(Vec<u8>, Vec<u8>)>,
+    messages: Vec<(String, String, (u32, u32, u32))>,
+    manager: Option<std::rc::Rc<crate::lot_config_manager::LotConfigManager>>,
 }
 impl Host for Fake {
     fn register_configuration(&mut self, _: &Configuration, _: bool) {}
@@ -43,6 +49,15 @@ impl Host for Fake {
     fn prompt(&mut self, _: &str, _: u32) -> u32 {
         self.prompt
     }
+    fn message_box(&mut self, text: &str, title: &str, options: (u32, u32, u32)) -> u32 {
+        self.messages.push((text.into(), title.into(), options));
+        self.prompt
+    }
+    fn configuration_manager(&self) -> Result<&crate::lot_config_manager::LotConfigManager> {
+        self.manager
+            .as_deref()
+            .ok_or(Unsupported::Dependency("configuration manager acquisition"))
+    }
     fn persist(&mut self, _: &Identity, _: &Configuration) -> Result<bool> {
         Ok(self.persist)
     }
@@ -58,8 +73,12 @@ impl Host for Fake {
     fn browser_selection(&mut self, _: u64) -> Option<(u32, String)> {
         self.selection.clone()
     }
-    fn directory_exists(&mut self, path: &str) -> bool {
-        path.eq_ignore_ascii_case("C:\\lots")
+    fn directory_exists(&mut self, path: &[u8]) -> bool {
+        self.directories.push(path.to_vec());
+        true
+    }
+    fn popup(&mut self, _: &[String]) -> i32 {
+        self.popup.unwrap_or(-1)
     }
     fn providers(&mut self) -> Result<Vec<u64>> {
         Ok(vec![20, 21])
@@ -67,10 +86,11 @@ impl Host for Fake {
     fn query_provider(&mut self, p: u64) -> Option<u64> {
         Some(p + 10)
     }
-    fn provider_directory(&mut self, _: u64) -> String {
-        "c:\\LOTS".into()
+    fn provider_directory(&mut self, _: u64) -> Vec<u8> {
+        self.directory.clone().unwrap_or_else(|| b"c:\\LOTS\\".to_vec())
     }
-    fn provider_key(&mut self, _: u64, _: &str, _: &str) -> Option<[u32; 3]> {
+    fn provider_key(&mut self, _: u64, name: &[u8], ext: &[u8]) -> Option<[u32; 3]> {
+        self.provider_queries.push((name.into(), ext.into()));
         self.provider_key_result
     }
     fn read_configuration(&mut self, _: [u32; 3]) -> Result<Option<Configuration>> {
@@ -104,6 +124,235 @@ fn editor() -> (Editor, Fake) {
     e.create_new(&mut h);
     h.events.clear();
     (e, h)
+}
+
+// Settled LE6 independent vectors (§24.4), using only portable fixtures.
+#[test]
+fn lei06_constructor_and_editor_new_defaults() {
+    let c = Configuration::default();
+    assert_eq!(c.numeric, [90.0, 90.0, 0.0]);
+    assert_eq!(c.capacities, [65535, 0]);
+    assert_eq!((c.minimum, c.byte42, c.checkboxes), (1, 0, 8));
+    assert_eq!(c.size, [0, 0]);
+    assert!(c.name.is_empty());
+    let (e, _) = editor();
+    for c in [&c, e.config().unwrap()] {
+        assert_eq!(c.compatibility.each_ref().map(Vec::len), [16, 4, 9]);
+        assert!(c.compatibility.iter().flatten().all(|bit| !bit));
+        assert_eq!((c.minimum, c.byte42, c.checkboxes), (1, 0, 8));
+    }
+    assert_eq!(e.config().unwrap().name, "New Lot");
+    assert_eq!(e.config().unwrap().numeric, [5.0, 90.0, 0.0]);
+    assert_eq!(e.config().unwrap().size, [1, 1]);
+}
+
+#[test]
+fn lei07_fractional_initial_values_and_ignored_water() {
+    let (mut e, mut h) = editor();
+    e.config_mut().unwrap().numeric = [5.75, -2.75, 0.75];
+    e.config_mut().unwrap().byte42 = 7;
+    h.modal = ACCEPT;
+    for (id, value) in NUMERIC.into_iter().zip([5, -2, 0, 1]) {
+        h.integers.insert(id, value);
+    }
+    h.integers.insert(0x294053DB, 99);
+    assert_eq!(e.compatibility_dialog(&mut h), Ok(true));
+    for (id, value) in NUMERIC.into_iter().zip([5, -2, 0, 1]) {
+        assert!(h.events.contains(&Effect::Seed(10, id, Value::Integer(value))));
+    }
+    assert!(h.events.contains(&Effect::Seed(10, 0x294053DB, Value::Integer(7))));
+    assert_eq!(e.config().unwrap().numeric, [5.0, -2.0, 0.0]);
+    assert_eq!(e.config().unwrap().byte42, 7);
+    assert_ne!(e.dirty, 0);
+    // Signed 64-bit truncation followed by a low-dword transfer, not i32 clamp.
+    h.modal = 0;
+    h.events.clear();
+    e.config_mut().unwrap().numeric[0] = 4294967296.0;
+    assert_eq!(e.compatibility_dialog(&mut h), Ok(false));
+    assert!(h.events.contains(&Effect::Seed(10, NUMERIC[0], Value::Integer(0))));
+}
+
+#[test]
+fn lei08_decoder_bounds_are_not_editor_normalized() {
+    let o =
+        crate::lot_config_manager::object_from_values(&[1, 0, 0, 0, 0, 0, 4 << 16, 5 << 16, 12 << 16, 13 << 16], None)
+            .unwrap();
+    assert_eq!([o.min_x, o.min_z, o.max_x, o.max_z], [4.0, 5.0, 12.0, 13.0]);
+    assert_eq!(bounds(&o), [12.0, 13.0, 4.0, 5.0]);
+}
+
+#[test]
+fn lei09_10_provider_original_parts_and_literal_separators() {
+    let mut h = Fake {
+        provider_key_result: Some([1, 2, 3]),
+        ..Default::default()
+    };
+    assert!(identity_from_path("C:\\Lots\\a.b.SC4Lot", &mut h).unwrap().is_some());
+    assert_eq!(h.provider_queries, [(b"a.b".to_vec(), b".SC4Lot".to_vec())]);
+    assert_eq!(h.directories, [b"C:\\Lots\\".to_vec()]);
+    h.provider_queries.clear();
+    // Directory existence may succeed, but slash spelling alone differs.
+    h.directory = Some(b"C:/Lots/".to_vec());
+    assert!(identity_from_path("C:\\Lots\\a.b.SC4Lot", &mut h).unwrap().is_none());
+    assert!(h.provider_queries.is_empty());
+    for (path, name, ext) in [(".SC4Lot", "", ".SC4Lot"), ("a.", "a", "."), ("a", "a", "")] {
+        let p = split_identity_path(path);
+        assert_eq!(p.name, name.as_bytes());
+        assert_eq!(p.extension, ext.as_bytes());
+    }
+    let p = split_identity_path("C:/dir.with.dot/a");
+    assert_eq!([p.drive, p.directory].concat(), b"C:/dir.with.dot/");
+    assert!(p.extension.is_empty());
+    assert_eq!(split_identity_path(&"a".repeat(300)).name.len(), 255);
+}
+
+#[test]
+fn lei11_c_locale_lowercase_is_byte_equality() {
+    assert_eq!(lowercase_directory("AÉ".as_bytes(), true).unwrap(), "aÉ".as_bytes());
+    assert_eq!(lowercase_directory("aé".as_bytes(), true).unwrap(), "aé".as_bytes());
+    assert_ne!(
+        lowercase_directory("AÉ".as_bytes(), true),
+        lowercase_directory("aé".as_bytes(), true)
+    );
+    assert!(lowercase_directory(b"ABC", false).is_err());
+    // Framework converter truncates supplementary characters to a single word,
+    // and stops at malformed input, unlike Rust's decoder/replacement behavior.
+    assert_eq!(
+        lowercase_directory("A😀".as_bytes(), true).unwrap(),
+        "a\u{f600}".as_bytes()
+    );
+    assert_eq!(lowercase_directory(b"ABC\xe9", true).unwrap(), b"abc");
+}
+
+#[test]
+fn lei12_signed_slope_and_padded_path_initial_text() {
+    let (mut e, mut h) = editor();
+    e.slope = u32::MAX;
+    e.slope_dialog(&mut h).unwrap();
+    assert!(h.events.contains(&Effect::Seed(10, TEXT, Value::Text("-1".into()))));
+    for ids in [vec![0, 0, 0, 0xab], vec![]] {
+        h.events.clear();
+        let mut o = object(7, [0.0; 4]);
+        o.ids = ids.clone();
+        let id = e.insert(o, false);
+        e.network_path_dialog(id, &mut h).unwrap();
+        let text = if ids.is_empty() { "00000000" } else { "000000ab" };
+        assert!(h.events.contains(&Effect::Seed(10, TEXT, Value::Text(text.into()))));
+        assert_eq!(e.record(id).unwrap().ids, ids);
+    }
+    assert_eq!(e.slope, u32::MAX);
+}
+
+#[test]
+fn lei13_verification_message_options_and_no_mutation() {
+    let (mut e, mut h) = editor();
+    e.insert(object(1, [20.0, 20.0, 22.0, 22.0]), false);
+    let before = e.current.clone();
+    for (answer, accepted) in [(0x5301814A, true), (0, false), (ACCEPT, false)] {
+        h.prompt = answer;
+        assert_eq!(e.verify_bounds(false, true, &mut h), Ok(accepted));
+        assert_eq!(e.current, before);
+        assert_eq!(e.dirty, 0);
+    }
+    assert!(h.messages.iter().all(|m| m
+        == &(
+            "One or more lot objects don't fit within the lot bounds. Do you want to continue or cancel?".into(),
+            "New Lot".into(),
+            (1, 1, 0)
+        )));
+    assert_eq!(h.messages.len(), 3);
+}
+
+#[test]
+fn lei14_read_executes_fix_removing_invalid_ids_and_records() {
+    let (mut e, mut h) = editor();
+    h.manager = Some(super::fix_test_host::manager());
+    let mut c = Configuration::default();
+    let mut prop = object(1, [4.0, 5.0, 12.0, 13.0]);
+    prop.ids = vec![99];
+    c.objects.push(Record {
+        id: 77,
+        data: prop,
+        creation_known: true,
+    });
+    h.read_result = Some(c);
+    assert_eq!(e.read([1, 2, 3], &mut h), Ok(true));
+    assert!(e.config().unwrap().objects.is_empty());
+    assert_eq!(e.dirty, 1);
+    assert_eq!(
+        h.events,
+        [
+            Effect::Title,
+            Effect::ReconciliationWarning {
+                introduction: "This lot has components that have changed since the last edit.",
+                reason: "The family has changed.",
+            }
+        ]
+    );
+}
+
+#[test]
+fn lei15_read_zero_preserves_existing_dirty_and_no_warning() {
+    let (mut e, mut h) = editor();
+    h.manager = Some(super::fix_test_host::manager());
+    e.dirty = 7;
+    h.read_result = Some(Configuration::default());
+    assert_eq!(e.read([1, 2, 3], &mut h), Ok(true));
+    assert_eq!(e.dirty, 7);
+    assert!(h.events.is_empty());
+}
+
+#[test]
+fn settled_fence_placeholder_uses_current_title_without_edits() {
+    let (mut e, mut h) = editor();
+    h.popup = Some(0);
+    let before = e.current.clone();
+    e.fence_menu(&mut h).unwrap();
+    assert_eq!(h.messages, [(
+        "Sorry, the fence options menu isn't implemented yet and won't be implemented until fence functionality is in place.".into(),
+        "New Lot".into(), (0, 1, 0))]);
+    assert_eq!(e.current, before);
+    assert_eq!(e.dirty, 0);
+    assert_eq!(h.events, [Effect::Focus]);
+}
+
+#[test]
+fn read_bridge_retains_ids_applies_manager_bounds_and_first_wall_only() {
+    let (mut e, mut h) = editor();
+    h.manager = Some(super::fix_test_host::manager());
+    let mut c = Configuration {
+        size: [2, 2],
+        retaining_walls: vec![99, 98, 10],
+        ..Default::default()
+    };
+    let mut prop = object(1, [0.0; 4]);
+    prop.ids = vec![10];
+    prop.offset = [8.0, 0.0, 10.0];
+    prop.orientation = 1;
+    c.objects.push(Record {
+        id: 55,
+        data: prop,
+        creation_known: true,
+    });
+    h.read_result = Some(c);
+    assert_eq!(e.read([1, 2, 3], &mut h), Ok(true));
+    let r = &e.config().unwrap().objects[0];
+    assert_eq!(r.id, 1);
+    assert_eq!(r.data.ids, [10]);
+    // Manager writes its raw minima/maxima; editor roles remain reversed.
+    assert_eq!(
+        [r.data.min_x, r.data.min_z, r.data.max_x, r.data.max_z],
+        [6.0, 9.0, 10.0, 11.0]
+    );
+    assert_eq!(bounds(&r.data), [10.0, 11.0, 6.0, 9.0]);
+    assert_eq!(e.config().unwrap().retaining_walls, [98, 10]);
+    assert!(matches!(
+        h.events.last(),
+        Some(Effect::ReconciliationWarning {
+            reason: "The footprint has changed.",
+            ..
+        })
+    ));
 }
 
 #[test]
