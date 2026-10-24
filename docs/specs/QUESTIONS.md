@@ -44,6 +44,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CA | camera |
 | CB | civic-buildings |
 | CCD | cheat-dialog |
+| CCM | cheat-codes |
 | CD | city-detail |
 | CK | clock24 |
 | CL | command-line |
@@ -246,6 +247,7 @@ generated index: the questions live one file per spec, so read only the file for
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
 | camera | 2 | 8 | CA11 | questions/camera.md |
 | catalog-view | 2 | 0 | CV3 | questions/catalog-view.md |
+| cheat-codes | 1 | 0 | CCM2 | questions/cheat-codes.md |
 | cheat-dialog | 3 | 0 | CCD4 | questions/cheat-dialog.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -418,4 +420,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **666** | **1567** | | |
+| **total** | **667** | **1567** | | |
