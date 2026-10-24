@@ -181,9 +181,11 @@ fn init_open_contract_is_explicit_and_survives_repeat_until_shutdown() {
 
 #[test]
 fn shutdown_releases_blur_and_splash_once_and_live_blur_blocks_read() {
-    let mut v = Vehicle::default();
-    v.blur_models = [Some(10), None, Some(12), Some(13)];
-    v.splash_effect = Some(42);
+    let mut v = Vehicle {
+        blur_models: [Some(10), None, Some(12), Some(13)],
+        splash_effect: Some(42),
+        ..Vehicle::default()
+    };
     let mut out = ByteWriter::new();
     assert!(Vehicle::default().write(&mut out));
     let bytes = out.into_bytes();

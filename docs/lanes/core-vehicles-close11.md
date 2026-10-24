@@ -14,7 +14,10 @@
 - Prior diagnostic: 31/32 passed because new test omitted RefResolver; corrected fixture, evidence build-runs/round2-focused-failure.txt.
 - Formatting PASS: explicit 11 owned .rs files, 0 diffs. qbuild fmt uses paths relative to engine/.
 - Prior failed clippy log preserved at build-runs/qbuild-clippy-r1-failed.log; source fixes already applied by round 1.
-- Next exact command: python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-vehicles-close11 all
-- No checks/game requests outstanding. Full gate and game verification still pending. No merge queue yet.
+- First full gate terminal FAIL: tests PASS 7070/7070; clippy one field_reassign_with_default in new blur test; native build PASS 256/256 edges, CTest PASS 80/80.
+- Corrected only the test fixture to initialize blur/splash fields in its struct literal. First-gate evidence will be preserved as *-r2-first.log before recheck.
+- Next: fmt closure.rs, then run qbuild all on corrected stable source. Native operation session 41745 collected to terminal exit 1 (native itself PASS).
+- No checks/game requests outstanding. Smoke draft: build-runs/core-vehicles-close11-r2-smoke-20261024-a1.draft; event-based waiter script prepared, no qwait.
+- Full corrected gate and game verification pending. No merge queue yet.
 - No C ABI/plugin changes. Worktree detached by supervisor; commit normally, never switch/update refs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-vehicles-close11-r2-manifest.json
