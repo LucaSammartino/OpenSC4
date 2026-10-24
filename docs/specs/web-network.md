@@ -567,6 +567,27 @@ header storage (008f9273–008f93d9). A foreign zero ID returns zero without rel
 reference acquired by the public overload. There is no WWW-level
 retry loop in admission. Redirects, HTTP parsing, sockets and timeouts belong to the foreign client.
 
+**Cookie record construction (Q9 qualification).** Cookie use disabled means no cookie lookup
+and a null array/count zero. Otherwise call the cookie manager's header lookup once with the
+full URL and a fresh temporary output string. A false result still submits the HTTP request
+with no headers. A true result constructs exactly one 24-byte record: a length-bearing byte
+string named `Cookie` followed by a length-bearing copy of the entire returned value. The
+count is one even for an empty value; do not split, trim, prefix with `Cookie:`, or merge it
+with other headers. The 28-byte allocation includes a four-byte array count preceding the
+record. The two strings are initialized separately by `008f7195`; their assignments are
+ordinary string operations despite misleading export names (`008f91c3–008f9217`,
+`008f92db–008f9324`; copy helper `00408c40–00408c61`). HTTP submission copies these records
+before WWW destroys the temporary array. Allocation failure after a successful lookup
+dereferences null during assignment; it is outside the qualified successful-allocation
+domain, not a request-without-cookies fallback.
+
+Proposed/unexecuted vectors WWW-22a–c: with no cached hit or duplicate and controlled cookie
+lookup, disabled cookie use makes zero lookups and submits count zero; enabled lookup false
+submits count zero; enabled lookup true with `a=1; b=2` submits one pair
+(`Cookie`, `a=1; b=2`). Repeat the last fixture with an empty output: count remains one,
+value remains empty. Check that the submission dependency copies the value before temporary
+destruction. These fixtures specify calls and values, not a live-server observation.
+
 ### 4.5 Live status and cancellation
 
 GetDocumentLoadStatus locks and searches active then waiting lists; it returns **2** for a matching ID and
@@ -890,8 +911,11 @@ zero (+0xc..+0x10), or URL byte length is zero (+0x20..+0x24). Before taking the
 resolve method with 00817bd0; when request+0x4c is nonempty and its record range +0x58..+0x5c
 is empty, invoke 0081acf0 on that string and then erase the string. When the resolved method
 is neither zero nor OPTIONS, the record range is nonempty, and its first record's byte
-range +0xc..+0x10 is empty, call 0081ac20 on that first record. Those normalization helpers
-are dependency boundaries, not newly specified parsers here (0081cac8–0081cb17).
+range +0xc..+0x10 is empty, erase that first record, shifting later records forward in
+order and destroying the vacated last pair. Only one record is tested/erased: empty values
+later in the list survive. OPTIONS and unknown methods preserve the first empty value.
+See the normalization contract below (`0081cac8–0081cb17`, `0081ac20–0081ac74`,
+pair-copy helper `0081a880`).
 
 Increment the request reference count at +4 **before** the lock. Form an eight-word job
 record: [ID,1,0,1,0,request,0,custom]. Lock client critical section +0xa4, increment the
@@ -950,6 +974,41 @@ thread activation and existing objects, not a live HTTP endpoint:
 | Active match plus nonempty queue | Both worker flags set, active pointer cleared, activation called before unlock |
 | Unknown cancellation ID | False after unlock, without notification |
 | Request count 2 versus 1 on 00817790 | Return 1 without destruction versus deleting destructor and return 0 |
+
+**Request text normalization (shared WWW/HTTP Q9).** The raw string at request+0x4c is
+converted to ordered name/value byte-string pairs only when nonempty and the existing pair
+list is empty. The raw string is then cleared, including on a parse that produces no pairs.
+With an existing pair, raw text is preserved and parsing is skipped. This applies to every
+admitted method; it is not restricted to the wrapper's PUT method. Admission still proceeds
+after a parse producing zero pairs. Parsing itself neither resolves URLs nor validates HTTP
+header names, sorts, case-folds, or combines duplicate names (`0081ca90`, `0081acf0`).
+
+The text parser preserves encounter order and byte spelling. A name begins at the start of
+a fresh line. A colon encountered while the accumulated value is empty is consumed and
+switches to value text, skipping the following spaces/tabs. Consequently `X:: v` has value
+`v`, while `X:a:b` has value `a:b`. Whitespace before a colon belongs to the name; trailing
+value whitespace survives. Leading spaces/tabs switch to value text and are discarded.
+Runs of CR and LF act as one line break. A following **space**, but not tab, continues the
+current pair without adding a separator: `X:a\r\n b` yields (`X`,`ab`). With a tab the old
+pair ends; the following tab-led text has no name and is discarded. Line-terminated pairs
+are appended whenever their name is nonempty, even if the value is empty. At end of input
+without a line break, both name and value must be nonempty for the final append. Nameless
+text is ignored. The result is the total pair count. These quirks are literal byte-parser
+behavior, not RFC header normalization (`0081ad70–0081ae54`, `0081afab–0081b079`).
+
+Proposed/unexecuted conformance fixtures NORM01–NORM08 use valid requests with a nonempty
+URL and method. Observe the request immediately after admission, before worker execution:
+
+| ID | Input | Expected normalized pairs / raw text |
+|---|---|---|
+| NORM01 | GET, no pairs, raw `X: a\r\nX: b` | (`X`,`a`), (`X`,`b`); raw empty |
+| NORM02 | GET, preexisting (`A`,`v`), raw `X: a` | only (`A`,`v`); raw unchanged |
+| NORM03 | GET, raw `X:\r\nY: z` | only (`Y`,`z`); first empty-valued pair erased |
+| NORM04 | OPTIONS or unknown `WAT`, raw `X:\r\nY: z` | (`X`,empty), (`Y`,`z`); no erasure |
+| NORM05 | GET, raw `X:` versus `X:\r\n` | zero pairs in both; parser alone produces zero versus one before GET erasure |
+| NORM06 | GET, raw `X : a \t` | (`X `,`a \t`), preserving trailing bytes |
+| NORM07 | GET, raw `X:a\r\n b\r\nY:c` versus `X:a\r\n\tb\r\nY:c` | (`X`,`ab`), (`Y`,`c`) versus (`X`,`a`), (`Y`,`c`) |
+| NORM08 | GET, preexisting (`A`,empty), (`B`,empty), (`C`,`v`) | (`B`,empty), (`C`,`v`); one erasure only |
 
 ## 5. cRZHTTPClient — bounded client contract
 

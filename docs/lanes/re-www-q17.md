@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-www-q17 (web and network contracts) | Codex / `re-www-q17` (RE lane, detached HEAD) | wip; six question IDs answered; 15 proposed vectors; doccheck check/links passed | Finish WWW Q7/Q9 and HTTP Q9/Q13; native owners remain partial. |
+| re-www-q17 (web and network contracts) | Codex / `re-www-q17` (RE lane, detached HEAD) | in progress; resumed remaining HTTP/WWW contracts | Qualify request normalization, then residual owner contracts within the round budget; enqueue ready. |
 
 ## Report
 
@@ -53,6 +53,7 @@ Game runs/shadow n/a; no request outstanding and no dynamic equivalence claim.
 
 ## Handoff
 
+- Resumed final round: first re-read core-www-close13 Owner closure table; previous six answers remain intact.
 - Remaining goal: WWW Q7/Q9 and HTTP Q9/Q13 in questions/web-network.md; Q12 is outside this brief.
 - Read core-www-close13 Owner closure table for exact remaining exclusions; do not read engine files.
 - Next RE step: Q9 HTTP request normalization at 0081ca90, 0081acf0 (273 decomp lines) and 0081ac20.

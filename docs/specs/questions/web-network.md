@@ -57,3 +57,9 @@ Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.
 2026-10-24 (re-www-q17): cookie constructor `008f9bad`, including its CookieData.ini
 path literal, is now qualified in §3.6 and marked C in the owner checklist. This does not
 close Q9's other support/adapters, WWW cookie-header construction or HTTP request normalization.
+
+2026-10-24 (re-www-q17), resumed round: §4.4 now qualifies the one-record Cookie header
+construction and temporary ownership; §4.14 qualifies raw-text parsing, preservation with
+preexisting pairs, and single first-empty-value erasure. WWW-22a–c and NORM01–NORM08 are
+proposed/unexecuted distinguishing fixtures. Those two blockers are resolved; Q9 remains
+open only for the residual O support/adapters in the owner checklist.
