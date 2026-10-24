@@ -229,10 +229,7 @@ fn inactive_current_and_none_boundaries_preserve_owned_state() {
     assert_eq!(view.source(), 8);
     assert_eq!(view.current_view(), Some(5));
     let before = view.config().cloned();
-    assert_eq!(
-        view.set_data_view(0, None).outcome,
-        SelectionOutcome::Reset
-    );
+    assert_eq!(view.set_data_view(0, None).outcome, SelectionOutcome::Reset);
     assert_eq!(view.source(), 8);
     assert_eq!(view.config(), before.as_ref());
     assert_eq!(view.last_redraw_ms(), 123);

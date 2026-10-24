@@ -334,7 +334,15 @@ pub fn paint_ring(
     paint_ring_with_context(pixels, width, height, clip, args, color, RingContext::default())
 }
 
-pub fn paint_ring_with_context(pixels: &mut [u32], width: usize, height: usize, clip: ClipRect, args: [f32; 3], color: u32, context: RingContext) -> Result<(), Unsupported> {
+pub fn paint_ring_with_context(
+    pixels: &mut [u32],
+    width: usize,
+    height: usize,
+    clip: ClipRect,
+    args: [f32; 3],
+    color: u32,
+    context: RingContext,
+) -> Result<(), Unsupported> {
     if width.checked_mul(height) != Some(pixels.len()) {
         return Err(Unsupported::BufferLength);
     }

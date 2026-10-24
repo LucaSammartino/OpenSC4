@@ -357,7 +357,9 @@ fn v29_wrapped_identity() {
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(1);
     assert_eq!(
         view.select_with(0xb5f49800, &mut res, &mut win, &mut render, &mut sims),
-        Ok(OwnerSelection::Selected { highlight_boundary: None })
+        Ok(OwnerSelection::Selected {
+            highlight_boundary: None
+        })
     );
     assert!(res.keys.is_empty());
     view.select_with(0xb5f49801, &mut res, &mut win, &mut render, &mut sims)

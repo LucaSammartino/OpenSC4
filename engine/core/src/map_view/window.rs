@@ -87,15 +87,27 @@ pub enum WindowEffect {
     PostCommand(u32),
     /// Ã‚Â§3.2 explicitly asks for a redraw, before the unsettled large-panel work.
     RedrawMap,
-    ControlFlag { control: u32, flag: u8, value: bool },
+    ControlFlag {
+        control: u32,
+        flag: u8,
+        value: bool,
+    },
     MessageTarget(u32),
-    SelectButton { control: u32, selected: bool },
-    DispatchCommand { command: u32, arguments: [u32; 2] },
+    SelectButton {
+        control: u32,
+        selected: bool,
+    },
+    DispatchCommand {
+        command: u32,
+        arguments: [u32; 2],
+    },
 }
 
 pub trait WindowSystem {
     /// Raw control-ID table used by ShowWindow (82 entries in the game).
-    fn message_controls(&self) -> Vec<u32> { Vec::new() }
+    fn message_controls(&self) -> Vec<u32> {
+        Vec::new()
+    }
     fn effect(&mut self, effect: WindowEffect) -> Result<(), OwnerError>;
     fn visible(&self, panel: u32) -> bool;
     fn button_down(&self, button: u32) -> bool;
@@ -312,10 +324,15 @@ impl MapView {
         }
         let button = canonical_button(button);
         if button == 0x8a28_71d5 {
-            windows.primitive(WindowEffect::DispatchCommand { command: 0x6a93_5cf1, arguments: [0, 0] })?;
+            windows.primitive(WindowEffect::DispatchCommand {
+                command: 0x6a93_5cf1,
+                arguments: [0, 0],
+            })?;
             return Ok(None);
         }
-        if button_action(button) == ButtonAction::Unknown { return Ok(None); }
+        if button_action(button) == ButtonAction::Unknown {
+            return Ok(None);
+        }
         Self::exclude_button(windows, button)?;
         let view = match button_action(button) {
             ButtonAction::Unknown => return Ok(None),
@@ -325,7 +342,11 @@ impl MapView {
             }
             ButtonAction::Group(0x5008) => {
                 self.layout_with(PanelRequest::Traffic, windows)?;
-                if windows.query_control(0x8001, 0x8810)? && windows.button_down(0x8001) { 9 } else { self.memories.traffic }
+                if windows.query_control(0x8001, 0x8810)? && windows.button_down(0x8001) {
+                    9
+                } else {
+                    self.memories.traffic
+                }
             }
             ButtonAction::Group(0x8002) => {
                 Self::volume_enabled(windows, true)?;
@@ -338,7 +359,9 @@ impl MapView {
                 return Ok(None);
             }
             ButtonAction::View(view) => {
-                if button == 0x8001 { Self::volume_enabled(windows, false)?; }
+                if button == 0x8001 {
+                    Self::volume_enabled(windows, false)?;
+                }
                 view
             }
         };
@@ -347,10 +370,16 @@ impl MapView {
             result?;
         }
         self.display_legend(view, resources, windows)?;
-        let large = if (0x5001..=0x5011).contains(&button) && button != 0x5005 && button != 0x5008 && windows.visible(0xaa32_bcd5) {
+        let large = if (0x5001..=0x5011).contains(&button)
+            && button != 0x5005
+            && button != 0x5008
+            && windows.visible(0xaa32_bcd5)
+        {
             self.layout_with(PanelRequest::Large, windows)?;
             Some(self.panel_request(PanelRequest::Large))
-        } else { None };
+        } else {
+            None
+        };
         match button {
             0x5001..=0x5011 => self.memories.mode = view,
             0x6001..=0x600c => self.memories.desirability = view,
@@ -373,10 +402,16 @@ impl MapView {
         simulators: &mut impl Simulators,
     ) -> Result<(), OwnerError> {
         let saved = self.queued_views.is_empty() && self.map_enabled;
-        let view = self.queued_views.first().copied().unwrap_or(if saved { self.saved_view } else { 0 });
+        let view = self
+            .queued_views
+            .first()
+            .copied()
+            .unwrap_or(if saved { self.saved_view } else { 0 });
         Self::control_flag(windows, 0x8a28_71d6, 1, saved)?;
         Self::control_flag(windows, 0x8a28_71c5, 1, !saved)?;
-        if !saved && windows.query_control(0x8a28_71c5, 0x22ba_0121)? { windows.primitive(WindowEffect::InvalidateControl(0x8a28_71c5))?; }
+        if !saved && windows.query_control(0x8a28_71c5, 0x22ba_0121)? {
+            windows.primitive(WindowEffect::InvalidateControl(0x8a28_71c5))?;
+        }
         // §3.3: keep the same-view guard; false does not gate legend refresh.
         let result = self.select_with(view, resources, windows, renderer, simulators);
         if !matches!(result, Err(OwnerError::MissingExemplar)) {

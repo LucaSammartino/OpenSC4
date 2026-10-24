@@ -49,17 +49,17 @@ claimed. The context-stop rule ended new feature work at roughly two thirds.
 No plugin/C ABI wiring, ABI export changes, coverage-map edits or game runs.
 
 ## Handoff
-- Resumed 2026-10-24 at 05b04a982; QV18 merge already present. QV1/QV2/QV3/QV14 implementation and vectors 35–48 now added; validation pending.
+- Resumed 2026-10-24 at 05b04a982; QV18 merge already present. ec113e868 adds QV1/QV2/QV3/QV14 implementation and vectors 35–48; validation pending. README now maps every owner row to code/tests.
 - Goal: close every cSC4WinMapView owner row in engine/core/src/map_view, without plugin, capi, ABI or coverage-map edits.
 - Worktree: C:/Users/tlori/FreeCity4/.claude/worktrees/core-map-view-close18; detached HEAD intentionally reserved by supervisor.
 - Done: merged re-map-view-qv18 (2ef6fa4ba551c32bb1fdda490a580225a697e201) as 45e79361d; generated QUESTIONS conflict resolved from merged rows (658 open / 1563 answered).
 - Done: 49b99359d implements QV5 scale-presence factors/conversion and retained invalid scale; QV11 empty/default/shared/debug layers; QV16 vector-21 correction and closure row. e706923b1 fixes the integration module path.
 - Added close18_vectors.rs tests v01 and v34; adapted obsolete 16-bit expectations and throttle test. Formatting is applied through apply_patch, using rustfmt --check diffs only.
-- Next: collect focused session 47312 to terminal; apply explicit-file fmt; run all map-view vectors, fix diagnostics, close README rows, then qbuild all and queued verify. No game requests.
+- Next: run all map-view vectors on the formatted final source, fix diagnostics, then qbuild all and queued verify. No game requests. Explicit-file fmt is clean for all 12 owned Rust files.
 - Remaining owner work: QV1 display/none reset (vector 35); QV2 traffic reconstruction/markers (36–39); QV3 panels/memories/reset/commands (40–44); QV14 inherited PC/RC ring arithmetic (45–48). All answered, no new question needed.
 - Gates: focused cargo PASS 2/2, 44 filtered (25m56s compilation on heavily contended host), session 33160 completed. Corrected native qbuild-20261024-215541-build-ctest PASS: build 46/46 edges, CTest 81/81, 96.2s total; session 6612 completed.
 - Failed evidence: native qbuild-20261024-214427-build-ctest build PASS 267/267, CTest 80/81 (cargo_test E0583); preserved as build-runs/failed-first-fc4verify-{ctest,build,configure}.log. Path fixed before corrected native gate.
-- Prior host qbuild all session 27498 was stopped and collected (exit 1), clippy incomplete. Current focused v35 session 47312 is compiling; log build-runs/qv1-focused.log. New source was added while it compiled; rerun focused final source after it completes.
+- Prior host qbuild all session 27498 was stopped and collected (exit 1), clippy incomplete. Focused v35 session 47312 reached terminal: old core snapshot versus newer tests gave 72 missing-API/type diagnostics, preserved in build-runs/qv1-focused.log. Rerun stable final source; no operation outstanding.
 - Native cargo_test passed 7486/0/0 over 51 result lines (engine/build-x86/Testing/Temporary/LastTest.log). Final fmt: 10 explicit owned files, exit 0, zero diff lines.
 - Use qbuild's engine working directory/CRT settings for future Rust checks; the initial direct focused command ran from the worktree root and did not share all final gate compilation inputs. Package rust-version is 1.75.
 - Earlier diagnostics: Bash wrapper Win32 error 5 (q/20261024-213040-2940.log); initial relative-path fmt failed, absolute-path fmt corrected and patched. All current owned files format clean.

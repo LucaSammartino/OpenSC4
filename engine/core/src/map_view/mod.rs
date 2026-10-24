@@ -15,8 +15,8 @@ mod execution;
 mod exemplar;
 mod highlights;
 mod overlay;
-mod panels;
 mod palette;
+mod panels;
 mod ring_float;
 mod settled;
 mod source;
@@ -27,8 +27,8 @@ pub use execution::*;
 pub use exemplar::*;
 pub use highlights::*;
 pub use overlay::*;
-pub use panels::*;
 pub use palette::*;
+pub use panels::*;
 pub use ring_float::{RingContext, RingPrecision, RingRounding};
 pub use settled::*;
 pub use source::*;
@@ -224,7 +224,11 @@ impl MapView {
             hooked_messages: Vec::new(),
             travel_types: Vec::new(),
             factors: ScaleFactors::default(),
-            memories: ViewMemories { desirability: 99, traffic: 0x4c, mode: 0 },
+            memories: ViewMemories {
+                desirability: 99,
+                traffic: 0x4c,
+                mode: 0,
+            },
             saved_view: 0,
             queued_views: Vec::new(),
             map_enabled: false,

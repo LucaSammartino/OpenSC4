@@ -68,9 +68,13 @@ pub enum RenderCommand<'a> {
 
 pub trait Renderer {
     /// Raw calling-thread x87 PC/RC, sampled for each ring helper invocation.
-    fn ring_context(&mut self) -> RingContext { RingContext::default() }
+    fn ring_context(&mut self) -> RingContext {
+        RingContext::default()
+    }
     /// Bitmap resource at the game's damaged-road key; None ends this sprite pass.
-    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> { Ok(None) }
+    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> {
+        Ok(None)
+    }
     /// Zone slot 17: retained configuration default, never current opacity.
     fn default_zone_alpha(&mut self) -> Result<u8, OwnerError>;
     /// Fresh low word of CRT wall-clock milliseconds, sampled at Update tail.
@@ -162,10 +166,18 @@ pub struct RawMapGrid {
 }
 
 pub trait Simulators {
-    fn traffic_capacity(&mut self, _network: u8, _cell: [usize; 2]) -> Result<i32, OwnerError> { Ok(0) }
-    fn traffic_density(&mut self, _travel: u8, _cell: [usize; 2], _alternate: bool) -> Result<[u16; 17], OwnerError> { Ok([0; 17]) }
-    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> { Ok(Vec::new()) }
-    fn damaged_road(&mut self, _cell: [usize; 2]) -> Result<bool, OwnerError> { Ok(false) }
+    fn traffic_capacity(&mut self, _network: u8, _cell: [usize; 2]) -> Result<i32, OwnerError> {
+        Ok(0)
+    }
+    fn traffic_density(&mut self, _travel: u8, _cell: [usize; 2], _alternate: bool) -> Result<[u16; 17], OwnerError> {
+        Ok([0; 17])
+    }
+    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> {
+        Ok(Vec::new())
+    }
+    fn damaged_road(&mut self, _cell: [usize; 2]) -> Result<bool, OwnerError> {
+        Ok(false)
+    }
     fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
         Err(OwnerError::Foreign(11))
     }
@@ -391,7 +403,9 @@ impl MapView {
             }
         } else {
             renderer.primitive(RenderCommand::Setting(RenderSetting::OccupantFilter(OccupantFilter {
-                types: Vec::new(), list_present: false, exclude_listed: false,
+                types: Vec::new(),
+                list_present: false,
+                exclude_listed: false,
                 hide_empty_bases_and_excluded_decals: false,
             })))?;
         }
@@ -654,7 +668,17 @@ impl MapView {
         self.draw_grid(grid, expected, request, debug_grid, None, renderer, simulators)
     }
 
-    pub(super) fn draw_grid(&self, mut grid: RawMapGrid, expected: ValueType, request: SourceSelection, debug_grid: bool, background: Option<Vec<u32>>, renderer: &mut impl Renderer, simulators: &mut impl Simulators) -> Result<OwnerUpdate, OwnerError> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn draw_grid(
+        &self,
+        mut grid: RawMapGrid,
+        expected: ValueType,
+        request: SourceSelection,
+        debug_grid: bool,
+        background: Option<Vec<u32>>,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<OwnerUpdate, OwnerError> {
         let count = grid
             .width
             .checked_mul(grid.height)
@@ -700,20 +724,30 @@ impl MapView {
         }
         if self.overlay_enabled {
             if self.source == 9 {
-                let mut cells = marked_cells_scaled(&grid, &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight, self.factors)?;
-                for x in 0..grid.width { for z in 0..grid.height {
-                    if simulators.damaged_road([x, z])? {
-                        if let Some(i) = cells.coordinates.iter().position(|c| *c == [x, z]) { cells.colors[i] = 0; }
-                        else { cells.coordinates.push([x, z]); cells.colors.push(0); }
+                let mut cells = marked_cells_scaled(
+                    &grid,
+                    &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+                    self.factors,
+                )?;
+                for x in 0..grid.width {
+                    for z in 0..grid.height {
+                        if simulators.damaged_road([x, z])? {
+                            if let Some(i) = cells.coordinates.iter().position(|c| *c == [x, z]) {
+                                cells.colors[i] = 0;
+                            } else {
+                                cells.coordinates.push([x, z]);
+                                cells.colors.push(0);
+                            }
+                        }
                     }
-                }}
+                }
                 renderer.overlay_replace(&cells)?;
             } else {
                 let cells = marked_cells_scaled(
-                &grid,
-                &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
-                self.factors,
-            )?;
+                    &grid,
+                    &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+                    self.factors,
+                )?;
                 renderer.overlay_replace(&cells)?;
             }
         }
@@ -728,11 +762,14 @@ impl MapView {
         emit_colors_scaled(values, palette, &mut pixels, self.factors)?;
         if let Some(background) = background {
             // Palette pixels are premultiplied; retain the stamped sprite through transparency.
-            if background.len() != pixels.len() { return Err(Unsupported::GridGeometry.into()); }
+            if background.len() != pixels.len() {
+                return Err(Unsupported::GridGeometry.into());
+            }
             for (pixel, behind) in pixels.iter_mut().zip(background) {
                 let alpha = *pixel >> 24;
-                if alpha == 0 { *pixel = behind; }
-                else if alpha != 255 {
+                if alpha == 0 {
+                    *pixel = behind;
+                } else if alpha != 255 {
                     let mut out = 0;
                     for shift in [0, 8, 16, 24] {
                         let a = (*pixel >> shift) & 255;

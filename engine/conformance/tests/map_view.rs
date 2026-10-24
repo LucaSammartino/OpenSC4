@@ -62,21 +62,29 @@ struct Windows {
     trace: Trace,
 }
 impl WindowSystem for Windows {
-    fn message_controls(&self) -> Vec<u32> { (0x9000..0x9052).collect() }
+    fn message_controls(&self) -> Vec<u32> {
+        (0x9000..0x9052).collect()
+    }
     fn effect(&mut self, effect: WindowEffect) -> Result<(), OwnerError> {
         if self.fail {
             return Err(OwnerError::Foreign(123));
         }
         match effect {
-            WindowEffect::ControlFlag { control, flag, value } => { self.flags.insert((control, flag), value); }
-            WindowEffect::SelectButton { control, selected } => { self.buttons.insert(control, selected); }
+            WindowEffect::ControlFlag { control, flag, value } => {
+                self.flags.insert((control, flag), value);
+            }
+            WindowEffect::SelectButton { control, selected } => {
+                self.buttons.insert(control, selected);
+            }
             _ => (),
         }
         self.effects.push(effect);
         Ok(())
     }
     fn visible(&self, panel: u32) -> bool {
-        if let Some(value) = self.flags.get(&(panel, 1)) { return *value; }
+        if let Some(value) = self.flags.get(&(panel, 1)) {
+            return *value;
+        }
         match panel {
             0x8a28_71c3 => self.visible,
             0xaa32_bcd5 => true,
@@ -84,7 +92,10 @@ impl WindowSystem for Windows {
         }
     }
     fn button_down(&self, button: u32) -> bool {
-        self.buttons.get(&button).copied().unwrap_or(button == 0x8001 && self.traffic_toggle)
+        self.buttons
+            .get(&button)
+            .copied()
+            .unwrap_or(button == 0x8001 && self.traffic_toggle)
     }
     fn tutorial_allows(&mut self, command: u32, _button: u32) -> Result<bool, OwnerError> {
         assert_eq!(command, 0x2872_59f6);
@@ -151,8 +162,14 @@ enum VisualLog {
     Call(VisualEffect),
 }
 impl Renderer for Render {
-    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> { self.damaged_loads += 1; Ok(self.damaged_icon.clone()) }
-    fn release_incident_icon(&mut self, handle: u64) -> Result<(), OwnerError> { self.released_icons.push(handle); Ok(()) }
+    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> {
+        self.damaged_loads += 1;
+        Ok(self.damaged_icon.clone())
+    }
+    fn release_incident_icon(&mut self, handle: u64) -> Result<(), OwnerError> {
+        self.released_icons.push(handle);
+        Ok(())
+    }
     fn default_zone_alpha(&mut self) -> Result<u8, OwnerError> {
         Ok(self.zone_default)
     }
@@ -278,8 +295,12 @@ impl Simulators for Sims {
         self.traffic.density_reads.push((travel, alternate));
         Ok(*self.traffic.densities.get(&travel).unwrap_or(&[0; 17]))
     }
-    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> { Ok(self.traffic.routes.clone()) }
-    fn damaged_road(&mut self, cell: [usize; 2]) -> Result<bool, OwnerError> { Ok(self.traffic.damaged.contains(&cell)) }
+    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> {
+        Ok(self.traffic.routes.clone())
+    }
+    fn damaged_road(&mut self, cell: [usize; 2]) -> Result<bool, OwnerError> {
+        Ok(self.traffic.damaged.contains(&cell))
+    }
     fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
         Ok(self.debug_entries.clone())
     }
@@ -526,7 +547,10 @@ fn direct_buttons_aliases_tutorial_reset_and_legend() {
         .unwrap();
     assert_eq!(boundary.boundary, None);
     assert_eq!(boundary.panels, MAP_PANELS);
-    assert!(win.effects.contains(&WindowEffect::SelectButton { control: 0x500b, selected: true }));
+    assert!(win.effects.contains(&WindowEffect::SelectButton {
+        control: 0x500b,
+        selected: true
+    }));
     let legend = Legend::from_exemplar(res.raw.as_ref()).unwrap();
     assert_eq!(
         (legend.panel, legend.string_group, legend.title),
@@ -739,7 +763,9 @@ fn malformed_legend_grid_lot_and_none_paths_have_explicit_boundaries() {
     );
     assert_eq!(
         view.select_with(0, &mut res, &mut win, &mut render, &mut sims),
-        Ok(OwnerSelection::Selected { highlight_boundary: None })
+        Ok(OwnerSelection::Selected {
+            highlight_boundary: None
+        })
     );
     let mut fresh = MapView::new(0, 0);
     fresh.activate();
