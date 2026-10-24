@@ -2094,11 +2094,12 @@ names. The size reference must be valid even for a null buffer. For a readable p
 | DIR-listed key, null buffer | DIR uncompressed length | 0; does not validate/decode the stored QFS stream |
 | Uncompressed key, non-null buffer | bytes read | `min(input capacity, stored length)` on successful I/O; prefix from record start |
 | Valid compressed key, non-null buffer with sufficient capacity | decompressed byte count | decompressed byte count; complete payload from record start |
-| Compressed key, insufficient capacity or invalid stream, or failed seek/read/decode | 0 | 0; no successful payload; a failed read/decode need not leave the buffer unchanged |
+| Compressed key, insufficient capacity or failed signature validation, or reported seek/read/decode failure | 0 | 0; no successful payload; a failed read/decode need not leave the buffer unchanged |
 
 A successful uncompressed zero-capacity or zero-length read also gives 0/0. A compressed payload does
 not support the uncompressed path's successful prefix read: supply enough space for the stream's full
-decoded length. Extra buffer capacity is not a request for padding. DIR and stream length disagreement
+decoded length. This does not promise rejection of all malformed streams: the decoder's unchecked
+copy behavior remains as specified in §2.7. Extra buffer capacity is not a request for padding. DIR and stream length disagreement
 can make a DIR-sized buffer insufficient; a null-buffer size result alone does not prove readability.
 Unlike `ReadRecordRaw` (§2.6.1), an absent key or unreadable segment **clears** the size. Both methods'
 null-buffer compressed-size result is the DIR logical length, not the stored length.
@@ -2106,7 +2107,8 @@ Evidence: access/write-open/index checks `0x009704CF–0x0097053A`; compressed r
 `0x00970560–0x00970580`, unsigned uncompressed minimum `0x00970582–0x0097059A`, seek/read
 `0x009705A5–0x009705D0`, null-buffer and full-width final result `0x009705D3–0x00970609`.
 Compressed reads use `0x0096FF7E`, `0x0096E6F4` and capacity/decode checks
-`0x0096E64D–0x0096E6D8`; the final read wrapper replaces unsuccessful transfer size with 0.
+`0x0096E64D–0x0096E6D8`; the decompressor stores the decoded count at `0x00A6E092–0x00A6E095`,
+and the final indexed-read result replaces unsuccessful transfer size with 0.
 
 **Noninterference is logical, not byte-for-byte internal state immutability.** For stable readable
 segments, these indexed payload reads do not open, close, abort, release or rewind existing record
@@ -2256,7 +2258,10 @@ DFP13: Open a readable record R on A, consume two bytes, and keep the returned r
 ReadRecord on A and B repeatedly. R's next two bytes remain `03 04`, its position remains 2 until that
 read, and its reference/lifetime remains usable. Repeat with an uncompressed fixture large enough to
 select the file-backed path and with a compressed buffer-backed record; indexed reads must not require
-closing/reopening R. Closing only the test's R reference afterward has the normal original effect.
+closing/reopening R. Keep fixture teardown separate from the indexed reads under test.
+
+DFP14: A plain 256-byte indexed payload read into capacity 256 returns **256**, size **256**. Its low
+byte is zero, so treating the full return as an 8-bit Boolean would misclassify this successful read.
 
 DFT1: Stable manager roots [P, multi(Q,R)] give direct borrowed P and borrowed multi children Q,R.
 Repeated index calls leave reference counts unchanged; successful packed/multi QIs each add one reference
