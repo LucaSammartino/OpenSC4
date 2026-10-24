@@ -33,10 +33,18 @@ runs are n/a for this spec-only lane; no game requests are outstanding. No engin
 map or ABI files changed; no ABI rows proposed. The first commit succeeded despite a subsequent Git maintenance
 attempt reporting a denied shared packed-refs lock; no maintenance or shared-ref repair was attempted.
 
+Resume verification (2026-10-24): the requested closure was already committed at `87fdceb529e6990f0a9e868c645fa5df339c48ac`.
+Read core-uiwin-close13's remaining-contract table first: its WT14 row is covered by the committed allocation
+and graphics contracts; WT13 remains outside this task. Rechecked slot150's signed dimension gate and destructive
+replacement against export instruction bytes. WT14 occurs in the answered archive and has no open duplicate.
+Regenerated the questions index without changes; foreground doccheck passed again
+(`build-runs/doccheck-wt14-resume.log`), as did `git diff --check`. No additional spec changes were needed.
+
 ## Handoff
 - Goal: close WT14 for core-uiwin-close13; spec text only.
 - Done: `7963eb6b5` added WT14 behavior, ownership corrections and 14 vectors, moved WT14 to answered archive, regenerated index.
 - Done: final review added wrapper-specific readiness and presentation-access details; final doccheck and whitespace checks passed.
+- Done: `87fdceb52` finalized the answer; resume verified closure and reran doccheck successfully.
 - Next: coordinator lands queued full HEAD; engine lane consumes sections 14.5.1–14.6. No further RE step required for WT14.
 - Evidence: slot150 0099D0ED; draw-service slot5 0082B980; SetBufferToDrawTo 0099C6F8; byte checks establish signed OR dimension gate and format (1,0).
 - Facts: actual paths are docs/specs/widget-toolkit.md and docs/specs/questions/widget-toolkit.md (brief's doubled paths are typos).
