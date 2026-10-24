@@ -1,5 +1,5 @@
 tag: lvcapture7-20261024-isolated-normal
-run: 411
+run: 426
 date: 2026-10-24
 lane: glue-landvalue-capture7
 dll: FreeCity4 SHA256 ABAD0198BAA9D88E545B6FC76BAD3EF57350671A28F928F2A14C95FB62C18B59 (source9ddac837c)

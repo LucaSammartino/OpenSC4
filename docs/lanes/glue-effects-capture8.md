@@ -77,7 +77,7 @@ Stable engine source **46c67c95c**, unchanged throughout gate and game:
 
 Final counted line: **effects8-visuals-2032-20261024a 73/73**
 
-[Run 412](../runs/effects8-visuals-2032-20261024a-412.md): **clean**,
+[Run 412](../runs/effects8-visuals-2032-20261024a-425.md): **clean**,
 ref_warnings=0, all problem counts zero. All **73** load/month samples have
 mismatches=0, refusal=0, resyncs=0, from **2026-01-27 load** through
 **2032-01-01 month**. Each sample reads **1,094,484 resource bytes**, compares

@@ -86,13 +86,13 @@ entries** with **3,465 queries**; total **252,945 native queries**. This counts
 entries, not distinct folded names. No rendered frames or other owner state
 is inferred from those counts.
 
-Final run [411](../runs/effects7-names-2032-20261024b-411.md): **clean**,
+Final run [411](../runs/effects7-names-2032-20261024b-424.md): **clean**,
 `ref_warnings=0`, all problem counts zero, turbo to **2032-01-01**, **28.797 s**
 city runtime, **40 s** wall, slot 2. DLL SHA256
 `166CC8C4017909D81F0B6002413D2E556D66C8FAB91F93D7456D880289D55A3F`.
 No normal-speed rerun is needed: no turbo-only difference exists.
 
-Earlier run [410](../runs/effects7-names-2032-20261024a-410.md) was clean and
+Earlier run [410](../runs/effects7-names-2032-20261024a-423.md) was clean and
 field-exact 73/73, but its load date used Julian zero. It is retained as
 diagnostic evidence, not final coverage evidence. Its already-completed
 verdict was accepted after a filesystem watcher missed the event; it was
