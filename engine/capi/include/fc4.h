@@ -12929,4 +12929,40 @@ bool fc4_lot_configuration_project(const fc4_props* exemplar, uint32_t detail,
 }
 #endif
 
+/* Bounded NT31 read-only selection. Does not certify placement, reuse,
+ * pole models or curves. Every callback is mandatory; cell must return false
+ * for unavailable inputs or existing occupants. On false, outputs are not a
+ * comparable native result. Prefix is the helper's previously placed count. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_powerline_selection_host {
+    uint32_t struct_size;
+    void* user;
+    bool (*cell)(void*, int32_t, int32_t, int32_t* zone, bool* blocked);
+    float (*width)(void*);
+    float (*height)(void*, float, float);
+    bool (*special)(void*, int32_t, int32_t);
+    void (*corners)(void*, int32_t, int32_t, float*);
+    bool (*ray)(void*, const float* origin, const float* direction, float* hit);
+} fc4_powerline_selection_host;
+typedef struct fc4_powerline_selection {
+    uint32_t valid, failure, poles, wires;
+    int32_t cost;
+} fc4_powerline_selection;
+typedef struct fc4_powerline_selected_pole {
+    int32_t x, z;
+    uint32_t mask;
+} fc4_powerline_selected_pole;
+bool fc4_powerline_select(const fc4_powerline_selection_host* host,
+    const fc4_netgeom_cell* cells, uint32_t cell_count,
+    const fc4_netgeom_step* steps, uint32_t step_count, uint32_t prefix,
+    uint32_t spacing, float clearance, uint32_t pole_cost, float wire_cost,
+    fc4_powerline_selected_pole* poles, uint32_t capacity, fc4_powerline_selection* out);
+/* Smoothing hash iteration order used by NT30's first refresh. */
+uint32_t fc4_netgeom_get_smoothing_cells(const fc4_netgeom* g, fc4_netgeom_cell* out, uint32_t capacity);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

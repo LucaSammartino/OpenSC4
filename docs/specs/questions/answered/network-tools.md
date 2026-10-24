@@ -1,5 +1,79 @@
 # network-tools: answered questions
 
+<!-- copied from: glue-nettool-exact6 round 3 (engine lane, 2026-10-24); unmerged source branch -->
+- **NT33 - live clearance-ray and blocked-cell interface boundary:** NT31
+  requires actual terrain/classifier observations for the city powerline.
+  Power-line-tool section 4.1 specifies the ray origin, normalized direction,
+  hit-distance test and two zero arguments, but not the callable game
+  interface/IID, slot, argument order/layout, return register or ownership of
+  the hit output. The permitted SDK and corrected cFC4ISTETerrain declaration
+  have no named terrain-ray method. Please publish that ABI and the equivalent
+  callable boundary for World::blocked(cell, 0), including failure semantics.
+  Is the helper prefix count passed to DeterminePolePositions initially the
+  complete straight-step count for a fresh slot-7 placement, or a different
+  previously-placed prefix? [the new bounded selection ABI requires explicit
+  callbacks and an explicit prefix; its controlled NT31 vector passes, but
+  unavailable city reads are not replaced with a no-hit/clear answer and no
+  city placement, model, wire or curve coverage is claimed]
+  **ANSWERED 2026-10-24 (re-nettool-nt32):** DIFFERS — network-tools §8.3.1.1,
+  tests 39–40: renderer cISC43DRender (primary IID 0xE9C622D8) slot 61,
+  bool AL, pop20, origin/direction/hit XYZ pointers then two zeros. Hit is
+  caller-owned 12-byte value storage. Final blocked probe is lot-manager
+  (IID 0xE818ED2B) slot 6 GetLot(x,z,false), borrowed pointer EAX, pop12;
+  it runs only after earlier classifier tests leave zero. Missing service
+  is unavailable, not clear. +0x74 is the straight prefix, 13 for the fresh
+  13-step axis fixture, not a count of committed occupants.
+
+<!-- copied from: glue-nettool-exact6 round 3 (engine lane, 2026-10-24); unmerged source branch -->
+- **NT34 - nonflat height-solve fixture after NT30 refresh:** Fresh turbo run
+  `nettool-exact6-r3-20261024-7c9f` is clean through 2032-01-16, refs=0,
+  with 8/14 exact counted shadows. The four price differences remain
+  native/core 110/113, 170/192, 90/98 and 55/61. The new replay inventories
+  respectively contain 11/44, 17/68, 9/36 and 11/44 entries/corner observations;
+  each has exactly the same pre-refresh solved-entry count and smoothing-cell
+  count as its final entry count. No position/terrain neighbour was appended.
+  Grading changed 12, 34, 18 and 12 vertices. The sums of absolute retained
+  corner versus live native getter-time terrain differences, computed from
+  the nine-digit diagnostic text, are approximately 32.997318, 218.549516,
+  76.532530 and 63.342398; shared vertices are repeated observations.
+  Representative straight-road corner: cell (13,4), corner 2, vertex 659,
+  old=retained=network=terrain-satisfier 273.388092, both lookups hit,
+  live native terrain=271.987152, run=1, intersection/placed/connection=0,
+  solved index 9 before and after, in the first refresh population.
+  Please provide an admitted **nonflat constraint/height fixture** separating
+  the piece/height solve from NT30 commit refresh: initial terrain, per-piece
+  fixed/support constraints, both ordered satisfier solutions, refreshed
+  corners and getter-time terrain. Which stage/constraint distinguishes the
+  native grading target from this replay target? NT30's flat inventories pass
+  but cannot resolve this difference. Full replay traces are in the named
+  run's `nettool corner`/`nettool inventory` lines. [retain all four mismatches;
+  do not alter targets, suppress repeated corners, fit residuals or substitute
+  the native total; powerline and bridge differences remain separate NT31
+  integration gaps, with the callable powerline input gap tracked by NT33]
+  **ANSWERED 2026-10-24 (re-nettool-nt32):** DIFFERS — network-tools §8.1.3,
+  test 41: admitted nonflat constraint-boundary fixtures separate fixed/support
+  terrain preference, unsupported grading and network-only corner refresh.
+  Ordered network/terrain solutions, writes, refreshed corners and getter-time
+  terrain are explicit. At vertex 659 the supplied replay's two solutions
+  already disagree with native getter-time terrain before any corner refresh
+  could repair it. The supplied observations do not identify a unique native
+  constraint; compare pre-solve inputs and terrain writes/readback. No city
+  snapshot was recovered and all four city price mismatches remain evidence.
+
+<!-- copied from: glue-nettool-exact6 (engine lane, 2026-10-24); unmerged source branch -->
+- **NT32 - retained counted poles after structural release:** NT31 §8.3.1
+  requires price 65 after endpoint references are released. Power-line-tool
+  §1 says ReleasePoleInfos also structurally clears the records, and §2's
+  wrapper calls it before returning. Older network-geometry §11 equates
+  `+0x388` with the current pole-vector size. Should the getter consume the
+  count retained by DeterminePolePositions rather than overwrite it with
+  the now-empty vector size? [literal newest NT31 contract: retain counted
+  poles=3 and wire cells=10 through ReleasePoleInfos; controlled recording
+  placement returns valid=13/failure=0/price=65; reset still zeros counts]
+  **ANSWERED 2026-10-24 (re-nettool-nt32):** MATCHES — network-tools §8.3.1,
+  test 38: the getter reads retained counts; structural release clears records,
+  not the counts. The next slot-53 placement resets both counts before selection.
+
 <!-- from: core-powerline4 (engine lane, 2026-10-21) -->
 - **NT19 - network-geometry §11, the power-line parameter defaults:** only `+0x3A4` has a stated default (20). What
   are the defaults of `+0x3A8` (`0x098B27D0`), `+0x3AC` (`0x4A5F5953`) and `+0x3B0` (`0x0A5F596B`) when the exemplar

@@ -10,7 +10,7 @@ contract; implementers must not consult the original program or its decompilatio
 |---|---|
 | `+0x50` byte | real placement when nonzero; draft when zero |
 | `+0x54`, `+0x60` | step ranges (inclusive indices into cells), cell pairs |
-| `+0x70`, `+0x74`, `+0x78` | dragged, previously placed, valid step counts |
+| `+0x70`, `+0x74`, `+0x78` | dragged, straight-prefix, valid step counts (network-tools §8.3.1.1, NT33) |
 | `+0x118..+0x11C` | ordered input anchor cells; these are not the generated pole records |
 | `+0x368` byte | power-line initialisation latch |
 | `+0x36C..+0x370`, capacity `+0x374` | generated 48-byte pole records |
@@ -119,13 +119,13 @@ Reset wire count; release old pole infos; clear wire vectors. Traverse every inc
 valid step in order. Track the next input-anchor index, the last clear cell/step, the last emitted-pole
 step, whether a span is active, and whether an anchor or break has requested a pole.
 
-For each step, choose its **pivot** with `0x0064F230`: before the previously placed-step count (when
+For each step, choose its **pivot** with `0x0064F230`: before the straight-prefix step count (when
 that count is nonzero), use the step's first cell. Otherwise scan its cells in ascending index order
 and take the first satisfying `abs(anchor.x-cell.x) == abs(anchor.z-cell.z)` for the next input anchor;
 return -1 if none. This is a diagonal-distance equality, not a direction-change test.
 
-The first cell of the previously placed step that shares **either** x **or** z with the first input
-anchor is a separate forced point when `0 < previouslyPlaced < valid`. Reaching it requests a pole once.
+The first cell of the step at the straight-prefix count that shares **either** x **or** z with the first input
+anchor is a separate forced point when `0 < straightPrefix < valid`. Reaching it requests a pole once.
 Reaching the next anchor, or the final cell of the final valid step while an anchor remains, advances the
 anchor index and requests a pole. At a pivot, an active span also requests a pole when the unsigned
 step difference from the last emitted pole is **at least** `+0x3A4` (`0x00650A43–0x00650A62`). Thus
