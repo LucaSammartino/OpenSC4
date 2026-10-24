@@ -48,6 +48,7 @@ if(FC4_CHECKED AND MSVC)
     message(STATUS "FC4_CHECKED: plugin built with /Od /RTC1 and out-parameter canaries")
 endif()
 
+
 # Debug info embedded in each object (/Z7) instead of a shared per-target PDB (/Zi): the objects become
 # cacheable (sccache, below) and the compiler no longer talks to mspdbsrv. The linker still writes the PDB.
 if(MSVC)
@@ -1068,3 +1069,9 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_automata_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME automata_capture_test COMMAND fc4_automata_capture_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# LV6 published progress: record-only interval decoding, independent of native
+# installation (LV8). Never substitutes sampled inputs or advances simulation.
+add_executable(fc4_landvalue_progress_test tests/landvalue_progress_test.cpp)
+target_include_directories(fc4_landvalue_progress_test PRIVATE plugin)
+add_test(NAME landvalue_progress_test COMMAND fc4_landvalue_progress_test)
