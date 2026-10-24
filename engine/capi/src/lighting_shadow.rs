@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private static-link comparison of lighting.md §§1.4/5.6 exemplar parameters.
 //! Native values enter only the comparator, never the expected-value model.
-use fc4_core::lighting::{LightingManager, LightingStatics, Parameters, PropertyHolder, RegisterPrecision};
+use fc4_core::lighting::{
+    LightingManager, LightingStatics, Parameters, ProjectionTransform, PropertyHolder, RegisterPrecision,
+};
 
 const FIELDS: usize = 14;
 struct NoOverrides;
@@ -61,12 +63,87 @@ fn expected(inputs: &Inputs) -> [u32; FIELDS] {
     ]
 }
 
-fn differences(native: &[u32; FIELDS], expected: &[u32; FIELDS]) -> u32 {
+fn differences<const N: usize>(native: &[u32; N], expected: &[u32; N]) -> u32 {
     native
         .iter()
         .zip(expected)
         .enumerate()
         .fold(0, |mask, (i, (a, b))| mask | (u32::from(a != b) << i))
+}
+
+fn expected_decal(inputs: &Inputs, overrides: &Inputs) -> [u32; 9] {
+    let mut parameters = Parameters::initial();
+    parameters.read(inputs);
+    let manager = LightingManager::new(LightingStatics::new(parameters), RegisterPrecision::Bits24);
+    let decal = manager.get_decal_shadow_params(overrides);
+    [
+        decal.texture,
+        decal.a.to_bits(),
+        decal.b.to_bits(),
+        decal.c.to_bits(),
+        decal.pair[0].to_bits(),
+        decal.pair[1].to_bits(),
+        decal.color[0].to_bits(),
+        decal.color[1].to_bits(),
+        decal.color[2].to_bits(),
+    ]
+}
+
+// Private static-link transport; overrides are caller-owned query inputs.
+#[no_mangle]
+unsafe extern "C" fn fc4_lighting_shadow_decal_compare(
+    inputs: *const u32,
+    overrides: *const u32,
+    native: *const u32,
+    out: *mut u32,
+) -> u32 {
+    if inputs.is_null() || overrides.is_null() || native.is_null() || out.is_null() {
+        return (1 << 9) - 1;
+    }
+    // SAFETY: plugin supplies two readable ten-word input records and distinct
+    // readable/writable nine-word result arrays. Outputs never seed the model.
+    let expected = expected_decal(
+        &Inputs(unsafe { *inputs.cast() }),
+        &Inputs(unsafe { *overrides.cast() }),
+    );
+    let native = unsafe { &*native.cast::<[u32; 9]>() };
+    unsafe { std::ptr::copy_nonoverlapping(expected.as_ptr(), out, 9) };
+    differences(native, &expected)
+}
+
+fn expected_empty_projection(flags: u8) -> [u32; 17] {
+    let manager = LightingManager::new(LightingStatics::new(Parameters::initial()), RegisterPrecision::Bits24);
+    let mut matrix = std::array::from_fn(|i| f32::from_bits(0x3e80_0001 + i as u32));
+    let transform = ProjectionTransform {
+        linear: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [2.0, 3.0, 4.0],
+        scale: 2.0,
+        flags,
+    };
+    let result = manager
+        .calc_shadow_projection(&[], &[], transform, &mut matrix)
+        .expect("valid empty query");
+    std::array::from_fn(|i| {
+        if i == 0 {
+            u32::from(result)
+        } else {
+            matrix[i - 1].to_bits()
+        }
+    })
+}
+
+// §5.8: count zero returns false without writing any of the 64 output bytes.
+// The conclusion is direction-independent; no native direction seeds this test.
+#[no_mangle]
+unsafe extern "C" fn fc4_lighting_shadow_empty_compare(flags: u32, native: *const u32, out: *mut u32) -> u32 {
+    if native.is_null() || out.is_null() {
+        return (1 << 17) - 1;
+    }
+    let expected = expected_empty_projection(flags as u8);
+    // SAFETY: plugin supplies distinct readable/writable seventeen-word arrays.
+    let native = unsafe { &*native.cast::<[u32; 17]>() };
+    unsafe { std::ptr::copy_nonoverlapping(expected.as_ptr(), out, 17) };
+    differences(native, &expected)
 }
 
 // Private transport, deliberately absent from fc4.h and the DLL export list.
@@ -109,7 +186,7 @@ mod tests {
         let expected = expected(&shipped_inputs());
         assert_eq!(expected[0], 0.4_f32.to_bits());
         assert_eq!(expected[1], 0.55_f32.to_bits());
-        assert_eq!(expected[5], 0x69d3_bc3b);
+        assert_eq!(expected[5], 0x69d3_a23b);
         assert_eq!(expected[8], 12_f32.to_bits());
         assert_eq!(&expected[9..11], &[0, 0]);
         assert_eq!(differences(&expected, &expected), 0);
@@ -149,5 +226,62 @@ mod tests {
         assert_eq!(missing[5], 0x0917_660e);
         assert_eq!(missing[0], 0.5_f32.to_bits());
         assert_eq!(missing[1], 0_f32.to_bits());
+    }
+
+    #[test]
+    fn nonnull_holder_all_presence_combinations_and_no_shared_mutation() {
+        let inputs = shipped_inputs();
+        let base = expected_decal(&inputs, &Inputs([0; 10]));
+        let mut overrides = Inputs([
+            63,
+            0x1234_5678,
+            0.25_f32.to_bits(),
+            0.75_f32.to_bits(),
+            20_f32.to_bits(),
+            (-2_f32).to_bits(),
+            3_f32.to_bits(),
+            0.5_f32.to_bits(),
+            0.25_f32.to_bits(),
+            0.75_f32.to_bits(),
+        ]);
+        let full = expected_decal(&inputs, &overrides);
+        let owners = [0, 1, 2, 3, 4, 4, 5, 5, 5];
+        for mask in 0..64 {
+            overrides.0[0] = mask;
+            let wanted = std::array::from_fn(|i| if mask & (1 << owners[i]) != 0 { full[i] } else { base[i] });
+            let mut out = [0; 9];
+            let native = wanted.map(|word| word ^ 1);
+            assert_eq!(
+                unsafe {
+                    fc4_lighting_shadow_decal_compare(
+                        inputs.0.as_ptr(),
+                        overrides.0.as_ptr(),
+                        native.as_ptr(),
+                        out.as_mut_ptr(),
+                    )
+                },
+                511
+            );
+            assert_eq!(out, wanted);
+            assert_eq!(expected_decal(&inputs, &Inputs([0; 10])), base);
+        }
+    }
+
+    #[test]
+    fn empty_projection_false_and_all_output_canaries_untouched() {
+        for flags in [0, 7] {
+            let expected = expected_empty_projection(flags);
+            assert_eq!(expected[0], 0);
+            for i in 0..16 {
+                assert_eq!(expected[i + 1], 0x3e80_0001 + i as u32);
+            }
+            let native = expected.map(|word| word ^ 1);
+            let mut out = [0; 17];
+            assert_eq!(
+                unsafe { fc4_lighting_shadow_empty_compare(flags.into(), native.as_ptr(), out.as_mut_ptr()) },
+                (1 << 17) - 1
+            );
+            assert_eq!(out, expected);
+        }
     }
 }
