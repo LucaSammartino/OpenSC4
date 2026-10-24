@@ -10,9 +10,14 @@
 - Gate PASS: qbuild all workspace tests 6890 passed, 0 failed/ignored; clippy 0 diagnostics;
   fmt PASS. Native build 233/233 (85.3 s), CTest 72/72 (161.9 s), total 251.0 s.
 - qbuild-20261024-032354-build-ctest collected to terminal; logs build-runs/fc4verify-{build,ctest}.log.
-- Next: collect real-city turbo run scres6-native-2032-cobalt to 2032 (no other game request).
+- Game scres6-native-2032-cobalt: clean to 2032-01-01, ref_warnings=0, scres 76/76;
+  native 842 token comparisons, 1061 lines, 2 registrations/3 file calls; constructed 56/56.
+- Run record docs/runs/scres6-native-2032-cobalt-386.md. No request outstanding.
+- Diagnostic: shutdown summary mislabeled combined observations as adapter_reads.
+  Corrected summary and added file/other route sample attribution (section 10 requires route separation).
+- Next: full gate on corrected source, then a unique corrected-source real-city run to 2032.
 - SCR10 asks for missing physical ReadLine ABI, needed for complete file-parser replay.
 - Measured scope planned: command-line tokenization before substitution; expanded/standalone
   dispatch separately counted, no macro/variable/custom-command state equivalence claim.
 - Preserve constructed adapter coverage; default-off shadows; no public ABI changes planned.
-- Game request scres6-native-2032-cobalt outstanding; no native build outstanding.
+- No game/build request outstanding.

@@ -9,6 +9,7 @@ extern "C" uint32_t fc4_scres_parser_compare(ParserBytes, const ParserBytes*, si
 constexpr uintptr_t kParserSites[] = {0x00679450, 0x00679120, 0x00681DA0, 0x00680EA0};
 std::atomic<uint64_t> g_parserCalls{0}, g_parserBad{0}, g_parserRefused{0};
 std::atomic<uint64_t> g_parserLines{0}, g_parserExpanded{0}, g_parserSkipped{0};
+std::atomic<uint64_t> g_parserFileCalls{0}, g_parserOtherCalls{0};
 std::atomic<uint64_t> g_parserPaths{0}, g_parserFiles{0}, g_parserThrows{0}, g_parserFileLines{0};
 DWORD g_parserThread = 0;
 PVOID g_parserHandler = nullptr;
@@ -56,6 +57,8 @@ void ParserArguments(void* state, const void* vector) {
     const ParserBytes line{reinterpret_cast<const uint8_t*>(frame->line.data()), frame->line.size()};
     const uint32_t difference = fc4_scres_parser_compare(line, tokens.data(), count);
     ++g_parserCalls;
+    if (g_parserFileDepth) ++g_parserFileCalls;
+    else ++g_parserOtherCalls;
     if (difference) {
         const uint64_t n = ++g_parserBad;
         if (n <= 8) fc4::Log("scres: native command token difference=%u tokens=%zu line=%.160s",
@@ -186,10 +189,12 @@ void ParserReport(const fc4_date& date, const char* event) {
     const uint64_t mismatch = g_parserBad.load() + g_parserRefused.load() +
         (g_parserCalls.load() == 0 ? 1u : 0u);
     fc4::Log("scres shadow %04d-%02d-%02d %s: partial=native_command_tokens calls=%" PRIu64
+             " file_calls=%" PRIu64 " other_calls=%" PRIu64
              " lines=%" PRIu64 " expanded=%" PRIu64 " nondispatch=%" PRIu64
              " paths=%" PRIu64 " files=%" PRIu64 " file_line_totals=%" PRIu64
              " exceptions=%" PRIu64 " refused=%" PRIu64 "; mismatches=%" PRIu64,
-             date.year, date.month, date.day_of_month, event, g_parserCalls.load(), g_parserLines.load(),
+             date.year, date.month, date.day_of_month, event, g_parserCalls.load(),
+             g_parserFileCalls.load(), g_parserOtherCalls.load(), g_parserLines.load(),
              g_parserExpanded.load(), g_parserSkipped.load(), g_parserPaths.load(), g_parserFiles.load(),
              g_parserFileLines.load(), g_parserThrows.load(), g_parserRefused.load(), mismatch);
     ++g_lines;

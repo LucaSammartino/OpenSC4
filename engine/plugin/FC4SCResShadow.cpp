@@ -212,7 +212,7 @@ void SCResShadowStop() {
         if (patch.entry && *patch.entry == patch.forward && !Replace(patch, patch.original))
             Log("scres: failed to restore adapter entry");
     }
-    if (g_passive) Log("scres shadow summary: clean=%" PRIu64 "/%" PRIu64 " partial=adapter_reads", g_clean, g_lines);
+    if (g_passive) Log("scres shadow summary: clean=%" PRIu64 "/%" PRIu64 " scope=observed_routes", g_clean, g_lines);
     if (g_constructed && !g_constructedReported) Log("scres: constructed report unavailable: no city loaded");
     g_enabled = false;
 }
