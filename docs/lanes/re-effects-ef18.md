@@ -5,7 +5,9 @@
 ## Handoff
 - Goal: answer EF18 and EF19 in effects.md; archive questions and add prose conformance vectors.
 - Done: `88f1af3c5` adds §3.1 legacy decoding, component arithmetic/store order, six proposed EF19 vectors.
-- Next: finish EF18 bootstrap/collection and queue contract; archive both answers and run checks.
+- Done: `ea548753c` adds §§6.2/18.6 and archives EF18/EF19; questions index/check pass.
+- Validation: initial doccheck check passed; final review adds optional-file exception behavior and camera-copy detail.
+- Next: rerun doccheck/questions checks, commit final corrections, write Report and queue entry.
 - Facts: ParseQueuedFiles calls file-parser ParseFiles, reports error or success; it is not a separate parser class.
 - Facts: legacy placement is 13 floats plus a u32 revision; flags become 5 or 7; dot order z,x,y.
 - No engine, plugin, capi or ABI edits permitted. Use main checkout export read-only.

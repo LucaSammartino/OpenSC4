@@ -313,7 +313,8 @@
   optional packed main.fx, extra resources, then unpacked files when selected.
   Collection Begin retains descriptions but clears bindings/triggers; publication
   copies and fixes references without rejecting unresolved names; End rebuilds
-  ID and trigger indices. Eleven proposed conformance vectors.
+  ID and trigger indices. Twelve proposed conformance vectors, including optional
+  file exception suppression (flag bit 0 clear).
 
 <!-- from: core-effects-close5 (2026-10-24) -->
 - ~~**EF19 - §§3, 8.3, 9.2 component transform decoding and numeric order:** what is the mapping from the 56-byte `S3DTransformLegacyLoad` placement to rotation/scale/translation, and the intermediate operation/store order for component world positions? [Implement the literal semantic parent translation + parent rotation/scale of local offset using binary32 products and left-to-right sums, with direct parent translation for a zero local offset. Do not decode the opaque placement bytes or claim native numeric equivalence. Manager legacy placement decoding remains outside this component API.]~~

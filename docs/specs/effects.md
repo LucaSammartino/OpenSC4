@@ -436,7 +436,7 @@ supported synchronous operations, not an Unsupported feature or a worker job.
 retains it and initializes its command dictionary; replacing a different parser
 retains the replacement before releasing the old one (`00680930`). Queue slot 6
 appends a copied input path and its parent directory, retaining insertion order
-and duplicates; flag bit 0 is saved on the input record, and flag bit 1 requests
+and duplicates; flag bit 0 marks a required input, and flag bit 1 requests
 a directory watcher (shared for inputs with the same parent directory). Appending
 sets `filesModified` true (`00681DA0–00681F52`). The queue is an input-file list,
 not a list consumed by a successful parse. `NumInputFiles` and `InputFilePath`
@@ -454,6 +454,14 @@ contracts. This is repeated parsing of the retained inputs, not creation of a ne
 effects manager. The ordinary all-success result is true, with diagnostic
 `Successfully parsed %d lines`; file-open failures produce
 `Couldn't open file '%s'` (`00680EA0`, `006812F0`, continuation `006813ED`).
+File exceptions are caught per input and processing continues with the next
+queued input. A required input's exception stores its diagnostic and makes the
+batch fail. An optional input's error code 2 (cannot open) is suppressed; another
+optional-input exception stores its diagnostic but still does not make the batch
+fail. A later successful batch result can therefore overwrite that optional
+diagnostic with the success line count. A failure already recorded for a required
+input remains a failure through later inputs. Evidence: per-input catch
+`006813A2–006813E9`, accumulation `006813ED–0068140A`.
 The literal not-ready path (no parser, or its ready query is false) stores
 `Not ready to parse` but returns true because its error flag remains clear
 (`00681450–006814AF`): preserve this odd success result as a quirk.
@@ -516,9 +524,10 @@ must record calls individually, not return a prebuilt bootstrap result.
 | EF18-1 | Queue contains A, B, A; parse twice, all succeed; both reporting services present | inputs visited A,B,A twice; queue remains length 3; two UI clears and two `C9F775BB` sends |
 | EF18-2 | File parser returns false with diagnostic D; UI absent, message service present | diagnostic queried, no completion message; earlier publications retained |
 | EF18-3 | Default packed option, base resource succeeds, main.fx absent, extra keys have instances 1,2,3 | Begin; base reader; render-properties refresh; skip instance 1; readers 2 and 3 in service order; End; no file append |
-| EF18-4 | Option `OFF`, resource service present, extra resource R; config.fx succeeds, main.fx fails | Begin; no base request; R read; attach/install; append config flags 3 then main flags 2; parse; error report; progress 2; detach; End; R's publications retained |
+| EF18-4 | Option `OFF`, resource service present, extra resource R; required config.fx fails, optional main.fx succeeds | Begin; no base request; R read; attach/install; append config flags 3 then main flags 2; parse both; error report; progress 2; detach; End; R's publications retained |
 | EF18-5 | Packed enabled, resource service absent, main.fx exists | Begin then End; no file parse, no render-properties alternative, no enumeration |
 | EF18-6 | No installed command parser | file parser stores `Not ready to parse` yet returns true; manager clears UI error and sends completion if those services exist |
+| EF18-12 | Required config.fx succeeds, optional main.fx cannot be opened (error code 2) | optional exception suppressed; batch succeeds; success UI/message path; retained queue still has both paths |
 
 ## 7. Finishing and the end message *[compat]*
 
@@ -884,7 +893,8 @@ State: `active`, `longOp`, accumulator `acc`, elapsed `t`, previous position `pr
 - **Start(mode)** (`0x005812C0`): `prev := cur`; `active := 1`; `longOp := 0`; `acc := 0`; `t := 0`.
 - **SetTransform(local, parent)** (`0x00581560`): `cur := (x, z)` of the parent translation plus the parent's
   rotation and scale applied to the local offset. With an identity local or parent, the other's translation is used
-  directly.
+  directly. Here identity means a zero transform flag byte; see §3.1 for the exact
+  shortcut precedence, legacy decoding, product order and binary32 stores.
 - **IsActive** returns `active`.
 - **Update(dt)** (`0x005817F0`):
   - **One-shot** (`+0x18` set): `active := 0`, then `Apply(trunc(rate))`. Nothing else: no long operation, no
@@ -994,7 +1004,7 @@ State:
 Slots:
 
 - **SetParameter(13, p, …)** (slot 6, `0x005BC2B0`): `data := *(uint32*)p`. Other indices are ignored.
-- **SetTransform** (`0x005BC3B0`): computes the world position. `cell := (floor(x / 16), floor(z / 16))`. A change of
+- **SetTransform** (`0x005BC3B0`): computes the world position by §3.1. `cell := (floor(x / 16), floor(z / 16))`. A change of
   cell sets `pending := 1` (and recomputes the map rectangle).
 - **Start** (`0x005BD070`). Only when not started and the simulator exists:
   1. `started := 1`; `count := 0`.
@@ -1869,7 +1879,9 @@ indices; there is no nesting counter or transaction rollback. The generic
 collection's Begin (`0058BEF0`) clears the effect-ID binding vector and message
 trigger vector and clears its camera-present byte. It **retains** the description
 arrays and their name maps, including component descriptions covered by
-effects-parser §11.1. The manager's Begin (`0058F690`) first unsubscribes its
+effects-parser §11.1. `SetCameraParams` (`00588810`) copies the float curve and
+four following scalar words and sets camera-present true; Begin clears only that
+presence flag, not the stored curve/scalars. The manager's Begin (`0058F690`) first unsubscribes its
 message target from every previous trigger's message ID when a message service
 exists, clears its ID-pair and trigger lookup tables, then performs that generic
 Begin. Existing runtime effects are not stopped by this operation.
