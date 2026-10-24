@@ -1109,3 +1109,7 @@ add_test(NAME landvalue_capture_contract_test COMMAND fc4_landvalue_capture_cont
 add_executable(fc4_process_hash_state_test tests/process_hash_state_test.cpp)
 target_include_directories(fc4_process_hash_state_test PRIVATE plugin)
 add_test(NAME process_hash_state_test COMMAND fc4_process_hash_state_test)
+# GZ11: opt-in read-only bounded queue-manager lookup diagnostic.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
+endif()

@@ -1154,3 +1154,6 @@ mod lua_registry_shadow;
 // Private record-only SC token adapter observation replay.
 mod scres_shadow;
 mod scres_file_shadow;
+
+// GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
+mod gzmsg_shadow;
