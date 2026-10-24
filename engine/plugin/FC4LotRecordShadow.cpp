@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <vector>
 
-extern "C" int32_t fc4_lotrec_verify(const uint8_t*, uint32_t, uint8_t*, uint32_t);
+extern "C" int32_t fc4_lotrec_verify(const uint8_t*, uint32_t, uint8_t*, uint32_t, uint32_t*);
 namespace fc4 { namespace {
 template<class R, class... A> R Call(void* p, unsigned slot, A... args) {
     using F = R (__thiscall*)(void*, A...);
@@ -34,6 +34,9 @@ struct Sample {
     cIGZSerializable* serializable = nullptr;
     bool captured = false;
     uint64_t bytes = 0;
+    uint64_t trips = 0, exactTrips = 0;
+    // LR15: unit/base-texture/wall discovery has no specified completeness or
+    // ownership contract. Do not traverse reference targets or guess getters.
     static void Capture(void* p) {
         auto& s = *static_cast<Sample*>(p);
         void* view = nullptr;
@@ -84,9 +87,14 @@ struct Sample {
             const auto& record = capture.Bytes();
             bytes += record.size();
             std::vector<uint8_t> encoded(record.size());
+            uint32_t tripCount = 0;
             const int32_t n = fc4_lotrec_verify(record.data(), static_cast<uint32_t>(record.size()),
-                encoded.data(), static_cast<uint32_t>(encoded.size()));
+                encoded.data(), static_cast<uint32_t>(encoded.size()), &tripCount);
             const bool equal = n >= 0 && static_cast<size_t>(n) == record.size() && encoded == record;
+            trips += tripCount;
+            // Conservative evidence: credit trips only when their entire containing
+            // lot is byte-exact. A rejected lot remains an inventory error below.
+            if (equal) exactTrips += tripCount;
             observation.Record(true, n >= 0, equal);
             if (!equal && observation.errors + observation.differences <= 8) {
                 size_t offset = 0;
@@ -104,7 +112,8 @@ void Run(void* p) { static_cast<Sample*>(p)->Run(); }
 }
 void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     static const bool enabled = SettingInt("lotrec_shadow", "FC4_LOTREC_SHADOW", 0) != 0;
-    if (!enabled) return;
+    static const bool tripEnabled = SettingInt("lottrip_shadow", "FC4_LOTTRIP_SHADOW", 0) != 0;
+    if (!enabled && !tripEnabled) return;
     Sample sample{city};
     if (!SehGuard("LR12 master lot record shadow", &Run, &sample)) ++sample.observation.errors;
     // The block is non-COM: unregister and C-free on normal and early exits.
@@ -117,9 +126,13 @@ void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     }
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("lotrec shadow %04d-%02d-%02d %s: julian=%d expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props; mismatches=%u",
+    if (enabled) Log("lotrec shadow %04d-%02d-%02d %s: julian=%d expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props; mismatches=%u",
         date.year, date.month, date.day_of_month, loaded ? "load" : "month", julian,
         s.expected, s.visited, s.captures, s.exact, s.expected,
         s.differences, s.errors, s.expected == 0 && s.Mismatches() == 0 ? 1u : 0u, sample.bytes, s.Mismatches());
+    if (tripEnabled) Log("lottrip shadow %04d-%02d-%02d %s: owner=cSC4TripData lots=%u/%u exact=%llu/%llu empty=%u mode=record-only scope=master-lot-inline-trips excluded=off-list-trips; mismatches=%u",
+        date.year, date.month, date.day_of_month, loaded ? "load" : "month",
+        s.exact, s.expected, sample.exactTrips, sample.trips,
+        sample.trips == 0 && s.Mismatches() == 0 ? 1u : 0u, s.Mismatches());
 }
 }

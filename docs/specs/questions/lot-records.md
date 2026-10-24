@@ -23,3 +23,17 @@
   of objects absent from the master list, and required outcomes for unsupported/unspecified prop
   subclasses. [lotrec_shadow deferred; implement and land the independently specified SG3
   simgrid_shadow first, without claiming lot-record coverage]
+
+<!-- from: glue-lots-shadow12 (2026-10-24) -->
+- **LR15 - sections 4, 6, 7 and 14.1, separate excluded-owner shadows:** section 14.1 now
+  explicitly excludes business-unit payloads, base textures and retaining walls from `lotrec_shadow`.
+  For separately named default-off shadows of these three owners, please specify the live inventory
+  and completeness criterion, native discovery signatures and reference ownership. In particular,
+  does the union of master lots' `GetUnit()` results exhaust business units, and is that getter's
+  result borrowed? For base textures/walls, which occupant-manager enumeration covers each object
+  exactly once (including objects outside lot bounds), what are its bounds/filter arguments and
+  list-element retain/release rules, and how is successful empty enumeration distinguished from
+  failure? The public SDK declares getters/queries but does not state these ownership/completeness
+  contracts. This is a follow-up for the explicitly excluded owners, not an expansion of LR12's
+  resolved master-lot inventory. [do not call these discovery paths or claim these owners verified
+  until specified; continue measuring master lots and their inline trips under section 14.1]
