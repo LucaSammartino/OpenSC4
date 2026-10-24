@@ -13,6 +13,7 @@
 - Fix: SCRes lends its idle DR0 solely around weather's synchronous weekly call (weather 5.2: no parser calls, queued notifications); existing native observation saves/restores all DR0/DR6/DR7 state. Refuse active parser frames, foreign occupied DR0 or non-execution slot.
 - Next: collect full all gate session 99595, then house-profile runs on/off to 2032 with seconds=1500. No date catch-up invented: measured native dates agree and extra steps would not replay native behavior.
 - Diagnostic source logs first actual record difference even if CRT counters already differ; logs first 48 weekly delivery/native dates and CRT states.
-- No game request outstanding. Full all gate session 99595 must be collected.
+- Full final gate PASS: Rust 6960/6960, clippy zero diagnostics; native build and CTest PASS (build-results/qbuild-20261024-070503-build-ctest.verdict). Session 99595 collected to terminal.
+- Next: final house-profile run weather-boot8-fixed-on-05, then weather-boot8-fixed-off-06, both to 2032 with seconds=1500.
 - weather-boot8-before-on-01 rejected (submitted before DLL existed); no questions filed.
 - Do not read or edit tools/; coordinator must handle any regress profile update.
