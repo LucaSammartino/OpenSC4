@@ -429,6 +429,11 @@ result is still **1** (`0x004E9986` → `0x004E99FC` → `0x004E9A1F`). A failed
 
 ## 7. Message dispatch (`DoMessage` `0x004EAF20`)
 
+The listener **produces** `0x8A4A69C7`; its camera inputs and notification threshold are
+specified in [audio owner contracts §18](audio-owner-contracts.md#18-listener-camera-inputs-and-position-notifications).
+Its void payload points into listener position state, so a consumer must not assume a copied
+coordinate snapshot. This manager's payload consumption and attention rectangle remain §4.2.
+
 The message must answer `0x65297976`; otherwise return 0.
 
 | Type | Handler | Returns |
