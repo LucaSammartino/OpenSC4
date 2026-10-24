@@ -616,11 +616,17 @@ cGZWinDragAndDropManager	widget toolkit	ui	widget-dragdrop.md	-	-	-
 cGZWinOutline	widget toolkit	ui	widget-outline.md	-	-	-
 cGZWinKeyAcceleratorResFactory	widget toolkit	ui	widget-accelres.md	-	-	-
 cGZWinKnob	widget toolkit	ui	scripted-window-director.md	-	-	-
+cGZWinBMP	widget toolkit	ui	widget-bmp.md	-	-	-
+cGZWinTreeViewDrag	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinDlg	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinTreeView::GZWinTreeView_TreeNode	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWin::ChildList	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinTextEdit::UndoRedoAction	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
-fn:unscript	widget toolkit	ui	-	-	-	-
-fn:script_tag_*	widget toolkit	ui	-	-	-	-
-fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
+fn:unscript	widget toolkit	ui	widget-misc.md	-	-	-
+fn:script_tag_*	widget toolkit	ui	legacy-control.md, widget-misc.md	-	-	-
+fn:GetGZWinFont	widget toolkit	ui	widget-misc.md	-	-	-
 cGZGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZBarGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZLineGraph	widget toolkit	ui	widget-graphs.md	-	-	-
@@ -637,7 +643,7 @@ cSC4ScriptedWindowCOMDirector	widget toolkit	ui	scripted-window-director.md	-	-	
 cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-
 cRZWinKeyAcceleratorRes	widget toolkit	ui	widget-accelres.md	-	-	-
 cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
-cRZCursorManager	widget toolkit	ui	-	-	-	-
+cRZCursorManager	widget toolkit	ui	widget-misc.md	-	-	-
 cGZClipboardManager*	widget toolkit	ui	clipboard.md	-	-	-
 cGZCheatCodeManager	widget toolkit	ui	cheat-codes.md	-	-	-
 cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
