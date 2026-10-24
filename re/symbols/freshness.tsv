@@ -1,0 +1,14 @@
+va	name	evidence	mac_x86
+009458c4	cFreshScore::GetCell	freshness.md §2.1 (+0x48 + (row*64 + col)*4)
+00946039	cFreshScore::ParseScore	freshness.md §2.2 (versions 5-7)
+009475fb	cFreshPlayer::BeatTime	freshness.md §4.6 ((n - origin) * 60000 / tempo)
+00947ad9	cFreshPlayer::ChooseDivision	freshness.md §4.8
+00947f58	cFreshPlayer::UpdateBeatClock	freshness.md §4.6 (the 250 ms sound-system update)
+00948719	cFreshPlayer::FindBestCellToStart	freshness.md §4.7 (vtable slot 54)
+00948573	cFreshPlayer::ToggleCell	freshness.md §4.7 (body: the start score, slot 58)
+00946c2c	cFreshCellPlayer::Start	freshness.md §5.1
+00945820	cFreshCellPlayer::UpdateScaledVol	freshness.md §5.2
+0094680f	cFreshCellPlayer::StartCellExternal	freshness.md §5.5
+00949902	cFreshDimensionPlayer::cFreshDimensionPlayer	freshness.md §6 (400 bytes, CLSID 0xBDDA72DD)
+00949d19	cFreshDimensionPlayer::RebuildCellPool	freshness.md §6
+00949ea4	cFreshDimensionPlayer::SetScoreEnabled	freshness.md §6

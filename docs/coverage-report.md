@@ -8,7 +8,7 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 4,357,020 | **78.0%** | 20,382 | 69.0% |
+| **specified** | a spec in docs/specs covers its owner | 4,386,810 | **78.5%** | 20,685 | 70.0% |
 | **implemented** | a clean-room module in engine/ implements its owner | 3,111,003 | **55.7%** | 13,653 | 46.2% |
 | **verified** | its same-process shadow is exact in the run that measured it | 1,519,668 | **27.2%** | 6,499 | 22.0% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,068,599 | **19.1%** | 4,150 | 14.1% |
@@ -22,7 +22,7 @@ Game code, the denominator (every function outside the library and compiler buck
 | all functions (Ghidra auto-analysis) | 35,636 | 6,508,948 | 95.9% |
 | excluded: libraries and compiler-generated code | 6,100 | 924,106 | 13.6% |
 | **game code (the denominator)** | **29,536** | **5,584,842** | **82.3%** |
-| of which shared helpers (reached from several owners) | 2,020 | 190,905 | 2.8% |
+| of which shared helpers (reached from several owners) | 2,005 | 189,808 | 2.8% |
 | of which unattributed (no rule gives an owner) | 831 | 85,977 | 1.3% |
 
 ## By area
@@ -34,13 +34,13 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 | simulation | 8,743 | 1,976,926 | 35.4% | 98.7% (97.9%) | 79.5% (74.8%) | 63.5% (61.8%) | 54.1% (47.5%) |
 | framework | 4,910 | 634,793 | 11.4% | 86.2% (78.1%) | 67.1% (59.2%) | 3.8% (5.0%) | 0.0% (0.0%) |
 | renderer | 5,200 | 1,215,450 | 21.8% | 84.8% (86.2%) | 62.6% (64.2%) | 19.7% (16.3%) | 0.0% (0.0%) |
-| ui | 5,144 | 1,108,403 | 19.8% | 55.6% (38.0%) | 27.6% (13.1%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| audio | 1,980 | 224,471 | 4.0% | 56.9% (63.0%) | 5.0% (2.9%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| ui | 5,141 | 1,108,091 | 19.8% | 55.6% (38.0%) | 27.6% (13.1%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| audio | 1,998 | 225,880 | 4.0% | 69.8% (77.6%) | 5.0% (2.9%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 415 | 111,726 | 2.0% | 75.7% (74.5%) | 31.0% (33.3%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | other | 293 | 36,191 | 0.6% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| shared | 2,020 | 190,905 | 3.4% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| shared | 2,005 | 189,808 | 3.4% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 831 | 85,977 | 1.5% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,536** | **5,584,842** | 100.0% | **78.0%** (69.0%) | **55.7%** (46.2%) | **27.2%** (22.0%) | **19.1%** (14.1%) |
+| **all game code** | **29,536** | **5,584,842** | 100.0% | **78.5%** (70.0%) | **55.7%** (46.2%) | **27.2%** (22.0%) | **19.1%** (14.1%) |
 
 ## By subsystem
 
@@ -153,10 +153,10 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | renderer | fire flames | 2 | 16 | 3,513 | yes | - | - | - | - |
 | renderer | graphics formats (FSH, S3D) | 3 | 17 | 3,279 | yes | yes | - | - | - |
 | ui | widget toolkit | 119 | 3,271 | 465,786 | part | part | - | - | - |
-| ui | windows and panels | 59 | 1,010 | 391,539 | part | part | - | - | - |
+| ui | windows and panels | 59 | 1,007 | 391,227 | part | part | - | - | - |
 | ui | city tools and input | 33 | 628 | 182,024 | part | part | - | - | - |
 | ui | resource and exemplar editor | 26 | 235 | 69,054 | part | part | - | - | - |
-| audio | audio | 62 | 1,980 | 224,471 | part | part | - | - | - |
+| audio | audio | 65 | 1,998 | 225,880 | part | part | - | - | - |
 | region | region | 28 | 415 | 111,726 | part | part | - | - | - |
 | other | other free functions | 142 | 174 | 24,949 | - | - | - | - | - |
 | other | other SC4 classes | 46 | 119 | 11,242 | - | - | - | - | - |
@@ -185,14 +185,14 @@ Which rule gave each function its owner (COVERAGE.md, applied in this order). Ed
 
 | Rule | Functions | Bytes | % of all function bytes |
 |---|---:|---:|---:|
-| name-high | 8,920 | 2,467,337 | 37.9% |
-| name-medium | 4,122 | 1,212,868 | 18.6% |
-| reach | 7,473 | 1,004,495 | 15.4% |
+| name-high | 8,993 | 2,488,287 | 38.2% |
+| name-medium | 4,111 | 1,203,148 | 18.5% |
+| reach | 7,441 | 996,899 | 15.3% |
 | library-range | 4,885 | 754,624 | 11.6% |
-| neighbour | 2,118 | 215,018 | 3.3% |
+| neighbour | 2,108 | 213,375 | 3.3% |
 | owner-range | 768 | 198,747 | 3.1% |
-| reach-shared | 1,463 | 167,298 | 2.6% |
-| vtable | 1,808 | 111,539 | 1.7% |
+| reach-shared | 1,448 | 166,201 | 2.6% |
+| vtable | 1,803 | 110,645 | 1.7% |
 | free-neighbour | 347 | 100,315 | 1.5% |
 | library-name | 893 | 98,189 | 1.5% |
 | unattributed | 831 | 85,977 | 1.3% |
@@ -275,13 +275,13 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | ghidra/export/windows/calls.tsv | 3975d7030d997e48 | Ghidra 12.1.4 auto-analysis export |
 | ghidra/export/windows/data-references.tsv | 056c6ca265d810c6 | Ghidra 12.1.4 auto-analysis export |
 | ghidra/export/windows/instructions.asm | 946a3559f8f4c7a1 | Ghidra 12.1.4 auto-analysis export |
-| re/names_windows.tsv | d27589298faac8d8 | |
+| re/names_windows.tsv | 93d71b4d1555ddf6 | |
 | docs/abi/vtables.tsv | 0cdf26326ee8efc5 | |
 | docs/abi/interfaces.tsv | b0388a6737555514 | |
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 14e896866f92b2f7 | |
+| tools/coverage-map.tsv | 7b00a5a342230172 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | c62e340ab975592b | |
 | engine/plugin/FC4Subsystems.cpp | eec7afb8a9f649b7 | |
