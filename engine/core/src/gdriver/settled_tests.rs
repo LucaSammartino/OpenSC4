@@ -416,9 +416,12 @@ fn dx7_62_aliased_fallback_failed_recovery_and_cleanup() {
     d.current.words[1] = 800;
     d.current.words[2] = 600;
     d.current.words[0] = 0;
+    d.current.set_byte(0x20, 1); // fullscreen
+    d.current.set_byte(0x22, 1); // request two back buffers, then fall back to zero
     d.modes = vec![d.current];
     d.color_probe = Some(false);
-    assert!(d.setup(1, &mut h).unwrap()); // mode back-buffer count defaults to zero
+    h.failures.extend([(Call::CreateSurface, FAIL); 2]);
+    assert!(d.setup(1, &mut h).unwrap());
     assert_eq!(d.context.primary, d.context.target);
     assert_eq!(d.primary_surface, d.auxiliary_surfaces[0]);
     let surface = d.primary_surface;
@@ -426,7 +429,7 @@ fn dx7_62_aliased_fallback_failed_recovery_and_cleanup() {
     h.failures.push_back((Call::CooperativeLevel, LOST));
     d.flush(&mut h).unwrap();
     assert_eq!(h.refs.iter().filter(|r| **r == (surface, Op::Release)).count(), 2);
-    h.failures.push_back((Call::CreateSurface, FAIL));
+    h.failures.extend([(Call::CreateSurface, FAIL); 3]);
     d.flush(&mut h).unwrap();
     assert!(d.lost);
     assert_eq!(d.primary_surface, 0);
