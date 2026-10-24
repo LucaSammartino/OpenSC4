@@ -1,70 +1,78 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widget-controls-wc7: control behavior questions | Codex; detached reserved worktree re-widget-controls-wc7 | in progress: round 2, WC1-WC3; prior WC4/WC5/WC6 doccheck passed | Verify remaining adapters, lifecycle and input against export; extend specs and vectors. |
+| re-widget-controls-wc7: control behavior questions | `Codex` / detached reserved worktree `re-widget-controls-wc7` (RE lane) | ready: partial closure; WC1 answered, WC2 narrowed, WC3 open; doccheck passed; no ABI/game changes | 1. Finish WC2 remaining slots and wrappers. 2. Answer WC3 input/drag/rendering. 3. Engine lane implements/tests settled rules and updates closure rows. |
 
 ## Report
 
-Partial closure, as permitted by the round cutoff: answered WC4, WC5 and WC6
-in [widget-controls](../specs/widget-controls.md), moved them to the
-[answer archive](../specs/questions/answered/widget-controls.md), and regenerated
-the question index. WC1-WC3 remain in the open question file. WC2 and WC3
-were not already archived at this base. No duplicate open questions were added.
+Round 2 stops at the prescribed two-thirds context cutoff with passing,
+committed partial work. It does not claim complete widget_controls closure.
 
-### Changes and evidence
+### Changes and measured evidence
 
-- `2cc7327cc`: WC6, sections 6.3/6.5 and vectors T13-T18. Root flag 0x2,
-  image flag 0x4, connector flag 0x8, preorder membership/depth, last-selected
-  navigation anchor, reserved image space, paint rectangles and inclusive hit
-  edges. Viewport height derives floor whole-row and ceil paint/page counts.
-  Export instructions verify integer widths, shifts and x87 division/ceil.
-- `819363eb7`: WC4/WC5, sections 5.3/5.5 and vectors L19-L26. Removing the
-  selected non-last row retains its index, next-page uses requested origin
-  plus wholeRows, and drop policies specify parent clipping and raw-string
-  width measurement. Literal ASCII # introduces color syntax; ## removes one
-  byte for a literal prefix. Constants were read from the main executable;
-  behavior was checked in the local export/decomp and instructions.
-- Fourteen added vectors are specification scenarios, not executed game
-  comparisons. No translated pseudocode or instruction listings were added.
+- `14590ec17`: answered WC1 in widget-controls section 5.6, corrected the
+  ListBox slot inventory, added vectors L27-L36, moved WC1 into the answer
+  archive and regenerated the question index. Sorting adapters had been
+  mistaken for update suppression. Folded getters, byte/output signatures,
+  clear/remove/copy/search wrappers, colors/gutters/drop policies, scrollbar
+  skin and notification delivery are specified. Native negative removals can
+  decrement count without deleting storage. Fractional highlight intensity
+  produces no fill; NaN survives the setter. Malformed scans can reuse prior
+  RGB stack words; the owner appends no ellipsis. Move and mouse-up use
+  opposite capture-owner comparisons. Shutdown/destruction domains differ.
+- `391e9d561`: partial WC2 section 6.6 and vectors T19-T26. Insertion and
+  get/set use different descriptor layouts; getter replaces a native child
+  list with immediate handles. Sentinels -2/-3/-4 mean prepend/append/sorted;
+  equal sorted labels precede older equals. Globally absent references fail
+  after consuming a handle and leaking the constructed node; valid references
+  outside the chosen parent append. Node fonts are borrowed. Shutdown leaves
+  internal-init and the now-dangling root pointer intact, so later Init is not
+  a supported fresh restart. O3-O18/O37/O40/O41 property quirks are specified,
+  including unsigned clamp to the flags word and absent negative index check.
+- Evidence used only the main checkout's re_query export and bounded decomp
+  reads. Numeric widths, x87 conditions, index bounds and insertion list
+  helpers were verified against instructions with address citations. REA
+  was not invoked because the brief says this session has no binary open.
+- Eighteen added vectors are implementer scenarios, not executed comparisons.
+  No engine, plugin, capi, tools/coverage-map.tsv or ABI-table changes.
 
 ### Gate and limits
 
-`python tools/doccheck.py check`: PASS, exit 0, `doccheck check: ok`.
-Log: `build-runs/doccheck-re-widget-controls-wc7.log`. `git diff --check`
-also passed. Cargo, clippy and ctest: n/a for this spec-only lane.
+`python tools/doccheck.py check`: PASS, exit 0, `doccheck check: ok`, after
+both milestones. Final log: `build-runs/doccheck-re-widget-controls-wc7-r2-final.log`.
+`git diff --check` passed. Cargo, clippy and ctest: n/a for spec-only work.
+Git printed a packed-refs.lock permission warning during commits, but
+commits completed successfully. Shared refs/config/hooks were not changed.
+No game run, shadow exactness result, game request or new C ABI export.
+No proposed ABI rows file was needed.
 
-The first attempt through q.py failed before starting doccheck because Git
-Bash CreateFileMapping was denied (wrapper exit 256). The successful check
-was then run directly in PowerShell, foreground, with output saved locally.
-Git printed a packed-refs.lock permission warning during commits, but both
-commits completed successfully; no refs/config/maintenance changes were made.
+### Questions and owner closure
 
-No game runs, shadow comparison, REA calls, C ABI changes, proposed ABI rows,
-engine/plugin/capi changes or coverage-map changes. The export supplied the
-needed evidence; no REA error or fallback occurred.
+WC1 is now archived in `docs/specs/questions/answered/widget-controls.md`.
+WC2 and WC3 remain open in `docs/specs/questions/widget-controls.md`; WC2
+has an explicit list of its remaining work. Prior WC4/WC5/WC6 remain archived;
+no duplicate questions were added. Round 1 commits were `2cc7327cc` (WC6)
+and `819363eb7` (WC4/WC5).
 
-### Owner closure guidance
-
-The requested owner table still has open WC2/WC3 rows. None of its TreeView
-rows 6.1-6.5 or 8 can be marked fully closed by this partial change. An engine
-lane can remove the WC6 flatten-flags boundary from 6.5 and the literal
-root-inclusion proviso below the table once implemented/tested, but WC3 paint
-and gradient requirements remain open. Row 8 must retain WC2/WC3 while dropping
-WC6. ListBox removal/drop-sizing and color-prefix predicates are now available
-for owner tests. Grid, TextEdit and FileBrowser rows receive no new closure.
+The expressly requested engine README table was read only. TreeView rows
+6.1-6.5 and 8 cannot yet be marked fully closed: WC2/WC3 remain. An engine
+lane can remove the WC6 boundary from 6.5/8 and the root-inclusion proviso
+below the table after implementing/testing the already-settled rules; its
+WC3 rendering boundary remains. WC2 property/descriptor/insertion/restart
+boundaries can now be narrowed to the remaining items below. ListBox WC1
+boundaries now have behavior and vectors for owner tests; no full owner
+implementation claim is made. Grid, TextEdit and FileBrowser receive no new
+closure from this round. No engine file was edited.
 
 ## Handoff
 
-- Round 2 resumed 2026-10-24; WC1/WC2/WC3 are open, WC4/WC5/WC6 archived.
-- Round 2 milestone: WC1 answered in section 5.6 and L27-L36, archive/index updated; next WC2 descriptor/property/lifecycle audit.
-- WC1 committed 14590ec17; doccheck and diff whitespace passed. WC2 partial section 6.6/T19-T26 now settles descriptors, ordering, properties and stale-root restart; WC2/WC3 remain open.
-- Cutoff approaching: finish report and queue committed partial closure; no more new RE this round.
-- Read only the expressly requested engine README closure table: TreeView 6.1-6.5/8 still cite WC2/WC3/WC6; no engine edits.
-- Goal remaining: close WC1-WC3; no question was left open because of odd original behavior.
-- Completed: WC6 2cc7327cc; WC4/WC5 819363eb7; doccheck passed.
-- Investigation stopped near the prescribed two-thirds context cutoff; ready applies to committed partial work.
-- Next RE step: WC1 residual ListBox adapters, comparison helpers, malformed rendering, allocation/destruction and capture behavior.
-- Then WC2 TreeView descriptor/property ABI, insertion sentinels/list helpers, ownership/restart; WC3 input/drag/pixel/resource failures.
-- WC6 anchors: FindTreeInfo 009D2FD6, RecalculateAll 009D354F, DrawItem 009D0CB1, DrawNode 009D17A8, key anchor 009D15C1-009D15E3.
-- WC4 anchors: removal 009C93D7, NextPage 009C8EF3, height 009C900F, width 009C9D3B, Init 009C8415.
-- WC5 anchors: paint 009CA19A; constants 00A9F354 (#), 00AA6DDC (##).
-- No game-request labels outstanding; no ABI row file required.
+- Goal remaining: finish WC2 and WC3; WC1/WC4/WC5/WC6 answered.
+- Done: 14590ec17 WC1; 391e9d561 partial WC2; doccheck and whitespace passed.
+- Next exact step: inspect O19-24 image/insertion wrapper bodies at 009D3F7B/009D34A7/009D0C63/009D407E/009D3D60/009D3CBA.
+- Then O26-28 move/removal/wrapper at 009D1FAB/009D2E07/009CFC13; instruction reads began but their full contracts were not published.
+- Remaining WC2 node/selection adapters: O31-36/38/42-44/48-55; see question progress paragraph.
+- WC3 remains unchanged: 009D1031/009D135A/009D14BF input; 009D2577 paint; 009D17A8/009D0CB1 drawing; 009D0888 images; drag helper 009CFD89-009D14BE.
+- Main decomp files: decomp/cGZWinTreeView.c and decomp/cGZWinTreeViewDrag.c; use absolute main paths.
+- Node insertion 009D3A7A starts at decomp line 2215; InternalInit 2138; Shutdown 1800. Export is the authority for widths/offsets.
+- WC2 descriptors differ: insert text +8 and expanded +34; get/set text +0, four state bytes +2C..2F, native child list +30.
+- No game-request labels outstanding; no ABI rows file.
+- Detached HEAD is intentional; supervisor publishes commits to reserved branch.
