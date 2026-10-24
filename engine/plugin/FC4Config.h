@@ -647,4 +647,7 @@ std::string IniPath();
 // No writes/saves/flush/compact, segment lifecycle calls, or factory replacement.
 // All-open-files completeness and ReadRecord noninterference: data-formats EX56.
 
+// modelinst_shadow = 0 / 1 (default 0): finite isolated static-instance
+// transform and bounds fixture. Live enumeration/getter contracts await MI14.
+
 }  // namespace fc4

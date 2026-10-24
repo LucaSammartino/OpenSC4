@@ -1164,3 +1164,5 @@ mod renderprops_shadow;
 mod city_shadow;
 // Read-only exemplar lighting parameter comparison; private static-link transport.
 mod lighting_shadow;
+// Private finite model-instance fixture transport; no DLL export changes.
+mod modelinst_shadow;
