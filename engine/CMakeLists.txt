@@ -558,12 +558,11 @@ if(FC4_IS_WIN32_X86)
         plugin/compat/FC4PropOccupantAuthority.h
         # Record-only, opt-in network occupant shadow.
         plugin/FC4NetOccShadow.cpp
-        plugin/FC4NetOccShadow.h)
+        plugin/FC4NetOccShadow.h
         # NR16/NR17 default-off record-only network-rule observation.
         plugin/FC4NetRulesShadow.cpp
         plugin/FC4NetRulesShadow.h
         plugin/FC4NetRulesObservation.h
-        plugin/compat/FC4PropOccupantAuthority.h)
         # Default-off constructed ORIGINAL cRZString monthly shadow.
         plugin/FC4StringsShadow.cpp
         plugin/FC4StringsShadow.h)
