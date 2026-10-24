@@ -1,15 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-ordinance-shadow6: ordinance monthly shadow | Codex, `glue-ordinance-shadow6` | in progress | Inspect contracts, implement and measure the available shadow. |
+| glue-ordinance-shadow6: record-only ordinance monthly shadow | Codex, detached `glue-ordinance-shadow6` worktree | ready: full gate PASS; ordinance 72/72 exact to 2032; no C export changes | Coordinator land, credit coverage, append ordinance_shadow to the existing regress shadows profile on current main. |
 
-## Handoff
-- Goal: default-off record-only monthly ordinance shadow, real-city measurement to 2032.
-- Done: initial handoff 0392b67c3; implemented monthly record copies, read-only core step, state/money/effect comparison and native snapshot tests.
-- Gate 1: Rust 6876 passed, clippy 0 diagnostics; native build failed on date.day (should be day_of_month), CTest skipped. Failed log preserved as build-runs/gate1-fc4verify-build.log.
-- Gate 2: Rust 6876 passed, clippy 0; native build PASS 51/51, CTest 71/72. ret_channel_check required section 4.2 bool getter citations (added). Failed evidence build-runs/gate2-fc4verify-ctest.log.
-- Gate 3 PASS: Rust 6876 passed, clippy 0; native build 47/47 and CTest 72/72 (79.2s). Request qbuild-20261024-023929-build-ctest. Source stable; during-run tree change was this handoff only.
-- Next: submit ordshadow6-20261024-turbo-a to 2032, collect verdict and bounded ordinance log excerpts.
-- Design: serialization sections 9.1-9.3 seed core copies including pending charges; no new C exports. Effect indices 0..8 cover shipped rows, longer mod arrays unmeasured.
-- Constraints: clean-room; never inspect tools or RE sources; native checks through queue.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-ordinance-shadow6-r1-manifest.json`.
-- No build request outstanding. Game label reserved: ordshadow6-20261024-turbo-a. Wait with build-runs/wait-ordinance-verdict.ps1 (single FileSystemWatcher wait, no qwait).
+## Delivered
+
+`ordinance_shadow = 1` (environment `FC4_ORDINANCE_SHADOW`) enables a default-off, record-only shadow. It requires FreeCity4's simulator and the original ordinance simulator. The wrapper delivers the original month message exactly once, including capture-failure paths.
+
+Before delivery, `WriteCapture` copies the original simulator and each standard ordinance through their serialization interfaces (ordinance sections 9.1-9.3). The core reads these copies, including pending charges and raw saved flags. References resolve exclusively to private core handles. The host retains interface-based city reads; object-management, messaging and city mutation callbacks are removed. Copies live only on the delivery thread and are destroyed before their acquired original references are released.
+
+After delivery, comparisons cover available/on/enabled state, adjusted and current monthly income, conditions, simulator state getters, monthly income/expense totals and cumulative effects. Effect properties include the documented section 6.2/6.3 queries and live misc holder enumeration, at indices 0..8. Float factors are compared by bits; offsets use the existing compiled 32-bit compatibility interface. One dated line reports each month, with bounded separate mismatch diagnostics.
+
+The native test seam exercises null/empty snapshots and snapshots with live flags and a nonzero adjusted amount, checking that original flags, money and reference counts remain unchanged. No C ABI exports or version changed.
+
+## Validation
+
+- Final stable-source gate: `qbuild.py --wt <WT> all`, **PASS**. Rust workspace **6876 passed, 0 failed, 0 ignored**; clippy **0 diagnostics**; native build **47/47**; full CTest **72/72**, native verify 79.2 s. Queue request `qbuild-20261024-023929-build-ctest`.
+- The gate's tree-change note came from a documentation-only handoff commit during its wait. Engine source stayed stable.
+- Focused return-channel check: **0 unreviewed uses, 76 reviewed**.
+- Earlier failed evidence retained: `build-runs/gate1-fc4verify-build.log` (incorrect date member, fixed); `build-runs/gate2-fc4verify-build.log` and `gate2-fc4verify-ctest.log` (71/72; missing section 4.2 bool-return citations, fixed). Each retry followed that specific correction.
+- Real city: **`ordshadow6-20261024-turbo-a 72/72`**, every monthly line exact from 2026-02-01 through **2032-01-01**. **20 records, 43 effect properties, 956 checks/month; 68832 checks total.** Verdict **clean**, **ref_warnings=0**, foreign exceptions/stalls/RTC/overruns all zero. Runtime 83.437 s, harness wall 96 s.
+- [Run 374](../runs/ordshadow6-20261024-turbo-a-374.md) records the request, DLL SHA256 and evidence paths. Final line: `ordinance shadow 2032-01-01: records=20 checks=956 effects=43 captured=1 mismatches=0 months=72 clean=72`.
+
+## Scope and questions
+
+No spec questions were needed. The measured scope is the 20 shipped ordinance classes; unknown foreign classes reject capture rather than invoke their mutators. Mod effect-array indices beyond 8 are not measured. Each month is reseeded from original records, so this measures the monthly transition with identical inputs rather than persistence across independent core months. Normal-speed rerun was unnecessary: turbo was exact.
+
+## Coordinator follow-up
+
+Land this detached HEAD and credit the measured ordinance shadow in the coordinator-owned coverage tables. Append `ordinance_shadow` to the existing single regress `shadows = ...` string after updating main. This lane did not inspect or edit `tools/`, merge main, or alter shared refs, as required by its clean-room and detached-worktree instructions. No build or game request remains outstanding.
