@@ -23,6 +23,9 @@
 - Preserved logs: build-runs/qbuild-first-test.log and qbuild-first-clippy.log.
 - Sessions 16330 and 56402 are gone (coordinator instruction); their results are
   incomplete and are not credited as final gates.
+- Older native verdict qbuild-20261024-113435-build-ctest arrived: build
+  260/260 PASS, CTest 81/81 PASS; marked tree changed. Retained as distinct
+  evidence, not substituted for the fresh request.
 - Resume launched one fresh qbuild all on unchanged f155a4cd4 engine source;
   active exec session 91095 (continue collecting with write_stdin).
 - NEXT: collect that same operation to terminal; inspect PASS/FAIL and native
