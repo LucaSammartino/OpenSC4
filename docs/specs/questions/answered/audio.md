@@ -1,5 +1,17 @@
 # audio: answered questions
 
+**ANSWERED 2026-10-24 (re-audio-au50):** DIFFERS — AU47: §11.3 specifies the nine named
+registrations before all 83 leaves, unconditional five-child start sequence, cumulative
+PostAppInit failure result without rollback, and distinct shutdown/destructor orders.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU47 — SC4 director complete lifetime and ordering:** §§1.1/1.3/11 give the five-director
+  add/start order and 92 registrations, but not the constructor interleaving of the nine named
+  classes with the 83 leaves, OnStart return/failure policy, or full PostAppInit service creation,
+  initialization, failure unwind and shutdown/destruction ordering. What are those contracts?
+  [Execute the settled add/start sequence; register the measured class set in literal table order.
+  Leave unspecified application lifetime unsupported rather than invent service success.]
+
 **ANSWERED 2026-10-24 (re-audio-au50):** MATCHES — AU45: §7.2's completed table is authoritative.
 Conformance vector §16.12 now includes the fifth accepted, effect-free type `0x49E64801`;
 the legacy four-operation fixture is a subset, not a dispatch whitelist.

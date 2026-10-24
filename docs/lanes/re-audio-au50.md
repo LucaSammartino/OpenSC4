@@ -6,7 +6,7 @@
 
 - Goal: close core-audio-close11's six RE questions with prose contracts and conformance cases.
 - Done: bb6273807 initial handoff; debbb740c AU45 vector correction and source-question archive.
-- Current: radius/play corrections and director 11.3 written; AU47 NOT archived.
+- Current: radius/play corrections and director 11.3 written; AU47 archived on 2026-10-24.
 - AU46/AU49/AA14 patches did not land (heading mismatch, then guard denial).
 - Next: review/complete 11.3, archive AU47 from core-audio-close11, then finish remaining four
   questions. Regenerate tools/questions.py index; run python tools/doccheck.py check (NOT run).
