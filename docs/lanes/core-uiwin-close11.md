@@ -14,5 +14,6 @@
 - Questions WT10-WT12 appended to docs/specs/questions/widget-toolkit.md; existing WT1-3/5-6 and opaque graphics/create-buffer remain explicit boundaries.
 - Gate for 6e106e666: fmt 6/6 clean; qbuild all PASS, tests 7075 passed/0 failed, clippy 0 diagnostics, native build 256/256 edges, CTest 80/80 (284.0 seconds native). Queue qbuild-20261024-105853-build-ctest completed pass; no outstanding operation.
 - Review identified two corrections before final source: pending filter removals do not own extra references at Shutdown; release a content surface when a fade transfer is ineligible. Add regression tests for both.
-- Next: correct those paths, cover small forwarding helpers, then final fmt/all/verify and final report/queue. Prior full gate was before these corrections; do not present it as the final-source verdict.
+- Corrected both review paths. Added default constructor service lookup and helper coverage. Focused corrected source: 26 passed, 0 failed (raw PowerShell exit remains 1 despite successful test output).
+- Next: final fmt/all/verify and final report/queue. Prior full gate was before these corrections; do not present it as the final-source verdict.
 - No game requests (core-only, no plugin wiring). Native lifetime/graphics ABI closure is not claimed for either owner.

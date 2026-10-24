@@ -212,6 +212,12 @@ pub struct BufferInfo {
 /// Buffer creation internals and native slot meanings stay at this boundary (§12).
 pub trait Host {
     fn event(&mut self, _event: NativeOp) {}
+    fn window_manager(&mut self) -> Object {
+        0
+    }
+    fn manager_keyboard(&mut self, _manager: Object) -> Option<Object> {
+        None
+    }
     fn clock(&mut self) -> u32 {
         0
     }
@@ -308,6 +314,12 @@ pub struct Windows {
 }
 
 impl Windows {
+    /// No-argument constructor: RZ::WM(), then that manager's keyboard (slot 38).
+    pub fn create_default(&mut self, host: &mut impl Host) -> Window {
+        let manager = host.window_manager();
+        let keyboard = host.manager_keyboard(manager);
+        self.create(host, manager, keyboard)
+    }
     /// WT6: caller supplies the initial serial rather than guessing 0 or 1.
     pub fn new(first_instance: u32) -> Self {
         Self {
@@ -415,9 +427,10 @@ impl Windows {
             self.get_mut(w).flags &= !0x4000;
             self.set_accelerator(host, w, None);
             let filters = std::mem::take(&mut self.get_mut(w).filters);
-            // Pending removals still own the filter reference until the outer dispatch ends.
-            let pending = std::mem::take(&mut self.get_mut(w).removed_filters);
-            for f in filters.into_iter().chain(pending) {
+            // Deferred removals name entries in the active list, without an
+            // additional AddRef. Clearing both lists must release each entry once.
+            self.get_mut(w).removed_filters.clear();
+            for f in filters {
                 host.event(NativeOp::Release(f));
             }
             self.hide(host, w);

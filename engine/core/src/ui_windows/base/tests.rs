@@ -16,8 +16,16 @@ struct TestHost {
     no_service: bool,
     calls: Vec<(Window, u32, Vec<u32>)>,
     mutate_filter: bool,
+    shutdown_in_filter: bool,
 }
 impl Host for TestHost {
+    fn window_manager(&mut self) -> Object {
+        100
+    }
+    fn manager_keyboard(&mut self, manager: Object) -> Option<Object> {
+        assert_eq!(manager, 100);
+        Some(200)
+    }
     fn event(&mut self, event: NativeOp) {
         match event {
             NativeOp::BufferColor(b, c) => self.buffers.entry(b).or_default().color = Some(c),
@@ -82,6 +90,9 @@ impl Host for TestHost {
         if self.mutate_filter {
             self.mutate_filter = false;
             wins.remove_filter(self, w, f);
+            if self.shutdown_in_filter {
+                wins.shutdown(self, w);
+            }
         }
         self.filter_handles
     }
@@ -541,4 +552,132 @@ fn private_buffer_failure_and_absent_draw_service() {
     s.set_area(&mut h, r, Rect(10, 20, 110, 120));
     assert_eq!(s.get(r).draw_area, Rect(10, 20, 110, 120));
     assert_eq!(s.get(r).draw_origin, Rect(20, 40, 120, 140));
+}
+
+#[test]
+fn shutdown_during_filter_releases_each_entry_once() {
+    let (mut s, mut h, p) = setup();
+    s.init(&mut h, p);
+    s.add_filter(&mut h, p, 50);
+    h.mutate_filter = true;
+    h.shutdown_in_filter = true;
+    s.do_message(&mut h, p, Message::new(3, 0, 0, 0, 0));
+    assert_eq!(h.events.iter().filter(|e| **e == NativeOp::Release(50)).count(), 1);
+    assert!(s.get(p).filters().is_empty());
+    assert!(s.get(p).removed_filters.is_empty());
+}
+
+#[test]
+fn ineligible_fade_releases_surface_without_temporary() {
+    let (mut s, mut h, p) = setup();
+    let c = child(&mut s, &mut h, p, Rect(0, 0, 20, 20));
+    s.set_flag(&mut h, c, 0x10000, true);
+    s.set_flag(&mut h, c, 0x20, true);
+    s.plot(&mut h, c);
+    let b = s.get(c).private_buffer.unwrap();
+    // Combined masks deliberately bypass private-buffer side effects.
+    s.set_flag(&mut h, p, 3, false);
+    h.events.clear();
+    s.private_buffer(&mut h, c, false);
+    assert!(h.events.contains(&NativeOp::BufferReleaseSurface(b)));
+    assert_eq!(s.get(p).children(), &[c]);
+    assert!(!s.get(c).flag(0x400000));
+}
+
+#[test]
+fn constructors_reparenting_and_tree_forwarders() {
+    let (mut s, mut h, r) = setup();
+    let p = s.create_default(&mut h);
+    assert_eq!((s.get(p).manager, s.get(p).keyboard), (100, Some(200)));
+    s.child_add(&mut h, r, p);
+    let q = child(&mut s, &mut h, r, Rect::default());
+    let a = child(&mut s, &mut h, p, Rect::default());
+    assert_eq!(s.get(a).notification, Some(p));
+    s.child_add(&mut h, q, a);
+    assert_eq!((s.get(a).parent, s.get(a).notification), (Some(q), Some(q)));
+    assert!(!s.get(p).children().contains(&a));
+    s.get_mut(a).notification = Some(r);
+    s.child_add(&mut h, p, a);
+    assert_eq!(s.get(a).notification, Some(r));
+    s.set_flag(&mut h, a, 0x800, false);
+    assert!(!s.child_to_front(p, a));
+    assert_eq!(s.get(r).children()[0], p); // ancestors raised even on rejection
+    assert!(s.send_to_back(p));
+    s.get_mut(p).id = 42;
+    assert!(s.child_to_front_id(r, 42));
+    assert!(!s.pull_to_front(r));
+    assert!(!s.in_child_chain(r, r));
+    assert!(!s.in_parent_chain(r, r));
+    assert!(s.child_remove(&mut h, p, a));
+    assert_eq!(s.get(a).parent, None);
+    assert_eq!(s.get(a).notification, Some(r));
+    assert!(s.get(a).flag(0x4000)); // detach is not shutdown
+    s.child_add(&mut h, p, a);
+    assert!(s.child_delete_absolute(&mut h, p, a));
+    assert!(!s.valid(a));
+    assert!(!s.child_delete_absolute(&mut h, p, a));
+}
+
+#[test]
+fn movement_inherited_buffers_and_child_buffer_rules() {
+    let (mut s, mut h, r) = setup();
+    let p = child(&mut s, &mut h, r, Rect(10, 20, 90, 80));
+    s.set_flag(&mut h, p, 0x10000, true);
+    let c = child(&mut s, &mut h, p, Rect(1, 2, 21, 22));
+    let d = child(&mut s, &mut h, c, Rect(3, 4, 13, 14));
+    assert_eq!(s.get(d).draw_buffer, s.get(p).private_buffer);
+    s.set_flag(&mut h, d, 0x8000000, true);
+    assert_eq!(s.get(d).draw_buffer, Some(900)); // only first parent is checked
+    s.move_to(&mut h, c, 5, 6);
+    s.offset(&mut h, c, 2, 3);
+    assert_eq!(s.get(c).area, Rect(7, 9, 27, 29));
+    assert_eq!(s.get(d).absolute, Rect(20, 33, 30, 43));
+    let before = s.get(c).area;
+    s.center(&mut h, c, None);
+    assert_eq!(s.get(c).area, before);
+    let mut rect = Rect(90, 90, 120, 120);
+    assert!(s.fit_rect(r, &mut rect, 4));
+    assert_eq!(rect, Rect(66, 66, 96, 96));
+    s.set_flag(&mut h, c, 0x10000, true);
+    let buffer = s.get(c).private_buffer;
+    s.set_flag(&mut h, c, 3, false);
+    s.child_private_buffers(&mut h, p, true);
+    assert_eq!(s.get(c).private_buffer, buffer); // hidden buffered child's own buffer retained
+    s.child_private_buffers(&mut h, p, false);
+    assert_eq!(s.get(c).private_buffer, None);
+}
+
+#[test]
+fn empty_enumeration_paint_filter_and_queue_boundaries() {
+    let (mut s, mut h, p) = setup();
+    type Callback = fn(&mut Windows, Window, u32, Object) -> bool;
+    assert!(!s.enum_children(&mut h, p, IID_WIN, None::<Callback>));
+    assert!(!s.enum_children(&mut h, p, IID_WIN, Some(|_: &mut Windows, _, _, _| true)));
+    child(&mut s, &mut h, p, Rect::default());
+    assert!(s.enum_children(
+        &mut h,
+        p,
+        123,
+        Some(|_: &mut Windows, _, _, _| panic!("failed QI must skip callback"))
+    ));
+    s.add_filter(&mut h, p, 50);
+    h.filter_handles = true;
+    h.events.clear();
+    assert!(s.plot_composite(&mut h, p));
+    assert!(!h.events.contains(&NativeOp::Paint(p)));
+    s.queue_enabled = false;
+    assert!(!s.queue_plot(&mut h, Some(p)));
+    assert!(!s.flush_plots(&mut h));
+    assert!(!s.queue_plot(&mut h, None));
+    s.remove_filter(&mut h, p, 50);
+    s.hide(&mut h, p);
+    assert!(!s.plot(&mut h, p));
+    s.set_param(&mut h, p, 1, Some(Param::Integer(1)));
+    s.set_param(&mut h, p, 2, Some(Param::Integer(2)));
+    let mut keys = Vec::new();
+    assert!(!s.enum_params(p, |_, _, key, _| {
+        keys.push(key);
+        false
+    }));
+    assert_eq!(keys, [1]);
 }

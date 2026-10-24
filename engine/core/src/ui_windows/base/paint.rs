@@ -107,9 +107,9 @@ impl Windows {
             let fade = content && self.get(w).flag(0x20) && self.get(w).flag(0x400000);
             if fade {
                 self.get_mut(w).flags &= !0x400000;
-                if !self.get(w).params.contains_key(&FADE_TEMP) && self.ancestors_visible(w) {
-                    self.steal_fade_buffer(host, w, buffer);
-                }
+            }
+            if fade && !self.get(w).params.contains_key(&FADE_TEMP) && self.ancestors_visible(w) {
+                self.steal_fade_buffer(host, w, buffer);
             } else if content {
                 host.event(NativeOp::BufferReleaseSurface(buffer));
             }
