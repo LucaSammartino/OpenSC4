@@ -1,5 +1,5 @@
-tag: mysimdispatch-shadow9-20261024-ctor01-469
-run: 469
+tag: mysimdispatch-shadow9-20261024-ctor01-494
+run: 494
 date: 2026-10-24
 lane: glue-mysimdispatch-shadow9
 dll: FreeCity4-glue-mysimdispatch-shadow9 (source 1f51abb5c, sha256 prefix c05fd09d)

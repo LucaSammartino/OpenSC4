@@ -20,7 +20,7 @@ Milestones: spec merge `16354d1ef`; core `ffa8d7194`; core/shadow `140680449`, `
 
 ## Real-game measurement
 
-[House run 471](../runs/mysimdispatch-shadow9-r2-prefix208-2032-20261024a-471.md), label `mysimdispatch-shadow9-r2-prefix208-2032-20261024a`, was enqueued once after checking for an existing verdict. The prepared request ran in slot 2 with turbo, house shadows and `mysimdispatch_shadow = 1`. The existing wait operation (session 84462, no qwait) was collected to terminal. No request remains outstanding.
+[House run 471](../runs/mysimdispatch-shadow9-r2-prefix208-2032-20261024a-496.md), label `mysimdispatch-shadow9-r2-prefix208-2032-20261024a`, was enqueued once after checking for an existing verdict. The prepared request ran in slot 2 with turbo, house shadows and `mysimdispatch_shadow = 1`. The existing wait operation (session 84462, no qwait) was collected to terminal. No request remains outstanding.
 
 Verdict **clean**, date **2032-01-01**, **810.656 s** simulation wall time (830 s harness wall), **ref_warnings=0**. Foreign exceptions, watchdog stalls, RTC, overruns, Rust panics, structured exceptions and incomplete shadow lines were all zero. Exact verdict summary and shutdown line (without timestamp/pid prefix):
 
