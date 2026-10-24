@@ -532,6 +532,21 @@ the setter invokes expanded, make-visible and select/deselect operations as
 needed, preserving their notifications, then dirties layout and invalidates.
 The complete output descriptor ABI and child-handle copy are WC2.
 
+#### Root inclusion and navigation anchor (WC6)
+
+Flattening is preorder in child-list order. Control flag `0x2` includes the
+special root (node byte `+0x45`); clearing it omits that node and visits its
+children at the same depth, even if its expanded byte is false. With the flag
+set, the root occupies row zero and its children require expansion. Ordinary
+nodes occupy a row regardless of their expanded byte; only their descendants
+are gated by expansion. A special root does not increment indentation depth
+for its children. A hidden root has its flattened-visible byte cleared with
+the other nodes and is not added back. These are owner rules, not an implied
+native-treeview style (`009D2FEB`–`009D30EF`). Keyboard navigation uses the
+last entry in the selection sequence when there are several, the sole entry
+when there is one, and row zero when none. It does not use the first selected
+node (`009D15C1`–`009D15E3`).
+
 ### 6.4 Input, dispatch and notification *[compat]*
 
 DoMessage `009CFD0B` recognizes type 3 / ID `0x887113A3`. Sub-IDs
@@ -592,6 +607,65 @@ for this owner. Exact line/expander pixels, selected gradient arithmetic,
 image-list load failure and drag-helper drawing remain WC3. In particular,
 this section is an interface drawing contract, not pixel-exact conformance.
 
+#### Layout and hit geometry (WC6)
+
+Use unsigned 32-bit stored dimensions and wraparound arithmetic. Let `h` be
+row height (`+0x128`), `b` expander size (`+0x130`), `g` spacing (`+0x134`),
+`i` reserved image width (`+0x12C`), and `mx,my` the margins (`+0x138/+0x13C`).
+Flag `0x4` enables images; `0x8` enables connector/expander drawing. Neither
+changes membership in the flattened sequence. Layout measurement uses
+`c=(i-b)/2` rounded down only when images are enabled and `i>b`, otherwise
+zero. Ordinary depth `d` contributes `(b+g+c)*(d+1)` before the reserved image
+and text space. Root contribution is zero. Maximum content width is the
+maximum contribution plus `g+i+3+font-measured text width` (`009D3017`–
+`009D30D9`). Image/text space is reserved even when image drawing is disabled.
+
+Painting deliberately differs at the numeric edge: its `c` is the logical
+right shift of the wrapping difference `i-b` whenever images are enabled,
+without the measurement pass's `i>b` guard (`009D17DA`–`009D17E8`). For an
+ordinary node its expander origin is `x=(b+g+c)*d+c`,
+`y=(row-first)*h`; the root uses `(0,0)`. Let `a=x+b+g` (root: `a=0`).
+DrawItem's text rectangle is `[a+g+i,y,a+g+i+3+textWidth,y+h]`; text is
+emitted three pixels right and one pixel down from that rectangle's top-left.
+The image, if enabled with a usable index, is centered in the `i` by `h`
+reserved area at `(a,y)`, with each centering difference shifted logically
+right by one. Selected image indices override the ordinary index only when
+not −1; expanded images apply only to expanded nodes having children.
+There is no image-index bounds check (`009D0CB1`–`009D0DFD`).
+
+Painting resets the visited node's three rectangle-valid bytes. Text geometry
+becomes valid when DrawItem targets the working buffer; image geometry becomes
+valid only after successful `0x8010` buffer access/blit. A branch's expander
+rectangle is `[x,y+((h-b) arithmetic-shift-right 1),x+b,
+y+((h-b) arithmetic-shift-right 1)+b]`, recorded only after successful
+`0x8008` access. A leaf has connector lines but no expander hit rectangle.
+These rectangles remain in working-buffer coordinates and are not clipped
+to the viewport (`009D17C0`–`009D17C8`, `009D1A00` vicinity,
+`009D0DAC`–`009D0DB9`, `009D0F64` vicinity).
+
+The drawable viewport starts at window left/top plus `mx,my`. Available
+width/height subtract twice the respective margin and the opposite-axis bar's
+thickness when present, then are capped by working-buffer dimensions.
+Whole rows are unsigned `viewportHeight/h`; the paint/page count is
+`ceil(viewportHeight/h)`, including a partial row. The quotient is computed
+with x87 unsigned-integer conversion and division, passed as a double to
+ceil, then converted to integer; no intervening float store is present
+(`009D3713`–`009D3772`; ceil entry `009F0A20`). Thus `h=0` is outside the
+safe domain. Last paint row is `first+paintCount−1`; it is not clamped to
+total here. The unsigned correction comparison at `009D3782`–`009D37B7`
+compares `last-first` against `paintCount−1`, so ordinary arithmetic does
+not trigger its apparent end-of-content adjustment.
+
+Cursor-to-row lookup first applies the inclusive rectangle test to
+`(mouseX-mx,mouseY-my)` against `[0,0,viewportWidth,viewportHeight]`, then
+unsigned-divides adjusted Y by `h` and accepts offsets up to `last-first`
+inclusive (`009D0626`–`009D0678`). It does not independently check the
+flattened-sequence length. Exact bottom-edge hits can therefore reach an
+unbacked row. Mouse handlers test the recorded subrectangles inclusively
+after transforming X by horizontal scroll minus `mx`, and Y by `−my`.
+Stale/unpainted geometry and out-of-range edge lookup are native quirks;
+no fabricated valid hit is specified for them.
+
 ## 7. Family conformance vectors
 
 The linked owner vectors are part of this specification. These additional
@@ -601,6 +675,12 @@ Use ordinary valid initialized services unless a failure is the test input.
 
 | ID | Setup and action | Required observation |
 |---|---|---|
+| WC-T13 | Root R has children A,B; A has child C and is expanded; clear flag 0x2 and collapse R | Flattened sequence A,C,B; root not flattened-visible; A/B depth zero |
+| WC-T14 | Same hierarchy, set flag 0x2 | Collapsed R alone; expand R to obtain R,A,C,B; A/B still depth zero |
+| WC-T15 | Select A then B with accumulation enabled; navigate Up | Replacement selection is the row before B, using the last selected entry |
+| WC-T16 | Viewport height 33, row height 16, first row 0, enough content | Whole-row count 2, paint/page count 3, last paint row 2 |
+| WC-T17 | Images disabled, b=9,g=3,i=12,h=16,d=1,row=2,first=1,textWidth=20 | Expander origin (12,16); DrawItem origin (24,16); text rectangle [39,16,62,32], text origin (42,17); image space remains reserved |
+| WC-T18 | Successful paint of a branch, then fail its next expander/image access | Visited node's expander/image validity is cleared; failed guarded operations do not restore it; text rectangle still records when DrawItem targets working buffer |
 | WC-L01 | Query ListBox own IID through W, then through L; release results | Both designate L=W+0xD8, with matching retention; null own-IID output fails without AddRef |
 | WC-L02 | Three entries, selection 1; select index 99 with notify=true twice in ordinary mode | Selection 2; two selection messages, each type 3 / 0x08710E0F, payload row 2 |
 | WC-L03 | Same test in drop mode | Selection 2 and invalidation, no selection message from the public select operation |

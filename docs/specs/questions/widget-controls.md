@@ -54,11 +54,3 @@ pixel-exact rendering. No game comparison has been requested or run.
   introducer. [Only a plain-text drawing subdomain can be claimed until WC1
   supplies this predicate; no escape byte is inferred.]
 
-<!-- from: core-widgets5 (2026-10-23) -->
-- **WC6 - TreeView sections 6.3/6.5 root visibility and geometry:** which flags
-  include or hide the root in the flattened sequence, and what are the precise
-  indentation, viewport-count, image-enable and hit-rectangle rules? Which
-  selection entry anchors keyboard navigation when several nodes are selected?
-  [Literal hierarchy flattening includes root and follows child-list order;
-  viewport count is explicit input, first selection anchors navigation.
-  Pixel/layout and native insertion mapping remain open under WC2/WC3.]
