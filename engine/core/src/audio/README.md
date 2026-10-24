@@ -52,12 +52,21 @@ completed dispatch table's conflict with the older four-operation fixture list.
 | SoundManager, audio §8 | Existing instance-table fixture; **pending complete owner execution** | Existing tests; foreign owner tests needed |
 | COMDirector, audio §§1.1,11 | Existing identity/order records; **pending executable lifetime** | Existing fixtures |
 | AEMSEventSystem / AEMSSoundBank, audio §10.7 | Existing data/header model; **pending owner lifetime/IO** | Existing fixtures; AU1 open for bank magic only |
-| EmanationModel2D / 3D / 3DEffects, audio §§3.4,19 | **Pending settled interface/defaults**; transforms open: AU41 | AU9-06 pending |
-| SemManager, audio §19 | **Pending settled interface/teardown**; construction/rollback open: AU41 | Owner tests pending |
-| Listener, audio §18 | **Pending settled dispatch/zoom/notification**; geometry/failure lifetime open: AU40 | AU9-01–05 pending |
+| EmanationModel2D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::TwoD`: constructor, QI views/AddRef/Release, ID/capability | `emanation::tests::au9_06_constructors_and_shared_interfaces` |
+| EmanationModel3D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeD`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
+| EmanationModel3DEffects, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeDEffects`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
+| Each emanation model, contracts §19.1 slots 5–6 | open: AU41 numeric transforms/companion | No fabricated numerical result |
+| SemManager, contracts §19 QI/reference/destructor/teardown | `emanation::SemManager`, retained references, lifecycle QI balancing and unregistration | `sem_teardown_queries_balances_and_destruction_only_releases` |
+| SemManager, contracts §19 construction/registration | open: AU41 constructor/defaults, registration rollback/caller order | Not exposed as replacement initialization |
+| Listener, contracts §18.1–18.2 settled stages | `listener::AudioListener` constructor/QI/Init/Shutdown/city subscriptions/dispatch | `au9_01_02_dispatch_city_lifetime_and_explicit_geometry_gap` |
+| Listener, contracts §18.3 output/zoom, §21.4 AU9-03–05 | `calculate_zoom`, `publish_geometry`, `tuning_recalculated`; measured-geometry continuation only | `au9_03_04_threshold_order_and_live_pointer_payload`; `au9_05_zoom_defaults_and_no_intermediate_store` |
+| Listener, contracts §18.1–18.3 unsettled stages | open: AU40 camera geometry, tuning array decoding/fallback, cheat, service/allocation/delivery/final lifetime | Dispatcher reports AU40; no claim of full update closure |
 | ScapeManager, audio §20 | **Pending settled interface/local cleanup**; full groups/resources open: AU42 | AU9-07–09 pending |
 | EventHandlerDisasterFire, audio §7.4/20.3 | **Pending settled lifetime IO**; full owner open: AU44 | Owner tests pending |
-| PreferencesWinProc, audio §21 | **Pending settled slider/notification IO**; full control/song rules open: AU43 | AU9-10–15 pending |
+| PreferencesWinProc, contracts §21.1 | Retained window/preferences state; open: AU43 constructor, QI/full dialog/song inventory | No guessed defaults |
+| PreferencesWinProc, contracts §21.2 | `preferences::PreferencesWinProc` preference copy, sound-system acquisition/event/message, EndDialog/Shutdown | `au9_10_service_failure_still_posts_and_update_copies`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |
+| PreferencesWinProc, contracts §21.3–21.4 | `slider_volume`, accepted window/enable gates, Escape/special control, 30-entry arrays | `au9_11_12_slider_endpoints_offsets_and_banks`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |
+| PreferencesWinProc, contracts §21.3 remaining control matrix | open: AU43 complete type-3 filter matrix/control actions and dialog/song rules | Explicit `PreferencesOpen::Au43` |
 | 83 leaf classes, audio §11 | Existing measured shapes/QI/predicates; slot 5 open: AU5 | Existing leaf tests |
 
 ## Lower sound-system owners

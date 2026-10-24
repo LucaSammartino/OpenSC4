@@ -88,6 +88,12 @@ pub mod snd_event;
 pub mod sound_manager;
 /// Lower sound owners; behavior source: `docs/specs/sound-system.md`.
 pub mod sound_system;
+/// Emanation identities and settled SEM teardown; numeric transforms: AU41.
+pub mod emanation;
+/// Settled preferences IO; full dialog behavior remains AU43.
+pub mod preferences;
+/// Listener settled stages; camera geometry and failure lifetime: AU40.
+pub mod listener;
 
 // ---- class ids (§1.2) -------------------------------------------------------
 
