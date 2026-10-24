@@ -143,9 +143,9 @@ cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demoli
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4AdvisorUIAdvisorWinProc	windows and panels	ui	advisor-window.md	-	-	-
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
-cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
-cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
-cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
+cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
+cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
+cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
 cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
