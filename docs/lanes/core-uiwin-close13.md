@@ -4,6 +4,10 @@
 
 ## Handoff
 Goal: close settled cGZWin and cGZFadeTmpWin contracts in engine/core/src/ui_windows/base.
-Done: merged core-uiwin-close11 then re-widgettk-wt13 on reserved detached HEAD.
-Next: read updated spec sections and existing base module; implement new conformance vectors.
+Done: merged core-uiwin-close11 (77657872e) then re-widgettk-wt13 (af47e8a3e); lane reservation 47b6ef327.
+Done: implemented WT5, WT10-WT12 lifetime, filters and dispatch; added section 10.1 vectors and updated owner closure.
+Next: collect focused cargo session 12063 to terminal; sources changed during that compile, so rerun focused tests afterwards.
+Then finish formatting, run stable-source qbuild all (and queued verify), report and enqueue actual detached HEAD.
 Facts: no plugin/C ABI changes; no game requests outstanding. Native checks must use qbuild verify.
+Questions: WT13 (unpublished fade destructor), WT14 (explicitly unsettled opaque graphics/slot 150) appended.
+Evidence: q.py Bash wrapper unavailable (CreateFileMapping error); PowerShell/local cargo works. Initial fmt used wrong relative paths, corrected to absolute paths; formatting applied via apply_patch.

@@ -2,7 +2,7 @@
 use super::*;
 
 impl Windows {
-    pub fn calc_absolute(&mut self, w: Window) {
+    pub fn calc_absolute(&mut self, host: &mut impl Host, w: Window) {
         let mut r = self.get(w).area;
         let mut p = self.get(w).parent;
         while let Some(a) = p {
@@ -13,9 +13,9 @@ impl Windows {
         self.get_mut(w).absolute = r;
         let list = self.read_children(w);
         for &c in &list {
-            self.calc_absolute(c);
+            self.calc_absolute(host, c);
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
     }
     pub fn set_area(&mut self, host: &mut impl Host, w: Window, area: Rect) {
         let old = self.get(w).area;
@@ -23,7 +23,7 @@ impl Windows {
         if (old.width(), old.height()) != (area.width(), area.height()) && self.get(w).flag(0x10000) {
             self.private_buffer(host, w, true);
         }
-        self.calc_absolute(w);
+        self.calc_absolute(host, w);
         self.set_draw_area_recursive(host, w);
     }
     pub fn move_to(&mut self, host: &mut impl Host, w: Window, x: i32, y: i32) {
@@ -95,7 +95,7 @@ impl Windows {
                 }
             }
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
         result.or_else(|| self.point_screen(host, w, x, y).then_some(w))
     }
     pub fn set_draw_area(&mut self, host: &mut impl Host, w: Window) {
@@ -162,7 +162,7 @@ impl Windows {
         for &c in &list {
             self.set_draw_area_recursive(host, c);
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
     }
     pub fn set_buffer(&mut self, host: &mut impl Host, w: Window) {
         let mut buffer = self.get(w).private_buffer;
@@ -195,7 +195,7 @@ impl Windows {
         for &c in &list {
             self.set_buffer_recursive(host, c);
         }
-        self.unlock_children(list);
+        self.unlock_children(host, list);
     }
     pub fn invalidate_self(&mut self, w: Window) {
         self.get_mut(w).dirty = true;
