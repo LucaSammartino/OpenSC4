@@ -6,7 +6,8 @@
 
 - Goal: finish the final round and enqueue both completed pedestrian owners.
 - Done: implementation and Owner closure table committed before 03a5edffd; prior all and verify passed. No source changes needed on resume.
-- Next: run qbuild all once with the previously successful serial inputs, then explicit qbuild verify; collect each operation to completion.
+- Final-round all PASS: cargo 7,383/0/0, clippy exit 0 / diagnostics 0, native 46/46 edges, CTest 81/81 (91.1 s). Console: `build-runs/pedestrians-all-final-console.log`; queue `qbuild-20261024-191506-build-ctest`.
+- Next: run explicit qbuild verify once, then replace this handoff with the final report and refresh the ready queue using actual HEAD.
 - Facts: only Unsupported is PN1 play-count consumer; PN2 is outside these owners; existing PN3 literal choices execute. No new owners or questions this round.
 - No outstanding gate or game request. Prior evidence and report remain below until finalization.
 
