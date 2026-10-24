@@ -259,7 +259,7 @@ cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	-	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
-cSC4Nation	region	region	nation.md	-	-	-
+cSC4Nation	region	region	nation.md	core/src/nation	-	-
 cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	-	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
@@ -347,7 +347,7 @@ cSC4MadCowPlayerWin	audio	audio	-	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
 cGroupLayer	audio	audio	-	-	-	-
 # ---- renderer
-nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	-	-	-
+nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	core/src/gdriver	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
 cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	renderer-gdrivers-director.md,renderer-gdrivers-director-inventory.md	core/src/gdrivers_director	-	-
