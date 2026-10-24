@@ -556,6 +556,9 @@ cGZWinTreeView	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWin	widget toolkit	ui	widget-toolkit.md	-	-	-
 cGZWinBtn	widget toolkit	ui	widget-button.md	-	-	-
+cGZWinGen	widget toolkit	ui	widget-wingen.md	-	-	-
+cGZWinFlatRect	widget toolkit	ui	widget-wingen.md	-	-	-
+fn:__ZThn228_NK14cGZWinFlatRect12GetFillColorEv	widget toolkit	ui	widget-wingen.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
