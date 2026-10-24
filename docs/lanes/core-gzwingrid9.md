@@ -10,6 +10,7 @@
 - Owner closure table added at engine/core/src/widget_controls/grid/README.md; WG7–WG9 appended, existing WG5/WG6 remain open.
 - Formatting uses build-runs/format-grid-patch.py to translate rustfmt --check diffs into apply_patch; no formatter output is redirected to source.
 - Audit corrected independent handle-keyed cell-window set and no-op window-move coordinates, row-line order, disposed-entry retention, Init's always-true result.
-- Stable final Rust source: qbuild all running as exec session 91956; collect this same process to terminal result. No duplicate gate. Native queued verify follows if not already part of all.
-- Next: collect gate, run required queued verify if needed, report results and spec-only open sections, final report commit and merge queue.
+- Stable final source: qbuild all Rust tests passed 6992/0/0; clippy exit 0, diagnostics 0. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
+- Same qbuild all exec session 91956 is awaiting native build/CTest queue request qbuild-20261024-091625-build-ctest. Collect THAT session to terminal result; no duplicate all.
+- Next: collect native verdict, run explicit task-requested qbuild verify if required, final report commit and merge queue. No game requests.
 - No game request outstanding. ABI unchanged.
