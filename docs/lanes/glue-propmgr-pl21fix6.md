@@ -8,10 +8,15 @@
 - Done: merged main 454438d47 without conflicts, merge commit 2c1ab60e1; prior lane tip c46bbdeae.
 - Gate: qbuild all PASS; cargo6935/0/0, clippy0 diagnostics, CMake226/226, CTest76/76 (143.7 s), native total222.2 s.
 - Gate verdict: build-runs/build-results/qbuild-20261024-054612-build-ctest.verdict; full logs in build-runs.
-- Next: save gated DLL under build-runs/dlls, run requested regress profiles twice.
+- DLL: build-runs/dlls/pl21fix6-r3-gated.dll, SHA256 5306a43087f651c5eaa8e34d941a930f259e1117c6619e5eddbf0b96a03b67b8.
+- First regress operation73963 remains active; regress-pl21r3-shadows outstanding, replace verdict retained locally.
+- Replace: corrupt at app shutdown, foreign_exceptions1/ref_warnings0, real112.609 s; turbo reached2032 before quitting.
+- Own PDB resolves stack: free/operator delete/GameHashState scalar deleting destructor/FreeGameHashTables/LotConfigManagerAppShutdown.
+- Found concrete bug: FreeGameHashTables deletes ConfigMapState/FamilySetState pointers, but both point to function-local static objects.
+- Next: fix static hash-table cleanup (retain state objects, release owned allocations), focused lifecycle test, gate changed source and run final house profiles twice.
 - Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
 - Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No build outstanding. First game pair will be submitted immediately after this milestone; no implementation changes this round.
+- No build outstanding; no implementation changes yet. WriteCapture and automata owners remain out of scope.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
 - Historical round-2 and original implementation evidence follows; it used an older base.
 
