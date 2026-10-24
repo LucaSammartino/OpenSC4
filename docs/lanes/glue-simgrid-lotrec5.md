@@ -14,7 +14,9 @@
 - Failed native logs preserved as build-runs/round3-initial-failed-fc4verify-{build,ctest}.log; verdict qbuild-20261024-023736-build-ctest.
 - Stale smoke object cleaned; corrected qbuild verify PASS: native 48/48 (1.7 s), CTest 73/73 (75.2 s), total 78.4 s.
 - Corrected verdict: qbuild-20261024-024155-build-ctest; logs build-runs/fc4verify-{build,ctest}.log.
-- Next: submit lotrec-r3-triple-2032-381 (automata/simgrid/lotrec), collect event-driven waiter without qwait.
-- Run IDs through 380 exist; 381 is free after rechecking. Planned unique request lotrec-r3-triple-2032-381.
+- Run 381 lotrec-r3-triple-2032-381: clean to 2032, ref_warnings=0; all three shadows 73/73 exact. No outstanding request.
+- Automata: 438 components, 786414 bytes; SG3 final 86/86 roles; LR12 final 672/672 captures; no differences/errors.
+- Main advanced to `12906d179`; merged successfully after game verdict (effects Rust source changes).
+- Next: qbuild all on refreshed source (diagnostic/input change justifies repeat), final report, merge main immediately before queue.
 - Round 2 evidence remains in build-runs; no new questions or ABI exports.
 - Before READY queue: merge main again, report full 40-character actual HEAD; do not switch branches or update refs.
