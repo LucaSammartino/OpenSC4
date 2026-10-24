@@ -809,6 +809,86 @@ fields. The saved fields, in Write order (object frame; the Write-coded offset i
 The Write writes the crew count from the `+0x188` list, then per node reads two bytes (`operator>> bool`
 `0x005D9FA0` on Read) and one `SC4ReadGZSerializable` reference with IID `0xA9B40F05`.
 
+### 9.1.1 Construction reference identity and ownership (LR13)
+
+The reference writer accepts an **interface pointer**, not necessarily the complete-object address or
+the Serializable address. For each field below, `SC4WriteGZSerializable` (`0x005D99A0`) obtains
+the stream's writer view (IID `0x6999A8FB`), queries a nonnull input for `cIGZSerializable`
+(`0xE4FDA3D4`), and passes the resulting Serializable, or null, to writer slot 26 (`+0x68`).
+It releases that acquired Serializable after the slot returns, including when the slot returns false,
+and releases the acquired writer view. It neither transfers the construction owner's reference nor
+adds a permanent reference of its own. A writer retaining a reference beyond the callback must hold
+its own reference before the callback returns. A failed input QI is represented as null; the helper
+does not substitute the input address or a guessed interface (`0x005D99BE–0x005D9A0A`).
+
+All construction offsets here use the complete-object frame of §9.1. `O` below is a complete
+`cSC4PropOccupantVisualEffect` object, not the construction object.
+
+| Record field | Stored reference and input to the reference writer | Reader IID / result retained by construction |
+|---|---|---|
+| 10 ground props | Node `+8`, the prop interface, passed unchanged | `0xE9793A65`, prop interface |
+| 11 roof props | Node `+8`, the prop interface, passed unchanged | `0xE9793A65`, prop interface |
+| 12 sparks | Each vector entry is the effect class view `O`; nonnull input is `O+4`, its embedded prop view | `0x2977AA49`, effect class view `O` |
+| 13 dust/scaffold effect | Construction `+0x13C` holds the effect class view `O`; nonnull input is `O+0x10`, its Serializable view | `0x2977AA49`, effect class view `O` |
+| 15 crew | Node `+0xC`, the automaton interface, passed unchanged after its two bools | `0xA9B40F05`, automaton interface |
+
+Null remains null through each pointer adjustment. The field-12 adjustment is to the **entry's
+referenced object**, not to the address of the vector entry. Writer evidence:
+`0x005CD300–0x005CD305`, `0x005CD342–0x005CD347`, `0x005CD382–0x005CD391`,
+`0x005CD3A6–0x005CD3B9`, `0x005CD530–0x005CD54D`. Reader evidence:
+`0x005CE870–0x005CE87D`, `0x005CE8D0–0x005CE8DD`, `0x005CE947–0x005CE954`,
+`0x005CEA32–0x005CEA41`, `0x005CEBBD–0x005CEBCA`.
+
+**The effect's Serializable is the derived record.** Its constructor embeds a prop at `O+4`
+and installs the effect's occupant at `O+0xC`, Serializable at `O+0x10` (vtable
+`0x00AA4DC4`), and holder at `O+0x14` (`0x005F0215–0x005F024D`). Serializable slots
+3/4/5 are effect Write `0x005F03B0`, Read `0x005EF750`, and class ID `0x005F02B0`
+(`0x2977AA49`). The Serializable QI thunk `0x005F02F0` subtracts `0x10`; the prop QI
+thunk `0x005F02C0` subtracts 4. Both reach effect QI `0x005ECC10`, which answers
+`0x2977AA49` with `O` and an AddRef. For Serializable, it delegates through prop QI
+`0x005EC960` and occupant QI `0x005E89C0`; the result is `O+0x10`, with an AddRef
+through the installed derived vtable. The embedded occupant is a base subobject of this
+same live effect, not a separately allocated bare occupant. Therefore valid live effects
+in fields 12 and 13 resolve to the same derived Serializable regardless of those two input
+views. Re-querying `O+0x10` does not select the bare class `0xA9BC9AB6` or its vtable
+`0x00AA41BC`. A separately supplied bare occupant can serialize as a bare occupant, but
+does not thereby acquire the effect IID; base QI's accepted IIDs are shown at
+`0x005E89C0–0x005E8A1B`.
+
+**Read ownership and rejection.** The reader helper `0x005D9730` obtains reader IID
+`0x4999A8F5`; its inner helper `0x005D96C0` initializes the destination to null, obtains
+a temporary Serializable through reader slot 26, then queries that object for the field's
+literal IID. It releases the temporary Serializable on success and failure. Successful
+non-null QI leaves one acquired field-interface reference for the construction object to
+own; successful null input leaves null. A nonnull Serializable that rejects the requested
+IID leaves null and returns false (`0x005D96D6–0x005D971E`). There is no transfer of the
+temporary Serializable into the field and no extra acquisition merely for storing the QI
+result. Any capture pin held by an observing writer is separate from this read acquisition.
+
+Construction Read **ignores these reference-helper return values** and continues with the
+remaining fields. Its final success depends on the stream error flag, so it can return true
+with a rejected reference replaced by null (`0x005CEA41–0x005CEA55`,
+`0x005CEBCA–0x005CEC10`) *[quirk]*. A same-input record comparison must report the
+nonnull-to-null reference change as a mismatch, even if all bytes were consumed and Read
+returned true. If the stream itself marks an error, report that failure as well. Do not
+preserve the rejected nonnull token, coerce a bare occupant into an effect, or count such a
+record as exact. Reference identity is compared through the stream's object mapping;
+raw addresses of different interface views need not be equal.
+
+**Write lifetime.** Construction Write traverses existing references; it does not create,
+replace or remove occupants, change its list/vector membership, or rewrite the references
+in the table. Its reference QIs have the balanced callback lifetime above. Effect Write
+does create and destroy a temporary empty string when either live effect handle is set
+(§10.2; `0x005F0414–0x005F0469`); that temporary is not an occupant or reference-table
+object. Inline occupant/prop records are written directly, not by allocating bare occupant
+copies (`0x005CD264`, `0x005ECEA4`, `0x005E8D3E`). Nested property variants and the
+stream's own storage have their separate serialization contracts; this rule does not
+forbid those callbacks from acquiring their own references. An observer must preserve
+every reference it retains independently of the helper's temporary QI. A last-reference
+release warning alone does not prove that field 13 legitimately changed identity. The
+train180 254/250-byte observation is a reported mismatch, not evidence that a four-byte
+loss or a bare-occupant substitution is required native behavior.
+
 ### 9.2 Life cycle (`0x005D1300` Init, `0x005D0890` SetLot, `0x005D0680` DoDailySim)
 
 - **`Init`** (`0x005D1300`, occupant frame; answers OP15 / OP7, 2026-10-21), in this order: return true at once if
@@ -1610,3 +1690,21 @@ objects, not cell coordinates; use T1 as a valid base payload and vary the named
 | T63 | Master [A]; payload otherwise T1, but strategy differs in replacement, or last inline trip field differs, or property's variant type differs | N=1, captures=1, exact=0, mismatch for each independent variation. Neither scalar-only comparison nor skipping nested fields is sufficient. |
 | T64 | Counts 2/3; or counts 2/2 but walk yields A twice; or a node's lot is null | Incomplete/error in every variant; record success cannot repair inventory failure. Iterator and all acquired Serializable views still cleaned up. |
 | T65 | A's stream reference mapping identifies U, replacement produces a different nonnull unit identity V; separately supply a valid record plus one trailing byte | First: reference mismatch despite equal nullness. Second: exact-consumption failure despite successful Read. Neither is exact. |
+
+### 17.7 Construction reference identity vectors (LR13)
+
+These are normative conformance cases for §9.1.1, not measured game results. Use a valid version-5
+construction payload; leave refresh/daily/tick callbacks uncalled throughout the record comparison.
+Track stream object identities separately from interface addresses. Reference-count deltas exclude
+independent capture pins and references already owned by construction.
+
+| Vector | Inputs / operation | Required result |
+|---|---|---|
+| T66 | One native effect O is the sole field-12 entry and field 13; capture writer callbacks | Helper inputs O+4 and O+0x10; writer slot 26 receives O+0x10 both times. Class 0x2977AA49, derived §10.2 record. One identity occurs twice; no bare-occupant substitution. |
+| T67 | Ground prop P, roof prop Q, crew automaton A; crew bools true,false | Helper inputs exactly P,Q,A; callbacks get each successful Serializable QI result. Read IIDs 0xE9793A65, 0xE9793A65, 0xA9B40F05; bools/order unchanged. One owned field acquisition per successful nonnull read. |
+| T68 | One null field-12 entry and null field 13; separately field-12 count=0 | Null callbacks for present nulls, no QI through null or adjustment to 4/0x10. Preserve count=1 with null versus count=0. No null reference acquisition. |
+| T69 | Field 13 resolves to bare occupant B, Serializable vtable 0x00AA41BC; B rejects 0x2977AA49; reader slot succeeds, stream error stays zero | Helper false, field null, temporary B acquisition released once. Remaining fields consumed; construction Read can return true. Subsequent Write emits null: mismatch against nonnull B, never exact. No fabricated effect or retained rejected token. |
+| T70 | Repeat rejection for a field-12 entry and a crew entry, each count=1 | Both entries remain present with null references; crew bools preserved. Both temporary Serializables released. Read can finish true without stream error, but both lost identities mismatch. No entry silently dropped. |
+| T71 | Successful writer Serializable QI; writer slot 26 returns false; repeat with true | Temporary Serializable and writer-view acquisitions each released once in both cases; net helper delta zero. Observer retention requires a separate pin before callback return. Never consume construction's pre-existing reference. |
+| T72 | Valid effect O; QI Serializable from O+4 and O+0x10; QI effect from both results | Serializable results both O+0x10; effect results both O. Each QI adds one reference, each matched Release removes one; construction's owned reference keeps O alive. |
+| T73 | Capture unchanged construction twice; field 13 has a live effect handle and nonempty name | Identities/membership unchanged; §10.2 writes empty name/zero each time. Temporary string destroyed, no temporary bare occupant from this path, balanced helper QIs. Historical 254/250-byte replay still fails exact comparison; no fixed length adjustment authorized. |
