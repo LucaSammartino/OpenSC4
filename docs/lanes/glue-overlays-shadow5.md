@@ -5,7 +5,10 @@
 ## Handoff
 - Goal: default-off record/cell/texture shadow to OV12; measure available contracts through 2032.
 - Merged re-overlays-ov12 at e30d7b66a, preserving both sides of CMake/config/lib.rs additions, then merged main.
-- Next: read OV12 observation/replay sections and extend plugin/Rust transport with focused tests.
+- Implemented native bounded copies of all three arenas/free queues, live IDs/groups/placement, scalar/placement getters, ordered static lists, texture binding metadata/sharing and source implementation tokens. Rust diagnostic parser checks graphs/membership/getters, with no native answers seeded into OverlayManager.
+- Focused Rust OV12 A-L plus corruption test: 13/13 PASS. Initial J fixture index typo failed 12/13; corrected and rerun. q.py shell bootstrap failed before Cargo; direct PowerShell Cargo worked.
+- Filed OV13 (capture boundary for future full independent history replay); current snapshots explicitly report unavailable replay and image bytes per OV12.
+- Next: format transport addition; merge main immediately before final all gate; then game under a unique label to 2032. Native observer safeguards target added to CTest.
 - Merge main again immediately before final all gate.
 - No game request outstanding; new unique label required. Scan docs/runs for free number beyond 348.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-shadow5-r2-manifest.json.

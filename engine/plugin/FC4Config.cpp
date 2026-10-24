@@ -355,7 +355,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "prop_occupant_verify",
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
-                                  // Read-only overlay getter contracts; full record walk awaits OV12.
+                                  // Read-only overlay getter/record/cell/texture observation.
                                   "overlays_shadow",
                                   "netocc_shadow",
 };

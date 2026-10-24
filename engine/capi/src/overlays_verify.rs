@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private, read-only overlay getter-contract transport. Not a public DLL export.
-//! OV12 blocks native arena enumeration; these probes do not verify live records.
+//! OV12 observation diagnostics are not independent creation-history replay.
 use fc4_core::terrain_overlays::{Handle, OverlayManager, Placement};
 
 fn contract_words() -> Option<[u32; 25]> {
@@ -27,6 +27,37 @@ fn contract_words() -> Option<[u32; 25]> {
     Some(words)
 }
 
+// Safety: private adapter passes count readable words and 14 writable report
+// words. No native address or result is inserted into the production owner.
+#[no_mangle]
+unsafe extern "C" fn fc4_overlays_observe(input: *const u32, count: u32, out: *mut u32) -> u32 {
+    if input.is_null() || out.is_null() || count > 16_777_216 {
+        return 0;
+    }
+    let words = unsafe { std::slice::from_raw_parts(input, count as usize) };
+    let Some(r) = fc4_core::terrain_overlays::observation::inspect(words) else {
+        return 0;
+    };
+    let result = [
+        r.checks,
+        r.differences,
+        r.overlays,
+        r.handles,
+        r.groups,
+        r.cells,
+        r.entries,
+        r.bindings,
+        r.sources,
+        r.unknown_bindings,
+        r.observed_words,
+        r.digest as u32,
+        (r.digest >> 32) as u32,
+        0,
+    ];
+    unsafe { std::ptr::copy_nonoverlapping(result.as_ptr(), out, result.len()) };
+    1
+}
+
 // Safety: private caller supplies exactly 25 writable u32s. No game-owned data
 // or computed native answers enter the production core.
 #[no_mangle]
@@ -42,6 +73,47 @@ unsafe extern "C" fn fc4_overlays_verify_contract(out: *mut u32, count: u32) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn observation_transport_rejects_truncation_without_touching_report() {
+        let mut out = [0xdead_beef; 14];
+        let words = [
+            1,
+            1,
+            0,
+            2,
+            2,
+            0,
+            0,
+            u32::MAX,
+            u32::MAX,
+            0,
+            0,
+            u32::MAX,
+            u32::MAX,
+            0,
+            0,
+            u32::MAX,
+            u32::MAX,
+            0,
+            0,
+            0,
+            0,
+        ];
+        assert_eq!(unsafe { fc4_overlays_observe(words.as_ptr(), 20, out.as_mut_ptr()) }, 0);
+        assert_eq!(out, [0xdead_beef; 14]);
+        assert_eq!(unsafe { fc4_overlays_observe(words.as_ptr(), 21, out.as_mut_ptr()) }, 1);
+        assert_eq!(out[..10], [0; 10]);
+        assert_eq!(out[10], 21);
+        assert_eq!(
+            unsafe { fc4_overlays_observe(std::ptr::null(), 0, out.as_mut_ptr()) },
+            0
+        );
+        assert_eq!(
+            unsafe { fc4_overlays_observe(words.as_ptr(), 21, std::ptr::null_mut()) },
+            0
+        );
+    }
 
     #[test]
     fn getter_transport_preserves_every_placement_word_and_positive_zero() {
