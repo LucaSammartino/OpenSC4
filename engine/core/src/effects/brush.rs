@@ -66,7 +66,30 @@ impl BrushEffect {
 
     /// `SetTransform(local, parent)` at the semantic transform boundary (§8.3).
     pub fn set_transform(&mut self, local_offset: [f32; 3], parent: &super::transform::ParentTransform) {
-        let position = parent.world_position(local_offset);
+        use super::transform::{ParentTransform, Placement, Precision};
+        let local = Placement {
+            flags: 1,
+            transform: ParentTransform {
+                translation: local_offset,
+                ..ParentTransform::default()
+            },
+            ..Placement::default()
+        };
+        let parent = Placement {
+            flags: u8::from(*parent != ParentTransform::default()),
+            transform: *parent,
+            ..Placement::default()
+        };
+        self.set_placement(&local, &parent, Precision::Single);
+    }
+
+    pub fn set_placement(
+        &mut self,
+        local: &super::transform::Placement,
+        parent: &super::transform::Placement,
+        precision: super::transform::Precision,
+    ) {
+        let position = local.world_position(parent, false, precision);
         self.set_position(position[0], position[2]);
     }
 

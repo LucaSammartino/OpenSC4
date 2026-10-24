@@ -633,4 +633,9 @@ std::string IniPath();
 // simulator_shadow = 0 / 1 (default 0): original Write/core Read bookkeeping
 // and date/speed/time getters; requires disable = simulator. No scheduler replay.
 
+// overlays_fixture = 0 / 1 (default 0): with overlays_shadow, add/move/set/remove
+// one real decal per manager per sample and compare 35 production-core fields.
+// Read-only record observation runs with overlays_shadow alone, including when
+// observe=0. Original Init/history and image bytes remain unavailable (OV13).
+
 }  // namespace fc4

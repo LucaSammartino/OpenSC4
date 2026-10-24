@@ -15,7 +15,6 @@
 #include "cISC4City.h"
 #include "fc4.h"
 #include "cIGZString.h"
-#include "cIGZFile.h"
 #include <windows.h>
 #include <atomic>
 #include <cinttypes>
@@ -39,7 +38,6 @@ std::atomic<uint64_t> g_calls{0}, g_bytes{0}, g_bad{0}, g_refused{0};
 std::atomic<uint64_t> g_binary{0}, g_text{0};
 bool g_enabled = false;
 bool g_passive = false, g_constructed = false;
-bool g_fileReplay = false;
 uint64_t g_lines = 0, g_clean = 0;
 thread_local bool g_inside = false;
 
@@ -146,8 +144,7 @@ bool Replace(Patch& patch, void* value) {
 namespace fc4 {
 void SCResShadowStart() {
     if (g_enabled) return;
-    g_fileReplay = SettingInt("scres_file_shadow", nullptr, 0) != 0;
-    g_passive = SettingInt("scres_shadow", nullptr, 0) != 0 || g_fileReplay;
+    g_passive = SettingInt("scres_shadow", nullptr, 0) != 0;
     g_constructed = SettingInt("scres_constructed", nullptr, 0) != 0;
     if (!g_passive && !g_constructed) return;
     g_enabled = true;

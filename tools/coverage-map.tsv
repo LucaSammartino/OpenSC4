@@ -65,7 +65,8 @@ cVecRange	history	simulation	history.md	core/src/history	history_shadow	history
 cSC424HourClock	24-hour clock	simulation	clock24.md	core/src/clock24	clock24_shadow	clock24
 cSC4CivicBuildingSimulator	civic buildings	simulation	civic-buildings.md	core/src/civic	civic_shadow	civic
 cSC4ParkManager	parks	simulation	parks.md	core/src/parks	parks_shadow	parks
-cSC4SimGrid	sim grids	simulation	simgrid.md	core/src/grid	-	simgrids
+# simgrid_shadow (glue-simgrid-lotrec5, counted from train176 via glue-simgrid-label6) round-trips every saved sim grid role (86 roles, 12 developers) through core/src/grid at load and monthly: record-only, scope SG3 (run 5)
+cSC4SimGrid	sim grids	simulation	simgrid.md	core/src/grid	simgrid_shadow	simgrids
 cSC4MapUtilities	sim grids	simulation	simgrid.md	core/src/grid	-	-
 # grid iterators used by several simulators: the random cell iterator (GetNext 0x0049CB10; weather.md §6.7, simgrid.md §7.4,
 # core grid/random_iter.rs) and the spiral iterator (0x0043FE10; simgrid.md §7.4, plumbing.md §7.2, core plumbing NearestWater
@@ -149,7 +150,8 @@ cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4Lot	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	-	-
+# lotrec_shadow (glue-simgrid-lotrec5, counted from train176) round-trips every master lot record through core/src/lot_records at load and monthly; units, occupants and unspecified props are excluded, so only cSC4Lot is credited (record-only, run 5)
+cSC4Lot	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	lotrec_shadow	-
 cSC4BusinessUnit	lots and lot records	simulation	lot-records.md	core/src/lot_records/mod.rs	-	-
 cSC4TripData	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
 cSC4LotBaseTextureOccupant	lots and lot records	simulation	lot-records.md	core/src/lot_records	-	-
@@ -197,8 +199,8 @@ cSC4CarjackedVehicle	automata (vehicles, animation)	simulation	automata-managers
 cSC4MayorLimo	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
 cSC4Ambulance	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
 cSC4MassTransitTrain	automata (vehicles, animation)	simulation	automata-managers.md, vehicles.md	-	-	-
-cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
-cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
+cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	automata_owners_shadow	automata
+cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	automata_owners_shadow	automata
 cSC4AutomataTuningParams	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
 cSC4AttractorDescription	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
 cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md	-	-	-

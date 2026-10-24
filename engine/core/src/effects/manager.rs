@@ -19,6 +19,7 @@ use crate::x87::r24;
 use super::brush::BrushEffect;
 use super::directory::EffectDirectory;
 use super::game::GameEffect;
+use super::transform::{ParentTransform, Placement, Precision};
 use super::{
     component_type, effect_flag, EffectPost, EffectsHost, DEFAULT_MAX_PRIORITY, MAX_ACTIVATION_ROUNDS, SELECT_RANGE,
     SELECT_SEED,
@@ -386,15 +387,24 @@ impl EffectsManager {
                 continue;
             }
             let position = self.effects.get(&id).map_or([0.0; 3], |e| e.position);
+            let parent = Placement {
+                flags: 1,
+                transform: ParentTransform {
+                    translation: position,
+                    ..ParentTransform::default()
+                },
+                ..Placement::default()
+            };
+            let local = Placement::decode(&c.placement);
             let comp = match c.kind {
                 component_type::BRUSH => dir.brushes.get(c.index as usize).map(|b| {
                     let mut be = BrushEffect::new(b, &mut self.brush_rng);
-                    be.set_position(position[0], position[2]);
+                    be.set_placement(&local, &parent, Precision::Single);
                     Component::Brush(be)
                 }),
                 component_type::GAME => dir.games.get(c.index as usize).map(|g| {
                     let mut ge = GameEffect::new(g);
-                    ge.set_position(position[0], position[2]);
+                    ge.set_placement(&local, &parent, Precision::Single);
                     Component::Game(ge)
                 }),
                 component_type::META => dir.find(&c.name, self.max_priority).map(|ci| {
@@ -669,10 +679,8 @@ impl EffectsManager {
         self.effects.get(&id).is_some_and(|e| e.stopping)
     }
 
-    /// `SetTransform` (slot 8) reduced to the translation: the components'
-    /// local placements are taken as the identity (EF7), so a brush's
-    /// position and a game record's cell come from `(x, z)`, and a meta
-    /// component's child gets the same transform.
+    /// Translation-only parent setter; brush/game local placements are decoded
+    /// from their resource records (§3.1). Meta forwarding remains translation-only.
     pub fn set_position(&mut self, id: EffectId, pos: [f32; 3]) -> bool {
         self.set_position_at(id, pos, 0)
     }
@@ -685,11 +693,26 @@ impl EffectsManager {
             return false;
         };
         e.position = pos;
+        let parent = Placement {
+            flags: 1,
+            transform: ParentTransform {
+                translation: pos,
+                ..ParentTransform::default()
+            },
+            ..Placement::default()
+        };
+        let description = self.dir.as_ref().and_then(|d| d.effects.get(e.index as usize));
         let mut children = Vec::new();
-        for c in e.comps.iter_mut().flatten() {
+        for (index, c) in e.comps.iter_mut().enumerate() {
+            let Some(c) = c else {
+                continue;
+            };
+            let local = description
+                .and_then(|d| d.components.get(index))
+                .map_or_else(Placement::default, |c| Placement::decode(&c.placement));
             match c {
-                Component::Brush(b) => b.set_position(pos[0], pos[2]),
-                Component::Game(g) => g.set_position(pos[0], pos[2]),
+                Component::Brush(b) => b.set_placement(&local, &parent, Precision::Single),
+                Component::Game(g) => g.set_placement(&local, &parent, Precision::Single),
                 Component::Meta(child) => children.push(*child),
                 Component::Render { .. } => {}
             }

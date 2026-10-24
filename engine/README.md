@@ -2467,24 +2467,3 @@ capture remains off pending SCR8 in `docs/specs/questions/sc-resources.md`.
 Capture uses SDK reads with the original post-call position restored; it does
 not claim to be a cursor-free observer. Do not credit the complete subsystem
 or add the key to a general shadow profile from this partial measurement.
-
-`scres_file_shadow = 1` adds SCR10 physical file-parser replay to the natural
-command observation. It defaults to off. Constructor/open association is scoped
-to each recursive file invocation; borrowed ReadLine output is copied with its
-length, bool and logical position before native comment processing. The core's
-production file loop replays include paths, blank/comment lines, physical line
-numbers, false-read completion, open failures and inclusive return counts without
-resynchronization. Commands remain an observed execution boundary; this does not
-verify graphics-rule state, arbitrary command exceptions or ReadLine's byte
-decoder. False reads are labeled EOF-or-failure, as their native bool cannot
-distinguish the two. Wide-mode samples are refused. The existing command-token
-and constructed-adapter measurements remain independent.
-
-SCR11 currently blocks complete raw file replay: the game suppresses a physical
-block beginning with `#<`, whose grammar is absent from the supplied spec. The
-raw replay keeps and counts its differences (`question=SCR11`). A separate
-`partial=file_control_replay` uses observed preprocessing decisions as explicit
-foreign inputs and checks the remaining production file loop. It reports their
-count and makes no block-comment or whole-owner parity claim. Neither path
-resynchronizes the event stream; do not promote this key into the house profile
-or credit full file-parser verification until the raw replay is exact.

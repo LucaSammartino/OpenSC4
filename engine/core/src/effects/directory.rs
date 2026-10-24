@@ -182,8 +182,8 @@ pub struct ComponentRecord {
     /// `+0x10`, masked to 2 bits: bit 0 = ignored by the finish test (§7).
     pub flags: u32,
     /// `+0x14`: all 56 bytes of the local transform, kept as stored.
-    /// Decoding and native numeric order remain open in EF19. The manager's
-    /// identity-placement limitation does not alter these resource bytes.
+    /// Framing preserves all bytes; `transform::Placement` implements semantic
+    /// decoding and the native revision-byte canonicalization (§3.1).
     pub placement: [u8; PLACEMENT_BYTES],
     /// `+0x4C`, `+0x4D`: the level-of-detail range `[min, max)`.
     pub lod_min: u8,
@@ -237,7 +237,7 @@ impl ComponentRecord {
 
 /// The placement bytes of an identity transform as the shipped components
 /// store it (nine floats of a unit matrix, then zeros and a 1.0). Only used
-/// to build records; the core does not read the placement (EF7).
+/// to build records; decoded by `transform::Placement` (§3.1).
 pub const IDENTITY_PLACEMENT: [u8; PLACEMENT_BYTES] = {
     let mut p = [0u8; PLACEMENT_BYTES];
     // 1.0f32 little-endian (`to_le_bytes` is not const under the MSRV).
