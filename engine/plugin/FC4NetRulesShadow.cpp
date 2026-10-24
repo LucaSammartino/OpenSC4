@@ -454,6 +454,13 @@ void Report(const char* stage, int32_t julian) {
     fc4_date d{}; fc4_date_from_julian(julian, &d);
     const uint64_t unavailable = g_unavailable + (InterlockedCompareExchange(&g_foreignBoundary, 0, 0) ? 1 : 0);
     const bool ready = g_epoch.ready && !InterlockedCompareExchange(&g_foreignBoundary, 0, 0);
+    // Before the first ready snapshot there is no comparison to report. Once
+    // reporting starts, retain every result, including any later loss of readiness.
+    if (!ready && !g_lines) {
+        Log("netrules status (%s): awaiting comparison readiness; epoch=%u evaluations=%llu",
+            stage, g_epoch.number, g_evaluations);
+        return;
+    }
     const bool exact = g_installed && ready && g_tables && g_evaluations && !g_tableMismatches &&
                        !g_mismatches && !g_incomplete && !unavailable;
     ++g_lines; if (exact) ++g_clean;
