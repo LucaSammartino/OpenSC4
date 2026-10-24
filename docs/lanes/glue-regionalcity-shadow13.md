@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-regionalcity-shadow13 (regional city shadow) | Codex / `glue-regionalcity-shadow13` | in progress; correction 386435447; focused precision test PASS and owned fmt PASS; previous gate cargo 7408/0, clippy clean, CTest 81/81; runs 632/633 clean, 61/73 and 63/73 exact; RY8 filed | Run stable all and final 2032 measurement. |
+| glue-regionalcity-shadow13 (regional city shadow) | Codex / `glue-regionalcity-shadow13` | in progress; correction 386435447; focused precision test PASS and owned fmt PASS; stable all ACTIVE session 3983; previous gate cargo 7408/0, clippy clean, CTest 81/81; runs 632/633 clean, 61/73 and 63/73 exact; RY8 filed | Collect SAME all operation 3983, then final 2032 measurement. |
 
 ## Handoff
 Goal: default-off regionalcity_shadow comparing loaded region records at load/monthly through 2032.
@@ -16,7 +16,9 @@ Load timestamp now uses borrowed native simulator GetSimDateNumber instead of Ju
 Focused operation TERMINATED PASS: cargo test fc4-core commodity_balance_rounds_operations_without_rounding_loaded_doubles; absolute-path qbuild fmt PASS (2 files, zero diff lines).
 Log build-runs/regionalcity-r3-focused.log; session 8225 collected to terminal result. Host-target compilation took about 41 minutes under contention.
 Initial q.py wrapper failed Git Bash CreateFileMapping access denied; relative fmt paths failed; preserved evidence.
-NEXT: run qbuild all stable source (includes queued native verification if supported), then unique game request to 2032.
+Stable all ACTIVE: exec session 3983; qbuild all launched after b10c8bf39, compiling configured i686 core; collect SAME operation to terminal result, never duplicate.
+Logs build-runs/regionalcity-r3-all-transcript.log (appears at first qbuild output), qbuild-test.log, qbuild-clippy.log; native queue follows workspace tests/clippy.
+NEXT: collect all operation, then unique game request regionalcity13-r3-exact-2032-20261024c through 2032.
 Use build-runs/wait-regionalcity.py to wait once without qwait; helper regionalcity-result.py prints exact clean/total.
 No game request outstanding. Next free run number 634 (max checked 631 before adding 632/633).
 Keep key default-off; never edit forbidden tools files. Coordinator appends regress shadows key after merge and exact verification.
