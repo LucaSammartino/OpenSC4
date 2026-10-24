@@ -112,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NM | network-manager |
 | NO | network-occupants |
 | NOV | network-overlay-views |
+| NQ | nation |
 | NR | network-rules |
 | NRT | network-routines |
 | NT | network-tools |
@@ -147,7 +148,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RN | foundations |
 | RND | render3d |
 | RP | render-properties |
-| RQ | region |
+| RQ | region, region-model |
 | RR | regional-city-records |
 | RS | residential |
 | RY | regional-city |
@@ -279,6 +280,7 @@ generated index: the questions live one file per spec, so read only the file for
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 20 | MS21 | questions/mysims.md |
+| nation | 0 | 3 | NQ4 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -313,15 +315,15 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
-| region | 2 | 0 | RQ3 | questions/region.md |
+| region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
-| region-model | 13 | 1 | RM15 | questions/region-model.md |
+| region-model | 17 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | regional-city | 7 | 0 | RY8 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
-| renderer-driver | 9 | 2 | RD12 | questions/renderer-driver.md |
+| renderer-driver | 5 | 8 | RD12 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
@@ -371,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1469** | | |
+| **total** | **608** | **1483** | | |
