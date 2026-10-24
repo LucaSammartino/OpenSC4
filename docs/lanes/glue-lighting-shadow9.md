@@ -11,7 +11,8 @@
 - Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Focused tests 2/2; absolute-file fmt PASS.
 - Game r1 COMPLETE: lighting9-house-2032-r1-20261024 clean, foreign_exceptions/ref_warnings/rtc=0, date 2029-10-22 at 601.828 s. lighting9-house-2032-r1-20261024 0/46; each line one texture mismatch (69D3A23B native vs 69D3BC3B literal table), all other 13 fields exact. Record docs/runs/lighting9-house-2032-r1-20261024-469.md; LT15 filed. No game request outstanding.
 - Diagnostic revision: capture all six §5.6 properties from independent public resource 6534284A/A9189CF0/00000001 once at load; feed Parameters::initial().read(inputs), never lighting outputs. Focused tests now 3/3.
-- Next: final-source full qbuild all after this actual-input diagnostic fix, then new unique house turbo request to 2032 with seconds=1500, timeout=1800. Preserve r1 evidence. Current native/CTEst gate above applies to previous source only.
+- Gate r2 IN PROGRESS on source fad1dbe42: Rust workspace 6987/6987 PASS, clippy 0 diagnostics; native build/CTest queued as qbuild-20261024-090555-build-ctest. Collect SAME exec session 8711 to terminal result; do not launch duplicate verify.
+- Next: collect final native gate, then submit prepared build-runs/lighting-house-r2.pending (label lighting9-house-2032-r2-20261024, seconds=1500, timeout=1800) and wait on that exact label to completion. Preserve r1 evidence. Native/CTEst gate above applies to previous source only.
 - Prepared request: exact house ini switches (Compare-Object verified), plus lighting_shadow=1, turbo to 2032-01-01. DLL engine/build-x86/FreeCity4.dll.
 - Constraints: no prohibited source or tools; no agents; no branch changes; shared files additive.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r1-manifest.json
