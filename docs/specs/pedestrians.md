@@ -217,7 +217,7 @@ Evidence: fade input `0x00544E86`–`0x00544E95`; model Advance and first-model 
 `0x00544E9B`–`0x00544EC5`; frame/count comparison and saturating decrement
 `0x00544EC7`–`0x00544EF6`; `Remove(false)`, continued iteration and Boolean return
 `0x00544EF8`–`0x00544F20`. The instructions establish both the argument positions and the return
-value; the exported pseudocode misidentifies a count-field index and leaves the result undefined.
+value; the exported pseudocode does not reliably recover the arguments or initialized Boolean result.
 
 ### 3.3 Count accessors
 
