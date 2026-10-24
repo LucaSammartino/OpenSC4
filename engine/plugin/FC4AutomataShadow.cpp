@@ -86,18 +86,14 @@ std::string DateText(int32_t julian) {
 // `WriteCapture`, which is alive for as long as the shadow core is (the core
 // is created and destroyed inside one ComparePart).
 
-cIGZSerializable* ObjectOf(const WriteCapture* cap, uint64_t token) {
-    return cap != nullptr ? cap->SerializableAt(static_cast<uint32_t>(token)) : nullptr;
-}
-
 void HostAddRef(void* user, uint64_t token) {
-    cIGZSerializable* o = ObjectOf(static_cast<const WriteCapture*>(user), token);
-    if (o != nullptr) FC4_ADDREF(reinterpret_cast<cIGZUnknown*>(o));
+    if (user != nullptr) static_cast<WriteCapture*>(user)->AcquireReplayReference(token);
 }
 
 void HostRelease(void* user, uint64_t token) {
-    cIGZSerializable* o = ObjectOf(static_cast<const WriteCapture*>(user), token);
-    if (o != nullptr) FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(o));
+    if (user != nullptr && token != 0 &&
+        !static_cast<WriteCapture*>(user)->ReleaseReplayReference(token))
+        Log("automataowners shadow: rejected unacquired replay release token=%llu", token);
 }
 
 // The controller manager's host also reads a controller's flags (§3.2: flag 8
@@ -198,6 +194,8 @@ private:
                 // The original wrote a reference to something that does not
                 // answer what the reader asks: the same null the original's
                 // own Read stores (automata.md §1).
+                Log("automataowners shadow: reference interface unavailable offset=%u id=%u class=0x%08X iid=0x%08X",
+                    static_cast<unsigned>(s->pos_ - 8), id, cls, iid);
                 if (out != nullptr) *out = r;
                 return true;
             }
@@ -207,7 +205,7 @@ private:
             auto* acquired = reinterpret_cast<cIGZUnknown*>(p);
             FC4_ACQUIRED(acquired, "automata capture replay QueryInterface");
             FC4_RELEASE(acquired);
-            FC4_ADDREF(reinterpret_cast<cIGZUnknown*>(o));
+            if (!const_cast<WriteCapture&>(s->cap_).AcquireReplayReference(id)) return false;
             r.token = id;
         }
         if (out != nullptr) *out = r;
@@ -668,6 +666,12 @@ intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid) {
         WriteCapture moved(std::move(original));
         capture = std::move(moved);
     }  // Moved-from captures must not release the replay's retained references.
+    // Unmatched cleanup must not consume the capture pin. Exercise repeated
+    // acquisitions independently of the references handed out by GetRef.
+    if (capture.ReleaseReplayReference(1) ||
+        !capture.AcquireReplayReference(1) || !capture.AcquireReplayReference(1) ||
+        !capture.ReleaseReplayReference(1) || !capture.ReleaseReplayReference(1) ||
+        capture.ReleaseReplayReference(1) || capture.AcquireReplayReference(UINT64_MAX)) return -2;
     CaptureIn input(capture);
     while (!input.atEnd()) {
         fc4_ref ref{};

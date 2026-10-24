@@ -42,11 +42,15 @@ struct Writer : Object {
     cIGZSerializable* supplied;
     uint32_t badId = 0, badClass = kClass;
     bool drop = false;
+    bool failWrite = false;
+    bool truncate = false;
     Writer(Object* c, cIGZSerializable* s) : child(c), supplied(s) {}
     bool Write(cIGZOStream& out) override {
         auto& segment = static_cast<cFC4ISC4DBSegmentOStream&>(out);
         if (!segment.WriteGZSerializable(supplied)) return false;
-        if (badId) {
+        if (truncate) {
+            out.SetUint32(1); // missing class: replay must clean up the first ref
+        } else if (badId) {
             out.SetUint32(badId);
             out.SetUint32(badClass);
         } else {
@@ -56,7 +60,7 @@ struct Writer : Object {
             segment.WriteGZSerializable(nullptr);
         }
         if (drop) child->Release();
-        return true;
+        return !failWrite;
     }
 };
 }
@@ -86,6 +90,11 @@ int main(int argc, char** argv) {
     if (replay(invalid) != 0 || other.refs != 1) return 6;
     invalid.badId = 0;
     if (replay(invalid) != 1 || other.refs != 1) return 7;
+    invalid.truncate = true;
+    if (replay(invalid) != 0 || other.refs != 1) return 8;
+    invalid.truncate = false;
+    invalid.failWrite = true;
+    if (replay(invalid) != -1 || other.refs != 1 || invalid.refs != 1) return 9;
     FreeLibrary(dll);
     std::puts("automata capture: adjusted interface, released temporary, duplicate/null, unknown ID and class collision PASS");
     return 0;
