@@ -16,7 +16,8 @@
 - Diagnostic: stale smoke object (09:25:32) Ninja dependency points to train-integration header, not this worktree.
 - Failed native logs preserved as build-runs/r2-abi97-failed-fc4verify-*.log; unique verdict retained.
 - Local header and Rust both ABI98; no source/ABI change. Cleaned generated native build inputs with Ninja.
-- Next: qbuild verify on corrected native inputs; collect terminal; report and READY queue.
+- Corrected qbuild verify queued as qbuild-20261024-102220-build-ctest; original exec session 6899 still running.
+- Next: collect that exact operation to terminal; report and READY queue. No duplicate checks.
 - Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
 - No round 2 game request. Core-only; ABI unchanged.
 
