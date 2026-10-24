@@ -47,12 +47,7 @@ impl View3DWin {
     }
 
     pub fn load_object_record(&mut self, host: &mut impl ReferenceHost, record: &ObjectRecord) -> Result<(), String> {
-        let expected = View3DSave::header();
-        if record.header.0 != expected.0
-            || record.header.1 != expected.1
-            || record.header.2 != expected.2
-            || record.header.3 >= 5
-        {
+        if !View3DSave::accepts_header(record.header) {
             return Err("invalid View3D record identity/version".into());
         }
         for ((field, _, iid), identity) in REFERENCES.into_iter().zip(record.identities) {

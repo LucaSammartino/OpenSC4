@@ -186,6 +186,13 @@ impl View3DSave {
         )
     }
 
+    /// Both record adapters accept the same identity and all versions below 5
+    /// (§6k). Validate before resolving references or assigning trigger pairs.
+    fn accepts_header(header: (u32, u32, u32, u32)) -> bool {
+        let expected = Self::header();
+        (header.0, header.1, header.2) == (expected.0, expected.1, expected.2) && header.3 < 5
+    }
+
     /// True when this record carries no UI state — the property that makes
     /// "a city saved with a catalog popup open loads with it closed" true
     /// (conformance test 25).
@@ -487,7 +494,7 @@ impl View3DWin {
     /// `+0x0208`, so a load that leaves them set would be inventing state.
     pub fn do_load(&mut self, record: &View3DSave) -> Result<(), String> {
         let want = View3DSave::header();
-        if (record.group, record.type_id, record.instance) != (want.0, want.1, want.2) || record.version >= 5 {
+        if !View3DSave::accepts_header((record.group, record.type_id, record.instance, record.version)) {
             return Err(format!(
                 "View3D record identity {:#010x}/{:#010x}/{}/{} is not {:#010x}/{:#010x}/{}/{}",
                 record.group, record.type_id, record.instance, record.version, want.0, want.1, want.2, want.3

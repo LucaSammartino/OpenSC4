@@ -351,7 +351,7 @@ fn inert_buttons_still_notify_tutorial_and_global_terrain_stays_in_owner() {
             WindowMessage {
                 kind: 3,
                 data: [0x2872_59F6, button, 0],
-                text: None
+                ..WindowMessage::default()
             }
         ));
         assert_eq!(h.popup_calls, [PopupCall::TutorialButton(button)]);
@@ -421,11 +421,15 @@ fn catalog_groups_resource_ids_and_reward_override_reach_foreign_catalog() {
 #[test]
 fn transport_script_vehicle_and_disaster_menus_have_literal_identity() {
     for (button, groups, networks) in [
-        (0x29, vec![0x1300], vec![0x4001]), (0x31, vec![], vec![0x4005]),
+        (0x29, vec![0x1300], vec![0x4001]),
+        (0x31, vec![], vec![0x4005]),
         (0x2992_37BF, vec![0x130A], vec![0x4002]),
-        (0x6999_BF56, vec![], vec![0x4000]), (0x2B73_0C5B, vec![], vec![0x4000]),
-        (0xA992_34A6, vec![0x1519], vec![]), (0xE992_34B3, vec![0x1508], vec![]),
-        (0x2B79_E398, vec![], vec![]), (0xEA6E_379D, vec![], vec![]),
+        (0x6999_BF56, vec![], vec![0x4000]),
+        (0x2B73_0C5B, vec![], vec![0x4000]),
+        (0xA992_34A6, vec![0x1519], vec![]),
+        (0xE992_34B3, vec![0x1508], vec![]),
+        (0x2B79_E398, vec![], vec![]),
+        (0xEA6E_379D, vec![], vec![]),
     ] {
         let mut v = view();
         let mut h = Host::default();
@@ -435,7 +439,10 @@ fn transport_script_vehicle_and_disaster_menus_have_literal_identity() {
         assert_eq!(q.kind, 0x4A2B_2467);
         assert_eq!(q.groups, groups);
         assert_eq!(q.networks, networks);
-        assert!(h.popup_calls.iter().any(|c| matches!(c, PopupCall::Catalog { layout, .. }
+        assert!(h
+            .popup_calls
+            .iter()
+            .any(|c| matches!(c, PopupCall::Catalog { layout, .. }
             if layout.background == 0x1421_5ED2)));
     }
     for (button, instance, kind, secondary) in [
@@ -459,14 +466,31 @@ fn transport_script_vehicle_and_disaster_menus_have_literal_identity() {
         assert!(h.ops.contains(&Op::Control(10, ControlCall::Shutdown)));
         assert!(h.ops.contains(&Op::Capture(false)));
         assert!(h.popup_calls.contains(&PopupCall::Script {
-            parent: v.as_igzwin(), group: 0x96A0_06B0, instance, data: button,
+            parent: v.as_igzwin(),
+            group: 0x96A0_06B0,
+            instance,
+            data: button,
         }));
-        assert_eq!(if secondary { v.secondary_kind() } else { v.tertiary_kind() }, kind);
+        assert_eq!(
+            if secondary {
+                v.secondary_kind()
+            } else {
+                v.tertiary_kind()
+            },
+            kind
+        );
         h.ops.clear();
         v.owner.stack.push(11);
         v.handle_button_activated(&mut h, button);
         assert!(h.ops.contains(&Op::Control(11, ControlCall::Shutdown))); // before same-kind toggle
-        assert_eq!(if secondary { v.secondary_kind() } else { v.tertiary_kind() }, 0);
+        assert_eq!(
+            if secondary {
+                v.secondary_kind()
+            } else {
+                v.tertiary_kind()
+            },
+            0
+        );
     }
     for (button, catalog, kind, secondary) in [
         (0xEBFA_C717, 0x00B4_3D44, 0x0BB2_E43E, false),
@@ -479,7 +503,14 @@ fn transport_script_vehicle_and_disaster_menus_have_literal_identity() {
         v.handle_button_activated(&mut h, button);
         assert_eq!(h.catalog_queries[0].catalog, catalog);
         assert_eq!(h.catalog_queries[0].kind, kind);
-        assert_eq!(if secondary { v.secondary_kind() } else { v.tertiary_kind() }, button);
+        assert_eq!(
+            if secondary {
+                v.secondary_kind()
+            } else {
+                v.tertiary_kind()
+            },
+            button
+        );
     }
 }
 
@@ -491,20 +522,44 @@ fn shutdown_orders_services_gui_progress_and_registry_and_consumes_owned_fields(
     v.owner.lifecycle.progress = Some(777);
     v.owner.lifecycle.objects.insert(0x410, 778);
     let gui_refs: Vec<_> = v.gui_state().fields.values().copied().collect();
-    let service_refs: Vec<_> = v.owner.lifecycle.objects.iter().filter_map(|(&field, &id)|
-        (field != 0x410).then_some(id)).collect();
+    let service_refs: Vec<_> = v
+        .owner
+        .lifecycle
+        .objects
+        .iter()
+        .filter_map(|(&field, &id)| (field != 0x410).then_some(id))
+        .collect();
     h.ops.clear();
     v.shutdown(&mut h);
-    let remove_gui = h.ops.iter().position(|o| matches!(o, Op::Gui(GuiCall::Destroy(_)))).unwrap();
+    let remove_gui = h
+        .ops
+        .iter()
+        .position(|o| matches!(o, Op::Gui(GuiCall::Destroy(_))))
+        .unwrap();
     for token in service_refs {
-        let release = h.ops.iter().position(|o| *o == Op::Lifecycle(LifecycleCall::Release(token))).unwrap();
+        let release = h
+            .ops
+            .iter()
+            .position(|o| *o == Op::Lifecycle(LifecycleCall::Release(token)))
+            .unwrap();
         assert!(release < remove_gui);
     }
     for token in gui_refs {
-        assert_eq!(h.ops.iter().filter(|o| **o == Op::Gui(GuiCall::Release(token))).count(), 1);
+        assert_eq!(
+            h.ops.iter().filter(|o| **o == Op::Gui(GuiCall::Release(token))).count(),
+            1
+        );
     }
-    let progress = h.ops.iter().position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(777))).unwrap();
-    let unregister = h.ops.iter().position(|o| *o == Op::Lifecycle(LifecycleCall::UnregisterCommands)).unwrap();
+    let progress = h
+        .ops
+        .iter()
+        .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(777)))
+        .unwrap();
+    let unregister = h
+        .ops
+        .iter()
+        .position(|o| *o == Op::Lifecycle(LifecycleCall::UnregisterCommands))
+        .unwrap();
     assert!(remove_gui < progress && progress < unregister);
     assert_eq!(h.ops.last(), Some(&Op::Gui(GuiCall::BaseShutdown)));
     assert!(v.gui_state().fields.is_empty());
