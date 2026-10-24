@@ -52,3 +52,14 @@ drift. This is consistent with §6.1 inputs changing within a native pass;
 the pass-end sample is insufficient. LV6's safe installation/lifetime contract
 still blocks implementing faithful per-delivery capture. No formula, comparison,
 sample selection or acceptance criterion was changed.
+
+<!-- from: glue-traffic-flake6 (2026-10-24), third house repeat -->
+LV6/LV2 repeat evidence: `traffic-flake6-637a-house-t3-r2` is clean/ref0 with
+traffic72/72 exact and zero traffic resyncs, but landvalue71/72 exact. Its sole
+landvalue difference is pass47 at2029-11-08: intrinsic5 (max delta2), total2
+(max delta2), slope0, types0, mean270.05667/270.05804, eight mismatches overall.
+The log labels input_capture=pass-end-sample/native_step_capture=0; its day1/32
+diagnostic reproduces intrinsic/mode/mean but total still differs in428 tracts.
+This preserves the LV6 input-boundary gap despite three exact traffic repeats;
+it does not establish a turbo-only cause. No implementation, sampling, formula
+or acceptance adjustment was made; landvalue stays blocked on LV6.

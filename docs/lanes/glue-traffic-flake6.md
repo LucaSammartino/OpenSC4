@@ -3,7 +3,7 @@
 | glue-traffic-flake6 (deterministic house traffic) | Codex / `glue-traffic-flake6` | in progress | Collect queued t2, run one unique t3, merge main, enqueue after three exact traffic repeats. |
 
 ## Handoff
-Round2: t2 clean/exact recorded73edac447; unique traffic-flake6-637a-house-t3-r2 queued, wait52815 active. No merge-queue entry.
+Round2: t2 recorded73edac447; t3 clean/traffic72/72, landvalue71/72 (LV6/LV2), all three traffic repeats exact. No game outstanding; no merge-queue entry.
 Goal: deterministic traffic and landvalue house shadows through 2032; repeated exact real-game runs.
 Done: train166 landvalue failure is May2026, traffic first failure June2027: independent.
 Traffic evidence: 2027-06-13 log rejects removed lot211D072C twice immediately before missing counters (8 trips/58 routed commuters); live lists/grids remain exact.
@@ -16,7 +16,8 @@ Game1 PASS: traffic-flake6-637a-house-t1 72/72 traffic, 72/72 landvalue; clean/r
 Next: wait for unique traffic-flake6-637a-house-t2 verdict (accept existing completed verdict), record it; run at least one more unique house repeat and normal speed if any turbo difference. Target N>=3 exact traffic repeats before ready; landvalue native capture remains blocked LV6 even if sampled outputs exact. No source change since passing full gate; do not repeat it without a diagnostic reason.
 Game2 PASS: traffic-flake6-637a-house-t2 traffic72/72, landvalue72/72; clean/ref0/rtc0/incomplete0,2032-01-01,654.656s(real)/669s(wall), traffic resync0. Wait2373 timed out normally; wait10925 terminal exit0. Run number left to coordinator.
 Merged main with git merge --no-edit main: a039ba67c, no conflicts. Incoming plugin changes require native gate; no traffic core changes merged. DLL remains original561DDEE7 pending t3 completion.
-Next: collect wait52815 for t3; then python MAIN/.claude/lane-bin/qbuild.py --wt WT build ctest, collect to terminal, record results and enqueue. Run numbers left to coordinator.
+Game3: traffic-flake6-637a-house-t3-r2 clean/ref0/rtc0/incomplete0,2032-01-01,639.813s(real)/653s(wall), traffic72/72/resync0, landvalue71/72/resync0. LV6/LV2 pass47 evidence appended; no landvalue implementation change. Wait52815 timed out; wait63860 terminal exit0.
+Next: collect native qbuild verify operation89951 (qbuild-20261024-022942-build-ctest) to terminal; then final report and ready queue. Earlier unsupported qbuild build/ctest dispatch exited1 without starting a build; verify is the correction, not a duplicate. Run numbers left to coordinator.
 DLL SHA256561DDEE7F4CA1984790215A9D44B131C321230261703B751FA5DCC292D199B39. Max local run351 after this milestone. No build/wait operation or functions cell outstanding. No merge-queue entry.
 First q.py focused attempt failed Bash CreateFileMapping Win32 error5; preserved build-runs/q/20261024-013630-2352.log. Direct cargo operation is the replacement, not a duplicate.
 Wait helper build-runs/wait-game.ps1 uses one FileSystemWatcher wait, accepts existing completed unique verdicts; do not use qwait per transport. House request matches main/build-runs/regress-train166-shadows.ini (excludes harness-owned autoload path).
