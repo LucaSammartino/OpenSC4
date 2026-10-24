@@ -21,9 +21,9 @@ Native calls check the specified PE identity and executable sections, use isolat
 
 Konradshohe, `viewutil_shadow=1`; default remains off. Runs 520/521 used DLL `9efd3ba0`, engine source b6672b1de; final run 522 used DLL `4a19a8f0`, source f1b647211. All three verdicts have zero reference warnings, foreign exceptions, watchdog stalls, RTC failures, and overruns; resyncs=0 throughout.
 
-- [Run 520](../runs/viewutil12-r1-turbo-20261024a-520.md): `viewutil12-r1-turbo-20261024a 0/73`; clean at **2032-01-02**, turbo, 30.562 seconds.
-- [Run 521](../runs/viewutil12-r1-normal-20261024b-521.md): `viewutil12-r1-normal-20261024b 0/73`; clean at **2032-01-01**, normal speed, 109.343 seconds.
-- [Run 522](../runs/viewutil12-r3-subset-20261024c-522.md): **`viewutil12-r3-subset-20261024c 73/73`** for `viewutil-subset`; clean at **2032-01-13**, turbo, 27.906 seconds. All 73 monthly subset lines have `mismatches=0`; the complete `viewutil` aggregate remains **0/73**. Evidence: `build-runs/game-results/viewutil12-r3-subset-20261024c.verdict` and `.log`.
+- [Run 520](../runs/viewutil12-r1-turbo-20261024a-636.md): `viewutil12-r1-turbo-20261024a 0/73`; clean at **2032-01-02**, turbo, 30.562 seconds.
+- [Run 521](../runs/viewutil12-r1-normal-20261024b-637.md): `viewutil12-r1-normal-20261024b 0/73`; clean at **2032-01-01**, normal speed, 109.343 seconds.
+- [Run 522](../runs/viewutil12-r3-subset-20261024c-638.md): **`viewutil12-r3-subset-20261024c 73/73`** for `viewutil-subset`; clean at **2032-01-13**, turbo, 27.906 seconds. All 73 monthly subset lines have `mismatches=0`; the complete `viewutil` aggregate remains **0/73**. Evidence: `build-runs/game-results/viewutil12-r3-subset-20261024c.verdict` and `.log`.
 
 For **each** run, every family below is **73/73 exact**:
 

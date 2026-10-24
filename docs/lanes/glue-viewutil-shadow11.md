@@ -24,7 +24,7 @@ Required measured line:
 viewutil11-r1-on2-20261024-1424 73/73
 ```
 
-Run record: `docs/runs/viewutil11-r1-on2-20261024-1424-510.md`. House switches plus `viewutil_shadow=1`, Konradshohe, turbo through 2032-01-01. Clean verdict at 2032-01-03 after 1023.437 seconds. Every load/month row has `live=1 samples=156 fields=469 resyncs=0 mismatches=0`; final shutdown confirms 73/73 exact. Reference warnings, foreign/structured exceptions, watchdog stalls, Rust panics and other warnings all zero. DLL SHA256: `59bd57d0d0479e20a0ceb8e20fd53a5e498b74c26149d9cb629ce4152db4af11`.
+Run record: `docs/runs/viewutil11-r1-on2-20261024-1424-635.md`. House switches plus `viewutil_shadow=1`, Konradshohe, turbo through 2032-01-01. Clean verdict at 2032-01-03 after 1023.437 seconds. Every load/month row has `live=1 samples=156 fields=469 resyncs=0 mismatches=0`; final shutdown confirms 73/73 exact. Reference warnings, foreign/structured exceptions, watchdog stalls, Rust panics and other warnings all zero. DLL SHA256: `59bd57d0d0479e20a0ceb8e20fd53a5e498b74c26149d9cb629ce4152db4af11`.
 
 All 52 existing house summary keys remain exact; enabled summaries have 53 total keys including viewutil. Key sets match earlier enabled and default-off runs. Comparison is over common observed periods: the default-off control failed early, so a clean full-period baseline was not established. No stronger claim of unchanged individual lines is made.
 
