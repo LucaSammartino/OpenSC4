@@ -564,6 +564,7 @@ cGZWinScrollbar2	widget toolkit	ui	widget-scrollbar.md	-	-	-
 cGZWinLineInput	widget toolkit	ui	widget-lineinput.md	-	-	-
 cGZWinCtrlMgr	widget toolkit	ui	widget-ctrlmgr.md	-	-	-
 cGZWinText	widget toolkit	ui	widget-text.md	-	-	-
+cGZWinToolTip	widget toolkit	ui	widget-tooltip.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
