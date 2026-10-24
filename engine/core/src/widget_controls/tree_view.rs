@@ -2,8 +2,11 @@
 //! cGZWinTreeView, widget-controls §6. Node handles, visible rows and selection
 //! positions are distinct. Open native adapters are never assigned signatures.
 use super::*;
+#[path = "tree_view/input.rs"]
 mod input;
+#[path = "tree_view/rendering.rs"]
 mod rendering;
+#[path = "tree_view/settled.rs"]
 mod settled;
 pub use input::DragHelper;
 pub use settled::{ClickState, DragSession, NodeDescriptor};

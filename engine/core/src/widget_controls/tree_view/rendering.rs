@@ -204,7 +204,10 @@ impl TreeView {
             }
             ancestor = node.parent;
         }
-        let last = n.parent.map_or(true, |p| self.nodes[&p].children.last() == Some(&h));
+        let last = match n.parent {
+            Some(p) => self.nodes[&p].children.last() == Some(&h),
+            None => true,
+        };
         let mut rect = [0; 4];
         if branch {
             let outline = [x, e, x.wrapping_add(b), e.wrapping_add(b)];

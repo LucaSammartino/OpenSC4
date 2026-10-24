@@ -6,9 +6,12 @@
 - Goal: close widget-controls WC1-WC6 in engine/core/src/widget_controls; no ABI/plugin or text-edit internal changes.
 - Initial HEAD: 193b315e2e5fd9e07d121229b3ab82c7cbc59e8b.
 - Requested merge re-widget-controls-wc7 reports Already up to date; ancestor check succeeded. Git also reported packed-refs.lock denied; shared refs remain untouched.
-- Added ListBox settled page/removal/sizing/prefix paint and TreeView descriptor/property/image/move/input/paint implementations with grouped WC vectors; not yet validated.
-- Focused cargo test is still running in operation 81749, log build-runs/focused-list.log; no output yet. Collect this same operation to terminal, never duplicate it.
-- Isolated owner rustc diagnostic is operation functions cell 48, log build-runs/owner-typecheck.log; collect it to terminal too.
-- Next: fix compiler/test diagnostics, audit omissions, run qbuild all and queued verify, update closure report and queue.
+- Implementation checkpoint 915505f6a: ListBox settled page/removal/sizing/prefix paint and TreeView descriptor/property/image/move/input/paint implementations with grouped WC scenarios.
+- Isolated harness compiles actual owner source and extracts existing fixture/tests: 26 passed, 0 failed (build-runs/owner-tests-all-result.log). This is not the full workspace gate.
+- Scoped clippy-driver diagnostic corrected manual_clamp and MSRV-compatible optional-parent check; owner-clippy-2.log clean. qbuild fmt absolute paths: 8 files, exit 0, diff_lines 0.
+- Focused cargo operation 81749 interrupted to terminal exit 1 after prolonged silence. First all operation 49012 interrupted to terminal exit 1 after scoped clippy identified changed-source corrections. Logs preserved separately.
+- Corrected final all operation 11550 is running; build-runs/all-corrected.log / qbuild-test.log. Collect same operation to terminal.
+- Queued verify operation 41471 is running; label qbuild-20261024-175346-build-ctest; build-runs/verify-final.log. Collect same operation to terminal. Do not duplicate either gate.
+- Next: collect required gates; address actual failures only; commit final report and queue ready only if gates pass (partial closure explicitly permitted at context stop).
 - Remaining audit: ListBox residual adapter inventory; TreeView full recalculate/bar policy, image centering and drag helper integration. Do not claim complete owner closure from current draft.
-- No full gate or game requests launched. ABI unchanged; no plugin/capi or text-edit internal edits.
+- No game requests. ABI unchanged; no plugin/capi or text-edit internal edits. README closure audit explicitly records incomplete implementation; no new questions (WC1-WC6 already answered).

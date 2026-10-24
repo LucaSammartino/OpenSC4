@@ -59,13 +59,7 @@ pub struct ListBox {
 impl ListBox {
     pub fn set_intensity(&mut self, value: f32, f: &mut impl Foreign) {
         // Comparisons deliberately preserve NaN and negative zero (WC1).
-        self.intensity = if value > 1.0 {
-            1.0
-        } else if value < 0.0 {
-            0.0
-        } else {
-            value
-        };
+        self.intensity = value.clamp(0.0, 1.0);
         f.invalidate(self.window);
     }
     pub fn enable_sorting(&mut self, f: &mut impl Foreign) {
