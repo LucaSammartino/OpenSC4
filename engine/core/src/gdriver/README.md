@@ -77,8 +77,12 @@ specified core contract is covered; it does not claim native backend integration
 | cTextureManager | 9.6 compressed raw-copy traversal | texture::convert | implemented: raw_converter_advances_rows_with_independent_strides (forward traversal, independent strides, padding) |
 | cPrimitive | 8.3 queued records, 13 lifetime/order | primitive::Entry, PrimitiveManager::queue/flush | implemented: primitive_copy_merge_immediate_overtake_and_failure_paths, dx7_21_flush_returns_last_submission_and_resets_scratch_when_stopped |
 | cVertexBuffer | 14.1 reservation/reference/loss | primitive::VertexBuffer | implemented: dx7_16_buffer_reservation_and_reference_order, loss_placeholder_is_owned_and_released_on_restore |
-| cTextureStageData | 10.1 record/reset, 10.2 setters, 10.3 application, 13 caches | stage::Stage | implemented: dx7_06_combiner_cache_and_min_filter_fallthrough, dx7_25_26_constructor_and_default_reset_are_distinct, stage_coordinates_matrices_environments_and_capability_gate |
+| cTextureStageData | 7 defaults, 10.1 record/reset, 10.2 setters, 10.3 application, 13 caches | stage::Stage | implemented: dx7_06_combiner_cache_and_min_filter_fallthrough, dx7_25_26_constructor_and_default_reset_are_distinct, stage_coordinates_matrices_environments_and_capability_gate |
 | D3DLight | 12.1 construction, 12.4 fields/submission | D3DLight, auxiliary.rs | implemented: dx7_32_38_auxiliary_lighting_and_material_vectors |
+| Presentation context | 14.2 construction/resources/rebuild | context.rs Context, select_device | implemented: dx7_12_flip_fallback, dx7_28_device_ranking_sentinel_and_selectors, dx7_29_30_first_depth_format_and_terminal_failures, context_rebuild_releases_previous_surfaces, DX7-61–62 |
+| Presentation context | 14.3 presentation | context.rs Context::present | implemented: dx7_13_14_present_retry_and_empty_rect |
+| Placeholder device | 4.4 loss sink | mod.rs Driver::flush, backend.rs Call::PlaceholderDevice | implemented owner contract: loss_placeholder_is_owned_and_released_on_restore; foreign primitive supplies the inactive sink identity |
+| Shared vertex-format helpers/copiers | 8.1 arrays, 8.3 copied records, 8.5 vertex formats | vertex.rs, primitive.rs | implemented: matrices_viewport_formats_and_draw_patterns, dx7_19_20_compact_writes_preserve_absent_uvs |
 
 ## Remaining boundaries
 

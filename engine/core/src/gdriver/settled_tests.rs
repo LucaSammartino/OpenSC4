@@ -220,6 +220,8 @@ fn dx7_57_failed_probe_persists_through_mode_and_loss() {
     assert_eq!(d.copy_color_buffer(0, 0, 1, 1, 90, &mut h), Ok(0));
     assert_eq!(d.error, 27);
     d.set_video_mode(u32::MAX, 0, false, 0, &mut h).unwrap();
+    d.current.words[0] = 0;
+    d.modes = vec![d.current];
     assert!(d.setup(0, &mut h).unwrap());
     h.failures.push_back((Call::CooperativeLevel, LOST));
     d.flush(&mut h).unwrap();
@@ -356,6 +358,8 @@ fn dx7_61_owner_surfaces_setup_loss_recovery_order() {
     d.window = 15;
     d.current.words[1] = 800;
     d.current.words[2] = 600;
+    d.current.words[0] = 0;
+    d.modes = vec![d.current];
     assert!(d.setup(0, &mut h).unwrap());
     let old = [d.device, d.context.depth, d.context.primary, d.context.target];
     assert_eq!(d.primary_surface, old[2]);
@@ -411,6 +415,8 @@ fn dx7_62_aliased_fallback_failed_recovery_and_cleanup() {
     d.window = 15;
     d.current.words[1] = 800;
     d.current.words[2] = 600;
+    d.current.words[0] = 0;
+    d.modes = vec![d.current];
     d.color_probe = Some(false);
     assert!(d.setup(1, &mut h).unwrap()); // mode back-buffer count defaults to zero
     assert_eq!(d.context.primary, d.context.target);
