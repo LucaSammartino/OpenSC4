@@ -695,7 +695,7 @@ Fields past the network occupant's (§2.2):
 | `+0x260`, `+0x261` | 2 × bool | refresh pending, model rebuild needed (slot 100, §3.2) |
 | `+0x262` | bool | cleared by `Read`; the subway builds its model before its paths while it is clear |
 | `+0x264` | u32 | the layer's class ID (`0x49C05B9F` pipe, `0xCA16374F` subway), given to `Init` (slot 82) |
-| `+0x268` | u32 | saved and returned by slot 96; nothing in these classes sets it (NO41) |
+| `+0x268` | u32 | opaque saved model-key word, returned unchanged by slot 96 (§3.6.3) |
 | `+0x26C` | pointer | the static model descriptor (slot 101) |
 
 A vertex list is a vector of the 24-byte vertices of §2.2 (begin/end/capacity).
@@ -946,19 +946,19 @@ themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x
 
 | Offset | Type | Field |
 |---|---|---|
-| `+0x68` | u32 | saved; meaning not known (NO41) |
+| `+0x68` | u32 | number of active wall lists (0–4); saved |
 | `+0x6C`, `+0x78`, `+0x84`, `+0x90`, `+0xA0`, `+0xAC`, `+0xBC` | 7 vertex lists | the connection's model *[summary]* |
 | `+0xC8` | pointer | the **attached** underground occupant (the one at this cell), counted |
 | `+0xCC` | pointer | a **linked** occupant (slot 40), counted |
 | `+0x150`, `+0x154` | 2 × s32 | the cell |
 | `+0x160`…`+0x16C` | 4 × f32 | four heights |
-| `+0x170` | f32 | saved (NO41) |
+| `+0x170` | f32 | model's upper anchor elevation; saved |
 | `+0x174` | f32 | creation-time position y minus the cell size; not a separate record field |
-| `+0x178` | s32 | saved (NO41) |
+| `+0x178` | s32 | self-lit shade-table index, initially 1; saved |
 | `+0x17C` | bool | the model state has been taken into account |
 | `+0x180`, `+0x18C` | 2 × 3 × f32 | the box (slot 42) |
 | `+0x230` | 3 × f32 | the position (occupant slots 8 `GetPosition`, 9 `SetPosition`) |
-| `+0x240` | u32 | saved (NO41) |
+| `+0x240` | u32 | creation class ID; saved |
 | `+0x244` | bool | set by `Read` |
 
 **Record** (`Write` `0x00654C50`, `Read` `0x00657590`):
@@ -1113,8 +1113,23 @@ Subtraction and multiplication remain on the x87 stack until the f32 V store; no
 temporary intervenes (`0x00655659–0x0065567F`, `0x0065569C–0x006556EE`). The wall builder clears
 its lists before appending; the helper itself does not clear them.
 
-UG5 remains open for the descriptor-dependent geometry, complete Draw/view/transform and message decisions;
-NO40/NO41 also remain open. Neither a successful lookup nor these packing tuples is an owner-closure claim.
+#### 3.6.3 Saved auxiliary words *[compat; NO41]*
+
+The underground base's +268 is an **opaque model-key word**: preserve all 32 bits on record round trips
+and return them unchanged as GetModelKey's second output. It is not a descriptor pointer or an inferred
+network enum. The descriptor is separately +26C: Init's apparent +268 store is relative to object+4
+(`0x0065C0A8–0x0065C0B4`), whereas GetModelKey reads +268 relative to the primary object
+(`0x0065A81C–0x0065A826`). No semantic conversion is justified by these methods. The connection's +68
+counts the active wall lists: construction gives zero, unattached CreateWalls rebuilds it to four,
+attached CreateWalls retains it despite clearing the lists (§3.6.2; `0x00655F5F`). Its +170 is the upper
+model anchor height: initially position.y, subsequently refreshed from the linked occupant (or the
+own-cell connection lookup) position in CreatePieceModel; +174 is the attached underground ceiling,
+or +170 minus the cell size when unattached (`0x006559A6–0x006559E5`,
+`0x00655AC1–0x00655B05`). +178 is the signed **shade-table index**, initialized to 1, used as
+`0x00B0CFB0 + 12×index` for Draw's self-lit RGB; the saved value is retained without validation.
++240 is the class ID supplied to creation Init, independently of the occupant type and descriptor
+(`0x0065476E–0x0065477C`, `0x00656E90–0x00657493`). Thus the opaque base word needs no invented meaning,
+and the shade word must not be normalized to a boolean.
 
 The subclasses differ in exactly three slots plus the type: the **pipe connection** ctor `0x006483E0` = the
 underground-connection ctor + its own vtables (`0x00AA9578` primary etc.), `Init` `0x00648050`; the **subway
@@ -1123,6 +1138,35 @@ connection** ctor `0x00652C50`, `Init` `0x00652A80`. The `QueryInterface`s are `
 primary vtables are 45 slots (`0x00AA9578`, `0x00AAA188`) with the same slot order; only QI (0), Init (3),
 GetGZCLSID (37), the folded 38 and slot 44 differ.
 ---
+
+#### 3.6.4 Connection message decisions *[compat; UG5 partial]*
+
+DoMessage receives the message-target view at primary+34 and always returns true, including for
+unknown messages and all ignored payloads. Its four decisions are:
+
+| Message | Payload and action |
+|---|---|
+| `0x8B87A974` | Read message +28's pointer. For a nonnull pointer accepted by main slot 44 (the layer-specific interface query), ask the returned occupant's slot 59 (+EC) for cell x/z. Only an exact match with live +150/+154 replaces attached +C8: Release old if present, store the query result, AddRef it, then ModelStateChanged. Release the query result afterward even on a cell mismatch. A successful interface query completes this branch; it never falls through to the own-pointer case. |
+| `0x8B87A974`, interface query failed | If the original payload pointer equals the connection's **primary pointer**, and +C8 is nonnull, call the attached occupant's slot 89 (+164) with true. Null payload and other pointers do nothing. This is the own-connection insertion notification, not a new attachment. |
+| `0x8B87A975` | Query the nonnull payload through main slot 44. If the returned pointer equals attached +C8, Release the stored reference, clear +C8, set +17C=true, get the connection position and store +174=`f32(position.y−cellSize)`. Release the query result regardless of equality. No ModelStateChanged, immediate geometry build or renderer notification is performed here. |
+| `0x8B8B2CEE` | Only a nonnull payload exactly equal to linked +CC triggers action: Release it, clear +CC, remove this connection through occupant manager +54 with `(primary,0,0)`, invoke main slot 43 (refresh the attached occupant with true), then main slot 4 (Shutdown). Other pointers do nothing. |
+| `0xA6B79602` | Fetch the two pointers through message +28 and +3C; compare their **u32 at +4**. Different values call CreateGeometry; equal values do nothing. The handler contains no null guards for those two context pointers and does not compare the pointers themselves. |
+
+Replacement on insertion does not have an equal-pointer fast path: even reattaching the same
+occupant performs Release, store, AddRef, ModelStateChanged, and the final temporary Release.
+ModelStateChanged still has its independent +17C latch (§3.6.1), so inserting while that latch is
+already true does not by itself rebuild geometry or notify the renderer. The removal branch does
+not recompute +170; it changes the lower height +174 only. Sources: insertion
+`0x00656D43–0x00656DF0`, removal `0x00656CC2–0x00656D35`, linked removal
+`0x00656DFD–0x00656E42`, context comparison `0x00656E50–0x00656E79`.
+
+The model-view method at `0x00654140` subtracts **0x24C** to the primary pointer, then calls
+main slot 10 with the supplied box pointer and that pointer+12: it delegates to occupant bounds,
+without independently transforming a box or ensuring geometry is current. The function at
+`0x00654160` instead calls attached +C8's slot 100 (+190) with true if attached, otherwise does
+nothing; it is main slot 43 Refresh, despite the export's GetWorldBounds name. Neither function
+establishes a missing general GetTransform/SetTransform contract. Complete geometry, Draw and
+view-dependent transform/bounds generation remain open under NO40/UG5.
 
 ## 4. The power pole *(cSC4PowerPoleOccupant, 0x09C05C6A)*
 
@@ -1468,6 +1512,30 @@ table is indexed by the cached rotation without a range check; these rules requi
 Wire sampling/cell walks, complete bounds/Pick/Draw and remaining resource/model decisions stay open
 in NO33/NO43. The construction and geometry facts here are not a complete pole-owner algorithm.
 
+#### 4.7.2 Occupant bounding rectangle *[compat; NO33/NO43 partial]*
+
+GetBoundingBox (`0x00649A00–0x00649B27`) receives the **occupant view at primary+8**. Its +C8 dirty
+test is therefore the primary +D0 flag; its apparent position +98/+9C/+A0 is primary +A0/+A4/+A8.
+When dirty, obtain the starting x/z cells by truncating position.x / cell-width and position.z /
+cell-depth toward zero, retaining their low 32 bits. Initialize both minimum and maximum cell
+coordinates to this cell. Consider only connection records whose sampled-wire vertex list is
+nonempty (record +14 differs from +18). Their destination cell x/z at record +0C/+10 expand the
+rectangle using **unsigned** comparisons. A smaller coordinate replaces the minimum; otherwise
+a larger one replaces the maximum. Empty-wire records do not contribute even when they retain
+destination coordinates. Store the four cached extrema at primary +D4/+D8/+DC/+E0 and clear +D0.
+No coordinate scan occurs on a clean call (`0x00649A11–0x00649AB1`).
+
+Return min `(signed(minX)×cellWidth, floorHeight, signed(minZ)×cellDepth)` and max
+`(signed(maxX+1)×cellWidth, position.y+60, signed(maxZ+1)×cellDepth)`, with 32-bit wrapping
+increments and f32 output stores. The extrema are compared as unsigned but converted to floating
+point as **signed** integers (`0x00649A6B–0x00649AA4`, `0x00649AB8–0x00649B22`). Each multiplication
+is done after signed conversion; the y addition is one x87 addition followed by an f32 store.
+This is a cell-covering rectangle, independent of the actual rendered wire extrema and model box.
+GetWorldBounds uses this occupant box. GetBounds instead forwards to the held model's +1C method
+when a model exists and otherwise leaves the output untouched (`0x00649E50–0x00649E6C`);
+the separate Pick path uses a model-derived box.
+The floor and wall lists do not expand this occupant rectangle.
+
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
 
 *Rewritten 2026-10-21 (re-powerpoles): object offsets, and the record read in the bytes (answers NO13).* A power line
@@ -1531,10 +1599,10 @@ the occupant type **`0xA9B6D7DE`** at `+0x2C` (`0x005F19F9`) — not the bare ty
 | `+0x6C/+0x70/+0x74` | UI state / dispatch state / dispatch type (32-bit live enums; signed bytes on disk) |
 | `+0x78` | source occupant ref (`SetSourceOccupant` `0x005F0D30`; getter folded `0x00407AB0`) |
 | `+0x7C` | the single transform; flags at +7C/+7D, identity 3×3 at +80…+A0, zero translation +A4/+A8/+AC, scalar +B0=1 |
-| `+0xB4…+0xC8` | auxiliary scale/rotation fields (1,1,1,0,0,0) |
-| `+0xCC…+0xE0` | second auxiliary scale/rotation fields (1,1,1,0,0,0) |
+| `+0xB4…+0xC8` | cached local box, min initially (1,1,1), max initially (0,0,0) |
+| `+0xCC…+0xE0` | cached world box, min initially (1,1,1), max initially (0,0,0) |
 | `+0x134/+0x13C` | packed render states |
-| `+0x144/+0x148/+0x150` | texture binding / texture id / MySim texture id; all initially zero |
+| `+0x144/+0x148/+0x150` | main texture binding / main texture id / call-number texture id; all initially zero |
 | `+0x14C` | u16 call number; constructor 0; setter marks +68 dirty |
 | `+0x1A4/+0x1A5` | blink bool / drag byte; constructor zero |
 | `+0x1A8` | signed 32-bit bitmap/state field; constructor zero |
@@ -1625,7 +1693,7 @@ binding +144 if present, otherwise releases texture +148 if nonzero and the text
 manager exists; clears/releases source +78 and owner +1C0. These are distinct refs;
 the source is not a second ref at +6C (`0x005F11A0–0x005F129A`).
 
-#### 6.2.1 State setters, animation and position *[compat; NO36 partial]*
+#### 6.2.1 State setters, animation and position *[compat; NO36]*
 
 SetUIState, SetDispatchState and SetDispatchType compare the full 32-bit value against +6C, +70 or +74.
 A changed value marks +68 dirty and clears blink +1A4; an equal value preserves both bytes, including a
@@ -1658,11 +1726,10 @@ SetVisibility first forwards both arguments to the occupant base. If the resulti
 it is manager-inserted, call PlaceInRenderer with the requested visibility; otherwise no renderer
 placement call follows (`0x005F12A0–0x005F12C6`, also occupant-view-relative).
 
-The record/placement/packed-state rules above and these state operations answer parts of NO36. Texture
-composition, RebuildModel, Draw/Pick, complete transform/bounds/sort and message behavior still require
-their own verified rules; these setters do not substitute for those algorithms.
+These state operations combine with §§6.2.2–6.2.4 to answer NO36. The setters themselves do not
+perform texture composition or update bounds unless a rebuild is explicitly listed.
 
-#### 6.2.2 Bounds, transforms, picking and texture selection *[compat; NO36 partial]*
+#### 6.2.2 Bounds, transforms, picking and texture selection *[compat; NO36]*
 
 GetBounds copies local min/max at primary +B4/+C0; GetWorldBounds copies world min/max at +CC/+D8.
 The occupant-view GetBoundingBox copies that same world pair to separate outputs. These getters do
@@ -1690,7 +1757,7 @@ it selects instances from table A, types 1/5 table B; other non-4 types use inst
 type/group are `0x7AB50E44/0x1ABE787D`. A successful binding replaces +148 with that binding's
 texture ID; a failed/null binding leaves the old +148 unchanged. The return is whether +148 is
 nonzero, so it can be true after a failed replacement of a previously nonzero ID. Type 4 calls
-BuildMySimTexture instead; its full pixel-composition behavior remains open.
+BuildMySimTexture instead; §6.2.4 specifies its pixel composition.
 
 | Dispatch state | Table A instance | Table B instance |
 |---|---|---|
@@ -1704,8 +1771,145 @@ BuildMySimTexture instead; its full pixel-composition behavior remains open.
 
 These arrays are indexed without a range check; values outside 0…6 have no supported resource
 contract. Sources: `0x005F1610–0x005F1705`, tables `0x00AA4F20/0x00AA4F3C`.
-This section settles the accessors, picker and ordinary texture selection, not NO36's remaining
-billboard construction, label/MySim composition, Draw and message owner algorithms.
+Billboard construction and label/MySim composition are in §6.2.4; Draw and messages are in §6.2.3.
+
+#### 6.2.3 Drawing and message decisions *[compat; NO36]*
+
+Draw (`0x005F2830–0x005F29A4`) returns 1 without submitting anything when its self-lit argument is
+true or the byte at `context[+38][+0C]+39C` is nonzero. Otherwise pass zero alone consumes a dirty
+model by calling RebuildModel. Both supported passes install the cached +7C transform and clear
+texture transform zero. Pass zero sets transparency to f32 bits `0x3ECCCCCD`, uses state +13C,
+binds the raw texture ID +148 and submits the four main vertices at +E4 with primitive/format
+`(6,2)`. It resets transparency and returns 2. Pass one resets transparency, uses state +134 and
+draws the same main quad. It also draws the four label vertices +154 with texture +150 only when
+the **dispatch state getter** (primary slot 12) is neither 1 nor 4, call number +14C is nonzero,
+and dispatch type +74 is not 4. Pass one does not consume dirty state; its return is 1.
+Other pass numbers submit nothing and return 1. There is no texture-ID-zero rejection in these
+submissions. The label eligibility is evaluated before a pass-zero rebuild, although pass zero
+does not draw the label (`0x005F2864–0x005F2898`, `0x005F28A1–0x005F28AD`,
+`0x005F291E–0x005F299A`).
+
+DoMessage (`0x005F26F0–0x005F282C`, receiving primary+4) always returns true, including unrecognized
+messages. `0x86AD10EE` obtains the message's +38 u32, divides by **unsigned 1000**, and passes the
+quotient to DoAnimationTick. `0x26D31EC1` immediately rebuilds the model. `0xA6B79602` only marks
++68 dirty. For `0x06CDB65B`, the filter obtained from message +3C tests this occupant (+8): rejection
+removes visibility flag 2 and calls renderer +74 only if that flag was set; acceptance sets flag 2
+and calls renderer +70 only if it was clear. Already-matching visibility causes no renderer call.
+The renderer receives the adjusted 3D-model view, not the occupant interface.
+
+#### 6.2.4 Billboard and bitmap construction *[compat; completes NO36]*
+
+Construction initializes both cached boxes to min `(1,1,1)`, max `(0,0,0)`, **not** useful
+geometry; the two packed-state pairs are all zero. The main and label vertex arrays have no
+constructor initialization contract. RebuildModel supplies them before drawing. The constructor's
+model category at primary +50 is 3 (`0x005F196C–0x005F19A9`, `0x005F1A00`). The defaults in §6.1
+and the lifecycle/state rules in §§6.2–6.2.3 complete the other requested constructor/owner behavior.
+
+**MySim composition** (`0x005F12D0–0x005F160B`). Load a bitmap with type/group
+`0x856DDBAC/0xAB7E5421`, format argument 9 and immediate-load argument 1. Its instance is
+`0x2BB06F3F` for dispatch state 1, `0x2BB075B4` for states 0,2,3,4,5,6 (table `0x00AA4F58`);
+there is no state-index range check. Missing background returns false without changing the
+texture ID. Hold the background for the duration of the operation. A nonzero bitmap selector
++1A8 loads the portrait from type/group `0x856DDBAC/0x46A006B0`, instance equal to that selector,
+format 9, explicit Load. A zero selector instead obtains class/IID `0xA2FFB5D3/0x02FFBB60` and
+requests a portrait with string +1AC and argument 8 through slot +10. Failure to obtain that
+service returns false; a successfully obtained service returning no portrait still permits
+uploading the background. Release the portrait/service and temporary resource holders on exit.
+
+The loaded background itself is the destination; this routine makes no private bitmap clone.
+For a portrait of width `w`, let `d = (u32(52-w) >> 1)`. Starting from its reported rectangle,
+the destination x is `rect.left+d+n` and y is `rect.top+trunc(d/2)`, for `n=52,104,156` in that
+order. The source starts at its bitmap data origin, not at that rectangle's top-left offset.
+For each placement lock both bitmaps with `0x8040`, visit the full source height/width using
+their byte row strides, and unlock both with that same flag. Copy a complete 32-bit source pixel
+only if the destination pixel's `0xC0000000` bits are zero and the source RGB is not `0xFF00FF`.
+There is no blending, clipping, resizing or width-underflow repair in this routine. In particular,
+pixels copied by an earlier placement can protect themselves against a later placement. With
+no portrait the pixel walk is skipped. Finally call SetupTexture(background, texture manager,
+address of **main** ID +148, 1,0,0,0) and return its boolean; +150 is the call-number ID, not the
+MySim ID. Sources: placement `0x005F1436–0x005F1475`, pixel predicate/strides
+`0x005F14DA–0x005F15B7`, upload `0x005F15C1–0x005F15E6`.
+
+**Main billboard.** Let `V(p)` be ViewportUnitsToWorldUnits for viewport distance p and let F
+denote an explicit float32 store. RebuildModel computes `W=F(V(44))`, half-width
+`a=F(W*0.5)`, and height `h=F(V(150)/cos(pitch))`. The height division uses the extended x87
+cosine without an intermediate cosine float32 store. It calls RebuildCurrentTexture even if
+the current texture appears valid, and continues geometry rebuilding regardless of that result.
+The ordered vertices at +E4 are:
+
+| Vertex | Position | UV |
+|---|---|---|
+| 0 | `(-a,h,0)` | `(k*s,0)` |
+| 1 | `(-a,0,0)` | `(k*s,b)` |
+| 2 | `(a,0,0)` | `((k+1)*s,b)` |
+| 3 | `(a,h,0)` | `((k+1)*s,0)` |
+
+For dispatch type 4, `s=0.203125` and b has float bits `0x3F3145D1`; otherwise `s=0.171875`,
+`b=0.5859375`. k is 3 when blink +1A4 is true, otherwise the UI state except that zero becomes
+1. k is converted as a signed integer; the products and sum are stored as float32. No UI-state
+range clamp is added (`0x005F20AF–0x005F21E9`, constants `0x00AA51AC/0x00AA51B0`).
+
+The rebuild preserves translation. If scale's bits are not exactly `0x3F800000`, set it to 1,
+clear mask bit 2, and increment the transform counter. If mask bit 4 is set, first replace the
+matrix with identity, clear that bit and increment again. Then turn the horizontal matrix pairs
+to face the view: angle is `atan2(-view[+54],-view[+5C])`, c is its cosine rounded to float32,
+and t is its sine retained in x87 precision. For each old pair `(x,z)` from offsets
+`(+80,+88)`, `(+8C,+94)`, `(+98,+A0)`, replace it with `(x*c-z*t, x*t+z*c)`; the middle
+column stays as it was. Rounding is observable: the first pair's new x rounds only the final
+difference; the other two round each product before subtracting. The first two new z values
+round both products before adding; the last rounds only `z*c` before adding extended `x*t`.
+Every final element is float32. Set mask bit 4 and increment the counter once more, modulo 256.
+Consequently a second rebuild resets a previously billboard-rotated matrix before applying the
+new facing, while an input matrix with bit 4 clear participates in the first rotation
+(`0x005F21EF–0x005F2359`).
+
+Local bounds become `(-a,0,0)` and `(a,h,0)`. World bounds are the componentwise extrema of
+**only these two transformed endpoints**, not all four corners. For output component i, the stored
+matrix triple beginning at +80, +8C or +98 is `(Mi0,Mi1,Mi2)`, respectively. Transform that
+component as `(x*Mi0+y*Mi1+z*Mi2)*scale+translation[i]`. Keep the native x87 arithmetic order: for the
+first endpoint, x sums `-a*M00+(M02+M01)*0`, y sums `-a*M10+(M12+M11)*0`, and z sums
+`-a*M20+(M22+M21)*0`; y/z sums are F-stored before scale, and z is also F-stored after scale.
+For the second endpoint, x sums `(h*M01+a*M00)+M02*0`, y sums
+`a*M10+(M12*0+h*M11)`, and z sums `a*M20+(M22*0+h*M21)`; its x is F-stored after scale
+and its z sum is F-stored before scale. Other intermediate operations stay extended. First x/y
+and all second-endpoint coordinates are F-stored after translation. First z stays extended
+through the comparisons; final bounds are float32. No extra corners, label bounds or padding
+are included (`0x005F2363–0x005F25B1`).
+
+If call number is nonzero, rebuild its texture/vertices as below, with arguments W and h; zero
+skips that work and leaves any previous label resources/vertices untouched. Then refresh spatial
+registration: with renderer flag 2 set, renderer calls +78 then +7C(model,3); if manager flag 1
+is set, notify manager +60(occupant,0). Without renderer flag 2, notify the manager if already
+inserted, otherwise attempt PlaceInOccupantManager(true), then attempt PlaceInRenderer(true) if
+manager flag 1 is now set. These are refresh/placement operations, not a renderer +28 test.
+Finally clear dirty +68 even when texture replacement or placement failed
+(`0x005F25B7–0x005F2667`).
+
+**Call-number texture** (`0x005F1D00–0x005F2050`). Obtain font resource `0x68963C4C` from WCM,
+hold it, save its slot +3C setting and set that setting to 3 through +40. Format the unsigned
+16-bit call number with `%d`, without leading zeros. Let A and B be the signed integer results
+of font measurement slots +C0 and +94 respectively, each given the string and its length. The
+square bitmap side S is 32 if both measurements are at most 32; otherwise it is the smallest
+power of two at least `max(A,B)` (`0x006046B0`, despite the helper's name "nearest"). Release
+any old +150 texture and zero that ID before trying to obtain/create the bitmap. Obtain a bitmap
+through GS +0C; create S by S, descriptor `(9,32)`. On a successful `0x8001` lock clear via
+bitmap +48(0,0), then unlock. Draw the text even if that lock failed: font +CC gets
+`(bitmap,0,0,string,length,0xFF000000,0x08000000,0,0)`. If the texture manager exists upload
+with SetupTexture(bitmap,manager,&labelID,1,0,0,0), then release the bitmap. Bitmap/service/create
+failure skips the corresponding pixel/upload work but still updates label geometry and restores
+the font setting/releases it. There is no fallback to the previous label ID.
+
+For label geometry let `r=F(F(V(14))/cos(pitch))`, `j=F(V(9))`,
+`q=V(F(A))*0.5`, `y=h-r-j/cos(pitch)`, and `u=F(1/S)`. Neither cosine is F-stored here.
+The second argument h is the only geometry input used; the first argument W is unused.
+The four `(x,y,z,u,v)` tuples at +154, in order, are
+`(-q,y,0.01,0,0)`, `(-q,y-r,0.01,0,B*u)`,
+`(q,y-r,0.01,A*u,B*u)`, `(q,y,0.01,A*u,0)`.
+Keep q and y extended until each vertex store; A becomes float32 before V and the UV multiplication,
+whereas B is converted directly from its signed integer to x87 for its UV product. The reciprocal
+u is float32. Zero UVs are produced by multiplying u by zero. Position z uses
+bits `0x3C23D70A`. Geometry is rebuilt even when no texture was uploaded; main bounds are not
+expanded to include it (`0x005F1EEC–0x005F201A`).
 
 ### 6.3 Record *[compat]*
 
@@ -2160,9 +2364,11 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO38–NO41 (re-ugbase) and NO42–NO43 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
-- NO33 and NO36 remain open for complete pole/pylon owner algorithms; the partial rules and vectors added
-  2026-10-23 are in §§4.1/4.6/4.7.1 and §6.2.1. UG5 is tracked in
+- NO38–NO40 (re-ugbase) and NO42–NO43 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+  NO41 is answered in §3.6.3/test 51 and the answered archive.
+- NO33 remains open for complete pole owner algorithms; its partial rules and vectors are in
+  §§4.1/4.6/4.7.1–4.7.2. NO36 is answered by §§6.1–6.2.4 and tests 40–42, 46–48, 52–53, 56–59.
+  UG5 is tracked in
   [questions/underground-occupants.md](questions/underground-occupants.md); §§3.6–3.6.1 specify its verified
   record, creation-input, neighbor and state/ref subset.
 
@@ -2358,3 +2564,61 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     `(2,36,6),(2,4,6),(8,12,10),(8,28,10)`; UVs `(0,0),(0,2),(1,2),(1,0)`;
     alphas 64/64/128/128 and white RGB. B's drop 16 does not give a different V.
     Appending to a one-vertex destination leaves five vertices. A negative A drop gives negative V.
+51. **Auxiliary saved words** (§3.6.3). Load underground +268=`0x12345678`; GetModelKey and the next
+    save both retain that word, independently of the live descriptor pointer. For a connection,
+    retain shade index 2 rather than converting it to true/1; pass shade RGB at `0x00B0CFC8` to Draw.
+    Starting from wall count 3, attached CreateWalls clears the lists and retains 3; after detachment
+    rebuilding gives count 4. A linked position y=40 and cell size=16 gives +170=40,+174=24 when unattached.
+52. **Pylon pass and dirty behavior** (§6.2.3). With dirty=true, selfLit=true returns 1 and leaves
+    dirty set with zero submissions. With selfLit=false and the context gate clear, pass one also
+    leaves dirty set: dispatch state=0, call=7, type=0 submits main and label, while states 1/4,
+    call=0 or type=4 suppress only the label. Pass zero rebuilds once, submits just the main quad
+    with transparency bits `0x3ECCCCCD`, resets transparency, and returns 2. Unsupported pass 2
+    neither rebuilds nor submits. A zero raw texture ID does not suppress the main submission.
+53. **Pylon messages** (§6.2.3). Animation payloads 999/1000/1999/2000 deliver tick values 0/1/1/2.
+    A visibility rejection while flag 2 is clear produces no renderer removal; when set, it clears
+    the flag and removes once. Repeated acceptance adds only on the first clear-to-set transition.
+    The view-change message marks dirty without a rebuild; `0x26D31EC1` rebuilds immediately.
+54. **Pole occupant bounds** (§4.7.2). Cell extents 16×16, position `(24,50,40)`, floor height=7,
+    no sampled wires, dirty=true: box min `(16,7,32)`, max `(32,110,48)`; dirty becomes false.
+    An empty-wire record targeting `(9,9)` changes nothing. A nonempty record targeting `(3,1)`
+    gives min `(16,7,16)`, max `(64,110,48)`. Changing that record while dirty=false leaves the
+    cached x/z rectangle unchanged; changing position.y still changes the returned maximum y.
+55. **Pole bounds unsigned quirk** (§4.7.2). Seed dirty=true, position cell `(1,2)`, and a nonempty
+    record targeting x=`0xFFFFFFFF`, z=2. With extents 16×16, minX stays 1 and maxX becomes
+    `0xFFFFFFFF`; the wrapped increment gives returned maximum world x=0, less than minimum x=16.
+    Do not sort the resulting endpoints or clamp the destination cell.
+56. **MySim pixel predicate** (§6.2.4). With a one-pixel-wide portrait whose rectangle starts at
+    `(0,0)`, d=25: its three copies start at `(77,12)`, `(129,12)`, `(181,12)`. At an eligible
+    destination, source `0x12FF00FF` preserves the old pixel; source `0x00112233` replaces it
+    completely. Destination `0x40000000` blocks either source. A missing portrait still uploads
+    the background; a missing background returns false without upload. State 1 selects
+    `0x2BB06F3F`; states 0 and 6 select `0x2BB075B4`.
+57. **Main billboard** (§6.2.4). Fixture V is identity, pitch=0, view +54=0,+5C=−1, initial
+    matrix identity, scale=1, counter=0, mask=0, position `(10,20,30)`, UI=0, blink=false,
+    type=0, call=0. Rebuild gives half-width 22, height 150, vertices
+    `(-22,150,0),(-22,0,0),(22,0,0),(22,150,0)`, UV x values 0.171875/0.34375 and bottom
+    UV y 0.5859375. Bounds are local `(-22,0,0)..(22,150,0)`, world
+    `(-12,20,30)..(32,170,30)`; mask bit 4 set, counter=1, dirty=false. A second rebuild
+    resets that rotation and rotates again, giving counter=3. A failed texture replacement
+    still produces those vertices and bounds. Blink=true selects k=3 regardless of UI.
+58. **Call-number replacement** (§6.2.4). Call=7 formats `7`. For font results A=20,B=10,
+    S=32; for A=33,B=10, S=64, not 32. Start labelID nonzero and make GS bitmap acquisition
+    fail: release the old texture, retain labelID=0, still rebuild label vertices and restore
+    the font setting. A failed initial bitmap clear lock does not suppress the font draw.
+    Setting call=0 before RebuildModel instead preserves any old label ID/vertices untouched.
+59. **Label geometry and ownership** (§6.2.4). With V identity, pitch=0, h=150, A=20,B=10,
+    S=32, the vertices have x=−10/+10, top y=127, bottom y=113, z bits `0x3C23D70A`,
+    right u=0.625 and bottom v=0.3125. Changing only the first geometry argument W leaves
+    these unchanged. A MySim upload writes main +148; a call-number upload writes +150.
+60. **Connection attachment messages** (§3.6.4). Query an inserted occupant with matching cell
+    and +17C=true: replace/hold attached, release the temporary query ref, but do not rebuild or
+    notify the renderer. Repeat with the same pointer: old Release and new AddRef still occur.
+    A cell mismatch releases only the temporary and preserves attached. A failed interface query
+    with payload=primary calls attached slot 89(true); a successful query never uses this fallback.
+61. **Connection removal messages** (§3.6.4). With position.y=40, cellSize=16, +170=91, and
+    a matching queried removal, attached becomes null, +17C=true, +174=24, +170 stays 91;
+    no immediate build occurs. A linked-removal message for an unrelated pointer is inert; one
+    for linked clears it before manager removal `(primary,0,0)`, attached refresh and Shutdown.
+    Equal context +4 words suppress CreateGeometry even for different pointers; unequal +4 words
+    request exactly one geometry build. All these cases, and an unknown message, return true.

@@ -12,6 +12,12 @@
   alpha `0xFF`, change transform mask 7 to 5 when scale is 1.0 (omit scale bytes).
   This is the native save/reload reference. Count changed fields separately as
   `fixups=N` on every line; every other byte must match. Live Read is unchanged.
+<!-- from: re-ugbase (2026-10-20) -->
+- **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
+  classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
+  **ANSWERED 2026-10-23 (re-netocc-answers5d):** DIFFERS — §3.6.3/test 51: base +268 is an opaque
+  saved model-key word; Init's descriptor store is actually primary+26C. Connection words are active
+  wall count, upper anchor elevation, signed shade index, and creation class ID respectively.
 
 <!-- from: core-netocc-poles5 (2026-10-23) -->
 - ~~**NO44 - §6.1 constructor enum defaults:** what initial 32-bit values does the pylon constructor assign to UI state +6C, dispatch state +70 and dispatch type +74? The published constructor defaults cover dirty, references, transform, call, blink, drag and the v5 tail but do not specify these three values. [unpublished; core construction requires the three values as explicit inputs rather than assuming zero]~~
@@ -211,3 +217,29 @@
   **ANSWERED 2026-10-21 (re-powerpoles):** with object offsets: position `+0x38` (3 × f32), cell `+0x44`/`+0x48`, the
   two poles `+0x4C`/`+0x50`, the bool `+0x54`, preview `+0x55` (the earlier table was 4 low). The record
   (`0x0064A310`) is u16 2, the occupant record, 3 × f32, 2 × s32, a u8 and two refs (network-occupants.md §5.1, §5.2).
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
+  named matrices; SetUIState, SetBitmapInfo, dispatch type/state, SetSourceOccupant and SetPylonOwner
+  side effects; bounds/transform/position/pick; DoAnimationTick, SetVisibility, DoMessage, Draw and sort;
+  BuildMySimTexture, RebuildCurrentTexture, BuildCallNumberTexture and RebuildModel algorithms. Also
+  supply both PackRenderState descriptions and the renderer slot-0x28 result interpretation. The spec
+  names these members without behavior. The core implements only explicit lifecycle subscriptions,
+  call/drag storage and the record, with no host callbacks standing in for these owner methods.
+  [missing; sections 6.1-6.2 remain open]~~
+  **Progress 2026-10-23 (re-netocc-answers5):** §6.2.1 and tests 40–42 now specify changed/equal enum
+  setters, unconditional bitmap dirtying, source/owner ref ordering, the shared u32 blink timer,
+  position/reinsertion and visibility. Existing §6.2/test 20 already supplies both packing tuples and
+  the discarded renderer +28 result. Texture/model composition, Draw/Pick, transform/bounds/sort and
+  message decisions remain open; these partial rules do not close NO36.
+  **Progress 2026-10-23 (re-netocc-poles5):** §6.2.2/tests 46–48 now settle cached local/world
+  bounds, transform counter/mask copies, texture-ID sorting, pick eligibility/height/strict distance,
+  ordinary texture resource tables and stale-ID behavior on replacement failure. Full model construction,
+  MySim/label composition, Draw and message owner algorithms remain open. NO44 is answered separately.
+  **Progress 2026-10-23 (re-netocc-answers5d):** §6.2.3/tests 52–53 settle Draw's pass-specific dirty
+  consumption, main/label submissions, dispatch-state label gate and all message decisions. Model and
+  MySim/number-label composition remain open; no full owner closure is claimed.
+  **ANSWERED 2026-10-24 (re-netocc-answers5d):** DIFFERS — §§6.1–6.2.4/tests 56–59 complete
+  the owner contract with MySim copying, number-label rasterization, billboard geometry, transform
+  rounding and two-endpoint bounds. +150 is the call-number texture; MySim uploads to main +148.
+  Rebuild clears dirty even after a resource/placement failure; texture failure is not a geometry gate.
