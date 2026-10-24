@@ -11090,6 +11090,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 // The glue15 lane: the tutorial system (plugin_glue15_test.inc).
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
+#include "plugin_advisors_replace_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
 
 int main(int argc, char** argv) {
@@ -11185,6 +11186,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
     // The tutorial system (tutorial.md; the glue15 lane).
     if (mode == "--ini-enable-tutorial") return TutorialEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
+    if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
