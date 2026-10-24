@@ -21,3 +21,9 @@
   torch ownership, rather than specifying the full fire handler. Supplement §20.3 adds some lifecycle
   and scape IO facts. Recover construction/defaults, all interface views, message dispatch and group
   registration/removal contracts at `0x004F0240`–`0x004F132F` before calling this owner complete.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- **AU45 — completed dispatch versus vector 12:** section 7.2's completed dispatch table routes
+  `0x49E64801` to HandleAutomataMessages as an accepted no-op, while section 16 vector 12 says only
+  four other types may reach that helper. Should vector 12 include this fifth no-op type?
+  [Implement the completed section 7.2 table literally; keep the legacy four-operation fixture list.]

@@ -5,6 +5,9 @@ use super::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[path = "closure_tests.rs"]
+mod closure;
+
 #[derive(Clone, Debug, PartialEq)]
 enum Call {
     Service(HandlerService),
@@ -26,6 +29,20 @@ enum Call {
     ReleaseMessage,
     Slot14(Vec<u32>),
     GetPosition(u32, [f32; 3]),
+    ReleaseService(HandlerService),
+    RetainCapability,
+    ReleaseRadio,
+    RadioPath,
+    Radio29(String),
+    Radio23(bool),
+    Radio16(u32),
+    Preferences,
+    Sliders(u32, u32),
+    ResetLists,
+    Exclusions,
+    Control(HandlerCall),
+    Enumerate,
+    ReleasePosition,
 }
 
 type Trace = Rc<RefCell<Vec<Call>>>;
@@ -35,6 +52,7 @@ struct Host {
     missing: Option<HandlerService>,
     capability: bool,
     random: u32,
+    reply_word: u64,
 }
 
 impl Host {
@@ -44,6 +62,7 @@ impl Host {
             missing: None,
             capability: true,
             random: 0,
+            reply_word: 0,
         }
     }
 
@@ -59,11 +78,66 @@ impl Host {
             sound: 9,
             instance: 47,
             position: Some([1.0, 2.0, 3.0]),
+            third: 0,
+            present: [true; 3],
+            pointer: 77,
+            subtype: 7,
+            point: [10, 20],
         }
     }
 }
 
 impl EventHandlerHost for Host {
+    fn enumerate_sounds(&mut self, _callback: fn(&mut dyn HandlerSoundObject) -> bool) {
+        self.trace.borrow_mut().push(Call::Enumerate);
+    }
+    fn control(&mut self, call: HandlerCall) -> HandlerValue {
+        self.trace.borrow_mut().push(Call::Control(call));
+        HandlerValue {
+            word: self.reply_word,
+            text: "current".into(),
+            rectangle: [10, 20, 30, 40],
+        }
+    }
+    fn release_service(&mut self, service: HandlerService) {
+        self.trace.borrow_mut().push(Call::ReleaseService(service));
+    }
+    fn retain_capability(&mut self) {
+        self.trace.borrow_mut().push(Call::RetainCapability);
+    }
+    fn release_radio(&mut self) {
+        self.trace.borrow_mut().push(Call::ReleaseRadio);
+    }
+    fn radio_path(&mut self) -> String {
+        self.trace.borrow_mut().push(Call::RadioPath);
+        "filesystem/path/runtime-fragment".into()
+    }
+    fn radio_slot29(&mut self, path: &str) {
+        self.trace.borrow_mut().push(Call::Radio29(path.into()));
+    }
+    fn radio_slot23(&mut self, enabled: bool) {
+        self.trace.borrow_mut().push(Call::Radio23(enabled));
+    }
+    fn radio_slot16(&mut self, volume: u32) {
+        self.trace.borrow_mut().push(Call::Radio16(volume));
+    }
+    fn load_preferences(&mut self) -> AudioPreferences {
+        self.trace.borrow_mut().push(Call::Preferences);
+        AudioPreferences {
+            first_or_default: true,
+            music_enabled: true,
+            music_volume: 720,
+        }
+    }
+    fn set_default_sliders(&mut self, music: u32, sfx: u32) {
+        self.trace.borrow_mut().push(Call::Sliders(music, sfx));
+    }
+    fn reset_music_lists(&mut self) {
+        self.trace.borrow_mut().push(Call::ResetLists);
+    }
+    fn update_exclusion_lists(&mut self) {
+        self.trace.borrow_mut().push(Call::Exclusions);
+    }
     fn get_service(&mut self, service: HandlerService) -> bool {
         self.trace.borrow_mut().push(Call::Service(service));
         self.missing != Some(service)
@@ -118,9 +192,43 @@ struct Message {
     sound: u32,
     instance: u32,
     position: Option<[f32; 3]>,
+    third: u32,
+    present: [bool; 3],
+    pointer: u64,
+    subtype: u32,
+    point: [i32; 2],
 }
 
 impl EventHandlerMessage for Message {
+    fn payload_type(&mut self) -> u32 {
+        self.ty
+    }
+    fn original_position(&mut self, iid: u32) -> Option<[f32; 3]> {
+        self.trace.borrow_mut().push(Call::GetPosition(iid, [0.0; 3]));
+        self.position
+    }
+    fn release_position(&mut self) {
+        self.trace.borrow_mut().push(Call::ReleasePosition);
+    }
+    fn has_data(&mut self, index: u32) -> bool {
+        self.present[index as usize - 1]
+    }
+    fn data(&mut self, index: u32) -> u32 {
+        match index {
+            1 => self.sound,
+            2 => self.instance,
+            _ => self.third,
+        }
+    }
+    fn void1(&mut self, _original_message: bool) -> u64 {
+        self.pointer
+    }
+    fn mouse_subtype(&mut self) -> u32 {
+        self.subtype
+    }
+    fn mouse_point(&mut self) -> [i32; 2] {
+        self.point
+    }
     fn message_type(&self) -> u32 {
         self.ty
     }
@@ -184,10 +292,36 @@ fn construction_registration_and_shutdown_preserve_city_set() {
     assert!(handler.modal_subscribed.is_empty());
     assert_eq!(handler.limiter, super::super::RateLimiter::new());
     assert_eq!(handler.init_with(&mut host), Ok(1));
-    let mut expected: Vec<_> = INIT_SERVICES.into_iter().map(Call::Service).collect();
-    expected.push(Call::Register(true));
+    assert!(handler.capability_present);
+    assert_eq!(handler.reference_count, 0);
+    assert_eq!(handler.reserved_words, [0, 0]);
+    let mut expected = vec![
+        Call::Service(SOUND_SERVICE),
+        Call::Register(true),
+        Call::Service(INIT_SERVICES[1]),
+        Call::RetainCapability,
+        Call::Service(INIT_SERVICES[2]),
+        Call::RadioPath,
+        Call::Radio29("filesystem/path/runtime-fragment".into()),
+        Call::Radio23(false),
+        Call::Radio16(0),
+        Call::ReleaseService(INIT_SERVICES[2]),
+    ];
     expected.extend(MODAL_MESSAGE_TYPES.map(|ty| Call::Subscribe(MessageTarget::Modal, ty, true)));
+    expected.push(Call::Service(INIT_SERVICES[3]));
     expected.extend(init_message_types().map(|ty| Call::Subscribe(MessageTarget::Main, ty, true)));
+    expected.extend([
+        Call::Preferences,
+        Call::Sliders(0x2D0, 0x400),
+        Call::ResetLists,
+        Call::Exclusions,
+        Call::Radio30(true),
+        Call::Radio23(true),
+        Call::Radio16(720),
+        Call::ReleaseService(INIT_SERVICES[3]),
+        Call::ReleaseService(INIT_SERVICES[1]),
+        Call::ReleaseService(SOUND_SERVICE),
+    ]);
     assert_eq!(host.take(), expected);
     assert_eq!(handler.modal_subscribed.len(), 2);
     assert_eq!(handler.subscribed.len(), 13);
@@ -198,9 +332,20 @@ fn construction_registration_and_shutdown_preserve_city_set() {
         city_message_types().map(|ty| Call::Subscribe(MessageTarget::Main, ty, true))
     );
     handler.shutdown_with(&mut host);
-    let mut expected = vec![Call::Register(false), Call::ReleaseCapability, Call::StopRadio];
+    let mut expected = vec![
+        Call::Service(SOUND_SERVICE),
+        Call::Register(false),
+        Call::ReleaseCapability,
+        Call::Radio23(false),
+        Call::ReleaseRadio,
+        Call::Service(INIT_SERVICES[3]),
+    ];
     expected.extend(init_message_types().map(|ty| Call::Subscribe(MessageTarget::Main, ty, false)));
     expected.extend(MODAL_MESSAGE_TYPES.map(|ty| Call::Subscribe(MessageTarget::Modal, ty, false)));
+    expected.extend([
+        Call::ReleaseService(INIT_SERVICES[3]),
+        Call::ReleaseService(SOUND_SERVICE),
+    ]);
     assert_eq!(host.take(), expected);
     assert!(!handler.initialized);
     assert!(!handler.sound_registered);
@@ -217,18 +362,55 @@ fn construction_registration_and_shutdown_preserve_city_set() {
 }
 
 #[test]
-fn service_failure_is_explicit_without_fabricated_registration() {
-    for missing in INIT_SERVICES {
+fn service_failures_preserve_registration_and_constructor_members() {
+    for missing in &INIT_SERVICES[..2] {
         let mut host = Host::new();
-        host.missing = Some(missing);
+        host.missing = Some(*missing);
         let mut handler = AudioEventHandler::construct(&mut host);
         host.take();
         assert_eq!(handler.init_with(&mut host), Err(HandlerGap::ServiceFailure));
-        assert_eq!(host.take(), INIT_SERVICES.map(Call::Service));
+        let expected = if *missing == SOUND_SERVICE {
+            vec![Call::Service(SOUND_SERVICE)]
+        } else {
+            vec![
+                Call::Service(SOUND_SERVICE),
+                Call::Register(true),
+                Call::Service(INIT_SERVICES[1]),
+                Call::ReleaseService(SOUND_SERVICE),
+            ]
+        };
+        assert_eq!(host.take(), expected);
         assert!(!handler.initialized);
-        assert!(!handler.sound_registered);
+        assert_eq!(handler.sound_registered, *missing != SOUND_SERVICE);
         assert!(handler.subscribed.is_empty());
     }
+}
+
+#[test]
+fn lifecycle_retries_optional_filesystem_and_shutdown_failure() {
+    let mut host = Host::new();
+    let mut handler = AudioEventHandler::construct(&mut host);
+    host.missing = Some(INIT_SERVICES[1]);
+    assert_eq!(handler.init_with(&mut host), Err(HandlerGap::ServiceFailure));
+    host.missing = Some(INIT_SERVICES[2]);
+    assert_eq!(handler.init_with(&mut host), Ok(1));
+    assert!(!host.take().contains(&Call::RadioPath));
+    assert_eq!(handler.init_with(&mut host), Ok(1));
+    assert!(host.take().is_empty());
+    handler.limiter.gate(0);
+    host.missing = Some(SOUND_SERVICE);
+    assert!(!handler.shutdown_with(&mut host));
+    assert!(handler.initialized && handler.capability_present && handler.radio_present);
+    assert_eq!(host.take(), [Call::Service(SOUND_SERVICE)]);
+    host.missing = None;
+    assert!(handler.shutdown_with(&mut host));
+    host.take();
+    assert!(handler.shutdown_with(&mut host));
+    assert!(host.take().is_empty());
+    assert_eq!(handler.init_with(&mut host), Ok(1));
+    assert!(!handler.radio_present);
+    assert!(!host.take().contains(&Call::RadioPath));
+    assert!(handler.limiter.running);
 }
 
 #[test]
@@ -314,7 +496,7 @@ fn message_return_values_radio_slots_and_deferred_station_message() {
             Call::Radio31,
             Call::Slot10,
             Call::Radio7(0x1234_5678_9ABC_DEF0),
-            Call::ReleaseMessage,
+            Call::Control(HandlerCall::ReleaseTransferred(0x1234_5678_9ABC_DEF0)),
             Call::Slot9,
             Call::Radio30(true),
             Call::Message(posted, false)
@@ -325,11 +507,8 @@ fn message_return_values_radio_slots_and_deferred_station_message() {
     handler.do_message(Some(&mut zero), &mut host);
     assert_eq!(host.take(), [Call::Slot9, Call::Radio30(false)]);
     handler.radio_present = false;
-    assert_eq!(
-        handler.do_message(Some(&mut zero), &mut host).gap,
-        Some(HandlerGap::ServiceFailure)
-    );
-    assert!(host.take().is_empty());
+    assert_eq!(handler.do_message(Some(&mut zero), &mut host).gap, None);
+    assert_eq!(host.take(), [Call::Slot9]);
 }
 
 #[test]
@@ -344,15 +523,23 @@ fn play_stop_position_and_payload_release_follow_spec_order() {
             Call::Query(PAYLOAD_IID),
             Call::Slot9,
             Call::GetPosition(POSITION_IID, [4.0, 5.0, 6.0]),
-            Call::Slot14(vec![1, 0]),
+            Call::Slot14(vec![]),
             Call::Sound(SndSysEvent {
                 event: EVT_START_SOUND,
                 a: 9,
                 b: 47,
-                c: 0,
+                c: 1,
                 d: 0
             }),
-            Call::Position(EVT_SET_POSITION, 47, [1.0, 2.0, 3.0]),
+            Call::Slot14(vec![]),
+            Call::Sound(SndSysEvent {
+                event: EVT_SET_POSITION,
+                a: 47,
+                b: 1,
+                c: 2,
+                d: 3
+            }),
+            Call::ReleasePosition,
             Call::ReleasePayload
         ]
     );
@@ -362,7 +549,7 @@ fn play_stop_position_and_payload_release_follow_spec_order() {
         host.take(),
         [
             Call::Query(PAYLOAD_IID),
-            Call::Slot14(vec![0, 0, 0]),
+            Call::Slot14(vec![]),
             Call::Sound(SndSysEvent {
                 event: EVT_STOP_SOUND,
                 a: 47,
@@ -375,10 +562,16 @@ fn play_stop_position_and_payload_release_follow_spec_order() {
     );
     message.ty = MSG_AUTOMATA_PLAY_SFX;
     message.position = None;
-    handler.handle_automata(&mut message, &mut host).unwrap();
-    assert!(host
-        .take()
-        .contains(&Call::Position(EVT_SET_POSITION, 47, [4.0, 5.0, 6.0])));
+    assert_eq!(handler.handle_automata(&mut message, &mut host), Ok(0));
+    assert_eq!(
+        host.take(),
+        [
+            Call::Query(PAYLOAD_IID),
+            Call::Slot9,
+            Call::GetPosition(POSITION_IID, [4.0, 5.0, 6.0]),
+            Call::ReleasePayload
+        ]
+    );
 }
 
 #[test]
@@ -452,7 +645,7 @@ fn limiter_draws_only_on_restart_is_shared_and_accepts_exact_threshold() {
 }
 
 #[test]
-fn missing_owner_algorithms_are_visible_and_do_not_emit_guessed_sounds() {
+fn extended_routes_execute_without_algorithm_gaps() {
     let mut host = Host::new();
     let mut handler = handler(&mut host);
     for ty in [
@@ -462,28 +655,19 @@ fn missing_owner_algorithms_are_visible_and_do_not_emit_guessed_sounds() {
         0x2A3A_D653,
         0xC9F1_011A,
         0xE946_71EB,
-        0xFA0C_6390,
     ] {
         let mut message = host.message(ty);
         assert_eq!(
             handler.do_message(Some(&mut message), &mut host),
-            DispatchOutcome {
-                returned: 1,
-                gap: Some(HandlerGap::MessageAlgorithm(message_route(ty))),
-            }
+            DispatchOutcome { returned: 1, gap: None }
         );
-        assert!(host.take().is_empty());
+        host.take();
     }
-    for (ty, gap) in [
-        (MSG_AUTOMATA_A, HandlerGap::CapabilityAutomata),
-        (MSG_AUTOMATA_B, HandlerGap::DirectAutomata),
-    ] {
+    for ty in [MSG_AUTOMATA_A, MSG_AUTOMATA_B] {
         let mut message = host.message(ty);
-        assert_eq!(handler.handle_automata(&mut message, &mut host), Err(gap));
-        assert_eq!(host.take(), [Call::Query(PAYLOAD_IID), Call::ReleasePayload]);
+        assert_eq!(handler.handle_automata(&mut message, &mut host), Ok(1));
+        assert!(host.take().contains(&Call::ReleasePayload));
     }
-    assert_eq!(handler.do_modal_message(), Err(HandlerGap::ModalNotice));
-    assert_eq!(handler.do_event(), Err(HandlerGap::EventCallback));
 }
 
 /// §16.21 and §16.25: consume actual automaton posts and forward only the
@@ -520,9 +704,18 @@ fn full_chain_crosses_handler_and_sound_system_without_a_save_record() {
             _ => None,
         })
         .collect();
-    assert_eq!(events.len(), 1);
+    assert_eq!(events.len(), 2);
     assert_eq!(events[0].event, EVT_START_SOUND);
-    assert!(calls.contains(&Call::Position(EVT_SET_POSITION, instance, [1.0, 2.0, 3.0])));
+    assert_eq!(
+        events[1],
+        SndSysEvent {
+            event: EVT_SET_POSITION,
+            a: instance,
+            b: 1,
+            c: 2,
+            d: 3
+        }
+    );
     for event in events {
         manager.do_event(event.event, event.a, event.b, 0);
     }
