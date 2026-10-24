@@ -1,6 +1,27 @@
 # renderer-driver: answered questions
 <!-- Answered entries moved from ../renderer-driver.md. Rules: ../README.md. -->
 
+<!-- from: re-gdriver5 (2026-10-23); settled portions, residual entries narrowed in open file -->
+- **RD6 - section 9.6:** complete the ordinary internal-format ranking of `0x0088F8D0`, the 15×8 converter
+  availability matrix and per-converter rounding, bit expansion and compressed-block handling. Compressed-key
+  preference and fallback requests are specified; full arithmetic is not. [needs: instruction-checked format
+  selector and converter families; distinguish texture descriptor enumeration from surface allocation]
+  **ANSWERED 2026-10-23 (re-gdriver-rd11):** DIFFERS — §9.6 establishes total-bit-count/alpha ranking with
+  stable enumeration ties, the descriptor-dependent availability rule for all 120 cells (including DXT5's
+  lack of an ordinary decoder), exact direct compressed byte-copy handling, source-0 bitwise copy to keys
+  1/2 and source-5/source-9 expansion to keys 1/2. DX7-39–44 discriminate. Full remaining converter arithmetic
+  is not claimed: the open RD6 entry now names only the other non-copy cells and DXT1/DXT3 decoder details.
+- **RD7 - sections 12.1 and 14.1:** complete the auxiliary interfaces at owner +0x0/+0x4/+0x8: individual light
+  enable/property calls, material operations, independently exposed vertex buffers and buffer regions. Establish
+  exact range constant evaluation for D3DLight. These are outside the 83 graphics slots. [needs: per-table
+  dispatch attribution; instruction checks of numeric setters; public call/return ownership]
+  **ANSWERED 2026-10-23 (re-gdriver-rd11):** DIFFERS — §§12.1, 12.4–12.5 attribute all three tables and
+  specify light/material setters, raw low-byte enables, ambient bit conversion, sqrt(FLT_MAX) range,
+  handle reuse/ownership, transfer rectangles and asymmetric recovery. No functional slot returns an
+  independent vertex buffer; constant stubs are byte-true, not allocation. DX7-32–38 and DX7-45–49
+  discriminate. Only owner+4 CopyColorBuffer's behavior beyond table attribution remains open under RD7;
+  its decompiler pointer/stack aliases need separate instruction reconciliation.
+
 <!-- from: re-gdriver5 (2026-10-23) -->
 - **RD8 - section 14.2:** complete context device-selector choices (-1/-3/-4 and concrete values), depth-format
   enumeration/ranking and every CreateDevice/depth-attachment failure path in `0x0088BFC0`. Current spec covers

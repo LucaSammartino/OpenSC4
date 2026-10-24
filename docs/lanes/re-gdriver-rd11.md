@@ -22,6 +22,7 @@ or configuration were changed. No merge-queue file is written while continuation
 
 - Round 2 resumed 2026-10-23; detached HEAD retained. Manifest now `C:/Users/tlori/FreeCity4/build-runs/run4-re-gdriver-rd11-r2-manifest.json`.
 - Round 2 milestone: §12.4 records all three auxiliary tables, light/material setter contracts and numeric ambient conversion; §12.1 range is instruction-checked (`5F7FFFFF` nearest/even); DX7-32–38 added. Region transfers and CopyColorBuffer still need final reconciliation; RD6 matrix extracted privately by `build-runs/rd-matrix.py`.
+- Round 2 next milestone: §9.6 ranking/availability/copy rules and §§12.4–12.5 auxiliary lighting/regions now specified; eighteen new vectors DX7-32–49. Archived settled RD6/RD7 portions and narrowed open entries to remaining non-copy converter arithmetic and CopyColorBuffer only. Next: regenerate question index, doccheck, final report commit and READY queue (kind re, actual 40-character HEAD).
 - Next: resolve RD7 dispatch/light/material/buffer contracts; then RD6 ranking and converter matrix. Narrow any unproved converter arithmetic explicitly; finish READY queue covering RD6–RD11.
 - Goal: answer RD6–RD11 in renderer-driver.md; spec text only, no engine reads/edits.
 - Done: read rules, lane format, open questions and core-gdriver5 report.
