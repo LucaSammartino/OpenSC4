@@ -136,7 +136,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PF | pathfinder |
 | PG | pollution |
 | PK | parks |
-| PL | prop-lotconfig |
+| PL | prop-lotconfig, prop-manager |
 | PN | pedestrians |
 | PO | prop-occupant |
 | PR | persistence, persistence-manager, protection |
@@ -342,6 +342,7 @@ generated index: the questions live one file per spec, so read only the file for
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
 | prop-lotconfig | 7 | 10 | PL24 | questions/prop-lotconfig.md |
+| prop-manager | 1 | 0 | PL25 | questions/prop-manager.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | radio | 4 | 0 | RA5 | questions/radio.md |
@@ -408,4 +409,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **658** | **1563** | | |
+| **total** | **659** | **1563** | | |
