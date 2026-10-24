@@ -117,3 +117,82 @@ Cases:
 `0x009D9CEF` `Init`, `0x009D9F56` `CopyTipInfo`, `0x009DA05E` slot 5, `0x009DA106` `update_offscreen_buffer`.
 
 Not covered: the font and buffer slots, cited by number.
+
+## 6. `cGZWinToolTipMgr`: the tooltip manager *[compat]*
+
+The `cGZWinToolTipMgr` owner (12 functions, 859 bytes) plus 9 of its functions that coverage attributes to
+`cGZWinCOMDirector` (`0x009D9833`–`0x009D9F40`, listed in §6.4). It is the object (class `0x22C010CE`, interface
+`0x22C010CD`, `0x4C` bytes) that owns the one tooltip window, listens for tip requests on the message server and
+times their display. Widgets send it the requests (widget-button.md §5.3).
+
+### 6.1 Object
+
+Vtable `0x00AE434C`: 0 `QueryInterface` (`0x009D9841`: IID 1 or `0x22C010CD` → itself, AddRef'd; else false),
+1 `AddRef` (`cRZRefCount`), 2 `Release` (`0x009D9863`: above 1 decrement and return the count; else the deleting
+destructor (slot 6) and 0), 3 `DoMessage`, 4 `Init`, 5 `Shutdown`, 6 deleting destructor (`0x009D9A43`; body
+`0x009D9833` destroys the timer).
+
+| Offset | Meaning | Constructor (`0x009D9F0E`) |
+|---|---|---|
+| `+0x04` | reference count | 0 |
+| `+0x08` | initialised (byte) | 0 |
+| `+0x0C` | the tick timer (`cRZCallbackTimer`, timers.md) | constructed |
+| `+0x34`, `+0x38` | ticks before showing, ticks before hiding | 0, 0 |
+| `+0x3C` | tick counter | 0 |
+| `+0x40` | a tip is shown (byte) | 0 |
+| `+0x44` | tip serial number | 0 |
+| `+0x48` | current tip ID | −1 |
+
+Factory `0x009D9F40`.
+
+### 6.2 Lifecycle
+
+- **`Init(font, mx, my)`** (`0x009D9D57`): when not initialised and there is a window manager with a main window:
+  1. subscribe (message server slot 5) to `0x533CCA1E`, `0x22C010D0`, `0x22C010D1`, `0x22C010D2`, `0x22C010D5`,
+     `0x22C010D6`, `0x22C010D8`;
+  2. create the tooltip window (`0x118` bytes, constructor `0x009D9C6C`: everything 0), `SetFont(font, mx, my)`
+     (§2), window ID `0x82F0121D`, hidden, added to the main window (its slot 14);
+  3. added: timer `SetPeriod(750)`, `SetDelay(750)`, `SetCallback(static_tip_timer_callback, 0)` (timer slots 3, 1,
+     9); initialised := 1; true. Not added: `Shutdown` (slot 5) and false.
+
+  Otherwise true.
+- **`Shutdown`** (`0x009D987A`): when initialised: stop the timer, unsubscribe the seven messages (message server
+  slot 6), delete the main window's child `0x82F0121D` (its slots 34 and 16); initialised := 0. True.
+- **`static_tip_timer_callback`** (`0x009D9C27`): sends the static message `{0x533CCA1E, 0, 0, 0}` (message server
+  slot 4).
+
+### 6.3 Messages (`DoMessage`, `0x009D9EA8`)
+
+`d1` is the message's first data word; the tip info is the record of §2 (`+0x28` receives the tip's ID).
+
+| Type | Handler | Effect |
+|---|---|---|
+| `0x22C010D0` start | `on_tip_start` `0x009D9ABB` | null info → false. With the tooltip window: hide the current tip; `SetTipInfo(info)`; serial `+= 1` becomes the info's and the current ID. Flag 1 → show now. Flag 2 clear: counter 0, show after 1 tick, hide after 3; timer stopped and restarted (`Start(0, 0)`). Flag 2 set: shown now if not yet, timer stopped. True |
+| `0x22C010D1` update | `0x009D9B69` | while shown: `SetTipInfo(info)` and show it again with its ID |
+| `0x22C010D2` stop | `0x009D9BA2` | `hide_tip(d1)` |
+| `0x22C010D8` stop all | | `hide_tip(0xDEADBEEF)` |
+| `0x22C010D5` / `0x22C010D6` | `0x009D99D8` / `0x009D99F8` | for the current ID: post `0xE2C7C83A` / `0xE2C7C83B` with `d1` as data (*quirk*: the tooltip reads that word as the text / background colour, so the colour becomes the tip's ID) |
+| `0x533CCA1E` tick | `on_timer_ticked` `0x009D9BB1` | below |
+| other | | false |
+
+The listed types return true.
+
+- **`on_tip_update(id)`** (`0x009D9A5F`): post `0xE2C7C838` (show); current := `id`; shown := 1. True.
+- **`hide_tip(id)`** (`0x009D9A81`): only for `0xDEADBEEF` or the current ID: current := −1, stop the timer, shown
+  := 0, post `0xE2C7C839` (hide), its result. Else false.
+- **`on_timer_ticked`**: counter `+= 1`. Not shown: below the show delay → true; else show the current tip and send
+  `{0x22C010D3, id, 0, 0}` (shown). Shown: below the hide delay → true; else hide and send `{0x22C010D4, id, 0, 0}`
+  (hidden). The counter is not reset in between, so a tip shows on the first tick (750 ms) and hides on the third.
+- **`get_tip_win`** (`0x009D9930`): the main window's descendant `0x82F0121D` as `0x22C010CF` (main window slot 36);
+  valid (window manager slot 24) → returned (the query's reference released, so it is borrowed); else null.
+- **`post_msg_to_tipwin(type, d1, d2)`** (`0x009D9996`): with the tooltip window, window manager slot 14
+  `PostMessageToTarget(window, type, d1, d2, 0)`, true; else false.
+
+### 6.4 Inventory
+
+Owner `cGZWinToolTipMgr` (12): `0x009D9930`, `0x009D9996`, `0x009D99D8`, `0x009D99F8`, `0x009D9A5F`, `0x009D9A81`,
+`0x009D9ABB`, `0x009D9B69`, `0x009D9BA2`, `0x009D9BB1`, `0x009D9C27`, `0x009D9EA8`.
+
+Attributed to `cGZWinCOMDirector` (9): `0x009D9833` destructor body, `0x009D9841` QI, `0x009D9863` `Release`,
+`0x009D987A` `Shutdown`, `0x009D9A43` deleting destructor, `0x009D9C6C` tooltip window constructor, `0x009D9D57`
+`Init`, `0x009D9F0E` constructor, `0x009D9F40` factory.
