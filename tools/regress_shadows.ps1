@@ -45,7 +45,7 @@ function Join-RegressShadowLogs([string]$Out, [string]$Tag, $Names, $Results, $Q
     $path = Join-Path $Out "regress-$Tag-shadows.log"
     $encoding = New-Object Text.UTF8Encoding($false)
     $writer = New-Object IO.StreamWriter($path, $false, $encoding)
-    $worst = 'clean'; $rank = @{ clean=0; warnings=1; problems=2; failed=3; crash=4; NONE=5 }
+    $worst = 'clean'; $rank = @{ clean=0; warnings=1; problems=2; failed=3; stalled=4; crash=4; blocked=5; NONE=6 }
     try {
         foreach ($name in $Names) {
             $writer.WriteLine("=== shadow group $name ===")
@@ -58,10 +58,14 @@ function Join-RegressShadowLogs([string]$Out, [string]$Tag, $Names, $Results, $Q
                 }
             }
             if (($Results[$name] -join "`n") -match 'BLOCKED|FAIL|CRASH') { $v = 'NONE' }
-            foreach ($line in $QueueInfo[$name]) {
-                if ($line -match '^verdict: (\S+)' -and $Matches[1] -ne 'clean') { $v = 'NONE' }
-            }
             if (-not $rank.ContainsKey($v)) { $rank[$v] = 3 }
+            foreach ($line in $QueueInfo[$name]) {
+                if ($line -match '^verdict: (\S+)') {
+                    $qv = $Matches[1]
+                    if (-not $rank.ContainsKey($qv)) { $rank[$qv] = 3 }
+                    if ($rank[$qv] -gt $rank[$v]) { $v = $qv }
+                }
+            }
             if ($rank[$v] -gt $rank[$worst]) { $worst = $v }
         }
     } finally { $writer.Dispose() }

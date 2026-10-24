@@ -12,8 +12,13 @@
 - First real run split11-s3 exposed PS hashtable Sort-Object property lookup bug: all keys in group 3;
   empty groups stalled on shutdown. Failed evidence retained, not a timing claim.
 - Fixed with explicit sort expressions; all 17 tests pass, now asserting nonempty balanced groups (<250 s proxy).
-- Next: collect corrected split11-s3-fixed (session 49372), then original validator (session 27531),
-  which also runs the valid split11-c1 combined profile; compare fixed split against combined only.
+- Measured corrected split11-s3-fixed PASS, zero problems, wall 664 s (target <420 s unmet).
+  Groups completed 85/174/660 s after submission; timestamp proxies did not balance real runtime.
+- Initial split11-s3 FAIL, 868 s, group 3 contained every switch; retained as failed evidence only.
+- Next: collect original validator (session 27531), waiting for train198 before split11-c1 combined;
+  compare fixed split against combined only. No further implementation work this round (two-thirds budget).
+- A short isolated-cost probe refused submission because train198 is active; no probe games ran.
+- Latest source preserves actual nonclean queue verdict names; 17 regression tests still pass.
 - Cost source: train196 timestamp gaps before shadow log lines; residential 198.290 s, development 66.596 s,
   demand 59.856 s. Cost proxies, not CPU profiling; measured run will validate balancing.
 - Coordinator train197 completed clean (885.953 s game time); own DLL built from unchanged main engine at ffb8f38c2.
