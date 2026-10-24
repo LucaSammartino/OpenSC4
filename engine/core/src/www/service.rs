@@ -602,7 +602,9 @@ impl Www {
         let mut cookie = path.clone();
         cookie.extend(b"CookieData.ini");
         effect(host, Effect::CookieFilename(cookie));
+        self.http.set_directory(&path);
         effect(host, Effect::HttpDirectory(path.clone()));
+        self.http.set_cache_setting(b"_cache");
         effect(host, Effect::HttpCacheSetting(b"_cache".to_vec()));
         effect(host, Effect::FtpDirectory(path.clone()));
         host.set_cache_directory(&path)

@@ -323,6 +323,15 @@ impl Manager {
     pub fn lookup_text(&self, url: &[u8], k: usize, now: u32) -> Option<Cookie> {
         self.lookup(&RzUrl::from_text(url), k, now)
     }
+    /// §3.4 copying overload. Literal success-only assignment on a miss (Q16).
+    pub fn lookup_into(&self, url: &RzUrl, out: &mut Cookie, k: usize, now: u32) -> bool {
+        if let Some(cookie) = self.lookup(url, k, now) {
+            *out = cookie;
+            true
+        } else {
+            false
+        }
+    }
     pub fn header(&self, url: &RzUrl, now: u32, out: &mut Vec<u8>) -> bool {
         let url = Url::new(url);
         out.clear();

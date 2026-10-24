@@ -475,6 +475,8 @@ mod tests {
         let mut w = service();
         let mut h = Fake::default();
         assert!(!w.set_directory(&mut h, b"out"));
+        assert_eq!(w.http.directory, b"out\\");
+        assert_eq!(w.http.cache_setting, b"_cache");
         assert_eq!(
             h.effects,
             [
