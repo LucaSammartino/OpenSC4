@@ -4,7 +4,9 @@
 //! not yet implemented are not represented by foreign whole-owner callbacks.
 use super::*;
 
+mod lifecycle;
 mod operations;
+pub use lifecycle::{obtain_control, BrowserHost, BrowserOverrides, BrowserOwner, ControlIo, Unsettled};
 pub use operations::{BrowserIo, Column, Enumeration, IconIo};
 
 pub const IID: u32 = 0x3aa5_2e64;
@@ -118,6 +120,7 @@ pub struct FileBrowser {
     pub selection: Selection,
     pub selected_row: i32,
     pub dirty: bool,
+    pub initialized: bool,
     pub sort_words: [u32; 2],
     pub wildcard_option: u32,
     pub common_font: Option<Handle>,
@@ -161,6 +164,7 @@ impl FileBrowser {
             selection: Selection::default(),
             selected_row: 0,
             dirty: false,
+            initialized: false,
             sort_words: [0, 2],
             wildcard_option: 0,
             common_font: None,
@@ -554,6 +558,7 @@ impl FileBrowser {
             replace_ref(&mut self.style_fonts[index], None, f);
         }
         f.base_shutdown(self.window());
+        self.initialized = false;
     }
 }
 

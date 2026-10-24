@@ -2,6 +2,9 @@
 use super::*;
 use std::collections::VecDeque;
 
+#[path = "runtime_tests.rs"]
+mod runtime_tests;
+
 #[derive(Default)]
 struct Services {
     reasons: Vec<u32>,
@@ -12,6 +15,15 @@ struct Services {
     levels: VecDeque<u32>,
     comparisons: Vec<(u16, u16, u32)>,
     composed: usize,
+    events: Vec<String>,
+    paints: Vec<runtime::Paint>,
+    focused: bool,
+    captured: bool,
+    clipboard: Option<Vec<u8>>,
+    height: u32,
+    bar_success: bool,
+    cursor: (i32, i32),
+    click: Option<u32>,
 }
 
 impl TextForeign for Services {

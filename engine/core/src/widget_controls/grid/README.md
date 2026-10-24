@@ -53,5 +53,8 @@ the additional owner tests are in `grid/owner_tests.rs`.
 | widget-controls 8 unresolved coverage | settled owner contracts implemented | WG3/WG4 preserved compatibility questions only |
 
 The cGZWinGrid portable owner is fully implemented against the current spec.
+`GridOwner` supplies owning final-release semantics: virtual Shutdown, the
+destructor's second Shutdown, then storage destruction. The non-owning
+`Grid::release` remains available when an embedding controls allocation.
 This is core conformance, not an in-game shadow claim: a separate plugin/renderer
 adapter must supply the host operations and any game comparison.

@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! cGZWinTextEdit byte/state/mutation stage, text-edit §§1–4,6–7 and adapters.
-//!
-//! This is not the complete native window owner. `repairs` records outstanding
-//! layout/view work; the renderer, lifecycle and layout orchestration are still
-//! unimplemented (see README Owner closure). No plugin or ABI uses this stage.
+//! Portable cGZWinTextEdit owner. Byte-stage entry points retain explicit repair
+//! records for fixtures; live callers execute them with `execute_repairs`.
+//! Layout, input, painting and foreign service orchestration are separate modules.
+//! No plugin or ABI uses this owner.
+pub mod adapters;
+pub mod edits;
 pub mod encoding;
+pub mod input;
+pub mod layout;
+pub mod paint;
+pub mod runtime;
 
 use super::{Handle, Result, Unsupported};
 use encoding::Encoding;
@@ -72,6 +77,8 @@ pub struct TextEdit {
     pub redo: Vec<Action>,
     pub preferred_x: u32,
     pub pending: Vec<u8>,
+    /// W+0x144 is a separate constructed string; no semantic name is specified.
+    pub auxiliary: Vec<u8>,
     pub gutters: [u32; 2],
     pub first_visible_line: u32,
     pub mask: u8,
@@ -79,6 +86,7 @@ pub struct TextEdit {
     pub separate_interval: u32,
     pub repairs: Vec<Repair>,
     pub initialized: bool,
+    pub runtime: runtime::Runtime,
 }
 
 impl TextEdit {
@@ -99,7 +107,7 @@ impl TextEdit {
             text: Vec::new(),
             lines: Vec::new(),
             position: Position::default(),
-            flags,
+            flags: runtime::normalized_flags(flags),
             encoding,
             maximum: u32::MAX,
             history_limit,
@@ -107,6 +115,7 @@ impl TextEdit {
             redo: Vec::new(),
             preferred_x,
             pending: Vec::new(),
+            auxiliary: b"-".to_vec(),
             gutters: [5, 0],
             first_visible_line: 0,
             mask: b'*',
@@ -114,6 +123,7 @@ impl TextEdit {
             separate_interval: 500,
             repairs: Vec::new(),
             initialized: false,
+            runtime: runtime::Runtime::default(),
         }
     }
 
