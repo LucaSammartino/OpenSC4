@@ -875,7 +875,8 @@ Observe cache-call count, E and flags through an interface test double, not a li
 See [the FTP native contracts](web-network-ftp.md) for 00812de0's complete selector table,
 RETR/STOR entry/command/file/notification ordering, reached transport helpers, and independent
 distinguishing vectors. [FTP control and scheduling](web-network-ftp-control.md) additionally
-qualifies login, listing acquisition, outer scheduling, session shutdown, the remaining
+qualifies login, listing acquisition, outer scheduling, fresh-session initialization
+(§7.1, Q19), session shutdown, the remaining
 seven commands, scheduler construction and admission. Q7 remains open for the residual
 scheduler controls/lifecycle/containers in the owner checklist. Both companions record
 unsafe native input domains explicitly and claim no live network observations.
@@ -1039,7 +1040,9 @@ completion synthesized. No join is introduced by any of these small bodies.
 control socket. Otherwise it creates and binds an unspecified-address/zero-port
 socket; failed bind closes it and returns false. `00811f00` and `00811f90` close the
 respective open socket at session +0xf0/+0x150 and return true even when already closed.
-They do not reset unrelated session state. The drain-and-close helper `00817af0`
+They do not reset unrelated session state or set receive options. LIST closes its
+listener after accept and its data socket before the final control reply; these close
+contracts supersede the old FTP-control §3 labels (Q19). The drain-and-close helper `00817af0`
 does nothing for a closed socket. For an open socket it switches blocking mode on,
 then repeatedly checks connection and readability with timeout zero and receives
 at most 1024 bytes, stopping on failed checks/receive or zero bytes. Each nonzero

@@ -1,5 +1,20 @@
 # Answered questions: web-network.md
 
+## Q19 (core-www-close15 r2, 2026-10-24) — FTP initialization and listing helpers
+
+After correcting 00813d70 to scheduler construction, which entry initializes the
+fresh session before login? Do the parent §4.15 close-listener / close-data labels
+replace FTP-control §3's receive-options description? The prior portable boundary
+left fresh initialization Unsupported and used the later close contracts.
+
+**ANSWERED 2026-10-24 (re-www-q19q20):** DIFFERS — initialization is the inline
+initialized-byte assignment at 008170c6–008170d7 in outer worker 00816ee0. It has
+no fallible dependency, socket/thread work or target retention. Parent §4.13 and
+[FTP-control §7.1](../../web-network-ftp-control.md#71-fresh-session-initialization-q19-2026-10-24)
+specify the supported fresh path and WWW19-1–WWW19-5 vectors. 00811f00 closes the
+listener after accept; 00811f90 closes data before the final reply. Both always
+return true and set no receive options, matching parent §4.15; §3 is corrected.
+
 ## Q13 (re-www-ww5, 2026-10-23) — remaining HTTP wire and date behavior
 
 Section 5 qualifies progress and synchronous notification, and links existing lifetime/admission
