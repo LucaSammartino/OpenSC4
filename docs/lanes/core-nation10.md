@@ -1,30 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-nation10: nation owner contracts round 2 | Codex / core-nation10 (detached HEAD) | in progress | Implement nation §§6–8 and run final gate. |
+| core-nation10: nation owner contracts round 2 | Codex / core-nation10 (detached HEAD) | in progress: final Rust checks pass, native queued | Collect final native verdict, then READY report/queue listing NQ4. |
 
 ## Handoff
-- Goal: implement NQ1–NQ3 answers in engine/core/src/nation; READY queue.
-- Done: merged answer branch re-nation-nq3; resolved open-question add/add and additive core module conflict.
-- Prior implementation: 0920be534; prior full gate recorded in 6d399b153.
-- Implemented: portable NationHost/NationRegion/TutorialCity effects, discovery/templates/preferences, lifecycle, add/delete and reset; no Unsupported operations remain.
-- Focused tests: 3 core nation tests, 2 existing §5 vectors and all 11 new owner conformance vectors passed. Added explicit display-name setter to match discovery ordering; final gate will recheck it.
-- Formatting applied via apply_patch using rustfmt check diffs (never emitted source).
-- Implementation committed: 071d906c0.
-- Gate 1 on 071d906c0 (collected terminal FAIL): workspace 7070 passed, 0 failed/ignored; clippy failed op_ref at owner.rs:206; native build 212/212 and CTest 80/80 PASS, qbuild-20261024-110246-build-ctest.
-- Failed evidence preserved separately: build-runs/r2-attempt1-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
-- Fixed needless slice references and changed NationRegion::move_city to associated City type so a game adapter can access its concrete handle.
-- Gate 2 on 1e450c22b (collected terminal FAIL): E0308 Host::City vs Region::City in test/clippy/native build; CTest skipped. Evidence r2-attempt2-* logs. Native job qbuild-20261024-111717-build-ctest.
-- Corrected Host to derive its city type solely from Region::City; standalone diagnostic build-runs/nation-city-type-check.rs compiles.
-- Focused owner tests on corrected source: 11/11 pass, cargo terminal exit 0.
-- Corrected source committed ba5abdafb; final full gate Rust results: 7070 tests passed, 0 failed/ignored; clippy exit 0, diagnostics 0. fmt 4/4 explicit files clean.
-- Gate 3 terminal PASS: 7070 tests, clippy clean, native 47/47 edges and CTest 80/80. Evidence preserved r2-attempt3-* logs. Native note tree changed refers to documentation-only commits; engine source stayed ba5abdafb.
-- Review diagnostic: foundations §11.2 GetPosition is s32/s32. After current gate finishes, change tutorial transfer coordinates from u32 to i32 and verify a negative coordinate.
-- NQ4 filed in questions/nation.md: non-ASCII case-mapping/encoding unspecified; ASCII folding preserves other bytes. README now lists that narrow open contract.
-- Signed tutorial transfer now i32/i32, negative-coordinate fixture added; NQ4 ASCII-fold choice commented in lower_directory.
-- Focused signed-coordinate owner test set: 11/11 PASS. Formatting checked via explicit files.
-- Final engine source committed 4079ac421 (Git index lock was transient, commit retry succeeded without content changes).
-- Outstanding: final qbuild session 66935, native job qbuild-20261024-114016-build-ctest; Rust 7070 passed, 0 failed/ignored; clippy exit 0, diagnostics 0. Engine source unchanged; only this handoff is updated while waiting.
-- Next: collect that same operation to terminal (do not duplicate); then full report/READY queue with NQ4 and coordinator-only question index regeneration (expected nation 1 open, 3 answered, next NQ5).
-- Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
-- No game request outstanding; portable core has no plugin wiring/shadow.
-- Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.
+- Goal: NQ1–NQ3 implementation in engine/core/src/nation; finish READY queue.
+- Answers merged ffec414f8; implementation 071d906c0; type corrections 1e450c22b/ba5abdafb; final engine source 4079ac421.
+- Done: NationHost/NationRegion/TutorialCity effects, discovery/templates/preferences, lifecycle, add/delete and reset; no Unsupported operations remain.
+- Region::City supplies the concrete host city type. Signed i32/i32 position preserves negative region cells (foundations §11.2).
+- Focused: 3 core nation tests, 2 existing §5 vectors, 11 new owner vectors PASS; final negative-position owner fixture 11/11 PASS. fmt 4/4 explicit files clean.
+- Gate 1, 071d906c0: Rust 7070 PASS; clippy op_ref FAIL; native 212/212, CTest 80/80 PASS; job qbuild-20261024-110246-build-ctest.
+- Gate 2, 1e450c22b: E0308 test/clippy/native FAIL; CTest skipped; job qbuild-20261024-111717-build-ctest.
+- Gate 3, ba5abdafb: Rust 7070, clippy, native 47/47 and CTest 80/80 PASS; qbuild-20261024-112454-build-ctest; tree-change note was documentation only.
+- Prior gate logs preserved as build-runs/r2-attempt{1,2,3}-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log (CTest absent if skipped).
+- Outstanding final gate: same qbuild session 66935, native job qbuild-20261024-114016-build-ctest. Rust 7070 passed, 0 failed/ignored; clippy exit 0, diagnostics 0. Engine source unchanged; only handoff commits while waiting.
+- Next: collect that operation to terminal; do not duplicate. On PASS replace Handoff with full READY report, commit, then queue full HEAD naming engine/core/src/nation and listing NQ4.
+- NQ4: non-ASCII directory case-map/encoding unspecified; ASCII folding preserves other bytes. Code comment in lower_directory; questions/nation.md and README record it.
+- Do not run tools/questions.py (non-bending clean-room rule). Coordinator must regenerate index: expected nation 1 open, 3 answered, next NQ5; old NQ1–NQ3 open entries removed.
+- Source: nation §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3. No game request outstanding; no plugin/C ABI wiring or shadow.
