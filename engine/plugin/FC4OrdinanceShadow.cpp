@@ -174,6 +174,7 @@ struct Month {
             Check(id, "monthly", o->GetCurrentMonthlyIncome(),
                   fc4_ordinance_call(r.core, FC4_ORD_CURRENT_MONTHLY_INCOME, 0));
             Check(id, "conditions", o->CheckConditions(), fc4_ordinance_call(r.core, FC4_ORD_CHECK_CONDITIONS, 0));
+            // [abi-ret] Ordinance section 4.2: these bool queries return found && flag (available/on/enabled).
             Check(id, "sim available", sim->IsOrdinanceAvailable(id), fc4_ordinance_sim_query(core, 0, id));
             Check(id, "sim on", sim->IsOrdinanceOn(id), fc4_ordinance_sim_query(core, 1, id));
             Check(id, "sim enabled", sim->IsOrdinanceEnabled(id), fc4_ordinance_sim_query(core, 3, id));
