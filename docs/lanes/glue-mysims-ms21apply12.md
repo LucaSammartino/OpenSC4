@@ -1,13 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-mysims-ms21apply12 (live dispatch owner) | `Codex` / `glue-mysims-ms21apply12` (engine lane) | in progress | Apply MS21/MS22; gate and measure house city to 2032. |
+| glue-mysims-ms21apply12 (MS21/MS22 dispatch owner) | Codex / `glue-mysims-ms21apply12` (engine, detached HEAD) | READY measured scope: source d6f131f61; cargo7385/0, clippy clean, CTest81/81; run520 clean through2032-01-04, mysimdispatch73/73 exact, ref_warnings=0. ABI unchanged. Live owner unverified: live_headers=0, live_ranges=0 (MS20). | Coordinator: land measured scope; arrange supported live input boundary; review current regress profile before adding key. |
 
-## Handoff
-Goal: apply MS21/MS22 live-trip dispatch rules and compare live headers in the default-off shadow.
-Done: implementation committed as d6f131f61: MS21 selection, extraction, failed-leg recovery, callback 5 and terminal-route installation; MS22 Init/default comments; eleven §12.30 conformance cases. Formatting passes for ten owned Rust files.
-Next: collect house-city request mysimdispatch-ms21apply12-r1-2032-20261024a to2032 using build-runs/wait-game.py; then inspect verdict and bounded shadow lines, record run520 (latest observed519, recheck), finalize report and READY queue for measured scope only.
-Gate: session71753/cell45 collected terminal exit0, qbuild PASS. Cargo7385/0/0 (48 groups), dispatch conformance50/50, clippy0 diagnostics. Native queued once as qbuild-20261024-173431-build-ctest, build262/262 (231.0s), CTest81/81 (275.6s), total510.5s. Tree-change notice is lane docs only: git diff d6f131f61..HEAD touches only this file. No source change during gate, no duplicate verify.
-Facts: no game request outstanding. Existing MS20 §7.2.3 explicitly precludes independent live-trip replay through public ABI; no duplicate question filed. Shadow adds two semantic constructor auxiliary fields and live range contracts, not replay.
-Evidence: initial focused session36212 collected terminal exit101: it compiled earlier core signatures with later tests (Option<u64>/Option<bool>, no installation method). Retained build-runs/focused-dispatch.log; no stable-source test verdict claimed from that operation. Full gate started once against d6f131f61, output build-runs/gate-all-d6f131f61.log and qbuild-test.log; still compiling workspace. Machine has many concurrent rustc processes (observed ~30GB combined working sets); WMI resource query denied, no unrelated process changed. Diagnostic session69093 collected terminal.
-q.py failed before cargo due Bash CreateFileMapping Win32 error5. Native Python gate.py wraps qbuild with durable output. Memory load measured91%, physical available5.58GiB of63.79GiB; no unrelated process changed. Game DLL SHA256 7A4D2F037BD8DFEC9FF8739A4A50B0F854B59E1316F641FF5E55B12536B74566. Preparing the unique request in this milestone call; no existing verdict found. Native queue is terminal PASS, no native request outstanding.
-Manifest: main build-runs/run4-glue-mysims-ms21apply12-r1-manifest.json. Detached HEAD: commit normally, do not update shared refs. Regress profile edit is coordinator work (tools/ is forbidden to this lane; no merge main authorized).
+## Changes
+
+MS21 now owns inclusive start/exclusive end, R[start] selection, equal-mode partitioning, ordered unsigned x/z presence probes with mask0x1FCF and final argument0, front trimming, absent ordinary-run skipping, FE/exhaustion retention, nonadvancing exact-range extraction and failed-leg recovery. Successful jump recovery relocates only to R[start-1]. Route installation appends FE before selecting. Callback5 samples position, adds420, selects, then updates; longer routes submit without the first marker and retain indices.
+
+MS22 documents the unassigned constructor flag and clears it on normal Init while preserving Read state. The default-off shadow decodes reference protocol fields to compare guaranteed null auxiliary occupant and zero scalar, and checks initialized live header range bounds when discoverable. Eleven §12.30 conformance cases and a CAPI contract test were added. Existing transport tests supply their selected ranges. No public ABI/header/version changed.
+
+## Gates
+
+One stable-source qbuild all, session71753 collected terminal: PASS; cargo7385 passed,0 failed,0 ignored across48 result groups; dispatch conformance50/50; clippy0 diagnostics with warnings denied. Ten owned Rust files pass formatting. Native work was automatically delegated once to qbuild-20261024-173431-build-ctest: build262/262 in231.0s, CTest81/81 in275.6s, total510.5s. No duplicate verify. The tree-change notice reflects lane-record commits only; d6f131f61..ed5160977 changes only this lane file.
+
+Logs remain in build-runs: gate-all-d6f131f61.log, qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log. Initial focused-dispatch.log preserves a terminal compile failure caused by earlier compiled core signatures and subsequently edited tests; no passing claim uses it. Stable-source full verification resolves it. q.py failed before Cargo with Bash CreateFileMapping error5; native Python wrappers preserved subsequent output. No unrelated process was changed during resource contention.
+
+## Game result and remaining scope
+
+[Run520](../runs/mysimdispatch-ms21apply12-r1-2032-20261024a-520.md), label mysimdispatch-ms21apply12-r1-2032-20261024a, ran Konradshohe with turbo and the two MySim shadows. Single request and one foreground wait without qwait, collected terminal clean through2032-01-04: ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. DLL SHA256 7A4D2F037BD8DFEC9FF8739A4A50B0F854B59E1316F641FF5E55B12536B74566.
+
+Count line: `mysimdispatch 73/73`. Exact harness summary: `mysimdispatch    73 lines, 73 with every mismatch count 0`; resynced0. Existing mysims73/73 exact. All dispatch samples: constructor1, live_headers0, live_ranges0, fields217, errors0, mismatches0. Exact shutdown: `mysimdispatch: measured 73/73 exact constructor/live-header samples; live_headers=0 live_ranges=0; live trip owner remains unverified (MS20 input-boundary limitation)`.
+
+The measurement verifies constructor scope including two newly promised auxiliary fields. It does not verify live-trip or transport behavior. MS20/§7.2.3 explicitly excludes independent replay from public snapshots; direct requests and ordered service results need a supported input boundary. No duplicate question was filed for this answered limitation. No new questions. Shadows remain default-off. Forbidden tools/ coverage tables and regress profile are coordinator work; no main merge or shared-ref update was attempted. No request remains outstanding.
