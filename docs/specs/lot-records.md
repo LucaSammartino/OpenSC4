@@ -489,6 +489,10 @@ All holders are in ascending ID order with key = ID. No object-valued property o
 
 ## 4. Business unit (`cSC4BusinessUnit`, `0x4A232DA8`) *[compat]*
 
+For live record observation, §14.2 (LR15) defines the distinct master-lot GetUnit inventory,
+the borrowed getter/owned Serializable boundary, and its completeness limits. It is not an
+all-allocation business-unit census; §17.9 T80–T81 exercise that distinction.
+
 | # | Field | Type | Meaning |
 |---|---|---|---|
 | 1 | version | u16 | 1 (`Read`: anything else → false) |
@@ -549,6 +553,10 @@ budget and protection simulators (their specs).
 
 ## 6. Lot base-texture occupant (`cSC4LotBaseTextureOccupant`, `0xC97F987C`) *[compat]*
 
+For live record observation, §14.2 (LR15) defines full-grid registered-occupant discovery,
+type `0x497F6D9D`, list/QI ownership and empty/failure results; §17.9 supplies conformance
+fixtures. Lot bounds do not limit that inventory.
+
 | # | Field | Type | Meaning, observed (13,079) |
 |---|---|---|---|
 | 1 | version | u16 | 2 |
@@ -577,6 +585,10 @@ texture has ≥ 2 frames (`GetFrameCountInLotBaseTexture` `0x005E08F0`), else 0:
 ---
 
 ## 7. Retaining-wall occupant (`cSC4LotRetainingWallOccupant`, `0x49C05C9F`) *[compat]*
+
+For live record observation, §14.2 (LR15) defines full-grid registered-occupant discovery,
+type `0x895D1169`, list/QI ownership and completeness; §17.9 includes the wall-mask mismatch
+fixture. Lot bounds and master-lot membership do not limit that inventory.
 
 | # | Field | Type | Meaning, observed (1,735) |
 |---|---|---|---|
