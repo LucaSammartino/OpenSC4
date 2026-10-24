@@ -15,7 +15,7 @@ and the daily/monthly ticker (`docs/specs/advisors.md`, written separately); res
 Window procs, the pick-sim and move-in input controls, balloon rendering, camera following, sounds and
 U-Drive-It mission definitions belong to their UI/automata owners. The dispatch's simulation state,
 destination queue, persistence and player-trip entry points belong here (§4.6.1, §6.2.1, §7.2.1).
-The remaining multimodal handoff questions are tracked explicitly as MS18; they do not permit immediate-arrival stubs.
+The multimodal handoff rules are in §4.6.3–§4.6.5 (MS18); they do not permit immediate-arrival stubs.
 
 ---
 
@@ -457,10 +457,10 @@ value unchanged while flag `0x10` is set. Without that flag it clears the value 
 at now 116 without flag `0x10` reports 0, and at now 116 with the flag reports 100. Do not replace this
 quirk with an elapsed-time computation. Serialization preserves the timestamp (§6.2.1).
 
-### 4.6.2 Route-ready transport: verified MS18 contracts *[compat]* (partial)
+### 4.6.2 Route-ready transport: geometry and stops *[compat]*
 
-These contracts supplement §4.6.1. They do **not** close the complete transport owner:
-the residual MS18 question identifies the missing cases. Foreign transport services must
+These contracts supplement §4.6.1; §4.6.3–§4.6.5 complete the dispatch-side handoffs.
+Foreign transport services must
 report real outcomes; route acceptance, an expired wait and a model allocation alone do
 not constitute arrival.
 
@@ -542,7 +542,185 @@ its flag-2-before-state order), invokes setStuck if selected, applies idle setup
 `flags |= 0x2401` if selected, clears the selected mask, then ORs the selected
 flags. Every changed flag operation remains separately observable; masks must
 not be folded into one final notice (`0x004364E5`–`0x0043657F`). The exact selection
-of those masks for all remaining branches is still MS18.
+of those masks for the other branches is given next.
+
+### 4.6.3 Route-ready decisions and recovery (MS18) *[compat]*
+
+The route-ready controller consumes an ordered route of three-byte markers (unsigned
+cell x, unsigned cell z, mode). FE is the end/walking marker; FF is a failed dispatch
+result, not a successful ninth transport. The ordinary modes are 0, 1, 2, 3, 6, 7, 8.
+Bits 1, 4, 10, 20 and 40 below are **hexadecimal masks**, respectively idle,
+delay, stop wait, route switch ready and stuck. Several may coexist; priority matters.
+This section describes the dispatch's decisions; routing, network snapping, model
+creation and route acceptance are service inputs, not assumed successes.
+
+**Observable flag operations.** The tables give a removal mask C and addition mask A.
+After the indicated service calls/notices, install the selected travel type (one change
+counter increment if different), run the state setter (§4.6.1), run setStuck if A has
+40, perform idle setup `flags |= 0x2401` if A has 1, remove C, then add A.
+Each of these operations sends its own changed-flags notice and counter increment.
+An unchanged operation is silent. State is retained unless a row says otherwise.
+These are ordered effects, not a license to combine masks. The common tail always
+returns true, including recovery/failure decisions; a true return is not arrival.
+Evidence: instructions `0x004364E5`–`0x0043658B`.
+
+| Priority/input | Result before the common effects | C | A |
+|---|---|---|---|
+| Stuck 40 without idle 1 | State −1; retain travel and queue | 0 | 0 |
+| Idle 1, including stuck+idle | Use the idle recovery rules below | as below | as below |
+| Travel FE, no delay 4, current unequal to both home and commute | Deadline = now + idle minimum; retain travel/state/queue | 0 | 1 |
+| Stop wait 10 | Use §4.6.2's stop search/boarding; missing stop or a failed leg selects stuck | 0 on failure; 436 on successful leg | 40 on failure; 200 on successful leg; 0 while awaiting a vehicle |
+| Delay 4, now ≤ deadline | Wait; no leg attempt | 0 | 0 |
+| Delay 4, now > deadline | Attempt leg without a supplied automaton; travel = result | 0 on FF; 436 otherwise | 40 on FF; 200 otherwise |
+| No switch-ready 20 | Attempt leg without an automaton; success uses its travel result. On FF, skip to the next switch as described below | 436 on success; 2 on successful skip; 0 if no switch | 200 on success; 220 on successful skip; 0 if no switch |
+| Switch-ready 20 | Use the mode/marker table below | as below | as below |
+
+For a successful skip, current's cell becomes the marker immediately before the
+new switch, and travel takes that marker's mode. This is a cell relocation, not a
+destination arrival. If no switch remains, send `0xEBA06C12` and select state −1.
+`jumpToNextSwitch` advances only while the leg-start index is below the leg-end index,
+and rejects a resulting end-of-route/FE marker (`0x00434DF0`–`0x00434E23`). Leg
+partitioning skips equal-mode markers, snaps the segment to the network, and advances
+past an unsnappable zero-length non-FE segment; it is not random route selection
+(`0x00434230`). The successful skip and failure masks are verified at
+`0x00436459`–`0x004364DD`.
+
+| Switch-ready marker/source | Effect and notices before common effects | C | A |
+|---|---|---|---|
+| Marker FE, D > P² | Travel FE; deadline = now + idle minimum; send `0x2BAC398F(0,0,0)` | 460 | 423 if both locations are local; 427 otherwise |
+| Marker FE, D ≤ P², both locations local, no prior delay/idle, current differs from both home and commute | Travel FE; deadline = now + idle minimum; send `0xEBA06BD4(0,0,0)`; retain trip state | 460 | 423 |
+| Other near FE | Travel FE; state 3; add now to current's **duration** (+7C), not its deadline (+80); copy active to current only if active is valid; send `0xEBA06BD4(0,0,0)` | 8460 | 2 if both locations local; 6 otherwise |
+| Same ordinary source and marker mode | Reuse current automaton for next-leg dispatch. FF invokes setStuck immediately. Success separately adds 200, removes 400 and records the returned travel value | 20 | 0 before fallback below |
+| Different ordinary modes, target 0/1 | Release current occupant and held automaton; deadline = now + idle minimum; retain source travel during wait | 20 | 1 |
+| Different ordinary modes, target 2/3/6/7/8 | Release current occupant and held automaton; deadline = now + transit wait; retain source travel | 20 | 10 |
+| Source FE/FF, marker not FE and not the same source | Select state −1; no ordinary-mode switch wait | 20 | 0 before fallback |
+| Other mode (including 4/5 or unrecognized target) | No ordinary-mode wait; for an ordinary source, clear the held automaton | 20 | 0 before fallback |
+
+Before measuring FE-marker proximity, if either current or active is a neighbour,
+release current's occupant and clear the held automaton. Both-local testing uses
+each location's occupant/local flag, not the by-commute flag. D and P² have the
+width/rounding rules in §4.6.2. In the near-arrival row, copying active subsequently
+replaces the just-modified duration/deadline with the copied values; if active is
+invalid the modified duration remains. This odd duration write is literal
+(`0x0043629B`–`0x004362C5`), not a corrected `now + duration` deadline.
+
+**Switch fallback.** After a switch-ready decision, if A has none of bits in 53,
+add bits 3 to A, force travel FE, clear the destination queue and set deadline to
+now + idle minimum. This also happens after same-mode success or immediate
+setStuck: do not silently suppress it because an automaton was dispatched or a
+failure already notified. Immediate same-mode flag/notices precede the fallback
+and common tail. This fallback is not run by the earlier stop/delay/idle rows
+(`0x0043638F`–`0x00436454`).
+
+**Idle recovery.** Its initial removal mask is 2002. Obtain the held automaton,
+and its model information when available. If 2000 was set on entry, first send
+`0xEBA06BD0(0,0,0)` and retrieve the stored offset for the current model type.
+Only an existing model-type-2 automaton with model-info kind 7 and travel 0 or FE
+can continue directly. Otherwise snapshot current, substitute the current route
+marker's cell in that snapshot unless it is FE, and try road snapping first on
+current and then, if that fails, on the snapshot. If both fail, send EBA06C12,
+select state −1 and do not run the following expired-idle stage. On a successful
+snap, current receives the snapshot, EBA06BD0 is sent, and a one-marker fallback
+dispatch is attempted. Its FF result sends EBA06C12 and selects state −1. Its
+non-FF result replaces selected travel unless the stored source travel is FE.
+Thus two EBA06BD0 notices can occur in one update; do not deduplicate them.
+Evidence: `0x0043588D`–`0x00435AF4`.
+
+Only an idle entry with 2000 set continues into the expired-idle stage. Reacquire
+the held automaton; while it exists and deadline ≥ now, retain the wait and apply
+a stored model offset only when it is **strictly positive** (zero is not applied
+here). When absent or strictly expired, first clear idle bit 1, separately
+notifying, then measure D. Travel FE with switch-ready 20 completes at state 3,
+deadline = now + current duration, removal A403; copy active only if valid and
+D < P². Otherwise attempt a new leg. Success uses removal 2437/addition 200.
+On FF, try skipping a switch: success uses removal 2002/addition 220 and the
+preceding marker's cell/mode. If skipping fails but D < P², complete at state 3
+with removal A403 and deadline = now + current duration, copying active only if
+valid. Otherwise emit EBA06C12 and select state −1. These completions do not emit
+EBA06BD4. Evidence: `0x00435AF4`–`0x00435CA7`; strict idle proximity is distinct
+from the inclusive FE-marker test.
+
+**Stuck is also a notice producer.** setStuck first adds 2401 when not already
+idle and either flags have 12 or travel is 0/1; then always adds 440; then sends
+EBA06C12 even if neither flags operation changed anything. It does not itself
+change state, travel, current or active destination (`0x004320D0`). A delayed or
+stop-wait FF reaches it after the common state setter; same-mode FF reaches it
+before fallback. A subsequent stuck-without-idle update selects state −1.
+
+### 4.6.4 Neighbour retries, models and foreign transport inputs (MS18) *[compat]*
+
+**Neighbour retry quirk.** `updateNeighborLocation(index, location)`
+(`0x00434C40`–`0x00434DE4`) returns false for the shipped binary's normal execution.
+For a neighbour location it checks the regional connection, allocates an empty
+occupant list, links its sentinel to itself, and immediately tests that empty
+list. No service call populates it between initialization and test
+(`0x00434CC8`–`0x00434CDE`). Local locations and missing/empty regional connections
+also return false. Consequently no retry index selects a connection and no
+location is changed by this helper. The unreachable selection body decrements
+the supplied index once per matching occupant class, would select at zero
+(one-based), and would clamp the selected cell to city bounds; implementers must
+not invent an enumeration to make that body reachable. This rule settles the
+retry outcome, however unhelpful the original behavior appears.
+
+**Model choice is deterministic in this owner.** The mode-to-group mapping is
+0/FE → 4107, 1 → 420B, 2 → 4200, 3 → 4215, 6 → 4217, 7 → 422C, 8 → 422E;
+other modes map to group 0. Model type is 0 for car, 1 for ordinary walking, 2
+for idle walking or FE, and −1 for the transit/unknown modes. A missing walking
+model key substitutes group 4149 for male and 414A otherwise. The stored model
+map supplies resource keys and offsets; absent offsets are −1, not a random
+choice (`0x00432900`, `0x00432960`, `0x004329A0`).
+
+Creating an automaton uses current's world x/z and y=0, or (0,0,0) when current
+is invalid, the mapped group, stored key, creation flags 214042, dispatch's
+message target and FF priority. A created occupant gains property 1BC42C49=1
+(`0x00435170`–`0x004352A3`). A supplied automaton is retained only if its occupant
+matches the mapped group and its cancellation/busy test permits reuse; otherwise
+release it and request creation. Next-leg extraction must contain more than one
+route marker before basic dispatch is attempted (`0x00435540`). Failure to
+create, obtain the route interface or accept the route produces FF; do not
+treat creation alone as departure or arrival. Success retains the automaton's
+occupant, records model type and updates current from its reported position
+(`0x004352B0`–`0x00435528`).
+
+There is **no dispatch-owned random draw** in these decisions, recovery, model
+lookups or neighbour retries. Automata creation/model realization and movement
+are calls into foreign services. Their returned identity, group/model data,
+route-acceptance result, positions and ordered callbacks are explicit inputs to
+an independent dispatch model. This spec does not prescribe the foreign
+automata owner's internal RNG stream, nor permit drawing from the MySim
+residence generator as a substitute. No successful-trip evidence follows from
+an accepted destination or creation request.
+
+### 4.6.5 Automaton and mission callbacks (MS18) *[compat]*
+
+`DoMessage`'s `this` is dispatch+8. The following contracts use base-object
+locations/flags; the decompiler's apparent fields are displaced by eight bytes.
+For automaton message 09D92FC3, the subtype is the integer returned by message
+slot +38. Except subtype 5's state guard, matching the sender's occupant to the
+held automaton occupant is the guard specified below. All other subtypes have
+no dispatch effect. Evidence: `0x00437500`–`0x004378C4`.
+
+| Subtype/input | Dispatch effects in order |
+|---|---|
+| 1, idle bit set | Add 2000 with changed-flags notice, then update state; repeated bit still runs update |
+| 2, held occupant matches sender | If active-player 10000, call ExitUDriveIt; otherwise GoTo(active destination), then add 401 with changed-flags notice even when GoTo failed |
+| 5, state 2 and not active-player | Query held automaton's route interface. With at most one remaining marker, sample its position into current, add 420, select next leg, update state. Otherwise submit its remaining route excluding the first marker, with acceptance arguments true/false; do not advance the dispatch leg or synthesize arrival |
+| 9, held occupant matches sender | Release current's occupant if present and increment the change counter. If pending-player 20000, clear that bit with notice, then EnterUDriveIt. Sample held occupant position; if the sampled cell differs from current and not active-player, set approach flag 8000 iff squared integer cell distance to active is strictly below approach-cell tuning squared. Finally update current from the sampled world position |
+| Message 0BB324BD, data1=1, active-player set | ExitUDriveIt; other data1 values do nothing |
+
+The approach test uses signed 32-bit subtract/multiply/add and signed comparison
+(`0x004377CF`–`0x00437834`), with the low 32 bits of arithmetic; equality clears
+8000. This is a squared **cell** distance, unlike §4.6.2's truncated linear lot
+distance. While active-player control is set, automatic trip updates pause;
+subtype 9 can nevertheless process pending-entry and position input. Exit's
+queue/home/path/flag behavior remains §7.2.1; neither a mission callback nor
+Exit guarantees automatic arrival at the requested destination.
+
+Message 8BBBD22A calls the message's +80 accessor, then stores the boolean
+from +24 as the dispatch's tool/control latch. On A6B79601/A6B79611, a set
+latch causes the mission service's +88(false) call and clears the latch only
+when both its +8C and +34 queries are false (`0x0043797C`–`0x004379F6`).
+
 
 ### 4.7 Job, commute and residence changes
 
