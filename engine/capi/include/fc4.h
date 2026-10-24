@@ -187,8 +187,9 @@ extern "C" {
  * 93 = merge-train batch train176 (re-overlays-ov15, glue-simgrid-label6, core-effects-close6, glue-overlays-live6): merged (no C ABI history entry of its own)
  * 94 = merge-train batch train180 (glue-nettool-exact6, re-nettool-nt32, re-propdev-pv16, glue-overlays-flags7, glue-weather-propdev6): merged (no C ABI history entry of its own)
  * 95 = merge-train batch train181 (glue-effects-capture8, glue-landvalue-capture7): merged (no C ABI history entry of its own)
- * 96 = merge-train batch train183 (glue-scres-preproc8, glue-nettool-close7, re-effects-ef21): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 96u
+ * 96 = merge-train batch train183 (glue-scres-preproc8, glue-nettool-close7, re-effects-ef21): merged (no C ABI history entry of its own)
+ * 97 = merge-train batch train186 (re-gzmsg-gz11, glue-lotconf-capacity7, glue-propdev-close7): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 97u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
