@@ -1182,3 +1182,13 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
 endif()
+
+# Overlay probe ABI and lifecycle against the real private Rust transport.
+if(TARGET FreeCity4)
+    add_executable(fc4_overlays_contract_test tests/overlays_contract_test.cpp)
+    target_include_directories(fc4_overlays_contract_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_overlays_contract_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_overlays_contract_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_overlays_contract_test PRIVATE fc4_capi)
+    add_test(NAME overlays_contract_test COMMAND fc4_overlays_contract_test)
+endif()

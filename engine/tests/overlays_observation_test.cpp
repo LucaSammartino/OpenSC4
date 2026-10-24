@@ -55,6 +55,19 @@ int main() {
     if (!capture.Cells() || capture.wire != std::vector<uint32_t>({0})) return 13;
     capture.header[5] = 0;
     if (capture.Cells()) return 14;
+    // Missing managers/capture must fail both requested scopes, never report
+    // an empty replay summary as though the requested fixture succeeded.
+    OverlaysObservationReset();
+    OverlaysObservationSample(nullptr, 0, "test", 0, true);
+    if (g_lines != 1 || g_clean != 0 || g_incomplete != 1 ||
+        g_replayLines != 1 || g_replayClean != 0 || g_replayDifferences != 35 ||
+        g_checks != 1 || g_differences != 1) return 15;
+    OverlaysObservationSample(nullptr, 1, "test", 0, false);
+    if (g_lines != 2 || g_incomplete != 2 || g_replayLines != 1 ||
+        g_replayDifferences != 35) return 16;
+    OverlaysObservationReset();
+    if (g_lines || g_clean || g_incomplete || g_replayLines ||
+        g_replayClean || g_replayDifferences || g_checks || g_differences) return 17;
     std::puts("overlays observer safeguards: PASS (extents, FIFO zero links, mutation, lists, cycles, invalid pointers)");
     return 0;
 }
