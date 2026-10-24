@@ -1,23 +1,46 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow11 | Codex / glue-modelinst-shadow11 | in progress; cargo 7141, clippy PASS, CTest 81/81; game pending | Collect existing game wait session 55162; preserve label modelinst-static-2032-20261024-a. |
+| glue-modelinst-shadow11 (finite static fixture) | `Codex` / `glue-modelinst-shadow11` (engine lane) | blocked on game queue; cargo 7141/0, clippy PASS, CTest 81/81; run 498 pending, modelinst exact/total unavailable; MI14 open; public ABI unchanged | (1) Collect modelinst-static-2032-20261024-a verdict without resubmitting. (2) Measure and record exact/total, shutdown and house shadows. (3) Resolve MI14 before live or whole-owner coverage. |
 
-## Handoff
-- Goal: default-off modelinst_shadow, deterministic original/core comparisons at load and monthly; real-city turbo to 2032.
-- Base: detached HEAD a753435f2; clean at start. No agents or prohibited sources.
-- Done: spec sections 0-2, 10 and view-utilities 7 read; existing isolated renderer pattern inspected.
-- Implemented: default-off finite isolated static constructor/getters/transform/bounds fixture with independent core inputs, two probes, monthly date deduplication. No live-city object mutations, resync or public ABI exports.
-- MI14 filed in model-instances questions: live enumeration/ownership, getter bindings and cache noninterference missing; literal receiver-only ctor/body-destructor fixture binding documented. All other owners remain uncompared; no whole-owner credit.
-- Source milestone: d230f041b (finite fixture and question); no source changes since gate start.
-- Focused test: terminal PASS 1/1, session 96548 completed (11m Rust compilation).
-- Workspace gate milestone: all reports test exit=0, 7141 passed / 0 failed / 0 ignored (45 summaries); clippy exit=0, diagnostics=0. Logs qbuild-test.log and qbuild-clippy.log.
-- Native build/CTest queued by the SAME all operation: qbuild-20261024-131855-build-ctest; waiting behind a game regress. Exec session 69153 remains active. Do not start another verify while it is queued.
-- At 13:36 local on 2026-10-24 the native request remained present: build-runs/build-queue/qbuild-20261024-131855-build-ctest.req (steps=build ctest), no local verdict or DLL. Presence alone does not prove whether the worker has started it. Worktree clean; no source changes since d230f041b. Ops coordinating notes confirm build worker waits for games.
-- Native terminal PASS collected from session 69153: build 262/262 edges (1013.1s), CTest 81/81 (940.3s); qbuild all PASS. Logs fc4verify-build.log and fc4verify-ctest.log. Native tree-changed note reflects lane-document commits only; engine source unchanged from d230f041b.
-- Game request activated: modelinst-static-2032-20261024-a, turbo to 2032-01-01, train193 house switches plus modelinst_shadow=1. At most this one request outstanding. No game measurements or merge-queue entry yet.
-- First blocking wait (session 79080) terminated with timeout after 9 minutes, no verdict. This is only a wait timeout, not a game failure; keep the same request/label and wait again. Do not resend.
-- Second blocking wait (session 41855) also terminated with timeout at about 14:22 local, no verdict. Both wait operations are complete; the game request remains outstanding. Next wait must target the same existing verdict file, never enqueue a replacement solely for a wait timeout.
-- Resume 2026-10-24 14:26: session 22617 was unavailable (Unknown process id); no duplicate game request sent. Existing request still marked slot 4 since 14:03:53, queue pid 27484; no verdict at 14:28. New blocking wait session 55162 targets the SAME verdict; collect it to terminal before any further wait. No merge-queue entry.
-- Next: python build-runs/wait-verdict.py build-runs/game-results/modelinst-static-2032-20261024-a.verdict, collect same operation to terminal; then python build-runs/summarize-modelinst.py modelinst-static-2032-20261024-a. An existing completed verdict for this unique label is valid; do not discard or re-enqueue it.
-- Gate: fmt PASS (owned file absolute path). Initial q.py Bash transport failed CreateFileMapping access denied (build-runs/q/20261024-124722-31960.log); direct cargo worked. Native DLL built (20,934,656 bytes; 2026-10-24 13:46:33 local).
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r2-manifest.json.
+## Change and scope
+
+Source commit `d230f041b` adds default-off `modelinst_shadow`, private static-link C transport, and observer callbacks at city load, monthly boundaries and shutdown. The transport uses the existing Rust model-instances core with independent inputs. Two isolated static instances exercise default identity and a finite negative-scale/rotated/translated transform. Original live city instances are never enumerated or mutated. There are no resync operations. No public C ABI export or ABI version changes.
+
+Each monthly line identifies `scope=isolated-static-transform-bounds` and `live=unavailable(MI14)`. This is finite fixture coverage only; it does not satisfy the requested live sampling or justify whole-owner coverage credit. The feature remains opt-in. No shared regress profile or coverage tables were edited.
+
+## Per-owner comparison boundary
+
+| Owner | Bodies exercised for comparison | Uncompared |
+|---|---|---|
+| cS3DModelInstance | Constructor defaults; GetTransform and fixture-only SetTransform; GetBounds and GetWorldBounds; GetProperties, GetOwner, GetCustomData and GetResModel default results. Transform and world bounds use independent core expectations; other defaults use published constants. Destructor body is cleanup, not a compared result. | Live instances; model/material binding; nondefault properties/owner/custom data; draw attributes, draw, pick, sort, mesh/container and reference-count behavior. |
+| cS3DModelInstanceBasic | None as a native basic owner. | All owner bodies, including its distinct reference-count semantics. |
+| cS3DModelInstanceAnimated | None. | All animation state, playback, frame/model binding and other owner bodies. |
+| cS3DModelProcessor | None. | All processing, lighting, mesh outputs and other owner bodies. |
+| cS3DResSpriteAnim and factory | None. | Resource reading, lookup, normalization and other owner bodies. |
+| cS3DTransform | Defined record bytes/copy counter through static GetTransform/SetTransform; finite full-matrix uniform-scale world bounds through static GetWorldBounds. | Standalone native transform methods, dispatch variants outside the two fixtures, exceptional numeric inputs and live transforms. |
+
+MI14 in `docs/specs/questions/model-instances.md` requests safe live enumeration, ownership, getter bindings, cache noninterference and constructor/destructor binding confirmation. The receiver-only lifetime binding is explicitly marked as the literal interpretation; unknown native getter signatures were not invented.
+
+## Gates
+
+- Focused transport/layout fixture test: 1/1 PASS. Owned Rust formatting: PASS.
+- Stable-source `qbuild.py --wt <WT> all`: terminal PASS; cargo 7,141 passed, zero failed/ignored across 45 summaries; clippy PASS with zero diagnostics.
+- The same operation dispatched native build/CTest through coordinator request `qbuild-20261024-131855-build-ctest`: build 262/262 edges; CTest 81/81, zero failures (CTest log total 928.47 seconds). No second verify was launched.
+- Evidence: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Engine source is unchanged since `d230f041b`; later commits only preserve lane status.
+- Initial Bash q.py transport failure remains in `build-runs/q/20261024-124722-31960.log`; direct cargo and subsequent full gate passed. Built DLL: 20,934,656 bytes, 2026-10-24 13:46:33 local.
+
+## Game result and external blocker
+
+Run record: [modelinst-static-2032-20261024-a-498](../runs/modelinst-static-2032-20261024-a-498.md). Request `modelinst-static-2032-20261024-a` uses the train193 house switches plus `modelinst_shadow=1`, turbo and `end_date=2032-01-01`, timeout 1,200 seconds. The only result is a running marker: slot 4 since 2026-10-24 14:03:53, queue pid 27484.
+
+At 14:39 local there was still no verdict or plugin log, beyond the configured timeout plus 15 minutes. `docs/harness.md` lines 120-122 directs returning blocked in this situation. No exact/total line, reached date, clean shutdown, reference-warning count, resync measurement or house-shadow measurement is available. The 73/73 target is unverified; no coverage credit is requested.
+
+Wait history is preserved: sessions 79080 and 41855 timed out; inherited session 22617 was unavailable on resume; replacement session 55162 reached terminal timeout; session 58313 was interrupted to a terminal exit after the documented stalled-queue threshold. No wait or gate remains active in this transport. The game request itself was never canceled, replaced or duplicated. A later completed verdict for this exact label remains valid.
+
+## Next steps
+
+1. Collect the existing verdict with `python build-runs/wait-verdict.py build-runs/game-results/modelinst-static-2032-20261024-a.verdict`; do not resend solely because these waits timed out. Coordinator should inspect the stalled queue if the result remains absent.
+2. Run `python build-runs/summarize-modelinst.py modelinst-static-2032-20261024-a` after the log arrives, check shutdown/ref warnings and house lines, update run 498 with the exact `<label> <clean>/<total>` measurement, then change the merge entry to ready only for measured work.
+3. Resolve MI14 before implementing live or remaining-owner comparisons. Keep those claims open and the switch default-off.
+
+Manifest for this round: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r2-manifest.json`.
