@@ -26,7 +26,7 @@ fn array(v: &Json) -> R<&[Json]> {
 fn boolean(v: &Json) -> R<bool> {
     v.as_bool().ok_or_else(|| "expected boolean".into())
 }
-fn points(v: &Json) -> R<Vec<Point>> {
+fn points(v: &Json) -> R<Vec<Vec3>> {
     array(v)?
         .iter()
         .map(|v| {
@@ -34,54 +34,59 @@ fn points(v: &Json) -> R<Vec<Point>> {
             if a.len() != 3 {
                 return Err("point needs three components".into());
             }
-            Ok(Point::new(number(&a[0])?, number(&a[1])?, number(&a[2])?))
+            Ok(Vec3::new(number(&a[0])?, number(&a[1])?, number(&a[2])?))
         })
         .collect()
 }
-fn core<T>(result: Result<T, Error>) -> R<T> {
+fn core<T>(result: fc4_core::overlay_views::Result<T>) -> R<T> {
     result.map_err(|e| format!("{e:?}"))
 }
 fn jarray(values: impl IntoIterator<Item = Json>) -> Json {
     Json::Array(values.into_iter().collect())
 }
-fn jpoint(p: Point) -> Json {
+fn jpoint(p: Vec3) -> Json {
     jarray([jf(p.x), jf(p.y), jf(p.z)])
 }
 
 fn run(name: &str, op: &Json) -> R<()> {
     let got = match name {
         "order" => {
-            let mut view = core(cSC4PathView::new(1.0))?;
+            let mut view = PathView::default();
             for path in array(field(op, "paths")?)? {
                 let path = array(path)?;
                 if path.len() != 2 {
                     return Err("path needs id and priority".into());
                 }
                 let id = u32::try_from(integer(&path[0])?).map_err(|_| "id out of range")?;
-                let priority = i32::try_from(integer(&path[1])?).map_err(|_| "priority out of range")?;
-                core(view.new_path(id, priority, 0))?;
+                let priority = number(&path[1])?;
+                view.new_path(id, priority, 0);
             }
-            jarray(view.paths().iter().map(|p| ji(p.id())))
+            jarray(view.paths().iter().map(|p| ji(p.colour)))
         }
         "strip" => {
-            let mut view = core(cSC4PathView::new(number(field(op, "thickness")?)?))?;
-            core(core(view.new_path(1, 0, 0))?.supply_attributes(Colour([255; 4]), number(field(op, "repeat")?)?))?;
+            let mut view = PathView::default();
+            view.set_thickness(number(field(op, "thickness")?)?);
+            view.new_path(u32::MAX, 0.0, 0);
+            core(view.set_path_texture(arrow_key(0), number(field(op, "repeat")?)?, &mut Foreign))?;
             for p in points(field(op, "points")?)? {
                 core(view.add_path_vertex(p))?;
             }
-            let draw = core(view.draw_path(&view.paths()[0]))?.ok_or("empty strip")?;
+            let mut draws = draw_path(&view.paths()[0], view.thickness);
+            let draw = draws.pop().ok_or("empty strip")?;
             jarray(
                 draw.vertices
                     .into_iter()
-                    .map(|v| jarray([jpoint(v.position), jarray(v.uv.map(jf))])),
+                    .map(|v| jarray([jpoint(v.position), jarray(v.uv.unwrap().map(jf))])),
             )
         }
         "duplicate" => {
-            let mut view = core(cSC4PathView::new(1.0))?;
-            core(view.new_path(1, 0, 0))?;
+            let mut view = PathView::default();
+            view.new_path(1, 0.0, 0);
             let mut accepted = Vec::new();
             for p in points(field(op, "points")?)? {
-                accepted.push(Json::Bool(core(view.add_path_vertex(p))?));
+                let before = view.paths()[0].points.len();
+                core(view.add_path_vertex(p))?;
+                accepted.push(Json::Bool(view.paths()[0].points.len() != before));
             }
             jarray(accepted)
         }
@@ -90,35 +95,17 @@ fn run(name: &str, op: &Json) -> R<()> {
             if count > 4096 {
                 return Err("fixture count exceeds terrain".into());
             }
-            let mut view = core(SC4MarkedCellView::new(
-                [16.0; 2],
-                Colour([255; 4]),
-                Colour([0; 4]),
-                false,
-                false,
-            ))?;
-            view.replace_cells(
-                (0..count)
-                    .map(|n| {
-                        (
-                            Cell {
-                                x: (n % 64) as i32,
-                                z: (n / 64) as i32,
-                            },
-                            None,
-                        )
-                    })
-                    .collect(),
-            );
-            jarray(
-                core(view.draw_cells(&FlatTerrain, None))?
-                    .iter()
-                    .map(|d| ji(d.vertices.len() as u32)),
-            )
+            let view = MarkedCellView {
+                cells: (0..count).map(|n| Cell((n % 64) as i32, (n / 64) as i32)).collect(),
+                ..MarkedCellView::default()
+            };
+            let mut trace = Trace::default();
+            core(view.draw_cells(None, &mut FlatTerrain, &mut Foreign, &mut trace))?;
+            jarray(trace.0.iter().map(|d| ji(d.vertices.len() as u32)))
         }
         "vb_disabled" => {
-            let driver = DisabledDriver(Counter::new(0));
-            if core(cSTEVertBufExtn::get_vertex_buffer_extension(&driver, false, 64, 64))?.is_some() {
+            let mut driver = DisabledDriver(Counter::new(0));
+            if core(VertexBufferExtension::default().get(false, 64, 64, &mut driver))? {
                 return Err("disabled extension was made".into());
             }
             ji(driver.0.get())
@@ -133,26 +120,36 @@ fn run(name: &str, op: &Json) -> R<()> {
                 key,
                 flags: 0,
                 has_heights: true,
-                points: (0..count).map(|n| Point::new(n as f32, 7.0, 3.0)).collect(),
+                points: (0..count).map(|n| Vec3::new(n as f32, 7.0, 3.0)).collect(),
             };
-            let view = SC4PathInfoView::new(-1, false);
-            let draws = core(view.draw_path(&path, &FlatTerrain))?;
-            let strip = draws.first().ok_or("missing strip")?;
-            let colour = strip.vertices.first().ok_or("missing first vertex")?.colour;
-            jarray([ji(strip.vertices.len() as u32), jarray(colour.0.map(ji))])
+            let mut trace = Trace::default();
+            core(draw_network_path(
+                &path,
+                0,
+                0,
+                &mut [None; 25],
+                &mut Foreign,
+                &mut trace,
+            ))?;
+            let strip = trace.0.first().ok_or("missing strip")?;
+            let colour = strip.vertices.first().ok_or("missing first vertex")?.colour.unwrap();
+            jarray([
+                ji(strip.vertices.len() as u32),
+                jarray([colour.r, colour.g, colour.b, colour.a.unwrap()].map(ji)),
+            ])
         }
         "train_arrow" => {
             let e = array(field(op, "entry")?)?;
             if e.len() != 2 {
                 return Err("entry needs two components".into());
             }
-            ji(core(SC4TrainJunctionView::get_path_bitmap(
+            ji(core(classify_path_bitmap(
                 &points(field(op, "points")?)?,
-                [number(&e[0])?, number(&e[1])?],
+                Vec3::new(number(&e[0])?, 0.0, number(&e[1])?),
                 boolean(field(op, "selected")?)?,
             ))?)
         }
-        "train_alpha" => jf(SC4TrainJunctionView::transparency(boolean(field(op, "near")?)?)),
+        "train_alpha" => jf(route_transparency(boolean(field(op, "near")?)?, true)),
         _ => return Err(format!("unknown overlay op {name}")),
     };
     check_expect(op, got)
@@ -160,32 +157,119 @@ fn run(name: &str, op: &Json) -> R<()> {
 
 struct FlatTerrain;
 impl CellTerrain for FlatTerrain {
-    fn dimensions(&self) -> [u32; 2] {
-        [64, 64]
+    fn dimensions(&self) -> (u32, u32) {
+        (64, 64)
     }
-    fn vertex(&self, x: u32, z: u32) -> Point {
-        Point::new(x as f32 * 16.0, 0.0, z as f32 * 16.0)
+    fn terrain_height(&mut self, _x: i32, _z: i32) -> Option<f32> {
+        Some(0.0)
     }
-    fn split(&self, _: u32, _: u32) -> Split {
-        Split::Unflipped
+    fn split(&mut self, _: Cell) -> bool {
+        false
     }
-    fn water_altitude(&self) -> f32 {
+    fn water_height(&mut self, _: i32, _: i32) -> f32 {
         0.0
     }
-    fn in_frustum(&self, _: Point) -> bool {
+    fn in_frustum(&mut self, _: Vec3) -> bool {
         true
     }
-    fn lot_at(&self, _: u32, _: u32) -> Option<&dyn Lot> {
+    fn lookup_lot(&mut self, _: Cell, _: Handle) -> Option<Lot> {
         None
     }
-    fn ground_altitude(&self, _: f32, _: f32) -> f32 {
+    fn lot_altitude(&mut self, _: Handle, _: f32, _: f32) -> f32 {
         0.0
     }
 }
 struct DisabledDriver(Counter<u32>);
-impl VertexBufferDriver for DisabledDriver {
-    fn create(&self, _: u32, _: u32) -> Option<Box<dyn VertexBuffer>> {
+impl VertexDriver for DisabledDriver {
+    fn acquire(&mut self, _: u32) -> Option<DriverBuffer> {
         self.0.set(self.0.get() + 1);
         None
+    }
+    fn release_interface(&mut self, _: Handle) {
+        unreachable!()
+    }
+    fn lock(&mut self, _: Handle, _: Handle, _: usize) -> Option<Handle> {
+        unreachable!()
+    }
+    fn copy_vertices(&mut self, _: Handle, _: usize, _: &[TerrainVertex]) {
+        unreachable!()
+    }
+    fn unlock(&mut self, _: Handle, _: Handle) {
+        unreachable!()
+    }
+    fn draw_indexed(&mut self, _: Handle, _: Handle, _: usize, _: &[u16]) {
+        unreachable!()
+    }
+}
+
+#[derive(Default)]
+struct Trace(Vec<Draw>);
+impl Renderer for Trace {
+    fn depth_offset(&self) -> i32 {
+        0
+    }
+    fn emit(&mut self, command: Command) {
+        if let Command::Draw(draw) = command {
+            self.0.push(draw);
+        }
+    }
+}
+struct Foreign;
+impl Resources for Foreign {
+    fn render_service_available(&mut self) -> bool {
+        false
+    }
+    fn resource_service_available(&mut self) -> bool {
+        false
+    }
+    fn binding(&mut self, _: ResourceKey) -> Option<Handle> {
+        None
+    }
+    fn model(&mut self, _: ResourceKey) -> Option<Handle> {
+        unreachable!()
+    }
+    fn lot_filter(&mut self, _: u32) -> Option<Handle> {
+        unreachable!()
+    }
+    fn retain(&mut self, _: Handle) {
+        unreachable!()
+    }
+    fn release(&mut self, _: Handle) {
+        unreachable!()
+    }
+    fn base_cleanup(&mut self, _: u32) {
+        unreachable!()
+    }
+    fn free_object(&mut self, _: u32) {
+        unreachable!()
+    }
+}
+impl NetworkHost for Foreign {
+    fn manager_available(&mut self) -> bool {
+        unreachable!()
+    }
+    fn visible_cells(&mut self) -> (Cell, Cell) {
+        unreachable!()
+    }
+    fn occupants(&mut self, _: Cell) -> Vec<Handle> {
+        unreachable!()
+    }
+    fn paths(&mut self, _: Handle) -> Vec<NetworkPath> {
+        unreachable!()
+    }
+    fn altitude(&mut self, _: Handle, _: f32, _: f32) -> f32 {
+        0.0
+    }
+    fn routes(&mut self, _: Handle, _: u8) -> RouteSet {
+        unreachable!()
+    }
+    fn path(&mut self, _: Handle, _: u32) -> Option<NetworkPath> {
+        unreachable!()
+    }
+    fn route_origin(&mut self, _: Handle, _: u32) -> Option<Vec3> {
+        unreachable!()
+    }
+    fn terrain_altitude(&mut self, _: f32, _: f32) -> f32 {
+        unreachable!()
     }
 }
