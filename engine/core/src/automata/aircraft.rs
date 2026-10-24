@@ -8,7 +8,7 @@
 use crate::stream::{InStream, OutStream, RefValue};
 
 use super::codec::{get_vec3, put_vec3};
-use super::{state_type, AutomatonBase, SetStateArgs, Vec3};
+use super::{AutomatonBase, Vec3};
 
 pub const CLSID_AIRCRAFT: u32 = 0xC96E_75DC;
 pub const CLSID_AIRPLANE: u32 = 0xCBEB_4F62;

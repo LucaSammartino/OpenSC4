@@ -6,8 +6,9 @@
 
 - Goal: merge main, retain airplane and helicopter owners, remove duplicate AF9, run final gate.
 - Done: merge f6da6ee6d retains both owners; airplane question is AF10; index/check and three-file absolute-path fmt pass.
-- Gate in progress: qbuild all session 47450, native label qbuild-20261024-094908-build-ctest. Rust tests pass 7021/0/0; clippy fails on shared aircraft.rs unused state_type/SetStateArgs imports.
-- Next: collect SAME gate operation to terminal; preserve failed-source logs, remove unused imports, format and rerun final all.
+- First gate terminal FAIL: qbuild-20261024-094908-build-ctest; Rust tests 7021/0/0, clippy unused imports, native build PASS 216/216, CTest 79/80 (capi_smoke cached ABI97 while both sources specify ABI98). Full logs preserved in build-runs/r2-before-unused-import-fix/.
+- Fix: unused imports removed; absolute-path fmt PASS for five files. Focused capi_smoke recache diagnostic running as session 24439; script build-runs/refresh-r2-smoke.cmd.
+- Next: collect diagnostic, then run qbuild all once on corrected stable source. Do not commit while final gate runs (HEAD change invalidates its verdict).
 - Owners: airplane in engine/core/src/automata/airplane; helicopter in engine/core/src/helicopter; shared aircraft storage/helpers retained.
 - No game request outstanding; core-only airplane has no native observation adapter.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-airplane9-r2-manifest.json.
