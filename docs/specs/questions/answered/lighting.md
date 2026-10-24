@@ -27,3 +27,25 @@
 <!-- from: core-lighting4 (2026-10-22) -->
 - **LT10 - §5.6 CalcShadowProjection:** specify the plane basis, model-frame direction transform, complete input/output matrix layout, flag-dependent composition and arithmetic precision. Does the determinant test use a signed or absolute determinant? [Only the stated 2D affine least-squares subproblem with signed determinant cutoff 0.01 is implemented; complete projection returns ContractGap and preserves output, without an original-method provider.]
   **ANSWERED 2026-10-22 (re-lighting-contracts4):** DIFFERS — §5.8 now specifies the complete count-first method: flag-4 conditional transpose of R, negated direction without scale/translation/normalization, fixed vertical/unordered basis fallback, distinct retained/spilled normal sums, all cofactor/coefficient/lift spills, signed binary64 0.01 cutoff (NaN proceeds), whole-byte nonzero composition gate, inverse translation, flag-2 reciprocal scale on linear components only, and column-major sixteen-float output. Failure leaves output untouched; no scale-zero/NaN recovery is added. Native arithmetic is not a generic symmetric least-squares solve: vector 21 rejects a noncollinear triangle, and identical UV columns in vector 22 yield different U/V translation constants. See §5.8.1–§5.8.4 and vectors 18–22; instruction evidence `0x007D8C80–0x007D9813`, attributed basis `0x0080B9F0–0x0080BAC6`. This resolves the spec question; it does not assert portable implementation or measured runtime exactness.
+
+<!-- from: glue-lighting-shadow9 (2026-10-24) -->
+- ~~**LT14 - §§1.3, 2, 3, 6 live-owner input replay:** what public/serializable interfaces provide the lighting
+  owner's complete ordered external inputs at city load and thereafter: the time-of-day driver (independent
+  of GetTimeOfDay), tint/reset events, render settings including the unidentified LT1 byte, view changes and
+  terrain notifications? There is no owner Read/Write slot in §7. Please specify a safe input snapshot/replay
+  contract, including initial state and notification ordering, rather than copying native lighting outputs
+  into the expected model. [Default-off shadow measures only §5.6 GetShadowParams and
+  GetDecalShadowParams(null), using §1.4's explicitly shipped parameter inputs in the Rust core. The published
+  §0 global locates the borrowed owner; no hardware observers, setters or native lifecycle calls. Slots
+  0–13, 15, 17–29 and nonnull-holder slot 16 remain uncompared; whole-owner verification is not claimed.]~~
+  **ANSWERED 2026-10-24 (re-lighting-lt14):** DIFFERS — there is no complete public/serializable owner snapshot. §1.6 specifies independent ordered replay from known constructor/Init plus process-shared property history, delivery-time dependency results, direct tint/reset calls, settings including the raw LT1 byte, view and terrain events; missing inputs limit comparison scope. §2.4 proves the normal driver reads current clock visual hour/minute at post-city-init and VisualTimeTick delivery and supplies binary32(hour + minute × binary32 0x3C888889), not saved game time, message payload or visual seconds. No native mutator/lifecycle call is needed or permitted to manufacture replay state. Vectors 24–27 distinguish history and delivery ordering. This closes the requested contract; it does not claim an available complete public capture facility or whole-owner verification. LT1/LT12/LT13 remain separate questions.
+
+<!-- from: glue-lighting-shadow9 (2026-10-24) -->
+- ~~**LT15 - §1.4 shipped decal texture:** the table gives `0x69D3BC3B` for property `0x085489C8`, but the
+  house-switch run lighting9-house-2032-r1-20261024 returns `0x69D3A23B` in slot 16(null) on all 46 captures
+  (2026-01-27 through 2029-10-01). Is the shipped texture value in the table a transcription error?
+  [The first literal shipped-input measurement is preserved as 0/46 exact, one mismatch per line. The
+  next revision captures the six §5.6 input properties independently from resource
+  `6534284A/A9189CF0/00000001` through the public resource/property interfaces, then feeds the Rust
+  property-reading implementation; no expected value is copied from a native lighting getter.]~~
+  **ANSWERED 2026-10-24 (re-lighting-lt14):** DIFFERS — §1.4 corrects the shipped u32 texture to `0x69D3A23B` (1775477307), verified directly in GOG SimCity_1.dat exemplar `6534284A/A9189CF0/00000001`, property `085489C8`. The old `0x69D3BC3B` was a transcription error. The getter copies the shared integer unchanged, with optional per-holder override; missing properties retain prior configuration. Vector 23 covers shipped value, reload retention and holder isolation. The initial run's 0/46 verdict is preserved, not relabeled exact.
