@@ -12,6 +12,8 @@
 - Preserved Rust gate logs as build-runs/pre-correction-qbuild-{test,clippy}.log.
 - Diagnostic correction: derive Default; preserve orphan-box references after destruction with regression test.
 - Corrections committed: 09747d671 and 99a96cd07 (checked BMP header-length addition on x86 with malformed-header regression).
-- Next: final stable-source all, then explicit verify, report/enqueue. No outstanding native request.
+- Final all PASS on stable beeb2efbf: cargo 7036 passed/0 failed/0 ignored; clippy 0 diagnostics; build 210/210 edges; CTest 80/80. Native request qbuild-20261024-103734-build-ctest, session 31717 collected to terminal.
+- Logs preserved under build-runs/final-all-*.log. Formatting PASS, 3 explicit owned Rust files.
+- Next: explicit qbuild verify, final report/enqueue. No outstanding native request.
 - Required final checks: qbuild all and queued qbuild verify; no game request outstanding.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-region10-r1-manifest.json.
