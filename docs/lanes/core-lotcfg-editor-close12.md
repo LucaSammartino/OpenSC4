@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-lotcfg-editor-close12 | Codex / core-lotcfg-editor-close12 | in progress | Recover interrupted all gate; final report and READY queue |
+| core-lotcfg-editor-close12 | Codex / core-lotcfg-editor-close12 | in progress | Collect recovery all native verdict; final report and READY queue |
 
 ## Handoff
 - Goal: close all settled cSC4WinLotConfigurationEditor core contracts, without plugin/C ABI changes.
@@ -13,10 +13,11 @@
 - Workspace tests COMPLETED: sum of all 48 test-result lines = 7,388 passed, 0 failed, 0 ignored; includes core 4,885 passed and all 51 lotconfig_editor tests passed. Installed-data sweeps finished too.
 - Native verify PASS: qbuild-20261024-171251-build-ctest; 262/262 build edges, CTest 81/81, total 509.3 s. build-runs/verify-1.log, fc4verify-build.log, fc4verify-ctest.log. Terminal result collected.
 - Verify notes tree changed: only docs/lanes/core-lotcfg-editor-close12.md changed at 7e3b4c395 while native build ran; engine source unchanged from 259cae3a6.
-- Next EXACT: archive incomplete logs to build-runs/recovery-1, run build-runs/recover-all.py in foreground, and collect that same operation to completion. This recovers a dead operation, not a duplicate of an active gate. Native verify already passed and needs no separate repeat.
+- Recovery ACTIVE: exec session 23917 runs build-runs/recover-all.py; logs archived to build-runs/recovery-1. all-recovery-1.log records tests PASS 7,388/0/0 across 48 summaries (51 editor tests), clippy PASS 0 diagnostics, now native queue qbuild-20261024-182822-build-ctest. No native verdict yet. Collect this same operation; do not launch another gate.
 - Then replace Handoff with full report, commit, and write READY build-runs/merge-queue/core-lotcfg-editor-close12.json with full actual 40-character HEAD. No queue written this round: guard reached 150k during the pending gate and denied further collection.
 - Milestones: merged spec a77870bc9; implementation a8b9c31c0; absent-manager/fixture fixes 259cae3a6; gate handoffs 7e3b4c395 and 1c72d1f4e. Source unchanged since 259cae3a6.
 - All settled owner contracts and LEI01–15 implemented; remaining rows name only LE3/LE4/LE5/LE7 or foreign RZS2. No new questions; no ABI/plugin/capi edits.
 - Formatting applied through apply_patch; helper build-runs/format-owned.py formats stdin and generates patches, never overwrites source or writes filename headers.
 - Remaining published barriers: LE3/LE4/LE5/LE7 and foreign RZS2.
 - No game requests; portable core-only scope.
+- Next EXACT: collect session 23917 to terminal result, read all-recovery-1.log tail and failure lines. Then replace Handoff with report and enqueue actual full HEAD. The recovery reruns all only because the interrupted old operation is gone; no source changes.
