@@ -11,7 +11,8 @@
 - Earlier focused snapshot: 69/73 (four obsolete provisional assertions); corrected.
 - Closure table updated: all 198 specified portable owner functions implemented.
 - Final eight-file absolute-path qbuild fmt PASS (zero diff lines).
-- Full qbuild all running, exec session 77348; collect same operation to terminal.
+- Full qbuild all Rust terminal results: test PASS 7039/0/0; clippy PASS zero diagnostics.
+- Native build/CTest request qbuild-20261024-101502-build-ctest waiting in same session 77348.
 - Next: collect all gate, correct real diagnostics if any; report and READY queue.
 - Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
 - No round 2 game request. Core-only; ABI unchanged.
