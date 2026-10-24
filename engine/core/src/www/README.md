@@ -106,14 +106,15 @@ CK13, HTTP35, NFC19 and SUP01–09 (the FTP SUP group is in `ftp.rs`). WWW vecto
 
 ## Closure disposition (2026-10-24)
 
-The q17/q18 and Q19/Q20 answers have executable fixtures. Final validation of this
-delivery is pending. Native wrappers and live-server integration remain separate
-from published portable behavior.
+The q17/q18 and Q19/Q20 answers have executable coverage through CTest's
+`cargo_test` case (81/81 CTest cases passed in qbuild verify). All 31 new vectors
+are individually named Rust tests. Native wrappers and live-server integration
+remain separate from published portable behavior.
 
 | Owner | Fully implemented? | Sections that remain open |
 |---|---|---|
-| cGZWWWSystem | No, validation pending | Q19 implemented; WWW/FTP fixtures and final cargo_test CTest gate pending |
-| HTTP (cRZHTTPClient) | No, validation pending | Q20 implemented and worker lifetime connected; all 26 Q20 fixtures and final cargo_test CTest gate pending |
+| cGZWWWSystem | Yes, published portable behavior | 4.1–4.15 and FTP control contracts covered, including WWW19-1–5; native circular-sentinel allocation, deleting arrays and pointer-adjusting ABI wrappers are explicit host inputs |
+| HTTP (cRZHTTPClient) | Yes, published portable behavior | 5.1–5.6 and HTTP wire/lifetime contracts covered, including WWW20-S1–S13/P1–P4/R1–R9; socket/clock/file/CRT primitives and native allocations are explicit host inputs |
 | cRZCookieManager | Yes, published portable behavior | 3.1–3.7 covered, including CK01–CK13; IO/calendar and native allocation remain explicit foreign inputs |
 | CookieData | Yes, published value behavior | 3.1 defaults/owned strings/pairs/fields and independent copying covered |
 | NetworkFileCache | Yes, published portable storage behavior | 6.1–6.5 and NFC01–19 covered; filesystem primitives and native map bucket topology remain explicit host inputs; Arc ownership requires a native allocator/refcount adapter |
