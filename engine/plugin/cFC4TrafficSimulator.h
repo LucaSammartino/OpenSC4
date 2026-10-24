@@ -100,10 +100,8 @@ struct TrafficContext {
     bool agentsRegistered = false;
     // Per outermost call (cleared when it returns): the lot manager's lots
     // (one walk per call), and the lots and connections known to be alive.
-    // The core keeps a source token from one day to the next without a
-    // reference (traffic-simulator.md §4.1: the original's iterator holds
-    // one), so a lot or connection token is used only while the city still
-    // has it (or the game handed it over during this call).
+    // A source retained across slices (§4.1) remains usable after removal;
+    // all other tokens must still belong to the city or this call.
     std::vector<uint64_t> lotList;
     bool lotListValid = false;
     std::unordered_set<uint64_t> liveLots, seenLots;
@@ -116,6 +114,7 @@ struct TrafficContext {
     // connections when the core took them.
     std::unordered_map<uint64_t, uint32_t> coreRefs;
     std::unordered_set<uint64_t> heldConns;
+    std::unordered_set<uint64_t> heldLots;
     uint32_t connsLeftHeld = 0;  // held connections released after they left the city
     uint32_t staleTokens = 0;  // calls refused on a token no longer in the city
     // Observability (the status lines): calls made since construction.
