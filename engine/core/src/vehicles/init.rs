@@ -2,7 +2,8 @@
 use super::*;
 use crate::automata::{AutomatonBase, TrafficRecord, Vec3};
 
-pub const SPEED_UNIT: f32 = f32::from_bits(0x3991_A2B5);
+// Exact binary32 0x3991_A2B5; decimal spelling keeps const evaluation on Rust 1.75.
+pub const SPEED_UNIT: f32 = 0.000_277_777_8;
 pub const UNSET_POINT: Vec3 = [-1.0, -2.0, -3.0];
 
 /// Runtime globals and random primitives are explicit inputs, not guessed defaults.
@@ -51,7 +52,11 @@ pub(crate) fn immediate_speed(base: &mut AutomatonBase, speed: f32) {
     base.f3[..4].copy_from_slice(&[speed, speed, 0.0, 0.0]);
 }
 
-pub(crate) fn init_traffic(record: &mut TrafficRecord, runtime: &mut TrafficRuntime, world: &mut impl InitWorld) -> bool {
+pub(crate) fn init_traffic(
+    record: &mut TrafficRecord,
+    runtime: &mut TrafficRuntime,
+    world: &mut impl InitWorld,
+) -> bool {
     if runtime.initialized {
         return true;
     }

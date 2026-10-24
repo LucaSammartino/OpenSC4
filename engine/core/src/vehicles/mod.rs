@@ -2,20 +2,20 @@
 //! Vehicle owners from vehicles.md and automata.md. See README.md for closure gaps.
 //! City services remain foreign interfaces; no game vehicle implements these owners.
 
+mod effects;
+mod init;
+mod routing;
+mod states;
 mod traffic;
 mod train;
 mod vehicle;
-mod init;
-mod states;
-mod effects;
-mod routing;
 
+pub use effects::*;
+pub use init::*;
+pub use routing::*;
 pub use traffic::*;
 pub use train::*;
 pub use vehicle::*;
-pub use init::*;
-pub use effects::*;
-pub use routing::*;
 
 #[cfg(test)]
 mod tests;
@@ -29,7 +29,6 @@ pub enum Unsupported {
     TrainCompositionVh5,
     TrainFollowingVh5,
     TrainTripVh5,
-    CollisionDirectionVh6,
     RouteGeometryVh7,
     BaseStateVh9,
 }

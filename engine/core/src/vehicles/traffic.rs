@@ -107,6 +107,7 @@ pub struct TrafficRuntime {
     pub travel_type: u32,
     pub fallback_byte: u8,
     pub exclude_previous_entry: bool,
+    pub crash_elapsed_ms: f32,
     pub has_tile_position: bool,
     pub has_path: bool,
     pub initialized: bool,
@@ -156,30 +157,14 @@ impl TrafficAutomaton {
         movement: Movement,
         moves: bool,
         held: bool,
-        world: &mut impl TrafficWorld,
+        world: &mut impl super::VehicleWorld,
     ) -> Result<()> {
         advance_tweens(&mut self.record.base, dt_ms);
         world.effects(EffectAction::Update);
-        let kind = self.record.base.states.last().map(|s| s.state_type).unwrap_or(0);
         let handled = if !moves {
             true
         } else {
-            match kind {
-                1 => {
-                    self.owner().remove(world);
-                    true
-                }
-                10 => self.record.base.automata_flags & REMOVE == 0,
-                13 => self.owner().blocked_wait_tick(dt_ms, movement.speed_scale, world),
-                30 => {
-                    if tween_value(&self.record.base.f3[..4]) > 0.0 {
-                        self.owner().path_tick(dt_ms, movement, false, world)?;
-                    }
-                    true
-                }
-                7 | 11 | 15 | 16 | 18 | 19 | 20 => return Err(Unsupported::BaseStateVh9),
-                _ => false,
-            }
+            self.state_tick(dt_ms, movement, world)?
         };
         if !handled {
             if self.record.base.automata_flags & REACHED == 0 {
@@ -258,7 +243,6 @@ impl TrafficOwner<'_> {
         }
         Ok(())
     }
-
 
     pub fn remove(&mut self, world: &mut impl TrafficWorld) {
         if self.record.base.automata_flags & REMOVE == 0 {

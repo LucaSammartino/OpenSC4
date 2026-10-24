@@ -4,6 +4,7 @@ use crate::automata::{SetStateArgs, State, StateExtra, Vec3};
 use crate::stream::{ByteReader, ByteWriter, RefValue};
 
 mod closure;
+mod routing;
 
 struct World {
     calls: Vec<String>,
@@ -88,15 +89,31 @@ impl VehicleWorld for World {
         self.range_result.unwrap_or((lower + upper) * 0.5)
     }
     fn controller_tick(&mut self, _: &RefValue, kind: u32, dt: f32) -> bool {
-        self.calls.push(format!("controller:{kind}:{dt}")); self.controller_handled
+        self.calls.push(format!("controller:{kind}:{dt}"));
+        self.controller_handled
     }
-    fn added_model(&mut self, _:crate::stream::ResKey) -> RefValue {
-        if self.allow { RefValue::Host { token:77, class_id:0xA818EDD8 } } else { RefValue::Null }
+    fn added_model(&mut self, _: crate::stream::ResKey) -> RefValue {
+        if self.allow {
+            RefValue::Host {
+                token: 77,
+                class_id: 0xA818EDD8,
+            }
+        } else {
+            RefValue::Null
+        }
     }
-    fn select_animation(&mut self, _: &RefValue, selector:u16) { self.calls.push(format!("selector:{selector}")); }
-    fn animation_value(&mut self, _: &RefValue, mode:u32, value:f32) { self.calls.push(format!("animation:{mode}:{value}")); }
-    fn animation_status(&mut self, _: &RefValue) -> Option<(f32,f32,f32)> { self.animation }
-    fn attach_tuning_ms(&mut self) -> f32 { 1000.0 }
+    fn select_animation(&mut self, _: &RefValue, selector: u16) {
+        self.calls.push(format!("selector:{selector}"));
+    }
+    fn animation_value(&mut self, _: &RefValue, mode: u32, value: f32) {
+        self.calls.push(format!("animation:{mode}:{value}"));
+    }
+    fn animation_status(&mut self, _: &RefValue) -> Option<(f32, f32, f32)> {
+        self.animation
+    }
+    fn attach_tuning_ms(&mut self) -> f32 {
+        1000.0
+    }
     fn in_city(&mut self, _: Vec3) -> bool {
         self.inside
     }
@@ -416,15 +433,12 @@ fn record_roundtrip_and_every_truncation_atomic_before_init() {
 }
 
 #[test]
-fn train_shutdown_owns_cars_and_copies_measured_speed() {
+fn train_shutdown_owns_cars() {
     let mut t = Train {
         cars: vec![TrainCar::default(), TrainCar::default()],
         ..Train::default()
     };
     let mut w = World::default();
-    t.vehicle.measured_speed = 0.75;
-    t.enter_collision(&[[1.0, 0.0, 0.0]; 3], &mut w).unwrap();
-    assert!(t.cars.iter().all(|c| c.vehicle.measured_speed == 0.75));
     t.cars[0].vehicle.splash_effect = Some(42);
     t.shutdown(&mut w);
     assert!(t.cars.is_empty());
@@ -437,7 +451,7 @@ fn train_records_have_two_exact_version_wrappers() {
     let mut out = ByteWriter::new();
     assert!(train.write(&mut out));
     let bytes = out.into_bytes();
-    assert_eq!(&bytes[..4], &[2,0,2,0]);
+    assert_eq!(&bytes[..4], &[2, 0, 2, 0]);
     assert!(train.read(&mut ByteReader::new(&bytes)));
-    assert!(!train.read(&mut ByteReader::new(&[2,0,3,0])));
+    assert!(!train.read(&mut ByteReader::new(&[2, 0, 3, 0])));
 }

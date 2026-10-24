@@ -11,12 +11,20 @@ pub const COLLISION_MESSAGE: u32 = 0x49E6_4802;
 /// never run a vehicle, train or traffic owner in the host.
 pub trait VehicleWorld: TrafficWorld {
     fn automata_range(&mut self, lower: f64, upper: f64) -> f64;
-    fn controller_tick(&mut self, _controller: &crate::stream::RefValue, _kind: u32, _dt_ms: f32) -> bool { false }
-    fn added_model(&mut self, _key: crate::stream::ResKey) -> crate::stream::RefValue { crate::stream::RefValue::Null }
+    fn controller_tick(&mut self, _controller: &crate::stream::RefValue, _kind: u32, _dt_ms: f32) -> bool {
+        false
+    }
+    fn added_model(&mut self, _key: crate::stream::ResKey) -> crate::stream::RefValue {
+        crate::stream::RefValue::Null
+    }
     fn select_animation(&mut self, _model: &crate::stream::RefValue, _selector: u16) {}
     fn animation_value(&mut self, _model: &crate::stream::RefValue, _mode: u32, _value: f32) {}
-    fn animation_status(&mut self, _model: &crate::stream::RefValue) -> Option<(f32, f32, f32)> { None }
-    fn attach_tuning_ms(&mut self) -> f32 { 1.0 }
+    fn animation_status(&mut self, _model: &crate::stream::RefValue) -> Option<(f32, f32, f32)> {
+        None
+    }
+    fn attach_tuning_ms(&mut self) -> f32 {
+        1.0
+    }
     fn in_city(&mut self, position: Vec3) -> bool;
     fn heights(&mut self, position: Vec3) -> (f32, f32);
     fn road_height(&mut self, position: Vec3) -> f32;
@@ -163,8 +171,11 @@ impl Vehicle {
             let centre = self.record.traffic.base.vectors[2][1];
             if let Some(state) = self.record.traffic.base.states.last_mut() {
                 state.extra = StateExtra::T0E {
-                    descent: f32::from_bits(0xBB88_888A), roll_rate: 0.5, roll_centre: centre,
-                    tumble_ms: (world.automata_range(1.0, 2.5) * 1000.0) as f32, post_splash_ms: 0.0,
+                    descent: f32::from_bits(0xBB88_888A),
+                    roll_rate: 0.5,
+                    roll_centre: centre,
+                    tumble_ms: (world.automata_range(1.0, 2.5) * 1000.0) as f32,
+                    post_splash_ms: 0.0,
                 };
             }
         }
@@ -239,8 +250,48 @@ impl Vehicle {
     }
 
     pub fn state_tick(&mut self, dt_ms: f32, movement: Movement, world: &mut impl VehicleWorld) -> Result<bool> {
+        let kind = self
+            .record
+            .traffic
+            .base
+            .states
+            .last()
+            .map(|s| s.state_type)
+            .unwrap_or(0);
+        // Derived handlers precede the base dispatcher (automata §6.5).
+        // In particular blocked wait owns its speed-scaled countdown.
+        if kind == 13 {
+            return Ok(self
+                .traffic_owner()
+                .blocked_wait_tick(dt_ms, movement.speed_scale, world));
+        }
+        if kind == 14 {
+            return self.plummet_tick(dt_ms, world);
+        }
+        if kind == 21 {
+            self.pull_over_tick(dt_ms, world);
+            return Ok(true);
+        }
+        if kind == 30 {
+            if tween_value(&self.record.traffic.base.f3[..4]) > 0.0 {
+                self.path_tick(dt_ms, movement, world)?;
+            }
+            self.countdown(dt_ms, world);
+            return self.dispatch_state(dt_ms, movement, world).map(|_| true);
+        }
         self.countdown(dt_ms, world);
-        if self.record.traffic.base.states.is_empty() { return Ok(true); }
+        self.dispatch_state(dt_ms, movement, world)
+    }
+
+    pub(crate) fn dispatch_state(
+        &mut self,
+        dt_ms: f32,
+        movement: Movement,
+        world: &mut impl VehicleWorld,
+    ) -> Result<bool> {
+        if self.record.traffic.base.states.is_empty() {
+            return Ok(true);
+        }
         let top = self.record.traffic.base.states.last().expect("nonempty");
         if !top.base.controller.is_null() && world.controller_tick(&top.base.controller, top.state_type, dt_ms) {
             return Ok(true);
@@ -283,24 +334,17 @@ impl Vehicle {
                 self.pull_over_tick(dt_ms, world);
                 Ok(true)
             }
-            30 => {
-                if tween_value(&self.record.traffic.base.f3[..4]) > 0.0 {
-                    self.path_tick(dt_ms, movement, world)?;
-                }
-                Ok(true)
-            }
+            30 => Ok(true),
             // These handlers belong to the automaton base but have insufficient
             // portable controller/model details here (VH9), not default seeks.
             15 => Ok(self.plop_jump_tick(dt_ms, world)),
             19 => Ok(self.attach_tick(dt_ms, world)),
             11 | 18 => Err(Unsupported::BaseStateVh9),
-            _ => {
-                Ok(false)
-            }
+            _ => Ok(false),
         }
     }
 
-    fn countdown(&mut self, dt_ms: f32, world: &mut impl VehicleWorld) {
+    pub(crate) fn countdown(&mut self, dt_ms: f32, world: &mut impl VehicleWorld) {
         let expired = if let Some(top) = self.record.traffic.base.states.last_mut() {
             if top.base.countdown_ms > 0.0 {
                 top.base.countdown_ms -= dt_ms;
