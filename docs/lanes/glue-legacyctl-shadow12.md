@@ -1,22 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-legacyctl-shadow12 (legacy control shadow) | `Codex` / `glue-legacyctl-shadow12` (engine lane) | in progress | Inspect observable boundary contracts; implement and validate supported shadow. |
+| glue-legacyctl-shadow12 (legacy control shadow) | `Codex` / `glue-legacyctl-shadow12` (engine lane) | ready, owner-only portion: cargo 7375/0, clippy clean, CTest 81/81; run 520 clean through 2032, legacyctl 72/72 exact; LC14/LC15 open; public ABI unchanged | 1. Coordinator review partial coverage and integrate regress profile. 2. Resolve LC14/LC15 before full build replay. |
 
-## Handoff
-- Goal: default-off same-process legacy control state shadow, measured through 2032.
-- Done: 971d183e3 owner-only Rust replay/private transport and default-off vtable observers committed.
-- Coverage: primary QI/AddRef/SetOwnControl, legacy GetControl/SetOwnControl; all five owner fields compared.
-- SetParameters counts and post-build GetControl probes are separate; property/interpreter replay excluded.
-- Questions: LC14 return contracts; LC15 observable direct-call boundary, in docs/specs/questions/legacy-control.md.
-- Next: ONE game request OUTSTANDING: legacyctl12-owner-2032-971d183e3-r1 (turbo to 2032). Wait with build-runs/wait-legacyctl-verdict.ps1 on build-runs/game-results/legacyctl12-owner-2032-971d183e3-r1.verdict. Never discard an existing verdict or duplicate request. Then count legacyctl shadow exact/total and create run record/finish report/queue.
-- Final all session 43105 TERMINAL PASS: cargo 7375/0, clippy 0 diagnostics, native build 159/159 edges, CTest 81/81. Queue qbuild-20261024-184451-build-ctest; source fix 021be6fe6; log build-runs/legacyctl-final-all-console.log. No further build required without source changes.
-- Focused result: terminal, 2 passed/0 failed (4870 filtered), 55m41s compile; log build-runs/legacyctl-focused.log. PowerShell wrapper exit 1 reflects normal cargo stderr NativeCommandError, not a test failure.
-- First all: PASS, cargo 7375/0, clippy 0 diagnostics, native build 263/263 edges and CTest 81/81. Queue qbuild-20261024-182826-build-ctest; all delegates native verification correctly, do not separately enqueue verify.
-- Evidence before review fix: build-runs/legacyctl-pre-qi-fix/; final source needs a new all check because C++ changed.
-- Review fix applied: QI out-pointer representation stays in unsigned-char bytes and is compared bytewise for both success/rejection; no indeterminate pointer/integer value is evaluated.
-- Game draft: build-runs/legacyctl-owner-2032.req-draft; wait helper build-runs/wait-legacyctl-verdict.ps1 uses one file event, no qwait/poll loop.
-- Focused check: build-runs/legacyctl-focused.log; no game request outstanding.
-- Formatting: PASS, three explicit owned Rust files. Focused compilation is unusually slow but active (CPU increased, one rustc completed).
-- Initial relative-path fmt and q.py Bash permission failure preserved in build-runs; no source diagnostics yet.
-- Constraints: no native signatures inferred; no prohibited sources; no agents.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-legacyctl-shadow12-r1-manifest.json.
+## Report
+
+Default-off `legacyctl_shadow=1` observes published native primary QueryInterface/AddRef/SetOwnControl and legacy GetControl/SetOwnControl vtable boundaries. Rust replays from pre-call state using the existing core. All five owner fields (references, control, parent, procedure, ownership), scalar returns and QueryInterface output identity are compared. No native post-state enters Rust. QueryInterface output bytes stay opaque on both success and rejection.
+
+SetParameters calls are counted and a post-build GetControl probe is measured separately. Full property/per-type interpreter replay is explicitly excluded. LC15 requests the observable direct-call boundary contract; LC14 requests ForceControl/UseWinProc return contracts. These methods remain unhooked. This is partial closure, not verification of the full subsystem.
+
+Implementation: `971d183e3` owner replay/transport/hooks; `021be6fe6` opaque QueryInterface output fix. The private static-link transport adds no public DLL export; FC4_ABI_VERSION unchanged.
+
+## Validation
+
+Final stable-source `qbuild.py --wt <WT> all` completed PASS: cargo 7375/0, clippy 0 diagnostics, native 159/159 edges, CTest 81/81. Coordinator queue: `qbuild-20261024-184451-build-ctest`. Evidence: `build-runs/legacyctl-final-all-console.log`, `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Focused tests 2/0; explicit owned Rust fmt passed. No source changed after that gate, so no duplicate gate launched. Pre-QI-fix evidence remains in `build-runs/legacyctl-pre-qi-fix/`.
+
+Run [520](../runs/legacyctl12-owner-2032-971d183e3-r1-520.md): `legacyctl12-owner-2032-971d183e3-r1`, Konradshohe, turbo to 2032-01-01, enable empty, legacyctl_shadow=1. Existing completed verdict collected without duplicate request. Clean, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Final date 2032-01-01, 28.875 real seconds; DLL SHA256 prefix `0c53e5ea`.
+
+Exact line: `legacyctl12-owner-2032-971d183e3-r1 72/72` (shadow label `legacyctl 72/72`). All monthly lines, 2026-02-01 through 2032-01-01, end mismatches=0. Final cumulative compared=7976, builds=775, build_getters=775, addref=3270, own=775, control=1564, qi=2367. No normal-speed diagnostic needed. Counts computed directly from log; coverage tools were not opened or run.
+
+Evidence: `build-runs/game-results/legacyctl12-owner-2032-971d183e3-r1.log` and `.verdict`; consumed request in `build-runs/game-queue/done/`. No request outstanding.
+
+## Questions and integration
+
+LC14/LC15 filed in `docs/specs/questions/legacy-control.md`; no new questions this continuation. Full build replay remains open; the measured owner portion is ready. Coordinator must review partial coverage before crediting. No coverage map/shadow table edited.
+
+Regress profile integration deferred to coordinator: this lane cannot open/edit tools/regress.ps1, merge main, or change detached-HEAD refs. If accepted, append legacyctl_shadow to the current single shadows profile string. Keep default-off behavior.
