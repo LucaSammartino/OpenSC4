@@ -2,6 +2,8 @@
 //! cGZWinListBox, widget-controls §5. Native L slots and W extensions are
 //! separate operations; this safe model does not fabricate unresolved ABIs.
 use super::*;
+#[path = "list_box/adapters.rs"]
+mod adapters;
 
 pub const IID: u32 = 0x4132_242b;
 pub const LIST_OFFSET: u64 = 0xd8;
@@ -52,9 +54,123 @@ pub struct ListBox {
     pub pending_double_click: bool,
     pub captured: bool,
     pub initialized: bool,
+    pub stored_count: i32,
+    pub bar_tracking: bool,
+    pub bar_gap_y: i8,
+    pub skin_rect: Rect,
+    pub pointer: [i32; 2],
 }
 
 impl ListBox {
+    pub fn set_intensity(&mut self, value: f32, f: &mut impl Foreign) {
+        // Comparisons deliberately preserve NaN and negative zero (WC1).
+        self.intensity = value.clamp(0.0, 1.0);
+        f.invalidate(self.window);
+    }
+    pub fn enable_sorting(&mut self, f: &mut impl Foreign) {
+        if !self.suppression {
+            self.suppression = true;
+            self.sort_now(f);
+        }
+    }
+    pub fn sort_now(&mut self, f: &mut impl Foreign) {
+        let saved = self.entries.get(self.selected as usize).map(|e| e.text.clone());
+        self.entries.sort_by(|a, b| f.compare_text(&a.text, &b.text));
+        if let Some(text) = saved {
+            if let Some(index) = self.find_text(&text, f) {
+                self.select(index as i32, true, f);
+            }
+        }
+    }
+    pub fn clear(&mut self, f: &mut impl Foreign) {
+        self.entries.clear();
+        self.stored_count = 0;
+        self.selected = -1;
+        self.first = 0;
+        self.recompute_metrics(f);
+        self.update_bar(f);
+        f.invalidate(self.window);
+    }
+    pub fn find_remove(&mut self, text: &[u8], f: &mut impl Foreign) -> Result<bool> {
+        match self.find_text(text, f) {
+            Some(i) => self.remove(i as i32, f),
+            None => Ok(false),
+        }
+    }
+    pub fn first_page(&mut self, f: &mut impl Foreign) -> bool {
+        if self.stored_count <= 0 {
+            return false;
+        }
+        self.set_first(0, f);
+        true
+    }
+    pub fn last_page(&mut self, f: &mut impl Foreign) -> bool {
+        if self.stored_count > 0 {
+            self.set_first((self.stored_count - self.whole_rows).max(0), f);
+        }
+        true
+    }
+    fn refresh_drop_size(&mut self, f: &mut impl Foreign) {
+        if self.drop_mode {
+            if self.drop_resize[0] {
+                self.size_drop_height(f);
+            }
+            if self.drop_resize[1] {
+                self.size_drop_width(f);
+            }
+        }
+    }
+    pub fn size_drop_height(&mut self, f: &mut impl Foreign) -> bool {
+        if !self.drop_mode {
+            return false;
+        }
+        self.drop_resize[0] = true;
+        let n = self.stored_count;
+        if n == 0 || n < self.whole_rows {
+            return false;
+        }
+        let desired = n
+            .wrapping_mul(self.row_height)
+            .wrapping_add(2 * i32::from(self.y_gutter));
+        let available = f.parent_height(self.window).wrapping_sub(self.area[1]).wrapping_sub(2);
+        self.area[3] = self.area[1].wrapping_add(desired.min(available));
+        if desired <= available {
+            self.whole_rows = n;
+            self.first = 0;
+        } else {
+            // Native IDIV requires a nonzero divisor; the safe adapter has no fabricated height.
+            if self.row_height == 0 {
+                return false;
+            }
+            self.whole_rows = available.wrapping_sub(2 * i32::from(self.y_gutter)) / self.row_height;
+            self.resize_whole_lines(f);
+        }
+        self.update_bar(f);
+        self.refresh_bar(f);
+        f.invalidate(self.window);
+        true
+    }
+    pub fn size_drop_width(&mut self, f: &mut impl Foreign) -> bool {
+        if !self.drop_mode {
+            return false;
+        }
+        self.drop_resize[1] = true;
+        if !self.entries.is_empty() && self.font.is_none() {
+            let font = f.default_interface(0x6896_3c4c);
+            replace_ref(&mut self.font, font, f);
+        }
+        let mut width = 1;
+        if let Some(font) = self.font {
+            for e in &self.entries {
+                width = width.max(f.measure_bytes(font, &e.text));
+            }
+        }
+        self.area[2] = self.area[0]
+            .wrapping_add(width as i32)
+            .wrapping_add(2 * i32::from(self.x_gutter));
+        f.invalidate(self.window);
+        true
+    }
     pub fn new(window: Handle, drop_mode: bool, f: &mut impl Foreign) -> Self {
         Self {
             window,
@@ -92,6 +208,11 @@ impl ListBox {
             pending_double_click: false,
             captured: false,
             initialized: false,
+            stored_count: 0,
+            bar_tracking: false,
+            bar_gap_y: 3,
+            skin_rect: [0; 4],
+            pointer: [0; 2],
         }
     }
 
@@ -136,6 +257,8 @@ impl ListBox {
                 self.selection_color = color;
             }
         }
+        self.recompute_metrics(f);
+        self.refresh_drop_size(f);
         if self.drop_mode {
             self.first = 0;
             self.select(self.selected, false, f);
@@ -145,7 +268,6 @@ impl ListBox {
                 replace_ref(&mut self.border, Some(border), f);
             }
         }
-        self.recompute_metrics(f);
         self.update_bar(f);
         let result = f.base_init(self.window);
         self.initialized = result;
@@ -166,11 +288,12 @@ impl ListBox {
 
     /// Timer/container destruction is distinct from Shutdown's five releases.
     pub fn destroy(&mut self, f: &mut impl Foreign) {
-        self.shutdown(f);
         if let Some(timer) = self.timer.take() {
             f.release(timer);
         }
+        self.shutdown(f);
         self.entries.clear();
+        f.destroy_window(self.window);
     }
 
     pub fn set_font(&mut self, font: Option<Handle>, f: &mut impl Foreign) {
@@ -251,6 +374,7 @@ impl ListBox {
             index.max(0)
         };
         self.entries.insert(index as usize, Entry { text, id });
+        self.stored_count += 1;
         if count == 0 {
             if self.selected != -1 {
                 self.selected = 0;
@@ -259,6 +383,7 @@ impl ListBox {
             self.selected += 1;
         }
         self.update_bar(f);
+        self.refresh_drop_size(f);
         f.invalidate(self.window);
     }
     pub fn replace_text(&mut self, index: i32, text: Vec<u8>, f: &mut impl Foreign) -> bool {
@@ -272,40 +397,50 @@ impl ListBox {
             index.max(0)
         };
         self.entries[index as usize].text = text;
+        self.refresh_drop_size(f);
         f.invalidate(self.window);
         true
     }
     /// W extension 158: storage removal, deliberately separate from L slot 10.
-    pub fn remove_storage(&mut self, index: usize) -> bool {
-        if index >= self.entries.len() {
+    pub fn remove_storage(&mut self, index: i32) -> bool {
+        if self.stored_count == 0 {
             return false;
         }
-        self.entries.remove(index);
+        let index = if index == -2 || index >= self.stored_count {
+            self.entries.len().checked_sub(1)
+        } else {
+            usize::try_from(index).ok().filter(|i| *i < self.entries.len())
+        };
+        if let Some(index) = index {
+            self.entries.remove(index);
+        }
+        self.stored_count = self.stored_count.wrapping_sub(1);
         true
     }
-    pub fn insert_storage(&mut self, index: usize, entry: Entry) -> bool {
-        if index > self.entries.len() {
-            return false;
+    pub fn insert_storage(&mut self, index: i32, entry: Entry) -> bool {
+        let position = if index == -2 || index >= self.stored_count {
+            Some(self.entries.len())
+        } else {
+            usize::try_from(index).ok().filter(|i| *i <= self.entries.len())
+        };
+        if let Some(position) = position {
+            self.entries.insert(position, entry);
         }
-        self.entries.insert(index, entry);
+        self.stored_count = self.stored_count.wrapping_add(1);
         true
     }
     pub fn remove(&mut self, index: i32, f: &mut impl Foreign) -> Result<bool> {
-        if index < 0 {
-            return Err(Unsupported::Open("WC1: negative removal"));
-        }
-        if !self.remove_storage(index as usize) {
+        let count = self.stored_count;
+        if index > count - 1 {
             return Ok(false);
         }
-        // Literal §5.3: maintain indices of surviving entries and clamp the
-        // removed last entry. Exact deleted-selection choice is asked in WC4.
-        if self.selected >= index {
-            self.selected -= 1;
-        }
-        if self.first > index {
-            self.first -= 1;
+        self.remove_storage(index);
+        self.set_first(if index < self.first { self.first - 1 } else { self.first }, f);
+        if index < self.selected || (index == self.selected && index == count - 1) {
+            self.select(self.selected - 1, true, f);
         }
         self.update_bar(f);
+        self.refresh_drop_size(f);
         f.invalidate(self.window);
         Ok(true)
     }
@@ -313,13 +448,14 @@ impl ListBox {
         self.entries.get(index).map(|entry| entry.text.as_slice())
     }
     pub fn find_text(&self, text: &[u8], f: &mut impl Foreign) -> Option<usize> {
-        self.entries.iter().position(|entry| f.text_equal(&entry.text, text))
+        let _ = f;
+        self.entries.iter().position(|entry| entry.text == text)
     }
     pub fn select_prefix(&mut self, prefix: &[u8], f: &mut impl Foreign) -> bool {
         let index = self
             .entries
             .iter()
-            .position(|entry| f.begins_with(&entry.text, prefix, 1));
+            .position(|entry| !prefix.is_empty() && entry.text.first() == prefix.first());
         if let Some(index) = index {
             self.select(index as i32, true, f)
         } else {
@@ -390,8 +526,13 @@ impl ListBox {
         self.set_first(row, f);
         self.select(row, false, f)
     }
-    pub fn next_page(&mut self, _f: &mut impl Foreign) -> Result<bool> {
-        Err(Unsupported::Open("WC1: next-page arithmetic"))
+    pub fn next_page(&mut self, f: &mut impl Foreign) -> Result<bool> {
+        if self.stored_count > 0 && self.first < self.stored_count - self.whole_rows {
+            let requested = self.first + self.whole_rows - 1;
+            self.set_first(requested, f);
+            self.select(requested + self.whole_rows, false, f);
+        }
+        Ok(true)
     }
     pub fn hit_test(&self, _x: i32, mut y: i32, clamp: bool) -> Result<i32> {
         if self.entries.is_empty() {
@@ -451,6 +592,7 @@ impl ListBox {
             }
         } else if let Some(bar) = self.bar.take() {
             f.destroy_bar(bar);
+            self.first = 0;
         }
         if let Some(bar) = self.bar {
             f.place_bar(bar, [self.width() - self.bar_width, 0, self.width(), self.height()]);
@@ -557,11 +699,23 @@ impl ListBox {
         Ok(true)
     }
     pub fn mouse_up(&mut self, f: &mut impl Foreign) -> Result<bool> {
+        self.mouse_up_at(self.pointer[0], self.pointer[1], f)
+    }
+    pub fn mouse_up_at(&mut self, x: i32, y: i32, f: &mut impl Foreign) -> Result<bool> {
         if !self.captured {
             return Ok(true);
         }
         if self.drop_mode {
-            return Err(Unsupported::Open("WC1: drop bar capture/up"));
+            if let Some(bar) = self.forward_bar(x, y) {
+                if self.bar_tracking {
+                    f.capture(bar, true);
+                }
+                let result = f.bar_dispatch(bar, true, x - (self.width() - self.bar_width), y);
+                self.bar_tracking = f.capture_owner() != Some(bar);
+                f.capture(self.window, true);
+                return Ok(result);
+            }
+            return Ok(self.complete_drop(self.selected, f));
         }
         f.capture(self.window, false);
         self.captured = false;
@@ -572,10 +726,17 @@ impl ListBox {
         self.pending_double_click = false;
         Ok(true)
     }
-    pub fn mouse_move(&mut self, x: i32, y: i32, over_bar: bool, f: &mut impl Foreign) -> Result<bool> {
+    pub fn mouse_move(&mut self, x: i32, y: i32, _over_bar: bool, f: &mut impl Foreign) -> Result<bool> {
+        self.pointer = [x, y];
         if self.drop_mode {
-            if over_bar {
-                return Err(Unsupported::Open("WC1: drop bar capture/move"));
+            if let Some(bar) = self.forward_bar(x, y) {
+                if self.bar_tracking {
+                    f.capture(bar, true);
+                }
+                let result = f.bar_dispatch(bar, false, x - (self.width() - self.bar_width), y);
+                self.bar_tracking = f.capture_owner() == Some(bar);
+                f.capture(self.window, true);
+                return Ok(result);
             }
             let row = self.hit_test(x, y, true)?;
             if row != self.selected {
@@ -585,14 +746,10 @@ impl ListBox {
         Ok(true)
     }
     pub fn paint(&mut self, f: &mut impl Foreign) -> Result<()> {
-        if self.font.is_some() {
-            return Err(Unsupported::Open("WC1/WC5: escape recognition and ellipsis"));
-        }
         self.paint_plain_text(f)
     }
 
-    /// Established drawing operations on the plain-text, already-fitting
-    /// subdomain. This is not a substitute for WC1's unproved text preprocessing.
+    /// Temporary color-prefix parsing and font-service fitting (WC1/WC5).
     pub fn paint_plain_text(&mut self, f: &mut impl Foreign) -> Result<()> {
         if let Some(bar) = self.bar {
             self.first = f.bar_value(bar);
@@ -624,6 +781,7 @@ impl ListBox {
         let Some(font) = self.font else { return Ok(()) };
         let area = self.text_area();
         let mut y = area[1];
+        let mut rgb = f.color_scan_seed();
         if self.row_height <= 0 {
             return Err(Unsupported::Precondition("positive paint row height"));
         }
@@ -633,22 +791,42 @@ impl ListBox {
             }
             let line = [area[0], y, area[2], (y + self.row_height).min(area[3])];
             let selected = row as i32 == self.selected;
-            if selected && self.highlight && self.intensity != 0.0 {
-                if self.intensity != 1.0 {
-                    return Err(Unsupported::Open("WC1: fractional intensity"));
-                }
+            if selected && self.highlight && self.intensity == 1.0 {
                 f.draw(Draw::Fill {
                     rect: line,
                     color: self.selection_color,
                 });
             }
-            let text = &self.entries[row].text;
-            f.draw(Draw::Text {
-                font,
-                text: text.clone(),
-                rect: line,
-                color: self.font_colors[usize::from(selected)],
-            });
+            let mut text = self.entries[row].text.as_slice();
+            let mut color = self.font_colors[if f.window_flag_two(self.window) {
+                usize::from(selected)
+            } else {
+                2
+            }];
+            if text.starts_with(b"##") {
+                text = &text[1..];
+            } else if text.starts_with(b"#") {
+                if text.len() < 7 {
+                    text = &[];
+                } else {
+                    if f.window_flag_two(self.window) {
+                        scan_rgb(&text[1..7], &mut rgb);
+                        color = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+                    }
+                    text = &text[7..];
+                }
+            }
+            let count = f.fit_bytes(font, text, line[2] - line[0]);
+            if !text.is_empty() {
+                f.draw(Draw::FittedText {
+                    font,
+                    text: text.to_vec(),
+                    count,
+                    rect: line,
+                    color,
+                    flags: 0x0800_0000,
+                });
+            }
             y += self.row_height;
         }
         if self.flat || self.three_d {
@@ -659,5 +837,31 @@ impl ListBox {
             });
         }
         Ok(())
+    }
+}
+
+fn scan_rgb(text: &[u8], rgb: &mut [u32; 3]) {
+    let mut cursor = 0;
+    for component in rgb {
+        while cursor < text.len() && text[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        let mut value = 0;
+        let mut digits = 0;
+        while cursor < text.len() && digits < 2 {
+            let digit = match text[cursor] {
+                b'0'..=b'9' => text[cursor] - b'0',
+                b'a'..=b'f' => text[cursor] - b'a' + 10,
+                b'A'..=b'F' => text[cursor] - b'A' + 10,
+                _ => break,
+            };
+            value = value * 16 + u32::from(digit);
+            cursor += 1;
+            digits += 1;
+        }
+        if digits == 0 {
+            break;
+        }
+        *component = value;
     }
 }
