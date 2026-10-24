@@ -16,4 +16,6 @@
 - Wait script prepared: build-runs/wait-nettools-game.ps1 (single FileSystemWatcher wait, no qwait). Highest observed run ID 511; reserve a unique larger ID before recording run.
 - First full gate terminal: Rust 7293/0, clippy 0 diagnostics, native build PASS 263/263, CTest 80/81. ret_channel_check required a cited ABI review comment for native Init (spec section 14 explicitly AL); fixed. The gate also observed the documentation commit during its run. Failed full CTest evidence preserved as build-runs/fc4verify-ctest-r1-failed.log and build-results/qbuild-20261024-153703-build-ctest.*.
 - Next: commit ABI annotation, rerun all on an unchanged HEAD and collect to terminal; then game to 2032. No game request outstanding.
+- Corrected final-source gate PASS on aeaff8388: Rust 7293/0/0, clippy 0 diagnostics; native qbuild-20261024-160235-build-ctest PASS build 47/47 edges, CTest 81/81 (92.2s), no tree-change warning. Operation collected to terminal.
+- Next: queue unique nettools-shadow12-draw-2032-20261024-aeaff8388, turbo to 2032-01-01 with both drag keys and original nettool/netmgr; record exact lines and file questions for differences. Source work is limited to measured draw projection; no full-owner credit.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettools-shadow12-r1-manifest.json.
