@@ -6,12 +6,15 @@
 - Goal: merge re-wingrid-wg9, implement settled contracts and close owner table.
 - Done: merged settled specs/index at 825b81f96; retained WG3/WG4 only.
 - Prior round tip: 751c3f546; round 2 uses detached HEAD as instructed.
-- Implemented WG5–WG9 dependencies, setters, sorting, paint, and 19 vectors.
+- Implemented WG5–WG9 dependencies, setters, sorting, paint, and 19 vectors at 44e74bfa6.
 - Focused changed-source snapshot: 73/73 widget tests including all 19 vectors.
 - Earlier focused snapshot: 69/73 (four obsolete provisional assertions); corrected.
-- Next: finish closure table, focused final snapshot, fmt and full all/verify gate.
+- Closure table updated: all 198 specified portable owner functions implemented.
+- Final eight-file absolute-path qbuild fmt PASS (zero diff lines).
+- Full qbuild all running, exec session 77348; collect same operation to terminal.
+- Next: collect all gate, correct real diagnostics if any; report and READY queue.
 - Formatting uses build-runs/format-patches.py to convert rustfmt check diffs to apply_patch.
-- No round 2 game request or gate outstanding. Core-only; ABI unchanged.
+- No round 2 game request. Core-only; ABI unchanged.
 
 ## Previous round report
 
