@@ -93,3 +93,13 @@ Runtime defaults absent from the spec (initial flight phase/ammo) remain
 return Unsupported without moving the owner. Save/load uses the shared stream
 contracts; successful reads replace the owner atomically and clear transient
 phase/parameter state. AF4 asks for native reconstruction/failure details.
+
+## Helicopter owner follow-up (2026-10-24)
+
+The helicopter implementation and current owner closure table now live in
+[`../helicopter/README.md`](../helicopter/README.md). That table supersedes the
+helicopter rows above: aircraft §4.1 is now implemented as the resolved
+thirteen-field preset overlay, including §8 vector 7. The automata namespace
+re-exports the same owner. Unlisted helicopter goals, including CROP_DUST, pop
+per automata §6.2; a valid chase still returns Unsupported(AF3). AF9 records
+the unspecified preset construction/reconstruction defaults.

@@ -1,0 +1,156 @@
+address	bytes	proposed owner	evidence	confidence
+00475330	768	cDumpSubTreeVisitor	Named symbol sVisit; string/variant formatting callees	high
+0063ddf0	613	(anonymous_namespace)::cParser	Named NextToken; bridge parser callers 0063eaba onward	medium
+006046d0	578	nsTexUtil	Named SetupTexture; renderer caller 007c2686	medium
+005cf610	383	LinearRandomIterator	Named Reset; construction callers 005cf82b/005cf921	medium
+00734b90	356	cSTEChangeTerrainUI	Named DoDialog; ChangeTerrainType caller 007e5f84	high
+0059e4d0	295	_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	vtable 00a9f9d0 slot 6	high
+007b63d0	293	cWinBMPViewGVExtra	Named SetSizeInOut	high
+005fca70	256	SCLuaTableRef	Named constructor symbol	medium
+004084e0	188	cTablePropertyReader	Named constructor; advice Init caller 00408cb3	medium
+00514fc0	185	tControllerTime	Named Normalize symbol	medium
+009b27bd	173	MiscGraphArrow	exclusive reach from graph drawing component	medium
+009b4040	171	MiscGraphTextInfo	Named DrawSelf; outline draw caller 009b4098	medium
+004178f0	167	cADVString	Named init; advisors AD12 text-key contract	high
+00440370	167	cTutorialString	Named init symbol	high
+009b8169	167	MiscGraphTextInfo	Named Init symbol	high
+009b4151	160	MiscGraphPicture	exclusive reach from graph picture component	medium
+0050bd40	158	tBehaviorTemplate	Named constructor symbol	medium
+0060cee0	158	BoundaryIterator	Named GetNext symbol	medium
+004f0d40	153	cGroup_SC4RH	Named Clear symbol	medium
+0059df50	139	_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	vtable 00a9f998 slot 6	high
+0059e260	139	_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	vtable 00a9f9b4 slot 6	high
+0059eb50	139	_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	vtable 00a9f944 slot 6	high
+0056d920	128	FerryStationInformation	Named assignment symbol	medium
+008f88c7	128	CookieData	Named assignment symbol	medium
+0056d770	127	FerryStationInformation	Named constructor symbol	medium
+009aacb8	126	MatrixRow	row-construction dependency; caller 009ab2ab	medium
+007b6870	118	cWinBMPViewGVExtra	Named constructor symbol	medium
+004422a0	116	SC4CellRegion	Named long specialization constructor	medium
+009a9cbb	115	MatrixRow	row-construction dependency; caller 009aacf9	medium
+009b274f	110	MiscGraphRect	exclusive reach from graph rectangle component	medium
+004ed180	108	SFX	Named AmbienceManager service accessor	medium
+00515100	107	tControllerTime	Named subtraction symbol	medium
+004f81d0	103	cEaseSound	Named constructor symbol	medium
+00515080	103	tControllerTime	between Normalize 00514fc0 and operator- 00515100	medium
+007b6970	102	cWinBMPViewGVExtra	Named GZOnMouseDownL symbol	medium
+0093a506	102	cSourceFileDebugInfo	Named destructor symbol	medium
+0056d8b0	100	FerryStationInformation	Named destructor symbol	medium
+004e2e10	97	cAmbienceOccupantFilterIsNature	Named IsTrueOccupant symbol	high
+007c3d50	92	SC43DGridElement	Named constructor symbol	medium
+005fb9c0	90	SCLuaTableRef	Named constructor symbol	medium
+00734d90	89	cSTEChangeTerrainUI	vtable 00ab3884 slot 3	high
+007c3db0	83	SC43DGridElement	exclusive reach from grid-element constructor	medium
+009afe69	83	nsGZWinUtils	Named SetButtonToggleState symbol	medium
+005f3040	82	SC4QuadGridQuadrant	Named RemoveAllElements symbol	medium
+009afcfe	81	nsGZWinUtils	Named SetWindowVisible symbol	medium
+009aff38	80	nsGZWinUtils	Named SetEditText symbol	medium
+00734b10	79	cSTEChangeTerrainUI	Named DoMessage; vtable 00ab3868 slot 3	high
+007b6380	79	cWinBMPViewGVExtra	Named SetShouldFitImageAtSizeIn symbol	medium
+00562c90	78	cAutomataOccupantFilter	Named IsOccupantIncluded symbol	high
+0090ad97	76	cGXCOMDirector	Named constructor; vtable 00ace460	high
+009afebc	76	nsGZWinUtils	Named GetButtonToggleState symbol	medium
+004179a0	75	fn:gAdviceMessageBox	Named free-function symbol; overrides free-neighbour class guess	medium
+00411870	74	ilist	Named occupant-pointer list constructor	medium
+006e91c0	74	cPortLot	Named GetLot symbol	medium
+0093a159	72	cSourceFileDebugInfo	exclusive reach from source-debug component	medium
+007b68f0	69	cWinBMPViewGVExtra	Named destructor symbol	high
+00466610	65	SC4CellRegion	Named long specialization IncludesCell	high
+0060ce90	65	ScanningIterator	Named constructor symbol	medium
+004bb9e0	64	SFX	Named SoundManager service accessor	medium
+004e8490	64	SFX	Named Listener service accessor	medium
+00603000	62	cADVString	Named constructor symbol	medium
+009b2713	60	MiscGraphTextInfo	Named SetFont symbol	high
+009407f4	58	AnyString	Named constructor symbol	medium
+00913da6	56	RZ	Named ADir framework accessor	medium
+00913dde	56	RZ	Named DDir framework accessor	medium
+0043f530	54	nsSC4TutorialSystem	Named FilterUICommandMessage symbol	medium
+0069f490	54	tCrimePropOccupantFilter	Named IsOccupantIncluded symbol	high
+0093a462	54	cSourceFileDebugInfo	exclusive reach from source-debug component	medium
+0093a42e	52	cSourceFileDebugInfo	Named constructor symbol	medium
+005fb730	51	SCLuaTableRef	Named begin symbol	medium
+009afe37	50	nsGZWinUtils	Named SetWindowNotificationTargetRecursive symbol	medium
+00417a30	49	cADVString	Named constructor symbol	medium
+005fb770	49	SCLuaTableRef	Named next symbol	medium
+009b810f	49	MiscGraphTextInfo	Named constructor symbol	medium
+009aff08	48	nsGZWinUtils	Named ExcludeButtonByRange symbol	medium
+009afded	47	nsGZWinUtils	exclusive reach from window helper component	medium
+00920755	45	ThreadPlatformData	Named constructor symbol	medium
+008fc3c3	44	CacheData	Named Release symbol	medium
+00913b97	44	RZ	Named MS; app/widget message-server callers	medium
+00913bee	44	RZ	Named RDD framework accessor	medium
+00913c1a	44	RZ	Named GS framework accessor	medium
+00913c46	44	RZ	Named WM framework accessor	medium
+00913c72	44	RZ	Named WCM framework accessor	medium
+00913c9e	44	RZ	Named SS framework accessor	medium
+00913cca	44	RZ	Named SM framework accessor	medium
+00913cf6	44	RZ	Named HM framework accessor	medium
+00913d22	44	RZ	Named FO framework accessor	medium
+00913d4e	44	RZ	Named FS framework accessor	medium
+00913d7a	44	RZ	Named LM framework accessor	medium
+00913bc3	43	RZ	Named MS2 framework accessor	medium
+009afd73	42	nsGZWinUtils	Named SetWindowEnabled symbol	medium
+009b410b	42	MiscGraphArrow	Named constructor symbol	high
+0068bf50	41	LimitTimer	Named Start symbol	high
+0090ad6e	41	cGXCOMDirector	Named destructor; vtable 00ace460 slot 16	high
+0093a130	41	cSourceFileDebugInfo	exclusive reach from source-debug component	medium
+009a8970	41	MatrixRow	Named CellData-pointer row destructor; dependency only	medium
+009b8140	41	MiscGraphTextInfo	exclusive reach from graph text component	medium
+007b6940	40	cWinBMPViewGVExtra	Named Init; vtable 00ab9980 slot 4	high
+009afd9d	40	nsGZWinUtils	Named SetWindowCaption symbol	medium
+009afdc5	40	nsGZWinUtils	Named SetWindowNotificationTarget symbol	medium
+004d8b90	39	cISTETerrain::tBrushParameters	Named brush parameter constructor	medium
+009204cb	39	ThreadPlatformData	Named AddRef symbol	medium
+009a947f	39	MatrixRow	Named CellFormatExtra GetMatrixCol; dependency only	medium
+009b28a2	39	MiscGraphPicture	exclusive reach from graph picture component	medium
+00734b60	37	cSTEChangeTerrainUI	Named QueryInterface; vtable 00ab3868 slot 0	high
+0093a1c0	37	cSourceFileDebugInfo	Named LineNumFromOffset symbol	medium
+00968b3b	37	cCompletionObj	Named QueryInterface symbol	high
+009afd4f	36	nsGZWinUtils	Named GetWindowVisible symbol	medium
+00417a00	34	cADVString	Named FromScriptText; advisors AD12 parsing rule	medium
+0068bf80	33	LimitTimer	Named Expired symbol	high
+009b2881	33	MiscGraphPicture	exclusive reach from graph picture component	medium
+0073dd20	32	cSourceFileDebugInfo	exclusive reach from source-debug component	medium
+009afcde	32	nsGZWinUtils	Named FindSiblingAs symbol	medium
+009b40eb	32	MiscGraphRect	Named constructor symbol	medium
+0048c1c0	31	cSTEChangeTerrainUI	vtable 00a8ece0 slot 2	high
+0063bf50	31	(anonymous_namespace)::cParser	exclusive reach from bridge parser component	medium
+00734d00	31	cSTEChangeTerrainUI	Named Release; vtable 00ab3868 slot 2	high
+00734df0	31	cSTEChangeTerrainUI	vtable 00ab3884 slot 2	high
+00735100	31	cSTEChangeTerrainUI	vtable 00ab38a4 slot 2	high
+007623b0	31	cSTEWaterWave	Named GetMeanWaveOrientation symbol	medium
+007c1850	31	SC43DGridElement	exclusive reach from grid-element component	medium
+0093a1a1	31	cSourceFileDebugInfo	Named OffsetFromLineNum symbol	medium
+00932e47	30	SignalPlatformData	Named constructor symbol	medium
+009a95f0	30	MatrixRow	exclusive reach from row component; dependency only	medium
+004124f0	29	ilist	Named neighbour-connection list constructor	medium
+009ab299	29	MatrixRow	Named CellData-pointer copy constructor; dependency only	medium
+009b4135	28	MiscGraphPicture	exclusive reach from graph picture component	medium
+009b966a	28	MiscGraphTextInfo	Named destructor symbol	high
+009afe1c	27	nsGZWinUtils	Named SetWindowNotificationTargetRecursive symbol	medium
+0090c9f6	26	cGXCOMDirector	exclusive reach from Gimex director component	medium
+0090ca7b	26	cGXCOMDirector	exclusive reach from Gimex director component	medium
+0093415e	25	ibasic_string	Named char specialization constructor	medium
+009b750d	25	PieGraphSeriesInfo	Named constructor symbol	medium
+00604690	24	nsTexUtil	Named ReleaseTexture symbol	medium
+006046b0	23	nsTexUtil	Named GetNearestPowerOfTwo symbol	medium
+0094002a	23	AnyString	Named destructor symbol	medium
+009b286a	23	MiscGraphPicture	Named constructor symbol	medium
+005f4230	22	SC43DGridElement	exclusive reach from grid-element component	medium
+008d3be2	22	RZFileTimeSort	Named constructor symbol	medium
+0090ad2c	22	cGXCOMDirector	Named CreateGimexFactory symbol	medium
+0090ad42	22	cGXCOMDirector	exclusive reach from Gimex director component	medium
+0090ad58	22	cGXCOMDirector	exclusive reach from Gimex director component	medium
+0063bf30	21	(anonymous_namespace)::cParser	exclusive reach from bridge parser component	medium
+0063bf70	21	(anonymous_namespace)::cParser	exclusive reach from bridge parser component	medium
+0091adec	19	RZFileFindData	Named destructor symbol	medium
+005c0bd0	17	FileChangeNotification	Named GetWatchedDirectory symbol	medium
+00734d20	16	cSTEChangeTerrainUI	Named constructor symbol	medium
+004118ba	6	ilist	catch funclet belonging to 00411870	medium
+0090ad26	6	cGXCOMDirector	vtable 00ace460 slot 13; returns director ID	high
+004179f0	5	cADVString	Ghidra owner label; forwarding body	medium
+00440840	5	cTutorialString	Ghidra owner label; forwarding body	medium
+00614330	5	icf::cSC4AudioEventHandlerDisasterFire	Ghidra named AddRef thunk	medium
+007b6500	5	cWinBMPViewGVExtra	vtable 00ab9980 slot 3; jumps to base DoMessage	high
+008781f4	5	icf::cGZApp	Ghidra named Shutdown thunk	medium
+00995e53	5	icf::cGZCheatCodeManager	Ghidra named AddRef thunk	medium

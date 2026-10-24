@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-airplane9: cSC4Airplane core | Codex / core-airplane9 (detached reserved lane) | ready: settled owner contracts tested; AF2–AF6/AF9 remain open | Review module and regenerate question index; complete native flight after spec answers |
+| core-airplane9: cSC4Airplane core | Codex / core-airplane9 (detached reserved lane) | in progress: round 2 merge fix | Validate both aircraft owners and enqueue ready |
+
+## Handoff
+
+- Goal: merge main, retain airplane and helicopter owners, remove duplicate AF9, run final gate.
+- Done: main merge started; two textual conflicts resolved; airplane question is now AF10.
+- Next: regenerate question index (explicit task exception permits tools/questions.py), format explicit files, commit merge, run final all gate.
+- Owners: airplane in engine/core/src/automata/airplane; helicopter in engine/core/src/helicopter; shared aircraft storage/helpers retained.
+- No game request outstanding; core-only airplane has no native observation adapter.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-airplane9-r2-manifest.json.
 
 ## Implementation
 
@@ -71,12 +80,12 @@ end-to-end native flight replacement. The spec itself leaves these sections open
 | aircraft §3.3 and automata §6.5/§6.6 | AI steering and goal transitions, destination sentinel/arrival, runway/approach/fire queries and failures, LOITER boundary/restore/empty ammo | AF3 |
 | aircraft §3.3/§3.4 | Aircraft dispatch transitions and message callbacks | AF6 |
 | aircraft §3.4, §3.4.1 correction stage, §3.4.2 complete force | Attitude/lift frame, angular update, terrain/runway/collision corrections and complete animation/physics tick | AF2 |
-| aircraft §3.4.1/§3.4.2 non-finite inputs | Unordered comparisons, normalization and caller cap behavior beyond the stated finite-input contract | AF9 |
+| aircraft §3.4.1/§3.4.2 non-finite inputs | Unordered comparisons, normalization and caller cap behavior beyond the stated finite-input contract | AF10 |
 
-AF2–AF6 already existed and were reused. New **AF9** was appended to
+AF2–AF6 already existed and were reused. New **AF10** was appended to
 `docs/specs/questions/aircraft.md`, with literal comparisons documented in code.
-The coordinator should regenerate the question index; this engine lane did not
-run prohibited tools/ scripts or edit the generated QUESTIONS.md.
+Round 2 regenerated and checked the question index using the explicit task
+exception for tools/questions.py. Helicopter retains its own AF9 question.
 
 ## In-game shadow and next steps
 
@@ -88,6 +97,6 @@ scalar terms and pre-correction candidate motion with the specified tolerances.
 A trajectory/AI/effect shadow also requires AF2–AF6 to be answered and implemented.
 
 The coordinator can review the owner table and claim the module path, regenerate
-the AF9 question index, and route the remaining questions to spec authors. A
+the AF10 question index, and route the remaining questions to spec authors. A
 separate helicopter lane should consume §4.1/vector 7 and audit its default
 CROP_DUST behavior; that owner was deliberately outside this assignment.

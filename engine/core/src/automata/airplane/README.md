@@ -27,7 +27,7 @@ They do not commit a flight tick. The force frame, angular update and environmen
 corrections remain AF2. No callback can provide substitute owner physics.
 Intermediates use f64 to approximate x87, with binary32 stores at stage boundaries;
 the conformance tests use the spec's explicit tolerances. Non-finite physics
-comparison details are open under AF9; literal comparisons do not sanitize them.
+comparison details are open under AF10; literal comparisons do not sanitize them.
 
 ## Owner closure
 
@@ -45,12 +45,12 @@ a functioning native flight owner. Only explicitly specified stages are closed.
 | cSC4Airplane | aircraft §3.2 | `init_data`, `airplane_effect_names`; `first_init_restores_loaded_home_and_never_recaptures_it`, `airplane_effect_resources_choose_fire_plane_propellers`; open: AF4 for probes, effect attachments, Init/Shutdown allocation, cleanup and failures |
 | cSC4Airplane | aircraft §3.3 | `pursue_goal`, `begin_loiter`, `tick_loiter`; `chase_rejection_obeys_shared_final_state_and_stack_indices`, `phase_and_loiter_ammo_are_independent_of_goal_stack`; open: AF3 for AI_GotoDestination/Land/TakeOff/Taxi/Stop/TurnToVector/FollowRay/FollowVectorAndTurn/ApproachAltitude, PickRunwayDirection/EvaluateClearance/PickApproachBox/FindFireNearLocation, failures, timer boundary/restore and empty ammo; open: AF6 for dispatch transitions |
 | cSC4Airplane | aircraft §3.4 | `set_airplane_state`, `update_physics` (Unsupported AF2); `phase_and_loiter_ammo_are_independent_of_goal_stack`, `unsettled_models_do_not_mutate_owners`; open: AF2 for CalculateForces complete frame, UpdatePhysics corrections, DetectCollisions and DoAnimationTick; AF4 for sound/effect actions; AF5 for TranslatePlayerDriveCommands and bombs |
-| cSC4Airplane | aircraft §3.4.1 | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity`; `time_conversion_caps_once_without_a_lower_clamp`, `pre_force_limiter_vectors`, `candidate_motion_uses_mean_velocity_and_no_second_cap`; open: AF2 for post-candidate correction/commit/collision/clip/attitude sequence, AF9 for non-finite comparison policy |
+| cSC4Airplane | aircraft §3.4.1 | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity`; `time_conversion_caps_once_without_a_lower_clamp`, `pre_force_limiter_vectors`, `candidate_motion_uses_mean_velocity_and_no_second_cap`; open: AF2 for post-candidate correction/commit/collision/clip/attitude sequence, AF10 for non-finite comparison policy |
 | cSC4Airplane | aircraft §3.4.2 | `force_scalars`, `lift_coefficient`, `ForceScalars::{rolling_resistance,drag_magnitude}`; `scalar_lift_curve_and_horizontal_inverse_cosine`, `pressure_ground_resistance_and_drag_normalization`, `reverse_throttle_gate_only_blocks_backward_ground_motion`; open: AF2 for attitude-derived lift direction and complete vector force |
 | cSC4Airplane | aircraft §4 | Other owner (helicopter); no airplane behavior assigned |
 | cSC4Airplane | aircraft §5 | Other owner (dispatch sources); shared `initialize_fire_plane_station_units` updated to settled signed count and wrapping mask; `fire_plane_station_with_three_units_sets_available_property_to_seven` covers vectors 3/6 |
 | cSC4Airplane | aircraft §6 | `clip_aircraft_to_world`; `altitude_uses_highest_surface_and_clip_keeps_outward_margin` |
-| cSC4Airplane | aircraft §7 | Open: AF2–AF6, AF9; AF1/AF7/AF8 have been settled for airplane parameters/station masks |
+| cSC4Airplane | aircraft §7 | Open: AF2–AF6, AF10; AF1/AF7/AF8 have been settled for airplane parameters/station masks |
 | cSC4Airplane | aircraft §8 | Vectors 1/2 in aircraft.rs parameter tests; 3/6 in station test; 4/5 and 8–13 in airplane.rs tests named above. Vector 7 belongs solely to helicopter §4.1, outside this owner assignment |
 | cSC4Airplane | automata §6.1 | Shared `AutomatonBase` codec; `aircraft_records_nest_base_and_home_without_traffic` |
 | cSC4Airplane | automata §6.2 | Shared state stack; `chase_rejection_obeys_shared_final_state_and_stack_indices` |

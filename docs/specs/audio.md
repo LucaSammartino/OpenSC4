@@ -1,5 +1,8 @@
 # Audio: the sound-event system, the sound managers and the sound data (behaviour spec)
 
+Owner-audit supplement: [§§17–21](audio-owner-contracts.md) inventory every named `cSC4Audio*` owner, describe the
+listener, scape, SEM and preferences boundaries, and distinguish settled contracts from open work.
+
 Status: M6 behaviour spec, written 2026-10-16 (re-specs20 lane). Every fact was checked on the Windows
 executable `bin/SimCity4.exe` (1.1.641, image base `0x00400000`, SHA-256
 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`); every address is a Windows address.
@@ -243,13 +246,13 @@ name string and the constant at `+0x20`.
 
 | Offset | Type | 2D | 3D | 3DEffects | Meaning |
 |---|---|---|---|---|---|
-| `+0x00` | vtable | `0x00A94068` | — | `0x00A940E4` | primary |
-| `+0x04` | vtable | `0x00A94054` | — | `0x00A940D0` | secondary base |
+| `+0x00` | vtable | `0x00A94068` | `0x00A940A4` | `0x00A940E4` | primary |
+| `+0x04` | vtable | `0x00A94054` | `0x00A94090` | `0x00A940D0` | secondary base |
 | `+0x08` | `u32` | 0 | 0 | 0 | |
 | `+0x0C` | vtable | `0x00A80810` | — | `0x00A80810` | a third base (`QueryInterface`) |
 | `+0x10`, `+0x14`, `+0x18` | `u32` | 0 | 0 | 0 | |
 | `+0x1C` | `u32` | 0 | 0 | 0 | |
-| `+0x20` | `u32` | **`0x7DCDED2D`** | — | **`0x0A63A543`** | a constant id |
+| `+0x20` | `u32` | **`0x7DCDED2D`** | **`0x7DCDED3D`** | **`0x0A63A543`** | a constant id |
 | `+0x24` | `u32` | 0 | 0 | 0 | |
 
 Each constructor builds a name string with `FUN_00407FA0(begin, end, out)` (a `std::string` range construct).
@@ -1687,7 +1690,7 @@ Consequences a replacement must match:
 | `0xAA396960` | AutomataStopSFX | receive | same; sent by `cSC4Automaton::StopSFX` `0x00505B50` |
 | `0xA9E3B6E3` | | receive | → `HandleAutomataMessages` |
 | `0xEA3ADA33` | | receive | → `HandleAutomataMessages` |
-| `0x8A4A69C7` | `kMessageListenerPosChanged` | receive | the listener follows the camera (`cSC4AudioListener::DoMessage` `0x004F1E50`) |
+| `0x8A4A69C7` | `kMessageListenerPosChanged` | send + receive | listener **sends** (`0x004F1880`); sound manager receives (§8.3), ambience manager receives ([audio-ambience.md](audio-ambience.md) §4.2); listener camera inputs are `0xA6B79602` and `0xA6B79612` ([supplement §18](audio-owner-contracts.md)) |
 | `0x2A3AD653` | `kMessageSetRadioStation` | send + receive | posted by `DoMessage` on `0x26D31EC5`; handled by `HandleRadioMessages` `0x004EF010` |
 | `0x26D31EC4` / `0x26D31EC5` | PreCityInit / PostCityInit | receive | `DoMessage` `0x004EF810` |
 | `0x89F10866` / `0xA9F10E45` | construction | receive | → `HandleConstructionMessages` `0x004EEC10` |
@@ -1756,6 +1759,10 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 ---
 
 ## 15. Open items
+
+The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
+[questions/audio.md](questions/audio.md), AU40–AU44. These qualify the coverage of those sections;
+an owner appearing in the inventory does not imply that all its numerical behavior is settled.
 
 | # | Question | What would settle it |
 |---|---|---|

@@ -8,7 +8,7 @@
 use crate::stream::{InStream, OutStream, RefValue};
 
 use super::codec::{get_vec3, put_vec3};
-use super::{state_type, AutomatonBase, SetStateArgs, StateExtra, Vec3};
+use super::{state_type, AutomatonBase, SetStateArgs, Vec3};
 
 pub const CLSID_AIRCRAFT: u32 = 0xC96E_75DC;
 pub const CLSID_AIRPLANE: u32 = 0xCBEB_4F62;
@@ -271,97 +271,5 @@ impl HelicopterChaseGeometry {
             spotlight_target: target.position,
             hover_position,
         }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Helicopter {
-    pub record: AircraftPlacementRecord,
-    phase: Option<FlightPhase>,
-}
-
-impl Helicopter {
-    pub const fn class_id(&self) -> u32 {
-        CLSID_HELICOPTER
-    }
-    pub fn base(&self) -> &AutomatonBase {
-        &self.record.aircraft.base
-    }
-    pub fn base_mut(&mut self) -> &mut AutomatonBase {
-        &mut self.record.aircraft.base
-    }
-    pub fn phase(&self) -> Option<FlightPhase> {
-        self.phase
-    }
-
-    pub fn set_helicopter_state(&mut self, next: FlightPhase) -> Option<FlightPhaseChange> {
-        if self.phase == Some(next) {
-            return None;
-        }
-        Some(FlightPhaseChange {
-            previous: self.phase.replace(next),
-            current: next,
-        })
-    }
-
-    pub fn write(&self, out: &mut dyn OutStream) -> bool {
-        self.record.write(out)
-    }
-
-    pub fn read(&mut self, inp: &mut dyn InStream) -> bool {
-        let Some(record) = AircraftPlacementRecord::read(inp) else {
-            return false;
-        };
-        *self = Self {
-            record,
-            ..Self::default()
-        };
-        true
-    }
-
-    /// Performs the settled chase rejection rules only. A valid target
-    /// requires AF3's missing movement/gates and is never treated as moved.
-    pub fn pursue_goal(&mut self, targets: &dyn AircraftTargets) -> Result<AircraftGoalOutcome, AircraftUnsupported> {
-        match self.base().states.last() {
-            Some(state) if state.state_type == state_type::CHASE => {
-                let target = match &state.extra {
-                    StateExtra::Chase(reference) if !reference.is_null() => targets.chase_target(reference),
-                    _ => None,
-                };
-                if target
-                    .map(|t| t.top_state != Some(state_type::PLAYER_DRIVE))
-                    .unwrap_or(true)
-                {
-                    self.base_mut().pop_state();
-                    Ok(AircraftGoalOutcome::Popped)
-                } else {
-                    Err(AircraftUnsupported::GoalControl)
-                }
-            }
-            Some(state) if matches!(state.state_type, 0 | 50 | 51 | 53..=56) => Err(AircraftUnsupported::GoalControl),
-            _ => Ok(AircraftGoalOutcome::NoAircraftHandler),
-        }
-    }
-
-    pub fn load_drive_parameters(
-        &mut self,
-        _source: Option<&dyn DriveParameterSource>,
-    ) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::DriveParameterMeaning)
-    }
-
-    pub fn next_frame(&mut self, _dt_ms: f32, _world: &dyn AircraftWorld) -> Result<(), AircraftUnsupported> {
-        Err(AircraftUnsupported::FlightModel)
-    }
-
-    /// The only specified LOITER push for helicopter states 54/55/56.
-    pub fn push_mission_loiter(&mut self) -> bool {
-        self.base_mut().push_state(
-            53,
-            SetStateArgs {
-                timeout_ms: 6000.0,
-                ..SetStateArgs::default()
-            },
-        )
     }
 }

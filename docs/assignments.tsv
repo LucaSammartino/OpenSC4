@@ -1,4 +1,3 @@
 # Work assigned to outside contributors. One row per reserved key: key<TAB>assigned to<TAB>until (YYYY-MM-DD)<TAB>scope.
 # `python tools/lanes.py check` refuses a lane whose name or --touches contains a reserved key until that date, so our
 # lanes leave the work alone. The contributor delivers it as PRs; extend or delete the row when the work lands or stalls.
-region	LucaSammartino	2026-11-21	RE specs for the whole region subsystem (tools/coverage-map.tsv rows with subsystem "region": cSC4Region*, cSC4WinRegion*, cSC4RegionalCity, the new-region/import/establish/obliterate city flows, cSTEEdgeReconcile*, fn:SC4*Region*), plus their questions files and re/symbols tables

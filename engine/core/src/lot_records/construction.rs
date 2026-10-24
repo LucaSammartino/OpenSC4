@@ -198,9 +198,17 @@ fn get_ref_list(inp: &mut dyn InStream, iid: u32) -> Option<Vec<RefValue>> {
     let n = inp.get_u32()?;
     let mut v = Vec::new();
     for _ in 0..n {
-        v.push(inp.get_ref_as(iid)?);
+        v.push(construction_ref(inp, iid)?);
     }
     Some(v)
+}
+
+// LR13 (§9.1.1): construction ignores the reference helper's false result.
+// An IID rejection is null, with membership/order preserved; only a stream
+// error stops consumption. Never retain the rejected token under another IID.
+fn construction_ref(inp: &mut dyn InStream, iid: u32) -> Option<RefValue> {
+    inp.get_ref_as(iid)
+        .or_else(|| (inp.error() == 0).then_some(RefValue::Null))
 }
 
 impl ConstructionRecord {
@@ -211,8 +219,8 @@ impl ConstructionRecord {
     }
 
     fn read_fields(&mut self, inp: &mut dyn InStream, version: u16) -> Option<bool> {
-        self.lot = inp.get_ref_as(IID_LOT)?;
-        self.building = inp.get_ref_as(IID_BUILDING_OCCUPANT)?;
+        self.lot = construction_ref(inp, IID_LOT)?;
+        self.building = construction_ref(inp, IID_BUILDING_OCCUPANT)?;
         if version == CONSTRUCTION_OLDEST_VERSION {
             // Version 4: the fixed 56-byte legacy transform (`0x005DA930`,
             // NO15); the rest of the layout is the v5 one (lr §9).
@@ -230,7 +238,7 @@ impl ConstructionRecord {
         self.ground_props = get_ref_list(inp, IID_PROP)?;
         self.roof_props = get_ref_list(inp, IID_PROP)?;
         self.effects = get_ref_list(inp, IID_EFFECT_PROP)?;
-        self.current_effect = inp.get_ref_as(IID_EFFECT_PROP)?;
+        self.current_effect = construction_ref(inp, IID_EFFECT_PROP)?;
         let s = &mut self.scalars;
         s.state = i32::from(inp.get_i8()?);
         s.t0 = inp.get_u32()?;
@@ -259,7 +267,7 @@ impl ConstructionRecord {
         for _ in 0..n {
             let first = inp.get_bool()?;
             let second = inp.get_bool()?;
-            let automaton = inp.get_ref_as(IID_AUTOMATON)?;
+            let automaton = construction_ref(inp, IID_AUTOMATON)?;
             crew.push(CrewEntry {
                 first,
                 second,

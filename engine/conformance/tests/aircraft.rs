@@ -484,16 +484,12 @@ fn unsettled_models_do_not_mutate_owners() {
     let mut heli = Helicopter::default();
     heli.base_mut().push_state(58, SetStateArgs::default());
     let before = heli.record.clone();
-    assert_eq!(
-        heli.pursue_goal(&Targets(None)),
-        Ok(AircraftGoalOutcome::NoAircraftHandler)
-    );
-    assert_eq!(
-        heli.load_drive_parameters(None),
-        Err(AircraftUnsupported::DriveParameterMeaning)
-    );
+    assert_eq!(heli.pursue_goal(&Targets(None)), Ok(AircraftGoalOutcome::Popped));
+    assert_eq!(heli.load_drive_parameters(None), Ok(()));
     assert_eq!(heli.next_frame(1000.0, &World), Err(AircraftUnsupported::FlightModel));
-    assert_eq!(heli.record, before);
+    let mut popped = before;
+    popped.aircraft.base.pop_state();
+    assert_eq!(heli.record, popped);
 }
 
 #[test]
