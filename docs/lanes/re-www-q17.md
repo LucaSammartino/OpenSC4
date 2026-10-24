@@ -1,69 +1,63 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-www-q17 (web and network contracts) | Codex / `re-www-q17` (RE lane, detached HEAD) | in progress; resumed remaining HTTP/WWW contracts | Qualify request normalization, then residual owner contracts within the round budget; enqueue ready. |
+| re-www-q17 (web and network contracts) | Codex / `re-www-q17` (RE lane, detached HEAD) | ready; partial owner contracts; doccheck check/links passed | Land documented answers; WWW Q7/Q9 and HTTP Q13 retain explicit residuals. |
 
 ## Report
 
-The engine lane core-www-close13 Owner closure table was read first. This round resolves
-the cookie/cache literal and persistence contracts and WWW matched null-target completion.
-It does **not** finish the full requested owner closure: WWW Q7/Q9 and HTTP Q9/Q13 remain open.
-Investigation stopped at the brief's two-thirds budget bound: the last research call reported
-97715/150000 context units; subsequent work wrote answers, regenerated the index and reviewed docs.
+Read core-www-close13's Owner closure table before resuming. The earlier round answered
+Q1/Q3/Q10/Q11/Q15/Q16; their dated answers remain in
+docs/specs/questions/answered/web-network.md. This resumed final round closes individual
+blockers inside Q7/Q9/Q13, while leaving their incomplete whole-owner entries open.
+Partial-ready is the brief's authorized final-round disposition; no whole-owner credit.
 
-Changes in docs/specs/web-network.md:
+### Changes and evidence
 
-- §3.2: splitter returns actual count, so Port drops its last item; only space/tab trim;
-  delimiter-completed empties versus omitted empty terminal item; consumed double quotes in
-  cookie grouping, plain quotes in ports; no separate name/value trim; wrapping 32-bit atol.
-- §3.4: copying lookup miss preserves output; header separators use original indices,
-  including leading separators after skipped attributes.
-- §3.6: CookieData.ini literal; identity-copy byte strings then uppercase hex INI encoding,
-  Admin/Binary=1 marker, read limits and invalid-input boundary; binary setter assignment
-  versus path-change reload/clear. The method's encryption name does not describe a cipher.
-- §4.7: null target after an active match removes the active job and returns true without
-  conversion, cache/cookies, delivery, waiting selection or foreign-resource clearing.
-- §§6.1/6.4/6.4.1: FileCache.ini literal; destructive source-file admission and forced copy
-  across directories; reservation and descending-time filename candidates; rightmost-seven-comma
-  loader, limits/clamps and file checks; exact-filename orphan cleanup; native buffer deallocation;
-  direct writer materialization without getter side effects and hash bucket/chain ordering.
+- Earlier commits `448d45595` and `21d033ce5`: cookie Port/splitter/INI/header/settings
+  rules, cache filename/INI/admission/orphan/writer rules, matched null-target WWW
+  completion; 15 proposed/unexecuted vector groups. Report checkpoint `a75fee9b1`.
+- `2648fec8d`: §4.4 WWW Cookie record construction and temporary string ownership;
+  §4.14 shared HTTP request normalization, raw-text preservation with existing pairs,
+  continuation/empty-final-line quirks and first-empty-value erasure. This resolves the
+  HTTP Q9 normalization blocker and WWW Q9 cookie-record blocker.
+- `3fcae5355`: FTP-control §9 specifies all seven remaining command bodies, exact
+  reply-class acceptance, restored callback state, PWD extraction and unsafe malformed
+  domains, async state-4 rejection and rename's double assignment; §9.1 specifies
+  scheduler construction/admission. HTTP §5.1 qualifies native QueryInterface slot 0
+  and deleting wrapper slot 3. Full destructor cleanup remains open.
+- Current WWW inventory, independently recounted from rows: **102 C / 31532 B;
+  46 O / 2517 B; 148 total / 34049 B**. Previous summary still counted the already
+  qualified 64-byte cookie constructor as P; corrected it and credited ten new bodies
+  totaling 4711 B. C means documented, not implemented or dynamically equivalent.
+- Added 21 proposed/unexecuted fixture groups: WWW-22a–c (including empty-value
+  variant), NORM01–NORM08, FTPC01–FTPC08, HTTP-SLOT01–02. No engine vectors or code.
+  These are constructed fixtures with expected dependency calls/outputs, not game runs.
 
-Added 15 independent **proposed/unexecuted** vectors: CK07–CK13, NFC13–NFC19 and WWW-21.
-These use constructed deterministic fixtures, not observed game runs or implementation outputs.
-The WWW checklist now credits cookie constructor 008f9bad to §3.6; all other open rows remain open.
+Evidence uses main-checkout re_query.py function/byte-instruction queries, bounded decomp
+reads and read-only executable literal decoding. No REA session was used. Numeric and
+layout claims cite instruction addresses; no decompiled code/listings were copied into
+specs. Research ended at measured context **95966/150000**, below the two-thirds bound;
+the remaining round was documentation, review and validation.
 
-Moved Q1/Q3/Q10/Q11/Q15 from docs/specs/questions/web-network.md to
-docs/specs/questions/answered/web-network.md with dated MATCHES/DIFFERS answers. Also answered
-Q16 supplied only on core-www-close13, preserving its origin in the answered entry. Q15 covers
-both CookieManager and NetworkFileCache. Regenerated docs/specs/QUESTIONS.md. No new questions filed.
+### Validation and limits
 
-Evidence: main checkout tools/re_query.py function/search/xref/byte-instruction queries,
-bounded reads of decomp classes and unnamed regions, and read-only PE pointer/string decoding.
-Numeric claims cite instruction addresses; the lane never used REA or opened another MCP session.
-No engine/, plugin, capi, ABI table, coverage map, game file or shared Git ref edits.
-No proposed ABI rows. Helpers remain ignored under this worktree's build-runs/.
+doccheck check PASS; doccheck links PASS; git diff --check PASS. Questions index regenerated.
+Cargo/clippy/CTest n/a for this specification-only change. Game runs/shadow n/a; no request
+outstanding. No new question IDs filed; no newly complete whole-question entry was moved
+in this resumed round. Q7/Q9/Q13 progress is recorded in the open question file instead.
+Q12 is outside the brief. Previous six archived answers remain intact.
 
-Milestones: `448d45595` cookie/cache rules and vectors; `21d033ce5` null-target completion,
-answered question archive and regenerated index. The final report commit includes review corrections
-to summary rows and address citations. Git printed a packed-refs.lock permission error during each
-commit, but both commits completed successfully on detached HEAD; no ref/config repair was attempted.
-
-Validation: doccheck check PASS; doccheck links PASS. Final diff whitespace check and doccheck
-are recorded in the closing tool result. Cargo/clippy/CTest n/a for this spec-only lane.
-Game runs/shadow n/a; no request outstanding and no dynamic equivalence claim.
+No engine/, plugin, capi, ABI table, coverage-map, game-file or external/ edits. No proposed
+ABI rows and no C ABI change. Git reports inability to create shared packed-refs.lock during
+commits, but each detached-HEAD commit succeeds; shared refs/config were not repaired.
+Ready queue uses kind re and the full actual HEAD; supervisor publishes the reserved branch.
 
 ## Handoff
 
-- Resumed final round: first re-read core-www-close13 Owner closure table; previous six answers remain intact.
-- Milestone 2648fec8d: shared HTTP normalization and WWW Cookie record construction qualified.
-- This milestone: nine FTP bodies and HTTP slots 0/3 qualified; checklist 102 C / 31532 B, 46 O / 2517 B.
-- Research ended at guard context 95966/150000, below the two-thirds ceiling; next run doccheck, index, review, report and ready queue.
-- Remaining goal: WWW Q7/Q9 and HTTP Q9/Q13 in questions/web-network.md; Q12 is outside this brief.
-- Read core-www-close13 Owner closure table for exact remaining exclusions; do not read engine files.
-- Next RE step: Q9 HTTP request normalization at 0081ca90, 0081acf0 (273 decomp lines) and 0081ac20.
-- 0081ca90 converts raw headers only when parsed headers are empty, then clears raw text; it can erase the first empty-valued parsed entry. Do not publish complete normalization semantics from this partial inspection.
-- WWW cookie-header construction is in 008f8ffe before its 0081cda0 call; still unqualified.
-- Q7/Q9 residual body addresses remain O in web-network-www-bodies.md; cookie constructor 008f9bad alone changed P→C this round.
-- Q13: request wire/retry/redirect, 00819800 framing/spill, 0081a470 finalization, 00818490/00818680 date grammar, 00b18ba8 adjustment, native slots 0/3 remain open.
-- Query main tools/re_query.py first; use build-runs/evidence.py body ADDRESS --skip N --limit N for bounded original decomp reads.
-- Q16 exists only in core-www-close13 before this round; its answer is already archived here and must not be re-added as open during merge.
-- No ABI changes, no game labels, no external operations outstanding. Queue state wip; no whole-owner completion claim.
+- WWW Q7: 00817af0, scheduler lifecycle/control/container helpers and remaining O rows.
+- WWW Q9: remaining O support/adapters; Cookie record construction and HTTP normalization are settled.
+- HTTP Q13: wire generation/retry/redirect, ReadMessage 00819800, finalization 0081a470,
+  date grammar 00818490/00818680, timezone adjustment 00b18ba8 and destructor 0081cee0.
+- Slot 0 is ID-1-only QueryInterface; slot 3 is the deleting wrapper. Do not infer a join.
+- Exact remaining WWW inventory lives in docs/specs/web-network-www-bodies.md; no full closure.
+- Q16 was supplied on core-www-close13 and already archived here; do not reopen it on merge.
+- No ABI changes, game labels, pending operations or uncommitted work are intended at ready tip.

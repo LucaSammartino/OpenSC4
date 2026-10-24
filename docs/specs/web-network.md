@@ -874,9 +874,11 @@ Observe cache-call count, E and flags through an interface test double, not a li
 
 See [the FTP native contracts](web-network-ftp.md) for 00812de0's complete selector table,
 RETR/STOR entry/command/file/notification ordering, reached transport helpers, and independent
-distinguishing vectors. Q7 remains open for login, listing acquisition, outer scheduling and
-shutdown. The companion records unsafe native input domains explicitly and claims no live
-network observations.
+distinguishing vectors. [FTP control and scheduling](web-network-ftp-control.md) additionally
+qualifies login, listing acquisition, outer scheduling, session shutdown, the remaining
+seven commands, scheduler construction and admission. Q7 remains open for the residual
+scheduler controls/lifecycle/containers in the owner checklist. Both companions record
+unsafe native input domains explicitly and claim no live network observations.
 
 ### 4.14 Reached HTTP admission and cancellation (Q9 partly resolved)
 
@@ -945,8 +947,9 @@ the lock before each return:
 Active cancellation does not join the old thread, close its socket, free its record, or
 release its request here. Activation can allocate/start a successor while the old worker is
 still alive. Consequently this cancellation return alone is not a guarantee of quiescence
-or callback suppression. Exact worker handling of flags and final request/resource release
-remains Q9; do not synthesize it from WWW's late-completion lookup behavior (§4.7).
+or callback suppression. The bounded worker flag and request/resource release contract is
+in [HTTP lifetime](web-network-http-lifetime.md); wire/retry/redirect behavior remains Q13.
+Do not synthesize worker behavior from WWW's late-completion lookup (§4.7).
 The reached activation dependency 0081c9d0 was checked: it locks +0xa4, allocates worker
 context when +0xac is null, clears its stop byte +5, and, if its running byte +4 is zero,
 sets that byte, AddRefs the client and starts StaticWorkerThreadFunction. The static wrapper
