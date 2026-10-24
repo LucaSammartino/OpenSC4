@@ -4,9 +4,9 @@
 
 ## Handoff
 - Goal: merge core-map-view-close12, settle QV1 QV2 QV3 QV5 QV11 QV14 QV16 with behaviour and conformance vectors.
-- Done: reserved worktree reused; clean initial tree; requested merge started.
-- Merge has one conflict in generated docs/specs/QUESTIONS.md; regenerate using tools/questions.py index.
-- Next: finish merge, inspect map-view sections/questions and query original functions via main tools/re_query.py.
+- Done: dependency merge 8caf1b84c; generated question-index conflict resolved by regeneration.
+- Done: QV5/QV16 instruction-verified; corrected factor defaults and vectors 1/21; moved questions to answered.
+- Next: QV1/QV2/QV3/QV11 source/panel tracing and QV14 inherited x87 environment/threshold vector.
 - Source root: C:/Users/tlori/FreeCity4; edit only this worktree, never engine/.
 - REA has no binary; use local export/decomp only. No ABI changes or game runs planned.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-map-view-qv17-r1-manifest.json.

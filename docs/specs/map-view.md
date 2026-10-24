@@ -72,7 +72,7 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 |---|---|---|
 | `0x4A0B47E5` | u32 | the **source** (§4.1) |
 | `0x4A0B47E4` | u32 pairs | the colour ramp: (value, ARGB) pairs, interpolated into a 256-entry palette |
-| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); used when `1 < s < 2^24`, else 256 |
+| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); absence/invalid range leaves conversion factors 256; explicit valid 256 recomputes them |
 | `0x4A0B47E7` | bool | **interpolate**: a coarse grid is resampled to cells before drawing |
 | `0x4A0B47E8` | u32 | **block by lot**: present → every lot is drawn as one value, with this argument (§4.3) |
 | `0x4A0B47ED` | u32 | the desirability layer for the per-wealth sources (default 1, §4.1) |
@@ -300,8 +300,22 @@ the ordinary signed-16 display path; its palette conversion is separate (QV5).
 | signed 16-bit | `128 + ((v × ⌊0x7FFF00 / s⌋) >> 16)` (64-bit, arithmetic shift), clamped to 0–255 |
 | float | low byte of the signed-64-bit truncation; see §4.2.1 |
 
-With the default scale 256 the factors are 256 (so an unsigned 16-bit value is divided by 256). Each index selects
-the alpha-multiplied palette entry (`MakeMapColorBuffer`).
+The formulas in the table apply only to a **present** scale with `1 < s < 2^24`.
+Every new nonzero selection first sets both 64-bit factors to **256**, independently of the stored scale
+field (initially 256). An absent scale leaves those factors unchanged; a present out-of-range value
+(`0`, `1`, or at least `2^24`) is retained in the scale field but also leaves both factors 256.
+A present valid value replaces them with the two quotients in the table. Consequently absent scale
+and explicit scale 256 are observably different: explicit 256 gives unsigned factor 65535 and signed
+factor 32767. With default factors, the unsigned index is `min(floor(v/256),255)` and the signed index
+is `clamp(128+floor(v/256),0,255)`. The previous selection's factors never carry into a new nonzero view.
+
+Products are 64-bit integer products; signed samples are sign-extended and negative right shifts round
+**down**, not toward zero. Saturation follows the shift (and the signed path's addition of 128).
+Thus explicit scale 1024 gives factors 16383/8191: unsigned 512 gives 127, while signed −512 gives
+**64**, correcting the earlier vector's 65. Each resulting byte selects the alpha-multiplied palette
+entry (`MakeMapColorBuffer`). Evidence: factor initialization/range/division/stores
+`0x007A51FD`–`0x007A5287`; unsigned load/product/shift/clamp `0x007A2BBB`–`0x007A2BE3`;
+signed load/product/arithmetic shift/clamp `0x007A2D49`–`0x007A2D78` (QV5).
 
 ### 4.2.1 Float conversion outside the byte domain (QV10) *[compat]*
 
@@ -356,6 +370,16 @@ The owner upsamples to the city's x/z cell counts if interpolation is enabled an
 dimension is smaller (`0x007A23EC`–`0x007A23FE`); destination cell sizes then become the city's world
 width/height divided by its respective cell counts (16 m for an ordinary city).
 Block-property presence forces interpolation on, even when its mask is zero.
+
+The step is truncated **before** constructing the half-step origin; `q/2` here is integer division.
+For S=2,D=3, q=43690 and the three fixed-point positions are −10923, 32767, 76457.
+The middle is just below halfway. Do not replace it with exact rational cell-centre coordinates or
+round the step to 43691. A 2×2 source with x rows `[0,1]`, `[1,2]` therefore has centre **0** at 3×3:
+the inner rounded values are 0 and 1, followed by outer result 0. The same source reduced to 1×1
+has exact half fractions on both axes and gives **2**. This latter case distinguishes the two integer
+roundings from one bilinear rounding. Evidence: signed step divisions `0x0079EB8B`–`0x0079EBA7`,
+integer halves/origins `0x0079EBBE`–`0x0079EBDD`, rounded inner/outer products
+`0x0079ECB9`–`0x0079ECF5` (QV16).
 
 #### Lot mask and crime icons (QV4) *[compat]*
 
@@ -654,8 +678,12 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
 
 ## 10. Conformance tests
 
-1. **Index:** with scale 1024, an unsigned 16-bit value of 512 gives index 127; a signed 16-bit value of −512
-   gives index 65.
+1. **Index:** with explicit scale 1024, unsigned 512 gives index 127; signed −512 gives 64.
+   With scale absent (also with 0, 1 or `0x1000000`), unsigned `[0,255,256,65535]` gives
+   `[0,0,1,255]`, signed `[-32768,-257,-256,-1,0,255,256,32767]` gives
+   `[0,126,127,127,128,128,129,255]`. With explicit scale 256 the factors are 65535/32767:
+   unsigned `[0,1,255,256,512]` gives `[0,0,254,255,255]`, signed `[-512,-1,0,1,256]`
+   gives `[0,127,128,128,255]`. Selecting an absent-scale resource after this restores factors 256.
 2. **Mayor rating:** a signed 8-bit value of −128 gives index 0, +127 gives 255.
 3. **Throttle:** two pollution messages 200 ms apart cause one redraw at the first tick after 1000 ms.
 4. **Empty view:** choosing view `0x14` (residential desirability) leaves the map empty.
@@ -715,8 +743,9 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
 21. **Resampling:** a 1×2 unsigned grid `[0,100]` resampled to 1×4 gives `[0,25,75,100]`.
     The same shape with signed `[-100,100]` gives palette indices `[28,78,178,228]`.
     A constant 1×1 grid fills the entire destination. For source x rows `[0,1]`, `[1,2]`,
-    resampling 2×2 to 3×3 gives centre value 2 (inner-axis halfway results 1 and 2, then 2),
-    discriminating two-stage rounding from the unrounded bilinear centre value 1.
+    resampling 2×2 to 3×3 gives x rows `[0,0,1]`, `[0,0,1]`, `[1,1,2]`, with centre **0**.
+    Resampling that source to 1×1 gives **2** (inner halfway results 1 and 2, then 2),
+    discriminating two-stage rounding from the unrounded bilinear value 1.
 22. **Float index wrap:** samples `[-1.75,-0.75,255.75,256.75,511.75,NaN,+Inf,-Inf,2^63]`
     give `[255,0,255,0,255,0,0,0,0]` under masked invalid exceptions. These cases must not be
     implemented as clamping or finite-domain rejection.
