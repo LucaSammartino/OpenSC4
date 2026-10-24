@@ -165,6 +165,7 @@ pub type Result<T> = std::result::Result<T, ContractGap>;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlayerState {
+    pub speed_tween: super::SpeedTween,
     pub field_30: f32,
     pub turn_rate: f32,
     pub aems_value: f32,

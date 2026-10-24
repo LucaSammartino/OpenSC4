@@ -6,6 +6,81 @@ use crate::automata::{AutomatonBase, State};
 use crate::stream::{ByteReader, ByteWriter};
 use std::sync::Arc;
 
+#[test]
+fn wc9_literal_simultaneous_steering_pending_spec_resolution() {
+    let mut b = boat();
+    let mut command = DriveCommand { left: 100.0, right: 100.0, ..DriveCommand::default() };
+    b.translate_drive_commands(10.0, &mut command, &mut CommandEffects::default());
+    assert!((b.turn + 0.1).abs() < 1e-6);
+    assert_eq!(command.left, 100.0);
+}
+
+#[test]
+fn wc6_05_through_09_render_tween_and_shared_channel_boundaries() {
+    let mut b = boat();
+    let mut command = DriveCommand::default();
+    let mut effects = CommandEffects::default();
+    b.turn = 3.0;
+    b.heading = [1.0, 0.0, 0.0];
+    b.complete_drive_commands(0.0, &mut command, &mut effects);
+    assert_eq!(b.turn, 2.0);
+    assert_eq!(command.rudder, [-0.25, 0.0, std::f32::consts::TAU]);
+    assert!((command.heading - std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+    b.heading = [-1.0, 0.0, 0.0];
+    b.complete_drive_commands(0.0, &mut command, &mut effects);
+    assert!((command.heading - 3.0 * std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+    b.heading = [0.0, 0.0, 1.0];
+    b.complete_drive_commands(0.0, &mut command, &mut effects);
+    assert_eq!(command.heading, 0.0);
+    // Start chosen so the existing linear tween samples 0.15 at 5/2000.
+    b.player.speed_tween = SpeedTween { start: 0.150_125_31, target: 0.1, elapsed: 5.0, duration: 2000.0 };
+    b.speed = -0.2;
+    b.complete_drive_commands(0.0, &mut command, &mut effects);
+    let tween = b.player.speed_tween;
+    assert!((tween.start - 0.15).abs() < 1e-6);
+    assert_eq!((tween.target, tween.elapsed, tween.duration), (0.2, 0.0, 0.0));
+    b.complete_drive_commands(0.0, &mut command, &mut effects);
+    assert_eq!(b.player.speed_tween, tween);
+    command.throttle = 0.0;
+    command.shared[0] = CommandChannel { previous: 10.0, duration: 2, limit: 1, timer: 95.0, interval: 100.0, ..CommandChannel::default() };
+    command.shared_bookkeeping(10.0, &mut effects);
+    assert!(command.shared[0].edge);
+    assert!(!command.shared[0].armed);
+    assert_eq!(command.shared[0].timer, 105.0);
+    command.shared_bookkeeping(10.0, &mut effects);
+    assert!(!command.shared[0].edge);
+    assert!(command.shared[0].armed);
+    assert_eq!(command.shared[0].timer, 0.0);
+    command.shared[0].previous = 250.0;
+    command.shared_bookkeeping(10.0, &mut effects);
+    assert!(!command.shared[0].edge);
+}
+
+#[test]
+fn wc6_09_shared_events_exact_sentinel_and_signed_duration() {
+    #[derive(Default)]
+    struct Events(Vec<(usize, u32)>);
+    impl PlayerEffects for Events {
+        fn play_fire(&mut self, _: &'static str) -> bool { false }
+        fn fire_model_hook(&mut self) {}
+        fn has_waterski(&self) -> bool { false }
+        fn waterski_transform(&mut self, _: &Transform) {}
+        fn waterski(&mut self, _: bool) {}
+        fn command_event(&mut self, channel: usize, event: u32) { self.0.push((channel, event)); }
+    }
+    let mut command = DriveCommand { throttle: 0.0, reverse: -2.0, ..DriveCommand::default() };
+    command.shared[0] = CommandChannel { duration: 2, limit: 2, armed: true, ..CommandChannel::default() };
+    let mut effects = Events::default();
+    command.shared_bookkeeping(10.0, &mut effects);
+    assert!(!command.shared[0].armed);
+    assert_eq!(effects.0, [(0, 0x14), (1, 0x14)]);
+    command.shared[0].duration = -1;
+    effects.0.clear();
+    command.shared_bookkeeping(10.0, &mut effects);
+    assert!(command.shared[0].armed);
+    assert_eq!(effects.0, [(1, 0x14)]);
+}
+
 fn group() -> Arc<Group> {
     Arc::new(Group {
         id: 0,
@@ -22,6 +97,10 @@ struct CommandEffects {
 }
 
 impl PlayerEffects for CommandEffects {
+    fn fire_model_hook(&mut self) {}
+    fn has_waterski(&self) -> bool { true }
+    fn waterski_transform(&mut self, _: &Transform) { self.calls.push("transform".into()); }
+    fn command_event(&mut self, _: usize, _: u32) {}
     fn play_fire(&mut self, name: &'static str) -> bool {
         self.calls.push(name.into());
         self.fire_succeeds
@@ -33,11 +112,11 @@ impl PlayerEffects for CommandEffects {
 }
 
 #[test]
-fn commands_brake_before_reversing_and_do_not_overshoot_targets() {
+fn wc8_01_through_05_nonlinear_speed_channels_and_crossing_zero() {
     let mut b = boat();
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
-        throttle: 1.0,
+        throttle: 3000.0,
         ..DriveCommand::default()
     };
     assert_eq!(
@@ -46,20 +125,33 @@ fn commands_brake_before_reversing_and_do_not_overshoot_targets() {
     );
     assert_eq!(b.speed, 0.3);
     assert_eq!(b.player.gear, Gear::Forward);
-    command.throttle = 0.1;
+    command.throttle = 1.0;
     b.translate_drive_commands(100.0, &mut command, &mut effects);
-    assert!((b.speed - 0.29).abs() < 1e-6);
+    assert!((b.speed - 0.3).abs() < 1e-6);
+    assert!((command.throttle - 3000.0).abs() < 0.01);
     command.throttle = -1.0;
-    command.reverse = 150.0;
-    b.translate_drive_commands(10_000.0, &mut command, &mut effects);
-    assert_eq!(b.speed, 0.0); // leftover braking time is not reverse acceleration
-    b.translate_drive_commands(10_000.0, &mut command, &mut effects);
-    assert_eq!(b.speed, -0.1);
+    command.reverse = 2000.0;
+    b.speed = 0.005;
+    b.translate_drive_commands(100.0, &mut command, &mut effects);
+    assert!((b.speed + 0.005).abs() < 1e-6);
+    assert_eq!(command.reverse, 150.0);
     assert_eq!(b.player.gear, Gear::Reverse);
     command.reverse = -1.0;
+    command.throttle = 3000.0;
+    b.translate_drive_commands(100.0, &mut command, &mut effects);
+    assert!((b.speed - 0.005).abs() < 1e-6);
+    assert_eq!(command.throttle, 0.0);
+    command.throttle = -1.0;
+    b.speed = 0.1;
     b.translate_drive_commands(10_000.0, &mut command, &mut effects);
-    assert_eq!(b.speed, 0.0);
+    assert_eq!(b.speed, 0.1);
     assert_eq!(b.player.gear, Gear::Neutral);
+    command.throttle = 3000.0;
+    command.reverse = 150.0;
+    b.speed = 0.0;
+    b.translate_drive_commands(100.0, &mut command, &mut effects);
+    assert_eq!(b.player.gear, Gear::Forward);
+    assert!((b.speed - 0.1).abs() < 1e-6);
 }
 
 #[test]
@@ -142,23 +234,31 @@ fn command_steering_countersteers_returns_and_clamps() {
     let mut b = boat();
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
-        right: true,
+        right: 100.0,
         ..DriveCommand::default()
     };
-    b.translate_drive_commands(1000.0, &mut command, &mut effects);
+    b.translate_drive_commands(10.0, &mut command, &mut effects);
     assert!((b.turn - 0.1).abs() < 1e-6);
-    command.right = false;
-    command.left = true;
-    b.translate_drive_commands(1000.0, &mut command, &mut effects);
-    assert!((b.turn + 0.4).abs() < 1e-6);
-    b.translate_drive_commands(100_000.0, &mut command, &mut effects);
-    assert_eq!(b.turn, -2.0);
-    command.right = true; // simultaneous left/right is neutral return (WC8)
-    b.translate_drive_commands(1000.0, &mut command, &mut effects);
-    assert!((b.turn + 1.9999).abs() < 1e-6);
-    b.translate_drive_commands(1e9, &mut command, &mut effects);
-    assert_eq!(b.turn, 0.0);
-    assert_eq!(b.rudder_angle(), 0.0);
+    command.right = -1.0;
+    command.left = 100.0;
+    b.turn = 0.0;
+    b.translate_drive_commands(10.0, &mut command, &mut effects);
+    assert!((b.turn + 0.1).abs() < 1e-6);
+    command.left = -1.0;
+    b.turn = -0.2;
+    b.translate_drive_commands(10.0, &mut command, &mut effects);
+    assert!((b.turn + 0.19).abs() < 1e-6);
+    command.left = 0.0;
+    b.turn = -0.2;
+    b.translate_drive_commands(10.0, &mut command, &mut effects);
+    assert!((command.left - 190.0).abs() < 1e-3);
+    assert!((b.turn + 0.19).abs() < 1e-6);
+    command.left = -1.0;
+    command.right = 0.0;
+    b.turn = 0.2;
+    b.translate_drive_commands(10.0, &mut command, &mut effects);
+    assert!((command.right - 210.0).abs() < 1e-3);
+    assert!((b.turn - 0.21).abs() < 1e-6);
 }
 
 #[test]
@@ -167,24 +267,29 @@ fn commands_require_aems_and_fire_consumes_only_successful_shots() {
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
         throttle: 1.0,
-        fire: true,
+        fire: 0.0,
         ..DriveCommand::default()
     };
+    command.shared[7].armed = true;
+    command.shared[7].timer = 42.0;
     b.group = Arc::new(Group {
         aems_value: None,
         ..(*group()).clone()
     });
     assert_eq!(b.translate_drive_commands(100.0, &mut command, &mut effects), None);
     assert_eq!(b.speed, 0.0);
-    assert!(command.fire);
+    assert_eq!(command.fire, 0.0);
     assert!(effects.calls.is_empty());
     b.group = group();
     b.translate_drive_commands(0.0, &mut command, &mut effects);
-    assert!(command.fire);
+    assert!(command.shared[7].armed);
+    assert_eq!(command.shared[7].timer, 42.0);
     assert_eq!(b.player.shots, 0);
     effects.fire_succeeds = true;
     b.translate_drive_commands(0.0, &mut command, &mut effects);
-    assert!(!command.fire);
+    assert!(!command.shared[7].armed);
+    assert_eq!(command.shared[7].timer, 0.0);
+    assert_eq!(command.fire, 0.0);
     assert_eq!(b.player.shots, 1);
     assert_eq!(effects.calls, ["whalefire", "whalefire"]);
 }
@@ -198,22 +303,23 @@ fn skier_toggle_and_stop_and_command_translation_order() {
     });
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
-        throttle: 1.0,
+        throttle: 3000.0,
         skier_toggle: true,
         ..DriveCommand::default()
     };
     f.player_commands(1, 100.0, &mut command, &mut effects, &mut None)
         .unwrap();
-    assert_eq!(effects.calls, ["skier:true"]);
+    assert_eq!(effects.calls, ["transform", "skier:true", "transform"]);
     assert_eq!(
         f.get(1).unwrap().events,
         [Event::ResetSpeedTween, Event::BaseCommandTranslation]
     );
     command.skier_toggle = false;
     command.throttle = -1.0;
+    f.get_mut(1).unwrap().speed = 0.0;
     f.player_commands(1, 10_000.0, &mut command, &mut effects, &mut None)
         .unwrap();
-    assert_eq!(effects.calls, ["skier:true", "skier:false"]);
+    assert_eq!(effects.calls, ["transform", "skier:true", "transform", "skier:false"]);
     assert!(!f.get(1).unwrap().player.skier_running);
     f.get_mut(1).unwrap().events.clear();
     f.player_commands(1, 100.0, &mut command, &mut effects, &mut None)

@@ -3,6 +3,11 @@
 | core-watercraft9: watercraft owner closure | Codex / core-watercraft9 | in progress | Audit existing module against current spec, close settled gaps, run gates. |
 
 ## Handoff
+- ROUND 2: float-channel commands, nonlinear/inverse speed curves, shared 13-channel bookkeeping, skier transforms, heading/rudder and speed tween implemented.
+- Focused first snapshot: 57 passed. Later WC6/WC9 vectors still need checking. q.py failed Bash CreateFileMapping; direct cargo works.
+- New WC9: literal §6.2.2 steering conflicts with WC8-08. Literal prose implemented with marked vector; no WC8-08 claim.
+- NEXT ROUND 2: route picker, inherited seek/animation, crash scalar/sinking and detector; then absolute-path fmt, qbuild all + verify, READY queue full actual HEAD, module engine/core/src/watercraft.
+- Detached HEAD intentional: commit normally, never switch/update refs. Final READY queue required even if owner remains open. No game requests.
 - Goal: close cSC4Watercraft owner in Rust, no capi/plugin/ABI changes.
 - Existing `engine/core/src/watercraft/` already contains an implementation and closure audit; inspect before extending.
 - Done: `ef60c30f6` implements integration/visual basis, compressed routes, resolved Init/codec/docking/undocking, following and collision substeps; new physics/collision vector tests.

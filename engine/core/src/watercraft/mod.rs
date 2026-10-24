@@ -15,7 +15,7 @@ mod routes;
 mod states;
 
 pub use collision::{Footprint, ModelGeometry};
-pub use commands::{DriveCommand, PlayerEffects};
+pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
 pub use movement::Gear;
 pub use operations::{candidate_directions, Message, MessageDisposition};
 pub use owner::*;
