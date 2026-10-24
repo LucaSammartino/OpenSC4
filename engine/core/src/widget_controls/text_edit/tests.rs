@@ -349,7 +349,7 @@ fn te_insertion_history_quarter_eviction_deletion_unbounded_and_zero_limit_vecto
     e.undo = old.clone();
     e.record_deletion(8, vec![], Position::default());
     assert_eq!(e.undo.len(), 9);
-    assert_eq!(e.undo[..8], old);
+    assert_eq!(e.undo[..8], old[..]);
     e.undo.clear();
     e.set_history_limit(0);
     for (n, expected) in [1, 2, 3, 4, 4].into_iter().enumerate() {
