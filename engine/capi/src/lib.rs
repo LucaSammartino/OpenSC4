@@ -1141,3 +1141,6 @@ pub mod persist_manager_verify;
 
 // Private record-only network occupant verification transport.
 mod netocc_shadow;
+
+// Private record-only SC token adapter observation replay.
+mod scres_shadow;

@@ -2394,3 +2394,15 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
   through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
   ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.
+
+`scres_shadow = 1` enables record-only forwarding of the original binary/text
+token adapter's numeric, descriptor and resource-key reads, starting before
+application initialization. It replays consumed bytes through the production
+core and compares output bytes, status, counter and byte consumption. It defaults
+to off and never replaces a resource service. Dated `scres shadow` lines report
+cumulative observations at city load and monthly; empty samples are failures.
+This is **partial adapter-read coverage**: string, parser, image and writer
+capture remains off pending SCR8 in `docs/specs/questions/sc-resources.md`.
+Capture uses SDK reads with the original post-call position restored; it does
+not claim to be a cursor-free observer. Do not credit the complete subsystem
+or add the key to a general shadow profile from this partial measurement.

@@ -553,7 +553,10 @@ if(FC4_IS_WIN32_X86)
         plugin/compat/FC4PropOccupantAuthority.h
         # Record-only, opt-in network occupant shadow.
         plugin/FC4NetOccShadow.cpp
-        plugin/FC4NetOccShadow.h)
+        plugin/FC4NetOccShadow.h
+        # Opt-in partial resource/token adapter observation replay.
+        plugin/FC4SCResShadow.cpp
+        plugin/FC4SCResShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
