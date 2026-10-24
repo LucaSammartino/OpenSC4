@@ -55,13 +55,13 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
             actual = value ? *value : NAN; name = "workforce"; break;
         }
         case 8: actual = c->GetMayorRating(); name = "mayorRating"; break;
-        case 9: actual = c->GetDifficultyLevel(); name = "difficulty"; break;
+        case 9: actual = static_cast<uint32_t>(c->GetDifficultyLevel()); name = "difficulty"; break;
         case 10: actual = c->GetCitySerialNumber(); name = "serial"; break;
         case 11: actual = c->GetBirthDate(); name = "birthDate"; break;
         case 12: actual = c->GetEstablished(); name = "established"; break;
         case 13: case 14: { float a = 0, b = 0; c->GetWorldPosition(a, b); actual = field == 13 ? a : b; name = "worldPosition"; break; }
         case 15: actual = c->GetWorldBaseElevation(); name = "elevation"; break;
-        case 16: actual = c->GetWorldHemisphere(); name = "hemisphere"; break;
+        case 16: actual = static_cast<uint32_t>(c->GetWorldHemisphere()); name = "hemisphere"; break;
         case 17: actual = c->GetBudget(); name = "budget"; break;
         case 18: actual = c->GetIncome(); name = "income"; break;
         case 19: actual = c->GetTutorialGUID(); name = "tutorialGUID"; break;
