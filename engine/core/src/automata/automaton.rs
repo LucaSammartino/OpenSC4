@@ -956,6 +956,9 @@ impl VehicleRecord {
 
     pub fn read(inp: &mut dyn InStream) -> Option<VehicleRecord> {
         let version = inp.get_u16()?;
+        if version != 2 {
+            return None;
+        }
         let traffic = TrafficRecord::read(inp)?;
         let n = inp.get_u32()?;
         let mut path = Vec::new();

@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use crate::automata::{AutomatonBase, SetStateArgs, TrafficRecord, Vec3};
 use crate::stream::{InStream, OutStream, RefValue};
 
-use super::{add, direction_toward, length, scale, sub, Result, Unsupported};
+use super::{add, direction_toward, length, scale, sub, InitWorld, LookAheadNode, Result, Unsupported};
 
 pub const REMOVE: u32 = 1;
 pub const REACHED: u32 = 4;
@@ -101,10 +101,17 @@ pub struct CollisionContext {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TrafficRuntime {
-    pub look_ahead: VecDeque<Vec3>,
+    pub look_ahead: VecDeque<LookAheadNode>,
+    pub path_word: u32,
+    pub path_index: u32,
+    pub travel_type: u32,
+    pub fallback_byte: u8,
+    pub exclude_previous_entry: bool,
+    pub crash_elapsed_ms: f32,
     pub has_tile_position: bool,
     pub has_path: bool,
     pub initialized: bool,
+    pub init_missing: Option<Unsupported>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -141,12 +148,8 @@ impl TrafficAutomaton {
     pub fn write(&self, output: &mut dyn OutStream) -> bool {
         self.record.write(output)
     }
-    pub fn init(&mut self) -> Result<()> {
-        // [spec gap VH4] Constructor/Init flags are not enumerated.
-        Err(Unsupported::InitializationVh4)
-    }
-    pub fn best_neighbor_connection(&self) -> Result<RouteStep> {
-        Err(Unsupported::NeighborRankingVh2)
+    pub fn init(&mut self, world: &mut impl InitWorld) -> Result<bool> {
+        super::init::init_traffic(&mut self.record, &mut self.runtime, world)
     }
 
     pub fn animation_tick(
@@ -155,30 +158,14 @@ impl TrafficAutomaton {
         movement: Movement,
         moves: bool,
         held: bool,
-        world: &mut impl TrafficWorld,
+        world: &mut impl super::VehicleWorld,
     ) -> Result<()> {
         advance_tweens(&mut self.record.base, dt_ms);
         world.effects(EffectAction::Update);
-        let kind = self.record.base.states.last().map(|s| s.state_type).unwrap_or(0);
         let handled = if !moves {
             true
         } else {
-            match kind {
-                1 => {
-                    self.owner().remove(world);
-                    true
-                }
-                10 => self.record.base.automata_flags & REMOVE == 0,
-                13 => self.owner().blocked_wait_tick(dt_ms, movement.speed_scale, world),
-                30 => {
-                    if tween_value(&self.record.base.f3[..4]) > 0.0 {
-                        self.owner().path_tick(dt_ms, movement, false, world)?;
-                    }
-                    true
-                }
-                7 | 11 | 15 | 16 | 18 | 19 | 20 => return Err(Unsupported::BaseStateVh9),
-                _ => false,
-            }
+            self.state_tick(dt_ms, movement, world)?
         };
         if !handled {
             if self.record.base.automata_flags & REACHED == 0 {
@@ -258,19 +245,6 @@ impl TrafficOwner<'_> {
         Ok(())
     }
 
-    /// Caller supplies slot 175's requested count (VH2); entries stop at first failure.
-    pub fn fill_look_ahead(&mut self, requested: usize, world: &mut impl TrafficWorld) {
-        for step in self.record.route.iter().skip(self.runtime.look_ahead.len()) {
-            if self.runtime.look_ahead.len() >= requested {
-                break;
-            }
-            let Some(point) = world.look_ahead(*step) else {
-                break;
-            };
-            self.runtime.look_ahead.push_back(point);
-        }
-    }
-
     pub fn remove(&mut self, world: &mut impl TrafficWorld) {
         if self.record.base.automata_flags & REMOVE == 0 {
             self.record.base.automata_flags |= REMOVE;
@@ -285,6 +259,7 @@ impl TrafficOwner<'_> {
         self.record.automaton = RefValue::Null;
         self.record.base.leader = RefValue::Null;
         self.runtime.initialized = false;
+        self.runtime.init_missing = None;
         self.runtime.has_tile_position = false;
         self.runtime.has_path = false;
     }
@@ -317,7 +292,7 @@ impl TrafficOwner<'_> {
                 );
                 world.effects(EffectAction::EnterState(13));
             }
-            tween_speed(&mut self.record.base, 0.0, 1.5 / context.speed_modifier);
+            self.slow_down(context.speed_modifier);
         } else if flags & BLOCKED == 0 || !context.too_close {
             self.record.base.automata_flags &= !BLOCKED;
             return_to_default_speed(&mut self.record.base, context.speed_modifier);
