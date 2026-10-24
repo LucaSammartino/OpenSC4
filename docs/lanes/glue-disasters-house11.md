@@ -7,9 +7,10 @@
 - Goal: final measured closure of the default-off fire/riot house schedule; no new owners or questions.
 - Done: resumed a78db985b; removed the legacy coverage>50 unfollowable increment. Section 5.4 already specifies coverage refusals; result disagreements remain counted.
 - Done: final-source qbuild all PASS, Rust7119/0, clippy0 diagnostics; queued native qbuild-20261024-151051-build-ctest PASS, build47/47 in3.4s, CTest81/81 in98.7s, total106.1s. Full capture build-runs/gate-house11-final.log. Same session14601 collected to terminal.
-- In flight: submitted exactly one game-queue/house11-fire-riot-final-02.req; wait-house11.py is running in session8276. Collect THAT session to terminal with write_stdin; no qwait or second request.
+- Done: final-02 terminal stalled (run493), disasters2/2 exact, ref0, schedule completed58/58 fire202/202 riot, resync0; stalled outside plugin on2026-02-28 shortly after turbo restored. Full evidence retained. Session8276 collected, no outstanding request.
+- Next: retry unchanged gated source with unique final-03; native/main-thread10.657s stall is a measured runtime failure, not a build failure. Never overwrite final-02 verdict.
 - Then submit one unique house game request matching house11-fire-riot-01, wait without qwait, measure to 2032 and compare train193.
-- Prior evidence: run492 disasters3/73, episodes1259/1259, resync0, ref3, propmgr219/220. Final run house11-fire-riot-final-02 is the only outstanding request.
+- Prior evidence: run492 disasters3/73, episodes1259/1259, resync0, ref3, propmgr219/220. Run493 final-02 incomplete at2026-02-28.
 - Ownership remains unchanged: targets are AddRef-held and released with FC4_RELEASE. Do not hide last-reference warnings with CREATED releases.
 - DS28/DS47 stay open; other disaster types default-off. No new questions this final round.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-disasters-house11-r3-manifest.json.
