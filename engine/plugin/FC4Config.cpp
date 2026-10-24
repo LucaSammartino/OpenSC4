@@ -398,6 +398,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "city_shadow",
                                   // AF11 partial helicopter metadata observation, default off.
                                   "helicopter_shadow",
+                                  // VU16 partial view utility differential, default off.
+                                  "viewutil_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -1164,3 +1164,5 @@ mod renderprops_shadow;
 mod city_shadow;
 // Read-only exemplar lighting parameter comparison; private static-link transport.
 mod lighting_shadow;
+// VU16: private partial view-utilities comparison transport.
+mod viewutil_shadow;
