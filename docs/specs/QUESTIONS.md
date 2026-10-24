@@ -234,7 +234,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 2 | 44 | DS47 | questions/disasters.md |
+| disasters | 3 | 44 | DS48 | questions/disasters.md |
 | dispatch | 1 | 12 | DP14 | questions/dispatch.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
@@ -261,14 +261,14 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
-| landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
+| landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 8 | LV10 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 11 | LC14 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
-| lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
+| lot-configuration-editor | 4 | 4 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
@@ -373,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **611** | **1516** | | |
+| **total** | **609** | **1519** | | |
