@@ -228,7 +228,6 @@ pub fn airplane_effect_names(fire_plane: bool) -> [&'static str; 6] {
     ]
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AircraftGoalOutcome {
     Popped,

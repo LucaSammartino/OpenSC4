@@ -8,8 +8,10 @@
 //! f64 intermediates approximate x87 extended arithmetic; conformance uses the
 //! spec tolerances rather than claiming bit-exact transcendental results.
 
-use super::{state_type, AircraftGoalOutcome, AircraftPlacementRecord, AircraftUnsupported, AircraftWorld,
-    AutomatonBase, DriveParameterSource, FlightPhase, FlightPhaseChange, SetStateArgs, Vec3, CLSID_AIRPLANE};
+use super::{
+    state_type, AircraftGoalOutcome, AircraftPlacementRecord, AircraftUnsupported, AircraftWorld, AutomatonBase,
+    DriveParameterSource, FlightPhase, FlightPhaseChange, SetStateArgs, Vec3, CLSID_AIRPLANE,
+};
 use crate::stream::{InStream, OutStream};
 
 #[derive(Clone, Debug, PartialEq)]
