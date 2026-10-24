@@ -13,7 +13,9 @@
 - Review correction after focused result: ribbon primitive must be 1 per view-utilities §7.1 (not 4). Command and assertion corrected; final gate must include this change.
 - Done: 7b3cc977f fixes ribbon primitive; focused final-source lib tests (session 40073 terminal) PASS 26/26, 4419 filtered, 0.05s.
 - First all terminal: cargo 807/1 failure and clippy diagnostics were corrected; native build PASS 220/220 edges, CTest PASS 69/69, 239.6s, but tree changed during run. First native logs preserved as fc4verify-{build,ctest}-attempt1.log.
-- Next: collect focused conformance turbo_off (session 49134); run final all on stable committed source and required verify; do not change files during checks; final report/queue.
+- Focused conformance turbo_off terminal PASS 2/2, including every vector.
+- Final all terminal PASS on stable source (session 27940, qbuild-20261024-010135-build-ctest): cargo 6758 passed/0 failed, clippy 0 diagnostics; native build 49/49 edges, CTest 69/69, 84.1s. Logs: qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log.
+- Next: run explicit qbuild verify as task requests, collect it to terminal with source unchanged; then final report/queue. No further source changes needed.
 - Formatting uses engine/rustfmt.toml max_width=120; apply_patch applied stdin-generated formatting diffs, no filename headers written.
 - Native verification required; pure core changes need no game run.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-overlay-views5-r1-manifest.json.
