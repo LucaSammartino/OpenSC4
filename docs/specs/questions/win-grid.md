@@ -11,3 +11,12 @@
 
 <!-- from: core-widgets5 round 2 (2026-10-23) -->
 - **WG6 - sections 5.1, 5.12 and 5.14:** please settle the pending SetDefaultFormatting initializer, horizontal text positioning for alignments 3/4/5, and format-copy size-word paragraph. Section 5.7 says 009A5C4A resets both size words to -1 but 5.14 still marks these writes pending; should 5.7 govern SetCellFormat too? [zero-initialized unresolved format words are provisional; do not claim Init/paint/format-copy closure until specified]
+
+<!-- from: core-gzwingrid9 (2026-10-24) -->
+- **WG7 - section 5.11 editable text factory failure:** what result and cell state follow a failed cGZWinTextEdit creation? [settled path implemented with style 0x11FF, acquired text-interface release, created editor release, and original unresolved coordinates; on factory failure the already-cleared cell stays cleared and the core returns Unsupported::Open("WG7")]
+
+<!-- from: core-gzwingrid9 (2026-10-24) -->
+- **WG8 - sections 3, 5.7 and appendix A remaining pending owner methods:** please specify the still-pending owner bodies, especially SortColumn/SortRow, ResizeColumnToFitCellWindows, SetCellColors/Wrapping/Alignment/Border and default-comparator locale/encoding. Section 5.14 now specifies SetCellFont despite its appendix row remaining pending. [implement the sections that have bodies, expose stable sorting with an explicit comparator, and leave pending methods unsupported; no owner closure claimed for these rows]
+
+<!-- from: core-gzwingrid9 (2026-10-24) -->
+- **WG9 - section 5.12 header rectangles and paint record +0x14:** what are the exact slot 72/73 header rectangles and the right-edge value read from paint record +0x14 in flag 0x20000 mode? [literal core uses the header band between gutter and cell-area boundary, and clip.right as the content-right value; these two details remain provisional]

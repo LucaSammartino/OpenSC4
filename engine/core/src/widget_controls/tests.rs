@@ -4,6 +4,7 @@ use super::*;
 
 #[derive(Default)]
 struct Recording {
+    owner: grid_owner_tests::Events,
     refs: Vec<(bool, Handle)>,
     messages: Vec<(Delivery, Message)>,
     invalidations: usize,
@@ -71,10 +72,11 @@ impl grid::GridForeign for Recording {
     fn language_value(&mut self) -> Option<u32> {
         None
     }
-    fn window_size(&mut self, _: Handle) -> [i32; 2] {
-        self.grid_dimensions
+    fn window_size(&mut self, window: Handle) -> [i32; 2] {
+        self.owner.sizes.get(&window).copied().unwrap_or(self.grid_dimensions)
     }
-    fn set_area(&mut self, window: Handle, _: Rect) {
+    fn set_area(&mut self, window: Handle, rect: Rect) {
+        self.owner.areas.push((window, rect));
         self.child_ops.push(("area", window));
     }
     fn child_add(&mut self, _: Handle, child: Handle) {
@@ -112,6 +114,9 @@ impl grid::GridForeign for Recording {
         true
     }
 }
+
+#[path = "grid/owner_tests.rs"]
+mod grid_owner_tests;
 
 impl grid::GridDataForeign for Recording {
     fn object_query(&mut self, object: Handle, _: u32, output: &mut Option<Handle>) -> bool {

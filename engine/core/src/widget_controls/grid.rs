@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cGZWinGrid state, selection and sparse size/format tables (win-grid §§1–5).
 mod data;
+mod paint;
+mod runtime;
 use super::*;
 pub use data::GridDataForeign;
+pub use paint::{PaintHost, PaintOp, PaintRecord};
+pub use runtime::{compare_cell_values, equal_record, signed_gcd, stable_sort_values};
+pub use runtime::{GridHost, Input, Mutation};
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;
@@ -129,6 +134,10 @@ pub struct Grid {
     pub sound_ids: [u32; 3],
     pub clicked: [i32; 3],
     pub hovered: [i32; 3],
+    pub line_colors: [u32; 2],
+    pub line_widths: [u32; 2],
+    pub bar_image_rects: [Rect; 2],
+    pub click_started: Option<u64>,
 }
 
 impl Grid {
@@ -170,6 +179,10 @@ impl Grid {
             sound_ids: [0; 3],
             clicked: [0, -1, -1],
             hovered: [0, -1, -1],
+            line_colors: [0; 2],
+            line_widths: [1; 2],
+            bar_image_rects: [[0; 4]; 2],
+            click_started: None,
         }
     }
     pub fn window(&self) -> Handle {
@@ -956,49 +969,53 @@ impl Grid {
         }
         context.depth += 1;
         if self.pause < 1 && self.initialized {
-            let size = f.window_size(self.window());
-            let grid = self.grid_area(size);
-            let cell = self.cell_area(size, f);
-            self.grid_size = [grid[2].wrapping_sub(grid[0]), grid[3].wrapping_sub(grid[1])];
-            self.cell_size = [cell[2].wrapping_sub(cell[0]), cell[3].wrapping_sub(cell[1])];
-            let used = self.used_range();
-            for axis in 0..2 {
-                let mut bound = if matches!(self.limits[axis], -1 | 0) {
-                    i32::MAX
-                } else {
-                    self.limits[axis]
-                };
-                if self.flags & (0x8000 << axis) == 0 && used[axis + 2] <= bound {
-                    bound = used[axis + 2].wrapping_add(1);
-                }
-                let mut total = 0_i32;
-                let mut visible = 0_f32;
-                for index in self.position[axis]..bound {
-                    let size = if axis == 0 {
-                        self.column_width(index)
-                    } else {
-                        self.row_height(index, f)
-                    };
-                    let previous = total;
-                    total = total.wrapping_add(size);
-                    if total <= self.cell_size[axis] {
-                        visible += 1.0;
-                    } else {
-                        let fraction = (self.cell_size[axis].wrapping_sub(previous) as f64
-                            / total.wrapping_sub(previous) as f64) as f32;
-                        if fraction.abs() > 0.05_f32 {
-                            visible += fraction;
-                        }
-                        break;
-                    }
-                }
-                self.visible[axis] = visible;
-            }
+            self.calculate_visible(f);
             if context.depth == 1 {
                 self.place_all_windows(f);
             }
         }
         context.depth -= 1;
         self.dirty = false;
+    }
+
+    fn calculate_visible(&mut self, f: &mut impl GridForeign) {
+        let size = f.window_size(self.window());
+        let grid = self.grid_area(size);
+        let cell = self.cell_area(size, f);
+        self.grid_size = [grid[2].wrapping_sub(grid[0]), grid[3].wrapping_sub(grid[1])];
+        self.cell_size = [cell[2].wrapping_sub(cell[0]), cell[3].wrapping_sub(cell[1])];
+        let used = self.used_range();
+        for axis in 0..2 {
+            let mut bound = if matches!(self.limits[axis], -1 | 0) {
+                i32::MAX
+            } else {
+                self.limits[axis]
+            };
+            if self.flags & (0x8000 << axis) == 0 && used[axis + 2] <= bound {
+                bound = used[axis + 2].wrapping_add(1);
+            }
+            let mut total = 0_i32;
+            let mut visible = 0_f32;
+            for index in self.position[axis]..bound {
+                let size = if axis == 0 {
+                    self.column_width(index)
+                } else {
+                    self.row_height(index, f)
+                };
+                let previous = total;
+                total = total.wrapping_add(size);
+                if total <= self.cell_size[axis] {
+                    visible += 1.0;
+                } else {
+                    let fraction = (self.cell_size[axis].wrapping_sub(previous) as f64
+                        / total.wrapping_sub(previous) as f64) as f32;
+                    if fraction.abs() > 0.05_f32 {
+                        visible += fraction;
+                    }
+                    break;
+                }
+            }
+            self.visible[axis] = visible;
+        }
     }
 }
