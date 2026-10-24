@@ -13,4 +13,4 @@ Evidence: q.py Bash wrapper unavailable (CreateFileMapping error); PowerShell/lo
 Formatting: explicit seven-file qbuild fmt passes with diff_lines=0.
 Initial focused cargo session 12063 terminal PASS: 39/39, compile 16m22s. Expected should-panic sentinel-erasure vector passed.
 Final focused session 30706 terminal PASS: 40/40, zero failures; full console preserved in build-runs/focused-final-console.log. Source is stable for the required full gate.
-Full gate launched once after dcda2500b through build-runs/run-check.py all; currently compiling all four workspace crates. Source unchanged since 6c07efc0e. Formatter and final focused result committed at dcda2500b.
+Full gate launched once after dcda2500b through build-runs/run-check.py all; workspace tests complete: 7180 passed, 0 failed, 0 ignored across 45 result groups. Clippy is running (build-runs/qbuild-clippy.log); full session 14900 still pending. Source unchanged since 6c07efc0e. Formatter and final focused result committed at dcda2500b.
