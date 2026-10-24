@@ -13,7 +13,7 @@
 - Workspace gate milestone: all reports test exit=0, 7141 passed / 0 failed / 0 ignored (45 summaries); clippy exit=0, diagnostics=0. Logs qbuild-test.log and qbuild-clippy.log.
 - Native build/CTest queued by the SAME all operation: qbuild-20261024-131855-build-ctest; waiting behind a game regress. Exec session 69153 remains active. Do not start another verify while it is queued.
 - At 13:36 local on 2026-10-24 the native request remained present: build-runs/build-queue/qbuild-20261024-131855-build-ctest.req (steps=build ctest), no local verdict or DLL. Presence alone does not prove whether the worker has started it. Worktree clean; no source changes since d230f041b. Ops coordinating notes confirm build worker waits for games.
-- Native wait continued for more than 25 minutes with no terminal result or diagnostic. Keep collecting session 69153; do not resubmit or treat pending as a failed build. No game measurements yet; no merge-queue entry.
-- Next: collect same all operation to terminal; then activate build-runs/modelinst-static-2032-20261024-a.draft as a .req and wait once with build-runs/wait-verdict.py (task forbids qwait).
-- Gate/game: fmt PASS (owned file absolute path). Initial q.py Bash transport failed CreateFileMapping access denied (build-runs/q/20261024-124722-31960.log); direct cargo worked. No game requests outstanding; no DLL yet.
+- Native terminal PASS collected from session 69153: build 262/262 edges (1013.1s), CTest 81/81 (940.3s); qbuild all PASS. Logs fc4verify-build.log and fc4verify-ctest.log. Native tree-changed note reflects lane-document commits only; engine source unchanged from d230f041b.
+- Next: activate build-runs/modelinst-static-2032-20261024-a.draft as a .req and wait once with build-runs/wait-verdict.py (task forbids qwait). No game measurements yet; no merge-queue entry.
+- Gate/game: fmt PASS (owned file absolute path). Initial q.py Bash transport failed CreateFileMapping access denied (build-runs/q/20261024-124722-31960.log); direct cargo worked. No game requests outstanding; native DLL built.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-modelinst-shadow11-r1-manifest.json.
