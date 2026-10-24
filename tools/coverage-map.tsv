@@ -545,6 +545,7 @@ cSC4WinAdviceList	windows and panels	ui	advice-list.md	-	-	-
 cSC4WinIntroVideoScreen	windows and panels	ui	intro-video.md	-	-	-
 cSC4WinAlertBorder	windows and panels	ui	scripted-window-director.md	-	-	-
 cSC4WinRCI	windows and panels	ui	demand-trend-bars.md	-	-	-
+cSC4WinText	windows and panels	ui	widget-text.md	-	-	-
 cSC4WinTrendBar	windows and panels	ui	demand-trend-bars.md	-	-	-
 fn:GZCOM_cSC4WinAdviceListCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
 fn:GZCOM_cSC4WinAlertBorderCLSID	windows and panels	ui	scripted-window-director.md	-	-	-

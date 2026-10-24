@@ -152,3 +152,33 @@ Cases:
 `0x009C200E` slot 18, `0x009C2094` slot 23, `0x009C20D3` `SetArea`.
 
 Not covered: the font slots (12, 13, 37, 43, 47, 48, 52), cited by number.
+
+## 7. The game's subclass `cSC4WinText` *[compat]*
+
+Class `0xAA7CECFD` (scripted-window-director.md §2): a `cGZWinText` with its own vtables and two overrides, the
+deleting destructor (`0x007BE780`: `~cGZWinText`, freed when bit 0 of the argument is set) and **`GZPaint`**
+(`0x007BE7A0`), which adds an ellipsis to text that does not fit. Owner `cSC4WinText` (2 functions, 1,266 bytes;
+added 2026-10-24, re-gzsc4text7).
+
+`GZPaint`, with a buffer to draw to (`+0x68`; else nothing, true):
+
+1. **Filled** (flag 4): the buffer is locked (slot 6, `0x8001`), filled (slot 20) with the window's native fill colour
+   for the draw area (window slot 103 `(&+0x24, 0)`), unlocked (slot 7). (The base fills through the draw context.)
+2. **Text**, with a font and a non-empty caption: `E` := the window-control manager's (service `0xC2C2EB0F`) slot
+   35 string `0x5377BE31` (the ellipsis). The colours are as in §4.4.
+   - **No wrap** (flag 2 clear): a copy of the caption is cut to the text rectangle with `E` by font slot 50
+     `(&copy, E, &+0xE8, 0)`; the copy is drawn (font slot 52) in the text rectangle offset by the draw area's origin.
+   - **Wrap** (flag 2): `lh` = the line height (font slot 35); at most `n = H / lh` lines (H the window height,
+     signed division); line width `w = W − 2·mx`. Lines are cut from the caption with font slot 41
+     `(start, remaining, w, 0, 2)` (the characters that fit, breaking at words); the cutting stops when the text is
+     used up or n lines are taken. It is **truncated** when a cut returns 0 or when the last allowed line does not take
+     the rest. The block is placed by the vertical alignment (alignment mod 3: 0 top, 1 middle with
+     `(H − 2·my − lines·lh) / 2`, 2 bottom with the whole remainder) from `(drawArea.L + mx, drawArea.T + my)`, one line
+     per `lh`, right edge `drawArea.R − mx`. Each line is drawn with font slot 52 and the horizontal alignment; when
+     truncated, the last line instead becomes the characters that fit in `width − width(E)` (font slots 48 and 42)
+     followed by `E`, and nothing at all is drawn for it when `E` alone is wider than the line.
+3. **Outline** (flag 8): the buffer locked with `0x8008`, `DrawRectangleOutline(buffer, draw area, outline colour,
+   1)`, unlocked. True.
+
+Quirks: a window lower than one line takes no lines and draws nothing; a cut that returns 0 (a word wider than the
+line) ends the text there and puts the ellipsis on the line before it.
