@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 
 use crate::curve::ResponseCurve;
 
+pub mod owner;
 mod runtime;
 mod spatial;
-pub mod owner;
 pub use runtime::{AmbienceLayer, Ease, LayerEventHost, LayerUpdateError, LayerUpdateInput, LoopEntry, ScoreEntry};
 pub use spatial::{distributed_positions, Group, GroupLayer};
 
@@ -160,11 +160,21 @@ pub trait FilterHost {
 }
 
 /// Must be shared across layers; neither cache is reset at Begin/EndUpdate.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct LayerGlobals {
     pub filters: BTreeMap<u32, u64>,
     pub cell_cache: Option<((i32, i32), Position)>,
     pub layer_count: u32,
+}
+
+impl Default for LayerGlobals {
+    fn default() -> Self {
+        Self {
+            filters: BTreeMap::new(),
+            cell_cache: Some(((i32::MAX, i32::MAX), [0.0; 3])),
+            layer_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, Default)]

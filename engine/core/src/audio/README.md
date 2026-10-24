@@ -28,14 +28,14 @@ stop sounds or release the spec's leaked raw modal-window references.
 
 Tests are in `event_handler/owner_tests.rs` and `event_handler/closure_tests.rs`
 unless qualified. Resolved AU13–AU16 diagnostic enum variants remain for source
-compatibility, but the extended algorithms no longer emit them. AU45 records the
-completed dispatch table's conflict with the older four-operation fixture list.
+compatibility, but the extended algorithms no longer emit them. AU45 resolves the
+older four-operation fixture list: the complete native route table has five entries.
 
 | Owner / spec section | Code item / status | Test |
 |---|---|---|
 | EventHandler §1.2–1.3, §7.1 | identity constants, `construct`, zero words, selector 4 | `owner_identity_and_interfaces`; `construction_registration_and_shutdown_preserve_city_set` |
 | EventHandler §7.1.1 | `init_with`, `shutdown_with`: partial registration, retries, optional filesystem, preferences, reference balancing | `service_failures_preserve_registration_and_constructor_members`; `lifecycle_retries_optional_filesystem_and_shutdown_failure` |
-| EventHandler §7.2, §6.4, §13 | `message_route`, `do_message`, city subscriptions, ignored types; clarification AU45 | `complete_dispatch_table_has_only_four_automata_types`; `extended_routes_execute_without_algorithm_gaps`; `subscribed_delivery_only_hears_automata_in_city_but_direct_posts_work` |
+| EventHandler §7.2, §6.4, §13 | `message_route`, `do_message`, city subscriptions, ignored types; AU45 settled | `au45_complete_dispatch_table_has_five_automata_routes`; `au45_fifth_automata_route_is_an_accepted_noop`; `extended_routes_execute_without_algorithm_gaps`; `subscribed_delivery_only_hears_automata_in_city_but_direct_posts_work` |
 | EventHandler §7.2.1 | `handle_radio`, `handle_settings`, EC4/EC5 queueing, transferred reference consumption | `station_defaults_explicit_fade_and_same_station`; `transferred_reference_and_radio_control_rules`; `message_return_values_radio_slots_and_deferred_station_message` |
 | EventHandler §7.2.2 | `handle_dispatch`, event creation/submission/release and capability-only notifications | `dispatch_categories_and_capability_notifications` |
 | EventHandler §7.2.3 | `do_modal_message`, LIFO stack, transition-only subscriptions | `modal_stack_transitions_and_inclusive_mouse_bounds` |
@@ -49,21 +49,23 @@ completed dispatch table's conflict with the older four-operation fixture list.
 | EventHandler §14.5, §14.13 | shared `RateLimiter`, inclusive window | `limiter_draws_only_on_restart_is_shared_and_accepts_exact_threshold` |
 | EventHandler §16.12–13,17,21,25–42 | handler vectors mapped to rows above; AU45 qualifies vector 12 | owner/closure tests |
 | AmbienceManager, audio-ambience §§1–7,10 | Existing portable owner | [Owner table](../audio_ambience/README.md); AA10 open |
-| AmbienceLayer, audio-ambience §8.1 lifecycle and uncovered slot inventory | open: AA14 StaticInit, native constructor/QI/destructor, full Init/Shutdown and extra slots including loading/reference ownership | No successful full Init or foreign algorithm is fabricated |
+| AmbienceLayer, audio-ambience §8.1 / §8.1.1 lifecycle, QI, globals, reload, occupant slots, scores/loops and volume | `ambience_layer::owner::{Process,LayerOwner}`, latched failure, retained services, asymmetric removal and destructor distinct from Shutdown | `aa14_failed_static_init_latches_without_retry_and_preserves_cell_cache`; `aa14_loops_scores_and_occupants_preserve_asymmetric_ownership` |
 | AmbienceLayer, audio-ambience §8.2 tuning | `ambience_layer::LayerTuning::read/defaults`, explicit unsigned ease rates and property order | `aa10_09_missing_resource_keeps_constructor_loop_and_present_clears_bytes` |
 | AmbienceLayer, audio-ambience §8.3 filter creation/cache | `LayerGlobals`, `LayerFilters::create`, borrowed lists/acquired QIs/cache-owned references | `aa10_10_shared_filter_cache_counts_each_listing_and_balances_queries` |
 | AmbienceLayer, audio-ambience §8.4 filters/groups/update boundaries | `LayerFilters`, `GroupLayer`, `AmbienceLayer::begin_update/end_update/handle_cell/handle_occupant` | `aa10_11_global_kind_three_with_only_cell_interface_never_passes`; `aa10_12_groups_have_strict_radius_and_keep_fixed_center_and_cycle_peaks`; `cell_cache_is_shared_and_group_intersection_keeps_inner_centers_once` |
 | AmbienceLayer, audio-ambience §8.5 sampling/score/average | `AmbienceLayer::update`, `distributed_positions`, `weighted_average`; mode 6 explicit native-fault diagnostic | `aa10_13_sample_reduction_keeps_first_in_each_occupied_grid_cell`; `aa10_14_empty_group_mean_is_zero_and_no_loop_starts`; `aa10_18_mode_six_is_explicit_native_fault` |
 | AmbienceLayer, audio-ambience §8.6 freshness | `update_freshness_parameters`, `update_scores`, explicit create/set/post/release and division slots | `aa10_15_freshness_unsigned_wrap_and_preference_scaling`; `aa10_16_score_start_updates_same_tick_and_failed_fade_falls_through` |
 | AmbienceLayer, audio-ambience §8.7 loops/ease/Pause | `update_loops`, `Ease`, `pause`, shared ID counter supplied by caller | `aa10_17_easing_scalar_and_vector_rounding_stages`; `loop_start_volume_position_stop_and_release_order` |
-| AmbienceLayer, audio-ambience §10.9–18 conformance | Tests 9–18 individually named above; native initialization/extra methods open: AA14 | `ambience_layer::tests` |
+| AmbienceLayer, audio-ambience §10.9–18 and §8.1.1 conformance | Tests 9–18 individually named above; native owner setup and extra slots in `owner` | `ambience_layer::tests`, including both `aa14_*` cases |
 | SoundManager, audio §§8.1–8.5,10.6,10.8 settled instance/tuning model | `sound_manager` local fixture, ID table/list/tuning; `owner::query_interface/subscriptions/event_route/resolve_sample`, `ResolvedSample::play_constructed/release` foreign continuations | Existing instance/tuning tests; `sample_resolution_playback_and_owned_reference_cleanup`; `acquiring_qi_subscription_exception_and_event_aliases` |
-| SoundManager, remaining §§8.1–8.3/10.6 owner execution | open: AU46 focus/reset/volume/enumeration/update/lifetime; AU49 instance construction/position/completion/stop and inconsistent radius assignment | Legacy `do_event` is only a local fixture, not a full foreign event executor |
+| SoundManager §§8.1–8.3.1 lifetime/payload/focus/tick, §10.6 resolution/play/completion/stop and raw position writes | `sound_manager::execution::Manager`, distinct from legacy fixture; signed property radii, manager play volume, temporary references, two-stage ramp, callback countdown | `au46_partial_init_null_and_unknown_payloads_and_enumeration`; `au46_signed_volume_two_stage_ramp_and_fifty_focus_callbacks`; `au49_play_failure_property_radii_completion_soft_stop_and_position` |
+| SoundManager §8.3.1 / §10.8 unspecified voice gates, linked position/pan, distance/simulation pause and Resume | open: AU50; `execution::Unsupported` records each missing algorithm; sentinel is required input rather than guessed bits | `au46_signed_volume_two_stage_ramp_and_fifty_focus_callbacks` checks explicit Unsupported; no complete manager claim |
 | COMDirector, audio §§1.1,1.2,11 | `director::on_start`, `register_classes`, identity/class tables | `executable_startup_interleaves_add_start_and_registers_92_classes`; existing identity/order tests |
-| COMDirector, audio §1.1/1.3 application lifetime | open: AU47 service creation/failure/unwind and teardown, constructor interleaving | Measured class set and add/start sequence implemented; no full lifetime claim |
+| COMDirector, audio §§1.1/1.3/11.3 lifetime and registration order | `director::owner::DirectorOwner`, required outputs, nontransactional result accumulation, optional hooks, distinct shutdown/destructor orders | `au47_configuration_failure_and_nontransactional_initializers`; existing 92-class prefix test |
 | AEMSSoundBank, audio §10.7 raw file/resource IO | `aems::AemsSoundBank::read_file/read_resource`, twice-size/raw read, cached TGI | `bank_raw_slurp_calls_size_twice_and_never_checks_magic`; `resource_cache_and_success_only_bank_linkage` |
 | AEMSEventSystem, audio §§10.7–10.8 settled state/linkage | `aems::AemsEventSystem` service ID/priority, known tuning defaults, successful bank linkage continuation; `data` bank/header layout | `resource_cache_and_success_only_bank_linkage`; existing `data` header tests |
-| AEMSEventSystem / AEMSSoundBank, remaining §10.7–10.8 inventory/lifetime | open: AU48 full owner dispatch/lifetime/failure/allocator and tuning error policy; AU1 bank magic | No invented StopAllSounds/registrar success or native error return |
+| AEMSEventSystem / AEMSSoundBank §§10.7.1–10.8 lifetime/backend/dispatch/tuning and raw IO | `aems::owner::AemsOwner`, process latch, signed backend failures, 19-index stop order, zero-result registrar, instance-ID removal, ordered volume expressions; `AemsSoundBank::read_resource` caches only after Read and returns Read/Close conjunction | `au48_latch_negative_shutdown_retry_and_stop_indices`; `au48_start_parameter_event_and_bank_result`; `au48_two_sizes_read_close_cache_and_owned_file_destruction` |
+| AEMSSoundBank §10.7 format validation | open: AU1 library-level magic consumer; raw owner deliberately performs no validation | `bank_raw_slurp_calls_size_twice_and_never_checks_magic` |
 | EmanationModel2D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::TwoD`: constructor, QI views/AddRef/Release, ID/capability | `emanation::tests::au9_06_constructors_and_shared_interfaces` |
 | EmanationModel3D, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeD`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
 | EmanationModel3DEffects, audio §3.4 / contracts §19.1 slots 0–4 | `emanation::EmanationModel`, `ModelKind::ThreeDEffects`: constructor, QI views/AddRef/Release, ID/capability | same AU9-06 test |
@@ -95,19 +97,19 @@ SS1–SS11 open questions.
 
 This is a partial closure submission. Implemented stages in the section table
 above do not close an owner whose remaining bodies are listed here. Question
-IDs AU1 and AU5 are in audio.md §15; AU40–AU49 are in
+IDs AU1 and AU5 are in audio.md §15; AU40–AU50 are in
 [audio questions](../../../../docs/specs/questions/audio.md), and AA10–AA14 are in
 [ambience questions](../../../../docs/specs/questions/audio-ambience.md).
 
 | Owner | Verdict | Remaining sections / open question |
 |---|---|---|
-| cSC4AudioEventHandler | Specified bodies implemented | §16 vector 12 conflicts with completed §7.2 dispatch: open: AU45; implementation follows §7.2 |
+| cSC4AudioEventHandler | Fully implemented for specified owner contracts | AU45 settled; §16 vector 12 now explicitly covers all five routes |
 | cSC4AudioAmbienceManager | Partial | audio-ambience §3.6 absent creation clock: open: AA10; literal rectangle/removal choices: AA12, AA13 |
-| cSC4AudioAmbienceLayer | Partial | audio-ambience §8.1 lifecycle and uncovered slots, native setup for §10.9–18: open: AA14 |
-| cSC4AudioSoundManager | Partial | §§8.1–8.3, 10.6 owner execution/lifetime: open: AU46, AU49 |
-| cSC4AudioCOMDirector | Partial | §§1.1, 1.3 application lifetime/interleaving: open: AU47 |
-| cSC4AudioAEMSEventSystem | Partial | §§10.7–10.8 / contracts §17 dispatch, lifetime and failure policy: open: AU48 |
-| cSC4AudioAEMSSoundBank | Partial | §10.7 / contracts §17 full lifetime and bank validation: open: AU48, AU1 |
+| cSC4AudioAmbienceLayer | Specified stages implemented | AA14 settled; core lifecycle/loading plus §§8.2–8.7 algorithms; no plugin replacement claimed |
+| cSC4AudioSoundManager | Partial | §8.3.1 voice/link/pause/Resume bodies, §10.8 gate comparisons, sentinel bits: open: AU50 |
+| cSC4AudioCOMDirector | Fully implemented for specified owner contracts | AU47 settled; class registration, startup, PostAppInit, PreAppShutdown and destructor |
+| cSC4AudioAEMSEventSystem | Specified stages implemented | AU48 settled; service/backend boundary remains abstract, no native integration |
+| cSC4AudioAEMSSoundBank | Partial | §10.7 library-level validation: open: AU1; raw owner IO settled by AU48 |
 | cSC4AudioListener | Partial | contracts §§18.1–18.3 geometry, tuning, cheat and failure lifetime: open: AU40 |
 | cSC4AudioSemManager | Partial | contracts §19 construction/registration: open: AU41 |
 | cSC4AudioEmanationModel2D | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |

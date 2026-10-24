@@ -34,7 +34,7 @@ pub struct AemsSoundBank {
 impl AemsSoundBank {
     /// Raw slurp: do not impose a magic/version/header validator here (§10.7).
     /// The returned boolean is IO status, not a claimed native return contract.
-    pub fn read_file(&mut self, file: &mut impl BankFile) -> bool {
+    pub fn read_file(&mut self, file: &mut (impl BankFile + ?Sized)) -> bool {
         let allocated = file.size();
         let read_size = file.size();
         self.image.resize(allocated, 0);
@@ -49,7 +49,9 @@ impl AemsSoundBank {
             return false;
         };
         let read = self.read_file(&mut file);
-        if read { self.cached_tgi = Some(tgi); }
+        if read {
+            self.cached_tgi = Some(tgi);
+        }
         let closed = file.close();
         read && closed
     }
@@ -110,13 +112,85 @@ impl AemsEventSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct ScriptedFile {
+        sizes: [usize; 2],
+        size_calls: usize,
+        read: bool,
+        closed: bool,
+        requested: Rc<Cell<usize>>,
+        drops: Rc<Cell<u32>>,
+    }
+    impl Drop for ScriptedFile {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    impl BankFile for ScriptedFile {
+        fn size(&mut self) -> usize {
+            let size = self.sizes[self.size_calls];
+            self.size_calls += 1;
+            size
+        }
+        fn read(&mut self, destination: &mut [u8]) -> bool {
+            self.requested.set(destination.len());
+            self.read
+        }
+        fn close(&mut self) -> bool {
+            self.closed
+        }
+        fn oversized_read(&mut self, destination: &mut [u8], requested: usize) -> bool {
+            assert_eq!(destination.len(), 4);
+            self.requested.set(requested);
+            self.read
+        }
+    }
+    struct ScriptedResources(Option<ScriptedFile>);
+    impl BankResources for ScriptedResources {
+        type File = ScriptedFile;
+        fn resource_as_file(&mut self, _: BankTgi, _: u32) -> Option<ScriptedFile> {
+            self.0.take()
+        }
+    }
+    #[test]
+    fn au48_two_sizes_read_close_cache_and_owned_file_destruction() {
+        let requested = Rc::new(Cell::new(0));
+        let drops = Rc::new(Cell::new(0));
+        let tgi = AemsEventSystem::bank_tgi(7);
+        for (sizes, read, closed, cache) in [
+            ([8, 4], false, true, false),
+            ([8, 4], true, false, true),
+            ([4, 8], true, true, true),
+        ] {
+            let mut bank = AemsSoundBank::default();
+            let mut resources = ScriptedResources(Some(ScriptedFile {
+                sizes,
+                size_calls: 0,
+                read,
+                closed,
+                requested: requested.clone(),
+                drops: drops.clone(),
+            }));
+            assert_eq!(bank.read_resource(tgi, &mut resources), read && closed);
+            assert_eq!(bank.image.len(), sizes[0]);
+            assert_eq!(requested.get(), sizes[1]);
+            assert_eq!(bank.cached_tgi, cache.then_some(tgi));
+        }
+        assert_eq!(drops.get(), 3);
+    }
     struct File {
         sizes: usize,
         image: Vec<u8>,
     }
     impl BankFile for File {
-        fn close(&mut self) -> bool { true }
-        fn oversized_read(&mut self, _: &mut [u8], _: usize) -> bool { panic!("unexpected oversized read") }
+        fn close(&mut self) -> bool {
+            true
+        }
+        fn oversized_read(&mut self, _: &mut [u8], _: usize) -> bool {
+            panic!("unexpected oversized read")
+        }
         fn size(&mut self) -> usize {
             self.sizes += 1;
             self.image.len()

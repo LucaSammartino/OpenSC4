@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Sound-manager foreign stages from audio §§8.2–8.3/10.6.
-//! This complements the local instance fixture; missing native bodies: AU46/AU49.
+//! Legacy fixture stages. Settled AU46/AU49 execution is in `execution`.
 use super::AudioSoundManager;
 
 pub trait SoundManagerHost {
@@ -67,7 +67,7 @@ pub fn subscriptions() -> [u32; 7] {
 }
 
 /// Preserve the event domain separately from message dispatch. A route is not
-/// a successful event result; unsettled helper bodies remain AU46/AU49.
+/// a successful event result; use `execution` for owner side effects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventRoute {
     Start,
