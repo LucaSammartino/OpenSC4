@@ -31,8 +31,8 @@ Implemented `FC4GZMsgShadow.*`, default-off through `gzmsg_shadow = 1`, with loa
 
 | Run record | Queue label | Exact dated lines | End date | Shutdown safety | Resyncs |
 |---|---|---|---|---|---|
-| [434](../runs/gzmsg-shadow8-r1-2032-434.md) | gzmsg-shadow8-r1-2032 | gzmsg 0/73 | 2032-01-08 | clean; foreign_exceptions=0; ref_warnings=0 | 0 |
-| [435](../runs/gzmsg-shadow8-r2-2032-435.md) | gzmsg-shadow8-r2-2032 | gzmsg 0/73 | 2032-01-14 | clean; foreign_exceptions=0; ref_warnings=0 | 0 |
+| [434](../runs/gzmsg-shadow8-r1-2032-454.md) | gzmsg-shadow8-r1-2032 | gzmsg 0/73 | 2032-01-08 | clean; foreign_exceptions=0; ref_warnings=0 | 0 |
+| [435](../runs/gzmsg-shadow8-r2-2032-455.md) | gzmsg-shadow8-r2-2032 | gzmsg 0/73 | 2032-01-14 | clean; foreign_exceptions=0; ref_warnings=0 | 0 |
 
 Each run has one load and 72 monthly samples through 2032-01-01; all are unavailable captures with probes=0, baseline=0, mismatches=1. Final run: 35.125 real seconds, 56 s wall, DLL SHA256 prefix `647e4899`, zero other WARNING lines. The first run had three unknown-key warnings, fixed in final source. No normal-speed comparison is required to explain this gap: acquisition already fails at load, before turbo advancement. Full logs/verdicts remain under `build-runs/game-results/<label>.{log,verdict}`. Counts were independently extracted from dated log lines; tools/coverage.py was neither read nor run.
 
