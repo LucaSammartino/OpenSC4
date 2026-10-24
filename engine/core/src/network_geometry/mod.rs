@@ -39,8 +39,7 @@
 //! # Choices (`[choice]`) and inferences (`[inferred]`)
 //!
 //! Each is tagged in the code and listed in the lane report as an NG
-//! question. The satisfier's pick tie-break (NG1) is the vertices'
-//! insertion order [choice].
+//! question. The satisfier uses the specified SGI bucket tie-break (NG1).
 
 pub mod drag;
 pub mod extras;

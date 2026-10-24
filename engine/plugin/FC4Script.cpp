@@ -194,6 +194,8 @@ struct NetworkShadow {
     fc4_netgeom_state geom{};
     bool ok = false;
     uint32_t failure = 0;
+    fc4_powerline_selection powerline{};
+    bool powerlineObserved = false;
     std::vector<fc4_netgeom_cell> cells;
     fc4_netgeom_host sourceGeom{};
     // Private grading overlay: the real-commit replay must observe its own
@@ -337,6 +339,13 @@ struct NetworkShadow {
         CaptureCorners();
         if (ok) changedVertices = fc4_netgeom_update_terrain_heights(ctx.geom, nullptr);
         if (!fc4_netgeom_get_state(ctx.geom, &geom)) return false;
+        if (a.type == 5) {
+            powerlineObserved = ReadNetToolPowerlineSelection(&ctx, &powerline);
+            if (powerlineObserved) {
+                geom.valid = powerline.valid;
+                failure = powerline.failure;
+            }
+        }
         const uint32_t count = fc4_netgeom_get_cells(ctx.geom, nullptr, 0);
         cells.resize(count);
         return fc4_netgeom_get_cells(ctx.geom, cells.data(), count) == count;
@@ -378,7 +387,7 @@ void NetworkStep(void* p) {
         // getter now reads the actual live terrain, as the native getter does.
         s.graded.clear();
         s.TraceCorners(a);
-        const int32_t coreCost = fc4_netgeom_cost(s.ctx.geom, 0);
+        const int32_t coreCost = s.powerlineObserved ? s.powerline.cost : fc4_netgeom_cost(s.ctx.geom, 0);
         uint32_t cellDiffs = cells.size() != s.cells.size() ? 1u : 0u;
         for (size_t i = 0; i < cells.size() && i < s.cells.size(); ++i) {
             if (static_cast<int32_t>(cells[i].x) != s.cells[i].x ||
