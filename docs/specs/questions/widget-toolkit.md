@@ -27,5 +27,3 @@
 <!-- from: re-gzwin-spec9 (2026-10-24) -->
 - **WTH1 - widget-html-window.md sections 1, 3 and 4:** finish constructor/defaults and both secondary vtables; WWW request flags, refresh identity and stale completion handling; completion record/error transitions; option masks, key/link notifications, full scrollbar ranges, background phase and HTML drawing metrics. Primary window dispatch is inherited, while 008FBFE5 is the completion-target handler. [keep owner partial; implement the documented status/scroll and parse replacement boundaries only]
 
-<!-- from: re-gzwin-spec9 (2026-10-24) -->
-- **WTC1 - widget-custom.md section 1:** settle the complete constructor/secondary-vtable and nondeleting teardown attribution around 0095B9A1; named/folded owner counts alone do not prove closure. [use the established primary forwarding/paint behavior; retain partial coverage]

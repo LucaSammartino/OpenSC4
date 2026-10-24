@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gzwin-spec9: widget owner contracts | Codex; `re-gzwin-spec9` (reserved lane, detached HEAD) | ready: three partial owner contracts; doccheck passed | Land docs; continue WTG1/WTH1/WTC1 before whole-owner coverage credit. |
+| re-gzwin-spec9: widget owner contracts | Codex; `re-gzwin-spec9` (reserved lane, detached HEAD) | in progress: round 2 | Finish partial owners, then continue ranked owners; validate and requeue. |
 
 ## Report
 
@@ -89,7 +89,7 @@ The map itself was not edited. In particular, do not put widget-toolkit.md on th
 | cGZWinLuaScriptViewGeneral | 560 | 7 | -; defer |
 | cGZWinTreeViewDrag | 544 | 7 | -; defer |
 | cGZWinTestService | 325 | 1 | -; defer |
-| cGZWinCustom | 245 | 6 | widget-custom.md; hold, WTC1 |
+| cGZWinCustom | 245 | 6 | widget-custom.md; complete in round 2, WTC1 answered |
 | cGZWinDlg | 195 | 5 | -; defer |
 | cGZWinTreeView::GZWinTreeView_TreeNode | 151 | 1 | -; defer; coordinate with widget-controls.md |
 | cGZWinIMEServer::cGZIMECompositionStringDataEx | 122 | 2 | -; defer |
@@ -132,6 +132,9 @@ helper metrics, and many owner constructors still need analysis. The new specs l
 
 ## Handoff
 
+- Round 2 active: first finish WTG1/WTH1/WTC1, then largest catch-row owners; original report above is round 1.
+- Round 2 milestone: WTC1 resolved from constructor 0095BAB3, raw secondary table and adjustment instructions; custom owner complete.
+- Next exact step: query generator/custom secondary tables and constructor/teardown evidence from main export.
 - Ready to land this bounded documentation increment; not a full-owner closure or 100 KB completion claim.
 - Milestones: 59e23d78b initial record; 59f82984a generator; dbcc2edb2 HTML/custom.
 - Final review added folded custom key callback behavior; report records all 54 owner proposals.
