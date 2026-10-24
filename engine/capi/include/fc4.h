@@ -188,8 +188,9 @@ extern "C" {
  * 94 = merge-train batch train180 (glue-nettool-exact6, re-nettool-nt32, re-propdev-pv16, glue-overlays-flags7, glue-weather-propdev6): merged (no C ABI history entry of its own)
  * 95 = merge-train batch train181 (glue-effects-capture8, glue-landvalue-capture7): merged (no C ABI history entry of its own)
  * 96 = merge-train batch train183 (glue-scres-preproc8, glue-nettool-close7, re-effects-ef21): merged (no C ABI history entry of its own)
- * 97 = merge-train batch train186 (re-gzmsg-gz11, glue-lotconf-capacity7, glue-propdev-close7): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 97u
+ * 97 = merge-train batch train186 (re-gzmsg-gz11, glue-lotconf-capacity7, glue-propdev-close7): merged (no C ABI history entry of its own)
+ * 98 = merge-train batch train188 (re-audio9, glue-construction-lr13, glue-gzmsg-close9, glue-dbpf-close8, re-other-attribution9): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 98u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -13000,6 +13001,12 @@ bool fc4_prop_developer_shadow_crt(fc4_prop_developer* p, uint32_t* state, bool 
 extern "C" {
 #endif
 uint16_t fc4_lot_configuration_capacity(const fc4_props* exemplar);
+/* EX54/EX55 public packed-file projection; raw buffer covers *size bytes. */
+uint32_t fc4_dbpf_packed_count(const fc4_dbpf* p, bool filtered);
+uint32_t fc4_dbpf_packed_keys(const fc4_dbpf* p,
+    void (*emit)(void*, uint32_t, uint32_t, uint32_t), void* ctx);
+uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
+    uint32_t instance, uint8_t* buffer, uint32_t* size);
 #ifdef __cplusplus
 }
 #endif

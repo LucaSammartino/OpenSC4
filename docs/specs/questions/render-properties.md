@@ -22,5 +22,4 @@
   and effects of locale changes. Native language-manager success can mask a failed
   setlocale; requested language alone is insufficient evidence. No profile run was made.
 
-<!-- from: glue-renderprops-shadow9 (2026-10-24) -->
-- **RP7 - live configured state and setter inputs:** What supported read-only interface supplies the ordered inputs to SetBoolValue/SetIntValue/SetFloatValue for the application and view instances (Graphics Rules, graphics options, later changes), and what is the public acquisition/signature contract for the view instance? The registered defaults alone cannot predict the live configured values. Is there a specified non-mutating setter-observation protocol compatible with the shared SCRes/weather DR0 owner? [Implement only independently predicted application counts, names and ASCII Find probes; leave value getters, setters and the separate view uncredited rather than copy native outputs into Rust expected state. Lifetime/destruction cannot be exercised on the borrowed live owner. No debug registers armed.]
+<!-- RP7 (filed in glue-renderprops-shadow9) is answered in render-properties.md §1.5/§7.4 and archived in answered/render-properties.md. -->

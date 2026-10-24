@@ -102,6 +102,7 @@
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
 #include "FC4RenderPropsShadow.h"
+#include "FC4DbpfNative.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -580,6 +581,7 @@ public:
         DialogsOnTick();
         // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
         NetMgrShadowTick();
+        DbpfShadowTick();  // default off; bounded by file, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -642,6 +644,12 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
+                // PostCityInit precedes the first calendar message; read the
+                // public simulator date rather than dating the load as Julian 0.
+                {
+                    auto* dbpfSim = CurrentCity() ? AsGame(CurrentCity()->GetSimulator()) : nullptr;
+                    fc4::DbpfShadowObserve(dbpfSim ? dbpfSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                }
                 fc4::FeatureShadowLoaded();
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
@@ -693,6 +701,7 @@ public:
                 break;
             }
             case kMsgPreCityShutdown:
+                DbpfShadowShutdown();
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
@@ -774,6 +783,7 @@ public:
                 RenderPropsShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
+                DbpfShadowObserve(julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

@@ -1,8 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-renderprops-shadow9: render properties shadow | Codex, `glue-renderprops-shadow9` | ready: registry 73/73 exact through 2032; partial owner scope | Review measured registry scope; resolve RP7 before whole-owner credit. |
+| glue-renderprops-shadow9: render properties shadow | Codex, `glue-renderprops-shadow9` | in progress | Round 2: extend owned-fixture methods, preserve 542-field registry, measure house through 2032. |
 
-## Result and scope
+## Handoff
+
+- Goal: merge RP7, extend independently predicted values/setters/lifetime/view coverage, measure house to 2032.
+- Merge conflict resolution retains both additive registrations; own open RP7 removed in favor of answered pointer.
+- RP7 supplies no continuous trace bridge or public snapshot getter. Never seed live expected values from native outputs or borrow SCRes debug slots.
+- Next: implement isolated native constructor/assignment/lifetime fixtures with Rust expectations; report unavailable live trace/view binding explicitly.
+- Constructor is specified at render-properties.md §1.3: 0x007E3650, complete object 0x30 bytes.
+- No new game request outstanding; previous evidence below is historical round 1.
+- tools/questions.py index is excluded by non-bending clean-room tools rule; coordinator must regenerate index.
+
+## Historical round 1 result and scope
 
 Added default-off `renderprops_shadow = 1`, including the recognized-key list, observer load/month/shutdown hooks, and private static-link Rust expectation transport. Public C ABI exports are unchanged. Each sample compares **542 fields**: three counts, 77 full names, and 462 Find results. Six queries per entry cover full name, abbreviation (including first-match collisions), uppercase, embedded NUL, a forbidden leading `k`, and a trailing space. Expectations come exclusively from a fresh production `RenderProperties` core, using its explicit C-locale ASCII profile. Native outputs never seed or resynchronize expected state.
 
