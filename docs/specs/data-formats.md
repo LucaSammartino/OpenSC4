@@ -139,6 +139,65 @@ It is `size / 16` records of 16 bytes:
 - Listed entry: the stored bytes must pass the QFS check (§2.7) and decompress; **otherwise the read fails** (the
   resource is not loaded). There is no fallback to the stored bytes.
 
+#### 2.6.1 Public packed-file raw reads (EX54) *[compat]*
+
+`ReadRecordRaw(key, buffer, recordSize)` returns a **32-bit unsigned byte count**, not a Boolean. For a
+readable segment and an indexed key with a non-null buffer, the input `recordSize` is the caller's capacity:
+the original requests the smaller of that capacity and the indexed stored size, starting at the beginning
+of the stored record, and returns that requested count on successful I/O, also writing it to `recordSize`.
+The bytes include any DBPF compression prefix and QFS stream; no decompression occurs. A capacity smaller
+than the stored size gives a successful prefix read, with no indication of the omitted suffix. A larger
+capacity leaves the buffer tail untouched. A seek or file-read failure returns 0 and writes size 0; this
+does not promise that the buffer remains untouched after a failed file read. A zero-length record or zero
+capacity likewise returns 0 and writes size 0 on successful I/O, so 0 alone cannot distinguish these cases
+from I/O failure. With a **null buffer**, input capacity is ignored and size is set to 0: the return is the
+stored size for an uncompressed indexed record, but the DIR's **uncompressed size** for a compressed one
+*[quirk]*. A missing key or segment without read access returns `0xFFFFFFFF` and leaves size unchanged;
+if the matching record is currently open with write access, the return is also `0xFFFFFFFF`, but size is
+cleared to 0. The size reference must be valid even when the buffer is null. These rules describe the
+original, including bounded short reads; they do not require calling malformed records or supplying a
+buffer smaller than the capacity declared by the caller.
+
+Evidence: `0x0097078F`; read-access rejection and write-open rejection at `0x009707A6–0x009707F2`;
+index lookup and unsigned minimum at `0x009707F7–0x0097083F`; seek, read and count result at
+`0x00970841–0x0097087A`; null-buffer result at `0x0097087E–0x009708A7`, with compressed-size lookup
+`0x00970030–0x00970055`. The initial failure result is the full unsigned `0xFFFFFFFF`, not a negative
+Boolean or a successful large transfer.
+
+#### 2.6.2 Public packed-file key lists and counts (EX55) *[compat]*
+
+On an open packed segment, `GetResourceKeyList(list&)` returns **whether at least one eligible key was
+enumerated**, so an empty package returns false with an empty initially empty list. Enumeration excludes
+**all keys whose type is `0xE86B1EEF`**, regardless of group or instance; the canonical DIR key is one
+such key. `GetRecordCount(nullptr)`, however, returns the number of entries in the loaded unique index,
+including the DIR and other keys with that type. Duplicate on-disk keys still contribute only once
+(§2.3). Thus a plain record, a compressed record and the DIR give list size 2, Boolean true, and count 3.
+The overload `GetResourceKeyList(list*, filter*)` returns the eligible count, applying the filter only
+after the type exclusion; a null list counts without inserting. `GetRecordCount(non-null filter)` uses
+that same enumeration, and therefore excludes the DIR even for an accept-all filter *[quirk]*. The
+Boolean overload is the unfiltered enumeration count converted to nonzero/zero, not a separate error
+status. Enumeration inserts into the supplied list without clearing it and counts eligible index keys,
+not the list's final size or successful insertions; it ignores the list insertion return. With the
+original key-list implementation, insertion appends, including duplicates from previous calls. No sorted
+order is promised: the source is the index hash table. A segment without either open-access bit set
+enumerates 0 keys. The unfiltered count directly reports the loaded index size (0 if there is no index),
+without that enumeration access check.
+
+Evidence: public persistence-interface slots 16 (`+0x40`, count), 17 (`+0x44`, Boolean list) and 18
+(`+0x48`, list/filter enumeration). Count is `0x0096ED23–0x0096ED67`; Boolean wrapper
+`0x00975963–0x00975974`; enumeration `0x0096F9AB–0x0096FA2D`, especially type-only exclusion
+`0x0096F9E9`, ignored insertion result and count increment `0x0096FA05–0x0096FA14`. Original list append
+is `0x00974F39–0x00974F45`. **Export-name caveat:** the export labels `0x0096ED23` as
+`GetResourceKeyList`, and labels `0x0096DFC9` as `GetRecordCount`; the latter actually implements the
+preceding segment-ID setter. The public SDK declarations and instruction-level slot mapping above
+identify the operations used here.
+
+The recorded `verify-dbpf-native4` diagnostics are consistent with these rules: empty fixture
+listed=0/list size=0/count=0; three-entry QFS fixture listed=1/list size=2/count=3; shipped archive
+listed=1/list size=60439/count=60440; supplied city list size=152/count=153. Each nonempty difference was
+the missing canonical DIR. This resolves the return/enumeration interpretation only; the reported
+60440/60440 natural and 10/10 constructed record-transport matches remain separate measurements.
+
 ### 2.7 QFS / RefPack *[compat]*
 
 Stored layout of a compressed entry:
@@ -2031,6 +2090,60 @@ Byte strings are hexadecimal. "Package P(entries)" means: header with magic `DBP
    with any table fields that pass §2.1: opens.
 10. **Embedded header**: 32 bytes of `00`, the 16-byte marker of §2.2, then the 120-byte package of test 1 (its
     offsets unchanged): opens, the key reads `41 42 43 44`.
+
+#### 10.1.1 Public packed-file contracts (EX54/EX55)
+
+These are behavioral vectors for §2.6.1–§2.6.2, derived statically. They are not additional game-run
+results. Use independent stored sizes and allocate the entire declared capacity. Native game verification
+can retain its existing restriction to valid, fully bounded complete reads; prefix/zero-capacity and
+injected I/O failures below can be checked in an isolated conformance model.
+
+**Raw reads:** P contains plain key A = (`0x12345678`,0,1), stored `41 42 43 44`; compressed key B =
+(`0x12345678`,0,2), stored `11 00 00 00 10 FB 00 00 0C E0 41 42 43 44 14 03 FC` (17 bytes, DIR size 12);
+and zero-size key Z = (`0x12345678`,0,3) with an in-range offset. Its DIR lists only B. Unless stated
+otherwise, P is open read-only, the buffer is non-null, and each call starts with fresh capacity and
+buffer bytes `CC`. M is an absent key.
+
+| ID | Call / input size | Return (u32) | Output size | Buffer / observation |
+|---|---|---|---|---|
+| DFR1 | A, capacity 4 | 4 | 4 | `41 42 43 44` |
+| DFR2 | A, capacity 6 | 4 | 4 | `41 42 43 44 CC CC` |
+| DFR3 | B, capacity 17 | 17 | 17 | Exactly B's stored 17 bytes, including prefix; no decoded bytes |
+| DFR4 | Z, capacity 4, successful zero-byte file read | 0 | 0 | Four `CC` bytes unchanged |
+| DFR5 | A, null buffer, input size 99 | 4 | 0 | Input size ignored |
+| DFR6 | B, null buffer, input size 99 | 12 | 0 | Logical size, despite raw method name |
+| DFR7 | Z, null buffer, input size 99 | 0 | 0 | Valid zero-size query |
+| DFR8 | M, capacity 6 | `0xFFFFFFFF` | 6 | Unchanged buffer; also test null buffer with same size result |
+| DFR9 | A, capacity 6, segment without read access | `0xFFFFFFFF` | 6 | Unchanged buffer |
+| DFR10 | A, capacity 6, matching record open with write access on a readable/writeable segment | `0xFFFFFFFF` | 0 | Unchanged buffer |
+| DFR11 | A, capacity 2 (isolated model) | 2 | 2 | `41 42`; does not report required size 4 |
+| DFR12 | A, non-null buffer, capacity 0, successful zero-byte file read (isolated model) | 0 | 0 | Buffer unchanged |
+| DFR13 | A, capacity 4, injected seek failure (isolated model) | 0 | 0 | No file read requested |
+| DFR14 | A, capacity 4, seek succeeds but injected file read returns false (isolated model) | 0 | 0 | Do not assert unchanged buffer |
+
+**Enumeration/counts:** each case uses a newly opened package with distinct keys unless specified, and
+an initially empty original key-list object. D is the canonical DIR key; X = (`0xE86B1EEF`,0,99), a
+noncanonical key with the same type, not a compression directory. Compare sorted key sets only for these
+fresh-list vectors. C0 is `GetRecordCount(nullptr)`; C+ is count with a non-null accept-all filter.
+The numeric overload with `(nullptr, nullptr)` returns the same eligible count as list enumeration.
+
+| ID | Package / call | Boolean list result | Listed keys | C0 | C+ |
+|---|---|---|---|---|---|
+| DFK1 | Empty package | false | none | 0 | 0 |
+| DFK2 | Plain A only | true | A | 1 | 1 |
+| DFK3 | Plain A, compressed B, D listing B | true | A,B | 3 | 2 |
+| DFK4 | Empty D only (stored size 0, in-range offset) | false | none | 1 | 0 |
+| DFK5 | Plain A and X, no D | true | A | 2 | 1 |
+| DFK6 | Two index entries for A, first wins | true | A once | 1 | 1 |
+
+DFK7: On DFK3, a filter accepting only B gives numeric enumeration 1, list containing B only, and
+filtered record count 1. A filter accepting only type `0xE86B1EEF` gives enumeration/count 0; the
+filter is never asked about D. A rejecting filter gives 0, leaving any pre-existing list entries intact.
+DFK8: Start with list [A] on the plain-A package. Boolean enumeration returns true and the original
+list becomes [A,A]; a second call returns true and makes [A,A,A]. Numeric enumeration reports 1 each
+time. On an empty package, a prepopulated [A] remains [A] and the Boolean result is false.
+DFK9: With a custom list whose insertion returns false, DFK2 numeric enumeration still returns 1 and
+the Boolean overload returns true; successful insertion is not what these returns measure.
 
 ### 10.2 DIR and QFS
 
