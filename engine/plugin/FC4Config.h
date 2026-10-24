@@ -638,4 +638,6 @@ std::string IniPath();
 // Read-only record observation runs with overlays_shadow alone, including when
 // observe=0. Original Init/history and image bytes remain unavailable (OV13).
 
+// scres_file_shadow = 0 / 1 (default 0): physical file-parser replay.
+
 }  // namespace fc4
