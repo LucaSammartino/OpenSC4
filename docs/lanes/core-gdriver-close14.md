@@ -1,17 +1,48 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gdriver-close14 (DX7 settled contracts) | `core-gdriver-close14` / (engine lane) | in progress | Complete merges, implement RD6/RD7/RD12 and vectors, run gates. |
+| core-gdriver-close14 (DX7 RD6/RD7/RD12 closure) | `core-gdriver-close14` / (engine lane) | ready; cargo 7248 passed/0 failed/0 ignored, clippy clean, CTest 81/81; 68 DX7 tests including 13 new vectors; ABI unchanged; no game runs | - |
 
-## Handoff
-Goal: close DX7 owner contracts using close12 and rd13 spec answers without ABI/plugin changes.
-Done: close12 merged as 2606db473; rd13 merged as 4b82bf239 with settled-question conflict resolution.
-Done: implemented all available texture converters/decoders, CopyColorBuffer and owned surface bindings; added DX7-50–62 tests; closure table has no open rows.
-Next: collect live operations: second all session 46152 (native qbuild-20261024-142240-build-ctest), final-source all session 8585 (native qbuild-20261024-142901-build-ctest). Never relaunch them for progress. Report and enqueue only after final clean verdict.
-Also collect explicitly requested verify session 57066, native label qbuild-20261024-143056-build-ctest. It was submitted once on final source; no plugin/game requests.
-Done: fmt passes all eight owned Rust files with absolute paths; fixed literal nonzero capture flush mapping and added a positive-result discriminator after implementation commit 8deeb7d30.
-Evidence: q.py Bash launch failed (build-runs/q/20261024-134955-34268.log). Focused session 95474 terminal FAIL: 65 passed, 3 failed (DX7-57/61/62 private-setup fixtures lacked current mode entries); fixed fixtures, preserved build-runs/focused-initial-failure.txt. First fmt invocation used wrong relative paths; corrected invocation passed. All gate 65907 compiling source from before fixture correction.
-Gate milestone: initial all Rust tests 7000 passed/3 failed (same fixtures); clippy found needless_range_loop in decoder. Corrected decoder to array construction with unchanged arithmetic. Initial test/clippy logs archived under build-runs/gate-initial/; all still awaits its original queued native verdict.
-Gate milestone: second all Rust tests 7002 passed/1 failed; clippy clean. Remaining DX7-62 fixture was windowed, so corrected it to fullscreen and explicit 2→1→0 allocation fallback; failed recovery now fails all three attempts. Logs in build-runs/gate-fixture-correction/.
-Done: DX7-62 correction committed as 7b07c3699; final fmt passes. Final-source all Rust tests PASS 7248/0/0 and clippy clean (0 diagnostics). Logs archived under build-runs/gate-final-rust/. All three native requests remain pending. No further code changes planned.
-Initial all session 65907 terminal exit 1 (expected earlier Rust failures); its native request passed build 262/262 and CTest 81/81, marked tree changed. Native logs preserved under build-runs/gate-initial-native/. Remaining native requests still pending.
-Facts: detached HEAD intentional; no game requests. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-gdriver-close14-r1-manifest.json.
+## Report
+
+Merged `core-gdriver-close12` as `2606db473` and `re-gdriver-rd13` as `4b82bf239` in the required order. Implemented the settled contracts in `8deeb7d30`, with the nonzero capture-flush discriminator, clippy correction and lifecycle-fixture corrections through `7b07c3699`.
+
+RD6: all available ordinary converter cells now perform significant-bit narrowing and bit-replicating widening, with independent byte strides and preserved padding. DXT1/DXT3 software decoding uses destination-width interpolation, the specified endpoint-order branch and independent alpha; it decodes only whole tightly packed blocks and ignores source stride. Raw compressed copying remains distinct.
+
+RD7: CopyColorBuffer implements the persistent lock-probe cache, busy retries, borrowed/factory destination ownership, all normal failure returns and unlocks, original-request clipping, destination-origin copying, literal background-clear condition and the specified 16/24/32-bit conversion rules. Its flush maps every nonzero result, including positive results.
+
+RD12: setup/recovery acquire the owned primary/depth references and owned GetRenderTarget result. Loss drops device/depth/primary/target in order. Fullscreen zero-back-buffer fallback aliases the primary with independent references; slot +234 remains unpopulated unless supplied externally. Full cleanup releases each owned slot. The capture probe survives every lifecycle transition.
+
+The module README's **Owner closure** table maps spec sections to code and tests with no open implementation rows. DX7-50–62 are thirteen independent tests in `settled_tests.rs`; the combined suite covers DX7-01–62.
+
+## Owner coverage
+
+All paths below are relative to the repository root. These are DX7 owners/support objects from renderer-driver §12.1; sibling renderer/director implementations remain in `engine/core/src/gdrivers_director/`.
+
+| Owner / support object | Implemented | Coverage |
+|---|---|---|
+| nSGLDX7::cGDriver | `engine/core/src/gdriver/mod.rs` Driver; `auxiliary.rs`, `capture.rs`, `context.rs`, `extended.rs` in the same directory | README section-by-section map; DX7-01–62 and state/matrix/lifecycle tests |
+| cTextureStageData | `engine/core/src/gdriver/stage.rs` Stage | §§7, 10, 13; stage/default/cache tests |
+| cTextureManager | `engine/core/src/gdriver/texture.rs` TextureManager, convert, decode_blocks | §9; DX7-07–11, 39–44, 50–56 |
+| cPrimitiveManager | `engine/core/src/gdriver/primitive.rs` PrimitiveManager | §§8.3, 13, 14.1; batching, submission and loss tests |
+| cPrimitive | `engine/core/src/gdriver/primitive.rs` Entry | §§8.3, 13; queued-record and scratch/lifetime tests |
+| cVertexBuffer | `engine/core/src/gdriver/primitive.rs` VertexBuffer | §14.1; DX7-16 and lock/loss/reference tests |
+| cGDriver::D3DLight | `engine/core/src/gdriver/mod.rs` D3DLight; `engine/core/src/gdriver/auxiliary.rs` | §§12.1, 12.4; DX7-32–38 |
+| Presentation context | `engine/core/src/gdriver/context.rs` Context, select_device | §§14.2–14.3; DX7-12–14, 28–30, 61–62 and rebuild tests |
+| Placeholder device | `engine/core/src/gdriver/mod.rs` Driver::flush; `engine/core/src/gdriver/backend.rs` Call::PlaceholderDevice | §4.4 owner lifecycle; inactive sink identity supplied by the primitive backend; loss_placeholder_is_owned_and_released_on_restore |
+| Shared vertex-format helpers/copiers | `engine/core/src/gdriver/vertex.rs`, `engine/core/src/gdriver/primitive.rs` | §8; format/copy tests and DX7-19–20 |
+
+## Validation
+
+- Final `qbuild.py all`: **PASS**, 7,248 passed / 0 failed / 0 ignored across 48 Rust result groups; clippy **0 diagnostics**. Includes 68 DX7 tests, with all 13 new vectors passing.
+- Final all native label `qbuild-20261024-142901-build-ctest`: **PASS**, build 46/46 edges, CTest **81/81**, 97.4 seconds overall.
+- Explicit `qbuild.py verify`, label `qbuild-20261024-143056-build-ctest`: **PASS**, build 46/46 edges, CTest **81/81**, 96.0 seconds overall. Both final operations reached terminal exit 0 without a changed-tree warning.
+- Formatting passed for all eight owned Rust files; the last fixture edit was checked again. Whitespace checks passed.
+- Final full logs: `build-runs/gate-final/`; final Rust snapshot also in `build-runs/gate-final-rust/`. Generic `qbuild-*.log` and `fc4verify-*.log` retain the latest gate.
+
+The initial focused check recorded 65 passes and three invalid setup fixtures. The first full gate recorded 7,000 passes/3 failures and a decoder iterator lint; the second recorded 7,002 passes/1 failure and clean clippy. All were diagnosed and corrected before the final gate. Failed Rust evidence is preserved in `build-runs/focused-initial-failure.txt`, `build-runs/gate-initial/` and `build-runs/gate-fixture-correction/`. Earlier native requests also reached terminal verdicts: both passed 81/81 CTests, while their overall all gates correctly remained failed. No operation is outstanding.
+
+## Questions and scope
+
+No new questions filed. RD6/RD7/RD12 are implemented; no DX7 implementation section remains open. Existing RD1/RD3/RD4 questions concern external caller intent, descriptor meanings and an external message handler, as the spec states. Undefined native pointer/overflow inputs retain the existing safe Fault/InvalidInput representation.
+
+No plugin/capi wiring, C ABI export or ABI-version change. No game requests or shadow claims: this is pure core behavior behind recording primitive backends. The merge-queue entry uses the full report commit hash; the supervisor publishes the intentionally detached HEAD to the reserved lane branch. No further implementation steps remain.
