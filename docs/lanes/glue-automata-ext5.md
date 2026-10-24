@@ -10,8 +10,9 @@
 - Preserve WriteCapture object/reference members, variants_ layout, netocc opt-in core variant path and automata default independent encoder.
 - Gate PASS on stable source ee9db8e59: qbuild all, Rust 6804/0, clippy 0 diagnostics, native 207/207, CTest 70/70.
 - Native verify request qbuild-20261024-010820-build-ctest collected to terminal pass; all already invoked the full coordinator verification path.
-- Next: submit automata-ext5-r2-2032-20261024-a with automata_shadow, automata_owners_shadow, netocc_shadow; wait via build-runs/wait-automata-r2.ps1.
-- No build or game request outstanding. Next free run number observed: 349.
+- Game request outstanding: automata-ext5-r2-2032-20261024-a, turbo Konradshohe through 2032; automata_shadow, automata_owners_shadow, netocc_shadow enabled.
+- Next: collect blocking build-runs/wait-automata-r2.ps1 wait, inspect exact lines, write run 349 (recheck availability), final report and ready queue.
+- DLL SHA256 3c1d8d7050131323febcac27293cafa7a42b48a39ff4b25bff86e75bc505128d. No build outstanding.
 - Detached HEAD: commit normally; supervisor publishes branch. Manifest run4-glue-automata-ext5-r2-manifest.json.
 
 ## Report
