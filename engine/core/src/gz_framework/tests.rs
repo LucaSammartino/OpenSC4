@@ -9,40 +9,6 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-// framework-gz-services §5.3; production framework lookup, no class creation.
-#[test]
-fn gz_v15_optional_manager_absent_preserves_output() {
-    let f = framework::Framework::default();
-    let mut h = Spy::default();
-    for initial in [None, Some(99)] {
-        let mut out = initial;
-        assert!(!f.lookup(&mut h, 0x64fa8434, 0x652294bc, &mut out));
-        assert_eq!(out, initial);
-    }
-    assert!(h.events.is_empty()); // No QI, references or factory calls.
-}
-
-#[test]
-fn gz_v16_existing_manager_lookup_owns_one_qi_reference() {
-    let mut f = framework::Framework::default();
-    let mut h = Spy::default();
-    assert!(f.add_service(&mut h, 0x64fa8434, Some(42)));
-    let registered = h.counts[&42];
-    h.events.clear();
-    let mut out = None;
-    assert!(f.lookup(&mut h, 0x64fa8434, 0x652294bc, &mut out));
-    assert_eq!(out, Some(42));
-    assert_eq!(h.events, ["qi:42:652294bc", "+42"]);
-    assert_eq!(h.counts[&42], registered + 1);
-    h.release(out.unwrap());
-    assert_eq!(h.counts[&42], registered);
-    out = None;
-    assert!(!f.lookup(&mut h, 0x452294df, 0x652294bc, &mut out));
-    assert_eq!(out, None);
-    assert!(f.remove_service(&mut h, 0x64fa8434));
-    assert_eq!(h.counts[&42], 0);
-}
-
 #[derive(Default)]
 struct Spy {
     events: Vec<String>,

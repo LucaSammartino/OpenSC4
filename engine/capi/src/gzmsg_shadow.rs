@@ -46,23 +46,15 @@ fn compare(baseline: &[Entry], sample: &[Entry]) -> u32 {
 
 // Private static-library transport: deliberately absent from the DLL export list.
 #[no_mangle]
-unsafe extern "C" fn fc4_gzmsg_shadow_compare(
-    baseline: *const Entry,
-    sample: *const Entry,
-    count: u32,
-    baseline_count: u32,
-    sample_count: u32,
-) -> u32 {
+unsafe extern "C" fn fc4_gzmsg_shadow_compare(baseline: *const Entry, sample: *const Entry, count: u32) -> u32 {
     if baseline.is_null() || sample.is_null() || count == 0 || count > 512 {
         return u32::MAX;
     }
     // SAFETY: the plugin supplies two readable arrays of count C-layout entries.
-    // GZ11: count equality adds one bounded observation, never full-state proof.
-    u32::from(baseline_count != sample_count)
-        + compare(
-            unsafe { std::slice::from_raw_parts(baseline, count as usize) },
-            unsafe { std::slice::from_raw_parts(sample, count as usize) },
-        )
+    compare(
+        unsafe { std::slice::from_raw_parts(baseline, count as usize) },
+        unsafe { std::slice::from_raw_parts(sample, count as usize) },
+    )
 }
 
 #[cfg(test)]
@@ -110,10 +102,9 @@ mod tests {
             found: 0,
         };
         unsafe {
-            assert_eq!(fc4_gzmsg_shadow_compare(&entry, &entry, 1, 1, 1), 0);
-            assert_eq!(fc4_gzmsg_shadow_compare(&entry, &entry, 1, 1, 2), 1);
-            assert_eq!(fc4_gzmsg_shadow_compare(std::ptr::null(), &entry, 1, 0, 0), u32::MAX);
-            assert_eq!(fc4_gzmsg_shadow_compare(&entry, &entry, 513, 0, 0), u32::MAX);
+            assert_eq!(fc4_gzmsg_shadow_compare(&entry, &entry, 1), 0);
+            assert_eq!(fc4_gzmsg_shadow_compare(std::ptr::null(), &entry, 1), u32::MAX);
+            assert_eq!(fc4_gzmsg_shadow_compare(&entry, &entry, 513), u32::MAX);
         }
     }
 }

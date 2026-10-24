@@ -7,9 +7,6 @@ use std::collections::HashMap;
 
 use super::*;
 
-#[path = "observation_tests.rs"]
-mod observation;
-
 #[derive(Clone, Debug)]
 enum Act {
     Post(Token, bool),

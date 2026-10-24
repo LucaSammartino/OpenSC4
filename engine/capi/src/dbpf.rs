@@ -146,80 +146,6 @@ pub unsafe extern "C" fn fc4_dbpf_read_record(
     })
 }
 
-/// EX55 unfiltered unique count, or enumeration count with an accept-all filter.
-#[no_mangle]
-pub unsafe extern "C" fn fc4_dbpf_packed_count(p: *const fc4_dbpf, filtered: bool) -> u32 {
-    let Some(pkg) = pkg_ref(p) else { return 0 };
-    guard(0, || {
-        let view = fc4_formats::dbpf::packed::PackedView {
-            package: pkg,
-            read_access: true,
-            write_access: false,
-        };
-        if filtered {
-            view.record_count(Some(&mut |_| true))
-        } else {
-            view.record_count(None)
-        }
-    })
-}
-
-/// Enumerates EX55 eligible unique keys; callback borrows no engine storage.
-#[no_mangle]
-pub unsafe extern "C" fn fc4_dbpf_packed_keys(
-    p: *const fc4_dbpf,
-    emit: Option<unsafe extern "C" fn(*mut std::ffi::c_void, u32, u32, u32)>,
-    ctx: *mut std::ffi::c_void,
-) -> u32 {
-    let Some(pkg) = pkg_ref(p) else { return 0 };
-    guard(0, || {
-        let view = fc4_formats::dbpf::packed::PackedView {
-            package: pkg,
-            read_access: true,
-            write_access: false,
-        };
-        view.resource_keys(
-            Some(&mut |k: Tgi| {
-                if let Some(emit) = emit {
-                    emit(ctx, k.type_id, k.group, k.instance);
-                }
-                true
-            }),
-            None,
-        )
-    })
-}
-
-/// EX54 projection for a readable package with no write-open records.
-/// A non-null buffer must cover *size bytes; size itself must be non-null.
-#[no_mangle]
-pub unsafe extern "C" fn fc4_dbpf_read_raw(
-    p: *const fc4_dbpf,
-    type_id: u32,
-    group: u32,
-    instance: u32,
-    buffer: *mut u8,
-    size: *mut u32,
-) -> u32 {
-    if size.is_null() {
-        return u32::MAX;
-    }
-    let Some(pkg) = pkg_ref(p) else { return u32::MAX };
-    guard(u32::MAX, || {
-        let view = fc4_formats::dbpf::packed::PackedView {
-            package: pkg,
-            read_access: true,
-            write_access: false,
-        };
-        let out = if buffer.is_null() {
-            None
-        } else {
-            Some(std::slice::from_raw_parts_mut(buffer, *size as usize))
-        };
-        view.read_record_raw(Tgi::new(type_id, group, instance), out, &mut *size, false)
-    })
-}
-
 #[cfg(test)]
 mod transport_tests {
     use super::*;
@@ -263,17 +189,6 @@ mod transport_tests {
             let pkg = fc4_dbpf_open(text.as_ptr(), text.len());
             assert!(!pkg.is_null());
             assert_eq!(fc4_dbpf_entry_count(pkg), 5);
-            assert_eq!(fc4_dbpf_packed_count(pkg, false), 4);
-            assert_eq!(fc4_dbpf_packed_count(pkg, true), 3);
-            assert_eq!(fc4_dbpf_packed_keys(pkg, None, std::ptr::null_mut()), 3);
-            let mut raw = [0xcc; 6];
-            let mut size = 6;
-            assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 1, raw.as_mut_ptr(), &mut size), 4);
-            assert_eq!(size, 4);
-            assert_eq!(raw, [65, 66, 67, 68, 0xcc, 0xcc]);
-            size = 99;
-            assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 3, std::ptr::null_mut(), &mut size), 4);
-            assert_eq!(size, 0);
             let mut words = [0u32; 7];
             assert!(fc4_dbpf_entry(pkg, 2, words.as_mut_ptr()));
             assert_eq!(words, [1, 2, 3, 100, 15, 4, 1]);
