@@ -370,7 +370,8 @@ fn state_change_counter_increments_at_each_synchronous_notice() {
     let counters = Rc::new(RefCell::new(Vec::new()));
     let seen = counters.clone();
     *f.w.on_notify.borrow_mut() = Some(Rc::new(move |sim, _, _, _| {
-        seen.borrow_mut().push(weak.upgrade().unwrap().get_state(sim).change_counter);
+        seen.borrow_mut()
+            .push(weak.upgrade().unwrap().get_state(sim).change_counter);
     }));
     f.d.set_state(1, 3);
     assert_eq!(*counters.borrow(), vec![1, 2]);

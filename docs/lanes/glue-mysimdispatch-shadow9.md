@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-mysimdispatch-shadow9: dispatch replay round 2 | Codex / `glue-mysimdispatch-shadow9` (engine, detached HEAD) | in progress | Collect focused test; full gate on final source; house to 2032; close MS21/22 and input capture. |
+| glue-mysimdispatch-shadow9: dispatch replay round 3 | Codex / `glue-mysimdispatch-shadow9` (engine, detached HEAD) | in progress | Final formatting/full gate; prepared house to 2032; READY queue for measured default-off scope. MS21/MS22 remain open. |
 
 ## Handoff
 - Goal: implement MS18/MS20 dispatch and independently verify whole owner. Not ready; no round-2 game request enqueued and no merge-queue entry written.
@@ -13,7 +13,8 @@
 - First full gate terminal FAIL: Rust/clippy dotted test crate discovery; native build 217/217 PASS; CTest 79/80, capi_smoke header97/Rust98; tree changed. Full logs in build-runs/r2-failed-discovery/. Discovery fixed by moving include to tests/support/.
 - Second full gate terminal FAIL: Rust 7016/7016, clippy clean; native build 48/48 PASS, CTest 79/80, same stale smoke object header97/Rust98; tree-changed flag from in-flight commits. Logs in build-runs/r2-failed-abi/. Both CURRENT source ABI declarations are 98. Never bump ABI.
 - Latest source fixes after those terminal results: set_state increments at each synchronous notice (new observer expects counters 1 then 2), missing-stop failure runs state setter, idle double-snap failure applies common clear-2002 tail. Smoke test gained a useful stale-cache diagnostic, forcing recompilation of the stale native source object.
-- ACTIVE focused test operation: cargo test --manifest-path engine/Cargo.toml -p fc4-conformance --test mysim_dispatch; exec session 44572. Collect THAT SAME operation to terminal via write_stdin, no duplicate. No functions wait cell currently outstanding.
+- Round 3 attempted collection of focused session 44572: runner reports Unknown process id; terminal outcome unavailable. Not resubmitted. Final full gate must cover this suite. No focused process remains collectable.
+- Round 3 formatting found two layout-only differences in ready.rs and support/mysim_dispatch_ms18.rs; corrected in place. Prior smoke failure is a stale train-integration native object (compiled header97), while current header and Rust both declare98; existing f2a48d7e8 smoke diagnostic edit forces recompilation. Do not bump ABI or edit generated abi_entries.inc.
 - Next: collect test; qbuild fmt on explicit owned files (absolute paths); fix formatting via apply_patch if needed; commit final source BEFORE launching third full qbuild all. Do not commit/edit anything during full verification: its tree-changed check invalidates the gate even for documentation commits.
 - Then collect third full to terminal, verify smoke now compiles against 98; if repeated, diagnose native object dependencies/cache, not version bumps. Previous native mismatches were cached train-integration smoke objects.
 - Prepared game request: build-runs/house-r2-prefix208.req.draft, NOT enqueued. Unique label mysimdispatch-shadow9-r2-prefix208-2032-20261024a, house ini to 2032, turbo, 1500 s timeout 1800. Check existing verdict first and honor it; otherwise apply_patch request into game-queue after gate PASS.
