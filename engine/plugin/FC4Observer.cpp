@@ -581,7 +581,7 @@ public:
         DialogsOnTick();
         // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
         NetMgrShadowTick();
-        DbpfShadowTick();  // default off; bounded by file, outside simulator OnTick
+        DbpfShadowTick();  // default off; yields between records, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
