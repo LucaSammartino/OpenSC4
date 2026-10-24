@@ -1,8 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | READY: settled owner stages and force sum covered; full qbuild all PASS on `009941660`: cargo 7432/0/0, clippy clean, native build 214/214, CTest 81/81; owned suites 51/51. AF2-AF6, AF10, AF11 retain explicit open rows. No ABI change or game run. | (1) Coordinator review/publish detached commits; (2) settle the remaining spec contracts before complete native flight ticks and shadows. |
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | READY: r4 settled-owner audit complete; source unchanged since full qbuild all PASS on `009941660`: cargo 7432/0/0, clippy clean, native build 214/214, CTest 81/81; owned suites 51/51. AF2-AF6, AF10, AF11 retain explicit open rows. No ABI change or game run. | (1) Coordinator review/publish detached commits; (2) settle the remaining spec contracts before complete native flight ticks and shadows. |
 
-## Current result (r3)
+## Current result (r4 audit)
+
+Resumed from `815565e5c` and audited the current aircraft sections against both
+owner modules, their closure tables and conformance fixtures. The inherited
+implementation already covers the settled owner contracts, including the partial
+AF2–AF5 resolutions. No additional settled implementation gap was found, so this
+round changes only this report and refreshes the ignored merge-queue entry.
+
+The audit checked parameter/default selection, saved/unsaved state, LOITER,
+candidate motion and supplied-lift force assembly, helicopter preset/overlay
+order, reset/hover, chase gates, phase actions, building clearance, allocation and
+cleanup, weapon requests, takeover and spotlight activation. It also checked
+automata §§6.4–6.6's aircraft records, default handlers and mission/phase facts
+against the owner tables. Aircraft §8 vectors 1–27 remain covered as listed there.
+
+`git diff --stat 009941660 HEAD` showed only the lane report; the source tested by
+the previous terminal full gate is still the final source. Re-read the preserved
+`build-runs/aircraft-r3-all.log`: cargo **7432/0/0**, clippy **0 diagnostics**,
+native build **214/214**, CTest **81/81**, final **qbuild: PASS**. Focused suites
+remain **51/51**. No redundant gate was launched; no operation is outstanding.
+No new questions, source changes, ABI/glue changes or game requests this round.
+The exact remaining open sections and earlier gate evidence are recorded below.
+
+## Implementation result (r3)
 
 Settled airplane/helicopter owner contracts are implemented and tested, with
 per-section code/test/open rows in both module READMEs. Full native ticks remain
@@ -140,4 +163,4 @@ whole question as Unsupported. AF1/AF7/AF8/AF9 are not reopened.
 2. Spec writers: settle the remaining contracts above before full owner ticks,
    native lifecycle/control integration and trajectory/shadow equivalence.
 
-Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r3-manifest.json`.
+Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r4-manifest.json`.
