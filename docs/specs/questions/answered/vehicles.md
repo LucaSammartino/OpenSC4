@@ -1,5 +1,22 @@
 # vehicles: answered questions
 
+<!-- from: core-vehicles5 (2026-10-23) -->
+- ~~**VH9 - inherited automaton states and dispatch hooks.** For the named
+  traffic/vehicle owners, specify inherited RANDOM_WALK, PLOP_JUMP, ZOT and
+  ATTACH_ANIM controller/model contracts and countdown ordering, and the base
+  dispatch getters/setters versus emergency-only overrides. The state table
+  gives outlines, not complete controller/model rules. [Active underspecified
+  inherited handlers return Unsupported; do not run the game's owner. Generic
+  DEFAULT/BEE_LINE/CHASE/BUMPED seek, SCRIPTED, disappearance, vehicle IDLE,
+  collide, wait, station, plummet and pull-over have core handlers.]~~
+
+  **ANSWERED 2026-10-24 (re-vehicles-vh11):** DIFFERS — [vehicles.md §12.6](../../vehicles.md#126-inherited-state-and-dispatch-contracts-vh9)
+  specifies all four handlers, countdown precedence and literal dispatch slots.
+  The requested controller attraction is native MAGNET (18), not a separate ZOT
+  dispatch case; its displacement has no tick-delta factor. Random walk has
+  signed walk/rest timing and repeated turn draws. Base dispatch setters are
+  mostly no-ops; emergency transitions must not be applied to ordinary vehicles.
+
 <!-- from: re-vehicles (2026-10-21) -->
 - **VH2 - §2:** how `FindBestNeighborConnection` ranks the neighbour connections, and the slots 159, 167, 168 and
   175 it and the look-ahead fill use. [as read]

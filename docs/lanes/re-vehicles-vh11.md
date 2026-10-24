@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | wip: VH10/VH11 answered, 13 vectors; doccheck/questions/diff checks pass; VH1/VH5/VH7/VH9 open | 1. Complete remaining four contracts; 2. implement verified Init/reference rules in core |
+| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | in progress: resumed VH1/VH5/VH7/VH9; VH10/VH11 answered at 28fe893ed | 1. Complete remaining four contracts; 2. validate and enqueue |
 
 ## Report
 
@@ -53,8 +53,8 @@ The queue is therefore **wip**, rather than asserting all six were answered.
 ## Handoff
 
 - Goal: finish VH1/VH5/VH7/VH9 without engine reads/edits; VH10/VH11 already closed.
-- Done: `c7a38bbff` initial plan; `28fe893ed` two answers, 13 vectors, index, passing checks.
-- Next exact step: query numeric instructions for RANDOM_WALK at 0050CF90, then finish VH9 including ZOT and base dispatch slots; §12.6 already covers countdown/PLOP_JUMP/ATTACH_ANIM.
+- Done: `c7a38bbff` initial plan; `28fe893ed` VH10/VH11; resumed milestone closes VH9 in §12.6, including native MAGNET (18) and base dispatch slots.
+- Next exact step: read VH7 geometry bodies 0055D210/0055D5A0/00550760, then VH5 and VH1.
 - Main source root C:/Users/tlori/FreeCity4. Existing decomp `_unnamed/region_00500000.c` lines 4997–5162 holds RANDOM_WALK; ZOT candidate 00508E10 is at line 2617 (confirm state mapping before naming).
 - VH5: Train animation source cSC4Train.c starts line 402, StartTrip line 679; unnamed region_00550000.c composition helper 00558510 starts line 4103. These were only inspected, not closed or numerically certified.
 - VH1: cSC4Vehicle.c PlayerDriveUpdateSpeed line 1321, off-road 1406, full tick 2003; cSC4Train.c derail 208 and full tick 911; cSC4Tank.c commands 330. Numeric instruction verification remains essential.
@@ -62,7 +62,7 @@ The queue is therefore **wip**, rather than asserting all six were answered.
 - TrainCar placement override 00557320 is at unnamed region_00550000.c line 3864. cSC4TrainCar.c lacks its body.
 - Initial capped output misleadingly appeared to show an orphaned VH9 tail; actual question file retains all four originals; do not rewrite them.
 - Worktree starts detached at 0490d3c97; commit normally, never update refs.
-- Source root: C:/Users/tlori/FreeCity4; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-vehicles-vh11-r1-manifest.json.
+- Source root: C:/Users/tlori/FreeCity4; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-vehicles-vh11-r2-manifest.json.
 - No ABI changes or game runs planned. Date for answers: 2026-10-24.
 - Key evidence: slot 134 = 00550B60 (table A9C068 + 218); slot 158 = 0055B690. Shared car reference helpers 005D96C0/005D9730; append 0055AB50–0055ABB0.
 - Ignored build-runs/pe-values.py reads PE words/constants; no source content generated or committed. All public spec evidence is address citations and prose.

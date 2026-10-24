@@ -544,10 +544,10 @@ Conformance vectors (use controlled service results for the foreign network/path
 | Slot 175 returns 0 and deque starts empty | Seed only; true without expansion |
 | Speed modifiers 2, 0, −1 | SlowDown durations 0.75, 0.1, 0.1 respectively; all target speed 0 |
 
-### 12.6 Inherited state clarifications (VH9, partial)
+### 12.6 Inherited state and dispatch contracts (VH9)
 
-These are additional native contracts for traffic, vehicle, TrainCar and Train. VH9 remains open for its
-other inherited handlers and dispatch hooks; this subsection does not claim complete inherited-state closure.
+These are native inherited contracts for traffic, vehicle, TrainCar and Train. A controller is a retained
+interface on the state, not an instruction to invoke a foreign vehicle owner's tick.
 
 **Countdown and controller precedence.** The base state dispatcher first subtracts the tick's millisecond
 delta from a strictly positive state timeout. Only a result **strictly below zero** pops the state: reaching
@@ -593,6 +593,74 @@ model automatically. Evidence: `0x00508F80–0x00509067`, especially `0x00508FD5
 | Attached selector 1, count 5, current frame 4 | Pop and return true |
 | Attached null model, saved bool false/true | Return false/true respectively; state remains |
 | Attached property value 0.8, T 1000 ms, dt 200 ms | Set `(1,1)` after clamping |
+
+**RANDOM_WALK (11).** State-local data are desired direction `+0x28` (three f32s), turn timer in
+seconds `+0x34`, signed walk/rest timer in seconds `+0x38`, and rest-animation-issued byte `+0x3C`.
+Use the state's behaviour record `+0x24`, or the default record `0x00B09988` when null. Its offsets
+`+0x50/+0x54` are turn-interval bounds, `+0x58` random turn half-range in revolutions,
+`+0x5C` minimum turn in revolutions, `+0x68/+0x6C` walking-duration bounds,
+`+0x70/+0x74` rest-duration bounds and `+0x78` deceleration duration. All draws here use the global
+generator `0x00B21D78`, uniform **double** range arguments converted from the f32 bounds.
+The default values at those offsets are respectively `(10,15), 0.1, 0.2, (0,0), (5,10), 0.5`.
+
+A negative walk/rest timer denotes rest. Add `dt_ms × f32(0.001)` and store f32. On reaching zero
+or above, draw a new walking duration, apply that behaviour (slot 84), clear the animation byte and
+play the state's animation selector `+0x1C`; return true without movement this tick. While still
+negative, measured speed below f32 `0.01` issues the empty-name animation once and sets the byte.
+A nonnegative timer denotes walking. Walking-duration lower bound within f32 `0.0001` of f32
+`0.00001` disables the walking countdown. Otherwise subtract elapsed seconds; strictly negative
+draws a rest duration, stores its negation, and requests speed zero over the deceleration duration;
+return true without movement. Exact zero remains walking for this tick.
+
+During walking subtract elapsed seconds from the turn timer. While it is strictly negative, add a
+new turn-interval draw and draw r from `[-half_range − 0.00001, half_range + 0.00001]` (the epsilon
+in these range arguments is **double**). Let a be f32 `atan2(desired.z, desired.x) + r × f32(2π)`;
+add `minimum_turn × f32(2π)` when r is nonnegative, subtract it otherwise. Store desired direction
+`(cos(a),0,sin(a))` as f32. Repeat for a still-negative turn timer. There is no iteration cap or
+repair for nonpositive configured intervals. Evidence: `0x0050CF90–0x0050D1C8`.
+
+Let D be that direction plus the automaton's auxiliary vector `+0xA4` when flag `0x4000` is clear;
+with that flag set, use the desired direction alone. Steering direction is
+`normalize(facing + D × (dt_ms × f32(0.002)))`, using the actual 3D components. There is no
+zero-length normalization guard. Multiply each normalized component by current speed tween,
+store f32, then multiply by slot 125's speed factor and dt_ms to obtain displacement. Add to the
+old position. Without flag `0x20000`, terrain service slot 44 adjusts the old/candidate segment
+using mask `0xC49`. With `0x20000` but without `0x40000`, replace candidate Y with terrain height
+at candidate X/Z. With both flags, leave Y alone. MoveTo receives candidate and steering direction.
+Refresh behaviour (slot 105) only when `0x4000` is clear. Return true; this handler has no removal
+flag early return. Arithmetic uses x87 intermediates and the f32 stores in the stated order;
+normalization reciprocal itself is stored f32. Evidence: `0x0050D1C8–0x0050D3BA`.
+
+**Controller attraction (state 18, MAGNET).** This is the remaining controller-position handler
+sometimes called ZOT in the question; there is no distinct ZOT case in the native state dispatcher.
+The actual dispatch is type 18 to slot 117 (`0x00508E10`). Removal flag 1 returns false. Without a
+controller, refresh behaviour and return true. Otherwise ask controller slot 11 for its position,
+subtract current position and take the 3D length. Length **greater than** f32 `0.0001` produces a
+normalized direction multiplied by the current speed tween, **without dt_ms or slot 125**; add
+this displacement to current position. Unless flag `0x40000` is set, replace Y with terrain height
+at candidate X/Z. MoveTo receives candidate and null orientation. Refresh behaviour even when the
+distance was too small to move; return true. It does not stop at, clamp to, or pop on reaching the
+controller. Evidence: dispatcher `0x00508AA0`, numeric body `0x00508E60–0x00508F74`.
+
+**Base dispatch slots.** Traffic and its Vehicle/TrainCar/Train descendants inherit these literal
+contracts; emergency dispatch storage/state transitions in §7 are overrides, not base behaviour.
+Slot 23 returns a **u16 zero** call number; slot 24 discards the supplied call number. Slot 25
+discards the supplied dispatch state; slot 26 always returns **3**. Slots 27/28 get/set the u32
+dispatch-info ID at `+0x88` without notifications, validation or state changes. The shared bodies'
+exported names can describe unrelated classes: contracts follow the table targets, not those names.
+Evidence: traffic primary table `0x00A9C068`, words `0x00A9C0C4–0x00A9C0D8`, bodies
+`0x0098CAF0`, `0x00648F10`, `0x004FAD00`, `0x007C9FC0`, `0x004FAD10`.
+
+| Additional conformance setup | Required outcome |
+|---|---|
+| Rest timer −0.1 s, dt 1000 ms | One walking-duration draw; behaviour and animation restart; no displacement |
+| Walking timer 0.1 s, lower duration bound 1, dt 100 ms | Zero does not enter rest; movement still runs |
+| Same, dt 101 ms; rest draw 7 | Timer −7; speed target zero using configured deceleration; no turn draw/movement |
+| Duration lower bound zero, timer zero | Countdown disabled by epsilon comparison; walking persists |
+| Turn timer zero, dt zero | No turn draws |
+| MAGNET controller at (10,0,0), position zero, speed tween 2, flag 0x40000 | New position (2,0,0) for both dt 1 and dt 1000; null orientation |
+| MAGNET controller coincident, controller tick returned false | No MoveTo; behaviour refresh; true result |
+| Base owner: set call number 7, dispatch state 9, info ID 42 | Getters return 0, 3, 42 respectively; no dispatch event |
 
 ### 12.7 Init lateral offset and initial path (VH10)
 

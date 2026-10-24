@@ -24,12 +24,3 @@
   network geometry is foreign, owner flags/tweens/anchoring remain in core;
   incomplete route setup reports Unsupported.]
 
-<!-- from: core-vehicles5 (2026-10-23) -->
-- **VH9 - inherited automaton states and dispatch hooks.** For the named
-  traffic/vehicle owners, specify inherited RANDOM_WALK, PLOP_JUMP, ZOT and
-  ATTACH_ANIM controller/model contracts and countdown ordering, and the base
-  dispatch getters/setters versus emergency-only overrides. The state table
-  gives outlines, not complete controller/model rules. [Active underspecified
-  inherited handlers return Unsupported; do not run the game's owner. Generic
-  DEFAULT/BEE_LINE/CHASE/BUMPED seek, SCRIPTED, disappearance, vehicle IDLE,
-  collide, wait, station, plummet and pull-over have core handlers.]
