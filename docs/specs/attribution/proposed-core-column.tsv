@@ -4,6 +4,11 @@
 # High means the named owner's published methods and state have executable evidence;
 # it does not mean native binding, verified shadow, replacement, or arbitrary-memory equivalence.
 # Medium rows below retain '-' and receive NO implementation bytes.
+# Scratch result: +53,555 bytes / +286 functions; 2,907,143 -> 2,960,698
+# implemented bytes (52.1% -> 53.0% of 5,584,842 attributed game bytes).
+# 26 high rows, 96 partial rows; fn:ResolvePath matches zero attributed functions.
+# Existing paths: 110 unique, all exist. Unreferenced: 45 core directories,
+# 2 formats directories, 25 core top-level .rs files, 11 formats top-level .rs files.
 pattern	proposed core value	confidence	evidence
 cSC4GDriversCOMDirector	core/src/gdrivers_director	high	README.md:32-101 exact 65-body checklist; renderer-gdrivers-director.md sections 1/6; GD1-GD80 conformance vectors
 cS3DTextureBinding	core/src/textures_materials	high	texture-bindings.md section 2; tests.rs binding_lifetime_pool_transition_and_standalone_deletion
