@@ -12876,6 +12876,18 @@ uint32_t fc4_netlot_pending_buckets(const fc4_netlot* l);
 }
 #endif
 
+/* Same-input construction record shadow (lot-records §9). The input transfers
+ * one reference per successful read; refs releases all of them on either result.
+ * Seeds live crane presence from the saved presence flag; does not run Init. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_automata_construction_roundtrip(const fc4_istream* input, const fc4_ostream* output,
+                                         const fc4_automata_ref_host* refs);
+#ifdef __cplusplus
+}
+#endif
+
 /* NR16 detached record-only observation; no pointers into native tables. */
 #ifdef __cplusplus
 extern "C" {

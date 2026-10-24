@@ -46,12 +46,41 @@ use fc4_core::automata::{
     TemplateKind, Vec3, CLSID_ATTRACTOR, CLSID_GENERATOR, CLSID_PATROL_CAR, CLSID_PEDESTRIAN, CLSID_TRAILER,
     CLSID_VEHICLE,
 };
+use fc4_core::lot_records::{construction::ConstructionRecord, OccupantRecord};
 use fc4_core::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 
 use crate::guard;
 use crate::stream::{fc4_istream, fc4_ostream, fc4_ref, istream_ok, ostream_ok, CIn, COut};
 
 type U = *mut c_void;
+
+/// Shadow-only construction record comparison (lot-records §9). No lifecycle
+/// calls: seed the live crane-presence bit from the captured writer's bit.
+/// Release every reference acquired by the input, including on failed reads.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_construction_roundtrip(
+    input: *const fc4_istream,
+    output: *const fc4_ostream,
+    refs: *const fc4_automata_ref_host,
+) -> bool {
+    guard(false, || {
+        let (Some(input), Some(output), Some(refs)) = (in_stream(input), out_stream(output), table(refs)) else {
+            return false;
+        };
+        let mut stream = tracking(input);
+        let mut record = ConstructionRecord::new();
+        let read = record.read(&mut stream);
+        // Read stores this in the load-only flag; native Write uses whether a
+        // live crane exists. This is an explicit same-input record comparison,
+        // not a claim to reproduce CreateCrane or the post-load refresh.
+        record.has_crane = record.loaded_has_crane;
+        let ok = read && record.write(&mut COut(output));
+        for token in stream.tokens {
+            refs.release(token);
+        }
+        ok
+    })
+}
 
 #[repr(C)]
 pub struct fc4_automata_object {

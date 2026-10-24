@@ -119,21 +119,82 @@ bool WriteCapture::WriteResKey(cGZPersistResourceKey const& k) {
     return SetUint32(k.instance);
 }
 
-bool WriteCapture::WriteVariant(cIGZVariant const& value) {
-    if (!variants_) {
+bool WriteCapture::WriteVariant(cIGZVariant const& v) {
+    if (variants_) {
+        // Preserve netocc's opt-in property capture path. The default path
+        // below independently encodes native values for automata comparisons.
+        fc4_props* props = fc4_props_create();
+        const bool ok = fc4::props::CopyVariantToCore(AsGame(&v), 1, props) &&
+            fc4_props_write_variant(props, 1, [](void* ctx, const uint8_t* data, size_t len) {
+                static_cast<WriteCapture*>(ctx)->Put(data, len);
+            }, this);
+        fc4_props_destroy(props);
+        if (!ok) good_ = false;
+        return good_;
+    }
+    // foundations §§9.1–9.2, 17.1: capture native variant values through the
+    // verified interface, independently of the Rust variant writer being
+    // checked by the automaton/construction record shadow.
+    const cFC4IGZVariant* value = AsGame(&v);
+    const uint16_t type = value->GetType();
+    if (type == 0x10) {
+        SetUint32(0xA9BEE9AC);
+        void* serial = nullptr;
+        // Use the documented output pointer, not the uncertain EAX return
+        // channel of this getter (docs/abi; ret_channel_check).
+        const_cast<cFC4IGZVariant*>(value)->GetValUnknownAs(GZIID_cIGZSerializable, &serial);
+        if (serial == nullptr) return WriteGZSerializable(nullptr);
+        auto* object = static_cast<cIGZSerializable*>(serial);
+        FC4_ACQUIRED(object, "variant GetValUnknownAs");
+        const bool ok = WriteGZSerializable(object);
+        FC4_RELEASE(object);
+        return ok;
+    }
+    SetUint32(0);
+    const uint16_t base = type & 0x7FFF;
+    const bool array = (type & 0x8000) != 0;
+    static const uint32_t tags[] = {0, 0xB, 1, 5, 2, 6, 3, 7, 4, 8, 9, 0xA, 0x11, 0x10, 0xC, 0x12};
+    if (base >= sizeof(tags) / sizeof(tags[0])) {
         good_ = false;
         return false;
     }
-    // Same foundations §9.2 transport as FC4TrafficShadow, for numeric and
-    // string own properties. Unsupported types still fail the capture.
-    fc4_props* props = fc4_props_create();
-    const bool ok = fc4::props::CopyVariantToCore(AsGame(&value), 1, props) &&
-        fc4_props_write_variant(props, 1, [](void* ctx, const uint8_t* data, size_t len) {
-            static_cast<WriteCapture*>(ctx)->Put(data, len);
-        }, this);
-    fc4_props_destroy(props);
-    if (!ok) good_ = false;
-    return good_;
+    SetUint32(tags[base] | (array ? 0x8000u : 0u));
+    if (base == 0xF) {  // unsupported saved pointer values, foundations §9.2
+        good_ = false;
+        return false;
+    }
+    if (array) {
+        static const size_t widths[] = {1, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8, 1, 2, 1};
+        const uint32_t count = value->GetCount();
+        const uint64_t bytes = static_cast<uint64_t>(count) * widths[base];
+        // RefUint8 exposes the array's raw storage (FC4Properties.h). No
+        // conversion or terminator is written; strings have the same header.
+        const uint8_t* data = value->RefUint8();
+        if (bytes > UINT32_MAX || (count != 0 && data == nullptr)) {
+            good_ = false;
+            return false;
+        }
+        SetUint32(count);
+        return count == 0 || Put(data, static_cast<size_t>(bytes));
+    }
+    switch (base) {
+        case 0: return good_;
+        case 1: return SetUint8(value->GetValBool() ? 1 : 0);
+        case 2: return SetUint8(value->GetValUint8());
+        case 3: return SetSint8(value->GetValSint8());
+        case 4: return SetUint16(value->GetValUint16());
+        case 5: return SetSint16(value->GetValSint16());
+        case 6: return SetUint32(value->GetValUint32());
+        case 7: return SetSint32(value->GetValSint32());
+        case 8: return SetUint64(value->GetValUint64());
+        case 9: return SetSint64(value->GetValSint64());
+        case 0xA: return SetFloat32(value->GetValFloat32());
+        case 0xB: return SetFloat64(value->GetValFloat64());
+        case 0xC: return SetSint8(value->GetValChar());
+        case 0xD: return SetUint16(value->GetValRZUnicodeChar());
+        case 0xE: return SetSint8(value->GetValRZChar());
+        default: good_ = false; return false;
+    }
 }
 
 bool WriteCapture::Put(const void* p, size_t n) {
