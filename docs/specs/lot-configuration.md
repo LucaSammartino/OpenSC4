@@ -306,6 +306,58 @@ A type whose exemplar does not load adds no group and sets +0x8C, but its capaci
 §B4.3, PL11). A configuration rebuilt by a detail change (prop-lotconfig §B3.1) is new, so it has the defaults until the next
 city-init message. The message comes after every city load, so growth never sees the defaults in a normal session.
 
+### 4.1 Native capacity lookup contract (GLUE22) *[compat]*
+
+The capacity provider is **`cISC4BuildingDevelopmentSimulator`**, IID `0x07813EAE`, primary vtable
+`0x00AB0AF8`. The city exposes it through slot 53 (`+0xD4`, `GetBuildingDevelopmentSimulator`,
+`0x006197E0`, no arguments, EAX pointer). This getter lends the city's pointer; it does not AddRef.
+Acquiring the interface with `QueryInterface` instead adds a reference which the caller must Release
+(`0x006952A7`–`0x006952B4`). The per-type capacity contract is:
+
+| Item | Contract |
+|---|---|
+| Method | slot **39**, `+0x9C`, `BuildingProfile& GetBuildingProfile(uint32 buildingType)`, `0x0069CA60` |
+| Calling convention | x86 thiscall: interface in ECX, one pushed 32-bit building **type** ID, callee pops 4 bytes |
+| Result | **EAX is the address of the stored profile**, not a capacity, bool or added-reference interface |
+| Capacity | unsigned 16-bit value at profile **+0x08**; copy that value, with no scaling or float conversion |
+| Ownership | borrowed catalogue storage; do not Release, free or modify the profile. Copy the needed fields before a catalogue reload or teardown |
+| Unknown type | inserts a profile with zero defined fields, including capacity, and returns its address; this does not register a valid building type |
+| Non-inserting alternative | slot **40**, `+0xA0`, `BuildingProfile* GetBuildingProfilePtr(uint32)`, `0x006985C0`, same argument/pop/return channel; returns null when the profile is absent |
+
+Slot 39 uses the process-wide profile map at `0x00B48584` (`0x0069CA60`–`0x0069CA6F`), so the
+profile is shared across cities. A later insertion of another type does not transfer ownership of an
+existing profile. Reload may erase the entry (`0x0069BF29`), so retaining its address across reload is
+invalid. Slot 40's null path and profile-address path are `0x006985EF`–`0x00698601`.
+
+For this pass, the input is each **expanded building type**, not the lot configuration ID and not an
+unexpanded building-family ID. The primary building object's ID list is expanded through building-development
+slot 19, `GetBuildingTypesByFamily(hash_set&, uint32)`. A direct valid type is inserted into the set even
+though this call returns **0**; do not interpret that return as an empty set (see
+[building-development.md](building-development.md) §4.7.2). The manager calls slot 39 for each resulting type
+and compares its capacity as unsigned (`0x0048AEE7`–`0x0048AF04`). It does not skip a zero capacity or a type
+whose exemplar load failed. The native configuration outputs are slots 12/13, returning **AX only**
+(`0x004798E0`, `0x004798F0`); unrelated high EAX bits must not enter a comparison.
+
+For an independent expected value, derive each profile's capacity from the building exemplar as specified in
+[building-development.md](building-development.md) §4.7.1: the capacity map entry for
+`GetDeveloperType(purpose, wealth)`, default 0, stored as uint16. It is not the sum of all developer entries,
+current lot population or current occupancy. The lookup above supplies native catalogue input for a host
+bridge; agreement using that input measures the lot manager's reduction, not independent building-profile
+derivation. An independent derivation comparison must obtain expected capacity from resource properties.
+
+### 4.2 Costs and comparison scope (GLUE22)
+
+There is **no lot-configuration cost getter** in the complete 34-slot vtable (`0x00A8CEB8`, §8, including
+the deleting destructor); there is no cost output in this building-information pass. Building costs belong
+to the building profile: +0x30 is int64 plop cost from `0x49CAC341` (absent → 0), and +0x38 is int64 budget
+item cost, the sum of budget simulator slot 50's item costs for the building exemplar (no items → 0), as
+specified in [building-development.md](building-development.md) §4.7.1. The latter sum uses 64-bit integer
+addition (`0x0069BE20`–`0x0069BE3F`). Those per-type fields can be read through the borrowed profile contract
+in §4.1, but neither is a lot-configuration aggregate, and the configuration supplies no rule to choose or
+combine costs across a family. A configuration shadow must report cost comparison as unavailable through
+this interface, rather than treating a placeholder zero as measured native cost. Actual lot occupancy also
+requires a lot instance; configuration min/max capacity does not measure occupancy.
+
 ## 5. Behaviour of the slots
 
 ### 5.1 Plain getters
@@ -543,3 +595,19 @@ Exemplars below are in group `0xA8FBD372`; "version 2" means `0x88EDC789` = 2 (u
     the building; slot 26 → the foundation; slot 27(2) true, slot 27(7) false, slot 27(0x102) false.
 14. **Monopoly slot.** Slot 19 called with one pushed dword returns true and leaves the stack balanced; with no
     pushed argument the caller's stack is off by 4 (the original's behaviour; a replacement must keep pop 4).
+15. **GLUE22 unsigned capacity and return width.** A family expands to A and B with profile +8 values
+    `0x8000` and `0xFFFF`. After city init, min/max are 32768/65535, not signed values or 0/65535.
+    Read configuration slots 12/13 from AX even if the caller's observed upper EAX bits are nonzero.
+16. **GLUE22 direct type with zero expansion return.** The primary building object's only ID is valid type
+    A (not a family), capacity 30. Slot 19 inserts A and returns 0. City init still yields 30/30.
+    With no building object, the same pass yields 0/0; before the pass a new configuration is 65535/0.
+17. **GLUE22 capacity source.** A's purpose/wealth map selects capacity 12; another developer entry is 90.
+    B selects capacity 30. Family {A,B} gives 12/30, not 30/102. If A's exemplar subsequently cannot load
+    while its profile remains, 12 still participates. A zero-capacity member changes the minimum to 0.
+18. **GLUE22 unknown profile and ownership.** For type U absent from the profile and key maps, slot 40(U)
+    is null. Slot 39(U) returns borrowed storage with capacity 0; slot 40(U) then finds that storage, while
+    `IsBuildingTypeValid(U)` remains false. Repeating slot 39 does not create an owned object to Release.
+19. **GLUE22 cost scope.** Building A has plop cost 500 and budget items costing 120 and 80: its profile
+    costs are 500/200. A configuration containing A exposes neither value as a cost getter. Adding B to the
+    family does not define a configuration cost sum, minimum or maximum. Report that field unmeasured;
+    a host placeholder 0 is not an expected native result.
