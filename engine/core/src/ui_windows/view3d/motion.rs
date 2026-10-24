@@ -33,6 +33,10 @@ pub trait MotionHost {
     fn draw(&mut self);
     fn update_cost_indicator(&mut self, dt: f32);
     fn paint_tail(&mut self);
+    fn deferred_safe(&self) -> bool;
+    fn deferred_enabled(&self) -> bool;
+    fn deferred_reference(&mut self, message: &super::Notification, acquire: bool);
+    fn repost_deferred(&mut self, message: &super::Notification, delivery: u32);
 }
 
 #[derive(Debug)]
@@ -79,7 +83,7 @@ impl Default for Motion {
             resume_delay_ms: 2000,
             paint_enabled: false,
             city_initializing: false,
-            // Spec does not state the initial period or its unit (VW11).
+            // §6f: zero microseconds is always due.
             paint_period_us: 0.0,
             reduced_render_settings: false,
         }
@@ -110,8 +114,14 @@ impl View3DWin {
 
     pub fn set_zoom(&mut self, host: &mut impl MotionHost, zoom: i32) -> bool {
         let m = &self.owner.motion;
-        // Literal sequential comparisons; reversed limits are unspecified (VW11).
-        let zoom = zoom.max(m.zoom_min).min(m.zoom_max);
+        // §6f: minimum wins first, even for inverted limits.
+        let zoom = if zoom < m.zoom_min {
+            m.zoom_min
+        } else if zoom > m.zoom_max {
+            m.zoom_max
+        } else {
+            zoom
+        };
         self.change_view(host, ViewChange::Zoom(zoom))
     }
 
@@ -139,7 +149,7 @@ impl View3DWin {
         min: i32,
         max: i32,
         extra_zoom_preference: Option<bool>,
-    ) {
+    ) -> bool {
         self.owner.motion.zoom_min = min;
         self.owner.motion.zoom_max = if max > 4 {
             if extra_zoom_preference.unwrap_or(true) {
@@ -152,9 +162,12 @@ impl View3DWin {
         };
         let zoom = host.virtual_zoom();
         // The bounds test deliberately uses the *unclamped* maximum (§6m.5).
-        if zoom < min || zoom > max {
-            self.set_zoom(host, zoom);
+        if zoom < min {
+            self.set_zoom(host, min);
+        } else if zoom > max {
+            self.set_zoom(host, max);
         }
+        true
     }
 
     pub fn set_scrolling(&mut self, host: &mut impl MotionHost, on: bool, angle: f32, speed: f32) {
@@ -216,18 +229,33 @@ impl View3DWin {
         }
     }
 
-    /// Returns whether a draw happened. A not-due enabled paint skips the tail;
-    /// disabled painting still executes the tail (view3d §5.1 steps 1, 3, 14).
+    pub(super) fn paint_deferred(&mut self, host: &mut impl MotionHost) {
+        if !self.owner.deferred.is_empty() && host.deferred_safe() {
+            host.deferred_reference(&self.owner.deferred[0], true);
+            let message = self.owner.deferred.remove(0);
+            host.deferred_reference(&message, false);
+            // Recheck after unlink/release, which may change modal state.
+            if host.deferred_enabled() {
+                host.repost_deferred(&message, 0);
+            }
+            host.deferred_reference(&message, false);
+        }
+        host.paint_tail();
+    }
+
+    /// GZPaint always returns true, including disabled and throttled paints.
     pub fn paint(&mut self, host: &mut impl MotionHost, elapsed_us: u64, hidden_elapsed_ms: u64) -> bool {
         if !self.owner.motion.paint_enabled {
-            host.paint_tail();
-            return false;
+            self.paint_deferred(host);
+            return true;
         }
-        if (elapsed_us as f32) < self.owner.motion.paint_period_us {
-            return false;
+        let period = self.owner.motion.paint_period_us;
+        if period != 0.0 && (elapsed_us as f64) <= f64::from(period) {
+            self.paint_deferred(host);
+            return true;
         }
         host.reset_paint_timer();
-        let dt = ((elapsed_us as f32) * 0.000_001).min(0.5);
+        let dt = ((elapsed_us as f64) * 0.000_001).min(0.5) as f32;
         host.update_cost_indicator(dt);
         let mut restarted = false;
         if self.owner.motion.scrolling {
@@ -256,7 +284,7 @@ impl View3DWin {
         let time = if m.city_initializing { dt } else { host.animation_time() };
         host.set_draw_context_time(time);
         host.draw();
-        host.paint_tail();
+        self.paint_deferred(host);
         true
     }
 }

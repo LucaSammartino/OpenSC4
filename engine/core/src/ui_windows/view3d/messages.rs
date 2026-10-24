@@ -18,6 +18,8 @@ pub struct Notification {
     /// Result of querying IID 4B99446A, not a guess from message type.
     pub command_interface: bool,
     pub progress_interface: bool,
+    /// Borrowed GetIGZUnknown attachment, separate from data1 (§6l).
+    pub attachment: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,11 +55,7 @@ pub enum MessageCall {
     Load(u32),
     Save(u32),
     BudgetFailure,
-    DisasterButton {
-        window: u32,
-        flag: u32,
-        enabled: bool,
-    },
+    DisasterButton { window: u32, flag: u32, enabled: bool },
     Progress([u32; 2]),
     Focus,
     InvokeCatalog(u32, u32),
@@ -69,12 +67,7 @@ pub enum MessageCall {
 /// These are foreign window/dispatcher/URL/tutorial services. The owner decides
 /// routing, precedence, guards, deduplication and return values.
 pub trait MessageHost:
-    super::ActionHost
-    + LifecycleHost
-    + super::WidgetHost
-    + super::HelperHost
-    + super::ReferenceHost
-    + super::DialogHost
+    super::ActionHost + LifecycleHost + super::WidgetHost + super::HelperHost + super::ReferenceHost + super::DialogHost
 {
     fn message_call(&mut self, call: MessageCall);
     /// Return true when tutorial consumes a message; it may also rewrite it.
@@ -115,8 +108,7 @@ impl View3DWin {
                 self.update_alert_border(host, data.disaster, data.situation, data.paused);
             }
             Refresh::Background => {
-                let mode = host.background_mode();
-                self.add_background_image(host, mode);
+                self.refresh_background(host);
             }
             // VW10/VW18: the remaining refresh boundaries lack sufficient
             // owner contracts; never infer mission data from an integer token.
@@ -134,7 +126,10 @@ impl View3DWin {
         match message.kind {
             0x26D3_1EC0 => self.pre_city_init(host),
             0x26D3_1EC1 => self.post_city_init(host),
-            0x26D3_1EC2 => host.message_call(MessageCall::PreCityShutdown),
+            0x26D3_1EC2 => {
+                host.message_call(MessageCall::PreCityShutdown);
+                self.pre_city_shutdown(host);
+            }
             0x26D3_1EC4 => self.city_established(host),
             0x26D3_1EC5 => self.city_obliterated(host),
             0x26C6_3341 => {
@@ -173,7 +168,7 @@ impl View3DWin {
                 self.refresh(host, Refresh::Speed);
                 self.refresh(host, Refresh::Alert);
                 if message.kind == 0xABBB_CA64 {
-                    self.refresh(host, Refresh::MissionActivation(a));
+                    self.refresh(host, Refresh::Mission(message.attachment.unwrap_or(0), a));
                 }
             }
             0xA6B7_9602 | 0xA6B7_9612 => {
@@ -205,13 +200,12 @@ impl View3DWin {
                     host.message_call(MessageCall::BudgetFailure);
                     self.do_budget_failure(host);
                 } else if !self.owner.deferred.iter().any(|m| m.kind == message.kind) {
+                    host.deferred_reference(&message, true);
                     self.owner.deferred.push(message);
                 }
             }
-            0xAC08_3D7D => self.refresh(host, Refresh::Mission(a, 1)),
-            0x4A44_667F
-                if message.progress_interface && self.owner.lifecycle.progress.is_some() =>
-            {
+            0xAC08_3D7D => self.refresh(host, Refresh::Mission(message.attachment.unwrap_or(0), 1)),
+            0x4A44_667F if message.progress_interface && self.owner.lifecycle.progress.is_some() => {
                 host.message_call(MessageCall::Progress([a, b]));
             }
             _ => {}
@@ -219,21 +213,12 @@ impl View3DWin {
         true
     }
 
-    /// GZPaint re-sends deferred notifications only when modal popups are safe.
-    /// Drain before delivery so callbacks cannot lose newly deferred messages.
+    /// Compatibility entry for the same one-message paint tail (§6n).
     pub fn replay_deferred(&mut self, host: &mut impl super::CityHost) {
-        if host.modal_safe() {
-            for message in std::mem::take(&mut self.owner.deferred) {
-                self.notification(host, message);
-            }
-        }
+        self.paint_deferred(host);
     }
 
-    pub fn window_message(
-        &mut self,
-        host: &mut impl MessageHost,
-        mut message: WindowMessage,
-    ) -> bool {
+    pub fn window_message(&mut self, host: &mut impl MessageHost, mut message: WindowMessage) -> bool {
         if host.tutorial_message(&mut message) {
             return true;
         }
@@ -294,11 +279,7 @@ impl View3DWin {
 
     /// Child filter owns button/tab routes; normal DoMessage leaves buttons to
     /// cGZWin. Unrecognized messages are not consumed by this filter.
-    pub fn filter_message(
-        &mut self,
-        host: &mut impl MessageHost,
-        mut message: WindowMessage,
-    ) -> bool {
+    pub fn filter_message(&mut self, host: &mut impl MessageHost, mut message: WindowMessage) -> bool {
         if host.tutorial_message(&mut message) {
             return true;
         }

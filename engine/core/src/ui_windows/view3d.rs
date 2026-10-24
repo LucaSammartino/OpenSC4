@@ -47,6 +47,8 @@ use super::win::{WinStore, WinToken};
 mod actions;
 mod city;
 mod commands;
+mod coverage;
+pub use coverage::{Category, Coverage, CoverageHost, CoverageTransform};
 mod dialogs;
 mod gui;
 mod helpers;
@@ -56,6 +58,8 @@ mod menus;
 mod messages;
 mod motion;
 mod references;
+mod registry;
+pub use registry::COMMANDS;
 mod state;
 mod status;
 pub use actions::{ActionCall, ActionHost, DisasterProperties, ToolSpec};
@@ -63,7 +67,7 @@ pub use city::{CityCall, CityHost, CityObject, TunableValues};
 pub use commands::{CommandHost, PanelState, QueryTool};
 pub use dialogs::{DialogCall, DialogHost, EstablishData};
 pub use gui::{GuiCall, GuiHost, GuiState, HelperKind};
-pub use helpers::{BackgroundPicture, HelperHost};
+pub use helpers::{BackgroundPicture, GraphHost, HelperHost};
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
 pub use lifecycle::{
     Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS,
@@ -84,6 +88,7 @@ mod owner_tests;
 /// State owned by the city window, independent of foreign window and camera objects.
 #[derive(Debug, Default)]
 pub struct OwnerState {
+    pub coverage: Coverage,
     pub modifiers: u32,
     pub mouse_inside: bool,
     pub right_press: (i32, i32),
@@ -163,14 +168,13 @@ pub struct View3DSave {
     pub ref_f4: SaveRef,
 }
 
-/// Four-reference version-4 logical record (view3d-window §6k), without UI
-/// state. Original serialized bucket traversal remains open as VW12.
+/// Four-reference version-4 logical record (view3d-window §6k), without UI state.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct View3DRecord {
     pub header: View3DSave,
     pub model_maker: SaveRef,
     pub simulator: SaveRef,
-    /// Logical trigger pairs. Exact serialized bucket order is open (VW12).
+    /// Trigger pairs in bucket/head order (§6l).
     pub triggers: Vec<(u32, u32)>,
 }
 
@@ -471,7 +475,7 @@ impl View3DWin {
                 .view
                 .triggers
                 .iter()
-                .map(|(&t, &count)| (t, count))
+                .map(|(t, &count)| (t, count))
                 .collect(),
         }
     }
@@ -480,7 +484,7 @@ impl View3DWin {
         self.do_load(&record.header)?;
         self.owner.view.references[2] = record.model_maker;
         self.owner.view.references[3] = record.simulator;
-        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        self.owner.view.triggers = state::load_triggers(&record.triggers);
         Ok(())
     }
 
