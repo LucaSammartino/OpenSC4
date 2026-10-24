@@ -176,11 +176,8 @@ void HookRemove(void*, uint64_t prop) {
 // Replay genuine creation attempts and outcomes, including failures. All
 // remaining writes/dated effects still need independent output comparison.
 uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t id) {
-    ++g_created;
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
-    // Other writes/dated effects still prevent a full-operation exact claim.
-    g_uncertain = true;
     if (!g_creationTrace || g_creationCursor == g_creationTrace->Events().size()) {
         static unsigned extra = 0;
         if (extra++ < 8) Log("propdev creation invalid: extra call lot=%p network=%u index=%u id=%08x",
@@ -188,6 +185,10 @@ uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t 
         g_creationValid = false; return 0;
     }
     const auto& event = g_creationTrace->Events()[g_creationCursor++];
+    // Section 4.4: a null service result has no registration/tag writes.
+    // Successful creations still delegate unobserved effects (PV18).
+    if (event.result) g_uncertain = true;
+    if (event.result) ++g_created;
     if (event.lot != lot || event.network != network || event.index != index || event.id != id ||
         event.depth != 0 || event.nestedBegin != g_nestedCursor || event.nestedEnd > g_nested.size()) {
         static unsigned differences = 0;
@@ -464,7 +465,7 @@ struct MonthStats {
     uint32_t messages = 0, ticks = 0;
     uint32_t selectorEvents = 0, selectorZero = 0;
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
-    uint32_t operationsExact = 0, operationsIncomplete = 0;
+    uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     uint32_t creationTags = 0, creationTagsMatched = 0;
     Diff d;
@@ -650,6 +651,7 @@ void StepAfter(void* ctx) {
         uint32_t before;
         bool eligible;
         ~Result() {
+            if (eligible) ++g_month.operationsEligible;
             if (eligible && g_month.d.mismatches == before) {
                 WriteCapture cap;
                 CoreBox native;
@@ -1110,6 +1112,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " replay-complete=" + std::to_string(g_month.replayComplete) +
                              " replay-invalid=" + std::to_string(g_month.replayInvalid) +
                              " operation-output-matches=" + std::to_string(g_month.operationsExact) +
+                             " operations-eligible=" + std::to_string(g_month.operationsEligible) +
                              " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
                              " night-callbacks=" + std::to_string(g_month.nights) +

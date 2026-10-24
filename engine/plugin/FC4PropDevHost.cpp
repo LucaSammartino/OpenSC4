@@ -718,6 +718,26 @@ void TerrainHeights(void*, float x, float z, float* altitude, float* water) {
 
 // ---- shared helpers ---------------------------------------------------------------------------------
 
+const char* fc4::PropDevScriptLightingHour(int hour) {
+    auto* view = propcity::View3D();
+    if (!view) return "no 3D view";
+    // prop-developer section 8.5 (PV15): borrowed renderer and manager.
+    auto* render = reinterpret_cast<cFC4PropRender*>(view->GetRenderer());
+    auto* lighting = render ? render->GetLightingManager() : nullptr;
+    const char* result = "no lighting manager";
+    if (lighting) {
+        // lighting.md sections 2.1/2.2 and SDK slot 6: by-value float hours,
+        // bool return. Let the genuine producer post dusk/dawn; never send a
+        // synthetic propdev message or guess a function signature.
+        const bool changed = lighting->SetTimeOfDay(static_cast<float>(hour));
+        Log("script lighting producer: SetTimeOfDay hour=%d changed=%u night=%u", hour,
+            changed ? 1u : 0u, lighting->IsNight() ? 1u : 0u);
+        result = "native SetTimeOfDay delivered";
+    }
+    propcity::Drop(reinterpret_cast<cIGZUnknown*>(view));
+    return result;
+}
+
 uint64_t fc4::PropToken(propcity::CallPool& pool, cIGZUnknown* u) {
     return TokenOf(propcity::QueryInto(pool, u, kFC4_IID_cISC4PropOccupant));
 }

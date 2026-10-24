@@ -3,6 +3,13 @@
 | glue-propdev-close7 (prop developer verification) | Codex / `glue-propdev-close7` | in progress | Apply PV16/PV17; gate and measure native shadow through 2032 |
 
 ## Handoff
+- Round 2 goal: exercise PV16 through specified lighting producer, implement PV17 live dated walk, retain PV18 ineligibility, finish with READY measured merge entry even when not N/N.
+- Source changes in progress: linked dated nodes; post-callback live next-link read; no occupant hold across callbacks; bounded null creation-result eligibility; script lightinghour 0..23 through SDK SetTimeOfDay(float), PV15 borrowed acquisition.
+- Focused dated_walk test PASS 1/1 (session 69822 terminal). fmt diagnostic corrected in place. q.py failed before cargo because Git Bash mapping denied; direct PowerShell cargo used.
+- Next: collect focused test/fmt, commit milestone, codexguard r2 manifest, full all gate, unique scripted normal-speed native 2032 request without qwait; preserve all completed verdicts; final report and ready queue required.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propdev-close7-r2-manifest.json.
+
+## Round 1 evidence
 - Goal: compare every native prop developer operation, monthly `propdev shadow` summaries, exact through 2032.
 - Done: initial handoff `276e570b4`; PV16 scoped native slot-3 night observer, same-thread CRT pre-state/draw-count/final-state capture, independent ordered-list/callback-output comparison, restoration at city shutdown. Additive CRT C ABI; ABI version unchanged.
 - Gate: focused observation tests 2/2 passed. Native `qbuild-20261024-063016-build-ctest` PASS: 249/249 edges, CTest 78/78, terminal session 77289. Queue says tree changed: only question/wait-helper files changed while native source remained stable.

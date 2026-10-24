@@ -143,6 +143,8 @@ struct Prop {
 /// (network lot token, its configuration objects)
 type NetworkLot = (u64, Rc<Vec<CfgObject>>);
 
+type DateCallback = Box<dyn Fn(u64)>;
+
 #[derive(Default)]
 struct Fake {
     cells: Cell<(i32, i32)>,
@@ -163,6 +165,7 @@ struct Fake {
     next: Cell<u64>,
     /// `CreateLotProp` answers null (PV8).
     fail_create: Cell<bool>,
+    date_callback: RefCell<Option<DateCallback>>,
     log: RefCell<Vec<String>>,
 }
 
@@ -440,6 +443,9 @@ impl PropHost for Fake {
     }
     fn tick_date(&self, prop: u64, date: u32) {
         self.log(format!("tick_date {prop:#x} {date}"));
+        if let Some(callback) = &*self.date_callback.borrow() {
+            callback(prop);
+        }
     }
     fn prop_position(&self, prop: u64) -> [f32; 3] {
         self.prop(prop).pos
@@ -1059,6 +1065,38 @@ fn t12_registration() {
         ..Default::default()
     });
     assert!(e.f.take().is_empty());
+}
+
+#[test]
+fn dated_walk_reads_live_links_after_callback_without_temporary_holds() {
+    let e = env();
+    for token in [1, 2, 3, 4] {
+        e.d.dated.borrow_mut().push(PropRef::new(token, 0));
+    }
+    let weak = Rc::downgrade(&e.d);
+    *e.f.date_callback.borrow_mut() = Some(Box::new(move |token| {
+        let d = weak.upgrade().unwrap();
+        if token == 1 {
+            // Remove a future value by copying the tail, then append: a
+            // snapshot would still tick 2 and would never tick 5.
+            assert!(d.dated.borrow_mut().swap_remove(2));
+            d.dated.borrow_mut().push(PropRef::new(5, 0));
+        }
+    }));
+    e.d.do_message(&msg(MSG_DAY));
+    assert_eq!(
+        e.f.take(),
+        [
+            "tick_date 0x1 777",
+            "tick_date 0x4 777",
+            "tick_date 0x3 777",
+            "tick_date 0x5 777"
+        ]
+    );
+    assert_eq!(
+        e.d.dated_list().iter().map(|p| p.token).collect::<Vec<_>>(),
+        [1, 4, 3, 5]
+    );
 }
 
 // §12 test 13.

@@ -209,7 +209,8 @@ enum class ScriptOp {
     Tutorial,
     Dispatch,
     PortProps,
-    ClockMode // clockmode 0|1|2: enable transitions, then select normal/day/night
+    ClockMode, // clockmode 0|1|2: enable transitions, then select normal/day/night
+    LightingHour // lightinghour 0..23: genuine lighting manager SetTimeOfDay
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -249,6 +250,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Dispatch: return "dispatch";
         case ScriptOp::PortProps: return "portprops";
         case ScriptOp::ClockMode: return "clockmode";
+        case ScriptOp::LightingHour: return "lightinghour";
     }
     return "?";
 }
@@ -428,6 +430,13 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         if (!wantArgs(1, "0, 1 or 2")) return false;
         if (!detail::ParseCount(tok[2], 2, &a.speed)) {
             *error = name + " '" + tok[2] + "' is not 0, 1 or 2";
+            return false;
+        }
+    } else if (name == "lightinghour") {
+        a.op = ScriptOp::LightingHour;
+        if (!wantArgs(1, "hour 0..23")) return false;
+        if (!detail::ParseCount(tok[2], 23, &a.speed)) {
+            *error = "lightinghour '" + tok[2] + "' is not 0..23";
             return false;
         }
     } else if (name == "pause" || name == "resume" || name == "digest") {
@@ -610,7 +619,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour)";
         return false;
     }
     *out = a;

@@ -718,6 +718,10 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      then selects normal/day/night visual time (clock24.md sections 4.5/8, city slot 86, clock slots 29/5).
      It uses the game's interface and runs as a dated script action; it does not change saved preferences.
 
+     `lightinghour 0..23` calls the native lighting manager's `SetTimeOfDay(float hours)` (lighting.md
+     section 2.2, slot 6), through the borrowed renderer/manager path of prop-developer.md section 8.5.
+     It logs the change result and night flag; the lighting manager produces any dusk/dawn messages.
+
      The explicit diagnostic action `portprops x z state` switches native spatial props with property `0xC98204B8`
      on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
      and calls no port-developer method.
