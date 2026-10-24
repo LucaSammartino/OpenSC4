@@ -24,6 +24,19 @@ public:
     virtual bool IsEmptyLandfillTile() = 0;
 };
 
+// landfill 7.3 (LG32): corrected prefix of the concrete occupant view.
+// The SDK declares SetPosition bool; this body has no return channel.
+class ProbeLandfillPosition : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;
+    virtual bool Shutdown() = 0;
+    virtual bool IsInitialized() = 0;
+    virtual cISCPropertyHolder* AsPropertyHolder() = 0;
+    virtual int32_t GetType() = 0;
+    virtual bool GetPosition(cS3DVector3*) = 0;
+    virtual void SetPosition(const cS3DVector3*) = 0;
+};
+
 // Only primitives occur in these spec-authored, empty-holder records.
 // Unsupported stream operations fail closed. This is never a native capture.
 class OccupantProbeInput final : public cFC4ISC4DBSegmentIStream {
@@ -116,13 +129,15 @@ void RunLandfillOccupantProbe(void*) {
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     unsigned exact = 0, created = 0, freed = 0, reloads = 0;
     // Construction; valid read; mutation; byte==1; byte!=1; bad outer,
-    // base and holder versions; truncation. Each case has its own lifetime.
-    for (unsigned test = 0; test < 9; ++test) {
+    // base and holder versions; truncation; plain-holder version rejection
+    // (LG33). Each case has its own lifetime.
+    for (unsigned test = 0; test < 11; ++test) {
         auto input = test == 0 ? std::vector<uint8_t>{} : OccupantProbeRecord(test == 3 ? 1 : test == 4 ? 2 : 0);
         if (test == 5) input[0] = 2;
         if (test == 6) input[2] = 3;
         if (test == 7) input[16] = 1;
         if (test == 8) input.pop_back();
+        if (test >= 9) input[18] = test == 9 ? 1 : 3;
         const bool mutate = test == 2;
         const float xyz[3] = {88.5f, -4.0f, 120.25f};
         fc4_landfill_occupant_probe_result rust{};
@@ -179,13 +194,11 @@ void RunLandfillOccupantProbe(void*) {
                 const bool oriented = tile->SetOrientation(-123);
                 ok = oriented && ok;
                 const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
-                const bool positioned = occ->SetPosition(&v);
-                // LG32: landfill.md specifies the stored position/bounds,
-                // not this inherited method's return. Compare its effects;
-                // report the SDK bool separately without assuming true.
+                reinterpret_cast<ProbeLandfillPosition*>(occ)->SetPosition(&v);
+                // LG32: score position and bounds, never residual EAX/AL.
                 Log("landfill occupant probe case=%u mutations previous native=0x%08X rust=0x%08X "
-                    "SetOrientation=%u SetPosition=%u (return unscored LG32)", test, previous, rust.previous_tile,
-                    oriented ? 1u : 0u, positioned ? 1u : 0u);
+                    "SetOrientation=%u SetPosition=void (LG32)", test, previous, rust.previous_tile,
+                    oriented ? 1u : 0u);
             }
             if (test == 0 || (read && rust.read_ok != 0)) {
                 ok = ok && occ && tile->GetOrientation() == rust.orientation &&
@@ -261,8 +274,8 @@ void RunLandfillOccupantProbe(void*) {
         Log("landfill occupant probe case=%u %s qi=0x%X ref_add=%u ref_drop=%u final=%u read=%u write=%u",
             test, ok ? "exact" : "DIFFERENT", qiMask, added, released, finalRef, rust.read_ok, rust.write_ok);
     }
-    Log("landfill occupant probe summary exact=%u/9 created=%u destroyed=%u reloads=%u/4; public factory/interfaces; "
-        "authored inputs; SetPosition return unscored LG32; bad-holder Read difference LG33; no zone calls",
+    Log("landfill occupant probe summary exact=%u/11 created=%u destroyed=%u reloads=%u/7; public factory/interfaces; "
+        "authored inputs; SetPosition void LG32; nested-holder rejection LG33; no zone calls",
         exact, created, freed, reloads);
 }
 

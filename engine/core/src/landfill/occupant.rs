@@ -396,7 +396,11 @@ fn read_base(inp: &mut dyn InStream) -> Option<BaseOccupant> {
     // The holder's parent exemplar key is resolved by the class-store loader,
     // not here: read it with an empty source, so an unresolvable parent is
     // simply absent (as for a freshly created occupant).
-    if !b.holder.read(inp, &NoExemplars) {
+    // landfill §6.4 (LG33): the base ignores the holder's Boolean. A
+    // rejected holder version leaves a good stream at its current cursor;
+    // the landfill tail starts there, without resynchronisation.
+    let _ = b.holder.read(inp, &NoExemplars);
+    if inp.error() != 0 {
         return None;
     }
     Some(b)
@@ -409,5 +413,52 @@ struct NoExemplars;
 impl crate::property::ExemplarSource for NoExemplars {
     fn exemplar(&self, _key: crate::stream::ResKey) -> Option<Rc<crate::property::PropertyHolder>> {
         None
+    }
+}
+
+#[cfg(test)]
+mod reader_tests {
+    use super::*;
+    use crate::stream::ByteReader;
+
+    // Literal B from landfill-occupant-read-vectors §1, independent of Write.
+    const RECORD: [u8; 57] = [
+        3, 0, 4, 0, 2, 1, 0, 0xF4, 0x2B, 0xBD, 0x11, 0x6A, 0xFF, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0x10, 0, 0xF1, 2, 0xF9, 0xFF, 0xFF, 0xFF, 0, 0, 0xC4, 0xC1, 0, 0, 0x44, 0x41, 0, 0, 0x20, 0x42,
+        0,
+    ];
+
+    #[test]
+    fn rejected_holder_version_does_not_reject_landfill_tail() {
+        // LG33 V0/V1/V3 and P1/P3: no resynchronisation at either boundary.
+        for (offset, version, consumed, tile, z_bits) in [
+            (16, 0, 39, 2, 0x0010_0000),
+            (16, 1, 39, 2, 0x0010_0000),
+            (16, 3, 39, 2, 0x0010_0000),
+            (18, 1, 41, 0, 0x02F1_0010),
+            (18, 3, 41, 0, 0x02F1_0010),
+        ] {
+            let mut bytes = RECORD;
+            bytes[offset] = version;
+            let mut input = ByteReader::new(&bytes);
+            let occupant = LandfillOccupant::empty();
+            assert!(occupant.read(&mut input));
+            assert_eq!(input.position(), consumed);
+            assert_eq!(input.error(), 0);
+            assert_eq!(occupant.tile_id(), tile);
+            assert_eq!(occupant.orientation(), 0);
+            assert_eq!(occupant.position().map(f32::to_bits), [0, 0, z_bits]);
+            assert!(!occupant.is_empty_landfill_tile());
+            assert_eq!(occupant.bounding_box(), ([-8.0, 0.0, -8.0], [8.0, 16.0, 8.0]));
+        }
+    }
+
+    #[test]
+    fn holder_stream_error_still_rejects_landfill() {
+        // Accepted holder versions followed by an incomplete count: sticky
+        // stream error must not be ignored with the holder's Boolean.
+        let mut input = ByteReader::new(&RECORD[..23]);
+        assert!(!LandfillOccupant::empty().read(&mut input));
+        assert_ne!(input.error(), 0);
     }
 }
