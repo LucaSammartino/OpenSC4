@@ -39,12 +39,12 @@ tip shown.
 - **`EntriesPresent`** (`0x0078CCE0`): when tips were found, or the scan was already done, return the found byte.
   Otherwise mark it done, enter presence mode, enumerate (§3) with a null context, leave presence mode and return the
   found byte. So the scan runs at most once per run.
-- **`DoModelessWin(out)`** (`0x0078C8C0`): with the game's main window (`0x00B43CC0`) and no descendant `0x4A3BE152`
+- **`DoModelessWin(out)`** (`0x0078C8C0`): with the window held in `0x00B43CC0` (set together with `0x00B43CBC` by `0x00602540`) and no descendant `0x4A3BE152`
   in it (slot 35): `SC4CreateWindowFromScript(key (0, 0x96A006B0, 0xCA3BDD94), parent, ID 0x4A3BE152, interface
   0x5386D516, &win)`. On success a new proc (all zero) is made, holds `win` at `+0x18`, the window is pulled to the
   front (slot 23) and loses flag `0x800` (z-order movable; slot 68), and the proc becomes the window's proc
   (generic-window slot 7). The proc is stored in `*out` when `out` is not null (the caller's reference), else
-  released. Returns true; false when there is no main window, the dialog already exists or the script fails.
+  released. Returns true; false when that window is null, the dialog already exists or the script fails.
 
 The 3D view calls it with `out` = null when `HasBeenShownAlready` is false and `EntriesPresent` is true.
 
