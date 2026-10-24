@@ -21,5 +21,6 @@
 - Game 385 automata-crash6-r2-2032-20261024-b: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
 - Game 386 automata-crash6-r2-2032-20261024-c: clean 2032-01-02/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
 - Merged main cleanly before queue preparation; FC4WriteCapture.cpp/.h unchanged, but Rust effects code changed. Renumbered run records 384-386 after main introduced train171 run 381.
-- Next: rerun full all on merged stable source, then full report and READY queue with full actual HEAD (repeat mandated merge immediately before queue).
+- Post-merge all on a2c13e2af: Rust 6888 passed/0 failed, clippy diagnostics=0. Native request qbuild-20261024-030223-build-ctest is pending; collect exec session 58305 (or its build-runs/build-results/*.verdict). Do not duplicate it.
+- Next: collect that native result, then full report and READY queue with full actual HEAD (repeat mandated merge immediately before queue). Engine source remains a2c13e2af; later lane-record-only commits do not change it.
 - Before READY queue: merge main as explicitly instructed; preserve concurrent variant encoding changes, rerun native gate if FC4WriteCapture changes. Detached HEAD is intentional.
