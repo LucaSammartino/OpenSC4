@@ -9,7 +9,8 @@
 - Focused checks: cargo test -p fc4-capi lua_registry_shadow: 4 passed (1m34s); owned-file qbuild fmt passed; git diff --check passed.
 - Done: implementation commit 33cacb5aa. Stable-source qbuild all Rust workspace 6807 passed, 0 failed, 0 ignored; clippy exit 0, diagnostics 0.
 - Done: initial qbuild all terminal FAIL: native build PASS 224/224 edges; CTest 69/70 (ret_channel_check flagged missing citation for IsCFunction). Added lua-host §5 slot 16 AL bool citation at call.
-- Next: focused ret_channel_check, then rerun all after this diagnostic source correction; then real-city turbo to 2032. Initial operation 94445 is complete; queue qbuild-20261024-013309-build-ctest verdict retained.
+- Done: corrected source 9e2b85dd3 complete qbuild all PASS: workspace 6807/0/0, clippy diagnostics 0, native build 47/47 edges, CTest 70/70 (88.8 s). Queue qbuild-20261024-014147-build-ctest terminal pass; no native operation outstanding.
+- Next: unique game request lua-registry-shadow5-9e2b85d-turbo-2032 with lua_shadow=1, turbo to 2032-01-01. Wait using build-runs/wait-verdict.py in one blocking operation. Initial operation 94445 and corrected operation 94263 complete.
 - No game request outstanding. Bash q.py focused-test attempt failed CreateFileMapping (build-runs/q/20261024-012649-7620.log); direct PowerShell cargo test succeeded.
 - Initial gate logs preserved as build-runs/initial-{fc4verify-build,fc4verify-ctest,qbuild-test,qbuild-clippy}.log. Game wait helper build-runs/wait-verdict.py uses blocking Windows directory notifications (no qwait/polling).
 - Highest existing run number 348 at inspection; recheck before reserving run record.
