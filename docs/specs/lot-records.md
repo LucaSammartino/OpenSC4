@@ -889,6 +889,73 @@ release warning alone does not prove that field 13 legitimately changed identity
 train180 254/250-byte observation is a reported mismatch, not evidence that a four-byte
 loss or a bare-occupant substitution is required native behavior.
 
+### 9.1.2 Field-13 teardown identity and observation boundary (LR14)
+
+**Answer: the bare callback is not a second form of a live dust effect.** Construction creates a
+visual effect, acquires a reference, and stores its complete effect view at `+0x13C`
+(`0x005CBC17–0x005CBC46`, `0x005CBD05`). Write merely adjusts that stored nonnull pointer by
+`0x10` and queries Serializable (`0x005CD3A6–0x005CD3B9`). Neither operation creates a temporary
+bare occupant. There is, however, a native teardown route to exactly the reported base vtable:
+Shutdown removes the effect's occupant view `O+0xC` from the occupant manager, when available,
+then releases the construction-owned effect reference **without clearing `+0x13C`**
+(`0x005D0F72–0x005D0F99`, Shutdown's `this` is object+8). If this destroys the effect, its
+destructor eventually runs the embedded occupant destructor at `O+0xC`
+(`0x005F0399–0x005F03AB`). That destructor installs `0x00AA41BC` at `O+0x10`
+(`0x005E8C44–0x005E8C51`), the very address field 13 would pass to the helper. Thus a
+retained construction can contain a nonnull, released effect address whose old Serializable
+storage has the bare-occupant vtable *[quirk]*. After destruction this is stale storage, not a
+valid bare object that the construction now owns. Allocation reuse can change it again.
+
+The export misleadingly names `0x005E8C40` as a vector destructor; the vtable stores and
+the effect destructor's `O+0xC` argument establish the occupant teardown operation here.
+The derived Serializable vtable is installed before this base teardown
+(`0x005F0347–0x005F0368`). A bare vtable observed afterwards therefore does not prove that
+a separately allocated bare occupant ever existed. The field is not cleared by the remainder
+of Shutdown (`0x005D0F99–0x005D1088`). Repeating Shutdown does not restore it: the initialized
+guard and base Shutdown precede reference cleanup (`0x005D0CE6–0x005D0D06`).
+
+This establishes a native explanation for the **identity pattern**, not a reconstruction of
+run 470's timing. Its callback/class ID, byte counts and later exception alone cannot distinguish
+post-Shutdown stale storage, teardown reentrancy, address reuse, or incorrect observer framing.
+They do not establish that Shutdown ran on that instance. In particular, adding a reference to
+an already destroyed allocation cannot make it a valid live object again. No result is specified
+for invoking QI, Write or Release through such stale storage; do not reproduce its accidental
+bytes or access violation as valid serialization behavior. A still-live, separately supplied bare
+Serializable remains the well-defined rejected-input case in §9.1.1/T69.
+
+For a **valid live effect**, ownership across writer slot 26 is:
+
+| Boundary | References owned, excluding unrelated owners |
+|---|---|
+| Before helper | Construction owns one effect reference; an observer owns none unless separately acquired. |
+| Slot 26 entry | Helper additionally owns one successful Serializable-QI reference. The callback borrows that view for its duration. |
+| Callback returns | Any reference retained by the callback must already have its own acquisition. The helper then releases its QI reference, even on callback false. |
+| After helper | Construction still owns its original reference unless a separate lifecycle action released it. Only the observer's independent acquisitions belong to its cleanup. |
+
+For example, with only construction owning the effect, helper QI changes count 1→2; a
+callback pin changes 2→3; helper cleanup changes 3→2; pin cleanup changes 2→1.
+Pin cleanup can legitimately reach zero if construction and all other owners released their
+references meanwhile. It cannot reach zero in the unchanged live-owner example. The return
+count alone cannot tell these cases apart. Reader rejection separately releases its temporary
+Serializable and retains no effect reference. It neither consumes construction's ownership nor
+authorizes keeping an observer pin forever. A nonnull rejected field is still a mismatch; the
+reported 254/250 bytes authorize no four-byte correction.
+
+**Additional observation required for lifetime attribution.** At the original Write entry, while
+the caller's construction is known alive, record its complete address, initialized state and raw
+field-13 value. Correlate that instance with native Shutdown entry/exit, the effect destructor
+entry/base-vtable installation, and allocator reuse. At helper entry and slot-26 entry record
+the actual argument/view address, existing vtable and successful QI output; record each
+observer acquisition/release and the callback's nesting. Obtain this through passive native
+call/write tracing during normal operations, not by calling lifecycle methods or probing guessed
+interfaces. Inspect referenced storage only while its lifetime is established; once destruction is
+seen, record the stale field value without dereferencing it or trying to pin it. A genuine helper
+temporary would have a distinct creation/destruction interval inside Write; these original
+paths have none for occupants. A matching `O`, Shutdown release and base-vtable installation
+before the callback identify stale teardown storage; a different argument before helper QI
+identifies a framing/capture discrepancy. Absence of either trace is insufficient to choose a
+cause. An initialized-state check is a useful exclusion, not a lifetime guarantee across callbacks.
+
 ### 9.2 Life cycle (`0x005D1300` Init, `0x005D0890` SetLot, `0x005D0680` DoDailySim)
 
 - **`Init`** (`0x005D1300`, occupant frame; answers OP15 / OP7, 2026-10-21), in this order: return true at once if
