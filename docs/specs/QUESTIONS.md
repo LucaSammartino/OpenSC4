@@ -197,6 +197,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TV | terrain-view |
 | UG | underground-occupants |
 | UIH | ui-helpers |
+| UIS | ui-script-service |
 | VH | vehicles |
 | VIC | view-input-controls |
 | VP | video-preferences |
@@ -400,6 +401,7 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial-window | 4 | 2 | TUW7 | questions/tutorial-window.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
+| ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 3 | 8 | VH12 | questions/vehicles.md |
@@ -422,4 +424,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **668** | **1567** | | |
+| **total** | **669** | **1567** | | |

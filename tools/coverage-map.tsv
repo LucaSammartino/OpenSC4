@@ -598,6 +598,8 @@ cGZ*Graph	widget toolkit	ui	-	-	-	-
 cHTMLDocument	widget toolkit	ui	html-document.md	core/src/html_document	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
 cGZUIScriptService	widget toolkit	ui	ui-script-service.md	-	-	-
+cGZUIScriptCOMDirector	widget toolkit	ui	ui-script-service.md	-	-	-
+cGZScriptableControlSet	widget toolkit	ui	ui-script-service.md	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
 cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
 cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-

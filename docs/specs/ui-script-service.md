@@ -117,4 +117,50 @@ Inventory (46): `0x0094B07E`, `0x0094B08B`, `0x0094B0C7`, `0x0094B0F3`, `0x0094B
 `0x0094B676`, `0x0094B6EC`, `0x0094B73A`, `0x0094BA22`, `0x0094BA51`, `0x0094BA80`, `0x0094BAAF`, `0x0094BABC`,
 `0x0094BBE2`, `0x009D41AD`.
 
-Not covered: the interpreter, scope, container and tag-object classes themselves, and the UI-script COM directors.
+## 7. The UI-script COM director (`cGZUIScriptCOMDirector`) *[compat]*
+
+Owner `cGZUIScriptCOMDirector` (31 functions, 2,058 bytes), added by re-gzuiscript7b. A `cRZCOMDllDirector`
+(constructor `0x0094AFF6`, deleting destructor `0x0094AFCD`, director ID `0x9A3559B0` from `0x0094AF19`) registering:
+
+| Class | Factory | Object |
+|---|---|---|
+| `0xFA3562FB` | `0x0094AF64` | the service (`0x60` bytes) |
+| `0x5A354595` | `0x0094AF7A` | the control set (§8, `0x24` bytes, constructor `0x0094C0AF`) |
+| `0xFA450242` | `0x0094AF90` | `cGZLegacyControl` (`0x20` bytes; legacy-control.md) |
+| `0x478D1E6F` | `0x0094AFA6` | `cGZWinCustom` (`0xDC` bytes, constructor `0x0095BAB3`; the factory returns its `+0xD8` interface) |
+
+`OnStart` (`0x0094AF1F`): the service object is made through the director's own class factory (its slot 12, then
+slot 3 `(0xFA3562FB, 0x287FB697, &svc)`) and added to the framework as a system service (framework slot 3); then
+released.
+
+## 8. The control set (`cGZScriptableControlSet`) *[compat]*
+
+The result container of a script (class `0x5A354595`). Its two own functions are in the owner
+`cGZScriptableControlSet` (`0x0094BBFE` `QueryInterface`, `0x0094C0DC` its thunk); the rest is in the director's owner.
+
+- **Layout**: `+0x00` vtable `0x00AD5248` (13 slots), `+0x04` vtable `0x00AD5234` (5 slots), `+0x08`…`+0x10` a vector
+  of elements (begin, end, capacity; storage from a `cGZDefaultAllocator` at `+0x18`, first capacity 8), `+0x20`
+  reference count. Constructor `0x0094C0AF` (vector `0x0094C05E`); destructor body `0x0094C144` (release every
+  element, free the storage), deleting form `0x0094C188`.
+- **`QueryInterface`**: 1 and `0x1A35608A` → itself; `0xFA35615F` → `+4`; else false (out untouched). AddRef is the
+  shared counter; Release (`0x0094BC46`) at a count of 1 or less deletes (slot 12 `(1)`) instead of decrementing.
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 3 | shared | the `+4` interface (null for null) |
+| 4 `Add(element)` | `0x0094C0EC` | null → false; AddRef and append; true |
+| 5 `FindByID(id)` | `0x0094BD5E` | the first element whose slot 5 equals `id`, else null (not AddRef'd) |
+| 6 `GetAt(i)` | `0x0094BD96` | the element or null |
+| 7 / 8 `GetWindowByID(id)` / `GetWindowAt(i)` | `0x0094BC69` / `0x0094BCAA` | the element's `0x9A4527CB` interface slot 3 (its window), or 0 |
+| 9 `ForEach(arg)` | `0x0094BDB4` | every element's slot 7 `(arg)` |
+| 10 `GetCount()` | `0x0094BDE0` | |
+| 11 `Dispatch(iid, arg)` | `0x0094BDEA` | each element answering `iid` gets its slot 8 `(set, index, iid, arg)` while every call so far returned true; the result is whether all did |
+
+Second interface (`0xFA35615F`): slot 3 (`0x0094BE64`) gives `arg` to every element's `0x5A356159` interface slot
+3; slot 4 (`0x0094BEBA`), from the last element to the first, asks that interface's slot 5 for a rectangle, and when
+it contains the point `p`, calls its slot 6 `(p, arg)`; the first true ends it. For a legacy control these two slots
+are `SetArea(rect)` and `GetArea(rect)`, so this dispatch does not fit it *[quirk]* (UIS1). Helpers: `0x0094BCEB`,
+`0x0094BD13` (copies), `0x0094BD38` (point in rectangle, inclusive), `0x0094BF3B`, `0x0094C037` (append and grow),
+`0x0094C113` (erase a range), `0x0094C0E4` (Release thunk).
+
+Not covered: the interpreter and scope classes, and the tag objects other than the legacy control.
