@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lotrec5: SG3/LR12 round 3 integration | Codex / `glue-simgrid-lotrec5` (detached HEAD) | READY; one shared native variant encoder; cargo 6895/0, clippy clean, native 51/51, CTest 73/73; run 381 clean to 2032, ref_warnings=0; automata/SG3/LR12 all 73/73 exact; no questions or ABI changes | Coordinator: land full actual HEAD from READY queue |
+| glue-simgrid-lotrec5: SG3/LR12 round 3 integration | Codex / `glue-simgrid-lotrec5` (detached HEAD) | READY; one shared native variant encoder; cargo 6895/0, clippy clean, native 51/51, CTest 73/73; run 382 clean to 2032, ref_warnings=0; automata/SG3/LR12 all 73/73 exact; no questions or ABI changes | Coordinator: land full actual HEAD from READY queue |
 
 ## Changes
 
@@ -18,6 +18,9 @@ scres_constructed, with simgrid_shadow and lotrec_shadow appended.
 
 After the game verdict, merged main `12906d179` as `5322a2122`; this
 brought effects Rust changes and specifications without further conflicts.
+Final main refresh `714e439bb` brought only reporting documents; it also
+introduced train171 run 381, so this lane's record uses the next free run 382.
+The unique completed game request label remains unchanged.
 No new scope, questions, C ABI export changes, or ABI version bump.
 
 ## Validation
@@ -44,7 +47,7 @@ No new scope, questions, C ABI export changes, or ABI version bump.
 
 ## Real-city result
 
-[Run 381: lotrec-r3-triple-2032-381](../runs/lotrec-r3-triple-2032-381.md):
+[Run 382: lotrec-r3-triple-2032-381](../runs/lotrec-r3-triple-2032-381-382.md):
 Konradshohe, turbo to 2032-01-01, clean, ref_warnings=0, every harness
 problem count zero; real_seconds=42.813, wall=54 s. Tested DLL SHA256
 prefix `f1ecb12d`. All three shadows were exact:
@@ -59,5 +62,5 @@ Evidence: `build-runs/game-results/lotrec-r3-triple-2032-381.verdict` and
 matching `.log`. Waited using an event-driven filesystem watcher without
 qwait; retained the unique completed verdict. No normal-speed follow-up was
 needed because there were no turbo differences. The game verdict precedes
-the final main refresh; the final full gate follows that refresh.
+the final source refresh; the final full gate follows that source refresh.
 No game request remains outstanding. No remaining implementation work.
