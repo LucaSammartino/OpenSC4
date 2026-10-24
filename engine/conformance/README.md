@@ -32,6 +32,32 @@ Vectors are derived from the spec, never from the original program. Each vector 
 in `spec`. Behaviours that the spec leaves open and that a vector pins down are marked `[choice]` in the vector's
 `description`.
 
+## EF21 effects observation fixtures
+
+`ef_observation` creates isolated bookkeeping with `owner` (thread identity),
+`late` (already initialized at attachment), and ordered `actions`. `enter` and
+`leave` carry `scope` (`init`, `bootstrap`, `tick`, `begin`, `parse`, `end`).
+`request` records key `type/group/instance`, `iid`, `success` and optional
+`resource`; `read`, `release`, `publish_before` and `publish_after` carry the
+observed resource identity. `register` retains `path/flags`, `parse_result`
+retains `success/diagnostic`, `message` retains `id`, and `modified` retains
+`value`. An action may override `thread`. `expect` checks `writers_excluded`,
+`retained`, `history`, `generation`, optional `resource/borrowed`, event count,
+`registration_flags` and `reads` in original order. Writer exclusion is a host
+precondition, never inferred from the fixture or a calendar label.
+
+`ef_payload` constructs an isolated zero-filled memory image of `size`, applies
+`writes` (`at` plus `words` or literal `text`), then calls the bounded EF21
+reader at `collection`. `readable` checks refusal and `supported` distinguishes
+foreign reserved payloads and the open EF23 sequence flag scope. `checks` select
+`family` (particle, dynamic, decal, shake, light, then component types 3..15),
+optional `slots/names`, and a `slot` with `offset/value`, `absent` or `alias_of`.
+Words preserve float bits; byte strings are arrays of bytes; nested rows use
+decimal offset keys. `indeterminate` marks a copied value without a deterministic
+constructor default. Identities establish aliases only. These thirteen synthetic
+fixtures exercise observation bookkeeping and payload copying; they do not
+install native interceptors, execute publication, or establish game equivalence.
+
 ## Feature manager scenarios
 
 `fm_scenario` runs an isolated process scope with a default object `a`, `resources`

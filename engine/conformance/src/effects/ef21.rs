@@ -195,7 +195,7 @@ pub(super) fn payload(op: &Json) -> R<()> {
                     .iter()
                     .map(|(n, i)| {
                         Json::Array(vec![
-                            Json::String(String::from_utf8_lossy(n).into_owned()),
+                            Json::Str(String::from_utf8_lossy(n).into_owned()),
                             Json::Int(*i as i64),
                         ])
                     })
@@ -207,6 +207,15 @@ pub(super) fn payload(op: &Json) -> R<()> {
         }
         if let Some(slot) = opt(check, "slot") {
             let slot = family.slots.get(u32_of(slot, "slot")? as usize).ok_or("slot missing")?;
+            if let Some(other) = opt(check, "alias_of") {
+                let other = family
+                    .slots
+                    .get(u32_of(other, "alias_of")? as usize)
+                    .ok_or("alias slot missing")?;
+                if slot.identity.is_none() || slot.identity != other.identity {
+                    return Err("native alias relationship differs".into());
+                }
+            }
             if let Some(expected) = opt(check, "value") {
                 let value = slot
                     .payload
