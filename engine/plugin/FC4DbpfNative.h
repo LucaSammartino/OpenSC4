@@ -12,5 +12,7 @@ void DbpfShadowObserve(int32_t julian);
 void DbpfShadowTick();
 // Main-thread only: let an autotest quit drain the final dated sample first.
 bool DbpfShadowPending();
+// Invalidate multi-tick comparisons before native save/re-registration.
+void DbpfShadowBeforeSave();
 void DbpfShadowShutdown();
 }
