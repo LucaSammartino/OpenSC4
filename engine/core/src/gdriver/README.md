@@ -15,6 +15,9 @@ specified x87 rounding; no host floating-point rounding mode is changed.
 
 ## Owner closure
 
+Unqualified owner names below belong to `nSGLDX7`. "Implemented" means the
+specified core contract is covered; it does not claim native backend integration.
+
 | Owner | Spec section | Code item | Test / open boundary |
 |---|---|---|---|
 | cGDriver | 1 scope | Driver, Device: Host | dx7_01_02_04_noops_and_identity |
@@ -72,6 +75,11 @@ specified x87 rounding; no host floating-point rounding mode is changed.
 | cGDriver | 16 proof boundaries | Driver::copy_color_buffer, auxiliary_surfaces | open: RD7 CopyColorBuffer, RD12 context-to-owner aliases; RD1/RD3/RD4 retain external caller/meaning/handler questions |
 | cPrimitiveManager | 16 proof boundaries | PrimitiveManager::queue/flush/destroy, primitive::expanded_writes | implemented; unchecked native out-of-range reads/writes represented by InvalidInput or explicit oversized scratch vectors |
 | cTextureManager | 16 proof boundaries | TextureManager::init/load/destroy, texture::convert | open: RD6 remaining non-copy arithmetic only |
+| cTextureManager | 9.6 compressed raw-copy traversal | texture::convert | implemented: raw_converter_advances_rows_with_independent_strides (forward traversal, independent strides, padding) |
+| cPrimitive | 8.3 queued records, 13 lifetime/order | primitive::Entry, PrimitiveManager::queue/flush | implemented: primitive_copy_merge_immediate_overtake_and_failure_paths, dx7_21_flush_returns_last_submission_and_resets_scratch_when_stopped |
+| cVertexBuffer | 14.1 reservation/reference/loss | primitive::VertexBuffer | implemented: dx7_16_buffer_reservation_and_reference_order, loss_placeholder_is_owned_and_released_on_restore |
+| cTextureStageData | 10.1 record/reset, 10.2 setters, 10.3 application, 13 caches | stage::Stage | implemented: dx7_06_combiner_cache_and_min_filter_fallthrough, dx7_25_26_constructor_and_default_reset_are_distinct, stage_coordinates_matrices_environments_and_capability_gate |
+| D3DLight | 12.1 construction, 12.4 fields/submission | D3DLight, auxiliary.rs | implemented: dx7_32_38_auxiliary_lighting_and_material_vectors |
 
 ## Remaining boundaries
 

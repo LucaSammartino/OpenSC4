@@ -817,9 +817,9 @@ impl Driver {
         };
         let logical = count as usize;
         let readable = if mode == 6 {
-            ((3 * (logical / 2)) as u16 as usize + 5) / 6 * 4
+            ((3 * (logical / 2)) as u16 as usize).div_ceil(6) * 4
         } else if mode == 7 {
-            ((logical.saturating_sub(2) + 1) / 2) * 2 + 2
+            logical.saturating_sub(2).div_ceil(2) * 2 + 2
         } else {
             logical
         };

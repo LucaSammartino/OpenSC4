@@ -381,7 +381,7 @@ pub fn expanded_writes(
         }
         6 => {
             let declared = (3 * (n / 2)) as u16 as usize;
-            let groups = if indexed { (declared + 5) / 6 } else { (n + 3) / 4 };
+            let groups = if indexed { declared.div_ceil(6) } else { n.div_ceil(4) };
             for q in (0..groups * 4).step_by(4) {
                 for i in [q, q + 1, q + 2, q, q + 2, q + 3] {
                     out.push(if indexed {

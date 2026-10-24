@@ -432,7 +432,9 @@ pub fn convert(
             &mut [],
         );
     }
-    for y in (0..height).rev() {
+    for row in 0..height {
+        // Section 9.6's compressed byte copier advances rows; expansions walk backward.
+        let y = if raw { row } else { height - 1 - row };
         let s = src.wrapping_add(y.wrapping_mul(src_pitch));
         let d = dst.wrapping_add(y.wrapping_mul(dst_pitch));
         if raw || source == 0 {
@@ -445,7 +447,10 @@ pub fn convert(
                 host.read(s.wrapping_add(x.wrapping_mul(2)), &mut bytes)?;
                 let v = u16::from_le_bytes(bytes) as u32;
                 let pixel = if source == 5 {
-                    ((v >> 12) * 17) << 24 | ((v & 15) * 17) << 16 | (((v >> 4) & 15) * 17) << 8 | ((v >> 8) & 15) * 17
+                    ((v >> 12) * 17) << 24
+                        | ((v & 15) * 17) << 16
+                        | (((v >> 4) & 15) * 17) << 8
+                        | (((v >> 8) & 15) * 17)
                 } else {
                     let expand5 = |n: u32| (n << 3) + (n >> 2);
                     let g = (v >> 5) & 63;

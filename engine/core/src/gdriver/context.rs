@@ -115,7 +115,7 @@ impl Context {
             return Ok(hr);
         }
         self.d3d = out[0];
-        Ok(self.rebuild(r, host)?)
+        self.rebuild(r, host)
     }
     pub fn restore(&mut self, host: &mut impl Device) -> Result<u32> {
         let hr = dx(host, self.dd, Call::RestoreAll, &[]);

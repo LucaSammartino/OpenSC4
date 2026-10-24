@@ -333,6 +333,21 @@ fn dx7_43_pixel_expansions_and_independent_padding() {
 }
 
 #[test]
+fn raw_converter_advances_rows_with_independent_strides() {
+    let mut h = Recorder::default();
+    for (source, key) in [(10, 9), (12, 11), (11, 10), (13, 12), (14, 13)] {
+        h.write(0x1000, &[1, 2, 3, 4, 5, 6]).unwrap();
+        // Overlapping row storage distinguishes advancing from reverse traversal.
+        texture::convert(source, key, 0x1000, 0x1002, 2, 2, 2, 3, &mut h).unwrap();
+        assert_eq!(memory(&mut h, 0x1000, 8), [1, 2, 1, 2, 1, 2, 1, 2]);
+        h.write(0x2000, &[1, 2, 9, 3, 4, 9]).unwrap();
+        h.write(0x3000, &[0xa5; 8]).unwrap();
+        texture::convert(source, key, 0x2000, 0x3000, 3, 4, 2, 2, &mut h).unwrap();
+        assert_eq!(memory(&mut h, 0x3000, 8), [1, 2, 0xa5, 0xa5, 3, 4, 0xa5, 0xa5]);
+    }
+}
+
+#[test]
 fn dx7_44_linear_copy_ignores_dimensions_and_nonzero_offset_copy_result() {
     let (mut d, mut h) = fixture();
     d.textures.formats = Some([descriptor(8, 0, 11); 8]);
