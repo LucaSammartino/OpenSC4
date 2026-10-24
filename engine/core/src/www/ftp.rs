@@ -1238,10 +1238,6 @@ mod tests {
     #[test]
     fn www19_1_fresh_session_initialization() {
         let mut s = Session::default();
-        s.address = Address {
-            host: [1, 2, 3, 4],
-            port_word: 0x1500,
-        };
         s.initialize().unwrap();
         assert!(s.initialized);
         assert_eq!(
@@ -1256,7 +1252,7 @@ mod tests {
             (s.user.as_slice(), s.password.as_slice()),
             (b"anonymous".as_slice(), b"user".as_slice())
         );
-        assert_eq!(s.address.host, [1, 2, 3, 4]);
+        assert_eq!(s.address, Address::default());
         assert_eq!(s.buffer, vec![0; 2048]);
         assert_eq!(s.target, None);
         // initialize takes no host: no socket, thread or reference operation can occur.

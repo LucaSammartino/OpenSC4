@@ -102,7 +102,7 @@ fn read_header_into(
             resource.body = resource.raw_header[end + 4..].to_vec();
             resource.raw_header.truncate(end + 4);
             resource.headers = http::parse_records(&resource.raw_header);
-            let status = resource.status();
+            let status = resource.status_in_locale(|b| host.status_whitespace(b));
             if status == 0 {
                 return None;
             }

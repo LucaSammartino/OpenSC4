@@ -168,6 +168,10 @@ pub enum ReadStep {
     Disconnected,
 }
 pub trait ReadHost {
+    /// Inject the runtime CRT locale. The default is its six C-locale spaces.
+    fn status_whitespace(&self, byte: u8) -> bool {
+        matches!(byte, b' ' | b'\t' | b'\r' | b'\n' | 11 | 12)
+    }
     fn now(&mut self) -> u32;
     fn cancel(&mut self) -> bool;
     fn clear_cancel(&mut self);

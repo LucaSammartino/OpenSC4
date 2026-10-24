@@ -76,6 +76,10 @@ impl Default for Resource {
 impl Resource {
     /// HTTP wire §1.1, CRT C-locale scanner, C-string bytes and wrapping atoi.
     pub fn status(&self) -> i32 {
+        self.status_in_locale(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | 11 | 12))
+    }
+    /// Runtime CRT classification is a foreign input, not Unicode whitespace.
+    pub fn status_in_locale(&self, whitespace: impl Fn(u8) -> bool) -> i32 {
         let Some((name, _)) = self.headers.first() else {
             return 0;
         };
@@ -83,9 +87,7 @@ impl Resource {
             return 0;
         }
         let text = name.split(|b| *b == 0).next().unwrap_or_default();
-        let mut tokens = text
-            .split(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | 11 | 12))
-            .filter(|t| !t.is_empty());
+        let mut tokens = text.split(|b| whitespace(*b)).filter(|t| !t.is_empty());
         tokens.next();
         let Some(token) = tokens.next() else { return 0 };
         // The first byte is left untouched; truncate from the second byte onward.
@@ -351,8 +353,11 @@ impl Client {
         loop {
             let id = self.next_identity;
             self.next_identity = id.wrapping_add(1);
-            if id != 0 && !self.requests.contains_key(&id) && !self.resources.contains_key(&id)
-                && !self.workers.contains_key(&id) {
+            if id != 0
+                && !self.requests.contains_key(&id)
+                && !self.resources.contains_key(&id)
+                && !self.workers.contains_key(&id)
+            {
                 return id;
             }
         }

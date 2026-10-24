@@ -196,6 +196,15 @@ fn www20_s8_crt_whitespace_and_ignored_tokens() {
             true,
         );
     }
+    for separator in [b'\r', b'\n'] {
+        assert_eq!(
+            status_resource(&[b"HTTP/1.1".as_slice(), &[separator], b"200"].concat()).status(),
+            200
+        );
+    }
+    let resource = status_resource(b"HTTP/1.1\xff200");
+    assert_eq!(resource.status(), 0);
+    assert_eq!(resource.status_in_locale(|b| b == 255), 200);
 }
 #[test]
 fn www20_s9_status_name_383_bytes() {
@@ -527,15 +536,22 @@ fn www20_r8_new_response_overwrites_old_without_release() {
 fn www20_r9_stop_bypasses_callback_and_both_releases() {
     let (mut client, mut io, worker, request, mut peer) = admitted();
     one_byte(&mut io);
-    client.workers.get_mut(&worker).unwrap().stop = true;
+    let mut job = client.workers[&worker].current.unwrap();
+    execute(&mut client, &mut io, &mut job, &mut peer, 100, None).unwrap();
+    let record = client.workers.get_mut(&worker).unwrap();
+    record.current = Some(job);
+    record.stop = true;
     io.effects.clear();
-    run_current(&mut client, &mut io, worker, &mut peer, None).unwrap();
+    client.final_boundary(&mut io, worker).unwrap();
     assert!(io.observed.is_empty() && releases(&io).is_empty());
     assert_eq!(client.requests[&request].refs, 1);
     assert_eq!(client.resources.values().next().unwrap().refs, 1);
     assert!(client.workers[&worker].current.is_none());
     assert!(!client.workers[&worker].cancel);
-    assert!(io.effects.iter().any(|e| matches!(e, http::Effect::FinalBoundary(job, true) if job.status() == 7)));
+    assert!(io
+        .effects
+        .iter()
+        .any(|e| matches!(e, http::Effect::FinalBoundary(job, true) if job.status() == 7)));
 }
 #[test]
 fn header_fragmentation_informational_status_zero_and_interrupts() {
