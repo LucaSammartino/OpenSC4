@@ -181,8 +181,9 @@ pub struct ComponentRecord {
     pub kind: u8,
     /// `+0x10`, masked to 2 bits: bit 0 = ignored by the finish test (§7).
     pub flags: u32,
-    /// `+0x14`: the local transform, kept as stored (its layout is not in
-    /// the spec; the core treats it as the identity, EF7).
+    /// `+0x14`: all 56 bytes of the local transform, kept as stored.
+    /// Decoding and native numeric order remain open in EF19. The manager's
+    /// identity-placement limitation does not alter these resource bytes.
     pub placement: [u8; PLACEMENT_BYTES],
     /// `+0x4C`, `+0x4D`: the level-of-detail range `[min, max)`.
     pub lod_min: u8,
@@ -937,3 +938,7 @@ fn write_effect(w: &mut Vec<u8>, e: &EffectDescription, section_version: u16) {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "directory_tests.rs"]
+mod tests;

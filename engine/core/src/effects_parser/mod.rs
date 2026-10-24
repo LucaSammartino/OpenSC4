@@ -12,6 +12,7 @@
 
 use crate::effects::ComponentRecord;
 
+pub mod bootstrap;
 pub mod nested;
 pub mod numeric;
 pub mod rotation;

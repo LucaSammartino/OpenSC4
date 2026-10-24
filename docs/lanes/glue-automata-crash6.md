@@ -17,8 +17,9 @@
 - Required: focused native bad-ID test; final all and queued verify; three unique exact 2032 game runs.
 - Keep owners shadow default-off. Coordinator should add automata_owners_shadow to the house profile after exact validation (tools are outside lane scope).
 - No outstanding game request. No spec behavior or ABI export changes; this is capture tooling ownership.
-- Game 381 automata-crash6-r2-2032-20261024-a: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; DLL ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484.
-- Game 382 automata-crash6-r2-2032-20261024-b: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
-- Game 383 automata-crash6-r2-2032-20261024-c: clean 2032-01-02/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
-- Next: required final main merge, preserve both capture semantics, native gate if capture changed, then full report and READY queue with full actual HEAD.
+- Game 384 automata-crash6-r2-2032-20261024-a: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; DLL ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484.
+- Game 385 automata-crash6-r2-2032-20261024-b: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
+- Game 386 automata-crash6-r2-2032-20261024-c: clean 2032-01-02/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; same ceebe86d DLL.
+- Merged main cleanly before queue preparation; FC4WriteCapture.cpp/.h unchanged, but Rust effects code changed. Renumbered run records 384-386 after main introduced train171 run 381.
+- Next: rerun full all on merged stable source, then full report and READY queue with full actual HEAD (repeat mandated merge immediately before queue).
 - Before READY queue: merge main as explicitly instructed; preserve concurrent variant encoding changes, rerun native gate if FC4WriteCapture changes. Detached HEAD is intentional.

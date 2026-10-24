@@ -97,6 +97,8 @@ pub struct GameEffect {
     pub data: u64,
     /// An effect map is applied (render, step 6).
     pub map_applied: bool,
+    /// Opaque render-service identity; never interpreted as a native pointer.
+    pub map_token: u64,
     /// Diagnostics: `Apply` calls made.
     pub applies: u32,
 }
@@ -113,6 +115,7 @@ impl GameEffect {
             cell: (-1, -1),
             data: u64::from(record.message_data),
             map_applied: false,
+            map_token: 0,
             applies: 0,
         }
     }
@@ -121,7 +124,7 @@ impl GameEffect {
     /// ignored.
     pub fn set_parameter(&mut self, index: u32, value: u64) {
         if index == 13 {
-            self.data = value;
+            self.data = u64::from(value as u32);
         }
     }
 
@@ -136,6 +139,12 @@ impl GameEffect {
             self.cell = cell;
             self.pending = true;
         }
+    }
+
+    /// `SetTransform` at the semantic transform boundary (§9.2).
+    pub fn set_transform(&mut self, local_offset: [f32; 3], parent: &super::transform::ParentTransform) {
+        let position = parent.world_position(local_offset);
+        self.set_position(position[0], position[2]);
     }
 
     pub fn is_active(&self) -> bool {
@@ -180,7 +189,10 @@ impl GameEffect {
         if f & game_flag::PAUSE_CLOCK != 0 {
             host.clock_pause(false);
         }
-        self.map_applied = false;
+        if self.map_applied {
+            host.remove_effect_map(self.map_token);
+            self.map_applied = false;
+        }
     }
 
     /// `Update(dt)` (`0x005BD4D0`).
@@ -196,7 +208,7 @@ impl GameEffect {
             self.stop(host);
         } else if self.pending {
             self.apply(host);
-            self.count += 1;
+            self.count = self.count.wrapping_add(1);
             self.pending = false;
         }
     }
@@ -253,6 +265,10 @@ impl GameEffect {
         if g.map_kind != 0 {
             // Render: the previous map goes when count > 0, then this one is
             // applied at the cell.
+            if self.count > 0 {
+                host.remove_effect_map(self.map_token);
+            }
+            self.map_token = host.apply_effect_map(&g, self.cell);
             self.map_applied = true;
         }
     }
