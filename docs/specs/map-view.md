@@ -72,7 +72,7 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 |---|---|---|
 | `0x4A0B47E5` | u32 | the **source** (§4.1) |
 | `0x4A0B47E4` | u32 pairs | the colour ramp: (value, ARGB) pairs, interpolated into a 256-entry palette |
-| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); used when `1 < s < 2^24`, else 256 |
+| `0x4A0B47EC` | u32 | the **scale** `s` (§4.2); absence/invalid range leaves conversion factors 256; explicit valid 256 recomputes them |
 | `0x4A0B47E7` | bool | **interpolate**: a coarse grid is resampled to cells before drawing |
 | `0x4A0B47E8` | u32 | **block by lot**: present → every lot is drawn as one value, with this argument (§4.3) |
 | `0x4A0B47ED` | u32 | the desirability layer for the per-wealth sources (default 1, §4.1) |
@@ -85,9 +85,9 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 | `0x4A0B47E1` | bool | the filter shows every type but the listed ones; without it, a list shows only its types and no list shows every type |
 | `0x4A0B47E2` | bool | the filter hides the base textures of empty lots, and the signposts and text decals the type test leaves out |
 | `0x4A0B47F0` | bool | passed (false when absent) to the lot developer's `SetForceEmptyLotBaseTextures` (building development simulator slot 36, then lot developer slot 47) |
-| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | terrain view mode 0 → 1, 1 → 3, 2 → 2 (normal, pipes, subway *[inferred]*) |
+| `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | E3 selects city level plus terrain display; F1 subsequently overrides the filter's level options only; 0 → 1 normal, 1 → 3 pipes, 2 → 2 subway (§3.1) |
 | `0x6B7C5CDD` | u32 list | up to eight bytes kept for the source (the travel types of the traffic volume views) |
-| `0x4A0B47E6` | u8 | a zone display option *[summary]* |
+| `0x4A0B47E6` | u8 | zone display alpha; absent → zone manager's default, not the previous view's alpha (§3.1) |
 | `0x4A0B47EB` | u32 | a GZCOM class made with IID `0x8A175D6B` (the pipe, subway and regional transport tools' views) |
 | `0x4A0B47F5` | bool | sets a flag of the map's child `0x4203` (IID `0xCA318385`) |
 
@@ -163,6 +163,43 @@ shut down and released, the update subscriptions dropped (`UnhookUpdateMessages`
   their alpha (`floor((c × a + 128) / 256)`); the city view gets the filter and the terrain the view mode; then
   `UpdateHighlights`, `Update`, the child `0x4203` flag, the current view := `n`, `HookUpdateMessages` (§7).
 
+#### Terrain and zone display (QV1) *[compat]*
+
+These settings affect the **3D city**, independently of the minimap's data source. E3 chooses the
+city-view level and the two terrain display flags. Start at normal level 1; E3 values 0/1/2 choose
+normal/pipes/subway levels 1/3/2. An absent or unrecognized E3 leaves normal level 1.
+
+| E3 / selected level | Plumbing coverage display (terrain slot 86) | Surface water display (terrain slot 84) |
+|---|---|---|
+| absent, 0, or invalid / 1 | off | on |
+| 1 / 3 (pipes) | on | off |
+| 2 / 2 (subway) | off | off |
+
+The plumbing flag enables the terrain view's pipe-coverage rendering (terrain-view §8.2), rather
+than changing the source grid of this map. The water flag controls the visible surface-water pass;
+turning it off does not remove water from the simulation. Slot 86 stores a global display byte;
+slot 84 stores the terrain's water-display byte and, on change, emits `0x6AB97795` carrying the new
+byte so the terrain view updates. Repeating the same flag does not emit another water-state change.
+F1 is read **after** these terrain flags and the city level have been set. Its mapped mode controls
+the occupant filter's underground/level options; it does not rerun the terrain settings. Thus
+E3=1,F1=2 keeps the plumbing display on and surface water off, while using the subway filter options.
+The detailed occupant-filter type rules remain in occupant-manager §13.2.8.
+
+E6 is an **opacity byte**, not a zone-type mask or a choice of zone grid. Before each nonzero view,
+obtain the zone manager's default alpha (slot 17, its retained configuration default). A present E6
+replaces that byte; apply the result through slot 18. Zero makes zone display transparent; 255 is
+full alpha. The setter changes the common current zone alpha and refreshes affected zone/lot visuals
+only when the byte differs. It does not change the retained default. Selecting none restores the
+default alpha, disables plumbing display and enables surface water, alongside the normal city level
+and default filter. An absent E6 likewise restores the configured default even after an explicitly
+transparent prior view. No owner-side alpha interpolation or alpha scaling is performed here.
+
+Evidence: none reset `0x007A4A67`–`0x007A4AB5`; E3 level/terrain setup
+`0x007A4D7B`–`0x007A4DA5`, later F1/filter options `0x007A4DB2`–`0x007A4E42`;
+E6 default/override/application `0x007A4EBC`–`0x007A4F00`; terrain setters
+`0x00741FF0`–`0x00741FFB`, `0x007434E0`–`0x0074354C`; zone default getter
+`0x004DC370`–`0x004DC376` and current-alpha setter `0x004DCF60`–`0x004DD04F`.
+
 #### Selection completion and foreign failures *[compat]*
 
 Selection is not atomic. In particular, a failed exemplar lookup returns false **after** the old custom view
@@ -194,7 +231,7 @@ This describes normally returning primitives. It does not make a null required s
 handle, a fault or an exception into a native false result. Several required interfaces are dereferenced
 without null checks. A portable adapter may diagnose those invalid inputs *[choice]*, but an opaque adapter
 error and immediate stop is not the native rule for the ordinary false results listed above. Property/ramp
-domains and the meanings of reset primitives remain the separate questions QV1 and QV6;
+domains and reset primitives are specified in §2.1 and the QV1 subsection above;
 palette construction and building reconciliation are specified below (QV7–QV8).
 
 ### 3.2 Buttons (`DoMessage`, `0x007A56E0`; tutorial-filtered commands `0x287259F6`)
@@ -267,6 +304,30 @@ Sources 11, 13–23 and 31–63 draw nothing *[quirk: the shipped zones and the 
 `+0x9E0` is set) picks the developer's grid: 2 → slot 14 (unsigned 16-bit), 3 and 4 → slot 13 (signed 16-bit),
 5 → a grid built by `0x007A2080` (signed 16-bit), 6 → a debug grid of slot 11's entries × 12 (signed 16-bit).
 
+#### Remaining developer layers (QV11) *[compat]*
+
+**Layer 1 selects no grid.** It is the exemplar default but is not a handled developer layer; like
+any layer other than 2–6 it leaves the newly cleared map empty. It is neither slot 12 nor a synonym
+for layer 3. Layers **3 and 4 are identical** at this owner: the same slot-13 signed-16 grid, geometry,
+conversion, lot handling and overlay are used. The selected layer need not be collapsed in stored
+exemplar state, but no distinct rendering rule exists for those two values.
+
+Layer 6 constructs a fresh zero-filled signed-16 grid. Its x/z dimensions are the slot-13 grid's
+dimensions (grid slots 12/13); its world cell width/height are also that grid's (slots 14/15).
+Developer slot 10 is the availability predicate: if false, no debug values are drawn. If true,
+developer slot 11 supplies an ordered flat sequence of **12-byte records**, three signed 32-bit words
+`(x,z,value)`. For each record, replace cell `(x,z)` with the low 16 bits of `value×12`, interpreted
+as signed 16-bit. Unmentioned cells remain zero; later duplicate coordinates overwrite earlier ones.
+There is no summation, sorting, normalization or saturation. The owner does not bounds-check record
+coordinates; malformed coordinates/storage are unsafe inputs, not clipped records. The rendering walk
+is the ordinary x-outer/z-inner grid walk, independent of record order after these replacements.
+
+Layer 6 temporarily disables interpolation while passing this grid through the ordinary signed-16
+conversion/drawing path, then restores the previous interpolation flag. It does not change the
+exemplar's saved layer. The debug override chooses layer 6 even when ED is absent or names another
+layer. Evidence: layer dispatch and shared 3/4 branch `0x007A4408`–`0x007A44A4`, debug-grid construction,
+entry replacement and interpolation restoration `0x007A44E1`–`0x007A45F1`.
+
 #### Layer 5: capacity percentage (QV4) *[compat]*
 
 Layer 5 reuses a lazily allocated signed-16 simgrid with cell-size shift 1 and instance `0x89D5C471`.
@@ -300,8 +361,22 @@ the ordinary signed-16 display path; its palette conversion is separate (QV5).
 | signed 16-bit | `128 + ((v × ⌊0x7FFF00 / s⌋) >> 16)` (64-bit, arithmetic shift), clamped to 0–255 |
 | float | low byte of the signed-64-bit truncation; see §4.2.1 |
 
-With the default scale 256 the factors are 256 (so an unsigned 16-bit value is divided by 256). Each index selects
-the alpha-multiplied palette entry (`MakeMapColorBuffer`).
+The formulas in the table apply only to a **present** scale with `1 < s < 2^24`.
+Every new nonzero selection first sets both 64-bit factors to **256**, independently of the stored scale
+field (initially 256). An absent scale leaves those factors unchanged; a present out-of-range value
+(`0`, `1`, or at least `2^24`) is retained in the scale field but also leaves both factors 256.
+A present valid value replaces them with the two quotients in the table. Consequently absent scale
+and explicit scale 256 are observably different: explicit 256 gives unsigned factor 65535 and signed
+factor 32767. With default factors, the unsigned index is `min(floor(v/256),255)` and the signed index
+is `clamp(128+floor(v/256),0,255)`. The previous selection's factors never carry into a new nonzero view.
+
+Products are 64-bit integer products; signed samples are sign-extended and negative right shifts round
+**down**, not toward zero. Saturation follows the shift (and the signed path's addition of 128).
+Thus explicit scale 1024 gives factors 16383/8191: unsigned 512 gives 127, while signed −512 gives
+**64**, correcting the earlier vector's 65. Each resulting byte selects the alpha-multiplied palette
+entry (`MakeMapColorBuffer`). Evidence: factor initialization/range/division/stores
+`0x007A51FD`–`0x007A5287`; unsigned load/product/shift/clamp `0x007A2BBB`–`0x007A2BE3`;
+signed load/product/arithmetic shift/clamp `0x007A2D49`–`0x007A2D78` (QV5).
 
 ### 4.2.1 Float conversion outside the byte domain (QV10) *[compat]*
 
@@ -356,6 +431,16 @@ The owner upsamples to the city's x/z cell counts if interpolation is enabled an
 dimension is smaller (`0x007A23EC`–`0x007A23FE`); destination cell sizes then become the city's world
 width/height divided by its respective cell counts (16 m for an ordinary city).
 Block-property presence forces interpolation on, even when its mask is zero.
+
+The step is truncated **before** constructing the half-step origin; `q/2` here is integer division.
+For S=2,D=3, q=43690 and the three fixed-point positions are −10923, 32767, 76457.
+The middle is just below halfway. Do not replace it with exact rational cell-centre coordinates or
+round the step to 43691. A 2×2 source with x rows `[0,1]`, `[1,2]` therefore has centre **0** at 3×3:
+the inner rounded values are 0 and 1, followed by outer result 0. The same source reduced to 1×1
+has exact half fractions on both axes and gives **2**. This latter case distinguishes the two integer
+roundings from one bilinear rounding. Evidence: signed step divisions `0x0079EB8B`–`0x0079EBA7`,
+integer halves/origins `0x0079EBBE`–`0x0079EBDD`, rounded inner/outer products
+`0x0079ECB9`–`0x0079ECF5` (QV16).
 
 #### Lot mask and crime icons (QV4) *[compat]*
 
@@ -647,15 +732,19 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV1 (the 3D view filter options and the terrain and zone display
-calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels, the group buttons and the toggle
-`0x8100`/`0x8101`), QV5 (16-bit conversions), QV11 (other developer layers), and QV14 (ring precision).
-QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
+See [questions/map-view.md](questions/map-view.md): QV2 (traffic volume source 76), QV3 (panels, group
+buttons and the toggle `0x8100`/`0x8101`), QV14 (ring precision), and QV15 (missing lot-mean prose).
+QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
+[answered record](questions/answered/map-view.md).
 
 ## 10. Conformance tests
 
-1. **Index:** with scale 1024, an unsigned 16-bit value of 512 gives index 127; a signed 16-bit value of −512
-   gives index 65.
+1. **Index:** with explicit scale 1024, unsigned 512 gives index 127; signed −512 gives 64.
+   With scale absent (also with 0, 1 or `0x1000000`), unsigned `[0,255,256,65535]` gives
+   `[0,0,1,255]`, signed `[-32768,-257,-256,-1,0,255,256,32767]` gives
+   `[0,126,127,127,128,128,129,255]`. With explicit scale 256 the factors are 65535/32767:
+   unsigned `[0,1,255,256,512]` gives `[0,0,254,255,255]`, signed `[-512,-1,0,1,256]`
+   gives `[0,127,128,128,255]`. Selecting an absent-scale resource after this restores factors 256.
 2. **Mayor rating:** a signed 8-bit value of −128 gives index 0, +127 gives 255.
 3. **Throttle:** two pollution messages 200 ms apart cause one redraw at the first tick after 1000 ms.
 4. **Empty view:** choosing view `0x14` (residential desirability) leaves the map empty.
@@ -715,8 +804,9 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
 21. **Resampling:** a 1×2 unsigned grid `[0,100]` resampled to 1×4 gives `[0,25,75,100]`.
     The same shape with signed `[-100,100]` gives palette indices `[28,78,178,228]`.
     A constant 1×1 grid fills the entire destination. For source x rows `[0,1]`, `[1,2]`,
-    resampling 2×2 to 3×3 gives centre value 2 (inner-axis halfway results 1 and 2, then 2),
-    discriminating two-stage rounding from the unrounded bilinear centre value 1.
+    resampling 2×2 to 3×3 gives x rows `[0,0,1]`, `[0,0,1]`, `[1,1,2]`, with centre **0**.
+    Resampling that source to 1×1 gives **2** (inner halfway results 1 and 2, then 2),
+    discriminating two-stage rounding from the unrounded bilinear value 1.
 22. **Float index wrap:** samples `[-1.75,-0.75,255.75,256.75,511.75,NaN,+Inf,-Inf,2^63]`
     give `[255,0,255,0,255,0,0,0,0]` under masked invalid exceptions. These cases must not be
     implemented as clamping or finite-domain rejection.
@@ -755,3 +845,16 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
     Update preserves all three. A normally returning custom false does not undo a replacement or restore dirty.
 33. **Notification comparison:** supplied old/new records' second words 5/5 leave a clean map clean;
     5/6 mark it dirty, independent of prior notifications or constructor clock.
+34. **Developer layers:** valid developer and child, ED absent or 1 or 99 → cleared empty map, no
+    developer grid selected. ED=3 and ED=4 with the same inputs produce identical images/marked cells.
+    For ED=6, slot-13 dimensions 2×2, slot-10 true, ordered records
+    `[(1,0,2),(0,1,-1),(1,0,3000)]` give signed x rows `[0,-12]`, `[-29536,0]` before palette
+    conversion (`36000` wraps to −29536). Interpolation initially true is false during this draw
+    and true afterwards. An empty available sequence draws zero values; unavailable sequence draws
+    nothing. Debug override plus ED=2 uses this same layer-6 result.
+35. **3D display flags/alpha:** default zone alpha 96, prior current alpha 0: E3 absent/E6 absent →
+    level 1, plumbing off, surface water on, zone alpha 96. E3=1,E6=255 → level 3, plumbing on,
+    surface water off, alpha 255. E3=2,E6=0 → level 2, plumbing off, water off, alpha 0.
+    E3=1,F1=2 retains level 3/plumbing on/water off while changing only filter options to mode 2.
+    Selecting none restores level 1/plumbing off/water on/alpha 96. Applying the same current
+    water/alpha bytes again emits no additional setter-side visual refresh.
