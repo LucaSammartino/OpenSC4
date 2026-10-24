@@ -37,6 +37,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AS | animated-sprite |
 | AT | automata |
 | AU | audio, aura |
+| AW | advisor-window |
 | BQ | budget |
 | BT | bulldozer-tool |
 | BW | budget-window |
@@ -201,6 +202,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
+| advisor-window | 5 | 0 | AW6 | questions/advisor-window.md |
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
 | aircraft | 5 | 3 | AF9 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
@@ -378,4 +380,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **612** | **1439** | | |
+| **total** | **617** | **1439** | | |

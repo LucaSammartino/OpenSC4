@@ -137,6 +137,7 @@ cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/ci
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
+cSC4AdvisorUIAdvisorWinProc	windows and panels	ui	advisor-window.md	-	-	-
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
 cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
 cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
