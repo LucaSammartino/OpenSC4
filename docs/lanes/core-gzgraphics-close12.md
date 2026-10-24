@@ -14,7 +14,9 @@
 - Open owners: context 3.2 GZG1/GZG7; renderers 4 GZG2; GraphicSystem 5 GZG3;
   AlphaBlt standalone pixels 6.1 GZG5. None claimed fully native-exact.
 - Resumed gate: cargo 7112 passed, 0 failed (45 graphics tests); eight absolute
-  owned-file fmt checks PASS, diff_lines=0. Clippy/native still pending.
+  owned-file fmt checks PASS, diff_lines=0; clippy PASS, 0 diagnostics.
+- Native queue label: qbuild-20261024-121844-build-ctest; waiting behind a
+  game regression. Collect same session to terminal; no separate request.
 - First all: cargo 7111 passed; clippy manual_range_patterns FAILED (corrected).
 - Preserved logs: build-runs/qbuild-first-test.log and qbuild-first-clippy.log.
 - Sessions 16330 and 56402 are gone (coordinator instruction); their results are
