@@ -127,7 +127,8 @@ This describes normally returning primitives. It does not make a null required s
 handle, a fault or an exception into a native false result. Several required interfaces are dereferenced
 without null checks. A portable adapter may diagnose those invalid inputs *[choice]*, but an opaque adapter
 error and immediate stop is not the native rule for the ordinary false results listed above. Property/ramp
-domains and the meanings of reset primitives remain the separate questions QV1 and QV6–QV8.
+domains and the meanings of reset primitives remain the separate questions QV1 and QV6;
+palette construction and building reconciliation are specified below (QV7–QV8).
 
 ### 3.2 Buttons (`DoMessage`, `0x007A56E0`; tutorial-filtered commands `0x287259F6`)
 
