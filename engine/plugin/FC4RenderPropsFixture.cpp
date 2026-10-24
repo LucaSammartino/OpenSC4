@@ -11,6 +11,8 @@ extern "C" void fc4_renderprops_fixture_drop(void*);
 extern "C" uint32_t fc4_renderprops_fixture_value(const void*, uint32_t, int32_t);
 extern "C" bool fc4_renderprops_fixture_set(void*, uint32_t, int32_t, uint32_t);
 extern "C" uint32_t fc4_renderprops_fixture_ref(void*, uint32_t, uint32_t, uint32_t);
+extern "C" int32_t fc4_renderprops_shadow_count(uint32_t);
+extern "C" int32_t fc4_renderprops_shadow_query(uint32_t, uint32_t, uint32_t, char*, uint32_t);
 
 namespace fc4 {
 namespace {
@@ -67,6 +69,31 @@ struct NativeOwner {
 };
 }
 
+void RenderPropsRegistry(cISC4RenderProperties* p, uint32_t& fields, uint32_t& mismatches) {
+    for (uint32_t kind = 0; kind < 3; ++kind) {
+        const int32_t count = fc4_renderprops_shadow_count(kind);
+        const int32_t nativeCount = !p ? -1 : kind == 0 ? p->NumBoolProperties() :
+            kind == 1 ? p->NumIntProperties() : p->NumFloatProperties();
+        Equal(nativeCount, count, fields, mismatches);
+        for (int32_t i = 0; i < count; ++i) {
+            // Never use an expected index beyond the native table's bounds.
+            const bool valid = p && i < nativeCount;
+            for (uint32_t probe = 0; probe < 6; ++probe) {
+                char query[128]{};
+                const int32_t expected = fc4_renderprops_shadow_query(kind, i, probe, query, sizeof(query));
+                if (probe == 0) {
+                    const char* name = !valid ? nullptr : kind == 0 ? p->NameFromBoolPropertyID(i) :
+                        kind == 1 ? p->NameFromIntPropertyID(i) : p->NameFromFloatPropertyID(i);
+                    Equal(name && std::strcmp(name, query) == 0, 1, fields, mismatches);
+                }
+                const int32_t actual = !p ? INT32_MIN : kind == 0 ? p->BoolPropertyIDFromName(query) :
+                    kind == 1 ? p->IntPropertyIDFromName(query) : p->FloatPropertyIDFromName(query);
+                Equal(actual, expected, fields, mismatches);
+            }
+        }
+    }
+}
+
 bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, uint32_t& mismatches) {
     // Spec addresses refer to the supported 1.1.641 image. Validate the original
     // object and its documented getter slots before calling any private entry.
@@ -82,6 +109,8 @@ bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, ui
     Equal(Count(b.p()), fc4_renderprops_fixture_ref(b.expected, 0, 0, 0), fields, mismatches);
     Values(a.p(), a.expected, fields, mismatches);
     Values(b.p(), b.expected, fields, mismatches);
+    RenderPropsRegistry(a.p(), fields, mismatches);
+    RenderPropsRegistry(b.p(), fields, mismatches);
     constexpr int32_t counts[] = {38, 24, 15};
     // Three ordered passes cover every valid slot/index, duplicate/no-change
     // writes, signed integer extremes, unclamped values, and finite binary32
@@ -111,6 +140,10 @@ bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, ui
             }
         }
         Values(b.p(), b.expected, fields, mismatches);
+        // Spec 1.4: setters must preserve names. Check every count/name/Find
+        // after each pass, including the untouched independent second owner.
+        RenderPropsRegistry(a.p(), fields, mismatches);
+        RenderPropsRegistry(b.p(), fields, mismatches);
     }
 
     // Both views accept only IID 1 and return U, sharing one count. All reference
@@ -142,6 +175,8 @@ bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, ui
     Equal(a.TerminateFixtureStorage(2) == a.storage + offset, 1, fields, mismatches);
     RefNote(owned, -1, 0, "owned fixture nonfree destruction", FC4_SITE, true, true);
     Values(b.p(), b.expected, fields, mismatches);
+    // Terminating A must leave B's registry and borrowed name storage live.
+    RenderPropsRegistry(b.p(), fields, mismatches);
     const uint32_t otherOffset = fc4_renderprops_fixture_ref(b.expected, 1, 4, 0);
     Equal(b.TerminateFixtureStorage(0) == b.storage + otherOffset, 1, fields, mismatches);
     // No access to either terminated native object's contents beyond here.

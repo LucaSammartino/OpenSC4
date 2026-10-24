@@ -3,6 +3,9 @@
 #include <cstdint>
 class cISC4RenderProperties;
 namespace fc4 {
+// Counts/names/ASCII Find probes, independently predicted by the core registry.
+// Safe for borrowed live owners: no writes or reference operations.
+void RenderPropsRegistry(cISC4RenderProperties* properties, uint32_t& fields, uint32_t& mismatches);
 // Executes only on private native storage, never the borrowed application/view.
 // Returns false if the supported original-owner binding is unavailable.
 bool RenderPropsFixture(cISC4RenderProperties* application, uint32_t& fields, uint32_t& mismatches);
