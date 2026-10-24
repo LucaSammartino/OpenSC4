@@ -79,6 +79,12 @@ pub trait NationHost {
     fn read_tuning(&mut self) -> Option<TuningProperties>;
     fn preference_name(&self) -> [u8; 64];
     fn default_tutorial_directory(&self) -> String;
+    /// CRT narrow lowercase in the currently active LC_CTYPE locale (§6.4).
+    fn lowercase_narrow(&self, byte: u8) -> u8;
+    /// CRT/Windows lowercase of one 16-bit word in that same locale. None means
+    /// mapping failed: retain the input. C-locale adapters map only ASCII A–Z.
+    /// Registry/language selection alone must not change this locale.
+    fn lowercase_wide(&self, word: u16) -> Option<u16>;
     fn should_reset_tutorials(&self) -> bool;
     /// None represents an absent message server. Results are not rollback signals.
     fn subscription(&mut self, message: u32, subscribe: bool);
@@ -122,9 +128,52 @@ pub struct DirectoryEntry {
     pub kind: u32,
 }
 
-fn lower_directory(name: &str) -> String {
-    // NQ4: literal byte-preserving ASCII fold pending the non-ASCII case-map contract.
-    name.to_ascii_lowercase()
+/// nation §6.4 MakeLower on encoding-8 bytes. The host supplies the active CRT
+/// case map, not Rust Unicode lowercase or the runner's ambient locale.
+/// Bytes permit malformed input and legacy word encodings without replacement
+/// characters. No normalization, expansion, or surrogate pairing is performed.
+pub fn lower_directory(name: &[u8], host: &impl NationHost) -> Vec<u8> {
+    let mut lower = name.to_vec();
+    let mut wide = false;
+    for byte in &mut lower {
+        if *byte >= 0x7f {
+            wide = true;
+            break;
+        }
+        if byte.is_ascii_uppercase() {
+            *byte = host.lowercase_narrow(*byte);
+        }
+    }
+    if !wide {
+        return lower;
+    }
+    // Conversion stops at the first invalid/incomplete sequence, retaining only
+    // the decoded prefix (including the narrow changes made before the switch).
+    let text = match std::str::from_utf8(&lower) {
+        Ok(text) => text,
+        Err(error) => std::str::from_utf8(&lower[..error.valid_up_to()]).unwrap(),
+    };
+    let mut result = Vec::with_capacity(lower.len());
+    for character in text.chars() {
+        // Four-byte characters truncate to a word instead of a surrogate pair.
+        let word = character as u32 as u16;
+        let word = host.lowercase_wide(word).unwrap_or(word);
+        // Encode each word directly; a truncated surrogate is also a single
+        // word, so char::from_u32 / encode_utf16 would repair the legacy value.
+        match word {
+            0..=0x7f => result.push(word as u8),
+            0x80..=0x7ff => {
+                result.push(0xc0 | (word >> 6) as u8);
+                result.push(0x80 | (word & 0x3f) as u8);
+            }
+            _ => {
+                result.push(0xe0 | (word >> 12) as u8);
+                result.push(0x80 | ((word >> 6) & 0x3f) as u8);
+                result.push(0x80 | (word & 0x3f) as u8);
+            }
+        }
+    }
+    result
 }
 
 fn path(root: &str, suffix: &str) -> String {
@@ -220,7 +269,7 @@ impl<R: NationRegion> Nation<R> {
     pub fn discover_regions(&mut self, host: &mut impl NationHost<Region = R>) -> Result<bool, NationError> {
         let mut accepted = false;
         for entry in host.entries(&self.directories.regions) {
-            if entry.kind != 4 || entry.name.eq_ignore_ascii_case("Downloads") {
+            if entry.kind != 4 || lower_directory(entry.name.as_bytes(), host) == lower_directory(b"Downloads", host) {
                 continue;
             }
             let region = host.new_region().ok_or(NationError::RegionCreationFailed)?;
@@ -284,7 +333,8 @@ impl<R: NationRegion> Nation<R> {
             let default = host.default_tutorial_directory();
             for (index, region) in self.regions.iter_mut().enumerate() {
                 if region.init() {
-                    let preferred = region.has_tutorial_city() && lower_directory(region.directory_name()) == default;
+                    let preferred = region.has_tutorial_city()
+                        && lower_directory(region.directory_name().as_bytes(), host) == default.as_bytes();
                     region.shutdown();
                     if preferred {
                         selected = index;
@@ -302,7 +352,7 @@ impl<R: NationRegion> Nation<R> {
         let has_default = self
             .regions
             .iter()
-            .any(|r| lower_directory(r.directory_name()) == default);
+            .any(|r| lower_directory(r.directory_name().as_bytes(), host) == default.as_bytes());
         if !activated || (!has_default && host.should_reset_tutorials()) {
             self.reset_tutorial_cities(host)?;
         }
@@ -385,7 +435,7 @@ impl<R: NationRegion> Nation<R> {
             let existing = self
                 .regions
                 .iter()
-                .position(|r| lower_directory(r.directory_name()) == lower_directory(&name));
+                .position(|r| lower_directory(r.directory_name().as_bytes(), host) == name.as_bytes());
             let mut retained = existing;
             if let Some(index) = existing {
                 if !host.directory_exists(&directory)
