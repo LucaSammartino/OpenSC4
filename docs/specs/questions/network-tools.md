@@ -183,3 +183,30 @@
   callbacks and an explicit prefix; its controlled NT31 vector passes, but
   unavailable city reads are not replaced with a no-hit/clear answer and no
   city placement, model, wire or curve coverage is claimed]
+
+<!-- from: glue-nettool-exact6 round 3 (engine lane, 2026-10-24) -->
+- **NT34 - nonflat height-solve fixture after NT30 refresh:** Fresh turbo run
+  `nettool-exact6-r3-20261024-7c9f` is clean through 2032-01-16, refs=0,
+  with 8/14 exact counted shadows. The four price differences remain
+  native/core 110/113, 170/192, 90/98 and 55/61. The new replay inventories
+  respectively contain 11/44, 17/68, 9/36 and 11/44 entries/corner observations;
+  each has exactly the same pre-refresh solved-entry count and smoothing-cell
+  count as its final entry count. No position/terrain neighbour was appended.
+  Grading changed 12, 34, 18 and 12 vertices. The sums of absolute retained
+  corner versus live native getter-time terrain differences, computed from
+  the nine-digit diagnostic text, are approximately 32.997318, 218.549516,
+  76.532530 and 63.342398; shared vertices are repeated observations.
+  Representative straight-road corner: cell (13,4), corner 2, vertex 659,
+  old=retained=network=terrain-satisfier 273.388092, both lookups hit,
+  live native terrain=271.987152, run=1, intersection/placed/connection=0,
+  solved index 9 before and after, in the first refresh population.
+  Please provide an admitted **nonflat constraint/height fixture** separating
+  the piece/height solve from NT30 commit refresh: initial terrain, per-piece
+  fixed/support constraints, both ordered satisfier solutions, refreshed
+  corners and getter-time terrain. Which stage/constraint distinguishes the
+  native grading target from this replay target? NT30's flat inventories pass
+  but cannot resolve this difference. Full replay traces are in the named
+  run's `nettool corner`/`nettool inventory` lines. [retain all four mismatches;
+  do not alter targets, suppress repeated corners, fit residuals or substitute
+  the native total; powerline and bridge differences remain separate NT31
+  integration gaps, with the callable powerline input gap tracked by NT33]

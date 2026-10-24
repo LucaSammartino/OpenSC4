@@ -1,37 +1,102 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | in progress; round 3 | Trace NT30 inventories; wire resource-backed subclass replay; final gate and 2032 game run. |
+| glue-nettool-exact6 | Codex / `glue-nettool-exact6` | ready for review; gate PASS, clean game, shadow 8/14 | NT33/NT34 answers and live subclass hosts; preserve default-off paths. |
+
+## Report
+
+Round 3 did **not** reach 14/14. It adds measured replay inventories and resource
+boundary diagnostics, plus a tested bounded powerline selection ABI. The six
+city differences remain visible; neither controlled vectors nor loaded
+resources are credited as exact city placement.
+
+### Changes
+
+- Merged main into the reserved detached checkout as requested. Shared refs
+  were not moved; Git's packed-refs cleanup warnings did not prevent commits.
+- Preserved the inherited NT30 implementation and its four flat price fixtures.
+  NT30 explicitly describes these as controlled inputs, not native city snapshots.
+- Added pre/post-refresh inventories for each replay solved entry and every
+  corner: old/final index, provenance, smoothing membership, run/intersection/
+  placed/connection bytes, vertex/lookup ids, old/retained corners, network and
+  terrain hit/value, and live native terrain at getter time.
+- Added a once-only read-only resource audit through the game's resource manager:
+  real powerline tuning, raw PowerPoles entries and road bridge exemplar data.
+  It does not populate the bridge geometry/model host or create pole occupants.
+- Added `fc4_powerline_select`: bounded selection/count/retained-price replay
+  over explicit read callbacks, cells, step ranges, helper prefix and tuning.
+  It refuses missing callbacks, occupied/unavailable input cells, invalid ranges
+  and insufficient output capacity. It does not claim placement, reuse,
+  rendering, wire or curve coverage.
+- Added `fc4_netgeom_get_smoothing_cells` for the NT30 diagnostic population.
+  **C ABI exports changed; FC4_ABI_VERSION was not bumped.**
+- New diagnostics run only under the opt-in nettool shadow. Replacement nettool
+  remains disabled by default; no non-exact path was promoted into the house set.
+
+### Verification
+
+- Focused C ABI fixture: **1 passed / 0 failed**, session 67818 collected to
+  termination. Explicit flat NT31 input selects (4,32),(14,32),(16,32):
+  3 poles, 10 wire cells, valid=13, failure=0, price=65.
+  Changing spacing to 20 produces 2 poles, 11 wire cells, price=52.
+  Missing ray callback, unavailable cell and invalid range are refused.
+- Explicit owned-file fmt: **2 files clean**. Initial relative-path invocation
+  was rejected by the wrapper; absolute owned paths passed.
+- Final `qbuild all`: **PASS**, Rust **6908 passed / 0 failed**, clippy
+  **0 diagnostics**, native build **219/219**, CTest **74/74**.
+  Session 66091 was collected to its terminal result; no duplicate check.
+- Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`,
+  `fc4verify-build.log`, `fc4verify-ctest.log`.
+  Earlier round-2 failed and corrected evidence remains in `build-runs/r2-*`.
+- Fresh game: **nettool-exact6-r3-20261024-7c9f**; clean through **2032-01-16**,
+  simulation 30.328 s, wall 41 s, slot 4, refs/exceptions/stalls/rtc/overruns all 0.
+  Waited with one event-based local watcher operation, session 68010 terminal;
+  no qwait and no duplicate request.
+- DLL SHA256:
+  `3ad54edbd75795668b20c3d08f6389944b7372937b37eee3bb80304251ec7b9b`.
+- Exactly **14 counted nettool shadow lines, 8 exact**. This matches inherited
+  normal run 383's 8/14; these six differences are not turbo-only.
+  The run record is [run 400](../runs/nettool-exact6-r3-20261024-7c9f-400.md).
+
+### Measurements and remaining work
+
+| Probe | Native/core cost | Final entries/corners | Changed terrain vertices |
+|---|---:|---:|---:|
+| Straight road | 110/113 | 11/44 | 12 |
+| Diagonal road | 170/192 | 17/68 | 34 |
+| Shared-endpoint road | 90/98 | 9/36 | 18 |
+| Straight street | 55/61 | 11/44 | 12 |
+
+Each final inventory has the same pre-refresh entry count and smoothing count;
+all final entries came from the solve, with no appended position/terrain
+neighbours. Approximate absolute retained/live corner delta sums from diagnostic
+text are 32.997318, 218.549516, 76.532530 and 63.342398. These are observations,
+not corrections. NT34 includes a representative vertex and asks for a nonflat
+constraint/height vector to distinguish solve and refresh.
+
+Actual powerline tuning loaded as spacing=10, clearance=7, pole_cost=15,
+wire_cost=2; the network INI has 16 pole mappings. All 9 road bridge exemplars
+loaded with real deck ids and spans. This proves the resource boundary only.
+Powerline remains valid13/0, cost65/0; bridge remains valid17/0, cost974/0.
+The bounded selection ABI is not yet called by a complete live placement host.
+Bridge geometry still has no populated type/selection/model host. These remain
+NT31 integration work; no public totals were injected as replay outputs.
+
+Questions appended this round: **NT33** (live clearance-ray/blocked-cell ABI and
+fresh prefix), **NT34** (nonflat solve/refresh fixture), both in
+`docs/specs/questions/network-tools.md`. Inherited **NT32** remains open.
+The generated question index was not edited or regenerated by this clean-room
+lane; the coordinator can regenerate it through its authorised workflow.
 
 ## Handoff
-- Round3 final source 2a750c858: fmt2 clean; all PASS cargo6908/0, clippy0, build219/219, CTest74/74; session66091 terminal.
-- Logs: build-runs/{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log. No failed final-source gate.
-- NEXT: unique turbo2032 request nettool-exact6-r3-20261024-7c9f; not submitted yet. Use build-runs/wait-r3-verdict.ps1 (event-based, no qwait).
-- Round 3 milestone: added NT30 per-corner replay inventories, real tuning/network-INI/road-bridge resource audit, bounded NT31 C ABI selection replay.
-- Focused capi selection fixture PASS 1/0 (session 67818 terminal); requires explicit reads, refuses occupants/unavailable callbacks; not a placement/model host.
-- NT33 asks for missing live clearance-ray/blocked-cell ABI and fresh helper prefix; no guessed no-hit callback.
-- NEXT: final fmt/full gate, then unique 2032 turbo request; use the resulting four inventories for a precise residual question.
-- Round 3: merged main on detached HEAD; merge completed despite read-only packed-refs cleanup warning.
-- NT30 explicitly disallows interpreting its controlled fixtures as native city inventories; existing tests already cover them.
-- NEXT: add actual per-entry/corner replay trace and resource-backed powerline recording host; preserve uncovered scopes.
-- Goal: exact network tools shadow; six residual probes remain, no READY entry.
-- Detached base 760cf23fd; do not switch branches or update shared refs.
-- 5c93779a6: NT30 corner-refresh populations, controlled price/refresh tests, dated shadow lines.
-- 4825f1d46: private grading overlay; refresh uses own writes, price uses live terrain.
-- 74fd22902: exact uint32 x float32 product/truncation; f64 can cross integer boundary.
-- NT31 controlled bridge selection/span-price and synthetic powerline placement fixtures pass (3/0).
-- Powerline getter retains counted_poles after structural release per newest NT31;
-  older NG11 wording questioned as NT32 in docs/specs/questions/network-tools.md.
-- Round1 all PASS: cargo6892/0, clippy0, build233/233, CTest72/72; session40130 terminal.
-- Round1 logs: build-runs/r1-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
-- Run382 nettoolexactsix20261024a: clean2032-01-06, refs0, exceptions0, nettool8/14,49.266s.
-- Run382 DLL d37c42349d4ad1f0fe28dd6365886aa285de10a78bdda5e6221a41ed267fe352.
-- Costs remain native/core110/113,170/192,90/98,55/61; replay changed12,34,18,12 vertices.
-- Powerline valid13/0,cost65/0; bridge valid17/0,cost974/0. No fitted correction.
-- Round2 all FAIL, session24883 terminal: cargo6652/1, clippy0, build91/91, CTest71/72.
-- Sole round2 diagnostic: legacy tests_power_line::cost_of_solution_shipped_values lacks counts.
-- Final all PASS, session65514 terminal: cargo6894/0,clippy0,build46/46,CTest72/72;fmt7 clean.
-- Final DLL be0734d79f6197316a2a1d35588e1a671ff1ce6e1465952981007d7a6a621a56.
-- Run383 nettoolexactsix20261024b normal: clean2032-01-01,refs0,exceptions0,117.422s,nettool8/14.
-- NEXT: trace four replay corner inventories per NT30; wire actual powerline and bridge resources/hosts.
-- No operation/request outstanding. Round2 full logs preserved as build-runs/r2-*.log.
-- Focused failed fixture evidence: build-runs/nt31-fixture-*. q.py Bash fails here; direct cargo works.
+
+- Goal remains 14/14 counted city shadows; final round stopped at 8/14, clean.
+- Real code milestone: 2a750c858; gate milestone: c3c87ea70.
+- Final gate all PASS: cargo6908/0, clippy0, build219/219, CTest74/74, fmt2 clean.
+- Fresh unique game label nettool-exact6-r3-20261024-7c9f completed clean, refs0.
+- No asynchronous operation or game request remains outstanding.
+- NEXT: answer NT33/NT34, then wire actual read callbacks and subclass placement/model hosts.
+- Do not replace missing rays/classifier inputs with clear answers or fit city costs.
+- Replay inventory/resource evidence is in build-runs/game-results/<label>.log.
+- build-runs/summarize-r3.py extracts bounded measurements; watcher script is event based.
+- Detached HEAD is intentional; supervisor publishes commits to the reserved lane branch.
+- Ready queue means reviewable diagnostics and fixtures, not 14/14 or whole-owner credit.
