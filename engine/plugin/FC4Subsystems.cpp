@@ -113,6 +113,7 @@
 #include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
 #include "FC4Span565Bridge.h"     // the glue-span565-impl4 lane
 #include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
+#include "FC4OrdinanceShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -742,6 +743,7 @@ void Resolve() {
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
     IndustrialShadowStartup(enabledKey("industrial"));
+    OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
 }
 
 }  // namespace

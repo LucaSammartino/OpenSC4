@@ -624,4 +624,8 @@ std::string IniPath();
 // overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
 // city load and each month. Live records/cells/textures await OV12; no rendering.
 
+// ordinance_shadow = 0 / 1 (default 0): compare original ordinance month
+// deliveries against core copies of its saved records; needs our simulator
+// and the original ordinance simulator. No city writes or original mutators.
+
 }  // namespace fc4
