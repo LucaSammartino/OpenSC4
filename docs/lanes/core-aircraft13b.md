@@ -1,27 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | In progress (r2): cargo 7431/0/0; 3 clippy needless test borrows corrected in 32e3f34b2; focused aircraft_settled 10/10, fmt 1 file PASS. Initial native PASS 214/214 build edges, CTest 81/81; initial all FAIL due to corrected clippy diagnostics. No ABI change, game run or new question. | Run final qbuild all on stable corrected source; report verified partial closure. |
-
-## Handoff
-
-- Goal: finish the workspace gate and implement remaining settled aircraft contracts.
-- Starting tip: `dadd406e7`; implementation `5d59a8396`, fixture correction `4ba6b67cd`.
-- Prior native verify: PASS, build 264/264, CTest 81/81 (`8b52caea1`).
-- Prior cargo/clippy attempts terminated; none remains running or outstanding.
-- r2 Cargo PASS: 7431/0/0; aircraft 16, aircraft_settled 10, airplane 10, helicopter 14.
-- Evidence: `build-runs/qbuild-test.log`; transport `build-runs/aircraft-r2-all-initial.log`.
-- Initial qbuild all collected terminal FAIL; Cargo PASS, clippy FAILED (3 needless test borrows), native PASS.
-- Initial native `qbuild-20261024-212010-build-ctest`: build 214/214 (217.7 s), CTest 81/81 (272.0 s), total 491.9 s.
-- Corrected all 3 borrows in `aircraft_settled.rs`; focused suite PASS 10/10; fmt PASS (1 owned file).
-- Evidence: `build-runs/aircraft-r2-focused.log`, `aircraft-r2-fmt-corrected-absolute.log`.
-- One Cargo job/debug=0. Diagnosed BelowNormal starvation (59 CPU s/19 min); restored only lane compilers/Cargo to Normal.
-- Owner audit: settled sections and vectors 1-27 already covered; no additional settled behavior identified.
-- Fix committed as `32e3f34b2`; no gate remains outstanding before final retry.
-- Next: run `build-runs/aircraft-r2-gate.py all final` on this correction; collect terminal result.
-- Keep AF2-AF6, AF10 and AF11 explicit; no capi/plugin/ABI wiring.
-- Existing detailed r1 report below preserves incomplete gate evidence.
-- Detached HEAD: commit normally; supervisor publishes reserved lane branch.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r2-manifest.json`.
+| core-aircraft13b (airplane and helicopter core owner closure) | `core-aircraft13b` / `core-aircraft13b` (engine lane, detached HEAD) | READY: verified partial owner closure; final qbuild all PASS, cargo 7431 passed/0 failed/0 ignored, clippy -D warnings clean, native build 46/46, CTest 81/81; owned conformance suites 50/50. AF2-AF6, AF10, AF11 remain open. No ABI change, game run or new question. | Coordinator review/publish detached commits; retain explicit open rows until the remaining spec contracts settle. |
 
 ## Changes
 
@@ -30,6 +9,9 @@ Implementation commit `5d59a8396`; legacy chase fixture/documentation correction
 The worktree is intentionally detached; the supervisor publishes commits to the
 reserved `core-aircraft13b` branch. No branch/ref/config changes were made.
 
+- r2 correction `32e3f34b2` removes three needless borrows in conformance Read
+  fixtures. The owner audit confirmed coverage of the settled sections and
+  conformance vectors 1-27; it identified no additional settled owner contract.
 - Airplane: constructor ammo/drop/countdown defaults, signed zero-ammo decrement,
   remaining-countdown LOITER with capped physics seconds before pursuit, dispatch
   state-5 request, Read preserving unsaved runtime, and ordered phase sound actions.
@@ -50,6 +32,9 @@ reserved `core-aircraft13b` branch. No branch/ref/config changes were made.
 - Replaced both module README owner closure tables with per-section code/test/open
   rows. No plugin/capi/ABI changes, no coverage-map edits, no forbidden sources read.
 
+Owner tables: `engine/core/src/automata/airplane/README.md` and
+`engine/core/src/helicopter/README.md`.
+
 The stages return typed requests for foreign actions; they do not claim complete
 flight ticks, complete native Init/Shutdown or guessed steering/projectile laws.
 Native attachment ownership is a documented adapter precondition; no borrowed
@@ -57,38 +42,46 @@ native pointer is released by this portable core.
 
 ## Validation and preserved evidence
 
-- Required native command: `qbuild.py --wt <WT> verify`, request
-  `qbuild-20261024-200154-build-ctest`, terminal PASS. Build 264/264 edges,
-  248.1 s; CTest 81/81, 291.1 s; total 541.4 s. Logs:
-  `build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`.
-  The verdict noted tree changed during run: the legacy chase fixture and shared
-  phase/chase documentation were corrected while it ran. Runtime source was the
-  committed implementation; this is not a completed final workspace gate.
-- qbuild fmt PASS: 9 explicit owned Rust files, diff_lines=0. Rechecked the two
-  subsequently corrected files: PASS, 2 files, diff_lines=0.
-- First focused wrapper failed before compilation: Git Bash CreateFileMapping
-  Win32 error 5. Evidence: `build-runs/q/20261024-194343-34628.log`.
-- Native focused attempt 1 terminal FAILED: invalid Copy derive on the action
-  result's Vec fields. Fixed before implementation commit. Evidence:
-  `build-runs/aircraft-focused-1.log`.
-- Native focused attempt 2 did not progress beyond core compilation for over
-  20 minutes; stopped and collected terminal exit 1, without a test verdict.
-  Evidence: `build-runs/aircraft-focused-2.log`. No focused-test pass is claimed.
-- Required `qbuild all` attempted on final runtime source. First attempt stopped
-  at core compilation after diagnosing multi-GB compiler processes under shared
-  load. Evidence: `build-runs/qbuild-test-incomplete-debug.log`.
-- Retried with changed build inputs: CARGO_BUILD_JOBS=1,
-  CARGO_PROFILE_DEV_DEBUG=0 and CARGO_PROFILE_TEST_DEBUG=0. This attempt also had
-  no output beyond core compilation before context wind-down. Stopped and
-  collected terminal exit 1; evidence: `build-runs/qbuild-test.log` and
-  `build-runs/qbuild-test-incomplete-nodebug.log`.
-- Workspace cargo totals and clippy: **unverified**, not zero-failure passes.
-  No gate or game request remains running or outstanding. No game shadow is
-  claimed: this is a core-only task, with AF11 still open for safe native inputs.
+- Final `qbuild.py --wt <WT> all`: terminal **PASS** on stable committed source
+  `0c23156bd` (test correction `32e3f34b2`). Cargo totals across every result line:
+  **7431 passed, 0 failed, 0 ignored**; clippy `-D warnings`: **0 diagnostics**.
+  Native request `qbuild-20261024-213550-build-ctest`: **46/46 build edges**
+  (1.8 s), **CTest 81/81** (89.0 s), native total 90.9 s. No tree-change warning.
+  Evidence: `build-runs/aircraft-r2-all-final.log`, `qbuild-test.log`,
+  `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Final owned suites: aircraft 16/16, aircraft_settled 10/10, airplane 10/10,
+  helicopter 14/14: **50/50**. Focused corrected suite separately PASS 10/10:
+  `build-runs/aircraft-r2-focused.log`.
+- qbuild fmt: r1 PASS on 9 explicit owned Rust files and 2 corrected files;
+  r2 PASS on the single changed test file, diff_lines=0, in
+  `build-runs/aircraft-r2-fmt-corrected-absolute.log`. The preceding relative-path
+  invocation could not find the file; its failed invocation is preserved in
+  `build-runs/aircraft-r2-fmt-corrected.log`.
+- Initial r2 full gate terminal FAIL: Cargo 7431/0/0, clippy 3 needless borrows;
+  native request `qbuild-20261024-212010-build-ctest` PASS (build 214/214,
+  217.7 s; CTest 81/81, 272.0 s; total 491.9 s; tree changed during run).
+  Preserved transport: `build-runs/aircraft-r2-all-initial.log`; full initial
+  logs: `build-runs/aircraft-r2-final-prior-qbuild-test.log`,
+  `aircraft-r2-final-prior-qbuild-clippy.log`,
+  `aircraft-r2-final-prior-fc4verify-build.log`,
+  `aircraft-r2-final-prior-fc4verify-ctest.log`.
+- Build inputs: one Cargo job, dev/test debug information disabled. The initial
+  compiler had only 59 CPU seconds after 19 minutes at BelowNormal priority;
+  restored only this lane's compiler/Cargo processes to Normal. Final gate
+  launched at Normal priority. No shared build configuration changed.
+- Earlier r1 failures/incomplete attempts remain historical, not passes:
+  `build-runs/q/20261024-194343-34628.log`, `aircraft-focused-1.log`,
+  `aircraft-focused-2.log`, `qbuild-test-incomplete-debug.log`,
+  `qbuild-test-incomplete-nodebug.log`; details are in report commit `dadd406e7`.
+
+Every operation was collected to its terminal result. No build or game request
+remains outstanding. Game runs and shadows: n/a for this core-only lane; AF11
+still blocks safe independent native helicopter inputs.
 
 ## Remaining spec contracts and questions
 
-No new question filed. Existing AF2-AF6, AF10 and AF11 remain explicit open rows.
+No new question filed. Existing AF2-AF6, AF10 and AF11 in
+`docs/specs/questions/aircraft.md` remain explicit open rows.
 Settled portions of these questions were implemented, rather than treating each
 whole question as Unsupported. AF1/AF7/AF8/AF9 are not reopened.
 
@@ -106,15 +99,9 @@ whole question as Unsupported. AF1/AF7/AF8/AF9 are not reopened.
 
 ## Next steps
 
-1. On this committed worktree, run the required final `qbuild all` when compiler
-   resources permit. Do not infer a cargo/clippy pass from the native CTest pass.
-   The last attempt used one job and debug-symbol generation disabled; preserve
-   the incomplete logs above before a later run overwrites qbuild-test.log.
-2. Fix any concrete diagnostics and run focused tests, then repeat the final gate
-   on stable source. All older operations were terminated and collected; there
-   is no session to resume and no duplicate check to wait for.
-3. Review the two module README owner closure tables. Keep the existing open AF
-   rows; do not wire plugin/capi or claim trajectory/shadow equivalence in this lane.
-4. After a completed gate, update this row/report and queue ready with actual HEAD.
+1. Coordinator: review the two owner closure tables and publish the detached
+   commits to the reserved lane branch; this is verified partial closure.
+2. Spec writers: settle the remaining contracts above before full owner ticks,
+   native lifecycle/control integration and trajectory/shadow equivalence.
 
-Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r1-manifest.json`.
+Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft13b-r2-manifest.json`.
