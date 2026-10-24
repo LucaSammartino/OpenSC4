@@ -599,7 +599,7 @@ cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
 cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-
 cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
 cRZCursorManager	widget toolkit	ui	-	-	-	-
-cGZClipboardManager*	widget toolkit	ui	-	-	-	-
+cGZClipboardManager*	widget toolkit	ui	clipboard.md	-	-	-
 cGZCheatCodeManager	widget toolkit	ui	-	-	-	-
 cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSCUint8ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
