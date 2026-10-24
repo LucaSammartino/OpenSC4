@@ -1,14 +1,10 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-viewutil-shadow11: view utility shadow | `Codex` / `glue-viewutil-shadow11` (engine lane) | in progress: merge current main and repeat gate; prior source 16bdc1dc8, ABI unchanged; run 510 clean, viewutil 73/73 exact, resyncs=0; VU16 filed. | 1. Preserve additive registrations while merging main. 2. Run final gate once. 3. Refresh ready queue with full HEAD. |
+| glue-viewutil-shadow11: view utility shadow | `Codex` / `glue-viewutil-shadow11` (engine lane) | Ready, partial scope: merged main d1f26eca7 at 626eee779; ABI unchanged; cargo 7345/0, clippy clean, CTest 81/81; run 510 clean, viewutil 73/73 exact, resyncs=0; runs 508/509 retained; existing VU16. | 1. Land refreshed full-tip ready entry. 2. Resolve VU16 before extending to remaining 49 bodies. 3. Coordinator reviews profile addition and regenerates question/coverage indexes; no whole-owner credit. |
 
-## Handoff
+## Merge refresh
 
-- Goal: repair the merge-train conflict only; no new owners, questions or game runs.
-- Done: prior measured rotation-only work and report committed at 76760254f; merged main d1f26eca7 at 626eee779, retaining lighting and viewutil module registrations and all lifecycle hooks.
-- Done: final qbuild all Rust tests 7345 passed, 0 failed, 0 ignored (48 result lines); clippy zero diagnostics.
-- Next: collect running qbuild all session 22614 to terminal result; native request `qbuild-20261024-153750-build-ctest` is queued; then finalize report and queue full HEAD.
-- Facts: run 510 (`viewutil11-r1-on2-20261024-1424`) remains valid, clean 73/73; partial scope 1/50, VU16 blocks other bodies; no new game requests.
+Merged requested main d1f26eca7 at 626eee779. Resolved the additive C API module-list conflict and three observer lifecycle conflicts by retaining both main's lighting shadow and this lane's viewutil shadow. No owner scope, questions, ABI exports or game requests added in this round. Prior run 510 remains the measured evidence below; it was not rerun after this merge.
 
 ## Changes and scope
 
@@ -20,7 +16,7 @@ This measures **1/50 family entries**, the explicit cdecl rotation helper (78/19
 
 ## Validation
 
-Final source unchanged since 16bdc1dc8. Required `qbuild all` completed PASS: workspace tests **7141 passed, 0 failed, 0 ignored** across 45 result lines; clippy `-D warnings` clean, no diagnostics. Queued native gate `qbuild-20261024-131027-build-ctest` PASS: build 262/262 edges, **CTest 81/81**, zero failures. Explicit-file formatting check passed. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Prior failed wrapper launch and canceled diagnostic operation are retained; neither was counted as a test pass. All operations reached terminal results; no build, game request or waiter remains outstanding.
+Final engine source unchanged since merge 626eee779. Required final `qbuild all` completed PASS once: workspace tests **7345 passed, 0 failed, 0 ignored** across 48 result lines; clippy `-D warnings` clean, zero diagnostics. Queued native gate `qbuild-20261024-153750-build-ctest` PASS: build **51/51 edges** (309.7 s), **CTest 81/81**, zero failures (339.2 s); native gate total 652.9 s. The verifier's tree-changed annotation reflects only the lane handoff documentation commit 9f0837f99 during its wait; no engine source changed. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Original pre-merge gate was cargo 7141/0, clippy clean, CTest 81/81 and explicit-file formatting passed. Prior failed wrapper launch and canceled diagnostic operation remain separate and were not counted as passes. All operations reached terminal results; no build, game request or waiter remains outstanding.
 
 Required measured line:
 
@@ -36,4 +32,4 @@ Earlier failures remain separate: run 508 (`viewutil11-r1-on-20261024-1255`) hit
 
 ## Remaining work
 
-Measured rotation-only work is ready. VU16 blocks the remaining 49 entries; resolve its native ABI and safety contracts before extending comparisons. Coordinator should review partial scope before assigning coverage credit, regenerate the question index, and handle any regression-profile addition. This clean-room lane did not read or edit `tools/`, merge main or change shared refs; the request to modify `tools/regress.ps1` is left to the coordinator under those restrictions.
+Measured rotation-only work is ready. VU16 blocks the remaining 49 entries; resolve its native ABI and safety contracts before extending comparisons. Coordinator should review partial scope before assigning coverage credit, regenerate the question index, and handle any regression-profile addition. This clean-room lane did not read or edit `tools/` or change shared refs; the explicitly requested main merge was committed on detached HEAD. The request to modify `tools/regress.ps1` is left to the coordinator under those restrictions.
