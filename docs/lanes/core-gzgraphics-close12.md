@@ -16,11 +16,12 @@
 - Focused graphics tests: 42 passed before final additions. fmt: eight absolute files PASS.
 - First all: cargo 7111 passed; clippy manual_range_patterns FAILED (corrected).
 - Preserved logs: build-runs/qbuild-first-test.log and qbuild-first-clippy.log.
-- Original all session 16330 still awaits native qbuild-20261024-113435-build-ctest.
-- Corrected all session 56402 still running workspace tests (latest sweep fixture).
-  Current logs: qbuild-test.log then qbuild-clippy.log; native label not printed yet.
-- NEXT: collect BOTH SAME sessions via write_stdin, 30-60 second waits, to terminal.
-  Do not launch another check for progress. Corrected all must pass before READY.
+- Sessions 16330 and 56402 are gone (coordinator instruction); their results are
+  incomplete and are not credited as final gates.
+- Resume launched one fresh qbuild all on unchanged f155a4cd4 engine source;
+  active exec session 91095 (pending collection via functions cell 9).
+- NEXT: collect that same operation to terminal; inspect PASS/FAIL and native
+  verdict, finish owner report, commit and write READY queue using actual HEAD.
 - Failure history: build-runs/failed-check-evidence.md. q.py Bash mapping failed;
   direct cargo worked. No game requests: core-only module.
 - Finish: commit full lane report with final gate counts, then READY merge-queue JSON.
