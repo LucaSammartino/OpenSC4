@@ -903,6 +903,7 @@ pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
 pub mod network_geometry;
+pub mod powerline_selection;
 pub mod network_manager;
 pub mod network_rules;
 pub mod network_tools;

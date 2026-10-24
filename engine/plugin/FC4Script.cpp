@@ -200,6 +200,71 @@ struct NetworkShadow {
     // terrain writes during NT30 refresh without writing into the game.
     std::map<int32_t, float> graded;
     uint32_t changedVertices = 0;
+    using CellKey = std::pair<int32_t, int32_t>;
+    std::map<CellKey, fc4_netgeom_cell_info> beforeRefresh;
+    std::map<CellKey, int32_t> beforeIndex;
+    std::map<CellKey, bool> smoothingCells;
+
+    void CaptureCorners() {
+        LogNetToolReplayResources();
+        std::vector<fc4_netgeom_cell> solved(fc4_netgeom_get_solved(ctx.geom, nullptr, 0));
+        fc4_netgeom_get_solved(ctx.geom, solved.data(), static_cast<uint32_t>(solved.size()));
+        for (size_t i = 0; i < solved.size(); ++i) beforeIndex[{solved[i].x, solved[i].z}] = static_cast<int32_t>(i);
+        std::vector<fc4_netgeom_cell> smooth(fc4_netgeom_get_smoothing_cells(ctx.geom, nullptr, 0));
+        fc4_netgeom_get_smoothing_cells(ctx.geom, smooth.data(), static_cast<uint32_t>(smooth.size()));
+        for (const auto& c : smooth) smoothingCells[{c.x, c.z}] = true;
+        // Read only existing infos. Include both populations, including incident
+        // cells which were not solved before grading (NT30 section 6.5).
+        const auto remember = [this](int32_t x, int32_t z) {
+            fc4_netgeom_cell_info ci{};
+            ci.struct_size = sizeof(ci);
+            if (fc4_netgeom_get_cell_info(ctx.geom, x, z, &ci)) beforeRefresh[{x, z}] = ci;
+        };
+        for (const auto& c : solved) remember(c.x, c.z);
+        for (const auto& c : smooth) remember(c.x, c.z);
+        std::vector<fc4_netgeom_vertex_height> terrain(fc4_netgeom_sat_solution(ctx.geom, FC4_NETGEOM_SAT_TERRAIN, nullptr, 0));
+        fc4_netgeom_sat_solution(ctx.geom, FC4_NETGEOM_SAT_TERRAIN, terrain.data(), static_cast<uint32_t>(terrain.size()));
+        const int32_t stride = static_cast<int32_t>(ctx.city->CellCountX()) + 1;
+        for (const auto& v : terrain) {
+            const int32_t x = v.vertex % stride, z = v.vertex / stride;
+            for (int32_t dz = -1; dz <= 0; ++dz) for (int32_t dx = -1; dx <= 0; ++dx) remember(x + dx, z + dz);
+        }
+    }
+
+    void TraceCorners(const harness::ScriptAction& a) {
+        std::vector<fc4_netgeom_cell> solved(fc4_netgeom_get_solved(ctx.geom, nullptr, 0));
+        fc4_netgeom_get_solved(ctx.geom, solved.data(), static_cast<uint32_t>(solved.size()));
+        uint32_t observations = 0;
+        for (size_t i = 0; i < solved.size(); ++i) {
+            const CellKey key{solved[i].x, solved[i].z};
+            fc4_netgeom_cell_info ci{};
+            ci.struct_size = sizeof(ci);
+            if (!fc4_netgeom_get_cell_info(ctx.geom, key.first, key.second, &ci)) continue;
+            const auto old = beforeRefresh.find(key);
+            const auto oldIndex = beforeIndex.find(key);
+            const bool smooth = smoothingCells.count(key) != 0;
+            const char* origin = oldIndex != beforeIndex.end() ? "solve" : (smooth ? "position" : "terrain");
+            for (size_t k = 0; k < 4; ++k) {
+                const int32_t lookup = ci.vertices[k] + (smooth && ci.connection_node ? 100000 : 0);
+                float network = 0, terrain = 0;
+                const bool netHit = fc4_netgeom_sat_height(ctx.geom, FC4_NETGEOM_SAT_NETWORK, lookup, &network);
+                const bool terHit = fc4_netgeom_sat_height(ctx.geom, FC4_NETGEOM_SAT_TERRAIN, ci.vertices[k], &terrain);
+                const float live = sourceGeom.vertex_altitude(sourceGeom.user, ci.vertices[k]);
+                Log("nettool corner %s type=%d cell=(%d,%d) index=%u old_index=%d origin=%s smooth=%d "
+                    "run=%u intersection=%u placed=%u connection=%u corner=%u vertex=%d lookup=%d "
+                    "old_present=%d old=%.9g retained=%.9g network_hit=%d network=%.9g terrain_hit=%d terrain=%.9g live=%.9g",
+                    harness::FormatDate(a.date).c_str(), a.type, ci.x, ci.z, static_cast<uint32_t>(i),
+                    oldIndex == beforeIndex.end() ? -1 : oldIndex->second, origin, smooth ? 1 : 0,
+                    ci.in_run, ci.intersection, ci.placed, ci.connection_node, static_cast<uint32_t>(k), ci.vertices[k], lookup,
+                    old != beforeRefresh.end() ? 1 : 0, old == beforeRefresh.end() ? 0 : old->second.corners[k],
+                    ci.corners[k], netHit ? 1 : 0, network, terHit ? 1 : 0, terrain, live);
+                ++observations;
+            }
+        }
+        Log("nettool inventory %s type=%d entries=%u corners=%u pre_entries=%u smoothing=%u changed=%u contract=NT30",
+            harness::FormatDate(a.date).c_str(), a.type, static_cast<uint32_t>(solved.size()), observations,
+            static_cast<uint32_t>(beforeIndex.size()), static_cast<uint32_t>(smoothingCells.size()), changedVertices);
+    }
 
     static NetworkShadow& Self(void* u) { return *static_cast<NetworkShadow*>(u); }
 
@@ -269,6 +334,7 @@ struct NetworkShadow {
         ok = fc4_nettool_place_network_occupants(core, a.x0, a.z0, a.x1, a.z1,
                                                 0, 0, true, -1);
         failure = fc4_nettool_get_failure_state(core);
+        CaptureCorners();
         if (ok) changedVertices = fc4_netgeom_update_terrain_heights(ctx.geom, nullptr);
         if (!fc4_netgeom_get_state(ctx.geom, &geom)) return false;
         const uint32_t count = fc4_netgeom_get_cells(ctx.geom, nullptr, 0);
@@ -311,6 +377,7 @@ void NetworkStep(void* p) {
         // Commit refresh has retained the replay's network corners. The
         // getter now reads the actual live terrain, as the native getter does.
         s.graded.clear();
+        s.TraceCorners(a);
         const int32_t coreCost = fc4_netgeom_cost(s.ctx.geom, 0);
         uint32_t cellDiffs = cells.size() != s.cells.size() ? 1u : 0u;
         for (size_t i = 0; i < cells.size() && i < s.cells.size(); ++i) {

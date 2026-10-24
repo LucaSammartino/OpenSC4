@@ -167,3 +167,19 @@
   the now-empty vector size? [literal newest NT31 contract: retain counted
   poles=3 and wire cells=10 through ReleasePoleInfos; controlled recording
   placement returns valid=13/failure=0/price=65; reset still zeros counts]
+
+<!-- from: glue-nettool-exact6 round 3 (engine lane, 2026-10-24) -->
+- **NT33 - live clearance-ray and blocked-cell interface boundary:** NT31
+  requires actual terrain/classifier observations for the city powerline.
+  Power-line-tool section 4.1 specifies the ray origin, normalized direction,
+  hit-distance test and two zero arguments, but not the callable game
+  interface/IID, slot, argument order/layout, return register or ownership of
+  the hit output. The permitted SDK and corrected cFC4ISTETerrain declaration
+  have no named terrain-ray method. Please publish that ABI and the equivalent
+  callable boundary for World::blocked(cell, 0), including failure semantics.
+  Is the helper prefix count passed to DeterminePolePositions initially the
+  complete straight-step count for a fresh slot-7 placement, or a different
+  previously-placed prefix? [the new bounded selection ABI requires explicit
+  callbacks and an explicit prefix; its controlled NT31 vector passes, but
+  unavailable city reads are not replaced with a no-hit/clear answer and no
+  city placement, model, wire or curve coverage is claimed]

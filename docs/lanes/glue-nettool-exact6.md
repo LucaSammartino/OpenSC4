@@ -3,6 +3,10 @@
 | glue-nettool-exact6 | Codex / `glue-nettool-exact6` | in progress; round 3 | Trace NT30 inventories; wire resource-backed subclass replay; final gate and 2032 game run. |
 
 ## Handoff
+- Round 3 milestone: added NT30 per-corner replay inventories, real tuning/network-INI/road-bridge resource audit, bounded NT31 C ABI selection replay.
+- Focused capi selection fixture PASS 1/0 (session 67818 terminal); requires explicit reads, refuses occupants/unavailable callbacks; not a placement/model host.
+- NT33 asks for missing live clearance-ray/blocked-cell ABI and fresh helper prefix; no guessed no-hit callback.
+- NEXT: final fmt/full gate, then unique 2032 turbo request; use the resulting four inventories for a precise residual question.
 - Round 3: merged main on detached HEAD; merge completed despite read-only packed-refs cleanup warning.
 - NT30 explicitly disallows interpreting its controlled fixtures as native city inventories; existing tests already cover them.
 - NEXT: add actual per-entry/corner replay trace and resource-backed powerline recording host; preserve uncovered scopes.
