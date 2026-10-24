@@ -754,3 +754,54 @@ the append contract here is verified against instructions, not that pseudocode o
 | Reference resolves to an object without the car IID | Skip it; no guessed car allocation; continue Train tail |
 | Existing `[X]`, load `[A,A]` | Result `[X,A,A]`; both A entries share one runtime state |
 | Valid live TrainCar written twice | Query its serializable interface for each list occurrence; use shared-stream identity semantics, not two cloned runtime records |
+
+### 12.9 Route geometry findings (VH7, partial)
+
+This subsection settles individual geometry boundaries. VH7 remains open for the complete route/record
+reconstruction and placement contract; these findings alone do not close the traffic or vehicle owner.
+
+**Route replacement and failure.** `SetRouteInfo` (`0x005559D0`) rejects an empty input deque before
+replacing the existing route. With a nonempty input it copies the route first. If immediate BeginRoute
+was requested and fails, return false with the copied route and BeginRoute's preceding changes retained;
+do not restore the old route. Only successful setup (or setup without immediate BeginRoute) requests
+return to default speed. BeginRoute's optional bool selects a preparation-only success: after clearing
+look-ahead, preparing the route and clearing flag `0x2000`, true returns without selecting a first path.
+The ordinary path takes the first cell and consumes that route step before looking for an acceptable
+network occupant; a missing occupant/path returns false after that consumption. Evidence:
+`0x005559D0`, `0x00554AC8–0x00554B15`, `0x00554B43–0x00554B68`, `0x00554BAA–0x00554D13`.
+
+**Distance advancement.** Slot 133 (`0x005504E0`) takes a signed f32 distance, start point, output point,
+optional index pointer, optional path-point collection and optional remainder pointer. Omitted collection
+and index use the owner's current path `+0x1F8` and segment index `+0x1FC`. An optional remainder is
+zeroed before checking for a missing collection; a missing collection returns false before copying the
+start point. Otherwise copy start to output. A negative index resets to zero. An index already at or
+beyond the last segment returns false and supplies the whole input distance as remainder. Points are
+three f32s, not route-cell triples. Each next point is passed through owner slot 157 before calculating
+its 3D distance from the running output point. For a nondegenerate segment, normalize its delta. A step
+less than or equal to that segment's length, including a **negative** step, moves output by the normalized
+delta times the step and returns true. Negative distance does not walk previous segments. Exact equality
+does not advance the segment index. A larger step advances the index and consumes complete intermediate
+segments. Crossing the final endpoint returns false, supplies the distance beyond it as remainder, and
+extrapolates the output along the final segment rather than clamping it to the endpoint. Evidence:
+`0x005504E0–0x00550586`, `0x0055058C–0x005506DF`, `0x005506E2–0x0055075A`.
+
+**Vehicle front anchor.** The vehicle placement override (`0x0055D5A0`) retains the new network/path
+interfaces and resets the segment index. Its ordinary placement starts from the first two transformed
+path points; the first is the stored front anchor `+0x264`. Facing is the normalized difference of those
+points. Centre position is `front anchor − facing × radius × 0.5`, with radius at `+0x7C`. The
+preparation-only placement instead clears flag 4 without replacing this geometry. During path reattachment
+(`0x0055D210`), positive saved path distance `+0x260` is limited by the current available gap before
+advancing the front anchor. Facing comes from the selected segment, or the final segment after path
+exhaustion. Segment length at most f32 `0.00001` reuses saved facing `+0x270`. Otherwise normalize it;
+when saved facing differs from the unset vector `(-1,-2,-3)` by at least f32 `0.0001` in any component,
+replace it by `(new + new + saved) × f32(1/3)`. **Do not renormalize that average.** Centre is again the
+front anchor minus half-radius times this resulting facing; store that facing and clear flag `0x20`.
+Evidence: `0x0055D645–0x0055D82B`, `0x0055D210–0x0055D55A`; the average's stores and centre subtraction
+were checked in instructions at `0x0055D435–0x0055D54E`.
+
+| Geometry conformance setup | Required observation |
+|---|---|
+| Existing route A; SetRouteInfo receives empty B | False; A remains |
+| Path points (0,0,0), (10,0,0); index 0; start zero; step −2 | True; output (−2,0,0); index 0; remainder 0 |
+| Same path; step 10, then a separate call starting at endpoint with index 0 and step 1 | First returns true at endpoint with index 0; second exhausts path, returns false at (11,0,0), remainder 1 |
+| Vehicle front anchor (10,0,0), facing (1,0,0), radius 4 | Centre (8,0,0), not (6,0,0) |

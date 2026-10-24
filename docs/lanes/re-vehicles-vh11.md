@@ -1,8 +1,37 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | in progress: resumed VH1/VH5/VH7/VH9; VH10/VH11 answered at 28fe893ed | 1. Complete remaining four contracts; 2. validate and enqueue |
+| re-vehicles-vh11: vehicle owner contracts | `Codex` / `re-vehicles-vh11` (RE lane) | wip: VH9/VH10/VH11 answered; VH1/VH5/VH7 open; questions/doccheck/diff checks pass | 1. Complete VH7, VH5 and VH1; 2. validate and enqueue ready |
 
 ## Report
+
+This continuation closes **VH9** at `944898267`, following VH10/VH11 at
+`28fe893ed`. Vehicles.md §12.6 now specifies RANDOM_WALK, MAGNET/controller
+attraction and base dispatch slots; VH9 is archived. Eight new vectors supplement
+the existing nine inherited-state vectors. Section 12.9 adds verified partial
+VH7 findings and four more vectors. **VH1/VH5/VH7 remain open.**
+
+RANDOM_WALK uses signed walk/rest timing and repeated double-range turn draws.
+Native controller attraction is MAGNET (18), with no distinct ZOT dispatcher
+case, and displacement has no dt factor. Base dispatch setters discard call
+number/state; getters return zero/3. Geometry findings cover route replacement
+failure, signed steps, endpoint equality, overshoot, half-radius front anchors
+and unnormalized direction averaging. No full engine owner closure is claimed.
+
+The questions index is regenerated. Questions/doccheck/diff checks passed after
+VH9; final checks run again after §12.9. All vectors are specification text,
+not executed engine tests. Cargo/clippy/CTest, game runs and shadows n/a.
+No C ABI changes, proposed ABI rows or engine/plugin/capi/coverage-map edits.
+REA was not invoked; only local export, decomp and read-only PE evidence used.
+
+Source lookup failures are distinct from gate results: qgrep hit a Unicode
+encoding error; two GetSpeedModifier lookups used the wrong class file. Corrected
+UTF-8 source windows found it in unnamed region_00550000.c. The milestone commit
+succeeded despite a shared packed-refs.lock warning; no workaround was attempted.
+Measured context reached 122177/150000 before final documentation. Research
+stopped then, exceeding the requested two-thirds bound; incomplete answers are
+left open explicitly. The merge queue remains wip pending those answers.
+
+## Prior round report
 
 Partial result: this round closes **two of six requested questions**, VH10 and VH11.
 It does not establish full closure of any of the four engine owners. The remaining
@@ -52,13 +81,14 @@ The queue is therefore **wip**, rather than asserting all six were answered.
 
 ## Handoff
 
-- Goal: finish VH1/VH5/VH7/VH9 without engine reads/edits; VH10/VH11 already closed.
+- Goal: finish VH1/VH5/VH7 without engine reads/edits; VH9/VH10/VH11 closed.
 - Done: `c7a38bbff` initial plan; `28fe893ed` VH10/VH11; resumed milestone closes VH9 in §12.6, including native MAGNET (18) and base dispatch slots.
-- Next exact step: read VH7 geometry bodies 0055D210/0055D5A0/00550760, then VH5 and VH1.
+- Next exact step: establish Traffic Read's adjusted this pointer from 00554D20 entry before naming record fields; finish VH7 reconstruction, then VH5/VH1. Partial geometry is now §12.9.
 - Main source root C:/Users/tlori/FreeCity4. Existing decomp `_unnamed/region_00500000.c` lines 4997–5162 holds RANDOM_WALK; ZOT candidate 00508E10 is at line 2617 (confirm state mapping before naming).
 - VH5: Train animation source cSC4Train.c starts line 402, StartTrip line 679; unnamed region_00550000.c composition helper 00558510 starts line 4103. These were only inspected, not closed or numerically certified.
 - VH1: cSC4Vehicle.c PlayerDriveUpdateSpeed line 1321, off-road 1406, full tick 2003; cSC4Train.c derail 208 and full tick 911; cSC4Tank.c commands 330. Numeric instruction verification remains essential.
-- VH7: unnamed region_00550000.c slot 131 at line 5981 (0055D210), placement slot 132 at 6084 (0055D5A0), traffic path tick 00550760 at line 145; none closed this round.
+- VH7: slot 131 Traffic 0054E920 / Vehicle 0055D210; slot 132 Traffic 00550760 / Vehicle 0055D5A0. Advancement 005504E0; tick 0054FDC0; gaps 00551300/0055D9D0; speed modifier 0055DF50. Remaining: record names, route third byte, lane equality, bridge/slope factors and complete transitions.
+- Read uses EDI+1E4 for serialized network ref, while live methods use +1EC. Verify interface adjustment before inferring a contradiction. Helper build-runs/source-window.py uses UTF-8 function-relative windows, max 60 lines/4 KB; default PowerShell decoding shifted line counts.
 - TrainCar placement override 00557320 is at unnamed region_00550000.c line 3864. cSC4TrainCar.c lacks its body.
 - Initial capped output misleadingly appeared to show an orphaned VH9 tail; actual question file retains all four originals; do not rewrite them.
 - Worktree starts detached at 0490d3c97; commit normally, never update refs.
