@@ -135,7 +135,7 @@ cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	c
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	lotcfg_shadow	lotcfg
 # lotconf_shadow (glue-lotconf-sim-shadow6, capacity from glue-lotconf-capacity7 applying GLUE22; house profile from train173) derives every loaded configuration's size, masks, stage, flags, slopes, object array and building capacity from resource properties and compares all 1909 native configurations (107845 pairs) at load and each month: 73/73 in regress train186. Raw appended-foundation tags are uninitialised native values excluded by PL23; costs are outside the owner surface (section 4.2) and occupancy needs a lot instance
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	lotconf_shadow	-
-cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	-
+cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	tutorial
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
@@ -285,8 +285,8 @@ cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
-cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
-cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
+cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
 cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
@@ -467,11 +467,11 @@ cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
 # tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
-nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	core/src/span_render1555	span1555	-
-nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	core/src/span_render565	span565	-
-nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	-
-nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	-
-nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	-
+nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	core/src/span_render1555	span1555	span1555
+nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	core/src/span_render565	span565	span565
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	span4444
+nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	span8888
+nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	span8
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
