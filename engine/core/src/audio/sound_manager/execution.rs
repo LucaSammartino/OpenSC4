@@ -521,7 +521,7 @@ impl Manager {
             let s = self.instances.get_mut(id).expect("list entry");
             if s.current != s.target {
                 let difference = f64::from(s.target) - f64::from(s.current);
-                let step = f64::from(dt) * f64::from(s.rate);
+                let step = f64::from(dt as f32) * f64::from(s.rate);
                 let step = if difference > 0.0 {
                     step.min(difference)
                 } else {
@@ -657,7 +657,7 @@ mod tests {
             if o == 10 && s == 0x1C {
                 return 1;
             }
-            if o == 30 && s == 0x0C {
+            if o == 31 && s == 0x0C {
                 self.callbacks += 1;
                 return u64::from(self.callbacks < 2);
             }
@@ -672,7 +672,8 @@ mod tests {
         fn query(&mut self, _: u64, iid: u32) -> Option<u64> {
             match iid {
                 0xFD58_4467 => Some(20),
-                0xE9D0_0A9A | 0xEA4F_C425 => Some(30),
+                0xE9D0_0A9A => Some(30),
+                0xEA4F_C425 => Some(31),
                 0x2060_77D2 => Some(10),
                 _ => None,
             }

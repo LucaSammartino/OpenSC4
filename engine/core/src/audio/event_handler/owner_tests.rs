@@ -476,7 +476,7 @@ fn au45_fifth_automata_route_is_an_accepted_noop() {
     let result = handler.do_message(Some(&mut message), &mut host);
     assert_eq!(result.returned, 1);
     assert_eq!(result.gap, None);
-    assert!(host.take().is_empty());
+    assert_eq!(host.take(), [Call::Query(PAYLOAD_IID), Call::ReleasePayload]);
 }
 
 #[test]
