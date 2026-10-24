@@ -278,6 +278,94 @@ Evidence: `0x00567DF0–0x00567E72`, `0x00567E80–0x00567EC9`,
 heading writes `0x00567F31–0x00567F4E`, dot/clamp/acos/strict comparison
 `0x00567F51–0x00567FBE`), `0x00567FD0–0x005681AD`.
 
+### 3.5 Tuning and inherited lifecycle boundaries (WC3)
+
+`LoadDriveParameters` is a no-argument, void method. It obtains the group through
+primary slot 67. A null group, or a group with neither a local nor inherited
+list, loads the complete default table in §2; it does not retain old values.
+A local nonnull list wins over the parent list even when its entries are zero.
+For a present list, each zero takes its default; negative/nonfinite values are
+not rejected. Entry 8's zero fallback is the negative of the **resolved entry
+9**, rather than unconditionally -2. The method reads forty float entries
+without a length argument or bounds check. There is no allocation, boolean
+failure result, or rollback. A supplied list must contain forty readable
+entries. Evidence: `0x00567310–0x00567349`, `0x005678CB–0x00567A44`.
+
+Inherited Init (`0x005101D0`) checks the initialized predicate independently.
+When clear, it calls virtual LoadModels (slot 97), remembers that boolean,
+and initializes the inherited effect list only on success. It then calls
+occupant Init regardless and returns the remembered LoadModels result.
+Already initialized returns true. Watercraft Init ignores this result and
+continues (§3). Effect initialization (`0x0050EBB0`) does nothing with an empty
+model-instance vector. Otherwise it binds the first model's effect interface
+to the controller at +0x18C, initializes the controller, supplies position,
+heading and measured speed, and requests effect refresh. This is separate
+from acquiring the six watercraft effects.
+
+Inherited Shutdown (`0x0050BA50`) invokes slot 69 and stops/unbinds the inherited
+effect controller even when uninitialized. With initialized clear it then
+returns true. Otherwise it cleans the current state (slot 111, current-state
+argument), removes model instances (slot 108), clears/releases +0xB0, disables
+the two active/visible registrations if their respective bits are set, invokes
+slots 127 and 98, releases the nonnull inherited effect-list references and
+empties that list, then clears/releases +0x98. It zeros +0x84, +0x7C and +0x88;
+a nonzero +0x1D4 causes sound event `0x6A451908` with that identifier before
+the identifier is zeroed and occupant Shutdown is called. Normal return is
+true; service results do not create an early false return or rollback. The
+controller is required. These are lifecycle boundaries, not complete contracts
+for transitive model loading. The controller binding is specified in §5.1.7.
+
+### 3.6 Model-loading result and partial-failure contract (WC3)
+
+Inherited slot 97 is `LoadModels` (`0x0050E8B0`), with no explicit arguments
+and a boolean result in AL. Its result means **at least one model newly loaded
+by this call**, rather than whether the final model vector is nonempty.
+Initialize that result false. With models already installed (+0x110 vector
+nonempty), skip all resource loading and auxiliary-property processing, call
+owner slot 83 with float zero followed by slot 106 with no arguments, and
+return false. An empty resource-key list with no models also reaches these
+two calls and returns false. There is no implicit model-available true result.
+
+When the model vector is empty, use its resource-key vector at +0xC0 in
+order. If the key vector is empty and the saved key's third word at +0x124
+is nonzero, first append the three saved words at +0x11C to that vector;
+helper `0x0050DA30` is a three-word append, not resource lookup/conversion.
+For each key, request an animated model (`0x007FEDE0`) into an output
+pointer initialized null before the loop. A false request immediately
+returns false: no rollback, release of previous successful models, auxiliary
+loading or trailing slots 83/106. Successful requests append the returned
+reference to the model vector without an extra owner AddRef. The success
+contract requires a usable nonnull result: it is dereferenced without a
+null check, and false-with-nonnull has no owner cleanup.
+
+For each successful request, obtain its instance via animated-model slot 0.
+For the first key only, ask instance slot 8 for its bounds, set occupant
++0x7C to half the z extent (last bound component minus third component),
+and cap only values strictly above 32 to 32. There is no lower clamp or
+NaN repair. Then invoke animated-model slot 18 with `(1,0)`,
+PositionModelInstance with that instance, instance slot 4 with the occupant
+interface (+4), instance slot 14 with 3, and animated-model slot 8 with
+the view's current zoom/rotation. Set the local result true after this
+sequence. Other call results are not tested here.
+
+After all keys, read property `0xCC21420D` as a vector of unsigned words.
+When available, traverse it in order and invoke LoadAuxiliaryModel (owner
+slot 99) only for values 1, 2 or 3, using an output initialized null for
+each call. Ignore its return; release a nonnull returned reference. Missing
+property, other values and null outputs do not fail LoadModels. Dispose
+of the temporary property vector. Finally invoke slots 83(0) and 106(),
+then return the local newly-loaded boolean. A failure after the first
+successful key leaves a nonempty model vector: a retry takes the already
+installed branch and does not resume the remaining keys.
+
+Evidence: entry/fallback `0x0050E8B0–0x0050E916`, request/append
+`0x0050E920–0x0050E97D`, bounds/setup `0x0050E97D–0x0050EA51`,
+auxiliary/filter/finalization `0x0050EA57–0x0050EB12` (instructions with
+bytes); fallback append `0x0050DA30–0x0050DA6F`.
+This resolves the loader's own ordering/results, not the full internals of
+animated-resource acquisition, auxiliary loading or PositionModelInstance;
+the remaining exact helper boundary is recorded in §10.2.
+
 ## 4. States *[compat]*
 
 `DoStateTick` (`0x00573340`) and the enter and exit hooks extend automata.md §6.6:
@@ -497,7 +585,7 @@ or a multiplication by p[10]. The helper receives one float dt, returns no
 boolean, and does not clamp dt internally. Callers supply its movement-time
 limit where documented. Negative time/rates do not get repaired: the ordered
 comparison and signed increment can move away from the target. Target
-selection itself remains WC4. Evidence: `0x005721C4–0x0057230A`.
+selection itself is specified in §5.2.2. Evidence: `0x005721C4–0x0057230A`.
 
 Entry 26 is a **world-height** tolerance, not a speed or angle. In the early
 shore-slide part of helper `0x0056AF90`, form proposed horizontal position
@@ -566,7 +654,102 @@ primary slot 104 after each key. Thus six stop requests imply six such update
 calls, before the owner's later effect/model updates. Evidence:
 `0x0056EFE0–0x0056F1DB`, `0x0056F1E0–0x0056F3E1`,
 `0x004FADF0–0x004FAE29`. Effect-controller internals and the full slot-104/107
-computation remain WC4; these are request and ordering contracts.
+computation are bound to the shared controller contract in §5.1.7; these
+are request and ordering contracts.
+
+### 5.1.5 Subsidiary animation and publication boundaries (WC3/WC4)
+
+The installed watercraft table reaches these inherited bodies. Their work
+must not be replaced with an externally supplied final boat movement result.
+
+| Slot / body | Behavior |
+|---|---|
+| 83 / `0x005091C0`, void `(float a)` | Sample visibility tween +0x1B0, then advance elapsed +0x1BC by `a*f32(0.001)` only when elapsed < duration +0x1B8. On reaching duration, zero elapsed and duration and copy target +0x1B4 to start +0x1B0. Sample again. Only a changed float sample updates instances: in vector order skip null entries; sample >=1 requests model slot 18 `(false,1.0)`, otherwise `(true,sample)`. No negative-sample clamp. This is separate from speed tween +0x1A0; both sample by §5.1.6. |
+| 103 / `0x005089F0`, true `(float a)` | Query global animation service slot 17; only when false query slot 15. Suppress animation only when the first is false and the second true. Otherwise advance each nonnull instance through model slot 15 with a in vector order. If the inherited attachment list and model vector are both nonempty, inspect the first model's frame count (slot 12) and current frame (slot 11); current >= count-1 notifies `(1,0)` through owner slot 102. Then add a to +0x1C0. Suppression does none of these writes. The first model must be nonnull for this completion branch. |
+| 104 / `0x00505940`, void `()` | Call required effect-controller slot 4 with pointers to inherited position +0x40, heading +0x58, and measured speed +0x94 by value. No boat-speed substitution, dt, null check or result test. |
+| 107 / `0x00509290`, void `()` | Skip lighting when owner flag `0x100000` is set, global lighting is absent, or no processed model is installed at +0x12C. Otherwise compare inherited heading with last-lit heading +0x70 and inherited position with last-lit position +0x64. Relight only if any absolute heading-component delta strictly exceeds its configured component threshold, or squared 3D position distance strictly exceeds its configured squared-distance threshold. Equality does not relight. Request LightModel with the global lighting service and false, then copy position and heading to the last-lit records. |
+
+Lighting thresholds use the render configuration's +0x0C index, or zero when
+that configuration is absent. The squared-distance array is at `0x00A95540`
+(four-byte stride); heading thresholds at `0x00A95554` (three floats per row).
+No bounds repair or conversion to angles occurs. These are renderer
+configuration values, not drive parameters. Comparison and cache updates
+belong here; lighting itself belongs to the renderer. Evidence:
+`0x005091C0–0x00509280`, `0x005089F0–0x00508A9C`,
+`0x00505940–0x00505962`, `0x00509290–0x00509397`.
+
+**Tow rope refresh.** Before inherited animation, a nonnull towed reference
+causes the complete boat transform to be copied to a present rope-connection
+effect (slot 8), then starts it with false only if not running. With no towed
+reference, the stop path tests the connection effect's running predicate and
+stops it with false when running. That no-tow path dereferences the effect
+without a null check (`0x00572D79–0x00572E53`). Failed creation can thus return
+true from Init but is not safe here. It is a required-effect precondition,
+not an absent-effect success contract. No owner-computed endpoint or offset
+is added. Animation time and movement time remain distinct (§5.1.4).
+
+### 5.1.6 Shared tween sampling arithmetic (WC3/WC4)
+
+`TweenStruct::GetCurrent` (`0x004FA960`) takes no arguments beyond the
+tween receiver, returns a floating-point sample, and writes none of its four
+float fields. Their relative offsets are start 0, target 4, duration 8 and
+elapsed 12. Duration is tested first: a nonpositive **or unordered (NaN)**
+duration returns the stored target directly. This does not clear duration,
+elapsed or start; completion/reset belongs to the calling tick.
+
+For positive duration, compute `q=f32(elapsed/duration)`. Clamp q to [0,1]
+using ordered comparisons; NaN q survives both comparisons. Return
+`start+(target-start)*q`, using the clamped q. The subtraction, multiplication
+and addition execute on the x87 stack without intervening float stores;
+the ratio alone has an explicit float store. The return stays on that stack
+until the caller consumes/stores it. Do not round each arithmetic operation
+to float or replace the endpoint cases by returning start/target directly.
+In particular an infinite endpoint can make even a clamped-zero product
+NaN. Sampling neither advances time nor reports success/failure. This rule
+applies to the inherited speed and visibility tweens; it does not imply that
+their callers use the same elapsed-time update or reset policy.
+Evidence: duration branch `0x004FA961–0x004FA974`, ratio store
+`0x004FA977`, clamp/interpolation `0x004FA97A–0x004FA9D0`, direct target
+return `0x004FA9D2–0x004FA9D6` (instructions with bytes).
+
+### 5.1.7 Model-effects controller binding (WC3/WC4)
+
+The inherited object embedded at +0x18C is `cSC4ModelRegEffects`, constructed
+at `0x0051429E`, with table `0x00AA4060`. Apply the complete shared contract
+in [graphics-formats.md §3.11](graphics-formats.md#311-regp-12-and-later-compat):
+the Consumer 1 equations and §§3.11.1–3.11.4 specify its lifetime, entry
+discovery, name matching, creation failure, record sampling, transform flags
+and update arithmetic. These are required owner computations, not an opaque
+provider returning a completed effect transform. In particular:
+
+- Watercraft slot 104 calls controller slot 4 (`0x005E6B40`), passing an
+  unused pointer-shaped first word, inherited H and measured speed. The
+  pointer to P does not place effects. Placement comes from the attached
+  model-instance transform and the selected REGP record.
+- Traverse exact REGP keys in ascending byte order; null or stopped effects
+  get neither transform nor speed parameter. Sample the animated instance's
+  current integer frame, or frame 0 when its animation interface is absent.
+  A nonnull record vector is indexed by frame times 28 without a count
+  check or frame interpolation. Null records use local identity; zero axes
+  in present records retain the native unguarded normalization. The shared
+  spec's GF13 repair is a documented implementation choice, not a new native
+  watercraft rule.
+- Send the composed transform (effect slot 8) **before** parameter slot 11
+  `(15,vector,1)`. Its vector components are separately stored
+  `f32(measured_speed*H.component)`, without normalization, instance rotation
+  or unit conversion. Boat speed +0x2DC is not the scalar used here.
+- A detached controller or empty map performs no effect updates and returns
+  true. It does not authorize a null controller object at the caller.
+  Start/stop wake requests match stored effect names with CRT `_stricmp`;
+  resource keys and effect names are distinct. Attachment alone does not
+  initialize/discover/start effects.
+
+The binding and speed-store/order were checked against owner construction,
+the bounded controller decomp and `0x005E74C2–0x005E7508` instructions with
+bytes; the shared spec supplies the earlier transform-composition audit.
+No render visibility or model-creation policy may be inferred from the
+controller's true return. Transitive model-instance positioning and loading
+are the remaining model-side audit, separately from this controller.
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -607,6 +790,97 @@ sets the speed; `Movement_PositionNew` (`0x0056C430`, with curved-motion helper 
 straight-motion helper `0x00568230` and height/tilt helper `0x00569E70`) moves the boat by speed × time,
 turns it, keeps it on the water surface and tilts the model
 *[summary]*.
+
+#### 5.2.1 AI midpoint selection boundaries (WC4, partial)
+
+`Engine_AIBoatMotion` (`0x00571880`) takes one float dt and returns void.
+With fewer than ten travel points it first invokes the picker and resets speed
+and turn to zero, even when the picker returns false. False returns immediately.
+An empty resulting list returns; one or two points also return without the
+three-point target calculation. Before that latter count test, the function
+converts the last point and scans adjacent pairs, maintaining a scratch minimum
+Manhattan distance. This scan never changes the chosen list index: motion
+still uses the **first three** points, not the pair nearest the boat. Do not
+replace it with a nearest-segment algorithm.
+
+Convert these three points to world cell centres C0,C1,C2. The target midpoints
+are `M0=C0+(C1-C0)*0.5` and `M1=C1+(C2-C1)*0.5`, with float component stores.
+Use inherited occupant x/z at +0x40/+0x48 for the horizontal displacement
+vectors to both targets. If either vector's length is strictly below 0.1,
+clear the entire travel-point list, push state 72 with the usual default
+arguments and return. Equality 0.1 does not trigger this branch.
+If distance to M0 is strictly below 7 and angular proximity (§3.4) to M1
+succeeds, clear +0x2B1, erase the first travel point, and slew speed/turn
+toward zero using §5.1.3. That consumption branch does not publish a position
+or runtime heading. The angle helper still normalizes inherited heading.
+
+The remaining target-production branches are specified in §5.2.2; their
+turn targets have different sign formulas. Evidence: refill/reset `0x00571880–0x005718D0`,
+scan/count `0x005718D0–0x00571A1A`, midpoint/short-distance checks
+`0x00571A20–0x00571B59`, consumption `0x00571B77–0x00571BD8`.
+
+#### 5.2.2 AI target production and direct publication (WC4)
+
+After §5.2.1's early exits and consumption test, let P be inherited occupant
+position, H inherited heading, d0 the horizontal distance to M0, and U0/U1
+the normalized horizontal directions to M0/M1. Initialize local target speed
+and target turn to zero on every invocation, even when no refill occurs.
+Replace a NaN H.y with zero (infinities are not replaced), then normalize the
+complete H in place. The angular-proximity helper used below also normalizes
+H, as specified in §3.4. Runtime movement heading is a separate record.
+
+Evaluate the following branches in order. The latch is byte +0x2B1.
+
+| Condition | Work and selected targets |
+|---|---|
+| Latch clear and angular proximity to U0 fails | Rotate H toward U0 by the signed limited angle below. Leave speed target zero. Turn target is `abs(signed_angle)*p[2]/q`, always nonnegative for positive p[2] and dt. Leave the latch unchanged. |
+| Otherwise, d0 strictly below 7 | Test proximity to U1 again. On failure set the latch to 1 and rotate H toward U1; speed target stays zero and turn target is `signed_angle*p[2]/q`. On success both targets remain zero. This latter result normally took the earlier consumption path already. |
+| Otherwise (d0 >= 7) | Move P directly toward `(M0.x,water_height,M0.z)` by the limited displacement below. Turn target stays zero; speed target is `travel*p[0]/allowance`. Leave the latch unchanged. |
+
+For either turning branch, `q=f32(f32(0.1)*dt)` degrees. Compute
+`angle=acos(dot(U,H))*f32(57.29578)` without clamping the dot product.
+Limit the nonnegative angle to q, then store the limited magnitude as float:
+an ordered negative angle selects zero; otherwise cap it only when it is
+strictly greater than q. An unordered angle survives as NaN. The sign is -1 if the float
+cross term `U.x*H.z-U.z*H.x` is strictly negative, +1 otherwise (including
+zero or NaN). Multiply magnitude by sign to obtain signed_angle. Rotate
+using `X'=cos(r)*H.x+sin(r)*H.z`, `Y'=H.y`,
+`Z'=-sin(r)*H.x+cos(r)*H.z`, where r is signed_angle times
+`f32(0.017453292)`. Store cosine and the resulting components as floats;
+trigonometric evaluation and unstored products use the x87 intermediates.
+The first branch stores signed_angle to float before its later sign lookup
+and target calculation; its extra multiplication by sign(signed_angle)
+produces the absolute numerator. The second branch retains the signed
+intermediate through its target multiplication/division. Do not add that
+extra sign factor to the second branch. Evidence:
+`0x00571C69–0x00571D34`, `0x00571E2E–0x00571E45`,
+`0x00571F3F–0x00572005`, `0x005720F6–0x00572100`;
+sign helper `0x00566E00–0x00566E22`.
+
+In the translation branch, sample terrain water-level slot 29 (no x/z
+arguments), form float component differences V to that 3D target, and
+compute L=length(V). The allowance is `f32(f32(0.0025)*dt)`;
+travel is min(L,allowance) for nonnegative L, otherwise zero. Normalize V
+using the stored float L, multiply by travel, and add the displacement to
+P with float component stores. This can change y as well as x/z. The speed
+target uses travel, not the z displacement or a horizontal distance.
+Evidence: `0x00571E5F–0x00571F36`.
+
+All three non-consumption branches then normalize H again, publish the
+inherited P/H through MoveTo (slot 16), shift the old current position and
+heading snapshots to previous, and copy inherited P/H into current snapshots
+(+0x2F4 and +0x30C). This happens even for turning with unchanged P. Finally
+slew speed/turn toward the selected targets by §5.1.3. Consumption instead
+jumps straight to slew with zero targets, without this publication.
+Evidence: `0x00572104–0x005721C4`.
+
+The function does not clamp dt or protect either target division against
+zero q/allowance. At dt=0 the relevant 0/0 can produce NaN. Negative dt
+can select a negative limited magnitude or negative travel; it is not
+converted to a positive allowance. No zero-length-heading fallback exists.
+For finite nonnegative dt the table gives the ordinary executable branches;
+invalid normalizations retain the original floating-point behavior rather
+than silently choosing a replacement heading or provider-computed target.
 
 ### 5.3 Ferries: requests and docking
 
@@ -976,7 +1250,7 @@ be silently changed into a positive-depth clamp.
 After a successful sinking transform, current heading is copied into inherited
 heading +0x58, then slots 100 `(true,true)`, 104 and 107 are called, in that order
 (`0x0056AF23–0x0056AF6F`). The sinking orientation composition is specified
-below; grounding/heel contact composition remains unresolved.
+below; grounding/heel contact composition is specified in §5.7.5.
 
 **Sinking orientation and heading feedback (WC5, partial).** Use the `Rot`
 convention and right/up/forward matrix columns defined in §5.1.1. Let
@@ -1129,6 +1403,90 @@ jump tables `0x00568B20–0x00568B9F`; result stores
 Several result tails are exported as separate functions: reading only the
 attributed helper's disassembly omits those writes.
 
+#### 5.7.5 Grounding contact and heel transforms (WC5 completion)
+
+The grounding helper `0x0056AF90` takes one float dt and returns bool in AL.
+It uses stored crash elapsed t, duration T=p[21], heel target B=p[24], current
+runtime position P and heading H, and previous runtime heading H0. Its initial
+`t >= T` rejection performs no contact or final transform. The scalar angle A
+and its completion test are those in §5.7.2. The helper does not increment t.
+
+Here `unit` means division by full 3D Euclidean length, with component float
+stores and no zero-length fallback. Define `Rot(axis,b,V)` explicitly: set
+`(x,y,z)=axis*sin(-b/2)`, `w=cos(-b/2)` for a unit axis. The rows multiplying V
+are:
+
+| Row | Coefficients |
+|---|---|
+| x | `1-2y²-2z²`, `2xy+2wz`, `2xz-2wy` |
+| y | `2xy-2wz`, `1-2x²-2z²`, `2yz+2wx` |
+| z | `2xz+2wy`, `2yz-2wx`, `1-2x²-2y²` |
+
+This numeric definition includes the negative half angle; do not substitute a
+library rotation of an assumed opposite sign. Quaternion x/y products and
+matrix coefficients pass through float stores; z/w trigonometric intermediates
+can remain in x87 precision. This is not a double-only accumulated orientation.
+
+**Sliding/contact phase.** Only a set sliding byte +0x2CA and `t < T/2`
+attempt contact. Sample the terrain normal at P.x/P.z (terrain slot 27),
+normalize it and -H, and compute the angle between them in radians. There is
+no dot clamp in this caller. Continue sliding only when that angle is
+**strictly greater** than p[25]. Equality/failure clears the sliding byte;
+it does not by itself return false or suppress the later heel phase.
+Before testing the proposed point, multiply speed by p[23], storing the
+result. This retention occurs once per qualifying helper call, not per second
+and not only on successful contact.
+
+Obtain the current complete transform C and apply the banking helper of
+§5.1.1 using the retained speed. Let V be its rotation applied to `unit(-H)`;
+translation and uniform scale are not part of this direction product. Propose
+`x=P.x + dt*p[4]*v*H.x`, `z=P.z + dt*p[4]*v*H.z`.
+Ask the city's world-position-inside predicate (slot 98) first. Outside
+clears sliding and skips coordinate conversion/height sampling. Inside,
+convert to cells (city slot 95), sample terrain height h (terrain slot 18),
+and accept only `abs(h-P.y) < p[26]`. The sampled h is stored as float for
+publication; the comparison uses the returned height before that store is
+reloaded. Equality rejects. Rejection clears sliding but retains the already
+reduced speed and leaves P unchanged in this phase.
+
+Accepted contact rebuilds a basis from `F=unit(H)`,
+`R=unit(V cross F)`, `U=F cross R`. It is V, not the terrain normal, that
+supplies this up candidate. Set C's rotation columns to `(R,U,F)` and its
+translation to `(x,h,z)`, marking translation and rotation changed separately
+(one revision increment each). Preserve C's scale. Publish through owner
+slot 75, copy old runtime P into previous runtime position, then write
+runtime P=(x,h,z). Copy current runtime H into inherited heading; call slots
+100 `(true,true)`, 104 and 107, in that order. This phase does not replace
+runtime H with F or set previous heading, and has no ordinary bow lift.
+Evidence: gate/angle/retention `0x0056AF90–0x0056B10C`, bank/direction product
+`0x0056B17B–0x0056B234`, proposed point/height test
+`0x0056B23E–0x0056B2F1`, basis/publication `0x0056B385–0x0056B583`.
+
+**Heel phase.** After contact or its rejection, compute the new scalar A and
+the float increment dA by §5.7.2. If A >= B, return false without final heel
+publication. Contact publication and speed/position writes above are not
+rolled back. Otherwise fetch the current complete transform again and sample
+a fresh terrain normal N at current runtime P.x/P.z. Form
+`U0=unit(Rot(unit(H0),A,N))` and
+`H'=unit(Rot((0,1,0),dA,H))`. The first rotation uses the **total** heel angle
+and previous heading as axis; the second uses the **increment**, world Y as
+axis, and current heading as input. Neither uses the incoming model basis.
+For the transform, normalize H' again as F, take
+`R=unit(U0 cross F)` and `U=F cross R`. Set rotation columns `(R,U,F)` and
+translation to runtime P, preserving scale. Mark translation and rotation
+changed separately, even when translation was already equal. Publish slot 75,
+then write H' to current runtime and inherited heading, then request slots
+100 `(true,true)`, 104 and 107. Return true. Previous heading and both position
+records remain unchanged by this phase. There is no sinking displacement or
+p[18]/2 lift in heel. Evidence: ramp `0x0056B58B–0x0056B618`, terrain/axis
+rotation `0x0056B6AC–0x0056B950`, incremental yaw `0x0056B954–0x0056BB89`,
+basis/publication/heading feedback `0x0056BB8D–0x0056BD3F`.
+
+City/terrain, transform outputs and the inherited effect controller are
+required; there is no null-service recovery here. Parallel/zero basis inputs
+have no finite fallback. No random draw occurs in this helper; entry-time crash
+RNG is separate (§4). False means scalar completion, not an unchanged object.
+
 ## 6. U-Drive-It *[compat]*
 
 ### 6.1 The drive tick (`DoPlayerDriveTick`, `0x0056D310`)
@@ -1229,6 +1587,16 @@ turn, set drive-state `+0x23C=0`, `+0x240=6.2831855`, and `+0x238=-0.125*T`.
 Simultaneous channels do **not** select a separate neutral-steering case: the ordering above
 decides the result. The timer-rebasing terms have different signs and must be preserved.
 Evidence: `0x0056EBAE–0x0056ED5A`, `0x0056EEC2–0x0056EF1F`.
+
+**Simultaneous steering correction (WC9).** Each response tests the steering value
+left by the preceding response. In particular, with default tuning, L=R=100,
+T=0 and dt=10, the left response writes T=-0.1; the right response then fails
+both its nonnegative-T direct-input test and its strictly-positive-T return
+test. Final T is -0.1 and both channels remain 100. There is no counter-steer
+return or channel clearing in this case. The earlier WC8-08 expectation of
+-0.05 was incorrect; the ordered prose above is confirmed by the instruction
+predicates at `0x0056EC87–0x0056ECF2`. Counter-steer clearing occurs only in
+the opposite-sign return branch, not merely because both channels are active.
 
 For group membership 0x4409 with a skier effect, a nonzero toggle byte at drive-state +0xEB
 stops an already running effect, or starts a stopped one only when v > 0. After this toggle
@@ -1408,38 +1776,39 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Area | Attributed entry addresses | Contract status |
 |---|---|---|
 | Message-target refcount adjustors | 004FAF30, 004FAF40 | subtract 0x38 from this, delegate AddRef/Release to inherited implementation |
-| Base animation step attributed by reachability | 00508740 | inherited detail still WC4; do not count as a watercraft-specific public method |
+| Base animation step attributed by reachability | 00508740 | §§5.1.4–5.1.7; do not count as a watercraft-specific public method |
 | Size/sign and small route/math helpers | 00566D60, 00566E00, 00567000, 00567A50, 00567AB0, 00567B10, 00567ED0, 00567FD0, 005682F0, 0056BD50 | §§3.1–3.4, 5.1.1, 5.2, 5.4.1; angular proximity and direction-quantization signatures/results now included |
-| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3, §5.2; tuning signature/failure audit still WC3 |
+| Record, query, direction choice, tuning | 00566EE0, 00566F00, 00566F30, 00566F60, 00567310 | §§1–3.5, §5.2; tuning void result, fallback and readable-list preconditions specified |
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
-| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
+| Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.5 give boat selection/response, SAT, rollback, footprint construction, shore corners and crash transforms |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
-| Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes, endpoints and sinking rotation/heading feedback; grounding/heel rotation/contact still WC5 |
-| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
-| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.3, 5.4; docking helper signatures, distance and manager-null contracts specified; inherited teardown audit still WC3 |
+| Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 and §5.7.5 give dispatch, ramps, heights, endpoints, sinking and grounding/contact bases, heading feedback and publication |
+| Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; remaining inherited model publication is WC11 |
+| Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.5, 5.4; docking signatures, distance, manager-null and inherited lifecycle contracts |
 | Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
 | Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
-| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
-| Wake stop/start | 0056EFE0, 0056F1E0 | §5.1.4 gives signatures, six-key ordering, arguments, ignored results and adapter forwarding; controller/update internals remain WC4 |
+| Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3–3.6, 4, 6.2; transitive model initialization remains WC10 |
+| Wake stop/start | 0056EFE0, 0056F1E0 | §§5.1.4, 5.1.7 give signatures, ordering, ignored results, adapter forwarding and shared controller computations |
 | Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
-| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final and far approach expanded; full AI selection remains WC4 |
-| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; debug borrowed-string lifetime/signature specified; caller answered WC2; §5.1.4 expands inherited animation arithmetic/dispatch, subsidiary animation/update internals remain WC4 |
+| AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3 include full AI target selection, direct publication, final and far approach |
+| Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation/tween/effects arithmetic and debug lifetime; only the model-publication helpers remain WC11 |
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 138 individually named spec-side vectors. It does **not** certify
-complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
+This document supplies individually named spec-side vectors. It does **not** certify
+complete owner closure: WC3–WC4 have scoped archived answers with their exact
+model-only residuals carried by WC10–WC11. WC1–WC2 and WC5–WC9 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
 
 | Open item | Evidence delivered | Remaining work before claiming closure |
 |---|---|---|
 | WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
-| WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
-| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow and debug lifetime contracts and inherited animation dispatch | Complete tuning signature/result/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
-| WC4 | Commands, routes/following/final and far docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations. |
-| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint, inanimate corner tables and sinking basis/heading feedback | Grounding/heel axes/contact/transform composition (0056AF90). |
+| WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question. AI target selection and crash contact basis are now specified separately. |
+| WC10 (WC3 residual) | 75-entry attribution inventory, Init/record boundaries, construction/destruction, adjustors, geometry/movement/docking/angular/quantization signatures, land/tow/debug, tuning, inherited dispatch, shared tween arithmetic (§5.1.6), LoadModels control/results (§3.6), and shared effects contract (§5.1.7) | Transitive animated-resource acquisition `0x007FEDE0` (sprite `0x007FD7D0`, mesh `0x007FED50`), LoadAuxiliaryModel `0x0050EB20`, and complete PositionModelInstance `0x005094A0` / heading-basis helper `0x0080B830`. Historical 79 is not the current measured attribution (§10.1). |
+| WC11 (WC4 residual) | Commands, drive ordering, routes/following/final/far docking, integration, normal visual basis, slew, generic seeking, wake order, subsidiary animation, shared tween arithmetic, full AI targets/publication (§5.2.2), and shared effects computation (§5.1.7) | Inherited model publication slot 100 `0x00508610` and complete model-instance positioning/heading-basis helpers `0x005094A0` / `0x0080B830`. Model acquisition/auxiliary creation remains WC10; the effect-controller arithmetic is supplied by graphics-formats §3.11 rather than an opaque provider. |
+| WC5 (answered) | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, footprint, inanimate corners, sinking and grounding/contact bases and publication (§5.7.5) | None for this question; required-service preconditions and degenerate bases are explicit. |
 
 These gaps are not answered by an inventory count or by the existing summary
 sections. An engine lane can implement the newly specified arithmetic, but cannot
@@ -1473,7 +1842,7 @@ flags, channels assigned from parameters, and unchanged values.
 | WC8-05 | F=3000, R=-1, v=0.3, dt=100 | Keep v=0.3; replace F with the inverse-speed curve (approximately 3000), rather than decelerating. |
 | WC8-06 | L=100, R=-1, T=0, dt=10 | Negative response yields T=-0.1. |
 | WC8-07 | L=-1, R=100, T=0, dt=10 | Positive response yields T=0.1. |
-| WC8-08 | L=100, R=100, T=0, dt=10 | First response T=-0.1; second response returns toward zero by 0.05 and clears L: T=-0.05. This is not neutral. |
+| WC8-08 | Default tuning; L=100, R=100, T=0, dt=10 | First response T=-0.1; both right-response predicates fail. Final T=-0.1, L=R=100 (WC9 correction). |
 | WC8-09 | L=-1, R=-1, T=-0.2, dt=10 | Return step r=0.01: T=-0.19. |
 | WC8-10 | L=0, R=-1, T=-0.2, dt=10 | Rebase L to 190, then T=-0.19. With mirrored R=0, L=-1, T=0.2, R becomes 210 and T=0.21. |
 | WC8-11 | Group 0x4409, stopped skier, toggle=1, v=0 | Effect stays stopped; owner does not clear toggle. Next call with toggle=1 and v>0 can start it. |
@@ -1696,3 +2065,67 @@ below the translation threshold unless specified otherwise.
 |---|---|---|
 | WC3-DBG01 | Call debug text on boat A, retain the borrowed pointer, then call on boat B with different runtime data | Same returned string-object address; borrowed pointer now refers to B's formatted text. Neither boat gains a retained per-instance debug string. |
 | WC3-DBG02 | Q=2, D=3; runtime P=(1,2,3), H=(0,0,1); city conversion leaves outputs untouched | Text contains `(Q,D): (2,3)`, `Cell( -1, -1)`, `Pos(1.00,2.00,3.00)`, `Ornt<0.00,0.00,1.00>`. Uses initialized -1 cells; no failure boolean or early return. |
+
+### 11.17 Grounding/contact and inherited-boundary vectors
+
+For heel examples use T=8000, B=1, finite unit inputs, runtime P=(10,20,30),
+H0=H=(0,0,1), terrain normal (0,1,0), and no sliding unless stated. Basis
+comparisons allow ordinary float/trigonometric tolerance; branch tests do not.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC5-H01 | t=8000, sliding set, nonzero speed | False before terrain, retention or transform calls; all runtime records unchanged. |
+| WC5-H02 | t=800, old A=0.25 | Fast ramp A=0.25, dA=0. Heading remains Z; transform R=(cos(0.25),sin(0.25),0), U=(-sin(0.25),cos(0.25),0), F=Z. Translation=P, no lift; true. |
+| WC5-H03 | t=800, old A=0 | A=dA=0.25. Runtime and inherited heading become approximately (0.24740396,0,0.96891242); previous heading remains Z. Up candidate is (-sin(0.25),cos(0.25),0); rebuild R/U by §5.7.5. |
+| WC5-H04 | Same as H03, repeat with dt=0 and dt=1000 | Same heel ramp and heading result in both runs: dt affects contact translation only, not heel rotation. |
+| WC5-H05 | t=3200, old A=0, sliding clear | Fast ramp reaches B exactly; false, A stored, no final transform/heading/update calls. |
+| WC5-H06 | Sliding set, t=0, p[25]=0; terrain normal=-H | Angle zero equals limit; clear sliding, retain old speed, no contact position conversion. Heel still runs and returns true. |
+| WC5-H07 | Sliding set, t=0, normal Y, p[25]=1, p[23]=0.5, v=1; proposed point outside | Speed becomes 0.5 and stays reduced; sliding clears. No cell/height queries for rejected contact; heel separately samples normal, publishes once and returns true. |
+| WC5-H08 | Same angle/retention as H07, inside, h=30, P.y=20, p[26]=10 | Height difference equals tolerance: reject contact and clear sliding. Retained speed remains 0.5; no previous-position rewrite from contact. Final heel may still publish. |
+| WC5-H09 | Sliding set, t=0, dt=10, v=1, p[23]=0.5, p[4]=0.2, turn=0, p[25]=1, p[26]=10; inside, h=22; incoming C maps -Z to Y | Contact publishes at (10,22,31), saves previous P=(10,20,30), leaves runtime H unchanged, calls 100/104/107. Heel publishes again at that position and calls 100/104/107 again. Scale preserved, no lift. |
+| WC5-H10 | H09 but p[24]=0, old A=0 | Contact still publishes/writes first. Heel's A>=B test returns false without a second publication; no rollback of the contact changes. |
+| WC3-LC01 | Missing group or missing local and inherited tuning lists; old tuning arbitrary | All forty defaults replace old tuning; void result, no failure or rollback. |
+| WC3-LC02 | Present forty-entry list; entry 9=3, entry 8=0 | Resolved entry 8=-3. A zero-filled local list wins over a populated parent list. |
+| WC3-LC03 | Base LoadModels returns false; occupant Init succeeds and effects service exists | Base Init returns false after occupant Init; watercraft continues its own setup and normally returns true. |
+| WC4-AN01 | Visibility tween old/new samples equal; nonempty model vector | Slot 83 sends no model visibility requests. Changed new sample 1 sends `(false,1.0)`; changed sample 0.5 sends `(true,0.5)` to each nonnull model in order. |
+| WC4-AN02 | Animation service slot 17=false, slot 15=true | Slot 103 returns true without model steps, completion event or +0x1C0 increment. With slot 17=true, slot 15 is not queried and animation proceeds. |
+| WC4-AN03 | Configured lighting deltas all exactly at their thresholds | No relight or last-lit cache writes. Exceed one threshold to request relight and copy both caches; owner flag 0x100000 suppresses both. |
+| WC4-AI01 | Picker succeeds but leaves two travel points | Refill path resets speed/turn; no three-point motion target or publication. A false picker also leaves speed/turn reset. |
+| WC4-AI02 | Three points; distance to either midpoint 0.05 | Clear points, push state 72, return without target slew. Distance exactly 0.1 alone does not trigger removal. |
+
+### 11.18 Shared tween and AI target vectors (round 2)
+
+Tween values below are (start,target,duration,elapsed). Sampling leaves all
+four fields unchanged. AI vectors describe the selected targets **before**
+§5.1.3 slew/clamp. Supply at least ten points to bypass refill/reset; listed
+midpoints are world-space results of the first three point conversions.
+Float expectations use the stored constants in §5.2.2; use numeric tolerance
+for trigonometric results, and inspect NaN classification separately.
+
+| ID | Setup | Required result |
+|---|---|---|
+| WC3-T01 | Tween (2,10,4,1), then elapsed -1, 8 | Samples 4, 2, 10 respectively; no reset or elapsed advance. |
+| WC3-T02 | Tween (2,10,0,99), then duration -1, then NaN | Sample 10 in all three cases. Invalid duration is the direct-target branch. |
+| WC3-T03 | Tween (2,10,4,NaN) | NaN sample; positive duration does not repair an unordered ratio. |
+| WC3-T04 | Tween (2,+infinity,4,-1) | NaN sample from the clamped-zero interpolation; returning start directly would incorrectly give 2. |
+| WC4-AI03 | P=(0,0,0), H=(0,0,1), M0=(10,0), M1=(20,0), latch=0, dt=100, p[2]=0.002 | First turning branch: signed angle about +10 degrees, turn target about +0.002, speed target 0; H becomes approximately (0.173648,0,0.984808). P unchanged; MoveTo and both snapshot shifts occur before slew. |
+| WC4-AI04 | Same as AI03 but M0=(-10,0), M1=(-20,0) | H.x approximately -0.173648, yet turn target still about +0.002. First branch uses absolute signed angle in its target. |
+| WC4-AI05 | P=(0,0,0), H=(0,0,1), M0=(3,0), M1=(-10,0), latch=1, dt=100, p[2]=0.002 | Consumption proximity fails; second turning branch sets latch=1, H.x approximately -0.173648, turn target about -0.002 and speed target 0. Publication still occurs. |
+| WC4-AI06 | P=(0,0,0), H=(1,0,0), M0=(7,0), M1=(17,0), water=0, latch=0, dt=100, p[0]=0.1 | Exact distance 7 chooses translation: allowance/travel about 0.25, P approximately (0.25,0,0), target speed 0.1, target turn 0. No point erase; current snapshot captures the moved inherited position. |
+| WC4-AI07 | P=(0,0,0), H=(1,0,0), M0=(8,0), M1=(18,0), water=6, latch=0, dt=1000, p[0]=0.1 | L=10, allowance/travel about 2.5: P approximately (2,1.5,0), speed target 0.1. A horizontal-only move is incorrect. |
+| WC4-AI08 | AI07 with dt=5000 | Allowance about 12.5, travel 10: P=(8,6,0), speed target about 0.08. Target is scaled by the used fraction; there is no time clamp in this function. |
+| WC4-AI09 | AI03 with dt=0 | Rotation magnitude zero, H remains forward; turn-target division produces NaN rather than a forced zero. Publication precedes slew. |
+| WC4-AI10 | Translation setup AI06, dt=-100 | Negative allowance/travel about -0.25 moves P.x backward to approximately -0.25; target speed still about 0.1. No absolute-time repair. |
+
+### 11.19 Model loading and shared effects binding vectors
+
+| ID | Setup | Required result |
+|---|---|---|
+| WC3-ML01 | LoadModels with an existing nonempty model vector and three pending resource keys | No acquisition or auxiliary-property lookup; slots 83(0),106() in order, false result. |
+| WC3-ML02 | Empty models/keys and saved key third word zero | No acquisition; process optional auxiliary property, then slots 83(0),106(); false result. |
+| WC3-ML03 | Empty models, two keys; first acquisition succeeds, second returns false | First reference remains installed and fully configured; false result, no auxiliary pass or trailing 83/106 calls. Retry skips remaining acquisition and returns false after 83/106. |
+| WC3-ML04 | Empty models, one successful key; bounds z-min=-40, z-max=40; auxiliary values [0,1,4,3,2,0xFFFFFFFF] | +0x7C=32; auxiliary requests only 1,3,2 in that order. Null outputs/false auxiliary results do not change the true newly-loaded result; release nonnull outputs. |
+| WC4-FX01 | Attached identity instance, started effect with null record vector, H=(2,3,4), measured speed=-0.5; boat speed arbitrary | SetTransform receives the instance transform, then parameter `(15,(-1,-1.5,-2),1)`. No heading normalization, boat-speed substitution or conversion. |
+| WC4-FX02 | Two entries: key A stopped, key B started; animation current frame=3; B records nonnull | A gets no transform/parameter. B samples record at base+84, then sends transform before speed parameter. Neither interpolation nor count clamp occurs. Records must cover this frame for a safe native read. |
+| WC4-FX03 | Controller detached, then attached with empty map | Both updates return true without transforms or speed parameters. A null controller at the watercraft caller is a separate invalid precondition. |
+| WC9-01 | Default tuning, L=R=100, T=0, dt=10 | Final T=-0.1 and both channels stay 100, matching corrected WC8-08. |
