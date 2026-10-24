@@ -135,7 +135,10 @@ fn wc_l16_l22_removal_and_forward_pages() {
 
 #[test]
 fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
-    let mut f = Recording::default();
+    let mut f = Recording {
+        parent_limit: Some(102),
+        ..Recording::default()
+    };
     let mut l = list_box::ListBox::new(1, true, &mut f);
     l.drop_resize = [false, false];
     l.area = [0, 0, 30, 22];
@@ -154,6 +157,7 @@ fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
     let old = l.height();
     assert!(!l.size_drop_height(&mut f));
     assert_eq!(l.height(), old);
+    assert_eq!(l.drop_resize, [true, true]);
     l.drop_mode = false;
     for t in [b"Alpha".as_slice(), b"alpha", b"B"] {
         l.insert(-2, t.to_vec(), 0, &mut f);
@@ -195,6 +199,7 @@ fn wc_l26_l31_l34_paint_prefixes_intensity_and_fitting() {
     for t in texts {
         l.insert(-2, t.to_vec(), 0, &mut f);
     }
+    let stored = l.entries.clone();
     l.paint(&mut f).unwrap();
     let painted: Vec<_> = f
         .draws
@@ -214,6 +219,7 @@ fn wc_l26_l31_l34_paint_prefixes_intensity_and_fitting() {
     );
     assert_eq!(painted[5].1, 0x123456);
     assert_eq!(painted[6].1, 0x123456);
+    assert_eq!(l.entries, stored);
     for value in [f32::NEG_INFINITY, 0.5, f32::INFINITY, f32::NAN] {
         l.set_intensity(value, &mut f);
         if value.is_nan() {

@@ -6,9 +6,11 @@
 
 - Goal: close cGZWinListBox and cGZWinTreeView in core only, with complete owner/slot/vector coverage.
 - Worktree: reserved detached HEAD; clean at start, no commits ahead of main.
-- Done: audited widget-controls 5.1-5.6, 6.1-6.7 and 7 against owner methods and existing grouped tests.
-- Findings: negative default-color indices all rejected; TreeView paint passes zero bar thickness and never updates buffer/bar requirements; Init silently tolerates stale root after Shutdown.
-- Next: implement raw property aliases, integrated layout and explicit stale-root precondition; add missing literal vectors and slot adapter tests.
+- Done: audit checkpoint f57839fa5; implemented raw property aliases/stored-pair/base-color adapters, checked stale-root Init, provisional automatic buffer/bar layout and additional literal vector/helper tests.
+- Done: module README now has ListBox slot map and updated owner closure rows; WC7 filed for exact buffer/bar recalculation policy.
+- Stop: two-thirds context threshold reached; no new implementation work. TreeView primary-wrapper and exhaustive assertion audit remain partial.
+- Next: collect focused cargo session 9875 to terminal; then qbuild all on corrected stable source and queued qbuild verify; resolve diagnostics only, finalize report/queue.
+- Evidence: q Bash startup failed in build-runs/q/20261024-222624-28284.log. Focused build log build-runs/focused-widget-controls.log has old-source helper-name error; fixed to move_to while its other compile job finishes. Formatting passes for six owned Rust files (rerun after final offset assertions).
 - Scope: do not edit plugin, capi, coverage-map, FileBrowser or TextEdit rows; ABI unchanged.
 - Gates: final qbuild all plus coordinator-queued qbuild verify; no game request required for core-only work.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-listtree-close14-r1-manifest.json.

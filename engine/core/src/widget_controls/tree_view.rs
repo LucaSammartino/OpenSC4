@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cGZWinTreeView, widget-controls §6. Node handles, visible rows and selection
-//! positions are distinct. Open native adapters are never assigned signatures.
+//! positions are distinct. Native memory/lifetime preconditions stay explicit.
 use super::*;
 #[path = "tree_view/input.rs"]
 mod input;
@@ -76,6 +76,17 @@ pub trait TreeForeign: Foreign {
     fn manager_available(&mut self) -> bool {
         true
     }
+    /// Base-window geometry and scrollbar thickness supplied by the host.
+    fn tree_area(&mut self, _window: Handle) -> Option<Rect> {
+        None
+    }
+    fn tree_bar_thickness(&mut self, _window: Handle) -> [u32; 2] {
+        [0, 0]
+    }
+    fn resize_tree_buffer(&mut self, _buffer: Handle, _size: [u32; 2]) {}
+    fn create_tree_bar(&mut self, window: Handle, _horizontal: bool) -> Option<Handle> {
+        self.create_bar(window)
+    }
     fn initialize_image(&mut self, buffer: Handle, _slot: usize, _size: [u32; 2]) -> bool {
         self.initialize_buffer(buffer)
     }
@@ -132,6 +143,10 @@ pub struct TreeView {
     /// Native leaked nodes remain outside map/topology after failed insertion.
     pub abandoned: Vec<Node>,
     pub fallback_text: Vec<u8>,
+    /// Host-provided readable/writable words outside the modeled properties.
+    /// Keys are the signed O40/O41 indices, not native addresses.
+    pub raw_property_words: BTreeMap<i32, u32>,
+    pub layout_area: Option<Rect>,
 }
 
 impl TreeView {
@@ -167,6 +182,8 @@ impl TreeView {
             line_style: [0, 1],
             abandoned: Vec::new(),
             fallback_text: Vec::new(),
+            raw_property_words: BTreeMap::new(),
+            layout_area: None,
         }
     }
 
@@ -224,10 +241,29 @@ impl TreeView {
     }
 
     pub fn init(&mut self, f: &mut impl TreeForeign) -> bool {
+        // Safe convenience wrapper; false is not a claimed native restart result.
+        self.checked_init(f).unwrap_or(false)
+    }
+
+    pub fn checked_init(&mut self, f: &mut impl TreeForeign) -> Result<bool> {
         f.base_init(self.window());
         self.internal_init(f);
-        self.recalculate();
-        true
+        self.require_live_root()?;
+        if let Some(area) = f.tree_area(self.window()) {
+            self.recalculate_all(area, f)?;
+        } else {
+            self.recalculate();
+        }
+        Ok(true)
+    }
+
+    fn require_live_root(&self) -> Result<()> {
+        if self.root.is_some_and(|root| !self.nodes.contains_key(&root)) {
+            return Err(Unsupported::Precondition(
+                "live TreeView root (Shutdown is not restart)",
+            ));
+        }
+        Ok(())
     }
 
     pub fn create_root(&mut self) {
@@ -285,8 +321,7 @@ impl TreeView {
         self.nodes.get(&handle).map_or(-1, |node| node.reference)
     }
 
-    /// Native insertion's sentinel/reference ordering is explicitly open WC2.
-    /// The mutation after a *resolved* child-list position is implemented below.
+    /// WC2 ordering includes the consumed/leaked node on a missing reference.
     pub fn insert(&mut self, descriptor: Descriptor, f: &mut impl TreeForeign) -> Result<NodeHandle> {
         self.internal_init(f);
         if !self.nodes.contains_key(&descriptor.parent) {

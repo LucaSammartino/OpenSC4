@@ -2,6 +2,73 @@
 use super::*;
 
 impl TreeView {
+    /// RecalculateAll's owner work, given base-window geometry. The bar
+    /// requirements provisionally use literal content overflow (WC7); the
+    /// spec does not settle exact resize/range/order policy. Solve the two
+    /// coupled axes before issuing resource operations.
+    pub fn recalculate_all(&mut self, area: Rect, f: &mut impl TreeForeign) -> Result<()> {
+        self.require_live_root()?;
+        self.recalculate();
+        self.layout_area = Some(area);
+        let content = [
+            self.content_width(f),
+            (self.visible.len() as u32).wrapping_mul(self.row_height as u32),
+        ];
+        let thickness = f.tree_bar_thickness(self.window());
+        let client = [
+            (area[2].wrapping_sub(area[0]) as u32).wrapping_sub((self.raw_style[2] as u32).wrapping_mul(2)),
+            (area[3].wrapping_sub(area[1]) as u32).wrapping_sub((self.raw_style[3] as u32).wrapping_mul(2)),
+        ];
+        let mut need = [false; 2];
+        for _ in 0..3 {
+            need = [
+                content[0] > client[0].wrapping_sub(if need[1] { thickness[1] } else { 0 }),
+                content[1] > client[1].wrapping_sub(if need[0] { thickness[0] } else { 0 }),
+            ];
+        }
+        let window = self.window();
+        for (axis, slot) in [&mut self.horizontal_bar, &mut self.vertical_bar]
+            .into_iter()
+            .enumerate()
+        {
+            if need[axis] && slot.is_none() {
+                *slot = f.create_tree_bar(window, axis == 0);
+            } else if !need[axis] {
+                if let Some(bar) = slot.take() {
+                    f.release(bar);
+                }
+            }
+        }
+        if let Some(buffer) = self.working_buffer {
+            f.resize_tree_buffer(buffer, content);
+            self.layout_viewport(area, f.buffer_size(buffer), thickness)?;
+        }
+        for (axis, bar) in [self.horizontal_bar, self.vertical_bar].into_iter().enumerate() {
+            if let Some(bar) = bar {
+                let (maximum, page, value) = if axis == 0 {
+                    (
+                        content[0].wrapping_sub(self.viewport[2] as u32),
+                        self.viewport[2] as u32,
+                        self.horizontal_position,
+                    )
+                } else {
+                    (
+                        (self.visible.len() as u32).saturating_sub(self.viewport_rows),
+                        self.viewport_rows,
+                        self.first,
+                    )
+                };
+                f.bar_range(bar, maximum as i32, page as i32, value);
+                let rect = if axis == 0 {
+                    [area[0], area[3].wrapping_sub(thickness[0] as i32), area[2], area[3]]
+                } else {
+                    [area[2].wrapping_sub(thickness[1] as i32), area[1], area[2], area[3]]
+                };
+                f.place_bar(bar, rect);
+            }
+        }
+        Ok(())
+    }
     pub fn layout_viewport(&mut self, area: Rect, buffer_size: [u32; 2], bar_thickness: [u32; 2]) -> Result<()> {
         let mx = self.raw_style[2] as u32;
         let my = self.raw_style[3] as u32;
@@ -297,8 +364,8 @@ impl TreeView {
         rect
     }
     pub(super) fn paint_tree(&mut self, area: Rect, f: &mut impl TreeForeign) -> Result<()> {
-        if self.layout_dirty {
-            self.recalculate();
+        if self.layout_dirty || self.layout_area != Some(area) {
+            self.recalculate_all(area, f)?;
         }
         if self.flags & 0x20 != 0 {
             f.draw(Draw::Fill {
@@ -310,7 +377,7 @@ impl TreeView {
             return Ok(());
         };
         let size = f.buffer_size(buffer);
-        self.layout_viewport(area, size, [0, 0])?;
+        self.layout_viewport(area, size, f.tree_bar_thickness(self.window()))?;
         if self.visible.is_empty() {
             return Ok(());
         }

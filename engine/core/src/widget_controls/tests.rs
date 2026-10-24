@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::list_box::*;
 use super::*;
+#[path = "closure_tests.rs"]
+mod closure;
 #[path = "settled_tests.rs"]
 mod settled;
 
 #[derive(Default)]
 struct Recording {
+    tree_area: Option<Rect>,
+    tree_thickness: [u32; 2],
+    tree_resizes: Vec<[u32; 2]>,
+    measure_override: Option<i32>,
+    base_init_ok: bool,
     compare_calls: usize,
     parent_limit: Option<i32>,
     capture_owner: Option<Handle>,
@@ -698,7 +705,7 @@ impl Foreign for Recording {
         self.refs.push((false, h));
     }
     fn base_init(&mut self, _: Handle) -> bool {
-        false
+        self.base_init_ok
     }
     fn base_shutdown(&mut self, _: Handle) {}
     fn base_query(&mut self, _: Handle, _: u32, _: &mut Option<Handle>) -> bool {
@@ -989,6 +996,15 @@ fn list_mouse_timer_strictness_and_no_font_background() {
 }
 
 impl tree_view::TreeForeign for Recording {
+    fn tree_area(&mut self, _: Handle) -> Option<Rect> {
+        self.tree_area
+    }
+    fn tree_bar_thickness(&mut self, _: Handle) -> [u32; 2] {
+        self.tree_thickness
+    }
+    fn resize_tree_buffer(&mut self, _: Handle, size: [u32; 2]) {
+        self.tree_resizes.push(size);
+    }
     fn access_mode(&mut self, _: Handle, mode: u32, take: bool) -> bool {
         self.access_calls.push((mode, take));
         !take || self.fail_mode != mode
@@ -1020,7 +1036,7 @@ impl tree_view::TreeForeign for Recording {
         true
     }
     fn measure_text(&mut self, _: Handle, text: &[u8]) -> i32 {
-        text.len() as i32 * 8
+        self.measure_override.unwrap_or(text.len() as i32 * 8)
     }
     fn draw_image(&mut self, image: Handle, rect: Rect) {
         self.draws.push(Draw::Blit { source: image, rect });
