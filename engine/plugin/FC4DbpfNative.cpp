@@ -322,8 +322,8 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
         else {
             const bool listed = segment->GetResourceKeyList(*list);
             std::vector<Key> original, own;
-            // Indexed GetKey on the original linked list is quadratic over a
-            // complete package. EnumKeys visits the same owned list once.
+            // Avoid repeated indexed lookups: public EnumKeys visits the same
+            // owned list once without assuming its container representation.
             list->EnumKeys(CollectNativeKey, &original);
             const uint32_t n = fc4_dbpf_packed_keys(rust, CollectKey, &own);
             std::sort(original.begin(), original.end());

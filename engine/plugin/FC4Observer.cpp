@@ -644,8 +644,10 @@ public:
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
                 // PostCityInit precedes the first calendar message; read the
                 // public simulator date rather than dating the load as Julian 0.
-                auto* dbpfSim = CurrentCity() ? AsGame(CurrentCity()->GetSimulator()) : nullptr;
-                fc4::DbpfShadowObserve(dbpfSim ? dbpfSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                {
+                    auto* dbpfSim = CurrentCity() ? AsGame(CurrentCity()->GetSimulator()) : nullptr;
+                    fc4::DbpfShadowObserve(dbpfSim ? dbpfSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                }
                 fc4::FeatureShadowLoaded();
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
