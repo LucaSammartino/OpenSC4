@@ -812,9 +812,22 @@ def main():
 
     def match(o):
         for i, r in enumerate(rows):
-            if fnmatch.fnmatchcase(o, r["pattern"]):
+            if not r["pattern"].startswith("m:") and fnmatch.fnmatchcase(o, r["pattern"]):
                 return i
         return None
+
+    # "m:<Class>::<Method>" rows name single functions (a partial shadow verifies only what it compares); they win
+    # over the owner rows, matched on the function's name as owner_of_name reads it.
+    method_rows = {r["pattern"][2:]: i for i, r in enumerate(rows) if r["pattern"].startswith("m:")}
+
+    def method_row(va):
+        if not method_rows:
+            return None
+        n = att.name(va)
+        if not n:
+            return None
+        n = re.sub(r"\s+\(.*$", "", n[5:] if n.startswith("lib::") else n)
+        return method_rows.get(strip_templates(n).replace("`", "").replace("'", ""))
 
     # per-function rollup
     row_of = {}
@@ -835,9 +848,11 @@ def main():
             game.append((va, size, None, "shared"))
             fun_row[va] = "shared"
         else:
-            if o not in row_of:
-                row_of[o] = match(o)
-            i = row_of[o]
+            i = method_row(va)
+            if i is None:
+                if o not in row_of:
+                    row_of[o] = match(o)
+                i = row_of[o]
             used_rows[i] += 1
             game.append((va, size, i, rows[i]["area"]))
             fun_row[va] = rows[i]["subsystem"]

@@ -283,7 +283,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | 35ff9f528cde8b90 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 05a462e0908a5293 | |
+| tools/coverage-map.tsv | ee48339316df0d18 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | 5fdb984e0e2ce02d | |
 | engine/plugin/FC4Subsystems.cpp | c06d514bffd6ab0c | |

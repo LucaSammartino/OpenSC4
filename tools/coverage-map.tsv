@@ -1,6 +1,7 @@
 # Owner -> subsystem map for tools/coverage.py (RE side). One row per owner pattern; the FIRST matching row wins.
 # Columns:
-#   pattern    fnmatch glob (case-sensitive) on the owner: a class or namespace ("cSC4PowerSimulator",
+#   pattern    "m:<Class>::<Method>" for one function (wins over owner rows; partial shadows), or an
+#              fnmatch glob (case-sensitive) on the owner: a class or namespace ("cSC4PowerSimulator",
 #              "nSGLDX7::cGDriver"; nested classes match their parent's pattern with "*"), or "fn:<name>" for a free
 #              function
 #   subsystem  the row's name in the report (several rows may share one)
