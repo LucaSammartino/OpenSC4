@@ -1,33 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-propmgr-pl21fix6: PL21 round 3 current-main reproduction | Codex; glue-propmgr-pl21fix6 (detached HEAD) | in progress; merged main 454438d47 at 2c1ab60e1 | Gate merged source, run both house profiles twice, inspect shutdown evidence |
+| glue-propmgr-pl21fix6: PL21 capture and shutdown repair | Codex; glue-propmgr-pl21fix6 (detached HEAD) | ready; main454438d47 merged at2c1ab60e1; fix dede60ae0; cargo6935 passed, clippy0, CTest77/77; fixed house pairs A/B PASS0, propmgr440/440 and lotcfg586/586 exact, ref0; ABI unchanged | Coordinator publishes detached tip and lands queue entry |
 
-## Handoff
+## Round 3 final report
 
-- Goal: reproduce train shutdown heap AV on current main; fix only prop/lot capture if causal evidence warrants it.
-- Done: merged main 454438d47 without conflicts, merge commit 2c1ab60e1; prior lane tip c46bbdeae.
-- Gate: qbuild all PASS; cargo6935/0/0, clippy0 diagnostics, CMake226/226, CTest76/76 (143.7 s), native total222.2 s.
-- Gate verdict: build-runs/build-results/qbuild-20261024-054612-build-ctest.verdict; full logs in build-runs.
-- DLL: build-runs/dlls/pl21fix6-r3-gated.dll, SHA256 5306a43087f651c5eaa8e34d941a930f259e1117c6619e5eddbf0b96a03b67b8.
-- First regress operation73963 completed exit0, REGRESS FAIL2; both logs/verdicts retained under build-runs/game-results.
-- Replace: corrupt at app shutdown, foreign_exceptions1/ref_warnings0, real112.609 s; turbo reached2032 before quitting.
-- Own PDB resolves stack: free/operator delete/GameHashState scalar deleting destructor/FreeGameHashTables/LotConfigManagerAppShutdown.
-- Found concrete bug: FreeGameHashTables deletes ConfigMapState/FamilySetState pointers, but both point to function-local static objects.
-- Shadows: corrupt at same shutdown stack (identical six plugin offsets), real660.078 s, foreign_exceptions1/ref_warnings0; propmgr220/220, lotcfg293/293 exact.
-- Fix: ProcessHashState Reset frees nodes/buckets without deleting static state; destructor Reset is safe after app cleanup; corrected bucket delete[] element type.
-- Focused x86 MSVC lifecycle test passed: stable static address, Clear/repeated Reset, map releases, family borrowed values, repopulation and destructor cleanup.
-- Fix commit dede60ae0; final gate42243 collected exit0 PASS: cargo6935/0/0, clippy0, CMake160/160 (6.8 s), CTest77/77 (77.3 s), total85.9 s.
-- Final gate verdict qbuild-20261024-060405-build-ctest.verdict. Tree-changed notice reflects source commit and lane-file update during gate; engine source was stable throughout.
-- Fixed DLL build-runs/dlls/pl21fix6-r3-fixed.dll SHA256 8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f.
-- Fixed pair A operation73784 completed exit0 REGRESS PASS0: replace136.843 s, shadows710.672 s; both clean2032, foreign_exceptions0/ref_warnings0/rtc0/stalls0.
-- Pair A shadows propmgr220/220 and lotcfg293/293, mismatched0/incomplete0; record docs/runs/pl21r3fixa-424.md. Baseline record docs/runs/pl21r3-423.md at ab0435a03.
-- Pair B operation94349 active: replace clean2032/ref0/foreign0/stalls0/rtc0; shadows outstanding. Collect same operation, then final report and ready queue if clean/exact/ref0.
-- q.py Bash wrapper failed Win32 error5 before launching regress; direct local output-filter wrapper then submitted the unique requests once.
-- Use unique tags pl21r3 and pl21r3b; collect same asynchronous operations through completion; no qwait.
-- Do not edit FC4WriteCapture or automata owner code; glue-automata-ctor7 owns that repair.
-- No build outstanding. Profiles compare identical for baseline/A/B. Pair A:73 query lines,1694 captures,64166 filter checks,0 input errors. WriteCapture/automata unchanged.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-propmgr-pl21fix6-r3-manifest.json.
-- Historical round-2 and original implementation evidence follows; it used an older base.
+Merged requested main **454438d47** into reserved detached HEAD at **2c1ab60e1**, starting from c46bbdeae. The merged DLL reproduced the train's shutdown heap AV in **both** standard house profiles. [Baseline record 423](../runs/pl21r3-423.md): replace112.609 s, shadows660.078 s, each corrupt/foreign_exceptions1/ref_warnings0. Prop/lot shadows still compared exactly, 220/220 and293/293. The baseline DLL/PDB remain under `build-runs/dlls/pl21fix6-r3-gated.*`, DLL SHA256 `5306a43087f651c5eaa8e34d941a930f259e1117c6619e5eddbf0b96a03b67b8`.
+
+Both failing logs have identical plugin stack offsets. Resolving only our own PDB gives `free → operator delete → GameHashState scalar deleting destructor → FreeGameHashTables → LotConfigManagerAppShutdown → PreAppShutdown`. `ConfigMapState()` and `FamilySetState()` return addresses of function-local static objects, but `FreeGameHashTables()` deleted those addresses. This is a concrete invalid free in the lot configuration replacement's process cleanup, also reached by the shadows-only house profile. The slot-40 capture is inactive in the failing replace profile. No WriteCapture or automata-owner change was needed or made.
+
+**Fix dede60ae0:** retain the static states and reset their owned nodes/bucket arrays. `ProcessHashState::Reset` clears references, frees the correctly typed `void*[]` buffer and resets the exposed table; repeated reset and later static destruction are safe. Rebuild `Clear` retains the bucket storage. The growth path also uses matching `delete[] s.buckets`. The native lifecycle test exercises static address retention, chained map-reference releases, borrowed family values, rebuild, repeated reset, repopulation and destructor cleanup. No core behavior or C ABI export changed; the existing PL21 shared-input capture remains intact and default-off.
+
+Stable final engine source passed focused x86 MSVC testing and **qbuild all**: cargo **6935 passed/0 failed/0 ignored**, clippy **0 diagnostics**, CMake **160/160 edges** (6.8 s), CTest **77/77** (77.3 s), native total85.9 s. Verdict: `build-runs/build-results/qbuild-20261024-060405-build-ctest.verdict`; full logs `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. The tree-changed notice reflects committing the already-stable engine source and updating the lane file while the gate ran; no engine input changed during that operation. The preceding merged-source gate also passed, cargo6935/clippy0/CMake226/226/CTest76/76, verdict `qbuild-20261024-054612-build-ctest.verdict`.
+
+Both final house repeats used the identical fixed DLL `build-runs/dlls/pl21fix6-r3-fixed.dll`, SHA256 **8b3b9fefcd616b981c26b9c7f448a5605d99887d3b6ebf1ee08d41ff14d3c26f**, with standard `tools/regress.ps1 -Queue` settings, Konradshohe, turbo, end_date2032-01-01. Direct comparison of generated ini files found no differences between baseline/A/B profiles.
+
+- **[Repeat A, record424](../runs/pl21r3fixa-424.md):** `regress-pl21r3fixa-replace` clean136.843 s; `regress-pl21r3fixa-shadows` clean710.672 s; REGRESS PASS0, wall744 s. Prop mgr220/220, lotcfg293/293, mismatched0/incomplete0. Query probes73, captures1694, filter checks64166, input errors0.
+- **[Repeat B, record425](../runs/pl21r3fixb-425.md):** `regress-pl21r3fixb-replace` clean141.031 s; `regress-pl21r3fixb-shadows` clean705.250 s; REGRESS PASS0, wall744 s. Prop mgr220/220, lotcfg293/293, mismatched0/incomplete0. Query probes73, captures1694, filter checks64901, input errors0.
+
+All four final runs reached2032 and shut down cleanly with **foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0**. Final combined shadows: **propmgr440/440, lotcfg586/586**, 3388 captures,129067 filter checks,0 input errors. Full logs/verdicts are retained under `build-runs/game-results/regress-pl21r3{,fixa,fixb}-{replace,shadows}.*`; complete fixed-run console logs are `build-runs/pl21r3fixa-console.log` and `pl21r3fixb-console.log`.
+
+Operations73963 (baseline),73784 (A),94349 (B), and both gates were collected through their actual terminal results. Unique labels were retained; no qwait, duplicate request or game launch. The q.py Bash wrapper failed with Win32 error5 before launching a request; the direct output-filter wrapper then ran the requested regress command once per tag. An initial focused cmd invocation used an unsupported forward-slash script spelling; the corrected invocation passed. No additional main-only DLL was run; train180's recorded main-only results remain the comparison supplied by the coordinator. The present evidence identifies and repairs the invalid static deletion, without claiming an explanation for every earlier train artifact.
+
+**Questions: none. ABI changes: none. No game/build outstanding.** Ready queue points to the final detached HEAD; supervisor publishes it to the reserved branch. Coordinator can land the PL21 capture and shutdown repair. Historical round-2 and original implementation reports below describe the older base and are retained for provenance.
 
 ## Round 2 report
 
