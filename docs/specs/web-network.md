@@ -272,8 +272,23 @@ Under the manager lock; now = `time(NULL)`. Reset every field to the defaults ab
 most 40 items with surrounding blanks trimmed; each item splits at its first `=` into name and value (no `=`: the item
 is the name, the value is empty). Then walk the pairs and apply the attribute column above. `Port`: split the value at
 `,` (at most 16); with no items the list becomes { request URL port, or 80 when there is no URL or its port is 0 };
-with n items the first **n-1** are stored as `atol` values and entry n-1 is set to 0 *[quirk or list-function
-convention, see Q1]*.
+with n items the first **n-1** are stored as `atol` values and entry n-1 is set to 0.
+This really drops the final item: the splitter returns an item count, not count plus one
+(`00819448`, `008195b2–008195c0`; consumer `008f94f9`). A single explicit port
+therefore produces an unrestricted list, whereas an empty Port value selects the URL port/80.
+
+The splitter (`00819290`) trims only space and tab, not CR/LF or other ASCII whitespace.
+For nonempty input, each delimiter completes an item even if empty; the final item is counted
+only if it has bytes **before** trimming. Thus `a;;` has two items, `a; ` has two, empty
+input has zero, and all-space input has one empty item. Stop at the capacity (40 for cookies,
+16 for ports). Cookie splitting enables double-quote grouping: quote bytes toggle grouping
+and are consumed; semicolons inside quotes remain data. Port splitting disables grouping,
+so quotes are ordinary bytes. After whole-item trimming, splitting at the first equals sign
+does not separately trim name/value: `a = b` has name `a ` and value ` b`.
+The decimal conversions use the shipped 32-bit `atol`: locale-classified leading whitespace,
+optional sign, digits until the first nondigit, zero without digits; accumulation and final
+negation wrap modulo 2^32, with no overflow error or saturation (`009ef7c2`, arithmetic
+`009ef834–009ef847`).
 
 Derived defaults, only when the attribute is absent:
 - domain: with a URL, take its server, then drop characters from the front one at a time until the text starts with
@@ -311,6 +326,8 @@ A stored cookie matches a URL when all hold, checked in store order:
 
 GetCookieDataForURL(url, out, k) returns the k-th match (0-based). The string-URL overloads (008f71ff, 008f7240) build
 an allowRelative URL from the string first; 008f8947 copies the match out with CookieData assignment.
+On a copying-lookup miss it returns false and leaves the entire supplied output record unchanged
+(`008f896d–008f8982`). A miss is not a reset-to-default operation.
 
 Cookie header text (GetCookieTextForURL): clear the output; for k = 0..999 while a k-th match exists, for each of its
 pairs in order:
@@ -325,6 +342,9 @@ pairs in order:
 
 Return true when the output is non-empty. Example: stored `a=1; Version=1; Path=/` and `b=2; Path=/x`, both matching
 -> `$Version=1; a=1; $Path=/; b=2; $Path=/x`.
+The separator test uses original cookie and pair indices, not the number of pairs emitted.
+Consequently a skipped first attribute can leave a leading `; `, e.g. a matching record with
+pairs `Comment=x; a=1` emits `; a=1` (`008f7507`).
 
 ### 3.5 Eviction (008f9a92, called as evict(4, no domain filter))
 
@@ -335,8 +355,8 @@ now *[inferred from the selection loop; the removal step was not re-read]*.
 ### 3.6 Persistence and settings (bounded persistence contract)
 
 WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
-`Binary` and `Admin` settings (strings at 00accca4, 00accdc0, 00a86de8, 00accdb0); SetShouldEncryptCookieDataFile
-selects an encrypted form. The record layout on disk and encryption remain open (Q3).
+`Admin`/`Binary` mode marker. SetShouldEncryptCookieDataFile selects hexadecimal text storage;
+despite the method name there is **no encryption**.
 
 Capacity (Q2 answered 2026-10-22): the constructor reached from WWWSystem sets the manager's +0x10
 capacity to **0x4000 = 16,384 records** (008f9bc5). Init does not assign that field: on its first call it
@@ -350,7 +370,7 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
 - Constructor `008f9bad–008f9bec`: initialized=false (+4), reference count=0 (+8), binary
   selection=false (+0xc), capacity=16384 (+0x10), critical section +0x14, empty cookie vector
   +0x1c..+0x24, and path +0x28 constructed from global pointer `00b16134`. That pointer's literal
-  remains unqualified here. Shutdown `008f9dda` writes then clears records and initialized only
+  is `CookieData.ini` (PE pointer `00b16134` → `00acccb0`). Shutdown `008f9dda` writes then clears records and initialized only
   when initialized; returns true. EnumCookies `008f8bc7` copies the first min(requested count,
   stored count) records in store order, writes that count back and returns true under the lock.
 - Writer `008f7784` takes the manager lock and calls ClearCookieDataFile first, including for
@@ -359,8 +379,13 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
   from `CookieData00000`, independent of their old indices (`008f7880–008f78a5`). Plain mode
   writes the stored cookie text through the string conversion, rather than serializing the
   in-memory 0x94-byte record. Binary mode writes an `Admin`/`Binary` marker, then passes text
-  through helper `008f7752` to WriteBinaryEntry. No secure encryption algorithm has been
-  established: that helper contains string-copy/assignment calls, not an established cipher.
+  through helper `008f7752` to WriteBinaryEntry. The marker value is the string `1` (`00abb31c`).
+  Helper `008f7752` is an identity copy through a temporary byte string (`00408a20`, `00408c40`),
+  including for aliased input/output. WriteBinaryEntry `0091c722` encodes each stored text byte
+  as two uppercase hexadecimal digits, high nibble first (`0090fef4`), without a trailing NUL
+  in the payload. There are no lengths, timestamps, pair counts or record fields in that payload.
+  For text `a=1`, the INI value is `613D31`. Plain-mode conversions `0090fbe5`/`0090f31b`
+  copy length-bearing byte ranges; they do not transcode or interpret UTF-8.
 - Reader `008f9e2b` clears all stored records before checking file existence. A missing file
   therefore leaves an empty store and still returns true. Presence of an `Admin`/`Binary`
   entry selects binary reads; the read's success boolean selects the mode, not a parsed
@@ -370,7 +395,16 @@ Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
   helper `008f7752`. Each obtained text is admitted through AddCookie(text, null URL), with
   its return value ignored (`008f9ef8–008f9f86`). Read returns true after cleanup, not a count
   of successfully accepted records. These are text re-admissions: do not restore raw pointers,
-  locks or absolute record layouts from disk. Exact encoding and helper semantics remain Q3.
+  locks or absolute record layouts from disk. Binary reads decode pairs of hex digits, accepting
+  upper/lowercase A–F (`0090ff33`), up to the first 32768 encoded characters into the 16384-byte
+  buffer; invalid digits cause a zero read result and end the sequence. Odd-length encoded
+  input is outside the safe paired-input domain (the converter consumes two characters per byte).
+
+SetShouldEncryptCookieDataFile is a plain byte assignment, without rewriting the current file
+(`008f6809`). SetCookieDataFilePath is **not** merely an assignment: under the lock, if the
+new length-bearing path differs byte-for-byte, assign it then call ReadCookieDataFile (slot 18),
+discarding that call's result; equal paths do nothing. It returns true either way and performs
+no path normalization (`008f80aa–008f80ef`). A changed path to a missing file clears the store.
 
 ### 3.7 Cookie-manager dispatch inventory and distinguishing vectors
 
@@ -395,6 +429,13 @@ to WWW/HTTP and persists through INI IO. Proposed/unexecuted vectors:
 | CK04 | Three records; enumeration request count=2 | first two copied; count=2, true |
 | CK05 | Three records; enumeration request count=5 | first three copied; count=3, true |
 | CK06 | Empty store; WriteCookieDataFile | clear-file operation still occurs; true |
+| CK07 | Parse `a=1; Port=80,81,82` | ports 80,81,0; port 82 dropped |
+| CK08 | Parse `a=1; Port=81` / `a=1; Port=` without URL | unrestricted ports / 80,0 |
+| CK09 | Parse ` a = b\t;\rPath=/x; ` | first name `a `, value ` b`; CR-prefixed name is not Path; final empty pair retained |
+| CK10 | Copying lookup miss with prefilled output | false; all output fields preserved |
+| CK11 | Binary writer with live text `a=1` | Admin/Binary=`1`; CookieData/CookieData00000=`613D31` |
+| CK12 | Change path to missing file / assign equal path | first clears records through read; second preserves them |
+| CK13 | `atol` values `4294967297`, `2147483648`, `-4294967297` | 1, signed -2147483648, -1 respectively |
 
 ## 4. cGZWWWSystem — front end and owned helper boundary
 
@@ -1013,7 +1054,7 @@ Constructor defaults (`008fd38c–008fd3d5`): initialized=false (+4), reference 
 empty directory string (+0xc), INI-name string (+0x20) from global pointer `00b16144`,
 empty map (+0x34), file-size setting=3,000,000 (+0x48), RAM-size setting=500,000 (+0x4c),
 default lifetime=432,000 seconds (+0x50), two operation counters=0 (+0x54/+0x58).
-The INI name's pointed-to literal is not qualified here. Setters for the three numeric settings
+The INI name is `FileCache.ini` (PE `00b16144` → `00acd3d4`). Setters for the three numeric settings
 store their entire 32-bit argument and return true; they perform no immediate trim, validation
 or IO (`00945ed0`, `00945edc`, `0096c3cb`). No capacity-enforcement promise follows from their names.
 
@@ -1080,8 +1121,8 @@ not a no-op (`008fd998–008fda27`).
 
 For non-null, nonempty data, create a holder. With copy=true allocate/copy the bytes; otherwise
 store the passed buffer pointer. Do not treat the latter as a const borrowed slice with automatic
-caller ownership: native holder destruction/allocator compatibility must be supplied by the
-adapter (Q11). Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
+  caller ownership: native holder destruction/allocator compatibility must be supplied by the
+  adapter. Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
 after substitution, any negative lifetime gives expiration `0x7fffffff`; otherwise expiration is
 32-bit now+lifetime, with creation=access=now. No saturation is performed
 (`008fda4b–008fda8d`). Insert the new entry and return true. Failed allocations are outside the
@@ -1100,8 +1141,69 @@ Persistence inventory: writer `008fc9b1` rebuilds section `Cache Entries` with s
 `CacheEntry%05u` keys. Its value format is `%s,%s,%u,%u,%u,%d,%d,%d`: key, filename,
 length, attribute, lifetime, creation, access, expiration. It attempts to materialize RAM-only
 entries first and omits those still lacking filenames. Writer returns true without aggregating
-individual write failures. Delimiter escaping, loader acceptance, source-file admission and
-filename allocation/collision behavior remain Q11; do not assume a CSV library or an LRU policy.
+individual write failures. It deletes the old INI file before rebuilding it. It does **not** call
+the public file getter: no per-read expiration test, counter increment or access-time update occurs
+(`008fc9b1`, direct reserve/write calls at `008fca37–008fca77`). Even an expired named record
+can be written. Enumeration is native hash-table order: ascending bucket index, each bucket's
+linked chain from head to tail (`0097c081`, `008fc653`, `008fc5e4`); it is not byte-key order.
+The hash starts at zero and, for each key byte interpreted as signed 8-bit, doubles the previous
+32-bit value then XORs the sign-extended byte, wrapping at 32 bits (`008fc450`). Bucket number
+is unsigned hash modulo bucket count (`008fc477`). File ordinals follow this traversal and are
+dense only over records with filenames.
+
+### 6.4.1 File admission, naming and persisted entry acceptance (Q11/Q15 closure)
+
+The source-file overload (`008fd76c`) rejects an empty key without effects; otherwise counters,
+periodic maintenance and destructive same-key removal occur just as for byte admission, before
+the source is inspected. It takes the source basename, not a RAM hold; sets attribute from the
+byte argument, substitutes lifetime -1 and computes creation/access/expiration as for bytes.
+With copy requested, reserve a generated cache filename then copy source to directory+filename
+with overwrite enabled. Without copy requested, compare the lowercased source directory with
+the lowercased cache directory; differing directories force copying. Equal directories retain
+the basename and do not copy. Source is never moved/deleted by admission. Copy failure returns
+false after old-entry removal, without undoing any reserved file. A reservation failure falls
+through to the file-length check using the last candidate name, rather than guaranteeing false.
+Finally obtain length from directory+stored filename: zero or 0xffffffff rejects; other lengths
+insert the file-only record and return true. These failure paths do not restore the old record.
+
+Filename and full-path helpers (`008fcd49`, `008fceeb`) start with the current 32-bit time,
+printed as signed decimal. Take the suffix from the key's final dot only when that suffix,
+including dot, is 2..8 bytes long. Remove every suffix byte except ASCII letters, digits and dot,
+then append `.cache` (`00b1614c` → `00accc9c`). Format candidate as `%d%s` (`00acd40c`).
+Thus key `a.html` at time 100 starts with `100.html.cache`; absent/long extensions give
+`100.cache`. Try up to 10000 candidates, subtracting one from the 32-bit time after each failure.
+Each attempt opens write-only with CREATE_NEW and shared-read, then closes immediately on success
+(`00919b00`, disposition mapping `00919b4c–00919b58`). This reserves an empty file and refuses
+existing names; it is not an existence-only check. On exhaustion return false and leave the final
+attempted candidate in the output. The full-path variant takes an optional directory (null means
+the cache directory), concatenates directly, and returns the full path; the name variant returns
+only the basename while reserving in the cache directory.
+
+The INI loader (`008fdb0d`) ignores empty values and values with fewer than seven commas.
+Split from the **rightmost** seven commas: the remaining prefix is the key, followed by filename,
+length, attribute, lifetime, creation, access, expiration. No quoting, escaping or trimming is
+applied by this callback. A key may contain commas; a filename cannot round-trip a comma.
+The entry label is not used as a key or a `CacheEntry%05u` validation test. All six numbers use
+the wrapping decimal conversion in §3.2; nondigit/empty fields become zero. Length must be
+unsigned <=4,000,000. Creation/access values greater than unsigned now are clamped to now.
+Expiration must be unsigned >now. A rejected length/expiration attempts deletion of the named
+file; other syntax failures simply skip. An accepted record requires directory+filename to
+exist, but does not verify its actual length against the persisted length. The loader inserts a
+file-only record; it does not read bytes or enforce the configured file/RAM capacities
+(`008fdc21–008fdcb9`). Those settings have no size-eviction enforcement in this owner; the
+periodic sweep is expiration-only.
+
+Orphan cleanup (`008fc6e0`) enumerates files matching `*.cache` (`00b16150` → `00acd3bc`)
+in the cache directory and removes a file only when no map record has a byte-for-byte equal
+filename (`0043ab70`). It does not fold case or delete every unrelated file in the directory.
+It returns true even when enumeration fails or a deletion fails.
+
+RAM holders have a 16-bit reference count. Release decrements counts >1; otherwise it frees
+the buffer pointer and holder with GlobalHeapFree (`008fc3c3`, calls `005e5620` at
+`008fc3de`/`008fc3e4`). The no-copy byte overload transfers this allocator-compatible buffer
+ownership; callers retaining access must hold a native reference. Clearing the map releases
+its holds, not independently retained ones. Allocation failure and reference-count overflow
+remain outside the qualified input domain.
 
 ### 6.5 Independent conformance vectors (PROPOSED / UNEXECUTED)
 
@@ -1122,6 +1224,13 @@ game observations. AL is the boolean channel; upper return bits are not asserted
 | NFC10 | now=`80000000`, expiry=`7fffffff` | individual presence sees live; periodic maintenance removes the same record |
 | NFC11 | Set directory to empty | false; stored directory remains empty |
 | NFC12 | Init; create-directory and INI-read both fail | initialized=true, result=true; second Init makes no retry |
+| NFC13 | Reserve key `a.html`, now=100; first candidate exists | reserve empty `99.html.cache`; leave existing `100.html.cache` untouched |
+| NFC14 | Source outside cache, copy=false; forced copy fails | false; old same-key entry removed; source preserved |
+| NFC15 | Writer on expired named record, counters 9/10, access 50 | record emitted; counters/access unchanged |
+| NFC16 | Loader value `a,b,f.cache,3,1,-2,200,300,500`, now=100, file exists | key `a,b`; filename `f.cache`; creation/access=100; expiration=500 |
+| NFC17 | Loader length 4000001 / expiration equal now | reject and attempt named-file deletion |
+| NFC18 | Orphans `a.cache`, `A.cache`, `keep.txt`; only map filename `a.cache` | preserve `a.cache` and `keep.txt`; attempt deletion of `A.cache` |
+| NFC19 | Writer fixture bucket 0 contains key Z, bucket 1 contains A | ordinal 00000 is Z, 00001 is A; no lexical sorting |
 
 ## 7. cRZNetSocket and cRZNetCommandGenerator
 
