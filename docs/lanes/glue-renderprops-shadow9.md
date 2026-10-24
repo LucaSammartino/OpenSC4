@@ -1,16 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-renderprops-shadow9: render properties round 3 | Codex / `glue-renderprops-shadow9` (engine lane, detached HEAD) | in progress: merge fix and final gates | Preserve both sides, regenerate questions index, re-gate, enqueue READY. |
+| glue-renderprops-shadow9: render properties round 3 | Codex / `glue-renderprops-shadow9` (engine lane, detached HEAD) | ready for measured partial scope: cargo 7056/0, clippy clean, CTest 80/80; retained house renderprops 73/73 exact, clean, ref_warnings=0; RP8 open; no public ABI change | Land merge fix and measured partial coverage; whole-owner coverage remains unverified. |
 
-## Handoff
+## Round 3 merge fix and final gate
 
-- Goal: round 3 merge fix only; RP8 remains open and shadow remains partial.
-- Prior measured result: `3b91d3b8f`, renderprops 73/73 exact to 2032, clean, ref_warnings=0.
-- Merge committed as `e1480c430`; additive conflicts in capi modules, CMake sources and observer load/month calls preserve both sides.
-- RP7 open entry already removed; answered copy confirmed. RP8 remains open. Requested questions index regenerated and committed with merge.
-- Round 3 qbuild all: workspace 7056 passed, 0 failed/ignored; clippy zero diagnostics.
-- Next: collect SAME qbuild session 98888 / native queue `qbuild-20261024-102805-build-ctest` to terminal result, update report and queue with full HEAD.
-- No new game request outstanding; prior unique completed verdict remains valid.
+Merged main in `e1480c430` (parents `3b91d3b8f` and `566e24c9e`), preserving both additive C ABI modules, both CMake source groups and both observer load/month callbacks. No new implementation scope, exports or ABI-version changes. RP7 has no open entry; its answered copy remains. Ran the explicitly requested `python tools/questions.py index`, and committed the regenerated index with the merge. RP8 stays open.
+
+One final `qbuild.py all` operation completed to terminal **PASS** on the merged source: workspace **7056 passed / 0 failed / 0 ignored**, clippy **zero diagnostics**, native build **50/50 edges (91.6 s)**, **CTest 80/80 (151.5 s)**, fc4verify **PASS (247.1 s)**. Native queue `qbuild-20261024-102805-build-ctest` was collected to completion through the same qbuild session; no duplicate gate was launched. Logs: `build-runs/qbuild-{test,clippy}.log` and `build-runs/fc4verify-{build,ctest}.log`.
+
+Retained the valid, completed unique game verdict `renderprops-shadow9-r2-fixture2032-20261024a`: **clean**, **ref_warnings=0**, renderprops **73/73 exact** within the partial registry/owned-fixture scope. Rechecked its verdict and final shadow lines; no new game request was submitted, no completed result was discarded, and no request remains outstanding. This run predates the round 3 merge; round 3 only resolves additive integration conflicts and regenerates the questions index. Whole-owner verification remains unmet as detailed below.
 
 ## Result and coverage
 
@@ -53,6 +51,6 @@ This is ready to land as a measured extension of partial coverage. **Do not awar
 
 ## Questions and follow-up
 
-**RP8** appended to `docs/specs/questions/render-properties.md` asks confirmation of the literal receiver-only private constructor/caller-owned-storage ABI used by these successful fixtures; its interpretation is marked in code. RP7 was removed from the open file in favor of its answered copy. The requested `tools/questions.py index` was not executed because the task's non-bending clean-room rule prohibits scripts under tools/. Coordinator must regenerate/check the questions index before landing. Generated coverage tables and shared regress profiles were not manually edited.
+**RP8** appended to `docs/specs/questions/render-properties.md` asks confirmation of the literal receiver-only private constructor/caller-owned-storage ABI used by these successful fixtures; its interpretation is marked in code. RP7 was removed from the open file in favor of its answered copy. Round 3 explicitly requested `tools/questions.py index`; it ran successfully and its output is committed. No new questions were filed in round 3. Generated coverage tables and shared regress profiles were not manually edited.
 
 Historical registry-only results remain unchanged in [run 490](../runs/renderprops-shadow9-20261024-r1-490.md) and [run 491](../runs/renderprops-shadow9-20261024-r2-491.md).
