@@ -9,7 +9,7 @@
 - Run 632 was concurrently taken by train206; this lane's r3 record is now run 640 (free on current main).
 - Merge 95e87ebc114834e11af350d88dd8a0ead67276ce of 625733fc6 resolves five additive conflicts: CMake, capi module, ini key/docs, observer shutdown. Both viewutil and modelinst preserved.
 - Running final all on stable engine source 95e87ebc1: session 40602, output build-runs/modelinst-r4-final-all.log. Collect THIS SAME operation with write_stdin until terminal; no duplicate check. Prior gate full logs archived in build-runs/modelinst-r3-gate-evidence/.
-- Refreshed workspace tests complete: 7,466 passed / 0 failed / 0 ignored, 51 summaries; compilation 48m06s. Clippy started 21:36:28; gate remains active with no terminal clippy/native verdict yet.
+- Refreshed workspace tests complete: 7,466 passed / 0 failed / 0 ignored, 51 summaries; compilation 48m06s. Clippy exit=0, diagnostics=0. Native queued as qbuild-20261024-215641-build-ctest by the SAME gate; collect session 40602 through terminal, no second verify.
 - Next: finish gate, then one confirmation modelinst-mi14-merge-2032-r4. No game request outstanding. No new owners/questions; no public ABI changes.
 
 ## Current-main refresh
