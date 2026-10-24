@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private static-link transport. Expectations come only from the production
-//! core's registered defaults, never a native snapshot. Explicit C-locale domain.
-use fc4_core::render_properties::RenderProperties;
+//! core's registered defaults and explicit fixture inputs, never a native snapshot.
+//! Explicit C-locale domain; live configured values require the RP7 observer bridge.
+use fc4_core::render_properties::{InterfaceView, RenderProperties, RenderPropertiesOwner};
 
 #[no_mangle]
 extern "C" fn fc4_renderprops_shadow_count(kind: u32) -> i32 {
@@ -71,6 +72,88 @@ unsafe extern "C" fn fc4_renderprops_shadow_query(
     expected
 }
 
+// Private opaque fixture state. Only the synchronous shadow thread owns this
+// handle; there is no getter RefCell or shared mutable global state.
+#[no_mangle]
+extern "C" fn fc4_renderprops_fixture_new() -> *mut RenderPropertiesOwner {
+    Box::into_raw(Box::new(RenderPropertiesOwner::default()))
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_renderprops_fixture_drop(owner: *mut RenderPropertiesOwner) {
+    if !owner.is_null() {
+        // SAFETY: one handle returned by fixture_new, dropped exactly once.
+        drop(unsafe { Box::from_raw(owner) });
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_renderprops_fixture_value(owner: *const RenderPropertiesOwner, kind: u32, index: i32) -> u32 {
+    // SAFETY: private caller retains the new handle until fixture_drop.
+    let Some(properties) = (unsafe { owner.as_ref() }).and_then(RenderPropertiesOwner::properties) else {
+        return u32::MAX;
+    };
+    match kind {
+        0 => properties.get_bool(index).map(u32::from),
+        1 => properties.get_int(index).map(|v| v as u32),
+        2 => properties.get_float(index).map(f32::to_bits),
+        _ => None,
+    }
+    .unwrap_or(u32::MAX)
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_renderprops_fixture_set(
+    owner: *mut RenderPropertiesOwner,
+    kind: u32,
+    index: i32,
+    bits: u32,
+) -> bool {
+    // SAFETY: exclusive private fixture handle, no concurrent operation.
+    let Some(properties) = (unsafe { owner.as_mut() }).and_then(RenderPropertiesOwner::properties_mut) else {
+        return false;
+    };
+    match kind {
+        0 => properties.set_bool(index, bits as u8 != 0),
+        1 => properties.set_int(index, bits as i32),
+        2 => properties.set_float(index, f32::from_bits(bits)),
+        _ => false,
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_renderprops_fixture_ref(
+    owner: *mut RenderPropertiesOwner,
+    view: u32,
+    operation: u32,
+    argument: u32,
+) -> u32 {
+    // SAFETY: exclusive private fixture handle, no concurrent operation.
+    let Some(owner) = (unsafe { owner.as_mut() }) else {
+        return u32::MAX;
+    };
+    let view = if view == 0 {
+        InterfaceView::RenderProperties
+    } else {
+        InterfaceView::Unknown
+    };
+    match operation {
+        0 => owner.reference_count(),
+        1 => owner.add_ref(view),
+        2 => owner.release(view),
+        3 => {
+            let mut output = None;
+            owner.query_interface(view, argument, &mut output);
+            output.map(InterfaceView::offset)
+        }
+        4 => owner
+            .deleting_destructor(view, argument)
+            .map(|d| d.returned_view.offset()),
+        _ => None,
+    }
+    .unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,5 +178,33 @@ mod tests {
             }
         }
         assert!(query(0, 38, 0).is_none());
+    }
+
+    #[test]
+    fn fixture_replay_preserves_raw_finite_inputs_and_independent_lifetimes() {
+        // SAFETY: distinct live handles, all indices valid, each dropped once.
+        unsafe {
+            let a = fc4_renderprops_fixture_new();
+            let b = fc4_renderprops_fixture_new();
+            let original = fc4_renderprops_fixture_value(b, 1, 23);
+            assert!(fc4_renderprops_fixture_set(a, 1, 23, (-17_i32) as u32));
+            assert_eq!(fc4_renderprops_fixture_value(a, 1, 23), (-17_i32) as u32);
+            assert_eq!(fc4_renderprops_fixture_value(b, 1, 23), original);
+            for bits in [0x8000_0000, 0x3fc0_0000, 0xc18a_0000] {
+                assert!(fc4_renderprops_fixture_set(a, 2, 2, bits));
+                assert_eq!(fc4_renderprops_fixture_value(a, 2, 2), bits);
+            }
+            assert_eq!(fc4_renderprops_fixture_ref(a, 0, 0, 0), 0);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 0, 3, 1), 4);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 1, 3, 1), 4);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 0, 3, 0), u32::MAX);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 0, 0, 0), 2);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 1, 2, 0), 1);
+            assert_eq!(fc4_renderprops_fixture_ref(a, 1, 4, 2), 0);
+            assert_eq!(fc4_renderprops_fixture_value(a, 2, 2), u32::MAX);
+            assert_eq!(fc4_renderprops_fixture_value(b, 1, 23), original);
+            fc4_renderprops_fixture_drop(a);
+            fc4_renderprops_fixture_drop(b);
+        }
     }
 }

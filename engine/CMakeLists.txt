@@ -1127,3 +1127,8 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_construction_capture_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME construction_capture_test COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# Isolated original-owner render-properties fixture; opt-in shadow only.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RenderPropsFixture.cpp plugin/FC4RenderPropsFixture.h)
+endif()

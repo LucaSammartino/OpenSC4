@@ -23,3 +23,6 @@
   setlocale; requested language alone is insufficient evidence. No profile run was made.
 
 <!-- RP7 (filed in glue-renderprops-shadow9) is answered in render-properties.md §1.5/§7.4 and archived in answered/render-properties.md. -->
+
+<!-- from: glue-renderprops-shadow9 (2026-10-24) -->
+- **RP8 - §1.3 isolated constructor ABI:** Please confirm the private constructor at 0x007E3650 accepts only the complete-object receiver (x86 __thiscall, no stack arguments), with caller-provided aligned 0x30-byte storage, and that U slot 3 flags 0/2 can reclaim its tables while retaining that outer storage. [Literal receiver-only construction in isolated native fixtures; never allocate/free the borrowed application or embedded S. Freeing destructor flags 1/3 and Release at 0/1 remain unmeasured without a specified game-heap allocation contract. RP7 live-trace and complete-view bridges remain unavailable, explicitly reported rather than invented.]

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4RenderPropsShadow.h"
+#include "FC4RenderPropsFixture.h"
 #include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -60,12 +61,20 @@ void Compare(int32_t julian, bool load) {
                 }
             }
         }
+        uint32_t fixtureFields = 0, fixtureMismatches = 0;
+        const bool fixture = fc4::RenderPropsFixture(p, fixtureFields, fixtureMismatches);
+        // RP7-7/8: late application attach, no continuous independent observer,
+        // and no complete-view bridge. Never bootstrap expected state from P/S.
+        fc4::Log("renderprops fixture: available=%u fields=%u mismatches=%u plan=finite-v1 setters=462 live_trace=unavailable view_snapshot=unavailable",
+            fixture ? 1u : 0u, fixtureFields, fixtureMismatches);
+        fields += fixtureFields;
+        mismatches += fixtureMismatches + (fixture ? 0 : 1);
         FC4_RELEASE(sc4);
     } else {
         // Binding failure cannot produce a vacuous exact sample.
         fields = mismatches = 542;
     }
-    fc4::Log("renderprops shadow %04d-%02d-%02d: phase=%s scope=registry-ascii fields=%u values=uncompared(RP7) mismatches=%u",
+    fc4::Log("renderprops shadow %04d-%02d-%02d: phase=%s scope=registry-ascii+owned-fixture fields=%u live_values=unavailable(RP7) view=unavailable(RP7) mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", fields, mismatches);
     ++lines;
     clean += mismatches == 0;
@@ -78,13 +87,13 @@ void RenderPropsShadowCityLoaded(cISC4City* city, int32_t julian) {
     lines = clean = 0;
     lastMonth = -1;
     if (!active) return;
-    Log("renderprops: ON; explicit C-locale ASCII registry profile; RP7 live setter inputs unavailable; values/setters/lifetime/view copy uncompared; no whole-owner credit");
+    Log("renderprops: ON; C-locale ASCII registry (542 fields) plus isolated native values/setters/P-U lifetime; RP7 live trace and private view snapshot unavailable; no whole-owner credit");
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian, true);
 }
 void RenderPropsShadowMonth(int32_t julian) { Compare(julian, false); }
 void RenderPropsShadowCityShutdown() {
-    if (active) Log("renderprops shadow: city shutdown: %u lines, %u with mismatches=0; scope=registry-ascii", lines, clean);
+    if (active) Log("renderprops shadow: city shutdown: %u lines, %u with mismatches=0; scope=registry-ascii+owned-fixture; live trace/view unavailable", lines, clean);
     active = false;
 }
 }

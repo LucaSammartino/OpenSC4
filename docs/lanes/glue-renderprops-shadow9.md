@@ -7,7 +7,11 @@
 - Goal: merge RP7, extend independently predicted values/setters/lifetime/view coverage, measure house to 2032.
 - Merge conflict resolution retains both additive registrations; own open RP7 removed in favor of answered pointer.
 - RP7 supplies no continuous trace bridge or public snapshot getter. Never seed live expected values from native outputs or borrow SCRes debug slots.
-- Next: implement isolated native constructor/assignment/lifetime fixtures with Rust expectations; report unavailable live trace/view binding explicitly.
+- Done: merged RP7 in 88601f276; source now adds isolated native constructor/assignment/lifetime fixtures and Rust expectations.
+- Fixture plan finite-v1: two owners; 462 completed setters, all 77 values after every setter, second-instance independence, P/U QI/count/ref operations, U destructor flags 0/2.
+- Focused transport tests 2/2 passed; owned-file fmt passed after two local formatting fixes.
+- RP8 appended for literal receiver-only constructor/outer-storage ABI; no freeing Release at 0/1 is attempted.
+- Next: full qbuild all on final source, then unique-label house request through 2032 and collect that same operation.
 - Constructor is specified at render-properties.md §1.3: 0x007E3650, complete object 0x30 bytes.
 - No new game request outstanding; previous evidence below is historical round 1.
 - tools/questions.py index is excluded by non-bending clean-room tools rule; coordinator must regenerate index.
