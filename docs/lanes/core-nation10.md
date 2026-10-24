@@ -18,7 +18,9 @@
 - Focused owner tests on corrected source: 11/11 pass, cargo terminal exit 0.
 - Corrected source committed ba5abdafb; final full gate Rust results: 7070 tests passed, 0 failed/ignored; clippy exit 0, diagnostics 0. fmt 4/4 explicit files clean.
 - Outstanding: same qbuild session 22480; native job qbuild-20261024-112454-build-ctest queued. Collect terminal result, do not duplicate check.
-- Next: after native PASS, replace Handoff with full READY report, commit, and write merge queue with full HEAD and engine/core/src/nation path; open contracts none.
+- Review diagnostic: foundations §11.2 GetPosition is s32/s32. After current gate finishes, change tutorial transfer coordinates from u32 to i32 and verify a negative coordinate.
+- NQ4 filed in questions/nation.md: non-ASCII case-mapping/encoding unspecified; ASCII folding preserves other bytes. README now lists that narrow open contract.
+- Next: collect native result; preserve attempt 3 evidence; signed-coordinate fix + comment NQ4 choice, focused owner test, final gate; READY queue must list NQ4.
 - Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
 - No game request outstanding; portable core has no plugin wiring/shadow.
 - Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.

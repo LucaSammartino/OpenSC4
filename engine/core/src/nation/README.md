@@ -29,8 +29,9 @@ elements when an explicitly empty ID list skips difficulty loading.
 | §7 add/delete | `add_new_region`, `delete_region` | null factory safety, both neighbors, selection before deletion, ordered erase and active adjustment, LastRegion |
 | §8 tutorial reset | `reset_tutorial_cities` | app/city guards, retained/recreated/unlisted directories, default first, exports/read failures, move/shutdown/drop, registry flags, screen normal/early exits |
 
-NQ1–NQ3 are answered and implemented. No open nation contract remains in this
-portable owner. Replacement safety errors are distinct from original bool/void
+NQ1–NQ3 are answered and implemented. NQ4 records the remaining non-ASCII
+directory case-mapping contract: ASCII A–Z fold and other bytes are preserved.
+Replacement safety errors are distinct from original bool/void
 returns; ordinary region, copy, export and move failures never trigger rollback.
 Region factories and regional-city parsing remain the responsibility of their
 respective interfaces, rather than duplicated nation algorithms.
