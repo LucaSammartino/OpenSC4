@@ -16,7 +16,7 @@ Logs remain in build-runs: gate-all-d6f131f61.log, qbuild-test.log, qbuild-clipp
 
 ## Game result and remaining scope
 
-[Run520](../runs/mysimdispatch-ms21apply12-r1-2032-20261024a-520.md), label mysimdispatch-ms21apply12-r1-2032-20261024a, ran Konradshohe with turbo and the two MySim shadows. Single request and one foreground wait without qwait, collected terminal clean through2032-01-04: ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. DLL SHA256 7A4D2F037BD8DFEC9FF8739A4A50B0F854B59E1316F641FF5E55B12536B74566.
+[Run520](../runs/mysimdispatch-ms21apply12-r1-2032-20261024a-619.md), label mysimdispatch-ms21apply12-r1-2032-20261024a, ran Konradshohe with turbo and the two MySim shadows. Single request and one foreground wait without qwait, collected terminal clean through2032-01-04: ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. DLL SHA256 7A4D2F037BD8DFEC9FF8739A4A50B0F854B59E1316F641FF5E55B12536B74566.
 
 Count line: `mysimdispatch 73/73`. Exact harness summary: `mysimdispatch    73 lines, 73 with every mismatch count 0`; resynced0. Existing mysims73/73 exact. All dispatch samples: constructor1, live_headers0, live_ranges0, fields217, errors0, mismatches0. Exact shutdown: `mysimdispatch: measured 73/73 exact constructor/live-header samples; live_headers=0 live_ranges=0; live trip owner remains unverified (MS20 input-boundary limitation)`.
 

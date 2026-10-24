@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 528 (aircraft, view3d window, map view and widget controls answers and the nettool drag shadows landed (run 5); lane cargo jobs 6 -> 3 for memory.); 525 (disasters and construction shadows, LG31 and LE6/LE8 answers landed (run 5); regress stalls traced to build memory pressure, games now keep a minimum working set.); 524 (construction getter shadow exact 73/73, run 512 clean to 2032); 523 (house11 final disasters73/73 to2032, clean1019.469s; partial closure with ref1 and propmgr219/220 outstanding); 520 (modelinst, widget toolkit, dbpf, audio and view utility answers and www closure work landed (run 5); DX7 driver and nation claimed as implemented (55.7%); propmgr intermittent recurred.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 630 (lot unit and base texture shadows, the mysims constructor scope and the opt-in split regress landed (run 5); the regress stalls traced to Defender scanning the game's file I/O.); 624 (Incomplete combined attempt retained separately; no exactness or performance credit claimed.); 623 (Measured real-city split infrastructure; performance and strict combined parity remain open.); 622 (Failed initial attempt retained separately; no coverage credit claimed.); 619 (MS21/MS22 applied and constructor scope extended; 73/73 exact samples. Live owner and transport remain unverified under MS20.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

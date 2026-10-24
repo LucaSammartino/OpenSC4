@@ -47,8 +47,8 @@ glue-lots-lr15-house2032-t1-20261024 293/365
 glue-lots-lr15-house2032-n2-20261024 293/365
 ```
 
-Run [552](../runs/glue-lots-lr15-house2032-t1-20261024-552.md): turbo, reached 2032-01-10 in 33.453s.
-Run [553](../runs/glue-lots-lr15-house2032-n2-20261024-553.md): normal, reached 2032-01-01 in 188.047s.
+Run [552](../runs/glue-lots-lr15-house2032-t1-20261024-620.md): turbo, reached 2032-01-10 in 33.453s.
+Run [553](../runs/glue-lots-lr15-house2032-n2-20261024-621.md): normal, reached 2032-01-01 in 188.047s.
 Each run: lotrec **73/73**, lottrip **73/73**, lotunit **73/73**, lotbasetexture **73/73**,
 lotwall **1/73** clean lines. New unit/texture scopes: **146/146 per run**; existing
 master-lot/inline-trip scopes remain **146/146 per run**.

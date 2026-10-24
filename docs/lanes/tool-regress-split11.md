@@ -14,7 +14,7 @@ R2 committed the combined-default policy in `19f8664cd` and measured rebalance i
 uses three groups except every fourth batch stays combined. `--combined` and `--split` are mutually
 exclusive. Existing train-state/run-record profile fields remain intact. Ops instructions were updated.
 
-[Timing probes, run 614](../runs/split11-costs-614.md), ran only after train199 cleared. Traffic took
+[Timing probes, run 614](../runs/split11-costs-625.md), ran only after train199 cleared. Traffic took
 27.781 s to July 2026; demand 3.625 s and pollution 4.937 s to July 4. Resources reached July 1 after
 15.625 s but continued for a 151.734 s shutdown tail to September 2032. Their final days/s must not be
 used as simulation cost. Projected group weights are **383.5 / 367.4 / 353.2 s**: traffic alone,
@@ -133,20 +133,20 @@ All R2 games used Konradshohe and one immutable coordinator-integration DLL snap
 Submissions waited for coordinator regress requests/running markers to clear, including train199 and
 train200. The games used that DLL; the native gate above verified this lane's unchanged engine tree.
 
-- [Run 615, combined](../runs/split11-r2-combined-615.md), `split11-r2-c1`: **FAIL**, shadow stalled
+- [Run 615, combined](../runs/split11-r2-combined-626.md), `split11-r2-c1`: **FAIL**, shadow stalled
   2027-02-15 with one watchdog trip. **203 s** legacy wall / **210.00 s** full invocation.
   52/52 labels exact only over the truncated interval; `flammability 9/9`. Replacements reached 2032
   clean with zero watchdogs. This is not a full-horizon baseline.
-- [Run 616, split](../runs/split11-r2-split-616.md), `split11-r2-s3`: **FAIL**, shadow group dates
+- [Run 616, split](../runs/split11-r2-split-627.md), `split11-r2-s3`: **FAIL**, shadow group dates
   2028-11-02 / 2032-05-11 / 2030-02-17, watchdog trips 1/2/2. **276 s** legacy wall / **496.77 s**
   invocation. 51/52 labels exact over unequal intervals; `propmgr 150/151`, mismatch total 1;
   `flammability 36/36`. Replacements reached 2032 with one watchdog trip.
-- [Run 617, combined retry](../runs/split11-r2-combined-retry-617.md), `split11-r2-c1-retry`:
+- [Run 617, combined retry](../runs/split11-r2-combined-retry-628.md), `split11-r2-c1-retry`:
   **parent FAIL**, native queue verdict **clean to 2032-01-02**, but watchdog_stalls=2.
   **52/52 labels exact**, `flammability 54/54`, `propmgr 220/220`, mismatch totals zero.
   Native simulation 815.922 s; queue wall 832 s; **846 s** legacy wall / **971.09 s** invocation.
   Replacements reached 2032 clean with zero watchdogs.
-- [Run 618, split retry](../runs/split11-r2-split-retry-618.md), `split11-r2-s3-retry`: **FAIL**,
+- [Run 618, split retry](../runs/split11-r2-split-retry-629.md), `split11-r2-s3-retry`: **FAIL**,
   every shadow group stalled again, each with one watchdog trip, at 2027-04-04 / 2028-09-05 /
   2027-11-08. Replacements also stalled at 2029-06-09 with one watchdog trip. **213 s** legacy wall /
   **603.28 s** invocation. 51/52 partial labels exact; `propmgr 68/70`, mismatch total 2;
@@ -272,14 +272,14 @@ All games used a single immutable DLL snapshot built from main's engine at initi
 Runs were submitted only after coordinator regressions cleared: native verification waited behind train197,
 and the explicit combined attempt waited behind train198. All foreground operations have completed.
 
-- [Run 611](../runs/split11-initial-611.md), `split11-s3`: **FAIL**, 868 s. Real execution exposed a PowerShell
+- [Run 611](../runs/split11-initial-622.md), `split11-s3`: **FAIL**, 868 s. Real execution exposed a PowerShell
   hashtable property-sort bug that placed all switches in group 3; groups 1/2 stalled on shutdown. Fixed in
   `c46aa442c` with explicit expressions and a balance assertion. Failed evidence remains separate. Group 3
   did run the full house profile clean to 2032, but the parent regression failed and is not a combined sign-off.
-- [Run 612](../runs/split11-fixed-612.md), `split11-s3-fixed`: **PASS**, 664 s, all three groups clean and zero
+- [Run 612](../runs/split11-fixed-623.md), `split11-s3-fixed`: **PASS**, 664 s, all three groups clean and zero
   harness problems. **51/52 labels exact**: `traffic 72/72`; `flammability 53/54`, mismatch total 1. Every other
   mismatch total is zero. The run record contains every exact `<label> <clean>/<total>` line. Target <420 s missed.
-- [Run 613](../runs/split11-combined-613.md), `split11-c1`: **FAIL/incomplete**, 455 s, stalled at **2029-02-08**,
+- [Run 613](../runs/split11-combined-624.md), `split11-c1`: **FAIL/incomplete**, 455 s, stalled at **2029-02-08**,
   watchdog_stalls=1, foreign_exceptions=0, ref_warnings=0. `traffic 36/38`, mismatch total 70. Every measured
   count is recorded, but these truncated counts cannot establish 2032 parity or a comparable wall time.
 

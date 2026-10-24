@@ -1,5 +1,5 @@
-tag: split11-r2-combined-retry-617
-run: 617
+tag: split11-r2-combined-retry-628
+run: 628
 date: 2026-10-24
 lane: tool-regress-split11
 dll: coordinator integration snapshot SHA256 4853374130ffde73a29adf15e197802a7b4f79d307141fdb23983bc4eb3bdfd1
