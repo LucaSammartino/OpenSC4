@@ -216,6 +216,142 @@ plugins. If such a call mutates the live list, record its nesting and lifetime e
 does not snapshot or protect its current node against reentrant removal. Do not invent a safe deferred-removal
 rule for that case or classify a stale-node walk as ordinary dated expiry. §12 supplies bounded transcripts.
 
+### 3.3.2 Read-only dated-effect observations (PV18) *[compat]*
+
+PV17's I/L/S/E are observable inputs and outputs, not inferred from the result of a second tick.
+For the ordinary prop, use the following layout under §5.1's executable-identity, relocation and
+same-thread completed-call guards. P is the primary `cISC4PropOccupant*`, not `AsOccupant()` (P + 8),
+the message target (P + 4), or the serializable interface (P + `0x0C`). Capture immediately before and
+after the one genuine slot-16 invocation. Copy values into observer-owned storage while the existing
+dated-list/service lifetime still protects P. Reacquire R at each boundary; never keep dereferencing an
+old range after a setter has freed it. Ordinary primary vtable `0x00AA4900` identifies the layout here;
+do not apply it to an undeclared custom implementation. A null range is an explicit absence, not four zero values.
+
+| Location | Width | Meaning |
+|---|---|---|
+| P + `0x54` | pointer | R, owned range record, null or `0x28` bytes |
+| R + `0x00` | u32 | I, recurrence interval |
+| R + `0x04` | u32 | L, duration; setter substitutes 1 for 0 |
+| R + `0x08` | 16 bytes | S's complete `cGZDate` object |
+| R + `0x0C` | u32 | S's unsigned absolute day number |
+| R + `0x18` | 16 bytes | E's complete `cGZDate` object |
+| R + `0x1C` | u32 | E's unsigned absolute day number |
+| P + `0x60`, `0x62`, `0x63` | one u8 each | timer mask, random chance, state |
+
+Each embedded date has its value/base vptr at date +0, day number at +4, `cIGZDate` vptr at +8,
+and reference-count storage at +`0x0C`. Consequently R +`0x10` and +`0x20` are **interface pointers**,
+not the day-number fields. R +`0x14` and +`0x24` are not extra dates or recurrence flags. Compare the
+semantic fields above, not native pointers, vptrs or reference counts. This names the record formerly
+left opaque by prop-occupant.md §2.2/PO4. Evidence: allocation, two constructors and I/L stores
+`0x005EF00B`–`0x005EF055`; S setup `0x005EF064`–`0x005EF0B6`; E copy
+`0x005EF0B9`–`0x005EF0EE`; date layout `0x00913177`–`0x00913197`, day store
+`0x009130AE`–`0x009130B3`; unsigned comparison `0x009129FA`–`0x00912A03`.
+
+The normal setter initializes S to its supplied month/day in the simulator's current year, moving to
+the following year only when that date is earlier than the current date. It sets E = S + L and sets
+timer mask 2 according to S ≤ current date < E. I = 0 instead destroys any existing record and clears
+the pointer; it does **not** call the timer setter or clear mask 2 (`0x005EF14F`–`0x005EF17C`).
+Subsequent ticks follow §3.3.1. Additions of nonannual intervals and durations use wrapping u32 day
+arithmetic; no saturation or signed-date comparison is added (`0x00912AA6`–`0x00912AAD`).
+
+There is also a save representation of these semantic values: prop `Write` emits range-present,
+then I, L, S-day, E-day. Its `this` is the serializable subobject P +`0x0C`, so its range access at
+`this +0x48` is the same R, not a second record (`0x005ECF12`–`0x005ECF66`;
+date stream writer `0x005DA1A0`–`0x005DA1B1` reads date +4). This corroborates the layout; a shadow
+does not need to run serialization, construct a date, or call any native setter to snapshot it.
+
+**Separate random source.** The ordinary timer's generator is the fully constructed global object
+G = `0x00B231B0`, not a pointer stored there. Apply the exact `0x9C8`-byte table/index/count layout
+and validation of §5.1 at that G. It is shared by prop occupants, so its pre/post boundary must include
+every intervening draw, including nested calls, rather than reset it per prop. The ordinary aggregate
+false→true transition calls bounded U(100) at `0x005ECA96`, returns to `0x005ECA9B`, then compares
+the u32 result with the zero-extended chance byte; equality rejects. A per-draw alternative records
+the same-thread call at `0x005ECA96` with receiver G and bound 100 and captures EAX on return before
+the chance comparison. The raw unbounded draw is `0x009139B9`; the bounded function at `0x00913A06`
+returns the high half of the unsigned raw-word × bound product. Thus an observer can independently
+advance its copied generator and compare both the result and resulting state. A return transcript
+alone supplies the RNG input for timer testing; it does not independently verify the RNG algorithm.
+Chance 0 and chance 100 still consume a word. No draw is made for true→false or an unchanged aggregate.
+
+### 3.3.3 State notification, model calls and their lifetimes (PV18) *[compat]*
+
+For changed ordinary state, the state byte is stored first, then the placed-prop notification is
+posted, then the model work below completes. Only after the whole state setter returns does a dated
+tick advance S or replace E. An observer inside `SetFrame` therefore sees the new state and timer
+but the old date endpoints. An unchanged state does none of this. The requested state is a full u32
+argument: the setter compares it against the zero-extended old byte, stores its low byte, and uses
+the original full argument in the notification and model call (`0x005ED294`–`0x005ED2B4`,
+`0x005ED2FE`, `0x005ED3AB`). Timer calls use only 0/1, so no truncation ambiguity occurs there.
+
+**Held notification.** `SetState` creates a standard message with count zero, takes one local message
+reference, sets type `0xE9C86DDB`, data1 = P, held unknown = P, data2 = requested state; data3/data4
+remain constructor-zero. Setting the held unknown immediately AddRefs P, before posting. The data1
+pointer itself adds no reference. The held setter is slot 33 (`+0x84`), one pointer argument, void;
+it retains the new nonnull unknown before releasing a different old one and does nothing for the
+same pointer. Evidence: `0x005ED2B7`–`0x005ED316`, `0x0091346B`–`0x0091347F`,
+`0x005447B9`–`0x005447D4`; message constructor `0x009134D6`–`0x009134FE`.
+
+Post is message-server slot 4 (`+0x10`), arguments (message pointer, false), bool in AL; this caller
+ignores the return. False selects the normal back of the queue, not synchronous dispatch. The queue
+takes its own message reference and the setter releases its local message reference immediately
+after Post returns. **That does not release P:** P remains owned by the message. Dequeue takes an
+output reference before removing the queue node; the pump dispatches and then releases that output.
+With no receiver retaining the message, its destruction then releases its held P. A receiver retaining
+the message extends this lifetime; queue removal/destruction can end it without dispatch. Do not release
+the occupant hold at date-callback return or manufacture a receiver call there. Evidence: queue choice
+`0x0092D0CF`–`0x0092D0E5`, queue slot ordering at `0x00AD1ADC`/`0x00AD1AE0`,
+back enqueue `0x0092DDD2`–`0x0092DE11`, node retention `0x007E98D7`–`0x007E98E5`,
+dequeue `0x0092D8BF`–`0x0092D8D0`, pump `0x0092E0A6`–`0x0092E0B5`, message final
+release/destructor `0x009132C1`–`0x009132D8`, `0x009133AB`–`0x009133D6`.
+
+**Model contract.** The gate is **presence** of exemplar property `0x4A70D491`, not its boolean value.
+Placed status gates only the notification. With the marker present, even an unplaced prop calls
+occupant slot 19 `GetOrCreatePlaceableObject`, not the read-only slot 18 getter. A missing container
+may therefore become a new empty container. With a returned container, calls proceed as follows;
+all are x86 `thiscall`, receiver separate from explicit 32-bit stack arguments, with callee cleanup.
+No unspecified return value is interpreted as success.
+
+| Receiver / slot | Explicit arguments and result | Ownership / effect |
+|---|---|---|
+| occupant P +8 / 19 (`+0x4C`) | none → borrowed placeable pointer or null | May create and store a container; no returned AddRef |
+| nonnull placeable / 1 | none → reference count | Take one temporary hold |
+| placeable / 3 (`+0x0C`) | none → 32-bit count | Ordinary count is sign-extended i16 at placeable +6 |
+| placeable / 4 (`+0x10`) | output model-pointer array, pointer to u32 capacity/count → count in EAX | Called only if initial count nonzero; initializes capacity to that count, uses the returned count variable for traversal |
+| each returned model instance / 0 | IID `0xA818EDD8`, output animation-interface pointer → bool in AL | QueryInterface in returned array order; successful query owns one interface reference |
+| successful animation interface / 10 (`+0x28`) | full requested u32 state → u32 status | `SetFrame(state)`, **not** a boolean visibility setter; status ignored |
+| that interface's virtual `cIGZUnknown` base / 2 | none → reference count | Release that query's reference immediately, before querying the next model |
+| placeable / 2 | none → reference count | Release temporary container hold after traversal/buffer cleanup, also when count is zero |
+
+GetModels returns **borrowed** instance pointers: no per-instance AddRef and no per-instance Release is
+owed for the array. Failed QI has no frame call or release. Successful QI's animation pointer A is not
+an IUnknown-shaped vtable: its slot 2 is not Release. The original locates the virtual unknown as
+A +4 + the signed displacement at (the vbtable pointer at A +4) +4, then calls that base's slot 2
+(`0x005ED3AF`–`0x005ED3BF`). Native animation slot 0 also returns this borrowed unknown pointer
+(`0x007FAF40`–`0x007FAF51`). An observer must preserve the original this adjustments; it must not
+cast A to a three-slot COM interface or guess a fixed unknown offset for a custom model.
+
+Evidence for the whole ordered model span: `0x005ED319`–`0x005ED3E7`; container creation/ownership
+`0x005E91C0`–`0x005E920E`; borrowed enumeration and count update `0x005EBC00`–`0x005EBC4D`.
+For ordinary animated instances, read-only slot 11 `GetFrame()` returns u32 without changing playback
+(`0x007FAF90`–`0x007FAFB2`). With no frame subrange, `SetFrame` returns 2 for an already current
+frame or a successfully built frame; a failed build returns 0 and leaves the current-frame field
+unchanged (`0x007FDB3C`–`0x007FDB71`). Thus occupant state can change even if a model cannot display
+that frame; there is no rollback, retry or dependence of S/E advancement on model status. Subranges
+and frame-building effects remain governed by graphics-formats.md §3.12, not a prop-specific clamp.
+
+**Observation boundary [choice].** Compare the independent §3.3.1 transition against pre/post semantic
+snapshots and the ordered genuine call trace above. Capture marker presence, placement, container result,
+enumeration and QI availability as delegated inputs at their actual boundaries. Predict whether those
+queries are made, their arguments, frame writes and reference obligations from the independent state
+transition; do not feed an opaque native-effects list back as the expected effects. A model-result
+transcript can establish the prop's response to that delegated result, not the model implementation's
+correctness. For ordinary animated frame output, copy/read GetFrame before/after the genuine SetFrame
+while its query reference is held, and apply the model spec to independently supplied frame availability.
+Record any observer-acquired reference separately from the original's references. Do not call
+GetOrCreate, QueryInterface, SetFrame or a native tick again merely to construct a supposedly read-only
+snapshot. Arbitrary custom interfaces require their own declared input/effect contract; otherwise mark
+that operation unavailable rather than interpreting ordinary-object offsets on it.
+
 ## 4. Behaviour
 
 ### 4.1 Requesters
@@ -358,6 +494,33 @@ observer before returning to the developer also lies before tagging. Capture tho
 nesting boundary rather than treating every post-return callback as a creation-service child. Insertion
 observers within the service see the pre-requester-tag occupant; registration does not wait for this tag.
 
+**Creation-effect observation (PV18).** The service's return C is a `cISC4Occupant*`, not the primary prop
+interface P used by §3.3.2. On the ordinary prop C = P +8. The post-return calls are C slot 1 AddRef(),
+C slot 6 (`+0x18`) AsPropertyHolder() → borrowed concrete property-holder pointer H, the u32 property
+helper with arguments (H, `0x89A1C16C`, requester index), then C slot 2 Release(). No holder AddRef/Release
+is made. The helper looks up the property through H slot 9 (`+0x24`, one key → property pointer), creates
+and adds a property if absent (H slot 15, property pointer and false), obtains its variant through property
+slot 5 and assigns the u32 through variant slot 26 (`+0x68`). The caller does not test a property-setter
+result before returning true (`0x006F18C6`–`0x006F1906`; helper `0x005FE3C0`–`0x005FE449`). These are
+the ordinary concrete holder's contracts, not slot numbers of `cISCExemplarPropertyHolder` at P +`0x24`.
+
+Freeze registration inputs when the genuine insertion handler starts: property presence/values, position,
+developer night state, powered-cell result, trigger/view result, simulator date and occupant RNG. Compare
+§4.6's independent outputs at handler return: ordered list/map membership and holds, chance, timer byte,
+state, date record, model/queued effects under §§3.3.2–3.3.3. Each joined list/map owns its own reference;
+these holds are separate from the temporary QI/creation/tag holds and from messages. Registration calls can
+consume occupant RNG even though no dated tick occurred: any timer setter making all four bits on draws.
+Capture all such setter spans, not only slot 16. For a successful creation, then separately compare the
+service-return, hold, holder access, u32 tag write and release boundaries. A later handler result/tag value
+alone cannot prove the intermediate registration values or call order. Use C and P as related tokens, not
+equal raw addresses; never reinterpret a service-return pointer as P without an established conversion.
+
+The scope is the creation service's result and the developer's registration/tag effects. The service's
+own placement/renderer implementation remains a delegated operation with its own spec. A matched service
+result or model-status transcript does not independently certify that implementation. Custom service or
+holder callbacks must be represented by their declared nested inputs/effects; a nested pump is recorded
+where it actually occurs, not invented between ordinary hold and tag calls.
+
 ### 4.5 Worked examples
 
 **A. First visit.** A block holds one livable lot with occupancy 0.5 and four optional prop objects, no props yet.
@@ -402,7 +565,11 @@ Props with the preview marker `0x029244DB` are ignored. Otherwise, with `p` the 
    - mask 1, **time of day** `0x4A149631` (float32 pair, hours): absent → mask 1 on. At least two values with
      start ≠ end → `SetTimeOfDayRange(start, end)` and append to the time-of-day list (held). Otherwise unchanged.
    - mask 2, **date** `0x0A751675` (u32): absent → mask 2 on. Present → `SetSimulatorDateRange(value, u32
-     0x4A764564 (default 1), u8 0xCA7515CC[0] (default 0), 0)` and append to the dated list (held).
+     0x4A764564 (default 1), month, day)` and append to the dated list (held). Month and day are the first
+     two u8 values of `0xCA7515CC` **only when it has at least two values**; otherwise both default to 0.
+     The earlier single-value/always-zero-day description was incorrect (PV18;
+     `0x006F3EAD`–`0x006F3EFD`, `0x006F3F11`–`0x006F3F43`). Even interval 0 appends and holds the prop
+     after its setter clears the date-record pointer; membership does not prove a nonnull range.
    - mask 8, **power** `0x6A959E71` (bool): false or absent → mask 8 on. True → mask 8 := powered at the prop's
      cell, and append to the power list (held).
 3. **Signs**: prop type `0xAB72FBB3` (signpost) or `0xCB79919B` (street-name sign) → append to the sign list (not
@@ -1044,6 +1211,51 @@ required to consume the rules.
     succeeds. No developer pump or date tick intervenes. A deliberately instrumented AddRef or holder getter
     that calls an observer invokes it before the property write, outside the service's completed span;
     capture this as a separate nested effect. A null service return performs none of the hold/holder/tag steps.
+
+36. **PV18-01, semantic snapshot:** P is an ordinary primary prop pointer; its serializable pointer is
+    P +`0x0C` and C = P +8. P +`0x54` points to R with I = 10, L = 2, S-day at R +`0x0C` = 100,
+    E-day at R +`0x1C` = 102, mask `0x0D`, chance 100, state 1. At D = 100, the single genuine tick gives
+    I/L = 10/2, S/E = 110/102, mask `0x0F`, state 0. Interface/vptr words at R +`0x10`/`0x20` must not be
+    mistaken for endpoints. A second fixture with R null performs no date read, timer call or draw.
+37. **PV18-02, unsigned/wrapping dates:** I = 10, L = 2, S = `0xFFFFFFFC`, E = `0xFFFFFFFE`,
+    inactive mask `0x09`, D = `0x80000000`: no activation, because unsigned D < S. At D = `0xFFFFFFFC`
+    activation gives mask `0x0B`, S = 6, E unchanged, no draw/state effect. A later tick at
+    D = `0xFFFFFFFE` deactivates and replaces E with 8; no signed-date ordering or saturation applies.
+38. **PV18-03, separate RNG and equality:** mask `0x0D`, state 1, chance 99, S = D = 100.
+    G = `0x00B231B0`, valid pre-snapshot k = 623, r = 1, next tempered raw word `0xFFFFFFFF`:
+    U(100) = 99, rejected on equality. Mask becomes `0x0F`, S advances once, state stays 1,
+    G ends k = 624, r = 0; no notification/model span. Neither developer member, wealth nor CRT state
+    advances. Separately a raw word 0 with chance 0 rejects and with chance 100 accepts; each consumes
+    exactly one word. A transcript-only fixture reports timer/chance verification, not RNG verification.
+39. **PV18-04, mixed models and failed frame:** placed A changes state 1→0, marker property present
+    with value false, existing placeable models [M0, M1, M2]. Expect the state write and post first,
+    placeable hold/count/enumeration, then M0 QI succeeds → SetFrame(0) → virtual-unknown Release;
+    M1 QI fails → nothing further for M1; M2 QI succeeds → SetFrame(0) → virtual-unknown Release;
+    then placeable Release. Model pointers from enumeration are borrowed. If M2's frame build fails,
+    its frame stays unchanged but occupant state stays 0, no retry/rollback occurs and S still advances
+    after model work. A model callback sees S = 100, not the tick's eventual S = 110. With returned
+    enumeration count 2, M2 is not queried even if the initial capacity/count was 3.
+40. **PV18-05, empty container and unplaced state:** unplaced ordinary A, marker present, no container,
+    state 1→0: no message; GetOrCreate installs a new empty container, then temporary hold, count 0,
+    Release. No enumeration/QI/frame call. With marker absent, even GetOrCreate is absent. Calling
+    SetState(0) again when already 0 does no property query, container work or notification.
+41. **PV18-06, message lifetime:** no receiver-retained references, initial nonmessage occupant count b.
+    A changed placed state posts message Q: held-unknown assignment takes occupant count to b +1;
+    local-message Release after Post and date-callback return both leave it b +1. Q remains queued.
+    A later pump transfers a message reference out of the queue, dispatches, then finally destroys Q,
+    returning the occupant count to b. If a receiver retains Q, the count stays b +1 until that hold
+    ends. No second occupant AddRef is caused merely by the queue's reference to Q. Dated/night list
+    holds are included in b and are unchanged by these transitions.
+42. **PV18-07, successful creation and calendar pair:** insertion of a timed ordinary P occurs inside
+    a service that returns C = P +8. Freeze `0xCA7515CC` as u8 [3, 15], I = 10, L = 0, current date
+    2026-03-01. Registration calls the range setter with (10, 0, 3, 15), producing L = 1,
+    S = 2026-03-15, E = 2026-03-16; it appends P to the dated list with its own hold. After service
+    return the developer AddRefs C, obtains H, writes u32 requester tag, Releases C, and returns true.
+    The service/insertion callbacks see the preexisting requester tag; a callback during holder access
+    is after service return but before the tag write. Missing or single-byte calendar property supplies
+    (0, 0), not (first byte, 0). With interval 0, registration still appends/holds P but R is null;
+    the range setter does not itself clear an existing mask-2 bit. A null service return has none of
+    the post-return C/H/property calls. These are synthetic contracts, not measured game verdicts.
 
 ## 13. How `CreateProp` actually gets an occupant (GLUE21-2 — DIFFERS, answered 2026-10-16 by re-answers31)
 
