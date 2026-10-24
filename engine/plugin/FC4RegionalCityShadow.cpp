@@ -66,6 +66,7 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         case 18: actual = c->GetIncome(); name = "income"; break;
         case 19: actual = c->GetTutorialGUID(); name = "tutorialGUID"; break;
         case 20: actual = c->IsTutorial(); name = "isTutorial"; break;
+        // [abi-ret] regional-city §3 explicitly says both locale getters return true.
         case 21: case 22: if (!c->GetOriginalLanguageAndCountry(x, z)) return false; actual = field == 21 ? x : z; name = "originalLocale"; break;
         case 23: case 24: if (!c->GetLastLanguageAndCountry(x, z)) return false; actual = field == 23 ? x : z; name = "lastLocale"; break;
         case 25: {
@@ -77,7 +78,9 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         }
         case 26: {
             SC4List<cISC4NeighborDeal*> list;
-            if (!c->GetLocalDeals(list)) return false;
+            // [abi-ret] regional-city §3 / foundations §11.3: compare the copied L list;
+            // the result is unspecified and is not an input to this observer.
+            c->GetLocalDeals(list);
             for (auto* entry : list) { (void)entry; ++actual; }
             name = "localDealCount"; break;
         }
@@ -132,7 +135,9 @@ void Observe(void* raw) {
     cISC4Region* region = sc4->GetRegion(); // borrowed
     cISC4RegionalCity* current = sc4->GetRegionalCity(); // borrowed; often distinct from region's copy
     SC4List<cRZAutoRefCount<cISC4RegionalCity>> cities;
-    const bool enumerated = region && region->GetAllCities(cities);
+    const bool enumerated = region != nullptr;
+    // [abi-ret] region §5 specifies appended references; ignore the unspecified result.
+    if (region) region->GetAllCities(cities);
     std::set<cISC4RegionalCity*> records;
     if (current) records.insert(current);
     for (const auto& holder : cities) if (auto* c = static_cast<cISC4RegionalCity*>(holder)) records.insert(c);
