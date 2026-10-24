@@ -571,6 +571,8 @@ cGZWinFolders	widget toolkit	ui	widget-folders.md	-	-	-
 cGZWinFolderRow	widget toolkit	ui	widget-folders.md	-	-	-
 cGZWinTextTicker	widget toolkit	ui	widget-ticker.md	-	-	-
 cGZWinCOMDirector	widget toolkit	ui	widget-comdirector.md	-	-	-
+cGZWinMsgBox	widget toolkit	ui	widget-dialogs.md	-	-	-
+cGZWinGenDlg	widget toolkit	ui	widget-dialogs.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
