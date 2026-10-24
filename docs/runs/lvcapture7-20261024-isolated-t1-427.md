@@ -1,4 +1,4 @@
-tag: lvcapture7-20261024-isolated-t1
+tag: lvcapture7-20261024-isolated-t1-427
 run: 427
 date: 2026-10-24
 lane: glue-landvalue-capture7
