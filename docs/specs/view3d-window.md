@@ -1048,7 +1048,9 @@ they are not clamped to year 1.
 is version **4**: references to the camera control, the renderer (its `+8` sub-object), the model maker (`+4`) and
 the simulator, then the trigger count and the (trigger, count) pairs in bucket order. `DoLoad` accepts versions below
 5, reads the four references by interface (`0xC9C628EC`, `0xE9C622D8`, `0xA9C741B3`, `0x8695664E`) and the pairs, and
-clears `+0x408`. (This answers save-records.md Q4 for the View3D record.)
+clears `+0x408`. Trigger reconstruction is stream-order assignment into the existing table, as specified
+in §6l (VW19); the record does not preserve bucket-chain order across loads.
+(This answers save-records.md Q4 for the View3D record.)
 
 - `AssertGlobalEffectTrigger(t)` (slot 47): count + 1, or a new entry with 1 and **send** `0xAA375FE8` (data1 = t,
   data2 = 1). `RetractGlobalEffectTrigger(t)` (48): count − 1 while above 1; else erase and send (t, 0).
@@ -1195,6 +1197,21 @@ first table prime at least that number (the 194th distinct key grows 193 to 389)
 in increasing order and their chains head-to-tail, prepending each node to its new bucket; insert the new
 key at its bucket head afterwards (`0x00750C35`–`0x00750C89`, `0x004F0955`–`0x004F0A0F`). Thus growth
 can reverse colliding-node order; saving does not normalize it. Count changes on existing keys do not grow.
+
+**VW19: loading trigger pairs (§6k supplement).** For an accepted record, the saved unsigned 32-bit pair
+count specifies how many pairs to consume, not a requested capacity or a distinct-key count. Pairs take
+effect in stream order in the **existing** trigger table, without clearing or pre-sizing it. An absent
+key is inserted at its bucket head with the ordinary growth/rehash rule above; an existing key keeps its
+node position and capacity, and its count is replaced by the saved unsigned 32-bit value. Thus the last
+pair for a duplicate key wins, zero remains a present count, and keys absent from the stream survive
+when loading into a populated window. An empty pair stream leaves the table unchanged. A fresh window
+starts with 193 buckets, regardless of the saved pair count. Loading sends no trigger on/off messages
+and does not assert or add to saved counts. A subsequent save emits the resulting distinct-key count
+and bucket/head traversal, rather than echoing the input stream: colliding keys can reverse on each
+save/load cycle. Evidence: pair reads and direct value assignment `0x007EC047`–`0x007EC095`;
+unsigned lookup and existing-node return `0x004F8D38`–`0x004F8D65`, `0x004F8D88`–`0x004F8D90`;
+new-key growth/prepend `0x00750C35`–`0x00750C89`, rehash `0x004F0955`–`0x004F0A0F`.
+
 `RZAtofA` (`0x0090FC5B`) delegates to the bundled CRT `strtod`, discarding the end pointer. It uses the runtime
 locale's decimal-point byte (`0x00B19C60`), rather than requiring a literal dot. Its numeric recognizer
 `0x00A0342B` accepts decimal digits, sign, decimal separator and decimal exponent (including D/d); it has
@@ -1342,6 +1359,21 @@ There are no calls here to `0x005F98C0`, `0x007F5F00`, `0x007F6010`, child callb
 the former §5.1 description crossed the end of this function into neighboring functions.
 
 ## 7. Conformance tests
+
+### Trigger-load reconstruction (VW19)
+
+All vectors use an open version-4 record with its four reference fields supplied in §6k order.
+Pairs below are ordered `(key, count)` words. Except where stated, start with a fresh empty 193-bucket
+window; expect no trigger notifications during load. Saved output means a subsequent save's trigger
+body, not byte-for-byte equality of opaque reference encodings.
+
+| Vector | Input and expected observable result |
+|---|---|
+| VW-T40: collision round trip | Load pair count 2, pairs `(194,7), (1,9)`. Both hash to bucket 1; save count 2 with `(1,9), (194,7)`. Load that saved body into another fresh window: save order returns to `(194,7), (1,9)`. |
+| VW-T41: duplicate overwrite | Load pair count 4, pairs `(1,2), (194,3), (1,0), (194,0xFFFFFFFF)`. Save count 2 with `(194,0xFFFFFFFF), (1,0)`; both states report present. Duplicate 1 stays behind 194; counts are assigned without addition or assertion. |
+| VW-T42: no clear | Begin with 193 buckets and bucket 1 chain `(194,8), (1,5)`, plus `(2,6)`. Load pair count 1, pair `(1,4)`. Save count 3 with `(194,8), (1,4), (2,6)`. Loading pair count 0 afterwards preserves the same body. |
+| VW-T43: pair count is not capacity | Load keys 1 through 193 in ascending order, each with count 1, then `(1,0)` (pair count 194). There are 193 distinct keys and still 193 buckets. Save count 193: `(193,1)` first, then `(1,0)`, then keys 2 through 192 ascending with count 1. The duplicate at capacity causes no growth. |
+| VW-T44: growth during load | Load `(390,1), (1,1)`, then keys 2 through 193 ascending with count 1 (194 pairs). Insertion of 193 grows 193 buckets to 389. Rehash puts 390 ahead of 1 in bucket 1; save count 194 with `(390,1), (1,1)`, then keys 2 through 193 ascending. Pre-sizing to 389 would instead put 1 ahead of 390 and fails this vector. |
 
 ### Owner closure vectors (VW10–VW16)
 
