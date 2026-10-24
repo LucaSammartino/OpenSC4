@@ -242,8 +242,8 @@ impl Fleet {
         if a.boat_crash_threshold_exceeded(b.speed) {
             let player_a = a.top_state() == Some(state::PLAYER_DRIVE);
             let player_b = b.top_state() == Some(state::PLAYER_DRIVE);
-            let size_a = a.group.size_class();
-            let size_b = b.group.size_class();
+            let size_a = a.group.as_deref().map_or(1, super::Group::size_class);
+            let size_b = b.group.as_deref().map_or(1, super::Group::size_class);
             if player_a {
                 self.boat_mut(id)?.events.push(Event::Aems(7));
             }

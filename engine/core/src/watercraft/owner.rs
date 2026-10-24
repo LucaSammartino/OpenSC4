@@ -3,7 +3,7 @@
 //! native watercraft tick/movement/collision results.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::automata::{State, Vec3};
 
@@ -11,6 +11,10 @@ use super::math;
 use super::{DriveParameters, WatercraftRecord};
 
 pub type BoatId = u64;
+
+// §9 returns the same borrowed string object for every watercraft. The guard
+// serializes access across getter threads and bounds the borrow to one call.
+static DEBUG_TEXT: Mutex<String> = Mutex::new(String::new());
 
 pub mod state {
     pub const IDLE: u32 = 7;
@@ -84,16 +88,18 @@ pub struct Cell {
 pub struct Station {
     pub lot: Arc<Resource>,
     pub occupant: Arc<Resource>,
+    /// Station slot-15 position, distinct from the stored berth point.
+    pub lot_position: Vec3,
     pub position: Vec3,
     pub direction: Vec3,
     /// Decoded network route data, not original watercraft route-pick output.
-    /// Compressed-byte decoding is not specified (WC7).
+    /// Decode compressed input with `RouteReader` before storing these cells.
     pub route: Arc<[Cell]>,
 }
 
 #[derive(Clone, Debug)]
 pub struct NeighborRoute {
-    pub occupant: Arc<Resource>,
+    pub occupant: Option<Arc<Resource>>,
     pub position: Vec3,
     pub cells: Arc<[Cell]>,
     pub next: usize,
@@ -111,6 +117,7 @@ pub trait Terrain {
     fn contains(&self, cell: Cell) -> bool;
     fn cell_at(&self, position: Vec3) -> Cell;
     fn terrain_height(&self, position: Vec3) -> f32;
+    fn terrain_height_at_cell(&self, cell: Cell) -> f32;
     fn sea_level(&self) -> f32;
     fn water_height(&self, position: Vec3) -> f32;
     fn navigable(&self, cell: Cell, radius: u32, lot: Option<&Resource>) -> bool;
@@ -190,7 +197,7 @@ pub struct Watercraft {
     pub inherited_destination: Vec3,
     pub inherited_measured_speed: f32,
     pub record: WatercraftRecord,
-    pub group: Arc<Group>,
+    pub group: Option<Arc<Group>>,
     pub drive: DriveParameters,
     pub position: Vec3,
     pub previous_position: Vec3,
@@ -241,9 +248,9 @@ impl Watercraft {
         super::CLASS_ID
     }
 
-    /// Constructs portable storage. This is not a claim about the unreported
-    /// native constructor's 79-method inventory (WC3).
-    pub fn new(mut record: WatercraftRecord, group: Arc<Group>, radius: f32) -> Self {
+    /// Constructor storage and type flags from §3.1.
+    pub fn new(mut record: WatercraftRecord, group: impl Into<Option<Arc<Group>>>, radius: f32) -> Self {
+        let group = group.into();
         record.base.occupant.flags |= 0x10;
         record.base.occupant.occupant_type = 0x897F_7EC2;
         Self {
@@ -258,7 +265,9 @@ impl Watercraft {
             inherited_destination: [0.0; 3],
             inherited_measured_speed: 0.0,
             record,
-            drive: group.drive_parameters(),
+            drive: group
+                .as_deref()
+                .map_or_else(DriveParameters::default, Group::drive_parameters),
             group,
             position: [0.0; 3],
             previous_position: [0.0; 3],
@@ -321,7 +330,18 @@ impl Watercraft {
     }
 
     pub fn load_drive_parameters(&mut self) {
-        self.drive = self.group.drive_parameters();
+        self.drive = self
+            .group
+            .as_deref()
+            .map_or_else(DriveParameters::default, Group::drive_parameters);
+    }
+
+    pub fn group_id(&self) -> Option<u32> {
+        self.group.as_ref().map(|group| group.id)
+    }
+
+    pub fn sound_value(&self) -> Option<f32> {
+        self.group.as_ref()?.sound_value()
     }
 
     /// The specified owner portion of Init, after the inherited Init.
@@ -370,8 +390,8 @@ impl Watercraft {
     }
 
     pub fn on_land(&self, terrain: &dyn Terrain) -> bool {
-        terrain.contains(terrain.cell_at(self.position))
-            && terrain.terrain_height(self.position) > terrain.water_height(self.position)
+        let cell = terrain.cell_at(self.position);
+        terrain.contains(cell) && terrain.terrain_height_at_cell(cell) > terrain.water_height(self.position)
     }
 
     pub fn other_station(&self) -> Option<Arc<Station>> {
@@ -407,7 +427,7 @@ impl Watercraft {
 
     pub fn set_neighbor_route(&mut self, mut route: NeighborRoute, cell_position: impl Fn(Cell) -> Vec3) {
         route.next = 0;
-        while route.next < route.cells.len() {
+        while route.occupant.is_some() && route.next < route.cells.len() {
             let point = cell_position(route.cells[route.next]);
             route.next += 1;
             // The first point beyond the skip radius is consumed too (§5.4.1).
@@ -418,6 +438,20 @@ impl Watercraft {
         self.neighbor = Some(route);
     }
 
+    /// §5.4.1 skip samples use world x/z and the water height for that point.
+    pub fn set_neighbor_route_core(
+        &mut self,
+        route: NeighborRoute,
+        terrain: &dyn Terrain,
+        spatial: &dyn super::SpatialServices,
+    ) {
+        self.set_neighbor_route(route, |cell| {
+            let mut point = spatial.centre(cell);
+            point[1] = terrain.water_height(point);
+            point
+        });
+    }
+
     pub fn debug_extra_text(&self, counts: [i32; 2], cell: Cell) -> String {
         format!(
             "Tow: {}, (FT,MT): ({},{}), (Q,D): ({},{}), Turn: {:3.2}, Speed: {:3.2}, Cell({:3},{:3}), Pos({:3.2},{:3.2},{:3.2}), Ornt<{:3.2},{:3.2},{:3.2}>",
@@ -426,6 +460,14 @@ impl Watercraft {
             cell.x, cell.z, self.position[0], self.position[1], self.position[2],
             self.heading[0], self.heading[1], self.heading[2],
         )
+    }
+
+    /// Shared-object form of §9. Drop the guard before the next call; that call
+    /// replaces the contents of this same object, including for another boat.
+    pub fn borrowed_debug_extra_text(&self, counts: [i32; 2], cell: Cell) -> MutexGuard<'static, String> {
+        let mut text = DEBUG_TEXT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        *text = self.debug_extra_text(counts, cell);
+        text
     }
 }
 

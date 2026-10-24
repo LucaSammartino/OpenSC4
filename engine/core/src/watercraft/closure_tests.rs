@@ -133,6 +133,9 @@ impl Terrain for Ground {
     fn terrain_height(&self, _: Vec3) -> f32 {
         self.height
     }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
+        self.height
+    }
     fn sea_level(&self) -> f32 {
         0.0
     }
@@ -313,6 +316,9 @@ impl Terrain for ChangingNormal {
     }
     fn terrain_height(&self, p: Vec3) -> f32 {
         self.ground.terrain_height(p)
+    }
+    fn terrain_height_at_cell(&self, c: Cell) -> f32 {
+        self.ground.terrain_height_at_cell(c)
     }
     fn sea_level(&self) -> f32 {
         self.ground.sea_level()

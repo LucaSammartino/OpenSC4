@@ -125,9 +125,9 @@ impl super::Fleet {
         if !terrain.contains(start) {
             return Ok(false);
         }
-        let radius = match self.boat(id)?.group.id {
-            0x4414 => 3,
-            0x4413 => 2,
+        let radius = match self.boat(id)?.group_id() {
+            Some(0x4414) => 3,
+            Some(0x4413) => 2,
             _ => 1,
         };
         for _ in 0..15 {

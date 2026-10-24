@@ -249,7 +249,7 @@ impl Watercraft {
                 command.shared[7].armed = false;
             }
         }
-        let mut group = Some(self.group.as_ref());
+        let mut group = self.group.as_deref();
         let mut skier_group = false;
         while let Some(current) = group {
             skier_group |= current.id == 0x4409;

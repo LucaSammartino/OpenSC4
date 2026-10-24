@@ -14,7 +14,7 @@ impl Fleet {
                 boat.events.push(Event::ActiveSound(false));
                 boat.player.field_30 = 0.0;
                 boat.player.turn_rate = boat.drive.0[20];
-                boat.player.aems_value = boat.group.sound_value().unwrap_or(1.0);
+                boat.player.aems_value = boat.sound_value().unwrap_or(1.0);
                 boat.player.field_144 = 15;
                 boat.player.shots = 0;
                 boat.player.field_1ac = 2000.0;

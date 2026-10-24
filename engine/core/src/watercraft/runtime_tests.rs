@@ -153,6 +153,9 @@ impl Terrain for Blocked {
     fn terrain_height(&self, _: Vec3) -> f32 {
         -10.0
     }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
+        -10.0
+    }
     fn sea_level(&self) -> f32 {
         0.0
     }

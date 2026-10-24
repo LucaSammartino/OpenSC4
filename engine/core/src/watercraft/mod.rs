@@ -40,6 +40,10 @@ mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
 #[cfg(test)]
+mod edge_tests;
+#[cfg(test)]
+mod effect_tests;
+#[cfg(test)]
 mod model_tests;
 #[cfg(test)]
 mod physics_tests;

@@ -29,7 +29,7 @@ impl Fleet {
         let Some(station) = boat.other_station() else {
             return Ok(());
         };
-        if math::length(math::sub(boat.inherited_position, station.position)) >= boat.drive.0[36] {
+        if math::length(math::sub(boat.inherited_position, station.lot_position)) >= boat.drive.0[36] {
             return Ok(());
         }
         let queued = boat.top_state() == Some(state::QUEUE);
@@ -64,7 +64,7 @@ impl Fleet {
         let boat = self.boat(id)?;
         if boat.held_berth
             && boat.current_station.as_ref().is_some_and(|station| {
-                math::length(math::sub(boat.inherited_position, station.position)) > boat.drive.0[36]
+                math::length(math::sub(boat.inherited_position, station.lot_position)) > boat.drive.0[36]
             })
         {
             let boat = self.boat_mut(id)?;
@@ -149,7 +149,10 @@ impl Fleet {
         let Some(route) = boat.neighbor.as_ref() else {
             return Ok(false);
         };
-        if !terrain.navigable(terrain.cell_at(boat.position), 2, Some(&route.occupant)) {
+        if route.occupant.is_none() {
+            return Ok(false);
+        }
+        if !terrain.navigable(terrain.cell_at(boat.position), 2, route.occupant.as_deref()) {
             return Ok(false);
         }
         let away = math::flat(math::sub(boat.position, route.position));
@@ -203,7 +206,7 @@ impl Watercraft {
     /// Gear selection is specified independently of the summarized speed and
     /// steering response. No AEMS set means the entire command is ignored.
     pub fn select_gear(&self, throttle: f32, reverse: f32) -> Option<(Gear, f32)> {
-        self.group.sound_value()?;
+        self.sound_value()?;
         Some(if throttle >= self.drive.0[33] {
             (Gear::Forward, throttle)
         } else if reverse >= self.drive.0[32] {
