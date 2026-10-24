@@ -10,10 +10,11 @@
 - Diagnostic after gate: persist_shadow was absent from known-key logging; appended it to FC4Config.cpp.
 - Initial gate evidence is preserved in build-runs/persist-initial-*.log.
 - Corrected source: d808ddd39; final all Rust 6939/6939 and clippy 0 diagnostics.
-- Final native queue: qbuild-20261024-061927-build-ctest, collect session 59363 (do not duplicate).
+- Final all PASS: native qbuild-20261024-061927-build-ctest, build 205/205 edges, CTest 78/78.
 - Scope: core Filter::Type and KeyList append vs native GetResourceListForType, all key fields/order/duplicates.
 - Questions: PR9 registry/cache/refcount independent replay; SCR11 buffer replay inputs. No whole-owner credit.
-- Next: collect final native gate, then 2032 turbo game with persist_shadow=1 and enable=simulator.
+- Next: collect game verdict with build-runs/wait-persist-verdict.ps1 (file-event wait, no qwait).
 - Constraints: clean-room; no tools reads/edits; no branch/ref changes; no agents.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-persist-shadow8-r1-manifest.json.
-- Outstanding game requests: none.
+- Game request: persist-shadow8-r1-2032-20261024a, turbo to 2032, persist_shadow=1, enable=simulator.
+- Planned run record: docs/runs/persist-shadow8-r1-2032-20261024a-434.md (existing max 433).
