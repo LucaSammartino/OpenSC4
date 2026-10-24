@@ -193,8 +193,8 @@ pub fn clip_aircraft_to_world(mut point: Vec3, bounds: AircraftBounds) -> Vec3 {
     point
 }
 
-/// This phase is independent of the goal stack (automata §6.6). The spec
-/// does not name the three values; do not infer ground/cruise meanings.
+/// Independent runtime phase (automata §6.6), not a goal-stack state type.
+/// The setters accept arbitrary numeric values as well as the named constants.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FlightPhase(pub u32);
 
@@ -252,8 +252,8 @@ pub trait AircraftTargets {
     fn chase_target(&self, target: &RefValue) -> Option<ChaseTarget>;
 }
 
-/// Established geometry only. Distance gates, teleport destination and the
-/// hover control law remain AF3; this is not a completed chase tick.
+/// Lead geometry shared by the settled rotor chase stage. Full MoveXZ and
+/// spotlight geometry remain AF3/AF5; this is not a completed chase tick.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HelicopterChaseGeometry {
     pub lead_position: Vec3,

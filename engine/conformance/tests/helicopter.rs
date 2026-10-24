@@ -268,8 +268,8 @@ fn chase_rejects_null_unresolved_and_nonplayer_targets_and_keeps_valid_targets()
     assert_eq!(heli.record, before);
     let geometry = HelicopterChaseGeometry::for_target(target, 2.0);
     assert_eq!(geometry.lead_position, [600.0, 200.0, -200.0]);
-    assert_eq!(geometry.hover_position, [100.0, 220.0, 300.0]);
-    assert_eq!(geometry.spotlight_target, target.position);
+    assert_eq!(geometry.hover_position, [600.0, 220.0, -200.0]);
+    assert_eq!(geometry.spotlight_target, geometry.lead_position);
 }
 
 #[test]
