@@ -1133,3 +1133,146 @@ Use section 9's wire/format vectors for payload content as well.
 | SCR-V78 | No token adapter calls during a dated city interval | Zero observations, no natural equality/coverage credit; constructed adapter successes stay a separate verdict |
 | SCR-V79 | ASCII WriteRoot has returned and popped its last surveyor | Do not call OutputStream to capture bytes; use the observed sink transcript from the original active root |
 | SCR-V80 | ASCII WriteTypeInfo record names S `Thing`, classID 42, version 7 | `      TypeName: Thing GZCLSID: 0x0000002a Version: 7` and LF; read the record fields, do not invoke a type-info vtable |
+
+## 11. Physical file-line observation contract (SCR10)
+
+### 11.1 Native signatures and lifetimes
+
+These are 32-bit Windows `thiscall` boundaries. ECX is the complete
+`cRZTextFile` object, also its file-interface view at offset zero; it is
+**not** the file-parser interface. Stack arguments below are in entry order
+starting at `[ESP+4]`. S is the 20-byte native string from section 10.1.
+Bool results are in AL only; upper EAX bits have no result meaning.
+
+| Boundary | Stack arguments | Result; callee stack cleanup |
+|---|---|---|
+| Path constructor `0x009307B5` | `const char* path` | object pointer in EAX; 4 bytes |
+| Text open `0x0093066E` | three 32-bit values: access, creation, sharing | bool; 12 bytes |
+| ReadLine `0x00930833` | `S& output` (one writable interface pointer) | bool; 4 bytes |
+| Close `0x009188A5` | none | bool; 0 bytes |
+
+The constructor copies the supplied path into the base file's S at object
++4; it does not borrow the caller's character storage. The text object's
+table is `0x00AD1E58`. ReadLine clears the caller's output before checking
+open success or EOF, and assigns the completed result through the output's
+string interface. There is no returned character pointer or length in EAX,
+and no caller-provided character-buffer capacity. The caller owns this S;
+its bytes can be copied at ReadLine return, before the caller edits or
+destroys it. Neither that S nor the stack-local file object may be retained
+as an owned COM reference by an observer. In DoParseFile the same output S
+is reused for successive reads and is edited for comment processing
+immediately after a successful read.
+
+Evidence: constructor and path copy `0x009307B5`–`0x009307F9`,
+`0x00919AD3`–`0x00919AE4`; output clearing `0x0093084C`–`0x00930856`;
+assignment and bool/cleanup `0x009309FE`–`0x00930A20`; open cleanup
+`0x009306DB`; Close `0x009188A5`–`0x009188F0`.
+
+### 11.2 File association, nesting and physical positions
+
+Each DoParseFile invocation constructs its own text file using its first
+stack argument, the resolved path, and opens it with `(1,2,7)` in that
+order: read access, open existing, and native sharing flags 7. There is no
+path argument to ReadLine. Correlate its ECX with the constructor/open ECX
+inside the active DoParseFile invocation, copying the constructor path.
+The second DoParseFile argument is directory context for relative includes,
+not the text file or its output. A child uses the same parser ECX but a
+different stack-local text file. Keep a nesting stack and separate file
+identities; a previously used stack address can be reused after return.
+Remove that association on close/unwind. An open failure throws code 2
+before any ReadLine call; it is not a false line read. Section 4.2 governs
+include suppression and path joining. Evidence: `0x00680EC7`–`0x00680F0E`,
+`0x006810F8`–`0x0068110A`.
+
+The per-file physical line number starts at zero and increments once for
+each true ReadLine, including empty, comment-only and include-directive
+lines. A false read adds no line. Child lines do not advance the parent's
+physical line number. Successful DoParseFile returns its own physical count
+plus the returned counts of successful child parses; that inclusive total
+is not a parent line number. Ordinary completion closes the file; a parse
+exception also closes it and adds the current parent's filename and
+physical line number while unwinding. Evidence: `0x00680F73`–`0x00680F7B`,
+`0x0068110A`, `0x006811EC`–`0x006811FD`, `0x00681273`–`0x0068129E`.
+
+Capture ReadLine output before comment removal, splitting, substitution or
+include dispatch. A successful empty line is an observation even if it
+produces no command. Capture every returned bool, including the terminal
+false. For byte offsets use the file's logical position (file slot 6), not
+the operating-system handle position: the base file buffers reads. ReadLine
+reads ahead and seeks back around terminators. Passive observation must
+preserve those positions and must not issue extra reads. If installation
+missed construction/open, refuse path-associated replay rather than infer
+a filename from the most recent registration. This contract enables input
+capture; it does not establish command-state or exception replay equality.
+
+### 11.3 Returned bytes, terminators and failure quirks
+
+For the ordinary single-byte mode used without a two-byte BOM, each CR or
+LF terminates a line and is omitted from the returned string. An immediately
+following *different* newline byte is consumed as part of that terminator:
+both CRLF and LFCR are one terminator. A repeated identical newline byte
+is left for the next read, which can therefore return true with an empty
+string. Other whitespace and embedded zero bytes are retained in the S's
+length-delimited output. A later conversion to a C string is a separate
+boundary. A final nonempty unterminated line returns true. A final
+terminator does not manufacture another successful empty line at EOF.
+There is no 128-byte line-length limit: successful chunks are accumulated.
+Evidence: byte/word selection `0x00930913`–`0x0093092E`, terminator and
+lookahead/seek-back `0x0093092E`–`0x0093098D`, accumulation
+`0x00930990`–`0x009309CE`, byte-string copy `0x0090FBE5`–`0x0090FC12`
+and `0x00408BB3`–`0x00408BBA`.
+
+False is deliberately ambiguous. It covers failure to open implicitly,
+the signed comparison size <= current position, and failure of the first
+chunk read. Output is empty in these cases. A failure after one or more
+successful chunks returns **true with the accumulated prefix**; bytes from
+the failed chunk are not appended. The subsequent read may return false.
+The underlying fixed-size read rejects short transfers as well as errors.
+Lookahead read/seek failures do not change a line already marked successful.
+Thus ReadLine alone cannot distinguish clean EOF, truncation or I/O failure,
+and DoParseFile treats every false as ordinary completion, not a parse
+error. An observer may label an independently captured lower-level failure,
+but cannot derive one from AL=false alone. Evidence: `0x00930859`–`0x00930886`,
+`0x009308E9`–`0x0093090A`, `0x009309B6`–`0x00930A20`,
+`0x00918395`–`0x009183A8`, `0x00680F73`–`0x00680F75`.
+
+Text open probes two bytes when available. Either `FF FE` or `FE FF`
+selects mode 2 and leaves the position after the marker; any other pair
+is rewound to offset zero. No UTF-8 marker handling or endian swap occurs.
+Mode 2 scans native little-endian 16-bit units for CR/LF, then converts units
+<= `0x7F` to the corresponding byte and all others to `?`. There is an
+additional native count quirk: for a scanned payload of b bytes, the wide
+append receives b as a **unit count**, appending 2b bytes from the temporary
+buffer. Consequently even well-formed wide input can append newline,
+following-line or uninitialized temporary-buffer units beyond the scanned
+payload. A full 128-byte payload can read beyond that temporary buffer.
+This is not a correct Unicode line decoder; no deterministic whole-output
+vector is assigned to bytes drawn from uninitialized/out-of-bounds storage.
+Capture actual native output, and refuse deterministic replay for such
+samples. The quirk is settled behavior, not an unresolved question.
+Evidence: BOM probe `0x00930691`–`0x009306CC`; scan step and append count
+`0x00930913`–`0x0093093F`, `0x00930997`–`0x009309A4`; doubling the count
+`0x0093081B`–`0x0093082A`; range measured in words
+`0x00918ACC`–`0x00918AD7`; lossy conversion `0x0090E929`–`0x0090E941`.
+
+### 11.4 Conformance vectors
+
+These are normative vectors derived from the instructions, not new game-run
+measurements. Unless stated otherwise, files use single-byte mode, all
+underlying reads/seeks succeed, offsets are bytes, and `\r`/`\n` denote
+CR/LF. A false read clears a pre-existing output sentinel.
+
+| ID | Input/observation | Required result |
+|---|---|---|
+| SCR-V81 | Empty file, output initially `old` | First ReadLine false, output empty; physical count 0 |
+| SCR-V82 | Bytes `A\r\nB\n\rC\rD\n` | True outputs `A`,`B`,`C`,`D`, next false/empty; positions after true reads 3,6,8,10; physical count 4 |
+| SCR-V83 | Bytes `\r\r\n\n` | True empty at position 1; true empty at 3 (CRLF); true empty at 4; next false; count 3 |
+| SCR-V84 | Bytes `tail` versus `tail\n` | Each yields one true `tail`, then false/empty; positions 4 versus 5; count 1 in both |
+| SCR-V85 | 300 `x` bytes followed by LF | One true output containing all 300 bytes, logical position 301; next false; count 1 |
+| SCR-V86 | Bytes `41 00 42 0A` | True S contains three bytes `41 00 42`, position 4; C-string truncation is not a ReadLine result |
+| SCR-V87 | File size 260; first 128-byte chunk of `x` succeeds; next chunk fails | True with 128 `x` bytes; failed chunk not appended; no ReadLine error code. A first-chunk failure instead returns false/empty |
+| SCR-V88 | Parent lines: empty, `include child.sgr`, `set x y`; child has two physical lines | Parent reads numbered 1,2,3; child reads numbered 1,2 on its own ECX; parent return 5; terminal false in each file adds zero |
+| SCR-V89 | Missing included file, or ordinary file reaches false ReadLine | Missing file throws code 2 at open with no line reads (section 4.2 then applies); false ReadLine closes and returns accumulated count without throwing |
+| SCR-V90 | Bytes `FF FE 41 00 0A 00 42 00`, successful open and first read | Position starts 2; first read scans one payload word but appends two words, yielding S bytes `41 0A`; logical position 6. This exhibits the count quirk without relying on uninitialized bytes |
+| SCR-V91 | Bytes `EF BB BF 41 0A` | Single-byte mode; first true S contains `EF BB BF 41`; UTF-8 BOM is retained |
+| SCR-V92 | Same file address reused after a completed DoParseFile; constructor supplies a different path | New file identity/path and physical count starting at zero; never attach the new reads to the old path |
