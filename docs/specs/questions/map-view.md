@@ -10,12 +10,6 @@
   behind the buttons `0x5005`, `0x5008` and `0x8002`; the toggle `+0x9AC` of `0x8100`/`0x8101`; the command
   `0x6A935CF1`. [as read]
 
-<!-- from: core-map-view4 (2026-10-23) -->
-- **QV11 - §4.1: developer layers:** which raw grid does the documented default layer 1 select? Are layers 3
-  and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the
-  slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
-  preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
-
 <!-- from: core-map-view5b (2026-10-23) -->
 - **QV14 - §5.2: ring intermediate precision:** which x87 precision-control and rounding-control modes
   apply to the ring helper, and at which operations (including square roots) are intermediates rounded?

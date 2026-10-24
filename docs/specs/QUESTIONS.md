@@ -300,7 +300,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 6 | 10 | QV17 | questions/map-view.md |
+| map-view | 5 | 11 | QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -408,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **663** | **1544** | | |
+| **total** | **662** | **1545** | | |

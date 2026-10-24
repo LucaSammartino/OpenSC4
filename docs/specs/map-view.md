@@ -267,6 +267,30 @@ Sources 11, 13–23 and 31–63 draw nothing *[quirk: the shipped zones and the 
 `+0x9E0` is set) picks the developer's grid: 2 → slot 14 (unsigned 16-bit), 3 and 4 → slot 13 (signed 16-bit),
 5 → a grid built by `0x007A2080` (signed 16-bit), 6 → a debug grid of slot 11's entries × 12 (signed 16-bit).
 
+#### Remaining developer layers (QV11) *[compat]*
+
+**Layer 1 selects no grid.** It is the exemplar default but is not a handled developer layer; like
+any layer other than 2–6 it leaves the newly cleared map empty. It is neither slot 12 nor a synonym
+for layer 3. Layers **3 and 4 are identical** at this owner: the same slot-13 signed-16 grid, geometry,
+conversion, lot handling and overlay are used. The selected layer need not be collapsed in stored
+exemplar state, but no distinct rendering rule exists for those two values.
+
+Layer 6 constructs a fresh zero-filled signed-16 grid. Its x/z dimensions are the slot-13 grid's
+dimensions (grid slots 12/13); its world cell width/height are also that grid's (slots 14/15).
+Developer slot 10 is the availability predicate: if false, no debug values are drawn. If true,
+developer slot 11 supplies an ordered flat sequence of **12-byte records**, three signed 32-bit words
+`(x,z,value)`. For each record, replace cell `(x,z)` with the low 16 bits of `value×12`, interpreted
+as signed 16-bit. Unmentioned cells remain zero; later duplicate coordinates overwrite earlier ones.
+There is no summation, sorting, normalization or saturation. The owner does not bounds-check record
+coordinates; malformed coordinates/storage are unsafe inputs, not clipped records. The rendering walk
+is the ordinary x-outer/z-inner grid walk, independent of record order after these replacements.
+
+Layer 6 temporarily disables interpolation while passing this grid through the ordinary signed-16
+conversion/drawing path, then restores the previous interpolation flag. It does not change the
+exemplar's saved layer. The debug override chooses layer 6 even when ED is absent or names another
+layer. Evidence: layer dispatch and shared 3/4 branch `0x007A4387`–`0x007A44A7`, debug-grid construction,
+entry replacement and interpolation restoration `0x007A44A8`–`0x007A4578`.
+
 #### Layer 5: capacity percentage (QV4) *[compat]*
 
 Layer 5 reuses a lazily allocated signed-16 simgrid with cell-size shift 1 and instance `0x89D5C471`.
@@ -784,3 +808,10 @@ QV4, QV6–QV10 are answered in §§1.1, 2.1, 4.1–4.3, 5.0 and 7.1.
     Update preserves all three. A normally returning custom false does not undo a replacement or restore dirty.
 33. **Notification comparison:** supplied old/new records' second words 5/5 leave a clean map clean;
     5/6 mark it dirty, independent of prior notifications or constructor clock.
+34. **Developer layers:** valid developer and child, ED absent or 1 or 99 → cleared empty map, no
+    developer grid selected. ED=3 and ED=4 with the same inputs produce identical images/marked cells.
+    For ED=6, slot-13 dimensions 2×2, slot-10 true, ordered records
+    `[(1,0,2),(0,1,-1),(1,0,3000)]` give signed x rows `[0,-12]`, `[-29536,0]` before palette
+    conversion (`36000` wraps to −29536). Interpolation initially true is false during this draw
+    and true afterwards. An empty available sequence draws zero values; unavailable sequence draws
+    nothing. Debug override plus ED=2 uses this same layer-6 result.
