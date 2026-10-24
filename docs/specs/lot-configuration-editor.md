@@ -286,6 +286,34 @@ It Releases each non-null object in the owned reference array
 This body does not release the current configuration directly; destruction and
 container cleanup must not be invented from this Shutdown list (LE5).
 
+### 7.1 Shutdown ownership and observable order (LE8)
+
+The initialized Shutdown protocol is ordered as follows. Every listed operation
+skips a null reference; offsets identify ownership slots, not portable layout
+requirements (`0x0047C520..0x0047C648`).
+
+| Order | Reference or collection | Effect |
+|---:|---|---|
+| 1 | Chooser `+0x15C` | Notify editor closed, while the chooser reference is still held. |
+| 2 | Font `+0x130` | Release, then clear slot. |
+| 3 | View/service `+0x134`, `+0x138`, `+0x13C`, in that order | Clear each slot before its Release. |
+| 4 | Chooser `+0x15C`, then configuration manager `+0x160` | Clear each slot before its Release. |
+| 5 | Identity references `+0x188`, then `+0x18C` | Release each, then clear its slot. |
+| 6 | Network objects `+0x194`, then `+0x198` | For each: invoke stop/shutdown slot `+0x10`, Release, then clear. |
+| 7 | Owned reference array, begin `+0x1D0`, end `+0x1D4` | Release each non-null element in forward order. Do not clear the elements, change the logical end, or free storage here. |
+| 8 | Base window | Invoke base Shutdown, including when the editor was not initialized. |
+
+All editor-specific steps are skipped when the base initialized flag is false.
+The seven cursor slots `+0x140..+0x158`, the current configuration `+0x190`,
+identity path/key/ID and collection storage survive this body. The destructor
+in §21.1 subsequently Releases the cursors in reverse slot order. The font is
+`+0x130`, not one of `+0x134/+0x138/+0x13C`. The array Release loop leaves
+dangling element values until storage destruction; raw destruction alone omits
+those Releases. Do not add an extra Release pass or promise idempotence for
+an initialized reentrant call. These distinctions follow the native stores
+around Release (`0x0047C533..0x0047C5DA`) and the unchanged array loop
+(`0x0047C61B..0x0047C648`).
+
 ## 8. New, open, save and close *[compat]*
 
 ### 8.1 Configuration creation and opening
@@ -1003,7 +1031,7 @@ edge cases remain that helper's contract, not a decimal-only validation rule.
 ### 16.2 Slope and fence options
 
 DoSet3DViewSlopeUI (`0x0047DDF0`) titles its dialog `Set Slope of Displayed Lot`
-and initializes text from the unsigned integer at editor `+0x1E0`.
+and initializes text with signed `%d` from the bits at editor `+0x1E0` (§24.3).
 Acceptance parses using RZConvertToUint32A (`0x0090FE93`). For comparison it
 loads the signed 32-bit result into x87 and, if the sign bit was set, adds
 binary32 2^32; no binary32 store intervenes before the lot-limit tests.
@@ -1354,8 +1382,11 @@ the selected item?` with title `Are you sure`. Only result `0x5301814A`
 continues.
 
 Deletion requires the identity's backing file to exist and be writable.
-Otherwise show the native non-existent/write-protected error (native text
-spells it `non-existant`), with title `No can do`. A failed backing-store
+Otherwise show exactly `The exemplar you are trying to delete is either non-existant or write-protected.\n\n`,
+where each `\n` denotes an LF byte (two trailing line feeds), with title
+`No can do`. Preserve `exemplar`, the spelling `non-existant` and the trailing
+blank line (`0x00A8DB98`, used by `0x0047ED90`). The chooser invokes its
+message service with raw options `(0x10000,1,0)` for this error. A failed backing-store
 delete (`+0x6C`) shows `Unknown error trying to delete item.` with that title.
 Neither failure removes a row or unregisters a manager type. On success,
 remove the row identified by the identity ID, then ask the global manager
@@ -1471,3 +1502,152 @@ invented NaN/overflow expectations.
 Unresolved questions are in [the question file](questions/lot-configuration-editor.md).
 This addition does not claim complete numeric/raster contracts, game verdicts,
 ABI exports or ownership of shared decoding helpers.
+
+## 23. Portable window/core composition (LE8) *[compat]*
+
+Chooser edit acquisition and registration may be staged around the **core
+editor's** Open result (§20.4). The acquired editor executes §8.1, including
+PostInit and the key-dependent new/read path; only its successful completion
+allows registration. A failure takes the existing error/removal/Shutdown/Release
+path, even if Read has already installed a configuration. Similarly, chooser
+user-close dispatch invokes the corresponding core editor Close with `(true,true)`
+and consumes that result while reexamining its live tracked set (§20.1).
+The notification can remove the editor from that set before dispatch returns.
+These are composition boundaries, not alternative policy providers: an adapter
+must not supply an arbitrary Open/Close verdict to bypass unresolved core
+behavior in LE4/LE5, nor decide prompts, verification, reconciliation or save
+policy on the editor's behalf. An unsupported core continuation stays
+unsupported rather than becoming success. No extra question is required about
+staging itself; the native calls already impose the sequence
+(`0x00486D30`, `0x0047C150`, `0x00486530`, `0x004865D0`).
+
+| Vector | Setup/action | Required observation |
+|---|---|---|
+| LEI01 | Confirm deletion; identity resolves; file absent or not writable | Error text above including both trailing LF bytes, title `No can do`, raw options `(0x10000,1,0)`; no backing-store delete, row removal or unregister. |
+| LEI02 | Initialized editor with all owned slots non-null; Shutdown then destroy | Notification first; exact §7.1 Release/clear order; no cursor/current-configuration Release until destruction; array elements released before storage is freed. |
+| LEI03 | Uninitialized editor with non-null cursor and current configuration; Shutdown | Base Shutdown only; references remain for destruction. |
+| LEI04 | Chooser obtains an editor whose Open fails after Read installed its configuration | No tracked registration; error, removal, Shutdown, Release; do not turn the partial Read effects into a successful Open. |
+| LEI05 | First tracked editor closes and its notification removes it; next refuses | Reexamine live set; first remains removed, refusing editor and chooser stay open. No forced success or snapshot traversal. |
+
+## 24. Core integration contracts (LE6) *[compat]*
+
+### 24.1 Raw record roles and construction
+
+The bounds names in §9 are **editor-local roles of raw fields**. They do not
+rename the [shared record decoder](lot-configuration.md#35-the-object-array),
+which assigns serialized v6/v7 to `+0x18/+0x1C` (its minima), and v8/v9 to
+`+0x10/+0x14` (its maxima). The editor predicate actually reads `+0x10/+0x14`
+for its lower-edge tests and `+0x18/+0x1C` for its upper-edge tests in full
+mode, with the opposite edges tested in partial mode
+(`0x0047B677..0x0047B6E4`). This is an inconsistent native interpretation,
+not a second disk format. Preserve raw fields across the editor/manager
+boundary; do not normalize, reorder or swap bounds to make the names agree.
+The manager's reconciliation uses its own published roles. Inventory reach
+still does not establish exclusive ownership of the five shared bodies named
+in §18/the inventory companion; their 427 bytes remain foreign.
+
+The configuration constructor, before editor-specific new-lot overrides, has
+the defaults in [lot-configuration §2](lot-configuration.md#2-state).
+In particular, compatibility vectors at `+0x44/+0x58/+0x6C` have logical
+lengths **16/4/9**, all bits false, including bit 0; empty placeholders are
+incorrect. Growth-stage byte `+0x3C` is **1**, water byte `+0x42` is **0**,
+and required-roads byte `+0x8E` is **8**. Slope fields `+0x30/+0x34/+0x38`
+are binary32 **90/0/90**. Capacities `+0x3E/+0x40` are **65535/0**.
+The ignored accepted control `0x294053DB` is seeded from the **water getter**,
+not a capacity or another editable scalar: only AL is defined by that getter
+and the caller forwards EAX without extension. A portable Boolean control
+uses the returned low byte; no contract is assigned to the upper 24 bits
+(`0x00477880`, `0x00480DE2..0x00480DEA`). The editor's new-lot path changes
+the name, size and slope-before-foundation to `New Lot`, 1×1 and 5 as §8.1
+already specifies; it leaves the logical vector lengths and growth stage intact.
+Constructor stores and resize arguments are instruction-verified at
+`0x004797DC..0x004798C6`.
+
+For the three floating initial compatibility values, `_ftol2` truncates toward
+zero to a signed 64-bit result and the editor passes its **low 32 bits** to
+the child. Thus ordinary in-range finite fractions are not rounded to nearest
+or clamped. Acceptance still uses signed dword-to-float stores (§4), independent
+of that initial conversion. Invalid/out-of-64-bit-range conversions belong to
+the runtime primitive, not a saturating editor rule
+(`0x00480E1C`, `0x00480E67`, `0x00480EB2`, `0x009EEF04..0x009EEF78`).
+
+### 24.2 Identity splitting and case conversion
+
+Use [paths §1.5](paths.md#15-splitpathp-drive-dir-name-ext-0x00917bcb-on-crzstrings-0x009194a0)
+literally: drive is the first two bytes if byte 1 is `:`, directory includes
+the last separator, and the last dot after that separator starts the extension
+**including the dot**. Both slash forms are separators. Each output part is
+limited to 255 bytes. No canonicalization of separator spelling, dot segments,
+relative paths or UNC prefixes is added. GetPathDirectory concatenates the
+split drive and directory (`0x0091A847`); the identity helper tests that result's
+existence and compares its lowercased bytes to the lowercased provider path.
+The provider key query receives the original-case split name and extension,
+not the lowercased directory and not a dotless extension
+(`0x0047F248`, `0x0047F2B6`, `0x0047F33E..0x0047F3AC`).
+
+Lowercasing is the native [framework-string transform](rz-strings.md#5-native-transforms-and-formatting),
+not filesystem collation: bytes below `0x7F` use CRT classification/lowercase;
+the first byte at or above `0x7F` triggers conversion of the **whole current
+string** from encoding 8 (framework UTF-8) to encoding `0x10` (UTF-16),
+`towlower` on each 16-bit unit, then conversion back. Already transformed
+ASCII prefix bytes participate in that whole-string conversion. The converter's
+reported output count controls the wide loop, conversion return codes are not
+tested, and the result still enters exact length-and-byte equality. Malformed
+input/partial conversions follow [string-encoding §§3–4](string-encoding.md),
+not a replacement host UTF-8 decoder. There is no normalization or full Unicode
+case folding. Under the CRT C locale, wide A–Z gain `0x20`, every other unit
+is unchanged, including `0xFFFF` (`0x009F4C4E..0x009F4C75`). Non-C locale
+tables remain the **existing foreign RZS2** boundary in
+[the string questions](questions/rz-strings.md); resolving editor LE6 does not
+authorize host Unicode folding or claim closure of RZS2. Exact native wrapper
+dispatch/count behavior is specified at `0x0090EAC5..0x0090EB8D` and in those
+dependencies; no additional editor policy is missing.
+
+### 24.3 Literal text contracts and manager bridge
+
+The verification failure question is exactly `One or more lot objects don't fit within the lot bounds. Do you want to continue or cancel?`
+(`0x00A8D798`). It uses the editor MessageBox wrapper with option **1**;
+the wrapper obtains the current lot name for the title (empty without a
+current configuration), then calls the message service with `(text,title,1,1,0)`.
+Only `0x5301814A` permits continuation; every other result rejects. No repair
+or dirty write accompanies either choice (`0x0047D610`, `0x0047D6B0`).
+
+Slope initial text uses signed decimal `%d` on the stored 32-bit slope bits,
+despite unsigned acceptance: high-bit-set values display negatively
+(`0x0047DE72..0x0047DE90`, format `0x00A8281C`). Network path initial text
+uses **`%08x`**, eight lowercase hexadecimal digits with zero padding and
+**no `0x` prefix** (`0x0047E701..0x0047E711`, `0x00A8DB8C`). Fence menu row 0
+shows exactly `Sorry, the fence options menu isn't implemented yet and won't be implemented until fence functionality is in place.`
+(`0x00A8DDB0`), using the editor wrapper with option 0 and current-lot-name
+title; it performs no fence edit. Literal strings above have no implicit
+newline; contrast the two explicit trailing LF bytes in §20.5.
+
+Successful Read must call manager `FixLotConfiguration(currentConfiguration)`
+at interface `+0x5C`, returning a 32-bit result, **on the same mutable
+configuration just installed**, before the warning/dirty handling in §8.1
+(`0x00483C80..0x00483D98`). The typed bridge is the already-published
+[manager slot 23](prop-lotconfig.md#b5-behaviour-of-the-queries): mutable ordered records and
+their ID lists, mutable retaining-wall ID list, dimensions, and that manager's
+held building/prop/flora validity and footprint dependencies. It must execute
+that manager contract, preserve its mutations and return its first-problem
+code. It cannot be replaced by a host-supplied reconciliation outcome, an
+editor-bounds conversion, or a Boolean success callback. Code zero returns
+true without clearing existing dirty; nonzero marks dirty, updates title and
+warns but still returns true. The dependency algorithm, including removal,
+footprint/center mutation and code precedence, is already specified in
+prop-lotconfig; implementing the bridge is engine work, not another RE question.
+
+### 24.4 Conformance vectors
+
+| Vector | Setup/action | Required observation |
+|---|---|---|
+| LEI06 | Construct configuration; then create editor new lot | Logical compatibility lengths stay 16/4/9, all false; growth 1, water 0, roads 8. Raw constructor slopes 90/0/90 become 90/0/5 for new lot. |
+| LEI07 | Initial compatibility slope values 5.75, -2.75, 0.75 | Child signed integers 5, -2, 0; accepting unchanged controls writes floats 5, -2, 0 and marks dirty. Water-control edits have no accepted model write. |
+| LEI08 | Shared decoder receives finite bounds v6/v7=4/5, v8/v9=12/13 | Raw `+18/+1C=4/5`, `+10/+14=12/13`; editor-local bounds read `(xmin,zmin,xmax,zmax)=(12,13,4,5)` without repair or swapping. |
+| LEI09 | Identity path `C:\Lots\a.b.SC4Lot`; matching provider directory | Directory `C:\Lots\`; provider gets name `a.b`, extension `.SC4Lot`. An otherwise identical directory using `/` does not compare equal after lowercasing alone. |
+| LEI10 | Split leaf `.SC4Lot`, `a.`, or `a` | Name/extension respectively empty/`.SC4Lot`, `a`/`.`, `a`/empty. Directory dots do not create an extension. |
+| LEI11 | C-locale directory contains UTF-8 `AÉ` or `aé` | Lowercase results are UTF-8 `aÉ` and `aé`; exact comparison differs. Do not impose Unicode case-insensitive equality. |
+| LEI12 | Slope bits `FFFFFFFF`; path payload word 3 `AB`; short payload | Initial texts `-1`, `000000ab`, and `00000000`, respectively. Initial formatting does not alter stored values. |
+| LEI13 | Verification fails; current name `New Lot`; choose continue/cancel | Exact §24.3 text and title `New Lot`, service options `(1,1,0)`; only `0x5301814A` returns true, neither result mutates records. |
+| LEI14 | Successful Read installs a configuration whose only prop has only an invalid ID | Actual manager Fix removes that ID and record, returns first-problem code 1 (not 2); editor retains the mutated configuration, marks dirty and shows the code-1 warning. No supplied external result can replace these effects. |
+| LEI15 | Fix returns zero on an already-dirty editor | Read returns true and leaves dirty true; no reconciliation warning. |
