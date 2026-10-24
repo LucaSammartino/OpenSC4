@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <deque>
 #include <iterator>
 #include <map>
 #include <set>
@@ -38,6 +39,16 @@ struct Counts {
     unsigned zero = 0, one = 0, multi = 0, failed = 0;
     unsigned listFalse = 0, keyDifferences = 0, countDifferences = 0;
 };
+struct HeldFile { cIGZPersistDBSegment* segment; cIGZDBSegmentPackedFile* packed; };
+struct HeldSample {
+    int32_t julian = 0;
+    std::vector<HeldFile> files;
+    size_t next = 0;
+    Counts counts;
+};
+// Main-thread only. Retain only references explicitly acquired by QI, never
+// borrowed manager/index pointers. Both readers run together for each file.
+std::deque<HeldSample> pending;
 
 // Validate interface table storage and every published method address against
 // the identified supported image. These addresses are never called untyped.
@@ -393,7 +404,8 @@ void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
             static_cast<unsigned long>(GetTickCount() - started));
 }
 
-void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, Counts& c) {
+void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, HeldSample& sample) {
+    auto& c = sample.counts;
     if (!segment) { ++c.refusal; Log("dbpf refusal: null indexed segment"); return; }
     if (!visited.insert(segment).second) return;
     if (!Interface(segment, 30)) { ++c.refusal; Log("dbpf refusal: unsupported segment interface"); return; }
@@ -401,8 +413,8 @@ void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersist
     if (segment->QueryInterface(GZIID_cIGZDBSegmentPackedFile, reinterpret_cast<void**>(&packed)) && packed) {
         FC4_ACQUIRED(packed, "DBPF shadow packed QI");
         if (!Interface(packed, 39)) { ++c.refusal; return; }
-        CompareHeld(com, segment, packed, c);
-        FC4_RELEASE(packed);
+        if (segment->IsOpen()) sample.files.push_back({segment, packed});
+        else FC4_RELEASE(packed);
         return;
     }
     cIGZPersistDBSegmentMultiPackedFiles* multi = nullptr;
@@ -412,7 +424,7 @@ void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersist
         const uint32_t count = multi->GetSegmentCount();
         // EX56: SDK gives direct pointers; treat them as borrowed, never Release
         // a pointer whose reference the shadow did not acquire.
-        for (uint32_t i = 0; i < count; ++i) VisitHeld(com, multi->GetSegmentByIndex(i), visited, c);
+        for (uint32_t i = 0; i < count; ++i) VisitHeld(multi->GetSegmentByIndex(i), visited, sample);
         FC4_RELEASE(multi);
     }
     // Directory/streaming segments do not expose the packed-file interface.
@@ -421,7 +433,10 @@ void VisitHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, std::set<cIGZPersist
 
 void DbpfShadowObserve(int32_t julian) {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
-    Counts c;
+    pending.emplace_back();
+    auto& sample = pending.back();
+    sample.julian = julian;
+    auto& c = sample.counts;
     std::set<cIGZPersistDBSegment*> visited;
     auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     cIGZPersistResourceManagerPtr manager;
@@ -430,15 +445,55 @@ void DbpfShadowObserve(int32_t julian) {
         // EX56: public resource-manager roots, recursively expanding public
         // multi-packed segments. No private city-streaming ABI is inferred.
         for (uint32_t i = 0; i < manager->GetSegmentCount(); ++i)
-            VisitHeld(com, manager->GetSegmentByIndex(i), visited, c);
+            VisitHeld(manager->GetSegmentByIndex(i), visited, sample);
     }
+}
+
+namespace {
+void HeldSummary(const HeldSample& sample) {
+    auto c = sample.counts;
     if (!c.files || !c.records) ++c.refusal;
     fc4_date date{};
-    fc4_date_from_julian(julian, &date);
+    fc4_date_from_julian(sample.julian, &date);
     Log("dbpf shadow %04d-%02d-%02d: files=%u opened=%u indexes=%u records=%u raw=%u payload=%u "
         "compressed=%u empty=%u refusals=%u scope=resource-manager-packed mismatches=%u",
         date.year, date.month, date.day_of_month, c.files, c.opened, c.indexes, c.records, c.raw, c.payload,
         c.compressed, c.empty, c.refusal, c.differ + c.refusal);
+}
+}
+
+void DbpfShadowTick() {
+    if (pending.empty()) return;
+    auto& sample = pending.front();
+    const DWORD started = GetTickCount();
+    auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    // Return to the framework between files. Each measured large file took
+    // under 3 seconds; aggregate sweeps took 8+ and tripped the 5-second watchdog.
+    // The sample date selects the file set; comparisons finish on later ticks.
+    while (sample.next < sample.files.size()) {
+        auto& file = sample.files[sample.next++];
+        if (!com || !file.segment->IsOpen()) ++sample.counts.refusal;
+        else CompareHeld(com, file.segment, file.packed, sample.counts);
+        FC4_RELEASE(file.packed);
+        file.packed = nullptr;
+        if (GetTickCount() - started >= 800) break;
+    }
+    if (sample.next == sample.files.size()) {
+        HeldSummary(sample);
+        pending.pop_front();
+    }
+}
+
+void DbpfShadowShutdown() {
+    // Never silently discard an unfinished monthly sample. A deadline that
+    // interrupts it is explicitly non-exact, while all acquired QIs are released.
+    for (auto& sample : pending) {
+        ++sample.counts.refusal;
+        for (size_t i = sample.next; i < sample.files.size(); ++i)
+            FC4_RELEASE(sample.files[i].packed);
+        HeldSummary(sample);
+    }
+    pending.clear();
 }
 
 void DbpfNativeCityLoaded() {

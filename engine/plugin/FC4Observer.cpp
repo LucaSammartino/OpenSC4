@@ -580,6 +580,7 @@ public:
         DialogsOnTick();
         // netmgr_shadow (FC4NetMgrShadow.h): the recorded writes against the game.
         NetMgrShadowTick();
+        DbpfShadowTick();  // default off; bounded by file, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -697,6 +698,7 @@ public:
                 break;
             }
             case kMsgPreCityShutdown:
+                DbpfShadowShutdown();
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
                 CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
