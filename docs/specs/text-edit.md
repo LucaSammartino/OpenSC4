@@ -654,6 +654,7 @@ These are specification examples derived from bodies, not game-run results.
 | Setup and action | Required observation |
 |---|---|
 | Fresh editor, before Init/layout | Colors at W+0x1C0/+0x1C4/+0x1C8 all `0xFF000000`; visible metrics and horizontal offsets zero; line height 1; image edge option true |
+| Fresh editor, before Init; inspect history limit and preferred X | Maximum undo levels `0x4000`; preferred X `0xFFFFFFFF` (unset), rather than zero |
 | Preexisting distinct bytes in W+0x27C..+0x288; construct editor with flags zero | Those sound words are untouched; no assertion of zero IDs |
 | Initialized A reflows with shared counter 0; automatic check reenters B's RecalculateAll | A checks at counter 1; B updates layout but performs no automatic check; normal return restores counter 0 |
 | Shared counter -1 versus 1, otherwise initialized editor | -1 permits a check (temporary 0); 1 skips it; normal return retains the original counter |
