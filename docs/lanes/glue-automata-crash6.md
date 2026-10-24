@@ -17,4 +17,6 @@
 - Required: focused native bad-ID test; final all and queued verify; three unique exact 2032 game runs.
 - Keep owners shadow default-off. Coordinator should add automata_owners_shadow to the house profile after exact validation (tools are outside lane scope).
 - No outstanding game request. No spec behavior or ABI export changes; this is capture tooling ownership.
+- Game 381 automata-crash6-r2-2032-20261024-a: clean 2032-01-01/ref0; automata and automataowners each 72/72 monthly, 73/73 including load exact; DLL ceebe86d4684c38fc31c2d0730b4591306f2885ece17663e53902c815e5b5484.
+- Next game labels: automata-crash6-r2-2032-20261024-b and -c, one outstanding at a time. Final main merge and conditional native gate still required before READY queue.
 - Before READY queue: merge main as explicitly instructed; preserve concurrent variant encoding changes, rerun native gate if FC4WriteCapture changes. Detached HEAD is intentional.
