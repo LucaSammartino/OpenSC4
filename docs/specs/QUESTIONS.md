@@ -83,6 +83,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GR | graphics-rules |
 | GT | glyph-textures |
 | GU | geometry-utilities |
+| GW | graphs-window |
 | GZ | framework-gz-services |
 | GZF | gz-framework-core |
 | GZG | gz-graphics |
@@ -256,6 +257,7 @@ generated index: the questions live one file per spec, so read only the file for
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
+| graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
 | gz-graphics | 4 | 2 | GZG7 | questions/gz-graphics.md |
@@ -374,4 +376,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **602** | **1439** | | |
+| **total** | **606** | **1439** | | |
