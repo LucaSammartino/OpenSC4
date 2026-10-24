@@ -36,3 +36,12 @@
   D3DLight range, constant/no-op slots, absence of independently returned vertex buffers in these tables,
   and region handles/transfers/recovery are answered and archived (2026-10-23, re-gdriver-rd11).
   [needs: instruction checks of 00883950–00883EB7; decompiler has unreliable pointer/stack aliases]
+
+<!-- from: core-gdriver-close12 (2026-10-24) -->
+- **RD12 - sections 4.3, 4.4, 12.5, 14.2:** how are the three owner surface slots
+  +0x22C/+0x230/+0x234 populated from the context, and what are their acquire/release
+  and lost-device replacement rules? Section 12.5 specifies selection by slot exactly,
+  but does not identify their context aliases. [Core represents these as three explicit
+  owned tokens, initially null, rather than guessing primary/target/depth aliases;
+  region creation/transfers work against supplied slots. Automatic setup/restore
+  population remains open pending this mapping.]

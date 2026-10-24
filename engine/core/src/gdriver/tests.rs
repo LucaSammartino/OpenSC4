@@ -3,6 +3,7 @@
 use super::*;
 use crate::gdrivers_director::{Allocation, Host, Op, Result as HostResult};
 use std::collections::{BTreeMap, VecDeque};
+static INFO_TEST_LOCK: Mutex<()> = Mutex::new(());
 #[derive(Debug, Clone)]
 struct Record {
     target: u32,
@@ -20,6 +21,7 @@ struct Recorder {
     states: BTreeMap<u32, u32>,
     rect: [u32; 4],
     modes: Vec<[u32; 3]>,
+    replies: VecDeque<(Call, u32, Vec<u32>)>,
 }
 impl Default for Recorder {
     fn default() -> Self {
@@ -33,6 +35,7 @@ impl Default for Recorder {
             states: BTreeMap::new(),
             rect: [0, 0, 800, 600],
             modes: vec![[640, 480, 16], [800, 600, 32]],
+            replies: VecDeque::new(),
         }
     }
 }
@@ -68,6 +71,13 @@ impl Device for Recorder {
             args: args.to_vec(),
             data: data.to_vec(),
         });
+        if self.replies.front().is_some_and(|(op, _, _)| *op == call) {
+            let (_, hr, words) = self.replies.pop_front().unwrap();
+            for (o, value) in out.iter_mut().zip(words) {
+                *o = value;
+            }
+            return hr;
+        }
         if self.failures.front().is_some_and(|(op, _)| *op == call) {
             return self.failures.pop_front().unwrap().1;
         }
@@ -83,7 +93,38 @@ impl Device for Recorder {
                     *o = v;
                 }
             }
-            Call::PixelFormat => out.copy_from_slice(&[0xff000000, 0xff0000, 0xff00, 0xff]),
+            Call::PixelFormat => {
+                let values = if out.len() == 4 {
+                    vec![0xff000000, 0xff0000, 0xff00, 0xff]
+                } else {
+                    vec![32, 0x41, 0, 32, 0xff0000, 0xff00, 0xff, 0xff000000]
+                };
+                out.copy_from_slice(&values);
+            }
+            Call::EnumerateDevices => {
+                if args.is_empty() {
+                    out[0] = 1;
+                } else {
+                    out.copy_from_slice(&[1, 2, 3, 4, 0x90000, 16]);
+                }
+            }
+            Call::EnumerateDepthFormats => out.copy_from_slice(&[32, 0, 0, 16, 0, 0, 0, 0]),
+            Call::CurrentDisplayMode => out[0] = 32,
+            Call::TextureFormats => {
+                if args.is_empty() {
+                    out[0] = 1;
+                } else {
+                    out.copy_from_slice(&[0xff000000, 0xff0000, 0xff00, 0xff, 0, 0, 32, 1, 8, 32]);
+                }
+            }
+            Call::SurfaceDescriptor => out.copy_from_slice(&[800, 600, 0x4000]),
+            Call::RestoreContext => {
+                for o in out {
+                    self.next += 0x10000;
+                    *o = self.next;
+                }
+            }
+            Call::FindVersionFile => out[0] = 0,
             Call::ClientRect => out.copy_from_slice(&self.rect),
             Call::ClientToScreen => {
                 out[0] = args[0] + 50;
@@ -110,19 +151,6 @@ impl Device for Recorder {
     fn unresolved(&mut self, question: &'static str, args: &[u32], out: &mut [u32]) -> Result<()> {
         // Explicit test inputs at open proof boundaries, never claimed as native defaults.
         match question {
-            "RD6-ranking" => {
-                // Fixture: ordinary request 3 selects index 0, request 2 index 1.
-                out[0] = u32::from(args[0] == 2);
-            }
-            "RD9-stage-defaults" => {
-                out[3..7].copy_from_slice(&[0, 0, 3, 3]);
-            }
-            "RD8" | "RD8-restore" => {
-                for o in out {
-                    self.next += 0x10000;
-                    *o = self.next;
-                }
-            }
             "RD6" => {
                 if args.len() == 1 {
                     for o in out {
@@ -139,6 +167,11 @@ fn fixture() -> (Driver, Recorder) {
     let mut h = Recorder::default();
     let mut d = Driver::new(0x100, 0x200);
     d.device = 10;
+    d.dd = 11;
+    d.d3d = 12;
+    d.auxiliary_surfaces = [14, 13, 16];
+    d.current.words[1] = 800;
+    d.current.words[2] = 600;
     d.context.dd = 11;
     d.context.d3d = 12;
     d.context.device = 10;
@@ -164,6 +197,8 @@ fn fixture() -> (Driver, Recorder) {
     d.textures.formats = Some(
         [texture::Format {
             words: [0, 0, 0, 0, 0, 0, 32, 0],
+            alpha_bits: 8,
+            size: 32,
         }; 8],
     );
     d.textures.converters = Some([[true; 8]; 15]);
@@ -197,6 +232,7 @@ fn positions(h: &Recorder, call: Call) -> Vec<usize> {
 
 #[test]
 fn dx7_01_02_04_noops_and_identity() {
+    let mut h = Recorder::default();
     let mut d = Driver::new(0x100, 0x200);
     let mut b = true;
     let mut f = 3.25;
@@ -216,7 +252,7 @@ fn dx7_01_02_04_noops_and_identity() {
     assert_eq!(d.refs, 1);
     assert!(d.query_interface(0x09cd86f9, Some(&mut out)).unwrap());
     assert_eq!(d.refs, 1);
-    assert_eq!(d.primitives.refs, 1);
+    assert_eq!(d.primitives.refs, 2);
     for (iid, token) in [
         (1, 0x10c),
         (0x669565fe, 0x100),
@@ -227,7 +263,7 @@ fn dx7_01_02_04_noops_and_identity() {
         assert_eq!(out, token);
     }
     assert_eq!(d.refs, 5);
-    assert_eq!(d.release(), 4);
+    assert_eq!(d.release(&mut h), Ok(4));
     assert_eq!(d.add_ref(), 5);
     assert_eq!(d.class_id(), crate::gdrivers_director::FOREIGN_DX7_CLASS);
     assert_eq!(
@@ -369,7 +405,7 @@ fn dx7_12_flip_fallback() {
     let counts: Vec<_> = h
         .calls
         .iter()
-        .filter(|c| c.call == Call::CreateSurface)
+        .filter(|c| c.call == Call::CreateSurface && matches!(c.args[0], 1 | 0x21))
         .map(|c| c.args[2])
         .collect();
     assert_eq!(counts, [2, 1, 0]);
@@ -404,7 +440,13 @@ fn dx7_15_modes_and_descriptor_enrichment() {
     let mut before = [0; 13];
     d.mode_info(0, &mut before);
     assert_eq!(&before[4..8], &[0; 4]);
-    d.textures.formats = Some([texture::Format::default(); 8]);
+    d.textures.formats = Some(
+        [texture::Format {
+            words: [0, 0, 0, 0, 0, 0, 32, 1],
+            alpha_bits: 8,
+            size: 32,
+        }; 8],
+    );
     d.textures.converters = Some([[true; 8]; 15]);
     d.set_video_mode(0, 0, false, 0x9000, &mut h).unwrap();
     let mut after = [0; 13];
@@ -738,8 +780,9 @@ fn primitive_copy_merge_immediate_overtake_and_failure_paths() {
     assert!(positions(&h, Call::Draw)[0] < positions(&h, Call::DrawBuffer)[0]);
     d.interleaved_arrays(33, 24, 0x4000);
     d.draw_arrays(0, 0, 3, &mut h).unwrap();
-    assert_eq!(d.get_error(), 1);
-    assert!(d.primitives.entries.is_empty());
+    assert_eq!(d.get_error(), 0);
+    assert_eq!(d.primitives.entries.len(), 1);
+    d.primitives.flush(&mut h);
     d.interleaved_arrays(11, 32, 0x4000);
     h.write(0x9000, &[2, 3, 4]).unwrap();
     d.draw_elements(0, 3, 1, 0x9000, &mut h).unwrap();
@@ -879,6 +922,7 @@ fn stage_coordinates_matrices_environments_and_capability_gate() {
 
 #[test]
 fn lifecycle_initialization_info_noop_and_known_light_fields() {
+    let _guard = INFO_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut d = Driver::new(0x100, 0x200);
     let mut h = Recorder::default();
     h.write(0x7000, b"Test").unwrap();
@@ -906,7 +950,7 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
     assert_eq!(light.attenuation, [0.; 3]);
     assert_eq!(light.theta.to_bits(), 0x3f47ae14);
     assert_eq!(light.phi.to_bits(), 0x3fc8f5c3);
-    assert_eq!(light.range, None);
+    assert_eq!(light.range.to_bits(), 0x5f7fffff);
     assert_eq!(d.auxiliary_operation(), Err(Error::Unsupported("RD7")));
     let mut untouched = 0xfeed;
     d.pixel_store(0, 123);
@@ -922,6 +966,7 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
 
 #[test]
 fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
+    let _guard = INFO_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     for call in [Call::RegisterClass, Call::CreateDirectDraw, Call::AdapterInfo] {
         let mut d = Driver::new(0x100, 0x200);
         let mut h = Recorder::default();
@@ -937,7 +982,7 @@ fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
         assert_eq!(d.current.words[0], u32::MAX);
         assert!(d.modes.is_empty());
         if call == Call::AdapterInfo {
-            assert_eq!(result, Err(Error::Unsupported("RD9-info")));
+            assert_eq!(result, Ok(()));
             assert_eq!(h.refs.len(), 1);
             assert_eq!(h.refs[0].1, Op::Release);
         } else {
@@ -962,7 +1007,7 @@ fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
     d.draw_arrays(0, 0, 3, &mut h).unwrap();
     let device = d.device;
     let buffer = d.primitives.buffer.token;
-    assert_eq!(d.shutdown(&mut h), Err(Error::Unsupported("RD9-shutdown")));
+    assert_eq!(d.shutdown(&mut h), Ok(()));
     assert!(!d.initialized);
     assert!(!d.ready);
     assert!(!d.scene);
@@ -972,7 +1017,7 @@ fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
     assert_eq!(d.window, 0);
     assert_eq!(d.current.words[0], u32::MAX);
     // The fixture gives the context and texture manager separate device references.
-    for (token, count) in [(device, 2), (buffer, 1)] {
+    for (token, count) in [(device, 3), (buffer, 1)] {
         assert_eq!(h.refs.iter().filter(|r| **r == (token, Op::Release)).count(), count);
     }
     assert!(positions(&h, Call::EndScene)[0] < positions(&h, Call::DestroyWindow)[0]);
@@ -981,6 +1026,9 @@ fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
     d.shutdown(&mut h).unwrap();
     assert_eq!(h.calls.len(), count);
 }
+
+#[path = "closure_tests.rs"]
+mod closure_tests;
 
 #[test]
 fn context_failure_does_not_release_borrowed_entry_or_stale_output() {
@@ -1013,7 +1061,12 @@ fn compressed_descriptor_preference_and_ordinary_fallback() {
         .map(|key| {
             let mut words = [0; 8];
             words[7] = key;
-            texture::Format { words }
+            words[6] = if key == 0 { 16 } else { 24 };
+            texture::Format {
+                words,
+                alpha_bits: if key == 0 { 1 } else { 4 },
+                size: 32,
+            }
         })
         .collect();
     for (request, key) in [(5, 9), (6, 11), (7, 13)] {
