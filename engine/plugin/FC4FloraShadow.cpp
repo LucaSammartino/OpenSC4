@@ -559,7 +559,8 @@ void FloraShadowStartup(bool simulatorReplaced, bool floraReplaced) {
             "and their acceptance, cluster merges (counted as vanished / new), wild seeds, the generator state; "
             "nor the family map, the type sets of slots 8, 10, 13, 14, flag bits 3-7, the key-0 record's flags "
             "and plop cost; a pass that wraps the iterator twice. One registry line, one month line and one "
-            "census line by stage and type",
+            "census line by stage and type; flora-static-shadow and flora-occupant-shadow report the separate "
+            "owner comparisons (same default-off flora_shadow key)",
             src);
     } else {
         Log("flora shadow: requested (flora_shadow from %s) but INACTIVE: it needs FreeCity4's simulator and the "
