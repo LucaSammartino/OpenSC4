@@ -37,12 +37,26 @@ class WriteCapture final : public cFC4ISC4DBSegmentOStream {
 public:
     // Opt-in for occupant property holders, using the traffic shadow's
     // foundations §9.2 variant capture path. Other shadows keep their defaults.
-    explicit WriteCapture(bool variants = false) : variants_(variants) {}
+    explicit WriteCapture(bool variants = false, bool holdReferences = false)
+        : variants_(variants), holdReferences_(holdReferences) {}
+    ~WriteCapture();
+    WriteCapture(const WriteCapture&) = delete;
+    WriteCapture& operator=(const WriteCapture&) = delete;
+    WriteCapture(WriteCapture&& other) noexcept;
+    WriteCapture& operator=(WriteCapture&& other) noexcept;
+    // Recursive owner scans cannot borrow references: a writer may release a
+    // temporary interface before replay. holdReferences pins each registered
+    // serializable until the next Capture or destruction. Other shadows retain
+    // their existing message-scoped borrowing policy.
     // Runs `obj`'s Write (the cIGZSerializable reference QueryInterface gives
     // is released); false when it does not answer, Write returns false or the
     // stream saw something it cannot hold. `answered` (optional): whether it
     // answered cIGZSerializable.
     bool Capture(cIGZUnknown* obj, bool* answered = nullptr);
+
+    // LR12: isolated payloads sharing one observation-wide reference mapping.
+    // The caller owns QI/Write/release and must check GetError after Write.
+    void BeginRecord() { bytes_.clear(); good_ = true; }
 
     const std::vector<uint8_t>& Bytes() const { return bytes_; }
     // Reference `id` (1-based as written): its cISC4SimGrid identity
@@ -102,8 +116,10 @@ private:
     };
     bool Put(const void* p, size_t n);
     bool PutStr(const char* s, size_t n);
+    void ClearReferences();
 
     bool variants_ = false;
+    bool holdReferences_ = false;
     std::vector<uint8_t> bytes_;
     std::vector<Ref> refs_;
     std::unordered_map<const void*, size_t> index_;  // object -> refs_ index (records with many references)

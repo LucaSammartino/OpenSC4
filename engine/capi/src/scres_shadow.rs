@@ -1,9 +1,57 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Private static-link transport for actual native adapter read observations.
-//! This is partial sc-resources coverage, not a parser/writer/image shadow.
+//! Private static-link transport for native adapter and command-token observations.
+//! Partial sc-resources coverage; no image, graph writer or parser-state parity claim.
 use fc4_core::persistence_runtime::{Field, Key, SerialRecord};
 use fc4_core::sc_resources::token::{BinaryIo, Descriptor, TextIo};
 use std::io::Cursor;
+
+/// Length-delimited copies of borrowed native strings; never native STL layouts.
+#[repr(C)]
+pub struct ParserBytes {
+    pub bytes: *const u8,
+    pub length: usize,
+}
+
+fn compare_parser(line: &[u8], tokens: &[&[u8]]) -> u32 {
+    // Compare at ParseCommandArguments ENTRY, before variable substitution.
+    // parse_arguments also substitutes, so use the production lexical service
+    // used by CommandParser::parse, retaining unresolved variable references.
+    match fc4_core::sc_resources::lexical::split(line) {
+        Ok(expected) => {
+            u32::from(expected.len() != tokens.len() || expected.iter().zip(tokens).any(|(a, b)| a.bytes != *b))
+        }
+        Err(_) => 2, // Native reached argument dispatch with a lexical error.
+    }
+}
+
+/// Private static-link observer, not part of fc4.h or the public DLL exports.
+/// # Safety
+/// All byte spans and the array must remain readable throughout this call.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_scres_parser_compare(line: ParserBytes, tokens: *const ParserBytes, count: usize) -> u32 {
+    unsafe fn bytes<'a>(value: &ParserBytes) -> Option<&'a [u8]> {
+        if value.length > 1024 * 1024 || (value.length != 0 && value.bytes.is_null()) {
+            None
+        } else if value.length == 0 {
+            Some(&[])
+        } else {
+            Some(std::slice::from_raw_parts(value.bytes, value.length))
+        }
+    }
+    if count > 4096 || (count != 0 && tokens.is_null()) {
+        return 16;
+    }
+    let Some(line) = bytes(&line) else { return 16 };
+    let native = if count == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(tokens, count)
+    };
+    let Some(tokens) = native.iter().map(|t| bytes(t)).collect::<Option<Vec<_>>>() else {
+        return 16;
+    };
+    compare_parser(line, &tokens)
+}
 
 #[repr(C)]
 pub struct Observation {
@@ -121,6 +169,18 @@ pub unsafe extern "C" fn fc4_scres_shadow_compare(observation: *const Observatio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn natural_command_entry_preserves_variables_and_grouped_tokens() {
+        assert_eq!(
+            compare_parser(b"set x (hello world) # ignored", &[b"set", b"x", b"hello world"]),
+            0
+        );
+        assert_eq!(compare_parser(b"set y ${x}", &[b"set", b"y", b"${x}"]), 0);
+        assert_eq!(compare_parser(b"set x 12", &[b"set", b"x", b"13"]), 1);
+        assert_eq!(compare_parser(b"set x (unterminated", &[b"set"]), 2);
+        assert_eq!(compare_parser(b"# empty", &[]), 0);
+    }
 
     fn observation(text: bool, slot: u32, bytes: &[u8], after: &[u8]) -> Observation {
         let mut o = Observation {

@@ -4,6 +4,8 @@
 #include <cstdio>
 
 extern "C" uint32_t fc4_overlays_observe(const uint32_t*, uint32_t, uint32_t*) { return 0; }
+extern "C" uint32_t fc4_overlays_replay_decal(const uint32_t*, uint32_t*) { return 0; }
+extern "C" void fc4_date_from_julian(int32_t, fc4_date*) {}
 namespace fc4 { void Log(const char*, ...) {} }
 
 int main() {
@@ -42,6 +44,17 @@ int main() {
     if (capture.Cells()) return 11;
     node0[0] = 0; node0[1] = 2;
     if (capture.Cells()) return 12;
+    // OV14-B: retained static storage, even poisoned extents, is inactive.
+    capture.header[5] = 0x100;
+    capture.header[0xe4 / 4] = UINT32_MAX;
+    capture.header[0xe8 / 4] = 0x80000000;
+    capture.header[0xec / 4] = 0x7fffffff;
+    capture.header[0xf0 / 4] = 1;
+    capture.header[0xf4 / 4] = 0;
+    capture.wire.clear();
+    if (!capture.Cells() || capture.wire != std::vector<uint32_t>({0})) return 13;
+    capture.header[5] = 0;
+    if (capture.Cells()) return 14;
     std::puts("overlays observer safeguards: PASS (extents, FIFO zero links, mutation, lists, cycles, invalid pointers)");
     return 0;
 }

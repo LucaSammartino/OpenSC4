@@ -149,6 +149,24 @@ fn run<T: GridElem>(record: &[u8], op: u32, a: &[i32], data: &[u8]) -> Option<Ve
             out.put_u32(g.instance_id());
             return Some(out.into_bytes());
         }
+        14 => {
+            // SG3 record-only observation: independently read the entire saved
+            // grid, then answer the same metadata/tract getters as the native
+            // interface. This is not a retained-state algorithm differential.
+            out.put_u32(g.instance_id());
+            for v in [geom.tract_size, geom.shift, geom.count_x, geom.count_z] {
+                out.put_i32(v);
+            }
+            for v in [geom.width_x, geom.width_z, geom.inv_width_x, geom.inv_width_z] {
+                out.put_f32(v);
+            }
+            for x in 0..geom.count_x {
+                for z in 0..geom.count_z {
+                    g.get(x, z).put(&mut out);
+                }
+            }
+            return Some(out.into_bytes());
+        }
         _ => return None,
     }
     if !g.write(&mut out) {
@@ -215,6 +233,39 @@ pub unsafe extern "C" fn fc4_simgrids_verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn full_record_observation_preserves_loaded_geometry_and_all_signed_bits() {
+        let g = SimGrid::<i16>::create(&CityDims::square(8), 0x49d5bc42, 2);
+        g.set(0, 0, i16::MIN);
+        g.set(3, 2, -7);
+        let mut w = ByteWriter::new();
+        assert!(g.write(&mut w));
+        // Restored geometry is authoritative, even when not recomputable from S.
+        let mut record = w.into_bytes();
+        record[11..15].copy_from_slice(&3_i32.to_le_bytes());
+        record[27..31].copy_from_slice(&19.5_f32.to_le_bytes());
+        let result = run::<i16>(&record, 14, &[0; 4], &[]).unwrap();
+        assert_eq!(&result[..36], &record[7..43]);
+        assert_eq!(&result[36..], &record[43..]);
+        assert_eq!(&result[36..38], &i16::MIN.to_le_bytes());
+        assert_eq!(&result[36 + 14 * 2..36 + 15 * 2], &(-7_i16).to_le_bytes());
+        // A changed tract must affect the observation, not only its metadata.
+        record[43 + 31] ^= 0x80;
+        assert_ne!(run::<i16>(&record, 14, &[0; 4], &[]).unwrap(), result);
+    }
+
+    #[test]
+    fn full_record_observation_keeps_float_bits_including_negative_zero() {
+        let g = SimGrid::<f32>::create(&CityDims::square(4), 9, 2);
+        for (i, bits) in [0x80000000, 0x7fc01234, 0xff800000, 0x3f800001].into_iter().enumerate() {
+            g.set((i / 2) as i32, (i % 2) as i32, f32::from_bits(bits));
+        }
+        let mut w = ByteWriter::new();
+        assert!(g.write(&mut w));
+        let result = run::<f32>(w.bytes(), 14, &[0; 4], &[]).unwrap();
+        assert_eq!(&result[36..], &w.bytes()[43..]);
+        assert!(run::<f32>(&w.bytes()[..w.bytes().len() - 1], 14, &[0; 4], &[]).is_none());
+    }
     #[test]
     fn retained_state_detects_external_mutation_and_keeps_typed_high_bits() {
         let g = SimGrid::<u64>::create(&CityDims::square(8), 77, 2);

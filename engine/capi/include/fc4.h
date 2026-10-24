@@ -182,8 +182,10 @@ extern "C" {
  * 88 = merge-train batch train108 (core-player-drive4, core-persist-runtime4, verify-dbpf-native4, core-legacy-control4): merged (no C ABI history entry of its own)
  * 89 = merge-train batch train155 (re-lotcfg-editor5, glue-netmgr-exact5, re-citytools-ct5, re-effects-ef5, re-view3dwin-vw5): merged (no C ABI history entry of its own)
  * 90 = merge-train batch train167 (glue-netrules-finish5, re-overlays-ov12, glue-rzstrings-shadow5, core-lot-models5): merged (no C ABI history entry of its own)
- * 91 = merge-train batch train169 (glue-automata-ext5): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 91u
+ * 91 = merge-train batch train169 (glue-automata-ext5): merged (no C ABI history entry of its own)
+ * 92 = merge-train batch train173 (re-weather-we1, re-effects-ef18, glue-ordinance-shadow6, glue-lotconf-sim-shadow6, glue-simgrid-lotrec5): merged (no C ABI history entry of its own)
+ * 93 = merge-train batch train176 (re-overlays-ov15, glue-simgrid-label6, core-effects-close6, glue-overlays-live6): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 93u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12907,6 +12909,22 @@ uint32_t fc4_network_rules_snapshot(const fc4_network_rules* r, uint32_t type, u
 int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint32_t index,
                                 const fc4_network_rules_capture* capture,
                                 fc4_network_rules_output* out, uint32_t cap);
+#ifdef __cplusplus
+}
+#endif
+
+/* Independent lot-configuration Load projection (record-only shadow). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_lot_configuration_fields {
+    uint32_t width, depth, zones, wealths, purposes, growth_stage;
+    uint32_t water, construction, roads;
+    float max_slope, min_slope, foundation_slope;
+} fc4_lot_configuration_fields;
+bool fc4_lot_configuration_project(const fc4_props* exemplar, uint32_t detail,
+                                  fc4_lot_configuration_fields* out,
+                                  fc4_lotdev_cfg_object_callback visit, void* ctx);
 #ifdef __cplusplus
 }
 #endif

@@ -71,3 +71,8 @@ void AutomataShadowCityLoaded(cISC4City* city, int32_t julian);
 void AutomataShadowCityShutdown();
 // SimNewMonth, with the game date (0 = none).
 void AutomataShadowMonth(int32_t julian);
+
+class cIGZUnknown;
+namespace fc4 {
+intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid);
+}

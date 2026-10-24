@@ -3,6 +3,8 @@
 #include "FC4OverlaysObservation.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Watchdog.h"
+#include "fc4.h"
 #include "cISC4City.h"
 #include "cISTETerrain.h"
 #include "cISTETerrainView.h"
@@ -67,7 +69,7 @@ void Sample(cISC4City* city, const char* phase, int32_t julian) {
     uint32_t differences = 0, managers = 0;
     for (uint32_t type = 0; type < 4; ++type) {
         auto* manager = view ? view->GetOverlayManager(static_cast<cISTETerrainView::tOverlayManagerType>(type)) : nullptr;
-        OverlaysObservationSample(manager, type, phase, julian);
+        OverlaysObservationSample(manager, type, phase, julian, SettingInt("overlays_fixture", nullptr, 0) != 0);
         if (!manager || !coreOK) {
             differences += 25;  // Unavailable comparisons never count as exact.
             continue;
@@ -85,8 +87,10 @@ void Sample(cISC4City* city, const char* phase, int32_t julian) {
     if (differences == 0) ++g_clean;
     g_fields += 100;
     g_differences += differences;
-    Log("overlays contract shadow: %u/100 mismatches=%u managers=%u phase=%s julian=%d scope=sentinels",
-        100 - differences, differences, managers, phase, julian);
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("overlays shadow %04d-%02d-%02d contract phase=%s: %u/100 mismatches=%u managers=%u julian=%d scope=sentinels",
+        date.year, date.month, date.day_of_month, phase, 100 - differences, differences, managers, julian);
 }
 }
 
@@ -110,7 +114,7 @@ void OverlaysShadowOnTick(cISC4City* city) {
         if (!view->GetOverlayManager(static_cast<cISTETerrainView::tOverlayManagerType>(type))) return;
     }
     g_loadPending = false;
-    Sample(city, "load", 0);
+    Sample(city, "load", static_cast<int32_t>(PublishedJulian()));
 }
 void OverlaysShadowMonth(cISC4City* city, int32_t julian) {
     OverlaysShadowOnTick(city);
@@ -119,9 +123,9 @@ void OverlaysShadowMonth(cISC4City* city, int32_t julian) {
 void OverlaysShadowCityShutdown() {
     if (g_enabled) {
         // A city that never exposes its managers must not yield a vacuous pass.
-        if (g_loadPending) Sample(nullptr, "load-unavailable", 0);
+        if (g_loadPending) Sample(nullptr, "load-unavailable", static_cast<int32_t>(PublishedJulian()));
         OverlaysObservationSummary();
-        Log("overlays contract shadow: %u/%u lines exact mismatches=%llu fields=%llu scope=sentinels",
+        Log("overlays contract summary: %u/%u lines exact mismatches=%llu fields=%llu scope=sentinels",
             g_clean, g_lines, static_cast<unsigned long long>(g_differences), static_cast<unsigned long long>(g_fields));
     }
     g_enabled = false;
