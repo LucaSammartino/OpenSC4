@@ -447,6 +447,3 @@ fn ms18_16_first_boarding_vehicle_failure_does_not_try_second() {
         ]
     );
 }
-
-
-

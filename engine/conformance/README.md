@@ -7,7 +7,7 @@ integration tests in `tests/mysim_dispatch.rs`, named `ms17_01` through `ms17_08
 They use the public dispatch API with foreign scripted services and real record
 streams. Vector 06 covers the dispatch request portion; MySim-owned state/sound
 handling remains outside this owner's closure. MS18's new executable vectors
-live in `tests/mysim_dispatch_ms18.inc.rs`, included by the same integration
+live in `tests/support/mysim_dispatch_ms18.rs`, included by the same integration
 test. They cover all 42 unequal ordinary mode pairs, switch fallback, sentinels,
 strict delay expiry, stuck ordering, idle recovery, callback identity, approach
 equality, pending player entry, mission exit and assigned constructor defaults.

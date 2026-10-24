@@ -11,7 +11,7 @@ use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, ResKey, Sa
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-#[path = "mysim_dispatch_ms18.inc.rs"]
+#[path = "support/mysim_dispatch_ms18.rs"]
 mod closure;
 
 #[derive(Default)]
