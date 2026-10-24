@@ -37,6 +37,3 @@
 <!-- from: core-uiwin-close13 (2026-10-24) -->
 - **WT13 - sections 12 and 14.7 cGZFadeTmpWin destructor:** section 12 explicitly leaves this derived destructor unspecified. Does it add any teardown beyond the settled base destructor and deleting-wrapper flag contract in section 8.1? Please publish any derived reference effects and deleting-wrapper behavior. [implement the specified constructor, StealBuffer and Plot plus inherited base lifetime; leave derived destructor closure open]
 
-<!-- from: core-uiwin-close13 (2026-10-24) -->
-- **WT14 - sections 12 and 14.5 opaque graphics and slot 150:** section 12 explicitly leaves graphics slot meanings and create_private_buffer internals unsettled. Please publish the allocation/replacement/failure and ownership contract of concrete slot 150 and any further base-owned operations hidden by the opaque graphics calls. [execute the specified ordered calls via Host/NativeOp, propagate allocation failure as specified; do not invent concrete allocation or opaque service implementation]
-

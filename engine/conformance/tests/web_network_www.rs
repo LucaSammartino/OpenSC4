@@ -29,6 +29,8 @@ mod tests {
         time: u32,
         ftp_submission: Option<u32>,
         ftp_calls: Vec<Vec<u8>>,
+        request_cookie_reply: Option<Vec<u8>>,
+        cookie_lookups: usize,
     }
     impl Default for Fake {
         fn default() -> Self {
@@ -56,6 +58,8 @@ mod tests {
                 time: 1000,
                 ftp_submission: None,
                 ftp_calls: vec![],
+                request_cookie_reply: None,
+                cookie_lookups: 0,
             }
         }
     }
@@ -141,7 +145,8 @@ mod tests {
             std::str::from_utf8(text).unwrap().parse().unwrap()
         }
         fn request_cookies(&mut self, _: &[u8]) -> Option<Vec<u8>> {
-            None
+            self.cookie_lookups += 1;
+            self.request_cookie_reply.clone()
         }
         fn response_cookie(&mut self, _: &[u8], text: &[u8]) {
             self.cookies.push(text.to_vec());
@@ -177,6 +182,88 @@ mod tests {
             strings: [b"http://host/x".to_vec(), b"payload".to_vec(), vec![]],
             file,
             redirects: 0,
+        }
+    }
+    #[test]
+    fn www21_null_target_skips_entire_suffix() {
+        for success in [false, true] {
+            let mut w = service();
+            let mut h = Fake::default();
+            w.active.push(Job {
+                id: 1,
+                foreign: 7,
+                url: b"same".to_vec(),
+                target: None,
+                ..Job::default()
+            });
+            w.waiting.push(Job {
+                id: 2,
+                url: b"same".to_vec(),
+                target: Some(9),
+                ..Job::default()
+            });
+            let mut r = resource(true);
+            let original = r.clone();
+            assert_eq!(w.complete_http(&mut h, Some(7), success, Some(&mut r)), Ok(true));
+            assert!(w.active.is_empty());
+            assert_eq!(w.waiting.len(), 1);
+            assert_eq!(r, original);
+            assert!(h.callbacks.is_empty());
+            assert!(h.insertions.is_empty());
+            assert!(h.cookies.is_empty());
+            assert_eq!(h.reads, 0);
+        }
+    }
+    #[test]
+    fn www22_cookie_record_construction() {
+        for (enabled, reply, lookups) in [
+            (0, Some(b"a=1; b=2".to_vec()), 0),
+            (1, None, 1),
+            (1, Some(b"a=1; b=2".to_vec()), 1),
+            (1, Some(vec![]), 1),
+        ] {
+            let mut w = service();
+            w.cookies = enabled;
+            let mut h = Fake {
+                request_cookie_reply: reply.clone(),
+                ..Fake::default()
+            };
+            w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
+            assert_eq!(h.cookie_lookups, lookups);
+            let copied: Vec<_> = h
+                .http_effects
+                .iter()
+                .filter_map(|effect| {
+                    if let http::Effect::CopyHeaders(headers) = effect {
+                        Some(headers.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let submitted = if enabled != 0 {
+                reply
+                    .clone()
+                    .map(|value| vec![vec![(b"Cookie".to_vec(), value)]])
+                    .unwrap_or_default()
+            } else {
+                vec![]
+            };
+            assert_eq!(copied, submitted); // True/empty still submitted exactly one record.
+            let req = w.http.requests.values().next().unwrap();
+            // The temporary one-record input is copied before admission; GET then
+            // removes an empty first value (§4.14), even for a true cookie lookup.
+            let expected = if enabled != 0 {
+                reply
+                    .filter(|v| !v.is_empty())
+                    .map(|v| vec![(b"Cookie".to_vec(), v)])
+                    .unwrap_or_default()
+            } else {
+                vec![]
+            };
+            assert_eq!(req.headers, expected);
+            h.request_cookie_reply = Some(b"changed".to_vec());
+            assert_eq!(req.headers, expected);
         }
     }
     #[test]

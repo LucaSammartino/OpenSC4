@@ -25,4 +25,25 @@ struct LotRecordObservation {
     }
     uint32_t Mismatches() const { return errors + differences; }
 };
+
+// LR15: validate the native circular list without hiding duplicate/null values.
+// Query success and payload success are independent. A bounded traversal also
+// rejects detached cycles; malformed lists must never yield an exact census.
+template<class Node, class Capture>
+bool ObserveRegisteredList(Node* root, bool queried, LotRecordObservation& s, Capture capture) {
+    if (!root) { ++s.errors; return false; }
+    std::unordered_set<Node*> nodes;
+    Node* previous = root;
+    for (Node* node = root->next; node != root; node = node->next) {
+        if (!node || node->prev != previous || !nodes.insert(node).second || nodes.size() > 1000000) {
+            ++s.errors; return false;
+        }
+        ++s.expected;
+        if (s.Visit(node->value)) capture(node->value);
+        previous = node;
+    }
+    const bool complete = queried && root->prev == previous;
+    if (!complete) ++s.errors;
+    return complete;
+}
 }

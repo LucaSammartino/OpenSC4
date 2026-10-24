@@ -25,8 +25,8 @@ fn constructor_payload() -> Vec<u8> {
 fn assigned_byte(index: usize) -> bool {
     // §7.2.3: +20 location tuning, +28 opaque word, +2C/+30 leg
     // indices and +58 retry count have no promised constructor stores.
-    // Auxiliary +10/+FC/+100 are also unpromised: compare only the
-    // prefix through four locations, without assuming a tail ref shape.
+    // MS22: +10 remains unpromised. +FC and +100 are compared semantically
+    // after the plugin decodes references, without assuming their byte width.
     index < 229 && !matches!(index, 4 | 17..=20 | 25..=36 | 73..=76)
 }
 
@@ -61,6 +61,30 @@ fn expected() -> [u32; 7] {
     ]
 }
 
+// Private snapshot-contract checks. These are not independent trip replay:
+// the ABI has no observer for direct requests/ordered services (MS20).
+#[no_mangle]
+unsafe extern "C" fn fc4_mysimdispatch_shadow_auxiliary(native: *const u32) -> u32 {
+    if native.is_null() {
+        return u32::MAX;
+    }
+    // SAFETY: plugin supplies [auxiliary-reference-is-null, auxiliary-scalar].
+    let values = unsafe { std::slice::from_raw_parts(native, 2) };
+    u32::from(values[0] != 1) + u32::from(values[1] != DispatchState::default().auxiliary_value)
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_mysimdispatch_shadow_live_range(native: *const u32) -> u32 {
+    if native.is_null() {
+        return u32::MAX;
+    }
+    // SAFETY: plugin supplies [exclusive end, inclusive start, marker count]
+    // only for initialized route-ready dispatches. Empty/exhausted is valid.
+    let values = unsafe { std::slice::from_raw_parts(native, 3) };
+    let (end, start, count) = (values[0] as i32, values[1] as i32, values[2]);
+    u32::from(start < 0) + u32::from(end < start) + u32::from(end < 0 || end as u32 > count)
+}
+
 // Private static-link transport; no public C ABI export or header entry.
 #[no_mangle]
 unsafe extern "C" fn fc4_mysimdispatch_shadow_compare(native: *const u32, constructor: u32) -> u32 {
@@ -76,6 +100,21 @@ unsafe extern "C" fn fc4_mysimdispatch_shadow_compare(native: *const u32, constr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ms22_auxiliary_semantics_and_ms21_live_header_bounds() {
+        assert_eq!(unsafe { fc4_mysimdispatch_shadow_auxiliary([1, 0].as_ptr()) }, 0);
+        assert_eq!(unsafe { fc4_mysimdispatch_shadow_auxiliary([0, 7].as_ptr()) }, 2);
+        for range in [[2, 0, 5], [4, 3, 5], [5, 5, 5], [2, 2, 5]] {
+            assert_eq!(unsafe { fc4_mysimdispatch_shadow_live_range(range.as_ptr()) }, 0);
+        }
+        assert_eq!(unsafe { fc4_mysimdispatch_shadow_live_range([6, 0, 5].as_ptr()) }, 1);
+        assert_eq!(unsafe { fc4_mysimdispatch_shadow_live_range([2, 3, 5].as_ptr()) }, 1);
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_live_range([2, u32::MAX, 5].as_ptr()) },
+            1
+        );
+    }
 
     #[test]
     fn constructor_compares_all_and_only_promised_payload_bytes() {

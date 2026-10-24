@@ -1233,12 +1233,15 @@ the wheel again pushes state `0x10`). A replacement may reproduce the same "stuc
 **Aircraft.** There is a second, independent enum `cSC4Airplane::State` at `this+0x1FC`, written only by
 `cSC4Airplane::SetAirplaneState` `0x004FCEF0` (Mac `0x00495f8e`) and `cSC4Helicopter::SetHelicopterState`
 `0x00533DC0` (Mac `0x004aaa50`), values 0, 1, 3. `SetAirplaneState(1)` also sets `this+0x240 = 3` (ammo refill)
-and toggles AEMS sound groups 8 / 9 / 10 / `0xD`. **This is not the state stack** — it is a flight/ground phase,
-and it returns early if the value is unchanged. The stack is dispatched by `AI_PursueGoal`.
+and toggles AEMS sound groups 8 / 9 / 10 / `0xD`. **This is not the state stack** — it is a flight/ground phase.
+The airplane returns early if the phase is unchanged; the helicopter does not,
+and its setter handles phase 4 as well. Exact per-owner sound and engine actions
+are in aircraft.md §§3.5/4.2.3. The stack is dispatched by `AI_PursueGoal`.
 
 The airplane implements 50, 51, 53, 57; the helicopter implements 0, 50, 51, 52, 53, 54, 55, 56. **58
 `CROP_DUST` is name-only on both.** `LOITER` duration differs: the airplane pushes it with `-1.0` and
-self-terminates after a 2.0 s timer (`+0x23C`) plus one ammo decrement (`+0x240`); the helicopter pushes it with
+self-terminates when a 2.0 s remaining timer reaches **≤0**, plus one ammo decrement
+(aircraft.md §3.3.1 gives countdown order, read behavior and zero-ammo semantics); the helicopter pushes it with
 **6000.0 ms** from states 54/55/56. None of 50–58 other than 57 has an enter/exit hook.
 
 **Chase (52) and its `+0x28` ref.** Producer `cSC4AutomataManager::ChaseAutomaton`, manager slot 22 (2 args,
@@ -1248,9 +1251,10 @@ Windows `FUN_005072E0`): refuses if the chaser already has state `0x10`, flag `0
 (IID `0xA9B40F05`). Slot 21 (4 args, `FUN_00511260`) is the radius search that calls slot 22. The **only**
 consumer in the state machine is `cSC4Helicopter::AI_PursueGoal` case `0x34` (Windows `0x0053BBA0`, Mac
 `0x004b02c8`): pop if `+0x28` is null or the target's `GetTopStateType` (slot 59) is no longer `0x10`
-PLAYER_DRIVE; otherwise lead the target (`pos += orient · speed · 1000 · dt`), aim the spotlight, teleport when
+PLAYER_DRIVE; otherwise lead the target (`pos += orient · speed · 1000 · dt`, with dt already in **seconds**), aim the spotlight, teleport when
 too far and the opacity is 0, and hover 20 units above it when close (`AI_ControlHover` `0x005353C0`). An
-airplane handed a Chase state just pops it. `cSC4Automaton::GetChaseVector` (Mac `0x000bc4e6`) is the other
+airplane handed a Chase state just pops it. Aircraft.md §4.2.2 gives the exact 192/32 distance gates,
+opacity gates and teleport placement. `cSC4Automaton::GetChaseVector` (Mac `0x000bc4e6`) is the other
 reader of `+0x28`.
 
 ## 7. Calls other specs use *[compat]*

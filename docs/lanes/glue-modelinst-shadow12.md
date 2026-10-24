@@ -1,6 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | ready: merged shadow11 2b8dc5bcf; engine source 939c4bfa5; cargo 7375/0, clippy clean, CTest 81/81; run 520 clean static 73/73 to 2032-01-02; run 521 clean 145/145 (static 73/73, live 72/72) to 2032-01-01; ref_warnings=0; ABI unchanged; no new questions | (1) Review scoped coverage and append modelinst_shadow to existing regression shadows profile. (2) Extend unmeasured operations separately; no whole-owner credit. |
+| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | in progress: refreshing READY tip against origin/main b5f3bb118; previous cargo 7375/0, clippy clean, CTest 81/81; runs 520 and 521 exact to 2032; ABI unchanged | (1) Commit additive registration merge. (2) Run final all gate and confirming game run to 2032. (3) Refresh READY queue with full HEAD. |
+
+## Handoff
+
+- Goal: resolve the skipped READY tip against current origin/main, then gate and confirm in game.
+- Previous ready tip: 25e148fcdf7722d1ffabbaa69a950a6acb3f5f93; shadow11 and MI14 already implemented and measured below.
+- Current merge: origin/main b5f3bb118b66601e8898bfb4545716c287cc27f3; preserve construction_shadow and modelinst_shadow modules and every ini key.
+- Next: commit merge, run qbuild.py all once with foreground output under build-runs/, collect to terminal, then one unique confirming game run to 2032.
+- No new owner, spec question, ABI export, or coverage claim. No outstanding check or game request yet.
+- Detached HEAD is intentional; supervisor publishes commits. Do not change branch refs.
 
 ## Change and load diagnosis
 

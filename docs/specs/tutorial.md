@@ -425,7 +425,7 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   | `+0x08` | `task_first` | 1-based index of this tutorial's first task in the window's task vector (Lua `task_first`) |
   | `+0x0C` | `task_count` | how many tasks it owns (Lua `task_count`) |
   | `+0x10` | `active` | **the byte in question** (see below) |
-  | `+0x14` | `region_dir` | a `cRZString` (0x14 bytes), the region directory name, lowercased and prefixed (Lua `region_dir`) |
+  | `+0x14` | `region_dir` | a `cRZString` (0x14 bytes), the region directory name, lowercased (Lua `region_dir`; "" when it is not a string) |
   | `+0x24` | — | string internal, zeroed by the copy constructor, never read |
 
   **`+0x10` is `active`.** Set (1) = still due to run; clear (0) = completed / dismissed / not to be
@@ -451,10 +451,11 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   rebuilt), and `cSC4Nation::ResetTutorialCities` (call at `0x00499B99`). The reset callers are outside this class.
 
   **Registration and task lookup.** The registry is populated from Lua: `cSC4AdvisorSystem::reload_data`
-  (`0x0041A4F0`) calls `SetLua` (`0x004B7D70`) with the shared context, which runs `Init`. `Init` loads the
-  resource script **`tutorial_registry.lua`** and requires a global table `tutorial_registry`, then reads the
-  tables `tutorials`, `default_regions` and `regions` and the keys `order`, `task_first`, `task_count` and
-  `region_dir`. The tutorial GUID is the **integer key of the `tutorials` table** *[inferred]*. Tasks are **not**
+  (`0x0041A4F0`) calls `SetLua` (`0x004B7D70`) with the shared context, which runs `Init`. `Init` requires a
+  global table `tutorial_registry`, loading the resource script **`tutorial_registry.lua`** when it is missing,
+  then reads its sub-tables `default_regions` and `tutorials` (there is no `regions` table) and the keys `order`,
+  `task_first`, `task_count` and `region_dir`. The tutorial GUID is the **integer key of the `tutorials` table**
+  (confirmed: tutorial-registry.md §3.2). Tasks are **not**
   in the registry: it stores only the `task_first` / `task_count` slice. The window builds the actual
   `cSC4TutorialTask` objects (0xFC bytes each) from a Lua task script into its own vector, and the index formula
   used everywhere is
@@ -475,8 +476,9 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   | `endTutorial` | 0 (unconditional) | `0x0043F186` |
   | `Read` | the saved byte | `0x0043F2E0` (through the `cIGZSerializable` sub-object at `+0x10`) |
 
-  Still open: `cItem+0x24`, and `GetNextActive`'s "next" semantics when tutorials are completed out of
-  order. The Lua shape is **settled** (below), since `tutorial_registry.lua` is readable in the shipped scripts.
+  `cItem+0x24` is the last dword of the `region_dir` string, and `GetNextActive`'s "next" when tutorials are
+  completed out of order is in tutorial-registry.md §4.4 (the lowest active one above the highest completed one).
+  The Lua shape is **settled** (below), since `tutorial_registry.lua` is readable in the shipped scripts.
 
   **`tutorial_registry.lua` (the shipped script, 2026-10-16).** The global is a table with `default_regions`
   and `tutorials`, and three methods:
@@ -499,6 +501,7 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   | `0xEA5D6DC8` | 1 | `timbuktu` | Terraforming |
   | `0x0BFDB71B` | 2 | `timbuktu` | Making Money |
   | `0xCC02D3A3` | 3 | `timbuktu` | Big City |
+  | `0x2C12D0E9` | 4 | `timbuktu` | What's New (added 2026-10-23, re-tutreg7) |
 
   `add_default_region(0, 'timbuktu')` and `add_default_region(1, 'timbuktu')` cover the main build. Note the
   save-side GUID mapping of §3 (`0 → 0x8A5B7A6C`, `1 → 0xEA5D6DC8`) is a *different* thing: it maps the two

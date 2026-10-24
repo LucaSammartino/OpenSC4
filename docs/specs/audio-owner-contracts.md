@@ -83,8 +83,12 @@ QueryInterface accepts `1`, message-target IID `0x452294AA`, and `0xCA4A66B9`, r
 the object base and acquiring a reference. Other IDs return false. Init is idempotent;
 it subscribes city init `0x26D31EC1`, city shutdown `0x26D31EC2`, and tuning change
 `0xC53D10AA`. Shutdown removes those subscriptions and clears its initialized state.
-The decompiler's apparent unconditional null dereference during service assignment is not a
-usable failure contract; absent message-server behavior remains AU40.
+Init stores the acquired message-server reference, then dereferences it without a null gate
+(`0x004F13BC`). An absent framework/server therefore faults before setting initialized; it
+does not return false. Shutdown, when initialized, unsubscribes the three types in that order,
+clears/releases message server, clears/releases sound system, then clears initialized and
+returns true. An uninitialized Shutdown returns true without work. Destruction releases server,
+sound system and the four vector allocations in reverse member order; it does not call Shutdown.
 
 ### 18.2 Message dispatch
 
@@ -94,7 +98,7 @@ usable failure contract; absent message-server behavior remains AU40.
 | `0x26D31EC2` | Unsubscribe those two camera notifications and release the city sound-system reference. |
 | `0xA6B79602`, `0xA6B79612` | Update listener. |
 | `0xC53D10AA` | Read tuning, recalculate zoom, request sound-system event `0xAA36D9B6` if its city sound-system reference exists, then update listener. |
-| `0x230E27AC` | Invoke cheat-message helper. The helper's actual command interpretation is unsettled (AU40). |
+| `0x230E27AC` | Invoke cheat-message helper: QI for `0x65297976`, release the acquired view and return true; null input/missing view returns false. It interprets no command and changes no listener state (`0x004F1470`–`0x004F14A4`). |
 | Other non-null input | No action, return true. |
 
 The outer dispatcher returns true after recognized helper calls even if their own result is
@@ -103,11 +107,8 @@ Do not subscribe the listener to its own output `0x8A4A69C7`.
 
 ### 18.3 Position output and zoom arithmetic
 
-Listener update reads the camera position, look target, orientation and zoom index, and may use
-the terrain plane when locating the target. It updates sound-system listener orientation and
-position before considering whether to send a position notification. Complete camera-to-listener
-geometry and degenerate-vector behavior remain AU40; do not infer them from corrupted pointer
-expressions in pseudocode.
+The full geometry and failure rules are in [audio §18.4](audio.md#184-listener-geometry-tuning-and-failure-contract-au40).
+Sound-system listener orientation and position are updated before notification gating.
 
 The settled zoom rule is: for each of five indices, multiply the f32 value in the `+0x48`
 array by the f32 value in the `+0x3C` array, then by the f32 scalar at `+0x6C`, and store
@@ -115,9 +116,9 @@ the result as f32 in the corresponding process-global zoom-height entry. Instruc
 `0x004F18C3`–`0x004F1921` use x87 intermediates and round at the final f32 store; they
 do not store a rounded intermediate between the two multiplies. *[compat]*
 
-The notification threshold compares **squared** displacement from the last-notified position
+The notification threshold compares **squared camera** displacement from the saved camera position
 against the current zoom's f32 threshold. Only strictly greater sends; equality and unordered
-comparison do not (`0x004F1826`–`0x004F1845`). The saved notification position is updated
+comparison do not (`0x004F1826`–`0x004F1845`). The saved camera position is updated
 before message allocation. `0x004F1880`–`0x004F18A0` constructs a standard message:
 
 | Field | Value |
@@ -129,8 +130,9 @@ before message allocation. `0x004F1880`–`0x004F18A0` constructs a standard mes
 The payload is a pointer into listener state, not three copied message integers. Consumers must
 use the payload interface described in audio §3.2; persistence of a position snapshot must not be
 assumed. Sound-manager and ambience-manager consumers are linked in §17.2.
-Allocation failure and precise message delivery/lifetime require the remaining instruction
-audit in AU40; no successful notification is specified on allocation failure.
+The message is AddRef'd, filled, delivered through server `+0x10(message, 0)`, then Released;
+the server's return is ignored. Allocation failure reaches a null message dereference after
+saving the camera position (`0x004F1866`, `0x004F18BB`); it is not a recoverable false return.
 
 ## 19. SEM registration and the three emanation owners
 
@@ -145,15 +147,16 @@ at `+0x0C` and `+0x14`, and Hit manager at `+0x1C`. Destructor helper `0x004ED6A
 releases non-null retained references. Model creation/registration is in `0x004EDAA0`:
 failure to obtain Hit manager returns false; each model is allocated as 40 bytes and queried
 for lifecycle IID `0x89E51472`. Model initialization failure prevents later successful
-registration. Exact rollback/default state remains AU41.
+registration. Full construction, retained-state failure rules and teardown are
+[audio.md §19.2](audio.md#192-sem-lifetime-and-model-parameter-contract-au41).
 
 **Name caveat:** the export calls `0x004ED750` `Init`, but its observed effects are
 unregistration and teardown: remove model IDs `0x7DCDED2D`, `0x7DCDED3D`, `0x0A63A543`
 from Hit, query retained models for the lifecycle interface, call its shutdown slot, and release
 retained objects and Hit references. Do not implement this teardown as initialization merely
 because of the recovered name. Registration uses Hit slots 19/20 (`+0x4C` / `+0x50`).
-The full caller order remains AU41; the constructor and application integration must be checked
-before exposing these helpers as a replacement API.
+The director calls registration after Listener Init and teardown before Listener Shutdown;
+§19.2 specifies caller ordering and the null-Hit teardown quirk.
 
 ### 19.1 Shared model interface
 
@@ -166,15 +169,14 @@ missing ID is **`0x7DCDED3D`**, verified by `0x004ED9E7`; primary/secondary tabl
 | 0 | `0x004ED930` (all) | QI: `1` and `0xDDCF3BD7` return base; lifecycle IID `0x89E51472` returns `base+4`; success AddRefs. |
 | 1 / 2 | `0x004BDF00` / `0x004ED910` (all) | Shared reference operations; unrelated export class labels are folding artifacts. |
 | 3 | `0x004ED900` (all) | Model identifier getter; recovered class label is not semantic evidence. |
-| 4 | `0x004EDA60` (all) | Returns true without model work. |
-| 5 | `0x004ED210` / `0x004ED2A0` / `0x004ED3F0` | Parameter transformation; full numeric behavior AU41. |
-| 6 | `0x004ECDA0` / `0x004ECE70` / `0x004ECF90` | Model-specific companion operation; full semantics AU41. |
+| 4 | `0x004EDA60` (all) | Calls supplied object's slot 14 with embedded name view, ignores result, returns true; audio §19.2. |
+| 5 | `0x004ED210` / `0x004ED2A0` / `0x004ED3F0` | Parameter transformation; signed first division, logical final shift and projected effects pan: audio §19.2. |
+| 6 | `0x004ECDA0` / `0x004ECE70` / `0x004ECF90` | Ordered parameter copies and 3D/effects mode writes: audio §19.2. |
 
 These models do not read PCM files, issue window drawing, or handle game messages through this
 interface. They transform sound parameters for Hit. The 3D transformations transfer position
 parameters `0x20`–`0x22` and `0x40`–`0x42`; do not treat them as message IDs. Fixed-point
-volume/pan arithmetic, parameter flags and rounding are not yet settled sufficiently for a
-conformant implementation (AU41).
+volume/pan arithmetic, parameter flags, rounding and failure behavior are specified in audio §19.2.
 
 ## 20. Scape service and fire-handler boundary
 
@@ -201,9 +203,13 @@ Primary QI `0x004F5210` accepts `1`, soundscape IID `0x29E39DB4` (base), and ser
 | 7 | `0x004F65C0` | Keyed group operation; missing key returns false; inner behavior AU42. |
 | 8 | `0x004F6620` | Operate on groups whose saved flags contain every requested mask bit; mode-dependent cleanup AU42. |
 | 9–10 | `0x004F7850`, `0x004F7AF0` | Keyed instance operations; missing group clears instance output and returns false. |
-| 11 | `0x004F57B0` | Enumerate group positions into caller buffer, subject to capacity. Full capacity/output contract AU42. |
+| 11 | `0x004F57B0` | Enumerate positions: signed capacity check, failure preserves outputs, success copies raw records/metadata; audio §20.4. |
 | 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Additional instance/group operations; signatures and behavior AU42. |
 | 18 | `0x004F69E0` | Deleting destructor wrapping `0x004F62C0`. |
+
+Slot 13 `0x004F51E0` is the four-argument wrapper for dynamic slot 12: `(A,B,C,D)`
+becomes `(A,0,0,B,C,D)`, preserving its result. Audio §20.4 adds six capacity/dispatch
+vectors; the other operations and resource contract remain AU42.
 
 Service table slots 0–2 are adjustment thunks; slot 3 is `0x00407BA0`, slot 4
 `0x0070C880`, slot 5 `0x004F6230` returns `0x80000000`, slots 6/7 `0x004F6240` /
@@ -243,7 +249,9 @@ service using `(0x49E50BA1, 0x29E39DB4)`. Shutdown removes subscriptions, releas
 scape reference and clears its initialized state. It also removes its city-init subscription.
 Fire occupants are handed to the scape interface with sound identifier `0x49E4CE85`
 (`IterateFireOccupantCallback`, `0x004F0480`); the callback ignores a null occupant.
-Full method inventory, message dispatch, construction/defaults and removal behavior remain AU44.
+Full method inventory, message dispatch, construction/defaults and removal behavior are specified
+in [audio §7.4.1](audio.md#741-fire-handler-owner-contract-au44). In particular, Shutdown does
+not remove the scape group, and failed initialization does not roll back subscriptions.
 Section 7.4 establishes that the separate torch methods belong to the main event handler.
 
 ## 21. Audio preferences window
@@ -330,4 +338,5 @@ These are spec vectors for implementers; no executable tests or engine files are
 | AU9-14 | Escape from an accepted enabled preferences window | Cancel handler invoked; DoWinProcMessage returns false. |
 | AU9-15 | Same Escape from disabled or unrelated window | False with no cancel action. |
 
-AU40–AU44 need additional vectors when settled, especially numerical edge cases and failure rollback.
+AU40 and AU44 have additional vectors in audio §§18.4 and 7.4.1. AU41–AU43 still need
+additional vectors when settled, especially numerical edge cases and failure rollback.

@@ -133,8 +133,9 @@ def codex_command(m, schema, final, env):
             '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000',
             '-c', 'shell_environment_policy.set={GIT_CONFIG_COUNT="2",GIT_CONFIG_KEY_0="gc.auto",'
                   'GIT_CONFIG_VALUE_0="0",GIT_CONFIG_KEY_1="maintenance.auto",GIT_CONFIG_VALUE_1="false",'
-                  # 6 of 20 cores per lane's cargo, so a dozen lanes leave the train gate a CPU share
-                  'CARGO_BUILD_JOBS="6"}']
+                  # 3 jobs per lane's cargo: memory, not CPU, is the limit (2026-10-24, 13 lanes: ~25 rustc held
+                  # 53-60 GB, commit 98-99%, and the paged-out games stalled the regress) while CPU averaged 32%
+                  'CARGO_BUILD_JOBS="3"}']
     options = codex_defaults() | m.get('codex', {})
     if options.get('sandbox', 'workspace-write') != 'workspace-write':
         raise ValueError('Codex lanes require the scoped workspace permission profile')

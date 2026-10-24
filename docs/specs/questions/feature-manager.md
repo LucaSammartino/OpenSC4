@@ -9,11 +9,6 @@
   and 6, with return addresses, over one session would settle it. [reachability only: the spec's answers stand
   either way]
 
-<!-- from: re-featuremgr (2026-10-19) -->
-- **FM2 - §6:** the key `tutorial_registry`'s `add_default_region(n, dir)` writes into `default_regions`, and so
-  whether pack 1 reaches `timbuktu` through key 1 of the registry's map (`0x004B79A4`). Belongs with the tutorial
-  registry. [reachability only: the spec's answers stand either way]
-
 <!-- from: verify-feature-manager4 (2026-10-22) -->
 - **FM5 - §5.1 shipped input size:** the supported 1.1.641 game provider in
   `fm4-r1-query-1022-171537` reports pack 1 key `(0,0x8A5971C5,0x2B563701)`

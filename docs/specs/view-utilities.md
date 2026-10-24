@@ -526,7 +526,9 @@ indeterminate memory/floating exception paths are not replaced here by invented 
     Their generated frustum corners match; projection x of any point differs by −3×sx. Point-frustum
     tests use the changed bounds. No common-centre correction is allowed.
 18. **Conversion ties/overflow:** use the pixel-bound ties in §4.4 and centre(INT_MAX,INT_MAX)=−1;
-    Up(2147483647,64)=−2147483584 and Down(−65,−64)=0. Fault tests for block zero belong in
+    the integer stage of Up with n=2147483647, block=64 gives −2147483584. This is not a native
+    float32 entry input: converting 2147483647 to float32 supplies 2147483648, for which native Up
+    gives −2147483648 (§13.2). Down(−65,−64)=0. Fault tests for block zero belong in
     an isolated native harness, not an ordinary in-process portable geometry test.
 19. **Matrix orientation:** rows (1,2,3),(4,5,6),(7,8,9), vertex (1,2,4), kind4 produce (17,38,59).
     Kind5 with t=(10,20,30) gives (27,58,89); kind255, s=2 gives (44,96,148).
@@ -538,6 +540,28 @@ indeterminate memory/floating exception paths are not replaced here by invented 
     inclusive boundaries without deduplication. Reverse only the clip winding to distinguish the
     retained half-planes. A wholly disjoint polygon yields zero output vertices; the view wrapper's
     max.y still comes from corner3.
+22. **Min/max call frame:** four float32 slots (1,−2,3,−4), in that argument order, give −4/+3
+    for min/max. Caller removes 16 argument bytes; no receiver is needed. Store ST(0) to float32
+    before comparing the words `0xC0800000`/`0x40400000`. Four quiet NaNs give
+    `0x7F7FFFFF`/`0xFF7FFFFF`. With (+0,−0,+0,−0), both give positive zero; with
+    (−0,+0,−0,+0), both give negative zero. Equal values do not replace the first selected zero.
+23. **Scalar entry width:** RoundUp(float32 word `0x4F000000`,64), captured to float64, is
+    exactly −2147483648; RoundUp(float32 word `0x4EFFFFFF`,64) is exactly 2147483520.
+    These are distinct from the internal INT_MAX vector in test 18. RoundDown(−65,64)=−128
+    with either float32 or float64 capture. For ViewportUnitsToWorldUnits, local metresPerPixel=2
+    and float32 input 3 give 6; thiscall removes four argument bytes and leaves the object unchanged.
+24. **Receiver-independent callee cleanup:** angle arguments (rotation=1,zoom=4,three distinct
+    float32 outputs) produce test 1 and remove 20 argument bytes, with no receiver. The tolerant
+    ground-plane predicate on origin (3,2,4), direction (0,1,0), local output returns AL=1,
+    output (3,0,4), and removes 12 argument bytes. Do not infer a meaningful upper EAX word.
+25. **Isolation and binding:** snapshot all 0x470 owner bytes around each R-class call in §13.1,
+    use disjoint local outputs, and require byte equality of the owner. For visible-area queries on
+    a local clone with invalid caches, require the cache changes and ray-call counts from test 12;
+    the live owner must remain unchanged. Exercise iterator-next on a local 0x2C record and require
+    only its current index to advance as specified in §7.1. Reject an unmatched image before any
+    native call; `VA 0x007F6550` binds to module base plus `0x003F6550`, not that absolute VA
+    in a differently based process. A native harness should also check stack balance and nonvolatile
+    registers for each convention; geometry equality alone does not verify a call declaration.
 
 ## 12. Complete family checklist and ownership accounting (VU4)
 
@@ -614,3 +638,219 @@ atan2(−first,−second) (15 bytes); neither is a missing camera setter. No sha
 The constructor at `0x0080AE60` writes only the iterator vtable (no other defaults) and is shared by
 attribution, not a 51st family-owned body. Geometry triangle/plane/clipping dependencies in §7.2 likewise
 retain their geometry owner rather than being double-counted here.
+
+## 13. Callable native contract and shadow isolation (VU16)
+
+This section describes the 32-bit Windows machine interface, not public OpenSC4 C ABI exports or
+recovered C++ source declarations. All 50 entries in §12 are covered below. A row's convention,
+ordered argument types and result together are its callable declaration. Every explicit argument
+occupies **one four-byte stack slot**, including float32 and the boolean selector. Argument one is
+at entry stack pointer +4, argument two at +8, and so on; arguments are placed right to left.
+Pointers and integers are 32 bits. There are no by-value vectors, doubles, hidden structure-return
+pointers, variadic entries, or register float arguments in this family.
+
+**C** means cdecl: no receiver, caller removes the listed argument bytes. **T** means thiscall:
+receiver in ECX, not in the argument list or byte count, and callee removes the listed bytes.
+**S** means a receiver-independent callee-pop entry, callable as stdcall with the listed arguments:
+incoming ECX is unused. This is an operational declaration, not a claim about whether an original
+C++ declaration was static. In all cases EAX, ECX, EDX and condition flags are volatile; preserve
+EBX, ESI, EDI, EBP and the stack balance. T with zero argument bytes still receives ECX.
+
+Type vocabulary: **i** signed int32, **u** uint32, **f** float32, **V** pointer to three float32s,
+**P** pointer to two float32s, **Q** pointer to two int32 pixel coordinates, **I** pointer to one
+int32, **F** pointer to one float32, **J** pointer to three 32-bit indices, **Tri** pointer to three
+consecutive V-sized records (36 bytes), **Pick** pointer to the §7 pick record (at least 0x2C bytes),
+**X** pointer to the §7 transform (0x38 bytes). **Mesh**, **Instance**, **Model**, **Control** are
+pointers to the native resources/providers described in §§2 and 7. Types denote memory layout;
+read-only inputs and writable outputs retain the roles in §12. A Q is not a P.
+
+Result **B** means boolean in AL (zero or one); upper EAX bytes are not a result contract.
+**R** means one x87 ST(0) result, with capture rules in §13.2. **A** means a pointer in EAX,
+**i** an int32 in EAX, and **void** no result to inspect. Do not treat leftover EAX or ST(0) from a
+void entry as a return value. Required pointers remain required even for functions that may leave
+their outputs unwritten on some inputs.
+
+### 13.1 Complete call and storage table
+
+Storage class **L** uses local mutable arguments and has no receiver/provider dependency; **R**
+reads the owner but does not change it; **P** invokes borrowed providers; **W** writes the owner
+and may invoke providers; **I** requires a private iterator. These classes constrain shadow calls,
+not the game's normal calls. Arguments below use the names/order in §12.
+
+| VA | Convention / argument bytes | Ordered stack argument types | Result | Storage |
+|---|---|---|---|---|
+| `005D6900` | C / 16 | V points, i count, V min, V max | void | L |
+| `005D6F10` | C / 12 | V a, V b, V out | void | L |
+| `007F6550` | C / 16 | f a, f b, f c, f d | R | L |
+| `007F65B0` | C / 16 | f a, f b, f c, f d | R | L |
+| `007F6620` | T / 4 | P point | void | R |
+| `007F6690` | T / 4 | f v | R | R |
+| `007F66A0` | T / 8 | I zoom, I rotation | void | R |
+| `007F66C0` | T / 4 | V p | void | R |
+| `007F6710` | T / 4 | V p | void | R |
+| `007F6770` | T / 8 | V min, V max | B | R |
+| `007F6910` | T / 8 | V min, V max | B | R |
+| `007F6AB0` | C / 12 | V origin, V direction, V out | void | L |
+| `007F6AF0` | C / 16 | Pick pick, V a, V b, V c | B | L |
+| `007F6B50` | S / 12 | V origin, V direction, V out | B | L |
+| `007F6BA0` | T / 8 | i corner, V out | void | R |
+| `007F6CB0` | C / 4 | i rotation | R | L |
+| `007F6CC0` | C / 8 | V v, i rotation | void | L |
+| `007F6D10` | C / 8 | V out, i edge | void | L |
+| `007F6D70` | C / 8 | f v, i block | R | L |
+| `007F6DB0` | C / 8 | f v, i block | R | L |
+| `007F6DF0` | T / 0 | none (ECX is owner storage) | A | W |
+| `007F7710` | T / 4 | V p | void | R |
+| `007F7750` | T / 8 | I a, I b | void | R |
+| `007F7780` | S / 20 | i rotation, i zoom, F yaw, F pitch, F groundPitch | void | L |
+| `007F77D0` | T / 4 | V p | void | R |
+| `007F7850` | T / 4 | V p | void | R |
+| `007F78A0` | T / 4 | V p | R | R |
+| `007F78E0` | T / 4 | V p | void | R |
+| `007F7920` | T / 4 | V p | void | R |
+| `007F79B0` | T / 4 | V p | void | R |
+| `007F7A40` | T / 16 | V min, V max, Q TL, Q BR | void | R |
+| `007F7E50` | T / 4 | V p | B | R |
+| `007F7F60` | T / 12 | u useView (low byte), V min, V max | void | R |
+| `007F8300` | C / 8 | f width, i zoom | R | L |
+| `007F8390` | T / 4 | V p | void | R |
+| `007F83F0` | T / 4 | Control cameraControl | void | W |
+| `007F9080` | T / 16 | i x, i y, V origin, V direction | B | P |
+| `007F9160` | T / 12 | i x, i y, V out | B | P |
+| `007F91C0` | C / 12 | Pick pick, Mesh mesh, X transform | B | L |
+| `007F9A40` | C / 12 | Pick pick, Instance instance, Model model | B | P |
+| `007F9B40` | T / 16 | V innerMin, V innerMax, V outerMin, V outerMax | void | W |
+| `007F9EA0` | T / 24 | P TL, P TR, P BL, P BR, Q rectTL, Q rectBR | void | P |
+| `007F9F50` | T / 8 | Q TL, Q BR | void | W |
+| `0080AE80` | C / 8 | i type, i n | i | L |
+| `0080AEF0` | C / 12 | i type, i triangleIndex, J triple | void | L |
+| `0080B000` | T / 4 | u flags (bit 0) | A | I |
+| `0080B020` | T / 8 | J indices, Tri triangle | void | I |
+| `0080B090` | T / 8 | J indices, J decoded | void | I |
+| `0080B320` | T / 8 | Mesh mesh, i groupIndex | void | I |
+| `0080B3B0` | T / 4 | Tri triangle | B | I |
+
+Evidence is the entry argument loads, receiver uses, exit cleanup and tail transfers in the
+2026-10-22 instruction export, not its often-unknown prototype column. In particular min loads
+four 32-bit floats at `0x007F6556/6D/80/93` and ends in caller-pop return at `0x007F65A6`;
+max has the corresponding loads at `0x007F65B6/CD/E0/F3`, return `0x007F6606`.
+The two S entries overwrite/use ECX as a temporary rather than reading a receiver and remove
+12 bytes at `0x007F6B8F` and 20 at `0x007F77C4`. The angle outputs are 32-bit stores at
+`0x007F779B`, `0x007F77AE`, `0x007F77C2`. The composite projections return with four-byte
+cleanup at `0x007F7898` and `0x007F7913`. Other composites tail-call T targets:
+`0x007F79F8` to `0x007F7920`, and `0x007F83DE` to `0x007F6710`; a tail transfer does
+not imply caller cleanup. Ground-corner output pointers precede the two Q inputs
+(`0x007F9EA6`–`0x007F9EED`); cleanup is 24 bytes at `0x007F9F46`.
+The constructor returns its storage in EAX (`0x007F6DF0`–`0x007F7705`); the iterator
+deleting destructor returns its receiver there (`0x0080B019`–`0x0080B01C`).
+
+### 13.2 Scalar returns and the block input width (VU15/VU16)
+
+An x87 return is **not an SSE float32 register or an eight-byte stack return**. All eight scalar
+entries leave one value in ST(0), whose register format is extended precision; they do not perform
+a final float32/float64 return store. A native bridge must consume that one value exactly once.
+For a float32 comparison, capture it with a float32 store; for a float64 comparison, capture with
+a float64 store and state that choice. Either capture width is callable on x86; the callee does
+not distinguish a C compiler's float-return declaration from a double-return declaration at this
+boundary. Thus a float32-return cdecl adapter with four float32 parameters is sufficient for min/max;
+a double-parameter declaration is wrong. A float64-return adapter still has **four float32 inputs**.
+For min/max, the finite selected value was already float32, so widening it to float64 is exact.
+No return-width choice resolves inherited x87 control-word or intermediate-rounding questions in VU12.
+
+The native visible-area caller stores min/max returns to float32 (`0x007F9C32/3A`,
+`0x007F9C5B/60`, `0x007F9C6E/76`, `0x007F9C95`). Object-angle and viewport-depth consumers
+also store float32 (`0x0048FA90`, `0x007C2FAC`). Block-rounding consumers do so at
+`0x007C428D/9C/AB/C0`. These establish an explicit float32 observation boundary for those
+uses. Some other consumers continue x87 arithmetic without an immediate store, for example
+ViewportUnitsToWorldUnits at `0x005F0FA8` and city width at `0x007CBE69`–`0x007CBE75`;
+inserting a float32 capture there is an additional rounding boundary. A shadow must name whether
+it compares a stored float32 observation or a wider captured result.
+
+Both block-rounding inputs are **float32 v followed by int32 block**, not doubles or caller-retained
+x87 inputs: `0x007F6D70` and `0x007F6DB0` load the four-byte argument at entry stack +4;
+the block is at +8. Their internal truncated low word, wrapped arithmetic and signed division
+remain as §4.4 describes; the final signed word is loaded exactly into ST(0) at `0x007F6D9C`
+and `0x007F6DDC`. Consequently test 18's INT_MAX case is an **integer-stage** vector.
+The representable float32 entry value 2147483648 truncates to a signed64 value whose low word
+is INT_MIN, and Up with block 64 returns −2147483648. The largest float32 below that input,
+2147483520, is already a multiple of 64 and returns itself. A float64 capture preserves every
+possible final int32 exactly; a float32 capture can round a final integer. This resolves VU15
+without asserting a source-language floating return type.
+
+### 13.3 Live reads, isolated writes and borrowed providers
+
+For an **L** entry, use locally owned mutable vectors/records and immutable input arrays; no live
+view owner is needed. MeshPick reads the mesh, its vertex/index/group buffers and the transform,
+but writes the supplied pick's nearest distance, not the mesh or a view owner. It may borrow stable,
+validated live mesh buffers synchronously, or use a complete local mesh fixture. Bounds, indices,
+stride and group count must describe accessible memory; the native unchecked reads in §7.2 still
+apply. TrianglePick similarly requires a private pick even when vertices come from live storage.
+Scalar helpers read image constants, and faulting block divisors remain unsuitable for a normal
+same-process observer. Output/input aliasing is permitted only where the behavior is deliberately
+being tested (notably the cross helper's sequential stores); otherwise use disjoint buffers.
+
+For an **R** entry, a stable live 0x470-byte owner is sufficient on the thread that owns its view
+state, with all writable arguments in local storage. These calls do not invoke the renderer,
+camera, model or instance. They include city clipping, cached getters, projection/unprojection,
+frustum predicates and the city-clipped box calculation. None initializes lazy owner caches.
+The observer must obtain the object through the renderer's actual view-utilities pointer (§1),
+not reinterpret the renderer or the camera as that object. Do not race camera updates or destroy
+the borrowed object/buffers while a call is in progress. Copying the owner is also sufficient for
+these calls; their field reads do not require the borrowed renderer pointer to be dereferenced.
+
+**P** bodies do not store owner fields, but they are not unconditional read-only calls on the whole
+live object graph. ViewportPositionToRay asks renderer slot 14 for a camera (`0x007F9092`), then
+calls the native camera eye-ray entry (`0x007F90DD`). The viewport ground wrapper and four-corner
+wrapper inherit this dependency. ModelPick asks model slots 3/5 and instance slot 9 for count,
+mesh and transform (`0x007F9A56`, the following mesh loop and transform fill in §7). Calling a
+getter-shaped virtual method is not evidence that an arbitrary provider has no side effects.
+For a guaranteed isolated comparison use private provider objects/backing resources satisfying
+those native layouts and slots, or separately audit the particular live provider's writes and
+thread/lifetime rules. A byte copy of the view owner alone retains its live renderer pointer and
+therefore does not isolate those calls. The concrete camera call also requires the native camera
+layout; a fake vtable alone cannot replace that direct call. Missing/failing providers retain the
+partial-output and indeterminate wrapper behaviors in §§4.1 and 5; a shadow must not compare
+indeterminate stack coordinates as fixed reference values.
+
+**W** requires writable private 0x470-byte owner storage. The constructor has no provider calls;
+its result is a local initialized owner, not a request to initialize a live renderer's owner twice.
+UpdateCameraPosition overwrites camera/frustum state and invalidates caches. BuildDrawFrustum
+overwrites the draw rectangle/geometry and cache flags. GetGroundPlaneVisibleAreaRectangle is
+also a writer even though it is named a getter: it lazily fills `+0x414`–`+0x440` and the ground
+cache/validity state in §6 (`0x007F9B46`, `0x007F9C3A/60/76/8A`). A warm cache can avoid
+some writes/provider calls but is not a general live-read contract. Use private owner storage and
+the P-class provider discipline for these three operations. Preserve initial cached state when
+testing failed updates; reconstructing a zero owner changes the stale-state behavior.
+
+**I** uses a separate 0x2C-byte native iterator record: vtable +0; primitive +4; group count +8;
+vertex format/stride/data +0x0C/+0x10/+0x14; index format/data +0x18/+0x1C; triangle count
++0x20; reserved +0x24; current triangle +0x28. Select-group overwrites its fields and next advances
+current; vertex-copy and index-decode read its fields and write supplied outputs. Initialize every
+field needed for a direct call, rather than relying on the constructor (which only sets the vtable,
+§12). Deleting-destructor with flags bit0 clear only restores the vtable and returns the receiver;
+bit0 set calls GlobalHeapFree (`0x0080B000`–`0x0080B01C`). Use bit0 clear for stack/local records.
+Bit0 set requires a disposable allocation from that native heap, never live iterator storage or a
+foreign allocator. There is no buffer free or ownership transfer for the referenced vertex/index
+arrays. None of these safety rules confers new numerical equivalence or whole-owner shadow credit.
+
+### 13.4 Supported executable binding
+
+The examined binding is GOG Deluxe 1.1.641, PE32/i386 (machine `0x014C`, optional-header magic
+`0x010B`), preferred image base `0x00400000`, SizeOfImage `0x007C8000`, timestamp `0x4C12BFB7`.
+The examined on-disk `bin/SimCity4.exe` SHA-256 is
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+These are executable identity facts, not an instruction to read a file from a particular install
+path at run time. A differently patched executable is not covered merely because its version
+string is the same.
+
+All VAs in this spec are preferred-image VAs: subtract `0x00400000` to obtain an RVA and add
+the executable module's load base to locate the entry in process. Examples: min RVA `0x003F6550`,
+max `0x003F65B0`, rotation `0x003F6CC0`, iterator-next `0x0040B3B0`. These private entries are
+not exported symbols or COM slots. Bind to the executable module, not the observer DLL, and
+validate the image identity and executable section bounds before calling. The measured image is
+supported at its preferred base; executing a rebased/modified copy has not been established here.
+Fail closed for such an image unless its relocation correctness and operand targets are independently
+verified. The RVA formula is address arithmetic, not proof that a copied code buffer is callable:
+these bodies use absolute image constants, jump tables, globals and direct calls. Do not detach or
+copy them into an observer's memory. No native signature, live-write allowance or compatibility
+with a different game build should be inferred from an attribution name alone.

@@ -1174,12 +1174,13 @@ def candidate_shadows(extra):
     return ",".join(dict.fromkeys(keys))
 
 
-def run_regress(wt, tag, dll, replace=None, shadows=None):
-    """Submit the two regress runs through the game queue and wait for the verdict."""
+def run_regress(wt, tag, dll, replace=None, shadows=None, shadow_split=1):
+    """Submit the shadow groups and replacement through the queue and wait for all."""
     log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
     command = [
         "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "tools" / "regress.ps1"),
         "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "1800", "-QueueWait", "5400",
+        "-ShadowSplit", str(shadow_split),
     ]
     if replace is not None:
         command += ["-Replace", replace]
@@ -1190,7 +1191,18 @@ def run_regress(wt, tag, dll, replace=None, shadows=None):
     (LOG_DIR / f"regress-{tag}.out").write_text(out, encoding="utf-8")
     m = re.search(r"REGRESS\s+\S+:\s*(PASS|FAIL)", out)
     verdict = m.group(1) if m else "FAIL"  # no REGRESS line: never a pass, whatever the exit code
+    (LOG_DIR / f"regress-{tag}.json").write_text(json.dumps({
+        "tag": tag, "dll": str(dll), "shadow_split": shadow_split,
+        "shadow_profile": "combined" if shadow_split == 1 else f"split {shadow_split}",
+        "verdict": verdict, "output": str(LOG_DIR / f"regress-{tag}.out"),
+    }, indent=2) + "\n", encoding="utf-8")
     return verdict, out[-4000:]
+
+
+def regress_shadow_split(batch_id, combined=False, split=False):
+    """Splitting is opt-in pending parity proof; every fourth batch stays combined."""
+    match = re.search(r"(\d+)$", batch_id)
+    return 1 if not split or combined or (match and int(match.group(1)) % 4 == 0) else 3
 
 
 # --- batch lifecycle ---------------------------------------------------------
@@ -1338,16 +1350,17 @@ def cmd_regress(args):
         log(f"regress {cur['id']}: refused: {exc}")
         return 1
     # An interrupted retry must not leave a previous PASS in place.
-    cur["regress"] = {"ok": False, "verdict": "RUNNING", "head": head}
+    shadow_split = regress_shadow_split(cur["id"], getattr(args, "combined", False), getattr(args, "split", False))
+    cur["regress"] = {"ok": False, "verdict": "RUNNING", "head": head,
+                      "shadow_split": shadow_split,
+                      "shadow_profile": "combined" if shadow_split == 1 else f"split {shadow_split}",
+                      "record": str(LOG_DIR / f"regress-{cur['id']}.json")}
     if replace is not None:
         cur["regress"]["replace"] = replace
     if shadows is not None:
         cur["regress"]["extra_shadows"] = shadows
     save_state(st)
-    if shadows is None:
-        verdict, tail = run_regress(wt, cur["id"], dll, replace)
-    else:
-        verdict, tail = run_regress(wt, cur["id"], dll, replace, shadows)
+    verdict, tail = run_regress(wt, cur["id"], dll, replace, shadows, shadow_split=shadow_split)
     cur["regress"].update(ok=verdict == "PASS", verdict=verdict)
     save_state(st)
     log(f"regress {cur['id']}: {verdict}")
@@ -1573,6 +1586,9 @@ def main():
     profile.add_argument("--no-regress", action="store_true")
     profile.add_argument("--add-replace", help="test candidate keys in addition to every default replacement")
     p.add_argument("--add-shadow", help="append candidate *_shadow keys or occmgr_shadow_follow to the full shadow profile")
+    shadow_mode = p.add_mutually_exclusive_group()
+    shadow_mode.add_argument("--combined", action="store_true", help="run all house shadows in one process (the default)")
+    shadow_mode.add_argument("--split", action="store_true", help="opt in to three shadow groups (every fourth batch stays combined)")
     p = sub.add_parser("land")
     p.add_argument("--force", action="store_true")
     sub.add_parser("bisect")
@@ -1583,6 +1599,9 @@ def main():
     p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")
     p.add_argument("--land", action="store_true")
     p.add_argument("--no-regress", action="store_true")
+    shadow_mode = p.add_mutually_exclusive_group()
+    shadow_mode.add_argument("--combined", action="store_true", help="force the combined shadow regression")
+    shadow_mode.add_argument("--split", action="store_true", help="opt in to three shadow groups (every fourth batch stays combined)")
     args = ap.parse_args()
     if args.cmd == "regress" and args.no_regress and args.add_shadow is not None:
         ap.error("--add-shadow cannot be combined with --no-regress")

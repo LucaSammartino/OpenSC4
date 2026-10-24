@@ -1,5 +1,18 @@
 # aircraft: answered questions
 
+<!-- from: core-helicopter9 (2026-10-24) -->
+- ~~**AF9 - §4.1 rotor preset and post-Read reconstruction (AF4 follow-up):** what are the thirteen initial
+  rotor preset values (exact binary32 bits), and which lifecycle step restores them and the flight phase
+  after Read? The resolved zero-overlay loader requires an existing preset, but §4 does not specify one.
+  [core stores unknown constructor/post-Read fields as None, accepts an explicitly supplied preset, and
+  overlays known nonzero fields; zero/missing records preserve every existing field without inventing defaults]~~
+
+  **ANSWERED 2026-10-24 (re-aircraft-af10):** DIFFERS — aircraft.md §4.1.1
+  tabulates all thirteen exact preset words. InitInstance(0) copies them once,
+  applies player then AI parameters; the zero-player-speed fallback is yaw maximum
+  400, not preset MaxSpeed 227. Read does not restore rotor parameters or phase;
+  Init reconstructs the model and PhysicsInit selects phase 0 with engine off.
+
 <!-- from: re-aircraft (2026-10-21) -->
 - ~~**AF1 - §3.1, §4:** which exemplar property holds the 18-value drive-parameter list, and what each entry means
   (speeds, turn rates, climb angles). [as read]~~

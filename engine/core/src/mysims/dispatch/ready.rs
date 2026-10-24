@@ -50,9 +50,8 @@ impl MySimDispatch {
         self.notify_owner(sim, 0xEBA06C12, 0, 0);
     }
 
-    /// The current route marker is a specified input, not reconstructed from
-    /// a native output record. Uncaptured service/partition inputs explicitly
-    /// return UnsupportedMs18; they never imply a successful trip.
+    /// Controlled marker-table entry for conformance fixtures. Live owner
+    /// updates use update_selected_route, which selects R[start] (MS21).
     pub fn route_ready_update(&self, sim: i32, marker: RouteData, services: &dyn TripServices) -> TripOutcome {
         let st = self.get_state(sim);
         if st.search.flags & 0x10000 != 0 {
@@ -82,7 +81,7 @@ impl MySimDispatch {
             return self.transit_stop_update(sim, marker, services);
         } else if st.search.flags & 4 != 0 {
             if st.minutes > st.current.deadline() {
-                let Some(travel) = services.dispatch_next_leg(sim, None) else {
+                let Some(travel) = self.dispatch_selected_leg(sim, None, services) else {
                     return TripOutcome::UnsupportedMs18;
                 };
                 tail.travel_type = travel;
@@ -95,16 +94,26 @@ impl MySimDispatch {
                 }
             }
         } else if st.search.flags & 0x20 == 0 {
-            let Some(travel) = services.dispatch_next_leg(sim, None) else {
+            let Some(travel) = self.dispatch_selected_leg(sim, None, services) else {
                 return TripOutcome::UnsupportedMs18;
             };
             if travel == 0xFF {
-                // No invented skip selection without the partition inputs.
-                return TripOutcome::UnsupportedMs18;
+                let Some(jumped) = self.jump_to_next_switch(sim, services) else {
+                    return TripOutcome::UnsupportedMs18;
+                };
+                if jumped {
+                    tail.travel_type = self.relocate_before_switch(sim);
+                    tail.clear_flags = 2;
+                    tail.set_flags = 0x220;
+                } else {
+                    self.notify_owner(sim, 0xEBA06C12, 0, 0);
+                    tail.state = -1;
+                }
+            } else {
+                tail.travel_type = travel;
+                tail.clear_flags = 0x436;
+                tail.set_flags = 0x200;
             }
-            tail.travel_type = travel;
-            tail.clear_flags = 0x436;
-            tail.set_flags = 0x200;
         } else {
             tail.clear_flags = 0x20;
             let target = u32::from(marker.travel_type);
@@ -141,7 +150,7 @@ impl MySimDispatch {
             } else if matches!(st.travel_type, 0 | 1 | 2 | 3 | 6 | 7 | 8) && matches!(target, 0 | 1 | 2 | 3 | 6 | 7 | 8)
             {
                 if st.travel_type == target {
-                    let Some(travel) = services.dispatch_next_leg(sim, st.automata_occupant) else {
+                    let Some(travel) = self.dispatch_selected_leg(sim, st.automata_occupant, services) else {
                         return TripOutcome::UnsupportedMs18;
                     };
                     if travel == 0xFF {
@@ -254,17 +263,29 @@ impl MySimDispatch {
                     clear = 0xA403;
                     self.finish_idle_location(sim, near);
                 } else {
-                    let Some(result) = services.dispatch_next_leg(sim, None) else {
+                    let Some(result) = self.dispatch_selected_leg(sim, None, services) else {
                         return TripOutcome::UnsupportedMs18;
                     };
                     if result == 0xFF {
-                        // MS21: the route partition/skip boundary is not yet
-                        // supplied by this adapter. Do not invent a skip.
-                        return TripOutcome::UnsupportedMs18;
+                        let Some(jumped) = self.jump_to_next_switch(sim, services) else {
+                            return TripOutcome::UnsupportedMs18;
+                        };
+                        if jumped {
+                            travel = self.relocate_before_switch(sim);
+                            add = 0x220;
+                        } else if near {
+                            state = 3;
+                            clear = 0xA403;
+                            self.finish_idle_location(sim, near);
+                        } else {
+                            self.notify_owner(sim, 0xEBA06C12, 0, 0);
+                            state = -1;
+                        }
+                    } else {
+                        travel = result;
+                        clear = 0x2437;
+                        add = 0x200;
                     }
-                    travel = result;
-                    clear = 0x2437;
-                    add = 0x200;
                 }
             }
         }

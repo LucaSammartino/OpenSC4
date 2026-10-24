@@ -11,7 +11,7 @@
 library	kind	value	evidence
 easnd	range	00864b60-00873c80	EA sound library: SNDSYSI_100hzserver (first) .. _SNDover (last); SNDAEMSI_*, SNDPLATFORM_*, SFILTER_*, MIX_*
 lua	range	008b96f0-008d01f0	Lua 5.0 core: FID lib::currentline / luaG_inithooks at 0x008B96F0 .. lib::luaK_patchlist; next is nRZSimGL::PackStandardVertexFormat (game)
-freetype	range	0089a578-008ae57b	FreeType: _FT_Stream_Pos (first, after cGZFont::DrawTextParagraph) .. _TT_Load_Locations and the unnamed rasteriser; Type 1 strings (/FontMatrix, /CharStrings); ends before cSC4ViewInputControlTerrainScrubber::SetCursorEchoPos and the Lua script server
+freetype	range	0089a578-008ae770	FreeType: _FT_Stream_Pos (first, after cGZFont::DrawTextParagraph) .. _TT_Load_Locations and the unnamed rasteriser; Type 1 strings (/FontMatrix, /CharStrings); ends before the Lua script server (GZCOM_cGZLuaScriptServerCLSID 0x008AE770). 0x008AE57B (auto-named cSC4ViewInputControlTerrainScrubber::SetCursorEchoPos, Mac score 0.618 support 0) is FreeType's: only caller 0x008A6D50 and callee 0x008AE16E are inside this range (re-scrubber7, city-tools.md §3.4)
 crt-stl	range	009dc720-00a05420	VC6 C runtime and STLport: FID names (_Atomic_swap, runtime_error, locale, __input, __output, start, __stat) from after cGZWinMgrBase to the import stubs
 gimex	range	00a05420-00a12160	EA GIMEX image codecs: _GIMEX_is .. _PNG_close, GIF/TGA/BMP writers
 libpng	range	00a12160-00a37f50	libpng: _png_sig_cmp .. _png_read_start_row; strings "Invalid bit depth for RGB image" etc.

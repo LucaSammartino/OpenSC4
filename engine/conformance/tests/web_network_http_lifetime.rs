@@ -32,7 +32,8 @@ mod tests {
         assert_eq!(client.submit(&mut host, 5, b"url", None, 0, &[], 0), Ok(0));
         assert!(client.requests.is_empty());
         assert_eq!(client.admit(&mut host, None, 0), Ok(0));
-        assert!(client.submit(&mut host, 5, b"url", Some(b"data"), 0, &[], 0).is_err());
+        assert_eq!(client.submit(&mut host, 5, b"url", Some(b"data"), 0, &[], 0), Ok(1));
+        assert_eq!(client.requests.values().next().unwrap().body, b"data");
     }
     #[test]
     fn admission_wrap_raw_cancel_leaks_and_first_match_wins() {

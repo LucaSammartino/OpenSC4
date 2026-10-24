@@ -1,0 +1,46 @@
+va	name	evidence	mac_x86
+009377dd	cHitMan::DefaultTrackFlowErrorHandler	hit-music.md §3.8 (stored by the ctor at +0xA8)
+0093880a	cHitMan::LoadHitFile	hit-music.md §3.2 (cIHitMan slot 9)
+00938d8e	cHitMan::ParseHitFile	hit-music.md §3.2 (ENTP/EENT scan)
+00938ec6	cHitMan::FilepathHasEmbeddedKey	hit-music.md §3.3
+00938a41	cHitMan::DuckMapSetSndobPri	hit-music.md §3.6 (cIHitMan slot 39)
+009399cb	cHitMan::Init	hit-music.md §3.1 (tables 0x00B16B38, 0x00B16CE8)
+0093873f	cHitControlGroup::cHitControlGroup	hit-music.md §3.5 (0x38 bytes, QI 0xFB1C0050)
+0093a8cb	cHitTrackPlayer::SetCompareFlags	hit-music.md §8.3 (+0x9C equal, +0x9D greater, +0x9E less)
+0093a8f9	cHitTrackPlayer::SetCompareFlagsFloat	hit-music.md §8.3
+0093ab4b	cHitTrackPlayer::EnumFunc_KillTrack	hit-music.md §8.2 opcode 0x33 (kills, cIGZSnd slot 9)
+0093abd4	cHitTrackPlayer::EnumFunc_StopTrack	hit-music.md §8.2 opcode 0x5A (stops, cIGZSnd slot 8)
+0093ae78	cHitTrackPlayer::NoteOff	hit-music.md §6.4 step 7, opcode 0x03
+0093ae2d	cHitTrackPlayer::HasRegister	hit-music.md §6.1 (local set, then the chain)
+0093b200	cHitTrackPlayer::GetRegister	hit-music.md §6.1 (first set of the chain that has it)
+0093b268	cHitTrackPlayer::SetRegister	hit-music.md §6.1 (local set, dependents, notify)
+0093b36f	cHitTrackPlayer::SetRegisterFloat	hit-music.md §6.1
+0093b481	cHitTrackPlayer::RemoveRegister	hit-music.md §6.1 (dependents' slot 5, then notify)
+0093c229	cHitTrackPlayer::DoCommand	hit-music.md §8 (jump table 0x0093DC8B, 97 entries)
+0093df4c	cHitTrackPlayer::HandleTimerCallback	hit-music.md §6.4
+0093e146	cHitTrackPlayer::Play	hit-music.md §6.2
+0093b791	cHitTrackPlayer::PlayPause	hit-music.md §6.3 (the start routine)
+0093b508	cHitTrackPlayer::UpdatePitch	hit-music.md §6.7 (ratio 2^(1/12) at 0x00AD2B80)
+0093eaa1	cHitTrackPlayer::SetTrackDef	hit-music.md §6.1, §5.3 (parent chain through 0xFF4C97BE)
+0093fd3c	cHitChannel::SetRegister	hit-music.md §9.1 (alias, local set, notify)
+0093fd99	cHitChannel::SetRegisterFloat	hit-music.md §9.1
+0093fa5b	cHitChannel::HandleNotifySetPropertyValue	hit-music.md §9.3
+0093f136	cHitChannel::UpdateVolPan	hit-music.md §9.3
+00941930	cHitPropertySetTrackResource::ReadLegacyFormat	hit-music.md §5.1
+00940e5c	cHitPropertySetTrackResource::Write_OldFormat	hit-music.md §5.1 (27 fields)
+00944088	cHitSem2dDefault::Apply	hit-music.md §10 (sem slot 5)
+00944117	cHitSem2dDefault::Setup	hit-music.md §10 (sem slot 6)
+009441e3	cHitSem3dDefault::Apply	hit-music.md §10 (sem slot 5)
+00944351	cHitSem3dDefault::Setup	hit-music.md §10 (sem slot 6)
+00943953	cHitList::RandomIndex	hit-music.md §4.5 (HitMan Random(n, 0))
+0094397e	cHitList::Clear	hit-music.md §4.5 (slot 6)
+00943a2e	cHitList::Remove	hit-music.md §4.5 (slot 5)
+00943a9b	cHitList::GetAt	hit-music.md §4.5 (slot 11)
+00943b07	cHitList::SetAt	hit-music.md §4.5
+00943b71	cHitList::EraseAt	hit-music.md §4.5
+00943c01	cHitList::Add	hit-music.md §4.5 (slot 4)
+00943c46	cHitList::Choose	hit-music.md §4.5 (slot 8)
+00943cf2	cHitList::WriteResource	hit-music.md §4.4
+00943dbc	cHitList::ReadResource	hit-music.md §4.4
+009404c2	cHitList::SetWindow	hit-music.md §4.5 (slot 7; opcode 0x26 SmartSetCrit)
+0094067a	cHitList::Count	hit-music.md §4.5 (slot 9)
