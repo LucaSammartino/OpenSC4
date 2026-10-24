@@ -1,5 +1,9 @@
 # text-edit: answered questions
 
+<!-- from: core-widgets5 (2026-10-23) -->
+- **TE9 - section 1 constructor / section 6 history limit:** what initial values are stored in the maximum-undo-level word W+0x184 and preferred-X W+0x170? [The portable byte/state stage requires explicitly resolved history-limit and preferred-X values; no native constructor default is inferred.]
+  **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — the same stores inspected for TE10 explicitly initialize maximum undo levels to `0x4000` and preferred X to `0xFFFFFFFF`. Section 1 Runtime defaults supplies both, citing `0x009BFFBF` and `0x009C000D`; this does not reopen TE5/TE8.
+
 <!-- from: core-widgets-close12 (2026-10-24) -->
 - **TE10 - section 1 runtime constructor defaults:** initial colors, four sound IDs, horizontal offsets, visible metrics and line height?
   **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — section 1 Runtime defaults specifies three `0xFF000000` colors, zero offsets/metrics, initial line height 1 and true image edge option. The four sound words W+0x27C..+0x288 are not initialized by construction; zero is a portable substitute only. Preferred X is `0xFFFFFFFF`, maximum undo levels `0x4000`.

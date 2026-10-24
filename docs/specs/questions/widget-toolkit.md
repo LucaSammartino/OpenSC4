@@ -8,8 +8,6 @@
 <!-- from: re-widgets4 (2026-10-21) -->
 - **WT3 - section 3:** default flag bits 0x100 and 0x8000 are set by the constructor but not tested by cGZWin itself; which subclass or manager code reads them? [unknown; keep them set]
 <!-- from: re-widgets4 (2026-10-21) -->
-- **WT5 - section 4.2:** cGZWin::ChildDeleteAll 0x0099DD6F loops on the current front child until the list is empty; does cIGZWinMgr::DestroyWindow (slot 23) always detach the child from its parent synchronously, also when the manager is busy and defers the destroy? If not, the loop would not terminate. [assume it detaches synchronously]
-<!-- from: re-widgets4 (2026-10-21) -->
 - **WT6 - section 8.1:** what is the initial value of the window manager's instance-ID counter (manager +0x194) assigned by registration (manager slot 20, 0x009DC586)? [unknown; first ID may be 0 or 1]
 
 <!-- from: core-key-accelerator4 (2026-10-22) -->
