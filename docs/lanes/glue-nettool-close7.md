@@ -49,12 +49,12 @@ post-plane boundary rather than pre-boundary equality construction.
 
 ### Real game
 
-- [Run410](../runs/nettool-close7-r1-20261024-f31a-410.md), label
+- [Run410](../runs/nettool-close7-r1-20261024-f31a-434.md), label
   `nettool-close7-r1-20261024-f31a`: completed **ended** at2069-01-01, nettool8/14,
   exceptions/references0 through shutdown. End date was incorrectly nested under ini;
   four unknown-config warnings were retained. Diagnostic evidence, not the required
   clean2032 verdict. Existing verdict collected; no duplicate request.
-- [Run411](../runs/nettool-close7-r2-20261024-b812-411.md), label
+- [Run411](../runs/nettool-close7-r2-20261024-b812-435.md), label
   `nettool-close7-r2-20261024-b812`: **clean** through2032-01-20, turbo1, top-level
   end_date2032-01-01, simulation30.968s, wall45s, slot1. Nettool8/14 exact, resyncs0.
   Exceptions, reference warnings, watchdog stalls, rtc, overruns, panics, structured

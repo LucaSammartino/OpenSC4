@@ -52,8 +52,8 @@ blocking wait without qwait; no request or verdict was discarded.
 
 | Run record / label | Exact counted summary | Scope |
 |---|---|---|
-| [449](../runs/scres8-raw-2032-maple-449.md) / `scres8-raw-2032-maple-449` | **scres 149/149** | raw73/73 plus kept76/76; clean to2032-01-05 |
-| [450](../runs/scres8-default-2032-oak-450.md) / `scres8-default-2032-oak-450` | **scres 76/76** | new key omitted; no raw replay lines; clean to2032-01-16 |
+| [449](../runs/scres8-raw-2032-maple-437.md) / `scres8-raw-2032-maple-437` | **scres 149/149** | raw73/73 plus kept76/76; clean to2032-01-05 |
+| [450](../runs/scres8-default-2032-oak-436.md) / `scres8-default-2032-oak-436` | **scres 76/76** | new key omitted; no raw replay lines; clean to2032-01-16 |
 
 Run449 has **73 dated raw_file_parser_replay lines**, from2026-01-27 load
 through2032-01-01 month, every one **mismatches=0, resyncs=0, refused=0**.

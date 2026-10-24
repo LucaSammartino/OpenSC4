@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 433 (Effects retained-record shadow and landvalue capture preparation landed clean (run 5).); 422 (Weather exact in the house profile, nettool/propdev/overlays work and their answers landed after a shutdown-crash bisect; automata owners and propmgr flakes on main remain (run 5).); 414 (WE1 weather exact; creation continuation capture diagnosed); 413 (weather exact; propdev selector streams exact, output boundary remains open); 409 (Simgrid/lotrec now counted, effects closure, live overlays and OV15 landed; sim grids, master lots and automata generator/attractor rows verified (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 438 (Raw scres file replay, nettool fixtures and the EF21 answer landed clean; ordinance verified (run 5).); 433 (Effects retained-record shadow and landvalue capture preparation landed clean (run 5).); 422 (Weather exact in the house profile, nettool/propdev/overlays work and their answers landed after a shutdown-crash bisect; automata owners and propmgr flakes on main remain (run 5).); 414 (WE1 weather exact; creation continuation capture diagnosed); 413 (weather exact; propdev selector streams exact, output boundary remains open). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
