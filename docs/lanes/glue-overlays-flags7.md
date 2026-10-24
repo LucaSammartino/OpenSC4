@@ -11,8 +11,9 @@
 - q.py Bash failed CreateFileMapping (access denied); direct cargo focused test succeeded. Failed wrapper log retained in build-runs/q/20261024-043301-5976.log.
 - Implementation milestone committed c9b87073d.
 - Final-source qbuild all: Rust 6919 passed/0 failed/0 ignored; clippy 0 diagnostics.
-- Native build+CTest queued by that same all operation as qbuild-20261024-043910-build-ctest; session 76896 still pending. Do not submit duplicate verify.
-- Next: collect session 76896 to terminal, then game fixture and read-only runs.
+- Full gate PASS: native 240/240 edges (93.4s), CTest 74/74 (143.7s); total native 240.7s. qbuild all routed native checks through coordinator queue qbuild-20261024-043910-build-ctest. Session 76896 collected to terminal.
+- Gate tree-change notice is documentation-only commit 1210a7f5a; engine inputs stayed c9b87073d. No redundant verify submitted.
+- Next: fixture label ovflags7-fixture-2032-20261024a, then read-only run; no request yet at this commit.
 - Full gate once on final source; native checks via qbuild verify queue only.
 - Tools/profile/map are prohibited reads/edits; report coverage owners from allowed implementation/spec sources and leave profile update to coordinator.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-overlays-flags7-r1-manifest.json.
