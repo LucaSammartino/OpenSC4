@@ -2039,6 +2039,93 @@ none is part of loading or simulating a city as far as the load path (§8.1) sho
 
 ---
 
+### 8.3 Held packed-file traversal and indexed reads (EX56) *[compat]*
+
+**Indexed pointers are borrowed.** Resource-manager `GetSegmentByIndex(index)` returns the registered
+segment pointer without AddRef. Its count and index methods take the manager lock separately; they do
+not make a snapshot or pin the returned object after the call. An index outside the current count,
+including unsigned `0xFFFFFFFF`, returns null. Multi-packed `GetSegmentByIndex(index)` also returns a
+borrowed pointer, but has **no bounds check**: only indices below its current `GetSegmentCount()` are
+valid. Do not Release either borrowed result. A successful QueryInterface on it does acquire a reference;
+release that acquired interface once. Keep the owners alive and enumerate during a stable framework
+callback, without interleaving segment registration/removal or multi-packed reopen/close. A retained QI
+pins object lifetime, not its open state or a frozen index. Evidence: manager count `0x00973873`, index
+`0x00973D88–0x00973DCB` (unsigned bound at `0x00973DAB`, pointer load at `0x00973DBA`); multi-packed count
+`0x0097E8F5–0x0097E8FE`, unchecked index `0x0097E905–0x0097E911`. The multi-packed interface is IID
+`0xE90F85F3` (`0x0097E2D4`); its count/index offsets are `+0x1C`/`+0x20`. The manager's are `+0x84`/`+0x88`.
+
+**The registered city save backing file is reached by this traversal.** Visit every resource-manager
+root; obtain the packed-file interface (IID `0x286D4A6A`) where supported, and recurse through each
+multi-packed root's children. Do not restrict roots to multi-packed objects or to `.dat` names. The city
+load path creates a `cSC4DBSegment`, opens its persistence interface for reading, retains it and appends
+it to the resource manager (`0x0045562C–0x00455681`, `0x0045572C–0x00455743`). This class contains the
+packed-file base and delegates packed-file QI to it (`0x005D3740`, `0x005D16E5–0x005D16EE`);
+the inherited QI accepts that IID with AddRef (`0x0096DF0A–0x0096DF21`). Thus this is a directly reachable
+packed root, not a hidden child requiring a city-streaming interface. After saving, the separate
+`RegisterCityDBSegment` path likewise opens a city segment read-only and appends it
+(`0x00454B20–0x00454B94`, called at `0x0045662F`). Registration itself retains the segment (§3).
+
+This proves **registered packed segments**, including the successfully registered city backing file;
+it does **not** prove every open packed file. Temporary load/save, obliteration and regional-city
+operations construct segments independently (constructor callers include `0x00454549`, `0x00454F53`,
+`0x0045607A`, `0x005DBFF3`, `0x005DC237`, `0x005DC2F7`). An object need not yet be registered, or ever be
+registered, to have a file open. A resource-manager-only shadow cannot claim an all-open-files census.
+To substantiate city coverage in a run, record the current city's backing path alongside discovered
+packed-root paths and report whether it was actually compared, before and after a save/re-registration.
+If that path is absent from the sample, add it to discovery/sampling from the current city save path
+(`GetCitySaveFilePath`, `0x00459580`), with a separate read-only file reader or a held live city-segment
+interface; do not count it as covered just because it is theoretically reachable. Covering transient
+files additionally requires observation of their open/close lifecycle and sampling while readable and
+stable; scanning installed resource packages or sampling one monthly root set is insufficient.
+
+**Public `ReadRecord(key, buffer, uint32& size)` is an indexed payload read, not a record-object read.**
+It returns a **32-bit unsigned count/size**, with `0xFFFFFFFF` as the rejection/missing-key sentinel.
+The public three-argument wrapper is `0x009758F1–0x00975928`: it holds the segment lock, forwards to
+the packed implementation `0x009704BD`, and preserves all of EAX across unlocking. The export's inferred
+name `WriteRecord` for this wrapper is misleading; the adjacent one-argument `0x009758BD` dispatches
+deletion and is not this call. Select the public interface method by its contract, not those inferred
+names. The size reference must be valid even for a null buffer. For a readable packed segment:
+
+| Condition | Return | Output size / payload |
+|---|---|---|
+| Key absent, or segment lacks read access | `0xFFFFFFFF` | 0; no payload read |
+| Matching record is open for writing in a read/write segment | `0xFFFFFFFF` | 0; no payload read |
+| Indexed uncompressed key, null buffer | indexed stored length | 0; ignores input capacity |
+| DIR-listed key, null buffer | DIR uncompressed length | 0; does not validate/decode the stored QFS stream |
+| Uncompressed key, non-null buffer | bytes read | `min(input capacity, stored length)` on successful I/O; prefix from record start |
+| Valid compressed key, non-null buffer with sufficient capacity | decompressed byte count | decompressed byte count; complete payload from record start |
+| Compressed key, insufficient capacity or failed signature validation, or reported seek/read/decode failure | 0 | 0; no successful payload; a failed read/decode need not leave the buffer unchanged |
+
+A successful uncompressed zero-capacity or zero-length read also gives 0/0. A compressed payload does
+not support the uncompressed path's successful prefix read: supply enough space for the stream's full
+decoded length. This does not promise rejection of all malformed streams: the decoder's unchecked
+copy behavior remains as specified in §2.7. Extra buffer capacity is not a request for padding. DIR and stream length disagreement
+can make a DIR-sized buffer insufficient; a null-buffer size result alone does not prove readability.
+Unlike `ReadRecordRaw` (§2.6.1), an absent key or unreadable segment **clears** the size. Both methods'
+null-buffer compressed-size result is the DIR logical length, not the stored length.
+Evidence: access/write-open/index checks `0x009704CF–0x0097053A`; compressed read
+`0x00970560–0x00970580`, unsigned uncompressed minimum `0x00970582–0x0097059A`, seek/read
+`0x009705A5–0x009705D0`, null-buffer and full-width final result `0x009705D3–0x00970609`.
+Compressed reads use `0x0096FF7E`, `0x0096E6F4` and capacity/decode checks
+`0x0096E64D–0x0096E6D8`; the decompressor stores the decoded count at `0x00A6E092–0x00A6E095`,
+and the final indexed-read result replaces unsuccessful transfer size with 0.
+
+**Noninterference is logical, not byte-for-byte internal state immutability.** For stable readable
+segments, these indexed payload reads do not open, close, abort, release or rewind existing record
+objects; do not insert/remove records in the open-record table; and do not change the segment's access
+mode, path, index, DIR or dirty/write state. A write-open match is rejected rather than reading that
+record's pending edits. Existing readable record objects retain their positions, references and usable
+lifetime. The read does seek the shared backing file and may allocate/reuse decompression scratch
+(`0x0096E705–0x0096E768`), so the physical file cursor and scratch allocation can change. File-backed
+record reads use their own logical position and indexed offset to request the desired range afresh
+(`0x0096D967–0x0096D9A5`); buffer-backed record positions are separate too (constructors
+`0x0096D8D0`, `0x0096D9D1`, `0x0096DA30`). Do not restore the backing file cursor through private fields.
+The lock covers one indexed read, not an entire multi-tick shadow sweep. Close/reopen, save, compact,
+concurrent writes, and a file modified externally invalidate the stable-read premise; holding a QI
+reference does not prevent them. A shadow must reacquire/revalidate discovery across those transitions
+and report a refusal/restart rather than claim an exact comparison against changing data. No city
+streaming ABI or record-object lifecycle operation is needed to perform this read-only comparison.
+
 ## 9. Quirks and choices (summary)
 
 | # | Behaviour | Tag |
@@ -2144,6 +2231,52 @@ list becomes [A,A]; a second call returns true and makes [A,A,A]. Numeric enumer
 time. On an empty package, a prepopulated [A] remains [A] and the Boolean result is false.
 DFK9: With a custom list whose insertion returns false, DFK2 numeric enumeration still returns 1 and
 the Boolean overload returns true; successful insertion is not what these returns measure.
+
+#### 10.1.2 Held traversal and payload-read vectors (EX56)
+
+These are behavioral conformance vectors, not additional measured game results. Use isolated fixtures
+for access failures and lifecycle changes; do not induce writes or malformed records in a live city.
+P contains plain A = `01 02 03 04`, compressed B = §10.2 vector 11 (17 stored bytes, 12 decoded bytes,
+DIR size 12), and missing M. Initialize size to the stated capacity, buffers to `CC`.
+
+| ID | Operation | Expected result |
+|---|---|---|
+| DFP1 | ReadRecord(A, null, size=99) | return 4, size 0 |
+| DFP2 | ReadRecord(A, buffer, size=2) | return 2, size 2, bytes `01 02`; repeat starts at `01` again |
+| DFP3 | ReadRecord(A, buffer, size=6) | return 4, size 4, bytes `01 02 03 04 CC CC` |
+| DFP4 | ReadRecord(A, non-null buffer, size=0) | return 0, size 0 |
+| DFP5 | ReadRecord(M, buffer or null, size=99) | return `0xFFFFFFFF`, size 0; Raw counterpart leaves 99 (§10.1.1) |
+| DFP6 | P closed or write-only; ReadRecord(A, buffer, size=99) | return `0xFFFFFFFF`, size 0 |
+| DFP7 | A currently open for writing in read/write P; ReadRecord(A, buffer, size=4) | return `0xFFFFFFFF`, size 0; writer stays open and unchanged |
+| DFP8 | ReadRecord(B, null, size=99) | return 12, size 0; Raw null result also 12, not 17 |
+| DFP9 | ReadRecord(B, buffer, size=16) | return 12, size 12, `41 42 43 44` × 3 followed by four `CC` bytes |
+| DFP10 | ReadRecord(B, buffer, size=4) | return 0, size 0; no successful four-byte prefix |
+| DFP11 | B's stored signature invalid but indexed and DIR-listed; null then non-null buffer of size 12 | null gives 12/0; payload read gives 0/0 |
+| DFP12 | A seek fails, or seek succeeds and file read fails | return 0, size 0; failed file read has no buffer-preservation assertion |
+
+DFP13: Open a readable record R on A, consume two bytes, and keep the returned reference. Call indexed
+ReadRecord on A and B repeatedly. R's next two bytes remain `03 04`, its position remains 2 until that
+read, and its reference/lifetime remains usable. Repeat with an uncompressed fixture large enough to
+select the file-backed path and with a compressed buffer-backed record; indexed reads must not require
+closing/reopening R. Keep fixture teardown separate from the indexed reads under test.
+
+DFP14: A plain 256-byte indexed payload read into capacity 256 returns **256**, size **256**. Its low
+byte is zero, so treating the full return as an 8-bit Boolean would misclassify this successful read.
+
+DFT1: Stable manager roots [P, multi(Q,R)] give direct borrowed P and borrowed multi children Q,R.
+Repeated index calls leave reference counts unchanged; successful packed/multi QIs each add one reference
+and their matching Releases balance it. Manager index equal to count and `0xFFFFFFFF` return null.
+Never invoke multi index equal to count: it is outside the original's contract, not a null-result test.
+
+DFT2: Load a city successfully, then enumerate every manager root and multi child. The registered
+city `cSC4DBSegment` root answers packed QI, exposes the loaded city path and supplies its indexed
+payloads. Repeat after a successful save/re-registration. Require a per-path compared/refused result;
+an exact installed-`.dat` subtotal with no city path is not evidence of city coverage.
+
+DFT3: Keep an independently opened regional or temporary save segment outside the manager roots.
+Traversal omits it; its omission must not be reported as all-open-files coverage. In an isolated test,
+close/reopen a sampled segment between slices while retaining a QI: the QI keeps the object alive but
+the shadow must invalidate/restart the sample, not combine records from the two opens into one exact result.
 
 ### 10.2 DIR and QFS
 
