@@ -15,5 +15,6 @@
 - qbuild all on 3dd46ce91: Rust 6954/0; Clippy failed collapsible_match at observation.rs PublishAfter. Do not repeat before collecting operation.
 - Native operation qbuild-20261024-061303-build-ctest collected to termination: PASS build 249/249 (113.6 s), CTest 78/78 (176.4 s), overall 294.9 s. First all verdict FAIL solely Clippy.
 - Failed Clippy evidence preserved as build-runs/failed-3dd46ce91-clippy.log; 88180deb2 applied recommended match guard; explicit fmt PASS.
-- Final all on stable source 88180deb2: Rust 6954/0 and Clippy 0 diagnostics PASS. Native operation qbuild-20261024-062533-build-ctest queued; session 7298 must be collected to termination. Next: native result then unique 2032 game request.
-- No game request outstanding. Detached HEAD; do not update shared refs. Highest observed run number 433 (recheck before writing record).
+- Final all on stable engine source 88180deb2 PASS: Rust 6954/0, Clippy 0 diagnostics, native build 47/47 (74.8 s), CTest 78/78 (146.0 s), overall 222.5 s.
+- Native operation qbuild-20261024-062533-build-ctest collected to termination; tree-change notice is only 971a93a53 documentation commit. No source changes or outstanding native check.
+- Next: unique game request effects9-names-2032-20261024a, event-based blocking waiter (no qwait), record exact names-only boundary. Highest observed run 433; recheck.
