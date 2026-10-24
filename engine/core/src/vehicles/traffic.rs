@@ -111,6 +111,7 @@ pub struct TrafficRuntime {
     pub has_tile_position: bool,
     pub has_path: bool,
     pub initialized: bool,
+    pub init_missing: Option<Unsupported>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -147,7 +148,7 @@ impl TrafficAutomaton {
     pub fn write(&self, output: &mut dyn OutStream) -> bool {
         self.record.write(output)
     }
-    pub fn init(&mut self, world: &mut impl InitWorld) -> bool {
+    pub fn init(&mut self, world: &mut impl InitWorld) -> Result<bool> {
         super::init::init_traffic(&mut self.record, &mut self.runtime, world)
     }
 
@@ -258,6 +259,7 @@ impl TrafficOwner<'_> {
         self.record.automaton = RefValue::Null;
         self.record.base.leader = RefValue::Null;
         self.runtime.initialized = false;
+        self.runtime.init_missing = None;
         self.runtime.has_tile_position = false;
         self.runtime.has_path = false;
     }

@@ -36,8 +36,6 @@ pub trait InitWorld {
     fn init_effects(&mut self);
     fn init_occupant(&mut self);
     fn refresh_behavior(&mut self);
-    fn initialize_route(&mut self);
-    fn load_drive_parameters(&mut self);
     fn enable_lights(&mut self, enabled: bool, mode: u32);
     fn in_family(&mut self, family: u32) -> bool;
 }
@@ -56,9 +54,9 @@ pub(crate) fn init_traffic(
     record: &mut TrafficRecord,
     runtime: &mut TrafficRuntime,
     world: &mut impl InitWorld,
-) -> bool {
+) -> Result<bool> {
     if runtime.initialized {
-        return true;
+        return runtime.init_missing.map_or(Ok(true), Err);
     }
     let success = world.create_models();
     if success {
@@ -71,10 +69,11 @@ pub(crate) fn init_traffic(
             world.refresh_behavior();
         }
         if record.base.automata_flags & STRAIGHT == 0 {
-            world.initialize_route();
+            // VH10: slot 134 is an unspecified owner body, not a foreign service.
+            runtime.init_missing = Some(Unsupported::InitVh10);
         }
     }
-    success
+    runtime.init_missing.map_or(Ok(success), Err)
 }
 
 impl TrafficAutomaton {

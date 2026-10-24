@@ -33,6 +33,7 @@ pub trait VehicleWorld: TrafficWorld {
     fn traffic_value(&mut self, position: Vec3) -> u32;
     fn splash(&mut self, position: Vec3) -> Option<u64>;
     fn destroy_effect(&mut self, effect: u64);
+    fn release_blur(&mut self, model: u64);
     fn post_message(&mut self, id: u32);
     fn create_accident(&mut self, position: Vec3);
     fn crash_transform(&mut self);
@@ -86,13 +87,15 @@ impl Vehicle {
         }
     }
 
-    pub fn init(&mut self, tuning: Initialization, world: &mut impl InitWorld) -> bool {
+    pub fn init(&mut self, tuning: Initialization, world: &mut impl InitWorld) -> Result<bool> {
         if self.traffic.initialized {
-            return true;
+            return self.traffic.init_missing.map_or(Ok(true), Err);
         }
         self.record.traffic.base.automata_flags =
             (self.record.traffic.base.automata_flags & !COLLISION) | if tuning.collision { COLLISION } else { 0 };
-        world.load_drive_parameters();
+        // VH10: slot 158 has conflicting contracts. Preserve known Init ordering,
+        // but never claim the missing drive-parameter owner body ran successfully.
+        self.traffic.init_missing = Some(Unsupported::InitVh10);
         let success = super::init::init_traffic(&mut self.record.traffic, &mut self.traffic, world);
         if tuning.city_lights || tuning.force_lights {
             world.enable_lights(true, 0);
@@ -103,7 +106,7 @@ impl Vehicle {
     /// Read before Init: no city calls or world-size allocations. Atomic on
     /// every malformed/truncated stream. Live effects must be shut down first.
     pub fn read(&mut self, input: &mut dyn InStream) -> bool {
-        if self.traffic.initialized || self.splash_effect.is_some() {
+        if self.traffic.initialized || self.splash_effect.is_some() || self.blur_models.iter().any(Option::is_some) {
             return false;
         }
         let Some(record) = VehicleRecord::read(input) else {
@@ -126,6 +129,7 @@ impl Vehicle {
     }
 
     pub fn shutdown(&mut self, world: &mut impl VehicleWorld) {
+        self.release_motion_blur(world);
         if let Some(effect) = self.splash_effect.take() {
             world.destroy_effect(effect);
         }

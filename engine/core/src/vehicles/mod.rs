@@ -31,6 +31,7 @@ pub enum Unsupported {
     TrainTripVh5,
     RouteGeometryVh7,
     BaseStateVh9,
+    InitVh10,
 }
 
 pub type Result<T> = std::result::Result<T, Unsupported>;

@@ -44,3 +44,13 @@
   ordering are implemented, but the current InitWorld owner-slot hooks are
   provisional and do not count as closed core algorithms. They must be replaced
   with specified core behavior or an explicit open-contract result.]
+
+<!-- from: core-vehicles-close11 round 2 (2026-10-24) -->
+- **VH11 - §12.1 train car identity/runtime binding:** after Read appends a
+  shared-stream car reference, how does the core bind it to its owned TrainCar
+  runtime, and what happens on a missing or duplicate identity? Can a live car
+  ever have a null serializable identity? [One ordered list holds each identity
+  and optional runtime. Loaded entries remain unresolved; collision reports
+  VH5 before side effects until all are bound. Write rejects a runtime car with
+  null identity before output rather than silently losing it on reload. No
+  guessed car instance or foreign train-owner callback is created.]

@@ -139,6 +139,9 @@ impl VehicleWorld for World {
     fn destroy_effect(&mut self, effect: u64) {
         self.calls.push(format!("destroy:{effect}"));
     }
+    fn release_blur(&mut self, model: u64) {
+        self.calls.push(format!("blur_release:{model}"));
+    }
     fn post_message(&mut self, id: u32) {
         self.calls.push(format!("message:{id}"));
     }
@@ -435,11 +438,11 @@ fn record_roundtrip_and_every_truncation_atomic_before_init() {
 #[test]
 fn train_shutdown_owns_cars() {
     let mut t = Train {
-        cars: vec![TrainCar::default(), TrainCar::default()],
+        cars: vec![TrainCarSlot::owned(RefValue::Null, TrainCar::default()); 2],
         ..Train::default()
     };
     let mut w = World::default();
-    t.cars[0].vehicle.splash_effect = Some(42);
+    t.cars[0].runtime.as_mut().unwrap().vehicle.splash_effect = Some(42);
     t.shutdown(&mut w);
     assert!(t.cars.is_empty());
     assert_eq!(w.calls.iter().filter(|c| c.as_str() == "destroy:42").count(), 1);

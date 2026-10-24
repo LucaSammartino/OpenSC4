@@ -74,12 +74,6 @@ impl InitWorld for World {
     fn refresh_behavior(&mut self) {
         self.calls.push("init_refresh".into());
     }
-    fn initialize_route(&mut self) {
-        self.calls.push("init_route".into());
-    }
-    fn load_drive_parameters(&mut self) {
-        self.calls.push("drive_parameters".into());
-    }
     fn enable_lights(&mut self, enabled: bool, mode: u32) {
         self.calls.push(format!("lights:{enabled}:{mode}"));
     }
@@ -121,16 +115,16 @@ fn initialization_failure_loaded_and_already_initialized_vectors() {
         allow: false,
         ..World::default()
     };
-    assert!(!a.init(&mut w));
+    assert_eq!(a.init(&mut w), Ok(false));
     assert!(a.runtime.initialized);
     assert_eq!(w.calls, ["models", "init_occupant"]);
     w.calls.clear();
-    assert!(a.init(&mut w));
+    assert_eq!(a.init(&mut w), Ok(true));
     assert!(w.calls.is_empty());
     a.runtime.initialized = false;
     a.record.base.occupant.status = 2;
     w.allow = true;
-    assert!(a.init(&mut w));
+    assert_eq!(a.init(&mut w), Ok(true));
     assert_eq!(w.calls, ["models", "init_effects", "init_occupant"]);
     let mut car = TrainCar::default();
     let mut w = World {
@@ -138,7 +132,7 @@ fn initialization_failure_loaded_and_already_initialized_vectors() {
         families: vec![0x4208],
         ..World::default()
     };
-    assert!(!car.init(initialization(), &mut w));
+    assert_eq!(car.init(initialization(), &mut w), Err(Unsupported::InitVh10));
     assert_eq!(car.vehicle.record.traffic.base.automata_flags & 0x10014000, 0x10014000);
     assert!(car.classification);
     assert!(car.vehicle.traffic.initialized);
@@ -148,7 +142,7 @@ fn initialization_failure_loaded_and_already_initialized_vectors() {
         ..World::default()
     };
     let mut r = Draws::default();
-    assert!(train.init(initialization(), &mut r, &mut w));
+    assert_eq!(train.init(initialization(), &mut r, &mut w), Err(Unsupported::InitVh10));
     assert_eq!(train.car_family, 0x4203);
     assert_eq!(train.target_count, 5);
     assert!(train.cars.is_empty());
@@ -156,8 +150,105 @@ fn initialization_failure_loaded_and_already_initialized_vectors() {
     assert_eq!(train.vehicle.record.traffic.base.automata_flags & 0x10000000, 0);
     let n = r.calls.len();
     let m = w.calls.len();
-    assert!(train.init(initialization(), &mut r, &mut w));
+    assert_eq!(train.init(initialization(), &mut r, &mut w), Err(Unsupported::InitVh10));
     assert_eq!((r.calls.len(), w.calls.len()), (n, m));
+}
+
+#[test]
+fn init_open_contract_is_explicit_and_survives_repeat_until_shutdown() {
+    let mut a = TrafficAutomaton::construct();
+    let mut w = World::default();
+    assert_eq!(a.init(&mut w), Err(Unsupported::InitVh10));
+    assert_eq!(w.calls, ["models", "init_effects", "init_occupant", "init_refresh"]);
+    w.calls.clear();
+    assert_eq!(a.init(&mut w), Err(Unsupported::InitVh10));
+    assert!(w.calls.is_empty());
+    a.owner().shutdown(&mut w);
+    a.record.base.automata_flags |= STRAIGHT;
+    assert_eq!(a.init(&mut w), Ok(true));
+
+    let mut v = Vehicle::default();
+    v.record.traffic.base.occupant.status = 2;
+    let mut tuning = initialization();
+    tuning.force_lights = true;
+    w.calls.clear();
+    assert_eq!(v.init(tuning, &mut w), Err(Unsupported::InitVh10));
+    assert_eq!(w.calls, ["models", "init_effects", "init_occupant", "lights:true:0"]);
+    w.calls.clear();
+    assert_eq!(v.init(tuning, &mut w), Err(Unsupported::InitVh10));
+    assert!(w.calls.is_empty());
+}
+
+#[test]
+fn shutdown_releases_blur_and_splash_once_and_live_blur_blocks_read() {
+    let mut v = Vehicle::default();
+    v.blur_models = [Some(10), None, Some(12), Some(13)];
+    v.splash_effect = Some(42);
+    let mut out = ByteWriter::new();
+    assert!(Vehicle::default().write(&mut out));
+    let bytes = out.into_bytes();
+    let mut input = ByteReader::new(&bytes);
+    assert!(!v.read(&mut input));
+    assert_eq!(input.position(), 0);
+    v.splash_effect = None;
+    assert!(!v.read(&mut input));
+    assert_eq!(input.position(), 0);
+    v.splash_effect = Some(42);
+    let mut w = World::default();
+    v.shutdown(&mut w);
+    v.shutdown(&mut w);
+    for model in [10, 12, 13] {
+        assert_eq!(
+            w.calls
+                .iter()
+                .filter(|s| **s == format!("blur_release:{model}"))
+                .count(),
+            1
+        );
+    }
+    assert_eq!(w.calls.iter().filter(|s| *s == "destroy:42").count(), 1);
+    assert!(v.read(&mut input));
+}
+
+#[test]
+fn train_runtime_identity_is_saved_and_unresolved_collision_is_explicit() {
+    let mut train = Train {
+        cars: vec![TrainCarSlot::owned(host(10, CLSID_TRAIN_CAR), TrainCar::default())],
+        ..Train::default()
+    };
+    let registry = std::rc::Rc::new(std::cell::RefCell::new(crate::stream::SaveRegistry::new()));
+    let mut out = ByteWriter::with_registry(registry);
+    assert!(train.write(&mut out));
+    let bytes = out.into_bytes();
+    let mut loaded = Train::default();
+    struct Cars;
+    impl crate::stream::RefResolver for Cars {
+        fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
+            Some(host(u64::from(object_id) * 10, class_id))
+        }
+    }
+    assert!(loaded.read(&mut ByteReader::with_resolver(&bytes, &mut Cars)));
+    assert_eq!(loaded.cars.len(), 1);
+    assert!(!loaded.cars[0].reference.is_null());
+    assert!(loaded.cars[0].runtime.is_none());
+    let mut w = World::default();
+    let mut random = Draws::default();
+    assert_eq!(
+        loaded.handle_collision(&mut random, &mut w),
+        Err(Unsupported::TrainCompositionVh5)
+    );
+    assert!(random.calls.is_empty());
+    assert!(w.calls.is_empty());
+    assert!(loaded.vehicle.record.traffic.base.states.is_empty());
+    train.cars[0].reference = RefValue::Null;
+    let mut out = ByteWriter::new();
+    assert!(!train.write(&mut out));
+    assert!(out.into_bytes().is_empty());
+    train.cars[0].runtime.as_mut().unwrap().vehicle.blur_models[0] = Some(99);
+    train.shutdown(&mut w);
+    train.shutdown(&mut w);
+    assert!(train.cars.is_empty());
+    assert_eq!(w.calls.iter().filter(|s| *s == "blur_release:99").count(), 1);
 }
 
 fn host(token: u64, class_id: u32) -> RefValue {
@@ -184,7 +275,10 @@ fn train_wire_order_version_failure_and_append_null_quirks() {
     assert!(!train.read(&mut bad));
     assert_eq!(bad.position(), 6);
     let source = Train {
-        car_references: vec![host(10, CLSID_TRAIN_CAR), RefValue::Null, host(20, CLSID_TRAIN_CAR)],
+        cars: vec![host(10, CLSID_TRAIN_CAR), RefValue::Null, host(20, CLSID_TRAIN_CAR)]
+            .into_iter()
+            .map(TrainCarSlot::reference)
+            .collect(),
         raw_2c0: 0xfeedbeef,
         vector_2d4: [1.25, -2.5, 3.75],
         raw_2e4: 0xff800001,
@@ -196,7 +290,7 @@ fn train_wire_order_version_failure_and_append_null_quirks() {
     let bytes = out.into_bytes();
     assert_eq!(&bytes[..4], &[2, 0, 2, 0]);
     let mut target = Train {
-        car_references: vec![host(30, CLSID_TRAIN_CAR)],
+        cars: vec![TrainCarSlot::reference(host(30, CLSID_TRAIN_CAR))],
         network: host(99, 0xA821EF94),
         ..Train::default()
     };
@@ -207,17 +301,17 @@ fn train_wire_order_version_failure_and_append_null_quirks() {
         }
     }
     assert!(target.read(&mut ByteReader::with_resolver(&bytes, &mut Cars)));
-    assert_eq!(target.car_references.len(), 3);
+    assert_eq!(target.cars.len(), 3);
     assert!(crate::automata::refs_equal(
-        &target.car_references[0],
+        &target.cars[0].reference,
         &host(30, CLSID_TRAIN_CAR)
     ));
     assert!(crate::automata::refs_equal(
-        &target.car_references[1],
+        &target.cars[1].reference,
         &host(10, CLSID_TRAIN_CAR)
     ));
     assert!(crate::automata::refs_equal(
-        &target.car_references[2],
+        &target.cars[2].reference,
         &host(20, CLSID_TRAIN_CAR)
     ));
     assert!(target.network.is_null());
@@ -391,9 +485,6 @@ impl DamageWorld for World {
     fn blur_alpha(&mut self, model: u64, alpha: f32) {
         self.calls.push(format!("alpha:{model}:{alpha}"));
     }
-    fn release_blur(&mut self, model: u64) {
-        self.calls.push(format!("blur_release:{model}"));
-    }
 }
 
 #[test]
@@ -423,10 +514,13 @@ fn collision_message_direction_final_and_train_early_success() {
     );
     let mut train = Train {
         cars: vec![
-            TrainCar {
-                vehicle: moving(),
-                ..TrainCar::default()
-            };
+            TrainCarSlot::owned(
+                host(10, CLSID_TRAIN_CAR),
+                TrainCar {
+                    vehicle: moving(),
+                    ..TrainCar::default()
+                }
+            );
             2
         ],
         vehicle: moving(),
@@ -441,17 +535,18 @@ fn collision_message_direction_final_and_train_early_success() {
     assert_eq!(train.vehicle.record.traffic.base.vectors[2], [1.0, 0.0, 0.0]);
     assert_eq!(tween_value(&train.vehicle.record.traffic.base.f3[..4]), 0.0);
     for c in &train.cars {
+        let c = c.runtime.as_ref().unwrap();
         assert_eq!(c.vehicle.measured_speed, 0.75);
         assert_eq!(c.vehicle.record.traffic.base.states[0].base.countdown_ms, 20000.0);
     }
     train.vehicle.record.traffic.base.f3[..4].copy_from_slice(&[0.02, 0.02, 0.0, 0.0]);
-    train.cars[1].vehicle.measured_speed = 3.0;
+    train.cars[1].runtime.as_mut().unwrap().vehicle.measured_speed = 3.0;
     let mut r = Draws {
         ranges: [0.0, 1.0, 0.0].into(),
         ..Draws::default()
     };
     assert_eq!(train.handle_collision(&mut r, &mut w), Ok(true));
-    assert_eq!(train.cars[1].vehicle.measured_speed, 3.0);
+    assert_eq!(train.cars[1].runtime.as_ref().unwrap().vehicle.measured_speed, 3.0);
     assert_eq!(tween_value(&train.vehicle.record.traffic.base.f3[..4]), 0.02);
 }
 

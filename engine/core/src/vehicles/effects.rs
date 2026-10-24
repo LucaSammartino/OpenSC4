@@ -49,7 +49,6 @@ pub trait DamageWorld: VehicleWorld {
     fn blur_model(&mut self, key: ResKey) -> Option<u64>;
     fn place_blur(&mut self, model: u64, position: Vec3, facing: Vec3, newly_created: bool);
     fn blur_alpha(&mut self, model: u64, alpha: f32);
-    fn release_blur(&mut self, model: u64);
 }
 
 impl Vehicle {
@@ -165,7 +164,7 @@ impl Vehicle {
         self.blur_index = (index + 1) % 4;
     }
 
-    pub fn release_motion_blur(&mut self, world: &mut impl DamageWorld) {
+    pub fn release_motion_blur(&mut self, world: &mut impl VehicleWorld) {
         for model in &mut self.blur_models {
             if let Some(model) = model.take() {
                 world.release_blur(model);
@@ -180,6 +179,9 @@ impl Train {
         random: &mut impl CollisionRandom,
         world: &mut impl VehicleWorld,
     ) -> Result<bool> {
+        if self.cars.iter().any(|slot| slot.runtime.is_none()) {
+            return Err(Unsupported::TrainCompositionVh5);
+        }
         let args = SetStateArgs {
             timeout_ms: 20000.0,
             final_flag: 1,
@@ -190,7 +192,8 @@ impl Train {
             success = self.vehicle.set_state(20, args, world)?;
         }
         random.seed(u32::MAX);
-        for car in &mut self.cars {
+        for slot in &mut self.cars {
+            let car = slot.runtime.as_mut().ok_or(Unsupported::TrainCompositionVh5)?;
             car.vehicle.measured_speed = self.vehicle.measured_speed;
             let r = random_direction(random);
             let mut perturbation = scale(r, 0.25 / length(r));

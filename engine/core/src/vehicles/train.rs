@@ -14,9 +14,9 @@ pub struct TrainCar {
 }
 
 impl TrainCar {
-    pub fn init(&mut self, tuning: Initialization, world: &mut impl InitWorld) -> bool {
+    pub fn init(&mut self, tuning: Initialization, world: &mut impl InitWorld) -> Result<bool> {
         if self.vehicle.traffic.initialized {
-            return true;
+            return self.vehicle.traffic.init_missing.map_or(Ok(true), Err);
         }
         let success = self.vehicle.init(tuning, world);
         self.vehicle.record.traffic.base.automata_flags |= 0x10014000;
@@ -31,14 +31,34 @@ impl TrainCar {
     }
 }
 
+/// One ordered car entry for both runtime operations and the shared wire protocol.
+/// Loaded references remain unresolved until composition/binding is specified (VH5).
+#[derive(Clone, Debug)]
+pub struct TrainCarSlot {
+    pub reference: RefValue,
+    pub runtime: Option<TrainCar>,
+}
+
+impl TrainCarSlot {
+    pub fn reference(reference: RefValue) -> Self {
+        Self {
+            reference,
+            runtime: None,
+        }
+    }
+    pub fn owned(reference: RefValue, car: TrainCar) -> Self {
+        Self {
+            reference,
+            runtime: Some(car),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Train {
     pub vehicle: Vehicle,
     /// Owned cars, never borrowed game objects. Dropping/shutdown releases each.
-    pub cars: Vec<TrainCar>,
-    /// Serializable identities, in stored order. References use the stream's
-    /// shared reference protocol; they are never interpreted as pointer bytes.
-    pub car_references: Vec<RefValue>,
+    pub cars: Vec<TrainCarSlot>,
     pub classification: bool,
     pub rear_point: crate::automata::Vec3,
     pub target_count: u32,
@@ -57,7 +77,6 @@ impl Default for Train {
         Self {
             vehicle: Vehicle::default(),
             cars: Vec::new(),
-            car_references: Vec::new(),
             classification: false,
             rear_point: UNSET_POINT,
             target_count: 0,
@@ -89,9 +108,9 @@ impl Train {
         tuning: Initialization,
         random: &mut impl VehicleRandom,
         world: &mut impl InitWorld,
-    ) -> bool {
+    ) -> Result<bool> {
         if self.vehicle.traffic.initialized {
-            return true;
+            return self.vehicle.traffic.init_missing.map_or(Ok(true), Err);
         }
         let success = self.vehicle.init(tuning, world);
         self.vehicle.record.traffic.base.automata_flags |= 0x14000;
@@ -138,7 +157,7 @@ impl Train {
                 return false;
             };
             if !car.is_null() {
-                self.car_references.push(car);
+                self.cars.push(TrainCarSlot::reference(car));
             }
         }
         let Some(raw) = input.get_u32() else {
@@ -163,12 +182,21 @@ impl Train {
         input.error() == 0
     }
     pub fn write(&self, output: &mut dyn OutStream) -> bool {
+        // A runtime car needs a shared-stream identity; never silently save it
+        // as null and lose it on Read. Identity/runtime binding remains VH11.
+        if self
+            .cars
+            .iter()
+            .any(|car| car.runtime.is_some() && car.reference.is_null())
+        {
+            return false;
+        }
         if !output.put_u16(2) || !output.put_u16(2) || !self.vehicle.write(output) {
             return false;
         }
-        output.put_u32(self.car_references.len() as u32);
-        for car in &self.car_references {
-            output.put_ref(car);
+        output.put_u32(self.cars.len() as u32);
+        for car in &self.cars {
+            output.put_ref(&car.reference);
         }
         output.put_u32(self.raw_2c0);
         for v in self.vector_2d4 {
@@ -189,10 +217,11 @@ impl Train {
 
     pub fn shutdown(&mut self, world: &mut impl VehicleWorld) {
         for car in &mut self.cars {
-            car.vehicle.shutdown(world);
+            if let Some(car) = &mut car.runtime {
+                car.vehicle.shutdown(world);
+            }
         }
         self.cars.clear();
-        self.car_references.clear();
         self.network = RefValue::Null;
         self.vehicle.shutdown(world);
     }
