@@ -178,7 +178,8 @@ Static HTML strings are built once each, guarded by the bits of `0x00B20B94`:
 
 Nothing more without a control `+0x5C`. Otherwise:
 
-1. The control is cleared (slot 7) and gets slot 6 `(0x14416264)`.
+1. The control (a `cSC4WinAdviceList`, advice-list.md) is cleared (slot 7) and gets the background `0x14416264`
+   (slot 6).
 2. For each listed advice, by its mood `m` (slot 6):
 
    | Mood | Colour | Title close | Icons (`a`, `b`, `c`, `d`) |
@@ -192,10 +193,12 @@ Nothing more without a control `+0x5C`. Otherwise:
    - The title = `colour + title face + title text + title close`, the text from advice slot 18 and the string's
      slot 5.
    - The body = `body open + message text + </I></FONT>`, the text from slot 20.
-   - The control's slot 4 gets the row:
+   - The control's slot 4 (`AddEntry`: open icon, closed icon, body, title, open, advice, close icon, static,
+     background) gets the row:
      - mood 7: `(a, a, &body, &title, 0, advice, &d, 0, 0x14416264)`;
      - otherwise: `(c, b, &body, &title, CheckFlags(0x20), advice, &d, 0, 0x14416264)`.
-3. The control's slot 5 `(0)`.
+3. The control's slot 5 `(0)`: `RebuildHTML` without keeping the scroll position (advice-list.md §3; AW1,
+   answered).
 4. Children `0xAA1D969D` and `0x6A1D96C3` of `P` are disabled (`SetFlag(2, 0)`), even with an empty list.
 
 ## 6. Messages *[compat]*
@@ -230,9 +233,9 @@ its advisor ID (slot 11) is the shown one (`+0x10`).
 | Message (slot 4) | Effect |
 |---|---|
 | `0x8A09FA64` AdviceAdded | a matching `adv` is appended (`0x0041DA00`) |
-| `0xCA09FA6C` | a matching `adv` is removed (`0x0041D9B0`) |
+| `0xCA09FA6C` | a matching `adv` is removed (`0x0041D9B0`). The advice list sends it when the player closes a row (advice-list.md §4; AW2, answered) |
 | `0x8A09FA65` AdviceRemoved, `0x8A09FA67` AdviceRemovedAll | a matching `adv` enables `0xAA1D969D` and `0x6A1D96C3` (`SetFlag(2, 1)`) |
-| `0x426841A1` | `id` = data1 (slot 9); for `0x15`…`0x1B`, that advisor's face proc, when it exists, gets slot 8 `(data2)` (slot 14). Nothing more. |
+| `0x426841A1` | `id` = data1 (slot 9); for `0x15`…`0x1B`, that advisor's face proc, when it exists, gets slot 8 `(data2)` (slot 14). Nothing more. The advice list posts it when a row is toggled, with the advice's advisor ID and its slot 6 (the mood) (advice-list.md §4; AW3, answered) |
 
 After the first three rows, `SetAllMoods` and `updateBodyTextCtrl` run.
 

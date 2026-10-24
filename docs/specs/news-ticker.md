@@ -187,7 +187,7 @@ Quirks:
 
 ## 7. Not covered
 
-- The list control and the flipper control (AW1 of advisor-window.md).
+- The list control and the flipper control are `cSC4WinAdviceList` controls, specified in advice-list.md.
 - The advice priority slot (slot 7) and flags `2`, `0x20` and `0x2000` (AW4).
 
 ## 8. Function inventory (owner `cSC4NewsTickerWinProc`)

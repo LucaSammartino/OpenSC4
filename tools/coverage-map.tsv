@@ -529,6 +529,7 @@ fn:GZWinIsVisibleRecursive	windows and panels	ui	minimap.md	-	-	-
 fn:GZCOM_cSC4WinMiniMapCLSID	windows and panels	ui	minimap.md	-	-	-
 cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
 cSC4WinCatalogView	windows and panels	ui	catalog-view.md	-	-	-
+cSC4WinAdviceList	windows and panels	ui	advice-list.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
