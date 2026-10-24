@@ -14,7 +14,7 @@ of `on_init` and `DoSubBudgetWindow` is stack-mangled and was checked against th
 
 BW17's native method/slot inventory and population/computation bodies are in
 [budget-window-bodies.md](budget-window-bodies.md). These are owner algorithms, not external callbacks that
-may supply populated rows or refreshed totals. Its bounded remainder keeps BW17 open.
+may supply populated rows or refreshed totals. Its bounded remainder is tracked by BW22–BW25 (split from BW17).
 
 | Item | Value |
 |---|---|
@@ -649,11 +649,12 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
 at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
-only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
+only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17 is archived as a partial closure, with its remaining paths split into **BW22–BW25** (companion §7); BW21's constructor and nonmodal observation boundary is §1.1. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
 the balance-sheet drawing, the formatting helpers and the taxes and loan windows are budget-window-bodies.md
-§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18). Not covered: pixel layout of the four populate routines, the fill point of
-the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
-procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
+§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18).
+Companion §5 specifies the individual restore records' fill/rebuild and ownership; their service-specific
+float values remain BW23. Setup/widget ownership, including the generator's procedure reference contract,
+remains BW25. No whole-owner completion or native shadow verdict is implied.
 
 ## 9. Conformance tests
 
