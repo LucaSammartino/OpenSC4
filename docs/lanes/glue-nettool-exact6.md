@@ -3,6 +3,9 @@
 | glue-nettool-exact6 | Codex / `glue-nettool-exact6` | in progress; round 3 | Trace NT30 inventories; wire resource-backed subclass replay; final gate and 2032 game run. |
 
 ## Handoff
+- Round3 final source 2a750c858: fmt2 clean; all PASS cargo6908/0, clippy0, build219/219, CTest74/74; session66091 terminal.
+- Logs: build-runs/{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log. No failed final-source gate.
+- NEXT: unique turbo2032 request nettool-exact6-r3-20261024-7c9f; not submitted yet. Use build-runs/wait-r3-verdict.ps1 (event-based, no qwait).
 - Round 3 milestone: added NT30 per-corner replay inventories, real tuning/network-INI/road-bridge resource audit, bounded NT31 C ABI selection replay.
 - Focused capi selection fixture PASS 1/0 (session 67818 terminal); requires explicit reads, refuses occupants/unavailable callbacks; not a placement/model host.
 - NT33 asks for missing live clearance-ray/blocked-cell ABI and fresh helper prefix; no guessed no-hit callback.
