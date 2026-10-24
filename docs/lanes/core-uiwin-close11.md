@@ -18,5 +18,7 @@
 - Corrected-source qbuild all (a70980fdf): PASS; 7080 passed, 0 failed, clippy 0 diagnostics, native build 47/47 edges, CTest 80/80 (338.4 seconds native). Native request qbuild-20261024-111122-build-ctest completed pass, session 76932 terminal.
 - Parent-module fmt check also reports declaration ordering and recursively includes existing unowned children. Fix the declaration only; check parent with skip_children to avoid mass formatting unrelated files.
 - Final review correction: distinguish draw and present context queries (published interface slots 4 vs 5); regression uses different handles. Parent declaration formatted without changing unrelated modules.
-- Next: final fmt/all/verify on this source, then report/queue. No outstanding operation or merge queue file yet.
+- Final source a11227d5e: fmt six base files PASS, parent-only rustfmt skip_children PASS. qbuild fmt with parent recursively fails only in untouched view3d files; full evidence build-runs/parent-fmt-recursive.diff (738 diff lines), do not mass-format those files.
+- Final all Rust stages PASS: 7080 tests, 0 failures, clippy 0 diagnostics. Native request qbuild-20261024-112429-build-ctest outstanding. Collect exec session 56811 to terminal; its same shell then runs explicitly requested qbuild verify. Never duplicate either operation.
+- Next: collect final all/verify terminal verdicts, write report and merge queue. No merge queue file yet.
 - No game requests (core-only, no plugin wiring). Native lifetime/graphics ABI closure is not claimed for either owner.
