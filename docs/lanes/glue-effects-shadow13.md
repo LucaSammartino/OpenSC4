@@ -7,8 +7,8 @@
 - Worktree reused at 4fc6d9275; merged re-effects-ef24 at ee82b9c36.
 - Prior lane report read: name membership only, 73/73 exact; broader observation needs EF22.
 - EF22 read: no native observer API; attachment requires host capabilities absent here. Closed refusal is required, not a missing spec signature; no duplicate EF22 question.
-- EF23 capture fix and named/anonymous/truncation tests edited; plugin reports exact measured scope and EF22 refusal explicitly.
+- EF23 capture fix and named/anonymous/truncation tests implemented; plugin reports exact measured scope and EF22 refusal explicitly. Implementation committed with validation pending; no native payload credit claimed.
 - Next: collect foreground focused operation (exec session 75954), then explicit fmt, commit source, qbuild all, city to 2032. No game request outstanding.
-- Focus log build-runs/effects-focused.log: first compilation under heavy shared Rust contention, no errors as of 19:00. The same shell runs fmt afterward (relative paths may need correcting).
+- Focus log build-runs/effects-focused.log: first compilation under heavy shared Rust contention, no errors yet. The same shell runs fmt afterward (relative paths may need correcting). Do not launch a duplicate.
 - q.py cannot start Bash (CreateFileMapping permission error); use local Python foreground runner for focused Cargo. All full gates through qbuild.
 - No tools/ or analysis content read. Do not switch detached HEAD or update shared refs.

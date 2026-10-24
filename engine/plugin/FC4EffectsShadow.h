@@ -15,7 +15,10 @@
 //
 // With the native manager, effects_shadow compares the section 3 packed
 // directory name map against native HasVisualEffect at load and monthly.
-// It records only; EF20 limits collection/queue/placement capture and coverage.
+// It records only. EF22 attachment is refused: this host lacks pre-Init
+// interception, exception-transparent gateways and all-writer exclusion.
+// Resource/sequence/live-instance payloads and history remain unavailable;
+// name-membership exactness cannot earn whole-manager/resource credit.
 // The native path has no ticking mirror, message target or host writes.
 //
 // With the replacement enabled, a second fc4_effects core runs beside it,
