@@ -400,6 +400,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "helicopter_shadow",
                                   // Deterministic fire/riot house regression schedule (default off).
                                   "disasters_scripted",
+                                  // LR14/T79 construction live getters only, default off.
+                                  "construction_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

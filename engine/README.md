@@ -2503,3 +2503,15 @@ The flag is local to each file. Suppressed reads still count, EOF in an active
 block succeeds, and markers in quotes or ordinary comments participate. Raw
 replay compares these decisions without native suppression inputs or resyncs;
 the earlier foreign-preprocessing control replay has been removed.
+
+### Construction occupant getter shadow
+
+`construction_shadow = 1` (default off; `FC4_CONSTRUCTION_SHADOW` also works)
+samples initialized construction occupants on city load and each month through
+the documented typed occupant iterator. It compares native position bitwise with
+the Rust construction owner using only native bounds as input, and checks the
+construction class and occupant type (lot-records §9.2/§9.3, T79).
+`construction shadow` lines report occupants, compared fields, skipped
+uninitialized instances, empty samples and mismatches. An empty sample alone is
+not evidence for the owner. This is partial getter coverage: no native Write,
+Read, Init, Shutdown, tick, Draw, schedule or rendering probe is performed.
