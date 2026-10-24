@@ -10,7 +10,8 @@
 - CT27 filed for nonmodal hit/output fixture contract; CT13/14/20 remain existing output gaps.
 - Measured scope is predicates only, explicitly partial; no displayed output or full owner verification claim.
 - Previous transport lost session 75526 (Unknown process id); partial logs preserved in build-runs/incomplete-previous-round/.
-- Current final-source all: cargo 7407 passed / 0 failed; clippy running; native gate pending.
+- Current final-source all: cargo 7407 passed / 0 failed; clippy exit 0 / diagnostics 0.
+- Native build/ctest queued as qbuild-20261024-195550-build-ctest, still collected through session 43636.
 - Focused q.py Bash failed CreateFileMapping (log build-runs/q/20261024-184438-17952.log).
 - No game requests outstanding. fmt fixed after one-line diff; relative fmt path rejected, absolute path worked.
 - Game wait helper: build-runs/wait-querytool-game.ps1 (file events; no qwait).
