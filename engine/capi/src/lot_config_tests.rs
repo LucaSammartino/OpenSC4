@@ -31,6 +31,25 @@ const LOT_OBJECT: u32 = 0x88ED_C900;
 const MONOPOLY: u32 = 0x2781_283F;
 const GROUPS: u32 = 0xAA1D_D396;
 
+#[test]
+fn configuration_projection_abi_layout_and_failed_inputs() {
+    use fc4_core::lot_config_manager::ConfigurationFields;
+    use std::ptr::{null, null_mut};
+    assert_eq!(std::mem::size_of::<ConfigurationFields>(), 48);
+    assert_eq!(std::mem::align_of::<ConfigurationFields>(), 4);
+    unsafe {
+        let mut fields = ConfigurationFields::default();
+        assert!(!fc4_lot_configuration_project(null(), 3, &mut fields, None, null_mut()));
+        let h = fc4_props_create();
+        assert!(!fc4_lot_configuration_project(h, 3, &mut fields, None, null_mut()));
+        assert!(fc4_props_set_u32s(h, VERSION, &2, 1));
+        assert!(!fc4_lot_configuration_project(h, 3, null_mut(), None, null_mut()));
+        assert!(fc4_lot_configuration_project(h, 3, &mut fields, None, null_mut()));
+        assert_eq!((fields.growth_stage, fields.roads, fields.max_slope), (1, 8, 90.0));
+        fc4_props_destroy(h);
+    }
+}
+
 /// One object as the host keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Obj {

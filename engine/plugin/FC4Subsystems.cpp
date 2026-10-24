@@ -742,6 +742,7 @@ void Resolve() {
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
     IndustrialShadowStartup(enabledKey("industrial"));
+    ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
 }
 
 }  // namespace
