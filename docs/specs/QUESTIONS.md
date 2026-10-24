@@ -112,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | NM | network-manager |
 | NO | network-occupants |
 | NOV | network-overlay-views |
+| NQ | nation |
 | NR | network-rules |
 | NRT | network-routines |
 | NT | network-tools |
@@ -279,6 +280,7 @@ generated index: the questions live one file per spec, so read only the file for
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 20 | MS21 | questions/mysims.md |
+| nation | 0 | 3 | NQ4 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -371,4 +373,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **608** | **1458** | | |
+| **total** | **608** | **1461** | | |

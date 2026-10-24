@@ -950,7 +950,8 @@ Read at `Init` and on tuning reload. If the exemplar is missing, the original ke
 | `0x4A1F6300` | float[3] | difficulty modifier, indexed by `cISC4City::GetDifficultyLevel()` | 0.06, 0.03, 0.01 |
 
 **Missing exemplar or properties** *[compat]*: the original has **no usable code defaults**. The nation reads this
-exemplar once per process (in its first `Init`; its message handler does not handle the tuning-reload message).
+exemplar on each `Init` after `Shutdown` (normally once in an application lifetime; its message handler does
+not handle the tuning-reload message; nation.md §6.3 describes reinitialization).
 Before reading, it sizes the difficulty vector to 3 (new elements 0.0). Then:
 
 | Situation | Result in the original |

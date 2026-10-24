@@ -5,8 +5,10 @@
 ## Handoff
 
 - Goal: close nation NQ1–NQ3 with behavior and conformance vectors; doccheck must pass.
-- Worktree reused at detached HEAD; initial tree clean.
-- Neither docs/lanes/core-nation10.md nor docs/specs/questions/nation.md exists at the reserved base or main checkout.
-- Next: locate core-nation10 worktree documents, then query original export with re_query.py.
+- Done: initial handoff f6bee5d41; NQ1–NQ3 rules and vectors written; questions archived preserving core-nation10 entries.
+- Source questions/report found under C:/Users/tlori/FreeCity4/.claude/worktrees/core-nation10/docs/.
+- Owner closure table is under engine/, prohibited to this lane; used the lane report's Open owner contracts instead.
+- Key corrections: same-index selection no-op; switch ignores failures; Shutdown clears catalog/curves; reinit rereads tuning.
+- Next: regenerate questions index, run doccheck and whitespace check, verify remaining string-comparison detail, then finish report/queue.
 - Read-only originals: C:/Users/tlori/FreeCity4; edits only in this worktree; no engine reads.
 - No REA queries: task explicitly requires the local export.

@@ -1,6 +1,6 @@
 # Nation (`cSC4Nation`): short-form spec
 
-Status: round 1 (re-specs14a, 2026-10-15). Written from the Windows 1.1.641 executable (code `0x00497220`–`0x00498CF0`,
+Status: NQ1–NQ3 closure (re-nation-nq3, 2026-10-24). Written from the Windows 1.1.641 executable (code `0x00497220`–`0x00499D3F`,
 vtable `0x00A8EF00`). It settles what the nation adds beyond neighbors.md, foundations §11 and demand.md §8.2.
 
 Tags: *[compat]* observable, must match; *[quirk]* original behaviour that a replacement must reproduce.
@@ -12,7 +12,7 @@ writes **no** save record. It holds:
 - the list of regions found on disk (the `Regions` folders and the downloaded regions), the active region, and the
   region directories;
 - the national economy curves and the difficulty modifiers (exemplar `0x6534284A / 0xE7E2C2DB / 0x4A1F6115`,
-  demand.md §11.2), read once per process.
+  demand.md §11.2), read on each transition from shut down to initialized (§6).
 
 Everything except `GetEconomyModifier` is region-view and file-system work (loading, adding, deleting and copying
 region folders, choosing the region from the preferences). No simulator reads it. The region and city records
@@ -30,6 +30,19 @@ demand.md §8.2 gives the formula. The bytes add two details:
    alone.
 
 The curve lookup is the demand ID, and ID 0 when the demand ID has no curve (demand.md §11.2 has the failure cases).
+
+### 2.1 Malformed tuning: defined replacement outcomes (NQ3)
+
+*[choice]* An explicitly present **empty ID list** stays empty; it does not request the missing-property
+defaults in demand.md §11.2. If neither the requested ID nor ID 0 exists, return `MissingCurve`, with no
+numeric result. A short (including empty) explicitly supplied difficulty vector keeps its supplied length:
+with a city, an index outside that length returns `InvalidDifficulty`, with no numeric result. With no city,
+do not inspect that vector or request a difficulty index. Missing-curve failure takes precedence when both
+conditions apply. These choices match core-nation10's proposed errors; do not synthesize ID 0, pad an explicit
+vector, clamp an index, or return an arbitrary float. They deliberately replace undefined original reads:
+`0x004975EA–0x0049760D` uses the fallback iterator without a second end check; `0x00497639–0x00497648` reads the
+indexed float without checking the vector length. Missing exemplar/properties still use demand.md §11.2's
+explicit FreeCity4 defaults; an existing empty curve evaluates to zero under that existing choice.
 
 ## 3. Messages *[compat]*
 
@@ -68,3 +81,170 @@ The message target (`DoMessage` `0x00497290`) is the sub-object at `+4`.
    with no city it returns 0.
 2. A simulation date one month before the start date evaluates the curve at `2^32 − 1` (the last curve point's
    value with the shipped flat curve, so still 0 + difficulty).
+
+### 5.1 Owner-contract vectors
+
+Callbacks below are an ordered trace; results of region activation/shutdown may be forced false. A catalog
+fixture supplies the directory enumerator's order rather than relying on a host filesystem's enumeration order.
+
+| Input/state | Expected result and effects |
+|---|---|
+| Constructed nation | initialized false, empty catalog, active index 0; this is not a usable selected region. |
+| Catalog `[A,B]`, active 0; select 0 | No callbacks, index stays 0. |
+| Catalog `[A,B]`, active 0; select 1, both callbacks return false | `A.Shutdown`, then index becomes 1, then `B.Init`; no rollback or retry. |
+| Catalog `[A,B]`, active 0; get/select index 2 | Replacement `InvalidRegionIndex`, no callback or mutation (§7). |
+| Root entries in order: directory B, regular file X, directory Downloads, directory A | Catalog `[B,A]`; region setters/read run in that order. No recursive discovery of Downloads. |
+| Regions named `Alpha`, `Beta`; preference bytes `Beta` followed by NUL and junk | Preference method returns true and writes index 1. |
+| Same catalog; preference `beta`, or `BetaX` | False and output index 0: comparison is case sensitive and length sensitive. |
+| No preference match; first region fails Init, second has no tutorial city | Initial candidate remains index 0, not the first region whose Init succeeds; final Init failure requests tutorial reset. |
+| Already initialized; call Init again | True, no new discovery, tuning read, subscriptions, activation, or reset. |
+| Initialized with two regions; Shutdown twice | First call unsubscribes three IDs, shuts down active region, releases both catalog entries, deletes all curves; second call has no effects. Both return true. |
+| Shutdown then Init with changed tuning | Catalog rediscovered and tuning reread; directory StaticInit does not repeat. |
+| `[A,B,C]`, active A; delete B | Select B (`A.Shutdown`, `B.Init`), `B.Delete`, switch to C (`B.Shutdown`, `C.Init`), remove B; catalog `[A,C]`, active 1. Disk-removal failure does not restore B. |
+| `[A,B,C]`, active A; delete C | Select C, delete it, switch to B; catalog `[A,B]`, active 1. |
+| `[A]`; delete A | Replacement `LastRegion`, no effects; original attempts selection of −1 (§7). |
+| Add a name whose factory returns null to catalog of length 2 | Original appends null, returns 2, leaves active index unchanged. Replacement reports `RegionCreationFailed` before catalog mutation (§7). |
+| Explicit empty ID list, any demand, city absent or present | `MissingCurve`. |
+| Only ID 7 has constant curve 2; request ID 8 | `MissingCurve`, even with no city. Request ID 7 with no city returns 2. |
+| ID 0 constant 2, explicit difficulty `[0.25]`, city difficulty 1 | `InvalidDifficulty`; no city returns 2; city difficulty 0 returns 2.25. |
+| ID 0 empty curve, difficulty `[0.25]`, city difficulty 0 | 0.25, under the existing empty-curve choice. |
+| Reset with no app, or with a live city | No filesystem, registry, catalog, or screen effects. |
+| Registered tutorial folder exists with both `*.sc4` and `region.ini` | Keep that region; skip template-directory copying; export tutorial records and update registry active flags (§8). |
+| Registered folder exists but has no `region.ini` | Delete region, recreate it, copy template files, select replacement, then export tutorial records; failures do not roll back earlier effects. |
+
+## 6. Initialization, discovery and shutdown (NQ1) *[compat]*
+
+### 6.1 Directory setup and catalog
+
+The constructor starts uninitialized, with an empty catalog and active index **0** (`0x00497698–0x004976A7`).
+The region directory and download directory are shared process strings, returned by reference by slots 5 and
+15 (`0x004976F0`, `0x00497700`); they are not a list of additional roots. `StaticInit` (`0x00498160`) has a
+process-wide guard, set **before** checking the app pointer. With an app it obtains the user regions root
+through app slot 60, creates it if absent, derives `<root>Downloads\`, and creates that if absent. Directory
+creation failures are ignored; the static routine reports true and will not retry on later calls. Calling it
+without an app consumes the guard too *[quirk]*.
+
+`LoadRegions` (`0x00497CF0`) enumerates the immediate root entries in directory-provider order. It accepts
+directory entries (entry kind 4), excludes the `Downloads` directory using the string interface's comparison
+operation with flag 0, and does no further nation-level sorting. Each accepted entry gets a new region,
+appended to the catalog **before** its directory name and initial display name are set from the entry name;
+then region slot 7 (`ReadRegionINIFile`) runs. Its result is ignored. The load result is whether at least one
+entry was accepted, not whether all region INI reads succeeded. No second scan of Downloads is performed.
+The string comparison is the region string API's flag-0 comparison; an adapter must preserve that operation
+rather than silently making all catalog names case insensitive.
+
+If discovery accepts nothing, `CopyNewUserRegions` (`0x004985A0`) tries installation templates, then repeats
+discovery. It returns false without copying if the root string is empty or the root directory does not exist.
+Otherwise it copies `<DataDirectory>Regions\`, then, when a language manager exists,
+`<DataDirectory><language-directory>\Regions\`, into the user root and returns the repeated discovery result.
+`CopyRegionFiles(destination, source)` (`0x00498270`) walks source files recursively, preserves each relative
+path, creates a missing destination parent directory, copies with **overwrite enabled**, and makes the
+destination writable. It ignores directory-creation, copy and attribute results and continues through the
+file list; it neither rolls back files nor returns an aggregate success. Overwrite is verified by
+`cRZFile::Copy`'s inversion of its true argument at `0x0091A32A–0x0091A335`; writable clears the Windows
+read-only bit (`0x0091A0AB–0x0091A0C0`). Empty source directories need not be reproduced.
+
+### 6.2 Init and preference selection
+
+An already initialized nation returns true without work. Otherwise `Init` sets its initialized flag first,
+runs StaticInit, **rereads tuning**, clears/releases any existing catalog entries, and tries discovery,
+template copying/discovery, then `CreateStarterRegion` if both fail. The starter factory's result is appended
+without a null check. No previous catalog is restored after a failure. These calls are visible at
+`0x00498759–0x004987A0`; the apparent `vector::size` export label at `0x00527180` is actually range erasure
+with releases and end-pointer adjustment, not a count query.
+
+`GetIndexOfCurrentRegionSettingInPreferences(outIndex)` (`0x00497820`) is a bool operation with an output
+32-bit index. It initializes the output to 0, takes the preference's fixed 64-byte current-region name
+(preference offsets `+0xEBC…+0xEFC`), truncates at its first NUL if present, then finds the first catalog
+**display name** whose first at most 64 bytes compare equal to it. The comparison is bytewise, case sensitive,
+with lengths significant, not a path comparison, directory-name comparison, or case-folded match. It returns
+true and writes that index on a match; false with output 0 otherwise (`0x00497962–0x00497976`, helper
+`0x00497420`). A name longer than 64 bytes can match its 64-byte preference prefix.
+
+Init sets active index −1 before this preference lookup. A match supplies the selected index directly.
+Without a match, Init uses the first catalog index as its provisional candidate, even if that region later
+fails activation. It probes regions in catalog order with `region.Init`; successful probes inspect their
+city list for any tutorial ID other than −1 and then call `region.Shutdown`. Failed probes are not shut down
+by this loop. Among those containing tutorial cities it prefers the first whose lowercased **directory
+name** equals the tutorial registry's default directory name for the current language. Otherwise the
+provisional first index remains selected. Evidence: `0x00498843–0x00498965`, `0x004989D6–0x00498AF5`.
+
+Init calls the selected region's Init once more (not SetActiveRegion, so no old-index access). It subscribes
+the three messages in §3 when the message server exists. It requests `ResetTutorialCities` if selection is
+negative or that final activation fails. Otherwise, when no catalog directory matches the current-language
+default tutorial directory (after lowercasing the catalog directory), it requests reset only if app slot 50
+returns true (`0x00498B36–0x00498CCC`). It returns true regardless of these bool results and keeps its flag
+set; it is not an all-or-nothing initialization operation.
+
+### 6.3 Shutdown and reinitialization
+
+`Shutdown` (`0x00497A80`) always returns true. If not initialized it has no effects. Otherwise it clears the
+flag first, unsubscribes the three IDs if a message server exists, calls the active region's Shutdown,
+releases/erases every catalog entry, destroys every response curve and clears the curve map. It does not
+delete region files, reset the active index, clear the difficulty vector, or reset StaticInit's process guard.
+Callback return values are ignored. A subsequent Init rediscovers the catalog and rereads tuning; the earlier
+"read once per process" description meant the ordinary single application lifetime, not a reinit guarantee.
+Difficulty resize-to-three retains surviving elements before new tuning is read; shutdown has not zeroed them.
+
+## 7. Catalog getters, selection, creation and deletion (NQ1/NQ2)
+
+`GetRegionCount` returns the catalog length. `GetRegion(index)` returns its borrowed pointer without AddRef;
+`GetActiveRegion` is the equivalent indexed lookup using the active index. Original lookups have **no**
+bounds checks (`0x00497740–0x0049774C`, `0x00497770`). Selection has a void contract: an equal index is an
+absolute no-op; otherwise it shuts down the old indexed region, stores the new 32-bit index, and initializes
+the new indexed region. Both callback results are ignored, with no retry or rollback (`0x004972F3–0x00497318`).
+An invalid old or new index, null entry, or getter on an empty catalog can access invalid memory; there is no
+original recoverable error or special "none selected" handling.
+
+`AddNewRegion(name)` (`0x00497EE0`) takes a string reference, invokes the static region factory described in
+region.md §6, appends the returned region, and returns the new last index (32 bits). It does not select,
+initialize, deduplicate, or inspect the new region. Even a null factory result is appended and its index
+returned *[quirk]*. Lower-level filesystem failures are those of the factory, not transactional nation errors.
+
+`DeleteRegion(index)` (`0x00497F60`) is void and takes a catalog index, not a region pointer or path. It first
+**selects the region being deleted**, even if another was active, then invokes that region's Delete (region.md
+§6). Since the target is now active, it selects its next catalog neighbor, or its previous neighbor when the
+target is last. It attempts to remove `<root><target-directory-name>` with removal flag 0, erases/releases the
+target entry while preserving remaining order, and decrements the active index if the erased index was
+smaller. It ignores disk and region results: catalog removal is not undone if files remain. The final-neighbor
+selection precedes catalog compaction (`0x00497F6C–0x00497FA4`, `0x00498033–0x00498076`). Deleting the sole
+region attempts selection −1 and is invalid original behavior, not a successful transition to an empty nation.
+
+*[choice]* For safe replacement calls, reject invalid indices (including a missing current region for a
+nontrivial selection) as `InvalidRegionIndex` before effects. Reject deletion of the last region as
+`LastRegion`, and reject a null factory result as `RegionCreationFailed` before appending it. A valid
+same-index selection has no callbacks. These protections apply only to invalid original accesses; do not
+turn ordinary callback/file failures into rollback. Void original operations need not manufacture bool
+success values, and any replacement status must distinguish its safety error from an original return value.
+
+## 8. Tutorial reset (NQ1) *[compat]*
+
+`ResetTutorialCities` (`0x00498CF0`) is a **void** operation. With no application, or while the app has a live
+city, it does nothing (`0x00498CFD–0x00498D17`). Otherwise it obtains the tutorial registry's ordered region
+names, moves the current-language default tutorial name to the front if present, and processes that list.
+If the current screen reports class ID `0xEA659793`, it destroys that screen before processing and recreates
+the region screen at the ordinary end (`0x00498D33–0x00498E93`, `0x00499C7C–0x00499C84`).
+
+For each tutorial directory name, it looks for the first catalog region with the same **lowercased directory
+name**. A found region is retained only when its user directory exists and contains both a `*.sc4` match and
+a `region.ini` match. A missing directory or either missing pattern causes DeleteRegion and recreation. An
+unlisted directory at that root/name is removed with recursive flag 1 before creation. Creation uses
+AddNewRegion(name), then GetRegion(returnedIndex); a null region causes an early return without undoing prior
+effects or taking the normal screen-recreation path (`0x00498F21–0x00499547`). It does not restore the region
+that had been active before reset.
+
+Only newly created/recreated tutorial regions receive a recursive copy from
+`<DataDirectory>Regions\<tutorial-name>\` into their user region directory. Each source-relative suffix is
+preserved, copy enables overwrite, and the destination is made writable; the copy/attribute results are
+ignored (`0x00499604–0x004998C5`). A retained region skips this template copy, but still receives the tutorial
+city exports below. This validity check does not verify that every tutorial file is intact.
+
+Each processed region is selected through SetActiveRegion. The registry supplies that region's tutorial
+entries. Each entry ID exports the resource `0x6A5B7BF5 / 0x6A5B7B57 / id` to
+`<user-region-directory>Tutorial-City-%08x.sc4` (eight lowercase hexadecimal digits). Export result −1 or a
+failed regional-city read marks that tutorial **inactive** and processing continues. On successful export
+and read, the city receives the saved path, its position is obtained, it is installed with the region's
+MoveCity operation, then shut down/released, and that tutorial is marked **active**. The MoveCity and city
+shutdown results are not checked before setting active (`0x0049995A–0x00499B99`). Thus reset can leave a
+partially reset catalog/files/registry; it has no aggregate success return and no rollback. The last processed
+tutorial region remains selected, subject to the explicit same-index no-op rule.
