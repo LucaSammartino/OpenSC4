@@ -70,7 +70,7 @@ void QueryToolShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     } else {
         s.hover = {hover, record, 0};
         s.describe = {describe, record, 0};
-        // OM 9.1: a null filter includes all occupants; no SDK concrete class
+        // OM 9.2 / 10: a null filter includes all occupants; no SDK concrete class
         // implementation or owned filter reference is needed for this walk.
         if (!manager->IterateOccupantsFilter(&Sample::Visit, &s, nullptr, nullptr, nullptr)) ++s.mismatches;
     }
