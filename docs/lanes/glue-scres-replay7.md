@@ -10,7 +10,9 @@
 - Stable-source qbuild all: Rust 6904 passed, 0 failed/ignored; clippy 0 diagnostics.
 - Native request qbuild-20261024-041758-build-ctest completed PASS: build 240/240 (116.2s), CTest 74/74 (143.6s), total 263.3s; qbuild all PASS.
 - Native gate's tree-changed note is the docs-only c05a06dd4 handoff commit; engine source stayed at 60758578d throughout.
-- Next: collect unique scres7-physical-2032-ash verdict using build-runs/wait-verdict.py, then inspect counted replay lines.
+- Game ash (run 403) clean to 2032-01-04, ref0; exact existing 76/76, overall scres 76/149 because 73 file replay lines each mismatches=72, resyncs=0, refused=0.
+- Captured 1107 physical reads, 122 empty, two false reads, 3 opens (one failed), 1061 commands, one include. Inclusive totals 1530.
+- Next: gate diagnostic-only native change, then unique scres7-physical-2032-birch; inspect bounded logs of raw lines with no command/include boundary. No rule has been inferred/changed.
 - Keep new observation default-off behind ini; no public C ABI changes planned.
-- Game request scres7-physical-2032-ash being enqueued with this milestone. No native operation outstanding.
+- No game or native operation outstanding. Evidence remains under build-runs/game-results/scres7-physical-2032-ash.*.
 - Current house-profile string is in prohibited tools/regress.ps1; do not read/edit it or merge main. Coordinator must append exact new key after review.

@@ -23,6 +23,8 @@ struct FileFrame {
     void* file = nullptr;
     bool constructed = false, opened = false, openSeen = false, terminal = false;
     uint32_t physical = 0;
+    bool pending = false;
+    std::string raw;
 };
 thread_local FileFrame* g_fileFrame = nullptr;
 thread_local bool g_fileForwardOpen = false, g_fileForwardRead = false;
@@ -30,6 +32,16 @@ std::vector<FileCopy> g_fileCopies;
 std::atomic<uint64_t> g_fileRoots{0}, g_fileReplays{0}, g_fileBad{0}, g_fileRefused{0};
 std::atomic<uint64_t> g_fileReads{0}, g_fileFalse{0}, g_fileBlanks{0}, g_fileOpens{0}, g_fileOpenFailed{0};
 std::atomic<uint64_t> g_fileCommands{0}, g_fileIncludes{0}, g_filePhysical{0}, g_fileTotals{0};
+std::atomic<uint64_t> g_fileUndispatched{0};
+
+void FileUndispatched() {
+    auto* f = g_fileFrame;
+    if (!f || !f->pending) return;
+    f->pending = false;
+    const uint64_t n = ++g_fileUndispatched;
+    if (n <= 8) fc4::Log("scres: file input without command/include physical=%u bytes=%zu raw=%.240s",
+                         f->physical, f->raw.size(), f->raw.c_str());
+}
 
 void FileRecord(uint32_t kind, const std::string& line = {}, uint32_t value = 0, int32_t position = 0) {
     auto* f = g_fileFrame;
@@ -65,6 +77,7 @@ bool __fastcall FileOpen(void* self, void*, uint32_t access, uint32_t creation, 
     return ok;
 }
 bool __fastcall FileRead(void* self, void*, cIGZString* output) {
+    if (g_fileFrame && g_fileFrame->file == self) FileUndispatched();
     g_fileForwardRead = true;
     const bool ok = reinterpret_cast<bool (__thiscall*)(void*, cIGZString*)>(kTextRead)(self, output);
     auto* f = g_fileFrame;
@@ -78,6 +91,8 @@ bool __fastcall FileRead(void* self, void*, cIGZString* output) {
         if (line.empty()) ++g_fileBlanks;
     } else { f->terminal = true; ++g_fileFalse; }
     FileRecord(ok ? 1u : 2u, line, 0, position);
+    f->pending = ok;
+    f->raw = line;
     return ok; // AL is the only native bool result.
 }
 bool FileProbe(CONTEXT& c) {
@@ -104,11 +119,13 @@ void FileCommand(const char* line) {
     if (!g_fileReplay || !g_fileFrame) return;
     std::string copy;
     if (!ParserCopyString(line, copy)) ++g_fileRefused;
+    g_fileFrame->pending = false;
     FileRecord(3, copy);
     ++g_fileCommands;
 }
 void FileFinish(bool success, uint32_t count) {
     auto* f = g_fileFrame;
+    FileUndispatched();
     if (!f->openSeen || !f->constructed || (success && !f->terminal)) ++g_fileRefused;
     FileRecord(success ? 4u : 5u, {}, count);
     if (success) g_fileTotals += count;
@@ -134,11 +151,12 @@ void FileReport(const fc4_date& date, const char* event) {
     fc4::Log("scres shadow %04d-%02d-%02d %s: file_parser_replay roots=%" PRIu64
              " replays=%" PRIu64 " reads=%" PRIu64 " blank=%" PRIu64 " false_eof_or_failure=%" PRIu64
              " opens=%" PRIu64 " open_failed=%" PRIu64 " commands=%" PRIu64 " includes=%" PRIu64
-             " physical=%" PRIu64 " inclusive_totals=%" PRIu64 " refused=%" PRIu64 " resyncs=0; mismatches=%" PRIu64,
+             " physical=%" PRIu64 " inclusive_totals=%" PRIu64 " undispatched=%" PRIu64
+             " refused=%" PRIu64 " resyncs=0; mismatches=%" PRIu64,
              date.year, date.month, date.day_of_month, event, g_fileRoots.load(), g_fileReplays.load(),
              g_fileReads.load(), g_fileBlanks.load(), g_fileFalse.load(), g_fileOpens.load(), g_fileOpenFailed.load(),
              g_fileCommands.load(), g_fileIncludes.load(), g_filePhysical.load(), g_fileTotals.load(),
-             g_fileRefused.load(), mismatch);
+             g_fileUndispatched.load(), g_fileRefused.load(), mismatch);
     ++g_lines;
     if (!mismatch) ++g_clean;
 }

@@ -96,6 +96,7 @@ int32_t __fastcall ParserFile(void* self, void*, const char* path, const char* c
     ++g_parserFileDepth;
     FileFrame file{g_fileFrame, {}};
     if (g_fileReplay) {
+        if (file.parent) file.parent->pending = false; // Native include route, not a command.
         if (!ParserCopyString(path, file.path)) ++g_fileRefused;
         g_fileFrame = &file;
     }
