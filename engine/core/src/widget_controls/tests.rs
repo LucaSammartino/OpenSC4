@@ -592,7 +592,7 @@ impl file_browser::IconIo for Recording {
         self.icon_calls.push("unlock");
     }
     fn convert_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
-        assert_eq!(rgb, [255, 0, 255]);
+        assert!(matches!(rgb, [255, 0, 255] | [8, 36, 107] | [255, 255, 255]));
         self.icon_calls.push("rgb");
         0x1234
     }

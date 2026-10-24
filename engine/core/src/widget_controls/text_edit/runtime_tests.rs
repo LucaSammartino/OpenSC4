@@ -315,6 +315,9 @@ fn te_password_mixed_coordinates_and_double_click_vectors_18_19_28() {
     let (mut e, mut f) = fixture(&[0xc3, 0xa9, b'z']);
     e.encoding.selector = 8;
     e.flags = 0x2000;
+    // Native mixed coordinates require a readable original span in the mask.
+    // Show only the first two original bytes; the cached caret column is still 2.
+    e.runtime.visible[0] = 1;
     e.position.column = 2;
     e.position.index = 2;
     e.position.active = 2;
