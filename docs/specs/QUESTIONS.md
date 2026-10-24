@@ -200,7 +200,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 6 | 3 | AF10 | questions/aircraft.md |
+| aircraft | 7 | 3 | AF11 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -264,7 +264,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 3 | 8 | LV10 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 11 | LC14 | questions/legacy-control.md |
-| lighting | 6 | 7 | LT14 | questions/lighting.md |
+| lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
 | lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
@@ -362,13 +362,13 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 4 | 5 | WC10 | questions/watercraft.md |
+| watercraft | 3 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
 | widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
-| win-grid | 4 | 2 | WG7 | questions/win-grid.md |
+| win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **608** | **1458** | | |
+| **total** | **606** | **1469** | | |
