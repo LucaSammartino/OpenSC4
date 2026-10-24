@@ -13,9 +13,13 @@
 - Native gate qbuild-20261024-005328-build-ctest terminal FAIL: build PASS 221/221, CTest 68/69.
 - Failure: ret_channel_check resolves auto& s.IsEqual as cIGZDate, not cIGZString; add explicit type/spec citation.
 - Failed full log preserved: build-runs/evidence-run4/strings5-initial-ctest-fail.log.
-- Next: measure built DLL through 2032; fix checker plus any game diagnostics, then final full gate.
+- Game a1 clean through 2032-02-17, ref_warnings=0; strings 0/73, nine differences/month.
+- Filed RZS9 magnitude, RZS10 alternate-hex padding, RZS11 empty Find; no observation-driven core fixes.
+- Revised sample: 5 witnesses, <=78 comparisons/month; disputed paths explicitly excluded.
+- Fixed checker receiver type/spec citation and registered ini key to remove unknown-key warnings.
+- Next: fmt/focused checker, final qbuild all on revised stable source; exact 2032 run with unique label b1.
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
-- Game request prepared: strings5-2032-20261024-a1, submitting built DLL (a71dc7439 source).
+- No outstanding game request; a1 verdict/log and docs/runs record retained.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
 - Filed RZS8 in docs/specs/questions/rz-strings.md for nonvirtual helper ABI; RZS7 reserved by concurrent lane.
 - Coordinator must regenerate the questions index (engine lane cannot run tools/).

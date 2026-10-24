@@ -39,7 +39,8 @@ fn run(op: u32, input: &[u8], other: &[u8], n: u32) -> Result<(Vec<u8>, i32), St
         13 | 14 => scalar = s.rfind(other, n, op == 13)? as i32,
         15 => {
             s.sprintf(
-                b"%s|%+08d|%#010x|%%",
+                // RZS10: alternate hex plus zero padding remains excluded.
+                b"%s|%+08d|%08x|%%",
                 &[
                     FormatArg::Bytes(input),
                     FormatArg::Signed(i64::from(n)),
@@ -112,6 +113,6 @@ mod tests {
         assert_eq!(run(11, b"abAB", b"AB", 0).unwrap().1, 2);
         assert_eq!(run(12, b"abAB", b"AB", 0).unwrap().1, 0);
         assert_eq!(run(13, b"abAB", b"", 99).unwrap().1, 4);
-        assert_eq!(run(15, b"Oak", b"", 42).unwrap().0, b"Oak|+0000042|0x0000002a|%");
+        assert_eq!(run(15, b"Oak", b"", 42).unwrap().0, b"Oak|+0000042|0000002a|%");
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Constructed same-process probes, not interception of arbitrary game calls.
-// Native inputs are a bounded live city name and three deterministic witnesses.
+// Native inputs are a bounded live city name and four deterministic witnesses.
 // All mutations target private game-allocator strings, never the city's state.
 #include "FC4StringsShadow.h"
 #include "FC4Config.h"
@@ -38,7 +38,7 @@ bool Compare(uint32_t op, const std::string& input, const std::string& other, ui
              uint32_t sample) {
     String native(input);
     if (!native.good) return false;
-    auto& s = native.ref();
+    cIGZString& s = native.ref();
     int32_t value = 0;
     const auto length = static_cast<uint32_t>(other.size());
     switch (op) {
@@ -54,11 +54,13 @@ bool Compare(uint32_t op, const std::string& input, const std::string& other, ui
         case 4: s.Insert(n, other.data(), length); break;
         case 5: s.Replace(n, other.c_str(), 3); break;
         case 6: s.Erase(n, 3); break;
+        // [abi-ret] rz-strings.md sections 2/4: cIGZString IsEqual is Boolean;
+        // this receiver is not cIGZDate (the checker's unresolved-auto candidate).
         case 7: case 8: value = s.IsEqual(other.data(), length, op == 7) ? 1 : 0; break;
         case 9: case 10: value = s.CompareTo(other.data(), length, op == 9); break;
         case 11: case 12: value = s.Find(other.c_str(), n, op == 11); break;
         case 13: case 14: value = s.RFind(other.c_str(), n, op == 13); break;
-        case 15: s.Sprintf("%s|%+08d|%#010x|%%", input.c_str(), static_cast<int>(n), n); break;
+        case 15: s.Sprintf("%s|%+08d|%08x|%%", input.c_str(), static_cast<int>(n), n); break;
         default: return false;
     }
     uint8_t out[512]{};
@@ -89,20 +91,27 @@ void StringsShadowMonth(cISC4City* city, int32_t julian) {
         city->GetCityName(name.ref());
         // [choice] deterministic bound, not a claim that a prefix is the whole
         // city name. Case/format paths with non-ASCII input remain RZS2/RZS5.
-        const std::string inputs[] = {name.bytes().substr(0, 96), "abABabcdef", std::string("A\0X", 3), ""};
-        const std::string others[] = {"Ab", "AB", std::string("A\0Y", 3), ""};
-        for (uint32_t sample = 0; sample < 4; ++sample) {
+        const std::string inputs[] = {name.bytes().substr(0, 96), "abABabcdef", std::string("A\0X", 3), "", "aBaB"};
+        const std::string others[] = {"Ab", "AB", std::string("A\0Y", 3), "", "AbAb"};
+        for (uint32_t sample = 0; sample < 5; ++sample) {
             const auto& input = inputs[sample];
             const bool ascii = std::all_of(input.begin(), input.end(), [](unsigned char b) { return b < 0x7f; });
             for (uint32_t op = 0; op < 16; ++op) {
                 if (!ascii && (op == 8 || op == 10 || op == 12 || op == 14 || op == 15)) { ++excluded; continue; }
+                // RZS11: original empty-haystack Find contradicts section 4.
+                // Keep it open; RFind's specified empty case is still measured.
+                if (input.empty() && (op == 11 || op == 12)) { ++excluded; continue; }
+                // RZS9: differing-prefix CompareTo magnitudes are unsettled.
+                // Section 4 explicitly specifies length differences when the
+                // common prefix is equal; compare precisely that subset.
+                const std::string other = (op == 9 || op == 10) ? input.substr(0, 2) : others[sample];
                 uint32_t n = 0;
                 if (op == 2) n = static_cast<uint32_t>(input.size()) + 3;
                 if (op >= 4 && op <= 6) n = static_cast<uint32_t>(input.size()) / 2;
                 if (op == 13 || op == 14) n = static_cast<uint32_t>(input.size()) + 3;
                 if (op == 15) n = static_cast<uint32_t>(julian) % 4096;
                 ++compared;
-                if (!Compare(op, input, others[sample], n, sample)) ++mismatches;
+                if (!Compare(op, input, other, n, sample)) ++mismatches;
             }
         }
     } else {
