@@ -12911,4 +12911,20 @@ int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint
 }
 #endif
 
+/* Independent lot-configuration Load projection (record-only shadow). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_lot_configuration_fields {
+    uint32_t width, depth, zones, wealths, purposes, growth_stage;
+    uint32_t water, construction, roads;
+    float max_slope, min_slope, foundation_slope;
+} fc4_lot_configuration_fields;
+bool fc4_lot_configuration_project(const fc4_props* exemplar, uint32_t detail,
+                                  fc4_lot_configuration_fields* out,
+                                  fc4_lotdev_cfg_object_callback visit, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

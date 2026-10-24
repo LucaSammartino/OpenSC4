@@ -744,6 +744,7 @@ void Resolve() {
     ScriptReload();
     IndustrialShadowStartup(enabledKey("industrial"));
     OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
+    ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
 }
 
 }  // namespace

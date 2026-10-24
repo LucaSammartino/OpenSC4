@@ -974,6 +974,37 @@ fn no_core_objects(_: u32, _: *mut c_void) -> Option<Rc<dyn SaveObject>> {
     None
 }
 
+/// Independent configuration Load projection for record-only shadows.
+/// `out` must be writable; callback data is borrowed for the callback only.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lot_configuration_project(
+    exemplar: *const fc4_props,
+    detail: u32,
+    out: *mut fc4_core::lot_config_manager::ConfigurationFields,
+    visit: fc4_lotdev_cfg_object_callback,
+    ctx: *mut c_void,
+) -> bool {
+    let (Some(h), Some(out)) = (props_ref(exemplar), out.as_mut()) else {
+        return false;
+    };
+    guard(false, || {
+        let Some(fields) = fc4_core::lot_config_manager::configuration_fields(h) else {
+            return false;
+        };
+        *out = fields;
+        // Version <2 generated serials are process-dependent; the live shadow
+        // refuses those inputs rather than claiming independently equal tags.
+        let objects = fc4_core::lot_config_manager::configuration_objects(h, detail, &mut 0);
+        if let Some(f) = visit {
+            for o in &objects {
+                let c = object_out(o);
+                f(ctx, &c);
+            }
+        }
+        true
+    })
+}
+
 /// `Read` (§B6): false for another version, and then nothing changes. The
 /// references come back through `resolve_ref` with IIDs `0x07813EAE`,
 /// `0x06C66177` and `0x28326F3E`.

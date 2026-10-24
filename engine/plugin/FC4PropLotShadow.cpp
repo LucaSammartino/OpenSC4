@@ -70,6 +70,7 @@
 #include <cstring>
 #include <ctime>
 #include <memory>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -104,6 +105,8 @@ constexpr size_t kMaxCatalogue = 1u << 20;
 bool g_prop = false;
 bool g_lcm = false;
 bool g_tut = false;
+bool g_lotconf = false;
+bool g_simulator = false;
 long g_cells = kDefaultCells;
 
 struct Totals {
@@ -120,6 +123,7 @@ struct Totals {
     }
 };
 Totals g_propTotals, g_lcmTotals, g_tutTotals;
+Totals g_lotconfTotals, g_simulatorTotals;
 
 // These are diagnostic probes against the live ORIGINAL owner, not natural
 // calls intercepted from simulation. Never credit copied records as algorithm
@@ -1968,8 +1972,159 @@ void TutRunStep(void* p) {
 
 // ---- runs ---------------------------------------------------------------------------------------------------
 
+// Independent exemplar projections: no native getter output enters this cache.
+struct ConfigurationProjection {
+    fc4_lot_configuration_fields fields{};
+    std::vector<ObjectCopy> objects;
+    bool loaded = false, foundation = false;
+};
+std::unordered_map<uint32_t, ConfigurationProjection> g_configurationProjections;
+uint32_t g_projectionDetail = 0;
+
+void ConfigurationRunStep(void* p) {
+    const Run& r = *static_cast<Run*>(p);
+    auto* raw = r.city->GetLotConfigurationManager();
+    const uint32_t detail = DetailPreference();
+    if (r.load || detail != g_projectionDetail) {
+        g_configurationProjections.clear();
+        g_projectionDetail = detail;
+    }
+    std::vector<uint32_t> ids;
+    const char* why = nullptr;
+    if (raw == nullptr || IsOurObject(raw) || !WalkMap(AsView(raw), ids, &why) || ids.empty()) {
+        Log("lotconf shadow %s: event=%s configurations=0 mismatches=-1 reason=%s", r.date, r.event,
+            why ? why : "missing-or-replaced-owner");
+        g_lotconfTotals.Note(-1);
+        return;
+    }
+    uint32_t differences = 0, exact = 0, objectCount = 0, rawTags = 0, pairs = 0, refused = 0;
+    FirstList first;
+    for (uint32_t id : ids) {
+        auto& projection = g_configurationProjections[id];
+        if (!projection.loaded) {
+            props::Exemplar ex;
+            std::vector<uint32_t> version;
+            if (ex.Load(kExemplarType, 0xA8FBD372, id) &&
+                props::GetU32s(ex.Holder(), 0x88EDC789, version) && !version.empty() && version[0] == 2) {
+                props::CoreProps core(props::ToCoreAll(ex));
+                projection.foundation = props::Has(ex.Holder(), 0x88FCD877);
+                projection.objects.clear();
+                projection.loaded = fc4_lot_configuration_project(core.Get(), detail,
+                    &projection.fields, &CopyObject, &projection.objects);
+            }
+        }
+        auto* c = AsView(raw)->GetLotConfiguration(id); // borrowed, §5.1
+        if (!projection.loaded || c == nullptr) {
+            ++refused;
+            ++differences;
+            first.Add("%08X unavailable-exemplar-or-configuration", id);
+            continue;
+        }
+        const auto& f = projection.fields;
+        uint32_t width = 0, depth = 0, diff = 0;
+        c->GetSize(width, depth);
+        auto pair = [&](bool same) { ++pairs; if (!same) ++diff; };
+        pair(width == f.width && depth == f.depth);
+        pair(c->GetID() == id);
+        pair(c->GetGrowthStage() == f.growth_stage);
+        pair(c->IsCompatibleWithWater() == (f.water != 0));
+        pair(c->IsDoConstruction() == (f.construction != 0));
+        auto floatPair = [&](float a, float b) { pair(std::memcmp(&a, &b, sizeof(a)) == 0); };
+        floatPair(c->GetMaximumSlope(), f.max_slope);
+        floatPair(c->GetMinimumSlope(), f.min_slope);
+        floatPair(c->GetMaximumSlopeBeforeFoundation(), f.foundation_slope);
+        auto* native = reinterpret_cast<cFC4ISC4LotConfiguration*>(c);
+        for (uint32_t q = 0; q < 16; ++q) pair(native->IsCompatibleWithZoneType(q) == ((f.zones >> q & 1) != 0));
+        for (uint32_t q = 0; q < 4; ++q) pair(native->IsCompatibleWithWealthType(q) == ((f.wealths >> q & 1) != 0));
+        for (uint32_t q = 0; q < 9; ++q) pair(native->IsCompatibleWithPurposeType(q) == ((f.purposes >> q & 1) != 0));
+        std::vector<ObjectCopy> objects;
+        if (auto* v = c->GetLotConfigurationObjectArray()) {
+            for (auto* o = v->begin(); o != v->end(); ++o) {
+                std::vector<uint32_t> tmp;
+                const auto co = LotDevObjectOf(o, tmp);
+                CopyObject(&objects, &co);
+            }
+        }
+        pair(objects.size() == projection.objects.size());
+        objectCount += static_cast<uint32_t>(objects.size());
+        for (size_t i = 0; i < objects.size() && i < projection.objects.size(); ++i) {
+            const auto& a = objects[i];
+            const auto& b = projection.objects[i];
+            const auto comparison = proplot::Object(a.o, a.ids, b.o, b.ids,
+                projection.foundation && i + 1 == projection.objects.size());
+            pair(comparison.definedEqual);
+            rawTags += comparison.fixups; // PL23, not an exemplar-derived field.
+        }
+        if (diff == 0) ++exact;
+        else first.Add("%08X fields=%u", id, diff);
+        differences += diff;
+    }
+    Log("lotconf shadow %s: event=%s exact=%u/%u pairs=%u objects=%u detail=%u "
+        "raw_foundation_tags=%u occupancy=unmeasured-GLUE22 costs=unmeasured-GLUE22 "
+        "refused=%u mismatches=%u first=%s", r.date, r.event, exact, static_cast<unsigned>(ids.size()),
+        pairs, objectCount, detail, rawTags, refused, differences, first.Str());
+    g_lotconfTotals.Note(differences);
+}
+
+uint32_t ShadowNow(void*) { return 0; }
+
+void SimulatorRunStep(void* p) {
+    const Run& r = *static_cast<Run*>(p);
+    auto* raw = r.city->GetSimulator();
+    WriteCapture capture;
+    if (raw == nullptr || IsOurObject(raw) || !capture.Capture(raw)) {
+        Log("simulator shadow %s: event=%s mismatches=-1 reason=missing-replaced-or-unserializable-owner", r.date, r.event);
+        g_simulatorTotals.Note(-1);
+        return;
+    }
+    fc4_host host{};
+    host.struct_size = sizeof(host);
+    host.now_ms = &ShadowNow;
+    fc4_sim* core = fc4_sim_create(&host);
+    if (core == nullptr) {
+        Log("simulator shadow %s: event=%s mismatches=-1 reason=core-create", r.date, r.event);
+        g_simulatorTotals.Note(-1);
+        return;
+    }
+    g_liveCore.p = core;
+    g_liveCore.teardown = [](void* s) { fc4_sim_destroy(static_cast<fc4_sim*>(s)); };
+    const auto& bytes = capture.Bytes();
+    const bool read = fc4_sim_load(core, bytes.data(), bytes.size()) == FC4_OK;
+    uint32_t differences = read ? 0u : 1u, pairs = 0;
+    auto pair = [&](bool same) { ++pairs; if (!same) ++differences; };
+    if (read) {
+        // Read ignores inTick (§8); no other byte is masked. The 11 level
+        // counters/fired flags, speed/time, budget and pause count all survive.
+        std::vector<uint8_t> output(fc4_sim_save(core, nullptr, 0));
+        fc4_sim_save(core, output.data(), output.size());
+        pair(output.size() == bytes.size());
+        for (size_t i = 0; i < output.size() && i < bytes.size(); ++i) {
+            if (i != 2) pair(output[i] == bytes[i]);
+        }
+        auto* sim = AsGame(raw);
+        fc4_date date{};
+        pair(fc4_sim_get_date(core, &date));
+        uint32_t year = 0, month = 0, day = 0, doy = 0, weekday = 0;
+        sim->GetSimDateParts(&year, &month, &day, &doy, &weekday);
+        pair(date.julian == sim->GetSimDateNumber());
+        pair(date.year == static_cast<int32_t>(year));
+        pair(date.month == static_cast<int32_t>(month));
+        pair(date.day_of_month == static_cast<int32_t>(day));
+        pair(date.day_of_year == static_cast<int32_t>(doy));
+        pair(date.weekday == static_cast<int32_t>(weekday));
+        pair(fc4_sim_get_sim_speed(core) == sim->GetSimSpeed());
+        pair(fc4_sim_get_sim_time(core) == sim->GetSimTime());
+        pair(fc4_sim_is_paused(core) == sim->IsPaused());
+    }
+    Log("simulator shadow %s: event=%s pairs=%u bytes=%u read=%u record_bootstrap=1 "
+        "independent_evolution=0 tick_counters=11 inTick=ignored-on-Read mismatches=%u",
+        r.date, r.event, pairs, static_cast<unsigned>(bytes.size()), read ? 1u : 0u, differences);
+    g_simulatorTotals.Note(differences);
+    g_liveCore.Reset();
+}
+
 void RunAll(cISC4City* city, int32_t julian, const char* event) {
-    if (city == nullptr || !(g_prop || g_lcm || g_tut)) return;
+    if (city == nullptr || !(g_prop || g_lcm || g_tut || g_lotconf || g_simulator)) return;
     Run r;
     r.city = city;
     r.julian = julian;
@@ -1990,6 +2145,15 @@ void RunAll(cISC4City* city, int32_t julian, const char* event) {
     g_liveCore.Reset();
     if (g_tut && !SehGuard("tutorial shadow", &TutRunStep, &r)) {
         Line("tutorial", g_tutTotals, r, "run", -1, "structured exception; comparison abandoned");
+    }
+    g_liveCore.Reset();
+    if (g_lotconf && !SehGuard("lotconf shadow", &ConfigurationRunStep, &r)) {
+        Log("lotconf shadow %s: event=%s mismatches=-1 reason=structured-exception", r.date, r.event);
+        g_lotconfTotals.Note(-1);
+    }
+    if (g_simulator && !SehGuard("simulator shadow", &SimulatorRunStep, &r)) {
+        Log("simulator shadow %s: event=%s mismatches=-1 reason=structured-exception", r.date, r.event);
+        g_simulatorTotals.Note(-1);
     }
     g_liveCore.Reset();
 }
@@ -2054,11 +2218,23 @@ void PropLotShadowStartup(bool propmgrReplaced, bool lotcfgReplaced, bool tutori
 
 void PropLotShadowCityLoaded(cISC4City* city) { RunAll(city, CityJulian(city), "load"); }
 
+void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorReplaced) {
+    g_lotconf = SettingInt("lotconf_shadow", nullptr, 0) != 0 && !lotcfgReplaced;
+    g_simulator = SettingInt("simulator_shadow", nullptr, 0) != 0 && !simulatorReplaced;
+    if (SettingInt("lotconf_shadow", nullptr, 0) != 0)
+        Log("lotconf shadow: %s; independent core exemplar derivation; occupancy/cost await GLUE22", g_lotconf ? "ON" : "REFUSED replaced owner");
+    if (SettingInt("simulator_shadow", nullptr, 0) != 0)
+        Log("simulator shadow: %s; native Write/core Read bookkeeping and calendar/getters; no scheduler evolution", g_simulator ? "ON" : "REFUSED replaced owner");
+}
+
 void PropLotShadowMonth(cISC4City* city, int32_t julian) { RunAll(city, julian, "month"); }
 
 void PropLotShadowPreSave(cISC4City* city) { RunAll(city, CityJulian(city), "save"); }
 
 void PropLotShadowCityShutdown() {
+    LogTotals("lotconf", g_lotconf, g_lotconfTotals);
+    LogTotals("simulator", g_simulator, g_simulatorTotals);
+    g_configurationProjections.clear();
     LogTotals("propmgr", g_prop, g_propTotals);
     LogTotals("lotcfg", g_lcm, g_lcmTotals);
     LogTotals("tutorial", g_tut, g_tutTotals);
