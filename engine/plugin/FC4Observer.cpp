@@ -661,7 +661,10 @@ public:
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 ConstructionShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
-                RegionalCityShadowObserve(static_cast<int32_t>(PublishedJulian()), true);
+                {
+                    auto* regionalCitySim = CurrentCity() ? AsGame(CurrentCity()->GetSimulator()) : nullptr;
+                    RegionalCityShadowObserve(regionalCitySim ? regionalCitySim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()), true);
+                }
                 EffectsShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
