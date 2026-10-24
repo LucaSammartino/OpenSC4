@@ -21,6 +21,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Diag.h"
 #include "GZServPtrs.h"
+#include "cIGZCOM.h"
 #include "cGZPersistResourceKey.h"
 #include "cIGZPersistResourceManager.h"
 #include "cIGZPersistDBRecord.h"

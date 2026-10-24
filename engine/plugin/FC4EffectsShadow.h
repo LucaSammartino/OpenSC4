@@ -13,6 +13,12 @@
 
 // The effects layer's same-process shadow (FreeCity4.ini `effects_shadow = 1`).
 //
+// With the native manager, effects_shadow compares the section 3 packed
+// directory name map against native HasVisualEffect at load and monthly.
+// It records only; EF20 limits collection/queue/placement capture and coverage.
+// The native path has no ticking mirror, message target or host writes.
+//
+// With the replacement enabled, a second fc4_effects core runs beside it.
 // A second fc4_effects core runs in the same process beside whichever effects
 // manager the city is using, over an EffectsHostContext in shadow mode: its
 // reads come from the game and every write is recorded in the context instead
@@ -36,7 +42,9 @@ class cISC4City;
 
 namespace fc4 {
 
-// Starts or stops the shadow from the ini (effects_shadow / FC4_EFFECTS_SHADOW).
+// Starts or stops the shadow from the ini (effects_shadow / FC4_EFFECTS_SHADOW,
+// default off). Native record comparison and replacement-call mirror are
+// separate paths; replacement-call counters are not native equivalence.
 // `effectsReplaced` is whether `enable = effects` put our class in place.
 void EffectsShadowStartup(bool effectsReplaced);
 void EffectsShadowStop();
