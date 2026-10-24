@@ -575,7 +575,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4StringsShadow.h
         # Opt-in partial resource/token adapter observation replay.
         plugin/FC4SCResShadow.cpp
-        plugin/FC4SCResShadow.h)
+        plugin/FC4SCResShadow.h
         # Default-off record-only ordinance monthly shadow.
         plugin/FC4OrdinanceShadow.cpp
         plugin/FC4OrdinanceShadow.h)
