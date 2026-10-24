@@ -348,7 +348,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
-| text-edit | 3 | 6 | TE10 | questions/text-edit.md |
+| text-edit | 2 | 10 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
@@ -368,9 +368,9 @@ generated index: the questions live one file per spec, so read only the file for
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 10 | 2 | WT10, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 9 | 6 | WT13, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1483** | | |
+| **total** | **605** | **1491** | | |
