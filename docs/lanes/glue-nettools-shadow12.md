@@ -14,4 +14,6 @@
 - qbuild all reports Rust 7293 passed/0 failed/0 ignored and clippy 0 diagnostics. Logs: build-runs/qbuild-test.log and qbuild-clippy.log.
 - The SAME qbuild all operation is waiting for native queue qbuild-20261024-153703-build-ctest (exec session 49185); do not submit duplicate verify. No game outstanding.
 - Wait script prepared: build-runs/wait-nettools-game.ps1 (single FileSystemWatcher wait, no qwait). Highest observed run ID 511; reserve a unique larger ID before recording run.
+- First full gate terminal: Rust 7293/0, clippy 0 diagnostics, native build PASS 263/263, CTest 80/81. ret_channel_check required a cited ABI review comment for native Init (spec section 14 explicitly AL); fixed. The gate also observed the documentation commit during its run. Failed full CTest evidence preserved as build-runs/fc4verify-ctest-r1-failed.log and build-results/qbuild-20261024-153703-build-ctest.*.
+- Next: commit ABI annotation, rerun all on an unchanged HEAD and collect to terminal; then game to 2032. No game request outstanding.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettools-shadow12-r1-manifest.json.

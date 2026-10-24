@@ -30,6 +30,7 @@ struct Probe {
 };
 void Init(void* p) {
     auto* probe = static_cast<Probe*>(p);
+    // [abi-ret] network-tools section 14, slot 3: Init returns AL.
     probe->ok = probe->tool->Init();
     probe->tool->EnablePreviewUpdate(false);
 }
