@@ -134,6 +134,7 @@ helper metrics, and many owner constructors still need analysis. The new specs l
 
 - Round 2 active: first finish WTG1/WTH1/WTC1, then largest catch-row owners; original report above is round 1.
 - Round 2 milestone: WTC1 resolved from constructor 0095BAB3, raw secondary table and adjustment instructions; custom owner complete.
+- Round 2 milestone: generator section 8 covers all 32 secondary slots, ownership, decorations, geometry, input and drawing calls; WTG1 narrowed to two helper pixel contracts. Doccheck passes before final report.
 - Next exact step: query generator/custom secondary tables and constructor/teardown evidence from main export.
 - Ready to land this bounded documentation increment; not a full-owner closure or 100 KB completion claim.
 - Milestones: 59e23d78b initial record; 59f82984a generator; dbcc2edb2 HTML/custom.
