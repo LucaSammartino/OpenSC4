@@ -349,60 +349,6 @@ fn filter_to_c(f: &DemolishFilter) -> fc4_effects_demolish_filter {
     }
 }
 
-/// Record-only effects.md sections 3/4 name-membership comparison. `counts`
-/// receives directory names, native queries and field differences, in order.
-/// No native answer is used to build or modify the parsed directory.
-///
-/// # Safety
-/// `data` spans `len` readable bytes; `counts` spans three writable u32s.
-/// The callback accepts a temporary NUL-terminated name and returns 0 or 1.
-#[no_mangle]
-pub unsafe extern "C" fn fc4_effects_verify_names(
-    data: *const u8,
-    len: usize,
-    has_name: Option<unsafe extern "C" fn(U, *const c_char) -> u32>,
-    user: U,
-    counts: *mut u32,
-) -> bool {
-    guard(false, || {
-        if counts.is_null() {
-            return false;
-        }
-        let counts = std::slice::from_raw_parts_mut(counts, 3);
-        counts.fill(0);
-        let has_name = match has_name {
-            Some(f) if !data.is_null() => f,
-            _ => return false,
-        };
-        let directory = match EffectDirectory::parse(std::slice::from_raw_parts(data, len)) {
-            Ok(d) if !d.names.is_empty() => d,
-            _ => return false,
-        };
-        let mut probes = Vec::new();
-        for (name, _) in &directory.names {
-            for variant in [name.clone(), name.to_ascii_uppercase(), name.to_ascii_lowercase()] {
-                match std::ffi::CString::new(variant) {
-                    Ok(name) => probes.push(name),
-                    Err(_) => return false,
-                }
-            }
-        }
-        // Literal section 4 membership only. EF20 blocks native description
-        // capture; this does not claim priority, publication or placement state.
-        for name in ["", "end", "__fc4_effects_shadow_absent__"] {
-            probes.push(std::ffi::CString::new(name).unwrap());
-        }
-        counts[0] = directory.names.len() as u32;
-        for name in probes {
-            let expected = u32::from(directory.find(name.to_str().unwrap(), u32::MAX).is_some());
-            let native = has_name(user, name.as_ptr());
-            counts[1] += 1;
-            counts[2] += u32::from(native != expected);
-        }
-        true
-    })
-}
-
 // ---- the directory ----------------------------------------------------------------------------------
 
 fn dir_ref<'a>(d: *const fc4_effects_directory) -> Option<&'a Rc<EffectDirectory>> {

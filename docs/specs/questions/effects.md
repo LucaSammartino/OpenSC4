@@ -11,6 +11,3 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
 
 <!-- re-effects-ef18 (2026-10-24) answered EF18 and EF19; moved to answered/effects.md.
      EF17 remains reserved by the coordinating brief. No open questions remain. -->
-
-<!-- from: glue-effects-shadow7 (2026-10-24) -->
-- **EF20 - sections 2, 6.1/6.2 and 18.6 native record-only capture:** Please specify the collection getter return types, exact argument types/ownership and description enumeration/count access, the resource collection-reader IID/signature, and a read-only queue/bootstrap state capture protocol. The slot tables identify methods but their ABI rows say eax-or-void, and section 2 does not define list/description container framing. How can a shadow capture all published descriptions, bindings, triggers, camera state and retained file queue without mutating the native manager or guessing signatures/layouts? [Compare only section 3 directory name decoding against native section 4 HasVisualEffect, through the public SDK raw record and manager interfaces. No native collection getters, private container reads, queue hooks, publication/placement equivalence or full-owner coverage claimed until this contract is provided.]
