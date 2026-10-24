@@ -1,6 +1,7 @@
 # Owner -> subsystem map for tools/coverage.py (RE side). One row per owner pattern; the FIRST matching row wins.
 # Columns:
-#   pattern    fnmatch glob (case-sensitive) on the owner: a class or namespace ("cSC4PowerSimulator",
+#   pattern    "m:<Class>::<Method>" for one function (wins over owner rows; partial shadows), or an
+#              fnmatch glob (case-sensitive) on the owner: a class or namespace ("cSC4PowerSimulator",
 #              "nSGLDX7::cGDriver"; nested classes match their parent's pattern with "*"), or "fn:<name>" for a free
 #              function
 #   subsystem  the row's name in the report (several rows may share one)
@@ -135,7 +136,7 @@ cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	c
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	lotcfg_shadow	lotcfg
 # lotconf_shadow (glue-lotconf-sim-shadow6, capacity from glue-lotconf-capacity7 applying GLUE22; house profile from train173) derives every loaded configuration's size, masks, stage, flags, slopes, object array and building capacity from resource properties and compares all 1909 native configurations (107845 pairs) at load and each month: 73/73 in regress train186. Raw appended-foundation tags are uninitialised native values excluded by PL23; costs are outside the owner surface (section 4.2) and occupancy needs a lot instance
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	lotconf_shadow	-
-cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	-
+cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	tutorial
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
@@ -285,8 +286,8 @@ cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
-cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
-cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
+cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
 cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
@@ -467,11 +468,11 @@ cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
 # tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
-nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	core/src/span_render1555	span1555	-
-nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	core/src/span_render565	span565	-
-nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	-
-nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	-
-nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	-
+nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	span-render-1555.md	core/src/span_render1555	span1555	span1555
+nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-render-565.md	core/src/span_render565	span565	span565
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	span4444
+nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	span8888
+nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	span8
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
@@ -638,10 +639,10 @@ cGZWWWSystem	web and network	framework	web-network.md	-	-	-
 cRZHTTPClient	web and network	framework	web-network.md	-	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
 cRZURL	web and network	framework	web-network.md	core/src/rzurl.rs	-	-
-cRZCookieManager	web and network	framework	web-network.md	-	-	-
+cRZCookieManager	web and network	framework	web-network.md	core/src/www	-	-
 cRZNet*	web and network	framework	-	-	-	-
 cRZName*	web and network	framework	-	-	-	-
-NetworkFileCache	web and network	framework	web-network.md	-	-	-
+NetworkFileCache	web and network	framework	web-network.md	core/src/www	-	-
 HTTPMessage	web and network	framework	-	-	-	-
 cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
@@ -720,7 +721,7 @@ MiscGraphRect	widget toolkit	ui	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
-CookieData	web and network	framework	-	-	-	-
+CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	-	-	-	-
 cEaseSound	audio	audio	-	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
@@ -750,3 +751,28 @@ cSC4*	other SC4 classes	other	-	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
+# ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)
+m:cSC4RenderProperties::GetBoolCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetIntCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetFloatCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetBoolName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetIntName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::GetFloatName	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindBool	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindInt	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4RenderProperties::FindFloat	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
+m:cSC4App::GetDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetCDDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetCDPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetSkuSpecificDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetUserDataDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetRegionsDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetUserPluginDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetMySimDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAlbumDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetHTTPCacheDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetTestScriptDirectory	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAppIniFileName	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4App::GetAppPreferencesFileName	application	framework	application.md	core/src/application	app_shadow	-
+m:cSC4TrafficSimulator::GetCommercialTrafficMap	traffic	simulation	traffic-simulator.md	core/src/traffic_simulator	app_shadow	traffic

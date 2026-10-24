@@ -78,11 +78,12 @@ The sixteen additions have the following conservative dispositions:
 | 009BC5CC (21B) | P: exact space/LF byte predicate, text-edit-layout.md navigation. |
 | 009BD0AF (50B) | P: preceding-LF insertion correction, text-edit.md section 7. |
 | 009BDDF2 (76B) | P: bounded byte copy/count/start-failure branch, text-edit-adapters.md. |
-| 009BDE3E, 009BE9ED, 009BEA0D, 009BF518, 009BFA74, 009BFA92, 009BFABB, 009BFAE3 | B: allocation/initial-line/action range destruction/copy/destructor roles in the measured table and sections 6/10. Full generated-helper copy, allocation-failure, unwind and foreign destruction behavior is not proved by those role/stride observations. |
+| 009BDE3E, 009BE9ED, 009BEA0D, 009BF518, 009BFA74, 009BFA92, 009BFABB, 009BFAE3 | B: allocation/initial-line/action range destruction/copy/destructor roles in the measured table and sections 6/10. Section 6 now specifies copy/growth and absent local failure cleanup from instructions; allocator/string/base implementations remain foreign. Conservative attribution classifications are retained. |
 
 This is **8 P / 202B** plus **8 B / 382B** among the additions, exactly
 584B; direct and additional body sizes still sum to 19,999B. In particular,
 the 163B destructor has an owner cleanup-order contract, but no full foreign
 destruction/unwind promise. Metadata, role recognition and an adjustment
-thunk do not certify a callee's unproved body. TE5/TE8 are parked at the
-third-round cap: preserve the original worktree, no fourth round or restart.
+thunk do not certify a callee's unproved body. TE5/TE8 were answered on
+2026-10-24 by the encoding/adapters and history-storage contracts, without
+promoting the attribution count to complete-owner execution evidence.

@@ -1,9 +1,9 @@
 # TextEdit navigation and layout body contracts
 
 Extension of [text-edit.md section 8](text-edit.md#8-layout-font-primitives-and-view).
-All rules are original Windows 1.1.641 body contracts. Font metrics and
-composed/conversion primitives remain explicit foreign inputs; ordinary
-byte helpers are specified in text-edit-encoding.md. No implementation or
+All rules are original Windows 1.1.641 body contracts. The
+composed/conversion primitives and ordinary byte helpers are specified in
+text-edit-encoding.md; font metrics remain external inputs. No implementation or
 game output is used. Arithmetic is 32-bit unless a different width is stated.
 
 ## Byte coordinates and navigation

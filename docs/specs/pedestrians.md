@@ -31,7 +31,7 @@ road occupants.
 | Class | Class ID | Record |
 |---|---|---|
 | `cSC4Pedestrian` | `0x896E75AF` (`0x00546030`) | automata.md §6.4 (`u16` 5, Write `0x00544650`, Read `0x005446C0`) |
-| `cSC4PedestrianOneShot` | `0xAA09DC28` (`0x005468C0`) | the pedestrian's (it overrides only `Init`, §3) |
+| `cSC4PedestrianOneShot` | `0xAA09DC28` (`0x005468C0`) | the pedestrian's; its own `Init` and animation tick are in §3 |
 | `cSC4SimFireCrew` | `0x4A222E4D` (`0x0054A430`) | §4.5 |
 | `cSC4TrafficEffectManager` | — | none (§5) |
 
@@ -43,7 +43,25 @@ The constructor (`0x00545F20`) builds a traffic automaton with occupant type `0x
 push (§2.4) and its collision timer, and sets the **default speed**: a uniform random integer between `T+0x18` and
 `T+0x1C` (tuning `0x4998C905`, shipped 15 and 20) × 1/3600, which also becomes the speed tween's target.
 
-`Init` (`0x005444F0`): on the first call only, virtual slot158; then the traffic automaton's `Init`. For the concrete pedestrian, the primary table at `0x00A9A718` maps slot158 to `0x00544620`: draw one uniform double in the range `T+0x120` to `T+0x124` from the automata RNG (`0x00B21D78`) and store the result as f32 at `+0x200`. The field's semantic name is not established; this specifies its value without guessing a name. Bounds are promoted from f32 to double before the draw. The first-call test is the state interface's slot5 at `this+4` (`0x005444F9`).
+`Init` (`0x005444F0`) initializes a per-object random parameter before the traffic automaton's `Init`.
+The initialization guard is the initialized query on the interface at `this+4` (slot 5,
+`0x005444F9`), rather than a separate pedestrian flag. When that query is false, automaton slot 158
+(`+0x278`) performs the following operation:
+
+- Take the two binary32 bounds `T+0x120` and `T+0x124` (property `0x29DD40C1`; shipped −0.5, −0.5).
+- Promote both bounds to double arguments and make one `RandomDoubleRangeUniform` call on the automata
+  RNG (`0x00B21D78`). Store the result rounded to binary32 at object `+0x200`.
+
+The concrete pedestrian's table `0x00A9A718`, one-shot table `0x00A9AB50`, and fire-crew table
+`0x00A9B488` all inherit this operation at `0x00544620`. It is **not** the constructor's integer
+default-speed draw or the one-shot play-count draw. The field's semantic name is not established;
+its storage and random-value contract do not require guessing one. Equal bounds still consume the
+range draw; with shipped bounds the stored value is exactly −0.5. An already initialized object
+skips this operation. If the subsequent base Init fails, there is no rollback of this stored value;
+a retry performs it again if the initialized query is still false.
+
+Evidence: table entries `0x00A9A990`, `0x00A9ADC8`, `0x00A9B700`; floating-point loads, double
+arguments and binary32 store `0x00544620`–`0x00544643`; range draw `0x00913A46`–`0x00913A55`.
 
 ### 2.2 The animation tick (`0x00544580`)
 
@@ -121,10 +139,92 @@ vehicles.md §2 and automata.md §6.5 *[summary]*.
 
 ## 3. The one-shot pedestrian (`cSC4PedestrianOneShot::Init`, `0x00544DA0`) *[compat]*
 
-On the first call slot 158, then the traffic automaton's `Init`; when that succeeds, every model instance gets
-the value 0.01 (instance slot 14) *[inferred: an animation rate]*, and the **play count** is drawn uniformly between
-two bounds: `T+0x13C` and `T+0x13D` (tuning `0x6A09F630`, shipped 3 and 10), replaced by the two `u8` values of
-property `0xEA958845` of the automaton's exemplar when it has at least two.
+### 3.1 Initialization and count selection
+
+The constructor (`0x00546860`) uses pedestrian construction and initializes the **remaining play count**,
+an unsigned byte at `+0x270`, to 5 (`0x005468B1`). Init uses the initialized query and slot-158 operation
+of §2.1, then calls the traffic automaton's Init directly. It returns that call's Boolean result.
+Failure leaves the existing count and model speeds unchanged by the one-shot-specific setup; the
+earlier slot-158 operation, if performed, is retained.
+
+Every **successful** Init, including a call on an already initialized object, sets all non-null model
+instances' animation speed to binary32 `0x3C23D70A` (approximately 0.01 frames/ms, or 10 frames/s), through
+instance slot 14, `SetSpeed`. Null entries are skipped. This does not select an animation, reset its
+frame/accumulator, or change its playback mode. The model playback contract is
+[model-instances.md](model-instances.md) §3 and [graphics-formats.md](graphics-formats.md) §3.9.
+
+After setting the speeds, select a new count, replacing any remaining count:
+
+| Exemplar input | Bounds used |
+|---|---|
+| No exemplar, no property `0xEA958845`, or fewer than two array elements | The two tuning bytes `T+0x13C`, `T+0x13D` (property `0x6A09F630`; shipped 3, 10) |
+| Property `0xEA958845` has at least two `u8` elements | Element 0 is the lower bound, element 1 the upper; ignore later elements |
+
+For ordered bounds `lo ≤ hi`, the count uses the inclusive bounded-integer RNG contract: draw with
+span `hi − lo + 1` and add `lo`. This is one bounded draw even when both bounds are equal, even when
+there are no models, and on every successful reinitialization. The slot-158 draw precedes base Init;
+this separate integer draw follows successful base Init and all model-speed writes.
+
+There is no validation or swapping of reversed bounds. More precisely, let `N` be `hi − lo + 1`
+reduced modulo 2³², and let `R` be the next unsigned 32-bit automata random word. The selected count is
+`(lo + floor(R × N / 2³²)) modulo 256`, using a full 64-bit unsigned product. In particular, adjacent
+reversed bounds give `N = 0`, still consume a random word, and store `lo`. Both zero and 255 are
+representable counts; zero does not request removal during Init.
+
+Evidence: guard/base result `0x00544DA5`–`0x00544DCB`; model-speed writes `0x00544DD1`–`0x00544DFE`;
+property and length check `0x00544E00`–`0x00544E55`; byte bounds, 32-bit span, bounded draw and byte
+store `0x00544E59`–`0x00544E70`. The bounded RNG uses the high half of an unsigned product
+(`0x00913A06`–`0x00913A11`).
+
+### 3.2 The play-count consumer: the one-shot animation tick
+
+The primary table installs `0x00544E80` in automaton **slot 72** (`+0x120`, entry `0x00A9AC70`).
+This is the one-shot's own `DoAnimationTick`, not the pedestrian animation tick of §2.2 or its
+animation-step slot 103. It consumes the count **directly** from `+0x270`; calling a count getter,
+an animation-end callback, or a pedestrian state handler is not required to consume it.
+
+The tick accepts the ordinary two inputs (microseconds, milliseconds). It ignores the first and
+uses the second, binary32 milliseconds, for the inherited opacity/fade update (automaton slot 83,
+`0x005091C0`) and for `Advance(ms)` (instance slot 15) on each non-null model in list order. The fade
+update happens first. Each model's Advance result is ignored.
+
+Only the **first non-null** model determines whether a play is charged. Immediately after advancing
+that model, compare its current frame (instance slot 11) with its frame count (slot 12) minus one.
+The comparison is signed 32-bit `frame ≥ frameCount − 1`; it is a sampled final-frame test, not an
+edge test or a check of Advance's return value. A later model cannot charge a play, even when the
+first model is below its final frame. Empty/all-null lists never charge a play.
+
+| First non-null model after Advance | Count update and tick result |
+|---|---|
+| Frame below `frameCount − 1` | Count unchanged; return true |
+| At/past final frame, count greater than zero | Decrease the byte count by exactly one; return true if it remains nonzero |
+| At/past final frame, count is now zero (including zero before the test) | Keep zero, call automaton slot 13 `Remove(false)`, and return false |
+| No non-null model | Count unchanged; return true |
+
+The removal request uses the ordinary automaton removal operation (`0x00509130`), not immediate
+destruction or a new one-shot state. Remaining non-null models are still advanced in order after
+that request; none of them causes another decrement or removal request in that tick. The tick
+does not itself restart an animation, select a mode, or reset a frame. Thus the usual looping
+model provides subsequent plays, but a held final frame charges again on each tick, including a
+zero-millisecond tick. A large delta can charge at most one play per call. A zero count stays
+alive until a qualifying final-frame observation; it is not an infinite-play sentinel.
+
+Unlike the ordinary pedestrian/traffic tick, this body has no simulator-pause query, stationary
+flag gate, walking/state tick, animation-end callback, or animation-clock increment. These are
+properties of a direct call; whether a paused scheduler delivers a call is outside this body.
+
+Evidence: fade input `0x00544E86`–`0x00544E95`; model Advance and first-model selection
+`0x00544E9B`–`0x00544EC5`; frame/count comparison and saturating decrement
+`0x00544EC7`–`0x00544EF6`; `Remove(false)`, continued iteration and Boolean return
+`0x00544EF8`–`0x00544F20`. The instructions establish both the argument positions and the return
+value; the exported pseudocode does not reliably recover the arguments or initialized Boolean result.
+
+### 3.3 Count accessors
+
+The same primary table has two additional slots: 177 (`+0x2C4`, `0x005468D0`) reads the unsigned
+byte count, and 178 (`+0x2C8`, `0x005468E0`) replaces it with its byte argument. Neither advances or
+restarts playback, changes speed, or requests removal. Their table entries are `0x00A9AE14` and
+`0x00A9AE18`. The tick in §3.2 reads/writes the field itself rather than dispatching these accessors.
 
 ## 4. The fire crew (`cSC4SimFireCrew`) *[compat]*
 
@@ -205,7 +305,8 @@ The traffic automaton's exit hook stops its effects (vehicles.md §2).
 
 ## 7. Open questions
 
-See [questions/pedestrians.md](questions/pedestrians.md) (PN1–PN2).
+See [questions/pedestrians.md](questions/pedestrians.md) (PN2–PN3). PN1 is settled by §2.1 and §3;
+the initialization hook and play-count consumer have no remaining behavior question.
 
 ## 8. Conformance tests
 
@@ -220,3 +321,42 @@ See [questions/pedestrians.md](questions/pedestrians.md) (PN1–PN2).
 For concrete `cSC4Pedestrian` with equal tuning bounds -0.5 (the shipped values of property `0x29DD40C1`), first initialization performs one double-range draw and stores f32 -0.5 at+0x200 before the base Init. An already initialized object skips this draw. For unequal bounds, use the existing RNG contract; do not substitute the default-speed integer draw from section2.1. Overrides of slot158 retain their own behavior. The identity is byte-proved by the constructor table store `0x00545F4A`, table entry+0x278, and body `0x00544620`-`0x0054464A`.
 
 The primary tables of `cSC4PedestrianOneShot` (`0x00A9AB50`, first entry `0x00544780`) and `cSC4SimFireCrew` (`0x00A9B488`, first entry `0x00547920`) also map slot158 to `0x00544620`, so the same initial-parameter operation applies to these two inherited calls.
+
+### PN1 conformance: initialization and count consumption
+
+The initialization fixtures control the initialized query and base-Init result. RNG words below are
+inputs to the bounded count draw, not to the earlier double-range draw. Observe only the draws
+owned by this class; base Init may have its own effects. Tuning bounds for the double draw are
+−0.5, −0.5 unless specified otherwise.
+
+| ID | Fixture/action | Required observation |
+|---|---|---|
+| PN1-I1 | Newly constructed one-shot, before Init | Count 5; no one-shot model-speed write yet |
+| PN1-I2 | Not initialized, successful Init, models `[null, A, B]`, shipped count bounds, count RNG word `0x00000000` | Slot 158 makes one range draw and stores binary32 −0.5 before base Init; after success SetSpeed bits `0x3C23D70A` on A then B; one bounded draw with span 8 stores count 3; return true |
+| PN1-I3 | As I2, count RNG word `0xFFFFFFFF` | Count 10; both model frames, accumulators and modes retain their pre-Init values |
+| PN1-I4 | Already initialized, remaining count 1, successful Init, exemplar byte array `[2, 4, 99]`, count RNG word `0x80000000` | No slot-158 draw; both model speeds set again; span 3 selects count 3, replacing 1; ignore element 2 |
+| PN1-I5 | Not initialized, count 5, model speed 0.25, base Init returns false | Slot-158 parameter still becomes −0.5; no one-shot speed write or count draw, count remains 5 and speed 0.25; return false. Retry with initialized query still false makes another slot-158 draw |
+| PN1-I6 | Successful Init with no exemplar, missing count property, or count property with 0/1 elements | In each case use both tuning bounds, 3 and 10; a lone property byte does not override either bound |
+| PN1-I7 | Successful Init, empty model list, exemplar `[0, 0]` | One bounded draw with span 1 stores zero; no removal request; return true |
+| PN1-I8 | Successful Init, exemplar `[255, 255]` | One bounded draw with span 1 stores 255 without signed-byte interpretation |
+| PN1-I9 | Successful Init, exemplar `[10, 9]`, any random word | Span 0 still consumes one word and stores 10 |
+| PN1-I10 | Successful Init, exemplar `[10, 3]`, random word 2 | Span `0xFFFFFFFA`, product high half 1, stored count 11; do not reorder or clamp the bounds |
+
+For the tick fixtures, A/B are live animated-model interfaces with controlled frame/count results
+**after** Advance. Record opacity-update, Advance, frame/count-query and removal calls. Unless
+specified, the first tick input is 123456 microseconds and the second is binary32 25 milliseconds.
+
+| ID | Fixture/action | Required observation |
+|---|---|---|
+| PN1-T1 | Models `[A]`, A frame 2/count 4, remaining count 3 | Fade update with 25, then Advance A with 25; frame/count queried afterward; count 3, no removal, return true; microseconds never passed to Advance |
+| PN1-T2 | Models `[null, A, B]`, A frame 3/count 4, B also final, remaining count 3 | Advance A, charge once to 2, Advance B; only A supplies the final-frame test; return true |
+| PN1-T3 | Models `[A, B]`, A frame 2/count 4, B frame 3/count 4, remaining count 3 | Advance both; no count decrement or removal; return true |
+| PN1-T4 | Models `[null, A, B]`, A final, remaining count 1 | Fade update, Advance A, Remove(false), Advance B in that order; count 0, exactly one removal request, return false |
+| PN1-T5 | Count 0, A frame 2/count 4; next tick A frame 3/count 4 | First call returns true with no removal; second calls Remove(false), returns false and keeps count 0, never wrapping to 255 |
+| PN1-T6 | Empty list or `[null, null]`, remaining count 0 | Fade update only; count 0, no model queries or removal, return true |
+| PN1-T7 | A frame 3/count 4, accumulator 0, remaining count 3; three direct zero-ms ticks whose Advances leave that frame unchanged | Counts 2, 1, 0; results true, true, false; only third call requests removal, although every Advance reports no step |
+| PN1-T8 | A frame 0/count 1, remaining count 2; two ticks | Counts 1 then 0; second tick requests removal and returns false even if the single-frame model cannot advance |
+| PN1-T9 | A reports frame 0/count 0 (interface fixture), remaining count 2 | Signed threshold is −1, so count becomes 1 and result is true; no extra zero-frame guard |
+| PN1-T10 | Large second delta, model reports final, remaining count 255 | Count 254, one decrement regardless of elapsed time or any loop count reported by the model |
+| PN1-T11 | Direct tick while simulator is paused, or pedestrian flag `0x20` is set without `0x2000`/2 | Same fade, Advance and count behavior as T1–T4 for the supplied model result; this body queries neither pause nor those flags |
+| PN1-T12 | Set count through slot 178 to 0 while A is before its final frame; read through slot 177; tick | Getter reports 0; setter causes no playback/removal call; tick behaves as first call of T5 |

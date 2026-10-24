@@ -406,6 +406,15 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_drag_shadow", "nettool_wide_drag_shadow",
                                   // LR15 scoped record inventories, independently default off.
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
+                                  // Application path and message-mode observation, default off (AP17).
+                                  "app_shadow",
+                                  // Unresolved native lazy-path cache diagnostics only (AP18).
+                                  "app_shadow_path_cache",
+                                  // Sparse DX7 cached-state transitions, default off.
+                                  "gdriver_shadow",
+                                  "querytool_shadow",
+                                  // Published legacy owner-method comparisons; default off.
+                                  "legacyctl_shadow",
                                   // VU16 partial view utility differential, default off.
                                   "viewutil_shadow",
                                   // MI14 finite isolated model-instance fixture, default off.

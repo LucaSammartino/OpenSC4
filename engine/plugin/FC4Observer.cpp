@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Observer.h"
+#include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
@@ -66,6 +67,7 @@
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4NetToolDragShadow.h"
+#include "FC4QueryToolShadow.h"
 #include "FC4NetRulesShadow.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane: citysit_shadow
@@ -108,7 +110,9 @@
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
 #include "FC4ModelInstShadow.h"
+#include "FC4GDriverShadow.h"
 #include "FC4DbpfNative.h"
+#include "FC4AppShadow.h"
 #include "FC4ViewUtilShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -148,7 +152,9 @@ constexpr uint32_t kMsgPreCityInit = 0x26D31EC0;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
                                          kMsgAuraCycleCompleted, kMsgPreSave, kMsgSituationActive,
-                                         kMsgPostLoad, kMsgPreCityInit};
+                                         kMsgPostLoad, kMsgPreCityInit,
+                                         // application.md 6.2 mode transitions (app_shadow).
+                                         0x8BB5BB46, 0xCBB5BB45, 0xEA8AE29A};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -582,6 +588,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        AppShadowTick(static_cast<int32_t>(PublishedJulian()));
         FpuTick();
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
         // (modal-dialogs.md §2.3); before the script and the autotest.
@@ -615,6 +622,7 @@ public:
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
         FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
+        AppShadowMessage(msg->GetType());
         switch (msg->GetType()) {
             case kMsgPostCityInit:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
@@ -635,6 +643,7 @@ public:
                 NetMgrShadowCityLoaded(CurrentCity());   // netmgr_shadow = 1 only
                 NetRulesShadowCityLoaded();
                 NetToolDragShadowLoaded(CurrentCity());
+                QueryToolShadowObserve(CurrentCity(), 0, true);
                 OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
@@ -684,6 +693,8 @@ public:
                 ModelInstShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 CityShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 LightingShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                AppShadowObserve(static_cast<int32_t>(PublishedJulian()), true);
+                GDriverShadowCityLoaded();
                 ViewUtilShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
@@ -745,6 +756,7 @@ public:
                 GZMsgShadowCityShutdown();
                 RenderPropsShadowCityShutdown();
                 LightingShadowCityShutdown();
+                GDriverShadowCityShutdown();
                 ViewUtilShadowCityShutdown();
                 ModelInstShadowCityShutdown();
                 WeatherShadowCityShutdown();
@@ -801,10 +813,12 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                AppShadowObserve(julian, false);
                 RenderPropsShadowMonth(julian);
                 ModelInstShadowMonth(julian);
                 CityShadowObserve(CurrentCity(), julian, false);
                 LightingShadowMonth(julian);
+                GDriverShadowMonth(julian);
                 ViewUtilShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
@@ -824,6 +838,7 @@ public:
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 NetRulesShadowMonth(julian);
                 NetToolDragShadowMonth(CurrentCity(), julian);
+                QueryToolShadowObserve(CurrentCity(), julian, false);
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
                 PropLotShadowMonth(CurrentCity(), julian);      // propmgr / lotcfg / tutorial shadows only                ++monthsSinceLoad_;
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
@@ -833,6 +848,7 @@ public:
                 DatesProbe(CurrentCity(), "month");
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
+                LegacyCtlShadowMonth(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
@@ -882,6 +898,7 @@ public:
         const bool service = fw->AddSystemService(static_cast<cIGZSystemService*>(this));
         const bool tick = fw->AddToTick(static_cast<cIGZSystemService*>(this));
         bool notes = true;
+        AppShadowStart();
         for (uint32_t id : kObserverMessages) {
             notes = ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), id) && notes;
         }
@@ -895,6 +912,7 @@ public:
     void Stop() {
         if (!started_) return;
         started_ = false;
+        AppShadowStop();
         cIGZMessageServer2Ptr ms;
         if (ms) {
             for (uint32_t id : kObserverMessages) {

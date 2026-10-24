@@ -26,9 +26,9 @@ pub fn highlight_request(kind: u32) -> Result<HighlightRequest, Unsupported> {
         3 => (Provider::Fire, 22, CoverageRequest::FireSlot21 { level: 0.5 }),
         4 => (Provider::Police, 21, CoverageRequest::PoliceSlot20 { level: 0.5 }),
         5 => (Provider::Crime, 8, CoverageRequest::None),
-        6 => (Provider::Pollution, 46, CoverageRequest::Unspecified),
-        7 => (Provider::Power, 25, CoverageRequest::Unspecified),
-        8 => (Provider::Plumbing, 28, CoverageRequest::Unspecified),
+        6 => (Provider::Pollution, 46, CoverageRequest::None),
+        7 => (Provider::Power, 25, CoverageRequest::None),
+        8 => (Provider::Plumbing, 28, CoverageRequest::None),
         9 => (Provider::Traffic, 28, CoverageRequest::None),
         _ => return Err(Unsupported::HighlightKind(kind)),
     };
@@ -92,7 +92,7 @@ pub struct HighlightCollection {
 }
 
 pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<HighlightCollection, Unsupported> {
-    highlight_request(kind)?;
+    // Section 5.0: zero and unrecognized kinds reconcile against an empty set.
     let building_kind = match kind {
         1 => BuildingKind::School,
         2 => BuildingKind::Hospital,
@@ -110,7 +110,12 @@ pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<Highli
         7 => BuildingKind::PowerPlant,
         8 => BuildingKind::WaterProducer,
         9 => BuildingKind::TransitSwitch,
-        _ => return Err(Unsupported::HighlightKind(kind)),
+        _ => {
+            return Ok(HighlightCollection {
+                kind,
+                candidates: Vec::new(),
+            })
+        }
     };
     let mut candidates = Vec::new();
     for building in buildings.iter().filter(|b| b.kind == building_kind) {
@@ -128,8 +133,7 @@ pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<Highli
                 }
                 HighlightRadius::Value(radius)
             }
-            6..=8 => HighlightRadius::Unspecified,
-            9 => HighlightRadius::None,
+            6..=9 => HighlightRadius::Value(0.0),
             _ => unreachable!(),
         };
         candidates.push(HighlightCandidate {
