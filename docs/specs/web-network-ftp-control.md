@@ -286,10 +286,111 @@ open checklist entry; the wrapper does not establish scheduler draining.
 | Uninitialized session with target enters shutdown | No Release/reset work is performed |
 | Dispatcher startup fails after 00817580 set active/AddRef | This body performs no rollback of active or acquired hold |
 
-## 9. Exact residual boundary / final-round disposition
+## 9. Remaining session commands (Q7 qualification, 2026-10-24)
 
-Q7 stays partial for the remaining command bodies, initialization entry, scheduler
-admission/control and containers listed O in web-network-www-bodies.md. No fourth round
-is requested: **PARK** the incomplete owner. The checklist remains the exact address/byte
+All seven entries below require session state 2. Any other state returns false,
+clears work byte +0xa15, and sends no completion message. With async +0xa14 set,
+work clear and a nonnull target, they set work, state 4 and their operation ID,
+save arguments, start dispatcher 00816990 using a local thread wrapper and return
+true. Startup failure is not checked. The saved argument is a copied string at
++0xa18 except PWD, which stores its borrowed output pointer at +0xa40. Rename
+copies both arguments successively to **the same** +0xa18 string, leaving the
+second argument there; +0xa2c is untouched (`00815a9b–00815acf`). There is no
+session retention or join in these entries. Dispatcher reentry still sees state 4
+and is rejected by the state-2 guard; do not repair this by implicitly resetting
+state before reentry.
+
+The synchronous path sets state 4, operation as below, transfer-stage 504, and
+records current time at +0x1c. It sends the command through 00812290, then, only
+after a successful send, sets stage 507 and reads a reply through 00813d30.
+Ordinary commands require reply **class 2**, not a particular three-digit code.
+Send failure, reply-read failure or another reply class returns false. There is
+no retry or disconnect here. Before notifying, both success and failure restore
+state 2, operation 100, transfer-stage 500 and clear work. Thus the callback sees
+the restored state. Entry guards and operation/stage stores were checked in the
+instructions at each table entry through its synchronous prefix.
+
+| Entry | Operation | Wire command(s) | Completion message |
+|---|---:|---|---|
+| `00814cc0` (657 B) | 108 | `PWD\r\n` | 0x57386931 |
+| `00814f60` (579 B) | 109 | `CWD <path>\r\n` | 0x57386932 |
+| `008151b0` (489 B) | 110 | `CDUP\r\n` | 0x57386933 |
+| `008153a0` (579 B) | 112 | `MKD <path>\r\n` | 0x57386934 |
+| `008155f0` (579 B) | 113 | `RMD <path>\r\n` | 0x57386935 |
+| `00815840` (538 B) | 105 | `DELE <path>\r\n` | 0x57386936 |
+| `00815a60` (717 B) | 106 | `RNFR <source>\r\n`, then `RNTO <destination>\r\n` | 0x57386937 |
+
+CWD/MKD/RMD copy the argument into the session path and remove exactly one final
+`/` or `\` before formatting. In particular `/` becomes empty and `a//` becomes
+`a/`. They do not normalize internal separators or quote the path. The final-byte
+read precedes any emptiness test: an initially empty argument is outside the
+qualified input domain (`0081504c–0081506b`, `00815490–008154ab`, corresponding
+RMD body). DELE copies and formats the argument without that suffix removal.
+Null string arguments are unsafe in the synchronous path. Strings with embedded
+NUL retain their copied lengths but formatted wire paths end at the first NUL.
+
+Rename copies source into +0x1e0 and destination into +0x1d4. Only a successful
+RNFR send/read with class 3 permits RNTO. Before RNTO it sets stage 505; before
+the next read it sets 507. Success requires the RNTO send/read and class 2.
+There is no rollback command when either phase fails (`00815b15–00815c88`).
+
+PWD additionally extracts the substring between the first two double quotes
+from the reply into +0x1f8 and copies that byte string into stored-directory
++0xa08. If the caller output pointer is nonnull, assign the converted string to
+it; null output still permits success. The first quote index must be less than
+unsigned 32-bit `(reply length - 2)`. There is no independent check that a second
+quote was found before using its index for substring length. Qualify successful
+extraction only for replies with a valid quoted substring; malformed missing-close
+quotes are not a deterministic false-return contract. Any ordinary PWD failure
+clears reply +0x1f8, leaves the caller output and stored-directory unchanged,
+and notifies with empty reply text (`00814e15–00814e87`, `00814e8b–00814f50`).
+
+With a target, completion uses a standard message, AddRef'd before synchronous
+delivery and Released afterward. For all rows, uint1=0, void1=null,
+uint3=success encoded as 0/1, uint2=session. PWD additionally provides the
+converted extracted reply as void2, with uint4=0, through 008120e0.
+Other rows do not supply a path/text payload. Target is borrowed for the call;
+the entry does not AddRef/Release it. Allocation failure is unsafe.
+
+### 9.1 Scheduler construction and admission
+
+`00813d70` (154 B) is scheduler **construction**, despite its earlier description
+as an initialization entry. It installs table 00abf64c; clears reference word +4,
+initialized byte +8, ID +0xc, target +0x10, +0x14, worker +0x48; sets timeout +0x18
+to 15; constructs an empty default-directory string +0x1c with eight-byte storage,
+a circular empty 0x44-byte queue sentinel +0x30, thread wrapper +0x38, lock +0x40,
+and allocated-or-null lookup helper +0x34. It does not connect, start a worker or
+retain a target (`00813d76–00813e09`).
+
+`00817600` (399 B) requires a valid nonnull URL string object. Empty URL returns
+zero with no queue insertion. A nonempty URL constructs a default job, copies
+the URL, sets status 1, zeroes time/progress and stores the custom word. A null
+or empty destination uses the scheduler default directory unchanged; a supplied
+nonempty destination is copied and receives a trailing backslash only when it
+ends in neither slash kind. Admission does not append the URL leaf: the worker
+does that later. Under lock +0x40, increment the 32-bit ID, copy the job into a
+new tail node, unlock, activate through 00817580, destroy local strings and
+return the ID. Wrap to zero is allowed and still queues the job. No URL parsing,
+scheme check, target retention or completion callback occurs in admission.
+Allocation failure is unsafe (`00817600–0081778e`, increment `0081770b–00817719`).
+
+### 9.2 Proposed/unexecuted distinguishing fixtures
+
+| ID | Setup | Required behavior |
+|---|---|---|
+| FTPC01 | Any of the seven commands, state 4 and work set | false, work cleared, state stays 4, no wire send or callback |
+| FTPC02 | Async rename in state 2, distinct `old`/`new`, target present | true, state 4, operation 106; saved +0xa18=`new`, +0xa2c unchanged; eventual guarded reentry sends nothing |
+| FTPC03 | Synchronous CWD/MKD/RMD with `a//` and reply class 2 | wire path `a/`; success; callback observes state 2/operation 100/stage 500 |
+| FTPC04 | RNFR class 2 versus class 3, controlled sends/reads | first fails without RNTO; second proceeds to RNTO, whose class must be 2 |
+| FTPC05 | PWD reply `257 "/a b" ready`, output initially `old` | success, reply/stored-directory/output become `/a b` |
+| FTPC06 | PWD send false, output initially `old` | failure, reply empty, output remains `old`; no reply read |
+| FTPC07 | Admission ID 0xffffffff, nonempty URL, destination `x` | tail job ID 0/status 1/destination `x\`; activation after unlock despite zero return |
+| FTPC08 | Empty URL versus null/empty destination with valid URL | first no queue/activation; second uses default directory without admission-side suffix change |
+
+## 10. Exact residual boundary / final-round disposition
+
+Q7 stays partial for the scheduler controls, lifecycle and containers still listed O
+in web-network-www-bodies.md. Section 9 qualifies nine former O bodies in this resumed
+round; the earlier three-round PARK is historical. The checklist remains the exact address/byte
 inventory; no whole-owner credit. HTTP completion/stop/resource findings are in
 [web-network-http-lifetime.md](web-network-http-lifetime.md).

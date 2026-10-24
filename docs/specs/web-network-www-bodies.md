@@ -6,12 +6,22 @@ Native attribution snapshot: main `build-runs/run4-owners-current.tsv`, read 202
 
 | Status | Bodies | Bytes |
 |---|---:|---:|
-| C | 91 | 26757 |
-| P | 1 | 64 |
-| O | 56 | 7228 |
+| C | 102 | 31532 |
+| P | 0 | 0 |
+| O | 46 | 2517 |
 | Total | 148 | 34049 |
 
-Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved bdd8e715's 71 bodies / 18705 B and added 20 bodies / 8052 B. Q7/Q9 remain partial for exactly the 57 P/O rows / 7292 B below; Q8 remains answered in §4.12. Q7 now covers remaining commands, initialization entry and scheduler controls/containers, not the newly proved login/listing/outer worker. Q9 covers remaining support/adapters and cookie constructor, not the newly proved HTTP constructor/completion/stop/drain boundary. The 148 / 34049 B inventory is unchanged. C includes explicit native unsafe-input limitations, not deterministic output for uninitialized bytes. 008f9bad has only capacity/default state inspected (§3.6); its whole constructor is not credited. Existing URL/cookie contracts are not duplicated. Public Release thunk 009cc22d, foreign HTTP worker/completion/stop/drain bodies and folded getters attributed to other owners are not added to this total.
+The earlier round 3/3 PARK is historical. Resumed lane re-www-q17 qualifies cookie
+constructor 008f9bad (§3.6), the nine FTP command/constructor/admission bodies below,
+and the two-string record constructor 008f7195. Q7/Q9 remain partial for exactly
+46 O rows / 2517 B. Q8 remains answered in §4.12. Q7 now concerns residual scheduler
+controls, lifecycle and containers; Q9 concerns remaining support/adapters. WWW cookie
+record construction and HTTP request normalization are now specified in §§4.4/4.14.
+The 148 / 34049 B inventory is unchanged. C includes explicit native unsafe-input
+limitations, not deterministic output for uninitialized bytes. Existing URL/cookie
+contracts are not duplicated. Public Release thunk 009cc22d, foreign HTTP worker/
+completion/stop/drain bodies and folded getters attributed to other owners are not
+added to this total. C remains documentation credit only.
 
 | Address | Body bytes | Attribution | Contract status / section or gap | Export name |
 |---|---:|---|---|---|
@@ -25,13 +35,13 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 008f8ffe | 988 | reach | C: 4.4 | FUN_008f8ffe |
 | 008f8c5a | 932 | reach | C: 4.7 | FUN_008f8c5a |
 | 00812390 | 825 | reach | C: 4.13 / web-network-ftp-control.md §7 | FUN_00812390 |
-| 00815a60 | 717 | reach | O: Q7 | FUN_00815a60 |
-| 00814cc0 | 657 | reach | O: Q7 | FUN_00814cc0 |
-| 00814f60 | 579 | reach | O: Q7 | FUN_00814f60 |
-| 008153a0 | 579 | reach | O: Q7 | FUN_008153a0 |
-| 008155f0 | 579 | reach | O: Q7 | FUN_008155f0 |
-| 00815840 | 538 | reach | O: Q7 | FUN_00815840 |
-| 008151b0 | 489 | reach | O: Q7 | FUN_008151b0 |
+| 00815a60 | 717 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_00815a60 |
+| 00814cc0 | 657 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_00814cc0 |
+| 00814f60 | 579 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_00814f60 |
+| 008153a0 | 579 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_008153a0 |
+| 008155f0 | 579 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_008155f0 |
+| 00815840 | 538 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_00815840 |
+| 008151b0 | 489 | reach | C: 4.13 / web-network-ftp-control.md §9 | FUN_008151b0 |
 | 008f84ea | 483 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadFileDocument |
 | 00818210 | 481 | reach | C: web-network-http-lifetime.md §1 | FUN_00818210 |
 | 008f815f | 478 | reach | C: 4.8 | FUN_008f815f |
@@ -40,7 +50,7 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 00823000 | 432 | reach | C: 4.11 | FUN_00823000 |
 | 008f833d | 429 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
 | 00816230 | 415 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00816230 |
-| 00817600 | 399 | reach | O: Q7 | FUN_00817600 |
+| 00817600 | 399 | reach | C: 4.13 / web-network-ftp-control.md §9.1 | FUN_00817600 |
 | 008126d0 | 360 | reach | C: 4.13 / web-network-ftp-control.md §2 | FUN_008126d0 |
 | 0081cda0 | 319 | reach | C: 4.14 | FUN_0081cda0 |
 | 00817bd0 | 300 | neighbour | C: 4.14 | FUN_00817bd0 |
@@ -59,7 +69,7 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 008f7f04 | 182 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::CancelAllDocumentLoadRequests |
 | 008120e0 | 174 | reach | C: 4.13 / web-network-ftp.md | FUN_008120e0 |
 | 008f8992 | 160 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::~cGZWWWSystem |
-| 00813d70 | 154 | reach | O: Q7 | FUN_00813d70 |
+| 00813d70 | 154 | reach | C: 4.13 / web-network-ftp-control.md §9.1 | FUN_00813d70 |
 | 00812b10 | 144 | reach | C: 4.13 / web-network-ftp.md | FUN_00812b10 |
 | 008f6c47 | 143 | reach | C: 4.6 | FUN_008f6c47 |
 | 008f7e76 | 142 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::CancelDocumentLoadRequest |
@@ -103,7 +113,7 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 008f72b5 | 72 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
 | 00812970 | 71 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00812970 |
 | 008f692a | 65 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::Shutdown |
-| 008f9bad | 64 | reach | P: 3.6 / Q9 | FUN_008f9bad |
+| 008f9bad | 64 | reach | C: 3.6 | FUN_008f9bad |
 | 008f708a | 57 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::AddURLHandler |
 | 00813d30 | 53 | reach | C: 4.13 / web-network-ftp.md | FUN_00813d30 |
 | 00818100 | 52 | reach | C: 4.14 | FUN_00818100 |
@@ -138,7 +148,7 @@ Final round 3/3 disposition: **PARK**, partial owner; no fourth round. Preserved
 | 0081d7d0 | 22 | reach | O: Q9 | FUN_0081d7d0 |
 | 00817790 | 22 | reach | C: 4.14 | FUN_00817790 |
 | 00811c90 | 21 | reach | O: Q7 | FUN_00811c90 |
-| 008f7195 | 20 | reach | O: Q9 | FUN_008f7195 |
+| 008f7195 | 20 | reach | C: 4.4 | FUN_008f7195 |
 | 0081e770 | 19 | reach | O: Q9 | FUN_0081e770 |
 | 008f6a4d | 19 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::IsVisitedURL |
 | 0081e740 | 18 | reach | O: Q9 | FUN_0081e740 |

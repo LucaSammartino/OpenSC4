@@ -135,7 +135,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
-| Q | network-transport, web-network |
+| Q | network-transport |
 | QR | region-screen |
 | QV | map-view |
 | RB | rigid-body-2d |
