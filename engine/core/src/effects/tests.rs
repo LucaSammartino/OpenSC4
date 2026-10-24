@@ -41,6 +41,8 @@ enum Ev {
     HiddenPause,
     HiddenResume,
     Clock(bool),
+    Map(u32, (i32, i32), u64),
+    RemoveMap(u64),
 }
 
 struct Host {
@@ -134,7 +136,18 @@ impl EffectsHost for Host {
     fn post(&mut self, m: EffectPost) {
         self.events.push(Ev::Post(m));
     }
+    fn apply_effect_map(&mut self, record: &GameRecord, cell: (i32, i32)) -> u64 {
+        let token = self.events.len() as u64 + 100;
+        self.events.push(Ev::Map(record.map_kind, cell, token));
+        token
+    }
+    fn remove_effect_map(&mut self, token: u64) {
+        self.events.push(Ev::RemoveMap(token));
+    }
 }
+
+#[path = "owner_tests.rs"]
+mod owner_closure;
 
 /// A directory of one effect `name` with the given components (shipped
 /// brush and game records).
