@@ -1,17 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | in progress: refreshing READY tip against origin/main b5f3bb118; previous cargo 7375/0, clippy clean, CTest 81/81; runs 520 and 521 exact to 2032; ABI unchanged | (1) Commit additive registration merge. (2) Run final all gate and confirming game run to 2032. (3) Refresh READY queue with full HEAD. |
+| glue-modelinst-shadow12 (MI14 fixture fix and live destination observer) | `Codex` / `glue-modelinst-shadow12` (engine lane) | ready: merged origin/main b5f3bb118 in a907efa2d, preserving both registration sets; cargo 7408/0, clippy clean, build 62/62, CTest 81/81; run 632 clean modelinst-mi14-merge-2032-r3 145/145 (static 73/73, live 72/72) to 2032-01-10, ref_warnings=0; previous runs 520 and 521 exact; ABI unchanged; no new questions | (1) Land refreshed full-tip READY entry. (2) Review scoped coverage and existing regression shadows profile; no whole-owner credit. |
 
-## Handoff
+## Current-main refresh
 
-- Goal: resolve the skipped READY tip against current origin/main, then gate and confirm in game.
-- Previous ready tip: 25e148fcdf7722d1ffabbaa69a950a6acb3f5f93; shadow11 and MI14 already implemented and measured below.
-- Merge committed: a907efa2d77f809ad96645dba321ab661ef5f06f incorporates origin/main b5f3bb118b66601e8898bfb4545716c287cc27f3; preserves construction_shadow and modelinst_shadow modules and every ini key.
-- Final all gate PASS, session 53110 collected to terminal: cargo 7,408 passed / 0 failed / 0 ignored across 51 summaries; clippy exit=0, diagnostics=0; native qbuild-20261024-201508-build-ctest build 62/62 (192.7 s), CTest 81/81 (261.8 s), total 456.7 s.
-- Evidence: build-runs/modelinst-r3-final-all.log, qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Stable engine source a907efa2d; git diff a907efa2d HEAD -- engine is empty. Tree-change annotation is lane records only.
-- Next: submit unique modelinst-mi14-merge-2032-r3 to 2032 and wait without qwait, then record run 632 (free on current checkout; max 631) and final READY queue full tip.
-- No new owner, spec question, ABI export, or coverage claim. No outstanding game request yet. Engine source is frozen during gate; only this record changed.
-- Detached HEAD is intentional; supervisor publishes commits. Do not change branch refs.
+The skipped READY tip `25e148fcdf7722d1ffabbaa69a950a6acb3f5f93` is refreshed by merge `a907efa2d77f809ad96645dba321ab661ef5f06f` of current `origin/main` (`b5f3bb118b66601e8898bfb4545716c287cc27f3`). Resolved both additive conflicts: `engine/capi/src/lib.rs` retains construction_shadow and modelinst_shadow, and `FC4Config.cpp` retains all main ini keys plus default-off modelinst_shadow at the end. No new owner, spec question, public ABI export, or coverage claim.
+
+Final stable-source `qbuild.py all`: **PASS**, session 53110 collected to terminal. Cargo **7,408 passed / 0 failed / 0 ignored**, 51 summaries; clippy **exit=0, diagnostics=0**. Queued native `qbuild-20261024-201508-build-ctest`: build **62/62 PASS** (192.7 s), CTest **81/81 PASS** (261.8 s), total 456.7 s. Logs: `build-runs/modelinst-r3-final-all.log`, `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Engine source stayed at a907efa2d throughout; the tree-change annotation reflects lane-record commits only. No duplicate gate or native verify was launched.
+
+[Run 632](../runs/modelinst-mi14-merge-2032-r3-632.md): **`modelinst-mi14-merge-2032-r3 145/145`**, comprising **73/73 (modelinst)** and **72/72 (modelinst-live)**. Every dated line has mismatches=0 and resyncs=0. Clean to **2032-01-10** in 27.953 s, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0. Live observer ON: 90,579 natural calls encountered, 4,096 captured, 86,483 dropped; 12,288 unique counter/padding bytes compared. First live line captured 1,427 calls / 4,281 fields. DLL SHA256 `8aa62a855f8d2d8f6994b976b46e2e4a509b5dafda1784f0896663b8c855607f`.
+
+Konradshohe, turbo, target 2032-01-01, default replacements and only modelinst_shadow=1, matching the previous exact run. Evidence: `build-runs/game-results/modelinst-mi14-merge-2032-r3.verdict` and `.log`; bounded counter `build-runs/modelinst-summary.py`. The single blocking file-watcher wait (session 9863) was collected to terminal; no request or check remains outstanding. No normal-speed rerun is required because no shadow differs. Coverage remains scoped as described below. Final queue entry uses the actual detached HEAD's full 40-character hash; the supervisor publishes it to the reserved lane branch.
 
 ## Change and load diagnosis
 
