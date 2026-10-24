@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cGZWinGrid state, selection and sparse size/format tables (win-grid §§1–5).
+mod contracts;
 mod data;
+mod paint;
+mod runtime;
 use super::*;
+pub use contracts::{compare_c_locale, CellComparator};
 pub use data::GridDataForeign;
+pub use paint::{PaintHost, PaintOp, PaintRecord};
+pub use runtime::{compare_cell_values, equal_record, signed_gcd, stable_sort_values};
+pub use runtime::{GridHost, Input, Mutation};
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;
@@ -10,14 +17,29 @@ pub const PRIMARY_SLOTS: usize = 142;
 pub const WINDOW_SLOTS: usize = 151;
 pub type Coordinate = (i32, i32);
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Format {
     pub font: Option<Handle>,
     /// The other eight words are preserved even when their public meanings
     /// remain unproved. They are not a Rust/native memory-layout promise.
-    // WG6: zero initialization is provisional until SetDefaultFormatting is
-    // specified; compatible drawing requires a resolved supplied format.
     pub words: [u32; 8],
+}
+impl Default for Format {
+    fn default() -> Self {
+        Self {
+            font: None,
+            words: [
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0x4000_0000,
+                0xff,
+                0x4000_0000,
+            ],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -110,13 +132,16 @@ pub struct Grid {
     pub last_set: Coordinate,
     pub background: Option<Handle>,
     pub owner_draw: Option<Handle>,
-    pub header_font: Option<Handle>,
+    pub header_format: Format,
     pub default_format: Format,
     pub default_colors: [u32; 6],
     pub selection_mode: u32,
     pub selection_max: i32,
     pub selection: Vec<Coordinate>,
     pub cells: BTreeMap<Coordinate, Cell>,
+    /// Independent set keyed by the child identity (§5.7). Moving cell data
+    /// does not update these coordinates: DoCellWindowMove is a no-op (§5.11).
+    pub windows: BTreeMap<Handle, (Coordinate, bool, bool)>,
     /// Axis 0 = columns, axis 1 = rows.
     pub sizes: [BTreeMap<i32, SizeEntry>; 2],
     pub headings: [BTreeMap<i32, Vec<u8>>; 2],
@@ -129,6 +154,10 @@ pub struct Grid {
     pub sound_ids: [u32; 3],
     pub clicked: [i32; 3],
     pub hovered: [i32; 3],
+    pub line_colors: [u32; 2],
+    pub line_widths: [u32; 2],
+    pub bar_image_rects: [Rect; 2],
+    pub click_started: Option<u64>,
 }
 
 impl Grid {
@@ -153,13 +182,14 @@ impl Grid {
             last_set: (-1, -1),
             background: None,
             owner_draw: None,
-            header_font: None,
+            header_format: Format::default(),
             default_format: Format::default(),
-            default_colors: [0; 6],
+            default_colors: [0x4000_0000; 6],
             selection_mode: 1,
             selection_max: i32::MAX,
             selection: Vec::new(),
             cells: BTreeMap::new(),
+            windows: BTreeMap::new(),
             sizes: Default::default(),
             headings: Default::default(),
             extra_maps: Default::default(),
@@ -170,6 +200,10 @@ impl Grid {
             sound_ids: [0; 3],
             clicked: [0, -1, -1],
             hovered: [0, -1, -1],
+            line_colors: [0; 2],
+            line_widths: [1; 2],
+            bar_image_rects: [[0; 4]; 2],
+            click_started: None,
         }
     }
     pub fn window(&self) -> Handle {
@@ -191,6 +225,7 @@ impl Grid {
     pub fn set_default_color(&mut self, index: u32, color: u32) -> bool {
         if let Some(slot) = self.default_colors.get_mut(index as usize) {
             *slot = color;
+            self.default_format.words[index as usize] = color;
             true
         } else {
             false
@@ -248,7 +283,11 @@ impl Grid {
         self.selection.clear();
     }
     pub fn selected(&self, cell: Coordinate) -> bool {
-        self.selection.contains(&cell)
+        self.selection.iter().any(|&entry| match self.selection_mode {
+            0 => entry.0 == cell.0,
+            1 => entry.1 == cell.1,
+            _ => entry == cell,
+        })
     }
     /// Returns whether data changed. A caller must run the recalculation hook
     /// even for false, including when the list was already in the desired state.
@@ -294,10 +333,8 @@ impl Grid {
             self.selection.push((0, 0));
         }
     }
-    /// Bound helper is a literal fixed-range reading; WG5 asks for the body
-    /// contract for negative indices and limits other than -1.
     pub fn within_axis(&self, axis: usize, index: i32) -> bool {
-        index >= 0 && (self.flags & (0x2000 << axis) == 0 || self.limits[axis] == -1 || index < self.limits[axis])
+        matches!(self.limits[axis], 0 | -1) || (index >= 0 && index < self.limits[axis])
     }
     pub fn within(&self, cell: Coordinate) -> bool {
         self.within_axis(0, cell.0) && self.within_axis(1, cell.1)
@@ -309,6 +346,10 @@ impl Grid {
         self.cells.keys().fold([c, r, c, r], |a, &(c, r)| {
             [a[0].min(c), a[1].min(r), a[2].max(c), a[3].max(r)]
         })
+    }
+    pub fn get_used_range(&self, output: &mut Rect) -> bool {
+        *output = self.used_range();
+        !self.cells.is_empty()
     }
     pub fn get_axis_extra(&mut self, axis: usize, index: i32) -> u32 {
         *self.extra_maps[axis].entry(index).or_default()
@@ -420,20 +461,42 @@ impl Grid {
         }
         self.position[axis] = index;
     }
-    pub fn scroll_pages(&mut self, axis: usize, pages: i32) {
-        self.scroll_cells(axis, pages.wrapping_mul(4));
+    pub fn scroll_pages(&mut self, axis: usize, pages: i32, f: &mut impl GridForeign) {
+        self.scroll_cells(axis, pages.wrapping_mul(4), f);
     }
-    /// Literal relative-scroll interpretation. The slot bodies are pending in
-    /// win-grid's inventory (WG5); unlike ScrollTo, its lower clamp is unproved.
-    pub fn scroll_cells(&mut self, axis: usize, cells: i32) {
-        self.scroll_to(axis, self.position[axis].wrapping_add(cells));
+    pub fn scroll_cells(&mut self, axis: usize, cells: i32, f: &mut impl GridForeign) -> bool {
+        let mut position = self.position[axis].wrapping_add(cells);
+        if !(matches!(self.limits[axis], 0 | -1) && self.flags & (0x8000 << axis) != 0) {
+            // Both axes deliberately test the vertical fixed-range flag (§5.15).
+            let count = if self.flags & 0x10000 == 0 {
+                self.used_range()[axis + 2].wrapping_add(1)
+            } else {
+                self.limits[axis]
+            };
+            position = position.min(count.wrapping_sub(1)).max(0);
+            let mut pixels = self.size_sum(axis, position, count.wrapping_sub(position), f);
+            while position > 0 && pixels < self.cell_size[axis] {
+                position -= 1;
+                pixels = pixels.wrapping_add(if axis == 0 {
+                    self.column_width(position)
+                } else {
+                    self.row_height(position, f)
+                });
+            }
+        }
+        position = position.max(0);
+        if position != self.position[axis] {
+            self.position[axis] = position;
+            self.dirty = true;
+        }
+        true
     }
-    pub fn wheel(&mut self, delta: i32) {
-        self.scroll_cells(1, delta / -100);
+    pub fn wheel(&mut self, delta: i32, f: &mut impl GridForeign) {
+        self.scroll_cells(1, delta / -100, f);
     }
-    pub fn scroll_step(&mut self, axis: usize, back: bool) {
+    pub fn scroll_step(&mut self, axis: usize, back: bool, f: &mut impl GridForeign) {
         let count = self.visible[axis] as i32;
-        self.scroll_cells(axis, if back { count.wrapping_neg() } else { count });
+        self.scroll_cells(axis, if back { count.wrapping_neg() } else { count }, f);
     }
     pub fn do_message(&mut self, message: Message, f: &mut impl Foreign) -> bool {
         if message.kind == 3 && message.words[0] as u32 == 0x8871_13a3 {
@@ -491,7 +554,7 @@ impl Grid {
             &mut self.background,
             &mut self.owner_draw,
             &mut self.default_format.font,
-            &mut self.header_font,
+            &mut self.header_format.font,
         ] {
             replace_ref(slot, None, f);
         }
@@ -508,8 +571,10 @@ impl Grid {
     fn dispose(&mut self, _: Coordinate, cell: Cell, f: &mut impl GridForeign) {
         match cell.value {
             Value::Window { handle, .. } => {
-                f.child_remove(self.window(), handle);
-                f.release(handle);
+                if self.windows.remove(&handle).is_some() {
+                    f.child_remove(self.window(), handle);
+                    f.release(handle);
+                }
             }
             Value::Bitmap(handle) => f.release(handle),
             _ => {}
@@ -623,6 +688,9 @@ impl Grid {
             if n > 0 {
                 if let Some(record) = self.cells.remove(&cell) {
                     self.dispose(cell, record, f);
+                    // §5.11 retains the matrix entry until its caller overwrites
+                    // it; represent the disposed payload safely as empty.
+                    self.cells.insert(cell, Cell::default());
                 }
             }
         } else {
@@ -761,11 +829,7 @@ impl Grid {
         f: &mut impl GridForeign,
     ) -> bool {
         if let Some(window) = window {
-            if self
-                .cells
-                .values()
-                .any(|c| matches!(c.value, Value::Window { handle, .. } if handle == window))
-            {
+            if self.windows.contains_key(&window) {
                 return false;
             }
         }
@@ -792,6 +856,7 @@ impl Grid {
             },
         );
         f.add_ref(window);
+        self.windows.insert(window, (cell, keep_width, keep_height));
         f.send_to_back(window);
         f.window_flag(window, 0x800, false);
         f.child_add(self.window(), window);
@@ -809,15 +874,7 @@ impl Grid {
                 Value::Window { handle, .. } => height = f.window_size(*handle)[1],
                 Value::Bitmap(handle) => height = f.buffer_height(*handle),
                 Value::Text(text) if !text.is_empty() => {
-                    // Literal precedence: explicit cell, row, column, default.
-                    // The GetCellFormat slot's missing merge rules are WG5.
-                    let font = record
-                        .format
-                        .as_ref()
-                        .and_then(|fmt| fmt.font)
-                        .or_else(|| self.sizes[1].get(&cell.1).and_then(|s| s.format.font))
-                        .or_else(|| self.sizes[0].get(&cell.0).and_then(|s| s.format.font))
-                        .or(self.default_format.font);
+                    let font = self.cell_format(cell).font;
                     if let Some(font) = font {
                         let line = f.font_height(font);
                         if line != 0 {
@@ -932,16 +989,9 @@ impl Grid {
 
     pub fn place_all_windows(&mut self, f: &mut impl GridForeign) {
         let windows: Vec<_> = self
-            .cells
+            .windows
             .iter()
-            .filter_map(|(&cell, record)| match record.value {
-                Value::Window {
-                    handle,
-                    keep_width,
-                    keep_height,
-                } => Some((cell, handle, keep_width, keep_height)),
-                _ => None,
-            })
+            .map(|(&handle, &(cell, width, height))| (cell, handle, width, height))
             .collect();
         for (cell, handle, width, height) in windows {
             self.place_window(cell, handle, width, height, false, f);
@@ -956,49 +1006,53 @@ impl Grid {
         }
         context.depth += 1;
         if self.pause < 1 && self.initialized {
-            let size = f.window_size(self.window());
-            let grid = self.grid_area(size);
-            let cell = self.cell_area(size, f);
-            self.grid_size = [grid[2].wrapping_sub(grid[0]), grid[3].wrapping_sub(grid[1])];
-            self.cell_size = [cell[2].wrapping_sub(cell[0]), cell[3].wrapping_sub(cell[1])];
-            let used = self.used_range();
-            for axis in 0..2 {
-                let mut bound = if matches!(self.limits[axis], -1 | 0) {
-                    i32::MAX
-                } else {
-                    self.limits[axis]
-                };
-                if self.flags & (0x8000 << axis) == 0 && used[axis + 2] <= bound {
-                    bound = used[axis + 2].wrapping_add(1);
-                }
-                let mut total = 0_i32;
-                let mut visible = 0_f32;
-                for index in self.position[axis]..bound {
-                    let size = if axis == 0 {
-                        self.column_width(index)
-                    } else {
-                        self.row_height(index, f)
-                    };
-                    let previous = total;
-                    total = total.wrapping_add(size);
-                    if total <= self.cell_size[axis] {
-                        visible += 1.0;
-                    } else {
-                        let fraction = (self.cell_size[axis].wrapping_sub(previous) as f64
-                            / total.wrapping_sub(previous) as f64) as f32;
-                        if fraction.abs() > 0.05_f32 {
-                            visible += fraction;
-                        }
-                        break;
-                    }
-                }
-                self.visible[axis] = visible;
-            }
+            self.calculate_visible(f);
             if context.depth == 1 {
                 self.place_all_windows(f);
             }
         }
         context.depth -= 1;
         self.dirty = false;
+    }
+
+    fn calculate_visible(&mut self, f: &mut impl GridForeign) {
+        let size = f.window_size(self.window());
+        let grid = self.grid_area(size);
+        let cell = self.cell_area(size, f);
+        self.grid_size = [grid[2].wrapping_sub(grid[0]), grid[3].wrapping_sub(grid[1])];
+        self.cell_size = [cell[2].wrapping_sub(cell[0]), cell[3].wrapping_sub(cell[1])];
+        let used = self.used_range();
+        for axis in 0..2 {
+            let mut bound = if matches!(self.limits[axis], -1 | 0) {
+                i32::MAX
+            } else {
+                self.limits[axis]
+            };
+            if self.flags & (0x8000 << axis) == 0 && used[axis + 2] <= bound {
+                bound = used[axis + 2].wrapping_add(1);
+            }
+            let mut total = 0_i32;
+            let mut visible = 0_f32;
+            for index in self.position[axis]..bound {
+                let size = if axis == 0 {
+                    self.column_width(index)
+                } else {
+                    self.row_height(index, f)
+                };
+                let previous = total;
+                total = total.wrapping_add(size);
+                if total <= self.cell_size[axis] {
+                    visible += 1.0;
+                } else {
+                    let fraction = (self.cell_size[axis].wrapping_sub(previous) as f64
+                        / total.wrapping_sub(previous) as f64) as f32;
+                    if fraction.abs() > 0.05_f32 {
+                        visible += fraction;
+                    }
+                    break;
+                }
+            }
+            self.visible[axis] = visible;
+        }
     }
 }
