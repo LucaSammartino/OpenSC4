@@ -199,7 +199,7 @@ void Layer::Subscribe(bool on) {
     subscribed_ = on;
 }
 void Layer::Sync() {
-    fc4_dlayer_record r{};
+    struct fc4_dlayer_record r{};
     if (!fc4_dlayer_record(core_, &r)) return;
     record_.count = r.building_count; record_.total = r.total_cost;
     for (size_t i = 0; i < 4; ++i) { record_.kinds[i].count = r.kind_count[i]; record_.kinds[i].cost = r.kind_cost[i]; }
