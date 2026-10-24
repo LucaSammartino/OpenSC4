@@ -1101,3 +1101,8 @@ add_test(NAME landvalue_progress_test COMMAND fc4_landvalue_progress_test)
 # LV8 host admission/lifetime acceptance fixtures; no native interceptor implied.
 add_executable(fc4_landvalue_capture_contract_test conformance/tests/landvalue_capture_contract_test.cpp)
 add_test(NAME landvalue_capture_contract_test COMMAND fc4_landvalue_capture_contract_test)
+
+# GZ11: opt-in read-only bounded queue-manager lookup diagnostic.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4GZMsgShadow.cpp plugin/FC4GZMsgShadow.h)
+endif()

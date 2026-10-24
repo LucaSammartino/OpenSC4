@@ -99,6 +99,7 @@
 #include "FC4SimGridRecordShadow.h"
 #include "FC4LotRecordShadow.h"
 #include "FC4SCResShadow.h"
+#include "FC4GZMsgShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -658,6 +659,7 @@ public:
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                GZMsgShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 break;
@@ -709,6 +711,7 @@ public:
                 AdvisorsShadowCityShutdown();
                 fc4::NetOccShadowCityShutdown();
                 LuaShadowCityShutdown();
+                GZMsgShadowCityShutdown();
                 WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
@@ -760,6 +763,7 @@ public:
                 fc4::NetOccShadowMonth(julian);
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
+                GZMsgShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
