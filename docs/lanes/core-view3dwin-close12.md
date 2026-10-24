@@ -8,11 +8,11 @@
 - First merge re-view3dwin-vw20: Already up to date, with packed-refs.lock
   permission error. No shared refs changed.
 - Goal: complete the settled owner gaps identified below, then run all/verify.
-- Next: audit and implement GUI failure/extras and remaining conformance vectors.
+- Next: collect final all operation, report measured results and enqueue its tip.
 - Added required city fallbacks/reuse/graphics QI; GUI extras and parent-owned
   overlay lifetime; settled landscape/transport/menu routing; cost visibility.
-- Added closure_tests.rs. Focused cargo operation still compiling; session 73214,
-  log build-runs/focused-close12-r2.log. Collect same operation before final.
+- Focused operation collected: 84 passed/1 failed (old GUI-order assertion).
+  Failure preserved in focused-close12-r2.log; corrected before final all started.
 - Implementation checkpoint 85f92ba7e. Formatting now passes for seven files
   (fmt-close12-r2-final-console.log); applied check diffs with apply_patch.
 - Owner table updated with concrete paths/tests; full closure is still incomplete.
@@ -22,7 +22,7 @@
   (311.8 s), CTest 81/81 (503.5 s), total 817.5 s. Evidence:
   build-runs/verify-close12-r2-console.log. Full logs fc4verify-{build,ctest}.log.
 - Final all started on stable 884472e54 source with RUST_TEST_THREADS=1;
-  session 13320, all-close12-r2-console.log. Waiting for focused-build lock.
+  session 13320, all-close12-r2-console.log. Lock released; Rust compiling.
 - No game request outstanding. No plugin/C ABI wiring permitted.
 - Bash q.py fails CreateFileMapping; use PowerShell.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin-close12-r2-manifest.json.
