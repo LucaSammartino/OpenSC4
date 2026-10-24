@@ -12,6 +12,7 @@
 - Focused PASS: cargo watercraft::model_tests, 24 passed / 0 failed, terminal result collected. Log build-runs/wc14-model-tests-1.log. This compilation started before WC12 correction; full gate below covers final source including H11-H13.
 - Native gate PASS: qbuild verify, request qbuild-20261024-195818-build-ctest; 264/264 edges, 81/81 CTest, 561.1 s. Logs: build-runs/fc4verify-build.log and fc4verify-ctest.log.
 - Full gate started once on stable source c19240798: exec session 84393, collected by functions cell 67. Console log build-runs/wc14-all-console-1.log; do not duplicate it.
+- Full gate Rust step PASS: 7448 passed / 0 failed / 0 ignored across 51 result lines, including WC12-H11/H12/H13. Log build-runs/qbuild-test.log. Clippy currently running; full operation remains outstanding.
 - q.py failed to start Bash; preserved log build-runs/q/20261024-193645-21364.log. Direct foreground cargo works but compilation is slow under concurrent host load.
 - Next after gates: remaining README pending rows include lifecycle/forwarding, distinct station-lot coordinates, nullable route occupant, end-to-end animation/effects, geometry/collision/towing edge fixtures and borrowed debug text. No new questions: WC1-WC12 are settled.
 - No game request. No plugin/C ABI work; game shadow requires an adapter outside scope.
