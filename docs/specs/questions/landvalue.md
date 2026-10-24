@@ -9,3 +9,25 @@ LV2 evidence: `lv4r2-sample-20261022-0941-turbo` reached 2032-01-20 clean/ref0, 
 
 <!-- from: verify-landvalue-step4 (2026-10-22) -->
 - **LV7 - section 6.1 loaded startup previous-map verification:** normal-speed run `lv4r2-sample-20261022-0944-normal`, pass1 at2026-01-28, differs in391 total tracts (max delta42), with intrinsic/slope/types/scalars exact, average72/72, mode272/272, mean270.05533/270.05533, settled0. Only live D was available; no previous-map rerun occurred. Is this startup discrepancy resolved by the section6.1 restored-map snapshot plus the actual per-developer state7 capture once LV6's ABI prerequisite is recorded? Preserve this trace and compare those actual maps; the current sample cannot establish the causal map or justify changing the algorithm. [Unresolved runtime verification gap; zero replacement/input-fidelity credit.]
+
+<!-- from: glue-traffic-flake6 (2026-10-24), train166 first-difference audit -->
+LV6/LV2 evidence: `regress-train166-shadows` first land-value mismatch is pass5,
+2026-05-08: intrinsic2, total1, slope0, types0, mean270.05533/270.05667,
+four mismatches overall. No daily snapshot among30 reproduces it (closest day1,
+one intrinsic tract differs). The first traffic mismatch occurs much later,
+2027-06-13, so this land-value failure cannot be caused by that traffic-shadow
+drift. This is consistent with §6.1 inputs changing within a native pass;
+the pass-end sample is insufficient. LV6's safe installation/lifetime contract
+still blocks implementing faithful per-delivery capture. No formula, comparison,
+sample selection or acceptance criterion was changed.
+
+<!-- from: glue-traffic-flake6 (2026-10-24), third house repeat -->
+LV6/LV2 repeat evidence: `traffic-flake6-637a-house-t3-r2` is clean/ref0 with
+traffic72/72 exact and zero traffic resyncs, but landvalue71/72 exact. Its sole
+landvalue difference is pass47 at2029-11-08: intrinsic5 (max delta2), total2
+(max delta2), slope0, types0, mean270.05667/270.05804, eight mismatches overall.
+The log labels input_capture=pass-end-sample/native_step_capture=0; its day1/32
+diagnostic reproduces intrinsic/mode/mean but total still differs in428 tracts.
+This preserves the LV6 input-boundary gap despite three exact traffic repeats;
+it does not establish a turbo-only cause. No implementation, sampling, formula
+or acceptance adjustment was made; landvalue stays blocked on LV6.

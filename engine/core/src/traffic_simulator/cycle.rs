@@ -674,7 +674,7 @@ impl Run<'_, '_> {
                 }
                 match held {
                     Some(src) => {
-                        self.st.current = Some(src);
+                        self.hold_source(Some(src));
                         self.st.source_pos = taken - 1;
                     }
                     None => {
@@ -972,6 +972,7 @@ impl TrafficSimulator {
 
     /// `Shutdown` (slot 4): releases the pathfinders, grids and departments.
     pub fn shutdown(&self) -> bool {
+        self.run(|r| r.hold_source(None));
         let depts = self.update_state(|s| {
             s.pf = None;
             s.pf2 = None;
