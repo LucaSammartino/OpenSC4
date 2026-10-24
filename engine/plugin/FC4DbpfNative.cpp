@@ -14,12 +14,17 @@
 #include "cGZPersistResourceKey.h"
 #include "cRZCOMDllDirector.h"
 #include "cRZBaseString.h"
+#include "GZServPtrs.h"
+#include "cIGZPersistResourceManager.h"
+#include "cIGZPersistDBSegmentMultiPackedFiles.h"
 #include <windows.h>
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <deque>
 #include <iterator>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -34,6 +39,20 @@ struct Counts {
     unsigned zero = 0, one = 0, multi = 0, failed = 0;
     unsigned listFalse = 0, keyDifferences = 0, countDifferences = 0;
 };
+struct HeldFile { cIGZPersistDBSegment* segment; cIGZDBSegmentPackedFile* packed; };
+struct HeldSample {
+    int32_t julian = 0;
+    std::vector<HeldFile> files;
+    size_t next = 0;
+    Counts counts;
+};
+// Main-thread only. Retain only references explicitly acquired by QI, never
+// borrowed manager/index pointers. Both readers run together for each file.
+// An empty deque allocates too. Keep the default-off observer out of DLL
+// initialization: allocating its queue there perturbs the game's allocation
+// order even when no DBPF sample was requested. The pointer borrows the
+// function-local queue below, whose lifetime still extends to DLL shutdown.
+std::deque<HeldSample>* pending = nullptr;
 
 // Validate interface table storage and every published method address against
 // the identified supported image. These addresses are never called untyped.
@@ -169,11 +188,10 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
                     }
                     std::sort(actual.begin(), actual.end());
                     std::vector<Key> expected;
-                    for (const auto& pair : first) expected.push_back(pair.first);
+                    for (const auto& pair : first)
+                        if (pair.first[0] != 0xE86B1EEF) expected.push_back(pair.first);
                     ++c.indexes;
-                    // EX55: the spec/SDK do not define empty-list return or DIR
-                    // visibility/count semantics. Keep the literal full index;
-                    // diagnose each predicate without fitting either output.
+                    // EX55: type-only DIR exclusion; false for an empty list.
                     const bool keysEqual = actual == expected;
                     const bool countEqual = recordCount == first.size();
                     c.listFalse += !listed;
@@ -197,7 +215,7 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
                             Log("dbpf native extra key: %08X/%08X/%08X", extra[i][0], extra[i][1], extra[i][2]);
                     }
                     // Preserve the previous combined difference count per file.
-                    if (!listed || !keysEqual || !countEqual)
+                    if (listed != !expected.empty() || !keysEqual || !countEqual)
                         Difference(c, path.c_str(), "native-key-list");
                     FC4_RELEASE_CREATED(list);
                 }
@@ -223,10 +241,9 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
                 const bool diskRead = ReadAt(lock, e.offset, disk.data(), e.size);
                 original.resize(rawSize); disk.resize(e.size);
                 ++c.raw;
-                if (!ownRaw || !diskRead || got != rawSize || own != original || own != disk)
+                if (!ownRaw || !diskRead || rawReturn != rawSize || got != rawSize || own != original || own != disk)
                     Difference(c, path.c_str(), "raw-bytes", e.key);
-                // SDK declares uint32_t but does not publish its success-value
-                // meaning. Record it; do not invent an error contract (EX54).
+                // EX54: full successful raw reads return the stored byte count.
                 if (c.records <= 2) Log("dbpf native raw status: natural=%d return=%u inout=%u", natural, rawReturn, got);
                 cIGZPersistDBRecord* record = nullptr;
                 const bool recordOpen = segment->OpenRecord(key, &record, cIGZFile::AccessMode::Read);
@@ -272,7 +289,219 @@ void Summary(const char* origin, const Counts& c) {
         origin, c.files, c.opened, c.rejected, c.zero, c.one, c.multi, c.indexes, c.records, c.raw, c.payload,
         c.compressed, c.empty, c.failed, c.refusal, c.differ, c.listFalse, c.keyDifferences, c.countDifferences);
 }
+
+void CollectKey(void* context, uint32_t type, uint32_t group, uint32_t instance) {
+    static_cast<std::vector<Key>*>(context)->push_back({type, group, instance});
+}
+void CollectNativeKey(const cGZPersistResourceKey& key, void* context) {
+    CollectKey(context, key.type, key.group, key.instance);
+}
+
+// Read the game's actual held segment, never Open/Close/Init/Shutdown it.
+// The independent Rust handle opens only GENERIC_READ with normal sharing:
+// no exclusive lock, changed sharing policy, factory replacement or registration.
+void CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPackedFile* packed, Counts& c) {
+    const DWORD started = GetTickCount();
+    // Only currently open packed files are in scope; a retained closed segment
+    // is not an unreadable open file and must never be opened by this probe.
+    if (!segment->IsOpen()) return;
+    ++c.files;
+    cRZBaseString path;
+    packed->GetPath(path);
+    // Public SDK paths use the Windows ANSI code page; Rust paths are UTF-8.
+    const int wn = MultiByteToWideChar(CP_ACP, 0, path.ToChar(), -1, nullptr, 0);
+    if (wn <= 1) { ++c.refusal; return; }
+    std::vector<wchar_t> wide(wn);
+    MultiByteToWideChar(CP_ACP, 0, path.ToChar(), -1, wide.data(), wn);
+    const int un = WideCharToMultiByte(CP_UTF8, 0, wide.data(), wn - 1, nullptr, 0, nullptr, nullptr);
+    std::string utf8(static_cast<size_t>(un), '\0');
+    if (un <= 0 || !WideCharToMultiByte(CP_UTF8, 0, wide.data(), wn - 1, &utf8[0], un, nullptr, nullptr)) {
+        ++c.refusal; return;
+    }
+    fc4_dbpf* rust = fc4_dbpf_open(reinterpret_cast<const uint8_t*>(utf8.data()), utf8.size());
+    if (!rust) { ++c.refusal; Difference(c, path.ToChar(), "Rust-open"); return; }
+    ++c.opened;
+    std::map<Key, std::array<uint32_t, 7>> entries;
+    for (size_t i = 0; i < fc4_dbpf_entry_count(rust); ++i) {
+        std::array<uint32_t, 7> words{};
+        if (!fc4_dbpf_entry(rust, i, words.data())) { ++c.refusal; continue; }
+        entries.emplace(Key{words[0], words[1], words[2]}, words);
+    }
+    void* object = nullptr;
+    if (!com->GetClassObject(GZCLSID_cIGZPersistResourceKeyList, GZIID_cIGZPersistResourceKeyList, &object) || !object) {
+        ++c.refusal;
+    } else {
+        auto* list = static_cast<cIGZPersistResourceKeyList*>(object);
+        FC4_ACQUIRED(list, "DBPF shadow key-list factory");
+        if (!Interface(list, 11)) { ++c.refusal; }
+        else {
+            const bool listed = segment->GetResourceKeyList(*list);
+            std::vector<Key> original, own;
+            // Avoid repeated indexed lookups: public EnumKeys visits the same
+            // owned list once without assuming its container representation.
+            list->EnumKeys(CollectNativeKey, &original);
+            const uint32_t n = fc4_dbpf_packed_keys(rust, CollectKey, &own);
+            std::sort(original.begin(), original.end());
+            std::sort(own.begin(), own.end());
+            ++c.indexes;
+            if (listed != (n != 0) || original != own ||
+                segment->GetResourceKeyList(nullptr, nullptr) != n ||
+                segment->GetRecordCount(nullptr) != fc4_dbpf_packed_count(rust, false))
+                Difference(c, path.ToChar(), "keys/count/Boolean");
+            FC4_RELEASE_CREATED(list);
+        }
+    }
+    for (const auto& pair : entries) {
+        const auto& w = pair.second;
+        const cGZPersistResourceKey key(w[0], w[1], w[2]);
+        // A bounded allocation refusal is incomplete coverage, never exact.
+        constexpr uint32_t liveLimit = 256 * 1024 * 1024;
+        if (w[4] > liveLimit || w[5] > liveLimit) {
+            ++c.refusal;
+            Log("dbpf refusal: path=%s key=%08X/%08X/%08X stored=%u logical=%u limit=%u",
+                path.ToChar(), w[0], w[1], w[2], w[4], w[5], liveLimit);
+            continue;
+        }
+        ++c.records;
+        c.compressed += w[6] != 0;
+        c.empty += w[5] == 0;
+        if (!segment->TestForRecord(key) || packed->GetRecordSizeRaw(key) != w[4] ||
+            segment->GetRecordSize(key) != w[5] || packed->GetRecordPosition(key) != w[3] ||
+            packed->GetRecordCompressed(key) != (w[6] != 0))
+            Difference(c, path.ToChar(), "held-metadata", pair.first);
+        // Oversized, fully bounded buffers also check the untouched tail.
+        std::vector<uint8_t> original(size_t(w[4]) + 2, 0xcc), own(original);
+        uint32_t got = static_cast<uint32_t>(original.size()), expectedSize = got;
+        const uint32_t result = packed->ReadRecordRaw(key, original.data(), got);
+        const uint32_t expected = fc4_dbpf_read_raw(rust, w[0], w[1], w[2], own.data(), &expectedSize);
+        ++c.raw;
+        if (result != expected || got != expectedSize || original != own)
+            Difference(c, path.ToChar(), "held-raw-return/size/bytes", pair.first);
+        got = expectedSize = 99;
+        if (packed->ReadRecordRaw(key, nullptr, got) !=
+            fc4_dbpf_read_raw(rust, w[0], w[1], w[2], nullptr, &expectedSize) || got != expectedSize)
+            Difference(c, path.ToChar(), "held-null-raw-return/size", pair.first);
+        original.assign(size_t(w[5]) + 2, 0xcc);
+        own.clear();
+        got = w[5];
+        // EX56: literal public SDK ReadRecord route; no record object is opened,
+        // repositioned or closed by the shadow. Return is not specified here;
+        // compare the logical bytes and in/out size, not an inferred return ABI.
+        segment->ReadRecord(key, original.data(), got);
+        const bool read = fc4_dbpf_read_record(rust, w[0], w[1], w[2], false, Bytes, &own);
+        ++c.payload;
+        if (!read || got != w[5] || own.size() != w[5] ||
+            !std::equal(own.begin(), own.end(), original.begin()) ||
+            original[w[5]] != 0xcc || original[size_t(w[5]) + 1] != 0xcc)
+            Difference(c, path.ToChar(), "held-payload", pair.first);
+    }
+    // A key absent from the independent unique index: rejection preserves size.
+    Key absent{0, 0, 0};
+    while (entries.count(absent)) ++absent[2];
+    const cGZPersistResourceKey key(absent[0], absent[1], absent[2]);
+    uint32_t size = 99;
+    if (packed->ReadRecordRaw(key, nullptr, size) != UINT32_MAX || size != 99)
+        Difference(c, path.ToChar(), "held-missing-raw", absent);
+    fc4_dbpf_close(rust);
+    if (GetTickCount() - started > 2000)
+        Log("dbpf slow file: path=%s records=%u ms=%lu", path.ToChar(), static_cast<unsigned>(entries.size()),
+            static_cast<unsigned long>(GetTickCount() - started));
+}
+
+void VisitHeld(cIGZPersistDBSegment* segment, std::set<cIGZPersistDBSegment*>& visited, HeldSample& sample) {
+    auto& c = sample.counts;
+    if (!segment) { ++c.refusal; Log("dbpf refusal: null indexed segment"); return; }
+    if (!visited.insert(segment).second) return;
+    if (!Interface(segment, 30)) { ++c.refusal; Log("dbpf refusal: unsupported segment interface"); return; }
+    cIGZDBSegmentPackedFile* packed = nullptr;
+    if (segment->QueryInterface(GZIID_cIGZDBSegmentPackedFile, reinterpret_cast<void**>(&packed)) && packed) {
+        FC4_ACQUIRED(packed, "DBPF shadow packed QI");
+        if (!Interface(packed, 39)) { ++c.refusal; return; }
+        if (segment->IsOpen()) sample.files.push_back({segment, packed});
+        else FC4_RELEASE(packed);
+        return;
+    }
+    cIGZPersistDBSegmentMultiPackedFiles* multi = nullptr;
+    if (segment->QueryInterface(GZIID_cIGZPersistDBSegmentMultiPackedFiles, reinterpret_cast<void**>(&multi)) && multi) {
+        FC4_ACQUIRED(multi, "DBPF shadow multi QI");
+        if (!Interface(multi, 11)) { ++c.refusal; return; }
+        const uint32_t count = multi->GetSegmentCount();
+        // EX56: SDK gives direct pointers; treat them as borrowed, never Release
+        // a pointer whose reference the shadow did not acquire.
+        for (uint32_t i = 0; i < count; ++i) VisitHeld(multi->GetSegmentByIndex(i), visited, sample);
+        FC4_RELEASE(multi);
+    }
+    // Directory/streaming segments do not expose the packed-file interface.
+}
 } // namespace
+
+void DbpfShadowObserve(int32_t julian) {
+    if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
+    static std::deque<HeldSample> samples;
+    pending = &samples;
+    pending->emplace_back();
+    auto& sample = pending->back();
+    sample.julian = julian;
+    auto& c = sample.counts;
+    std::set<cIGZPersistDBSegment*> visited;
+    auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    cIGZPersistResourceManagerPtr manager;
+    if (!manager || !Interface(com, 4)) ++c.refusal;
+    else {
+        // EX56: public resource-manager roots, recursively expanding public
+        // multi-packed segments. No private city-streaming ABI is inferred.
+        for (uint32_t i = 0; i < manager->GetSegmentCount(); ++i)
+            VisitHeld(manager->GetSegmentByIndex(i), visited, sample);
+    }
+}
+
+namespace {
+void HeldSummary(const HeldSample& sample) {
+    auto c = sample.counts;
+    if (!c.files || !c.records) ++c.refusal;
+    fc4_date date{};
+    fc4_date_from_julian(sample.julian, &date);
+    Log("dbpf shadow %04d-%02d-%02d: files=%u opened=%u indexes=%u records=%u raw=%u payload=%u "
+        "compressed=%u empty=%u refusals=%u scope=resource-manager-packed mismatches=%u",
+        date.year, date.month, date.day_of_month, c.files, c.opened, c.indexes, c.records, c.raw, c.payload,
+        c.compressed, c.empty, c.refusal, c.differ + c.refusal);
+}
+}
+
+void DbpfShadowTick() {
+    if (pending == nullptr || pending->empty()) return;
+    auto& sample = pending->front();
+    const DWORD started = GetTickCount();
+    auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    // Return to the framework between files. Each measured large file took
+    // under 3 seconds; aggregate sweeps took 8+ and tripped the 5-second watchdog.
+    // The sample date selects the file set; comparisons finish on later ticks.
+    while (sample.next < sample.files.size()) {
+        auto& file = sample.files[sample.next++];
+        if (!com || !file.segment->IsOpen()) ++sample.counts.refusal;
+        else CompareHeld(com, file.segment, file.packed, sample.counts);
+        FC4_RELEASE(file.packed);
+        file.packed = nullptr;
+        if (GetTickCount() - started >= 800) break;
+    }
+    if (sample.next == sample.files.size()) {
+        HeldSummary(sample);
+        pending->pop_front();
+    }
+}
+
+void DbpfShadowShutdown() {
+    // Never silently discard an unfinished monthly sample. A deadline that
+    // interrupts it is explicitly non-exact, while all acquired QIs are released.
+    if (pending == nullptr) return;
+    for (auto& sample : *pending) {
+        ++sample.counts.refusal;
+        for (size_t i = sample.next; i < sample.files.size(); ++i)
+            FC4_RELEASE(sample.files[i].packed);
+        HeldSummary(sample);
+    }
+    pending->clear();
+}
 
 void DbpfNativeCityLoaded() {
     static bool done = false;
