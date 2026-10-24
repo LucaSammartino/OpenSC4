@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-disasters-house11 (countable house disaster shadow) | Codex / `glue-disasters-house11` | in progress | Inspect shadow and harness; implement deterministic schedule; gate and measure house to 2032 |
+| glue-disasters-house11 (countable house disaster shadow) | Codex / `glue-disasters-house11` | in progress; final-source full gate PASS (Rust 7119/0, clippy clean, CTest 81/81); explicit verify outstanding | Collect verify session 79700, then run prepared house fixture to 2032 and report every shadow count |
 
 ## Handoff
 - Goal: deterministic scripted disaster house shadow, monthly countable exact summaries through 2032.
@@ -13,7 +13,9 @@
 - Bounded correction implemented: after 200 riot samples, pin leaders with Keep into a separate owned set, RemoveOccupant(occ, false, 0), retain holds through original/mirror ending ticks, DropAll at EndCity. Native final-source gate still required after the intermediate request terminates.
 - Prepared request: build-runs/house11.req.pending, label house11-fire-riot-01, not submitted yet. build-runs/wait-house11.py waits without qwait.
 - No game request outstanding and no DLL/game measurement yet. build-runs/compare-house11.py compares dated mismatch counts against the explicitly named main build-runs/regress-train193-shadows.log.
-- Next: task-required explicit qbuild verify now (collect its session to terminal); then submit prepared house request with train193 switches plus disaster keys, timeout 1800. Use one outstanding game request and unique label; no qwait. Do not edit engine source after the passing full gate unless a real diagnostic requires it.
+- NEXT EXACT STEP: collect explicit qbuild verify session 79700 to terminal (request qbuild-20261024-133027-build-ctest, started after full all passed). It remains outstanding; NEVER start another verify while it is queued. Then move prepared build-runs/house11.req.pending to build-runs/game-queue/house11-fire-riot-01.req with apply_patch, and invoke build-runs/wait-house11.py on its unique verdict in ONE operation; collect that operation, no qwait.
+- Completion still required: real-city end >=2032-01-01, clean/ref_warnings=0, elapsed <1800s, every dated disaster line mismatches=0 and resyncs=0; compare other dated shadows with train193 via compare-house11.py. Check all episode lines too. Record free unique run ID after rg '^run: ' docs/runs; propose exact house-profile addition without editing tools/. Finish full lane report/READY queue only after measurements.
+- Context continuation checkpoint: engine source committed and full-gated; no game request outstanding, no merge-queue entry written. Prepared request and ignored evidence/helpers persist in this worktree. Git emits a packed-refs.lock permission error, but detached HEAD commits succeed; do not change refs/config to fix it.
 - Monthly failures include numbered differences, refused ignition resyncs, unfollowable inputs, missing leaders, call-result differences and guarded-core failures.
 - Schedule uses original manager start APIs and waits for natural lifecycle completion, with turbo held off then restored; no forced resume.
 - Constraints: no tools/ reads or edits; propose regress profile change in report only. Native verify uses queued qbuild verify. No qwait for game requests.
