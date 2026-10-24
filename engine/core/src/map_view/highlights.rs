@@ -331,6 +331,10 @@ pub fn paint_ring(
     args: [f32; 3],
     color: u32,
 ) -> Result<(), Unsupported> {
+    paint_ring_with_context(pixels, width, height, clip, args, color, RingContext::default())
+}
+
+pub fn paint_ring_with_context(pixels: &mut [u32], width: usize, height: usize, clip: ClipRect, args: [f32; 3], color: u32, context: RingContext) -> Result<(), Unsupported> {
     if width.checked_mul(height) != Some(pixels.len()) {
         return Err(Unsupported::BufferLength);
     }
@@ -355,31 +359,34 @@ pub fn paint_ring(
     if clip.left >= clip.right || clip.top >= clip.bottom {
         return Ok(());
     }
-    // [literal formula / numeric choice, QV14] Preserve every stated binary32
-    // store, using binary64 between stores. The spec does not give the x87
-    // precision-control/rounding mode; exact native edge-pixel agreement is not
-    // claimed until that mode and operation-rounding sequence are specified.
-    let [u, v, r] = args.map(f64::from);
-    let cx = f64::from((u + 0.5) as f32);
-    let cy = f64::from((v + 0.5) as f32);
-    let radius_squared = f64::from(((r + 1.0) * (r + 1.0)) as f32);
-    let first = ((v - r - 0.5).ceil() as i32).max(clip.top);
-    let last = ((v + r + 0.5).floor() as i32).min(clip.bottom - 1);
+    // QV14: each operation uses the inherited PC/RC; only the specified
+    // stores round to binary32. Candidate bounds use floor lower / ceil upper.
+    use super::ring_float::F;
+    use std::cmp::Ordering;
+    let c = context;
+    let [u, v, r] = args.map(F::float);
+    let half = F::float(0.5);
+    let cx = c.store(c.add(u, half));
+    let cy = c.store(c.add(v, half));
+    let a = c.add(r, F::int(1));
+    let radius_squared = c.store(c.mul(a, a));
+    let first = c.integer(c.sub(c.sub(v, r), half), false).max(clip.top);
+    let last = c.integer(c.add(c.add(v, r), half), true).min(clip.bottom - 1);
     for y in first..=last {
-        let dy = f64::from(y) - cy;
-        let dy_squared = f64::from((dy * dy) as f32);
-        let remainder = radius_squared - dy_squared;
-        if remainder < 0.0 {
+        let dy = c.sub(F::int(y), cy);
+        let dy_squared = c.store(c.mul(dy, dy));
+        let remainder = c.sub(radius_squared, dy_squared);
+        if remainder.negative() {
             continue;
         }
-        let span = remainder.sqrt();
-        let left = ((cx - span).ceil() as i32).max(clip.left);
-        let right = ((cx + span).floor() as i32).min(clip.right - 1);
+        let span = c.sqrt(remainder);
+        let left = c.integer(c.sub(cx, span), false).max(clip.left);
+        let right = c.integer(c.add(span, cx), true).min(clip.right - 1);
         for x in left..=right {
-            let dx = f64::from(x) - cx;
-            let error = ((dx * dx + dy_squared).sqrt() - r).abs();
-            if error < 2.0 {
-                let weight = 255 - (128.0 * error).floor() as u32;
+            let dx = c.sub(F::int(x), cx);
+            let error = c.sub(c.sqrt(c.add(c.mul(dx, dx), dy_squared)), r).abs();
+            if error.cmp(F::int(2)) == Ordering::Less {
+                let weight = 255i32.wrapping_sub(c.integer(c.mul(error, F::int(128)), false)) as u32;
                 let index = y as usize * width + x as usize;
                 pixels[index] = blend_highlight(pixels[index], color, weight);
             }
@@ -474,7 +481,8 @@ pub fn decorate_highlights(
         for record in records.iter().filter(|record| record.radius > 0.0) {
             let args = ring_arguments(width, simulators.city_world_width()?, record)?;
             if let Some(clip) = renderer.acquire_bitmap(0x8040, width, height)? {
-                let result = paint_ring(pixels, width, height, clip, args, style.ring);
+                let context = renderer.ring_context();
+                let result = paint_ring_with_context(pixels, width, height, clip, args, style.ring, context);
                 renderer.release_bitmap()?;
                 result?;
             }

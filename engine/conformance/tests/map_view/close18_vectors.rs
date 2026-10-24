@@ -2,6 +2,44 @@
 use super::*;
 
 #[test]
+fn v35_display_flags_default_opacity_none_and_filter_only_override() {
+    let (mut view, mut res, mut win, mut render, mut sims) = inputs(1);
+    render.zone_default = 96;
+    res.raw.as_mut().unwrap().0.retain(|p| p.id != TERRAIN_MODE && p.id != TERRAIN_MODE_SECOND);
+    for (view_id, e3, e6, level, plumbing, water, alpha) in [
+        (1, None, None, 1, false, true, 96),
+        (2, Some(1), Some(255), 3, true, false, 255),
+        (3, Some(2), Some(0), 2, false, false, 0),
+        (4, Some(1), None, 3, true, false, 96),
+    ] {
+        if let Some(e3) = e3 { set_property(res.raw.as_mut().unwrap(), TERRAIN_MODE, RawValue::U32(e3)); }
+        res.raw.as_mut().unwrap().0.retain(|p| p.id != 0x4a0b_47e6);
+        if let Some(e6) = e6 { set_property(res.raw.as_mut().unwrap(), 0x4a0b_47e6, RawValue::U8(e6)); }
+        if view_id == 4 { set_property(res.raw.as_mut().unwrap(), TERRAIN_MODE_SECOND, RawValue::U32(2)); }
+        render.settings.clear();
+        view.select_with(view_id, &mut res, &mut win, &mut render, &mut sims).unwrap();
+        assert_eq!(&render.settings[..3], &[
+            RenderSetting::CityLevel(level), RenderSetting::PlumbingCoverage(plumbing), RenderSetting::SurfaceWater(water),
+        ]);
+        assert_eq!(render.zone_current, alpha);
+        if view_id == 4 {
+            assert!(render.settings.contains(&RenderSetting::TerrainMode { property: TERRAIN_MODE_SECOND, mode: 2 }));
+        }
+    }
+    view.select_with(0, &mut res, &mut win, &mut render, &mut sims).unwrap();
+    assert_eq!(view.source(), 0);
+    assert!(view.selection_fields().is_none());
+    assert!(render.cells.last().unwrap().coordinates.is_empty());
+    assert!(render.settings.contains(&RenderSetting::CityLevel(1)));
+    assert!(render.water_current);
+    assert_eq!(render.zone_current, 96);
+    let refreshes = (render.water_refreshes, render.zone_refreshes);
+    res.raw.as_mut().unwrap().0.retain(|p| ![TERRAIN_MODE, TERRAIN_MODE_SECOND, 0x4a0b_47e6].contains(&p.id));
+    view.select_with(5, &mut res, &mut win, &mut render, &mut sims).unwrap();
+    assert_eq!((render.water_refreshes, render.zone_refreshes), refreshes);
+}
+
+#[test]
 fn v01_scale_presence_defaults_shift_and_selection_reset() {
     for scale in [None, Some(0), Some(1), Some(0x1000000)] {
         let f = ScaleFactors::from_scale(scale);

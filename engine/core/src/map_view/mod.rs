@@ -15,18 +15,24 @@ mod execution;
 mod exemplar;
 mod highlights;
 mod overlay;
+mod panels;
 mod palette;
+mod ring_float;
 mod settled;
 mod source;
+mod traffic;
 mod window;
 
 pub use execution::*;
 pub use exemplar::*;
 pub use highlights::*;
 pub use overlay::*;
+pub use panels::*;
 pub use palette::*;
+pub use ring_float::{RingContext, RingPrecision, RingRounding};
 pub use settled::*;
 pub use source::*;
+pub use traffic::*;
 pub use window::*;
 
 /// Refusal of an unpublished/out-of-domain contract, not a native failure code.
@@ -117,6 +123,7 @@ pub enum SelectionStep {
 pub enum SelectionOutcome {
     Inactive,
     CurrentView,
+    Reset,
     /// The only specified native failure here: the exemplar was not found.
     MissingExemplar,
     NeedsExemplar(ExemplarKey),
@@ -181,6 +188,11 @@ pub struct MapView {
     hooked_messages: Vec<u32>,
     travel_types: Vec<u8>,
     factors: ScaleFactors,
+    memories: ViewMemories,
+    saved_view: u32,
+    queued_views: Vec<u32>,
+    map_enabled: bool,
+    legend_content: bool,
 }
 
 impl MapView {
@@ -205,13 +217,18 @@ impl MapView {
             palettes: None,
             custom_view: None,
             mode_button: None,
-            two_way_toggle: None,
+            two_way_toggle: Some(false),
             overlay_enabled: true,
             retained_highlights: Vec::new(),
             highlight_style: HighlightStyle::default(),
             hooked_messages: Vec::new(),
             travel_types: Vec::new(),
             factors: ScaleFactors::default(),
+            memories: ViewMemories { desirability: 99, traffic: 0x4c, mode: 0 },
+            saved_view: 0,
+            queued_views: Vec::new(),
+            map_enabled: false,
+            legend_content: false,
         }
     }
 
@@ -371,10 +388,7 @@ impl MapView {
         progress.effects.extend(self.unhook_update_messages());
         self.requested_view = Some(view);
         if view == 0 || exemplar_key(view).is_ok_and(|key| key.instance == 0) {
-            // [literal, QV1/QV9] The default occupant filter is the first
-            // unknown none-stage decision. Do not skip to later resets,
-            // clearing state/highlights, Update or a current-view commit.
-            progress.outcome = SelectionOutcome::Unsupported(Unsupported::FilterResetQV1);
+            progress.outcome = SelectionOutcome::Reset;
             return progress;
         }
         let key = match exemplar_key(view) {

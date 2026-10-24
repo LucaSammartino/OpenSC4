@@ -3,6 +3,8 @@
 use fc4_core::map_view::*;
 #[path = "map_view/close18_vectors.rs"]
 mod close18_vectors;
+#[path = "map_view/closure_vectors.rs"]
+mod closure_vectors;
 #[path = "map_view/settled_vectors.rs"]
 mod settled_vectors;
 use std::collections::VecDeque;
@@ -44,6 +46,8 @@ impl Resources for Resource {
 
 #[derive(Default)]
 struct Windows {
+    flags: std::collections::BTreeMap<(u32, u8), bool>,
+    buttons: std::collections::BTreeMap<u32, bool>,
     effects: Vec<WindowEffect>,
     visible: bool,
     deny: bool,
@@ -58,23 +62,29 @@ struct Windows {
     trace: Trace,
 }
 impl WindowSystem for Windows {
+    fn message_controls(&self) -> Vec<u32> { (0x9000..0x9052).collect() }
     fn effect(&mut self, effect: WindowEffect) -> Result<(), OwnerError> {
         if self.fail {
             return Err(OwnerError::Foreign(123));
+        }
+        match effect {
+            WindowEffect::ControlFlag { control, flag, value } => { self.flags.insert((control, flag), value); }
+            WindowEffect::SelectButton { control, selected } => { self.buttons.insert(control, selected); }
+            _ => (),
         }
         self.effects.push(effect);
         Ok(())
     }
     fn visible(&self, panel: u32) -> bool {
+        if let Some(value) = self.flags.get(&(panel, 1)) { return *value; }
         match panel {
             0x8a28_71c3 => self.visible,
             0xaa32_bcd5 => true,
-            _ => panic!("unexpected panel {panel:x}"),
+            _ => false,
         }
     }
     fn button_down(&self, button: u32) -> bool {
-        assert_eq!(button, 0x8001);
-        self.traffic_toggle
+        self.buttons.get(&button).copied().unwrap_or(button == 0x8001 && self.traffic_toggle)
     }
     fn tutorial_allows(&mut self, command: u32, _button: u32) -> Result<bool, OwnerError> {
         assert_eq!(command, 0x2872_59f6);
@@ -105,6 +115,14 @@ impl WindowSystem for Windows {
 
 #[derive(Default)]
 struct Render {
+    damaged_icon: Option<IncidentIcon>,
+    damaged_loads: usize,
+    released_icons: Vec<u64>,
+    zone_default: u8,
+    zone_current: u8,
+    water_current: bool,
+    zone_refreshes: usize,
+    water_refreshes: usize,
     clock: u32,
     missing_child: bool,
     cells: Vec<MarkedCells>,
@@ -133,6 +151,11 @@ enum VisualLog {
     Call(VisualEffect),
 }
 impl Renderer for Render {
+    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> { self.damaged_loads += 1; Ok(self.damaged_icon.clone()) }
+    fn release_incident_icon(&mut self, handle: u64) -> Result<(), OwnerError> { self.released_icons.push(handle); Ok(()) }
+    fn default_zone_alpha(&mut self) -> Result<u8, OwnerError> {
+        Ok(self.zone_default)
+    }
     fn clock_ms(&mut self) -> u32 {
         self.clock
     }
@@ -195,7 +218,21 @@ impl Renderer for Render {
             return Err(OwnerError::Foreign(456));
         }
         match command {
-            RenderCommand::Setting(setting) => self.settings.push(setting),
+            RenderCommand::Setting(setting) => {
+                // Native setters refresh only when the stored byte changes.
+                match setting {
+                    RenderSetting::ZoneOption(alpha) if alpha != self.zone_current => {
+                        self.zone_current = alpha;
+                        self.zone_refreshes += 1;
+                    }
+                    RenderSetting::SurfaceWater(on) if on != self.water_current => {
+                        self.water_current = on;
+                        self.water_refreshes += 1;
+                    }
+                    _ => (),
+                }
+                self.settings.push(setting);
+            }
             RenderCommand::ClearMap => self.clears += 1,
             RenderCommand::Bitmap {
                 class,
@@ -219,6 +256,7 @@ impl Renderer for Render {
 }
 
 struct Sims {
+    traffic: TrafficFixture,
     debug_entries: Option<Vec<[i32; 3]>>,
     missing_developer: bool,
     returned_buildings: Vec<RawBuilding>,
@@ -232,6 +270,16 @@ struct Sims {
     trace: Trace,
 }
 impl Simulators for Sims {
+    fn traffic_capacity(&mut self, network: u8, _cell: [usize; 2]) -> Result<i32, OwnerError> {
+        self.traffic.network_reads.push(network);
+        Ok(*self.traffic.capacities.get(&network).unwrap_or(&0))
+    }
+    fn traffic_density(&mut self, travel: u8, _cell: [usize; 2], alternate: bool) -> Result<[u16; 17], OwnerError> {
+        self.traffic.density_reads.push((travel, alternate));
+        Ok(*self.traffic.densities.get(&travel).unwrap_or(&[0; 17]))
+    }
+    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> { Ok(self.traffic.routes.clone()) }
+    fn damaged_road(&mut self, cell: [usize; 2]) -> Result<bool, OwnerError> { Ok(self.traffic.damaged.contains(&cell)) }
     fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
         Ok(self.debug_entries.clone())
     }
@@ -285,6 +333,7 @@ fn inputs(source: u32) -> (MapView, Resource, Windows, Render, Sims) {
         Render::default(),
         Sims {
             debug_entries: None,
+            traffic: TrafficFixture::default(),
             missing_developer: false,
             returned_buildings: Vec::new(),
             grid: RawMapGrid {
@@ -475,9 +524,9 @@ fn direct_buttons_aliases_tutorial_reset_and_legend() {
         .button_with(0x510b, &mut res, &mut win, &mut render, &mut sims)
         .unwrap()
         .unwrap();
-    assert_eq!(boundary.boundary, Unsupported::PanelsQV3);
+    assert_eq!(boundary.boundary, None);
     assert_eq!(boundary.panels, MAP_PANELS);
-    assert!(win.effects.contains(&WindowEffect::ExcludeOtherButtons(0x510b)));
+    assert!(win.effects.contains(&WindowEffect::SelectButton { control: 0x500b, selected: true }));
     let legend = Legend::from_exemplar(res.raw.as_ref()).unwrap();
     assert_eq!(
         (legend.panel, legend.string_group, legend.title),
@@ -508,7 +557,7 @@ fn direct_buttons_aliases_tutorial_reset_and_legend() {
             .unwrap();
         assert_eq!(view.two_way_toggle(), Some(value));
     }
-    assert_eq!(res.keys.len(), 4); // one selection, one legend, two visible reset legends
+    assert_eq!(view.current_view(), Some(0)); // disabled reset selects none, not M
 }
 
 #[test]
@@ -525,7 +574,7 @@ fn window_lifecycle_commands_and_open_panel_matrix_are_explicit() {
     for message in [0xca28_71f0, 0xca28_71f1, 0xa32c_acd4, 0x0a32_cac3] {
         assert_eq!(
             view.window_message(message, None, &mut win).unwrap().unwrap().boundary,
-            Unsupported::PanelsQV3
+            None
         );
     }
     assert_eq!(Legend::from_exemplar(None).unwrap().title, 0x2a5e_854f);
@@ -690,12 +739,12 @@ fn malformed_legend_grid_lot_and_none_paths_have_explicit_boundaries() {
     );
     assert_eq!(
         view.select_with(0, &mut res, &mut win, &mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::FilterResetQV1))
+        Ok(OwnerSelection::Selected { highlight_boundary: None })
     );
     let mut fresh = MapView::new(0, 0);
     fresh.activate();
     assert_eq!(fresh.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Cleared));
-    assert_eq!(render.clears, 1);
+    assert_eq!(render.clears, 2);
 }
 
 #[test]
@@ -708,11 +757,8 @@ fn traffic_group_known_toggle_branch_and_show_reset_are_not_delegated() {
     assert_eq!(view.current_view(), Some(9));
     view.reset_with(&mut res, &mut win, &mut render, &mut sims).unwrap();
     win.traffic_toggle = false;
-    // Beyond the explicitly known toggle branch, group memory remains QV3.
-    assert_eq!(
-        view.reset_with(&mut res, &mut win, &mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::GroupButtonQV3(0x5008)))
-    );
+    view.reset_with(&mut res, &mut win, &mut render, &mut sims).unwrap();
+    assert_eq!(view.current_view(), Some(0));
     view.button_with(0x8001, &mut res, &mut win, &mut render, &mut sims)
         .unwrap();
     win.visible = true;
@@ -721,12 +767,19 @@ fn traffic_group_known_toggle_branch_and_show_reset_are_not_delegated() {
         .show_with(PanelRequest::Large, &mut res, &mut win, &mut render, &mut sims)
         .unwrap();
     assert_eq!(result.request, PanelRequest::Large);
-    assert_eq!(win.effects.len(), count + 48); // showing and visible reset each redraw legend
+    assert_eq!(win.effects.len(), count + 8); // pure standard-large visibility matrix
     view.set_overlay_enabled(true);
-    assert_eq!(
-        view.draw_with(&mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::TrafficMarkersQV4))
-    );
+    assert_eq!(view.draw_with(&mut render, &mut sims), Ok(OwnerUpdate::Drawn));
+}
+
+#[derive(Default)]
+struct TrafficFixture {
+    capacities: std::collections::BTreeMap<u8, i32>,
+    densities: std::collections::BTreeMap<u8, [u16; 17]>,
+    network_reads: Vec<u8>,
+    density_reads: Vec<(u8, bool)>,
+    routes: Vec<FerryRoute>,
+    damaged: Vec<[usize; 2]>,
 }
 
 fn set_property(raw: &mut RawExemplar, id: u32, value: RawValue) {

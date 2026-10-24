@@ -231,7 +231,7 @@ fn inactive_current_and_none_boundaries_preserve_owned_state() {
     let before = view.config().cloned();
     assert_eq!(
         view.set_data_view(0, None).outcome,
-        SelectionOutcome::Unsupported(Unsupported::FilterResetQV1)
+        SelectionOutcome::Reset
     );
     assert_eq!(view.source(), 8);
     assert_eq!(view.config(), before.as_ref());
