@@ -14,5 +14,5 @@
 - Implemented record-only packed-resource name parser/native HasVisualEffect comparison; original, upper and lower case plus three boundary/missing probes, load and month lines. Native mode has no tick subscription or host writes.
 - EF20 filed: collection getter ABI/container framing and queue/bootstrap capture remain unspecified. Scope is name membership only, no EF18/EF19 owner equivalence claimed.
 - New ABI export fc4_effects_verify_names; version unchanged. Added failure/difference/case/priority-zero ABI test.
-- Next: submit effects7-names-2032-20261024a through 2032 and wait using build-runs/Wait-EffectsVerdict.ps1; staged draft already exists. On verdict record exact line counts/refwarnings and ready measured scope. Do not edit tools profile (clean-room prohibition); coordinator must append after exact run.
-- No game request outstanding yet; next call submits the unique label above.
+- Next: collect session 41934, the single blocking Wait-EffectsVerdict.ps1 operation for effects7-names-2032-20261024a (turbo to 2032-01-01). On verdict record exact line counts/refwarnings and ready measured scope. Do not edit tools profile (clean-room prohibition); coordinator must append after exact run.
+- Outstanding game request: effects7-names-2032-20261024a, build-runs/game-queue/; verdict/log under build-runs/game-results/. Do not resend completed verdict or start a second request.
