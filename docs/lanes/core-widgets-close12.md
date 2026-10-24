@@ -24,6 +24,7 @@
 - Owned absolute-path qbuild fmt passed for the 12 earlier changed files. Final audit adds the distinct W+0x144 auxiliary string default `-` and the buffer RemoveBadCharacters wrapper (filter locally; call foreign strncpy with original count). Added a focused boundary test. Rechecked formatting on the four final files including mod.rs.
 - Session 5496/cell 49 terminal exit 1: 83 tests, 81 passed, 2 fixture failures. Evidence preserved in build-runs/focused-r2-failures.md. Recording RGB whitelist now accepts Init colors; password vector constrains the original readable mask span. No production behavior was changed for these failures.
 - Final qbuild fmt passed for the two corrected test files (exit=0 files=2 diff_lines=0).
-- FINAL ALL STARTED on the corrected stable source: session 93629 runs build-runs/final-gates-r2.py. Collect THAT session to terminal, never duplicate. Wrapper log: build-runs/final-r2-all.log; qbuild detailed logs: build-runs/qbuild-*.log. No game requests.
-- Next: collect 93629; inspect PASS/FAIL and summed cargo/CTest totals. all includes the native verify stage, so do not run redundant verify if it already passed. If all fails, diagnose preserving logs before changing anything. Write full report and READY queue only on passing gates.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r2-manifest.json.
+- Round 3: prior session 93629 gone; coordinator explicitly requested one new final all/verify gate, with no new implementation. Stable source remains 5d68621c7.
+- FINAL ALL running: session 93471, build-runs/final-gates-r3.py; collect that operation to terminal. Output: build-runs/final-r3-all.log; detailed logs: build-runs/qbuild-*.log. No game requests.
+- Next: collect 93471; inspect PASS/FAIL and summed cargo/CTest totals. all includes native verify; do not duplicate it. Preserve failures; fix only diagnostics. Commit full owner-by-owner partial closure report, then READY queue with actual full HEAD.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets-close12-r3-manifest.json.
