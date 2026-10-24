@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4DiagLogic.h"
 #include "FC4Dialogs.h"
+#include "FC4DbpfNative.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -318,6 +319,11 @@ void EndDateReason(char* out, size_t size) {
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
     if (g_quitDue && !g_quitRequested && g_verdict == 0) {
+        // The opt-in DBPF shadow yields between records. Finish the last dated
+        // sample on framework ticks before requesting quit; the wall deadline,
+        // watchdog and external timeout remain active. Shutdown still reports
+        // non-exact samples if it interrupts the reader for any other reason.
+        if (DbpfShadowPending()) return 0;
         RequestQuitNow(PublishedJulian());
         return 0;
     }

@@ -10,5 +10,7 @@ void DbpfNativeCityLoaded();
 // QI references keep each selected file alive until its comparison finishes.
 void DbpfShadowObserve(int32_t julian);
 void DbpfShadowTick();
+// Main-thread only: let an autotest quit drain the final dated sample first.
+bool DbpfShadowPending();
 void DbpfShadowShutdown();
 }
