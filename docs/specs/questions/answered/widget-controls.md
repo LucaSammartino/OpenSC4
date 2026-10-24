@@ -1,5 +1,22 @@
 # Standard window controls: answered questions
 
+## WC2 — TreeView property/node ABI and lifecycle residuals
+
+In widget-controls sections 6.1–6.3, settle remaining primary-slot signatures,
+descriptors/child output, ordering, move/removal/wrappers, ownership, restart
+and resource failures; verify the primary table has 60 entries.
+
+**ANSWERED 2026-10-24 (re-widget-controls-wc7):** DIFFERS — Section 6.6
+and vectors T19–T36 settle these contracts. Insert and get/set descriptors
+differ. Insertion references insert before; move's positive references insert
+after and missing references wrap to the beginning. Move has no cycle guard.
+Removing root clears descendants but preserves root. Child/selection arrays
+have no capacity argument. Nodes borrow fonts and image indices; the image
+vector retains buffers. Image mutation grows metrics without invalidation.
+Init has no aggregate resource rollback, Shutdown leaves stale root/init
+state, and later Init is not a fresh supported restart. Malformed allocation
+paths can dereference null or leak an already-constructed insertion.
+
 ## WC1 — ListBox residual adapters, rendering and malformed inputs
 
 In sections 5.1–5.5, settle folded aliases, suppression nesting, clear/removal,

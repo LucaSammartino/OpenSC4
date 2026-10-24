@@ -847,11 +847,10 @@ after transforming X by horizontal scroll minus `mx`, and Y by `−my`.
 Stale/unpainted geometry and out-of-range edge lookup are native quirks;
 no fabricated valid hit is specified for them.
 
-### 6.6 Verified property and descriptor residuals (partial WC2) *[compat]*
+### 6.6 Verified properties, descriptors and adapters (WC2) *[compat]*
 
-This section settles the property, descriptor, ordering and restart portions
-of WC2; it does not close that question's remaining node adapters, image APIs,
-move/removal and wrapper contracts. All offsets here are relative to O.
+This section settles WC2's properties, descriptors, node/image adapters,
+ordering, move/removal, ownership and restart. All offsets here are relative to O.
 Integer/pointer arguments and outputs are 32 bits; byte arguments occupy
 one stack word. Unless explicitly stated otherwise, these property setters
 have no independent boolean return guarantee.
@@ -947,7 +946,7 @@ working-buffer initialization releases/nulls the returned buffer; absent
 graphics service skips creation. Neither this failure nor a missing default
 font resets the one-shot byte for retry. These are observable owner failure
 policies, not an atomic Init transaction (`009D3956`–`009D3A79`). Image-list
-setup and its own failure details remain in WC2/WC3.
+setup and its failure details are specified below.
 
 | Vector | Setup / operation | Required result |
 |---|---|---|
@@ -959,6 +958,98 @@ setup and its own failure details remain in WC2/WC3.
 | WC-T24 | Get descriptor with prefilled child list, immediate children [8,3], grandchild 9 | Output list becomes [8,3]; visibility queried through O46; font returned without AddRef |
 | WC-T25 | Set descriptor with force=true, visible=false, altered child list | Force flag/child topology unchanged; false visible does not hide; final dirty/invalidation still occurs |
 | WC-T26 | Init, Shutdown twice, inspect root/init/font state | Root pointer and internal-init remain; font null, map empty; later Init is not a fresh restart |
+
+#### Remaining primary adapters and image ownership
+
+All calls below use O; words are native 32-bit stack arguments and boolean
+results promise AL only. Borrowed results do not AddRef. Missing handles
+produce the results stated below, without dirtying or notifying.
+
+| Slot | Arguments → result and observable behavior |
+|---|---|
+| 19 | (index, buffer, rectangle pointer) → bool. Accepts signed indices 0–3 only; grows the image vector through index, AddRefs incoming nonnull buffer before releasing the previous nonnull entry, copies the four rectangle words. An empty rectangle with a nonnull buffer becomes its full dimensions. Null buffer is accepted with the supplied rectangle. Width grows to rectangle width; row height grows to rectangle height+2 only when rectangle height exceeds current row height. Both comparisons are unsigned; neither metric shrinks. No dirty/invalidate call |
+| 20 | (nonnull buffer, rectangle pointer) → appended index; null buffer → −1 without reading the rectangle. Retains the buffer, applies the same empty/full-rectangle and growing-metric rules, appends after all existing entries. No dirty/invalidate call |
+| 21 | (index, buffer-output pointer, rectangle-output pointer) → bool. Unsigned index outside current image count fails without outputs. Otherwise copies the borrowed buffer and four rectangle words; no AddRef |
+| 22 | () → no defined result. Releases entries at indices ≥4, then truncates to four if larger. Preserves the first four entries and all cached metrics; no dirty/invalidate call |
+| 23 | (parent, reference, text bytes, closed image, open image, selected-closed image, selected-open image) → handle. Copies text through a temporary string and inserts with data=0, current default font/colors and expanded=false |
+| 24 | (parent, reference, text bytes, data) → handle. As slot 23 but images are 0,1,2,3 in that order and user data is supplied |
+| 28 | () → forwards to removal slot 27 with handle 0 (special root); does not destroy/recreate the root |
+| 31 | (handle) → borrowed node string interface, or the control's fallback string at O+0x1A4 when absent |
+| 32 | (handle, string interface) → bool. Copies text, dirties and invalidates even for equal text; absent → false |
+| 33–34 | (handle) → user-data word or 0; (handle, word) → bool. Store succeeds without layout, invalidation or notification |
+| 35–36 | (handle, image selector) → image word or −1; (handle, selector, image word) → bool. Selectors 0–3 map to node +0x34/38/3C/40. Invalid selector fails; valid setter always dirties/invalidates |
+| 38 | (handle) → borrowed font or null |
+| 42–43 | (handle, color selector) → raw color word or 0; (handle, selector, word) → bool. Selectors 0,1,2,3 map to node +0x24,+0x2C,+0x28,+0x30 respectively. No color conversion; valid setter always dirties/invalidates; invalid selector fails |
+| 44 | (handle) → expanded byte, or false |
+| 48 | (handle) → immediate-child count, or 0 |
+| 49 | (handle, output array) → bool. Null output or absent node → false. Copies every immediate child handle in list order, with no capacity argument; empty child list with nonnull output → true |
+| 50 | (handle) → selected byte, or false |
+| 53 | () → selection count |
+| 54 | () → first selected handle or −1; keyboard navigation instead anchors at the last selected entry |
+| 55 | (output array) → true. Copies all selected handles in sequence order with no capacity check; null is safe only when selection is empty |
+
+An empty rectangle means signed right<=left or bottom<=top (`007C1870`).
+Image contracts are instruction-verified at `009D3F7B`–`009D40BD`,
+`009D34A7`–`009D354E`, `009D0C63`–`009D0CB0`. Slot 23's seven arguments
+and slot 24's four arguments are verified at `009D3D60`/`009D3CBA`;
+both perform InternalInit first if needed. Temporary string allocation failure
+is dereferenced, not returned as a clean insertion failure (`009D3166`–`009D3183`).
+Adapter field/selector mappings and bounds are verified at
+`009D219B`–`009D24DA`, `009D00B3`–`009D0111`.
+
+**Move and removal.** Slot 26 (handle, new parent, reference) has no defined
+boolean result. Missing source/destination or a source without a parent is
+a no-op. Otherwise it splices the existing node, preserves its subtree,
+handle/data/style/selection, updates parent child counts and parent pointer,
+then dirties and invalidates. Reference −2 means prepend, −3 append. A positive
+reference inserts **after** the matching immediate destination child; a missing
+positive reference wraps to the destination's beginning. Other nonpositive
+values, including −4 and 0, prepend; move does not sort. There is no cycle,
+self-parent or descendant-parent rejection. Such malformed hierarchy requests
+do not have a safe traversal guarantee (`009D1FAB`–`009D2091`).
+
+Slot 27 (handle) returns false for an absent node. It unlinks an ordinary
+node from its parent, recursively processes its descendants, deselects each
+selected processed node through the normal notifying deselector, and destroys
+the marked ordinary nodes while erasing their map entries. The special root
+is not marked for destruction: removing handle 0 clears its children and
+selection but leaves that root mapped. Child lists/counts are reduced;
+layout is dirtied and invalidated even when removing an already empty root.
+There is no independent removal notification or replacement selection.
+This follows `009D2E07`–`009D2EE5` and helper `009D1735`–`009D17A7`.
+Node destruction disposes its string and child-list storage, not its borrowed
+font or image entries (`009D2BD9`). Image buffers belong to the control's
+retained image vector and are released on replacement/truncation/Shutdown;
+nodes merely store indices into it.
+
+**Resource failures.** InitializeImageList returns immediately without GS or
+WCM and preserves any preinstalled images. Each missing/null default slot
+0–3 is attempted independently; buffer-creation failure skips that slot and
+continues. A created buffer is installed and the temporary reference released
+even if surface initialization or access fails; failure does not roll back
+earlier slots or make Init fail. Defaults 0/1 are solid blue/red; 2/3 use the
+WCM color `0x08963F6C` as background/transparent key and draw the respective
+blue/red triangle. Successful access `0x8001` is paired with release; failed
+access skips only the guarded fill. The triangle is still requested when
+surface initialization succeeded but access failed (`009D0888`–`009D0C62`).
+InternalInit sets its completed byte before these requests. Missing default
+font is retained as null and later metric consumers require a valid font;
+there is no promised allocation rollback/retry. Its working-buffer init
+failure releases/nulls that buffer (`009D3956`–`009D3A79`). These are service
+failure boundaries, not a promise to recover from arbitrary allocator faults.
+
+| Vector | Stimulus | Required result |
+|---|---|---|
+| WC-T27 | Replace image 0 with the same retained buffer; get it | AddRef before Release; borrowed getter; no invalidate |
+| WC-T28 | Row height 12; append images of heights 12,13,2 | Heights become 12,15,15; smaller images never shrink it |
+| WC-T29 | Truncate seven images with slot 22 | Release entries 4–6 only; count 4; cached metrics unchanged |
+| WC-T30 | Move A into children [B,C], reference B, then reference absent 999 | Orders [B,A,C], then [A,B,C]; no sorted interpretation of −4 |
+| WC-T31 | Remove root with selected child and grandchild | Selected removals notify individually; root survives mapped with zero children |
+| WC-T32 | Get text for missing handle; get/set invalid image selector | Fallback borrowed string; image getter −1/setter false with no invalidation |
+| WC-T33 | Set color selector 1 then descriptor-get | Raw word appears at descriptor +0x24 (node +0x2C) |
+| WC-T34 | Enumerate empty node with null output then valid output | False then true; no array writes |
+| WC-T35 | Select A then B cumulatively; slots 53–55 and navigation | Count 2; first A; copy [A,B]; keyboard anchor B |
+| WC-T36 | Default buffer creation succeeds, surface init fails, next slot succeeds | Failed-init buffer still retained in its slot; later slot attempted; Init has no aggregate failure |
 
 ## 7. Family conformance vectors
 

@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-widget-controls-wc7: control behavior questions | `Codex` / detached reserved worktree `re-widget-controls-wc7` (RE lane) | ready: partial closure; WC1 answered, WC2 narrowed, WC3 open; doccheck passed; no ABI/game changes | 1. Finish WC2 remaining slots and wrappers. 2. Answer WC3 input/drag/rendering. 3. Engine lane implements/tests settled rules and updates closure rows. |
+| re-widget-controls-wc7: control behavior questions | `Codex` / detached reserved worktree `re-widget-controls-wc7` (RE lane) | in progress: final round; WC1/WC4–WC6 archived, WC2/WC3 under review; no ABI/game changes | Finish existing TreeView contracts, run doccheck once, commit report and enqueue ready. |
 
 ## Report
 
@@ -65,6 +65,8 @@ closure from this round. No engine file was edited.
 
 ## Handoff
 
+- Final round 3 started 2026-10-24 at 4f94638c6; detached HEAD retained. Bash q.py fails CreateFileMapping; use bounded PowerShell reads and re_query directly.
+- Round 3 milestone: WC2 adapters/wrappers, move/removal, image ownership/failure and T27–T36 specified; WC2 archived. Gate deferred to final once. Next: settle WC3 input/drag/drawing from named owners; then refresh inventory/coverage and index.
 - Goal remaining: finish WC2 and WC3; WC1/WC4/WC5/WC6 answered.
 - Done: 14590ec17 WC1; 391e9d561 partial WC2; doccheck and whitespace passed.
 - Next exact step: inspect O19-24 image/insertion wrapper bodies at 009D3F7B/009D34A7/009D0C63/009D407E/009D3D60/009D3CBA.
