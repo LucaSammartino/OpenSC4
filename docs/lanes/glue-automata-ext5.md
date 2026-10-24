@@ -10,7 +10,7 @@
 - Next: game through 2032 label automata-ext5-r3-2032-20261024-a (no qwait), merge main again immediately before queue and repeat native gate if merged. Run 359 free when checked.
 - Detached HEAD intentionally; do not switch branches or update refs. ABI true from round 1 export.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-automata-ext5-r3-manifest.json.
-- No outstanding game/build request. Previous rounds' evidence below remains valid for those source revisions.
+- Run 359 label automata-ext5-r3-2032-20261024-a terminal exited, not clean; DLL AV +0xEEE79D maps via local PDB to CaptureIn::GetRef line 195, construction reference list read. Load/one month exact. Source unchanged, preserve failed evidence; next reproduce once with new label before deciding source correction. No outstanding request.
 
 ## Round 2 report
 
