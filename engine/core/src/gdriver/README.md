@@ -6,10 +6,9 @@ contracts. The director continues to dispatch its foreign DX7 factory; no plugin
 C ABI, Windows API or registration is changed here. Caller adapters may associate
 the returned foreign identity with `Driver`.
 
-Test fixtures supply explicit answers at open boundaries; they are not evidence
-for native behavior. `Unsupported` identifies the relevant question instead of
-inventing a native HRESULT. Open sections are listed below. The backend must
-provide its own answers for unsettled converter cells and CopyColorBuffer.
+Test fixtures supply primitive foreign-operation results, not converter or capture
+algorithms. All settled owner contracts, including RD6/RD7/RD12, execute in this
+module. RD1/RD3/RD4 retain only the external proof boundaries identified in the spec.
 Matrix projection uses a portable 64-bit significand accumulator to preserve the
 specified x87 rounding; no host floating-point rounding mode is changed.
 

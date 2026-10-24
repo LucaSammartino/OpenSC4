@@ -211,6 +211,11 @@ fn dx7_57_failed_probe_persists_through_mode_and_loss() {
     assert_eq!(d.error, 1); // draw error retained; probe failure does not assign it
     assert_eq!(positions(&h, Call::DrawBuffer).len(), 1);
     assert_eq!(d.color_probe, Some(false));
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    h.failures.push_back((Call::DrawBuffer, 1));
+    d.error = 27;
+    assert_eq!(d.copy_color_buffer(0, 0, 1, 1, 90, &mut h), Ok(0));
+    assert_eq!(d.error, 1); // this slot maps even a positive nonzero flush result
     d.error = 27;
     assert_eq!(d.copy_color_buffer(0, 0, 1, 1, 90, &mut h), Ok(0));
     assert_eq!(d.error, 27);

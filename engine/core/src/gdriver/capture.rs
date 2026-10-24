@@ -37,7 +37,11 @@ impl Driver {
         if self.lost {
             return Ok(0);
         }
-        self.submit(host);
+        // §12.6 tests nonzero, rather than the usual negative-HRESULT test.
+        let hr = self.primitives.flush(host);
+        if hr != 0 {
+            self.error = u32::from(hr != LOST);
+        }
         let surface = self.auxiliary_surfaces[0];
         let mut desc = [0; 10];
         if self.color_probe.is_none() {
