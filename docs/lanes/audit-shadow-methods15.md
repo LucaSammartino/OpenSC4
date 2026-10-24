@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| audit-shadow-methods15 (method-level credit for seven partial shadows) | `Codex` / `audit-shadow-methods15` (RE docs lane, detached HEAD) | ready: attribution `072d3d9ee`, 44 functions / 4070 bytes; viewutil 1/78, querytool 2/147, legacyctl 4/96, gdriver 12/1706, renderprops 9/1064, app 15/886, modelinst 1/93 (functions/bytes); consistency PASS, doccheck PASS; existing scoped runs exact; ABI unchanged; no questions filed | (1) Coordinator consumes method rows, handles duplicate/folded names and lands docs; (2) retain the documented exclusions. |
+| audit-shadow-methods15 (method-level credit for seven partial shadows) | `Codex` / `audit-shadow-methods15` (RE docs lane, detached HEAD) | ready: attribution `072d3d9ee`, 44 functions / 4070 bytes; viewutil 1/78, querytool 2/147, legacyctl 4/96, gdriver 12/1706, renderprops 9/1064, app 15/886, modelinst 1/93 (functions/bytes); consistency PASS, doccheck PASS (resumed round confirmed); existing scoped runs exact; ABI unchanged; no questions filed | (1) Coordinator consumes method rows, handles duplicate/folded names and lands docs; (2) retain the documented exclusions. |
 
 ## Report
 
@@ -54,14 +54,16 @@ Both driver viewport setters have the exact name `nSGLDX7::cGDriver::SetViewport
 
 Attribution consistency validation passed: 44 unique addresses / 4070 bytes, all names/owners/sizes equal to coverage, all seven totals consistent, 28 pinned evidence locations resolving. The first attempt stopped on the helper's multi-location citation parser; correcting that untracked parser yielded the PASS without an attribution-data change. `python -X utf8 tools/doccheck.py check` passed (`doccheck check: ok`); `git diff --check` passed. Logs are `build-runs/attribution-validation.log`, `coverage-console.log`, and `doccheck-audit-shadow-methods15.log`. Cargo, clippy, native build and CTest are not applicable to this docs-only audit. No engine or tools files, coverage map, ABI rows/exports/version, run records or question files were changed. Questions filed: none. The q.py wrapper failed before running coverage (Git Bash CreateFileMapping denied); the direct PowerShell coverage invocation completed successfully and is the only counted coverage run.
 
+Resumed verification on 2026-10-24 after report commit `a399caef9`: reran coverage owners against the current main-checkout tooling, then checked all 44 addresses, literal names, owners and byte sizes, seven totals and 28 pinned evidence locations. All passed without an attribution-data change; doccheck and diff check also passed. Foreground logs: `build-runs/coverage-resume.log`, `build-runs/attribution-validation-resume.log`, `build-runs/doccheck-audit-shadow-methods15-resume.log`, and `build-runs/diff-check-resume.log`. The exact game-run evidence remains the frozen records above; no new game run was needed.
+
 Next for the coordinator: consume only the 44 function records, implement collision-aware method matching, retain literal address/name/owner identities, and preserve every exclusion above. No build or game request is outstanding. The reserved lane ref is published by the supervisor; this worktree commits on detached HEAD and does not update shared refs.
 
 ## Handoff
 
 - Goal: propose exact original-function coverage credit for viewutil, querytool, legacyctl, gdriver, renderprops, app and modelinst shadows.
 - Done: initialization `61dee6871`; attribution and full report `072d3d9ee`; audited all seven source/adapter/core paths and named lane reports; 44 named functions / 4070 bytes with pinned comparisons and exact run records.
-- Done: consistency PASS (44 / 4070, seven totals, 28 evidence locations); doccheck PASS and diff check PASS; final lane record ready for the local docs merge queue.
+- Done: final report `a399caef9`; resumed current-tooling coverage/consistency PASS (44 / 4070, seven totals, 28 evidence locations), doccheck PASS and diff check PASS; ready for the local docs merge queue.
 - Next: coordinator consumes the proposal and supervisor publishes the detached tip; no further lane work or requests outstanding.
 - Facts: two app getters (105 bytes), modelinst's unnamed adjustor (8 bytes), and legacy's unseparated ownership adjustor (8 bytes) are conservatively uncredited; driver SetViewport has two eligible addresses with one name.
 - Outputs: `docs/specs/attribution/proposed-shadow-methods.tsv`, this report, and local merge queue JSON.
-- Guard: `C:/Users/tlori/FreeCity4/build-runs/run4-audit-shadow-methods15-r1-manifest.json`; budget 150000, 150 calls between commits.
+- Guard: `C:/Users/tlori/FreeCity4/build-runs/run4-audit-shadow-methods15-r2-manifest.json`; budget 150000, 150 calls between commits.
