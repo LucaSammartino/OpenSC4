@@ -10,7 +10,9 @@
 - Done: owned-file formatting passes (5 files); stable relocated source workspace tests pass 6993/6993 and clippy reports zero diagnostics.
 - Done: first qbuild all terminal PASS: 6993 tests, clippy zero diagnostics, native build 253/253, CTest 79/79 (queue qbuild-20261024-084314-build-ctest).
 - Diagnostic: final audit of automata §6.5 found the prior owner left CROP_DUST stacked despite the specified PopState; corrected airplane dispatch and added a regression test. First gate is superseded by changed source, not failed.
-- Next: preserve first-gate logs in build-runs/pre-crop-dust/, run corrected-source qbuild all, then required qbuild verify and report.
+- Done: first-gate logs preserved in build-runs/pre-crop-dust/; corrected-source Rust gate passes 6994/6994 tests and clippy zero diagnostics. Owned formatting remains clean.
+- Next: collect SAME corrected-source qbuild all session 89925 to terminal result; native queue label qbuild-20261024-090054-build-ctest. Then run required qbuild verify and report.
+- Commits: 15de014d7 owner/numerical contracts; a1706474e formatting/initial Rust gate; 8f75ad6fe settled CROP_DUST pop and regression vector.
 - Evidence: q wrapper failed to initialize Git Bash (CreateFileMapping error); direct cargo focused operation completed successfully. Preserve build-runs/q/20261024-083301-34388.log.
 - Scope: helicopter vector 7 belongs to another owner; all airplane vectors covered. No game request outstanding; shadow needs an adapter for scalar/candidate comparisons.
 - Required final checks: qbuild all and queued qbuild verify; no game integration in scope.
