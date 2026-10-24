@@ -11,4 +11,3 @@ No open GZ1–GZ7 questions; see [answered/framework-gz-services.md](answered/fr
 
 <!-- from: core-gz-messages-complete4 (2026-10-22) -->
 - **GZ10 - sections 1/5.2 whole-owner body checklist:** Please publish the complete per-entry body inventory for the four owners (section 1 lists 30/17/38/81 functions, 166 total), identifying base-forwarding/folded aliases and behavior sections. Section 5.2 inventories the seven answered gaps, whereas queue/manager/server interface tables do not enumerate all owner-attributed bodies. [Checklist covers every published slot/body/helper and explicitly marks the uninventoried remainder unresolved; no inference that 14 vector matches establish all 166 bodies or complete-owner coverage.]
-
