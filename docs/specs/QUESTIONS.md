@@ -207,7 +207,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 10 | 6 | AP17 | questions/application.md |
-| audio | 11 | 9 | AU51 | questions/audio.md |
+| audio | 8 | 12 | AU51 | questions/audio.md |
 | audio-ambience | 4 | 11 | AA15 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
@@ -230,7 +230,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 3 | 59 | EX58 | questions/data-formats.md |
+| data-formats | 3 | 60 | EX58 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
@@ -275,7 +275,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 12 | 2 | QV15 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
-| model-instances | 5 | 0 | MI14 | questions/model-instances.md |
+| model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -361,16 +361,16 @@ generated index: the questions live one file per spec, so read only the file for
 | vehicles | 3 | 8 | VH12 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
-| view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
+| view-utilities | 2 | 13 | VU17 | questions/view-utilities.md |
 | view3d-window | 1 | 18 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 2 | 9 | WC12 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
-| web-network | 2 | 0 | Q17 | questions/web-network.md |
+| web-network | 4 | 0 | Q21 | questions/web-network.md |
 | widget-controls | 3 | 0 | WC7 | questions/widget-controls.md |
-| widget-toolkit | 14 | 6 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 13 | 7 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **614** | **1508** | | |
+| **total** | **611** | **1516** | | |
