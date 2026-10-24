@@ -2394,3 +2394,15 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
   through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
   ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.
+
+`netrules_shadow = 1` enables the default-off, record-only network tile-rule
+observer (NR16/NR17). It requires the published GOG fingerprint, fixed image
+base and every byte at all three observation sites; any validation failure
+leaves the observation set inactive. Reload completion compares parsed tile
+tables in order, including duplicate keys. Actual original evaluations run
+once; copied neighbourhood requests drive detached Rust replay. Monthly
+`netrules shadow` lines report cumulative table/result differences, incomplete
+inputs, unavailable observations and evaluated sample counts. `exact=1`
+requires tested samples and zero problems. Intersection tables and solver
+paths that bypass Evaluate remain explicitly unobserved. No native result,
+cache query, reference ownership or saved-city state is replaced.

@@ -356,6 +356,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
                                   "netocc_shadow",
+                                  // NR16/NR17 record-only evaluator observation (default off).
+                                  "netrules_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
