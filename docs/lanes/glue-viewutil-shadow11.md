@@ -1,19 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-viewutil-shadow11: view utility shadow | Codex, glue-viewutil-shadow11 | continue: measured clean 73/73, context budget | Finalize reports and ready queue; no new tests or game runs needed. |
+| glue-viewutil-shadow11: view utility shadow | `Codex` / `glue-viewutil-shadow11` (engine lane) | Ready, partial scope: source 16bdc1dc8; ABI unchanged; cargo 7141/0, clippy clean, CTest 81/81; run 510 clean, viewutil 73/73 exact, resyncs=0; runs 508/509 failed and retained; VU16 filed. | 1. Review and land measured rotation-only shadow. 2. Resolve VU16 before extending to remaining 49 bodies. 3. Coordinator reviews profile addition and regenerates question/coverage indexes; no whole-owner credit. |
 
-## Handoff
-- Goal: default-off viewutil_shadow, monthly/load bit-exact comparison through 2032.
-- Done: 16bdc1dc8 adds default-off rotation-only shadow and private production-core word adapter; filed VU16 (native callable ABI missing for 49/50 bodies, including min/max).
-- Next: FINALIZATION ONLY: create docs/runs/viewutil11-r1-on2-20261024-1424-510.md (510 was checked free), fix record508 house count wording, rewrite this Handoff into full ready report, commit, enqueue ready JSON with actual tip. No new game requests, builds, source changes or verify calls needed. Context guard OVER forced continuation before final report/queue; NO merge-queue file written.
-- Scope: only §4.3 explicitly documents cdecl. Compares 156 local-vector calls / 469 fields per available live sample (7 fixed + 5 live vectors, 12 fixed rotations + live rotation). No native state writes, no resync, no whole-owner credit.
-- Evidence: q wrapper Bash CreateFileMapping denied (build-runs/q/20261024-124612-15784.log); direct PowerShell focused cargo operation 1243 canceled with terminal exit 1 after no output (no test verdict claimed). Absolute-path qbuild fmt passed.
-- Rust gate: qbuild all reported test exit=0, 7141 passed / 0 failed / 0 ignored (45 result lines); clippy exit=0, diagnostics=0. Logs qbuild-test.log and qbuild-clippy.log. Native build/CTest queued at 13:10 local, all session 70517 still running.
-- Game: no request outstanding. First enabled run returned stalled, last heartbeat 2030-11-15, ref_warnings=0 / exceptions=0. Exact line: viewutil11-r1-on-20261024-1255 59/59. All rows samples=156 fields=469 resyncs=0 mismatches=0; live available on load. Record docs/runs/viewutil11-r1-on-20261024-1255-508.md preserves failure. Wait sessions 11229 (timeout) and 23878 (verdict) both terminal. Use wait-verdict.ps1 for new unique labels, no qwait. Do not discard existing completed verdicts.
-- Control completed: viewutil11-r1-off-20261024-1336 stalled (fallback watchdog outside FreeCity4, last heartbeat 2027-11-15, house month lines to 2027-12-01), refs/exceptions zero; no viewutil lines confirms default-off. Record docs/runs/viewutil11-r1-off-20261024-1336-509.md. Different failure from first on run quit hang; cannot claim clean baseline.
-- COMPLETED CLEAN: viewutil11-r1-on2-20261024-1424, exact house switches + key, turbo/end 2032, seconds=1500. Wait15906 reached terminal clean; no outstanding request/waiter. Required exact line: viewutil11-r1-on2-20261024-1424 73/73. Every row live=1 samples=156 fields=469 mismatches=0 resyncs=0; load2026-01-27 through last sample2032-01-01; shutdown73/73 exact. Clean verdict2032-01-03, real_seconds1023.437, ref_warnings/exceptions/watchdog/panics/other warnings all zero. Existing completed verdict MUST be kept, not rerun/discarded.
-- House summary comparison: final on has 53 total keys INCLUDING viewutil, hence 52 existing house keys; first on same53, control52. All comparison counts exact in all three; existing key sets identical. Control failed early so common-period comparison only, not a clean whole-period baseline. Record508 wording "53 existing" needs correcting to "53 total (52 house plus viewutil)". Run509 default-off has no viewutil lines. Keep both failed run records.
-- Final run DLL SHA256: 59bd57d0d0479e20a0ceb8e20fd53a5e498b74c26149d9cb629ce4152db4af11. Source16bdc1dc8 unchanged through all runs. Gate/native milestone562ce6076; prior run records31fc52fa5; latest pre-handoff8df9e1398. ABI=false (private static transport), scope1/50 family entries (rotation78/19748 bytes), min/max and other47 owner bodies uncalled VU16; signaling NaNs excluded VU12. Do not claim whole-owner verified.
-- Operational facts: summarize-viewutil.py prints exact counts; game-results/*.verdict/log retained. Final ready report attempts made NO edits: first failed UTF8 patch match (PowerShell Get-Content defaults ANSI; ALWAYS use -Encoding UTF8), second was guard-blocked before patch. Run510/report/ready queue still need creation. Coordinator must regenerate question index and append profile key after reviewing partial scope; lane never reads/edits tools/ or merges main.
-- Native gate: qbuild-20261024-131027-build-ctest PASS; build 262/262 edges (880.6s), CTest 81/81 (1270.7s). Logs fc4verify-build.log and fc4verify-ctest.log. qbuild all PASS terminal exit 0. Tree-change note is documentation-only: no engine diff from launch commit 64589b0bb to HEAD.
-- Constraints: no tools/ access or edits; regress profile update belongs to coordinator because clean-room restriction forbids it. Native verify uses queued qbuild.
+## Changes and scope
+
+Commit 16bdc1dc8 adds default-off `viewutil_shadow`, observed at city load and SimNewMonth, with one dated summary per observation. It compares native RotateVectorByViewRotation to the production Rust core through a private static-link word adapter. Configuration, observer hooks and build entries are additive. No public C ABI exports or ABI version changed.
+
+Each observation compares 156 calls and 469 fields: seven fixed edge-case vectors and five vectors from live city view/camera state, each with twelve fixed rotations and the live rotation, plus a required-live-state/binding check. Float words are compared bit-exactly, including y, signed zeros, quiet NaN payloads, infinities, finite extrema and subnormals. Negative and extreme signed rotations are included. The shadow changes only local vectors, takes no native state writes and performs no resyncs. Missing live state is a mismatch rather than vacuous success.
+
+This measures **1/50 family entries**, the explicit cdecl rotation helper (78/19748 family bytes). It does **not** cover the whole SC4ViewUtilities owner, MinOfFourFloats, MaxOfFourFloats, or the other 47 owner bodies. New question **VU16** in `docs/specs/questions/view-utilities.md` requests callable native signatures, supported bindings and safe live/isolated call contracts. Those entries remain uncalled; no native signature was guessed. Signaling NaNs remain excluded under existing VU12's numeric-mode question.
+
+## Validation
+
+Final source unchanged since 16bdc1dc8. Required `qbuild all` completed PASS: workspace tests **7141 passed, 0 failed, 0 ignored** across 45 result lines; clippy `-D warnings` clean, no diagnostics. Queued native gate `qbuild-20261024-131027-build-ctest` PASS: build 262/262 edges, **CTest 81/81**, zero failures. Explicit-file formatting check passed. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. Prior failed wrapper launch and canceled diagnostic operation are retained; neither was counted as a test pass. All operations reached terminal results; no build, game request or waiter remains outstanding.
+
+Required measured line:
+
+```text
+viewutil11-r1-on2-20261024-1424 73/73
+```
+
+Run record: `docs/runs/viewutil11-r1-on2-20261024-1424-510.md`. House switches plus `viewutil_shadow=1`, Konradshohe, turbo through 2032-01-01. Clean verdict at 2032-01-03 after 1023.437 seconds. Every load/month row has `live=1 samples=156 fields=469 resyncs=0 mismatches=0`; final shutdown confirms 73/73 exact. Reference warnings, foreign/structured exceptions, watchdog stalls, Rust panics and other warnings all zero. DLL SHA256: `59bd57d0d0479e20a0ceb8e20fd53a5e498b74c26149d9cb629ce4152db4af11`.
+
+All 52 existing house summary keys remain exact; enabled summaries have 53 total keys including viewutil. Key sets match earlier enabled and default-off runs. Comparison is over common observed periods: the default-off control failed early, so a clean full-period baseline was not established. No stronger claim of unchanged individual lines is made.
+
+Earlier failures remain separate: run 508 (`viewutil11-r1-on-20261024-1255`) hit the short deadline and stalled during quit, with 59/59 exact; run 509 (`viewutil11-r1-off-20261024-1336`) stalled outside FreeCity4 in 2027, with no viewutil lines, confirming default-off behavior. The clean completed retry is preserved without rerunning it.
+
+## Remaining work
+
+Measured rotation-only work is ready. VU16 blocks the remaining 49 entries; resolve its native ABI and safety contracts before extending comparisons. Coordinator should review partial scope before assigning coverage credit, regenerate the question index, and handle any regression-profile addition. This clean-room lane did not read or edit `tools/`, merge main or change shared refs; the request to modify `tools/regress.ps1` is left to the coordinator under those restrictions.
