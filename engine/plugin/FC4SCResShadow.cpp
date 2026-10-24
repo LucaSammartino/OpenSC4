@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// sc-resources §§5-6 adapter reads only. SCR8 blocks the remaining owners.
+// sc-resources sections 5-6 adapter reads and section 10 natural command tokens.
 // Every forwarder calls the ORIGINAL exactly once, returning its result intact.
 #include "FC4SCResShadow.h"
 #include "FC4Config.h"
@@ -14,11 +14,13 @@
 #include "GZServPtrs.h"
 #include "cISC4City.h"
 #include "fc4.h"
+#include "cIGZString.h"
 #include <windows.h>
 #include <atomic>
 #include <cinttypes>
 #include <cstring>
 #include <vector>
+#include <string>
 
 namespace {
 struct Observation {
@@ -136,6 +138,7 @@ bool Replace(Patch& patch, void* value) {
     return true;
 }
 #include "FC4SCResConstructed.inc"
+#include "FC4SCResNative.inc"
 }
 
 namespace fc4 {
@@ -152,12 +155,13 @@ void SCResShadowStart() {
     }
     if (g_constructed) {
         ConstructedSpecInputs();
-        Log("scres: constructed adapter inputs complete; resource prefix deferred until city load; PARTIAL coverage, SCR8/SCR9 open");
+        Log("scres: constructed adapter inputs complete; resource prefix deferred until city load; partial=adapter_reads");
     }
     if (!g_passive) return;
+    ParserStart();
     for (unsigned mode = 0; mode != 2; ++mode) {
         for (unsigned slot = 1; slot != 14; ++slot) {
-            if (slot == 3) continue; // SCR8: native string argument view unsettled.
+            if (slot == 3) continue; // This transport compares fixed-width adapter values only.
             auto& patch = g_patches[mode][slot];
             patch.entry = reinterpret_cast<void**>(kTables[mode] + 4 * slot);
             patch.original = reinterpret_cast<void*>(kFunctions[mode][slot]);
@@ -169,7 +173,7 @@ void SCResShadowStart() {
             }
         }
     }
-    Log("scres: ON: record-only binary/text numeric, descriptor and key reads; PARTIAL coverage; strings/parsers/images/writers blocked by SCR8");
+    Log("scres: ON: natural file/command token capture plus binary/text adapter reads; partial coverage");
 }
 void SCResShadowLine(const char* event, int32_t julian, cISC4City* city) {
     if (!g_enabled) return;
@@ -188,6 +192,10 @@ void SCResShadowLine(const char* event, int32_t julian, cISC4City* city) {
     fc4_date_from_julian(julian, &date);
     ConstructedLines(date);
     if (!g_passive) return;
+    ParserReport(date, event);
+    // A route not taken is not an adapter differential. Natural parser traffic
+    // is reported independently and still requires nonempty native samples.
+    if (!g_calls.load()) return;
     // Never credit an empty observation set as an exact differential.
     const uint64_t mismatches = g_bad.load() + g_refused.load() + (g_calls.load() == 0 ? 1u : 0u);
     Log("scres shadow %04d-%02d-%02d %s: partial=adapter_reads calls=%" PRIu64
@@ -199,6 +207,7 @@ void SCResShadowLine(const char* event, int32_t julian, cISC4City* city) {
 }
 void SCResShadowStop() {
     if (!g_enabled) return;
+    if (g_passive) ParserStop();
     for (auto& mode : g_patches) for (auto& patch : mode) {
         if (patch.entry && *patch.entry == patch.forward && !Replace(patch, patch.original))
             Log("scres: failed to restore adapter entry");
