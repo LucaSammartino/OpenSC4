@@ -30,3 +30,9 @@
   and decrement it? [Literal shared guard permits one active automatic check
   and skips nested checks, with exception-safe reset. The stated shared scope
   is preserved; no larger unspecified recursion threshold is inferred.]
+
+<!-- from: core-widgets-close12 (2026-10-24) -->
+- **TE12 - section 9 background image mode:** which Boolean option chooses
+  direct blit versus edge drawing? [The spec names both choices and thirds,
+  but does not assign polarity. Portable drawing uses false=direct, true=edge
+  as a literal provisional choice; no pixel/native conformance claimed.]

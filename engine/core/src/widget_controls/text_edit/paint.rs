@@ -151,6 +151,7 @@ impl TextEdit {
         if self.flags & 0x20 != 0 {
             if let Some(image) = self.runtime.background {
                 if self.runtime.background_option != 0 {
+                    // TE12: literal true=edge choice; polarity is not specified.
                     let r = f.image_rect(image);
                     f.draw(Paint::EdgeImage {
                         image,

@@ -68,6 +68,114 @@ impl file_browser::BrowserIo for Recording {
     }
 }
 
+impl file_browser::BrowserHost for Recording {
+    fn set_width(&mut self, _: Handle, width: u32) {
+        assert_eq!(width, 396);
+        self.icon_calls.push("width396");
+    }
+    fn set_height(&mut self, _: Handle, height: u32) {
+        assert_eq!(height, 236);
+        self.icon_calls.push("height236");
+    }
+    fn base_destroy(&mut self, _: Handle) {
+        self.icon_calls.push("destroy");
+    }
+}
+
+impl file_browser::ControlIo for Recording {
+    fn component(&mut self, _: u32, _: u32) -> Option<Handle> {
+        None
+    }
+    fn builtin(&mut self, _: u32, _: u32) -> Option<Handle> {
+        Some(810)
+    }
+}
+
+#[test]
+fn browser_control_prefix_and_unsettled_init_do_not_claim_full_creation() {
+    use file_browser::*;
+    let mut f = Recording {
+        buffer_ok: true,
+        ..Recording::default()
+    };
+    assert_eq!(obtain_control(5, &mut f), Ok(Some(810)));
+    assert_eq!(f.refs, [(true, 810)]);
+    assert_eq!(obtain_control(1, &mut f), Err(Unsupported::Open("FBQ2")));
+    let mut b = FileBrowser::new(80);
+    assert_eq!(b.init(&mut f, &mut Unsettled), Err(Unsupported::Open("FBQ4")));
+    assert!(b.initialized); // Native first-init has no local rollback.
+}
+
+#[test]
+fn browser_init_paint_refresh_and_final_release_order() {
+    use file_browser::*;
+    #[derive(Default)]
+    struct Overrides {
+        slots: Vec<u32>,
+        refreshes: Vec<Refresh>,
+        controls: bool,
+    }
+    impl BrowserOverrides<Recording> for Overrides {
+        fn property(&mut self, _: &mut FileBrowser, slot: u32, _: &[u32], _: &mut Recording) -> Result<()> {
+            self.slots.push(slot);
+            Ok(())
+        }
+        fn add_controls(&mut self, _: &mut FileBrowser, _: &mut Recording) -> Result<bool> {
+            Ok(self.controls)
+        }
+        fn refresh(&mut self, _: &mut FileBrowser, kind: Refresh, _: &mut Recording) -> Result<()> {
+            self.refreshes.push(kind);
+            Ok(())
+        }
+    }
+    let mut f = Recording {
+        buffer_ok: true,
+        exists: true,
+        ..Recording::default()
+    };
+    let mut b = FileBrowser::new(80);
+    b.fallback = b"fallback".to_vec();
+    b.dirty = true;
+    let mut overrides = Overrides::default();
+    assert_eq!(b.init(&mut f, &mut overrides), Ok(true));
+    assert!(!b.dirty);
+    assert_eq!(&f.icon_calls[..2], ["width396", "height236"]);
+    assert_eq!(overrides.slots, [93, 94, 40, 73, 61, 63, 65, 67, 69, 71, 79]);
+    assert_eq!(b.current, b"fallback");
+    assert_eq!(b.raw_words[&0x30c], 0xff7c_90ff);
+    assert_eq!(b.raw_bytes[&0x29e], 6);
+    assert_eq!(b.raw_bytes[&0x2c2], 6);
+    let calls = f.icon_calls.len();
+    assert_eq!(b.init(&mut f, &mut overrides), Ok(true));
+    assert_eq!(f.icon_calls.len(), calls);
+    b.dirty = true;
+    b.paint(
+        Some(Draw::Fill {
+            rect: [1, 2, 3, 4],
+            color: 5,
+        }),
+        &mut f,
+        &mut overrides,
+    )
+    .unwrap();
+    assert_eq!(overrides.refreshes, [Refresh::DirectoryList, Refresh::FileList]);
+    assert!(!b.dirty);
+    b.dirty = true;
+    assert_eq!(b.paint(None, &mut f, &mut Unsettled), Err(Unsupported::Open("FBQ5")));
+    assert!(b.dirty);
+    let mut owner = BrowserOwner::new(b);
+    assert_eq!(owner.add_ref(), 2);
+    assert_eq!(owner.release(&mut f), 1);
+    assert_eq!(owner.release(&mut f), 0);
+    assert!(owner.browser.is_none());
+    assert_eq!(f.icon_calls.last(), Some(&"destroy"));
+    f.refs.clear();
+    let mut direct = FileBrowser::new(90);
+    direct.icons[0] = Some(123);
+    direct.destroy(&mut f);
+    assert!(f.refs.is_empty()); // Direct destruction is not virtual Shutdown.
+}
+
 impl grid::GridForeign for Recording {
     fn language_value(&mut self) -> Option<u32> {
         None

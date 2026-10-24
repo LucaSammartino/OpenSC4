@@ -79,7 +79,11 @@ pub trait TextHost: TextForeign {
 pub enum Paint {
     Fill(Rect, u32),
     Image(Handle, Rect),
-    EdgeImage { image: Handle, area: Rect, thirds: [i32; 2] },
+    EdgeImage {
+        image: Handle,
+        area: Rect,
+        thirds: [i32; 2],
+    },
     Text {
         font: Handle,
         bytes: Vec<u8>,

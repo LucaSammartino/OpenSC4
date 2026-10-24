@@ -1,177 +1,130 @@
 # Widget control owners
 
-Source: `docs/specs/widget-controls.md` and its incorporated owner specs.
-This module extends the existing window/token and legacy property-interpreter
-layers. It does not create OS windows or wire the plugin/C ABI. Foreign traits
-expose individual reference, resource, timer, scrollbar, message and drawing
-operations; control state and notification decisions live here.
-
-Work in progress: ListBox and TreeView have state/message models and all of the
-family vectors WC-L01–L15, WC-T01–T12 and WC-F01. Those tests use recording
-foreign services and establish no native-game or pixel comparison. Grid has
-sparse cell/format/size state helpers and all six incorporated vectors; its
-native dispatch/recalculation orchestration, input and painting are unfinished.
-TextEdit now has a byte/state stage, including encoding, composition, edits
-and history; it records unexecuted layout/view repairs and is not a native
-window implementation. FileBrowser
-has a state/string layer plus explicit file enumeration/filter/sort/installation
-with resolved column and icon inputs (`populate_files`). Automatic refresh still
-records pending work; native column sizing, drive population and restoration
-remain open FBQ5. It must not be used as a complete browser.
-No owner-wide closure is claimed.
-
-Continuation in `core-widgets-close12` adds TextEdit runtime modules:
-`text_edit/runtime.rs` (references, timers, initialization, flags and colors),
-`layout.rs` (line fitting, metrics, bars and view), `input.rs` (keys, mouse and
-messages), `paint.rs` (byte/mask drawing), and `edits.rs` (live repair ordering).
-The earlier progress rows below have not yet been reconciled with this work.
-This continuation is not a closure claim: its final body/vector audit and full
-gate remain pending, as do FileBrowser's remaining settled owner operations.
-TE10/TE11 record additional default/reflow questions. The runtime tests use
-recording services and establish no pixel/game comparison.
-
-Round 2 adds FB-C19–C21/C25–C27: alternative pattern matching, borrowed icon-strip
-copy/failed-lock behavior, buffer initialization cleanup and repeated filter
-selection. Focused suite: 24 tests passed before the Grid implementation.
-
-`TreeView::insert_at` is a semantic ordered-child-list mutation used to build
-fixtures. It deliberately does not map native ordering sentinels or sibling
-references; native `insert` reports WC2 until that mapping is specified.
-Tree flattening literally includes root; WC6 asks which flags alter that rule.
-ListBox `paint_plain_text` covers already-fitting ordinary text; `paint` reports
-WC1/WC5 when a font would require unknown escape/ellipsis preprocessing.
-Tree `draw_item` covers resolved rectangles and the no-image/text case; full
-paint reports WC3 after balancing guarded buffer access. No guessed pixel
-algorithm is presented as compatibility behavior.
+Portable owners from widget-controls and its incorporated specs. No plugin or
+C ABI wiring is included. Tests use recording foreign services; no game,
+pixel or shadow comparison is claimed.
 
 ## Owner closure
 
-This is a progress table, not a completion claim. Section numbers are from
-widget-controls unless another spec is explicitly named.
+Grid implements the settled owner specification. TextEdit, FileBrowser and
+TreeView have the explicit question boundaries below and are not credited as
+fully implemented owners. Public fields supply the thin stored-state accessors.
+Byte-stage TextEdit fixture entries remain available alongside live methods.
 
-| Owner / spec section | Code item | Test or remaining work |
+### cGZWinGrid
+
+[Detailed section and test mapping](grid/README.md). All rows there remain
+current; the owning final-release adapter below completes the lifetime boundary.
+
+| Spec section | Code item | Coverage |
 |---|---|---|
-| All / 1 shared boundary | `Foreign`, `Handle`, `replace_ref` | `wc_l01_query_views_and_null_retention`, `wc_l10_l13_color_and_reference_quirks` |
-| Grid / 2.1 identity/inventory | `grid::Grid`, identity/table constants, `query_interface` | `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`; open: lifecycle final-release adapter |
-| Grid / 2.2 state/dispatch | State and sparse tables, selection/scroll/message state helpers | `grid_vectors_1_to_6_and_literal_selection_modes`; native recalculation dispatch/input still needed |
-| Grid / 2.3 mutation/paint/failures | Cell values, ownership, movement, content measurement | `grid_append_copy_window_ownership_and_place_asymmetry`, `grid_size_cache_float_fraction_and_pause_dirty_contract`; full paint and native call orchestration still needed |
-| TextEdit / 3.1 identity/inventory | `text_edit::TextEdit`, constants, `with_resolved_defaults` | `te_selection_reversed_unsigned_endpoints_and_insert_mode_vectors`; open: TE9 defaults; QueryInterface/lifecycle not implemented |
-| TextEdit / 3.2 state/input/output | Byte-stage methods and encoding/composition/history | Detailed rows below; layout/input adapter/painting not implemented |
-| TextEdit / 3.3 failures | `Unsupported::Precondition` for raw invalid domains; foreign conversion primitives | `te_raw_limits_invalid_domains_and_no_history_or_notify`, `te_encoding_forward_domains_and_malformed_vectors_45_47`; open: TE5/TE8 |
-| FileBrowser / 4.1 identity/defaults | `file_browser::FileBrowser::new`, raw offset facts, identity constants | `fb_c01_c05_identity_failed_navigation_and_ordered_refresh_work`, `browser_parent_directory_ids_and_shutdown_reference_order`; lifecycle construction still pending |
-| FileBrowser / 4.2 dispatch/drawing/IO | partial state/string/ownership methods and resolved file population | See detailed rows below; open: automatic refresh, resource/control/lifecycle orchestration |
-| ListBox / 5.1 identity/inventory | `query_interface`, slot-count constants, `remove_storage`, `select` | `wc_l01_query_views_and_null_retention`, `wc_f01_storage_removal_is_not_selection`; open: WC1 adapters |
-| ListBox / 5.2 construction/lifetime | `new`, `init`, `shutdown`, `destroy`, resource setters | `wc_l10_l13_color_and_reference_quirks`; Init/default/lifetime ordering needs more tests; open: WC1/WC4 drop sizing |
-| ListBox / 5.3 entries/selection/geometry | insertion/replacement/removal, selection, metrics, hit test, visibility, bars | `wc_l02_l06_selection_indices_ids_and_insertions`, `wc_l07_l09_signed_metrics_hit_geometry`; open: WC1/WC4 removal/drop/page details |
-| ListBox / 5.4 input/notifications | key, mouse and emitter methods | `wc_l14_l15_delivery_and_key_protocols`, `list_mouse_timer_strictness_and_no_font_background`; open: WC1 drop-bar capture |
-| ListBox / 5.5 drawing/failures | `paint`, `paint_plain_text`, indexed colors | `wc_l10_l13_color_and_reference_quirks`, `list_mouse_timer_strictness_and_no_font_background`; open: WC1/WC5 text preprocessing/fractional fill |
-| TreeView / 6.1 identity/inventory | `query_interface`, slot constants | `wc_t01_t03_identity_initialization_and_expansion`; open: WC2 adapters |
-| TreeView / 6.2 state/lifetime | `new`, `internal_init`, `create_root`, `init`, `shutdown` | `wc_t01_t03_identity_initialization_and_expansion`, `tree_font_growth_shutdown_and_open_ordering`; open: WC2 restart, WC3 image init |
-| TreeView / 6.3 nodes/selection | `insert`, `insert_at`, `set_descriptor`, `set_font`, expansion/selection/visibility | `wc_t04_t06_selection_and_ancestor_visibility`, `tree_font_growth_shutdown_and_open_ordering`; open: WC2 native ordering and descriptor ABI, WC6 root visibility |
-| TreeView / 6.4 input/dispatch | `do_message`, `wheel`, `key_down/up`, expander `mouse_down` | `wc_t07_t09_wheel_sign_zero_and_missing_bar`, `wc_t10_activation_sequence_and_branch_toggle`, `wc_t11_bar_messages_always_delegate_to_base`; open: WC3 page/modifier/drag, WC6 navigation anchor |
-| TreeView / 6.5 drawing | `recalculate`, `draw_item`, guarded `paint` | `wc_t12_missing_image_does_not_suppress_text`; open: WC3/WC6 layout/gradient/image failures |
-| ListBox / 7 family vectors | tests WC-L01–L15, WC-F01 | All represented in named tests above |
-| TreeView / 7 family vectors | tests WC-T01–T12 | All represented in named tests above |
-| Grid / 7 incorporated vectors | win-grid vectors 1–6 | `grid_vectors_1_to_6_and_literal_selection_modes` |
-| FileBrowser / 7 incorporated vectors | C01–C27 represented in focused tests | Known C05 automatic refresh remains incomplete; unproved branches FBQ1/2/4/5/6 |
-| TextEdit / 7 incorporated vectors | Byte-stage distinguishing vectors | See TextEdit table; native layout/paint/clipboard/timer vectors not yet implemented |
-| All / 8 unresolved contracts | `Unsupported::Open` with question IDs | Known-domain tests plus explicit open returns; owner completion still pending |
+| win-grid 1 identity | query_interface, constants | identity test |
+| 2 construction | Grid::new, Format, SizeEntry | six original vectors; WG6-a |
+| 3 interface inventory | portable Rust methods | WG8-a-f |
+| 4 flags | set_flags, window flag, mutation | owner layout/live-setter tests |
+| 5.1 lifecycle/dispatch | init/shutdown/message/input, GridOwner | owner_final_release_destroys_storage_after_double_shutdown; key tests |
+| 5.2 fonts/colors/gutters | live setters/default formats | owner_default_format_and_color_slots_share_storage |
+| 5.3 scrolling/selection | scrolling/selection/limit methods | WG5-a-d |
+| 5.4 sums | size_sum | size-cache/rectangle tests |
+| 5.5 extras/headings | data owner methods | identity/copy-axis tests |
+| 5.6 resources/notifications | buffer/sound/drop-down/owner-draw methods | live-setter test |
+| 5.7 helpers/thunks | Rust containers, sorting, gcd | WG8-c-f |
+| 5.8 sizes/images/sounds | setters/live mutation | layout/live-setter tests |
+| 5.9 input | mouse/key/focus/selection | owner hit/key tests; WG5-c |
+| 5.10 layout | recalculate, bars, visibility/cache | layout/cache/depth tests; WG8-b |
+| 5.11 data/windows/movement | data/copy/move/disposal/search | ownership/editor tests; WG7-a |
+| 5.12 painting | paint_owner, paint helpers | WG9-a-c; owner paint tests |
+| 5.13 rectangles/axes | cell_rect, delete/copy/mutation | axis tests |
+| 5.14 format/font | format copying/setters | WG6-b |
+| 5.15 settled dependencies | merged/default format words, geometry/faults | WG5-WG7/WG9 including WG6-a-d |
+| 5.16 remaining methods | resize, sort, comparison and partial setters | WG8-a-f |
+| 6 vectors | six original plus settled vectors | grid/vectors.rs |
+| 7/A inventory | portable owner/equivalent containers | detailed 198-body map in grid README |
+| widget-controls 1/2/7/8 | shared Foreign and same owner | six original vectors and owner tests |
 
-### Grid incorporated specification progress
+WG3 delayed gutter effects and WG4 extra-object store quirks are preserved.
+Neither is an unsupported owner behavior. GridOwner performs both specified
+Shutdown calls, then drops storage; external allocators may use Grid::release.
 
-These are state helpers, not a claim that a native slot adapter can bypass the
-required recalculation hook. In particular `add_selection` returns whether the
-state changed, while a complete owner must recalculate even when it did not.
-`clear_cell` returns native ClearCell's true, even for an absent cell. The native
-recalculation hook remains unimplemented, including its no-change call sites.
+### cGZWinTextEdit
 
-| win-grid section | Code item | Test or remaining work |
+| Spec section | Code item | Tests / open contract |
 |---|---|---|
-| 1 identity | `IID`, `PRIMARY_SLOTS`, `WINDOW_SLOTS`, `window`, `query_interface` | `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`; open: final release |
-| 2 defaults | `Grid::new` | Grid tests construct and inspect state; unresolved format words: WG6 |
-| 3 slot inventory | State helper methods only | No slot adapter; named-but-unspecified dependencies: WG5 |
-| 4 flags | wrapping, outline, fixed ranges, listbox state | `grid_vectors_1_to_6_and_literal_selection_modes`; full SetFlags/capture still needed |
-| 5.1 lifecycle/area/wheel | `shutdown`, `grid_area`, `cell_area`, `do_message`, `wheel`, `scroll_step` | `grid_append_copy_window_ownership_and_place_asymmetry`; Init/default formatting WG6, recalc/focus/input integration still needed |
-| 5.2 fonts/colors/gutters | Default font/color/wrap/gutter/outline setters | `grid_vectors_1_to_6_and_literal_selection_modes`, `grid_size_cache_float_fraction_and_pause_dirty_contract`; recalc hooks still needed |
-| 5.3 selection/limits/pause | `scroll_pages`, `set_selection_rules`, `enable_fixed_ranges`, `pause_recalculations` | All six §6 vectors; relative-scroll dependency WG5 |
-| 5.4 dimensions | `size_sum` | Rectangle/layout tests; add signed overflow/count tests |
-| 5.5 extras/headings | `set_extra`, `set_extra_object`, axis extras/headings, `cell_extra`, `extra_object`, `cell_extra_object` | `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`, vector 6 |
-| 5.6 notifications/resources | `set_sound`, `set_owner_draw`, `make_drop_down` | `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`; open: buffer adapter |
-| 5.7 helpers | Standard owned containers, explicit copy/ref logic | Native allocator implementation is foreign; comparator/sort wrappers still needed |
-| 5.8 formats/scroll/sounds | `set_size`, `scroll_to`, `play_sound`, `is_cell_window` | Width/cache and `grid_identity_clear_result_extra_queries_owner_draw_and_window_text`; open: scrollbar images and object-store quirk (WG4/WG5) |
-| 5.9 selection/hit/input | `selected`, `add_selection`, `set_selection`, `act_like_listbox` | Selection modes tested; hit/mouse/key routing and notifications still needed; selection predicate WG5 |
-| 5.10 layout/bars/sizes | `column_width`, `row_height`, `cell_height`, `reset_cached`, `recalculate_content`, `LayoutContext` | Fraction/depth/pause/cache test; scrollbar create/remove/value/position and recursive second pass still needed |
-| 5.11 cells | `resolve_append`, `set_text` (plain), `set_bitmap`, `set_window`, `copy_cell`, `make_room`, `place_all_windows`, `cell_text_value`, `find_text`, `make_room_for_row/column` | Existing ownership test, `grid_text_search_rectangles_lengths_null_and_order`; open: editable-text branch and hook integration |
-| 5.12 painting | Not implemented | Known painting passes still needed; horizontal text alignment open WG6 |
-| 5.13 rectangles/delete/copy | `cell_rect`, `delete_rows/columns`, `copy_rows/columns` | `grid_copy_axis_overlap_holes_headings_extras_and_move_order`, `grid_delete_axis_modes_and_default_per_cell_format_ownership`; open: hook integration |
-| 5.14 formats | `set_cell_format_state` default/per-cell cases | `grid_delete_axis_modes_and_default_per_cell_format_ownership`; open: axis copy-size words WG6, SetCellFont and hooks |
-| 6 conformance | All six vectors | `grid_vectors_1_to_6_and_literal_selection_modes` |
+| text-edit 1 identity/defaults | with_resolved_defaults, query_interface, Runtime | selection/resource tests; open: TE9/TE10 unspecified defaults |
+| 2 text replacement | live set_text, retained/maximum helpers | set-text/multibyte tests |
+| 3 selection/overwrite | set_selection, set_insert_mode | reversed/unsigned selection test |
+| 4 character/replacement | live character/key queries, insert_text | live-character/output and overwrite/LF tests |
+| 5 caret/timers | toggle/show/start/stop/callback | runtime caret/resource test |
+| 6 raw/history | live raw edits, owned Action storage/replay | raw-domain/history/undo tests; open: TE8 allocation/unwind |
+| 7 keys/clipboard | key_down/up, copy/paste/delete/navigation | runtime clipboard and preferred-X tests; TE5 foreign primitives supplied |
+| 8 layout/view | line fitting, metrics, bars, scrolling, view | runtime layout/scroll/threshold/failure tests; open: TE11 shared recursion threshold |
+| 9 drawing | mask, selection, float caret widths, image thirds/bar strips | runtime paint/password and exact-height/background tests; open: TE12 mode polarity |
+| 10 mouse/messages/lifetime | runtime/input owner methods | resource/flag and double-click tests; TE8 foreign outcomes remain bounded inputs |
+| 11 conformance | byte tests and runtime_tests.rs | focused suite covers settled vectors including aliased outputs, password mixed coordinates and preferred X |
+| 12 inventory/limits | Rust storage and bounded host operations | open: TE5/TE8 parked helpers, TE9-TE12 |
+| encoding: lengths/counts/pending | Encoding helpers | malformed/DBCS and pending vectors 45-49 |
+| adapters: text/state | adapters.rs, copy_bytes, borrowed getters, ordered WordOutputs | live-character/output tests (no NUL, alias writes); state repair test |
+| adapters: insertion repair | line/count/index/fix methods | asymmetric repair/coherent span test |
+| adapters: periods/sound/lifecycle | runtime methods, exact-height SetHeight | caret/resource and exact-height tests |
+| adapters: filtering/composition | filtering and erase/previous-value loop | composition test; open: TE5 conversion and TE8 strncpy boundary |
+| adapters: flags/images/colors | setters and borrowed getters | runtime resource/flag/converted-slot tests |
+| adapters: scroll/search | scroll endpoints and search primitive | runtime layout/scroll; open: TE8 search edges |
+| layout: coordinates/spans | step, word_step, byte/pixel metrics | coordinate/word and runtime span tests |
+| layout: offsets/bars/caret | bar methods and insertion_in_view | layout/scroll and threshold/bar-failure tests |
+| layout: word/page/arrow | select_word and vertical key routes | selection-extension/preferred-X tests |
+| widget-controls 3/7 | same owner and incorporated tests | rows above |
 
-Grid runtime progress update (core-gzwingrid9): the live input, scroll-bar,
-layout and painting gaps listed in the earlier Grid progress table are now
-implemented in `grid/runtime.rs` and `grid/paint.rs`. The current section-by-section
-owner closure table, test names and explicit remaining spec gaps are in
-[`grid/README.md`](grid/README.md). Cell-window lookup uses an independent
-handle-keyed set, preserving the documented no-op move behavior.
+TE9 requires resolved history/preferred-X defaults. TE10 runtime zeros are
+explicit provisional placeholders, not native constructor facts. TE11 uses
+a shared one-active reflow guard with exception-safe reset. TE12 uses a
+provisional false=direct/true=edge background mode; no pixel claim is made.
 
-### FileBrowser incorporated specification progress
+### cGZWinFileBrowser
 
-| win-filebrowser section | Code item | Test or remaining work |
+| Spec section | Code item | Tests / open contract |
 |---|---|---|
-| 1 identity | `query_interface`, constants | `fb_c01_c05_identity_failed_navigation_and_ordered_refresh_work` |
-| 2 navigation | directory setter, parent, `update_path` | Same test; actual refresh bodies pending (current `refresh_work` records order only) |
-| 3 lookup | `get_row_of_entry_by_name` | `fb_c06_c09_grid_lookup_wraparound_and_ambiguous_zero` |
-| 4 vectors C01–C09 | tests above | C05 refresh execution still pending; recorded calls are not population |
-| 5 flags | `set_flags`, `add_flags`, `clear_flags`, `any_flag` | `fb_c10_c12_flag_precedence_and_any_bit_add` |
-| 6 selection | selection handlers, descriptor/borrowed identities, `set_selection`, grid double-click | `fb_c14_c18_creation_selection_and_double_click`, `browser_parent_directory_ids_and_shutdown_reference_order` |
-| 7 new directory | `create_new_directory` candidate loop | `fb_c14_c18_creation_selection_and_double_click`; actual refresh execution before lookup pending |
-| 8.1 population | `populate_files`, `BrowserIo`, resolved `Column` inputs | `fb_c19_patterns_are_alternatives_and_directories_bypass_them`; automatic refresh integration, native sizing/icon mapping/restoration remain FBQ5 |
-| 8.1.1 comparator | `precedes` | `browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary`; add more secondary/directory-mode cases |
-| 8.1.2 fit string | `fit_string` | Same test; add second-fit zero, empty marker and fit early-exit cases |
-| 8.2 controls | Not implemented | Known control factory/fallback prefix still needed; open: FBQ2 remainder |
-| 8.2.1 enables | `enable_child` | `fb_c23_c24_child_enable_and_reference_assignment` |
-| 8.3 resources | `load_default_icon`, `create_default_icon`, `create_default_button_buffer`, `IconIo` | `fb_c20_c21_c25_c26_icon_loader_failure_and_ownership`; nonnull procedural recipes remain FBQ1 |
-| 8.4 retained buffers | `set_icon`, `set_button_buffer` | `fb_c23_c24_child_enable_and_reference_assignment` |
-| 8.5 lifecycle/paint | `shutdown` only | `browser_parent_directory_ids_and_shutdown_reference_order`; Init/setup/paint still needed; open: FBQ2/FBQ4 parts |
-| 8.6 constructor/destruction/clears | constructor raw defaults; three clear methods | Same test; direct destruction, final-release and reference-count channels still needed |
-| 8.7 properties/forwarders | pending, sort/option setters, flags/descriptor/identity | `fb_c10_c12_flag_precedence_and_any_bit_add`; remaining specified forwarders/getters and tests still needed |
-| 9 vectors C10–C27 | All represented in existing focused tests | Open: C05/C14 automatic refresh execution; recording work is not population |
-| 10/A inventory | No denominator/whole-owner claim | open: FBQ1/FBQ2/FBQ4/FBQ5/FBQ6 |
+| win-filebrowser 1 identity | query_interface/window/constants | C01-C05 identity/path test |
+| 2 navigation/path | setters, parent, update_path_live | path/lifecycle tests; open: FBQ5 population targets |
+| 3 lookup | get_row_of_entry_by_name | C06-C09 lookup test |
+| 4 vectors C01-C09 | navigation/lookup tests | C05 native refresh targets remain FBQ5 |
+| 5 flags | set/add/clear/any-bit | C10-C12 flags test |
+| 6 selection/notifications | descriptor/selection/select/double-click | C14-C18 test; remaining ABI FBQ4 |
+| 7 directory creation | create_new_directory | C14-C18; restoration FBQ5 |
+| 8.1 population | populate_files, resolved columns/icons | C19 pattern test; open: FBQ5 sizing/drives/directories/restoration |
+| 8.1.1 comparator | precedes | browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary |
+| 8.1.2 fitting | fit_string | same comparator/fit test |
+| 8.2 controls | obtain_control factory/builtin prefix | browser_control_prefix_and_unsettled_init_do_not_claim_full_creation; open: FBQ2 full order/configuration/layout |
+| 8.2.1 enables | enable_child | C23-C24 test |
+| 8.3 resources | strip loader, creation cleanup | C20/C21/C25/C26 test; open: FBQ1 procedural pixels/results |
+| 8.4 buffers | set_icon/set_button_buffer | C23/C24 and lifecycle tests |
+| 8.5 lifecycle/paint/area | lifecycle.rs, set_area, shutdown | browser_init_paint_refresh_and_final_release_order; open: FBQ2 placement/controls, FBQ4 property targets, FBQ5 refresh targets |
+| 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | shutdown-order and lifecycle tests distinguish direct destruction/final release |
+| 8.7 properties/forwarding | strings/pending/sort/option/flags, explicit virtual dispatch | pending/flags/lifecycle tests; open: FBQ4 unspecified slot targets |
+| 9 C10-C27 | existing focused vectors plus lifecycle tests | native C05/C14 refresh targets remain FBQ5 |
+| 10/A inventory | no inferred owner denominator | open: FBQ1/FBQ2/FBQ4/FBQ5/FBQ6 |
+| widget-controls 4 | same owner | rows above |
 
-### TextEdit incorporated specification progress
+Unsettled returns explicit Unsupported errors at unresolved virtual calls.
+Tests supply overrides to exercise independently settled Init continuation.
+These overrides are not claimed implementations of missing browser bodies.
+Paint accepts resolved background placement. Automatic native refresh cannot
+be claimed while directory/drive population and restoration remain FBQ5.
 
-The `*_bytes` methods implement the byte/state stage only. `repairs` exposes
-pending owner layout/view work; it is not a foreign layout service or a claim
-that native recalculation has run. Coordinate adapters require coherent line
-starts resolved by layout. No native slot binding uses this partial stage.
-The following rows distinguish missing implementation from missing contracts.
+### cGZWinTreeView
 
-| text-edit section | Code item | Test or remaining work |
+| Spec section | Code item | Tests / open contract |
 |---|---|---|
-| 1 identity/defaults | `TextEdit::with_resolved_defaults`, identity constants, `Position` | `te_selection_reversed_unsigned_endpoints_and_insert_mode_vectors`; open: TE9 history/preferred-X defaults, native query/construction/resource adapter |
-| 2 whole-text replacement | `set_text_bytes`, `set_maximum`, `retained` | `te_set_text_strlen_clear_history_limits_and_notify_vectors`, `te_multibyte_truncation_uses_original_settext_pointer_and_filtered_insert_pointer`; open: execution of pending layout repairs |
-| 3 selection/overwrite | `set_selection`, `set_insert_mode`, `separator` | `te_selection_reversed_unsigned_endpoints_and_insert_mode_vectors`; coherent lines required |
-| 4 input/replacement | `character_bytes`, `insert_high_level_bytes` | `te_pending_malformed_sequences_tab_capture_and_cr_vectors_48_49`, `te_high_level_overwrite_lf_gate_and_failed_insertion_keeps_prior_deletion`; open: native key-state adapter/view work |
-| 5 caret/timers | Not implemented | open: implementation of timer/caret/focus contracts |
-| 6 raw/history | `insert_bytes`, `remove_bytes`, `remove_character`, record/replay methods | `te_raw_limits_invalid_domains_and_no_history_or_notify`, `te_raw_remove_caps_unsigned_counts_preserves_endpoints_and_character_modes`, `te_insertion_history_quarter_eviction_deletion_unbounded_and_zero_limit_vectors`, `te_undo_redo_replays_bytes_and_all_five_state_words_without_filter_or_notification`; open: pending layout repairs; TE5/TE8 foreign boundaries |
-| 7 keys/clipboard | `correct_lf` only | `te_word_navigation_uses_only_space_lf_and_lf_repair_keeps_line_selection`; open: key/clipboard dispatch implementation |
-| 8 layout/view | Line/index/count and insertion-repair state adapters only | `te_adapter_copy_line_spans_insertion_and_asymmetric_repair`; open: font line layout, all view/bar and pixel-mapping implementation |
-| 9 drawing | Not implemented | open: implementation including password/caret/selection vectors |
-| 10 mouse/messages/lifecycle | Not implemented | open: implementation of specified resources/flags/paint adapters |
-| 11 conformance | Byte/state vectors in fourteen tests | Sections 2–4/6 vectors and encoding 45–49 represented; open: native timer, clipboard, layout/bar, paint, focus/resource and adapter vectors |
-| 12 inventory/limits | No whole-owner claim | open: TE5/TE8/TE9 and implementation rows above |
-| encoding / length/count | `Encoding::char_length`, `previous_length`, `glyph_count` | `te_encoding_forward_domains_and_malformed_vectors_45_47`, `te_dbcs_lead_ranges_prefix_alignment_and_unmatched_leads`; explicit readable-span preconditions |
-| encoding / pending | `Encoding::input_lead`, `trailing_count`, `TextEdit::character_bytes` | `te_pending_malformed_sequences_tab_capture_and_cr_vectors_48_49` |
-| adapters / text/state | `copy_bytes`, `set_insertion_*`, access to byte/state fields | `te_adapter_copy_line_spans_insertion_and_asymmetric_repair`; open: native output-pointer aliases/resource getter wrappers |
-| adapters / insertion repair | `line_byte_count`, `fix_insertion`, `set_insertion_line_column` | `te_adapter_copy_line_spans_insertion_and_asymmetric_repair` |
-| adapters / periods/sound/lifecycle | Not implemented | open: implementation |
-| adapters / filtering/composition | `remove_bad_characters` string stage, `fix_composition` primitive loop | `te_composition_owner_erases_without_advancing_previous_and_zero_consumes_rest`; open: TE5 conversion helpers and TE8 buffer strncpy boundary |
-| adapters / flags/images/colors | Not implemented | open: implementation |
-| adapters / scroll/search | Not implemented | open: implementation; search primitive edges TE8 |
-| layout / byte coordinates | `line_column`, `index_from_line_column`, `word_step` | `te_adapter_copy_line_spans_insertion_and_asymmetric_repair`, `te_word_navigation_uses_only_space_lf_and_lf_repair_keeps_line_selection`; open: ordinary/composed stepping implementation |
-| layout / spans, scroll, caret, bars, word-selection, page/arrow | Not implemented | open: implementation; retain TE5 foreign composition boundary |
+| widget-controls 6.1 identity/interfaces | query_interface/constants/adapters | T01-T03; open: WC2 unspecified slots |
+| 6.2 defaults/lifetime | new/internal_init/root/shutdown | T01-T03 and font-growth/shutdown test; open: WC2 restart, WC3 image-list setup |
+| 6.3 nodes/selection | maps, resolved insert_at, descriptor/font/expanded/visibility/selection | T02-T06 and font-growth test; open: WC2 insertion/move/removal/descriptor ABI |
+| 6.4 input/messages | wheel/keys/activation/messages/expander hits | T07-T11; open: WC3 mouse/drag/page edges |
+| 6.5 drawing/failures | resolved draw_item, guarded buffer access, paint Unsupported | T12; open: WC3 paint/layout/gradient, WC6 flatten flags |
+| 7 conformance | all WC-T01-T12 | wc_t01_t03, wc_t04_t06, wc_t07_t09, wc_t10, wc_t11, wc_t12 tests |
+| 8 unresolved coverage | explicit Unsupported boundaries | open: WC2/WC3/WC6 |
 
-Final delivery is **ready for review of partial work**, not owner-wide closure.
-Known implementation omissions above are not relabeled as spec questions or
-hidden behind `Unsupported::Open`. No game, pixel or native-shadow result is
-claimed by these recording-service tests.
+Audit found no new settled TreeView body missing beyond those questions.
+Tree insert_at is a resolved list primitive, not native sentinel mapping.
+Flattening literally includes the root pending WC6.
+
+ListBox remains outside this closure task; existing WC-L01-L15 and WC-F01
+tests and WC1/WC4/WC5 boundaries are unchanged. No full ListBox claim is made.

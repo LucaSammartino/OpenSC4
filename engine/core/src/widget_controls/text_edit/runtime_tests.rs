@@ -203,7 +203,9 @@ fn te_live_character_and_output_adapters_vectors_9_48_49_54_55() {
     assert_eq!(count, 2);
     struct Outputs(u32);
     impl adapters::WordOutputs for Outputs {
-        fn write(&mut self, _: Handle, value: u32) { self.0 = value; }
+        fn write(&mut self, _: Handle, value: u32) {
+            self.0 = value;
+        }
     }
     let mut outputs = Outputs(0);
     e.position.anchor = 1;
@@ -233,7 +235,14 @@ fn te_exact_height_preserves_origin_and_background_excludes_bars() {
     e.runtime.background_option = 1;
     f.paints.clear();
     e.paint([30, 40, 130, 90], &mut f).unwrap();
-    assert_eq!(f.paints[0], Paint::EdgeImage { image: 20, area: [30, 40, 120, 82], thirds: [0, 0] });
+    assert_eq!(
+        f.paints[0],
+        Paint::EdgeImage {
+            image: 20,
+            area: [30, 40, 120, 82],
+            thirds: [0, 0]
+        }
+    );
 }
 
 #[test]
@@ -254,15 +263,57 @@ fn te_single_line_threshold_bar_failure_and_preferred_x_vectors_50_51_53() {
     e.lines = vec![0, 9, 18];
     e.runtime.rows = 1;
     e.runtime.line_height = 10;
-    e.position = Position { line: 1, column: 2, index: 11, anchor: 11, active: 11 };
+    e.position = Position {
+        line: 1,
+        column: 2,
+        index: 11,
+        anchor: 11,
+        active: 11,
+    };
     e.preferred_x = 70;
     e.key_down(0x28, 0, &mut f).unwrap();
     assert_eq!(e.position.column, 6);
     assert_eq!(e.preferred_x, 70);
-    e.position = Position { line: 1, column: 2, index: 11, anchor: 11, active: 11 };
+    e.position = Position {
+        line: 1,
+        column: 2,
+        index: 11,
+        anchor: 11,
+        active: 11,
+    };
     e.key_down(0x22, 0, &mut f).unwrap();
     assert_eq!(e.position.column, 1);
     assert_eq!(e.preferred_x, 70);
+}
+
+#[test]
+fn te_password_mixed_coordinates_and_double_click_vectors_18_19_28() {
+    let (mut e, mut f) = fixture(&[0xc3, 0xa9, b'z']);
+    e.encoding.selector = 8;
+    e.flags = 0x2000;
+    e.position.column = 2;
+    e.position.index = 2;
+    e.position.active = 2;
+    e.runtime.caret_visible = true;
+    f.focused = true;
+    e.paint([0, 0, 100, 50], &mut f).unwrap();
+    assert!(f
+        .paints
+        .iter()
+        .any(|p| matches!(p, Paint::Text { bytes, .. } if bytes == b"*")));
+    assert!(f.paints.iter().any(|p| matches!(p, Paint::Caret { x: 25, .. })));
+    e.flags = 0x1000;
+    e.runtime.clipboard = Some(40);
+    e.key_down(0x1b, 2, &mut f).unwrap();
+    assert_eq!(f.clipboard, Some(vec![0xc3, 0xa9]));
+    e.flags = 1;
+    e.text = b"abc def".to_vec();
+    e.encoding.selector = 0;
+    e.position = Position::default();
+    f.click = None;
+    e.left_down(1, 1, 0, &mut f).unwrap();
+    e.left_down(60, 1, 0, &mut f).unwrap();
+    assert_ne!(e.position.anchor, e.position.active);
 }
 
 #[test]

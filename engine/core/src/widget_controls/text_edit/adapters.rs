@@ -24,7 +24,8 @@ impl TextEdit {
     }
     pub fn get_text_buffer(&self, output: &mut [u8], count: &mut u32) -> Result<()> {
         *count = (*count).min(self.text_length());
-        let destination = output.get_mut(..*count as usize)
+        let destination = output
+            .get_mut(..*count as usize)
             .ok_or(Unsupported::Precondition("TextEdit writable copy destination"))?;
         destination.copy_from_slice(&self.text[..*count as usize]);
         Ok(())

@@ -53,7 +53,10 @@ pub struct GridOwner {
 }
 impl GridOwner {
     pub fn new(grid: Grid) -> Self {
-        Self { grid: Some(Box::new(grid)), references: 1 }
+        Self {
+            grid: Some(Box::new(grid)),
+            references: 1,
+        }
     }
     pub fn add_ref(&mut self) -> u32 {
         assert!(self.grid.is_some(), "released Grid owner");
