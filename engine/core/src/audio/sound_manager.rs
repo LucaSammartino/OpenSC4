@@ -21,6 +21,7 @@ use std::collections::BTreeMap;
 
 /// Settled foreign call stages; full native helper execution: AU46/AU49.
 pub mod owner;
+pub mod execution;
 
 use crate::audio::data::{
     SoundManagerTuning, TUNING_CURVE_KEY, TUNING_ONE_SHOT_KEY, TUNING_UPDATE_KEY, TUNING_VOICE_KEY,

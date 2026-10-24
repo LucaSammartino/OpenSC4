@@ -39,6 +39,70 @@ struct Host {
     released: Vec<u64>,
     tests: Vec<(u64, u32)>,
     cells: usize,
+    resources: bool,
+    group_success: bool,
+    fail_event: bool,
+    subscriptions: Vec<bool>,
+    posted: Vec<u64>,
+    retained: Vec<u64>,
+}
+
+impl LayerTuningSource for Host {
+    fn text(&mut self,_:u32)->Option<String>{None}
+    fn words(&mut self,_:u32)->Option<Vec<u32>>{None}
+    fn word(&mut self,_:u32)->Option<u32>{None}
+    fn float(&mut self,_:u32)->Option<f32>{None}
+    fn curve(&mut self,_:u32)->Option<ResponseCurve>{None}
+}
+impl LayerEventHost for Host {
+    fn create_event(&mut self,event:u32,_:u32)->Option<u64>{(!self.fail_event).then_some(u64::from(event))}
+    fn set_data(&mut self,_:u64,_:usize,_:u32){}
+    fn set_void1(&mut self,_:u64,_:u64){}
+    fn post_event(&mut self,event:u64){self.posted.push(event);}
+    fn release_event(&mut self,_:u64){}
+    fn division_position(&mut self,_:u64,_:u32,_:u32,_:[i32;3]){}
+    fn division_enabled(&mut self,_:u64,_:u32,_:u32,_:bool){}
+}
+impl owner::Host for Host {
+    fn resource_manager(&mut self)->Option<u64>{self.resources.then_some(100)}
+    fn sound_system(&mut self)->Option<u64>{Some(101)}
+    fn add_ref(&mut self,object:u64){self.retained.push(object);}
+    fn message_server(&mut self)->u64{102}
+    fn subscription(&mut self,_:u64,subscribe:bool,message:u32){assert_eq!(message,0xC53D_10AA);self.subscriptions.push(subscribe);}
+    fn tuning_available(&mut self,_:u32)->bool{false}
+    fn preference_mode(&mut self)->u32{0}
+    fn create_player(&mut self,class:u32,iid:u32)->Option<u64>{assert_eq!((class,iid),(0x3C1C_F59E,0xDC1C_F595));Some(55)}
+    fn group_insert(&mut self,_:u64,_:Position,radius:f32)->bool{assert_eq!(radius,0.0);self.group_success}
+    fn group_update(&mut self,_:u64,_:Position,_:f32)->bool{false}
+    fn group_remove(&mut self,_:u64)->bool{self.group_success}
+}
+
+#[test]
+fn aa14_failed_static_init_latches_without_retry_and_preserves_cell_cache() {
+    let mut p=owner::Process::default();
+    p.globals.cell_cache=Some(((1,2),[3.0;3]));
+    let mut l=owner::LayerOwner::construct(7); let mut h=Host::default();
+    assert!(!l.init(&mut p,&mut h)); assert_eq!(p.globals.layer_count,1);
+    h.resources=true;
+    assert!(l.init(&mut p,&mut h));assert_eq!(p.resources,None);assert!(h.subscriptions.is_empty());
+    assert!(l.shutdown(&mut p,&mut h));assert_eq!(p.globals.layer_count,0);
+    assert_eq!(p.globals.cell_cache,Some(((1,2),[3.0;3])));
+    assert!(l.init(&mut p,&mut h)); assert!(l.do_message(Some(0xC53D_10AA),&mut p,&mut h));assert!(l.enabled);
+    assert!(!l.do_message(None,&mut p,&mut h));
+    l.release(&mut h); assert_eq!(p.globals.layer_count,1); // destructor never Shutdown
+}
+
+#[test]
+fn aa14_loops_scores_and_occupants_preserve_asymmetric_ownership() {
+    let mut l=owner::LayerOwner::construct(1);let mut h=Host::default();
+    assert!(!l.add_loop(0)); assert!(l.add_loop(9)); assert!(!l.add_loop(9));
+    l.layer.loops[0].instance=22;assert!(l.remove_loop(9));assert!(h.posted.is_empty());
+    l.add_loop(9);l.layer.loops[0].instance=23;l.remove_all_loops(&mut h);assert_eq!(h.posted,[0x6A45_1908]);
+    l.layer.tuning.score_ids=vec![1,2,99];l.load_scores(&mut h);assert_eq!(l.score_tgis,[[0x2026_960B,1,2]]);
+    assert!(l.add_score([0x2026_960B,3,2],&mut h));assert!(!l.add_score([0x2026_960B,1,2],&mut h));
+    h.fail_event=true;let before=h.released.len();assert!(l.remove_score(2,&mut h));assert_eq!(h.released.len(),before+2);assert_eq!(l.score_tgis,[[0x2026_960B,3,2]]);
+    assert!(!l.insert_occupant(Some(7),&mut h));let before=h.retained.len();h.group_success=true;
+    assert!(l.insert_occupant(Some(7),&mut h));assert_eq!(h.retained.len(),before+1);assert!(l.move_occupant(Some(7),&mut h));assert!(l.remove_occupant(Some(7),&mut h));assert_eq!(l.occupant_count,0);
 }
 impl FilterHost for Host {
     fn create_filter(&mut self, clsid: u32, iid: u32) -> Option<u64> {

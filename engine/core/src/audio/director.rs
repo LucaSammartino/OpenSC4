@@ -18,6 +18,8 @@
 /// The director id `GetDirectorID` (`0x004EB1A0`) returns.
 pub const DIRECTOR_ID: u32 = 0xFDB5_CA17;
 
+pub mod owner;
+
 /// One of the five audio directors (§1.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Director {
@@ -122,7 +124,7 @@ pub trait AudioDirectorHost {
 }
 
 /// §1.1: add and immediately start each director before getting the next one.
-/// Return/failure policy and application lifetime beyond this sequence: AU47.
+/// Child failures do not interrupt this sequence (§11.3).
 pub fn on_start(host: &mut impl AudioDirectorHost) {
     for name in ON_START_ORDER {
         let director = host.get_director(name);
@@ -144,8 +146,7 @@ pub const NAMED_CLASSES: [(u32, u32); 9] = [
     (0x5CFB_DBD5, 0x004E_B180),
 ];
 
-/// Registers the measured set. [choice: AU47] The spec gives no interleaving
-/// between the named and leaf lists; use their literal table order here.
+/// Registers the named prefix followed by the literal leaf order (§11.3).
 pub fn register_classes(host: &mut impl AudioDirectorHost) {
     for (clsid, factory) in NAMED_CLASSES.into_iter().chain(crate::audio::leaf::LEAF_REGISTRATIONS) {
         host.add_class(clsid, factory);

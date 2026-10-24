@@ -6,6 +6,7 @@ use crate::curve::ResponseCurve;
 
 mod runtime;
 mod spatial;
+pub mod owner;
 pub use runtime::{AmbienceLayer, Ease, LayerEventHost, LayerUpdateError, LayerUpdateInput, LoopEntry, ScoreEntry};
 pub use spatial::{distributed_positions, Group, GroupLayer};
 
