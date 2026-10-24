@@ -133,6 +133,7 @@ cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
 cIGZUnknown* CreateFC4EffectsManager();
+cIGZUnknown* CreateFC4DisasterLayer();
 
 namespace fc4 {
 namespace {
@@ -481,6 +482,11 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// disasters.md §2.8: the layer factory keeps the seven native managers.
+const ClassEntry kDisasterClasses[] = {
+    {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -552,6 +558,7 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

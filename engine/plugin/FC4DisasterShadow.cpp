@@ -272,7 +272,9 @@ void PruneGone(std::set<uint64_t>& set) {
             ++it;
             continue;
         }
-        if (o != nullptr) FC4_RELEASE(o);
+        // Keep acquired this reference. Once removed, the shadow may be
+        // the occupant's last holder; releasing it here is intentional.
+        if (o != nullptr) FC4_RELEASE_LAST_HOLDER(o);
         it = set.erase(it);
     }
 }
