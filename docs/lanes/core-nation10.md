@@ -9,7 +9,10 @@
 - Implemented: portable NationHost/NationRegion/TutorialCity effects, discovery/templates/preferences, lifecycle, add/delete and reset; no Unsupported operations remain.
 - Focused tests: 3 core nation tests, 2 existing §5 vectors and all 11 new owner conformance vectors passed. Added explicit display-name setter to match discovery ordering; final gate will recheck it.
 - Formatting applied via apply_patch using rustfmt check diffs (never emitted source).
-- Next: commit implementation, then run qbuild all once on stable source.
+- Implementation committed: 071d906c0.
+- Gate 1 on 071d906c0: workspace 7070 passed, 0 failed/ignored; clippy failed op_ref at owner.rs:206. Logs qbuild-test.log/qbuild-clippy.log not yet moved.
+- Outstanding: same qbuild session 3499, native job qbuild-20261024-110246-build-ctest queued. Collect terminal result before edits/recheck.
+- Next: preserve failed gate logs, remove needless slice references; change NationRegion::move_city to associated City type so a game adapter can access concrete handle; rerun full gate after fixes.
 - Source: docs/specs/nation.md §§2.1, 5.1, 6–8; answered/nation.md NQ1–NQ3.
 - No game request outstanding; portable core has no plugin wiring/shadow.
 - Do not run tools/questions.py: clean-room prohibition; merged index already reflects answered entries, verify counts later.
