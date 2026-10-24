@@ -19,6 +19,7 @@
 #include "FC4StringsShadow.h"
 #include "FC4LuaShadow.h"
 #include "FC4OverlaysShadow.h"
+#include "FC4WeatherShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -651,6 +652,7 @@ public:
                 PropOccupantVerify();  // Opt-in constructed scalar fixture, native factory only.
                 AdvisorsShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 LuaShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                WeatherShadowCityLoaded(CurrentCity());
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
@@ -700,6 +702,7 @@ public:
                 AdvisorsShadowCityShutdown();
                 fc4::NetOccShadowCityShutdown();
                 LuaShadowCityShutdown();
+                WeatherShadowCityShutdown();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
@@ -747,6 +750,7 @@ public:
                 fc4::NetOccShadowMonth(julian);
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
+                WeatherShadowMonth(CurrentCity(), julian);
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)

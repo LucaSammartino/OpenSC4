@@ -1046,6 +1046,8 @@ bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
 /* Persistence (§10). */
 bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
 bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
+/* Record-only tooling: get/restore the independent iterator CRT state. */
+bool fc4_weather_shadow_crt(fc4_weather* w, uint32_t* state, bool restore);
 
 /* ---- ordinances (docs/specs/ordinance.md) --------------------------------------
  * The ordinance simulator and the standard ordinance classes (§3.6). The shim
