@@ -256,7 +256,7 @@ generated index: the questions live one file per spec, so read only the file for
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 24 | EF20, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
-| feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
+| feature-manager | 2 | 3 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -394,4 +394,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **635** | **1444** | | |
+| **total** | **634** | **1445** | | |

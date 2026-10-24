@@ -9,3 +9,12 @@
 - ~~**FM4 - §3 AddRef signed-count overflow:** does incrementing `0x7FFFFFFF` wrap to `0x80000000` and return those register bits, so the following signed Release destroys the object without decrementing? [Literal 32-bit increment wraps in the portable owner; the signed Release test is applied to that resulting count.]~~
 
   **ANSWERED 2026-10-22 (re-persist-feature-contracts4):** MATCHES — native AddRef stores/returns EAX=`0x80000000`; following Release takes signed less-or-equal-to-1, performs no decrement/store, calls Shutdown then deleting destruction with flag 1 and returns EAX=0. Static feature state survives. This is the x86 instruction contract, not defined signed C++ overflow. See feature-manager.md §3 and §10.2; native `0x004BDF00–0x004BDF07`, `0x0046F7F3–0x0046F814`.
+
+<!-- from: re-featuremgr (2026-10-19) -->
+- ~~**FM2 - §6:** the key `tutorial_registry`'s `add_default_region(n, dir)` writes into `default_regions`, and so
+  whether pack 1 reaches `timbuktu` through key 1 of the registry's map (`0x004B79A4`). Belongs with the tutorial
+  registry. [reachability only: the spec's answers stand either way]~~
+  **ANSWERED 2026-10-23 (re-tutreg7):** MATCHES. The shipped script's `add_default_region` writes
+  `default_regions[n] = {region_dir = dir}`, and `Init` stores each entry under `ToNumber(key)` (`0x004B7936`), so
+  pack 1 reaches `timbuktu` through key 1 and key 0 overwrites the compiled `maxisland`. feature-manager.md §6 and
+  tutorial-registry.md §3.2 updated.

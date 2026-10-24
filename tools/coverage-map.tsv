@@ -253,7 +253,7 @@ cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
 cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	render3d.md	-	-	-
-cSC4TutorialRegistry	tutorial	simulation	-	core/src/tutorial	-	-
+cSC4TutorialRegistry	tutorial	simulation	tutorial-registry.md	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
