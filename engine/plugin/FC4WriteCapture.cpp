@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace fc4 {
 namespace {
@@ -46,6 +47,25 @@ void* Borrowed(cIGZSerializable* obj, uint32_t iid) {
 }  // namespace
 
 WriteCapture::~WriteCapture() { ClearReferences(); }
+
+WriteCapture::WriteCapture(WriteCapture&& other) noexcept { *this = std::move(other); }
+
+WriteCapture& WriteCapture::operator=(WriteCapture&& other) noexcept {
+    if (this != &other) {
+        ClearReferences();
+        bytes_.clear();
+        variants_ = other.variants_;
+        holdReferences_ = other.holdReferences_;
+        good_ = other.good_;
+        // Transfer the retained references without AddRef/Release; the source
+        // must have an empty reference table when its destructor runs.
+        bytes_.swap(other.bytes_);
+        refs_.swap(other.refs_);
+        index_.swap(other.index_);
+        other.good_ = true;
+    }
+    return *this;
+}
 
 void WriteCapture::ClearReferences() {
     if (holdReferences_) {

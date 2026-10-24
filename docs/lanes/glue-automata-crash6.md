@@ -9,8 +9,9 @@
 - Added native DLL seam regression for adjusted effect interface, writer-released temporary, duplicate/null IDs, unknown ID and in-range wrong-class ID.
 - Round 2: workspace tests 6881 passed, clippy diagnostics=0 on 204ea940d.
 - Native verify qbuild-20261024-023540-build-ctest FAILED: FC4MySimsShadow.cpp:1189 C2280; WriteCapture deleted copy operations suppressed the move assignment needed by SimCapture.
-- The all gate's native request qbuild-20261024-023814-build-ctest is still outstanding; collect session 88022 before changing source.
-- Next: implement ownership-safe WriteCapture moves and exercise them through the native seam, then re-run all plus queued native verify on corrected source.
+- The all gate's native request qbuild-20261024-023814-build-ctest also FAILED with the same C2280; both terminal verdicts remain in build-runs/build-results/.
+- Corrected: explicit ownership-transferring WriteCapture move constructor/assignment; the native seam destroys both moved-from captures before replaying the retained temporary.
+- Next: re-run all plus queued native verify on corrected source, then three unique 2032 game runs.
 - Required: focused native bad-ID test; final all and queued verify; three unique exact 2032 game runs.
 - Keep owners shadow default-off. Coordinator should add automata_owners_shadow to the house profile after exact validation (tools are outside lane scope).
 - No outstanding game request. No spec behavior or ABI export changes; this is capture tooling ownership.

@@ -22,6 +22,8 @@
 // that used an object pointer as the token would round-trip the wrong number.
 #include "FC4AutomataShadow.h"
 
+#include <utility>
+
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -660,7 +662,12 @@ void AutomataShadowMonth(int32_t julian) { RunCompare("month", julian); }
 // the exact capture/GetRef/host path used by the owners shadow.
 intptr_t AutomataCaptureTest(cIGZUnknown* object, uint32_t iid) {
     WriteCapture capture(false, true);
-    if (!capture.Capture(object)) return -1;
+    {
+        WriteCapture original(false, true);
+        if (!original.Capture(object)) return -1;
+        WriteCapture moved(std::move(original));
+        capture = std::move(moved);
+    }  // Moved-from captures must not release the replay's retained references.
     CaptureIn input(capture);
     while (!input.atEnd()) {
         fc4_ref ref{};

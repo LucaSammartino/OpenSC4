@@ -42,6 +42,8 @@ public:
     ~WriteCapture();
     WriteCapture(const WriteCapture&) = delete;
     WriteCapture& operator=(const WriteCapture&) = delete;
+    WriteCapture(WriteCapture&& other) noexcept;
+    WriteCapture& operator=(WriteCapture&& other) noexcept;
     // Recursive owner scans cannot borrow references: a writer may release a
     // temporary interface before replay. holdReferences pins each registered
     // serializable until the next Capture or destruction. Other shadows retain
