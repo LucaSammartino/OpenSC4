@@ -12991,4 +12991,14 @@ uint32_t fc4_netgeom_get_smoothing_cells(const fc4_netgeom* g, fc4_netgeom_cell*
 }
 #endif
 
+/* GLUE22: independently derive the profile's uint16 capacity from exemplar
+ * properties (building-development §4.7.1); NULL returns zero. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint16_t fc4_lot_configuration_capacity(const fc4_props* exemplar);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

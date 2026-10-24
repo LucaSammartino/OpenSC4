@@ -14,6 +14,7 @@
 #include "FC4PropLotShadow.h"
 
 #include "FC4Config.h"
+#include "FC4BuildingCapacityHost.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
 #include "FC4DevelopmentInterfaces.h"
@@ -2170,10 +2171,47 @@ void TutRunStep(void* p) {
 struct ConfigurationProjection {
     fc4_lot_configuration_fields fields{};
     std::vector<ObjectCopy> objects;
+    std::vector<std::pair<uint32_t, uint16_t>> capacities;
+    uint16_t minCapacity = 0, maxCapacity = 0;
+    bool capacityLoaded = false;
     bool loaded = false, foundation = false;
 };
 std::unordered_map<uint32_t, ConfigurationProjection> g_configurationProjections;
 uint32_t g_projectionDetail = 0;
+
+bool ProjectConfigurationCapacity(cISC4City* city, ConfigurationProjection& projection) {
+    auto* bds = reinterpret_cast<cFC4ISC4BuildingDevelopmentSimulator*>(city->GetBuildingDevelopmentSimulator());
+    if (bds == nullptr) return false;
+    projection.capacities.clear();
+    projection.minCapacity = projection.maxCapacity = 0;
+    for (const auto& object : projection.objects) {
+        if (object.o.object_type != 0) continue;
+        for (uint32_t id : object.ids) {
+            GameHashSetU32<> types(100);
+            // GLUE22: slot 19 fills the set even when a direct type returns 0.
+            bds->GetBuildingTypeSetByFamily(types, id);
+            for (size_t bucket = 0; bucket < types.bucket_count(); ++bucket) {
+                for (auto* node = types.bucket(bucket); node != nullptr; node = node->next) {
+                    cGZPersistResourceKey key;
+                    props::Exemplar ex;
+                    if (!bds->GetBuildingKeyFromType(node->value, key) || !ex.Load(key.type, key.group, key.instance))
+                        return false; // Cannot independently derive a missing exemplar's profile.
+                    props::CoreProps core(props::ToCoreAll(ex));
+                    if (core.Get() == nullptr) return false;
+                    const uint16_t capacity = fc4_lot_configuration_capacity(core.Get());
+                    if (projection.capacities.empty()) projection.minCapacity = projection.maxCapacity = capacity;
+                    else {
+                        projection.minCapacity = std::min(projection.minCapacity, capacity);
+                        projection.maxCapacity = std::max(projection.maxCapacity, capacity);
+                    }
+                    projection.capacities.emplace_back(node->value, capacity);
+                }
+            }
+        }
+        break; // Only the primary (first) building object contributes (§4).
+    }
+    return true;
+}
 
 void ConfigurationRunStep(void* p) {
     const Run& r = *static_cast<Run*>(p);
@@ -2205,6 +2243,7 @@ void ConfigurationRunStep(void* p) {
                 projection.objects.clear();
                 projection.loaded = fc4_lot_configuration_project(core.Get(), detail,
                     &projection.fields, &CopyObject, &projection.objects);
+                if (projection.loaded) projection.capacityLoaded = ProjectConfigurationCapacity(r.city, projection);
             }
         }
         auto* c = AsView(raw)->GetLotConfiguration(id); // borrowed, §5.1
@@ -2228,6 +2267,15 @@ void ConfigurationRunStep(void* p) {
         floatPair(c->GetMinimumSlope(), f.min_slope);
         floatPair(c->GetMaximumSlopeBeforeFoundation(), f.foundation_slope);
         auto* native = reinterpret_cast<cFC4ISC4LotConfiguration*>(c);
+        pair(projection.capacityLoaded);
+        if (projection.capacityLoaded) {
+            // AX-only slots 12/13: the declaration masks unrelated high EAX bits.
+            pair(native->GetMinBuildingCapacity() == projection.minCapacity);
+            pair(native->GetMaxBuildingCapacity() == projection.maxCapacity);
+            // Exercise the production host too, against independent Rust/resource inputs.
+            for (const auto& capacity : projection.capacities)
+                pair(NativeBuildingCapacity(r.city, capacity.first) == capacity.second);
+        }
         for (uint32_t q = 0; q < 16; ++q) pair(native->IsCompatibleWithZoneType(q) == ((f.zones >> q & 1) != 0));
         for (uint32_t q = 0; q < 4; ++q) pair(native->IsCompatibleWithWealthType(q) == ((f.wealths >> q & 1) != 0));
         for (uint32_t q = 0; q < 9; ++q) pair(native->IsCompatibleWithPurposeType(q) == ((f.purposes >> q & 1) != 0));
@@ -2254,7 +2302,7 @@ void ConfigurationRunStep(void* p) {
         differences += diff;
     }
     Log("lotconf shadow %s: event=%s exact=%u/%u pairs=%u objects=%u detail=%u "
-        "raw_foundation_tags=%u occupancy=unmeasured-GLUE22 costs=unmeasured-GLUE22 "
+        "raw_foundation_tags=%u capacity=resource-derived occupancy=requires-lot-instance costs=outside-owner-surface "
         "refused=%u mismatches=%u first=%s", r.date, r.event, exact, static_cast<unsigned>(ids.size()),
         pairs, objectCount, detail, rawTags, refused, differences, first.Str());
     g_lotconfTotals.Note(differences);
@@ -2417,7 +2465,7 @@ void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorRepl
     g_lotconf = SettingInt("lotconf_shadow", nullptr, 0) != 0 && !lotcfgReplaced;
     g_simulator = SettingInt("simulator_shadow", nullptr, 0) != 0 && !simulatorReplaced;
     if (SettingInt("lotconf_shadow", nullptr, 0) != 0)
-        Log("lotconf shadow: %s; independent core exemplar derivation; occupancy/cost await GLUE22", g_lotconf ? "ON" : "REFUSED replaced owner");
+        Log("lotconf shadow: %s; independent core exemplar/capacity derivation; costs outside owner surface; occupancy requires lot instance", g_lotconf ? "ON" : "REFUSED replaced owner");
     if (SettingInt("simulator_shadow", nullptr, 0) != 0)
         Log("simulator shadow: %s; native Write/core Read bookkeeping and calendar/getters; no scheduler evolution", g_simulator ? "ON" : "REFUSED replaced owner");
 }

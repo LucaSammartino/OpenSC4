@@ -18,6 +18,7 @@
 #include "cFC4LotConfigManager.h"
 
 #include "FC4Config.h"
+#include "FC4BuildingCapacityHost.h"
 #include "FC4GameList.h"
 #include "FC4Log.h"
 #include "FC4ProcessHashState.h"
@@ -374,13 +375,7 @@ bool IsBuildingInFamily(void*, uint32_t type, uint32_t family) {
 }
 
 uint16_t BuildingCapacity(void*, uint32_t type) {
-    cISC4City* c = AppCity();
-    cISC4BuildingDevelopmentSimulator* b =
-        c ? reinterpret_cast<cISC4BuildingDevelopmentSimulator*>(c->GetBuildingDevelopmentSimulator()) : nullptr;
-    // The building capacity table is not a documented BDS slot (B5.7).
-    (void)b;
-    (void)type;
-    return 0;
+    return fc4::NativeBuildingCapacity(AppCity(), type);
 }
 
 bool BuildingFootprint(void*, uint32_t type, float* w, float* d) {
