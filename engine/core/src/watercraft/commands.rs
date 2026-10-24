@@ -149,6 +149,7 @@ impl Fleet {
         let active = match self.boat(id)?.top_state() {
             Some(state::DOCK) => self.docking_tick(id, dt, terrain, manager)?,
             Some(state::UNDOCK) => self.undocking_tick(id, dt, rectangle, terrain, manager)?,
+            Some(state::TOWED) => self.following_tick(id, dt, terrain)?,
             _ => return self.state_tick(id, dt, manager),
         };
         if !active {

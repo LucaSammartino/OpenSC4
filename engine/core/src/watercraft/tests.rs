@@ -228,6 +228,7 @@ fn geometry_dispatch_pops_completed_docking_and_undocking() {
         .unwrap()
         .set_station_information([station(1, 0.0), station(2, 10.0)], true);
     f.get_mut(1).unwrap().position = [9.5, 0.0, 0.0];
+    f.get_mut(1).unwrap().inherited_position = [9.5, 0.0, 0.0];
     f.get_mut(1).unwrap().dock_requests = [true; 2];
     f.push_state(1, State::new(state::DOCK), &mut None).unwrap();
     let rectangle = [Cell { x: 9, z: 0 }; 4];
@@ -248,7 +249,7 @@ fn geometry_dispatch_pops_completed_docking_and_undocking() {
     assert_eq!(f.get(1).unwrap().top_state(), None);
 }
 
-fn boat() -> Watercraft {
+pub(super) fn boat() -> Watercraft {
     let mut boat = Watercraft::new(
         WatercraftRecord {
             base: AutomatonBase::new(),
@@ -258,12 +259,14 @@ fn boat() -> Watercraft {
     );
     boat.heading = [1.0, 0.0, 0.0];
     boat.previous_heading = boat.heading;
+    boat.inherited_heading = boat.heading;
+    boat.travel.clear(); // Tests below exercise initialized runtime storage.
     boat
 }
 
 fn fleet() -> Fleet {
     let mut fleet = Fleet::default();
-    fleet.boats.insert(1, boat());
+    fleet.insert(1, boat()).unwrap();
     fleet
 }
 
@@ -303,7 +306,7 @@ impl DockManager for Manager {
     }
 }
 
-struct Water;
+pub(super) struct Water;
 impl Terrain for Water {
     fn contains(&self, cell: Cell) -> bool {
         (0..100).contains(&cell.x) && (0..100).contains(&cell.z)
@@ -503,8 +506,11 @@ fn public_docked_vector_and_far_approach_gap() {
     b.position = [9.5, 0.0, 0.0];
     let angle = 0.5_f32.to_radians();
     b.heading = [angle.cos(), 0.0, angle.sin()];
+    b.inherited_position = b.position;
+    b.inherited_heading = b.heading;
     assert_eq!(fleet.docking_tick(1, 1.0, &Water, &mut None), Ok(false));
     fleet.boats.get_mut(&1).unwrap().position = [200.0, 0.0, 0.0];
+    fleet.boats.get_mut(&1).unwrap().inherited_position = [200.0, 0.0, 0.0];
     assert_eq!(
         fleet.docking_tick(1, 1.0, &Water, &mut None),
         Err(ContractGap::AiMotionWc4)
@@ -581,16 +587,16 @@ fn debug_text_has_exact_fields_width_and_negative_zero() {
 
 #[test]
 fn direction_order_excludes_reverse_and_respects_every_mask_bit() {
-    assert_eq!(candidate_directions(2, 0).collect::<Vec<_>>(), [2, 3, 1, 4, 0, 5, 7]);
+    assert_eq!(candidate_directions(2, 0).collect::<Vec<_>>(), [2, 3, 1, 4, 0, 5, -1]);
     for direction in 0..8 {
         let order = candidate_directions(direction, 0).collect::<Vec<_>>();
         assert_eq!(order.len(), 7);
-        assert!(!order.contains(&((direction + 4) % 8)));
+        assert!(!order.contains(&i32::from((direction + 4) % 8)));
         for mask in 0..=255 {
             let expected = order
                 .iter()
                 .copied()
-                .filter(|d| mask & (1 << d) == 0)
+                .filter(|d| mask & (1_u32.wrapping_shl((*d as u32) & 31) as u8) == 0)
                 .collect::<Vec<_>>();
             assert_eq!(candidate_directions(direction, mask).collect::<Vec<_>>(), expected);
         }
@@ -669,7 +675,7 @@ fn lifetime_stack_exclusions_are_not_just_top_state_checks() {
 }
 
 #[test]
-fn tow_message_uses_owned_nearest_then_group_and_releases_both_links() {
+fn tow_message_uses_first_geometric_match_then_group_and_releases_both_links() {
     let mut fleet = fleet();
     let mut other = boat();
     other.group = Arc::new(Group {
@@ -677,7 +683,7 @@ fn tow_message_uses_owned_nearest_then_group_and_releases_both_links() {
         ..(*group()).clone()
     });
     other.position = [100.0, 0.0, 0.0];
-    fleet.boats.insert(2, other);
+    fleet.insert(2, other).unwrap();
     fleet.boats.get_mut(&1).unwrap().tow_armed = true;
     let mut manager = Manager::default();
     assert_eq!(
@@ -730,10 +736,7 @@ fn ferry_reader_skips_used_cells_only_once_and_neighbor_exhaustion_removes() {
     assert_eq!(fleet.next_route_cell(1, &mut None), Ok(Some(Cell { x: 2, z: 0 })));
     assert_eq!(fleet.next_route_cell(1, &mut None), Ok(Some(Cell { x: 3, z: 0 })));
     assert_eq!(fleet.boats[&1].used_cells, 4);
-    assert_eq!(
-        fleet.next_route_cell(1, &mut None),
-        Err(ContractGap::RouteExhaustionWc7)
-    );
+    assert_eq!(fleet.next_route_cell(1, &mut None), Ok(None));
     fleet.boats.get_mut(&1).unwrap().set_neighbor_route(
         NeighborRoute {
             occupant: Arc::new(Resource(8)),
@@ -772,7 +775,7 @@ fn initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources() 
         Ok(true)
     );
     assert_eq!(b.heading, [0.0, 0.0, 1.0]);
-    assert_eq!(b.initialize_runtime([0.0; 3], [0.0; 3], &mut resources), Ok(false));
+    assert_eq!(b.initialize_runtime([0.0; 3], [0.0; 3], &mut resources), Ok(true));
     assert_eq!(resources.names, EFFECTS);
     assert!(resources.created.iter().all(|r| Arc::strong_count(r) == 2));
     fleet.shutdown(1, &mut None).unwrap();
@@ -798,7 +801,7 @@ fn initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources() 
 }
 
 #[test]
-fn effect_failure_is_a_gap_not_success_and_shutdown_releases_partial_resources() {
+fn absent_effect_is_tolerated_and_shutdown_releases_partial_resources() {
     struct Missing;
     impl EffectResources for Missing {
         fn create(&mut self, name: &'static str) -> Option<Arc<Resource>> {
@@ -807,12 +810,9 @@ fn effect_failure_is_a_gap_not_success_and_shutdown_releases_partial_resources()
     }
     let mut fleet = fleet();
     let b = fleet.boats.get_mut(&1).unwrap();
-    assert_eq!(
-        b.initialize_runtime([0.0; 3], [1.0, 0.0, 0.0], &mut Missing),
-        Err(ContractGap::ResourceCreationWc3)
-    );
-    assert!(b.events.is_empty());
-    assert!(!b.initialized);
+    assert_eq!(b.initialize_runtime([0.0; 3], [1.0, 0.0, 0.0], &mut Missing), Ok(true));
+    assert_eq!(b.events, [Event::Register(TOW_MESSAGE), Event::ActiveSound(true)]);
+    assert!(b.initialized);
     fleet.shutdown(1, &mut None).unwrap();
     assert!(fleet.boats[&1].effects.iter().all(Option::is_none));
 }
@@ -851,6 +851,8 @@ fn docking_final_approach_is_bounded_and_completion_uses_strict_distance() {
     b.set_station_information([station(1, 0.0), station(2, 10.0)], true);
     b.position = [8.0, 0.0, 0.0];
     b.heading = [0.0, 0.0, 1.0];
+    b.inherited_position = b.position;
+    b.inherited_heading = b.heading;
     assert_eq!(fleet.docking_tick(1, 0.5, &Water, &mut None), Ok(true));
     let b = &fleet.boats[&1];
     assert_eq!(b.position, [8.5, 0.0, 0.0]);
@@ -859,8 +861,11 @@ fn docking_final_approach_is_bounded_and_completion_uses_strict_distance() {
     let b = fleet.boats.get_mut(&1).unwrap();
     b.heading = [1.0, 0.0, 0.0];
     b.position = [9.0, 0.0, 0.0];
+    b.inherited_position = b.position;
+    b.inherited_heading = b.heading;
     assert_eq!(fleet.docking_tick(1, 0.0, &Water, &mut None), Ok(true));
-    assert_eq!(fleet.docking_tick(1, 0.5, &Water, &mut None), Ok(false));
+    assert_eq!(fleet.docking_tick(1, 0.5, &Water, &mut None), Ok(true));
+    assert_eq!(fleet.docking_tick(1, 0.0, &Water, &mut None), Ok(false));
 }
 
 #[test]
@@ -876,11 +881,12 @@ fn undocking_moves_horizontally_and_does_not_overshoot() {
     });
     let rectangle = [Cell { x: 1, z: 1 }; 4];
     assert_eq!(fleet.undocking_tick(1, 0.5, rectangle, &Water, &mut None), Ok(true));
-    assert_eq!(fleet.boats[&1].position, [1.0, 4.0, 0.0]);
+    assert_eq!(fleet.boats[&1].position, [1.5, 0.0, 0.0]);
     assert_eq!(fleet.undocking_tick(1, 2.0, rectangle, &Water, &mut None), Ok(true));
-    assert_eq!(fleet.boats[&1].position, [3.0, 4.0, 0.0]);
-    assert_eq!(fleet.undocking_tick(1, 100.0, rectangle, &Water, &mut None), Ok(false));
-    assert_eq!(fleet.boats[&1].position, [10.0, 4.0, 0.0]);
+    assert_eq!(fleet.boats[&1].position, [3.5, 0.0, 0.0]);
+    assert_eq!(fleet.undocking_tick(1, 100.0, rectangle, &Water, &mut None), Ok(true));
+    assert_eq!(fleet.boats[&1].position, [10.0, 0.0, 0.0]);
+    assert_eq!(fleet.undocking_tick(1, 0.0, rectangle, &Water, &mut None), Ok(false));
 }
 
 #[test]

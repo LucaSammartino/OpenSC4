@@ -144,6 +144,10 @@ pub enum Event {
     ResetSpeedTween,
     BaseCommandTranslation,
     BaseShutdown,
+    Publish(super::Publication),
+    EffectUpdate,
+    ModelUpdate,
+    FindState(u32),
 }
 
 /// Unsupported owner calculations are explicit, never success-shaped stubs.
@@ -153,13 +157,8 @@ pub enum ContractGap {
     DegenerateDirection,
     AiMotionWc4,
     CrashSequenceWc5,
-    RouteExhaustionWc7,
-    UndockBlockedWc7,
-    DockingReturnWc7,
     MissingStationWc7,
     MissingRouteWc7,
-    ResourceCreationWc3,
-    NearestTieWc7,
 }
 
 pub type Result<T> = std::result::Result<T, ContractGap>;
@@ -179,6 +178,13 @@ pub struct PlayerState {
 /// Runtime-only data is deliberately separate from the saved base record.
 #[derive(Debug)]
 pub struct Watercraft {
+    pub crash_direction: [u8; 2],
+    pub occupant_bounds: [Vec3; 2],
+    pub model_geometry: Option<super::ModelGeometry>,
+    pub footprint_scratch: super::Footprint,
+    pub transform: super::Transform,
+    pub inherited_position: Vec3,
+    pub inherited_heading: Vec3,
     pub record: WatercraftRecord,
     pub group: Arc<Group>,
     pub drive: DriveParameters,
@@ -232,6 +238,13 @@ impl Watercraft {
     /// native constructor's 79-method inventory (WC3).
     pub fn new(record: WatercraftRecord, group: Arc<Group>, radius: f32) -> Self {
         Self {
+            crash_direction: [0; 2],
+            occupant_bounds: [[0.0; 3]; 2],
+            model_geometry: None,
+            footprint_scratch: super::Footprint::default(),
+            transform: super::Transform::default(),
+            inherited_position: [0.0; 3],
+            inherited_heading: [0.0; 3],
             record,
             drive: group.drive_parameters(),
             group,
@@ -256,7 +269,14 @@ impl Watercraft {
             being_towed: false,
             tow_armed: false,
             player: PlayerState::default(),
-            travel: Vec::new(),
+            travel: vec![
+                TravelPoint {
+                    cell: Cell { x: 0, z: 0 },
+                    tried: 0,
+                    direction: 0
+                };
+                11
+            ],
             stations: [None, None],
             dock_requests: [false; 2],
             current_station: None,
@@ -290,27 +310,22 @@ impl Watercraft {
     }
 
     /// The specified owner portion of Init, after the inherited Init.
-    /// WC3 blocks a complete Init claim (fourth flag and base failure policy).
+    /// Required inherited Init precedes this; its result is ignored (§3).
     pub fn initialize_runtime(
         &mut self,
         position: Vec3,
         heading: Vec3,
         effects: &mut dyn EffectResources,
     ) -> Result<bool> {
-        if self.initialization_attempted {
-            return Ok(false);
+        if self.initialized {
+            return Ok(true);
         }
-        let heading = math::unit(heading).ok_or(ContractGap::DegenerateDirection)?;
+        let heading = math::normalize(heading);
         self.initialization_attempted = true;
         self.load_drive_parameters();
         self.effects = EFFECTS.map(|name| effects.create(name));
-        if self.effects.iter().any(Option::is_none) {
-            // WC3: retain acquired resources for explicit Shutdown; the
-            // specification gives no failed-creation success/rollback rule.
-            return Err(ContractGap::ResourceCreationWc3);
-        }
-        // WC3: set all three named flags; do not guess the fourth.
-        self.record.base.automata_flags |= 0x2000 | 0x20000 | 4;
+        // All six factory results are ignored, including absent effects (§3).
+        self.record.base.automata_flags |= 0x8000 | 0x2000 | 0x20000 | 4;
         self.events.push(Event::Register(TOW_MESSAGE));
         self.towed = None;
         self.tug = None;
@@ -325,18 +340,23 @@ impl Watercraft {
         self.crash_elapsed = 0.0;
         self.still_elapsed = 0.0;
         self.backwards_elapsed = 0.0;
+        self.speed = 0.0;
+        self.turn = 0.0;
         self.count_idle_always = false;
         self.position = position;
         self.previous_position = position;
         self.heading = heading;
         self.previous_heading = heading;
+        self.inherited_position = position;
+        self.inherited_heading = heading;
         self.events.push(Event::ActiveSound(true));
         self.initialized = true;
         Ok(true)
     }
 
     pub fn on_land(&self, terrain: &dyn Terrain) -> bool {
-        terrain.contains(terrain.cell_at(self.position)) && terrain.terrain_height(self.position) > terrain.sea_level()
+        terrain.contains(terrain.cell_at(self.position))
+            && terrain.terrain_height(self.position) > terrain.water_height(self.position)
     }
 
     pub fn other_station(&self) -> Option<Arc<Station>> {
@@ -372,10 +392,13 @@ impl Watercraft {
 
     pub fn set_neighbor_route(&mut self, mut route: NeighborRoute, cell_position: impl Fn(Cell) -> Vec3) {
         route.next = 0;
-        while route.next < route.cells.len()
-            && math::length(math::sub(cell_position(route.cells[route.next]), route.position)) <= 3.0 * self.radius
-        {
+        while route.next < route.cells.len() {
+            let point = cell_position(route.cells[route.next]);
             route.next += 1;
+            // The first point beyond the skip radius is consumed too (§5.4.1).
+            if math::length(math::sub(point, route.position)) > 3.0 * self.radius {
+                break;
+            }
         }
         self.neighbor = Some(route);
     }
@@ -396,6 +419,7 @@ impl Watercraft {
 #[derive(Default)]
 pub struct Fleet {
     pub(super) boats: BTreeMap<BoatId, Watercraft>,
+    pub(super) order: Vec<BoatId>,
 }
 
 impl Fleet {

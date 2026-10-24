@@ -33,6 +33,7 @@ impl Fleet {
             std::collections::btree_map::Entry::Occupied(_) => Err(Box::new(boat)),
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(boat);
+                self.order.push(id);
                 Ok(())
             }
         }
@@ -120,23 +121,16 @@ impl Fleet {
                 let Some(point) = point.filter(|_| manager.is_some()) else {
                     return Ok(MessageDisposition::Handled);
                 };
-                let mut nearest = None;
-                let mut distance = f32::INFINITY;
-                let mut tied = false;
-                for (&other_id, boat) in &self.boats {
-                    let d = math::length(math::sub(boat.position, point));
-                    if d < distance {
-                        nearest = Some(other_id);
-                        distance = d;
-                        tied = false;
-                    } else if d == distance {
-                        tied = true;
-                    }
-                }
-                if tied {
-                    return Err(ContractGap::NearestTieWc7);
-                }
-                if let Some(other) = nearest.filter(|other| *other != id) {
+                // Fleet's stable insertion order models manager-list order (§7).
+                // Filter group/state only after the first geometric match.
+                let picked = self.order.iter().copied().find(|other| {
+                    *other != id
+                        && self
+                            .boats
+                            .get(other)
+                            .is_some_and(|boat| math::length(math::sub(boat.position, point)) < 2.0 * boat.radius)
+                });
+                if let Some(other) = picked {
                     let boat = self.boat(other)?;
                     if boat.group.id == 0x4417
                         && !matches!(
@@ -205,11 +199,9 @@ impl Fleet {
                 boat.route_next = boat.used_cells;
                 boat.route_started = true;
             }
-            let cell = station
-                .route
-                .get(boat.route_next)
-                .copied()
-                .ok_or(ContractGap::RouteExhaustionWc7)?;
+            let Some(cell) = station.route.get(boat.route_next).copied() else {
+                return Ok(None);
+            };
             boat.route_next += 1;
             boat.used_cells += 1;
             return Ok(Some(cell));
@@ -245,9 +237,10 @@ impl Watercraft {
 
 /// Assist_PickNewDir's exact priority and mask rule, independent of any
 /// coordinate convention, navigability, collision or RNG provider.
-pub fn candidate_directions(direction: u8, tried: u8) -> impl Iterator<Item = u8> {
-    [0_i16, 1, -1, 2, -2, 3, -3]
+pub fn candidate_directions(direction: u8, tried: u8) -> impl Iterator<Item = i32> {
+    [0_i32, 1, -1, 2, -2, 3, -3, 4]
         .into_iter()
-        .map(move |offset| (i16::from(direction) + offset).rem_euclid(8) as u8)
-        .filter(move |candidate| tried & (1 << candidate) == 0)
+        .map(move |offset| (i32::from(direction) + offset) % 8)
+        .filter(move |candidate| *candidate != (i32::from(direction) + 4) % 8)
+        .filter(move |candidate| tried & (1_u32.wrapping_shl((*candidate as u32) & 31) as u8) == 0)
 }
