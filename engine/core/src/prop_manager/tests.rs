@@ -711,6 +711,57 @@ fn t4_get_lot_props_boundary() {
     assert!(!l3.contains(&0x306));
 }
 
+/// PL21-U/C/R/W: grid membership and caller-list retention are distinct.
+#[test]
+fn pl21_lot_grid_membership_and_caller_retention() {
+    let g = Game::new();
+    let m = manager(&g);
+    m.init();
+    g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
+    let pos = [165.0, 0.0, 325.0];
+    g.add_occ(0x301, pos, usage::LOT, true);
+    g.add_occ(0x302, pos, usage::LOT, false);
+    g.add_occ(0x303, pos, usage::STREET, true);
+    let mut fresh = Vec::new();
+    assert!(m.get_lot_props_at(&mut fresh, 10, 20));
+    assert_eq!(fresh, vec![0x301]);
+    let before = g.refs(0x301);
+    // Each caller entry already owns a reference. Only the appended entry
+    // acquires another one; the final pass neither filters usage nor dedups.
+    for t in [0x302, 0x303] {
+        g.bump(t, 1);
+    }
+    assert!(m.get_lot_props_at(&mut fresh, 10, 20));
+    assert_eq!(fresh, vec![0x301, 0x301]);
+    assert_eq!(g.refs(0x301), before + 1);
+    let mut supplied = vec![0x302, 0x303];
+    assert!(m.get_lot_props_at(&mut supplied, 10, 20));
+    assert_eq!(supplied, vec![0x302, 0x303, 0x301]);
+    assert_eq!(g.refs(0x302), 1);
+    assert_eq!(g.refs(0x303), 1);
+}
+
+/// PL21-S: an unchanged manager record does not freeze grid membership.
+#[test]
+fn pl21_record_is_not_a_lot_query_snapshot() {
+    let g = Game::new();
+    let m = manager(&g);
+    m.init();
+    g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
+    g.add_occ(0x301, [165.0, 0.0, 325.0], usage::LOT, true);
+    let record = || {
+        let mut w = ByteWriter::with_registry(Rc::new(RefCell::new(SaveRegistry::new())));
+        assert!(m.write(&mut w));
+        w.into_bytes()
+    };
+    let before = record();
+    g.add_occ(0x302, [166.0, 0.0, 326.0], usage::LOT, true);
+    let mut list = Vec::new();
+    assert!(m.get_lot_props_at(&mut list, 10, 20));
+    assert_eq!(list, vec![0x301, 0x302]);
+    assert_eq!(record(), before);
+}
+
 /// §T 5: street props.
 #[test]
 fn t5_street_props() {

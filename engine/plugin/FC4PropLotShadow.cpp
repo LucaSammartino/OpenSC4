@@ -901,6 +901,28 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
         if (os != us) {
             ++listDiff;
             first.Add("%s(%d,%d) %s", what, x, z, ListDiff(os, us).c_str());
+            // PL21: the manager record is not a snapshot of these live inputs.
+            // Preserve every failure and expose membership/position evidence;
+            // no timer, visibility or pending-save exclusion is permitted.
+            for (const auto* tokens : {&os, &us}) {
+                for (uint64_t token : *tokens) {
+                    auto* occ = reinterpret_cast<cISC4Occupant*>(FromToken(token));
+                    cS3DVector3 pos;
+                    occ->GetPosition(&pos);
+                    uint32_t usage = UINT32_MAX;
+                    void* q = nullptr;
+                    if (occ->QueryInterface(kIID_cISC4PropOccupant, &q) && q != nullptr) {
+                        auto* prop = static_cast<cISC4PropOccupant*>(q);
+                        FC4_ACQUIRED(prop, "QueryInterface");
+                        usage = prop->GetPropUsage();
+                        FC4_RELEASE(prop);
+                    }
+                    Log("propmgr query difference date=%s query=%s cell=(%d,%d) side=%s "
+                        "occupant=%p type=%08X usage=%u pos=(%.9g,%.9g,%.9g)",
+                        r.date, what, x, z, tokens == &os ? "native" : "core", occ,
+                        static_cast<uint32_t>(occ->GetType()), usage, pos.fX, pos.fY, pos.fZ);
+                }
+            }
         }
         ReleaseTokens(us);
     };
