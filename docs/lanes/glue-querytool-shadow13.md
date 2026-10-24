@@ -5,7 +5,7 @@
 ## Handoff
 - Goal: verify portable query tool against native observations in a city through 2032.
 - Done: initial record c0720c215; added default-off live hover/describe native predicate comparison and private core adapter.
-- Next: submit build-runs/querytool13-r2-20261024a.draft to game queue and wait using wait-querytool-game.ps1.
+- Next: collect game wait session 82413 (querytool13-r2-20261024a), then summarize its log with build-runs/summarize-querytool.py.
 - Constraints: no private native signatures; no tools/ access; default-off querytool_shadow.
 - CT27 filed for nonmodal hit/output fixture contract; CT13/14/20 remain existing output gaps.
 - Measured scope is predicates only, explicitly partial; no displayed output or full owner verification claim.
@@ -16,5 +16,6 @@
 - Final all PASS: cargo 7407/0; clippy diagnostics 0; CMake 47/47; CTest 81/81 (273.7 s).
 - Final native queue qbuild-20261024-202138-build-ctest PASS. Tree-changed annotation reflects the lane/reference commit; C++ bytes were stable before native build.
 - Focused q.py Bash failed CreateFileMapping (log build-runs/q/20261024-184438-17952.log).
-- No game requests outstanding. fmt fixed after one-line diff; relative fmt path rejected, absolute path worked.
+- Outstanding game request: querytool13-r2-20261024a, Konradshohe turbo through 2032-01-01, enable=simulator / querytool_shadow=1.
+- fmt fixed after one-line diff; relative fmt path rejected, absolute path worked.
 - Game wait helper: build-runs/wait-querytool-game.ps1 (file events; no qwait).
