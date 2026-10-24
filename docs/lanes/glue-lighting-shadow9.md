@@ -14,7 +14,7 @@
 - Final gate r2 PASS on source fad1dbe42: Rust workspace 6987/6987, clippy 0 diagnostics, native build 207/207 edges, CTest 79/79. Queued qbuild-20261024-090555-build-ctest and exec session 8711 collected to terminal PASS. Do not repeat.
 - Game r2 COMPLETE: lighting9-house-2032-r2-20261024 73/73 exact, 1022/1022 fields, through 2032-01-01 at 907.469 s. Native clean, foreign_exceptions=0, BUT ref_warnings=1. Safety incomplete. Record docs/runs/lighting9-house-2032-r2-20261024-470.md preserves it; no request outstanding.
 - Ref warning diagnostic: log lines 10158–10160, automataowners construction round-trip class A97F909E, missing reference interface 2977AA49 on class A9BC9AB6, WriteCapture::ClearReferences:79. No lighting diff/refusal; input capture independently reports texture 69D3A23B.
-- Next: repeat unchanged final DLL and exact profile as unique lighting9-house-2032-r3-20261024, seconds=1500/timeout=1800, for required ref_warnings=0. Do not rerun the source gate. Full owner remains blocked by LT14.
+- Game r3 OUTSTANDING: lighting9-house-2032-r3-20261024, unchanged final DLL/profile, seconds=1500/timeout=1800. Wait on SAME label's verdict with wait-lighting-verdict.py, repeating the wait after timeout but never resubmitting. Do not rerun the source gate. Full owner remains blocked by LT14.
 - Prepared request: exact house ini switches (Compare-Object verified), plus lighting_shadow=1, turbo to 2032-01-01. DLL engine/build-x86/FreeCity4.dll.
 - Constraints: no prohibited source or tools; no agents; no branch changes; shared files additive.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-lighting-shadow9-r1-manifest.json
