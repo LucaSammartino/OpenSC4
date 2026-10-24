@@ -341,7 +341,63 @@ TextArea (`009C9AEB`) normalizes the window rectangle to local origin, insets
 by x/y gutters, and subtracts vertical bar width plus bar gap from the right
 edge when that bar exists.
 
+#### Removal, page forward and drop sizing (WC4)
+
+For a valid removal index `r`, old count `n`, selection `s` and origin `f`,
+storage is removed first. The requested origin is `f−1` only when `r<f`,
+otherwise `f`; SetFirstVisible applies its usual clamp. Selection decrements
+only when `r<s`, or when `r=s=n−1`. When the selected row has a successor,
+the index is retained and now designates that successor, with no select call
+or selection notification from this adjustment. The decrement path calls
+Select with notify=true; its ordinary/drop notification rules still apply.
+Removing the sole selected row yields −1. Subsequent bar removal when all
+remaining entries fit resets origin to zero. Drop-height/width refreshes run
+when their respective bytes are enabled (`009C9408`–`009C949F`).
+
+NextPage always returns true. It acts only when `n>0` and `f<n−v`, where `v`
+is whole visible rows. It requests origin `p=f+v−1`, then selects `p+v`
+with notify=false. The latter is based on the requested origin, not the
+clamped origin returned by SetFirstVisible; Select can clamp the row and move
+the origin again to make it visible. The apparent upper clamp of `p` tests
+the old `f` against `n−v`, so it is ineffective inside this branch
+(`009C8EF9`–`009C8F33`). For example `n=20,v=4,f=0` requests origin 3,
+selects row 7, and ends with origin 4. For `n=10,v=4,f=5` it requests 8,
+origin clamps to 6, and selection clamps to row 9. Do not replace this with
+a conventional one-page advance.
+
+Drop sizing is persistent policy: height/width sizing calls set the
+corresponding enabled byte in drop mode. Insertion, text replacement and
+removal run enabled height sizing then enabled width sizing. Init first
+recomputes row metrics, runs those same enabled policies, sets origin zero,
+and makes the selection visible before taking capture. Height policy is
+enabled by default; width policy is disabled by default. Outside drop mode
+both sizing calls return false without setting policy (`009C8415`,
+`009C8B24`, `009C9F12`, `009C900F`, `009C9D3B`).
+
+Height sizing marks its policy enabled even when it returns false because
+the list is empty or `n<v`. Otherwise desired height is `n*rowHeight+2*yGutter`.
+Available height is `parentHeight−windowTop−2`; absent parent uses
+`INT_MAX` for parentHeight. It preserves width and requests the lesser of
+desired/available height. When desired fits (including equality), it sets
+wholeRows to `n`, resets origin zero and removes the bar. When clipped it
+sets wholeRows to signed `(available−2*yGutter)/rowHeight` truncated toward
+zero, adds the bar and calls whole-line resize, so actual height can be
+smaller than available. Both branches refresh bar placement/range and
+invalidate. Gutters are sign-extended bytes, products/subtractions are
+32-bit integer operations, and the clipped division is IDIV
+(`009C903F`–`009C911A`). There is no minimum-height or zero-divisor guard in
+that branch, nor an automatic empty-list shrink.
+
+Width sizing measures every stored string through font slot `+0xC4`, takes
+the unsigned maximum starting at 1, and sets width to that maximum plus
+twice the signed x-gutter byte. It does not add scrollbar/border widths or
+strip color prefixes for measurement. Empty storage therefore requests
+`1+2*xGutter`. A nonempty list without a font requests the default font
+through WCM; this path assumes usable WCM/font services rather than returning
+a clean allocation failure (`009C9D3B`–`009C9DCC`).
+
 ### 5.4 Messages and capture *[compat]*
+
 
 There is no ListBox-specific DoMessage override. Base dispatch invokes the
 window hooks. Key-down `009C8BD1` consumes PageUp/PageDown/Up/Down, invokes the
@@ -390,7 +446,7 @@ Text drawing starts at first visible row, advances by cached row height,
 clips the last row to the drawing bottom and emits through the font interface.
 Normal/selected/alternate font colors are independent of selection fill.
 Strings beginning with the color escape are interpreted for drawing rather
-than changing stored text; the exact escape, malformed-prefix treatment,
+than changing stored text; malformed-prefix treatment,
 ellipsis fitting and fractional intensity remain WC1. Flat or 3D outline is
 drawn after rows when a font exists. With no font, the row text/outline branch
 is skipped; background work still occurs. No filesystem/clipboard IO belongs
@@ -404,6 +460,19 @@ changed (`009C8972`–`009C899A`, instruction-verified). Getter returns false fo
 out-of-range or sentinel `0xDEADBEEF` without writing output; otherwise writes
 the word and returns true. Boolean returns are low-byte values, not a promise
 about all EAX bits (`009C89A4`).
+
+The color-prefix predicate (WC5) is a leading ASCII `#` byte (`0x23`),
+not an ESC control byte or markup tag. The literal `##` escapes it: exactly
+one leading byte is removed, leaving the rest as ordinary displayed text;
+there is no recursive parsing. A single leading `#` takes the color-prefix
+branch, which requires at least seven bytes, removes those seven bytes,
+and, in the window-flag-2-enabled branch, scans `#%02x%02x%02x` for RGB.
+With that flag disabled it still strips the prefix but keeps the alternate
+font-color policy. Prefix recognition and slicing modify only the temporary
+paint string. Constants at `00A9F354` and `00AA6DDC` are respectively `#`
+and `##`; calls/length checks are at `009CA457`–`009CA508`, with the
+alternate-color counterpart starting at `009CA534`. Malformed scan outcomes
+remain within WC1; a '#' prefix is recognized even when its suffix is not hex.
 
 ## 6. TreeView
 
@@ -681,6 +750,14 @@ Use ordinary valid initialized services unless a failure is the test input.
 | WC-T16 | Viewport height 33, row height 16, first row 0, enough content | Whole-row count 2, paint/page count 3, last paint row 2 |
 | WC-T17 | Images disabled, b=9,g=3,i=12,h=16,d=1,row=2,first=1,textWidth=20 | Expander origin (12,16); DrawItem origin (24,16); text rectangle [39,16,62,32], text origin (42,17); image space remains reserved |
 | WC-T18 | Successful paint of a branch, then fail its next expander/image access | Visited node's expander/image validity is cleared; failed guarded operations do not restore it; text rectangle still records when DrawItem targets working buffer |
+| WC-L19 | Entries A,B,C; select index 1, then remove index 1 | Selection stays 1 and now designates C; no selection message from the index adjustment |
+| WC-L20 | Entries A,B,C; select index 2, then remove index 2 | Selection becomes 1 (B); ordinary mode emits selection-changed through Select(notify=true) |
+| WC-L21 | Twenty entries, wholeRows=4, origin=0; NextPage | Selection 7, final origin 4, no selection notification |
+| WC-L22 | Ten entries, wholeRows=4, origin=5; NextPage | Selection 9, final origin 6; repeated NextPage at origin 6 is a successful no-op |
+| WC-L23 | Drop list: five entries, rowHeight=10, yGutter=1, wholeRows=2; available height 100; height-size | Height 52, wholeRows 5, origin 0, no bar |
+| WC-L24 | Same inputs, available height 37 | Initial request 37; wholeRows 3; whole-line resize requests height 32; bar added |
+| WC-L25 | Empty drop list, xGutter=3; width-size, then height-size | Width request 7; height-size returns false without shrinking height; both policies are now enabled |
+| WC-L26 | Paint `abc`, `##abc`, `###abc`, `#112233abc`, keeping stored strings | Ordinary `abc`; literal `#abc`; literal `##abc`; prefix-stripped `abc`; all stored strings unchanged |
 | WC-L01 | Query ListBox own IID through W, then through L; release results | Both designate L=W+0xD8, with matching retention; null own-IID output fails without AddRef |
 | WC-L02 | Three entries, selection 1; select index 99 with notify=true twice in ordinary mode | Selection 2; two selection messages, each type 3 / 0x08710E0F, payload row 2 |
 | WC-L03 | Same test in drop mode | Selection 2 and invalidation, no selection message from the public select operation |

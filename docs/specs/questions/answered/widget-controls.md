@@ -1,5 +1,29 @@
 # Standard window controls: answered questions
 
+## WC4 — ListBox removal, drop sizing and next page
+
+Filed by core-widgets5 on 2026-10-23: does removing the selected row retain
+the index, how does origin adjust, and what are drop sizing and next-page rules?
+
+**ANSWERED 2026-10-24 (re-widget-controls-wc7):** DIFFERS — Section 5.3 now
+specifies that a selected row with a successor retains its index; only a
+selected last row or removal before selection decrements it. Origin is
+decremented only for removal before it, then clamped. Enabled drop height and
+width policies run on insertion/replacement/removal and Init. Height clips
+to parent bottom minus two pixels and whole lines; width measures raw stored
+strings. NextPage requests first+wholeRows−1 then selects requested+wholeRows,
+which can move origin again. Vectors L19–L25.
+
+## WC5 — ListBox color escape recognition
+
+Filed by core-widgets5 on 2026-10-23: which leading bytes introduce the color escape?
+
+**ANSWERED 2026-10-24 (re-widget-controls-wc7):** MATCHES — The provisional
+plain-text boundary can be extended: section 5.5 specifies ASCII `#` as the
+introducer and `##` as a literal escape that removes one byte. A color prefix
+uses seven bytes; recognition does not validate its hex suffix. Stored text
+is unchanged. Vector L26. Malformed scan results remain in WC1.
+
 ## WC6 — TreeView root visibility and geometry
 
 Filed by core-widgets5 on 2026-10-23: which flags include/hide the root,
