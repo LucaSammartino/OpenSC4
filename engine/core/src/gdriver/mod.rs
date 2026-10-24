@@ -3,6 +3,7 @@
 //! backend extends gdrivers_director::Host; graphics identities use its tokens.
 pub mod auxiliary;
 pub mod backend;
+pub mod capture;
 pub mod context;
 pub mod extended;
 pub mod primitive;
@@ -61,8 +62,12 @@ pub struct Driver {
     pub device: u32,
     pub dd: u32,
     pub d3d: u32,
-    /// Exact owner +22C/+230/+234 slots. Their context aliases remain RD12.
+    /// Owned primary (+228), separate from the context's reference.
+    pub primary_surface: u32,
+    /// Exact owner +22C/+230/+234: render target, depth, unpopulated slot.
     pub auxiliary_surfaces: [u32; 3],
+    /// §12.6 probe survives setup, cleanup and loss recovery.
+    pub color_probe: Option<bool>,
     pub context: Context,
     pub modes: Vec<Mode>,
     pub current: Mode,
@@ -110,6 +115,8 @@ impl Driver {
             dd: 0,
             d3d: 0,
             auxiliary_surfaces: [0; 3],
+            primary_surface: 0,
+            color_probe: None,
             context: Context::default(),
             modes: Vec::new(),
             current: Mode::default(),
@@ -327,6 +334,7 @@ impl Driver {
         for token in &mut self.auxiliary_surfaces {
             release(host, token);
         }
+        release(host, &mut self.primary_surface);
         self.context.destroy(host);
         self.device = 0;
         self.ready = false;
@@ -442,6 +450,7 @@ impl Driver {
             host.dx(0, Call::MessageBox, &[], b"Internal Error.", &mut []);
             return Ok(false);
         }
+        self.bind_owner_surfaces(host);
         // First device word, stencil operations, maximum simultaneous textures,
         // words +0x44/+0x5c, and the fog capability word (bit 4).
         let mut caps = [0; 6];
@@ -539,6 +548,7 @@ impl Driver {
             self.device = objects[0];
             self.d3d = objects[1];
             self.dd = objects[2];
+            self.bind_owner_surfaces(host);
             self.lost = false;
             self.default_state(host);
             self.primitives.init(objects[2], objects[1], objects[0], host);
@@ -553,6 +563,9 @@ impl Driver {
             self.textures.lose(host);
             self.primitives.stop(host);
             release(host, &mut self.device);
+            release(host, &mut self.auxiliary_surfaces[1]);
+            release(host, &mut self.primary_surface);
+            release(host, &mut self.auxiliary_surfaces[0]);
             release(host, &mut self.d3d);
             release(host, &mut self.dd);
             let mut placeholder = [0];
@@ -1228,9 +1241,6 @@ impl Driver {
         }
         Ok(())
     }
-    pub fn auxiliary_operation(&self) -> Result<()> {
-        Err(Error::Unsupported("RD7"))
-    }
     fn build_info(&mut self, mut adapter: [u32; 11], host: &mut impl Device) -> Result<()> {
         if adapter[2..6] == [0; 4] {
             self.file_version(&mut adapter[2..6], host)?;
@@ -1288,6 +1298,7 @@ impl Driver {
         for token in &mut self.auxiliary_surfaces {
             release(host, token);
         }
+        release(host, &mut self.primary_surface);
         self.context.destroy(host);
         for region in &mut self.regions {
             release(host, &mut region.surface);
