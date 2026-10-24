@@ -37,6 +37,10 @@ only through the expressly requested merge.
 ## Handoff
 - Goal remaining: finish QV3 and QV14 without reopening the committed predecessor/QV2 answers.
 - Done: prerequisite merge `8f269ba2a`; QV2 behavior, vectors and answer `465ada3f5`; doccheck passed.
+- Round 2 milestone: QV3 panels/groups drafted in §§1.2/3.2.1/3.3, vectors 40–44; question moved.
+- QV14 discovery: PreFrameWorkInit 0x0045236C calls 0x005F85E0, which sets PC=24 through 0x008929E0.
+- QV14 vectors calculated by build-runs/ring-precision-qv18.py: r=513/128, v=-1/2, pixel(0,4),
+  u=-511/1024 gives weights 254/255/255 for PC24/53/64; u=-1/2+2^-25 gives 254/254/255.
 - Next exact step: query DoMessage 0x007A56E0, then read main decomp/cSC4WinMapView.c lines 3219–3900 in ranges of at most 80 lines.
 - QV3: resolve panels 0x8A2871B1–0x8A2871C4 and 0xAA32BCD4/5, group memories behind 0x5005/0x5008/0x8002, toggles and command 0x6A935CF1.
 - QV3 helpers: ShowSmallWindow/group selection may be in decomp/_unnamed/region_00790000.c or region_007a0000.c; query before reading.

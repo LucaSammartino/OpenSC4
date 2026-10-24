@@ -1,11 +1,6 @@
 # map-view: open questions
 <!-- Questions about [map-view.md](../map-view.md). Append new entries at the END; when one is answered, move it to answered/map-view.md. Rules: README.md. -->
 
-<!-- from: re-mapview (2026-10-20) -->
-- **QV3 - §1, §3.2:** the panels `0x8A2871B1`-`0x8A2871C4`, `0xAA32BCD4`/`0xAA32BCD5`; the groups' remembered views
-  behind the buttons `0x5005`, `0x5008` and `0x8002`; the toggle `+0x9AC` of `0x8100`/`0x8101`; the command
-  `0x6A935CF1`. [as read]
-
 <!-- from: core-map-view5b (2026-10-23) -->
 - **QV14 - §5.2: ring intermediate precision:** which x87 precision-control and rounding-control modes
   apply to the ring helper, and at which operations (including square roots) are intermediates rounded?

@@ -33,8 +33,7 @@ loads the exemplar; the map is redrawn when the source's simulator reports new d
 - **Activation**: `0x26D31EC1` registers the view for animation ticks and marks it active (`+0x142`);
   `0x26D31EC2` unregisters it and clears the flag. While inactive, `SetDataView` and `Update` do nothing.
 - **`ShowWindow`** (`0x007A6290`) / **`HideWindow`** (`0x007A64D0`) / **`ShowLargeWindow`** (`0x0079DE70`) show and hide
-  the panels `0x8A2871B1`, `0x8A2871B2`, `0xAA32BCD4`, `0xAA32BCD5`, `0x8A2871C3` and `0x8A2871C4` (the small map,
-  the large map, the legend) *[summary]*; showing also redraws the legend and resets the data view (§3.3).
+  the panels specified in §1.2; showing also redraws the legend and resets the data view (§3.3).
 
 `Init` does not propagate the window generator's return value or the three subscription results. If it needs
 the message server and that server is absent, it returns false, after setting its initialization latch; it
@@ -62,6 +61,52 @@ message ID to the existing vector, sorts the vector, then subscribes once per en
 Two hooks without an intervening unhook therefore repeat subscription attempts for the accumulated entries;
 the owner neither rejects repeated hooks nor promises that the foreign message server delivers duplicates
 (`0x007A17B9`–`0x007A17FE`, `0x007A193A`–`0x007A1974`).
+
+### 1.2 Panel visibility and opening/closing (QV3) *[compat]*
+
+The four layout operations set the following child visibility flags (window flag 1). A dash means
+**leave the existing flag alone**, including on a previously visible child; it does not mean hide.
+These are child flags, not a promise that an ancestor is visible. IDs, rather than inferred artwork
+names, identify the panels. `L` is the current legend-content flag (`+0x9B6`, maintained by §6).
+
+| Child ID | Small | Standard large | Desirability group | Traffic group |
+|---|---|---|---|---|
+| `0x8A2871B1` (B1) | show | hide | hide | hide |
+| `0x8A2871B2` (B2) | show | show | show | show |
+| `0xAA32BCD4` (D4) | hide | show | hide | hide |
+| `0xAA32BCD5` (D5) | hide | hide | show | show |
+| `0x8A2871C3` (C3, legend container) | hide | show | show | show |
+| `0x8A2871C4` (C4, legend rows) | hide | L | hide | hide |
+| `0xCB72F247` (CB) | — | — | hide | show |
+| `0x8100`, `0x8101` | — | hide | hide | show |
+
+Visibility setters search below the root window and ignore missing children. None of these four
+operations selects a view, updates memories, or changes subgroup enable/selection flags.
+Evidence: standard large `0x0079DE70`–`0x0079DF06`, desirability `0x0079DF10`–`0x0079DFAD`,
+traffic `0x0079DFB0`–`0x0079E04D`, small `0x0079E050`–`0x0079E0BD`.
+
+`ShowWindow` shows B1 only when C3 is currently hidden, always shows B2, assigns this window as
+message target to each existing child in its 82-entry control-ID table, and requests view zero's
+legend. It does not indiscriminately apply one of the four layouts. When desirability memory D is
+still its construction sentinel 99, it additionally selects buttons 5001/6001/8001/8100/8003 where
+their button interfaces exist, disables 8003–800C and changes D to `0x28`. Later shows preserve
+those selections, subgroup enable states, traffic memory and alternate byte. Every show sets the
+map-enabled byte and calls ResetDataView (`0x007A6290`–`0x007A64BE`).
+
+`HideWindow` first requires child B1 to exist; otherwise it does nothing. With B1 present it hides
+`0x4200`, B1, B2, D4, D5, C3 and C4, clears the map-enabled byte, then calls ResetDataView.
+The group's memories, CB and the alternate controls are not individually reset/hidden by this
+operation (`0x007A64D0`–`0x007A657F`).
+
+Accepted commands `0xCA2871F0`/`0xCA2871F1` refresh highlights and bitmap, then apply standard large
+and consume the message. `0xA32CACD4`, `0x0A32CAC3`, `0xEA8B80A7` and `0xEA8B80A8` apply small.
+Commands `0x4A32CA92`/`0xEA8B80A6` expand according to the controls/current source: a selected
+queryable 5005 takes precedence and applies desirability with D; otherwise source 76 applies traffic
+with T, source 9 applies traffic with 9, and every other source applies standard large with M.
+Each of those expansions requests the chosen view and legend but does not update D/T/M or change
+subgroup enable/selection. A failed 5005 button query takes the source-based path. The hide buttons
+`0xEA2871D9`/`0xEA2871E9` invoke HideWindow. Except for the two consumed CA commands, these accepted
+paths continue through the base window handler (`0x007A5E4B`–`0x007A60BF`).
 
 ## 2. The data view exemplar *[compat]*
 
@@ -261,10 +306,60 @@ then remembers the requested view for the mode button. This also happens after a
 selection failure. It does not substitute the still-current view in the legend request
 (`0x007A0F54`–`0x007A0F91`).
 
+### 3.2.1 Panels and remembered group selections (QV3) *[compat]*
+
+There are three independent remembered **requested** view IDs: desirability `D` (owner `+0x9A0`),
+traffic volume `T` (`+0x9A4`) and top-level mode `M` (`+0x9A8`). Construction gives
+`D=99,T=0x4C,M=0`, and the alternate-traffic byte `A` (`+0x9AC`) is zero. The sentinel 99 is replaced
+by `0x28` on the first `ShowWindow`; it is not a selectable data view. These memories are separate
+from the currently loaded view and from ResetDataView's saved/queued request.
+
+Button exclusion selects the named button and deselects the others in its contiguous group, querying
+IID `0x8810`; absent/nonbutton children are skipped. The groups are `0x5001`–`0x5011`,
+`0x6001`–`0x600C`, `0x8001`–`0x8002`, `0x8003`–`0x800C`, and `0x8100`–`0x8101`.
+The `0x51xx`/`0x61xx` aliases use the canonical `0x50xx`/`0x60xx` button for exclusion.
+
+| Accepted button | Selection, legend and memory behavior |
+|---|---|
+| Ordinary `0x50xx`/`0x51xx` in §3.2 | Exclude in the top-level group; request its mapped view and legend; if `0xAA32BCD5` is visible, switch to the standard large layout (§1.2); set `M` to the requested ID. Leave `D,T` alone. |
+| `0x5005` / `0x5105` | Exclude in the top-level group; show the desirability layout; request `D` and its legend; set `M=D`. |
+| `0x6001`–`0x600C` / `0x6101`–`0x610C` | Exclude in the desirability group; request the mapped view and its legend; set `D` to that ID. Leave `M,T` and the layout alone. |
+| `0x5008` / `0x5108` | Exclude in the top-level group; show the traffic layout. If button `0x8001` can be queried and is selected, request 9 and its legend and set `M=9`; otherwise request `T` and its legend and set `M=T`. Leave `T` alone. |
+| `0x8001` | Exclude in `0x8001`–`0x8002`; disable `0x8003`–`0x800C`; request view 9 and its legend. Leave `D,T,M` and the layout alone. |
+| `0x8002` | Exclude in `0x8001`–`0x8002`; enable `0x8003`–`0x800C`; request `T` and its legend. Leave `D,T,M` and the layout alone. |
+| `0x8003`–`0x800C` | Exclude in the volume subgroup; request the corresponding view `0x4C`–`0x55` and its legend; set `T` to that ID. Leave `D,M` and the layout alone. |
+| `0x8100` / `0x8101` | Exclude in the two-button group; set `A=0` / `A=1`; call ResetDataView. Leave `D,T,M` alone. |
+
+Enable/disable acts on window flag 2, querying IID `0x22BA0121` for each of the ten volume controls;
+missing controls are skipped. The handler itself does not reject a synthetically delivered volume
+button merely because its window is disabled. Group entry does not recompute the subgroup's enable
+state. All memories, exclusion, legend requests and layout changes above still occur when SetDataView
+returns false or uses its same-view shortcut. Consequently selecting a subgroup can leave `M` stale
+until its top-level group is entered again. The alternate byte selects the traffic simulator's
+normal/alternate density data (and ferry counts in §4.1); it is not a new view ID. Resetting does not
+force a bitmap draw past the ordinary same-view guard.
+
+The accepted command button `0x8A2871D5` dispatches registered command **Cancel**, `0x6A935CF1`, through
+the command service (`0x00B43CB0`, slot 20) with arguments zero/zero. This path does not itself select
+view zero, hide a panel or change a remembered group; the registered command handler performs the
+cancellation (see [view3d-window.md](view3d-window.md), command inventory).
+As with the other accepted button paths, processing then continues through `cGZWinGen::DoMessage`.
+A tutorial-filter rejection consumes the message before these effects.
+
+Evidence: initial memories in constructor `0x007A0D50`–`0x007A0F05`; exclusion `0x0079E540`–`0x0079E59B`;
+ordinary/subgroup helpers `0x007A0F30`–`0x007A101C`; group entries `0x007A57D6`–`0x007A5918`;
+traffic enable/selection `0x007A5C0A`–`0x007A5CC7`; alternate flag and Cancel dispatch
+`0x007A5E12`–`0x007A5EFC`; enable helper `0x0079E5A0`–`0x0079E5FB`.
+
 ### 3.3 `ResetDataView` (`0x007A5610`)
 
-Sets the view of the current mode button again and redraws the legend when the legend panel `0x8A2871C3` is visible
-*[summary]*.
+Select the front queued view request if there is one; otherwise select the saved view (`+0x9D4`)
+while the map-enabled byte (`+0x9D8`) is set, or zero while it is clear. This is not a lookup of `M`
+or the selected mode button. A queued request takes precedence even while the map is hidden.
+Controls `0x8A2871D6` and `0x8A2871C5`, if present, receive visibility flag 1 as follows: only the
+saved-view case shows D6 and hides C5; the queued and disabled/no-queue cases hide D6, show C5 and
+invalidate C5. Redraw the selected request's legend if `0x8A2871C3` is visible
+(`0x007A5615`–`0x007A56CC`).
 
 The selection is an ordinary `SetDataView` call; it does **not** bypass the same-view guard. Its result does not
 gate the remaining panel updates or the visible legend refresh (`0x007A5644`–`0x007A56D1`). Thus resetting an
@@ -819,8 +914,7 @@ has already happened. A later notification/highlight change can mark dirty again
 
 ## 9. Open questions
 
-See [questions/map-view.md](questions/map-view.md): QV3 (panels, group
-buttons and the toggle `0x8100`/`0x8101`), QV14 (ring precision), and QV15 (missing lot-mean prose).
+See [questions/map-view.md](questions/map-view.md): QV14 (ring precision) and QV15 (missing lot-mean prose).
 QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
 [answered record](questions/answered/map-view.md).
 
@@ -966,3 +1060,29 @@ QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
     conversion at explicit scale 256 gives indices 19/255 for V=20/256, while absent scale gives
     indices 0/1. Straight/premultiplied palette entry 255 becomes `0xCFFFFFFF`/`0xFFFFFFFF`.
     The overlay flag is restored and all three temporary grids released.
+40. **Panel matrix:** begin with every named child visible. ShowSmallWindow leaves B1/B2 visible,
+    hides D4/D5/C3/C4 and leaves CB/8100/8101 alone (ID suffixes as in §1.2).
+    Desirability then shows D5/B2/C3 and hides B1/D4/C4/CB/8100/8101. Traffic shows
+    D5/B2/C3/CB/8100/8101 and hides B1/D4/C4. Standard large with legend-content flag false/true
+    shows D4/B2/C3, hides B1/D5/8100/8101, sets C4 false/true and leaves CB unchanged.
+41. **Independent memories:** start `D=0x28,T=0x4C,M=0`, normal active selection. Press 5005,
+    6002, 5002, 5105 → requests `[0x28,0x29,5,0x29]`, ending `D=M=0x29,T=0x4C`.
+    Immediately after 6002, `D=0x29` but `M=0x28`. Missing the 6002 exemplar still remembers
+    `D=0x29` and requests its legend; it does not restore D to the previous successfully loaded view.
+42. **Traffic group:** `T=0x4C,M=5`, 8001 selected. Press 5008 → traffic layout, request 9, `M=9`.
+    Press 8002 → enable all ten volume controls, request `0x4C`, `M` still 9. Press 800B →
+    `T=0x54`, `M` still 9. Press 5002 then 5008 → requests 5 then `0x54`, ending `M=0x54`.
+    An absent/unqueryable 8001 chooses T on entry. 8001 disables volume controls but preserves T;
+    a directly delivered 800C command still selects/remembers `0x55`.
+43. **Alternate/reset:** queue empty, saved view `0x54`, enabled, current view also `0x54`.
+    Press 8101 → `A=1`, D6 shown/C5 hidden, Reset requests `0x54`, and no forced bitmap rebuild
+    occurs through the same-view shortcut. A later actual volume rebuild uses alternate counts.
+    Hide with no queue → Reset requests zero, D6 hidden/C5 visible and invalidated; with queued
+    request 7 → request 7 instead. These actions do not change D/T/M. 8100 restores `A=0`.
+44. **First show and layout commands:** construction gives `D=99,T=0x4C,M=0,A=0`. First ShowWindow
+    selects 5001/6001/8001/8100/8003 and disables 8003–800C, replaces D by `0x28`, enables the map
+    and resets it. Reopening does not repeat that initialization. With 5005 selected, expand
+    0xEA8B80A6 chooses the desirability layout and D even if the current source is traffic.
+    Without 5005 selected, source 76 chooses traffic/T, source 9 traffic/9, and other sources
+    standard large/M. Cancel button dispatches `(0x6A935CF1,0,0)` without direct memory/layout
+    changes; tutorial rejection dispatches nothing.

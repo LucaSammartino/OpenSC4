@@ -1,6 +1,17 @@
 # map-view: answered questions
 
 <!-- from: re-mapview (2026-10-20) -->
+- **QV3 - §1, §3.2:** the panels `0x8A2871B1`-`0x8A2871C4`, `0xAA32BCD4`/`0xAA32BCD5`; the groups' remembered views
+  behind the buttons `0x5005`, `0x5008` and `0x8002`; the toggle `+0x9AC` of `0x8100`/`0x8101`; the command
+  `0x6A935CF1`. [as read]
+
+  **ANSWERED 2026-10-24 (re-map-view-qv18):** DIFFERS — §§1.2/3.2.1/3.3 and vectors 40–44 specify
+  the exact visibility matrix, one-time first-show setup, independent requested-view memories,
+  subgroup enable/exclusion, normal/alternate traffic counts, reset precedence and Cancel dispatch.
+  Subgroup choices do not update the top-level memory, failed selections still update the requested
+  memory, and resetting the alternate flag does not bypass same-view suppression. No question split.
+
+<!-- from: re-mapview (2026-10-20) -->
 - **QV2 - §4.1:** source 76 (traffic volume): which grid it draws for the kept travel types (`0x6B7C5CDD`) and how.
   [as read]
 
