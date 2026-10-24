@@ -13,8 +13,9 @@
 - Native queued by that same all operation: qbuild-20261024-032012-build-ctest; terminal PASS, build 235/235, CTest 73/73 (including progress decoder). qbuild all PASS. No redundant verify submitted.
 - Focused q.py attempt failed before compiling: sandbox denies Git Bash CreateFileMapping; log build-runs/q/20261024-031625-27428.log. Native CTest will execute the focused test.
 - First request: lvstep6-20261024-house-t1 returned no-load at ~04:00:50; no city/comparison, retained as run386. No panic/SEH logged, startup-only log. Mis-spelled neighbors_shadow ignored; supported key is neighbours_shadow.
-- Outstanding retry: lvstep6-20261024-house-t1-r2, unique label, seconds900/timeout1100/end2032/turbo1, corrected neighbours key and protection_shadow enabled. No source change or duplicate build.
-- Next: collect retry verdict with build-runs/wait-game.ps1 -Label lvstep6-20261024-house-t1-r2 -TimeoutMs 2000000; preserve all completed verdicts. Do not submit t2/t3 while retry is outstanding.
+- Retry lvstep6-20261024-house-t1-r2 also returned no-load, wall1111s, slot2, no city/comparisons; retained as run387. No source change or duplicate build.
+- Outstanding: lvstep6-20261024-isolated-t1, disable=budget/landvalue_shadow=1 only, turbo/end2032/seconds600/timeout750. Diagnostic distinguishes multi-shadow startup from general launch failure; NOT a house-profile replacement or exactness claim.
+- Next: collect isolated request's active wait (session to be recorded on continuation) or existing completed verdict using build-runs/wait-game.ps1 -Label lvstep6-20261024-isolated-t1 -TimeoutMs 1650000. Do not submit t2/t3 while it is outstanding.
 - DLL SHA256: 863F529E12DEC6F3B196B1F1B39DA1EF6CFDEB03ED517360E79FC4D322B7EC55.
 - t2/t3 drafts prepared in build-runs/; not submitted. No game result measured yet.
 - Prepared helper build-runs/summarize-landvalue.py prints exact clean/total output counts; raw verdict/log stay in game-results.
