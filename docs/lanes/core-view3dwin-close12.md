@@ -19,6 +19,7 @@
   build-runs/focused-close12-r3-native.log (no test results were reached).
 - Final all running on corrected 9296596a7 source, RUST_TEST_THREADS=1,
   session 12931; output build-runs/all-close12-r3-console.log.
+- Collected for 21+ minutes: still compiling workspace, no terminal result.
 - Native verify qbuild-20261024-205703-build-ctest PASS: build 211/211 (208.3 s),
   CTest 81/81 (288.1 s), total 498.6 s; verify-close12-r3-console.log.
   It reports tree changed during run (test fix/docs); production source unchanged.
