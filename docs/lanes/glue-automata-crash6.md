@@ -10,8 +10,10 @@
 - Round 2: workspace tests 6881 passed, clippy diagnostics=0 on 204ea940d.
 - Native verify qbuild-20261024-023540-build-ctest FAILED: FC4MySimsShadow.cpp:1189 C2280; WriteCapture deleted copy operations suppressed the move assignment needed by SimCapture.
 - The all gate's native request qbuild-20261024-023814-build-ctest also FAILED with the same C2280; both terminal verdicts remain in build-runs/build-results/.
-- Corrected: explicit ownership-transferring WriteCapture move constructor/assignment; the native seam destroys both moved-from captures before replaying the retained temporary.
-- Next: re-run all plus queued native verify on corrected source, then three unique 2032 game runs.
+- Corrected in 208aa2159: explicit ownership-transferring WriteCapture move constructor/assignment; the native seam destroys both moved-from captures before replaying the retained temporary.
+- Corrected all: workspace tests 6881 passed, clippy diagnostics=0. Native request qbuild-20261024-024340-build-ctest pending (exec session 21026).
+- Additional corrected native verify: qbuild-20261024-024436-build-ctest pending (exec session 10735). Collect these operations to terminal results; do not submit duplicates.
+- Next: collect both native results, then three unique 2032 game runs. Use build-runs/wait-verdict.ps1 (filesystem event wait, existing completed results accepted), NOT qwait; summarize with build-runs/summarize-automata.py.
 - Required: focused native bad-ID test; final all and queued verify; three unique exact 2032 game runs.
 - Keep owners shadow default-off. Coordinator should add automata_owners_shadow to the house profile after exact validation (tools are outside lane scope).
 - No outstanding game request. No spec behavior or ABI export changes; this is capture tooling ownership.
