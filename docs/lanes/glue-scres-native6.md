@@ -40,7 +40,7 @@ exports and FC4_ABI_VERSION are unchanged.
 
 ## Real-city evidence
 
-Final run [scres6-native-2032-elm-387](../runs/scres6-native-2032-elm-387.md),
+Final run [scres6-native-2032-elm-401](../runs/scres6-native-2032-elm-401.md),
 request label **scres6-native-2032-elm**, Konradshohe, turbo to **2032-01-05**,
 **clean**, **ref_warnings=0**, all problem counts zero. Exact coverage summary:
 **`scres 76/76`**. DLL SHA256
@@ -64,7 +64,7 @@ No token adapter calls occurred naturally; no empty adapter equality line is
 emitted. The native exception count records an observed boundary and does not
 claim exception replay parity; harness foreign/structured exceptions were zero.
 
-Earlier [scres6-native-2032-cobalt-386](../runs/scres6-native-2032-cobalt-386.md)
+Earlier [scres6-native-2032-cobalt-400](../runs/scres6-native-2032-cobalt-400.md)
 also reached 2032 clean with **scres 76/76**, ref_warnings=0, on its distinct DLL.
 Both unique requests were collected by one event-driven verdict wait each.
 No request was discarded or duplicated; no game request remains outstanding.
