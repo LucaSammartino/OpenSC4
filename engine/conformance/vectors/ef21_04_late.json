@@ -1,0 +1,9 @@
+{
+  "format":1,"name":"EF21-4_late_attachment","spec":["effects 18.8.1","effects EF21-4"],
+  "description":"Readable retained data after late attachment never reconstructs historical bootstrap; retained availability requires a new outer boundary.",
+  "steps":[{"op":"ef_observation","owner":1,"late":true,"actions":[
+    {"method":"expect","writers_excluded":true,"retained":false,"history":false,"generation":0},
+    {"method":"enter","scope":"tick"},{"method":"leave","scope":"tick"},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":false,"generation":1}
+  ]}]
+}

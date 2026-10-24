@@ -1,0 +1,22 @@
+{
+  "format":1,"name":"EF21-7_particle_exact_bits_and_nested_vectors","spec":["effects 18.8.3","effects EF21-7"],
+  "description":"All scalar ranges and vector strides are copied. Preserve signed zero, NaN, timed-effect names; exclude +204 refcount and +D6 padding. +1C8 is explicitly indeterminate.",
+  "steps":[{"op":"ef_payload","size":32768,"collection":256,"readable":true,"supported":true,"writes":[
+    {"at":"0x138","words":[4096,4100,4116]},{"at":4096,"words":[8192]},
+    {"at":"0x200c","words":[2147483648,2143294004]},
+    {"at":"0x2094","words":[12288,12300,12316]},{"at":12288,"words":[1,2,3]},
+    {"at":"0x2108","words":[12544,12572,12588]},{"at":12544,"words":[4,5,6,7,8,9,10]},
+    {"at":"0x21b8","words":[12800,12832,12848]},{"at":12800,"words":[11,12,13,14,15,16,17,18]},
+    {"at":"0x21c8","words":[123]},{"at":"0x21cc","words":[13056,13072,13088]},
+    {"at":13056,"words":[13312,13321,13328,2147483648]},{"at":13312,"text":"MixedCase"},
+    {"at":"0x2204","words":[999]}
+  ],"checks":[
+    {"family":0,"slot":0,"offset":12,"value":2147483648},{"family":0,"slot":0,"offset":16,"value":2143294004},
+    {"family":0,"slot":0,"offset":148,"value":[1,2,3]},
+    {"family":0,"slot":0,"offset":264,"value":[4,5,6,7,8,9,10]},
+    {"family":0,"slot":0,"offset":440,"value":[11,12,13,14,15,16,17,18]},
+    {"family":0,"slot":0,"offset":456,"value":{"indeterminate":123}},
+    {"family":0,"slot":0,"offset":460,"value":[{"0":[77,105,120,101,100,67,97,115,101],"12":2147483648}]},
+    {"family":0,"slot":0,"absent":516},{"family":0,"slot":0,"absent":214}
+  ]}]
+}

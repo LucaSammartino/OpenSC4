@@ -1,0 +1,14 @@
+{
+  "format":1,"name":"EF21-11_foreign_reserved_payload","spec":["effects 18.8.4","effects EF21-11"],
+  "description":"Empty reserved buckets are complete. A foreign type-12 address is retained without dereferencing its unknown payload and makes full-payload support false.",
+  "steps":[
+    {"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":true,
+      "writes":[{"at":"0x1c4","words":[1024,1440,1456]}],"checks":[{"family":14,"slots":0}]},
+    {"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":false,"writes":[
+      {"at":"0x1c4","words":[1024,1440,1456]},{"at":"0x534","words":[4096,4100,4116]},
+      {"at":4096,"words":[4294967295]},
+      {"at":"0x524","words":[5120,5124,5140,1]},{"at":5120,"words":[5376]},
+      {"at":5376,"words":[0,5632,5639,5648,0]},{"at":5632,"text":"foreign"}
+    ],"checks":[{"family":14,"slots":1,"names":[["foreign",0]]}]}
+  ]
+}

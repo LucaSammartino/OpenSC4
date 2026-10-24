@@ -1,0 +1,12 @@
+{
+  "format":1,"name":"EF21-13_cache_hit_and_stream_failure","spec":["effects 18.8.1","effects EF21-13"],
+  "description":"Cache hit publication has no synthetic Read. Failed natural Read can precede a failed service return and is never promoted to successful publication.",
+  "steps":[{"op":"ef_observation","owner":1,"late":false,"actions":[
+    {"method":"request","type":1,"group":2,"instance":3,"iid":4,"success":true,"resource":100},
+    {"method":"publish_before","resource":100},{"method":"publish_after","resource":100},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":true,"generation":0,"reads":[]},
+    {"method":"release","resource":100},{"method":"read","resource":200,"success":false},
+    {"method":"request","type":1,"group":2,"instance":4,"iid":4,"success":false,"resource":200},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":true,"generation":0,"resource":200,"borrowed":false,"reads":[false]}
+  ]}]
+}

@@ -127,3 +127,53 @@ fn empty_vector_spare_capacity_and_missing_records() {
     d.names.clear();
     assert_eq!(compare_visuals(m, 0x100, &d).unwrap().differences, 0);
 }
+
+#[test]
+fn ef21_pointer_null_misalignment_and_unreadable_nested_payload_refuse() {
+    use super::payload::copy_builtins;
+    let mut m = Image(vec![0; 0x4000]);
+    m.vector(0x138, 0x1000, 4);
+    m.put(0x1000, 0x2000);
+    assert!(copy_builtins(m.clone(), 0x100).is_some());
+    for (at, value) in [
+        (0x1000, 0),
+        (0x13c, 0x1003),
+        (0x1000, 0xfffffff0),
+        (0x2088, 0x3fff),
+        (0x208c, 0x4003),
+    ] {
+        let mut bad = m.clone();
+        bad.put(at, value);
+        assert!(copy_builtins(bad, 0x100).is_none(), "at={at:x}");
+    }
+    assert!(copy_builtins(m, u32::MAX - 3).is_none());
+}
+
+#[test]
+fn ef21_capture_has_aggregate_byte_budget() {
+    let mut r = Reader::new(Image(vec![0; 16]));
+    r.remaining = 7;
+    assert!(r.bytes(1, 4).is_some());
+    assert!(r.bytes(1, 4).is_none());
+}
+
+#[test]
+fn ef21_resource_repeated_leases_and_released_publication_refuse() {
+    use super::observation::{Event, Observation};
+    let mut o = Observation::attach(1, true);
+    let request = Event::Request {
+        key: [1, 2, 3],
+        iid: 4,
+        success: true,
+        resource: Some(100),
+    };
+    o.record(1, request.clone());
+    o.record(1, request);
+    o.record(1, Event::Release(100));
+    assert!(o.borrowed(100));
+    o.record(1, Event::Release(100));
+    assert!(!o.borrowed(100));
+    o.record(1, Event::PublishBefore(100));
+    assert!(!o.history_available());
+    assert!(!o.retained_available(1, true));
+}

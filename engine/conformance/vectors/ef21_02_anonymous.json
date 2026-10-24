@@ -1,0 +1,12 @@
+{
+  "format":1,"name":"EF21-2_prepublication_payload_copy","spec":["effects 18.8.3","effects EF21-2"],
+  "description":"Synthetic source copies two aliased particles and an anonymous brush; post-swap empty source is a separate capture, never substituted for pre-state. Does not execute native publication.",
+  "steps":[
+    {"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":true,"writes":[
+      {"at":"0x138","words":[4096,4104,4120]}, {"at":4096,"words":[8192,8192]},
+      {"at":"0x1c4","words":[1024,1440,1456]}, {"at":"0x414","words":[4352,4356,4372]},
+      {"at":4352,"words":[9216]}, {"at":"0x240c","words":[77]}
+    ],"checks":[{"family":0,"slots":2,"slot":1,"alias_of":0},{"family":5,"slots":1,"names":[],"slot":0,"offset":12,"value":77}]},
+    {"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":true,"writes":[],"checks":[{"family":0,"slots":0}]}
+  ]
+}

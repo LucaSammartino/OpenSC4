@@ -1,0 +1,16 @@
+{
+  "format":1,"name":"EF21-5_reload_message_is_not_barrier","spec":["effects 18.8.2","effects EF21-5"],
+  "description":"Success message and End return are inside outer tick. Only outer return permits combined snapshot and advances generation.",
+  "steps":[{"op":"ef_observation","owner":1,"late":true,"actions":[
+    {"method":"enter","scope":"tick"},{"method":"enter","scope":"begin"},{"method":"leave","scope":"begin"},
+    {"method":"enter","scope":"parse"},{"method":"parse_result","success":true,"diagnostic":""},
+    {"method":"message","id":"0xC9F775BB"},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":false,"generation":0},
+    {"method":"leave","scope":"parse"},{"method":"enter","scope":"end"},{"method":"leave","scope":"end"},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":false,"generation":0},
+    {"method":"leave","scope":"tick"},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":false,"generation":1},
+    {"method":"enter","scope":"tick"},{"method":"leave","scope":"tick"},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":false,"generation":2}
+  ]}]
+}

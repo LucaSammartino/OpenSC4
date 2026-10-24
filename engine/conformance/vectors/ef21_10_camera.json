@@ -1,0 +1,12 @@
+{
+  "format":1,"name":"EF21-10_camera_shared_zoom_rotation_storage","spec":["effects 18.8.4","effects EF21-10"],
+  "description":"Retained anonymous camera has flags 3, shared zoom/rotation byte 2 and byte 11 zero. No invented zoom field is copied. Parser option execution is outside this fixture.",
+  "steps":[{"op":"ef_payload","size":16384,"collection":256,"readable":true,"supported":true,"writes":[
+    {"at":"0x1c4","words":[1024,1440,1456]},{"at":"0x4b4","words":[4096,4100,4116]},
+    {"at":4096,"words":[8192]},{"at":"0x200c","words":[3,4294901762]}
+  ],"checks":[
+    {"family":10,"slots":1,"names":[],"slot":0,"offset":12,"value":3},
+    {"family":10,"slot":0,"offset":16,"value":2},{"family":10,"slot":0,"offset":17,"value":0},
+    {"family":10,"slot":0,"absent":18}
+  ]}]
+}

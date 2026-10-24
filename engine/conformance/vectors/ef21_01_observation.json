@@ -1,0 +1,14 @@
+{
+  "format": 1, "name": "EF21-1_observed_lifetime", "spec": ["effects 18.8.1", "effects EF21-1"],
+  "description": "Bookkeeping for natural request/publication within Init; no additional resource operation is issued by the observer. Host interceptors remain unavailable (EF22).",
+  "steps": [{"op":"ef_observation","owner":1,"late":false,"actions":[
+    {"method":"enter","scope":"init"}, {"method":"enter","scope":"bootstrap"},
+    {"method":"read","resource":100,"success":true},
+    {"method":"request","type":3931183280,"group":3931183281,"instance":1,"iid":3394312347,"success":true,"resource":100},
+    {"method":"publish_before","resource":100}, {"method":"publish_after","resource":100},
+    {"method":"release","resource":100}, {"method":"leave","scope":"bootstrap"},
+    {"method":"expect","writers_excluded":true,"retained":false,"history":true,"generation":0,"resource":100,"borrowed":false},
+    {"method":"leave","scope":"init"},
+    {"method":"expect","writers_excluded":true,"retained":true,"history":true,"generation":1,"events":9}
+  ]}]
+}
