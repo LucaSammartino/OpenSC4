@@ -21,6 +21,7 @@ extern "C" uint32_t fc4_mysimdispatch_shadow_compare(const uint32_t*, uint32_t);
 extern "C" uint32_t fc4_mysimdispatch_shadow_constructor(const uint8_t*, size_t);
 extern "C" uint32_t fc4_mysimdispatch_shadow_auxiliary(const uint32_t*);
 extern "C" uint32_t fc4_mysimdispatch_shadow_live_range(const uint32_t*);
+extern "C" uint32_t fc4_mysimdispatch_shadow_record(const uint8_t*, size_t);
 
 namespace fc4 {
 namespace {
@@ -28,6 +29,7 @@ constexpr uint32_t kDispatch = 0xCBC14674, kSerializable = 0xE4FDA3D4;
 int32_t lastMonth = 0;
 uint32_t months = 0, clean = 0;
 uint32_t liveSamples = 0, rangeSamples = 0;
+uint32_t recordSamples = 0;
 
 // Decode the writer protocol, including variable-width references. This checks
 // snapshot contracts only; MS20 forbids treating snapshots as trip inputs.
@@ -60,6 +62,13 @@ bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint3
     WriteCapture capture;
     if (!capture.Capture(object) || capture.Bytes().size() < 77) return false;
     const auto& bytes = capture.Bytes();
+    // §6.2.1 persistence compatibility only: a read/write round trip does not
+    // independently verify trip inputs or claim a replaced dispatch owner.
+    const uint32_t recordDifferences = fc4_mysimdispatch_shadow_record(bytes.data(), bytes.size());
+    if (recordDifferences == UINT32_MAX) return false;
+    differences += recordDifferences;
+    fields += static_cast<uint32_t>(bytes.size());
+    ++recordSamples;
     uint32_t words[18]{}, auxiliary[2]{}, routeCount = 0;
     if (!HeaderTail(bytes, words, auxiliary, routeCount)) return false;
     uint32_t values[7] = {object->GetGZCLSID(), 0, 0, 0, 0, 0, 0};
@@ -143,15 +152,16 @@ void MySimDispatchShadowMonth(cISC4City* city, int32_t julian) {
     rangeSamples += ranges;
     if (differences == 0 && errors == 0) ++clean;
     Log("mysimdispatch shadow %04d-%02d-%02d: constructor=%u live_headers=%u live_ranges=%u fields=%u errors=%u "
-        "scope=constructor-public-ABI-auxiliary-and-live-header-contracts live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
+        "scope=constructor-public-ABI-auxiliary-live-header-and-record-codec live_trip=uncompared(input-boundary) transport=uncompared(input-boundary) mismatches=%u",
         date.year, date.month, date.day_of_month, fixtures, live, ranges, fields, errors, differences + errors);
 }
 
 void MySimDispatchShadowShutdown() {
-    if (months) Log("mysimdispatch: measured %u/%u exact constructor/live-header samples; live_headers=%u live_ranges=%u; live trip owner remains unverified (MS20 input-boundary limitation)", clean, months, liveSamples, rangeSamples);
+    if (months) Log("mysimdispatch: measured %u/%u exact constructor/live-header/record-codec samples; live_headers=%u live_ranges=%u records=%u; live trip owner remains unverified (MS20 input-boundary limitation)", clean, months, liveSamples, rangeSamples, recordSamples);
     lastMonth = 0;
     months = clean = 0;
     liveSamples = rangeSamples = 0;
+    recordSamples = 0;
 }
 
 void MySimDispatchShadowCityLoaded(cISC4City* city) {

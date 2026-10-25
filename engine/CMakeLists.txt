@@ -1196,3 +1196,10 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_mysims_factory_boundary_test plugin_mysims_default_off_test
         PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# The pending MySim owner group must coexist with a registered replacement.
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_mysims_mixed_factory_boundary_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-mixed-mysims)
+    set_tests_properties(plugin_mysims_mixed_factory_boundary_test PROPERTIES RUN_SERIAL TRUE)
+endif()

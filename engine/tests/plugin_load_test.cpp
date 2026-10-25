@@ -11112,6 +11112,7 @@ int main(int argc, char** argv) {
 
     if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true);
     if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, false);
+    if (mode == "--ini-mixed-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true, true);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
