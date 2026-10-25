@@ -146,6 +146,7 @@ pub enum Event {
     StopWake(&'static str),
     Notify(u32, u32),
     Remove(bool),
+    /// One AEMS event dispatch (slot 6 then slot 5 on the sound interface).
     Aems(u32),
     PlayEffect(&'static str),
     ResetSpeedTween,
@@ -162,8 +163,6 @@ pub enum Event {
 pub enum ContractGap {
     UnknownBoat,
     DegenerateDirection,
-    AiMotionWc4,
-    CrashSequenceWc5,
     MissingStationWc7,
     MissingRouteWc7,
     /// An interface pointer offset with no adjustor for the requested entry.

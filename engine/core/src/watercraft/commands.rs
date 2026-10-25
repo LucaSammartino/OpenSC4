@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Float-channel commands and shared bookkeeping, watercraft §§6.2.1–6.2.3.
 
-use super::{state, BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
+use super::{BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DriveCommand {
@@ -368,28 +368,6 @@ impl Fleet {
                 }
             }
             self.boat_mut(id)?.complete_drive_commands(dt, command, effects);
-        }
-        Ok(())
-    }
-
-    /// Geometry-aware dispatch for the two fully specified movement ticks.
-    /// Other states retain the ordinary state dispatcher and its explicit gaps.
-    pub fn state_tick_with_geometry(
-        &mut self,
-        id: BoatId,
-        dt: f32,
-        rectangle: [super::Cell; 4],
-        terrain: &dyn super::Terrain,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
-        let active = match self.boat(id)?.top_state() {
-            Some(state::DOCK) => self.docking_tick(id, dt, terrain, manager)?,
-            Some(state::UNDOCK) => self.undocking_tick(id, dt, rectangle, terrain, manager)?,
-            Some(state::TOWED) => self.following_tick(id, dt, terrain)?,
-            _ => return self.state_tick(id, dt, manager),
-        };
-        if !active {
-            self.pop_state(id, manager)?;
         }
         Ok(())
     }

@@ -83,9 +83,9 @@ impl Fleet {
         Ok(())
     }
 
-    /// Final approach only. Far-approach AI motion is explicitly WC4.
-    /// A false return is consumed by the state dispatcher as PopState.
-    pub fn docking_tick(
+    /// Final approach (§5.3.1). `docking_tick_core` selects it for range
+    /// <= p[37]; a false return is consumed by the dispatcher as PopState.
+    pub(super) fn docking_tick(
         &mut self,
         id: BoatId,
         dt: f32,
@@ -100,9 +100,6 @@ impl Fleet {
         let distance = math::length(math::sub(station.position, boat.inherited_position));
         if boat.inherited_heading[1] != 0.0 {
             boat.inherited_heading = math::normalize(math::flat(boat.inherited_heading));
-        }
-        if distance > boat.drive.0[37] {
-            return Err(ContractGap::AiMotionWc4);
         }
         let heading = math::normalize(boat.inherited_heading);
         let target = math::normalize(station.direction);

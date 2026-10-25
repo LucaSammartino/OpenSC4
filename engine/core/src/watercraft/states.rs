@@ -193,37 +193,6 @@ impl Fleet {
         self.push_state(id, next, manager)
     }
 
-    /// Owner-only state dispatch. Crash animation is not published; its
-    /// accumulator still follows the specified order, then returns WC5.
-    pub fn state_tick(&mut self, id: BoatId, dt: f32, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
-        match self.boat(id)?.top_state() {
-            Some(state::IDLE) => {
-                self.boat_mut(id)?.idle_elapsed += dt;
-                if self.boat(id)?.idle_elapsed > 60_000.0 {
-                    self.push_state(id, State::new(state::SLOW_REMOVE), manager)?;
-                    self.boat_mut(id)?.crash_elapsed += dt;
-                    return Err(ContractGap::CrashSequenceWc5);
-                }
-            }
-            Some(state::RUN_AGROUND | state::SINK) => {
-                self.boat_mut(id)?.crash_elapsed += dt;
-                return Err(ContractGap::CrashSequenceWc5);
-            }
-            Some(state::IMMEDIATE_REMOVE | state::SLOW_REMOVE) => {
-                let immediate = self.boat(id)?.top_state() == Some(state::IMMEDIATE_REMOVE);
-                self.boat_mut(id)?.events.push(Event::Remove(immediate));
-            }
-            Some(state::QUEUE) => self.dock_requests(id, manager)?,
-            Some(state::DOCK | state::TOWED | state::UNDOCK) => {
-                // Geometry services are required; use the corresponding
-                // docking/following/undocking method, not a fake success.
-                return Err(ContractGap::AiMotionWc4);
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
     /// One-shot owner Shutdown, with all owned resource drops in §3 order.
     pub fn shutdown(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<bool> {
         if self.boat(id)?.shut_down {
