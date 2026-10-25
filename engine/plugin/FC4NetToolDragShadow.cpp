@@ -171,7 +171,13 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                     cost = fc4_netgeom_cost(context.geom, 0);
                     cells.resize(fc4_netgeom_get_cells(context.geom, nullptr, 0));
                     fc4_netgeom_get_cells(context.geom, cells.data(), static_cast<uint32_t>(cells.size()));
-                    if (power) {
+                    if (power && state.dragged_count < 2) {
+                        // network-tools section 9: the subclass skips selection
+                        // for a one-step drag and leaves no retained poles/cost.
+                        valid = 0;
+                        failure = 0;
+                        cost = 0;
+                    } else if (power) {
                         fc4_powerline_selection selection{};
                         ready = ReadNetToolPowerlineSelection(&context, &selection) && ready;
                         valid = selection.valid;
