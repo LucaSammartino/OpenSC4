@@ -21,9 +21,12 @@ namespace {
 cISC4City* g_city = nullptr; // borrowed only while the city is up
 bool g_enabled = false;
 uint64_t g_lines = 0, g_clean = 0;
+uint64_t g_kindLines[13]{}, g_kindClean[13]{}, g_kindRecords[13]{};
 const uint32_t kClasses[] = {0xC9C05C6E, 0x49C1A034, 0x49CC1BCD, 0x8A4BD52B,
     0x4A10AFC2, 0x49C05B9F, 0xCA16374F, 0x8A139184, 0xEA0A5ACF, 0xCA15ED6B,
     0x09C05C6A, 0xC9C05C5D, 0x49B6D69B};
+// SPEC-GAP: occupant-manager §13.1 leaves inherited folded/lazy-placeable
+// slot behavior incomplete; keep these as observed classes, not factories.
 
 void Compare(const char* event, int32_t julian) {
     if (!g_enabled || !g_city) return;
@@ -74,6 +77,13 @@ void Compare(const char* event, int32_t julian) {
         kinds[0], kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], kinds[6], kinds[7], kinds[8], kinds[9], kinds[10], kinds[11], kinds[12]);
     ++g_lines;
     if (mismatches == 0) ++g_clean;
+    for (size_t kind = 0; kind < 13; ++kind) {
+        // A class absent from this city has no measured live-state coverage.
+        if (kinds[kind] == 0) continue;
+        ++g_kindLines[kind];
+        if (badKinds[kind] == 0) ++g_kindClean[kind];
+        g_kindRecords[kind] += kinds[kind];
+    }
 }
 }
 void NetOccShadowCityLoaded(cISC4City* city, int32_t julian) {
@@ -83,11 +93,20 @@ void NetOccShadowCityLoaded(cISC4City* city, int32_t julian) {
     if (!g_enabled) return;
     g_city = city;
     g_lines = g_clean = 0;
+    for (size_t kind = 0; kind < 13; ++kind) {
+        g_kindLines[kind] = g_kindClean[kind] = g_kindRecords[kind] = 0;
+    }
     Compare("load", julian);
 }
 void NetOccShadowMonth(int32_t julian) { Compare("month", julian); }
 void NetOccShadowCityShutdown() {
     if (g_enabled) Log("netocc shadow summary: clean=%" PRIu64 "/%" PRIu64, g_clean, g_lines);
+    if (g_enabled) {
+        for (size_t kind = 0; kind < 13; ++kind) {
+            Log("netocc class %08X: clean=%" PRIu64 "/%" PRIu64 " records=%" PRIu64,
+                kClasses[kind], g_kindClean[kind], g_kindLines[kind], g_kindRecords[kind]);
+        }
+    }
     g_city = nullptr;
     g_enabled = false;
 }
