@@ -107,7 +107,11 @@ fn roundtrip(class: NetOccClass, input: &mut dyn InStream, out: &mut dyn OutStre
             write_pipe_record(&r, w, out)
         }
         Subway => write_subway_record(&read_subway_record(input)?, out),
-        PowerLine => write_power_line_record(&read_power_line_record(input)?, out),
+        // Exercise the live replacement state as well as the record codec.
+        PowerLine => {
+            let line = fc4_core::network_occupants::power_line::PowerLine::from_record(read_power_line_record(input)?);
+            write_power_line_record(&line.record(), out)
+        }
         Pylon => {
             let mut r = PylonRecord::new([0; 3]);
             r.read_into(input, &mut host) && r.write(out)

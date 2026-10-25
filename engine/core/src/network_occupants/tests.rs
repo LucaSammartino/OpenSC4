@@ -374,6 +374,63 @@ fn power_line_record_round_trip() {
     assert_eq!(input.position(), 2);
 }
 
+#[test]
+fn power_line_live_record_keeps_saved_cells_and_float_bits() {
+    let poles = [
+        RefValue::Host {
+            token: 17,
+            class_id: 0x09C0_5C6A,
+        },
+        RefValue::Host {
+            token: 29,
+            class_id: 0x09C0_5C6A,
+        },
+    ];
+    let rec = PowerLineRecord {
+        version: POWER_LINE_RECORD_VERSION,
+        base: OccupantBase::new(OCCUPANT_TYPE_POWER_LINE),
+        position_bits: [0x8000_0000, 0x7FC0_0017, 56.0f32.to_bits()],
+        // Read must retain these cells, not recompute them from position.
+        cell: [-7, 111],
+        flag: true,
+        refs: poles.clone(),
+    };
+    let mut line = PowerLine::from_record(rec.clone());
+    assert_eq!(line.cell, (-7, 111));
+    assert!(!line.is_preview());
+    let before = line.record();
+    assert_eq!(before.base, rec.base);
+    assert_eq!(before.position_bits, rec.position_bits);
+    assert_eq!(before.cell, rec.cell);
+    assert!(before.flag);
+    line.set_preview(1);
+    let after = line.record();
+    assert_eq!(after.position_bits, before.position_bits);
+    assert_eq!(after.cell, before.cell);
+    assert_eq!(after.base, before.base);
+    assert_eq!(after.flag, before.flag, "preview is not saved");
+    let (first, second, flag) = line.get_connected_poles();
+    assert!(matches!(
+        first,
+        RefValue::Host {
+            token: 17,
+            class_id: 0x09C0_5C6A
+        }
+    ));
+    assert!(matches!(
+        second,
+        RefValue::Host {
+            token: 29,
+            class_id: 0x09C0_5C6A
+        }
+    ));
+    assert_eq!(flag, 1);
+    line.set_position([-17.0, 4.0, 31.0]);
+    assert_eq!(line.record().cell, [-1, 1]);
+    line.shutdown();
+    assert!(line.record().refs.iter().all(RefValue::is_null));
+}
+
 fn base_len() -> usize {
     let mut w = ByteWriter::new();
     assert!(OccupantBase::new(OCCUPANT_TYPE_POWER_LINE).write(&mut w));
