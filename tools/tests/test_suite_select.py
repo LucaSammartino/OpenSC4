@@ -53,6 +53,12 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual([r['name'] for r in plan['selected']], ['fast'])
         self.assertIsNone(plan['selected'][0]['marginal_functions'])
 
+    def test_key_fallback_buys_activity_per_second_not_just_one_sample(self):
+        items = [item('one', [], 1, keys={'traffic': dict(lines=1)}),
+                 item('many', [], 2, keys={'traffic': dict(lines=1000)})]
+        plan = select.choose(items, target_keys={'traffic'})
+        self.assertEqual([r['name'] for r in plan['selected']], ['many'])
+
     def test_target_functions_do_not_select_unrelated_reach(self):
         items = [item('unrelated', 'abcdef', 1), item('owner', 'xy', 2)]
         plan = select.choose(items, target_addresses={'x', 'y'}, target_keys={'owner'})

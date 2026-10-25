@@ -146,9 +146,13 @@ def choose(items, *, slots=6, budget=900, target_addresses=None, target_keys=Non
     selected, covered = [], set()
     remaining = list(candidates)
     while remaining:
+        def gain(item):
+            new = item['features'] - covered
+            if use_functions:
+                return len(new)
+            return sum(value['lines'] for key, value in item['per_key'].items() if 'key:' + key in new)
         ranked = sorted(remaining, key=lambda item: (
-            -len(item['features'] - covered) / item['wall_seconds'],
-            -sum(v['lines'] for k, v in item['per_key'].items() if k in target_keys) / item['wall_seconds'] if targeted else 0,
+            -gain(item) / item['wall_seconds'],
             item['city_bytes'], item['name']))
         best = next((item for item in ranked if item['features'] - covered
                      and wall_time(selected + [item], slots) <= budget), None)
