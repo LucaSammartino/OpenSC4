@@ -485,10 +485,11 @@ cSC4EffectMaps	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
-cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
+cGZGraphicCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZDrawContextRenderTo*	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZDrawSystem	2D drawing and fonts	renderer	draw-system.md, span-render-4444.md	-	-	-
+cGZDrawCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
@@ -548,6 +549,7 @@ cSC4DemolishFilter	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
 cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
+cSC4ViewInputControlEffectDisaster	city tools and input	ui	com-directors-misc.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
@@ -703,10 +705,11 @@ cSC4COMDirector	application	framework	app-directors.md	core/src/application/dire
 cSC4*COMDirector	application	framework	-	-	-	-
 cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
+cGZGraphicWin32COMDirector	application	framework	com-directors-misc.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
-cSC4Preferences	application	framework	-	-	-	-
+cSC4Preferences	application	framework	application.md	-	-	-
 cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
-cSC4AutoGamePause	application	framework	-	-	-	-
+cSC4AutoGamePause	application	framework	auto-game-pause.md	-	-	-
 cGZPersistDBRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResource	persistence and resources	framework	persistence.md	-	-	-
@@ -948,7 +951,7 @@ MatrixRow	widget toolkit	ui	-	-	-	-
 FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
 MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
-cGXCOMDirector	2D drawing and fonts	renderer	-	-	-	-
+cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 SFX	audio	audio	-	-	-	-
 SC43DGridElement	3D scene and models	renderer	-	-	-	-
 MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
