@@ -24,6 +24,7 @@ int NetLotOwnershipTest(const std::string& dll, const std::string& ini) {
         }
     }
     if (seam) {
+        CHECK(seam(kFC4SeamNetworkCrewOwnership, nullptr, nullptr) == 1);
         ZonesFakeUnknown first, second;
         CHECK(seam(kFC4SeamNetworkLotOwnership, &first, &second) == 1);
         CHECK(first.refs == 1);

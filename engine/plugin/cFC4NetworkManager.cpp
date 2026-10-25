@@ -170,11 +170,17 @@ void PostRefresh(void* u, uint64_t n) {
 }
 
 void CrewShutdown(void*, uint64_t crew) {
-    // SPEC-GAP: §7.12 gives no crew creation contract or complete interface; retain opaque registration.
-    // §7.12: the crew's own Shutdown. A construction crew arrives as an opaque
-    // token; nothing in the simulation reads past it, so this is the log line
-    // (fc4.h names this the one callback that may call back into the object).
-    fc4::Log("netmgr crew_shutdown: crew %p", static_cast<void*>(fc4::FromToken(crew)));
+    if (crew == 0) return;
+    // SPEC-GAP: crew creation/Init remain unspecified; registration accepts opaque existing crews.
+    // §7.12 and vtables.tsv: Shutdown is slot 5, with no stack arguments.
+    // Its return value is unspecified and ignored. Do not infer the unknown
+    // six-argument Init contract merely to declare the preceding slots.
+    void* object = fc4::FromToken(crew);
+    auto** slots = *static_cast<void***>(object);
+    using ShutdownFn = void(__thiscall*)(void*);
+    reinterpret_cast<ShutdownFn>(slots[5])(object);
+    // Shutdown may unregister and destroy the crew; never touch it afterward.
+    FC4_X87_CHECK("netmgr crew Shutdown");
 }
 
 // ---- the tools (§3.1 step 5, §7.1) ---------------------------------------------------------------------
@@ -549,4 +555,60 @@ uint32_t cFC4NetworkManager::GetGZCLSID() { return kFC4_CLSID_cSC4NetworkManager
 
 cIGZUnknown* CreateFC4NetworkManager() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4NetworkManager*>(new cFC4NetworkManager()));
+}
+
+intptr_t NetworkCrewOwnershipTest() {
+    // A synthetic six-slot object, not a declaration of the native crew ABI.
+    // Only the specified unknown prefix and Shutdown slot are ever called.
+    class CrewProbe : public cIGZUnknown {
+    public:
+        explicit CrewProbe(cFC4NetworkManager& manager) : manager_(manager) {}
+        bool QueryInterface(uint32_t, void** out) override {
+            if (out) *out = nullptr;
+            return false;
+        }
+        uint32_t AddRef() override { ++adds; return ++refs; }
+        uint32_t Release() override { ++drops; return --refs; }
+        virtual void Unused3() { ++unexpected; }
+        virtual void Unused4() { ++unexpected; }
+        virtual void Shutdown() {
+            ++shutdowns;
+            if (unregister) manager_.UnregisterConstructionCrew(reinterpret_cast<intptr_t>(this));  // abi: via cFC4ISC4NetworkManager
+        }
+        cFC4NetworkManager& manager_;
+        uint32_t refs = 1, adds = 0, drops = 0, shutdowns = 0, unexpected = 0;
+        bool unregister = true;
+    };
+    cFC4NetworkManager manager;
+    CrewProbe first(manager), second(manager);
+    const auto token = [](CrewProbe& c) { return reinterpret_cast<intptr_t>(&c); };
+    const auto shutdown = [&]() {
+        auto* message = FC4MakeMessage(0x26D31EC2, 0, 0, 0);
+        const bool ok = manager.DoMessage(message);
+        message->Release();
+        return ok;
+    };
+    manager.RegisterConstructionCrew(token(first));
+    manager.RegisterConstructionCrew(token(second));
+    if (first.refs != 2 || second.refs != 2 || !shutdown() ||
+        first.shutdowns != 1 || second.shutdowns != 1 || first.refs != 1 || second.refs != 1) return 0;
+    // Reentrant removal leaves no stale token to call at the next shutdown.
+    if (!shutdown() || first.shutdowns != 1 || second.shutdowns != 1) return 0;
+    // Each registration owns a reference, even when a crew registers twice.
+    manager.RegisterConstructionCrew(token(first));
+    manager.RegisterConstructionCrew(token(first));
+    if (first.refs != 3 || !shutdown() || first.shutdowns != 3 || first.refs != 1) return 0;
+    manager.UnregisterConstructionCrew(token(first));  // abi: via cFC4ISC4NetworkManager; absent: no Release
+    if (first.drops != 3) return 0;
+    // §7.12's bounded-loop choice: a non-unregistering first crew cannot hang
+    // shutdown, nor may the bridge manufacture an extra Release for it.
+    first.unregister = false;
+    manager.RegisterConstructionCrew(token(first));
+    manager.RegisterConstructionCrew(token(second));
+    if (!shutdown() || first.shutdowns != 5 || second.shutdowns != 1 ||
+        first.refs != 2 || second.refs != 2) return 0;
+    manager.UnregisterConstructionCrew(token(first));  // abi: via cFC4ISC4NetworkManager
+    manager.UnregisterConstructionCrew(token(second));  // abi: via cFC4ISC4NetworkManager
+    return first.refs == 1 && second.refs == 1 && first.adds == first.drops &&
+        second.adds == second.drops && first.unexpected == 0 && second.unexpected == 0 ? 1 : 0;
 }
