@@ -40,6 +40,7 @@ fn tree_accepted_drag_requires_graphics_before_allocating_or_clearing_selection(
     assert!(f.messages.is_empty());
     assert!(f.image_attempts.is_empty());
     assert!(f.access_calls.is_empty());
+    assert!(f.draws.is_empty());
 }
 
 #[test]

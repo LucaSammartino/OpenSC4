@@ -116,7 +116,7 @@ Implemented column paths are relative to `engine/core/src/widget_controls/`.
 The slot map below records the portable equivalents; stored-state getters use
 public fields, without notifications or reference acquisition.
 
-| Spec section | Implemented code item / module path | Test / remaining work |
+| Spec section | Implemented code item / module path | Tests |
 |---|---|---|
 | widget-controls 5.1 identity/inventory | list_box.rs: query_interface, stored fields; L/W slot map below | wc_l01; wc_f01; list_primary_bytes_and_exact_search_preserve_outputs_without_effects; list_residual_slot_adapters_colors_gutters_skin_and_base_flags |
 | 5.2 construction/resources | list_box.rs: new/init/shutdown/destroy | wc_l10_l13; wc_l24_l34_l35_l36; wc_l36_timer_is_destroyed_before_retained_resources |
@@ -129,7 +129,7 @@ public fields, without notifications or reference acquisition.
 
 ### cGZWinTreeView
 
-| Spec section | Code item | Tests / open contract |
+| Spec section | Code item | Tests |
 |---|---|---|
 | widget-controls 6.1 identity/interfaces | tree_view.rs: query_interface/constants; tree_view/adapters.rs: primary-slot inventory | T01-T03; tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data; tree_selection_output_and_borrowed_adapter_inventory |
 | 6.2 defaults/lifetime | tree_view.rs: new/internal_init/create_root/shutdown/checked_init; tree_view/settled.rs: initialize_images | T01-T03, wc_t19_t26, wc_t27_t29_t36; wc_t26_restart_is_not_clean_initialization asserts the stale-root precondition and no resource retry |

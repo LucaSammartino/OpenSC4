@@ -1,16 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-listtree-close14 (ListBox/TreeView adapters and vectors) | `Codex` / `core-listtree-close14` (engine lane) | in progress; native build 269/269, CTest 81/81; workspace gate pending | (1) Collect session 82857; (2) resolve diagnostics; (3) enqueue after passing. |
+| core-listtree-close14 (ListBox/TreeView owner closure) | `Codex` / `core-listtree-close14` (engine lane) | ready; cargo 7512 passed/0 failed/0 ignored; clippy 0 diagnostics; native build 219/219; CTest 81/81; ABI unchanged; no game runs or questions | (1) Supervisor publishes detached HEAD; (2) land the ready merge-queue entry. |
 
 ## Report
-- 7be4f5c0e implements TreeView O23/O24, descriptor output replacement and selection copying; ListBox raw byte round trips, exact-search output and base-flag service.
-- Added property/resource/input tests and literal selected-child/grandchild root removal; existing README cells updated. FileBrowser/TextEdit rows untouched. ABI unchanged; no game runs or questions filed.
-- Native queued verification qbuild-20261025-001314-build-ctest PASS: 269/269 edges, CTest 81/81. Formatting and diff checks passed.
+- Implemented portable cGZWinListBox/cGZWinTreeView slot adapters, output preservation, stale-root/restart preconditions, raw negative properties and every assigned literal WC-L/WC-T vector. Their README sections have no remaining-work cells.
+- Final code: 64a1764e9 requires GS before accepted drag allocation; 422120cbe and the final drawing assertion cover refusal ordering and untouched selection, topology, buffer, references, notifications and drawing.
+- Focused widget tests: 101 passed/0 failed. Final qbuild all: PASS; cargo totals 7512 passed/0 failed/0 ignored across 51 summaries; clippy 0 diagnostics. Both owned Rust files pass formatting.
+- Queued native job qbuild-20261025-083250-build-ctest: PASS, build 219/219 edges, CTest 81/81. Evidence: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log; earlier evidence preserved separately.
+- C ABI exports unchanged; plugin, capi, coverage-map, FileBrowser and TextEdit untouched. Game runs: none; shadow: n/a; questions: none.
 
 ## Handoff
-- Context ceiling reached; no ready claim or merge queue. Reserved detached HEAD; supervisor publishes commits.
-- Collect existing qbuild all session 82857 (collector cell 66) to terminal; NEVER duplicate it for progress. qbuild-test.log ends compiling core/formats/conformance/capi, without test summary.
-- Environment: CARGO_BUILD_JOBS=1, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0.
-- Focused session 90880 terminal: exit 101, 90 passed/1 failed on earlier source; clear-mask test setup already fixed with raw_style[4]=3. Unused-mut warning also fixed. Preserve focused-widget-r2.log.
-- Original 90505 unavailable, no live corresponding worktree process; preserved incomplete-session-90505.log. Native session 30695 collected PASS.
-- Next: collect workspace tests/clippy/native verdict, resolve real diagnostics, then final report and ready queue with full HEAD. No further implementation audit planned. SPEC-GAP comments cover silent buffer/bar and flag policies and packed padding.
+- No settled portable ListBox/TreeView owner work remains; both can count as implemented. Graphics/font pixels and the synchronous drag runner remain supplied services as specified.
+- Full gate session 2591 reached terminal PASS. Build environment: CARGO_BUILD_JOBS=1, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0.
+- Supervisor publishes the detached HEAD; build-runs/merge-queue/core-listtree-close14.json names the final full 40-character tip with kind engine and state ready.
