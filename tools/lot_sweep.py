@@ -11,23 +11,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def plan(rows, size=256):
-    x = z = 8
+    margin, gap = (4, 1) if size == 128 else (8, 3)
+    x = z = margin
     shelf = 0
     result = []
-    for row in sorted(rows, key=lambda r: int(r['iid'], 16)):
+    order = (lambda r: (-int(r['depth']), -int(r['width']), int(r['iid'], 16))) if size == 128 else (lambda r: int(r['iid'], 16))
+    selected = [r for r in rows if r['category'] != 'other']
+    for row in sorted(selected, key=order):
         if row['category'] == 'other':
             continue
         width, depth = int(row['width']), int(row['depth'])
-        if min(width, depth) <= 0 or max(width, depth) > size - 16:
+        if min(width, depth) <= 0 or max(width, depth) > size - 2 * margin:
             raise ValueError('lot does not fit: ' + row['iid'])
-        if x + width > size - 8:
-            x, z, shelf = 8, z + shelf + 3, 0
-        if z + depth > size - 8:
+        if x + width > size - margin:
+            x, z, shelf = margin, z + shelf + gap, 0
+        if z + depth > size - margin:
             raise ValueError('catalog does not fit tile')
         result.append(dict(row, x=x, z=z))
-        x += width + 3
+        x += width + gap
         shelf = max(shelf, depth)
-    return result
+    return sorted(result, key=lambda r: int(r['iid'], 16))
 
 
 def lua_string(text):

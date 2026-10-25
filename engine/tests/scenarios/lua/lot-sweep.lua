@@ -1,13 +1,15 @@
 -- Each lot's return is preserved, including failures; do not stop at the first.
 dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/fc4.lua')
-local lots = dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/lot-sweep-catalog.lua')
 
 function fc4.lot_sweep(name, flatten)
     fc4.start(name)
-    fc4.try_city('SetCityEstablished')
     fc4.city('SimSpeedPause')
     local width, depth = fc4.city('GetCitySize')
-    if width ~= 256 or depth ~= 256 then error('lot sweep requires a large 256-cell tile') end
+    if width ~= depth or (width ~= 128 and width ~= 256) then error('lot sweep requires 128 or 256 cells') end
+    if flatten and width ~= 256 then error('empty lot sweep requires a large tile') end
+    local suffix = ''
+    if width == 128 then suffix = '-128' end
+    local lots = dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/lot-sweep-catalog' .. suffix .. '.lua')
     if flatten then
         fc4.try_city('SetCellAltitude', {0, 0, 255, 255, 280})
         fc4.try_city('GetCellAltitude', {8, 8})
@@ -16,6 +18,7 @@ function fc4.lot_sweep(name, flatten)
         fc4.try_city('SetCellAltitude', {32, 32, 280})
         fc4.try_city('GetCellAltitude', {32, 32})
     end
+    fc4.try_city('SetCityEstablished')
     local i = 1
     local batch = 0
     while lots[i] do
@@ -31,7 +34,7 @@ function fc4.lot_sweep(name, flatten)
         i = i + 1
     end
     -- Landfill is a zone, not a catalog ploppable lot.
-    fc4.try_city('PlaceZone', {14, 220, 220, 231, 231})
+    fc4.try_city('PlaceZone', {14, width - 6, depth - 6, width - 2, depth - 2})
     fc4.city('SaveCityQuick', {true})
     fc4.log('placement-complete')
     fc4.delay(10)
