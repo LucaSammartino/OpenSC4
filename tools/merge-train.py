@@ -265,6 +265,14 @@ def lane_credit(wt, runs, logs=()):
 
 
 def cmd_enqueue(args):
+    wt = lane_worktree(args.lane)
+    # A lane worktree's own queue file wins in read_queue(), so the checked entry replaces it there; the lane's
+    # touches and summary carry over.
+    out = (wt / "build-runs" / "merge-queue" if wt is not None else QUEUE_DIRS[0]) / f"{args.lane}.json"
+    try:
+        prev = json.loads(out.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        prev = {}
     rec = {
         "lane": args.lane,
         "branch": args.branch,
@@ -272,15 +280,19 @@ def cmd_enqueue(args):
         "kind": args.kind,
         "abi": bool(args.abi),
         "game_runs": [x for x in (args.game_runs or "").split(",") if x],
-        "summary": args.summary or "",
+        "summary": args.summary or prev.get("summary", ""),
         "state": "ready",
     }
-    rec["credit"] = lane_credit(lane_worktree(args.lane), rec["game_runs"], getattr(args, "log", ()))
+    if prev.get("touches"):
+        rec["touches"] = prev["touches"]
+    rec["credit"] = lane_credit(wt, rec["game_runs"], getattr(args, "log", ()))
     if rec["credit"]["refusals"]:
         rec["state"] = "wip"
-    out = QUEUE_DIRS[0] / f"{args.lane}.json"
-    QUEUE_DIRS[0].mkdir(parents=True, exist_ok=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")
+    stale = QUEUE_DIRS[0] / f"{args.lane}.json"
+    if stale != out and stale.is_file():
+        stale.unlink()
     log(f"enqueued {args.lane} -> {out}")
     print("  claimed coverage: " + creditcheck.delta_text(rec["credit"]))
     for refusal in rec["credit"]["refusals"]:

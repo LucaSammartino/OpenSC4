@@ -401,10 +401,16 @@ def test_enqueue_carries_claim_and_refusals_block_ready(tmp_path, monkeypatch, c
     monkeypatch.setattr(train, "lane_credit", lambda *args: calls.append(args) or claim)
     args = argparse.Namespace(lane="probe", branch="probe", tip="a" * 40, kind="engine", abi=False,
                               game_runs="probe-one,probe-two", summary="fixture", log=[tmp_path / "run.log"])
+    lane_queue = tmp_path / "build-runs" / "merge-queue"
+    lane_queue.mkdir(parents=True)
+    (lane_queue / "probe.json").write_text(json.dumps({"lane": "probe", "touches": ["probe-key"], "state": "ready"}))
+    (tmp_path / "probe.json").write_text("{}")  # a coordinator copy that the lane's own file would shadow
     assert train.cmd_enqueue(args) == (2 if refused else 0)
-    queued = json.loads((tmp_path / "probe.json").read_text())
+    queued = json.loads((lane_queue / "probe.json").read_text())
     assert queued["credit"] == claim
     assert queued["state"] == ("wip" if refused else "ready")
+    assert queued["touches"] == ["probe-key"]
+    assert not (tmp_path / "probe.json").exists()
     assert calls == [(tmp_path, ["probe-one", "probe-two"], [tmp_path / "run.log"])]
 
 
