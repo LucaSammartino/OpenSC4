@@ -7,6 +7,8 @@ mod handles;
 #[cfg(test)]
 #[path = "regionalcity_owner_tests.rs"]
 mod ownership_tests;
+#[path = "regionalcity_record.rs"]
+mod record;
 use handles::{Connection, ConnectionCallbacks, Deal, DealCallbacks};
 use std::ffi::c_void;
 

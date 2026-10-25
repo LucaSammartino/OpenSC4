@@ -8,7 +8,7 @@ mod connections;
 mod handles;
 pub use codec::{
     read_package, read_path, write_package, write_path, CoreElements, Package, ReadContext, RecordElements,
-    RecordError, RECORD_KEY, VERSION_KEY,
+    RecordError, RecordReader, RECORD_KEY, VERSION_KEY,
 };
 pub use connections::{ConnectionHost, IncomingCity, PendingChange, PreparedChange};
 pub use handles::{ConnectionHandle, DealHandle};

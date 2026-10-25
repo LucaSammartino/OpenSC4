@@ -47,6 +47,16 @@ pub struct Deal {
 }
 
 impl Connection {
+    /// Takes the factory's one owned reference, including on later read failure.
+    pub unsafe fn from_owned(object: *mut c_void, calls: ConnectionCallbacks) -> Option<Self> {
+        if object.is_null() {
+            return None;
+        }
+        Some(Self {
+            object: object as usize,
+            calls,
+        })
+    }
     /// Acquire a borrowed interface; callbacks must outlive the acquired ref.
     pub unsafe fn acquire(object: *mut c_void, calls: ConnectionCallbacks) -> Option<Self> {
         if object.is_null() {
@@ -58,7 +68,7 @@ impl Connection {
             calls,
         })
     }
-    fn raw(&self) -> *mut c_void {
+    pub(super) fn raw(&self) -> *mut c_void {
         self.object as *mut c_void
     }
 }
@@ -104,6 +114,15 @@ impl ConnectionHandle for Connection {
 }
 
 impl Deal {
+    pub unsafe fn from_owned(object: *mut c_void, calls: DealCallbacks) -> Option<Self> {
+        if object.is_null() {
+            return None;
+        }
+        Some(Self {
+            object: object as usize,
+            calls,
+        })
+    }
     pub unsafe fn acquire(object: *mut c_void, calls: DealCallbacks) -> Option<Self> {
         if object.is_null() {
             return None;
@@ -114,7 +133,7 @@ impl Deal {
             calls,
         })
     }
-    fn raw(&self) -> *mut c_void {
+    pub(super) fn raw(&self) -> *mut c_void {
         self.object as *mut c_void
     }
     fn pair(&self, call: Pair) -> (i32, i32) {
