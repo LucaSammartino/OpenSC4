@@ -174,6 +174,8 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             ini['lua_script' if script.suffix.lower() == '.lua' else 'script'] = script.relative_to(root).as_posix()
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
+        if ini.get('reach') == '1':
+            ini['reach_output'] = (directory / (row['name'] + '.reach.tsv')).as_posix()
         text = '\n'.join(f'{k} = {v}' for k, v in request.items()) + '\n[ini]\n'
         text += '\n'.join(f'{k} = {v}' for k, v in ini.items()) + '\n'
         (directory / f'{row["name"]}.req').write_text(text, encoding='utf-8')
@@ -230,17 +232,35 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   compare_exact=0, compare_different=0, reach_functions='-',
                   per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[], shadow_payloads=[],
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
-                  only_load=only_load)
+                  only_load=only_load, real_seconds=None, wall_seconds=None,
+                  load_seconds=None, seconds_per_month=None, reach_windows=[])
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
     parse_errors = 0
+    load_started = None
+    attached = None
+    verdict_at = None
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
+        try:
+            timestamp = datetime.fromisoformat(line[:23])
+        except ValueError:
+            timestamp = None
+        if 'DLL_PROCESS_ATTACH:' in body:
+            attached = timestamp
+        if 'autoload: calling LoadCity(' in body:
+            load_started = timestamp
+        if 'autoload: LoadCity(' in body and '-> true' in body and load_started and timestamp:
+            result['load_seconds'] = (timestamp - load_started).total_seconds()
         if re.search(r'\bmemory\b|address.space|largest.free|out.of.memory', body, re.I):
             result['memory_lines'].append(dict(line=line_no, text=body))
         if 'AUTOTEST VERDICT:' in body:
             verdict_line = body
+            verdict_at = timestamp
+        window = re.match(r'reach window (\d+) date=(\d{4}-\d\d-\d\d) new=(\d+) total=(\d+)', body)
+        if window:
+            result['reach_windows'].append(dict(window=int(window[1]), date=window[2], new=int(window[3]), total=int(window[4])))
         reached = re.search(r'end date (\d{4}-\d\d-\d\d) reached', body)
         if reached and reached[1] == end:
             result['end_reached'] = '1'
@@ -310,6 +330,16 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     speed = re.search(r'\bdays_per_second=([0-9.]+)', verdict_line)
     if speed:
         result['days_per_second'] = speed[1]
+        if float(speed[1]) > 0:
+            result['seconds_per_month'] = round(30.4375 / float(speed[1]), 3)
+    elapsed = re.search(r'\breal_seconds=([0-9.]+)', verdict_line)
+    if elapsed:
+        result['real_seconds'] = float(elapsed[1])
+    wall = re.search(r'\bwall (\d+) s', verdict_text)
+    if wall:
+        result['wall_seconds'] = float(wall[1])
+    elif attached and verdict_at:
+        result['wall_seconds'] = (verdict_at - attached).total_seconds()
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:
@@ -359,6 +389,21 @@ def write_results(directory, manifest, results):
                 entry['first_mismatch'] = f'{name} {row["log"]} {value["first_mismatch"]}'
     write_tsv(directory / 'summary.tsv', COLUMNS, rows)
     write_tsv(directory / 'per_key.tsv', KEY_COLUMNS, [per_key[k] for k in sorted(per_key)])
+    import suite_select
+    from collections import Counter
+    reached = {name: suite_select.reach(directory / (name + '.reach.tsv'))[0] for name in results}
+    counts = Counter(address for addresses in reached.values() for address in addresses)
+    metrics, windows = [], []
+    for name, parsed in results.items():
+        metrics.append(dict(scenario=name,
+            **{key: parsed.get(key) for key in ('wall_seconds', 'load_seconds', 'seconds_per_month', 'city_bytes')},
+            reach_functions=len(reached[name]) if reached[name] else '-',
+            marginal_functions=sum(counts[a] == 1 for a in reached[name]) if reached[name] else '-',
+            knee_months=suite_select.knee(parsed.get('reach_windows', []))))
+        windows.extend(dict(scenario=name, **window) for window in parsed.get('reach_windows', []))
+    write_tsv(directory / 'metrics.tsv', ['scenario', 'wall_seconds', 'load_seconds', 'seconds_per_month',
+              'city_bytes', 'reach_functions', 'marginal_functions', 'knee_months'], metrics)
+    write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
 def wait_for_batch(root, directory, manifest, wait_seconds):
@@ -384,6 +429,8 @@ def wait_for_batch(root, directory, manifest, wait_seconds):
                 if request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                     parsed['actions_pending'] = 1  # requested script produced no execution evidence
                 parsed['log'] = str(log) if log.exists() else '-'
+                source_city = Path.home() / 'Documents/SimCity 4/Regions' / request['scenario']['region'] / ('City - ' + request['scenario']['city'] + '.sc4')
+                parsed['city_bytes'] = source_city.stat().st_size if source_city.is_file() else None
                 (directory / f'{name}.verdict').write_text(verdict_text, encoding='utf-8')
                 (directory / f'{name}.json').write_text(json.dumps(parsed, indent=2) + '\n', encoding='utf-8')
                 (directory / f'{name}.shadows.txt').write_text(
@@ -461,13 +508,22 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['smoke', 'full'], required=True)
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)
     run.add_argument('--extra', action='append', default=[])
     run.add_argument('--wait-seconds', type=int, default=7200)
     run.add_argument('--dry-run', action='store_true', help='stage reproducible inputs without submitting')
+    run.add_argument('--slice', help='nightly rotation, zero-based INDEX/COUNT; e.g. 0/6')
+    run.add_argument('--reach', action='store_true', help='request reach27 per-scenario address/window evidence')
+    select = commands.add_parser('select', help='greedy measured tier 1 or change-targeted cover')
+    for command in (run, select):
+        command.add_argument('--from', dest='sources', help='comma-separated completed calibration tags; default all')
+        command.add_argument('--keys', default='', help='comma-separated shadow/replace keys or owners')
+        command.add_argument('--budget-seconds', type=float, default=900)
+        command.add_argument('--slots', type=int, choices=range(1, 7), default=6)
+    select.add_argument('--output', help='optional JSON selection evidence under build-runs/suite')
     show = commands.add_parser('report')
     show.add_argument('tag'); show.add_argument('--against')
     args = parser.parse_args(argv)
@@ -475,8 +531,46 @@ def main(argv=None, root=ROOT):
         if args.command == 'report':
             report(root, args.tag, args.against)
             return 0
-        directory, results = run_scenarios(root, read_scenarios(root, args.set),
-            profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=args.extra,
+        import suite_select
+        rows = read_scenarios(root, 'full' if args.command == 'select' or args.set == 'tier1' else args.set)
+        if args.budget_seconds <= 0:
+            raise ValueError('--budget-seconds must be positive')
+        if args.command == 'select' or args.set == 'tier1' or args.keys:
+            tags = args.sources.split(',') if args.sources else None
+            if tags and any(not NAME.fullmatch(tag) for tag in tags):
+                raise ValueError('--from expects comma-separated suite tags')
+            items = suite_select.measurements(root, rows, tags)
+            addresses, keys = suite_select.targets(root, args.keys)
+            plan = suite_select.choose(items, slots=args.slots, budget=args.budget_seconds,
+                                       target_addresses=addresses, target_keys=keys)
+            if not plan['selected']:
+                raise ValueError('no measured passing scenarios cover the requested keys within the wall budget')
+            print(f'tier1 objective={plan["objective"]} wall={plan["wall_seconds"]:.1f}s union={plan["union_reach"]}; '
+                  f'full measured wall={plan["full_wall_seconds"]:.1f}s union={plan["full_union_reach"]}')
+            print('scenario\twall_seconds\tmarginal_functions\tknee_months\tsource')
+            for item in plan['selected']:
+                print('\t'.join(str(item.get(k, '-')) for k in ('name', 'wall_seconds', 'marginal_functions', 'knee_months', 'source')))
+            if args.command == 'select':
+                if args.output:
+                    output = inside(root / 'build-runs/suite', root / args.output)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_text(json.dumps(suite_select.serializable(plan), indent=2) + '\n', encoding='utf-8')
+                return 0
+            names = {item['name'] for item in plan['selected']}
+            rows = [r for r in rows if r['name'] in names]
+        if args.slice:
+            match = re.fullmatch(r'(\d+)/(\d+)', args.slice)
+            if not match or not 0 <= int(match[1]) < int(match[2]):
+                raise ValueError('--slice expects zero-based INDEX/COUNT')
+            rows = rows[int(match[1])::int(match[2])]
+            if not rows:
+                raise ValueError('empty slice')
+        extra = list(args.extra)
+        if args.reach:
+            extra += ['reach = 1', 'reach_window = month',
+                      'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]
+        directory, results = run_scenarios(root, rows,
+            profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=extra,
             wait_seconds=args.wait_seconds, dry_run=args.dry_run)
         if not args.dry_run:
             print(f'summary: {directory / "summary.tsv"}')
