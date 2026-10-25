@@ -337,9 +337,9 @@ cGZLuaScriptServer	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
 cLUAExtensionsCollector*	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
-# the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): lua-host.md §8 covers how they reach the
-# host, not what each one does
-fn:LUAExtension_*	Lua host	framework	-	-	-	-
+# the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): advisors.md §8.3 and
+# lua-game-extensions.md (re-luaext8) give each body
+fn:LUAExtension_*	Lua host	framework	advisors.md, lua-game-extensions.md	-	-	-
 # ---- audio
 cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-	-
 cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
@@ -992,7 +992,7 @@ nsGZWinUtils	widget toolkit	ui	widget-misc2.md	-	-	-
 RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
 nsTexUtil	3D scene and models	renderer	-	-	-	-
 MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
-SCLuaTableRef	Lua host	framework	-	-	-	-
+SCLuaTableRef	Lua host	framework	lua-game-extensions.md	-	-	-
 cSourceFileDebugInfo	audio	audio	audio-owner-closure.md	-	-	-
 tControllerTime	automata (managers, records)	simulation	-	-	-	-
 cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
