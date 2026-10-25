@@ -355,10 +355,23 @@ impl Watercraft {
         if self.initialized {
             return Ok(true);
         }
+        self.initialize_owner_runtime(position, heading, effects)
+    }
+
+    pub(super) fn initialize_owner_runtime(
+        &mut self,
+        position: Vec3,
+        heading: Vec3,
+        effects: &mut dyn EffectResources,
+    ) -> Result<bool> {
         let heading = math::normalize(heading);
         self.initialization_attempted = true;
         self.load_drive_parameters();
-        self.effects = EFFECTS.map(|name| effects.create(name));
+        for (index, name) in EFFECTS.into_iter().enumerate() {
+            // Each output reference is cleared before its own factory call (§3).
+            self.effects[index] = None;
+            self.effects[index] = effects.create(name);
+        }
         // All six factory results are ignored, including absent effects (§3).
         self.record.base.automata_flags |= 0x8000 | 0x2000 | 0x20000 | 4;
         self.events.push(Event::Register(TOW_MESSAGE));

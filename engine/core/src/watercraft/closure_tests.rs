@@ -521,13 +521,13 @@ fn subsidiary_visibility_suppression_completion_and_strict_lighting() {
     assert!(s.animation_tick(7.0, &mut a, &mut [Some(&mut m)], &mut b));
     assert!(m.times.is_empty());
     assert_eq!(a.calls, [17, 15]);
-    assert_eq!(s.animation_elapsed, 0.0);
+    assert_eq!(b.models.event_counter, 0.0);
     a.first = true;
     a.calls.clear();
     s.animation_tick(7.0, &mut a, &mut [Some(&mut m), None], &mut b);
     assert_eq!(m.times, [7.0]);
     assert_eq!(a.calls, [17]);
-    assert_eq!(s.animation_elapsed, 7.0);
+    assert_eq!(b.models.event_counter, 7.0);
     assert_eq!(b.events, [Event::Notify(1, 0)]);
     let mut lights = Lights::default();
     b.record.base.automata_flags = 0;

@@ -8,6 +8,8 @@ mod crash;
 pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
+mod lifecycle;
+pub use lifecycle::{InitializationServices, LifecycleServices};
 mod math;
 mod models;
 mod movement;
@@ -43,6 +45,8 @@ mod collision_tests;
 mod edge_tests;
 #[cfg(test)]
 mod effect_tests;
+#[cfg(test)]
+mod integration_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]

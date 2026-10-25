@@ -1,26 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-watercraft-close14 (cSC4Watercraft owner closure, partial batch) | `Codex` / `core-watercraft-close14` (engine lane) | in progress: implementation eb4957aa3; fmt 15/15, native 165/165 edges and CTest 81/81; Rust outstanding; ABI unchanged; no game run or questions | (1) Collect focused Cargo session 87252; (2) run final qbuild all on the stable commit; (3) report and enqueue with actual HEAD. |
+| core-watercraft-close14 (watercraft owner integration) | `Codex` / `core-watercraft-close14` (engine lane) | in progress: new implementation and fixtures committed; initial Rust gate failed E0277, test corrected; Clippy clean; native 52/52, CTest 81/81; ABI unchanged | (1) Run final full gate on corrected source; (2) fix remaining diagnostics; (3) enqueue tested batch with actual HEAD. |
 
 ## Handoff
 
-FINAL ROUND 3 GATE COLLECTED: qbuild all PASS, cargo 7462/0/0, Clippy zero diagnostics, native build 51/51 edges and CTest 81/81. All operations are terminal; none remain outstanding. Final console: build-runs/wc14-r3-all-1.log. Source remains eb4957aa3; 119 watercraft tests pass. Exact next step: replace this Handoff with the final report and enqueue the tested partial batch using actual HEAD; do not repeat gates. Nine owner rows closed this round, 19 remain as listed below. ABI unchanged; no questions or game runs.
-
-Round 3 final workspace result: 7462 passed, 0 failed; all 119 watercraft tests pass, including 14 new fixtures. Full qbuild all is still running in session 76812: Clippy is checking fc4-core, then queued native verification remains. Collect THAT operation to its terminal result; do not launch another check. Source remains eb4957aa3. Explicit native verify already passed 165/165 edges, CTest 81/81; fmt 15/15. Initial focused session 87252 completed with 112 passed (31m09s compilation). No other operations remain. Final log: build-runs/wc14-r3-all-1.log; workspace: qbuild-test.log; Clippy: qbuild-clippy.log. Context is nearly exhausted; next collect the full gate, finalize the report, and enqueue actual HEAD if passing. The existing 19-row implementation-debt list below remains exact. This documentation checkpoint changes no source but may cause the full gate to note a changed tree.
-
-Goal: complete cSC4Watercraft owner closure. Round 3 resumes at 243cde934; context checkpoint has stopped new feature work. Implementation eb4957aa3. Next: collect focused Cargo 87252 to its terminal result, diagnose failures, and collect final qbuild all on stable source. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r3-manifest.json.
-
-Prerequisites merged: 4ee9852ce (core-watercraft-close12), f075b206b (re-watercraft-wc13).
-Implementation 113eccaaa adds primary/auxiliary model acquisition, explicit reference transfers and output failure handling, inherited model positioning and scene publication (§§3.6–3.8). It also corrects WC12 contact to bank identity and use the second terrain-normal sample, preserving the incoming scale only when publishing accepted contact.
-
-All 23 newly settled WC10/WC11/WC12 vectors are covered, together with ML01–ML04. Focused model tests: 24 passed. Final qbuild all on stable final source: 7448 Rust tests passed, zero failures/ignored; Clippy -D warnings had zero diagnostics; queued native build 214/214 edges and CTest 81/81 passed. Explicit qbuild verify also passed (264/264 edges, CTest 81/81). Formatting passed for all six owned changed Rust files. Every operation was collected to its terminal result.
-
-Evidence: build-runs/wc14-model-tests-1.log, qbuild-test.log, qbuild-clippy.log, wc14-verify-console.log and wc14-all-console-1.log. A failed q.py Bash startup is preserved in build-runs/q/20261024-193645-21364.log; direct foreground Cargo was used. Rust compilation was exceptionally slow under host load.
-
-Round 3 fixes: separate station lot from berth coordinates; nullable group and neighbor occupant; OnLand terrain-at-cell sampling; neighbor skip points at water height; undocking missing-occupant guard; shared borrowed debug-text object protected by a Mutex. Adds edge and owner FX01–FX03 fixtures. Formatting passes all 15 explicitly owned Rust files. Initial focused operation began before debug/effect fixtures were added and is not final-source evidence. Logs: wc14-r3-edges-1.log, wc14-r3-fmt-1/2/3.log, wc14-r3-verify-1.log. q.py Bash failed again; preserved q log 20261024-221739-32184.log; direct foreground Cargo is running slowly under host load.
-
-Round 3 explicit qbuild verify collected: PASS, 165/165 edges (206.7 s), CTest 81/81 (304.1 s). It notes the tree changed during the run: the already-submitted source was committed while queued. No Rust source changed after submitting verify. Final qbuild all will supply the stable-commit native result; preserve this explicit result separately.
-
-Whole-owner closure is NOT complete. README has 19 pending rows: §§1, 3, 3.1–3.2, 3.4–3.5, 4, 5.1, 5.1.3–5.1.5, 5.2, 5.3.1–5.3.2, 5.6, 5.7–5.7.0, 6.2–6.2.3 and 11. Continue inherited lifecycle/forwarding and runtime effect/model execution, then outstanding geometry/collision/end-to-end fixtures. These are implementation debt; WC1–WC12 are settled and no new questions were filed.
-
-No plugin/C ABI wiring or export changes. No game request or shadow: the core is unwired and an adapter is outside this task. The context checkpoint ended new feature work; this passing partial batch is ready to land and continue.
+Goal: close cSC4Watercraft; guard stopped round 4 after collecting all operations. No merge-queue entry was written.
+Prerequisites already merged: 4ee9852ce (close12), f075b206b (WC10-WC12 answers). Previous source eb4957aa3 passed 7462 Rust tests and 81/81 CTest.
+This commit adds lifecycle.rs: independent inherited initialized predicates, concrete model loading, first-model effect-controller binding/discovery/update, occupant Init, then owner setup despite inherited failure.
+Init clears each old effect reference before its factory call; fixtures observe release order through Weak references.
+EndTowing preserves its link across slot 53, rereads/clears a reentrant replacement, then clears its own tug; callback and reciprocal-state fixtures added.
+Movement/collision share the specified outside-corner order; movement preserves its two short-circuit top-state queries. Added corner/flag/top-state vectors.
+Player command processing executes rope-throw transform/start/independent refresh through a borrowed optional effect; complete-transform and missing-effect fixtures added.
+Animation advancement/publication now share ModelStorage.event_counter (+0x1C0); strict-100 publication and full animation two-time/removal/lighting fixtures added.
+Added concrete wake-controller execution with six interleaved stop/update calls and case-insensitive name fixtures; collision size now requires a group.
+Formatting passed for 13 explicitly owned Rust files before the final small panic-test correction. qbuild fmt paths are core/src/watercraft/<file>.rs relative to engine.
+Focused Cargo session 12121 TERMINAL: E0277 from catch_unwind capturing inherited SaveObject references; log build-runs/wc14-r4-test-1.log.
+Full qbuild all session 75638 TERMINAL: FAIL compiling the same earlier catch_unwind snapshot (integration_tests.rs:300); log build-runs/wc14-r4-all-1.log.
+That full run passed Clippy with zero diagnostics, native build 52/52 edges (284.8s), CTest 81/81 (267.3s), total native 554.2s. No operations remain outstanding.
+Correction ALREADY in source: catch_unwind replaced by separate #[should_panic(expected = "no-tow refresh requires the connection effect")] test. Partial-loader fixture also now expects one release for the failed second acquisition.
+EXACT NEXT: run python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-watercraft-close14 all on corrected source and collect its terminal result. Repetition is justified by measured E0277 and changed test input; preserve r4-all-1 evidence.
+Helper build-runs/wc14-check.py captures numbered logs: all 2 runs the next full gate, fmt 4 checks owned formatting. Read bounded log excerpts.
+Whole-owner closure remains incomplete: destructor/interface forwarding, inherited Shutdown/state-enter result, complete presentation execution, remaining route/docking/collision compositions and vectors. README was not edited.
+No ABI/plugin wiring, new questions, game requests or shadow measurements. Manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-watercraft-close14-r4-manifest.json reached 154k/150k OVER.

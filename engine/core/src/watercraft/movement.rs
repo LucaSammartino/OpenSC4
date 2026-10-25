@@ -4,6 +4,10 @@ use crate::automata::{State, Vec3};
 use super::math;
 use super::{state, BoatId, Cell, ContractGap, DockManager, Fleet, Result, Terrain, Watercraft};
 
+pub(super) fn movement_state_allows(mut top: impl FnMut() -> Option<u32>) -> bool {
+    top() != Some(state::RUN_AGROUND) && top() != Some(state::SINK)
+}
+
 impl Fleet {
     pub fn movement_possible(
         &mut self,
@@ -16,12 +20,13 @@ impl Fleet {
         if boat.record.base.automata_flags & 1 != 0 {
             return Ok(false);
         }
-        if rectangle.into_iter().any(|cell| !terrain.contains(cell)) {
+        if Watercraft::outside_city(rectangle, terrain) {
             self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
             return Ok(false);
         }
         let boat = self.boat(id)?;
-        Ok(!matches!(boat.top_state(), Some(state::RUN_AGROUND | state::SINK)))
+        // §3.3 tests the top state twice, short-circuiting on 70, not FindState.
+        Ok(movement_state_allows(|| boat.top_state()))
     }
 
     pub fn dock_requests(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {

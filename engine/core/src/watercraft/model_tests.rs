@@ -573,3 +573,227 @@ fn wc3_ml04_radius_cap_and_auxiliary_filter_order() {
         assert_eq!(b.radius.to_bits(), (z * 0.5).to_bits());
     }
 }
+
+#[test]
+fn animation_clock_is_consumed_by_concrete_model_publication_at_strictly_over_100() {
+    struct Service;
+    impl AnimationService for Service {
+        fn slot17(&mut self) -> bool {
+            true
+        }
+        fn slot15(&mut self) -> bool {
+            panic!("slot 17 true must short-circuit slot 15")
+        }
+    }
+    let mut b = boat();
+    let mut subsidiary = Subsidiary::default();
+    let mut models = Models::default();
+    assert!(subsidiary.animation_tick(100.0, &mut Service, &mut [], &mut b));
+    b.publish_models(false, false, &mut models);
+    assert_eq!(b.models.event_counter, 100.0);
+    assert!(!b.events.contains(&Event::Notify(9, 0)));
+    assert!(subsidiary.animation_tick(0.5, &mut Service, &mut [], &mut b));
+    b.publish_models(false, false, &mut models);
+    assert_eq!(b.models.event_counter, 0.0);
+    assert_eq!(b.events.iter().filter(|e| **e == Event::Notify(9, 0)).count(), 1);
+    b.publish_models(true, true, &mut models);
+    assert_eq!(b.events.iter().filter(|e| **e == Event::Notify(9, 0)).count(), 1);
+}
+
+mod initialization {
+    use super::*;
+    use crate::model_reg_effects::{self as fx, EffectFactory, ModelInstance, VisualEffect};
+    use std::sync::{Arc, Mutex};
+
+    struct Instance(fx::Regions);
+    impl ModelInstance for Instance {
+        fn regions(&self) -> Option<&fx::Regions> {
+            Some(&self.0)
+        }
+        fn frame(&self) -> fx::InstanceFrame {
+            fx::InstanceFrame {
+                transform: fx::Transform::IDENTITY,
+                flags: 0,
+                animated_frame: None,
+            }
+        }
+    }
+    #[derive(Clone)]
+    struct Probe {
+        calls: Arc<Mutex<Vec<String>>>,
+        instance: Arc<Instance>,
+        initialized: bool,
+    }
+    impl Default for Probe {
+        fn default() -> Self {
+            Self {
+                calls: Arc::default(),
+                instance: Arc::new(Instance(BTreeMap::from([(
+                    "fx_wake".into(),
+                    vec![[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+                )]))),
+                initialized: false,
+            }
+        }
+    }
+    impl LifecycleServices for Probe {
+        fn initialized(&mut self) -> bool {
+            self.calls.lock().unwrap().push("predicate".into());
+            self.initialized
+        }
+        fn model_effect_instance(&mut self, instance: u64) -> Arc<dyn ModelInstance> {
+            self.calls.lock().unwrap().push(format!("bind:{instance}"));
+            self.instance.clone()
+        }
+        fn occupant_init(&mut self) -> bool {
+            self.calls.lock().unwrap().push("occupant".into());
+            self.initialized = true;
+            false // Ignored independently of the model-loading result.
+        }
+    }
+    impl EffectResources for Probe {
+        fn create(&mut self, name: &'static str) -> Option<Arc<Resource>> {
+            self.calls.lock().unwrap().push(name.into());
+            None // All six failures must still leave owner Init successful.
+        }
+    }
+    impl EffectFactory for Probe {
+        fn acquire_manager(&mut self) -> bool {
+            true
+        }
+        fn create(&mut self, name: &str) -> fx::Creation {
+            self.calls.lock().unwrap().push(format!("effect:{name}"));
+            fx::Creation {
+                success: true,
+                effect: Some(Box::new(self.clone())),
+            }
+        }
+    }
+    impl VisualEffect for Probe {
+        fn is_started(&self) -> bool {
+            true
+        }
+        fn start(&mut self, _: u32) {}
+        fn stop(&mut self, _: u32) {}
+        fn set_transform(&mut self, transform: fx::Transform, _: u8, _: u8) {
+            assert_eq!(transform, fx::Transform::IDENTITY);
+            self.calls.lock().unwrap().push("transform".into());
+        }
+        fn set_parameter(&mut self, parameter: u32, value: Vec3, count: u32) {
+            assert_eq!((parameter, value, count), (15, [1.0, 1.5, 2.0], 1));
+            self.calls.lock().unwrap().push("motion".into());
+        }
+    }
+
+    #[test]
+    fn wc3_lc03_partial_load_skips_binding_but_owner_init_continues() {
+        let mut b = boat();
+        b.record.base.model_keys = vec![mesh(), mesh()];
+        b.inherited_position = [1.0, 2.0, 3.0];
+        b.inherited_heading = [0.0, 0.0, 2.0];
+        let mut models = Models {
+            loads: VecDeque::from([true, false]),
+            ..Models::default()
+        };
+        let mut lifecycle = Probe::default();
+        let mut effects = lifecycle.clone();
+        let mut factory = lifecycle.clone();
+        let mut controller = fx::ModelRegEffects::new();
+        let mut services = InitializationServices {
+            models: &mut models,
+            lifecycle: &mut lifecycle,
+            controller: &mut controller,
+            factory: &mut factory,
+            effects: &mut effects,
+        };
+        assert_eq!(b.initialize(&mut services), Ok(true));
+        assert_eq!(b.models.entries, [Some(10)]);
+        assert_eq!(b.position, [1.0, 2.0, 3.0]);
+        assert_eq!(b.heading, [0.0, 0.0, 1.0]);
+        assert!(b.initialized);
+        assert_eq!(b.initialize(&mut services), Ok(true));
+        assert_eq!(
+            *lifecycle.calls.lock().unwrap(),
+            ["predicate", "predicate", "occupant"]
+                .into_iter()
+                .chain(EFFECTS)
+                .chain(["predicate"])
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+        assert!(controller.instance().is_none());
+        // Only the second, failed acquisition's temporary reference is released.
+        assert_eq!(models.calls.iter().filter(|c| *c == "release:10").count(), 1);
+    }
+
+    #[test]
+    fn inherited_init_loads_binds_discovers_and_refreshes_before_occupant_and_boat_effects() {
+        let mut b = boat();
+        b.record.base.model = mesh();
+        b.inherited_heading = [2.0, 3.0, 4.0];
+        b.inherited_measured_speed = 0.5;
+        b.speed = 99.0;
+        let mut models = Models::default();
+        let mut lifecycle = Probe::default();
+        let mut effects = lifecycle.clone();
+        let mut factory = lifecycle.clone();
+        let mut controller = fx::ModelRegEffects::new();
+        assert_eq!(
+            b.initialize(&mut InitializationServices {
+                models: &mut models,
+                lifecycle: &mut lifecycle,
+                controller: &mut controller,
+                factory: &mut factory,
+                effects: &mut effects,
+            }),
+            Ok(true)
+        );
+        assert_eq!(
+            *lifecycle.calls.lock().unwrap(),
+            [
+                "predicate",
+                "predicate",
+                "bind:110",
+                "effect:wake",
+                "transform",
+                "motion",
+                "occupant"
+            ]
+            .into_iter()
+            .chain(EFFECTS)
+            .map(String::from)
+            .collect::<Vec<_>>()
+        );
+        assert_eq!(controller.entries().len(), 1);
+        assert!(controller.instance().is_some());
+        assert_eq!(b.speed, 0.0);
+        controller.shutdown();
+    }
+
+    #[test]
+    fn already_initialized_uses_the_inherited_predicate_without_touching_models_or_effects() {
+        let mut b = boat();
+        b.record.base.model = mesh();
+        let mut models = Models::default();
+        let mut lifecycle = Probe {
+            initialized: true,
+            ..Probe::default()
+        };
+        let mut effects = lifecycle.clone();
+        let mut factory = lifecycle.clone();
+        let mut controller = fx::ModelRegEffects::new();
+        let mut services = InitializationServices {
+            models: &mut models,
+            lifecycle: &mut lifecycle,
+            controller: &mut controller,
+            factory: &mut factory,
+            effects: &mut effects,
+        };
+        assert_eq!(b.initialize(&mut services), Ok(true));
+        assert!(b.initialize_inherited(&mut services));
+        assert_eq!(*lifecycle.calls.lock().unwrap(), ["predicate", "predicate"]);
+        assert!(models.calls.is_empty());
+        assert!(b.models.entries.is_empty());
+        assert!(b.events.is_empty());
+    }
+}

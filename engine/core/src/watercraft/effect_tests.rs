@@ -20,6 +20,8 @@ impl ModelInstance for Instance {
 enum Call {
     Transform(String, fx::Transform),
     Motion(String, [f32; 3]),
+    Start(String, u32),
+    Stop(String, u32),
 }
 struct Effect {
     name: String,
@@ -30,11 +32,13 @@ impl VisualEffect for Effect {
     fn is_started(&self) -> bool {
         self.started
     }
-    fn start(&mut self, _: u32) {
+    fn start(&mut self, control: u32) {
         self.started = true;
+        self.calls.lock().unwrap().push(Call::Start(self.name.clone(), control));
     }
-    fn stop(&mut self, _: u32) {
+    fn stop(&mut self, control: u32) {
         self.started = false;
+        self.calls.lock().unwrap().push(Call::Stop(self.name.clone(), control));
     }
     fn set_transform(&mut self, transform: fx::Transform, _: u8, version: u8) {
         assert_eq!(version, 0);
@@ -64,6 +68,33 @@ impl EffectFactory for Factory {
             })),
         }
     }
+}
+
+#[test]
+fn wake_requests_execute_case_insensitive_names_and_six_interleaved_effect_refreshes() {
+    let mut controller = fx::ModelRegEffects::new();
+    controller.set_model_instance(Some(Arc::new(Instance)));
+    let mut factory = Factory::default();
+    controller.add_effect("A", "smlwake", None, &mut factory);
+    controller.add_effect("B", "other", None, &mut factory);
+    let mut b = boat();
+    b.inherited_heading = [2.0, 3.0, 4.0];
+    b.inherited_measured_speed = -0.5;
+    b.still_elapsed = 250.0;
+    b.update_wakes_with_controller(1.0, 16.0, &mut controller, &mut factory);
+    let mut expected = vec![Call::Stop("smlwake".into(), 0)];
+    for _ in 0..6 {
+        expected.push(Call::Transform("other".into(), fx::Transform::IDENTITY));
+        expected.push(Call::Motion("other".into(), [-1.0, -1.5, -2.0]));
+    }
+    assert_eq!(*factory.0.lock().unwrap(), expected);
+    assert_eq!(b.still_elapsed, 251.0);
+    factory.0.lock().unwrap().clear();
+    b.speed = 0.1;
+    b.update_wakes_with_controller(200.0, 16.0, &mut controller, &mut factory);
+    assert_eq!(*factory.0.lock().unwrap(), [Call::Start("smlwake".into(), 0)]);
+    assert_eq!(b.still_elapsed, 0.0);
+    controller.shutdown();
 }
 
 #[test]
