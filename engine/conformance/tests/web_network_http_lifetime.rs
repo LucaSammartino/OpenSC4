@@ -13,8 +13,15 @@ mod tests {
             self.effects.push(effect);
         }
         fn notify(&mut self, client: &mut Client, job: Job, _: bool) {
-            self.observed
-                .push((job, client.resources.values().map(|r| r.refs).collect()));
+            self.observed.push((
+                job,
+                client
+                    .requests
+                    .values()
+                    .map(|r| r.refs)
+                    .chain(client.resources.values().map(|r| r.refs))
+                    .collect(),
+            ));
         }
     }
     #[test]
@@ -58,13 +65,14 @@ mod tests {
         assert!(!client.cancel(&mut host, 99));
     }
     fn resources(client: &mut Client) -> Job {
-        client.resources.insert(
+        client.requests.insert(
             50,
-            Resource {
+            Request {
                 refs: 2,
-                strings: [b"url".to_vec(), b"data".to_vec(), vec![]],
+                method: b"GET".to_vec(),
+                url: b"url".to_vec(),
                 redirects: 3,
-                file: false,
+                ..Request::default()
             },
         );
         client.resources.insert(
@@ -74,7 +82,7 @@ mod tests {
                 ..Resource::default()
             },
         );
-        Job([9, 0, 0, 1, 50, 0, 51, 0])
+        Job([9, 0, 0, 1, 0, 50, 51, 0])
     }
     #[test]
     fn cancellation_callback_before_release_and_stop_leaks() {
@@ -98,19 +106,20 @@ mod tests {
             assert!(client.workers[&1].current.is_none());
             if stop {
                 assert!(host.observed.is_empty());
-                assert_eq!(client.resources[&50].refs, 2);
+                assert_eq!(client.requests[&50].refs, 2);
             } else {
                 assert_eq!(host.observed[0].1, [2, 2]);
                 assert_eq!(host.observed[0].0.status(), 7);
-                assert_eq!(client.resources[&50].refs, 1);
-                assert_eq!(client.resources[&51].strings[1], b"data");
+                assert_eq!(client.requests[&50].refs, 1);
+                assert_eq!(client.resources[&51].strings[1], b"url");
+                assert_eq!(host.observed[0].0 .0[4], 100);
                 assert_eq!(
                     host.effects
                         .iter()
-                        .filter(|e| matches!(e, Effect::ReleaseResource(_)))
+                        .filter(|e| matches!(e, Effect::ReleaseRequest(_) | Effect::ReleaseResource(_)))
                         .cloned()
                         .collect::<Vec<_>>(),
-                    [Effect::ReleaseResource(50), Effect::ReleaseResource(51)]
+                    [Effect::ReleaseRequest(50), Effect::ReleaseResource(51)]
                 );
             }
         }

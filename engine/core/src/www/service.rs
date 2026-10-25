@@ -536,19 +536,19 @@ impl Www {
         job.foreign_pointer = Some(foreign);
         if success && resource.is_some() {
             let r = resource.as_deref_mut().expect("checked resource");
-            convert(host, job.preference, &mut r.strings[1], &mut r.file);
+            convert(host, job.preference, &mut r.body, &mut r.file);
             job.result = 1;
             job.progress = 100;
-            job.data = r.strings[1].clone();
+            job.data = r.body.clone();
             job.file = r.file;
-            cache_policy(host, self.cache != 0, Some((&job.url, &r.strings[1], r.file)), foreign);
+            cache_policy(host, self.cache != 0, Some((&job.url, &r.body, r.file)), foreign);
             if self.cookies != 0 {
                 for family in [0x35, 0x34] {
                     for index in 0..32 {
                         let Some(text) = host.header(foreign, family, index) else {
                             break;
                         };
-                        host.response_cookie(&r.strings[0], &text);
+                        host.response_cookie(&r.strings[1], &text);
                     }
                 }
             }
@@ -576,7 +576,7 @@ impl Www {
         }
         if let Some(resource) = resource {
             resource.file = false;
-            resource.strings[1].clear();
+            resource.body.clear();
         }
         Ok(true)
     }
