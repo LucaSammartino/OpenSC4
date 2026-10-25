@@ -28,8 +28,8 @@ provisional input**, not an established idle-house result. Zero is lack of an
 observation, not evidence that a function cannot run. The input records 7,021
 positive entries, covering 895,760 attributed implemented bytes (26.65%).
 
-Raw input hashes, the complete reach source and analysis intermediates are in
-this worktree's `build-runs/triggers/`. Scratch drivers are
+`inputs.tsv` pins hashes of the eight principal static inputs. The complete reach
+source and analysis intermediates are in this worktree's `build-runs/triggers/`. Scratch drivers are
 `build-runs/trigger_inventory.py`, `trigger_build.py`, and `trigger_controls.py`;
 they are RE-only generated-data tooling, not implementation deliverables.
 
