@@ -221,7 +221,7 @@ def parse_log(text, end, verdict_text=''):
                   actions_ok=0, actions_failed=0, actions_expected=0, actions_pending=0,
                   shadow_lines=0, shadow_exact_lines=0, worst_shadow='-',
                   compare_exact=0, compare_different=0, reach_functions='-',
-                  per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[],
+                  per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[], shadow_payloads=[],
                   inplace_lines=[], reach_lines=[])
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
@@ -260,6 +260,7 @@ def parse_log(text, end, verdict_text=''):
             continue
         key = match[1].replace(' ', '_')
         evidence = dict(line=line_no, text=body)
+        result['shadow_payloads'].append(evidence)
         if 'summary' in body or 'shutdown' in body.lower() or 'totals' in body or 'total:' in body:
             result['shadow_summaries'].append(dict(key=key, **evidence))
         if shadow_sample(body, key):
@@ -365,7 +366,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds):
                 (directory / f'{name}.verdict').write_text(verdict_text, encoding='utf-8')
                 (directory / f'{name}.json').write_text(json.dumps(parsed, indent=2) + '\n', encoding='utf-8')
                 (directory / f'{name}.shadows.txt').write_text(
-                    '\n'.join(r['text'] for r in parsed['shadow_records']) + '\n', encoding='utf-8')
+                    '\n'.join(r['text'] for r in parsed['shadow_payloads']) + '\n', encoding='utf-8')
                 results[name] = parsed
                 del pending[name]
                 print(f'{name}: {parsed["verdict"]}; end={parsed["end_reached"]}; '

@@ -50,6 +50,8 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertEqual(result['per_key']['formats']['lines'], 1)
         self.assertEqual(result['per_key']['nettool_plan']['lines'], 2)
         self.assertGreaterEqual(len(result['shadow_summaries']), 4)
+        self.assertTrue(any('weather shadow: city shutdown:' in line['text'] for line in result['shadow_payloads']))
+        self.assertGreater(len(result['shadow_payloads']), len(result['shadow_records']))
         self.assertEqual(len(result['inplace_lines']), 1)
 
     def test_missing_rejected_and_refused_runs_cannot_pass(self):
