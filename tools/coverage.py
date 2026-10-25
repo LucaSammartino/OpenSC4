@@ -713,7 +713,7 @@ def read_regress(path, audit_legacy=True):
     return out
 
 
-def newest_regress():
+def newest_regress(revision=None):
     """The regress run of the newest lane merged into HEAD ("Merge <tag>: ..." subjects of every merge reachable from
     HEAD, in topological order), so the default depends on the checked-out commit, not on file times; runs of lanes
     not yet merged are ignored. Every reachable merge is walked, not only first-parent ones: a lane branch that merged
@@ -734,7 +734,8 @@ def newest_regress():
     if not usable:
         sys.exit("coverage: no PASS regress-*.out found; pass --regress")
     try:
-        log = subprocess.run(["git", "-C", str(REPO), "log", "--merges", "--topo-order", "--format=%s"],
+        log = subprocess.run(["git", "-C", str(REPO), "log", "--merges", "--topo-order", "--format=%s"]
+                             + ([revision] if revision else []),
                              capture_output=True, text=True, encoding="utf-8", check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         log = ""
@@ -762,6 +763,62 @@ def kib(n):
 
 
 STAT = ("specified", "implemented", "verified", "replaced")
+
+
+def attribution_for_tree(repo, export, text_lo, text_hi):
+    """Expose the report's attribution inputs for another tree, without changing the scoring rules."""
+    return Attribution(export, repo / "re/names_windows.tsv", repo / "docs/abi/vtables.tsv",
+                       repo / "docs/abi/interfaces.tsv", repo / "tools/coverage-libs.tsv",
+                       repo / "tools/coverage-ranges.tsv", text_lo, text_hi,
+                       repo / "tools/coverage-noncode-refs.tsv")
+
+
+def map_functions(rows, att, owner):
+    """The report's method-first row assignment and byte rollup, shared with creditcheck."""
+    def match(o):
+        for i, r in enumerate(rows):
+            if not r["pattern"].startswith("m:") and fnmatch.fnmatchcase(o, r["pattern"]):
+                return i
+        return None
+
+    method_rows = {r["pattern"][2:]: i for i, r in enumerate(rows) if r["pattern"].startswith("m:")}
+
+    def method_row(va):
+        if not method_rows:
+            return None
+        n = att.name(va)
+        if not n:
+            return None
+        n = re.sub(r"\s+\(.*$", "", n[5:] if n.startswith("lib::") else n)
+        return method_rows.get(strip_templates(n).replace("`", "").replace("'", ""))
+
+    row_of = {}
+    used_rows = Counter()
+    fun_row = {}
+    lib_b, lib_n = Counter(), Counter()
+    game = []
+    for va in att.order:
+        size, o = att.funcs[va], owner[va]
+        if o is not None and o.startswith("lib:"):
+            lib_b[o[4:]] += size
+            lib_n[o[4:]] += 1
+            fun_row[va] = "library " + o[4:]
+        elif o is None:
+            game.append((va, size, None, "unattributed"))
+            fun_row[va] = "unattributed"
+        elif o == SHARED:
+            game.append((va, size, None, "shared"))
+            fun_row[va] = "shared"
+        else:
+            i = method_row(va)
+            if i is None:
+                if o not in row_of:
+                    row_of[o] = match(o)
+                i = row_of[o]
+            used_rows[i] += 1
+            game.append((va, size, i, rows[i]["area"]))
+            fun_row[va] = rows[i]["subsystem"]
+    return game, fun_row, lib_b, lib_n, used_rows
 
 
 def main():
@@ -795,8 +852,7 @@ def main():
         "regress.ps1": REPO / "tools" / "regress.ps1",
         "subsystems": REPO / "engine" / "plugin" / "FC4Subsystems.cpp",
     }
-    att = Attribution(export, inputs["names"], inputs["vtables"], inputs["interfaces"], inputs["libs"],
-                      inputs["ranges"], text_lo, text_hi, inputs["noncode refs"])
+    att = attribution_for_tree(REPO, export, text_lo, text_hi)
     owner, rule = att.run()
     rows = read_map(inputs["map"])
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
@@ -810,52 +866,7 @@ def main():
     status_warn, rrun = map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
     warnings = list(shadow_warn) + status_warn
 
-    def match(o):
-        for i, r in enumerate(rows):
-            if not r["pattern"].startswith("m:") and fnmatch.fnmatchcase(o, r["pattern"]):
-                return i
-        return None
-
-    # "m:<Class>::<Method>" rows name single functions (a partial shadow verifies only what it compares); they win
-    # over the owner rows, matched on the function's name as owner_of_name reads it.
-    method_rows = {r["pattern"][2:]: i for i, r in enumerate(rows) if r["pattern"].startswith("m:")}
-
-    def method_row(va):
-        if not method_rows:
-            return None
-        n = att.name(va)
-        if not n:
-            return None
-        n = re.sub(r"\s+\(.*$", "", n[5:] if n.startswith("lib::") else n)
-        return method_rows.get(strip_templates(n).replace("`", "").replace("'", ""))
-
-    # per-function rollup
-    row_of = {}
-    used_rows = Counter()
-    fun_row = {}
-    lib_b, lib_n = Counter(), Counter()
-    game = []  # (va, size, map row index or None, area / bucket)
-    for va in att.order:
-        size, o = att.funcs[va], owner[va]
-        if o is not None and o.startswith("lib:"):
-            lib_b[o[4:]] += size
-            lib_n[o[4:]] += 1
-            fun_row[va] = "library " + o[4:]
-        elif o is None:
-            game.append((va, size, None, "unattributed"))
-            fun_row[va] = "unattributed"
-        elif o == SHARED:
-            game.append((va, size, None, "shared"))
-            fun_row[va] = "shared"
-        else:
-            i = method_row(va)
-            if i is None:
-                if o not in row_of:
-                    row_of[o] = match(o)
-                i = row_of[o]
-            used_rows[i] += 1
-            game.append((va, size, i, rows[i]["area"]))
-            fun_row[va] = rows[i]["subsystem"]
+    game, fun_row, lib_b, lib_n, used_rows = map_functions(rows, att, owner)
     for i, r in enumerate(rows):
         if not used_rows[i]:
             warnings.append(f"map row `{r['pattern']}` matches no owner")
