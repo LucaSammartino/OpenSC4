@@ -75,7 +75,9 @@ def main():
     mutated = {row["name"] for row in mutations}
     assert len(mutated) >= 5
     assert sum(int(row["mutation"]) for row in observations) == len(mutations)
-    endpoint = git("log", "-1", "--format=%cI", "--", str(ROOT / "observations.csv"))
+    # Include the final handoff/report time without a self-referential hash file.
+    end_commit = git("log", "-1", "--format=%H", "--grep=^Finish timed round-3 S3 measurement$") or "HEAD"
+    endpoint = git("show", "-s", "--format=%cI", end_commit)
     end = datetime.fromisoformat(endpoint)
     hours = (end - START).total_seconds() / 3600
     cumulative_hours = (end - OLD_START).total_seconds() / 3600
@@ -83,16 +85,21 @@ def main():
     code_paths = ["engine/plugin/FC4Inplace.cpp", "engine/plugin/FC4InplaceRound3.h", "engine/core/src/lighting/mod.rs", "engine/core/src/lighting/inplace.rs", "engine/capi/src/lib.rs", "engine/capi/src/inplace3.rs"]
     changes = git("diff", "--numstat", BASE, "HEAD", "--", *code_paths)
     added = sum(int(line.split()[0]) for line in changes.splitlines())
+    costs = rows("adapters.csv")
+    assert {row["name"] for row in costs} == set(functions)
+    assert sum(int(row["entry_shell_lines"]) for row in costs) == len(functions)
+    assert abs(sum(float(row["charged_added_lines"]) for row in costs) - added) < 1e-8
     assert not git("diff", "--name-only", BASE, "HEAD", "--", "engine/core/src/view_utilities", "engine/capi/src/viewutil_shadow.rs")
     marginal = body_bytes / 1000 / hours
     cumulative = (1821 + body_bytes) / 1000 / cumulative_hours
     kill_share = len(set(outside + floating)) / len(functions)
     verdict = "KILL" if kill_share > .3 else ("PASS" if len(qualified) / len(functions) >= .7 and marginal >= 11 else "INCONCLUSIVE")
-    print(json.dumps(dict(verdict=verdict, endpoint_utc=endpoint, lane_hours=hours,
+    print(json.dumps(dict(verdict=verdict, endpoint_commit=end_commit, endpoint_utc=endpoint, lane_hours=hours,
         qualified=qualified, exact_share=len(qualified) / len(functions), outside=outside,
         float_only=floating, mutation_events=len(mutations), mutated_functions=len(mutated),
-        qualified_body_bytes=body_bytes, marginal_kb_hour=marginal,
-        cumulative_kb_hour=cumulative, adapter_and_facility_added_lines=added,
+        known_qualified_body_bytes=body_bytes, marginal_kb_hour=None, cumulative_kb_hour=None,
+        marginal_known_bytes_lower_bound_kb_hour=marginal,
+        cumulative_known_bytes_lower_bound_kb_hour=cumulative, adapter_and_facility_added_lines=added,
         lines_per_new_function=added / len(functions)), indent=2))
 
 
