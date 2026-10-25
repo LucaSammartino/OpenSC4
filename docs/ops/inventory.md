@@ -22,7 +22,7 @@ workflow documents. Historical snapshots and retired experiments live in Git his
 | Docs: measurements | `COVERAGE.md`, `coverage-report.md`, `coverage-map.svg`, `ledger.md`, `PROGRESS.md` | Coverage definitions, generated measurements, ledger format and a current progress pointer; README and coordinator. |
 | Docs: architecture/harness | `ARCHITECTURE.md`, `harness.md` | Roadmap, system layout and plugin/compare switches; README, engine build/test and [compare workflow](compare.md). |
 | Docs: RE references | `re-workspace.md`, `subsystems/`, `sim-engine.md`, `sdk-errata-draft.md` | RE workflow, subsystem evidence and SDK corrections cited by specs/sources; engine clean-room exclusions remain. |
-| Docs: regression references | `incidents/`, `reviews/` | Failure analyses and review findings; retain as reference evidence pending review of their outstanding findings. |
+| Docs: regression references | `incidents/train65-landvalue-timing.md`, `reviews/pr5-7-2026-10-22.md` | Incident evidence cited by the landvalue questions and review findings cited by the coordinator's PR6/7 lane. Uncited completed reports were deleted. |
 | Docs: history | `history/token-ledger.md` | The only retained history file: an active measurement output linked by [coordinating](coordinating.md) and produced by `lanes.py ledger --md`. |
 
 The audit covers every top-level Python/PowerShell tool, every docs folder, and tracked files in `engine/tests/`,
