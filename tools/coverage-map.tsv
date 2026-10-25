@@ -428,6 +428,7 @@ cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/r
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	core/src/model_reg_effects	-	-
 cSC4ModelMaker	model maker	renderer	model-maker.md	-	-	-
 cSC4ModelBackgroundLoader	model background loader	renderer	model-maker.md	-	-	-
+cSC4ModelBasedParticlesEffect	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
@@ -481,13 +482,20 @@ cSC4GameEffect	effects	renderer	effects.md	-	-	-
 cSC4ParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4GeometrySourcedParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4DecalEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4DynamicParticleEffect	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4CameraEffect	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4ViewInputControlEffect	city tools and input	ui	effects-owners.md	-	-	-
 cSC4*Effect	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4DynamicParticleDescription	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSCParticleSimulatorBase	effects (particles, decals, visuals)	renderer	particles.md,effects-owners.md	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4CameraDescription	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4DecalDescription	effects (particles, decals, visuals)	renderer	effects.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
@@ -961,7 +969,7 @@ fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
 LinearRandomIterator	occupants and props	simulation	lot-developer.md, sim-misc.md	-	-	-
 MatrixRow	widget toolkit	ui	-	-	-	-
 FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.md	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	effects.md	-	-	-
 MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
 cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 SFX	audio	audio	audio.md,audio-owner-closure.md	-	-	-
@@ -974,9 +982,9 @@ BoundaryIterator	sim grids	simulation	sim-misc2.md	-	-	-
 tBehaviorTemplate	automata (managers, records)	simulation	automata.md, sim-misc2.md	-	-	-
 cGroup_SC4RH	audio	audio	-	-	-	-
 MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
 CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	sim-misc2.md	-	-	-
 cEaseSound	audio	audio	-	-	-	-
@@ -1028,6 +1036,10 @@ cSC4TrafficSimulator::FerryTerminal	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4Blimp	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4AutoFlushInputMessageQueue	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4AutoDisableAppSwitching	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4EffectsModelProcessor	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4EffectsResourceFactory	effects	renderer	effects-owners.md	-	-	-
+cSC4CameraParams	effects	renderer	effects-owners.md	-	-	-
+cSC4EffectDescription::cDescriptionRec	effects	renderer	effects.md,effects-parser.md	-	-	-
 cSC4*	other SC4 classes	other	-	-	-	-
 cSC24BitRGBColorCustomizer	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
@@ -1101,6 +1113,9 @@ fn:operator.new	other free functions	other	small-helpers2.md	-	-	-
 fn:sNotify	other free functions	other	small-helpers2.md	-	-	-
 fn:NULL_about	other free functions	other	framework-misc3.md	-	-	-
 fn:SetTableNumber	other free functions	other	framework-misc3.md	-	-	-
+fn:ParseRateCurveCommands	effects	renderer	effects.md	-	-	-
+fn:ParseRangedVector3	effects	renderer	effects.md	-	-	-
+fn:ParseDrawOptions	effects	renderer	effects.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
 # ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)
