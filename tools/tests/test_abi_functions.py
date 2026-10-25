@@ -123,6 +123,57 @@ def test_deferred_nonvolatile_save_is_not_an_outgoing_argument():
     assert abi.argument_setup(ins[0x1008], ins, sorted(ins), f) == 1
 
 
+def test_stack_arguments_copied_by_string_instructions():
+    f, _ = fixture('''00001000\t55\tPUSH EBP
+00001001\t8bec\tMOV EBP,ESP
+00001003\t56\tPUSH ESI
+00001004\t57\tPUSH EDI
+00001005\t8d7508\tLEA ESI,[EBP + 0x8]
+00001008\t8d7df0\tLEA EDI,[EBP + -0x10]
+0000100b\ta5\tMOVSD ES:EDI,ESI
+0000100c\tb903000000\tMOV ECX,0x3
+00001011\tf3a5\tREP MOVSD ES:EDI,ESI
+00001013\t5f\tPOP EDI
+00001014\t5e\tPOP ESI
+00001015\tc9\tLEAVE
+00001016\tc3\tRET''')
+    abi.stack_and_registers(f, {f.address: f})
+    assert f.body_args == 4
+    assert f.live == set()
+
+
+def test_constructor_call_preserves_reserved_by_value_argument_block():
+    f, ins = fixture('''00001000\t83ec10\tSUB ESP,0x10
+00001003\t90\tNOP
+00001004\t83ec0c\tSUB ESP,0xc
+00001007\t54\tPUSH ESP
+00001008\te8f30f0000\tCALL 0x2000
+0000100d\t6a01\tPUSH 0x1
+0000100f\te8ec1f0000\tCALL 0x3000
+00001014\t83c410\tADD ESP,0x10
+00001017\t83c410\tADD ESP,0x10
+0000101a\tc3\tRET''')
+    ctor = abi.Function(0x2000, 'constructor', [], pops={4})
+    assert abi.argument_setup(ins[0x100f], ins, sorted(ins), f, {0x2000: ctor}) == 4
+
+
+def test_prologue_allocation_is_not_an_argument_of_a_zero_arg_call():
+    f, ins = fixture('''00001000\t55\tPUSH EBP
+00001001\t8bec\tMOV EBP,ESP
+00001003\t51\tPUSH ECX
+00001004\t51\tPUSH ECX
+00001005\t53\tPUSH EBX
+00001006\t8bd9\tMOV EBX,ECX
+00001008\te8f30f0000\tCALL 0x2000
+0000100d\t6a01\tPUSH 0x1
+0000100f\te8ec1f0000\tCALL 0x3000
+00001014\t59\tPOP ECX
+00001015\t5b\tPOP EBX
+00001016\tc9\tLEAVE
+00001017\tc3\tRET''')
+    assert abi.argument_setup(ins[0x1008], ins, sorted(ins), f) == 0
+
+
 def test_caller_cleanup_equivalent_pops_and_saved_registers():
     _, ins = fixture('''00001000\te8fb0f0000\tCALL 0x2000
 00001005\t59\tPOP ECX

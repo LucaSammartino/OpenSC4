@@ -69,16 +69,28 @@ class Insn:
     raw: bytes
     mnemonic: str
     operands: tuple
+    prefix: str = ''
 
     @classmethod
     def parse(cls, line):
         addr, raw, asm = line.rstrip().split('\t', 2)
         parts = asm.lower().split(None, 1)
         # Ghidra spells string prefixes as part of the mnemonic field.
+        prefix = ''
         if parts[0] in ('rep', 'repe', 'repne', 'lock') and len(parts) > 1:
+            prefix = parts[0]
             parts = parts[1].split(None, 1)
         return cls(int(addr, 16), bytes.fromhex(raw), parts[0],
-                   tuple(p.strip() for p in parts[1].split(',')) if len(parts) > 1 else ())
+                   tuple(p.strip() for p in parts[1].split(',')) if len(parts) > 1 else (), prefix)
+
+    @property
+    def string_width(self):
+        opcode = self.raw.lstrip(b'\xf3\xf2\x66\x67')[:1]
+        if opcode in (b'\xa4', b'\xa6', b'\xaa', b'\xac', b'\xae'):
+            return 1
+        if opcode in (b'\xa5', b'\xa7', b'\xab', b'\xad', b'\xaf'):
+            return 2 if b'\x66' in self.raw[:-1] else 4
+        return 0
 
     @property
     def end(self):
@@ -110,6 +122,17 @@ def access(ins):
     """GPR read/write sets. Partial writes do not kill the rest of an input GPR."""
     m, ops = ins.mnemonic, ins.operands
     reads, writes = set(), set()
+    if ins.string_width:
+        if m.startswith(('movs', 'cmps')):
+            reads, writes = {'esi', 'edi'}, {'esi', 'edi'}
+        elif m.startswith(('lods', 'scas')):
+            reads, writes = ({'esi'}, {'esi', 'eax'}) if m.startswith('lods') else ({'edi', 'eax'}, {'edi'})
+        else:
+            reads, writes = {'edi', 'eax'}, {'edi'}
+        if ins.prefix.startswith('rep'):
+            reads.add('ecx')
+            writes.add('ecx')
+        return reads, writes
     if not ops:
         if m in ('cdq', 'cwd'):
             return {'eax'}, {'edx'}
@@ -222,6 +245,8 @@ class Function:
     body_args: int = 0
     kinds: set = field(default_factory=set)
     saved_setup: set | None = None
+    entry_saves: dict = field(default_factory=dict)
+    restored: set = field(default_factory=set)
 
     @property
     def size(self):
@@ -238,6 +263,7 @@ def build_graph(f, instructions, starts, image=None):
                 break
             f.insns[va] = ins
             va = ins.end
+    f.restored = {i.operands[0] for i in f.insns.values() if i.mnemonic == 'pop' and i.operands}
     for va, ins in f.insns.items():
         m, target = ins.mnemonic, ins.target
         edges = []
@@ -301,7 +327,7 @@ def stack_and_registers(f, functions):
     larger argument offsets. Unknown stack writes stay unknown, never zero.
     """
     initial = tuple(0 if r == 'esp' else None for r in REGS)
-    states = {f.address: (0, initial)}
+    states = {f.address: (0, initial, None)}
     work = deque([f.address])
     live, body = set(), 0
     updates = 0
@@ -310,10 +336,14 @@ def stack_and_registers(f, functions):
         ins = f.insns.get(va)
         if ins is None:
             continue
-        defined, aliases = states[va]
+        defined, aliases, cx_known = states[va]
         a = list(aliases)
         reads, writes = access(ins)
         m, ops = ins.mnemonic, ins.operands
+        if m == 'push' and ops and ops[0] in PRESERVED & f.restored:
+            r = ops[0]
+            if not (defined >> (4 * RI[r]) & 15):
+                f.entry_saves[r] = min(va, f.entry_saves.get(r, va))
         if m == 'call' or m == 'jmp' and ins.target in functions:
             callee = functions.get(ins.target)
             if callee:
@@ -336,9 +366,24 @@ def stack_and_registers(f, functions):
                 body = max(body, (offset + memory_width(op) - 4 + 3) // 4)
             elif offset is None and registers(op) & {'esp', 'ebp'}:
                 f.notes.add('dynamic-stack-read')
+        implicit_sources = (('esi', 'edi') if m.startswith('cmps') else ('edi',) if m.startswith('scas')
+                            else ('esi',) if m.startswith(('movs', 'lods')) else ())
+        for source in implicit_sources if ins.string_width else ():
+            offset = aliases[RI[source]]
+            copies = cx_known if ins.prefix.startswith('rep') else 1
+            if offset is not None and offset >= 4:
+                if copies is None or copies < 0 or any(i.mnemonic == 'std' for i in f.insns.values()):
+                    f.notes.add('dynamic-stack-read')
+                elif copies:
+                    body = max(body, (offset + ins.string_width * copies - 4 + 3) // 4)
         old = dict(zip(REGS, aliases))
         for r in writes:
             a[RI[r]] = None
+        next_cx = None if 'ecx' in writes else cx_known
+        if m == 'mov' and len(ops) == 2 and ops[0] == 'ecx':
+            next_cx = number(ops[1])
+        elif m in ('xor', 'sub') and ops == ('ecx', 'ecx'):
+            next_cx = 0
         if m == 'mov' and len(ops) == 2 and full_register(ops[0]):
             a[RI[ops[0]]] = old.get(ops[1])
         elif m == 'lea' and len(ops) == 2 and full_register(ops[0]):
@@ -363,6 +408,14 @@ def stack_and_registers(f, functions):
             writes |= VOLATILE
             for r in VOLATILE:
                 a[RI[r]] = None
+            next_cx = None
+        if ins.string_width:
+            copies = cx_known if ins.prefix.startswith('rep') else 1
+            for r in writes & {'esi', 'edi'}:
+                base = old[r]
+                a[RI[r]] = base + ins.string_width * copies if base is not None and copies is not None else None
+            if ins.prefix.startswith('rep'):
+                next_cx = 0
         write_bits = 0
         for r in writes:
             mask = register_mask(ops[0], r) if ops and ops[0] in ALIASES else 15
@@ -370,14 +423,15 @@ def stack_and_registers(f, functions):
                 mask = 15
             write_bits |= mask << (4 * RI[r])
         new_defined = defined | write_bits
-        state = new_defined, tuple(a)
+        state = new_defined, tuple(a), next_cx
         for dst in f.edges.get(va, ()):
             before = states.get(dst)
             if before is None:
                 merged = state
             else:
                 merged = (before[0] & state[0], tuple(x if x == y else None
-                          for x, y in zip(before[1], state[1])))
+                          for x, y in zip(before[1], state[1])),
+                          before[2] if before[2] == state[2] else None)
             if before != merged:
                 states[dst] = merged
                 work.append(dst)
@@ -429,7 +483,7 @@ def caller_cleanup(call, instructions, max_insns=24, grouped=False):
     return total // 4, evidence
 
 
-def argument_setup(call, instructions, addresses, f):
+def argument_setup(call, instructions, addresses, f, functions=None):
     """Most recent outgoing stack block, excluding entry frame/saved registers.
 
     A preceding call separates batches. The raw batch release is retained, but
@@ -449,7 +503,17 @@ def argument_setup(call, instructions, addresses, f):
         if va not in f.insns or ins.end != expected_end:
             break
         m, ops = ins.mnemonic, ins.operands
-        if m == 'call' or m.startswith(('j', 'loop')) or ins.pop is not None:
+        if m == 'call':
+            callee = functions.get(ins.target) if functions else None
+            if callee and len(callee.pops) == 1 and next(iter(callee.pops)) > 0:
+                # Constructors can fill a reserved by-value argument block. Their
+                # own popped arguments disappear, but that block remains for this call.
+                total -= next(iter(callee.pops))
+                expected_end = va
+                continue
+            boundary = True
+            break
+        if m.startswith(('j', 'loop')) or ins.pop is not None:
             boundary = True
             break
         if va not in saved:
@@ -466,7 +530,7 @@ def argument_setup(call, instructions, addresses, f):
         if va == f.address:
             boundary = True
         expected_end = va
-    return total // 4 if boundary else None
+    return total // 4 if boundary and total >= 0 else None
 
 
 def saved_setups(f):
@@ -478,6 +542,9 @@ def saved_setups(f):
             break
         m, ops = ins.mnemonic, ins.operands
         if m == 'push' and ops and ops[0] in PRESERVED:
+            saved.add(va)
+        elif m == 'push' and ops == ('ecx',) and f.insns.get(ins.end) and f.insns[ins.end].mnemonic != 'call':
+            # MSVC uses PUSH ECX instead of SUB ESP,4 for small frame slots.
             saved.add(va)
         elif m in ('sub', 'and') and ops and ops[0] == 'esp':
             saved.add(va)
@@ -500,7 +567,7 @@ def saved_setups(f):
             saved.add(va)
         written |= access(ins)[1]
         va = ins.end
-    return saved
+    return saved | set(f.entry_saves.values())
 
 
 def required_x87(ins):
@@ -692,7 +759,7 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
             continue
         calls[addr].append(site)
         count, sites = caller_cleanup(ins, instructions, max_insns=80, grouped=True)
-        setup = argument_setup(ins, instructions, addresses, functions.get(int(row['caller'], 16)))
+        setup = argument_setup(ins, instructions, addresses, functions.get(int(row['caller'], 16)), functions)
         attributed = min(count, setup) if setup is not None else count
         if count:
             cleanups[addr].append({'callsite': f'{site:08x}', 'dwords': attributed,
@@ -757,6 +824,8 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
             conv, pop, count = d['convention'], d['pop'], d['args']
             if addr not in vtable and d['ret'] != 'discarded':
                 ret, ret_conf = d['ret'], d.get('ret_confidence', 'high')
+            elif addr in vtable and d['ret'] != ret and d['ret'] != 'discarded':
+                notes.add(f'direct-return-semantic={d["ret"]};vtable-return-channel-ambiguous')
             notes.add('source=direct-calls.md')
             if d.get('note'):
                 notes.add(d['note'])

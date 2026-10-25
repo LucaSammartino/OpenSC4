@@ -59,6 +59,9 @@ def validate(export, table, evidence, report_path, sample_path, seed=20261025):
         errors.append('duplicate addresses')
     if list(rows[0]) != abi.COLUMNS:
         errors.append('wrong columns')
+    for row in rows:
+        if len(row['address']) != 8 or any(c not in '0123456789abcdef' for c in row['address']):
+            errors.append('invalid address: ' + row['address'])
     source = abi.read_tsv(export / 'function-details.tsv')
     for f in source:
         addr = f'{int(f["address"], 16):08x}'
