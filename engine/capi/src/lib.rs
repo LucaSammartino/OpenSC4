@@ -1188,3 +1188,6 @@ mod overlay_owner;
 mod netocc_line;
 // Private power-pole occupant factory transport (no public DLL exports).
 mod netocc_pole;
+
+// Private RegionalCity handle transport; no public DLL exports.
+mod regionalcity_owner;
