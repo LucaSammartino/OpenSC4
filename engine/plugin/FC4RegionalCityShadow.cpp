@@ -6,6 +6,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
+#include "FC4RegionalCityRecordReplay.h"
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
 #include "cIGZCOM.h"
@@ -256,6 +257,11 @@ void Observe(void* raw) {
     for (auto* record : records) {
         fc4::WriteCapture capture;
         if (!capture.Capture(record)) { ++mismatches; differences += " capture-failed;"; continue; }
+        ++fields;
+        if (!fc4::regionalcity_replay::Roundtrip(capture)) {
+            ++mismatches;
+            differences += " owner-record-roundtrip-failed;";
+        }
         Context ctx{fc4::AsGame(record), &capture.Bytes()};
         const uint64_t result = fc4_regionalcity_shadow_compare(capture.Bytes().data(), static_cast<uint32_t>(capture.Bytes().size()), &ProbeField, &ctx);
         if (result == UINT64_MAX) { ++mismatches; differences += " decode-failed;"; continue; }
@@ -287,7 +293,7 @@ void Observe(void* raw) {
 namespace fc4 {
 void RegionalCityShadowObserve(int32_t julian, bool load) {
     if (SettingInt("regionalcity_shadow", nullptr, 0) == 0) return;
-    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string/point getters and record roundtrip; isolated setter fixtures; observation preserves native record");
+    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string/point getters and record roundtrip; host-owned element record replay; isolated setter fixtures; observation preserves native record");
     Observation obs{julian, load};
     SehGuard("regionalcity shadow", &Observe, &obs);
 }
