@@ -13,15 +13,6 @@
   No physics closure is claimed by the route-speed factors.
 
 <!-- from: core-vehicles5 (2026-10-23) -->
-- **VH5 - §5: train-owned algorithms.** Supply car count/model/length/colour
-  selection and random draws, car placement/following geometry and random sound
-  thresholds, StartTrip inputs/path protocol, message payload, and the failure
-  accident parameters. What does TrainCar's network-placement override change?
-  [Do not delegate these owner algorithms to a game vehicle or foreign manager;
-  composition/following/trip return Unsupported. Known ownership, teardown,
-  collision-speed copying and minimum collide timeout are implemented.]
-
-<!-- from: core-vehicles5 (2026-10-23) -->
 - **VH7 - §2/§3, automata.md §6.3/§6.5: route representation and geometry.**
   Name the traffic record's unnamed fields and route bytes, define lane-bit
   matching (equality or overlap), empty route/missing-occupant failure, path-point

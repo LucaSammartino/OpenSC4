@@ -105,19 +105,18 @@ The exact TrainCar and Train record contracts, including load failure and recons
 
 - `Init` (`0x00557A20`) chooses a car family and target count (§12.3); animation ticks subsequently create
   missing cars (`cSC4TrainCar::Init`, flag `0x10000000`). `Shutdown` releases them.
-- `StartTrip` (`0x005588D0`) builds the trip and posts `0x0C05E4CD`; a train that cannot start reports an accident
-  *[summary]*.
-- `DoAnimationTick` (2.3 KB) moves the cars behind the engine and plays random AEMS sounds; Train's
+- `StartTrip` (`0x005588D0`) checks for a rail accident before the inherited trip attempt; §12.11 gives
+  the independent accident/message and trip results.
+- `DoAnimationTick` (2.3 KB) moves the cars behind the engine; Train's
   `HandleCollision` requests a 20000 ms final state and perturbs car directions (§12.4).
-- **Player driving**: `DoPlayerDriveTick` and `PlayerDriveCheckForDerail`: going too fast through a curve (a random
-  draw against the speed) **derails** the train (flag `0x08000000`, an event, the derail sound) *[summary]*.
+- **Player driving**: the overspeed latch enables a curve test with a fixed random threshold; a separate
+  excessive-duration test can also derail the train (§12.12).
 
 ## 6. The tank
 
-`Init` (`0x0054C880`) loads the turret model and the shot effect (`tankshot`, `fx_00_tankshot`), speed 0.2;
-`HandleEnterState` sets its driving parameters (0.4, 2π, 30, 100, effect `0xAC0ECE77`, 2000);
-`TranslatePlayerDriveCommands` (1.9 KB) aims the turret and fires: a shot is an effect at the aimed point that
-damages what it hits *[summary]*; `DoPlayerDriveTick` plays the AEMS events. Its record adds two dwords.
+`Init` (`0x0054C880`) loads the turret/barrel models and shot effect (`tankshot`, `fx_00_tankshot`);
+initial barrel elevation is 0.2 radians. §12.13 gives aiming, power, cooldown and the projectile-effect
+interface boundary. `DoPlayerDriveTick` plays the AEMS events. Its record adds two dwords.
 
 ## 7. Emergency vehicles *[compat]*
 
@@ -1097,3 +1096,172 @@ parameters and random/service inputs must be supplied by the test):
 | E true, no exemptions, inherited modifier 1, table entry 2 = 0.8, equal entry/exit, nonzero slope | Modifier f32 0.8; no turn or slope factor |
 | State 16, inherited modifier 1, arbitrary supported network and slope | Modifier 1; no network, turn or slope factor |
 | No E/state/turn exemptions, network factor 1, no turn factor, A=1, T=0.5, Yd=−0.5 | Modifier 1; signed downhill value clamps to zero |
+
+### 12.11 Train composition, following and trip start (VH5)
+
+The family/count draws and cumulative constructor draws are already specified
+in §12.3. Car length is each created occupant's slot 17, not a train-wide tuning
+constant. The head passes its colour byte to creation; resource/model selection
+within the requested family belongs to the vehicle manager's creation contract
+([automata-managers.md](automata-managers.md) §5), not an additional train random
+draw. Retained car identities and teardown are §12.8.
+
+#### Target count and incremental creation
+
+Setting the target count (slot 195, `0x005577F0`) keeps only its low byte. If it
+is less than the current count, remove cars **from the tail**, calling each
+non-null car's Remove(false) and Release before shrinking the list. Store the
+new target even when no removal is needed. Increasing the target does not
+create anything immediately. Animation first runs Vehicle animation, refreshes
+an invalid cached tail cell/network/path from the last car (head if empty), and
+attempts at most **one** missing car per tick. Cached-cell invalidity tests x or
+z less than zero. Following is skipped in state 20, but this creation attempt
+precedes that test. Evidence: `0x00558D20–0x00558DB3`, `0x00557BF0–0x00557CED`.
+
+For one-car creation (slot 199, `0x0055A8B0`), previous means the last car or the
+head if empty. With previous length `L`, require
+`distance(previousRear, cachedSpawnPoint) − L × 0.5 >= 2 × L`.
+Equality permits creation. The family must be nonzero and the head's manager
+(slot 174) available. Normally use the selected car family. For freight family
+`0x4203`, the car that will reach the target count uses family `0x421A` instead.
+Manager slot 15 receives family, cached point, the head's `+0x84` value, a zero
+direction vector, zero, head colour byte, zero. A null result or failure to query
+`0x4A416254` returns false without appending. A successful queried reference is
+released locally after the list has retained its own reference.
+
+Before appending, clear the new car's flag 2, copy the previous car's speed
+(slot 49), MoveTo the cached point with the previous direction, and place it
+through slot 132 with cached network/path, null point collection and true.
+If the head is in state 16, push state 16 on the car with timeout −1 and other
+arguments zero. No fill-to-target loop is permitted. Evidence:
+`0x0055A8B0–0x0055AAC7`; spacing comparison `0x0055A935–0x0055A940`.
+
+#### Following geometry
+
+Slot 198 (`0x0055A050`) places cars in list order, with **two anchor searches per
+car**. Front/rear anchors are `+0x264/+0x2BC`; saved direction is `+0x270`.
+The initial reference point is the head's rear. The front spacing is
+`f32(previousLength × 0.5 + f32(carLength × 0.5))`; the rear spacing is car length.
+Search the head's current path from its last segment backward, then the saved
+network/path deque from newest to oldest, obtaining each earlier point collection
+from network slot 49 and its path-interface slot 3. Continue the current segment
+cursor across searches, rather than restarting it for each anchor. A successful
+candidate becomes the next search's reference point. The current segment's
+forward orientation remains earlier endpoint → later endpoint.
+
+For a segment `A→B`, reference `C` and spacing `r`, find intersections of
+`A+t(B−A)` with the sphere of centre C and radius r, keeping **0 <= t <= 1**.
+Both endpoints are included. Reject a segment when all three component
+differences have magnitude less than `f32(0.0001)`. The quadratic uses stored
+binary32 segment differences and coefficients `a = dot(B−A,B−A)` and
+`b = 2 dot(B−A,A−C)`, discriminant `b² − 4a(dot(A−C,A−C)−r²)`.
+Negative discriminant yields no root. Roots are stored binary32:
+`tPlus=(sqrt(discriminant)−b)/(2a)`, `tMinus=(−b−sqrt(discriminant))/(2a)`.
+A tangent is still reported as two roots when both parameters are in range.
+The primary output is the plus root if valid, otherwise the minus root. With
+two roots, try the minus root **first**. An acceptable point P requires
+`length(C−P) > f32(0.00001)` and
+`dot(normalize(B−A), normalize(C−P)) >= f32(0.1)`.
+The same dot threshold is used on the front and rear legs; do not use nearest
+distance alone to choose the intersection. Evidence for arithmetic, closed
+endpoints, root ordering and tests: `0x0055BB10–0x0055BCE5`,
+`0x0055CFD0–0x0055D201`; spacing/search `0x0055A221–0x0055A484`.
+
+The candidate output is persistent scratch during one following call, initially
+the runtime unset scalar (`0x00B22964`) in every component. A sphere miss leaves
+it unchanged; orientation rejection may leave the primary root in it. On a
+failed front search the owner still copies this scratch into the front anchor.
+On a failed rear search it uses `front − carLength × oldCarDirection` for the
+rear anchor. The subsequent reference is the search scratch, including on that
+rear fallback; do not silently substitute the fallback rear. Once history has
+been exhausted, later legs do not start a fresh traversal. For the first exhausted
+leg the search stops when the reference differs from the earliest endpoint by
+at least `f32(0.0001)` in any component, or its distance exceeds the spacing;
+otherwise traversal merely becomes inactive. There is no successful-placement
+boolean returned by this void owner helper. These are compatibility quirks for
+incomplete geometry, not a guarantee of valid coordinates.
+
+After both anchors, place the car on the selected network/path/point collection
+through slot 132 with true. Let D=front−rear. If its length is below
+`f32(0.00001)`, use saved direction unless it is componentwise within
+`f32(0.0001)` of the unset vector or also shorter than that length threshold;
+otherwise use the head direction. Centre is `front − D × 0.5` **before**
+normalizing D; MoveTo with normalized D and save that direction. Copy the head's
+speed through slot 49. In a complete consist, when the last car leaves a
+different non-null previous network, query that old network's cell and notify
+the newly selected path interface's slot 39 with `(head, cellX, cellZ)` before
+placing the car. Evidence: `0x0055A53E–0x0055A894`.
+
+TrainCar slot 132 first performs Vehicle placement. For the classification byte
+set by §12.3 and a resulting non-null network, query IID `0x4A10AFC2` (the
+[underground network interface](network-occupants.md) §3). On success, its slot 99
+determines opacity: result 2 requests `(target 1, duration f32(0.1))` through
+automaton slot 33; any other result requests `(0, f32(0.6))`. Release the query
+reference. Unclassified cars, no network or failed QI add no opacity request.
+This override changes visibility, not the chosen path or car length.
+Instruction evidence: `0x00557320–0x005573BC`.
+
+#### StartTrip and the independent rail-accident check
+
+Train StartTrip has three inputs: occupant, an inherited trip argument, and a
+forward-start boolean. The second argument is forwarded unchanged. Obtain the
+occupant's two cell coordinates through its slot 59, then call traffic simulator
+slot 17, CheckRailAccident(cellX,cellZ). If true, call the head manager's
+CreateAccident with the head's occupant interface, kind 2 and duration 20000 ms.
+When the message service exists, also post standard message `0x0C05E4CD`, setting
+its first cell coordinate through message slot 11 and second through slot 16;
+send through service slot 4 with zero and release the message. These effects
+occur **before** the inherited Traffic StartTrip, even if it subsequently
+returns false. A false inherited result returns false without train geometry.
+A true result with no point collection or with flag `0x2000` returns true without
+train geometry. The check itself belongs to
+[traffic-simulator.md](traffic-simulator.md); this owner performs no extra random
+draw for it. Evidence: `0x005588D0–0x005589CA`; service binding/target verified at
+`0x00AB33D0` slot 17 → `0x00711590`.
+
+For an ordinary successful start, false forward-start selects the last path
+point as front and path index `count−2`. True forward-start with positive path
+distance `+0x260` first reduces it to `min(distance, slot151())`, then calls
+slot 133 from the first point to derive the front and path index. With
+nonpositive distance it uses the path interface's slot 19 point query instead.
+Derive the rear using slot 182 with front, rear output, head length and the saved
+path-history deque. For a rear with no NaN component, D=front−rear. If any rear
+component is NaN, use the path's last point for front and
+`D=normalize(last−first) × headLength`; the native normalization has no zero-length
+guard in this fallback. Infinity alone is not the NaN test.
+Centre is front−D/2. MoveTo with normalized D only when `length(D)>f32(0.00001)`;
+otherwise pass a null direction. Save D after that optional normalization and
+clear flag `0x20`. Return the inherited result. There is no rollback of the
+earlier accident/message. A missing required simulator or failed message
+allocation is not a graceful false-return path in the original. Evidence:
+`0x005589D0–0x00558D1B`.
+
+#### Animation failure and random accounting
+
+Flag `0x20` clear resets blocked seconds to zero. While set, only a speed-modifier
+slot-125 result **greater than** `f32(0.01)` increments that timer by
+`dt × f32(0.001)`. At timer >=10 seconds, draw a full unsigned 32-bit value and
+Remove(false) iff it is **less than `0x7FFFFFFF`**. A rejected draw leaves the
+timer high, permitting another draw next eligible tick. These instructions are
+`0x00557CF3–0x00557D55`. This is removal, not a sound draw. The inspected Train
+animation and player-drive routines do not contain the previously claimed
+random horn/sound selection; their additional random draws are the overspeed
+range, derail test and collision perturbations (§12.4). Sound service behaviour
+is [audio.md](audio.md); do not invent a per-car sound draw here.
+
+| Train conformance setup | Required observation |
+|---|---|
+| Three retained cars, set target `0x102` | Target 2; remove/release old tail once. |
+| Target 5, count 0, enough space for many cars | One creation attempt in one animation tick. |
+| Previous length 10, spawn separation 25 | Creation allowed; separation just below 25 rejects. |
+| Family `0x4203`, target 3, count 2 | Request `0x421A`, same head colour; no train model-selection draw. |
+| Manager returns object whose TrainCar QI fails | Return false; list unchanged. |
+| Straight path increasing x, head rear x=20, head/car lengths 10 and 6 | First car front x=12, rear x=6, centre x=9, direction `(1,0,0)`. |
+| Segment x=0..10, reference x=5, radius 2 | Two roots x=7 and 3; choose x=3 by forward-orientation test. |
+| Segment x=0..10, reference x=12, radius 2 | Accept endpoint x=10. |
+| Identical segment endpoints | Reject before quadratic division. |
+| Classified TrainCar, underground query returns category 2 / other | Opacity request `(1,0.1)` / `(0,0.6)`, after Vehicle placement. |
+| Accident predicate true, inherited StartTrip false | Accident `(head,2,20000)` and cell message precede false return. |
+| Predicate false, inherited StartTrip false | False, no accident/message and no train geometry. |
+| Blocked timer 10, speed modifier >0.01, draw `0x7FFFFFFE` / `0x7FFFFFFF` | Remove / retain; equality does not remove. |
+| Blocked flag clear or speed modifier exactly f32(0.01) | Clear timer / retain timer without increment or draw. |
