@@ -77,3 +77,41 @@ completed scenarios with non-exact lines under the ignored `freeze/` directory
 and proposes agreed-format rows in `suite-additions.tsv`. It leaves the tracked
 suite untouched. Pending jobs are excluded; script text is preserved rather
 than regenerated with possibly changed generator code.
+
+## Round-3 measured results
+
+The following Konradshohe runs are terminal: eight reached the two-year date
+(six clean, two corrupt), four stalled earlier. All twelve found non-exact
+shadows and are fixed `gen` suite scenarios. Other city results are still being
+collected. Labels are `gen27-r3-<city>-s<seed>-<mix>`; all use `profile=shadows`.
+Action refusals include deliberate edge/error-path attempts.
+
+| City | Seed | Mix | Verdict | End reached | Actions ok/failed | Shadows exact/lines |
+|---|---:|---|---|---|---:|---:|
+| Konradshohe | 0 | default | corrupt | yes | 444/500 | 4210/4340 |
+| Konradshohe | 0 | grow | corrupt | yes | 115/101 | 3973/3999 |
+| Konradshohe | 0 | churn | clean | yes | 398/47 | 4162/4255 |
+| Konradshohe | 0 | edge | clean | yes | 286/103 | 4003/4029 |
+| Konradshohe | 1 | default | clean | yes | 462/482 | 4176/4303 |
+| Konradshohe | 1 | grow | clean | yes | 107/109 | 3900/3947 |
+| Konradshohe | 1 | churn | clean | yes | 407/38 | 4183/4269 |
+| Konradshohe | 1 | edge | clean | yes | 246/143 | 4021/4048 |
+| Konradshohe | 2 | default | stalled | no | 90/89 | 763/788 |
+| Konradshohe | 2 | grow | stalled | no | 21/14 | 344/351 |
+| Konradshohe | 2 | churn | stalled | no | 19/2 | 235/239 |
+| Konradshohe | 2 | edge | stalled | no | 37/14 | 501/507 |
+
+The [summary](../../build-runs/suite/gen27-r3/summary.tsv) retains verdict, end
+and throughput for every requested scenario. [actions.tsv](../../build-runs/suite/gen27-r3/actions.tsv)
+gives run/ok/failed by action. [findings.tsv](../../build-runs/suite/gen27-r3/findings.tsv)
+retains each first mismatching key, actual exceptions and watchdog stalls with
+seed, native line and preceding script action; [nonexact.tsv](../../build-runs/suite/gen27-r3/nonexact.tsv)
+retains all non-exact lines and action windows. These findings do not identify
+engine fixes or establish novelty against an idle baseline.
+
+Tools validation on final tooling source: `python -m pytest tools/tests -q`
+printed **378 passed in 267.34s** ([log](../../build-runs/suite/gen27-r3/tools-tests-final.log)).
+Native parser validation printed `scripts=300 actions=100800 parse_errors=0`;
+five generator tests passed ([log](../../build-runs/suite/gen27-r3/native-parser.log)).
+Real input metadata/hashes cover all four FC4 Test cities, and the validation
+helper printed `Documents source hashes unchanged: 4/4`.
