@@ -13015,6 +13015,36 @@ uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
 }
 #endif
 
+/* Flora occupant value ownership and version-3 persistence (flora §3.4,
+ * lot-records §11). Caller serializes access to each live instance. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_flora_instance fc4_flora_instance;
+typedef struct fc4_flora_instance_values {
+    uint32_t flora_type, birth, last_seed;
+    int32_t state;
+    uint32_t orientation;
+    float position[3];
+    uint32_t lot_tag;
+    uint16_t removal;
+    uint8_t flags, highlight, status, cells[4];
+} fc4_flora_instance_values;
+fc4_flora_instance* fc4_flora_instance_create(void);
+void fc4_flora_instance_destroy(fc4_flora_instance* p);
+bool fc4_flora_instance_values_get(const fc4_flora_instance* p, fc4_flora_instance_values* out);
+bool fc4_flora_instance_values_set(fc4_flora_instance* p, const fc4_flora_instance_values* value);
+bool fc4_flora_instance_write(const fc4_flora_instance* p, const fc4_ostream* out, const fc4_props* props);
+bool fc4_flora_instance_read(fc4_flora_instance* p, const fc4_istream* in);
+fc4_props* fc4_flora_instance_props(const fc4_flora_instance* p);
+/* Decode an entire native record, require byte-identical re-encoding, and
+ * compare the public getters. No native state is changed. */
+bool fc4_flora_instance_record_shadow(const uint8_t* bytes, size_t length,
+    const fc4_flora_instance_values* expected);
+#ifdef __cplusplus
+}
+#endif
+
 /* AF11 partial metadata shadow: fresh Rust helicopter record, class ID or 0.
  * Only the four leading u16 version fields are comparison targets. */
 #ifdef __cplusplus

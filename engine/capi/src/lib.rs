@@ -891,6 +891,7 @@ pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
 pub mod flora_shadow;
+pub mod flora_instance;
 pub mod growth;
 pub mod history;
 pub mod hostgrid;
