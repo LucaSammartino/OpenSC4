@@ -672,7 +672,11 @@ fn mysim_record_round_trip() {
         assert!(fc4_adv_mysim_get_state(n, &mut loaded));
         assert_eq!((loaded.slot, loaded.residence, loaded.generation), (2, HOME, 1));
         assert_eq!(loaded.dispatch, 0xD15);
-        assert_eq!(f.game.refs(0xD15), 2, "live and restored MySims own their dispatch references");
+        assert_eq!(
+            f.game.refs(0xD15),
+            2,
+            "live and restored MySims own their dispatch references"
+        );
         assert_eq!(f.game.refs(HOME), 2, "the read residence is held");
         let mut again = Out::default();
         assert!(fc4_adv_obj_write(n, &ostream(&mut again)));

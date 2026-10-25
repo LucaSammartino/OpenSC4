@@ -440,11 +440,19 @@ std::string MySimScriptAction(bool moveIn) {
             std::vector<uint64_t> buildings(n > 0 ? static_cast<size_t>(n) : 0);
             if (!buildings.empty()) host.all_buildings(nullptr, buildings.data(), buildings.size());
             for (uint64_t token : buildings) {
-                auto* b = reinterpret_cast<cISC4BuildingOccupant*>(FromToken(token));
-                if (!sim->TestForResidence(b, true, false)) continue;
+                void* typed = nullptr;
+                if (!FromToken(token)->QueryInterface(0x87DDA3A9, &typed) || !typed) continue;
+                auto* acquired = static_cast<cIGZUnknown*>(typed);
+                FC4_ACQUIRED(acquired, "QueryInterface");
+                auto* b = static_cast<cISC4BuildingOccupant*>(typed);
+                if (!sim->TestForResidence(b, true, false)) {
+                    FC4_RELEASE(acquired);
+                    continue;
+                }
                 SC4String name("FC4 Persist"), bio("replace-mysims27"), path("");
                 sim->MoveIn(3, name, true, 4, bio, 0, path);
                 moved = sim->SetResidence(b);
+                FC4_RELEASE(acquired);
                 break;
             }
         }
