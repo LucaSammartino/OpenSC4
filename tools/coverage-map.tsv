@@ -828,6 +828,30 @@ cRZStringResource	framework services (RZ)	framework	framework-misc2.md	-	-	-
 cGZApp	application	framework	application.md, framework-misc2.md	-	-	-
 cRZVersion	framework services (RZ)	framework	framework-misc2.md	-	-	-
 cRZExceptionNotification	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCOMDllDirector	framework services (RZ)	framework	renderer-gdrivers-director.md, app-directors.md	-	-	-
+cGZFadeTmpWin	widget toolkit	ui	widget-toolkit.md	-	-	-
+nRZHash	framework services (RZ)	framework	lua-host.md	-	-	-
+cRZThreadSignal	framework services (RZ)	framework	framework-gz-services.md	-	-	-
+cGZCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cIGZWinDragAndDropManager::DragData	widget toolkit	ui	widget-dragdrop.md, framework-misc3.md	-	-	-
+cISC4TrafficSimulator::FerryRouteInfo	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4MySimPool::tMySimTemplate	framework services (GZ)	framework	mysims.md, framework-misc3.md	-	-	-
+cISC4SimGrid	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4BuildingOccupant::BuildingProfile	framework services (GZ)	framework	demand.md, framework-misc3.md	-	-	-
+cISC4CivicBuildingSimulator::ConditionalBuildingStatus	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4ResidentialSimulator::tQueryData	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZRefCount	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cGZCOMLibrary	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cGZKeyMessage	framework services (GZ)	framework	framework-misc3.md, framework-misc2.md	-	-	-
+cGZAny	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZFastSTLAllocator	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cGZCommandServer::CommandInfo	framework services (GZ)	framework	framework-misc3.md	-	-	-
+nGZLog	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZCellMap	framework services (RZ)	framework	framework-misc3.md, zones.md	-	-	-
+cRZLock	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cIGZMessageTarget2	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cIGZWinProc	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cIGZSystemService	framework services (GZ)	framework	framework-misc3.md	-	-	-
 # the GZ catch-all sits below cGZDate and the command-system rows, which it used to hide (first match wins)
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
@@ -937,14 +961,14 @@ tCrimePropOccupantFilter	crime	simulation	-	-	-	-
 nsSC4TutorialSystem	tutorial	simulation	-	-	-	-
 CacheData	web and network	framework	-	-	-	-
 cISTETerrain::tBrushParameters	terrain	simulation	-	-	-	-
-cCompletionObj	framework services (GZ)	framework	-	-	-	-
+cCompletionObj	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cSTEWaterWave	3D scene and models	renderer	-	-	-	-
-SignalPlatformData	framework services (RZ)	framework	-	-	-	-
+SignalPlatformData	framework services (RZ)	framework	framework-misc3.md	-	-	-
 PieGraphSeriesInfo	widget toolkit	ui	-	-	-	-
-ibasic_string	framework services (GZ)	framework	-	-	-	-
+ibasic_string	framework services (GZ)	framework	framework-misc3.md	-	-	-
 RZFileTimeSort	framework services (RZ)	framework	-	-	-	-
-RZFileFindData	framework services (RZ)	framework	-	-	-	-
-FileChangeNotification	framework services (RZ)	framework	-	-	-	-
+RZFileFindData	framework services (RZ)	framework	framework-misc3.md	-	-	-
+FileChangeNotification	framework services (RZ)	framework	framework-misc3.md	-	-	-
 icf::cGZApp	application	framework	-	-	-	-
 icf::cGZCheatCodeManager	cheats	framework	-	-	-	-
 icf::cSC4AudioEventHandlerDisasterFire	audio	audio	-	-	-	-
