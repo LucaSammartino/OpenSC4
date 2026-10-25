@@ -1,21 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| nettool-cost27 (Tempelhof road cost diagnosis), kind engine | Codex / `nettool-cost27` / reserved branch `nettool-cost27`, detached HEAD | blocked on NT36; commits `f07c2a23b`, `464c18187`; ABI unchanged, no seam reservation; cargo 7844/0, clippy 0, CTest 117/117; `nettool-cost27-tempelhof-diag1` clean, ref_warnings=0; network exact 0/1, powerline exact 1/1 | 1. Answer NT36 in `docs/specs/questions/network-tools.md`. 2. Implement the admitted constraint behavior and add its unit fixture. 3. Recheck Tempelhof 1/1 and Konradshohe 73/73, including powerline, then enqueue ready. |
+| nettool-cost27 (NT36 Tempelhof road cost), kind engine | Codex / `nettool-cost27` / reserved branch `nettool-cost27`, detached HEAD | ready; code `e2484c179`, vectors `8ebf830bd`, main merge `c772fe20d`; ABI unchanged, no seam reservation; cargo 7848/0, clippy 0, CTest 117/117; `nettool-cost27-tempelhof-nt36-2` clean, both shadows exact 1/1; `nettool-cost27-konrad-nt36-1` clean, both shadows exact 73/73; both ref_warnings=0; NT36 answered | 1. Coordinator: review and land the ready engine queue entry. |
 
-Added bounded single-cell mismatch diagnostics in `engine/plugin/FC4NetToolDragShadow.cpp`.
-Logs live terrain and retained corners, water/depths, height range per 16 m, edge distance, occupant presence and zone.
-Reproduced the exact road `(86,3)-(86,3)` cost=11/10 difference; all other public fields match.
-Request used Tempelhof, seconds=150, timeout=400, nettool_plan_shadow=1, powerline_plan_shadow=1, close_dialogs=1, autotest_unpause=2, autotest_end=quit.
-Result: clean, foreign_exceptions=0, ref_warnings=0, unchanged date 2000-01-01; shadow julian=0.
-Terrain corners: (291.402679,293.308929,290.792847,289.532623), vertex IDs (473,602,603,474), stride=129.
-Dry, empty, unzoned cell; nearest edge=3 cells; height range/16=0.236019135.
-Replay retains four corners at 290.792847; absolute residual sum=4.386138916015625.
-Section 8.1's factor 0.1 rounds that earthwork to 0, giving the replay's legitimate price 10.
-Section 8.1.4 does not admit native retained inputs from public totals. Geometry section 9.8's plane is currently host-supplied; native constraint/result fixture remains unresolved.
-Filed NT36 requesting the ordered plane/range/equality inputs and retained network result; no price adjustment or guessed native corners.
-No Rust change/unit fixture: awaiting the rule needed to fix the divergence. Konradshohe was not rerun on this diagnostic-only change.
-Powerline code unchanged; Tempelhof powerline remains exact 1/1, six vectors; network has one mismatch among twelve vectors.
-Full gate: qbuild all PASS, cargo 7844 passed/0 failed, clippy 0 diagnostics, native build 46/46, CTest 117/117.
-Gate logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; request `qbuild-20261025-200949-build-ctest`.
-Game evidence: `build-runs/game-results/nettool-cost27-tempelhof-diag1.log` and `.verdict`.
-Queue state wip: diagnostic/question only, task blocked rather than ready.
+Merged main's NT36 answer: network-geometry §§9.1/9.8.1 and network-tools §8.1.5.
+The satisfier now alternates signed-id ordered propagation sets until no affected vertices remain before its first hash pick.
+Equality groups propagate allowed bounds while preserving individual initial heights/preferences; singleton visits queue height pairs for LIFO picks.
+Tempelhof's sole road cell now retains four corners at 293.308929443359375; earthwork sum 8.198638916015625 rounds to 1, total 11.
+Added four unit tests: admitted post-plane fixture/retry/pick order/cost, live clear-land replay, flat/gentle single-cell controls, gentle eleven-cell road control.
+Updated singleton-order tests and two existing conformance vectors for the specified propagation; the anchored ramp still tests smoothing failure.
+Pricing and powerline code are unchanged. Plane windows remain the existing host boundary; the admitted unit fixture supplies the specified windows.
+Prior diagnostic plugin logging remains in place; no new questions. NT36's Tempelhof filing is resolved by the landed spec answer.
+Owned Rust fmt: four files, exit=0, diff_lines=0. Focused turbo-off conformance: 2/2 passed.
+Final qbuild all PASS: cargo 7848 passed/0 failed, clippy 0 diagnostics, native build 46/46, CTest 117/117.
+Final native request: `qbuild-20261025-211628-build-ctest`; source commit `8ebf830bd`.
+Gate logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+Earlier full gate failed two stale conformance expectations; they were corrected before the final passing gate.
+Final Tempelhof: `nettool-cost27-tempelhof-nt36-2`, seconds=150/timeout=400, date stayed 2000-01-01; shadow julian=0.
+Tempelhof shutdown: network exact 1/1 (12 vectors), powerline exact 1/1 (6 vectors), mismatches=0, unavailable=0.
+Final Konradshohe: `nettool-cost27-konrad-nt36-1`, turbo/end_date=2032-01-16, reached 2032-01-20.
+Konradshohe shutdown: network exact 73/73 (876 vectors), powerline exact 73/73 (438 vectors), mismatches=0, unavailable=0.
+Both final verdicts clean, foreign_exceptions=0, ref_warnings=0; same final DLL SHA256 prefix `66430a40`.
+Game evidence: `build-runs/game-results/<final label>.log` and `.verdict` for each label above.
+Pre-final `nettool-cost27-tempelhof-nt36-1` was also clean/exact 1/1; repeated because the gate rebuilt the DLL afterward.
+Scope remains clear-land draft status/cost. All required work is complete; queue kind engine, state ready, ABI unchanged.
