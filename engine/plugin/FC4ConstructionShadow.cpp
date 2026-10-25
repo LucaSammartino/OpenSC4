@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // lot-records 9.2/9.3, T79: known-live getters only; never Write stale effects.
 #include "FC4ConstructionShadow.h"
+#include "FC4ConstructionIdentity.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Interfaces.h"
@@ -24,6 +25,7 @@ struct Sample {
     uint32_t visited = 0, fields = 0, mismatches = 0, uninitialized = 0;
     cISC4Occupant* occupant = nullptr; // Manager holds it throughout callback (OM 9).
     cIGZSerializable* serializable = nullptr;
+    ConstructionView* construction = nullptr;
 
     static void Probe(void* data) {
         auto& s = *static_cast<Sample*>(data);
@@ -49,6 +51,8 @@ struct Sample {
         }
         ++s.fields;
         s.mismatches += s.occupant->GetType() != 0x096E763C;
+        ++s.fields;
+        s.mismatches += !ConstructionIdentity(s.occupant, s.occupant, s.construction);
         void* view = nullptr;
         ++s.fields;
         if (s.occupant->QueryInterface(0xE4FDA3D4, &view) && view) {
@@ -65,6 +69,11 @@ struct Sample {
         if (!s.seen.insert(occupant).second) return true;
         s.occupant = occupant;
         if (!SehGuard("construction live getters", &Probe, &s)) ++s.mismatches;
+        if (s.construction) {
+            FC4_ACQUIRED(s.construction, "construction identity QI");
+            FC4_RELEASE(s.construction);
+            s.construction = nullptr;
+        }
         if (s.serializable) { FC4_RELEASE(s.serializable); s.serializable = nullptr; }
         return true;
     }
@@ -85,7 +94,7 @@ void ConstructionShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     }
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
-    Log("construction shadow %04d-%02d-%02d %s: occupants=%u fields=%u uninitialized=%u empty=%u scope=live-position,class,type partial=1 excluded=record,lifecycle,schedule,render; mismatches=%u",
+    Log("construction shadow %04d-%02d-%02d %s: occupants=%u fields=%u uninitialized=%u empty=%u scope=live-position,class,type,identity partial=1 excluded=record,lifecycle,schedule,render; mismatches=%u",
         date.year, date.month, date.day_of_month, loaded ? "load" : "month",
         s.visited, s.fields, s.uninitialized, s.visited == 0 ? 1u : 0u, s.mismatches);
 }

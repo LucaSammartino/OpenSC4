@@ -1185,6 +1185,8 @@ mod legacyctl_shadow;
 mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;
+// Private construction record-owner factory; not activated as a replacement.
+mod construction_owner;
 
 // Private portable overlay owner factory transport; no public DLL exports.
 mod overlay_owner;

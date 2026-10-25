@@ -1250,6 +1250,23 @@ if(TARGET FreeCity4)
     add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
 endif()
 
+# Construction interface identity and borrowed slot-3 conversion (LR 9.3).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ConstructionIdentity.h)
+    add_executable(fc4_construction_identity_test tests/construction_identity_test.cpp)
+    target_include_directories(fc4_construction_identity_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_construction_identity_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME construction_identity_test COMMAND fc4_construction_identity_test)
+endif()
+
+# Construction record-owner staging factory: no subsystem registration yet.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4ConstructionRecord.cpp plugin/cFC4ConstructionRecord.h)
+    add_test(NAME construction_record_factory_test
+        COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>" --record-factory)
+    set_tests_properties(construction_record_factory_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+
 # Overlay probe ABI and lifecycle against the real private Rust transport.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_contract_test tests/overlays_contract_test.cpp)
