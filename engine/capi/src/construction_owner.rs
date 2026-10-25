@@ -129,11 +129,27 @@ mod tests {
             rec.scalars.next_day = 12345;
             let mut before = Out::default();
             assert!(fc4_construction_record_write(a, &ostream(&mut before)));
-            let mut input = In::new(&before.bytes[..before.bytes.len() - 1]);
-            assert!(!fc4_construction_record_read(a, &istream(&mut input)));
-            let mut after = Out::default();
-            assert!(fc4_construction_record_write(a, &ostream(&mut after)));
-            assert_eq!(before.bytes, after.bytes);
+            // Exercise every partial base and construction-field boundary,
+            // including failure after the final reference has been consumed.
+            for length in 0..before.bytes.len() {
+                let mut input = In::new(&before.bytes[..length]);
+                assert!(
+                    !fc4_construction_record_read(a, &istream(&mut input)),
+                    "accepted truncated record of length {length}"
+                );
+                let mut after = Out::default();
+                assert!(fc4_construction_record_write(a, &ostream(&mut after)));
+                assert_eq!(before.bytes, after.bytes, "changed at length {length}");
+            }
+            // A later complete Read must still commit its candidate.
+            let b = fc4_construction_record_create();
+            (*b.cast::<ConstructionRecord>()).scalars.next_day = 67890;
+            let mut replacement = Out::default();
+            assert!(fc4_construction_record_write(b, &ostream(&mut replacement)));
+            let mut input = In::new(&replacement.bytes);
+            assert!(fc4_construction_record_read(a, &istream(&mut input)));
+            assert_eq!((*a.cast::<ConstructionRecord>()).scalars.next_day, 67890);
+            fc4_construction_record_destroy(b);
             fc4_construction_record_destroy(a);
         }
     }
