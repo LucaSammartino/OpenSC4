@@ -620,8 +620,8 @@ fn:SC4DoPopupStringListMenu	windows and panels	ui	widget-misc2.md	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWinListBox	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWinTreeView	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinListBox	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
+cGZWinTreeView	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWin	widget toolkit	ui	widget-toolkit.md	-	-	-
 cGZWinBtn	widget toolkit	ui	widget-button.md	-	-	-
@@ -791,10 +791,10 @@ cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZCOM	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
 cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
 cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-

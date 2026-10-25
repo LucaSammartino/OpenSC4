@@ -8,9 +8,9 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 4,607,400 | **82.5%** | 21,459 | 72.7% |
-| **implemented** | a clean-room module in engine/ implements its owner | 3,328,493 | **59.6%** | 14,422 | 48.8% |
-| **verified** | its same-process shadow is exact in the run that measured it | 1,530,547 | **27.4%** | 6,553 | 22.2% |
+| **specified** | a spec in docs/specs covers its owner | 4,980,722 | **89.2%** | 24,787 | 83.9% |
+| **implemented** | a clean-room module in engine/ implements its owner | 3,361,604 | **60.2%** | 14,790 | 50.1% |
+| **verified** | its same-process shadow is exact in the run that measured it | 1,541,406 | **27.6%** | 6,705 | 22.7% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,550,448 | **27.8%** | 6,099 | 20.7% |
 
 ## Whole executable
@@ -31,20 +31,20 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 8,743 | 1,976,926 | 35.4% | 99.2% (98.5%) | 82.3% (77.0%) | 63.0% (61.3%) | 64.5% (58.0%) |
-| framework | 4,909 | 634,787 | 11.4% | 86.2% (78.1%) | 77.2% (65.2%) | 3.3% (4.8%) | 0.7% (0.6%) |
-| renderer | 5,200 | 1,215,450 | 21.8% | 89.1% (88.9%) | 68.3% (68.0%) | 19.8% (16.4%) | 22.4% (19.3%) |
-| ui | 5,170 | 1,119,521 | 20.0% | 67.0% (46.7%) | 30.0% (14.5%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | 8,747 | 1,978,070 | 35.4% | 100.0% (99.9%) | 82.2% (77.0%) | 62.6% (61.1%) | 64.4% (58.0%) |
+| framework | 4,901 | 636,949 | 11.4% | 94.4% (93.3%) | 77.6% (67.4%) | 6.0% (8.1%) | 0.7% (0.6%) |
+| renderer | 5,237 | 1,221,934 | 21.9% | 95.4% (94.9%) | 67.9% (67.5%) | 19.7% (16.3%) | 22.3% (19.2%) |
+| ui | 5,197 | 1,121,343 | 20.1% | 84.3% (83.3%) | 32.5% (19.6%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,972 | 214,068 | 3.8% | 78.9% (82.5%) | 5.3% (2.9%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| region | 415 | 111,726 | 2.0% | 86.4% (83.9%) | 31.0% (33.3%) | 21.2% (25.5%) | 0.0% (0.0%) |
-| other | 290 | 36,081 | 0.6% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| region | 417 | 112,894 | 2.0% | 100.0% (100.0%) | 30.7% (33.1%) | 21.0% (25.4%) | 0.0% (0.0%) |
+| other | 228 | 23,301 | 0.4% | 42.5% (57.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,005 | 189,808 | 3.4% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 831 | 85,977 | 1.5% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,535** | **5,584,344** | 100.0% | **82.5%** (72.7%) | **59.6%** (48.8%) | **27.4%** (22.2%) | **27.8%** (20.7%) |
+| **all game code** | **29,535** | **5,584,344** | 100.0% | **89.2%** (83.9%) | **60.2%** (50.1%) | **27.6%** (22.7%) | **27.8%** (20.7%) |
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines in `regress-train236.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines in `regress-train238.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
 
 | Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |
 |---|---|---:|---:|---:|---|---|---|---|---|
@@ -53,39 +53,39 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | network tools | 12 | 393 | 150,282 | yes | part | - | - | part |
 | simulation | network occupants | 28 | 878 | 123,459 | yes | part | 72/72 | part | - |
 | simulation | automata (managers, records) | 13 | 507 | 121,603 | part | part | 72/72 | part | part |
-| simulation | terrain | 4 | 322 | 84,366 | part | part | 593/593 | part | part |
+| simulation | terrain | 5 | 323 | 84,631 | yes | part | 594/594 | part | part |
 | simulation | mysims | 8 | 346 | 80,498 | yes | yes | 73/73 | part | - |
-| simulation | advisors | 18 | 288 | 71,970 | part | part | 73/73 | part | part |
-| simulation | occupants and props | 37 | 491 | 69,634 | part | part | - | - | - |
+| simulation | advisors | 18 | 288 | 71,970 | yes | part | 73/73 | part | part |
+| simulation | occupants and props | 38 | 492 | 70,035 | yes | part | - | - | - |
 | simulation | development | 2 | 215 | 50,083 | yes | yes | 913/913 | yes | yes |
 | simulation | disasters | 17 | 337 | 46,988 | yes | yes | fire 124/124, riot 481/481 (lane run) | part | part |
-| simulation | network manager | 6 | 167 | 41,985 | part | part | 73/73 | part | part |
+| simulation | network manager | 6 | 167 | 41,985 | yes | part | 73/73 | part | part |
 | simulation | city situation | 1 | 155 | 41,919 | yes | yes | 73/73 | yes | yes |
 | simulation | zone developer / lot manager | 1 | 102 | 41,866 | yes | yes | 365/365 | yes | yes |
-| simulation | residential | 1 | 118 | 40,490 | yes | yes | 1137/1137 | yes | yes |
+| simulation | residential | 1 | 118 | 40,490 | yes | yes | 1140/1140 | yes | yes |
 | simulation | lot developer | 1 | 149 | 40,458 | yes | yes | 73/73 | yes | yes |
 | simulation | tract developer | 1 | 117 | 36,811 | yes | yes | 145/145 | yes | yes |
-| simulation | city and save file | 11 | 309 | 35,103 | part | part | - | - | - |
+| simulation | city and save file | 11 | 309 | 35,103 | yes | part | - | - | - |
 | simulation | budget | 3 | 171 | 30,911 | yes | yes | 72/72 | yes | yes |
-| simulation | demand | 2 | 101 | 29,573 | yes | yes | 2241/2241 | yes | yes |
+| simulation | demand | 2 | 101 | 29,573 | yes | yes | 2245/2245 | yes | yes |
 | simulation | neighbours | 3 | 126 | 26,974 | yes | yes | 72/72 | yes | yes |
-| simulation | power | 1 | 81 | 26,475 | yes | yes | 398/398 | yes | yes |
+| simulation | power | 1 | 81 | 26,475 | yes | yes | 401/401 | yes | yes |
 | simulation | lots and lot records | 5 | 178 | 24,896 | yes | yes | 73/73 | part | - |
 | simulation | pollution | 1 | 104 | 24,357 | yes | yes | 72/72 | yes | yes |
 | simulation | protection | 3 | 150 | 23,130 | yes | yes | 288/288 | yes | yes |
-| simulation | plumbing | 1 | 54 | 20,057 | yes | yes | 144/144 | yes | yes |
-| simulation | prop / lot configuration managers | 2 | 121 | 19,551 | yes | yes | 219/220, 293/293 | part | yes |
+| simulation | plumbing | 1 | 54 | 20,057 | yes | yes | 145/145 | yes | yes |
+| simulation | prop / lot configuration managers | 2 | 121 | 19,551 | yes | yes | 220/220, 293/293 | yes | yes |
+| simulation | network rules | 8 | 61 | 19,340 | yes | part | 73/73 | part | part |
 | simulation | landfill | 3 | 103 | 19,083 | yes | yes | 72/72 | part | part |
-| simulation | network rules | 6 | 59 | 18,862 | part | part | 73/73 | part | part |
 | simulation | weather | 1 | 68 | 18,299 | yes | yes | 73/73 | yes | yes |
-| simulation | sim grids | 7 | 113 | 17,648 | part | part | 73/73 | part | part |
+| simulation | sim grids | 7 | 113 | 17,648 | yes | part | 73/73 | part | part |
 | simulation | prop developer | 2 | 58 | 17,553 | yes | yes | - | - | part |
 | simulation | aura | 1 | 55 | 16,240 | yes | yes | 71/71 | yes | yes |
-| simulation | occupant manager | 1 | 77 | 16,082 | yes | yes | 72/72 | yes | yes |
+| simulation | occupant manager | 1 | 77 | 16,082 | yes | yes | 0/72 | - | yes |
 | simulation | flora | 3 | 79 | 15,743 | yes | yes | 1/1, 72/72 | yes | part |
-| simulation | tutorial | 5 | 94 | 15,194 | part | part | 146/146 | part | part |
-| simulation | port developers | 5 | 111 | 12,724 | part | part | 144/144 | part | part |
-| simulation | crime | 2 | 56 | 12,117 | part | part | 71/71 | part | part |
+| simulation | tutorial | 5 | 94 | 15,194 | yes | part | 146/146 | part | part |
+| simulation | port developers | 5 | 111 | 12,724 | yes | part | 144/144 | part | part |
+| simulation | crime | 2 | 56 | 12,117 | part | part | 72/72 | part | part |
 | simulation | demolition | 2 | 29 | 10,968 | yes | yes | 73/73 | part | part |
 | simulation | other simulation | 3 | 73 | 10,201 | part | - | - | - | - |
 | simulation | lot configuration | 1 | 37 | 9,580 | yes | yes | 73/73 | yes | yes |
@@ -100,33 +100,33 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | 24-hour clock | 1 | 56 | 3,693 | yes | yes | 73/73 | yes | yes |
 | simulation | parks | 1 | 19 | 3,006 | yes | yes | 72/72 | yes | yes |
 | simulation | city detail | 1 | 13 | 2,081 | yes | yes | 1/1 | yes | yes |
-| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 34/34, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes | yes |
+| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 32/32, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes | yes |
 | simulation | automata groups | 2 | 15 | 1,662 | yes | - | - | - | - |
 | simulation | foundations | 1 | 7 | 918 | yes | yes | - | - | - |
-| framework | application | 16 | 719 | 145,129 | part | part | 72/72 | part | - |
-| framework | framework services (GZ) | 123 | 982 | 89,464 | part | part | - | - | - |
-| framework | persistence and resources | 48 | 784 | 86,397 | part | part | - | - | - |
+| framework | application | 19 | 733 | 146,104 | part | part | 72/72 | part | - |
+| framework | persistence and resources | 52 | 815 | 87,961 | part | part | - | - | - |
 | framework | web and network | 12 | 439 | 86,316 | part | part | - | - | - |
-| framework | data formats (DBPF, exemplars) | 24 | 557 | 71,329 | yes | yes | no lines | - | part |
+| framework | framework services (GZ) | 105 | 806 | 81,303 | part | part | 72/72 | part | - |
+| framework | data formats (DBPF, exemplars) | 27 | 562 | 72,307 | yes | part | no lines | - | part |
 | framework | Lua host | 29 | 421 | 47,394 | part | part | - | - | - |
-| framework | strings and language | 12 | 221 | 43,129 | part | part | 72/72 | part | - |
-| framework | framework services (RZ) | 43 | 453 | 37,525 | part | part | - | - | - |
+| framework | strings and language | 15 | 225 | 44,336 | part | part | 72/72 | part | - |
+| framework | framework services (RZ) | 45 | 467 | 38,808 | part | part | - | - | - |
 | framework | foundations | 1 | 126 | 10,680 | yes | yes | 1/1 | yes | - |
+| framework | dates and times | 3 | 91 | 3,746 | yes | yes | - | - | - |
+| framework | command system | 5 | 47 | 3,471 | yes | yes | - | - | - |
 | framework | timers | 3 | 36 | 3,386 | part | part | - | - | - |
 | framework | command line | 1 | 19 | 3,359 | yes | yes | - | - | - |
 | framework | streams | 5 | 50 | 2,517 | yes | part | - | - | - |
 | framework | paths and directories | 10 | 28 | 2,377 | yes | yes | - | - | - |
-| framework | dates and times | 2 | 37 | 2,320 | yes | yes | - | - | - |
 | framework | random numbers and seeding | 2 | 19 | 1,105 | yes | yes | - | - | - |
 | framework | feature manager | 1 | 12 | 897 | yes | - | 75/75 | yes | - |
 | framework | tree diagnostics | 1 | 1 | 768 | - | - | - | - | - |
-| framework | command system | 1 | 1 | 581 | yes | yes | - | - | - |
-| framework | container helpers | 1 | 3 | 109 | - | - | - | - | - |
+| framework | container helpers | 1 | 3 | 109 | yes | - | - | - | - |
 | framework | cheats | 1 | 1 | 5 | - | - | - | - | - |
-| renderer | 3D scene and models | 18 | 589 | 186,947 | part | part | 593/593 | part | - |
+| renderer | 3D scene and models | 19 | 590 | 187,269 | part | part | 594/594 | part | - |
 | renderer | effects | 64 | 608 | 169,533 | part | part | - | - | part |
 | renderer | 3D driver (DirectX 7) | 10 | 843 | 151,995 | part | part | - | - | - |
-| renderer | 2D drawing and fonts | 37 | 794 | 139,739 | part | part | - | - | - |
+| renderer | 2D drawing and fonts | 47 | 830 | 145,901 | part | part | - | - | - |
 | renderer | effects (particles, decals, visuals) | 23 | 243 | 67,799 | part | - | - | - | - |
 | renderer | 2D drawing (span render 4444) | 1 | 172 | 51,809 | yes | yes | span4444_sp6 350/350, span4444_ctx7 126/126, span4444_direct 198/198 (lane run) | yes | yes |
 | renderer | 2D drawing (span render 1555) | 1 | 172 | 50,817 | yes | yes | span1555_ctx4 490/490, span1555_ctx6 490/490, span1555_direct 158/158 (lane run) | yes | yes |
@@ -154,14 +154,14 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | renderer | glyph and string textures | 3 | 43 | 4,475 | yes | - | - | - | - |
 | renderer | fire flames | 2 | 16 | 3,513 | yes | - | - | - | - |
 | renderer | graphics formats (FSH, S3D) | 3 | 17 | 3,279 | yes | yes | - | - | - |
-| ui | widget toolkit | 119 | 3,271 | 465,786 | part | part | - | - | - |
-| ui | windows and panels | 63 | 1,037 | 403,155 | part | part | - | - | - |
+| ui | widget toolkit | 123 | 3,280 | 466,421 | part | part | - | - | - |
+| ui | windows and panels | 72 | 1,055 | 404,342 | part | part | - | - | - |
 | ui | city tools and input | 33 | 627 | 181,526 | part | part | - | - | - |
 | ui | resource and exemplar editor | 26 | 235 | 69,054 | part | part | - | - | - |
 | audio | audio | 64 | 1,972 | 214,068 | part | part | - | - | - |
-| region | region | 28 | 415 | 111,726 | part | part | 73/73 | part | - |
-| other | other free functions | 141 | 173 | 24,898 | - | - | - | - | - |
-| other | other SC4 classes | 45 | 117 | 11,183 | - | - | - | - | - |
+| region | region | 29 | 417 | 112,894 | yes | part | 73/73 | part | - |
+| other | other free functions | 111 | 119 | 12,725 | part | - | - | - | - |
+| other | other SC4 classes | 44 | 109 | 10,576 | part | - | - | - | - |
 
 ## Excluded from the denominator
 
@@ -239,31 +239,31 @@ Owners that only a catch-all row of the map matches (candidates for a row of the
 
 | Owner | Bytes |
 |---|---:|
-| `fn:Resample` | 1,579 |
 | `fn:SC4InterpolateGrid` | 1,180 |
-| `fn:SC4CreateSavePathForCity` | 1,168 |
 | `fn:MakeMapColorBuffer` | 1,130 |
-| `fn:SC4CreateSpanList` | 911 |
 | `cSC4UIHTMLHook` | 904 |
 | `cSC4EffectsModelProcessor` | 779 |
-| `fn:GetTrueName` | 775 |
-| `fn:GenericBufferClipStretch` | 640 |
-| `cSC4DialogWinProcBase` | 607 |
 | `cSC4MissingPluginDataReporter` | 565 |
 | `cSC4Framework` | 560 |
 | `cSC4LocalGridHelper` | 538 |
-| `fn:gNeighborDealAdviceDetokenizerFunction` | 515 |
-| `fn:ConvertBufferFromFormatToFormat` | 509 |
 | `fn:ParseRateCurveCommands` | 497 |
 | `cSC4FileTokenizer` | 495 |
 | `cSC4TileNeighborhoodCompact` | 474 |
-| `fn:SC4LoadString` | 468 |
 | `cSC4LotConfigurationFilterMonopoly` | 460 |
-| `fn:GetNewTempFilePath` | 440 |
 | `fn:UTF8IsStringValid` | 416 |
 | `fn:SendFatalExceptionNotification` | 415 |
 | `cSCPropertyView::tPropertyInfo` | 411 |
 | `cSC4EffectsResourceFactory` | 403 |
+| `fn:gConvertURLFromEndodedForm` | 373 |
+| `cSC4MessageServer` | 369 |
+| `cSC4HTMLLinkHandler` | 368 |
+| `cSC4CameraParams` | 324 |
+| `cSC4ScriptServiceResourceFactory` | 312 |
+| `cSC4PrimitivePool` | 307 |
+| `cSC4TrafficSimulator::TrafficSourceIterator` | 283 |
+| `fn:D3DXMatrixIsIdentity` | 283 |
+| `cSC4EffectDescription::cDescriptionRec` | 264 |
+| `cSC4LotConfigurationIdentityInfo` | 253 |
 
 ## Inputs
 
@@ -283,11 +283,11 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | 35ff9f528cde8b90 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 0e40b30eff9cf12d | |
+| tools/coverage-map.tsv | fe1038f1d44ac3fd | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | 9217f3bc64de178b | |
 | engine/plugin/FC4Subsystems.cpp | 1166893fa7d0bafe | |
-| build-runs/regress-train236.out | 1fdc141a8f779bbf | regress train236 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time); shadows combined); replace run clean |
+| build-runs/regress-train238.out | 73418405c29178fa | regress train238 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time); shadows combined); replace run clean |
 
 Read from tools/regress.ps1: 53 replace keys, 65 shadows. On by default in FC4Subsystems.cpp: budget, simulator.
 
@@ -300,40 +300,53 @@ Read from tools/regress.ps1: 53 replace keys, 65 shadows. On by default in FC4Su
 - map row `GZSndSys*` matches no owner
 - map row `SC4*View` matches no owner
 - map row `_GLOBAL__N_*SC4RuleParser.cpp*` matches no owner
+- map row `cGZ*Graph` matches no owner
 - map row `cGZBufferResource*` matches no owner
 - map row `cGZCanvas*` matches no owner
-- map row `cGZCommandParameterSet` matches no owner
-- map row `cGZDate` matches no owner
-- map row `cGZMessage2CommandDispatcherMessage` matches no owner
-- map row `cGZMessage2CommandDispatcher` matches no owner
+- map row `cGZPersist*` matches no owner
 - map row `cGZSound*` matches no owner
-- map row `cGZStringCommandGenerator` matches no owner
+- map row `cGZUIScript*` matches no owner
 - map row `cRZHTTP*` matches no owner
 - map row `cRZLanguage*` matches no owner
+- map row `cRZWinKeyAccelerator*` matches no owner
+- map row `cS3D*` matches no owner
 - map row `cSC4*COMDirector` matches no owner
+- map row `cSC4*Dialog` matches no owner
 - map row `cSC4*DispatchSource` matches no owner
+- map row `cSC43D*` matches no owner
+- map row `cSC4Advisor*WinProc` matches no owner
 - map row `cSC4PathView*` matches no owner
+- map row `cSC4Region*` matches no owner
 - map row `cSC4RigidBody2DSimulator` matches no owner
 - map row `cSC4TileEvaluator`: replace key `netrules` is not an enable key in FC4Subsystems.cpp
 - map row `cSC4TileInfo`: replace key `netrules` is not an enable key in FC4Subsystems.cpp
 - map row `cSC4TileRule`: replace key `netrules` is not an enable key in FC4Subsystems.cpp
+- map row `cSC4WinRegion*` matches no owner
 - map row `cSCResExemplarCohort`: replace key `exemplars` is not an enable key in FC4Subsystems.cpp
 - map row `cSCResExemplar`: replace key `exemplars` is not an enable key in FC4Subsystems.cpp
+- map row `cSCStringDetokenizer*` matches no owner
+- map row `cSTEEdgeReconcile*` matches no owner
 - map row `fn:GZCOM_CreatecS3DCamera` matches no owner
 - map row `fn:GZCOM_CreatecSC4CameraControl` matches no owner
 - map row `fn:GZCOM_CreatecSC4NetworkOccupant` matches no owner
 - map row `fn:GZCOM_CreatecSC4PipeOccupant` matches no owner
 - map row `fn:GZCOM_CreatecSC4PowerPoleOccupant` matches no owner
 - map row `fn:GZCOM_CreatecSC4SubwayOccupant` matches no owner
+- map row `fn:GenerateKernelArray` matches no owner
 - map row `fn:GetAnimatedModelFromResourceKey` matches no owner
 - map row `fn:GetMeshAnimFromResourceKey` matches no owner
 - map row `fn:IntersectWithGroundPlane` matches no owner
 - map row `fn:ResolvePath` matches no owner
+- map row `fn:SC4*Region*` matches no owner
+- map row `fn:SC4DoPopup*` matches no owner
 - map row `fn:gAdviceMessageBox` matches no owner
+- map row `nGZ*` matches no owner
+- map row `nGZDrawSoftRender*` matches no owner
 - map row `nGZDrawSoftRender::cSpanRender1555`: replace key `span1555` is not an enable key in FC4Subsystems.cpp
 - map row `nGZDrawSoftRender::cSpanRender4444`: replace key `span4444` is not an enable key in FC4Subsystems.cpp
 - map row `nGZDrawSoftRender::cSpanRender565`: replace key `span565` is not an enable key in FC4Subsystems.cpp
 - map row `nGZDrawSoftRender::cSpanRender8888`: replace key `span8888` is not an enable key in FC4Subsystems.cpp
 - map row `nGZDrawSoftRender::cSpanRender8`: replace key `span8` is not an enable key in FC4Subsystems.cpp
+- map row `nRZ*` matches no owner
 - map row `nSC4UI*` matches no owner
-- shadow `formats_shadow` is in the regress list but `regress-train236.out` has no `formats` lines
+- shadow `formats_shadow` is in the regress list but `regress-train238.out` has no `formats` lines
