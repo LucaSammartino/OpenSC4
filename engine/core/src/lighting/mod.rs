@@ -17,6 +17,7 @@ mod shadows;
 #[cfg(test)]
 mod tests;
 mod types;
+mod inplace;
 
 pub use image::*;
 pub use projection::{fit_shadow_plane, ProjectionTransform};

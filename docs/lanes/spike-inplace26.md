@@ -21,3 +21,5 @@ Initial fixture-1 corrupt and bridge-only round-2 mismatches remain historical, 
 Evidence mirrored in build-runs/spike-evidence/ and committed engine/tests/spike-evidence/spike-inplace26/; verify-observations.py checks counters/locations, metrics-final.py recomputes rates.
 A further experiment would need attributed/allocation-complete write observation, alias coverage, two missing bindings and a broader/larger-body cohort with cached builds; this cohort cannot establish UI/audio throughput.
 Next: coordinator decides whether S3 merits further investigation; no engine coverage credit is claimed.
+Round-3 start UTC: 2026-10-25T13:36:50Z (all elapsed time, including waits and fixes, is charged).
+

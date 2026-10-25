@@ -11,6 +11,7 @@
 #include <array>
 #include <algorithm>
 #include <string>
+#include <vector>
 
 extern "C" void fc4_viewutil_shadow_cached(uint32_t, const uint32_t*, const uint32_t*, uint32_t*);
 extern "C" void fc4_viewutil_shadow_local(uint32_t, const uint32_t*, uint32_t*);
@@ -37,7 +38,13 @@ Function functions[] = {
     {"viewport-world",0x7f79b0,77}, {"box-rectangle",0x7f7a40,1018},
     {"view-point",0x7f7e50,270}, {"viewport-fixed",0x7f8390,83},
     {"rotation",0x7f6cc0,78}, {"ground",0x7f6ab0,49},
-    {"cross",0x5d6f10,59}, {"primitive-indices",0x80aef0,235}
+    {"cross",0x5d6f10,59}, {"primitive-indices",0x80aef0,235},
+    // Round 3: zero means no published body-byte count, never inferred from spacing.
+    {"language-from-system",0x924038,0}, {"system-from-language",0x923e3e,0},
+    {"language-alias",0x924aef,0}, {"primary-language",0x9250d5,0},
+    {"default-country",0x92525a,0}, {"system-country",0x9253d7,0},
+    {"lighting-vertices",0x7d7bf0,0}, {"lighting-global",0x7d6b20,0},
+    {"lighting-shadow",0x7d6b50,0}, {"lighting-night",0x7d6680,0}
 };
 SRWLOCK sampleLock = SRWLOCK_INIT;
 thread_local unsigned depth = 0;
@@ -302,9 +309,22 @@ FC4_INPLACE_ENTRY(Rotation,16,0)
 FC4_INPLACE_ENTRY(Ground,17,0)
 FC4_INPLACE_ENTRY(Cross,18,0)
 FC4_INPLACE_ENTRY(PrimitiveIndices,19,0)
+FC4_INPLACE_ENTRY(LanguageFromSystem,20,4)
+FC4_INPLACE_ENTRY(SystemFromLanguage,21,4)
+FC4_INPLACE_ENTRY(LanguageAlias,22,4)
+FC4_INPLACE_ENTRY(PrimaryLanguage,23,4)
+FC4_INPLACE_ENTRY(DefaultCountry,24,4)
+FC4_INPLACE_ENTRY(SystemCountry,25,0)
+FC4_INPLACE_ENTRY(LightingVertices,26,24)
+FC4_INPLACE_ENTRY(LightingGlobal,27,4)
+FC4_INPLACE_ENTRY(LightingShadow,28,4)
+FC4_INPLACE_ENTRY(LightingNight,29,0)
+
+#include "FC4InplaceRound3.h"
 
 void Dispatch(fc4::inplace::Registers* registers, fc4::inplace::MachineState* machine) {
     const auto i=registers->index;
+    if (i>=20) { Round3Dispatch(registers,machine);return; }
     auto* args=reinterpret_cast<uint32_t*>(registers+1);
     const unsigned bytes=i==13?16:(i>=17?12:((i==1||i==4||i==5||i==7||i==16)?8:4));
     void* self=i<16?reinterpret_cast<void*>(registers->ecx):nullptr;
@@ -337,7 +357,10 @@ void* forwarders[] = {FORWARDER(Clip2),FORWARDER(ZoomRotation),FORWARDER(ViewVie
     FORWARDER(ViewBox),FORWARDER(CityCorner),FORWARDER(Clip3),FORWARDER(VisibleEdges),FORWARDER(WorldView),
     FORWARDER(WorldViewport),FORWARDER(WorldViewport2),FORWARDER(ViewWorld),FORWARDER(ViewportWorld),
     FORWARDER(BoxRectangle),FORWARDER(ViewPoint),FORWARDER(ViewportFixed),FORWARDER(Rotation),
-    FORWARDER(Ground),FORWARDER(Cross),FORWARDER(PrimitiveIndices)};
+    FORWARDER(Ground),FORWARDER(Cross),FORWARDER(PrimitiveIndices),
+    FORWARDER(LanguageFromSystem),FORWARDER(SystemFromLanguage),FORWARDER(LanguageAlias),
+    FORWARDER(PrimaryLanguage),FORWARDER(DefaultCountry),FORWARDER(SystemCountry),
+    FORWARDER(LightingVertices),FORWARDER(LightingGlobal),FORWARDER(LightingShadow),FORWARDER(LightingNight)};
 #undef FORWARDER
 
 void Report(const Function& fn, const Count& c, const char* source) {
@@ -389,6 +412,7 @@ void InplaceCityLoaded() {
     fixture=true;
     for (unsigned sample=0;sample<16;++sample) for (unsigned i=0;i<std::size(functions);++i) {
         if (!functions[i].installed) continue;
+        if (i>=20) { Round3Fixture(i,sample,words);continue; }
         if (sample==0) Log("inplace fixture begin name=%s",functions[i].name);
         words[0x10/4]=sample%4;
         for (unsigned j=0;j<3;++j) { a[j]=bits(float(int(sample)-8)+float(j));b[j]=bits(float(sample)+float(j)+1);out[j]=bits(10); }
