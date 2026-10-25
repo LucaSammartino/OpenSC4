@@ -712,12 +712,15 @@ void WatercraftCompare(const char* what, int32_t julian) {
         cISC4Automaton* boat = nullptr;
         if (object->QueryInterface(GZIID_cISC4Automaton, reinterpret_cast<void**>(&boat)) && boat) {
             FC4_ACQUIRED(boat, "watercraft shadow probe reference");
+            // [abi-ret] watercraft §3.1 preserves the inherited boolean in AL.
             bad += !boat->SetState(2, nullptr, -1.0f, false, 0, 0, nullptr);
             ++probes;
             compare(object, 1, true);
+            // [abi-ret] watercraft §3.1 preserves the inherited boolean in AL.
             bad += !boat->PushState(3, nullptr, -1.0f, false, 0, 0, nullptr);
             ++probes;
             compare(object, 2, true);
+            // [abi-ret] watercraft §3.1 preserves the inherited boolean in AL.
             bad += !boat->PopState();
             ++probes;
             compare(object, 3, true);
