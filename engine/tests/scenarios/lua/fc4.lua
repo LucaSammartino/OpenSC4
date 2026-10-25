@@ -45,7 +45,9 @@ function fc4.log(message)
 end
 
 function fc4.delay(frames)
+    sc4app.SetScriptAutoYield(-1, true)
     while sc4app.GameDelay('frames', frames or 1) == 1 do end
+    sc4app.SetScriptAutoYield(-1, false)
 end
 
 -- Maxis commands return a status FIRST (0 = success), then their payload.
@@ -121,6 +123,7 @@ function fc4.start(name)
     -- Poll the payload of GetAppState instead; its first return is status 0.
     sc4app.SetScriptAutoYield(-1, true)
     fc4.wait_state(2)
+    sc4app.SetScriptAutoYield(-1, false)
     fc4.app('SetPopupModalDialogsEnabled', {false})
     fc4.city('SimSpeedFast')
     fc4.city('GetCityName')

@@ -171,6 +171,7 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             if script.suffix.lower() == '.lua':
                 ini['lua_script'] = script.relative_to(root).as_posix()
                 ini['lua_extensions'] = '1'  # opt-in log backend, only for Lua scenarios
+                ini['autotest_unpause'] = '0'  # the Lua script owns pause/resume during construction
             else:
                 ini['script'] = script.relative_to(root).as_posix()
         for key, value in changes.items():

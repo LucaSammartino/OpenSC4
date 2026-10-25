@@ -117,6 +117,7 @@ class SuiteQueueTests(unittest.TestCase):
                 body = request.read_text()
                 self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', body)
                 self.assertIn('lua_extensions = 1', body)
+                self.assertIn('autotest_unpause = 0', body)
                 self.assertNotIn('\nscript = ', body)
                 label = next(line.split(' = ')[1] for line in body.splitlines() if line.startswith('label = '))
                 prefix = root / 'build-runs/game-results' / label

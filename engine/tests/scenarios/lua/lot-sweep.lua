@@ -10,14 +10,14 @@ function fc4.lot_sweep(name, flatten)
     if width ~= 256 or depth ~= 256 then error('lot sweep requires a large 256-cell tile') end
     if flatten then
         fc4.try_city('SetCellAltitude', {0, 0, 255, 255, 280})
+        fc4.try_city('GetCellAltitude', {8, 8})
         fc4.try_city('GetCellAltitude', {32, 32})
         -- Single-cell read-back distinguishes command acceptance from terrain effect.
         fc4.try_city('SetCellAltitude', {32, 32, 280})
         fc4.try_city('GetCellAltitude', {32, 32})
     end
-    fc4.call('app', 'ExecuteCheat', {"you don't deserve it"}, true)
-    fc4.call('app', 'ExecuteCheat', {'YouDontDeserveIt'}, true)
     local i = 1
+    local batch = 0
     while lots[i] do
         local lot = lots[i]
         local x, z, w, d = lot[2], lot[3], lot[4], lot[5]
@@ -26,15 +26,16 @@ function fc4.lot_sweep(name, flatten)
         fc4.try_city('Demolish', {x, z, x + w - 1, z + d - 1, 'None'})
         local status = fc4.try_city('PlaceLot', {fc4.iid(lot[1]), x, z, 0, false, false})
         fc4.log('lot-result iid=' .. lot[1] .. ' category=' .. lot[6] .. ' status=' .. fc4.text(status))
+        batch = batch + 1
+        if batch == 8 then fc4.delay(1); batch = 0 end
         i = i + 1
     end
     -- Landfill is a zone, not a catalog ploppable lot.
     fc4.try_city('PlaceZone', {14, 220, 220, 231, 231})
     fc4.city('SaveCityQuick', {true})
     fc4.log('placement-complete')
-    fc4.city('SimSpeedFast')
-    fc4.delay(300)
-    fc4.log('settled-frames 300')
+    fc4.delay(10)
+    fc4.log('settled-frames 10 paused')
     -- Demolish part of the placed catalog with all three documented flags.
     i = 1
     local flags = {'None', 'Sim', 'Explode'}
@@ -47,4 +48,5 @@ function fc4.lot_sweep(name, flatten)
     end
     fc4.city('SaveCityQuick', {true})
     fc4.log('scenario-complete')
+    fc4.city('SimSpeedFast')
 end
