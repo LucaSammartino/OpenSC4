@@ -34,10 +34,9 @@ Four existing rows only (slots 3/4 in each table), with unchanged keys/targets/s
 labels and pointer return confidence corrected. No C ABI exports changed. Coordinator review/application/gate
 is required; `docs/abi/` was not edited.
 
-- `build-runs/pending-abi/re-lotrecords-boundary4-interfaces.tsv`
-- `build-runs/pending-abi/re-lotrecords-boundary4-vtables.tsv`
-- `build-runs/pending-abi/re-lotrecords-boundary4.md` (application rationale)
-- `build-runs/abi-rows-re-lotrecords-boundary4.tsv` (identical interface-row mirror)
+The proposals are now published in `docs/abi/interfaces.tsv` and `docs/abi/vtables.tsv`
+(vtable `00ab19b0`, slots 3/4). The duplicate scratch rows and application rationale
+were removed after checking their contracts against both published tables.
 
 ## Validation and limits
 
