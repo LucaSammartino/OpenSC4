@@ -503,6 +503,8 @@ cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZGraphicSystemW32	2D drawing and fonts	renderer	gz-graphics-w32.md, gz-graphics.md	-	-	-
+cGZScreenBuffer	2D drawing and fonts	renderer	gz-graphics-w32.md, span-render-4444.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
