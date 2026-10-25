@@ -4,6 +4,9 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
+An exception after the target date and an accepted RequestQuit is reported as
+clean-exit-crash, with its address; it still does not pass successful(). Earlier
+exceptions, missing quit evidence and harness errors retain their verdicts.
 """
 import argparse
 import csv
@@ -23,7 +26,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 COLUMNS = ('scenario profile verdict end_reached days_per_second actions_ok '
            'actions_failed shadow_lines shadow_exact_lines worst_shadow '
-           'compare_exact compare_different reach_functions log dll_sha256').split()
+           'compare_exact compare_different reach_functions log dll_sha256 exception_address').split()
 KEY_COLUMNS = ['key', 'scenarios_run', 'scenarios_exact', 'first_mismatch']
 SCENARIO_COLUMNS = ['name', 'region', 'city', 'script', 'end', 'sets', 'notes']
 SHADOW = re.compile(r'^([a-z0-9_]+(?:[ -][a-z0-9_]+)*?)(?: shadow\b|-shadow:)')
@@ -246,7 +249,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[], shadow_payloads=[],
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
                   only_load=only_load, real_seconds=None, wall_seconds=None,
-                  load_seconds=None, seconds_per_month=None, reach_windows=[])
+                  load_seconds=None, seconds_per_month=None, reach_windows=[],
+                  raw_verdict='missing', exception_address='-', exceptions=[])
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
@@ -254,6 +258,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     load_started = None
     attached = None
     verdict_at = None
+    end_line = None
+    quit_line = None
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
@@ -277,6 +283,19 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         reached = re.search(r'end date (\d{4}-\d\d-\d\d) reached', body)
         if reached and reached[1] == end:
             result['end_reached'] = '1'
+            end_line = line_no
+        if end_line and re.match(r'autotest: cISC4App::RequestQuit\([^)]*\) -> 1\b', body):
+            quit_line = line_no
+        if body.startswith('first-chance exception '):
+            address = re.search(r'\bat (0x[0-9a-fA-F]+)\b', body)
+            if address:
+                location = re.search(r'\bin (.+?) \(report ', body)
+                result['exceptions'].append(dict(
+                    line=line_no, address=address[1],
+                    location=location[1] if location else '-', text=body,
+                    after_end=end_line is not None, after_quit=quit_line is not None))
+                if result['exception_address'] == '-':
+                    result['exception_address'] = address[1]
         if body.startswith('script:'):
             loaded = re.search(r': (\d+) action\(s\)', body)
             if loaded:
@@ -357,6 +376,7 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     if harness_verdict and harness_verdict[1] != 'clean':
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
+    result['raw_verdict'] = result['verdict']
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:
@@ -367,6 +387,11 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     elif result['verdict'] == 'clean' and result['end_reached'] != '1':
         result['invalid_reason'] = 'end date not reached'
         result['verdict'] = 'invalid'
+    if (not only_load and result['end_reached'] == '1'
+            and result['verdict'] in ('corrupt', 'crash') and result['exceptions']
+            and all(e['after_end'] and e['after_quit'] for e in result['exceptions'])):
+        result['verdict'] = 'clean-exit-crash'
+        result['invalid_reason'] = 'exception after end date during quit'
     result['action_lines'] = [a[1] for a in actions.values()]
     result['actions_ok'] = sum(a[0] for a in actions.values())
     result['actions_failed'] = len(actions) - result['actions_ok'] + parse_errors
