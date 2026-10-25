@@ -118,6 +118,42 @@ bool ClearPlanningOrigin(cISC4City* city, int32_t& x, int32_t& z) {
     }
     return false;
 }
+void LogPlanningInputs(NetToolContext& context, const fc4_netgeom_host& host, int32_t x, int32_t z) {
+    auto* city = context.city;
+    const int32_t stride = static_cast<int32_t>(city->CellCountX()) + 1;
+    const int32_t v = z * stride + x;
+    const int32_t vertices[] = {v, v + stride, v + stride + 1, v + 1};
+    float heights[4], water[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        heights[i] = host.vertex_altitude(host.user, vertices[i]);
+        water[i] = host.surface_water_level(host.user, vertices[i]);
+    }
+    float lo = heights[0], hi = heights[0];
+    for (float h : heights) { if (h < lo) lo = h; if (h > hi) hi = h; }
+    int32_t edge = x;
+    const int32_t distances[] = {z, static_cast<int32_t>(city->CellCountX()) - 1 - x,
+        static_cast<int32_t>(city->CellCountZ()) - 1 - z};
+    for (int32_t d : distances) if (d < edge) edge = d;
+    auto* occupants = city->GetOccupantManager(); // borrowed
+    cISC4Occupant* occupant = nullptr;
+    const bool occupied = occupants && occupants->GetFirstOccupantByStandardCityCell(
+        occupant, x, z, static_cast<cISC4OccupantFilter*>(nullptr));
+    if (occupant) {
+        FC4_ACQUIRED(occupant, "GetFirstOccupantByStandardCityCell");
+        FC4_RELEASE(occupant);
+    }
+    auto* zones = reinterpret_cast<cFC4ISC4ZoneManager*>(city->GetZoneManager()); // borrowed
+    Log("nettool plan inputs cell=(%d,%d) terrain=(%.9g,%.9g,%.9g,%.9g) "
+        "water=%d depths=(%.9g,%.9g,%.9g,%.9g) slope_range_per_16=%.9g edge=%d occupied=%d zone=%u",
+        x, z, heights[0], heights[1], heights[2], heights[3], host.cell_has_water(host.user, x, z),
+        water[0], water[1], water[2], water[3], (hi - lo) / 16.0f, edge, occupied,
+        zones ? zones->GetZoneType(x, z) : 0u);
+    fc4_netgeom_cell_info info{};
+    if (fc4_netgeom_get_cell_info(context.geom, x, z, &info)) Log(
+        "nettool plan inputs retained=(%.9g,%.9g,%.9g,%.9g) flags=%x in_run=%u intersection=%u "
+        "vertices=(%d,%d,%d,%d)", info.corners[0], info.corners[1], info.corners[2], info.corners[3],
+        info.flags, info.in_run, info.intersection, info.vertices[0], info.vertices[1], info.vertices[2], info.vertices[3]);
+}
 void RunPlanning(cISC4City* city, int32_t julian, bool power) {
     const char* key = power ? "powerline_plan_shadow" : "nettool_plan_shadow";
     if (!city || SettingInt(key, nullptr, 0) == 0) return;
@@ -209,13 +245,16 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                         (state.straight_count != p.drag.straight) + (state.dragged_count != p.drag.total) +
                         (cost != p.cost);
                     mismatches += diff;
-                    if (diff && n.listed++ < 12) Log(
+                    if (diff && n.listed++ < 12) {
+                        Log(
                         "%s diff type=%u drag=(%d,%d)-(%d,%d) mismatches=%u ok=%d/%d failure=%u/%u "
                         "valid=%u/%u straight=%u/%u total=%u/%u cells=%u/%u cost=%d/%d",
                         label, type, v[0], v[1], v[2], v[3], diff, p.drag.ok ? 1 : 0, ok ? 1 : 0,
                         p.failure, failure, p.valid, valid, p.drag.straight, state.straight_count,
                         p.drag.total, state.dragged_count, static_cast<uint32_t>(p.drag.cells.size()),
                         static_cast<uint32_t>(cells.size()), p.cost, cost);
+                        if (!power && cells.size() == 1) LogPlanningInputs(context, gh, cells[0].x, cells[0].z);
+                    }
                 }
                 if (initialized && !SehGuard("nettool plan undo", &UndoPlan, &p)) ++unavailable;
                 if (core) fc4_nettool_destroy(core);

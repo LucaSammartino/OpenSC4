@@ -40,6 +40,7 @@
 #include "FC4GrowthProbe.h"
 #include "FC4LandValueShadow.h"
 #include "FC4Log.h"
+#include "FC4Reach.h"
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
@@ -148,6 +149,7 @@ public:
     cFC4Director() {
         fc4::Log("cFC4Director constructed (FreeCity4 %s, dll %s, log level %d)", FC4_VERSION_STRING,
                  fc4::ModulePath(), fc4::LogLevel());
+        fc4::ReachPrepare();  // snapshot entries before subsystem hooks
         // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
         size_t n = 0;
         const fc4::Subsystem* subsystems = fc4::Subsystems(&n);
@@ -368,6 +370,7 @@ public:
     }
 
     bool PreAppShutdown() override {
+        fc4::ReachStop();  // restore tracing before any entry hook is restored
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
         fc4::NetMgrShadowStop();

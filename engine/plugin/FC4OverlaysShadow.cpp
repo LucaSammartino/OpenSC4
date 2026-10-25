@@ -4,6 +4,7 @@
 #include "FC4OverlayOwner.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Reach.h"
 #include "FC4Watchdog.h"
 #include "fc4.h"
 #include "cISC4City.h"
@@ -108,6 +109,7 @@ void OverlaysShadowCityLoaded(cISC4City* city) {
 }
 void OverlaysShadowOnTick(cISC4City* city) {
     if (!g_enabled || !g_loadPending) return;
+    ReachProbeScope reachProbes;  // deferred load fixture, including readiness queries
     auto* terrain = city ? city->GetTerrain() : nullptr;
     auto* view = terrain ? terrain->GetView() : nullptr;
     if (!view) return;

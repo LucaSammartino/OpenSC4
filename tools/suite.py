@@ -174,7 +174,17 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             script = directory / 'scripts' / (row['name'] + source_script.suffix)
             script.parent.mkdir(exist_ok=True)
             shutil.copy2(source_script, script)
-            ini['lua_script' if script.suffix.lower() == '.lua' else 'script'] = script.relative_to(root).as_posix()
+            if script.suffix.lower() == '.lua':
+                ini['lua_script'] = script.relative_to(root).as_posix()
+                ini['lua_extensions'] = '1'  # opt-in log backend, only for Lua scenarios
+                ini['autotest_unpause'] = '0'  # the Lua script owns pause/resume during construction
+                setup = source_script.with_suffix('.script')
+                if setup.is_file():
+                    setup_copy = script.with_suffix('.script')
+                    shutil.copy2(setup, setup_copy)
+                    ini['script'] = setup_copy.relative_to(root).as_posix()
+            else:
+                ini['script'] = script.relative_to(root).as_posix()
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
@@ -378,6 +388,36 @@ def write_tsv(path, columns, rows):
         writer.writeheader(); writer.writerows(rows)
 
 
+def add_lua_evidence(result, text):
+    """Count actual Maxis command returns; a clean game alone cannot pass a Lua script."""
+    pending, seen = [], set()
+    complete = False
+    for line in text.splitlines():
+        match = re.search(r'\bFC4_LUA (\d+) ([\w.-]+) (.*)', line)
+        if not match or match[0] in seen:
+            continue
+        seen.add(match[0])
+        body = match[3]
+        if body.startswith(('unavailable ', 'wrong-state ', 'timeout ')):
+            result['actions_failed'] += 1
+        if body.startswith('Before '):
+            pending.append(body.split()[1])
+            result['actions_expected'] += 1
+        returned = re.match(r'Return (\w+) status=(\S+)', body)
+        if returned:
+            command, status = returned.groups()
+            if pending and pending[-1] == command:
+                pending.pop()
+                result['actions_ok' if status == '0' else 'actions_failed'] += 1
+            else:
+                result['actions_failed'] += 1  # orphan/misordered evidence cannot pass
+            result['action_lines'].append(match[0])
+        complete |= body == 'scenario-complete'
+    result['actions_pending'] += len(pending) + int(not complete)
+    result['lua_complete'] = complete
+    return result
+
+
 def write_results(directory, manifest, results):
     rows = []
     findings = []
@@ -455,7 +495,15 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
                 text = log.read_text(encoding='utf-8-sig', errors='replace') if log.exists() else ''
                 parsed = parse_log(text, request['scenario']['end'], verdict_text,
                                    only_load=load_only(request['scenario']))
-                if request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
+                if Path(request['scenario']['script']).suffix.lower() == '.lua':
+                    lua_source = Path(str(source) + '.lua.log')
+                    lua_log = directory / f'{name}.lua.log'
+                    lua_text = ''
+                    if lua_source.is_file():
+                        shutil.copy2(lua_source, lua_log)
+                        lua_text = lua_log.read_text(encoding='utf-8-sig', errors='replace')
+                    add_lua_evidence(parsed, lua_text)
+                elif request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                     parsed['actions_pending'] = 1  # requested script produced no execution evidence
                 parsed['log'] = str(log) if log.exists() else '-'
                 source_city = Path.home() / 'Documents/SimCity 4/Regions' / request['scenario']['region'] / ('City - ' + request['scenario']['city'] + '.sc4')
@@ -578,6 +626,7 @@ def main(argv=None, root=ROOT):
         command.add_argument('--budget-seconds', type=float, default=900)
         command.add_argument('--slots', type=int, choices=range(1, 7), default=6)
     select.add_argument('--output', help='optional JSON selection evidence under build-runs/suite')
+    run.add_argument('--scenario', action='append', help='select named rows within --set; repeatable')
     show = commands.add_parser('report')
     show.add_argument('tag'); show.add_argument('--against')
     args = parser.parse_args(argv)
@@ -597,6 +646,11 @@ def main(argv=None, root=ROOT):
             manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
             return 0 if suite_states.finalize(root, args.tag, manifest, results) else 1
         rows = read_scenarios(root, 'full' if args.command == 'select' or args.set == 'tier1' else args.set)
+        if getattr(args, 'scenario', None):
+            missing = set(args.scenario) - {row['name'] for row in rows}
+            if missing:
+                raise ValueError('unknown scenario in selected set: ' + ', '.join(sorted(missing)))
+            rows = [row for row in rows if row['name'] in args.scenario]
         if args.budget_seconds <= 0:
             raise ValueError('--budget-seconds must be positive')
         if args.command == 'select' or args.set == 'tier1' or args.keys:
