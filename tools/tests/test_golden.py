@@ -167,6 +167,21 @@ class GoldenTests(unittest.TestCase):
         self.assertEqual(golden.save_date({key: bytes(payload)}), '2000-01-01')
         self.assertEqual(records._fields(key, payload)['julian_day'], 2451545)
 
+    def test_log_requires_completed_window_and_exact_subsystems(self):
+        text = ("subsystem 'netmgr': enabled\nsubsystem 'nettool': enabled\n"
+                'netrules: enabled through netmgr/nettool; Rust tile-rule solver\n'
+                'autotest: end date 2026-04-01 reached at the new day 2026-04-01\n'
+                'script: line 4 2026-04-01 save -> ok=1 (SaveCity(full) in 10 ms)\n'
+                'GOLDEN_FULL_SAVE_COMPLETE\nAUTOTEST VERDICT: clean\n')
+        selected = ['netrules', 'netmgr', 'nettool']
+        self.assertEqual(golden._validate_log(text, '2026-04-01', selected, self.root), 'clean')
+        for wrong in (text.replace('ok=1', 'ok=0'), text.replace('clean', 'stalled'),
+                      text + 'traffic shadow: ON\n'):
+            with self.assertRaises(ValueError):
+                golden._validate_log(wrong, '2026-04-01', selected, self.root)
+        with self.assertRaises(ValueError):
+            golden._validate_log(text, '2026-04-01', [], self.root)
+
 
 if __name__ == '__main__':
     unittest.main()

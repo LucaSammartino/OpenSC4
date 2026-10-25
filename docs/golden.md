@@ -35,6 +35,8 @@ settings. Candidate DLL bytes and replacement keys are excluded intentionally.
 Queue slot selection is recorded as a policy, with the actual slot in each run.
 Source hashes are checked again before publishing a baseline. Original and
 candidate runs explicitly disable known shadow/compare settings.
+Live runs reject game/region roots that differ from the existing harness's
+actual launch and mirror sources; these options cannot redirect just the hash.
 
 `build-runs/golden/<key>/` contains immutable `end.sc4`, `digests.json`,
 `verdict.json`, `summary.json`, `game.log`, `harness.txt` and `baseline.json`.

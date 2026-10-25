@@ -239,7 +239,12 @@ def prepare(args):
 
 def _validate_log(text, until, selected, run):
     verdicts = re.findall(r'AUTOTEST VERDICT: ([a-z-]+)[^\r\n]*', text)
-    enabled = sorted(set(re.findall(r"subsystem '([^']+)': enabled", text)))
+    enabled = set(re.findall(r"subsystem '([^']+)': enabled", text))
+    # netrules is hosted by the replacement network manager/tool, with no class
+    # registration of its own (FC4Subsystems startup explicitly reports this).
+    if 'netrules: enabled through netmgr/nettool;' in text:
+        enabled.add('netrules')
+    enabled = sorted(enabled)
     if enabled != sorted(selected):
         raise ValueError(f'wrong replacements: expected {sorted(selected)}, logged {enabled}; see {run}')
     unexpected = [line for line in text.splitlines()
@@ -256,6 +261,7 @@ def _validate_log(text, until, selected, run):
 
 
 def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
+    validate_harness_sources(args)
     run_id = f'{tag}-{time.strftime("%Y%m%d-%H%M%S")}-{uuid.uuid4().hex[:8]}'
     work = args.output / 'golden-runs' / run_id
     work.mkdir(parents=True)
@@ -314,6 +320,19 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     # A future reach-enabled harness may export alongside the plugin log.
     # Never copy a stale shared slot reach file into this run.
     return result
+
+
+def validate_harness_sources(args):
+    """The existing runner chooses these paths itself; never hash other inputs."""
+    expected_regions = documents() / 'SimCity 4/Regions'
+    if args.regions_root.resolve() != expected_regions.resolve():
+        raise ValueError('--regions-root differs from the harness Documents region source')
+    runner = (args.harness_root / 'tools/ingame_run.ps1').read_text(encoding='utf-8')
+    installed = re.search(r'^\$GameDir = "([^"]+)"', runner, re.M)
+    if not installed or (args.game_root / 'Apps').resolve() != Path(installed[1]).resolve():
+        raise ValueError('--game-root differs from the executable the harness launches')
+    if args.backend == 'queue' and args.harness_root.resolve() != main_checkout(REPO).resolve():
+        raise ValueError('queue backend must fingerprint the main checkout harness actually run by the queue')
 
 
 def save_date(saved_records):
