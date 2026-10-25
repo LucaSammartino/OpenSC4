@@ -5,6 +5,15 @@ was, in [docs/history/handoff-2026-10.md](../history/handoff-2026-10.md). Who re
 owner of `main`). Lanes read [docs/lanes/README.md](../lanes/README.md) and [docs/merge-train.md](../merge-train.md)
 instead: write the lane file, enqueue, stop.
 
+## Coverage credit before ready
+Lanes may edit `tools/coverage-map.tsv` rows for the owners they work on.
+Keep spec paths, Rust core paths, shadow keys and replace keys justified by the lane tree.
+Run `python tools/creditcheck.py --wt <worktree> --log <game.log>` before ready; repeat `--log` for more logs.
+Only exact shadows present in that tree's regress shadows profile earn verified credit.
+Use `--json <out>` to retain the rows flipped, byte deltas and any refusals.
+`merge-train.py enqueue` checks the lane and puts its claim in the ready entry's `credit` field; refusals block ready.
+`merge-train.py plan` prints claims, and `land` prints measured coverage before and after the batch.
+
 ## Spawning a lane
 
 **Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit

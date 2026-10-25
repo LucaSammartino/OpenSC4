@@ -1,0 +1,9 @@
+shadow lines:
+  dbpf_bounds 1 lines, 1 with every mismatch count 0
+  dbpf_bounds resynced lines: 0
+  formats 1 lines, 1 with every mismatch count 0
+  formats resynced lines: 0
+  nettool_plan 1 lines, 1 with every mismatch count 0
+  nettool_plan resynced lines: 0
+  powerline_plan 1 lines, 1 with every mismatch count 0
+  powerline_plan resynced lines: 0
