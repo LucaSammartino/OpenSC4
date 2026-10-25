@@ -2,7 +2,7 @@
 |---|---|---|---|
 | luacmd27 - Maxis Lua scenario tooling and catalog sweeps (tools) | Codex / .claude/worktrees/luacmd27 / detached HEAD, reserved luacmd27; round 4 main merge in progress; ABI unchanged | wip final round: round-three evidence below retained; fresh gate and reach pending; questions none | 1. Qualify grown/coastal footprints. 2. Compare Lua and no-Lua reach by address. 3. Gate once and enqueue tools at actual HEAD. |
 
-- Round 4 in flight: main merged before further work; no engine implementation changes planned. Keep rejected lot calls and unqualified commands visible.
+- Round 4 in flight: main merged as dfa3b90b0; no engine implementation changes. Added 37 inland pads and grown-qualified row; focused launch/site tests printed 14 passed. Cleared-pad probe r4c returned 8/8 accepted but then stalled at 2197-03-20. Shared-queue Lua starts failed path resolution; nine-line launcher fix uses the DLL checkout, corrected-source runs pending. Cargo 7848/clippy 0 passed; native gate queued. Prior-round evidence below is historical.
 
 - AC launch/control: round-two Lua print, rename/read-back and save proof remains accepted; extension control accepted by coordinator. No more extension control or GetSimulationDate work.
 - AC suite: .lua rows emit lua_script plus opt-in lua_extensions; optional same-name dated .script handles terrain. Harvested Lua commands/completion are required; missing, unfinished or rejected commands cannot pass the suite.

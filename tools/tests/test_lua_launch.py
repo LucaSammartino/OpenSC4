@@ -15,7 +15,7 @@ LAUNCH = (REPO / "tools/ingame_run.ps1").read_text(encoding="utf-8")
 BLOCK = LAUNCH.split("        # Optional Maxis command script;", 1)[1].split("        $docLog =", 1)[0]
 
 
-def stage(tmp_path, ini, slot=11):
+def stage(tmp_path, ini, slot=11, dll_checkout=False):
     repo = tmp_path / "repo with spaces"
     (repo / "tools").mkdir(parents=True)
     source = repo / "scripts" / "example's test.lua"
@@ -28,11 +28,25 @@ def stage(tmp_path, ini, slot=11):
     extensions.mkdir(parents=True)
     for name in ("SC4LuaExtensions.dll", "SC4LuaExtensions.dat"):
         (extensions / name).write_bytes(name.encode())
+    dll = ''
+    if dll_checkout:
+        lane = tmp_path / 'different lane checkout'
+        lane.mkdir()
+        (lane / '.git').write_text('gitdir: reserved-worktree\n')
+        source = lane / "scripts/example's test.lua"
+        source.parent.mkdir()
+        source.write_text("sc4app.GetCityName()\n")
+        lane_helper = lane / 'engine/tests/scenarios/lua/fc4.lua'
+        lane_helper.parent.mkdir(parents=True)
+        lane_helper.write_text("fc4 = { checkout = 'lane' }\n")
+        dll = str(lane / 'build-runs/suite/run/dll/FreeCity4.dll')
+        Path(dll).parent.mkdir(parents=True)
+        Path(dll).write_bytes(b'dll fixture')
     user = tmp_path / "slot with spaces"
     env = dict(os.environ, FC4_LUA_TEST_ROOT=str(repo / "tools"), FC4_LUA_TEST_SLOT=str(user),
-               FC4_LUA_TEST_INI=ini, FC4_LUA_TEST_NUMBER=str(slot))
+               FC4_LUA_TEST_INI=ini, FC4_LUA_TEST_NUMBER=str(slot), FC4_LUA_TEST_DLL=dll)
     code = ("$ErrorActionPreference='Stop'; $PSScriptRoot=$env:FC4_LUA_TEST_ROOT; "
-            "$UserDir=$env:FC4_LUA_TEST_SLOT; $Ini=$env:FC4_LUA_TEST_INI; "
+            "$UserDir=$env:FC4_LUA_TEST_SLOT; $Ini=$env:FC4_LUA_TEST_INI; $Dll=$env:FC4_LUA_TEST_DLL; "
             "$Slot=[int]$env:FC4_LUA_TEST_NUMBER; $gameArgs=@('-CPUCount:1'); "
             "$Plugins=Join-Path $UserDir 'Plugins'; "
             "function MainCheckout { Split-Path $env:FC4_LUA_TEST_ROOT }; "
@@ -77,6 +91,15 @@ def test_rejects_documents_run(tmp_path):
     assert result.returncode != 0
     assert "requires -Slot" in result.stderr
     assert not user.exists()
+
+
+def test_shared_launcher_stages_the_dll_checkouts_script_and_helpers(tmp_path):
+    result, source, user = stage(tmp_path, "lua_script = scripts/example's test.lua\n", dll_checkout=True)
+    assert result.returncode == 0, result.stderr
+    copy = user / "LuaScripts/scripts/example's test.lua"
+    assert copy.read_text().endswith(source.read_text())
+    assert 'GetCityName' in copy.read_text() and 'GetAppState' not in copy.read_text()
+    assert (user / 'LuaScripts/engine/tests/scenarios/lua/fc4.lua').read_text() == "fc4 = { checkout = 'lane' }\n"
 
 
 def test_extensions_are_opt_in_and_staged_only_in_slot(tmp_path):
