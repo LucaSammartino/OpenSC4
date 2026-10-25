@@ -57,23 +57,32 @@ fn nonflat_network_support_grading_and_refresh() {
         assert!(solve_network(&mut g, &t));
         assert_eq!(
             g.network.solution(),
-            &[(649, 104.0), (650, 106.0), (520, 102.0), (521, 104.0)]
+            &[(650, 106.0), (649, 104.0), (521, 104.0), (520, 102.0)]
         );
         assert!(g.can_tiles_be_supported(&t, &mut NoHost));
-        assert_eq!(
-            g.terrain.solution(),
-            &[
+        let expected = if fixed {
+            [
                 (649, terrain[1]),
                 (650, terrain[2]),
                 (520, terrain[0]),
-                (521, terrain[3])
+                (521, terrain[3]),
             ]
-        );
+        } else {
+            [
+                (650, terrain[2]),
+                (649, terrain[1]),
+                (521, terrain[3]),
+                (520, terrain[0]),
+            ]
+        };
+        assert_eq!(g.terrain.solution(), &expected);
         let grading = g.update_terrain_heights(&mut t);
         let expected = if clearance == 10.0 {
             vec![]
-        } else {
+        } else if fixed {
             vec![649, 650, 520, 521]
+        } else {
+            vec![650, 649, 521, 520]
         };
         assert_eq!(grading.changed, expected);
         assert_eq!(g.solved, [(4, 4)]);
@@ -91,7 +100,7 @@ fn placed_fixed_terrain_and_infeasible_support() {
     assert!(g.can_tiles_be_supported(&t, &mut NoHost));
     assert_eq!(
         g.terrain.solution(),
-        &[(649, 101.0), (650, 102.0), (520, 100.0), (521, 101.0)]
+        &[(650, 102.0), (649, 101.0), (521, 101.0), (520, 100.0)]
     );
     let (mut g, t) = fixture(true, false, 1.0, 0.0);
     assert!(solve_network(&mut g, &t));

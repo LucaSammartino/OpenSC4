@@ -7,7 +7,7 @@
   "14",
   "18.21"
  ],
- "description": "A road (10, 10) -> (20, 10) up a ramp rising 30 m per cell (vertex altitude 300 + 30x). Between two immovable pieces at (10, 10) and (20, 10) held at the terrain, the run must climb 300 m over 9 cells within the 11.2033 slope: the height solve fails at every level (0 to 3) -> 0xF0000006. Without them, level 0 fails (every corner is on the boundary, held at the terrain) but levels 1-3 solve: the run floats free of the ramp, more than p0C = 25 above the terrain somewhere, and the road has no supports, so slot 56 fails -> the last level's code 0xF0000008.",
+ "description": "A road (10, 10) -> (20, 10) up a ramp rising 30 m per cell (vertex altitude 300 + 30x). Between two immovable pieces at (10, 10) and (20, 10) held at the terrain, the run must climb 300 m over 9 cells within the 11.2033 slope: the height solve fails at every level (0 to 3) -> 0xF0000006. Without them, level 0 fails (every corner is on the boundary, held at the terrain). Ordered propagation to closure before the first hash pick (NT36) lets level 1 select a supportable profile and place all eleven cells.",
  "steps": [
   {
    "op": "ng_city",
@@ -105,7 +105,7 @@
   },
   {
    "op": "ng_support",
-   "expect": false
+   "expect": true
   },
   {
    "op": "ng_draw",
@@ -122,13 +122,14 @@
   },
   {
    "op": "ng_place",
-   "expect": 0
+   "expect": 11
   },
   {
    "op": "ng_expect",
    "state": {
-    "failure": 4026531848,
-    "valid": 0
+    "failure": 0,
+    "valid": 11,
+    "level": 1
    }
   }
  ]
