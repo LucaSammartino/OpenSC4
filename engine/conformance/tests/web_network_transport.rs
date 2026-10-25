@@ -91,8 +91,10 @@ impl http::Host for Io {
             client.resources.get(&job.0[6]).cloned(),
         ));
         if self.retain_resources {
-            client.requests.get_mut(&job.0[5]).unwrap().refs += 1;
-            client.resources.get_mut(&job.0[6]).unwrap().refs += 1;
+            assert_eq!(client.retain_request(self, job.0[5]).unwrap(), 2);
+            if job.0[6] != 0 {
+                assert_eq!(client.retain_resource(self, job.0[6]).unwrap(), 2);
+            }
         }
     }
 }
@@ -469,6 +471,15 @@ fn callback_retained_resources_survive_worker_completion() {
     assert_eq!(client.resources[&response].refs, 1);
     assert_eq!(client.resources[&response].body, b"a");
     assert!(client.workers[&worker].current.is_none());
+    let notified = io
+        .effects
+        .iter()
+        .position(|e| matches!(e, http::Effect::Notify(..)))
+        .unwrap();
+    assert_eq!(
+        &io.effects[notified + 1..notified + 3],
+        [http::Effect::AddRequest(request), http::Effect::AddResponse(response)]
+    );
     assert_eq!(
         releases(&io),
         [
