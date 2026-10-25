@@ -37,6 +37,7 @@
 #include "FC4WeatherShadow.h"
 #include "FC4OrdinanceShadow.h"
 #include "FC4HarnessLogic.h"
+#include "FC4Config.h"
 #include "FC4Pacing.h"
 #include "FC4Perf.h"
 #include "FC4Turbo.h"

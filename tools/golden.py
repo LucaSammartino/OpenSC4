@@ -21,8 +21,10 @@ import uuid
 
 try:
     from .golden_dbpf import compare_saves, read_records
+    from . import golden_envelope
 except ImportError:
     from golden_dbpf import compare_saves, read_records
+    import golden_envelope
 
 REPO = Path(__file__).resolve().parents[1]
 SEED = 0x5EED1234
@@ -147,8 +149,10 @@ def cache_record(cache, key, manifest, run):
         if metadata['inputs'] != manifest:
             raise ValueError('cache key collision / input manifest differs')
         report = compare_artifacts(entry, run)
+        sample = golden_envelope.snapshot(entry, run)
         audit_path = entry / ('repeat-' + uuid.uuid4().hex + '.json')
-        write_json(audit_path, {'exact': artifacts_exact(report), 'run': str(run.resolve()), 'comparison': report})
+        write_json(audit_path, {'exact': artifacts_exact(report), 'run': str(run.resolve()),
+                                'sample': sample, 'comparison': report})
         return ('reproduced' if artifacts_exact(report) else 'nondeterministic'), report
     stage = cache / ('.pending-' + uuid.uuid4().hex)
     stage.mkdir()
@@ -177,6 +181,22 @@ def qualification(entry):
     if any(not row['exact'] for row in audits):
         return 'nondeterministic'
     return 'reproduced' if audits else 'unverified'
+
+
+def compare_cached(entry, run):
+    """Suite API: exact if originals agree, otherwise compare observed ranges.
+
+    Only the candidate runs. Rebuild derived ranges from verified originals;
+    a candidate result never changes the cache or widens its envelope.
+    """
+    _baseline_intact(entry)
+    envelope = golden_envelope.build(entry)
+    mode = golden_envelope.status(entry, envelope)
+    report = (compare_artifacts(entry, run) if mode in ('exact', 'unverified')
+              else golden_envelope.compare(envelope, run))
+    report.update(comparison_rule='exact' if mode in ('exact', 'unverified') else 'observed-envelope',
+                  envelope_status=mode, envelope_samples=envelope['samples'], envelope_stats=envelope['stats'])
+    return report
 
 
 def subsystem_keys(root):
@@ -413,15 +433,20 @@ def run_queued(args, dll, ini, result, work):
 
 
 def print_comparison(report, args):
+    envelope_mode = report.get('comparison_rule') == 'observed-envelope'
+    if 'envelope_stats' in report:
+        print('comparison rule: ' + report['comparison_rule'] + '; sampling: ' + report['envelope_status'])
+        print_envelope({'samples': report['envelope_samples'], 'stats': report['envelope_stats']})
     first = report['first_digest_difference']
     if first:
         print(f'first DIGEST difference: {first["date"]} (month {first["date"][:7]})')
         for key, value in first['fields'].items():
             print(f'  {key}: {value["expected"]} -> {value["actual"]}')
     else:
-        print('DIGEST: exact')
+        print('DIGEST: within envelope' if envelope_mode else 'DIGEST: exact')
     save = report['save']
-    print(f'save records: {save["exact_records"]} exact, {save["different_records"]} different')
+    label = 'within envelope' if envelope_mode else 'exact'
+    print(f'save records: {save["exact_records"]} {label}, {save["different_records"]} different')
     for record in save['records'][:20]:
         print(f'  {record["tgi"]}: {record["status"]}, {record["expected_size"]} -> {record["actual_size"]} bytes; '
               f'first byte {record.get("first_byte", "-")}')
@@ -437,6 +462,14 @@ def print_comparison(report, args):
 
 def effective_replacements(clock, selected):
     return sorted(set(selected) | ({'simulator'} if clock == 'fixed' else set()))
+
+
+def print_envelope(envelope):
+    st = envelope['stats']
+    print(f'envelope: {envelope["samples"]} originals; {st["varying_records"]}/{st["records"]} records, '
+          f'{st["varying_decoded_fields"]} decoded/structure fields, {st["varying_opaque_bytes"]} opaque byte fields, '
+          f'{st["varying_digest_fields"]} digest fields vary; median decoded numeric spread '
+          f'{st["median_decoded_numeric_spread"]}', flush=True)
 
 
 def parser():
@@ -465,14 +498,16 @@ def parser():
         sub.add_argument('--replace', default='simulator,budget')
         sub.add_argument('--rerun', action='store_true', help='record: independently repeat an existing key')
         sub.add_argument('--repeats', type=int, default=3, help='determinism: independent original runs')
+        sub.add_argument('--max-repeats', type=int, default=9,
+                         help='extend originals until the varying-field set stops growing (default 9)')
     return p
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
-        if args.seconds < 30 or args.seconds > 3600 or args.repeats < 2:
-            raise ValueError('--seconds must be 30..3600 and --repeats at least 2')
+        if args.seconds < 30 or args.seconds > 3600 or not 3 <= args.repeats <= args.max_repeats <= 50:
+            raise ValueError('--seconds must be 30..3600 and 3 <= --repeats <= --max-repeats <= 50')
         key, manifest, generated, files = prepare(args)
         entry = args.output / 'golden' / key
         print('key: ' + key, flush=True)
@@ -492,9 +527,10 @@ def main(argv=None):
             run = run_game(args, generated, selected, dll, 'compare', allow_window_drift=True)
             if fingerprint(files, manifest['settings'])[0] != key:
                 raise ValueError(f'input changed during comparison; no verdict: {run}')
-            report = compare_artifacts(entry, run)
+            report = compare_cached(entry, run)
+            compatible = 'within-envelope' if report['comparison_rule'] == 'observed-envelope' else 'exact'
             report.update(key=key, baseline_repeatability=qualification(entry), run=str(run),
-                          verdict='exact' if artifacts_exact(report) else 'different')
+                          verdict=compatible if artifacts_exact(report) else 'different')
             window = load_json(run / 'verdict.json')
             report['window_exact'] = window['window_exact']
             report['save_date'] = window['save_date']
@@ -507,14 +543,21 @@ def main(argv=None):
             print('comparison: ' + str(run / 'comparison.json'))
             if not window['window_exact']:
                 return 2
-            return 3 if report['baseline_repeatability'] == 'nondeterministic' else (0 if artifacts_exact(report) else 1)
+            if report['envelope_status'] in ('unverified', 'growing'):
+                print('sampling incomplete; run determinism to qualify the cached comparison')
+                return 3
+            return 0 if artifacts_exact(report) else 1
         if entry.exists() and args.command == 'record' and not args.rerun:
             _baseline_intact(entry)
-            print(f'cached: {entry}; repeatability: {qualification(entry)}; no game launched')
-            return 3 if qualification(entry) == 'nondeterministic' else 0
-        count = args.repeats if args.command == 'determinism' else 1
-        failed = False
-        for _ in range(count):
+            envelope = golden_envelope.build(entry)
+            mode = golden_envelope.status(entry, envelope)
+            print(f'cached: {entry}; repeatability: {qualification(entry)}; sampling: {mode}; no game launched')
+            print_envelope(envelope)
+            return 0 if mode in ('exact', 'envelope') else 3
+        count = args.repeats if args.command == 'determinism' or not entry.exists() else 1
+        limit = args.max_repeats if count > 1 else 1
+        mode = 'unverified'
+        for attempt in range(limit):
             run = run_game(args, generated, [], args.original_dll, 'original')
             # Reject runs if a source changed underneath the slot mirror or DLL copy.
             if fingerprint(files, manifest['settings'])[0] != key:
@@ -524,9 +567,15 @@ def main(argv=None):
             if report:
                 write_json(run / 'comparison.json', report)
                 print_comparison(report, args)
-            failed |= status == 'nondeterministic'
+            envelope = golden_envelope.build(entry)
+            mode = golden_envelope.status(entry, envelope)
+            write_json(entry / 'envelope.json', envelope)
+            print_envelope(envelope)
+            print('sampling: ' + mode, flush=True)
+            if attempt + 1 >= count and (mode in ('exact', 'envelope') or count == 1):
+                break
         print('baseline repeatability: ' + qualification(entry))
-        return 3 if failed else 0
+        return 0 if mode in ('exact', 'envelope') else 3
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print('golden: ' + str(exc), file=sys.stderr)
         return 2

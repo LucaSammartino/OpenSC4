@@ -21,12 +21,16 @@ pause, digest, full save and completion mark are appended. Both the log and the
 saved simulator date must reach exactly `--until`. Stalled, incomplete, overshot
 or wrong-subsystem runs cannot be published.
 
-`--turbo` requests turbo but **the original simulator cannot implement it**;
-the plugin logs that it has no effect when `disable = all`. The default uses
-public speed 2 with `pacing = original` for both runs. `session_seed` fixes our
-generators, not the game's clock-seeded generators. An all-original baseline
-does not currently provide a deterministic regression oracle. Repeated runs
-measure this instead of hiding differences behind tolerances or ignore masks.
+The default `--clock fixed` uses our scheduler with `sim_fixed_step = 1`,
+`pacing = original`, and every other subsystem original. The scheduler advances
+at most 64 agent deliveries per frame and yields at every new day, independently
+of wall time and the turbo frame budget. The DLL must acknowledge this switch
+in its log. `--clock original` retains the legacy all-original wall-time audit;
+`--turbo` cannot speed up that original scheduler. Both choices are in the key.
+`session_seed` fixes our generators, not the game's clock-seeded generators.
+Foundations §6.2 lists independent member, file-local and temporary generators;
+no shared public seed interface is specified. We do not patch their memory.
+Original agents' own timers, rendering and RNGs can still vary.
 
 The SHA-256 key covers the executable, installed DAT/DLL/SGR/INI/CFG files,
 observer DLL, start save, entire source region (including neighbours), user
@@ -42,12 +46,26 @@ actual launch and mirror sources; these options cannot redirect just the hash.
 `verdict.json`, `summary.json`, `game.log`, `harness.txt` and `baseline.json`.
 An existing entry is verified and reused without launching a game. `--rerun` or
 `determinism` compares an independent original run without overwriting it.
-Each audit is retained as `repeat-<id>.json`; any differing audit permanently
-qualifies that baseline as nondeterministic. Raw attempts, including failures,
+Each audit is retained as `repeat-<id>.json`; independent originals and their
+hashes are retained under `samples/`. A new `record` starts with three originals,
+then adds runs until the set of varying fields stops growing (up to
+`--max-repeats`, default 9). `determinism` remeasures an existing key. Identical
+originals select exact comparison. Otherwise the cache remains usable with an
+observed envelope: decoded numeric fields and monthly digest components use
+min/max; other decoded values use observed sets; unknown save bytes use explicit
+per-offset min/max with record presence and size checks. Stable fields remain
+exact; there are no gameplay masks. Numeric decoder spans are checked as fields
+to avoid byte-carry artefacts. `envelope.json` reports varying records, decoded
+fields, opaque byte fields, digest spreads and median decoded numeric spread.
+Ranges are marginal observations; correlations and future unseen variance are
+not inferred. Three runs or a single no-growth step cannot prove determinism.
+Sampling that still grows at the limit is provisional (exit 3), never a pass.
+Raw attempts, including failures,
 are in `build-runs/golden-runs/`. Save files remain untracked user content.
 
-Comparisons launch only the candidate, validate cache artifact hashes, and write
-`comparison.json` naming the first differing digest date/fields and every
+Comparisons launch only the candidate, validate all original artifact hashes,
+rebuild ranges from those originals (never from the candidate), and write
+`comparison.json` naming the first out-of-envelope or differing digest date/fields and every
 changed full type/group/instance. Saves are compared after DBPF index matching
 and QFS decompression. Only container layout/header and DIR compression metadata
 are omitted; **no gameplay field, thumbnail or counter is ignored**. Unknown
