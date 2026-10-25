@@ -263,8 +263,14 @@ def build_graph(f, instructions, starts, image=None):
                 break
             f.insns[va] = ins
             va = ins.end
-    f.restored = {i.operands[0] for i in f.insns.values() if i.mnemonic == 'pop' and i.operands}
-    for va, ins in f.insns.items():
+    pending = deque(f.insns)
+    visited = set()
+    while pending:
+        va = pending.popleft()
+        if va in visited:
+            continue
+        visited.add(va)
+        ins = f.insns[va]
         m, target = ins.mnemonic, ins.target
         edges = []
         if ins.pop is not None:
@@ -276,6 +282,11 @@ def build_graph(f, instructions, starts, image=None):
                 edges.append(target)
             elif target in starts:
                 f.tails.add(target)
+            elif target in instructions:
+                f.insns[target] = instructions[target]
+                pending.append(target)
+                edges.append(target)
+                f.notes.add('shared-exit-body')
             elif target is not None:
                 f.notes.add('unresolved-transfer')
             elif m == 'jmp':
@@ -291,13 +302,22 @@ def build_graph(f, instructions, starts, image=None):
                         edges.append(dst)
                 if not edges:
                     f.notes.add('indirect-transfer')
-            if m != 'jmp' and ins.end in f.insns:
+            if m != 'jmp' and ins.end in instructions:
                 edges.append(ins.end)
-        elif ins.end in f.insns:
+        elif ins.end in instructions:
             edges.append(ins.end)
         else:
             f.notes.add('incomplete-flow')
         f.edges[va] = tuple(dict.fromkeys(edges))
+        for dst in edges:
+            if dst not in f.insns:
+                f.insns[dst] = instructions[dst]
+                pending.append(dst)
+                f.notes.add('shared-exit-body')
+        if len(visited) > 100000:
+            f.notes.add('analysis-limit')
+            break
+    f.restored = {i.operands[0] for i in f.insns.values() if i.mnemonic == 'pop' and i.operands}
 
 
 def propagate_pops(functions):
@@ -747,7 +767,7 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
                 work.append(parent)
                 queued.add(parent)
     print('stack/register analysis complete', flush=True)
-    calls, cleanups = defaultdict(list), defaultdict(list)
+    calls, cleanups, callsites, setups = (defaultdict(list) for _ in range(4))
     addresses = sorted(instructions)
     for row in read_tsv(export / 'calls.tsv'):
         try:
@@ -758,9 +778,12 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
         if ins is None or ins.mnemonic != 'call' or ins.target != addr:
             continue
         calls[addr].append(site)
+        callsites[addr].append((int(row['caller'], 16), site))
         count, sites = caller_cleanup(ins, instructions, max_insns=80, grouped=True)
         setup = argument_setup(ins, instructions, addresses, functions.get(int(row['caller'], 16)), functions)
         attributed = min(count, setup) if setup is not None else count
+        setups[addr].append({'callsite': f'{site:08x}', 'setup_dwords': setup,
+                             'cleanup_dwords': attributed})
         if count:
             cleanups[addr].append({'callsite': f'{site:08x}', 'dwords': attributed,
                                   'batch_dwords': count, 'setup_dwords': setup, 'cleanup_sites': sites})
@@ -777,6 +800,9 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
         if not changed:
             break
     direct = {int(r['address'], 16): r for r in direct_contracts}
+    from abi_return_use import analyse
+    return_evidence = analyse(functions, callsites, vtable, direct, access, call_x87_used)
+    print('caller/return analysis complete', flush=True)
     rows, raw_evidence = [], {}
     for addr, f in sorted(functions.items()):
         body = f.body_args
@@ -829,6 +855,14 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
             notes.add('source=direct-calls.md')
             if d.get('note'):
                 notes.add(d['note'])
+        re = return_evidence[addr]
+        if re['ret'] != 'unknown':
+            if ret != re['ret']:
+                notes.add(f'return-refined-from={ret}')
+            ret, ret_conf = re['ret'], re['confidence']
+        notes.add(f'ret-evidence={re["kind"]}')
+        notes.add(f'callers-checked={re["callers_checked"]};eax-read={re["caller_eax_reads"]};'
+                  f'edx-read={re["caller_edx_reads"]};st0-read={re["caller_x87_reads"]}')
         if f.ghidra != 'unknown' and conv != f.ghidra.lstrip('_'):
             notes.add('ghidra=' + f.ghidra.lstrip('_'))
         problematic = {'incomplete-decode', 'incomplete-flow', 'analysis-limit', 'dynamic-stack-read',
@@ -840,6 +874,20 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
                 else 'medium' if pop is not None else 'low')
         if conv == 'unknown' or len(f.pops) > 1 or 'argument-sources-disagree' in notes:
             conf = 'low'
+        # Local stack evidence can agree even when an unrelated indirect call
+        # prevents full-body ESP tracking. Do not lower convention/pop for that.
+        caller_agrees = any(s['setup_dwords'] == count and
+                            s['cleanup_dwords'] == (count if pop == 0 else 0)
+                            for s in setups[addr])
+        local_errors = {'incomplete-decode', 'analysis-limit', 'unresolved-transfer'} & notes
+        if (pop is not None and len(f.pops) <= 1 and conv != 'unknown' and
+                body <= count and not local_errors and caller_agrees):
+            conf = 'exact' if body == count else 'high'
+            notes.add('convention-pop-evidence=body+caller-setup-cleanup')
+        elif (pop is not None and pop > 0 and body <= count and conv != 'unknown' and
+              len(f.pops) == 1 and not local_errors):
+            conf = 'high'
+            notes.add('convention-pop-evidence=ret-pop+body-registers-stack-bound')
         row = dict(zip(COLUMNS, [f'{addr:08x}', f.size, f.name, conv,
                    'ecx' if conv in ('thiscall', 'fastcall') else 'none',
                    '' if pop is None else pop, '' if pop is None else count,
@@ -851,6 +899,8 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
                     'cleanups': cleanups[addr], 'pops': sorted(f.pops), 'reg_args': sorted(f.live),
                     'inferred_convention': raw_conv, 'inferred_ret': raw_ret, 'ghidra': f.ghidra,
                     'notes': sorted(f.notes), 'ranges': f.ranges, 'instruction_count': len(f.insns)}
+        raw_evidence[row['address']]['return_evidence'] = re
+        raw_evidence[row['address']]['caller_setups'] = setups[addr]
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open('w', encoding='utf-8', newline='') as fh:
         writer = csv.DictWriter(fh, COLUMNS, delimiter='\t', lineterminator='\n')
