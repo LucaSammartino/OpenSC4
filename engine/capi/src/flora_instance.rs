@@ -141,12 +141,15 @@ pub unsafe extern "C" fn fc4_flora_instance_props(p: *const fc4_flora_instance) 
     })
 }
 
-/// Compare the complete persisted record and the occupant's public getters.
+/// Compare the complete persisted record and available public getter results.
+/// A missing lot-tag getter result skips only that getter comparison, not the
+/// persisted tag's byte-for-byte round trip.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_instance_record_shadow(
     bytes: *const u8,
     length: usize,
     expected: *const fc4_flora_instance_values,
+    lot_tag_available: bool,
 ) -> bool {
     guard(false, || {
         let Some(expected) = expected.as_ref() else {
@@ -171,7 +174,7 @@ pub unsafe extern "C" fn fc4_flora_instance_record_shadow(
             && i32::from(instance.flora.state) == expected.state
             && u32::from(instance.flora.orientation) == expected.orientation
             && instance.position.map(f32::to_bits) == expected.position.map(f32::to_bits)
-            && instance.lot_tag == expected.lot_tag
+            && (!lot_tag_available || instance.lot_tag == expected.lot_tag)
             && instance.base.flags == (expected.flags & 0xdd)
             && instance.base.highlight == expected.highlight
             && instance.base.occupant_type == fc4_core::flora::occupant_type::FLORA
@@ -216,19 +219,31 @@ mod tests {
             assert!(fc4_flora_instance_record_shadow(
                 out.bytes().as_ptr(),
                 out.bytes().len(),
-                &v
+                &v,
+                true
             ));
             for length in 0..out.bytes().len() {
-                assert!(!fc4_flora_instance_record_shadow(out.bytes().as_ptr(), length, &v));
+                assert!(!fc4_flora_instance_record_shadow(
+                    out.bytes().as_ptr(),
+                    length,
+                    &v,
+                    true
+                ));
             }
             let mut extended = out.bytes().to_vec();
             extended.push(0);
-            assert!(!fc4_flora_instance_record_shadow(extended.as_ptr(), extended.len(), &v));
+            assert!(!fc4_flora_instance_record_shadow(
+                extended.as_ptr(),
+                extended.len(),
+                &v,
+                true
+            ));
             v.birth += 1;
             assert!(!fc4_flora_instance_record_shadow(
                 out.bytes().as_ptr(),
                 out.bytes().len(),
-                &v
+                &v,
+                true
             ));
             fc4_flora_instance_destroy(p);
         }
@@ -245,7 +260,7 @@ mod tests {
             let mut out = fc4_core::stream::ByteWriter::new();
             assert!((&*p.cast::<FloraInstance>()).write(&mut out));
             let exact = |expected: &fc4_flora_instance_values| {
-                fc4_flora_instance_record_shadow(out.bytes().as_ptr(), out.bytes().len(), expected)
+                fc4_flora_instance_record_shadow(out.bytes().as_ptr(), out.bytes().len(), expected, true)
             };
             assert!(exact(&v));
             v.position[0] = 0.0;
@@ -253,6 +268,41 @@ mod tests {
             v.position[0] = -0.0;
             v.position[1] = f32::from_bits(0x7fc0_5678);
             assert!(!exact(&v));
+            fc4_flora_instance_destroy(p);
+        }
+    }
+
+    #[test]
+    fn shadow_preserves_a_saved_lot_tag_when_the_getter_has_no_value() {
+        unsafe {
+            let p = fc4_flora_instance_create();
+            let mut v = fc4_flora_instance_values::default();
+            assert!(fc4_flora_instance_values_get(p, &mut v));
+            v.lot_tag = u32::MAX;
+            assert!(fc4_flora_instance_values_set(p, &v));
+            let mut out = fc4_core::stream::ByteWriter::new();
+            assert!((&*p.cast::<FloraInstance>()).write(&mut out));
+            assert_eq!(&out.bytes()[out.bytes().len() - 4..], &u32::MAX.to_le_bytes());
+            v.lot_tag = 0; // An untouched output argument is not a getter result.
+            assert!(fc4_flora_instance_record_shadow(
+                out.bytes().as_ptr(),
+                out.bytes().len(),
+                &v,
+                false
+            ));
+            assert!(!fc4_flora_instance_record_shadow(
+                out.bytes().as_ptr(),
+                out.bytes().len(),
+                &v,
+                true
+            ));
+            v.birth += 1;
+            assert!(!fc4_flora_instance_record_shadow(
+                out.bytes().as_ptr(),
+                out.bytes().len(),
+                &v,
+                false
+            ));
             fc4_flora_instance_destroy(p);
         }
     }

@@ -13040,7 +13040,7 @@ fc4_props* fc4_flora_instance_props(const fc4_flora_instance* p);
 /* Decode an entire native record, require byte-identical re-encoding, and
  * compare the public getters. No native state is changed. */
 bool fc4_flora_instance_record_shadow(const uint8_t* bytes, size_t length,
-    const fc4_flora_instance_values* expected);
+    const fc4_flora_instance_values* expected, bool lot_tag_available);
 #ifdef __cplusplus
 }
 #endif

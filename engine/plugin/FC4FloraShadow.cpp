@@ -400,7 +400,8 @@ void TakeCensus(Census& c, bool inputs) {
             persisted.last_seed = e.last_seeding_date;
             persisted.state = e.state;
             std::memcpy(persisted.position, e.pos, sizeof(e.pos));
-            o->GetLotTag(persisted.lot_tag);
+            // SPEC-GAP: false GetLotTag supplies no value; do not assume a wild-flora sentinel.
+            const bool lotTagAvailable = o->GetLotTag(persisted.lot_tag);
             persisted.flags = static_cast<uint8_t>(o->GetFlags());
             persisted.highlight = static_cast<uint8_t>(o->GetHighlight());
             CaptureStream record;
@@ -410,7 +411,7 @@ void TakeCensus(Census& c, bool inputs) {
                 auto* ser = static_cast<cIGZSerializable*>(serializable);
                 FC4_ACQUIRED(ser, "QueryInterface");
                 exact = ser->Write(record) && record.Good()
-                    && fc4_flora_instance_record_shadow(record.Data(), record.Size(), &persisted);
+                    && fc4_flora_instance_record_shadow(record.Data(), record.Size(), &persisted, lotTagAvailable);
                 FC4_RELEASE(ser);
             }
             ++records;
