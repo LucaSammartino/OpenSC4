@@ -33,8 +33,10 @@ int DisastersFactoryTest(const std::string& dll, const std::string& ini, bool en
                 CHECK(m->GetID() == types[n]);
                 CHECK(m->Init());
                 CHECK(m->GetActiveInstanceCount() == 0);
-                // Calls the real ABI slot 7 (zero arguments).
-                CHECK(m->AttemptDisasterStart() == nullptr);
+                // Independent of the compiler's overloaded-virtual ordering.
+                using StartAny = cISC4DisasterInstance* (__thiscall*)(void*);
+                auto** slots = *reinterpret_cast<void***>(m);
+                CHECK(reinterpret_cast<StartAny>(slots[7])(m) == nullptr);
                 CHECK(m->Shutdown());
                 CHECK(m->Release() == 0);
             }
@@ -78,7 +80,11 @@ int DisastersFactoryTest(const std::string& dll, const std::string& ini, bool en
             }
             // Slot 6 has two coordinates; empty test city contains no pipe.
             auto* pipe = reinterpret_cast<cFC4ISC4DisasterManager*>(layer->GetDisasterManager(0x4A1332E8));
-            CHECK(pipe && pipe->AttemptDisasterStart(5, 6) == nullptr);
+            if (pipe) {
+                using StartAt = cISC4DisasterInstance* (__thiscall*)(void*, int32_t, int32_t);
+                auto** slots = *reinterpret_cast<void***>(pipe);
+                CHECK(reinterpret_cast<StartAt>(slots[6])(pipe, 5, 6) == nullptr);
+            } else CHECK(false);
             CHECK(!layer->IsADisasterOngoing());
             CHECK(layer->RegisterDisasterLocation(nullptr, 12, 34, nullptr, 3, false));
             CHECK(layer->GetDisasterLocationCount() == 1);

@@ -32,15 +32,16 @@ public:
 cIGZUnknown* CreateFC4DisasterLayer();
 
 // disasters.md §3.1 and §7: slot 6 takes coordinates, slot 7 takes none.
-// The SDK declares these overloads in the opposite order.
+// MSVC emits overloaded virtuals in reverse declaration order (the SDK
+// follows the same convention). Tests also call the numbered slots directly.
 template<class T> class SC4List;
 class cFC4ISC4DisasterManager : public cIGZUnknown {
 public:
     virtual bool Init() = 0;
     virtual bool Shutdown() = 0;
     virtual uint32_t GetID() = 0;
-    virtual cISC4DisasterInstance* AttemptDisasterStart(int32_t, int32_t) = 0;
     virtual cISC4DisasterInstance* AttemptDisasterStart() = 0;
+    virtual cISC4DisasterInstance* AttemptDisasterStart(int32_t, int32_t) = 0;
     virtual bool AddInstanceToList(cISC4DisasterInstance*) = 0;
     virtual bool RemoveInstanceFromList(cISC4DisasterInstance*) = 0;
     virtual int32_t GetActiveInstanceCount() = 0;
