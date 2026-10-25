@@ -133,6 +133,49 @@ fn owned_configuration_outlives_exemplar_and_replaces_geometry() {
     }
 }
 
+#[test]
+fn owned_configuration_getters_are_coherent_during_reload() {
+    use fc4_core::lot_config_manager::ConfigurationFields;
+    use std::ptr::null_mut;
+
+    unsafe {
+        let config = fc4_lot_configuration_new();
+        let first = fc4_props_create();
+        let second = fc4_props_create();
+        // Size is a byte vector; a wider property still copies raw bytes (§3.2).
+        for (holder, size) in [(first, [0x0302]), (second, [0x0705])] {
+            assert!(fc4_props_set_u32s(holder, VERSION, &2, 1));
+            assert!(fc4_props_set_u32s(holder, 0x88EDC790, size.as_ptr(), size.len()));
+        }
+        assert!(fc4_lot_configuration_load(config, first, 3));
+        // The game reads getters on a second thread during OnTick. A reader
+        // must observe one complete Load result, never mixed fields.
+        let address = config as usize;
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(move || {
+                for _ in 0..256 {
+                    let mut fields = ConfigurationFields::default();
+                    assert!(fc4_lot_configuration_snapshot(
+                        address as *const fc4_lot_configuration,
+                        &mut fields,
+                        None,
+                        null_mut(),
+                    ));
+                    assert!(matches!((fields.width, fields.depth), (2, 3) | (5, 7)));
+                }
+            });
+            for _ in 0..128 {
+                assert!(fc4_lot_configuration_load(config, second, 3));
+                assert!(fc4_lot_configuration_load(config, first, 3));
+            }
+            reader.join().unwrap();
+        });
+        fc4_props_destroy(first);
+        fc4_props_destroy(second);
+        fc4_lot_configuration_free(config);
+    }
+}
+
 /// One object as the host keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Obj {
