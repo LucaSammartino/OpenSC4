@@ -214,13 +214,12 @@ def prepare(args):
                 'turbo_requested': args.turbo, 'turbo_frame_ms': 250, 'pacing': 'original',
                 'session_seed': SEED, 'slot': args.slot, 'timeout_seconds': args.seconds,
                 'cpu_count': 1, 'affinity': 2 ** (2 * args.slot), 'popup_dialogs': 0,
-                'full_save': True, 'environment': 'FC4_* removed', 'window': 'minimized after load'}
+                'full_save': True, 'environment': 'explicit switches; FC4_* removed in direct backend',
+                'backend': args.backend, 'autotest_end': 'terminate', 'window': 'minimized after load'}
     generated = input_script(args.script, args.until)
     settings['effective_script_sha256'] = hashlib.sha256(generated.encode('utf-8')).hexdigest()
     files = {'exe': args.game_root / 'Apps/SimCity 4.exe', 'start.sc4': save,
-             'observer.dll': args.original_dll, 'user.cfg': args.regions_root.parent / 'SimCity 4.cfg',
-             'golden.py': Path(__file__), 'golden_dbpf.py': Path(__file__).with_name('golden_dbpf.py'),
-             'golden_run.ps1': Path(__file__).with_name('golden_run.ps1')}
+             'observer.dll': args.original_dll, 'user.cfg': args.regions_root.parent / 'SimCity 4.cfg'}
     for name in ('ingame_run.ps1', 'city_fixture.ps1', 'sc4mutex.ps1', 'sc4ctl.ps1'):
         files['harness/' + name] = root / 'tools' / name
     # Neighbour cities and region layout are simulation inputs too.
@@ -269,7 +268,13 @@ def run_game(args, generated, selected, dll, tag):
     ini.write_text(f'disable = {disable}\nenable = {",".join(selected)}\nobserve = 1\n'
                    f'session_seed = {SEED}\npacing = original\nsim_turbo = {int(args.turbo)}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
-                   f'autotest_end = quit\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+                   f'autotest_end = terminate\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+    # Explicitly turn every known shadow/compare off, also for a queue worker
+    # whose environment may contain developer overrides.
+    config = (args.harness_root / 'engine/plugin/FC4Config.cpp').read_text(encoding='utf-8')
+    verification = sorted(set(re.findall(r'"([a-z0-9_]*(?:shadow|compare)[a-z0-9_]*)"', config)))
+    with ini.open('a', encoding='utf-8') as stream:
+        stream.write(''.join(f'{key} = 0\n' for key in verification))
     result = work / 'result'
     command = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
                str(Path(__file__).with_name('golden_run.ps1')), '-HarnessRoot', str(args.harness_root.resolve()),
@@ -278,11 +283,14 @@ def run_game(args, generated, selected, dll, tag):
                '-Slot', str(args.slot), '-Seconds', str(args.seconds)]
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith('FC4_')}
     start = time.perf_counter()
-    process = subprocess.run(command, env=env, capture_output=True, text=True,
-                             timeout=args.seconds + 300)
-    (work / 'transport.txt').write_text(process.stdout + process.stderr, encoding='utf-8')
-    if process.returncode:
-        raise ValueError(f'game harness failed ({process.returncode}); see {work / "transport.txt"}')
+    if args.backend == 'queue':
+        run_queued(args, dll, ini, result, work)
+    else:
+        process = subprocess.run(command, env=env, capture_output=True, text=True,
+                                 timeout=args.seconds + 300)
+        (work / 'transport.txt').write_text(process.stdout + process.stderr, encoding='utf-8')
+        if process.returncode:
+            raise ValueError(f'game harness failed ({process.returncode}); see {work / "transport.txt"}')
     text = (result / 'game.log').read_text(encoding='utf-8-sig', errors='replace')
     verdict = _validate_log(text, args.until, selected, result)
     digests = parse_digests(text)
@@ -300,6 +308,65 @@ def run_game(args, generated, selected, dll, tag):
     # A future reach-enabled harness may export alongside the plugin log.
     # Never copy a stale shared slot reach file into this run.
     return result
+
+
+def run_queued(args, dll, ini, result, work):
+    """Use the already-running coordinator queue (no CIM privileges needed here).
+
+    Only submit from a checkout's build-runs. The snapshot verifies that the
+    slot has not been reused; export races fail closed with retained evidence.
+    """
+    if args.output.resolve() != (REPO / 'build-runs').resolve():
+        raise ValueError('queue backend requires --output <this checkout>/build-runs')
+    queue_text = (args.harness_root / 'tools/game_queue.ps1').read_text(encoding='utf-8')
+    region_ready = bool(re.search(r'\bregion\s*=', queue_text, re.I))
+    if args.region != 'FC4 Test' and not region_ready:
+        raise ValueError('queue region key is not available yet; refusing an FC4 Test fallback')
+    label = 'golden-' + uuid.uuid4().hex
+    staged = args.output / 'golden-inputs' / (sha256(dll) + '.dll')
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    if not staged.exists():
+        shutil.copyfile(dll, staged)
+    if sha256(staged) != sha256(dll):
+        raise ValueError('staged candidate DLL differs')
+    queue = args.output / 'game-queue'
+    queue.mkdir(parents=True, exist_ok=True)
+    request = (f'label = {label}\ndll = {staged.relative_to(REPO).as_posix()}\ncity = {args.city}\n'
+               f'seconds = {args.seconds}\ntimeout = {args.seconds + 150}\nend_date = {args.until}\n')
+    if region_ready:
+        request += f'region = {args.region}\n'
+    request += '[ini]\n' + ini.read_text(encoding='utf-8')
+    temporary = queue / (label + '.tmp')
+    temporary.write_text(request, encoding='utf-8')
+    temporary.rename(queue / (label + '.req'))
+    verdict_file = args.output / 'game-results' / (label + '.verdict')
+    deadline = time.monotonic() + args.queue_timeout
+    while not verdict_file.exists():
+        if time.monotonic() > deadline:
+            raise ValueError(f'queue wait timed out; request may still run: {queue / (label + ".req")}')
+        time.sleep(1)
+    verdict = verdict_file.read_text(encoding='utf-8-sig')
+    result.mkdir()
+    (result / 'harness.txt').write_text(verdict, encoding='utf-8')
+    if not verdict.startswith('verdict: clean'):
+        raise ValueError(f'queue did not finish cleanly; see {result / "harness.txt"}')
+    log = verdict_file.with_suffix('.log')
+    shutil.copyfile(log, result / 'game.log')
+    slot_match = re.search(r'in slot (\d+) after', verdict)
+    if not slot_match:
+        raise ValueError('queue result does not identify its slot')
+    slot = int(slot_match[1])
+    process = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                              '-File', str(Path(__file__).with_name('golden_snapshot.ps1')),
+                              '-HarnessRoot', str(args.harness_root.resolve()), '-Output', str(result.resolve()),
+                              '-City', args.city, '-Region', args.region, '-Slot', str(slot)],
+                             capture_output=True, text=True, timeout=150)
+    (work / 'transport.txt').write_text(process.stdout + process.stderr, encoding='utf-8')
+    if process.returncode:
+        raise ValueError(f'completed run could not be exported; see {work / "transport.txt"}')
+    wall = re.search(r'wall (\d+) s', verdict)
+    write_json(result / 'run.json', {'slot': slot, 'label': label,
+                                    'wall_seconds': int(wall[1]) if wall else None, 'backend': 'queue'})
 
 
 def print_comparison(report, args):
@@ -341,6 +408,8 @@ def parser():
         sub.add_argument('--regions-root', type=Path, default=documents() / 'SimCity 4/Regions')
         sub.add_argument('--output', type=Path, default=REPO / 'build-runs')
         sub.add_argument('--slot', type=int, choices=range(1, 17), default=6)
+        sub.add_argument('--backend', choices=('queue', 'direct'), default='queue')
+        sub.add_argument('--queue-timeout', type=int, default=1800)
         sub.add_argument('--seconds', type=int, default=180)
         sub.add_argument('--turbo', action='store_true', help='request turbo (only our simulator supports it)')
         sub.add_argument('--dll', type=Path, help='candidate worktree or DLL (compare only)')
