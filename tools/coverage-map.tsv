@@ -579,7 +579,7 @@ cSC4ViewInputControlTollBooth	city tools and input	ui	network-tool-owners.md	-	-
 cSC4ViewInputControlGameOfLife	city tools and input	ui	game-of-life-control.md, game-of-life.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
-cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
+cSC4MyStreetSimInputControl	city tools and input	ui	my-street-sim-control.md	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
 cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-
 cSC4BudgetUIIncomeWinProc	windows and panels	ui	budget-dialogs.md	-	-	-
@@ -1107,6 +1107,8 @@ fn:SC4ReadStringRecord	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4WriteAppLoadSaveVersion	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4WriteGZSerializable	other free functions	other	lot-records.md, small-helpers2.md	-	-	-
 fn:SC4WriteStringRecord	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4InterpolateGrid	other free functions	other	grid-interpolation.md	-	-	-
+fn:MakeMapColorBuffer	other free functions	other	map-color-buffer.md, map-view.md	-	-	-
 fn:SafeGetAltitude	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinFont	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
