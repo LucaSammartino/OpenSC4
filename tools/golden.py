@@ -213,6 +213,7 @@ def prepare(args):
         raise ValueError(f'no start save: {save}')
     settings = {'region': region, 'city': city, 'until': args.until, 'speed': 2,
                 'turbo_requested': args.turbo, 'turbo_frame_ms': 250, 'pacing': 'original',
+                'clock': args.clock, 'fixed_deliveries_per_frame': 64 if args.clock == 'fixed' else None,
                 'session_seed': SEED, 'slot': args.slot if args.backend == 'direct' else 'queue-selected',
                 'timeout_seconds': args.seconds, 'cpu_count': 1,
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
@@ -261,6 +262,9 @@ def _validate_log(text, until, selected, run):
 
 
 def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
+    # Golden originals use only our scheduler; every simulated subsystem stays
+    # original. Candidates must use the same scheduler and window settings.
+    selected = effective_replacements(args.clock, selected)
     validate_harness_sources(args)
     run_id = f'{tag}-{time.strftime("%Y%m%d-%H%M%S")}-{uuid.uuid4().hex[:8]}'
     work = args.output / 'golden-runs' / run_id
@@ -275,6 +279,7 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     ini = work / 'FreeCity4.ini'
     ini.write_text(f'disable = {disable}\nenable = {",".join(selected)}\nobserve = 1\n'
                    f'session_seed = {SEED}\npacing = original\nsim_turbo = {int(args.turbo)}\n'
+                   f'sim_fixed_step = {int(args.clock == "fixed")}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
                    f'autotest_end = terminate\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
     # Explicitly turn every known shadow/compare off, also for a queue worker
@@ -301,6 +306,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
             raise ValueError(f'game harness failed ({process.returncode}); see {work / "transport.txt"}')
     text = (result / 'game.log').read_text(encoding='utf-8-sig', errors='replace')
     verdict = _validate_log(text, args.until, selected, result)
+    if args.clock == 'fixed' and 'sim_fixed_step ON: 64 agent deliveries/frame' not in text:
+        raise ValueError(f'DLL did not acknowledge sim_fixed_step; not cached: {result}')
     digests = parse_digests(text)
     if not digests:
         raise ValueError(f'no DIGEST observations; see {result}')
@@ -428,6 +435,10 @@ def print_comparison(report, args):
               shadow_command(args.region, args.city, until, args.dll or args.original_dll, args.script))
 
 
+def effective_replacements(clock, selected):
+    return sorted(set(selected) | ({'simulator'} if clock == 'fixed' else set()))
+
+
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     commands = p.add_subparsers(dest='command', required=True)
@@ -448,6 +459,8 @@ def parser():
         sub.add_argument('--queue-timeout', type=int, default=1800)
         sub.add_argument('--seconds', type=int, default=180)
         sub.add_argument('--turbo', action='store_true', help='request turbo (only our simulator supports it)')
+        sub.add_argument('--clock', choices=('fixed', 'original'), default='fixed',
+                         help='fixed delivery scheduler (default); original is the legacy all-original audit')
         sub.add_argument('--dll', type=Path, help='candidate worktree or DLL (compare only)')
         sub.add_argument('--replace', default='simulator,budget')
         sub.add_argument('--rerun', action='store_true', help='record: independently repeat an existing key')

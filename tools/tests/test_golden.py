@@ -171,6 +171,11 @@ class GoldenTests(unittest.TestCase):
         self.assertIn('budget', keys)
         self.assertIn('traffic', keys)
 
+    def test_fixed_original_uses_only_scheduler_and_candidate_always_keeps_it(self):
+        self.assertEqual(golden.effective_replacements('fixed', []), ['simulator'])
+        self.assertEqual(golden.effective_replacements('fixed', ['traffic']), ['simulator', 'traffic'])
+        self.assertEqual(golden.effective_replacements('original', []), [])
+
     def test_simulator_save_date_and_fields(self):
         payload = bytearray(91)
         struct.pack_into('<I', payload, 0, 91)
