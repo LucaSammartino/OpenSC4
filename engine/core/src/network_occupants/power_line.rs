@@ -67,7 +67,11 @@ impl PowerLine {
     /// A freshly constructed line: occupant type `0x0990B2EA` (§1.1).
     pub fn new() -> PowerLine {
         PowerLine {
-            base: OccupantBase::new(OCCUPANT_TYPE_POWER_LINE),
+            base: OccupantBase {
+                // occupant-manager 13.1: newly constructed occupants are not indexed.
+                cell_rect: [0xFF, 0, 0, 0],
+                ..OccupantBase::new(OCCUPANT_TYPE_POWER_LINE)
+            },
             field_30: 0,
             position: [0.0; 3],
             cell: (0, 0),
