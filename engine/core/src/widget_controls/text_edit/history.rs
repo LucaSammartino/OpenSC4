@@ -75,13 +75,32 @@ impl History {
             self.items.push(copy); // End advances only after construction returns.
             return Ok(());
         }
-        let capacity = n + n.max(1);
+        self.grow_insert_with(n, std::slice::from_ref(action), storage)
+    }
+
+    /// TE8 range-insertion growth for a valid insertion point and a range that
+    /// cannot fit in the existing storage. Spare-capacity append stays above.
+    pub fn grow_insert_with(
+        &mut self,
+        index: usize,
+        actions: &[Action],
+        storage: &mut impl Storage,
+    ) -> std::result::Result<(), Failure> {
+        if let Some(failure) = self.invalid {
+            return Err(failure);
+        }
+        let n = self.items.len();
+        assert!(
+            index <= n && n + actions.len() > self.items.capacity(),
+            "TE8 valid range-growth call"
+        );
+        let capacity = n + n.max(actions.len());
         let block = storage.allocate(capacity as u32, (capacity as u32).wrapping_mul(60));
         // No local cleanup on a nonreturning construction: retain the new
         // allocation and constructed prefix, just as the native growth body.
         let mut copies = ManuallyDrop::new(Vec::with_capacity(capacity));
         let mut address = block;
-        for source in self.items.iter().chain(std::iter::once(action)) {
+        for source in self.items[..index].iter().chain(actions).chain(&self.items[index..]) {
             if address != 0 {
                 copies.push(storage.construct(address, source)?);
             }
