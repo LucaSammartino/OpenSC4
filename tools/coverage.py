@@ -905,10 +905,11 @@ def main():
     reg, rrun, warnings = data["reg"], data["rrun"], data["warnings"]
     game, fun_row, lib_b, lib_n = data["game"], data["fun_row"], data["lib_b"], data["lib_n"]
     compare_logs = compare_metrics.regress_logs(regress)
+    house_build = compare_metrics.regress_build(regress)
     fn_states, bindings, _, compare_warnings = compare_metrics.collect_states(
-        game, REPO / "engine/plugin/compare", compare_logs, base, args.min_natural, args.min_dense)
+        game, REPO / "engine/plugin/compare", compare_logs, base, args.min_natural, args.min_dense, house_build)
     warnings.extend(compare_warnings)
-    function_stats = ("bound", "matched")
+    function_stats = ("bound", "matched", "matched-natural", "matched-dense")
 
     total_b = sum(att.funcs.values())
     total_n = len(att.order)
@@ -992,7 +993,9 @@ def main():
                     ("verified", "its same-process shadow is exact in the run that measured it"),
                     ("replaced", "our class runs instead of the original in the regress replace run"),
                     ("bound", "a function-level native-layout adapter is registered"),
-                    ("matched", "function-level in-place compares meet the exact-match thresholds below")):
+                    ("matched", "function-level in-place compares meet the exact-match thresholds below"),
+                    ("matched-natural", "natural compares meet the exactness, count and refusal limits"),
+                    ("matched-dense", "positive corpus/dense sources meet their exact-match thresholds")):
         w(f"| **{s}** | {desc} | {whole[s + '_b']:,} | **{pct(whole[s + '_b'], game_b)}** | {whole[s + '_n']:,} | "
           f"{pct(whole[s + '_n'], game_n)} |")
     w("")
@@ -1017,14 +1020,19 @@ def main():
     w("Each status cell is the share of the area's bytes, then (in brackets) of its functions. Shared and "
       "unattributed code has no owner-level status. Bound and matched are function-level metrics.")
     w("")
-    w(f"Matched requires at least {args.min_natural} exact natural compares in one log, plus at least "
-      f"{args.min_dense} exact compares for each corpus/dense source when present. No float-only, different, "
+    w(f"Matched-natural requires at least {args.min_natural} exact natural compares and refused/sampled <=10%. "
+      f"Matched-dense requires at least {args.min_dense} exact compares for each positive corpus/dense source. "
+      "Zero-compare sources demand no threshold. Matched needs both tiers in one log when positive replay "
+      "evidence exists, natural alone otherwise. No float-only, different, "
       "outside, mutation or detected-error evidence is allowed in any supplied log. Fixture compares must also "
       "be exact. Counts are never pooled across logs or cumulative reports. Evidence is limited to the house "
       "regress summary and its adjacent shadows/replace game logs; missing evidence gives zero credit.")
+    w("Build-stamped summaries must match the house DLL hash; unstamped historical lines are accepted. "
+      "S4 names join through the registry; bytes always come from the game function table.")
+    w(compare_metrics.evidence_note(fn_states, compare_warnings, house_build))
     w("")
-    w("| Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced | Bound | Matched |")
-    w("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    w("| Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced | Bound | Matched | Matched-natural | Matched-dense |")
+    w("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for a in AREAS + ["shared", "unattributed"]:
         t = by_area[a]
         cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in STAT + function_stats)
@@ -1040,8 +1048,8 @@ def main():
       "or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when "
       "a compared set differs). Bound and Matched show byte percentages (function percentages in brackets).")
     w("")
-    w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced | Bound | Matched |")
-    w("|---|---|---:|---:|---:|---|---|---|---|---|---:|---:|")
+    w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced | Bound | Matched | Matched-natural | Matched-dense |")
+    w("|---|---|---:|---:|---:|---|---|---|---|---|---:|---:|---:|---:|")
 
     def flag(idx, s):
         vals = {rows[i][s] for i in idx}

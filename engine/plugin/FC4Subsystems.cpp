@@ -116,6 +116,7 @@
 #include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
 #include "FC4Span565Bridge.h"     // the glue-span565-impl4 lane
 #include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
+#include "FC4Inplace.h"
 #include "FC4OrdinanceShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -859,6 +860,7 @@ void Resolve() {
     OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
     LegacyCtlShadowStartup();
+    InplaceStartup();
 }
 
 }  // namespace

@@ -25,25 +25,46 @@ mentions with file, section hierarchy and line, including tables and prose.
 Question records are excluded. Owner-level specified coverage does not imply a
 direct address citation.
 
-`bound` means a unique registry row. `matched` requires a binding and at least
-20 exact natural comparisons in one log. If supplied evidence contains corpus
-or dense summaries, each such source needs at least 200 exact comparisons in
-that same log. The thresholds are configurable and must be positive. Fixture
+`bound` means a unique registry row. `matched-natural` requires a binding and at
+least 20 exact natural comparisons in one log, with refused/sampled <=10%.
+`matched-dense` requires at least 200 exact comparisons for each positive corpus
+or dense source. A source with compared=0 demands no threshold. `matched` needs
+both tiers in the same log when positive replay evidence exists, natural alone
+otherwise. With no positive replay evidence, matched-dense remains false.
+The thresholds are configurable and must be positive. Fixture
 comparisons must be exact but do not satisfy either threshold. Float-only,
 different, outside, mutation or detected-error signals anywhere in the supplied
-logs veto matching. Malformed or incompatible summaries also veto it. Refused
-and nested calls do not count as comparisons. An installed adapter, matching
-name and matching function byte size are required. Extra trailing summary
-fields are tolerated. Repeated cumulative summaries use counter maxima,
-retaining failures, and counts from different logs are never pooled.
+logs veto matching; tier results retain their independent evidence. Malformed
+or incompatible summaries veto both tiers. Refused and nested calls do not
+count as comparisons. The ledger reports natural refusal numerator, denominator
+and worst observed ratio, retaining a >10% observation even if later snapshots
+dilute it. Refusals with sampled=0 give an undefined ratio and fail closed.
+An installed adapter and matching name are required. S3 joins by RVA; S4 lines
+without RVA join by a unique registry name. Reported bytes (including bytes=0)
+are diagnostic only; every byte denominator comes from the game function table.
+Extra trailing summary fields are tolerated. Repeated cumulative summaries use
+counter maxima, retaining failures; different logs are never pooled.
 `replaced-fn` additionally requires registry mode `replace` and the same passing
 log evidence. It is separate from coverage's existing owner-level `replaced`.
 
 By default both tools read the selected house regress `.out` plus adjacent
 `-shadows.log` and `-replace.log` files when present. They never search other
 lane runs for positive evidence. The coverage report appends byte-weighted
-Bound and Matched columns (function percentages in brackets) to its area and
-subsystem tables. The original columns retain their existing rules.
+Bound, Matched, Matched-natural and Matched-dense columns (function percentages
+in brackets) to its area and subsystem tables. Build-stamped summaries must
+match the DLL sha256 recorded by the house regress, accepting full hashes against
+its eight-character prefix. Unknown house builds cannot accept stamped evidence.
+Stale summaries are ignored and reported; unstamped historical lines remain
+supported. The original coverage columns retain their existing rules.
+
+Besides the top ten owners by implemented-but-unmatched bytes, the summary
+lists up to five owners per own-body boundary class, ranked by reached unmatched
+bytes. Eligible functions need positive natural compare calls or a named-method
+house shadow counter. Shadow labels join to a unique function name within the
+owner's coverage shadow key; aggregate labels such as queries/lists cannot prove
+individual function reach. The TSV records natural_calls and shadow_calls.
+These counters plan pilots only and grant no matching credit. Classes with fewer
+than five eligible owners report the shortfall rather than adding unproven picks.
 
 The oracle classifier ports the coordinator's reference scan with precedence
 `os` > `vtable` > `globals` > `closed`. It follows direct calls, including library

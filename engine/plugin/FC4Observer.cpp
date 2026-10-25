@@ -22,6 +22,7 @@
 #include "FC4OverlaysShadow.h"
 #include "FC4WeatherShadow.h"
 #include "FC4PersistShadow.h"
+#include "FC4Inplace.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -706,6 +707,7 @@ public:
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                InplaceCityLoaded();
                 ReachStart();  // all city-load entry hooks and fixtures finished
                 break;
             case kMsgPreSave:
@@ -769,6 +771,7 @@ public:
                 ViewUtilShadowCityShutdown();
                 ModelInstShadowCityShutdown();
                 WeatherShadowCityShutdown();
+                InplaceReport();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes

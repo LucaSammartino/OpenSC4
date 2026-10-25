@@ -2557,3 +2557,36 @@ bounds, not complete call totals for concurrent functions. The synthetic DLL
 test measures this loss separately from exact serialized call-count controls.
 Executable pages stay writable and the VEH's DLL stays pinned until process
 exit so delayed exceptions remain serviceable. This diagnostic is opt-in.
+
+## S3 in-place oracle experiment (WIP)
+
+All switches default off. `inplace = all` or a comma-separated list of names from
+`FC4Inplace.cpp` selects 20 view-utility functions. Natural calls sample the first
+50 and then one in 20. `inplace_fixture = 1` additionally runs labelled,
+constructed inputs at city load. `inplace_mutate = <names>` changes one result
+word on the first exact sample and logs its detection through the replay
+comparator. `inplace summary` separates natural and fixture counts.
+
+The initial typed wrappers faulted in inplace26-fixture-1. The state bridge now
+preserves incoming and outgoing integer registers, flags, x87/SSE state and
+control modes, including nested entries. Seven synthetic machine-state cases
+and a completed mutation fixture cover that correction. The experiment still
+has outside-change signals, refused aliases and unsupported entry encodings.
+Final measured result: INCONCLUSIVE. Both corrected runs are clean; all 18,278
+comparisons are exact, 33/33 mutations are detected, and 14/20 functions qualify
+without outside signals or refusals. Measured throughput misses 11 KB/hour.
+See `tests/spike-evidence/spike-inplace26/` for measured values and rejections.
+Capture observes net changes in containing writable private committed regions
+(64 MiB cap). It misses undone writes, unrelated allocations and image/global
+storage. Concurrent neighbour changes have unknown attribution. Unsupported or
+occupied entries fail closed. Do not enable this experiment in normal runs.
+
+### Function compare harness (run 7)
+
+The S3 facility above is now registry driven: `plugin/compare/<Class>.tsv`
+selects native-layout Rust adapters without per-function plugin C++ changes.
+Use `compare = <names|class:Class|all>` (`inplace` remains an alias). Everything
+is off without that selection. Per-row compare/record/replace modes, bounded
+value-only corpus/case exports and nearby-input replay are documented as a
+stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
+Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).

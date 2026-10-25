@@ -1,0 +1,10 @@
+label = inplace26-fixture-3
+seconds = 180
+end_date = 2028-01-01
+turbo = 1
+[ini]
+inplace = all
+inplace_fixture = 1
+inplace_mutate = all
+popup_dialogs = 0
+autotest_end = quit

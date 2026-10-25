@@ -136,7 +136,10 @@ class Run:
             # a round lost before its first commit leaves the branch "already merged"; the launcher refuses that
             sh(['git', '-C', str(wt), 'commit', '-q', '--allow-empty', '-m',
                 f'{lane}: lane start (round {rounds} lost before any commit)'])
-        return self.launch(out)
+        last = self.launch(out)
+        if last.startswith('LAUNCHED'):
+            self.use_note(lane)
+        return last
 
     def refund(self, lane):
         """A round lost to a Codex outage is not lane work: give it back (cap 9 rounds)."""
@@ -148,6 +151,19 @@ class Run:
             if ent.get('round_limit', 3) < 9:
                 ent['round_limit'] = ent.get('round_limit', 3) + 1
                 self.state.write_text(json.dumps(st, indent=1), encoding='utf-8')
+
+    def take_note(self, lane):
+        """The coordinator's review note for the lane's next round (notes/<lane>-next.txt); resume marks it used
+        only once the round launched, so a refused launch keeps it for the next try."""
+        p = self.dir / 'notes' / f'{lane}-next.txt'
+        if not p.exists():
+            return ''
+        return ' '.join(p.read_text(encoding='utf-8').split()) + ' '
+
+    def use_note(self, lane):
+        p = self.dir / 'notes' / f'{lane}-next.txt'
+        if p.exists():
+            p.replace(p.with_name(f'{lane}-next.used.txt'))
 
     def fill_from_pending(self):
         p = self.dir / 'pending.txt'
@@ -257,13 +273,16 @@ def main():
             if kind in ('continue', 'transient'):
                 note = ('Your previous round failed on a transient Codex error; continue from your last commit.'
                         if kind == 'transient' else 'Your previous round ended in state continue; carry on with its next steps.')
-                last = run.resume(n, lanes[n], note)
+                last = run.resume(n, lanes[n], note + ' ' + run.take_note(n))
                 run.log(f'AUTO-RESUMED {n} ({kind}): {last}')
                 if last and last.startswith('LAUNCHED'):
                     continue
             review.append(n)
         if done:
             run.save_reviewed()
+            # a resumed lane has a new pid: count live lanes again, or it reads as a free slot
+            lanes, pids = run.lanes(), alive_pids()
+            live = {n: e for n, e in lanes.items() if e.get('pid') and str(e['pid']) in pids}
         stalled = [n for n, e in live.items() if idle_minutes(e) > STALL_MINUTES]
         under = len(live) < run.target() and time.time() - start > 60
         if under and not review and not stalled and run.fill_from_pending():

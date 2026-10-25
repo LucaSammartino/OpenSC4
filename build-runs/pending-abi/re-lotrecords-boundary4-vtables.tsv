@@ -1,3 +1,0 @@
-class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
-cSC4Lot::vftable	00ab19b0	3	+0xC	006c2040	cSC4Lot::AsPropertyHolder	0	0	eax	high	re-lotrecords-boundary4 LR9: bytes 006c2040-006c204a return null or primary+8, borrowed; constructor 006c2372 installs property-holder vtable there; shared target name must not determine interface semantics
-cSC4Lot::vftable	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax	high	re-lotrecords-boundary4 LR9: bytes 006c2050-006c205a return null or primary+1c, borrowed; native TrafficSourceIterator caller 00710841 stores source then AddRefs lot at 0071084e; corrects old property-holder label

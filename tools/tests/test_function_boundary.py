@@ -180,3 +180,25 @@ def test_summary_splits_use_implemented_bytes_but_owner_rank_uses_unmatched_byte
     owner_lines = [line for line in text.splitlines() if line.startswith(("| A |", "| B |", "| C |"))]
     assert owner_lines == ["| B | 150 | 150 | 0 | 0 | 150 | 0 | 0 | 0 | 0 | 150 | 0 |",
                            "| A | 100 | 300 | 0 | 100 | 0 | 200 | 100 | 0 | 0 | 0 | 200 |"]
+
+
+def test_pilot_picks_span_classes_limit_owners_and_require_positive_function_reach():
+    rows = []
+    for cls in fb.CLASSES:
+        for rank in range(7):
+            rows.append(summary_row(0x401000 + len(rows), 100 + rank, f"{cls}{rank}",
+                                    boundary_class=cls, natural_calls=1))
+    rows += [summary_row(0x500000, 10000, "Unreached"),
+             summary_row(0x500001, 10000, "Matched", natural_calls=1, matched=1),
+             summary_row(0x500002, 10000, "Unimplemented", natural_calls=1, implemented=0),
+             summary_row(0x500003, 200, "Shadow", shadow_calls=1)]
+    picks = ledger.pilot_picks(rows)
+    assert len(picks) == 25
+    assert all(sum(p["boundary"] == cls for p in picks) == 5 for cls in fb.CLASSES)
+    assert {p["owner"] for p in picks}.isdisjoint({"Unreached", "Matched", "Unimplemented"})
+    assert picks[0] == dict(boundary="leaf", owner="Shadow", functions=1, bytes=200, example="00500003")
+    assert picks[1]["owner"] == "leaf6"
+    text = ledger.summary(rows, Path("house.out"), [], 20, 200, [])
+    assert "| leaf | Shadow | 1 | 200 | 00500003 |" in text
+    assert "Shortfall" not in text
+    assert "Shortfall leaf: 0/5" in ledger.summary([], Path("house.out"), [], 20, 200, [])

@@ -1,0 +1,10 @@
+[
+  {
+    "address": "0053ff10",
+    "ret": "eax",
+    "ret_evidence": "reviewed-body+caller-hidden-result",
+    "body": "Both exits leave the same first stack argument (the two-dword result buffer) in EAX.",
+    "caller": "005409b7: caller supplies a local two-dword result buffer and consumes both result words after the call; EAX itself is discarded.",
+    "reason": "Hidden aggregate result pointer; result-buffer stores are not evidence that EAX is void. Fixed seeded sample, not resampled."
+  }
+]

@@ -1,8 +1,8 @@
 # Handoff (start here)
 
-The one page every agent reads first: the current state, and where everything else is. The coordinator updates §0
-before it stops and moves the stop note it replaces, verbatim, to [docs/history/](history/). Operating knowledge
-lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
+The coordinator's current state and pointers to operating knowledge. The coordinator updates §0
+before it stops; previous stop notes remain in Git history. Operating knowledge
+lives in [docs/ops/](ops/); history is `git log`.
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state — RUN 6 (verification spikes), 2026-10-25
@@ -32,8 +32,7 @@ it can land. `infra-subsysreg23` (per-owner subsystem fragments) still needs a m
 **Known issues:** landvalue 71/72 and propmgr 219/220 flicker one month in some house shadows runs;
 `plugin_autotest_test` watchdog timings fail under heavy lane load (re-gate passes).
 
-The run-5 stop note this replaces is archived verbatim in
-[handoff-run5-end-2026-10-25.md](history/handoff-run5-end-2026-10-25.md).
+The run-5 stop note this replaces is available in Git history.
 
 <!-- BEGIN GENERATED: latest-run -->
 - **Latest in-game run:** 659 (modelinst partial shadow landed (run 5); renderprops and app exact in the house regress; demand and landvalue flaked.); 652 (partial shadow method audit landed (run 5): 44 functions, 4,070 bytes.); 651 (map view answers complete; render property and application partial shadows landed (run 5).); 649 (renderprops registry and owned fixture exact 73/73 through 2032); 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).). See `docs/manual-checks.md`.
@@ -41,27 +40,8 @@ The run-5 stop note this replaces is archived verbatim in
 
 ## Where everything else is
 
-| File | What | Who reads it |
-|---|---|---|
-| [ops/rules.md](ops/rules.md) | §2: clean room, never commit, public actions, commits | everyone |
-| [ops/conventions.md](ops/conventions.md) | §8: cargo from `engine/`, fmt/clippy baseline, git, PowerShell, build infra | everyone; engine and tooling lanes before the first build |
-| [ops/running-the-game.md](ops/running-the-game.md) | §3: regress, one run, ini keys, test cities, verdicts, hazards | coordinator; engine lanes with game runs; tooling lanes on the harness |
-| [ops/lessons.md](ops/lessons.md) | §5: threading, refcounts, x87, differentials, demand (cited as "HANDOFF §5.x") | engine lanes |
-| [ops/coordinating.md](ops/coordinating.md) | §6: spawning lanes, running the merge train, gate, operator notes | coordinator |
-| [../.claude/workflows/fc4-lane.js](../.claude/workflows/fc4-lane.js) | the lane template (`Workflow({name: 'fc4-lane', args})`) | coordinator |
-| [lane-tools.md](lane-tools.md) | `tools/lanes.py`: slots, check, brief, wait, monitor, ledger | coordinator; RE and tooling lanes (`wait`) |
-| [token-ledger.md](token-ledger.md) | measured tokens per lane, merge share, tokens per coverage point | coordinator |
-| [merge-train.md](merge-train.md) | how a lane lands: queue file, batches, hotspots | coordinator; every lane at its end |
-| [lanes/README.md](lanes/README.md) | lane-file and run-file formats, the queue contract | every lane at its end |
-| [lanes/INDEX.md](lanes/INDEX.md) | generated table: every lane's state and next steps | coordinator; a lane resuming another's work |
-| [manual-checks.md](manual-checks.md) | generated in-game run log | coordinator; engine lanes comparing runs |
-| [history/progress-2026-10-14.md](history/progress-2026-10-14.md) | retired milestone history | nobody by default |
-| [coverage-report.md](coverage-report.md) | measured coverage | coordinator; tooling lanes |
-| [specs/questions/README.md](specs/questions/README.md) | the question workflow | RE lanes; engine lanes filing questions |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | the clean-room roles (the single source) | everyone |
-| [ARCHITECTURE.md](ARCHITECTURE.md), [../engine/README.md](../engine/README.md), [harness.md](harness.md) | layout, build, ini keys, switches | engine and tooling lanes |
-| [re-workspace.md](re-workspace.md) | RE toolchain and workspace | RE lanes only |
-| [history/handoff-2026-10.md](history/handoff-2026-10.md) | older stop notes and superseded HANDOFF text | nobody by default |
+The maintained directory and tool index is [ops/inventory.md](ops/inventory.md).
+Lane instructions and their read limits come from the [lane prompt](../.claude/workflows/fc4-lane.js).
 
 ## 1. The project
 

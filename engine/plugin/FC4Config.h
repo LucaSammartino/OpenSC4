@@ -677,7 +677,6 @@ std::string IniPath();
 // dbpf_bounds_shadow = 0 / 1 (default 0): also enable the monthly DBPF reader
 // and compare zero, one, short and exact raw-buffer capacities, including QFS
 // storage bytes, returned lengths and untouched guards against Rust (section 2.6.1).
-
 // reach = on (default off): native function-entry breakpoint census; no replacement.
 // reach_cap = 32: counted natural entries per function per game-month window.
 // reach_window = month: calendar messages are available; other windows refused.
@@ -686,3 +685,8 @@ std::string IniPath();
 // reach_contracts = path: functions.tsv (default source tree docs/abi/functions.tsv).
 // reach_output = path: census TSV (default log path + .reach.tsv). Harness runs
 // should give an absolute <worktree>/build-runs/game-results/<label>.reach.tsv.
+
+// inplace = names / all; inplace_mutate = names / all; inplace_fixture = 0 / 1:
+// S3 entry-hook observer, independent default-off switches (FC4Inplace.h).
+// compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
+// registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.

@@ -1,0 +1,4 @@
+[
+  {"label":"inplace26-r3-fixture-1","verdict":"clean","ref_warnings":0,"foreign_exceptions":0,"dll_sha256_prefix":"39944fb6","date":"2026-04-15","real_seconds":1.469},
+  {"label":"inplace26-r3-natural-1","verdict":"clean","ref_warnings":0,"foreign_exceptions":0,"dll_sha256_prefix":"39944fb6","date":"2026-04-02","real_seconds":1.188}
+]

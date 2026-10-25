@@ -55,13 +55,14 @@ def test_dense_sources_are_optional_but_each_must_meet_threshold(tmp_path, sourc
     assert evaluate(tmp_path, line())[0]["matched"]
     assert not evaluate(tmp_path, line() + line(source, 199))[0]["matched"]
     assert evaluate(tmp_path, line() + line(source, 200))[0]["matched"]
-    assert not evaluate(tmp_path, line() + line(source, 0))[0]["matched"]
+    state, _ = evaluate(tmp_path, line() + line(source, 0))
+    assert state["matched"] and state["matched-natural"] and not state["matched-dense"]
     assert not evaluate(tmp_path, line() + line("corpus", 200) + line("dense", 199))[0]["matched"]
 
 
 @pytest.mark.parametrize("change", [dict(outside=1), dict(mutation=1), dict(detected=1),
     dict(exact=19, float_only=1), dict(exact=19, different=1), dict(installed=0),
-    dict(name="Other"), dict(bytes=41), dict(compared=-1), dict(calls=1), dict(exact=0)])
+    dict(name="Other"), dict(compared=-1), dict(calls=1), dict(exact=0)])
 def test_fail_closed_even_if_later_snapshot_looks_exact(tmp_path, change):
     state, _ = evaluate(tmp_path, line(**change) + line(count=100))
     assert not state["matched"]
@@ -69,7 +70,97 @@ def test_fail_closed_even_if_later_snapshot_looks_exact(tmp_path, change):
 
 def test_fixture_mismatch_vetoes_and_skipped_calls_do_not(tmp_path):
     assert not evaluate(tmp_path, line() + line("fixture", 1, exact=0, different=1))[0]["matched"]
-    assert evaluate(tmp_path, line(calls=25, refused=3, nested=2))[0]["matched"]
+    assert evaluate(tmp_path, line(calls=25, refused=2, nested=3))[0]["matched"]
+
+
+def test_tiers_are_independent_and_require_same_log_for_matched(tmp_path):
+    state, _ = evaluate(tmp_path, line() + line("dense", 199))
+    assert state["matched-natural"] and not state["matched-dense"] and not state["matched"]
+    state, _ = evaluate(tmp_path, line(count=19) + line("dense", 200))
+    assert state["matched-dense"] and not state["matched-natural"] and not state["matched"]
+    state, _ = evaluate(tmp_path, line(count=1, exact=0, different=1) + line("dense", 200))
+    assert state["matched-dense"] and not state["matched-natural"] and not state["matched"]
+    state, _ = evaluate(tmp_path, line() + line("dense", 200, exact=199, different=1))
+    assert state["matched-natural"] and not state["matched-dense"] and not state["matched"]
+    a, b = tmp_path / "a.log", tmp_path / "b.log"
+    a.write_text(line() + line("dense", 0), encoding="utf-8")
+    b.write_text(line(count=0) + line("dense", 200), encoding="utf-8")
+    evidence, _ = cm.read_comparisons([a, b])
+    state = cm.function_state(binding("replace"), evidence[0x401000], 40)
+    assert state["matched-natural"] and state["matched-dense"]
+    assert not state["matched"] and not state["replaced-fn"]
+
+
+@pytest.mark.parametrize("refused, matched", [(0, True), (2, True), (3, False)])
+def test_natural_refusal_ratio_and_boundary(tmp_path, refused, matched):
+    state, _ = evaluate(tmp_path, line(calls=30, refused=refused, nested=5))
+    assert state["matched"] == matched
+    assert state["refusal_ratio"] == refused / 20
+    assert (state["natural_refused"], state["natural_sampled"]) == (refused, 20)
+    assert state["natural_calls"] == 30
+
+
+def test_refusal_failure_is_retained_and_zero_sampled_fails_closed(tmp_path):
+    state, _ = evaluate(tmp_path, line(calls=30, refused=3) + line(count=100))
+    assert not state["matched"] and state["refusal_ratio"] == 0.15
+    state, _ = evaluate(tmp_path, line(count=0, calls=3, refused=3) + line())
+    assert not state["matched"] and state["refusal_ratio"] is None
+    assert "undefined" in cm.evidence_note({1: state}, [], "12345678")
+    # Replay refusals do not impose the natural refusal policy.
+    assert evaluate(tmp_path, line() + line("dense", 200, refused=199))[0]["matched"]
+
+
+def test_zero_compare_replay_errors_still_veto(tmp_path):
+    state, _ = evaluate(tmp_path, line() + line("dense", 0, outside=1))
+    assert state["matched-natural"] and not state["matched"]
+
+
+def test_summary_byte_field_never_sets_size_or_denominator(tmp_path):
+    for size in (0, 1, 41, 1000000):
+        state, warnings = evaluate(tmp_path, line(bytes=size))
+        assert state["matched"] and not warnings
+        assert cm.tally([(0x401000, 40)], {0x401000: state})["matched_b"] == 40
+
+
+def test_s4_name_join_requires_unique_registry_name(tmp_path):
+    log = tmp_path / "s4.log"
+    log.write_text(line(bytes=0).replace(" rva=001000", ""), encoding="utf-8")
+    evidence, warnings = cm.read_comparisons([log], bindings={0x401000: binding()})
+    assert not warnings and cm.function_state(binding(), evidence[0x401000], 40)["matched"]
+    for bindings in ({}, {0x401000: binding(), 0x402000: binding()}):
+        evidence, warnings = cm.read_comparisons([log], bindings=bindings)
+        assert not evidence and warnings
+    # A malformed explicit RVA never falls back to a name join.
+    log.write_text(line(rva="oops", bytes=0), encoding="utf-8")
+    evidence, warnings = cm.read_comparisons([log], bindings={0x401000: binding()})
+    assert not evidence and warnings
+
+
+def test_build_filter_rejects_stale_evidence_without_vetoing_current(tmp_path):
+    log = tmp_path / "game.log"
+    log.write_text(line(build="deadbeef", exact=19, different=1) + line(build="a3af5de4"), encoding="utf-8")
+    evidence, warnings = cm.read_comparisons([log], expected_build="a3af5de4")
+    state = cm.function_state(binding(), evidence[0x401000], 40)
+    assert state["matched"] and len(warnings) == 1 and "stale compare build=deadbeef" in warnings[0]
+    assert "ignored: 1" in cm.evidence_note({1: state}, warnings, "a3af5de4")
+    for expected in (None, "ffffffff"):
+        evidence, warnings = cm.read_comparisons([log], expected_build=expected)
+        assert not evidence and len(warnings) == 2
+    assert cm.build_matches("A3AF5DE4" + "0" * 56, "a3af5de4")
+    assert not cm.build_matches("a3af", "a3af5de4")
+    log.write_text(line(build="deadbeef"), encoding="utf-8")
+    evidence, _ = cm.read_comparisons([log], expected_build="a3af5de4")
+    assert not evidence  # stale exact evidence cannot grant credit or prove reach
+
+
+def test_house_build_is_recorded_hash_not_current_dll(tmp_path):
+    house = tmp_path / "house.out"
+    house.write_text("staged DLL: C:/old.dll (sha256 a3af5de4)\n", encoding="utf-16")
+    assert cm.regress_build(house) == "a3af5de4"
+    house.write_text("REGRESS house: PASS\n", encoding="utf-8")
+    assert cm.regress_build(house) is None
+    house.write_text("staged DLL: a (sha256 a3af5de4)\nstaged DLL: b (sha256 deadbeef)\n", encoding="utf-8")
+    assert cm.regress_build(house) is None
 
 
 def test_cumulative_reports_and_multiple_logs_never_pool(tmp_path):
@@ -117,6 +208,11 @@ def test_registry_optional_fixture_and_ambiguity(tmp_path):
     assert bindings[0x401000]["windows"] == "this:4"
     assert states[0x401000]["replaced-fn"] and not states[0x402000]["bound"]
     assert cm.tally(game, states)["matched_b"] == 40  # 20% bytes, 50% functions
+    log.write_text(line(bytes=0, build="a3af5de4").replace(" rva=001000", ""), encoding="utf-8")
+    states, _, _, warnings = cm.collect_states(game, tmp_path, [log], expected_build="a3af5de4")
+    assert not warnings and states[0x401000]["replaced-fn"]
+    assert cm.tally(game, states)["matched-natural_b"] == 40
+    assert cm.tally(game, states)["matched-dense_b"] == 0
     path.with_name("duplicate.tsv").write_bytes(path.read_bytes())
     bindings, warnings = cm.read_registry(tmp_path)
     assert not bindings and warnings
@@ -128,6 +224,20 @@ def test_only_house_log_paths_are_selected(tmp_path):
         (tmp_path / name).touch()
     assert {p.name for p in cm.regress_logs(tmp_path / "regress-house.out")} == {
         "regress-house.out", "regress-house-shadows.log", "regress-house-replace.log"}
+
+
+def test_named_shadow_reach_does_not_credit_entire_owner_or_ambiguous_names(tmp_path):
+    names = {0x401000: "A::PlaceZone", 0x402000: "A::Other", 0x403000: "B::PlaceZone",
+             0x404000: "C::Ambiguous", 0x405000: "C::Ambiguous", 0x406000: "C::Zero", 0x407000: None}
+    data = dict(game=[(va, 40, 0 if va < 0x403000 else 1, "simulation") for va in names],
+                att=SimpleNamespace(name=names.__getitem__),
+                rows=[dict(shadow="zones_shadow"), dict(shadow="other_shadow")])
+    log = tmp_path / "shadows.log"
+    log.write_text("zones shadow (PlaceZone) load: calls=64 mismatches=0\n"
+                   "zones shadow (queries) month: calls=1000\n"
+                   "other shadow (Ambiguous) month: calls=20\n"
+                   "other shadow (Zero) month: calls=0\n", encoding="utf-8")
+    assert ledger.shadow_reach(data, [log]) == {0x401000: 64}
 
 
 def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkeypatch):
@@ -159,9 +269,9 @@ def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkey
     cov.main()
     report = out.read_text(encoding="utf-8")
     area = next(s for s in report.splitlines() if s.startswith("| simulation | 2 |"))
-    assert area.endswith("| 20.0% (50.0%) | 20.0% (50.0%) |")
+    assert area.endswith("| 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) |")
     subsystem = next(s for s in report.splitlines() if s.startswith("| simulation | fixture |"))
-    assert subsystem.endswith("| 20.0% (50.0%) | 20.0% (50.0%) |")
+    assert subsystem.endswith("| 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) |")
     assert "| - | - | - | - | - | 20.0%" in subsystem  # existing owner flags remain false
     assert "| **matched** |" in report
 

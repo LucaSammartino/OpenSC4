@@ -1,0 +1,12 @@
+name,source,window,word,xor,detected
+cross,natural,2,0,1,1
+zoom-rotation,natural,1,0,1,1
+view-point,natural,99,0,1,1
+clip2,fixture,1,0,1,1
+zoom-rotation,fixture,1,0,1,1
+view-viewport,fixture,1,0,1,1
+fixed,fixture,1,0,1,1
+view-box,fixture,99,0,1,1
+city-corner,fixture,1,0,1,1
+clip3,fixture,1,0,1,1
+world-view,fixture,1,0,1,1
