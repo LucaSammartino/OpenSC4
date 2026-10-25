@@ -975,6 +975,110 @@ at `0x0055DFF8–0x0055E009`, `0x0055E027–0x0055E0EC` and
 `0x0055E0FD–0x0055E1C9`. Runtime tuning values are inputs, not values read from
 the PE's zero-initialized globals.
 
+### 12.10 Player-drive commands and signed speed (VH1)
+
+These rules refine §3. Distances are metres and tick input `dt` is milliseconds.
+`f32(x)` denotes a stored IEEE binary32 value; constants below are binary32 unless
+explicitly called double. Do not replace milliseconds by seconds throughout the
+algorithm: command accumulation uses `ds = f32(dt × f32(0.001))`, whereas speed
+integration uses `dt` directly. The acceleration accumulator and the speed target
+are separate persistent values. The current speed is the inherited speed tween's
+current value, not necessarily either of them.
+
+The drive state is obtained through slot 56; drive parameters through slot 67,
+first its direct parameter reference (`+0x64`), otherwise its service (`+0x0C`).
+Missing parameters make command translation return false without forwarding to
+Automaton translation. The parameter fields used by this owner are:
+
+| Parameter offset | Meaning |
+|---|---|
+| `+0x08`, `+0x0C` | Forward upper bound and signed reverse lower bound |
+| `+0x10`, `+0x14` | Continuing-throttle and braking/change-direction rates |
+| `+0x18`, `+0x1C` | Off-network speed multiplier and coasting deceleration |
+| `+0x20` | Steering limit with flag `0x2000` |
+| `+0x24`, `+0x28` | Steering rate at zero/full measured speed with that flag |
+| `+0x2C`, `+0x30` | Steering rate without that flag, and return-to-centre rate |
+| `+0x4C`, `+0x5C` | Train overspeed duration scale, and tick suspension threshold |
+
+#### Vehicle command translation
+
+Forward/back and positive/negative steering commands have elapsed-time values
+at drive-state `+0x7C/+0x80` and `+0x84/+0x88`. A value **at least zero** is
+active. In particular a newly pressed command with value zero already affects
+translation. Use the continuing-throttle rate iff current speed is positive and
+forward is active, or current speed is negative and back is active; otherwise
+use the change-direction rate. Forward adds `ds × rate` to the acceleration
+accumulator (`+0x28`); otherwise back subtracts it. With neither pedal active,
+reset the accumulator to zero. There is no accumulator clamp. Forward wins simultaneous pedals, but
+rate selection still considers both commands and the sign of current speed.
+
+With flag `0x2000`, steering rate is the linear interpolation from parameter
+`+0x24` to `+0x28`, at `clamp(measuredSpeed / forwardBound, 0, 1)`; measured speed
+is drive-state `+0x94`. Without the flag, use parameter `+0x2C`.
+Negative steering is processed first: active subtracts `ds × rate`; absent
+returns a negative steering value toward zero by `ds × returnRate`, stopping
+at zero. Positive steering is then processed: active adds `ds × rate`; absent
+returns a positive value toward zero by the same return rate, stopping at zero.
+This ordering matters when a command and automatic centring both affect one
+tick. Finally clamp steering (`+0x5C`) to the signed parameter limit with flag
+`0x2000`, or to ±`bits(0x3FC90FDB)` (π/2) without it. Forward to the inherited
+Automaton translator **after** these owner changes. Evidence:
+`0x0055C600–0x0055C8A3`; clamp instructions `0x0055C82E–0x0055C89C`.
+
+#### Vehicle speed update
+
+The helper takes drive state, parameters, permission to begin reversing, an
+on-network boolean, and `dt`. Let `old` be state speed `+0x2C`. Start with the
+parameter speed bounds; off-network multiply both by parameter `+0x18` (the
+forward bound is stored binary32). Integrate `old + dt × accumulator` and clamp
+to the forward upper bound. The lower bound is the signed reverse bound only
+when `(old < 0 and reverseEnabled)` or `(old == 0 and permissionToBeginReverse)`;
+otherwise it is zero. `reverseEnabled` is state byte `+0x228`. Thus a positive
+speed cannot cross straight into reverse in one integration.
+
+If **both** pedal timers equal exactly −1, apply coasting deceleration
+`dt × f32(0.001) × parameter(+0x1C)` toward zero, stopping at zero. Other negative
+timer values are inactive commands but do not satisfy this coasting test. Save
+this result, rounded to binary32, at state `+0x2C` **before** grade adjustment.
+
+For grade adjustment let `y` be the automaton direction's vertical component,
+`h = abs(y)` and `s` the saved speed. Only `h > f32(0.2)` enters this adjustment.
+When `(s < 0) == (y < 0)`, reduce `s` by the following factors:
+
+| Location | Grade factor |
+|---|---|
+| On network | `(4 − h) × 0.25` |
+| Off network, `h <= f32(0.8)` | `(2 − h) × 0.5` |
+| Off network, `h > f32(0.8)` | Zero |
+
+Then, for every grade-adjusted case, add
+`h × y × f32(−0.0003) × dt`. For family `0x4202`, suppress a result that reverses
+the saved speed's sign (positive-to-negative or negative-to-positive). A disabled
+reverse byte also suppresses any final negative value. Suppression means zero.
+The helper's return/tween value can therefore differ from state `+0x2C`.
+When the result differs from the speed tween's existing target, retarget it
+from its current value and zero both tween time fields; an equal target leaves
+the tween untouched. Evidence: `0x0055EA20–0x0055ED00`, specifically pre-grade
+store `0x0055EB69` and grade/tween instructions `0x0055EB6C–0x0055ECF8`.
+
+Conformance vectors (all omitted commands inactive, grade zero, reverse enabled;
+parameters and random/service inputs must be supplied by the test):
+
+| Setup / operation | Required observation |
+|---|---|
+| `dt=1000`, accumulator 0, positive current speed, forward timer 0, rates `1/1024` and `1/512` | Accumulator becomes `1/1024`; zero elapsed time is active. |
+| Same, negative current speed, both pedals active | Forward wins, but the continuing rate still applies because back is active. |
+| No pedals active, previous accumulator nonzero | Accumulator becomes zero. |
+| Steering `−1/8`, `ds=1`, rate `1/4`, return rate `1/8`, negative command active only | Negative step gives `−3/8`; positive-side centring does nothing. |
+| Steering `−1/8`, same rates, positive command active only | Negative-side centring reaches zero first; result `1/4`, before final clamp. |
+| Positive old speed, large negative acceleration, permission to reverse true | Clamp to zero; next update starting at zero may use the reverse bound. |
+| Old speed −1, accumulator 0, reverse disabled, grade zero | Final speed zero even if permission to begin reverse is true. |
+| Raw speed 1, `y=0.5`, on network, `dt=0` | Save raw speed 1; return/tween target `0.875`. |
+| Raw speed 1, `y=0.5`, off network, `dt=0` | Save 1; return `0.75`. |
+| Raw speed 1, `y=0.9`, off network, `dt=0` | Save 1; return zero. |
+| Raw speed positive, `y=−0.5`, `dt=0` | No multiplicative reduction; sign comparisons differ. |
+| Result equals existing tween target | Preserve both tween time fields; do not restart convergence. |
+
 | Additional geometry conformance setup | Required observation |
 |---|---|
 | Route cells (4,7,b), (4,7,c), with differing preserved third bytes | Derived next exit 2 for both b/c choices |
