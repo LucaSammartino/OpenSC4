@@ -301,6 +301,11 @@ $cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheck
 if ($cityFixture.Source -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: fixture_city requires region FC4 Test"; exit 4 }
 $Ini = $cityFixture.Ini
 if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
+$suiteState = Resolve-HarnessSuiteState $Ini $Slot (MainCheckout)
+$Ini = $suiteState.Ini
+if ($suiteState.Export -and $KeepSaves) { throw 'export_city requires normal slot backup restoration' }
+if ($suiteState.Source -and $cityFixture.Source) { throw 'prepared_city and fixture_city cannot be combined' }
+if ($suiteState.Source -or $suiteState.Export) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $plan = @()
@@ -342,6 +347,10 @@ if ($Slot -gt 0) {
         $fixtureCopy = Copy-HarnessCityFixture $cityFixture.Source $UserDir $DocsUser $City
         Write-Output "fixture_city: $($fixtureCopy.SHA256) -> $($fixtureCopy.Destination) (source preserved)"
     }
+    if ($suiteState.Source) {
+        $stateCopy = Copy-HarnessCityFixture $suiteState.Source $UserDir $DocsUser $City
+        Write-Output "prepared_city: $($stateCopy.SHA256) -> $($stateCopy.Destination) (source preserved)"
+    }
     foreach ($f in Get-ChildItem -LiteralPath $Plugins -File) { if ($f.Name -notin "FreeCity4.dll", "FreeCity4.pdb", "FreeCity4.log") { Remove-Item -LiteralPath $f.FullName -Force } }
 }
 if ($Dll -or $Slot -gt 0) {
@@ -356,7 +365,7 @@ $dllHash = if (Test-Path -LiteralPath $stagedDll) { (Get-FileHash -Algorithm SHA
 # The ini: the caller's text, the city, the autotest defaults, the turbo / end-date switches.
 $text = $Ini
 if ($City) {
-    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
+    if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
     $cityFile = Join-Path $CityDir "City - $City.sc4"
     if (-not (Test-Path -LiteralPath $cityFile)) { Write-Output "BAD ARGS: no city file $cityFile"; exit 4 }
     $text = ($text -replace '(?m)^[ \t]*autoload_city[ \t]*=.*$', '') + "`nautoload_city = $cityFile"
@@ -410,6 +419,44 @@ try {
     else {
         $gameArgs = @("-CPUCount:1", "-w", "-intro:off")
         if ($Slot -gt 0) { $gameArgs += "-UserDir:`"$UserDir\`"" }
+        # Optional Maxis command script; execute only a private slot copy, with the shared Lua helpers.
+        $luaExtensions = $Ini -match '(?im)^[ \t]*lua_extensions[ \t]*=[ \t]*1[ \t]*\r?$'
+        if ($luaExtensions) {
+            if ($Slot -eq 0) { throw 'lua_extensions requires -Slot (third-party plugins are slot-only)' }
+            $extensionSource = Join-Path (MainCheckout) 'build-runs\thirdparty\sc4-lua-extensions'
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                $source = Join-Path $extensionSource $name
+                if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "lua_extensions: missing $source" }
+            }
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                Copy-Item -LiteralPath (Join-Path $extensionSource $name) -Destination $Plugins -Force
+            }
+            Write-Output 'lua_extensions: staged DLL and DAT in the private slot Plugins folder'
+        }
+        if ($Ini -match '(?im)^[ \t]*lua_script[ \t]*=[ \t]*([^\r\n]+)') {
+            if ($Slot -eq 0) { throw 'lua_script requires -Slot (scripts must never change Documents)' }
+            $luaRelative = $Matches[1].Trim()
+            if ([IO.Path]::IsPathRooted($luaRelative)) { throw 'lua_script must name an existing repo-relative .lua file' }
+            $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+            $luaSource = [IO.Path]::GetFullPath((Join-Path $repoRoot $luaRelative))
+            if (-not $luaSource.StartsWith($repoRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
+                [IO.Path]::GetExtension($luaSource) -ine '.lua' -or -not (Test-Path -LiteralPath $luaSource -PathType Leaf)) {
+                throw 'lua_script must name an existing repo-relative .lua file'
+            }
+            $luaRoot = Join-Path $UserDir 'LuaScripts'
+            $luaCopy = Join-Path $luaRoot $luaSource.Substring($repoRoot.Length + 1)
+            $null = New-Item -ItemType Directory -Force (Split-Path -Parent $luaCopy)
+            $luaHelpers = Join-Path $repoRoot 'engine\tests\scenarios\lua'
+            if (Test-Path -LiteralPath $luaHelpers) {
+                $luaHelperCopy = Join-Path $luaRoot 'engine\tests\scenarios\lua'
+                $null = New-Item -ItemType Directory -Force $luaHelperCopy
+                Copy-Item -Path (Join-Path $luaHelpers '*.lua') -Destination $luaHelperCopy -Force
+            }
+            $luaPrefix = "FC4_ROOT = '" + ($luaRoot.Replace('\', '/').Replace("'", "\'")) + "'`n"
+            [IO.File]::WriteAllText($luaCopy, $luaPrefix + [IO.File]::ReadAllText($luaSource), (New-Object Text.UTF8Encoding($false)))
+            $gameArgs += "-LuaScript:`"$luaCopy`""
+            Write-Output "lua_script: $luaSource -> $luaCopy"
+        }
         $docLog = Join-Path $DocsUser "Plugins\FreeCity4.log"
         $docLen = if (Test-Path $docLog) { (Get-Item $docLog).Length } else { 0 }
         if ($Slot -gt 0) { $p = [FC4Run]::Start($Exe, ($gameArgs -join " "), $GameDir, 4) }   # SW_SHOWNOACTIVATE
@@ -575,6 +622,35 @@ if ($p -and -not $p.HasExited) {
 }
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
+if ($suiteState.Export) {
+    try {
+        if ($verdict -notmatch '^AUTOTEST VERDICT: clean\b' -or -not (Select-String -LiteralPath $Log -Pattern 'script: line .* save -> ok=1' -Quiet)) { throw 'export_city requires a clean run and a successful scripted save' }
+        $null = Resolve-HarnessSuiteState ("export_city = " + $suiteState.Export) $Slot (MainCheckout)
+        $exportHash = Export-HarnessSuiteState $cityPath $suiteState.Export $cityHash
+        Write-Output "export_city: $exportHash -> $($suiteState.Export) (before slot restore)"
+    } catch { $verdict = "state-export-failed: $($_.Exception.Message)" }
+}
+# Optional Lua evidence; never read another slot's or the install's shared logs.
+if ($luaExtensions) {
+    $luaEvidence = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in Get-ChildItem -LiteralPath $UserDir -Recurse -File -Filter '*.log' | Sort-Object FullName) {
+        $content = ReadShared $file.FullName
+        if ($file.Name -in 'SC4LuaExtensions.log', 'fc4-lua.log' -or $file.Name -match '^Lua') {
+            $luaEvidence.Add("--- $($file.FullName.Substring($UserDir.Length + 1)) ---")
+            $luaEvidence.Add($content)
+        } else {
+            foreach ($line in ($content -split '\r?\n')) {
+                if ($line -match '(?i)\blua\b|FC4_LUA') { $luaEvidence.Add("$($file.Name): $line") }
+            }
+        }
+    }
+    $luaResult = Join-Path (MainCheckout) "build-runs\game-results\$Label.lua.log"
+    $null = New-Item -ItemType Directory -Force (Split-Path -Parent $luaResult)
+    [IO.File]::WriteAllLines($luaResult, $luaEvidence, (New-Object Text.UTF8Encoding($false)))
+    Copy-Item -LiteralPath $luaResult -Destination (Join-Path $OutDir "$Label.lua.log") -Force
+    Write-Output "lua log: $luaResult ($($luaEvidence.Count) records)"
+}
+# End optional Lua evidence.
 if ($cityBak -and (Get-FileHash $cityPath).Hash -ne $cityHash) {
     Copy-Item $cityBak $cityPath -Force
     $restored = if ((Get-FileHash $cityPath).Hash -eq $cityHash) { "restored" } else { "RESTORE FAILED" }

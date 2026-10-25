@@ -434,6 +434,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Function compare registry; opt-in only.
                                   "compare", "compare_mode", "compare_record", "compare_corpus", "compare_dense",
                                   "compare_record_limit", "compare_case_limit",
+                                  // Native entry census; opt-in only.
+                                  "reach", "reach_cap", "reach_window", "reach_include_probes",
+                                  "reach_contracts", "reach_output",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

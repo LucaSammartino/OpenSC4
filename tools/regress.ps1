@@ -99,9 +99,27 @@ param(
     [string]$TurboFrom = "",
     [int]$TurboTimeout = 1800,
     [string]$Baseline = "",
-    [switch]$AnyPacing
+    [switch]$AnyPacing,
+    [ValidateSet("", "smoke", "tier1")][string]$Suite = ""
 )
 $ErrorActionPreference = "Continue"
+# Optional scenario gate. The house-city default below stays the train default.
+if ($Suite) {
+    if ($Baseline -or $AddShadows -or $ShadowSplit -ne 1 -or $TurboFrom -or $NormalSpeed) {
+        throw '-Suite does not combine with -Baseline, -AddShadows, -ShadowSplit, -TurboFrom or -NormalSpeed'
+    }
+    $suiteDll = if ($Dll) { $Dll } else { Split-Path $PSScriptRoot -Parent }
+    $profiles = if ($Only) { @($Only) } else { @('shadows', 'replace') }
+    $suiteFailed = $false
+    foreach ($profile in $profiles) {
+        $suiteArgs = @((Join-Path $PSScriptRoot 'suite.py'), 'run', '--set', $Suite,
+            '--profile', $profile, '--dll', $suiteDll, '--tag', "$Tag-$profile", '--wait-seconds', "$QueueWait")
+        if ($profile -eq 'replace') { $suiteArgs += @('--extra', "enable = $Replace") }
+        & python @suiteArgs
+        if ($LASTEXITCODE -ne 0) { $suiteFailed = $true }
+    }
+    if ($suiteFailed) { exit 1 }; exit 0
+}
 . (Join-Path $PSScriptRoot "regress_shadows.ps1")
 function Add-RegressShadowKeys([string]$Ini, [string]$Keys) {
     if (-not $Keys) { return $Ini }

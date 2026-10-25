@@ -115,3 +115,31 @@
   nonzero previously-placed count making intermediate steps pivots, or is another pivot/spacing
   rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
   fresh previous=0 remains endpoint-only; no guessed intermediate pivot]
+
+<!-- from: nettool-cost27 (engine lane, 2026-10-25) -->
+- **NT36 - Tempelhof single-cell road draft costs 11 versus 10:** please give an
+  admitted nonflat single-cell fixture identifying the retained network corners
+  (and any additional solved entries) that produce the native price, including
+  the plane/range and equality-propagation inputs needed to reconstruct them.
+  Reproduced in `nettool-cost27-tempelhof-diag1`, Berlin/Tempelhof, unfounded,
+  date 2000-01-01, shadow julian=0. Road `(86,3)-(86,3)` alone differs:
+  original/ours cost=11/10; return=1/1, failure=0/0, valid=1/1, straight=1/1,
+  total=1/1, cells=1/1. City is 128 square, vertex stride 129. Our live corner
+  IDs are `(473,602,603,474)`, terrain float32 values in that order
+  `(291.402679,293.308929,290.792847,289.532623)`; water=false, water depths
+  `(-41.4026794,-43.3089294,-40.7928467,-39.5326233)`, height range / 16 =
+  0.236019135, nearest city edge distance=3, occupied=false, zone=0.
+  Our sole retained run cell has flags=1, intersection=false and corners
+  `(290.792847,290.792847,290.792847,290.792847)`. Its absolute corner deltas
+  sum to 4.386138916015625, so section 8.1 with road cell cost 10 and earthwork
+  factor float32 0.1 correctly prices these *replay* corners at 10.
+  Network-geometry section 9.8's per-run plane is currently left to the
+  replay's host; section 9.1 specifies an initial propagation pass and hash
+  picks, but the native public getters cannot establish this cell's retained
+  corners/constraints (section 8.1.4). Does the specified plane account for
+  this case, and what ordered ranges/preferences/equalities and network result
+  should this fixture have? Please specify equality propagation/order if it
+  affects the first hash pick; no native private state was inspected and no
+  alternative height or additive charge has been inferred from the total.
+  Diagnostic run verdict clean, ref_warnings=0; network exact 0/1 (one of 12
+  vectors), powerline exact 1/1 (six vectors). [blocked; no price adjustment]

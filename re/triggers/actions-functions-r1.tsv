@@ -1,0 +1,1000 @@
+root_kind	root	condition	exclusive_bytes	total_bytes	exclusive_functions	total_functions	confidence
+tool	cSC4NetworkTool	activate tool and perform its named input/placement callback	41281	83895	77	242	low
+tool	cSC4ViewInputControlQuery	activate tool and perform its named input/placement callback	31714	36840	37	48	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4MySimDispatch::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	11386	15812	31	55	low
+tool	cSC4PowerLineTool	activate tool and perform its named input/placement callback	10788	12884	31	47	low
+city	cSC4TrafficSimulator::Read	load/save serialized object of this class; record/object must exist	7728	8439	4	10	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4CitySituationManager::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	5483	13613	17	46	low
+message	ebb67ef7 kSC4MessageShowSituationPopup -> cSC4CitySituationManager::DoMessage	ID ebb67ef7; potential ID push sites in 00527ac0,0052dc40,0052e300,0052e750; subscriber active	4852	5001	6	9	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTEVolcanoLava::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	4817	5064	16	20	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ZoneDeveloper::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	4790	4790	6	6	low
+city	cSC4TrafficSimulator::Write	load/save serialized object of this class; record/object must exist	4732	4795	2	3	low
+message	07699455 kSC4MessageZoningChange -> cSC4LandfillDeveloper::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	4281	6604	17	30	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTESurfaceWater::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	3749	3790	2	3	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4DisasterInstanceFire::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	3709	3875	10	11	low
+city	cSC4App::SaveCity	-	3409	8039	7	32	high
+city	cSC4RegionalCity::Read	-	3315	3516	2	3	high
+city	cSC4City::Init	-	3112	3288	2	4	high
+city	cSC4ResidentialSimulator::Read	load/save serialized object of this class; record/object must exist	2983	3352	13	16	low
+message	ca1b151c kSC4MessageTypeIngredChangesMade -> cSC4DemandSimulator::DoMessage	ID ca1b151c; potential ID push sites in 006a3a20,006a8c20,006da900,006df0d0,006e5f50,006e7130; subscriber active	2944	2998	9	10	low
+city	cSC4BudgetSimulator::Read	load/save serialized object of this class; record/object must exist	2930	2930	9	9	low
+message	470bd214 kSC4MessageTerrainDoErosion -> cSTETerrain::DoMessage	ID 470bd214; potential ID push sites in 007435c0,0074fea0,007e75b0,007ed720; subscriber active	2845	3222	4	6	low
+city	cSC4MySim::Read	load/save serialized object of this class; record/object must exist	2786	3667	7	13	low
+city	cSC4WatercraftManager::Read	load/save serialized object of this class; record/object must exist	2580	3391	5	11	low
+tool	cSC4ViewInputControlNetworkIntxTool	activate tool and perform its named input/placement callback	2540	39009	5	139	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DisasterInstanceRiot::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	2517	2666	8	11	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4Watercraft::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	2475	2475	2	2	low
+city	cSC4City::Read	-	2443	3484	4	11	high
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4MyStreetSim::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	2272	16825	1	41	low
+city	cSC4City::Shutdown	-	2201	2201	1	1	high
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DisasterInstanceEarthquake::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	2109	2109	10	10	low
+city	cSC4Lot::Read	load/save serialized object of this class; record/object must exist	2062	2494	8	11	low
+city	cSC4WeatherSimulator::Read	load/save serialized object of this class; record/object must exist	1840	1896	6	7	low
+city	cSC4PortDeveloper::Read	load/save serialized object of this class; record/object must exist	1795	1795	6	6	low
+message	26c63343 kSC4MessagePreSave -> cSC4City::DoMessage	ID 26c63343; potential ID push sites in 0043f330,0043f7a0,00455e20,0045b1d0,0045bd20,004929f0; subscriber active	1794	4702	4	20	low
+message	231bbf91 kMessageTypePreferencesChanged -> cSC4App::DoMessage	ID 231bbf91; potential ID push sites in 00447900,00447b20,004f35f0,0076b110,00791d70; subscriber active	1770	3876	4	15	low
+city	cSC4RegionalCity::Write	-	1661	1661	1	1	high
+message	e8bda2e7 kMessageStateChanged -> cSC4TrafficSimulator::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	1569	6518	4	25	low
+message	6a3b0afd kSC4MessageLongTerrainOperationEnd -> cSC4SeaportDeveloper::DoMessage	ID 6a3b0afd; potential ID push sites in 00610c10,00611eb0,00700e90,00701e60,00724760,00725490; subscriber active	1534	1534	5	5	low
+city	cSC4AutomataControllerManager::Read	load/save serialized object of this class; record/object must exist	1465	1465	3	3	low
+city	cSC4City::Write	-	1419	2079	2	6	high
+city	cSC4App::NewCity	-	1409	24302	2	104	high
+city	cSC4PropDeveloper::Read	load/save serialized object of this class; record/object must exist	1352	1352	1	1	low
+message	ca1b151c kSC4MessageTypeIngredChangesMade -> cSC4PowerSimulator::DoMessage	ID ca1b151c; potential ID push sites in 006a3a20,006a8c20,006da900,006df0d0,006e5f50,006e7130; subscriber active	1305	1305	1	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4NetworkConstructionCrew::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	1296	7517	4	34	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DisasterInstancePipeBurst::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	1272	1887	7	11	low
+city	cSC4PowerSimulator::Read	load/save serialized object of this class; record/object must exist	1238	1351	1	2	low
+city	cSC4ResidentialSimulator::Write	load/save serialized object of this class; record/object must exist	1231	1231	3	3	low
+city	cSC4WeatherSimulator::Write	load/save serialized object of this class; record/object must exist	1209	1209	4	4	low
+city	cSC4ConstructionOccupant::Read	load/save serialized object of this class; record/object must exist	1196	1856	1	5	low
+city	cSC4BudgetSimulator::Write	load/save serialized object of this class; record/object must exist	1105	1105	1	1	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AudioAmbienceManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	1094	1419	4	9	low
+command	WaitForMessage2	command system enabled; valid command parameters and application state	1088	8314	8	9	high
+message	6695681a kSC4MessageSimIdle -> cSC4BuildingDevelopmentSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	1086	1086	1	1	low
+city	cSC4MySim::Write	load/save serialized object of this class; record/object must exist	1081	1353	2	5	low
+city	cSC4PlumbingSimulator::Read	load/save serialized object of this class; record/object must exist	1046	1046	2	2	low
+message	ca1b151c kSC4MessageTypeIngredChangesMade -> cSC4PollutionSimulator::DoMessage	ID ca1b151c; potential ID push sites in 006a3a20,006a8c20,006da900,006df0d0,006e5f50,006e7130; subscriber active	1004	1004	1	1	low
+city	cSC4App::LoadCity	-	996	25995	1	111	high
+city	cSC4PollutionSimulator::Read	load/save serialized object of this class; record/object must exist	996	996	1	1	low
+message	6695681a kSC4MessageSimIdle -> cSC4PlumbingSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	976	976	3	3	low
+message	8a07ae00 kMessageTractPowerChanged -> cSC4LotDeveloper::DoMessage	ID 8a07ae00; potential ID push sites in 00447900,00447b20,006c7380,006cb9a0,006ebd00,006f1f30; subscriber active	966	966	2	2	low
+message	ca1b151c kSC4MessageTypeIngredChangesMade -> cSC4PlumbingSimulator::DoMessage	ID ca1b151c; potential ID push sites in 006a3a20,006a8c20,006da900,006df0d0,006e5f50,006e7130; subscriber active	952	952	1	1	low
+city	cSC4BuildingDevelopmentSimulator::Read	load/save serialized object of this class; record/object must exist	949	2635	1	8	low
+city	cSC4ZoneManager::Read	load/save serialized object of this class; record/object must exist	933	933	2	2	low
+city	cSC4PollutionSimulator::Write	load/save serialized object of this class; record/object must exist	922	922	1	1	low
+city	cSC4Lot::Write	load/save serialized object of this class; record/object must exist	919	1074	2	4	low
+city	cSC4BuildingDevelopmentSimulator::Write	load/save serialized object of this class; record/object must exist	889	889	1	1	low
+city	cSC4PropDeveloper::Write	load/save serialized object of this class; record/object must exist	883	883	1	1	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4PowerSimulator::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	866	920	1	2	low
+city	cSC4PowerSimulator::Write	load/save serialized object of this class; record/object must exist	848	848	1	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4WatercraftManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	843	1733	5	12	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTETerrain::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	828	1173	2	3	low
+city	cSC4AutomataControllerManager::Write	load/save serialized object of this class; record/object must exist	799	799	1	1	low
+city	cSC4ConstructionOccupant::Write	load/save serialized object of this class; record/object must exist	794	1405	1	5	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4LandfillDeveloper::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	782	2554	3	12	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4TrafficSimulator::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	781	781	2	2	low
+message	8a07ae00 kMessageTractPowerChanged -> cSC4PropDeveloper::DoMessage	ID 8a07ae00; potential ID push sites in 00447900,00447b20,006c7380,006cb9a0,006ebd00,006f1f30; subscriber active	778	778	1	1	low
+city	cSC4WatercraftManager::Write	load/save serialized object of this class; record/object must exist	749	1096	1	3	low
+city	cSC4CivicBuildingSimulator::Read	load/save serialized object of this class; record/object must exist	720	720	4	4	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4PowerSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	714	714	2	2	low
+city	cSC4ZoneManager::Write	load/save serialized object of this class; record/object must exist	701	701	1	1	low
+message	69247dc8 kMsgRoadDamageChange -> cSC4NetworkLotManager::DoMessage	ID 69247dc8; potential ID push sites in 0060e570,00610120,007155d0,00715790,00715fb0; subscriber active	699	875	1	3	low
+message	ea65224e kSC4MessageCityObliterationSceneEnded -> cSC4App::DoMessage	ID ea65224e; potential ID push sites in 0044a520,0044c320,0049cc30,0049ce20; subscriber active	695	11421	2	48	low
+command	WriteRegistry	command system enabled; valid command parameters and application state	686	7912	1	2	high
+city	cSC4DisasterInstanceRiot::Read	load/save serialized object of this class; record/object must exist	659	849	4	6	low
+city	cSC4PlumbingSimulator::Write	load/save serialized object of this class; record/object must exist	648	648	2	2	low
+city	cSC4TrafficAutomataManager::Read	load/save serialized object of this class; record/object must exist	624	624	2	2	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4AudioAmbienceManager::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	608	608	2	2	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSTEVolcanoLava::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	603	809	3	6	low
+message	07699455 kSC4MessageZoningChange -> cSC4GrowthDeveloper::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	603	603	1	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4LotDeveloper::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	598	598	2	2	low
+city	cSC4AuraSimulator::Read	load/save serialized object of this class; record/object must exist	569	569	1	1	low
+sim-tick	cSC4ResidentialSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	564	564	5	5	high
+city	cSC4OrdinanceSimulator::Read	load/save serialized object of this class; record/object must exist	561	561	2	2	low
+sim-tick	cSC4TrafficSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	551	551	3	3	high
+sim-tick	cSC4BuildingDevelopmentSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	524	2210	2	9	high
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4PortDeveloper::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	499	643	3	4	low
+message	a9e3b6e2 kSC4MessageCrowdReactionEvent -> cSC4PedestrianManager::DoMessage	ID a9e3b6e2; potential ID push sites in 00544820,00544860,00546ef0,00547630,00547d90,00549890; subscriber active	485	485	2	2	low
+message	e8bda2e7 kMessageStateChanged -> cSC4PortDeveloper::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	482	482	2	2	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4MySimDispatch::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	458	2104	1	5	low
+city	cSC4CrimeSimulator::Read	load/save serialized object of this class; record/object must exist	445	445	1	1	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4LandfillDeveloper::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	438	989	1	5	low
+cheat	WhatTimeIzIt	enter registered cheat; handler state checks still apply	433	433	1	1	low
+city	cSC4AuraSimulator::Write	load/save serialized object of this class; record/object must exist	423	423	1	1	low
+command	PlaceNetwork	command system enabled; valid command parameters and application state	404	3799	1	3	high
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4TrafficNetworkMap::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	399	399	1	1	low
+city	cSC4DemandSimulator::Read	load/save serialized object of this class; record/object must exist	379	379	1	1	low
+city	cSC4CivicBuildingSimulator::Write	load/save serialized object of this class; record/object must exist	378	378	1	1	low
+city	cSC4NetworkLotManager::Write	load/save serialized object of this class; record/object must exist	363	363	1	1	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4WatercraftManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	358	668	4	7	low
+city	cSC4AircraftManager::Read	load/save serialized object of this class; record/object must exist	357	357	1	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PortDeveloper::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	342	342	3	3	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4NetworkManager::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	340	17853	1	68	low
+command	ExecuteScript	command system enabled; valid command parameters and application state	340	8837	2	14	high
+city	cSC4DemandSimulator::Write	load/save serialized object of this class; record/object must exist	340	340	1	1	low
+city	cSC4TrafficAutomataManager::Write	load/save serialized object of this class; record/object must exist	335	619	2	3	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4CitySituationManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	319	8052	3	31	low
+city	cSC4NeighborsSimulator::Read	load/save serialized object of this class; record/object must exist	313	313	1	1	low
+message	8a878385 kSC4MessageAutomatonApprochingIntersection -> cSC4AudioAmbienceManager::DoMessage	ID 8a878385; potential ID push sites in 004e84d0,004e96a0; subscriber active	311	311	1	1	low
+city	cSC4LotBaseTextureOccupant::Read	load/save serialized object of this class; record/object must exist	306	1022	1	6	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4DispatchManager::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	299	299	2	2	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4CitySituationManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	297	1507	1	14	low
+city	cSC4LotBaseTextureOccupant::Write	load/save serialized object of this class; record/object must exist	296	907	1	5	low
+city	cSC4NetworkLotManager::Read	load/save serialized object of this class; record/object must exist	293	293	1	1	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4NetworkConstructionCrew::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	291	6512	1	31	low
+city	cSC4PoliceSimulator::Read	load/save serialized object of this class; record/object must exist	290	567	1	2	low
+city	cSC4FireOccupant::Read	load/save serialized object of this class; record/object must exist	283	943	1	5	low
+sim-tick	cSC4PollutionSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	281	650	1	4	high
+sim-tick	cSC4TrafficSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	271	3702	3	16	high
+city	cSC4TractDeveloper::Read	load/save serialized object of this class; record/object must exist	271	271	1	1	low
+city	cSC4Region::Init	-	269	7322	2	42	high
+city	cSC4CrimeSimulator::Write	load/save serialized object of this class; record/object must exist	267	267	1	1	low
+city	cSC4FlammabilitySimulator::Read	load/save serialized object of this class; record/object must exist	264	264	1	1	low
+city	cSC4FloraSimulator::Read	load/save serialized object of this class; record/object must exist	261	261	1	1	low
+city	cSC4AircraftManager::Write	load/save serialized object of this class; record/object must exist	260	544	1	2	low
+message	e8bda2e7 kMessageStateChanged -> cSC4LotDeveloper::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	259	259	1	1	low
+city	cSC4FloraSimulator::Write	load/save serialized object of this class; record/object must exist	253	253	1	1	low
+command	GetPathDirectory	command system enabled; valid command parameters and application state	246	7472	1	2	high
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4PropDeveloper::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	233	233	2	2	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4NetworkManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	232	232	1	1	low
+city	cSC4PoliceSimulator::Write	load/save serialized object of this class; record/object must exist	231	431	1	2	low
+city	cSC4Simulator::Read(cIGZIStream&)	load/save serialized object of this class; record/object must exist	231	421	1	3	low
+city	cSC4FireOccupant::Write	load/save serialized object of this class; record/object must exist	219	830	1	5	low
+city	cSC4CitySituationManager::Read	load/save serialized object of this class; record/object must exist	211	362	1	2	low
+city	cSC4LotRetainingWallOccupant::Read	load/save serialized object of this class; record/object must exist	200	860	1	5	low
+city	cSC4CitySituationManager::Write	load/save serialized object of this class; record/object must exist	195	195	1	1	low
+city	cSC4DisasterInstanceRiot::Write	load/save serialized object of this class; record/object must exist	187	459	1	4	low
+city	cSC4GrowthDeveloper::Read	load/save serialized object of this class; record/object must exist	187	187	1	1	low
+command	GetDirectory	command system enabled; valid command parameters and application state	185	7474	1	3	high
+city	cSC4OrdinanceSimulator::Write	load/save serialized object of this class; record/object must exist	177	177	1	1	low
+city	cSC4Simulator::Write(cIGZOStream&)	load/save serialized object of this class; record/object must exist	171	171	1	1	low
+city	cSC4PortDeveloper::Write	load/save serialized object of this class; record/object must exist	167	167	1	1	low
+city	cSC4FlammabilitySimulator::Write	load/save serialized object of this class; record/object must exist	162	162	1	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4AutomataControllerManager::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	161	161	1	1	low
+city	cSC4LandValueSimulator::Read	load/save serialized object of this class; record/object must exist	155	155	1	1	low
+city	cSC4TractDeveloper::Write	load/save serialized object of this class; record/object must exist	148	148	1	1	low
+city	cSC4FloraOccupant::Read	load/save serialized object of this class; record/object must exist	143	803	1	5	low
+city	cSC4LotRetainingWallOccupant::Write	load/save serialized object of this class; record/object must exist	132	743	1	5	low
+city	cSC4GrowthDeveloper::Write	load/save serialized object of this class; record/object must exist	131	131	1	1	low
+command	GetMemInfo	command system enabled; valid command parameters and application state	129	7964	1	6	high
+city	cSC4FloraOccupant::Write	load/save serialized object of this class; record/object must exist	129	740	1	5	low
+city	cSC4RegionalCity::Shutdown	-	129	129	1	1	high
+city	cSC4LandValueSimulator::Write	load/save serialized object of this class; record/object must exist	126	126	1	1	low
+message	07699455 kSC4MessageZoningChange -> cSC4PowerSimulator::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	124	124	1	1	low
+command	CreateGZLog	command system enabled; valid command parameters and application state	123	8640	1	13	high
+message	e8bda2e7 kMessageStateChanged -> cSC4BuildingDevelopmentSimulator::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	123	299	1	3	low
+command	GetDateAndTime	command system enabled; valid command parameters and application state	122	8362	2	16	high
+command	TakeSnapshot	command system enabled; valid command parameters and application state	122	7348	1	2	high
+city	cSC4FireProtectionSimulator::Read	load/save serialized object of this class; record/object must exist	119	396	1	2	low
+city	cSC4CommercialSimulator::Read	load/save serialized object of this class; record/object must exist	116	116	1	1	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4NetworkManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	114	153	1	2	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PropDeveloper::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	114	114	2	2	low
+city	cSC4Region::Shutdown	-	111	3709	1	15	high
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AircraftManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	111	111	1	1	low
+city	cSC4RegionalCity::Init	-	108	108	1	1	high
+city	cSC4LotConfigurationManager::Read	load/save serialized object of this class; record/object must exist	106	106	1	1	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4BudgetSimulator::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	99	99	2	2	low
+city	cSC4NeighborsSimulator::Write	load/save serialized object of this class; record/object must exist	96	96	1	1	low
+city	cSC4CommercialSimulator::Write	load/save serialized object of this class; record/object must exist	92	92	1	1	low
+tool	cSC4ViewInputControlPlaceLot	activate tool and perform its named input/placement callback	89	521	3	9	low
+city	cSC4PropManager::Read	load/save serialized object of this class; record/object must exist	89	89	1	1	low
+city	cSC4ToxicOccupant::Read	load/save serialized object of this class; record/object must exist	86	746	1	5	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4DisasterInstanceFire::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	80	246	1	2	low
+message	ca1b1e64 kMessageTypeDisasterPeriodStarted -> cSC4MySimAgentSimulator::DoMessage	ID ca1b1e64; potential ID push sites in 00415c30,00415e40,0042e500,0042ec30,00578fc0; subscriber active	79	79	1	1	low
+message	0a36f1e9 kSC4MessageTornadoLocation -> cSC4MySimAgentSimulator::DoMessage	ID 0a36f1e9; potential ID push sites in 0042e500,0042ec30; subscriber active	78	78	1	1	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cSC4AudioAmbienceManager::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	74	74	1	1	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSC4ModelMaker::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	71	680	1	5	low
+city	cSC4FireProtectionSimulator::Write	load/save serialized object of this class; record/object must exist	69	269	1	2	low
+command	GetTimerTime	command system enabled; valid command parameters and application state	68	7903	5	10	high
+city	cSC4ToxicOccupant::Write	load/save serialized object of this class; record/object must exist	68	679	1	5	low
+city	cSC4LotConfigurationManager::Write	load/save serialized object of this class; record/object must exist	67	67	1	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4MySimAgentSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	67	67	1	1	low
+city	cSC4PowerPoleOccupant::Read	load/save serialized object of this class; record/object must exist	64	778	1	6	low
+city	cSC4PropManager::Write	load/save serialized object of this class; record/object must exist	57	57	1	1	low
+message	c6cdbf1a kSC4MessagePreViewLevelChange -> cSC4DisasterInstancePipeBurst::DoMessage	ID c6cdbf1a; potential ID push sites in 0057c460,0057c880,006b94b0,006b9d70,006e5f50,006e7130; subscriber active	55	670	1	5	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4TrafficSimulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	51	1169	1	6	low
+message	4c04de69 kMessageType_LotDeveloperNotification -> cSC4AdvisorTraffic::DoMessage	ID 4c04de69; potential ID push sites in 0041b800,0041b850,006c98c0,006c9a40,006cc490; subscriber active	51	51	1	1	low
+city	cSC4IndustrialSimulator::Read	load/save serialized object of this class; record/object must exist	47	47	1	1	low
+command	SendMessage	command system enabled; valid command parameters and application state	41	7267	1	2	high
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4NetworkManager::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	39	39	1	1	low
+message	aa1b2002 kMessageTypeDisasterPeriodEnded -> cSC4DispatchManager::DoMessage	ID aa1b2002; potential ID push sites in 00415c30,00415e40,0046a050,0046a1a0,00577e90; subscriber active	38	38	1	1	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AuraSimulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	36	1046	1	3	low
+message	0bb324bd kSC4MessagePlayerDriveControlCallback -> cSC4CitySituationManager::DoMessage	ID 0bb324bd; potential ID push sites in 005644e0; subscriber active	25	25	1	1	low
+message	69247dc7 kMsgTrafficMapChanged -> cSC4ViewInputControlQuery::DoMessage	ID 69247dc7; potential ID push sites in 004ae4e0,004b4000,004c57a0,004cba80,006c7380,006cb9a0; subscriber active	22	5716	1	5	low
+command	SetPopupModalDialogsEnabled	command system enabled; valid command parameters and application state	21	7247	1	2	high
+message	ca1b1e64 kMessageTypeDisasterPeriodStarted -> cSC4AdvisorSafety::DoMessage	ID ca1b1e64; potential ID push sites in 00415c30,00415e40,0042e500,0042ec30,00578fc0; subscriber active	9	185	1	3	low
+command	GetFrameRate	command system enabled; valid command parameters and application state	7	7233	1	2	high
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4WinMapView::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	23190	0	59	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4WinMapView::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	23190	0	59	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4WinMapView::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	23190	0	59	low
+message	26d31ec0 kSC4MessagePreCityInit -> cSC4View3DWin::DoMessage	ID 26d31ec0; potential ID push sites in 004548b0,004555f0,00777760,007778d0; subscriber active	0	17868	0	48	low
+ui	cSC4View3DWin::DoMessage id=26d31ec0	candidate message/control comparison; exact event role requires review	0	17868	0	48	low
+message	6a3b0afd kSC4MessageLongTerrainOperationEnd -> cSC4NetworkManager::DoMessage	ID 6a3b0afd; potential ID push sites in 00610c10,00611eb0,00700e90,00701e60,00724760,00725490; subscriber active	0	17513	0	67	low
+ui	cSC4View3DWin::HandleButtonActivated id=098f4f6c	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0991ee13	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0991ee39	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0992fd36	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=09930709	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=09d27eb0	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=09de87ae	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0a32ddd2	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0aa44502	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0aa44505	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=0b954123	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=15200002	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=15200003	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=152231f3	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=29920899	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=29923215	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=299237bf	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=2992f72c	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=29d27ec0	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=2a4fbb08	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=2b709676	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=2b730c5b	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=2b79e398	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4992046a	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=49d27ed0	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=49e95d2b	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=49edf9b7	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4a22ea06	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4a32ddc7	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4a4fbb60	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4a551a6b	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4bb92c1f	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4bb92c20	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4bb92c21	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=4bfc8c2f	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=6991ee42	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=6999bf56	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=69a30679	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=69b9324a	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=6a3d638c	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=6a4fbb31	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=6bfc8c55	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=8991ee08	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=899231e6	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=8998bbdf	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=89dd5405	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=8a32dddb	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=8a4fbaea	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=8b96b73e	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=99887755	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=99887766	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=a98f4f88	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=a99234a6	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=a994824d	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=a998af42	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=a9ed5617	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=aa5543a1	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=aa9211b3	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ab9537b7	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=aba7ed0a	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=abb27a7a	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=abb27b91	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=abc54125	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=c99231da	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=c998af00	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=c998bb81	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ca35cb74	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ca35cb76	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ca35cb78	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ca58ebb7	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=cb95412c	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e991ee2f	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e9920494	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e99234b3	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e99237b4	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e999c820	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=e9de87a7	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ea32ddbb	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ea32dde5	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ea6e379d	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ea6fa936	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=eb9541eb	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ebf9e342	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ebfac717	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ebfac719	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+ui	cSC4View3DWin::HandleButtonActivated id=ebfac720	candidate message/control comparison; exact event role requires review	0	17097	0	39	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4WinMapView::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	16398	0	37	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4MyStreetSim::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	0	14553	0	40	low
+message	6a5bdfcd kSC4MessageAdvisors_DataMapWindow -> cSC4View3DWin::DoMessage	ID 6a5bdfcd; potential ID push sites in 0040c850; subscriber active	0	10696	0	39	low
+message	6a720993 kSC4MessageAdvisors_GraphWindow -> cSC4View3DWin::DoMessage	ID 6a720993; potential ID push sites in 0040c890; subscriber active	0	10696	0	39	low
+message	ea5bdfbc kSC4MessageAdvisors_BudgetWindow -> cSC4View3DWin::DoMessage	ID ea5bdfbc; potential ID push sites in 0040c870; subscriber active	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=230e27ac	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=287259f6	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=49d993d4	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=6a5bdfcd	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=6a720993	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=e4a85d91	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+ui	cSC4View3DWin::DoMessage id=ea5bdfbc	candidate message/control comparison; exact event role requires review	0	10696	0	39	low
+cheat	CreateException	enter registered cheat; handler state checks still apply	0	10479	0	43	low
+cheat	ForceIdle	enter registered cheat; handler state checks still apply	0	10479	0	43	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4App::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	10479	0	43	low
+message	28e9397a kSC4MessagePreAppInit -> cSC4App::DoMessage	ID 28e9397a; potential ID push sites in 0044c320; subscriber active	0	10479	0	43	low
+message	28e9397b kSC4MessagePostAppInit -> cSC4App::DoMessage	ID 28e9397b; potential ID push sites in 0044c320,004f82e0,004fa2f0; subscriber active	0	10479	0	43	low
+message	8bb5bb46 kSC4MessagePreRegionShutdown -> cSC4App::DoMessage	ID 8bb5bb46; potential ID push sites in 0044a520,0044c320,007b0f60; subscriber active	0	10479	0	43	low
+message	ba44eb51 kMessageGameInIdleState -> cSC4App::DoMessage	ID ba44eb51; potential ID push sites in 00449c70,0044a520,0044c320,004929f0,00494da0; subscriber active	0	10479	0	43	low
+message	cbb5bb45 kSC4MessagePostRegionInit -> cSC4App::DoMessage	ID cbb5bb45; potential ID push sites in 0044a520,0044c320,007b1900; subscriber active	0	10479	0	43	low
+message	ea8ae29a kSC4MessagePostCityInitComplete -> cSC4App::DoMessage	ID ea8ae29a; potential ID push sites in 0040ef30,00410e30,0043f330,0043f7a0,0044a520,0044c320; subscriber active	0	10479	0	43	low
+command	ReadRegistry	command system enabled; valid command parameters and application state	0	8115	0	3	high
+command	CreateException	command system enabled; valid command parameters and application state	0	7835	0	5	high
+command	GetOccupantCount	command system enabled; valid command parameters and application state	0	7651	0	3	high
+message	87163754 kMessageTypeFileChangeNotification -> cSC4App::DoMessage	ID 87163754; potential ID push sites in unresolved; subscriber active	0	7493	0	35	low
+command	GetPathFileName	command system enabled; valid command parameters and application state	0	7480	0	2	high
+command	GetAppState	command system enabled; valid command parameters and application state	0	7265	0	2	high
+command	GetPopupModalDialogsEnabled	command system enabled; valid command parameters and application state	0	7265	0	2	high
+command	GetPopupModalDialogsSafe	command system enabled; valid command parameters and application state	0	7265	0	2	high
+command	GetRandomInteger	command system enabled; valid command parameters and application state	0	7265	0	2	high
+command	CancelWaitForMessage2	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	ExecuteCheat	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	GameDelay	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	GamePause	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	GetFrameCount	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	GetRandomNumber	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	SetDebugLevel	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	SetGZLogLevel	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	SetScriptAutoYield	command system enabled; valid command parameters and application state	0	7226	0	1	high
+command	ViewWebBrowser	command system enabled; valid command parameters and application state	0	7226	0	1	high
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4DemandSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	3502	0	15	low
+sim-tick	cSC4DemandSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	3502	0	15	high
+command	Cancel	command system enabled; valid command parameters and application state	0	3489	0	18	low
+command	LoadCity	command system enabled; valid command parameters and application state	0	3489	0	18	low
+command	LoadRegion	command system enabled; valid command parameters and application state	0	3489	0	18	low
+command	QuitGame	command system enabled; valid command parameters and application state	0	3489	0	18	low
+command	SetExpandedToolTips	command system enabled; valid command parameters and application state	0	3489	0	18	low
+message	231bbf91 kMessageTypePreferencesChanged -> cSC4WinRegionScreen::DoMessage	ID 231bbf91; potential ID push sites in 00447900,00447b20,004f35f0,0076b110,00791d70; subscriber active	0	3489	0	18	low
+message	2a3ad653 kMessageSetRadioStation -> cSC4WinRegionScreen::DoMessage	ID 2a3ad653; potential ID push sites in 004ee000,004ee970,004efe80,007b1900; subscriber active	0	3489	0	18	low
+message	2b96b3ea kSC4MessagePostAppServicesInit -> cSC4WinRegionScreen::DoMessage	ID 2b96b3ea; potential ID push sites in 004548b0,004555f0,007acc90,007da690,007db6a0; subscriber active	0	3489	0	18	low
+message	abb5bb44 kSC4MessagePreRegionInit -> cSC4WinRegionScreen::DoMessage	ID abb5bb44; potential ID push sites in 007b1900; subscriber active	0	3489	0	18	low
+message	cbb5bb45 kSC4MessagePostRegionInit -> cSC4WinRegionScreen::DoMessage	ID cbb5bb45; potential ID push sites in 0044a520,0044c320,007b1900; subscriber active	0	3489	0	18	low
+command	Demolish	command system enabled; valid command parameters and application state	0	3475	0	3	high
+command	PlaceZone	command system enabled; valid command parameters and application state	0	3475	0	3	high
+command	SetViewTarget	command system enabled; valid command parameters and application state	0	3395	0	2	high
+message	26c63343 kSC4MessagePreSave -> cSC4RegionalCity::DoMessage	ID 26c63343; potential ID push sites in 0043f330,0043f7a0,00455e20,0045b1d0,0045bd20,004929f0; subscriber active	0	3350	0	14	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4RegionalCity::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	3350	0	14	low
+message	26d31ec3 kSC4MessagePostCityShutdown -> cSC4RegionalCity::DoMessage	ID 26d31ec3; potential ID push sites in 00454a60,004a7830,004a8470; subscriber active	0	3350	0	14	low
+message	ca63d517 kSC4MessageTerrainReconcilation -> cSC4RegionalCity::DoMessage	ID ca63d517; potential ID push sites in 004a7830,004a8470,0074a390,0074ed40; subscriber active	0	3350	0	14	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4EffectsManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	3308	0	18	low
+message	a6b79620 kSC4MessagePostViewInit -> cSC4EffectsManager::DoMessage	ID a6b79620; potential ID push sites in 004929f0,00494da0,00594a30,00595060,007cc0b0,007cc5b0; subscriber active	0	3308	0	18	low
+message	ab96b05f kSC4MessagePostAppServicesInitComplete -> cSC4EffectsManager::DoMessage	ID ab96b05f; potential ID push sites in 004548b0,004555f0,00594a30,00595060,007acc90; subscriber active	0	3248	0	17	low
+command	PlaceLot	command system enabled; valid command parameters and application state	0	3012	0	2	high
+command	GetViewTarget	command system enabled; valid command parameters and application state	0	2913	0	2	high
+command	PlaceNetworkIntersection	command system enabled; valid command parameters and application state	0	2874	0	1	high
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4View3DWin::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	2746	0	13	low
+ui	cSC4View3DWin::DoMessage id=a6b79602	candidate message/control comparison; exact event role requires review	0	2746	0	13	low
+message	2b96b3ea kSC4MessagePostAppServicesInit -> cSC4LightingManager::DoMessage	ID 2b96b3ea; potential ID push sites in 004548b0,004555f0,007acc90,007da690,007db6a0; subscriber active	0	2732	0	3	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSC4LightingManager::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	2732	0	3	low
+cheat	Casper	enter registered cheat; handler state checks still apply	0	2566	0	17	low
+cheat	DrawPaths	enter registered cheat; handler state checks still apply	0	2566	0	17	low
+cheat	HidePaths	enter registered cheat; handler state checks still apply	0	2566	0	17	low
+cheat	NoCSI	enter registered cheat; handler state checks still apply	0	2566	0	17	low
+cheat	udriveit	enter registered cheat; handler state checks still apply	0	2566	0	17	low
+cheat	Tutorial	enter registered cheat; handler state checks still apply	0	2249	0	12	low
+message	26c63343 kSC4MessagePreSave -> cSC4TutorialSystem::DoMessage	ID 26c63343; potential ID push sites in 0043f330,0043f7a0,00455e20,0045b1d0,0045bd20,004929f0; subscriber active	0	2249	0	12	low
+message	aa3840e6 kSC4MessageTutorial_EndTutorial -> cSC4TutorialSystem::DoMessage	ID aa3840e6; potential ID push sites in 0043f330,0043f7a0,00441e50,00444160; subscriber active	0	2249	0	12	low
+message	ea8ae29a kSC4MessagePostCityInitComplete -> cSC4TutorialSystem::DoMessage	ID ea8ae29a; potential ID push sites in 0040ef30,00410e30,0043f330,0043f7a0,0044a520,0044c320; subscriber active	0	2249	0	12	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4TrafficSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1908	0	7	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4TrafficSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1908	0	7	low
+city	cSC4App::Read	-	0	1859	0	5	high
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4PoliceSimulator::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	1497	0	6	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4LightingManager::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	1484	0	1	low
+message	6a3b0afd kSC4MessageLongTerrainOperationEnd -> cSC4LightingManager::DoMessage	ID 6a3b0afd; potential ID push sites in 00610c10,00611eb0,00700e90,00701e60,00724760,00725490; subscriber active	0	1484	0	1	low
+message	26d31ec0 kSC4MessagePreCityInit -> cSC4ProgressScreen::DoMessage	ID 26d31ec0; potential ID push sites in 004548b0,004555f0,00777760,007778d0; subscriber active	0	1370	0	14	low
+message	8a09fa65 kSC4MessageAdvisors_AdviceRemoved -> cSC4CitySituationManager::DoMessage	ID 8a09fa65; potential ID push sites in 0040df90,0040f460,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	1357	0	12	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4WeatherSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	1333	0	8	low
+sim-tick	cSC4WeatherSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	1333	0	8	high
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4ViewInputControlQuery::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	1311	0	1	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ViewInputControlQuery::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	1311	0	1	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4ViewInputControlQuery::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	1311	0	1	low
+message	e94671ec kMessageTypeDispatchActive -> cSC4ProtectionSimulator::DoMessage	ID e94671ec; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00577ca0,00578f10; subscriber active	0	1310	0	4	low
+message	e94671ed kMessageTypeDispatchInactive -> cSC4ProtectionSimulator::DoMessage	ID e94671ed; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,004ee970,00577ca0; subscriber active	0	1310	0	4	low
+tool	cSC4UndergroundNetworkTool	activate tool and perform its named input/placement callback	0	1300	0	9	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4MySimDispatch::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	0	1282	0	1	low
+message	0bb324bd kSC4MessagePlayerDriveControlCallback -> cSC4MySimDispatch::DoMessage	ID 0bb324bd; potential ID push sites in 005644e0; subscriber active	0	1282	0	1	low
+message	8bbbd22a kSC4MessageMySim_FollowWithCamera -> cSC4MySimDispatch::DoMessage	ID 8bbbd22a; potential ID push sites in 00433eb0,00434670,00439980; subscriber active	0	1282	0	1	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSC4MySimDispatch::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	1282	0	1	low
+message	a6b79611 kSC4MessageViewTChange2 -> cSC4MySimDispatch::DoMessage	ID a6b79611; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	1282	0	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AudioAmbienceManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1205	0	7	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AudioAmbienceManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1205	0	7	low
+message	99ef1146 kSC4MessageMoveOccupant -> cSC4AudioAmbienceManager::DoMessage	ID 99ef1146; potential ID push sites in 004929f0,00494da0,0049f3c0,004e84d0,004e96a0,005cc020; subscriber active	0	1205	0	7	low
+message	e8bda2e7 kMessageStateChanged -> cSC4AudioAmbienceManager::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	1205	0	7	low
+message	e99b3d4d kMessageConditionChanged -> cSC4AudioAmbienceManager::DoMessage	ID e99b3d4d; potential ID push sites in 004929f0,00494da0,004e84d0,004e96a0,006aed40,006af540; subscriber active	0	1205	0	7	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4CitySituationManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	1111	0	12	low
+message	8a09fa64 kSC4MessageAdvisors_AdviceAdded -> cSC4CitySituationManager::DoMessage	ID 8a09fa64; potential ID push sites in 0040df20,0040f710,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	1111	0	12	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AutomataControllerManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	1078	0	9	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4AutomataControllerManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	1059	0	7	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4AutomataControllerManager::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	1059	0	7	low
+message	ead61e16 kSC4MessageMouseScrollEnd -> cSC4AutomataControllerManager::DoMessage	ID ead61e16; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	1059	0	7	low
+command	GetSimulationDate	command system enabled; valid command parameters and application state	0	1053	0	7	high
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4Simulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	1053	0	7	low
+sim-tick	cSC4Simulator::DoMessage	loaded city; simulation clock running	0	1053	0	7	high
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AuraSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1010	0	2	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AuraSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	1010	0	2	low
+tool	cSC4ViewInputControlPlayerDrive	activate tool and perform its named input/placement callback	0	999	0	10	low
+command	GetCityName	command system enabled; valid command parameters and application state	0	960	0	2	high
+command	GetMayorName	command system enabled; valid command parameters and application state	0	960	0	2	high
+message	89171496 kSC4MessageSeaLevelChanged -> cSTEWaterRipple::DoMessage	ID 89171496; potential ID push sites in 00743550,0075fbb0,00760330,00762300,007a75d0,007a8bd0; subscriber active	0	958	0	8	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTEWaterRipple::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	958	0	8	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4CrimeSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	939	0	1	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4CrimeSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	939	0	1	low
+command	GetCityEstablished	command system enabled; valid command parameters and application state	0	936	0	2	high
+command	GetCitySize	command system enabled; valid command parameters and application state	0	936	0	2	high
+message	89d3e9f3 kSC4MessageNetworkOccupantUsableChange -> cSC4AutomataControllerManager::DoMessage	ID 89d3e9f3; potential ID push sites in 004ae4e0,004b4000,0051b3e0,0051c140,0060e570,00610120; subscriber active	0	929	0	6	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AutomataControllerManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	929	0	6	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AutomataControllerManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	929	0	6	low
+message	cad61e00 kSC4MessageMouseScrollBegin -> cSC4AutomataControllerManager::DoMessage	ID cad61e00; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	929	0	6	low
+message	ebff18a3 kSC4MessageOccupantGroupChanged -> cSC4AutomataControllerManager::DoMessage	ID ebff18a3; potential ID push sites in 005066b0,005110a0,0051b3e0,0051c140,005e9350; subscriber active	0	929	0	6	low
+cheat	WhereRUFrom	enter registered cheat; handler state checks still apply	0	897	0	1	low
+command	SetCityEstablished	command system enabled; valid command parameters and application state	0	897	0	1	high
+command	SetCityName	command system enabled; valid command parameters and application state	0	897	0	1	high
+command	SetMayorName	command system enabled; valid command parameters and application state	0	897	0	1	high
+message	894671f6 kMessageTypeDispatchEnd -> cSC4DisasterLayer::DoMessage	ID 894671f6; potential ID push sites in 00439450,00439540,00442c80,00443e60,0046ace0,004b9ef0; subscriber active	0	847	0	5	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4DisasterLayer::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	847	0	5	low
+message	e94671eb kMessageTypeDispatchBegin -> cSC4DisasterLayer::DoMessage	ID e94671eb; potential ID push sites in 00439450,00439540,00442c80,00443e60,004698f0,004b9ef0; subscriber active	0	847	0	5	low
+message	e94671ed kMessageTypeDispatchInactive -> cSC4DisasterLayer::DoMessage	ID e94671ed; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,004ee970,00577ca0; subscriber active	0	847	0	5	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cWinSC4App::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	0	802	0	9	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4FloraSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	802	0	2	low
+sim-tick	cSC4FloraSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	802	0	2	high
+sim-tick	cSC4FloraSimulator::SimulateExistingFloraOccupant	loaded city; relevant simulator enabled; branch state may be required	0	802	0	2	high
+message	6695681a kSC4MessageSimIdle -> cSC4GrowthDeveloper::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	793	0	5	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4GrowthDeveloper::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	793	0	5	low
+message	26d31ec5 kSC4MessageCityObliterated -> cSC4View3DWin::DoMessage	ID 26d31ec5; potential ID push sites in 004ee000,004efe80,006afda0,006b2960,006cfbc0,006d38f0; subscriber active	0	756	0	8	low
+ui	cSC4View3DWin::DoMessage id=26d31ec5	candidate message/control comparison; exact event role requires review	0	756	0	8	low
+message	abbbca64 kSC4MessageCitySituationActivationChange -> cSC4View3DWin::DoMessage	ID abbbca64; potential ID push sites in 00524e20,005276a0,005294c0; subscriber active	0	698	0	3	low
+ui	cSC4View3DWin::DoMessage id=abbbca64	candidate message/control comparison; exact event role requires review	0	698	0	3	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PlumbingSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	673	0	2	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4PlumbingSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	673	0	2	low
+city	cSC4FoundationOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4NetworkOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4NetworkTunnelOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4Occupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4PipeOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4PowerLineOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4PropOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4PylonOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4SignpostOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4SubwayOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4TextDecalOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4UndergroundConnectionOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+city	cSC4UndergroundOccupant::Read	load/save serialized object of this class; record/object must exist	0	660	0	4	low
+message	0b3be81a kSC4MessageGrowLargeAirport2 -> cSC4AirportDeveloper::DoMessage	ID 0b3be81a; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+message	2b3be44a kSC4MessageGrowMediumAirport2 -> cSC4AirportDeveloper::DoMessage	ID 2b3be44a; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+message	6b3be6d8 kSC4MessageGrowLargeAirport1 -> cSC4AirportDeveloper::DoMessage	ID 6b3be6d8; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+message	8a394dc4 kSC4MessageGrowSeaport -> cSC4SeaportDeveloper::DoMessage	ID 8a394dc4; potential ID push sites in 004118c0,004119f0,00700e90,00701e60; subscriber active	0	625	0	3	low
+message	cb3be815 kSC4MessageGrowSmallAirport2 -> cSC4AirportDeveloper::DoMessage	ID cb3be815; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+message	ea394b74 kSC4MessageGrowSmallAirport1 -> cSC4AirportDeveloper::DoMessage	ID ea394b74; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+message	eb3be415 kSC4MessageGrowMediumAirport1 -> cSC4AirportDeveloper::DoMessage	ID eb3be415; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	625	0	3	low
+city	cSC4FoundationOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4NetworkOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4NetworkTunnelOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4Occupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4PipeOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4PowerLineOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4PowerPoleOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4PropOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4PylonOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4SignpostOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4SubwayOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4TextDecalOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4UndergroundConnectionOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+city	cSC4UndergroundOccupant::Write	load/save serialized object of this class; record/object must exist	0	611	0	4	low
+command	GZWinGenerateInputEvent	command system enabled; valid command parameters and application state	0	609	0	4	high
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4ModelMaker::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	609	0	4	low
+message	a6b79611 kSC4MessageViewTChange2 -> cSC4ModelMaker::DoMessage	ID a6b79611; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	609	0	4	low
+message	ba44eb51 kMessageGameInIdleState -> cSC4ModelMaker::DoMessage	ID ba44eb51; potential ID push sites in 00449c70,0044a520,0044c320,004929f0,00494da0; subscriber active	0	609	0	4	low
+message	ead61e16 kSC4MessageMouseScrollEnd -> cSC4ModelMaker::DoMessage	ID ead61e16; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	609	0	4	low
+message	ac083d7d kSC4MessageCitySituationProgressChange -> cSC4View3DWin::DoMessage	ID ac083d7d; potential ID push sites in 0052bbc0; subscriber active	0	522	0	1	low
+ui	cSC4View3DWin::DoMessage id=ac083d7d	candidate message/control comparison; exact event role requires review	0	522	0	1	low
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4ProtectionSimulator::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	521	0	1	low
+sim-tick	cSC4FireProtectionSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	521	0	1	high
+sim-tick	cSC4PoliceSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	521	0	1	high
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4MySim::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	432	0	2	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ParkManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	393	0	2	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ParkManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	393	0	2	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4DisasterInstancePipeBurst::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	353	0	3	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4DisasterInstancePipeBurst::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	353	0	3	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4ViewInputControlPlayerDrive::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	0	350	0	2	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4DispatchManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	327	0	1	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4ViewInputControlCitySituations::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	325	0	5	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PylonOccupant::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	325	0	5	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4DispatchManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	325	0	5	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ViewInputControlCitySituations::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	325	0	5	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4ViewInputControlCitySituations::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	325	0	5	low
+message	aa25827c kSC4MessageMySims_MySimsChanged -> cSC4MySimWinProc::DoMessage	ID aa25827c; potential ID push sites in 00424fe0,0042df50,0042e020,00439450,00439540,0076e9f0; subscriber active	0	325	0	5	low
+tool	cSC4ViewInputControlCitySituations	activate tool and perform its named input/placement callback	0	325	0	5	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PollutionSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	280	0	2	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4PollutionSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	280	0	2	low
+city	cSC4ProtectionSimulator::Read	load/save serialized object of this class; record/object must exist	0	277	0	1	low
+city	cSC4ProtectionSimulator::Write	load/save serialized object of this class; record/object must exist	0	200	0	1	low
+message	49e64801 kSC4MessagePedestrianChangeState -> cSC4AudioEventHandler::DoMessage	ID 49e64801; potential ID push sites in unresolved; subscriber active	0	191	0	3	low
+message	8a385dd8 kSC4MessageAutomataPlaySFX -> cSC4AudioEventHandler::DoMessage	ID 8a385dd8; potential ID push sites in 004ee970,00509950; subscriber active	0	191	0	3	low
+message	a9e3b6e3 kSC4MessageCrowdReactionResult -> cSC4AudioEventHandler::DoMessage	ID a9e3b6e3; potential ID push sites in 004ee970,00544f30; subscriber active	0	191	0	3	low
+message	aa396960 kSC4MessageAutomataStopSFX -> cSC4AudioEventHandler::DoMessage	ID aa396960; potential ID push sites in 004ee970,00505b50; subscriber active	0	191	0	3	low
+message	ea3ada33 kSC4MessageMySims_MySimMovedIn -> cSC4AudioEventHandler::DoMessage	ID ea3ada33; potential ID push sites in 0042bf70,004ee970; subscriber active	0	191	0	3	low
+message	894671f6 kMessageTypeDispatchEnd -> cSC4ProtectionSimulator::DoMessage	ID 894671f6; potential ID push sites in 00439450,00439540,00442c80,00443e60,0046ace0,004b9ef0; subscriber active	0	187	0	2	low
+message	077accd0 kSC4MessageSchoolStrike -> cSC4AdvisorSafety::DoMessage	ID 077accd0; potential ID push sites in 00415c30,00415e40; subscriber active	0	176	0	2	low
+message	077accd2 kSC4MessageHealthStrike -> cSC4AdvisorSafety::DoMessage	ID 077accd2; potential ID push sites in 00415c30,00415e40; subscriber active	0	176	0	2	low
+message	2a614891 kMessageTypeJailbreakBegin -> cSC4AdvisorSafety::DoMessage	ID 2a614891; potential ID push sites in 00415c30,00415e40,006e1af0; subscriber active	0	176	0	2	low
+message	2a614892 kMessageTypeJailbreakEnd -> cSC4AdvisorSafety::DoMessage	ID 2a614892; potential ID push sites in 00415c30,00415e40,006e1c90; subscriber active	0	176	0	2	low
+message	68f54ce1 kMessageTypeStrikeBegin -> cSC4AdvisorSafety::DoMessage	ID 68f54ce1; potential ID push sites in 00415c30,00415e40,006ad060; subscriber active	0	176	0	2	low
+message	8a4a69c7 kMessageListenerPosChanged -> cSC4AudioAmbienceManager::DoMessage	ID 8a4a69c7; potential ID push sites in 004e84d0,004e96a0,004f14b0,004f82e0,004fa2f0; subscriber active	0	176	0	2	low
+message	a8daf511 kMessageTypeStrikeBegin -> cSC4AdvisorSafety::DoMessage	ID a8daf511; potential ID push sites in 00415c30,00415e40,006e0780; subscriber active	0	176	0	2	low
+message	aa1b2002 kMessageTypeDisasterPeriodEnded -> cSC4View3DWin::DoMessage	ID aa1b2002; potential ID push sites in 00415c30,00415e40,0046a050,0046a1a0,00577e90; subscriber active	0	176	0	2	low
+message	aa667ce2 kMessageTypeZooEscape -> cSC4AdvisorSafety::DoMessage	ID aa667ce2; potential ID push sites in 00415c30,00415e40,006d54f0; subscriber active	0	176	0	2	low
+message	aa7fb7e0 kSC4MessageSimPauseChange -> cSC4View3DWin::DoMessage	ID aa7fb7e0; potential ID push sites in 004f82e0,004fa2f0,007021e0,00702220; subscriber active	0	176	0	2	low
+message	ca1b1e64 kMessageTypeDisasterPeriodStarted -> cSC4View3DWin::DoMessage	ID ca1b1e64; potential ID push sites in 00415c30,00415e40,0042e500,0042ec30,00578fc0; subscriber active	0	176	0	2	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorHQ::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	176	0	2	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorSafety::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	176	0	2	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorUtility::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	176	0	2	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4View3DWin::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	176	0	2	low
+tool	cSC4ViewInputControlFlora	activate tool and perform its named input/placement callback	0	176	0	2	low
+ui	cSC4View3DWin::DoMessage id=66956816	candidate message/control comparison; exact event role requires review	0	176	0	2	low
+ui	cSC4View3DWin::DoMessage id=aa1b2002	candidate message/control comparison; exact event role requires review	0	176	0	2	low
+ui	cSC4View3DWin::DoMessage id=aa7fb7e0	candidate message/control comparison; exact event role requires review	0	176	0	2	low
+ui	cSC4View3DWin::DoMessage id=ca1b1e64	candidate message/control comparison; exact event role requires review	0	176	0	2	low
+sim-tick	66956813 kSC4MessageSimNewHour -> cSC4DisasterInstanceFire::DoMessage	ID 66956813; potential ID push sites in unresolved; subscriber active	0	166	0	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DisasterInstanceFire::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	166	0	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ViewInputControlPlayerDrive::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	164	0	4	low
+message	ea8ae29a kSC4MessagePostCityInitComplete -> cSC4MissingPluginDataReporter::DoMessage	ID ea8ae29a; potential ID push sites in 0040ef30,00410e30,0043f330,0043f7a0,0044a520,0044c320; subscriber active	0	149	0	3	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ViewInputControlZone::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	149	0	3	low
+tool	cSC4ViewInputControlZone	activate tool and perform its named input/placement callback	0	149	0	3	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PowerSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	146	0	1	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ViewInputControlPlaceLot::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	145	0	2	low
+message	4a44667f kSC4MessageProgressMessage -> cSC4View3DWin::DoMessage	ID 4a44667f; potential ID push sites in 005f9a20; subscriber active	0	142	0	1	low
+ui	cSC4View3DWin::DoMessage id=4a44667f	candidate message/control comparison; exact event role requires review	0	142	0	1	low
+tool	cSC4ViewInputControlTollBooth	activate tool and perform its named input/placement callback	0	138	0	1	low
+message	6695681a kSC4MessageSimIdle -> cSC4AuraSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	130	0	2	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4AuraSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	130	0	2	low
+ui	cSC4CheatCodeEntryDialog::DoMessage id=9b1552d5	candidate message/control comparison; exact event role requires review	0	126	0	1	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4NetworkConstructionCrew::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	94	0	1	low
+city	cSC4App::Write	-	0	76	0	1	high
+command	GZWinMoveCursorToPosition	command system enabled; valid command parameters and application state	0	76	0	2	high
+command	GZWinMoveCursorToWindow	command system enabled; valid command parameters and application state	0	76	0	2	high
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4EffectsManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	76	0	1	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4EffectsManager::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	76	0	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4EffectsManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	76	0	1	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4EffectsManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	76	0	1	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4EffectsManager::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	76	0	1	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4EffectsManager::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	76	0	1	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC43DRender::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	75	0	1	low
+message	4a9f2ffe kSC4MessageCameraUpdated -> cSC43DRender::DoMessage	ID 4a9f2ffe; potential ID push sites in 007c6410,007c7070,007cc0b0,007cd000,007cd330,007cd540; subscriber active	0	75	0	1	low
+message	aa5cf1e3 kSC4MessageEndGameForBudgetFailure -> cSC4View3DWin::DoMessage	ID aa5cf1e3; potential ID push sites in 00692510; subscriber active	0	63	0	1	low
+ui	cSC4View3DWin::DoMessage id=aa5cf1e3	candidate message/control comparison; exact event role requires review	0	63	0	1	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4View3DWin::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	47	0	1	low
+message	a6b79621 kSC4MessagePostViewRefresh -> cSC4View3DWin::DoMessage	ID a6b79621; potential ID push sites in 007c6410,007c7070,007cc0b0,007cd6e0; subscriber active	0	47	0	1	low
+ui	cSC4View3DWin::DoMessage id=a6b79612	candidate message/control comparison; exact event role requires review	0	47	0	1	low
+ui	cSC4View3DWin::DoMessage id=a6b79621	candidate message/control comparison; exact event role requires review	0	47	0	1	low
+command	GZWinCreateWindow	command system enabled; valid command parameters and application state	0	39	0	1	high
+tool	cSC4ViewInputControlDispatch	activate tool and perform its named input/placement callback	0	38	0	2	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4MySimAgentSimulator::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	35	0	1	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4MySimAgentSimulator::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	35	0	1	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSTETerrain::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	32	0	1	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4GraphsViewWinProc::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	10	0	1	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AdvisorBase::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	5	0	1	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorBase::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	5	0	1	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorBase::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	5	0	1	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4AdvisorBase::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	0	5	0	1	low
+message	ea8ae29a kSC4MessagePostCityInitComplete -> cSC4AdvisorBase::DoMessage	ID ea8ae29a; potential ID push sites in 0040ef30,00410e30,0043f330,0043f7a0,0044a520,0044c320; subscriber active	0	5	0	1	low
+cheat	DollyLlama	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	FightThePower	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	Flora	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	HowDryIAm	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	Moolah	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	PlopAllLots	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	RiskyMoney	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	WeaknessPays	enter registered cheat; handler state checks still apply	0	0	0	0	low
+cheat	csitrigger	enter registered cheat; handler state checks still apply	0	0	0	0	low
+command	GZWinClickButton	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinDestroyWindow	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinEnableUserInput	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinIsWindowPresent	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinMessageBox	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinMoveWindow	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinSelectListboxItem	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinSetWindowText	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinShowWindow	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GZWinWaitForWindow	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GetAltitude	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GetCellAltitude	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	GetSeaLevel	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	PlaceBuilding	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	PlaceFlora	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	SetAltitude	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	SetCellAltitude	command system enabled; valid command parameters and application state	0	0	0	0	high
+command	SetSeaLevel	command system enabled; valid command parameters and application state	0	0	0	0	high
+message	06cdb65a kSC4MessagePreViewFilterChange -> cSC4AutomataManager::DoMessage	ID 06cdb65a; potential ID push sites in 005066b0,005110a0,007e63f0; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4ConstructionOccupant::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4ModelMaker::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4PropManager::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4PylonOccupant::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4SignpostOccupant::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4TextDecalOccupant::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	06cdb65b kSC4MessagePostViewFilterChange -> cSC4View3DWin::DoMessage	ID 06cdb65b; potential ID push sites in 004929f0,00494da0,004a2370,004a4380,0057a310,0057a540; subscriber active	0	0	0	0	low
+message	07699455 kSC4MessageZoningChange -> cSC4LandValueSimulator::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	0	0	0	0	low
+message	07699455 kSC4MessageZoningChange -> cSC4NetworkLotManager::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	0	0	0	0	low
+message	07699455 kSC4MessageZoningChange -> cSC4WinMiniMap::DoMessage	ID 07699455; potential ID push sites in 00442c80,00443e60,004dd780,0060e570,00610120,006b59a0; subscriber active	0	0	0	0	low
+message	0772fad4 kSC4MessageFundsChanged -> cSC4LandfillDeveloper::DoMessage	ID 0772fad4; potential ID push sites in 0055b7e0,0055b880,0068fe10,006b94b0,006b9d70; subscriber active	0	0	0	0	low
+message	0772fad4 kSC4MessageFundsChanged -> cSC4VehicleManager::DoMessage	ID 0772fad4; potential ID push sites in 0055b7e0,0055b880,0068fe10,006b94b0,006b9d70; subscriber active	0	0	0	0	low
+message	0772fad4 kSC4MessageFundsChanged -> cSC4View3DWin::DoMessage	ID 0772fad4; potential ID push sites in 0055b7e0,0055b880,0068fe10,006b94b0,006b9d70; subscriber active	0	0	0	0	low
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4BudgetSimulator::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	0	0	0	low
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4BudgetUIWinProc::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	0	0	0	low
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4TrafficSimulator::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	0	0	0	low
+message	08dac3e7 kMessageTypeFundingPercentageChanged -> cSC4View3DWin::DoMessage	ID 08dac3e7; potential ID push sites in 00690cb0,00692ff0,006ab810,006f56f0,006f6bc0,00719290; subscriber active	0	0	0	0	low
+message	08dac3e8 kMessageTypeIdealMonthlyFundingChanged -> cSC4BudgetSimulator::DoMessage	ID 08dac3e8; potential ID push sites in 00690cb0,00692ff0,006a9980,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+message	08dac3e8 kMessageTypeIdealMonthlyFundingChanged -> cSC4BudgetUIWinProc::DoMessage	ID 08dac3e8; potential ID push sites in 00690cb0,00692ff0,006a9980,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+message	08dac3e8 kMessageTypeIdealMonthlyFundingChanged -> cSC4View3DWin::DoMessage	ID 08dac3e8; potential ID push sites in 00690cb0,00692ff0,006a9980,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+message	09c8b8ea kSC4MessageChangeInputControl -> cSC4MySimInputControlDispatch::DoMessage	ID 09c8b8ea; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00661dc0,00662160; subscriber active	0	0	0	0	low
+message	09c8b8ea kSC4MessageChangeInputControl -> cSC4ViewInputControlDispatch::DoMessage	ID 09c8b8ea; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00661dc0,00662160; subscriber active	0	0	0	0	low
+message	09c8b8ea kSC4MessageChangeInputControl -> cSC4ViewInputControlNetworkTool::DoMessage	ID 09c8b8ea; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00661dc0,00662160; subscriber active	0	0	0	0	low
+message	09d8e0b6 kSC4MessageBuildingVisualStateChange -> cSC4ModelMaker::DoMessage	ID 09d8e0b6; potential ID push sites in 00458c90,004929f0,00494da0,0061b910,006c8e10; subscriber active	0	0	0	0	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4AutomataControllerManager::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	0	0	0	0	low
+message	09d92fc3 kSC4MessageAutomataEvent -> cSC4CitySituationManager::DoMessage	ID 09d92fc3; potential ID push sites in 004e84d0,004e96a0,0050b540; subscriber active	0	0	0	0	low
+message	0ab99380 kSC4MessageCityNameChanged -> cSC4View3DWin::DoMessage	ID 0ab99380; potential ID push sites in 0045a5a0; subscriber active	0	0	0	0	low
+message	0b3be81a kSC4MessageGrowLargeAirport2 -> cSC4AdvisorCityPlanning::DoMessage	ID 0b3be81a; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	0b6f3e27 kSC4MessageMySim_DebugPrintMySimsInfo -> cSC4MySim::DoMessage	ID 0b6f3e27; potential ID push sites in 00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	0bb04126 kSC4MessageMySim_DebugPrintMySimDispatch -> cSC4MySim::DoMessage	ID 0bb04126; potential ID push sites in 00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	231bbf91 kMessageTypePreferencesChanged -> cSC4AnimationCoordinator::DoMessage	ID 231bbf91; potential ID push sites in 00447900,00447b20,004f35f0,0076b110,00791d70; subscriber active	0	0	0	0	low
+message	26c63342 kSC4MessagePostLoad -> cSC4RegionalCity::DoMessage	ID 26c63342; potential ID push sites in 004555f0,004a7830,004a8470; subscriber active	0	0	0	0	low
+message	26c63343 kSC4MessagePreSave -> cSC4DemandSimulator::DoMessage	ID 26c63343; potential ID push sites in 0043f330,0043f7a0,00455e20,0045b1d0,0045bd20,004929f0; subscriber active	0	0	0	0	low
+message	26c63343 kSC4MessagePreSave -> cSC4ModelMaker::DoMessage	ID 26c63343; potential ID push sites in 0043f330,0043f7a0,00455e20,0045b1d0,0045bd20,004929f0; subscriber active	0	0	0	0	low
+message	26c63345 kSC4MessagePostSave -> cSC4ModelMaker::DoMessage	ID 26c63345; potential ID push sites in 00455e20,004929f0,00494800; subscriber active	0	0	0	0	low
+message	26d31ec0 kSC4MessagePreCityInit -> cSC4AudioEventHandler::DoMessage	ID 26d31ec0; potential ID push sites in 004548b0,004555f0,00777760,007778d0; subscriber active	0	0	0	0	low
+message	26d31ec0 kSC4MessagePreCityInit -> cSC4AudioListener::DoMessage	ID 26d31ec0; potential ID push sites in 004548b0,004555f0,00777760,007778d0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AdvisorSystem::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AudioEventHandler::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AudioListener::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4AutomataManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4ConstructionOccupant::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4Demolition::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4LandfillDeveloper::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4LotConfigurationManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4MySim::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4Nation::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PollutionSimulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PortDeveloper::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PowerSimulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PropDeveloper::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4PropManager::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4TextDecalOccupant::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4TrafficNetworkMap::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4WaterPathFinder::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4WeatherSimulator::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4WinMiniMap::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSC4ZoneDeveloper::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSTESurfaceWater::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec1 kSC4MessagePostCityInit -> cSTETerrain::DoMessage	ID 26d31ec1; potential ID push sites in 0040ef30,00410e30,0041a3b0,0041b570,00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AdvisorPopupTracker::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AudioAmbienceManager::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AudioEventHandler::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AudioListener::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AudioSoundManager::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4AutomataManager::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4Nation::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec2 kSC4MessagePreCityShutdown -> cSC4WinMiniMap::DoMessage	ID 26d31ec2; potential ID push sites in 0044a520,0044c320,00454a60,00497a80,00498750,004c57a0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4AdvisorSystem::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4AudioEventHandler::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4FloraSimulator::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4LotDeveloper::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSC4NeighborsSimulator::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec4 kSC4MessageCityEstablished -> cSTESurfaceWater::DoMessage	ID 26d31ec4; potential ID push sites in 0041a3b0,0041b570,004ee000,004efe80,00690cb0,00692ff0; subscriber active	0	0	0	0	low
+message	26d31ec5 kSC4MessageCityObliterated -> cSC4AudioEventHandler::DoMessage	ID 26d31ec5; potential ID push sites in 004ee000,004efe80,006afda0,006b2960,006cfbc0,006d38f0; subscriber active	0	0	0	0	low
+message	26d31ec5 kSC4MessageCityObliterated -> cSC4FloraSimulator::DoMessage	ID 26d31ec5; potential ID push sites in 004ee000,004efe80,006afda0,006b2960,006cfbc0,006d38f0; subscriber active	0	0	0	0	low
+message	26d31ec5 kSC4MessageCityObliterated -> cSC4NeighborsSimulator::DoMessage	ID 26d31ec5; potential ID push sites in 004ee000,004efe80,006afda0,006b2960,006cfbc0,006d38f0; subscriber active	0	0	0	0	low
+message	26d31ec5 kSC4MessageCityObliterated -> cSTESurfaceWater::DoMessage	ID 26d31ec5; potential ID push sites in 004ee000,004efe80,006afda0,006b2960,006cfbc0,006d38f0; subscriber active	0	0	0	0	low
+message	277a9364 kSC4MessageToggleTerrainGridDisplay -> cSC4ViewInputControlPlaceLot::DoMessage	ID 277a9364; potential ID push sites in 004c0300,004c13e0,004da5a0,004da6c0,007560f0,0075c420; subscriber active	0	0	0	0	low
+message	277a9364 kSC4MessageToggleTerrainGridDisplay -> cSC4ViewInputControlZone::DoMessage	ID 277a9364; potential ID push sites in 004c0300,004c13e0,004da5a0,004da6c0,007560f0,0075c420; subscriber active	0	0	0	0	low
+message	277a9364 kSC4MessageToggleTerrainGridDisplay -> cSTETerrainView3D::DoMessage	ID 277a9364; potential ID push sites in 004c0300,004c13e0,004da5a0,004da6c0,007560f0,0075c420; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4BuildingDevelopmentSimulator::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4FloraSimulator::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4LandValueSimulator::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4LotDeveloper::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4NeighborsSimulator::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4PropDeveloper::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4WaterPathFinder::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSC4WinMiniMap::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSTETerrainView3D::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	278e6003 kSC4MessageTerrainHeightsChanged -> cSTEWaterRipple::DoMessage	ID 278e6003; potential ID push sites in 00610c10,00611eb0,0069a210,0069d240,006afda0,006b2960; subscriber active	0	0	0	0	low
+message	28e9397b kSC4MessagePostAppInit -> cSC4AudioSoundManager::DoMessage	ID 28e9397b; potential ID push sites in 0044c320,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	28e9397c kSC4MessagePreAppShutdown -> cSC4AudioSoundManager::DoMessage	ID 28e9397c; potential ID push sites in 0044a520,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	29222f02 kSC4MessageToggleBudgetDialog -> cSC4BudgetSimulator::DoMessage	ID 29222f02; potential ID push sites in 00690cb0,00692ff0,00763ee0,00764700; subscriber active	0	0	0	0	low
+message	2977ae2f kSC4MessageBuildingCompletionChange -> cSC4AutomataManager::DoMessage	ID 2977ae2f; potential ID push sites in 004929f0,00494da0,005066b0,005110a0,005ca8d0; subscriber active	0	0	0	0	low
+message	2977ae2f kSC4MessageBuildingCompletionChange -> cSC4ModelMaker::DoMessage	ID 2977ae2f; potential ID push sites in 004929f0,00494da0,005066b0,005110a0,005ca8d0; subscriber active	0	0	0	0	low
+message	29a89b05 kSC4MessageUnilateralQuit -> cSC4App::DoMessage	ID 29a89b05; potential ID push sites in 004546b0,00454800; subscriber active	0	0	0	0	low
+message	2a3ad653 kMessageSetRadioStation -> cSC4AudioEventHandler::DoMessage	ID 2a3ad653; potential ID push sites in 004ee000,004ee970,004efe80,007b1900; subscriber active	0	0	0	0	low
+message	2b3be44a kSC4MessageGrowMediumAirport2 -> cSC4AdvisorCityPlanning::DoMessage	ID 2b3be44a; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	426841a1 kMsgAdviceClickedChanged -> cSC4AdvisorUIAdvisorWinProc::DoMessage	ID 426841a1; potential ID push sites in 0041d580,0041d830; subscriber active	0	0	0	0	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cSC4AudioEventHandler::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cSC4AudioSoundManager::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cSCResKeyInputView::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	4348b111 kMessageTypeAppGainLoseFocus -> cSCResourceCatalogView::DoMessage	ID 4348b111; potential ID push sites in 004e84d0,004e96a0,004ee000,004efe80,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	49d968c4 kSC4MessageDeferOccupantOperations -> cSC4ModelMaker::DoMessage	ID 49d968c4; potential ID push sites in 004929f0,00494da0,0072e6a0,00733770; subscriber active	0	0	0	0	low
+message	49f10111 kSC4MessageTypeDispatchFollow -> cSC4AudioEventHandler::DoMessage	ID 49f10111; potential ID push sites in 004ba510,004ee970; subscriber active	0	0	0	0	low
+message	4a490d33 kSC4MessageSeaportBadLocation -> cSC4AdvisorCityPlanning::DoMessage	ID 4a490d33; potential ID push sites in 004118c0,004119f0,00701f70; subscriber active	0	0	0	0	low
+message	4a7fb7e9 kSC4MessageSimSpeedChange -> cSC4AudioEventHandler::DoMessage	ID 4a7fb7e9; potential ID push sites in 004ee000,004efe80,004f82e0,004fa2f0,00702430; subscriber active	0	0	0	0	low
+message	4a7fb7e9 kSC4MessageSimSpeedChange -> cSC4AudioSoundManager::DoMessage	ID 4a7fb7e9; potential ID push sites in 004ee000,004efe80,004f82e0,004fa2f0,00702430; subscriber active	0	0	0	0	low
+message	4a7fb807 kSC4MessageSimEmergencyPauseChange -> cSC4AutomataManager::DoMessage	ID 4a7fb807; potential ID push sites in 005066b0,005110a0,00702540,00702580; subscriber active	0	0	0	0	low
+message	4a91dd6e kSC4MessageAdvisors_AdviceDebugCheat_DebugTrigger -> cSC4Advisor::DoMessage	ID 4a91dd6e; potential ID push sites in 0040ed30,00410100; subscriber active	0	0	0	0	low
+message	4a92ecef kSC4MessageAdvisors_AdviceDebugCheat_DebugPrint -> cSC4Advisor::DoMessage	ID 4a92ecef; potential ID push sites in 0040ed30,00410100; subscriber active	0	0	0	0	low
+message	4b6f3ebf kSC4MessageMySim_DebugPrintMySimChangeHouse -> cSC4MySim::DoMessage	ID 4b6f3ebf; potential ID push sites in 00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4BudgetSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4DemandSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4LandValueSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4LotDeveloper::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4NeighborsSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4ProtectionSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	66956810 kSC4MessageSimOneShot -> cSC4TrafficSimulator::DoMessage	ID 66956810; potential ID push sites in unresolved; subscriber active	0	0	0	0	low
+message	6695681a kSC4MessageSimIdle -> cSC4CommercialSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	0	0	0	low
+message	6695681a kSC4MessageSimIdle -> cSC4DemandSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	0	0	0	low
+message	6695681a kSC4MessageSimIdle -> cSC4LandValueSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	0	0	0	low
+message	6695681a kSC4MessageSimIdle -> cSC4NeighborsSimulator::DoMessage	ID 6695681a; potential ID push sites in 00702df0; subscriber active	0	0	0	0	low
+message	6716a4e5 kSC4MessageSeasonChange -> cSC4FlammabilitySimulator::DoMessage	ID 6716a4e5; potential ID push sites in 006aed40,006af540,00729630; subscriber active	0	0	0	0	low
+message	6716a4e6 kSC4MessageWeatherCycleCompleted -> cSTETerrain::DoMessage	ID 6716a4e6; potential ID push sites in 00728a40,007435c0,0074fea0; subscriber active	0	0	0	0	low
+message	678e6e3a kSC4MessageWaterHeightsChanged -> cSC4LandValueSimulator::DoMessage	ID 678e6e3a; potential ID push sites in 006bdf70,006be3b0,006f1f30,006f2c60,00724760,00725490; subscriber active	0	0	0	0	low
+message	678e6e3a kSC4MessageWaterHeightsChanged -> cSC4PropDeveloper::DoMessage	ID 678e6e3a; potential ID push sites in 006bdf70,006be3b0,006f1f30,006f2c60,00724760,00725490; subscriber active	0	0	0	0	low
+message	678e6e3a kSC4MessageWaterHeightsChanged -> cSC4WaterPathFinder::DoMessage	ID 678e6e3a; potential ID push sites in 006bdf70,006be3b0,006f1f30,006f2c60,00724760,00725490; subscriber active	0	0	0	0	low
+message	678e6e3a kSC4MessageWaterHeightsChanged -> cSC4WinMiniMap::DoMessage	ID 678e6e3a; potential ID push sites in 006bdf70,006be3b0,006f1f30,006f2c60,00724760,00725490; subscriber active	0	0	0	0	low
+message	678e6e3a kSC4MessageWaterHeightsChanged -> cSTETerrainView3D::DoMessage	ID 678e6e3a; potential ID push sites in 006bdf70,006be3b0,006f1f30,006f2c60,00724760,00725490; subscriber active	0	0	0	0	low
+message	68f54ce2 kMessageTypeStrikeEnd -> cSC4AdvisorSafety::DoMessage	ID 68f54ce2; potential ID push sites in 00415c30,00415e40,006ad100; subscriber active	0	0	0	0	low
+message	69247dc4 kMsgTransitStrikeBegin -> cSC4AdvisorSafety::DoMessage	ID 69247dc4; potential ID push sites in 00415c30,00415e40; subscriber active	0	0	0	0	low
+message	69247dc5 kMsgTransitStrikeFinished -> cSC4AdvisorSafety::DoMessage	ID 69247dc5; potential ID push sites in 00415c30,00415e40; subscriber active	0	0	0	0	low
+message	69247dc7 kMsgTrafficMapChanged -> cSC4LotDeveloper::DoMessage	ID 69247dc7; potential ID push sites in 004ae4e0,004b4000,004c57a0,004cba80,006c7380,006cb9a0; subscriber active	0	0	0	0	low
+message	69247dc7 kMsgTrafficMapChanged -> cSC4TrafficNetworkMap::DoMessage	ID 69247dc7; potential ID push sites in 004ae4e0,004b4000,004c57a0,004cba80,006c7380,006cb9a0; subscriber active	0	0	0	0	low
+message	6a3b0afd kSC4MessageLongTerrainOperationEnd -> cSC4WaterPathFinder::DoMessage	ID 6a3b0afd; potential ID push sites in 00610c10,00611eb0,00700e90,00701e60,00724760,00725490; subscriber active	0	0	0	0	low
+message	6a5fd3fd kSC4MessageBudgetForOccupantChanged -> cSC4AnimationCoordinator::DoMessage	ID 6a5fd3fd; potential ID push sites in 00447900,00447b20,006ab940; subscriber active	0	0	0	0	low
+message	6ab97795 kSC4MessageWaterSurfaceStateChanged -> cSC4NetworkManager::DoMessage	ID 6ab97795; potential ID push sites in 00610c10,00611eb0,007434e0; subscriber active	0	0	0	0	low
+message	6ac284f3 kSC4MessageConnectionsReady -> cSC4NeighborsSimulator::DoMessage	ID 6ac284f3; potential ID push sites in 004aa6d0,006cfbc0,006d38f0,006da900,006df0d0,006f0110; subscriber active	0	0	0	0	low
+message	6ac284f3 kSC4MessageConnectionsReady -> cSC4PlumbingSimulator::DoMessage	ID 6ac284f3; potential ID push sites in 004aa6d0,006cfbc0,006d38f0,006da900,006df0d0,006f0110; subscriber active	0	0	0	0	low
+message	6ac284f3 kSC4MessageConnectionsReady -> cSC4PowerSimulator::DoMessage	ID 6ac284f3; potential ID push sites in 004aa6d0,006cfbc0,006d38f0,006da900,006df0d0,006f0110; subscriber active	0	0	0	0	low
+message	6b3be6d8 kSC4MessageGrowLargeAirport1 -> cSC4AdvisorCityPlanning::DoMessage	ID 6b3be6d8; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	870bc918 kSC4MessageRedisplayTerrain -> cSC43DRender::DoMessage	ID 870bc918; potential ID push sites in 00749850,007c6410,007c7070; subscriber active	0	0	0	0	low
+message	89171496 kSC4MessageSeaLevelChanged -> cSC4WinMiniMap::DoMessage	ID 89171496; potential ID push sites in 00743550,0075fbb0,00760330,00762300,007a75d0,007a8bd0; subscriber active	0	0	0	0	low
+message	894671f6 kMessageTypeDispatchEnd -> cSC4AudioEventHandler::DoMessage	ID 894671f6; potential ID push sites in 00439450,00439540,00442c80,00443e60,0046ace0,004b9ef0; subscriber active	0	0	0	0	low
+message	894671f6 kMessageTypeDispatchEnd -> cSC4MySimInputControlDispatch::DoMessage	ID 894671f6; potential ID push sites in 00439450,00439540,00442c80,00443e60,0046ace0,004b9ef0; subscriber active	0	0	0	0	low
+message	894671f6 kMessageTypeDispatchEnd -> cSC4ViewInputControlDispatch::DoMessage	ID 894671f6; potential ID push sites in 00439450,00439540,00442c80,00443e60,0046ace0,004b9ef0; subscriber active	0	0	0	0	low
+message	89d3e9f3 kSC4MessageNetworkOccupantUsableChange -> cSC4AutomataManager::DoMessage	ID 89d3e9f3; potential ID push sites in 004ae4e0,004b4000,0051b3e0,0051c140,0060e570,00610120; subscriber active	0	0	0	0	low
+message	89d3e9f3 kSC4MessageNetworkOccupantUsableChange -> cSC4NetworkLotManager::DoMessage	ID 89d3e9f3; potential ID push sites in 004ae4e0,004b4000,0051b3e0,0051c140,0060e570,00610120; subscriber active	0	0	0	0	low
+message	89d3e9f3 kSC4MessageNetworkOccupantUsableChange -> cSC4TrafficNetworkMap::DoMessage	ID 89d3e9f3; potential ID push sites in 004ae4e0,004b4000,0051b3e0,0051c140,0060e570,00610120; subscriber active	0	0	0	0	low
+message	89d3e9f3 kSC4MessageNetworkOccupantUsableChange -> cSTESurfaceWater::DoMessage	ID 89d3e9f3; potential ID push sites in 004ae4e0,004b4000,0051b3e0,0051c140,0060e570,00610120; subscriber active	0	0	0	0	low
+message	8a07ae00 kMessageTractPowerChanged -> cSC4AnimationCoordinator::DoMessage	ID 8a07ae00; potential ID push sites in 00447900,00447b20,006c7380,006cb9a0,006ebd00,006f1f30; subscriber active	0	0	0	0	low
+message	8a09fa64 kSC4MessageAdvisors_AdviceAdded -> cSC4AdvisorPopupTracker::DoMessage	ID 8a09fa64; potential ID push sites in 0040df20,0040f710,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa64 kSC4MessageAdvisors_AdviceAdded -> cSC4AdvisorUIAdvisorWinProc::DoMessage	ID 8a09fa64; potential ID push sites in 0040df20,0040f710,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa64 kSC4MessageAdvisors_AdviceAdded -> cSC4MySimWinProc::DoMessage	ID 8a09fa64; potential ID push sites in 0040df20,0040f710,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa64 kSC4MessageAdvisors_AdviceAdded -> cSC4NewsTickerWinProc::DoMessage	ID 8a09fa64; potential ID push sites in 0040df20,0040f710,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa65 kSC4MessageAdvisors_AdviceRemoved -> cSC4AdvisorUIAdvisorWinProc::DoMessage	ID 8a09fa65; potential ID push sites in 0040df90,0040f460,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa65 kSC4MessageAdvisors_AdviceRemoved -> cSC4MySimWinProc::DoMessage	ID 8a09fa65; potential ID push sites in 0040df90,0040f460,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa65 kSC4MessageAdvisors_AdviceRemoved -> cSC4NewsTickerWinProc::DoMessage	ID 8a09fa65; potential ID push sites in 0040df90,0040f460,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa67 kSC4MessageAdvisors_AdviceRemovedAll -> cSC4Advisor::DoMessage	ID 8a09fa67; potential ID push sites in 0040ed30,00410100,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa67 kSC4MessageAdvisors_AdviceRemovedAll -> cSC4AdvisorUIAdvisorWinProc::DoMessage	ID 8a09fa67; potential ID push sites in 0040ed30,00410100,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa67 kSC4MessageAdvisors_AdviceRemovedAll -> cSC4CitySituationManager::DoMessage	ID 8a09fa67; potential ID push sites in 0040ed30,00410100,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa67 kSC4MessageAdvisors_AdviceRemovedAll -> cSC4NewsTickerWinProc::DoMessage	ID 8a09fa67; potential ID push sites in 0040ed30,00410100,0041d580,0041d830,00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	8a09fa68 kSC4MessageAdvisors_AdvisorChanged -> cSC4Advisor::DoMessage	ID 8a09fa68; potential ID push sites in 00410100; subscriber active	0	0	0	0	low
+message	8a09fa6c kSC4MessageAdvisors_AdviceCommand -> cSC4MySimAgentSimulator::DoMessage	ID 8a09fa6c; potential ID push sites in 0040df20,0040f710,0042e500,0042ec30; subscriber active	0	0	0	0	low
+message	8a394dc4 kSC4MessageGrowSeaport -> cSC4AdvisorCityPlanning::DoMessage	ID 8a394dc4; potential ID push sites in 004118c0,004119f0,00700e90,00701e60; subscriber active	0	0	0	0	low
+message	8a4a69c7 kMessageListenerPosChanged -> cSC4AudioSoundManager::DoMessage	ID 8a4a69c7; potential ID push sites in 004e84d0,004e96a0,004f14b0,004f82e0,004fa2f0; subscriber active	0	0	0	0	low
+message	8a917759 kSC4MessageAdvisors_AdviceDebugCheat_DebugRefresh -> cSC4Advisor::DoMessage	ID 8a917759; potential ID push sites in 0040ed30,00410100; subscriber active	0	0	0	0	low
+message	8b87a974 kSC4MessageInsertUndergroundOccupant -> cSC4UndergroundConnectionOccupant::DoMessage	ID 8b87a974; potential ID push sites in 00654670,0065471d,006553a0; subscriber active	0	0	0	0	low
+message	8b87a975 kSC4MessageRemoveUndergroundOccupant -> cSC4UndergroundConnectionOccupant::DoMessage	ID 8b87a975; potential ID push sites in 00654670,0065471d,006553a0; subscriber active	0	0	0	0	low
+message	8b8b2cee kSC4MessageRemoveBuildingOccupant -> cSC4UndergroundConnectionOccupant::DoMessage	ID 8b8b2cee; potential ID push sites in 00654670,0065471d,006553a0; subscriber active	0	0	0	0	low
+message	99ef1140 kSC4MessageCreateOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1140; potential ID push sites in 004929f0,00494da0,005e8c90; subscriber active	0	0	0	0	low
+message	99ef1141 kSC4MessageDestroyOccupant -> cSC4CommercialSimulator::DoMessage	ID 99ef1141; potential ID push sites in 004929f0,00494da0,005e8980; subscriber active	0	0	0	0	low
+message	99ef1141 kSC4MessageDestroyOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1141; potential ID push sites in 004929f0,00494da0,005e8980; subscriber active	0	0	0	0	low
+message	99ef1141 kSC4MessageDestroyOccupant -> cSC4WaterPathFinder::DoMessage	ID 99ef1141; potential ID push sites in 004929f0,00494da0,005e8980; subscriber active	0	0	0	0	low
+message	99ef1141 kSC4MessageDestroyOccupant -> cSC4WinMiniMap::DoMessage	ID 99ef1141; potential ID push sites in 004929f0,00494da0,005e8980; subscriber active	0	0	0	0	low
+message	99ef1141 kSC4MessageDestroyOccupant -> cSTESurfaceWater::DoMessage	ID 99ef1141; potential ID push sites in 004929f0,00494da0,005e8980; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorCityPlanning::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorFinance::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorHQ::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorSafety::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorTraffic::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AdvisorUtility::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AircraftManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4AutomataManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4BuildingDevelopmentSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4CivicBuildingSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4CommercialSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4FlammabilitySimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4FloraSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4LandValueSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4LotDeveloper::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4NetworkManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4PowerPoleOccupant::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ProtectionSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ResidentialSimulator::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ViewInputControlPlaceLot::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4WaterPathFinder::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSC4ZoneManager::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1142 kSC4MessageInsertOccupant -> cSTESurfaceWater::DoMessage	ID 99ef1142; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorCityPlanning::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorFinance::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorHQ::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorSafety::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorTraffic::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AdvisorUtility::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4AutomataManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4BuildingDevelopmentSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4CivicBuildingSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4CommercialSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4FlammabilitySimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4FloraSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4LandValueSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4LotDeveloper::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4MySimAgentSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4MySimInputControlDispatch::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4NeighborsSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4NetworkLotManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4NetworkManager::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4PowerSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ProtectionSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ResidentialSimulator::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4SimFireCrew::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4TrafficNetworkMap::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ViewInputControlDispatch::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4ViewInputControlPlaceLot::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4WaterPathFinder::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSC4WinMiniMap::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1143 kSC4MessageRemoveOccupant -> cSTESurfaceWater::DoMessage	ID 99ef1143; potential ID push sites in 0040ef30,00410e30,0042e500,0042ec30,00442c80,00443e60; subscriber active	0	0	0	0	low
+message	99ef1144 kSC4MessageShowOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1144; potential ID push sites in 004929f0,00494da0; subscriber active	0	0	0	0	low
+message	99ef1145 kSC4MessageChangeOccupant -> cSC4FlammabilitySimulator::DoMessage	ID 99ef1145; potential ID push sites in 0042e500,0042ec30,00458880,004929f0,00494da0,004be180; subscriber active	0	0	0	0	low
+message	99ef1145 kSC4MessageChangeOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1145; potential ID push sites in 0042e500,0042ec30,00458880,004929f0,00494da0,004be180; subscriber active	0	0	0	0	low
+message	99ef1145 kSC4MessageChangeOccupant -> cSC4MySimAgentSimulator::DoMessage	ID 99ef1145; potential ID push sites in 0042e500,0042ec30,00458880,004929f0,00494da0,004be180; subscriber active	0	0	0	0	low
+message	99ef1146 kSC4MessageMoveOccupant -> cSC4ModelMaker::DoMessage	ID 99ef1146; potential ID push sites in 004929f0,00494da0,0049f3c0,004e84d0,004e96a0,005cc020; subscriber active	0	0	0	0	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSC43DRender::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	0	0	0	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSC4VehicleManager::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	0	0	0	low
+message	a6b79601 kSC4MessageViewZRChange2 -> cSTETerrainView3D::DoMessage	ID a6b79601; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC43DRender::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4AnimationCoordinator::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4AudioListener::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4AutomataManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ConstructionOccupant::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ModelMaker::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4PropManager::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4PylonOccupant::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4SignpostOccupant::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4TextDecalOccupant::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4TrafficNetworkMap::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4UndergroundConnectionOccupant::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ViewInputControlPlayerDrive::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ViewInputControlTerrainScrubber::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4WinMiniMap::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79602 kSC4MessageViewZRChange3 -> cSC4ZoneDeveloper::DoMessage	ID a6b79602; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,0046a050,0046a1a0; subscriber active	0	0	0	0	low
+message	a6b79611 kSC4MessageViewTChange2 -> cSC4VehicleManager::DoMessage	ID a6b79611; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	0	0	0	low
+message	a6b79611 kSC4MessageViewTChange2 -> cSTETerrainView3D::DoMessage	ID a6b79611; potential ID push sites in 00433eb0,00434670,004929f0,00494da0,0055b7e0,0055b880; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC43DRender::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4AnimationCoordinator::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4AudioListener::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4AutomataManager::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4TrafficNetworkMap::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4ViewInputControlTerrainScrubber::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79612 kSC4MessageViewTChange3 -> cSC4WinMiniMap::DoMessage	ID a6b79612; potential ID push sites in 0042e500,0042ec30,00447900,00447b20,004ae4e0,004b4000; subscriber active	0	0	0	0	low
+message	a6b79620 kSC4MessagePostViewInit -> cSC4ModelMaker::DoMessage	ID a6b79620; potential ID push sites in 004929f0,00494da0,00594a30,00595060,007cc0b0,007cc5b0; subscriber active	0	0	0	0	low
+message	a6b79621 kSC4MessagePostViewRefresh -> cSC43DRender::DoMessage	ID a6b79621; potential ID push sites in 007c6410,007c7070,007cc0b0,007cd6e0; subscriber active	0	0	0	0	low
+message	a8daf512 kMessageTypeStrikeEnd -> cSC4AdvisorSafety::DoMessage	ID a8daf512; potential ID push sites in 00415c30,00415e40,006e0830; subscriber active	0	0	0	0	low
+message	a9e3b6e2 kSC4MessageCrowdReactionEvent -> cSC4SimFireCrew::DoMessage	ID a9e3b6e2; potential ID push sites in 00544820,00544860,00546ef0,00547630,00547d90,00549890; subscriber active	0	0	0	0	low
+message	aa1b2002 kMessageTypeDisasterPeriodEnded -> cSC4AdvisorSafety::DoMessage	ID aa1b2002; potential ID push sites in 00415c30,00415e40,0046a050,0046a1a0,00577e90; subscriber active	0	0	0	0	low
+message	aa25827c kSC4MessageMySims_MySimsChanged -> cSC4MySimInputControlDispatch::DoMessage	ID aa25827c; potential ID push sites in 00424fe0,0042df50,0042e020,00439450,00439540,0076e9f0; subscriber active	0	0	0	0	low
+message	aa7a014d kSC4MessagePreDemolishNetworkOccupant -> cSC4NeighborsSimulator::DoMessage	ID aa7a014d; potential ID push sites in 004681a0,004691f0,0062a5c0,006cfbc0,006d38f0; subscriber active	0	0	0	0	low
+message	aa7fb7e0 kSC4MessageSimPauseChange -> cSC4AudioSoundManager::DoMessage	ID aa7fb7e0; potential ID push sites in 004f82e0,004fa2f0,007021e0,00702220; subscriber active	0	0	0	0	low
+message	ab6f3e2d kSC4MessageMySim_DebugPrintMySimChangeJob -> cSC4MySim::DoMessage	ID ab6f3e2d; potential ID push sites in 00428c20,0042c0e0; subscriber active	0	0	0	0	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4AuraSimulator::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	0	0	0	0	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4CrimeSimulator::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	0	0	0	0	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4FlammabilitySimulator::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	0	0	0	0	low
+message	c2c09554 kSC4MessageOrdinanceUpdated -> cSC4PowerSimulator::DoMessage	ID c2c09554; potential ID push sites in 0040ef30,00410e30,0068dec0,0068e6b0,006a15b0,006a1860; subscriber active	0	0	0	0	low
+message	c6cdbf1a kSC4MessagePreViewLevelChange -> cSC4LandfillDeveloper::DoMessage	ID c6cdbf1a; potential ID push sites in 0057c460,0057c880,006b94b0,006b9d70,006e5f50,006e7130; subscriber active	0	0	0	0	low
+message	c6cdbf1a kSC4MessagePreViewLevelChange -> cSC4PollutionSimulator::DoMessage	ID c6cdbf1a; potential ID push sites in 0057c460,0057c880,006b94b0,006b9d70,006e5f50,006e7130; subscriber active	0	0	0	0	low
+message	c8dac052 kSC4MessageBuildingOccupantStateChange -> cSC4ProtectionSimulator::DoMessage	ID c8dac052; potential ID push sites in 006f56f0,006f6bc0; subscriber active	0	0	0	0	low
+message	c9f1011a kSC4MessageTypeDispatchActivate -> cSC4AudioEventHandler::DoMessage	ID c9f1011a; potential ID push sites in 004ba510,004ee970; subscriber active	0	0	0	0	low
+message	ca09fa6c kSC4MessageAdviseList_RemoveCommand -> cSC4AdvisorUIAdvisorWinProc::DoMessage	ID ca09fa6c; potential ID push sites in 0041d580,0041d830,0076e9f0,0076ed10,00772760,00772a70; subscriber active	0	0	0	0	low
+message	ca09fa6c kSC4MessageAdviseList_RemoveCommand -> cSC4MySimWinProc::DoMessage	ID ca09fa6c; potential ID push sites in 0041d580,0041d830,0076e9f0,0076ed10,00772760,00772a70; subscriber active	0	0	0	0	low
+message	ca09fa6c kSC4MessageAdviseList_RemoveCommand -> cSC4NewsTickerWinProc::DoMessage	ID ca09fa6c; potential ID push sites in 0041d580,0041d830,0076e9f0,0076ed10,00772760,00772a70; subscriber active	0	0	0	0	low
+message	ca358f85 kMessageTypeStrikeBegin -> cSC4AdvisorUtility::DoMessage	ID ca358f85; potential ID push sites in 004229c0,00422aa0; subscriber active	0	0	0	0	low
+message	ca358f9c kMessageTypeStrikeEnd -> cSC4AdvisorUtility::DoMessage	ID ca358f9c; potential ID push sites in 004229c0,00422aa0; subscriber active	0	0	0	0	low
+message	ca8dcdb4 kSC4MessageEmergencyVehicleRouteBlocked -> cSC4AdvisorSafety::DoMessage	ID ca8dcdb4; potential ID push sites in 00415c30,00415e40,0052f910; subscriber active	0	0	0	0	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorBase::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	0	0	0	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorCityPlanning::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	0	0	0	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorFinance::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	0	0	0	low
+message	ca8f3db6 kMessageType_UpdateSelf -> cSC4AdvisorTraffic::DoMessage	ID ca8f3db6; potential ID push sites in 0040d910; subscriber active	0	0	0	0	low
+message	cad61e00 kSC4MessageMouseScrollBegin -> cSC4AutomataManager::DoMessage	ID cad61e00; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	0	0	0	low
+message	cad61e00 kSC4MessageMouseScrollBegin -> cSC4ModelMaker::DoMessage	ID cad61e00; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	0	0	0	low
+message	cad61e00 kSC4MessageMouseScrollBegin -> cSC4TrafficNetworkMap::DoMessage	ID cad61e00; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	0	0	0	low
+message	cb3be815 kSC4MessageGrowSmallAirport2 -> cSC4AdvisorCityPlanning::DoMessage	ID cb3be815; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	cc0d905f kSC4MessageMissionEffectStarted -> cSC4CitySituationManager::DoMessage	ID cc0d905f; potential ID push sites in 00527ac0,0052dc40; subscriber active	0	0	0	0	low
+message	cc327b60 kMessageTypeSelfTick -> cSC4PickSimWinProc::DoMessage	ID cc327b60; potential ID push sites in 00774620; subscriber active	0	0	0	0	low
+message	e6e85114 kSC4MessageOccupantHighlightChange -> cSC4ModelMaker::DoMessage	ID e6e85114; potential ID push sites in 004929f0,00494da0,005e90e0; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4CivicBuildingSimulator::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4DemandSimulator::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4GrowthDeveloper::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4NetworkLotManager::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4PowerSimulator::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e8bda2e7 kMessageStateChanged -> cSC4PropDeveloper::DoMessage	ID e8bda2e7; potential ID push sites in 00442c80,00443e60,004e84d0,004e96a0,0060e570,00610120; subscriber active	0	0	0	0	low
+message	e94671eb kMessageTypeDispatchBegin -> cSC4AudioEventHandler::DoMessage	ID e94671eb; potential ID push sites in 00439450,00439540,00442c80,00443e60,004698f0,004b9ef0; subscriber active	0	0	0	0	low
+message	e94671eb kMessageTypeDispatchBegin -> cSC4MySimInputControlDispatch::DoMessage	ID e94671eb; potential ID push sites in 00439450,00439540,00442c80,00443e60,004698f0,004b9ef0; subscriber active	0	0	0	0	low
+message	e94671eb kMessageTypeDispatchBegin -> cSC4ProtectionSimulator::DoMessage	ID e94671eb; potential ID push sites in 00439450,00439540,00442c80,00443e60,004698f0,004b9ef0; subscriber active	0	0	0	0	low
+message	e94671eb kMessageTypeDispatchBegin -> cSC4ViewInputControlDispatch::DoMessage	ID e94671eb; potential ID push sites in 00439450,00439540,00442c80,00443e60,004698f0,004b9ef0; subscriber active	0	0	0	0	low
+message	e94671ec kMessageTypeDispatchActive -> cSC4MySimInputControlDispatch::DoMessage	ID e94671ec; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00577ca0,00578f10; subscriber active	0	0	0	0	low
+message	e94671ec kMessageTypeDispatchActive -> cSC4ViewInputControlDispatch::DoMessage	ID e94671ec; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,00577ca0,00578f10; subscriber active	0	0	0	0	low
+message	e94671ed kMessageTypeDispatchInactive -> cSC4MySimInputControlDispatch::DoMessage	ID e94671ed; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,004ee970,00577ca0; subscriber active	0	0	0	0	low
+message	e94671ed kMessageTypeDispatchInactive -> cSC4ViewInputControlDispatch::DoMessage	ID e94671ed; potential ID push sites in 00439450,00439540,004b9ef0,004baab0,004ee970,00577ca0; subscriber active	0	0	0	0	low
+message	e99b3d4d kMessageConditionChanged -> cSC4FlammabilitySimulator::DoMessage	ID e99b3d4d; potential ID push sites in 004929f0,00494da0,004e84d0,004e96a0,006aed40,006af540; subscriber active	0	0	0	0	low
+message	e99b3d4d kMessageConditionChanged -> cSC4LotDeveloper::DoMessage	ID e99b3d4d; potential ID push sites in 004929f0,00494da0,004e84d0,004e96a0,006aed40,006af540; subscriber active	0	0	0	0	low
+message	e99b3d4d kMessageConditionChanged -> cSC4ModelMaker::DoMessage	ID e99b3d4d; potential ID push sites in 004929f0,00494da0,004e84d0,004e96a0,006aed40,006af540; subscriber active	0	0	0	0	low
+message	e9c86ddb kSC4MessagePropStateChange -> cSC4ModelMaker::DoMessage	ID e9c86ddb; potential ID push sites in 004929f0,00494da0,005ed290; subscriber active	0	0	0	0	low
+message	ea298d50 kSC4MessageRemoveAutomataController -> cSC4AutomataManager::DoMessage	ID ea298d50; potential ID push sites in 005066b0,005110a0,00517880,00518b80,0051a350,0051a530; subscriber active	0	0	0	0	low
+message	ea394b74 kSC4MessageGrowSmallAirport1 -> cSC4AdvisorCityPlanning::DoMessage	ID ea394b74; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	ea3b0af1 kSC4MessageLongTerrainOperationBegin -> cSC4LightingManager::DoMessage	ID ea3b0af1; potential ID push sites in 00610c10,00611eb0,00743b40,007da690,007db6a0; subscriber active	0	0	0	0	low
+message	ea3b0af1 kSC4MessageLongTerrainOperationBegin -> cSC4NetworkManager::DoMessage	ID ea3b0af1; potential ID push sites in 00610c10,00611eb0,00743b40,007da690,007db6a0; subscriber active	0	0	0	0	low
+message	ea917750 kSC4MessageAdvisors_AdviceDebugCheat_DebugShowGUID -> cSC4Advisor::DoMessage	ID ea917750; potential ID push sites in 0040ed30,00410100; subscriber active	0	0	0	0	low
+message	ead61e16 kSC4MessageMouseScrollEnd -> cSC4AutomataManager::DoMessage	ID ead61e16; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	0	0	0	low
+message	ead61e16 kSC4MessageMouseScrollEnd -> cSC4TrafficNetworkMap::DoMessage	ID ead61e16; potential ID push sites in 004929f0,00494da0,004ae4e0,004b4000,005066b0,005110a0; subscriber active	0	0	0	0	low
+message	eb3be415 kSC4MessageGrowMediumAirport1 -> cSC4AdvisorCityPlanning::DoMessage	ID eb3be415; potential ID push sites in 004118c0,004119f0,0068b010,0068b110; subscriber active	0	0	0	0	low
+message	ebff18a3 kSC4MessageOccupantGroupChanged -> cSC4AutomataManager::DoMessage	ID ebff18a3; potential ID push sites in 005066b0,005110a0,0051b3e0,0051c140,005e9350; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4ConstructionOccupant::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4DemandSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4FloraSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4LandValueSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4ProtectionSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4WeatherSimulator::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956814 kSC4MessageSimNewDay -> cSC4WinTrendBar::DoMessage	ID 66956814; potential ID push sites in 004c57a0,004cba80,00594a30,00595060,005d0ce0,005d1300; subscriber active	0	0	0	0	low
+sim-tick	66956815 kSC4MessageSimNewWeek -> cSC4WeatherSimulator::DoMessage	ID 66956815; potential ID push sites in 00702a80; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4AuraSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4BuildingDevelopmentSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4CivicBuildingSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4CommercialSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4LandValueSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4PollutionSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4ProtectionSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSC4ResidentialSimulator::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	66956816 kSC4MessageSimNewMonth -> cSTETerrain::DoMessage	ID 66956816; potential ID push sites in 00442c80,00443e60,00702a80,0076b750,0076ca60; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4AutomataManager::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4BudgetUIWinProc::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ConstructionOccupant::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DynamicParticleSystem::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ModelMaker::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4NetworkToolUI::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4PropDeveloper::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4PropOccupant::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4PropOccupantTerrainDecal::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4PylonOccupant::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4SignpostOccupant::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4TrafficNetworkMap::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ViewInputControlTerrainScrubber::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ViewInputControlTorch::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4WinMiniMap::DoMessage	ID 86ad10ee; potential ID push sites in 00448010,007648d0,00764990,00764b70; subscriber active	0	0	0	0	low
+sim-tick	cSC4BudgetSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4BudgetSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4BuildingDevelopmentSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4CivicBuildingSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4DemandSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4FlammabilitySimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4FloraSimulator::DoDailySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4OrdinanceSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4PlumbingSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4PollutionSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4PowerSimulator::DoMonthlySimulation	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4Simulator::OnTick	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4Simulator::SendAgentMessage	loaded city; simulation clock running	0	0	0	0	high
+sim-tick	cSC4Simulator::SimulateAgents	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4Simulator::SimulateIdleTime	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4Simulator::SimulateTimePassage	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4WeatherSimulator::SimulateCellTemperature	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+sim-tick	cSC4WeatherSimulator::SimulateMoisture	loaded city; relevant simulator enabled; branch state may be required	0	0	0	0	high
+tool	cSC4ViewInputControl	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlCityScroll	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlDemolish	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlEffect	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlEffectDisaster	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlGameOfLife	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlLabelTool	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlLevelTerrain	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlNetworkTool	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlSignLabelDemolish	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlSignTool	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlTerrainScrubber	activate tool and perform its named input/placement callback	0	0	0	0	low
+tool	cSC4ViewInputControlTorch	activate tool and perform its named input/placement callback	0	0	0	0	low
+ui	cSC4View3DWin::DoMessage id=06cdb65b	candidate message/control comparison; exact event role requires review	0	0	0	0	low
+ui	cSC4View3DWin::DoMessage id=0772fad4	candidate message/control comparison; exact event role requires review	0	0	0	0	low
+ui	cSC4View3DWin::DoMessage id=08dac3e7	candidate message/control comparison; exact event role requires review	0	0	0	0	low
+ui	cSC4View3DWin::DoMessage id=08dac3e8	candidate message/control comparison; exact event role requires review	0	0	0	0	low
+ui	cSC4View3DWin::DoMessage id=0ab99380	candidate message/control comparison; exact event role requires review	0	0	0	0	low
