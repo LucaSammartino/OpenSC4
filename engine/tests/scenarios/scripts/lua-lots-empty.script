@@ -1,0 +1,4 @@
+# Companion setup: the plugin terrain action is calibrated; Maxis SetCellAltitude is ineffective.
+# Runs at the first new day after the Lua script establishes mayor mode.
+2000-01-01 terrain 0 0 256 256 280 1
+2000-01-01 mark lua-lots-empty: flat large tile ready

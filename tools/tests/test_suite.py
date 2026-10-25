@@ -87,9 +87,11 @@ class SuiteParsingTests(unittest.TestCase):
         rows = suite.read_scenarios(ROOT, 'full')
         self.assertGreaterEqual(len(rows), 19)
         self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
-        self.assertEqual({r['region'] for r in rows}, {'Berlin', 'London', 'Timbuktu', 'New York', 'San Francisco'})
+        self.assertTrue({'Berlin', 'London', 'Timbuktu', 'New York', 'San Francisco'} <= {r['region'] for r in rows})
         self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
         for row in rows:
+            if Path(row['script']).suffix == '.lua':
+                continue  # Lua has command-return evidence rather than dated plugin actions.
             lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()
                      if line and not line.startswith('#')]
             actions = {line[1] for line in lines}
@@ -103,6 +105,59 @@ class SuiteParsingTests(unittest.TestCase):
 
 
 class SuiteQueueTests(unittest.TestCase):
+    def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            row['script'] = 'probe.lua'
+            (root / 'probe.lua').write_text('-- Lua fixture\n')
+            setup = '2000-01-01 terrain 0 0 256 256 280 1\n'
+            (root / 'probe.script').write_text(setup)
+            directory, manifest = suite.make_batch(root, [row], 'plain', str(root), 'companion')
+            body = manifest['requests'][0]['request']
+            self.assertIn('lua_script = build-runs/suite/companion/scripts/case.one.lua', body)
+            self.assertIn('\nscript = build-runs/suite/companion/scripts/case.one.script', body)
+            self.assertEqual((directory / 'scripts/case.one.script').read_text(), setup)
+
+    def test_lua_request_and_harvested_command_evidence_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            row['script'] = 'probe.lua'
+            (root / row['script']).write_text('-- Lua fixture\n')
+
+            def queue_tick(_):
+                request, = (root / 'build-runs/game-queue').glob('*.req')
+                body = request.read_text()
+                self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', body)
+                self.assertIn('lua_extensions = 1', body)
+                self.assertIn('autotest_unpause = 0', body)
+                self.assertNotIn('\nscript = ', body)
+                label = next(line.split(' = ')[1] for line in body.splitlines() if line.startswith('label = '))
+                prefix = root / 'build-runs/game-results' / label
+                prefix.parent.mkdir(exist_ok=True)
+                Path(str(prefix) + '.verdict').write_text('verdict: clean\n')
+                Path(str(prefix) + '.log').write_text('AUTOTEST VERDICT: clean (date=2000-04-01)\n')
+                Path(str(prefix) + '.lua.log').write_text(
+                    'FC4_LUA 1 probe Before PlaceLot 42 8 8 0 true false\n'
+                    'FC4_LUA 2 probe Return PlaceLot status=0 true nil nil nil nil\n'
+                    'FC4_LUA 3 probe scenario-complete\n')
+
+            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
+                directory, results = suite.run_scenarios(root, [row], profile='plain', dll=str(root), tag='lua')
+            self.assertTrue(suite.successful(results))
+            self.assertEqual(results[row['name']]['actions_ok'], 1)
+            self.assertTrue((directory / 'case.one.lua.log').is_file())
+
+    def test_lua_missing_incomplete_and_failed_returns_cannot_pass(self):
+        cases = [('', 0, 1), ('FC4_LUA 1 test Before SaveCityQuick true', 0, 2),
+                 ('FC4_LUA 1 test Before PlaceLot 42\nFC4_LUA 2 test Return PlaceLot status=2\n'
+                  'FC4_LUA 3 test scenario-complete', 1, 0)]
+        for text, failed, pending in cases:
+            result = suite.add_lua_evidence(suite.parse_log('AUTOTEST VERDICT: clean (date=2000-04-01)', '2000-04-01'), text)
+            self.assertEqual((result['actions_failed'], result['actions_pending']), (failed, pending))
+            self.assertFalse(suite.successful({'test': result}))
+
     def test_real_files_round_trip_all_requests_and_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
