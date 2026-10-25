@@ -23,7 +23,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 COLUMNS = ('scenario profile verdict end_reached days_per_second actions_ok '
            'actions_failed shadow_lines shadow_exact_lines worst_shadow '
-           'compare_exact compare_different reach_functions log').split()
+           'compare_exact compare_different reach_functions log dll_sha256').split()
 KEY_COLUMNS = ['key', 'scenarios_run', 'scenarios_exact', 'first_mismatch']
 SCENARIO_COLUMNS = ['name', 'region', 'city', 'script', 'end', 'sets', 'notes']
 SHADOW = re.compile(r'^([a-z0-9_]+(?:[ -][a-z0-9_]+)*?)(?: shadow\b|-shadow:)')
@@ -378,7 +378,8 @@ def write_results(directory, manifest, results):
     for request in manifest['requests']:
         name = request['scenario']['name']
         row = dict(results.get(name, parse_log('', request['scenario']['end'])),
-                   scenario=name, profile=manifest['profile'])
+                   scenario=name, profile=manifest['profile'],
+                   dll_sha256=manifest['dll_sha256'])
         row.setdefault('log', '-')
         rows.append(row)
         for key, value in row['per_key'].items():

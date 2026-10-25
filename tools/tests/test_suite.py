@@ -177,6 +177,7 @@ class SuiteQueueTests(unittest.TestCase):
             self.assertEqual((directory / 'scripts/case.one.script').read_text(), (root / 'actions.script').read_text())
             table = (directory / 'summary.tsv').read_text()
             self.assertIn('case.one\treplace\tclean\t1\t8.00', table)
+            self.assertEqual(table.count(manifest['dll_sha256']), 2)
             self.assertIn('terrain\t2\t0\tcase.one', (directory / 'per_key.tsv').read_text())
             self.assertTrue((directory / 'case.one.shadows.txt').exists())
             out = io.StringIO()
