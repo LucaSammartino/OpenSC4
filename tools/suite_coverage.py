@@ -7,6 +7,7 @@ All evidence stays in build-runs/suite; no game or Documents files are modified.
 import argparse
 from collections import defaultdict
 import csv
+from datetime import date, timedelta
 import importlib.util
 import json
 from pathlib import Path
@@ -59,7 +60,7 @@ def bad_shadow(body, parser):
             or parser.resynced(body))
 
 
-def read_batch(directory):
+def read_batch(directory, default_enabled=()):
     """Read summaries, counters, requests and raw logs; fail closed on absent evidence."""
     parser = sibling('suite')
     manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
@@ -119,7 +120,7 @@ def read_batch(directory):
         if row['profile'] == 'replace':
             ini = request['request'].split('[ini]', 1)[-1]
             settings = dict(re.findall(r'^\s*([a-z][a-z0-9_]*)\s*=\s*([^\r\n]+)', ini, re.M))
-            enabled = {k.strip() for k in settings.get('enable', '').split(',') if k.strip()}
+            enabled = set(default_enabled) | {k.strip() for k in settings.get('enable', '').split(',') if k.strip()}
             enabled -= {k.strip() for k in settings.get('disable', '').split(',')}
         parsed_path = directory / (name + '.json')
         parsed_metrics = json.loads(parsed_path.read_text(encoding='utf-8')) if parsed_path.is_file() else {}
@@ -128,13 +129,14 @@ def read_batch(directory):
                               replace_clean=clean(row) and actual_clean,
                               wall_seconds=parsed_metrics.get('wall_seconds'),
                               windows=parsed_metrics.get('reach_windows', []),
+                              trace_present=trace.is_file(),
                               trace=trace, log=log, source=directory.name))
     if seen != set(requests):
         raise ValueError(f'{directory}: summary does not contain every requested scenario')
     return scenarios, files
 
 
-def load(root, tag):
+def load(root, tag, default_enabled=()):
     directory = folder(root, tag)
     index = directory / 'sources.json'
     if index.is_file():
@@ -143,11 +145,11 @@ def load(root, tag):
         for source in sources:
             if not NAME.fullmatch(source):
                 raise ValueError('invalid bundled source')
-            batch, inputs = read_batch(directory / source)
+            batch, inputs = read_batch(directory / source, default_enabled)
             scenarios.extend(batch)
             files.update(inputs)
     else:
-        scenarios, files = read_batch(directory)
+        scenarios, files = read_batch(directory, default_enabled)
     if not scenarios:
         raise ValueError('suite has no scenario evidence')
     union, ran, bad, enabled, failed = set(), set(), set(), set(), set()
@@ -264,10 +266,26 @@ def main():
         implemented = sum(weights.values())
         unions = defaultdict(set)
         print('scenario\tprofile\timplemented_bytes\tpercent_implemented\twall_seconds')
+        scenario_rows = []
         for item in evidence['scenarios']:
             addresses = item['reached'] & weights.keys()
             count = sum(weights[a] for a in addresses)
             print(f'{item["name"]}\t{item["row"]["profile"]}\t{count}\t{count / implemented:.4%}\t{item["wall_seconds"]}')
+            cumulative = defaultdict(int)
+            for address in addresses:
+                cumulative[item['first'][address]] += weights[address]
+            total, saturation = 0, None
+            for window, added in sorted(cumulative.items()):
+                total += added
+                if total >= count * args.fraction:
+                    saturation = window
+                    break
+            next_date = next((w['date'] for w in item['windows'] if saturation and w['window'] == saturation + 1), None)
+            scenario_rows.append(dict(scenario=item['name'], profile=item['row']['profile'],
+                verdict=item['row']['verdict'], trace_present=int(item['trace_present']),
+                implemented_bytes=count, percent_implemented=f'{count / implemented:.6%}',
+                wall_seconds=item['wall_seconds'], saturation_window=saturation or '-',
+                candidate_end=(date.fromisoformat(next_date) - timedelta(days=1)).isoformat() if next_date else '-'))
             for name in item['scenario']['sets'].split(',') + ['all']:
                 unions[name].update(addresses)
         lines = []
@@ -279,11 +297,19 @@ def main():
         parser = sibling('suite')
         directory = folder(root, args.tag)
         parser.write_tsv(directory / 'reach_sets.tsv', list(lines[0]), lines)
+        parser.write_tsv(directory / 'reach_scenarios.tsv', list(scenario_rows[0]), scenario_rows)
+        print(f"reach files: {sum(r['trace_present'] for r in evidence['scenarios'])}/{len(evidence['scenarios'])}; "
+              'missing counters remain unmeasured')
         if args.select:
             plan = greedy(evidence['scenarios'], weights, args.fraction, args.slots, args.budget_seconds)
+            expected = {r['name'] for r in parser.read_scenarios(root, 'all')}
+            observed = {r['name'] for r in evidence['scenarios']}
+            plan['missing_scenarios'] = sorted(expected - observed)
+            plan['missing_traces'] = sorted({r['name'] for r in evidence['scenarios'] if not r['trace_present']})
+            plan['eligible_for_tier1'] = plan['achieved'] and not plan['missing_scenarios'] and not plan['missing_traces']
             (directory / 'tier1-selection.json').write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
             print(json.dumps(plan, sort_keys=True))
-            return 0 if plan['achieved'] else 1
+            return 0 if plan['eligible_for_tier1'] else 1
         return 0
     except (ValueError, OSError, KeyError) as exc:
         ap.error(str(exc))

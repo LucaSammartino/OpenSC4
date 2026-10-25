@@ -110,6 +110,21 @@ class SelectionTests(unittest.TestCase):
                 suite.main(['run'], root=root)
             self.assertIn('requires per-scenario reach', errors.getvalue())
 
+    def test_marked_tier_runs_without_calibration_and_all_includes_gen(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'engine/tests/scenarios').mkdir(parents=True)
+            (root / 'engine/tests/scenarios/suite.tsv').write_text(
+                '\t'.join(suite.SCENARIO_COLUMNS) + '\n'
+                'city\tBerlin\tTegel\t-\t2000-04-01\tfull,tier1\tfixture\n'
+                'generated\tBerlin\tTegel\t-\t2000-04-01\tgen\tfixture\n')
+            self.assertEqual(len(suite.read_scenarios(root, 'all')), 2)
+            with patch.object(suite, 'run_scenarios', return_value=(root, {})) as run:
+                self.assertEqual(suite.main(['run', '--set', 'tier1', '--dry-run', '--slots', '12'], root=root), 0)
+            self.assertEqual([r['name'] for r in run.call_args.args[1]], ['city'])
+            self.assertEqual(run.call_args.kwargs['slots'], 12)
+
 
 if __name__ == '__main__':
     unittest.main()

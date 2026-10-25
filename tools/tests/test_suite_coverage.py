@@ -1,5 +1,4 @@
 """Suite credit must follow actual entered bytes and every observed key/run."""
-import csv
 import json
 from pathlib import Path
 import sys
@@ -103,6 +102,17 @@ class SuiteCreditTests(unittest.TestCase):
             self.assertNotIn('foo', evidence['exact'])
             self.assertEqual(len(evidence['scenarios']), 3)
             self.assertTrue((metric.folder(root, 'both') / 'shadows/one.reach.tsv').is_file())
+
+    def test_default_replacement_keys_count_and_disable_overrides_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = batch(root, profile='replace')
+            self.assertIn('default', metric.load(root, 'test', ['default'])['replaced'])
+            path = directory / 'manifest.json'
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            manifest['requests'][0]['request'] += 'disable = default\n'
+            path.write_text(json.dumps(manifest), encoding='utf-8')
+            self.assertNotIn('default', metric.load(root, 'test', ['default'])['replaced'])
 
     def test_tag_traversal_and_incomplete_summary_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

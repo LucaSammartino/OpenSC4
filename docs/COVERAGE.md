@@ -73,6 +73,36 @@ catch-all row matches, the candidates for a new row.
 | verified | every compared set of the row's shadow key is exact. Two sources, in this order: (1) the key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0; (2) else `tools/coverage-shadows.tsv` has the key and every row it records is exact |
 | replaced | the replace key is in `$Replace` of `tools/regress.ps1` (or is on by default in `FC4Subsystems.cpp`) and the regress replace run was clean |
 
+`python tools/coverage.py --suite <tag>` adds three suite columns beside these four, without changing their rules.
+The tag lives in `build-runs/suite/<tag>/`; `summary.tsv`, `per_key.tsv`, the staged request manifest, raw logs and
+per-scenario `.reach.tsv` counters are read and hashed. Missing counters earn no exercised credit. Missing logs,
+nonzero mismatch counts, resyncs, incomplete games and failing harness verdicts cannot earn verification credit.
+
+| Suite status | Rule |
+|---|---|
+| suite-exercised | implemented function bytes with positive, unskipped original entry counters in at least one scenario |
+| suite-verified | exercised bytes whose map row's shadow key has nonempty exact evidence, every mismatch count zero and zero resyncs, in every scenario that ran that key |
+| suite-replaced | implemented rows whose replacement key is enabled in at least one replace-profile run and every run enabling it is clean and reaches its end; this row measure does not assert function entry |
+
+Shadow-only tags have no suite-replaced credit. To put both profiles under one tag, run
+`python tools/suite_coverage.py <tag> --combine <shadows-tag> <replace-tag>`; this snapshots the source batches under
+the new tag, with combined summary/per-key tables. `sources.json` names only these bundled subdirectories.
+
+`python tools/suite.py run --set all --profile shadows --reach --slots 12 --tag <tag> --dll <current-dll>` collects
+the census through the shared queue. A DLL without the reach tracer is rejected before submission. Runs write only
+slot copies and ignored artifacts, never the Documents region saves. `python tools/suite_coverage.py <tag> --select`
+prints reach per scenario and set, saves `reach_scenarios.tsv`, `reach_sets.tsv` and `tier1-selection.json`, and uses
+deterministic greedy byte-weighted set cover followed by redundant-row removal. The target is 98% of observed
+implemented reach; candidates must finish cleanly, and conservative packing of measured run walls must fit 900
+seconds on six slots. The heuristic is not a proof of global minimum set size. Missing traces remain explicitly
+unmeasured. Saturation dates are candidates derived from first-hit windows; rerun a shortened scenario to measure it.
+Selection is ineligible for tier1 while any current suite row or any scenario reach file is missing, even when the
+98% target of the observed subset is met.
+Mark the chosen rows `tier1` in `suite.tsv` only after measuring them. A marked tier runs directly, without local
+calibration files. Its manifest records the actual batch wall (including queue waits), slot limit and completeness.
+An interrupted census can continue with `python tools/suite.py resume <tag> --slots 12`; completed or claimed labels
+are harvested rather than submitted again. Optional `--seconds` and `--timeout` bounds affect only unclaimed requests.
+
 The regress `.out` read is `--regress`, else the PASS run of the newest lane merged into HEAD (first-parent
 `Merge <tag>:` subjects), so the default depends on the commit, not on file times.
 

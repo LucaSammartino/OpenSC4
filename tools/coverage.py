@@ -58,7 +58,6 @@ def _sibling(name):
 
 
 compare_metrics = _sibling("compare_metrics")
-suite_coverage = _sibling("suite_coverage")
 
 EXE_SHA256 = "3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b"
 AREAS = ["simulation", "framework", "renderer", "ui", "audio", "region", "other"]
@@ -908,8 +907,9 @@ def main():
     game, fun_row, lib_b, lib_n = data["game"], data["fun_row"], data["lib_b"], data["lib_n"]
     suite_evidence, suite_states, suite_stats = None, {}, ()
     if args.suite:
+        suite_coverage = _sibling("suite_coverage")
         try:
-            suite_evidence = suite_coverage.load(REPO, args.suite)
+            suite_evidence = suite_coverage.load(REPO, args.suite, [k for k, on in keys.items() if on])
         except (ValueError, OSError, KeyError) as exc:
             ap.error(f"suite evidence: {exc}")
         suite_states = suite_coverage.states(suite_evidence, game, rows, SHADOW_LABEL_ALIAS)
@@ -1005,7 +1005,7 @@ def main():
           f"({len(suite_evidence['scenarios'])} scenario/profile runs). Suite-exercised counts only implemented "
           "function bytes with positive, unskipped original entry counters. Suite-verified additionally requires "
           "its shadow key to be exact, with zero resyncs, in every scenario that ran it. Suite-replaced counts "
-          "implemented map rows explicitly enabled in at least one replace-profile run, with every such run "
+          "implemented map rows enabled in at least one replace-profile run, with every such run "
           "clean and complete; it does not imply those function bodies were entered.")
         w("")
     w("| Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |")

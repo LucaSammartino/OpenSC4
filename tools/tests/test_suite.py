@@ -1,5 +1,6 @@
 """Queue round trips, recorded-log accounting and shipped scenario contracts."""
 import contextlib
+import csv
 from datetime import date
 import io
 import json
@@ -30,6 +31,41 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = dict(checkout(root), script='-')
+            other = dict(row, name='other')
+            directory, manifest = suite.make_batch(root, [row, other], 'plain', str(root), 'resume')
+            results = root / 'build-runs/game-results'
+            results.mkdir(parents=True)
+            request = manifest['requests'][0]
+            source = results / request['label']
+            Path(str(source) + '.log').write_text(
+                'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)\n', encoding='utf-8')
+            Path(str(source) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = suite.main(['resume', 'resume', '--wait-seconds', '0',
+                                     '--seconds', '240', '--timeout', '300'], root=root)
+            updated = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+            self.assertEqual(status, 1)
+            self.assertIn('seconds = 750\n', updated['requests'][0]['request'])
+            self.assertIn('seconds = 240\n', updated['requests'][1]['request'])
+            self.assertIn('timeout = 300\n', updated['requests'][1]['request'])
+            self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))
+            with (directory / 'summary.tsv').open(encoding='utf-8', newline='') as stream:
+                rows = list(csv.DictReader(stream, delimiter='\t'))
+            self.assertEqual(rows[0]['verdict'], 'clean')
+            self.assertEqual(rows[1]['verdict'], 'not-submitted')
+
+    def test_reach_refuses_a_stale_dll_before_submitting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            with self.assertRaisesRegex(ValueError, 'DLL lacks reach tracer'):
+                suite.make_batch(root, [row], 'plain', str(root), 'old', ['reach = 1'])
+            self.assertFalse((root / 'build-runs/suite/old').exists())
+
     def test_actions_summaries_and_compare_counts(self):
         text = (FIXTURES / 'suite-evidence.log').read_text(encoding='utf-8')
         text += (FIXTURES / 'shadowlabels-clean.log').read_text(encoding='utf-8')

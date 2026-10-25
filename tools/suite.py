@@ -7,7 +7,7 @@ parallel slots. No file in Documents is written by this tool.
 """
 import argparse
 import csv
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import hashlib
 import io
 import itertools
@@ -467,8 +467,14 @@ def write_results(directory, manifest, results):
 def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6):
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
-    waiting = list(pending) if submit else []
-    active = set() if submit else set(pending)
+    active = set(pending) if not submit else {
+        name for name, request in pending.items()
+        if any((root / relative / (request['label'] + suffix)).exists()
+               for relative, suffix in (('build-runs/game-queue', '.req'),
+                                        ('build-runs/game-queue/done', '.req'),
+                                        ('build-runs/game-results', '.running'),
+                                        ('build-runs/game-results', '.verdict')))}
+    waiting = [name for name in pending if name not in active] if submit else []
     results = {}
     try:
         while pending:
@@ -543,7 +549,16 @@ def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=
     queue = root / 'build-runs/game-queue'
     queue.mkdir(parents=True, exist_ok=True)
     print(f'staged {len(scenarios)} requests; at most {slots} in flight; results: {directory}', flush=True)
-    return directory, wait_for_batch(root, directory, manifest, wait_seconds, submit=True, slots=slots)
+    started = time.monotonic()
+    manifest['timing'] = dict(started_utc=datetime.now(timezone.utc).isoformat(), slots=slots, complete=False)
+    try:
+        results = wait_for_batch(root, directory, manifest, wait_seconds, submit=True, slots=slots)
+        manifest['timing']['complete'] = all(r['verdict'] not in ('queue-timeout', 'not-submitted') for r in results.values())
+        return directory, results
+    finally:
+        manifest['timing'].update(finished_utc=datetime.now(timezone.utc).isoformat(),
+                                  wall_seconds=round(time.monotonic() - started, 3))
+        (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 
 
 def report(root, tag, against=None):
@@ -631,8 +646,36 @@ def main(argv=None, root=ROOT):
     run.add_argument('--scenario', action='append', help='select named rows within --set; repeatable')
     show = commands.add_parser('report')
     show.add_argument('tag'); show.add_argument('--against')
+    resume = commands.add_parser('resume', help='harvest/restart a staged batch without resubmitting claimed labels')
+    resume.add_argument('tag')
+    resume.add_argument('--slots', type=int, choices=range(1, 13), default=12)
+    resume.add_argument('--wait-seconds', type=int, default=7200)
+    resume.add_argument('--seconds', type=int, help='bound only requests not yet claimed by the shared queue')
+    resume.add_argument('--timeout', type=int)
     args = parser.parse_args(argv)
     try:
+        if args.command == 'resume':
+            if not NAME.fullmatch(args.tag):
+                raise ValueError('invalid suite tag')
+            directory = root / 'build-runs/suite' / args.tag
+            manifest_path = directory / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            for request in manifest['requests']:
+                label = request['label']
+                claimed = any((root / rel / (label + suffix)).exists() for rel, suffix in (
+                    ('build-runs/game-queue', '.req'), ('build-runs/game-queue/done', '.req'),
+                    ('build-runs/game-results', '.running'), ('build-runs/game-results', '.verdict')))
+                if not claimed:
+                    for key in ('seconds', 'timeout'):
+                        value = getattr(args, key)
+                        if value is not None:
+                            if value <= 0:
+                                raise ValueError(f'--{key} must be positive')
+                            request['request'] = re.sub(rf'^{key} = \d+$', f'{key} = {value}', request['request'], flags=re.M)
+                    (directory / (request['scenario']['name'] + '.req')).write_text(request['request'], encoding='utf-8')
+            manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+            results = wait_for_batch(root, directory, manifest, args.wait_seconds, submit=True, slots=args.slots)
+            return 0 if successful(results) else 1
         if args.command == 'report':
             report(root, args.tag, args.against)
             return 0
