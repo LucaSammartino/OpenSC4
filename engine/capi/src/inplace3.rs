@@ -3,7 +3,7 @@
 use fc4_core::{language::LanguageManager, lighting::LightingManager};
 
 #[repr(C)]
-struct NativeLighting {
+pub(crate) struct NativeLighting {
     prefix: [u8; 0x24],
     night: u8,
     gap0: [u8; 0x3f],
@@ -15,7 +15,7 @@ struct NativeLighting {
 }
 
 #[no_mangle]
-extern "C" fn fc4_inplace3_language(op: u32, input: u32) -> u32 {
+pub(crate) extern "C" fn fc4_inplace3_language(op: u32, input: u32) -> u32 {
     let manager = LanguageManager::new();
     match op {
         0 => LanguageManager::language_from_system_language(input),
@@ -30,7 +30,7 @@ extern "C" fn fc4_inplace3_language(op: u32, input: u32) -> u32 {
 }
 
 #[no_mangle]
-unsafe extern "C" fn fc4_inplace3_lighting(
+pub(crate) unsafe extern "C" fn fc4_inplace3_lighting(
     owner: *const NativeLighting,
     op: u32,
     count: usize,

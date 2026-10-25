@@ -1,0 +1,5 @@
+name	address	class	convention	this	stack_arg_dwords	callee_pop	ret	windows	rust_entry	mode
+lighting-vertices	007d7bf0	cSC4LightingManager	thiscall	ecx	6	24	void	this+0/300/r/36:u8:1,100:f32:3,140:f32:3,228:f32:18;arg1+0/span0,2,12/r/0:f32!:3@2;arg3+0/span0,4,4/w/0:u8:4@4;arg5+0/36/r/0:f32!:9	lighting-vertices	compare
+lighting-global	007d6b20	cSC4LightingManager	thiscall	ecx	1	4	void	this+0/300/r/36:u8:1,100:f32:3,140:f32!:3,228:f32:18;arg0+0/12/w/0:f32:3	lighting-global	compare
+lighting-shadow	007d6b50	cSC4LightingManager	thiscall	ecx	1	4	void	this+0/300/r/36:u8:1,100:f32!:3,140:f32:3,228:f32:18;arg0+0/12/w/0:f32:3	lighting-shadow	compare
+lighting-night	007d6680	cSC4LightingManager	thiscall	ecx	0	0	al	this+0/300/r/36:u8!:1,100:f32:3,140:f32:3,228:f32:18	lighting-night	compare

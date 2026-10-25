@@ -3,6 +3,7 @@
 #include "FC4Inplace.h"
 #include "FC4InplaceDetour.h"
 #include "FC4InplaceMachine.h"
+#include "FC4CompareData.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include <windows.h>
@@ -12,50 +13,16 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <cmath>
 
-extern "C" void fc4_viewutil_shadow_cached(uint32_t, const uint32_t*, const uint32_t*, uint32_t*);
-extern "C" void fc4_viewutil_shadow_local(uint32_t, const uint32_t*, uint32_t*);
+extern "C" bool fc4_compare_adapter(const char*,const uint32_t*,fc4::compare::Buffer*,size_t,fc4::compare::Result*);
+extern "C" bool fc4_compare_fixture(const char*,unsigned,uint32_t*,fc4::compare::Buffer*,size_t);
 
 namespace {
-using Packet = std::array<uint32_t, 32>;
-struct Count {
-    uint64_t calls = 0, sampled = 0, compared = 0, exact = 0, floatOnly = 0;
-    uint64_t different = 0, outside = 0, refused = 0, nested = 0, mutation = 0, detected = 0;
-    uint32_t maxUlp = 0;
-};
-struct Function {
-    const char* name; uint32_t va, bytes; void* original = nullptr;
-    Count natural{}, fixture{}; bool installed = false, mutate = false;
-};
-// All sizes are published body_bytes, not an assertion about instruction coverage.
-Function functions[] = {
-    {"clip2",0x7f6620,104}, {"zoom-rotation",0x7f66a0,21},
-    {"view-viewport",0x7f66c0,67}, {"fixed",0x7f6710,96},
-    {"view-box",0x7f6770,413}, {"city-corner",0x7f6ba0,181},
-    {"clip3",0x7f7710,51}, {"visible-edges",0x7f7750,44},
-    {"world-view",0x7f77d0,126}, {"world-viewport",0x7f7850,75},
-    {"world-viewport2",0x7f78e0,54}, {"view-world",0x7f7920,133},
-    {"viewport-world",0x7f79b0,77}, {"box-rectangle",0x7f7a40,1018},
-    {"view-point",0x7f7e50,270}, {"viewport-fixed",0x7f8390,83},
-    {"rotation",0x7f6cc0,78}, {"ground",0x7f6ab0,49},
-    {"cross",0x5d6f10,59}, {"primitive-indices",0x80aef0,235},
-    // Round 3: zero means no published body-byte count, never inferred from spacing.
-    {"language-from-system",0x924038,0}, {"system-from-language",0x923e3e,0},
-    {"language-alias",0x924aef,0}, {"primary-language",0x9250d5,0},
-    {"default-country",0x92525a,0}, {"system-country",0x9253d7,0},
-    {"lighting-vertices",0x7d7bf0,0}, {"lighting-global",0x7d6b20,0},
-    {"lighting-shadow",0x7d6b50,0}, {"lighting-night",0x7d6680,0}
-};
-SRWLOCK sampleLock = SRWLOCK_INIT;
-thread_local unsigned depth = 0;
-thread_local bool fixture = false;
-bool active = false, fixtures = false;
-uintptr_t imageBase = 0;
-
-bool Selected(std::string list, const char* name) {
-    list.erase(std::remove_if(list.begin(), list.end(), [](char c) { return c == ' ' || c == '\t'; }), list.end());
-    return list == "all" || ("," + list + ",").find("," + std::string(name) + ",") != std::string::npos;
-}
+#include "FC4CompareState.h"
 bool Supported() {
     imageBase = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     if (imageBase != 0x400000) return false;
@@ -125,8 +92,8 @@ bool Install(Function& fn, void* forwarder) {
 struct Window { uint8_t* pointer; size_t size; int output; bool floating; };
 struct Region { uint8_t* pointer = nullptr; size_t size = 0; uint8_t* before = nullptr; uint8_t* after = nullptr; };
 struct Capture {
-    std::array<Window, 6> windows{}; unsigned windowCount = 0;
-    std::array<Region, 6> regions{}; unsigned regionCount = 0;
+    std::array<Window, 16> windows{}; unsigned windowCount = 0;
+    std::array<Region, 16> regions{}; unsigned regionCount = 0;
     size_t total = 0; bool ok = true; const char* reason = "invalid-window";
     bool Refuse(const char* why) { reason=why; return false; }
     ~Capture() { for (auto& r : regions) if (r.before) VirtualFree(r.before, 0, MEM_RELEASE); }
@@ -199,238 +166,4 @@ struct Capture {
     }
 };
 
-template<class Native>
-bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr_t stackFloor, Native native) {
-    auto& fn=functions[index]; auto& count=fixture?fn.fixture:fn.natural;
-    // Nested game calls share this thread's lock, and retain their own sampler.
-    const bool locking=depth==0;
-    if (locking) AcquireSRWLockExclusive(&sampleLock);
-    if (depth) ++count.nested;
-    const auto call=++count.calls;
-    if (!fixture && !fc4::inplace::Sample(call)) { if (locking) ReleaseSRWLockExclusive(&sampleLock); return native(); }
-    ++count.sampled; ++depth;
-    if (!capture.Prepare(stackFloor)) {
-        ++count.refused;
-        if (count.refused<=3) fc4::Log("inplace refused name=%s source=%s call=%llu reason=%s",fn.name,fixture?"fixture":"natural",call,capture.reason);
-        --depth; if (locking) ReleaseSRWLockExclusive(&sampleLock); return native();
-    }
-    Packet out{};
-    for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
-        if (w.output>=0) std::memcpy(out.data()+w.output,w.pointer,w.size);
-    }
-    capture.Snapshot(false);
-    const bool result=native();
-    capture.Snapshot(true);
-    unsigned region=0; size_t offset=0;
-    if (capture.Outside(region,offset)) {
-        ++count.outside;
-        if (count.outside<=3) fc4::Log("inplace outside name=%s source=%s call=%llu region=%u offset=%zu watched=%zu attribution=unknown",
-            fn.name,fixture?"fixture":"natural",call,region,offset,capture.total);
-    } else {
-        capture.Restore(false);
-        std::array<uint32_t,0x470/4> owner{};
-        if (self) { std::memcpy(owner.data(),capture.Saved(capture.windows[0],false),sizeof(owner)); fc4_viewutil_shadow_cached(fn.va,owner.data(),input.data(),out.data()); }
-        else fc4_viewutil_shadow_local(fn.va,input.data(),out.data());
-        for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
-            if (w.output>=0) std::memcpy(w.pointer,out.data()+w.output,w.size);
-        }
-        bool equal=true, floatOnly=true; unsigned firstWindow=0; size_t firstWord=0;
-        uint32_t firstNative=0,firstOurs=0;
-        const auto compare=[&](bool measureUlp) {
-        equal=true;floatOnly=true;
-        for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
-            for (size_t n=0; n<w.size; n+=4) {
-                uint32_t a,b; std::memcpy(&a,capture.Saved(w,true)+n,4);
-                std::memcpy(&b,(w.output<0?capture.Saved(w,false):w.pointer)+n,4);
-                if (a==b) continue;
-                // Unexpected owner/input words can contain pointers: report only
-                // their window/offset, never their raw values.
-                if (equal) { firstWindow=i;firstWord=n/4;firstNative=w.output<0?0:a;firstOurs=w.output<0?0:b; }
-                equal=false;
-                if (w.output<0 || !w.floating || !fc4::inplace::NearFloat(a,b)) floatOnly=false;
-                if (measureUlp && w.floating && w.output>=0) count.maxUlp=std::max(count.maxUlp,fc4::inplace::FloatDistance(a,b));
-            }
-        }
-        if (index==4 || index==14) {
-            if (out[0]!=static_cast<uint32_t>(result)) {
-                firstWindow=99;firstWord=0;firstNative=result;firstOurs=out[0];equal=false;floatOnly=false;
-            }
-        }
-        };
-        compare(true);
-        ++count.compared;
-        if (equal) ++count.exact;
-        else {
-            if (floatOnly) ++count.floatOnly; else ++count.different;
-            if (count.floatOnly+count.different<=3) fc4::Log("inplace diff name=%s source=%s call=%llu window=%u word=%zu native=%08x ours=%08x float_only=%u",
-                fn.name,fixture?"fixture":"natural",call,firstWindow,firstWord,firstNative,firstOurs,floatOnly?1:0);
-        }
-        // One-value debug error, compared against the unmutated Rust replay.
-        // Only exact samples can demonstrate independent comparator teeth.
-        if (fn.mutate && equal && count.mutation==0) {
-            ++count.mutation;
-            if (index==4 || index==14) {
-                out[0]^=1;
-            }
-            for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
-                if (w.output<0) continue;
-                uint32_t value; std::memcpy(&value,w.pointer,4); value^=1;
-                std::memcpy(w.pointer,&value,4);
-                break;
-            }
-            compare(false); // Same comparator as normal replay, including location.
-            count.detected+=!equal;
-            fc4::Log("inplace mutation name=%s source=%s window=%u word=%zu xor=1 detected=%llu",fn.name,fixture?"fixture":"natural",firstWindow,firstWord,count.detected);
-        }
-        capture.Restore(true); // Game always sees the original's output.
-    }
-    --depth; if (locking) ReleaseSRWLockExclusive(&sampleLock); return result;
-}
-
-// Published signatures determine argument bytes and callee cleanup. Entry shells
-// keep volatile results intact when native calls nest through another hook.
-FC4_INPLACE_ENTRY(Clip2,0,4)
-FC4_INPLACE_ENTRY(ZoomRotation,1,8)
-FC4_INPLACE_ENTRY(ViewViewport,2,4)
-FC4_INPLACE_ENTRY(Fixed,3,4)
-FC4_INPLACE_ENTRY(ViewBox,4,8)
-FC4_INPLACE_ENTRY(CityCorner,5,8)
-FC4_INPLACE_ENTRY(Clip3,6,4)
-FC4_INPLACE_ENTRY(VisibleEdges,7,8)
-FC4_INPLACE_ENTRY(WorldView,8,4)
-FC4_INPLACE_ENTRY(WorldViewport,9,4)
-FC4_INPLACE_ENTRY(WorldViewport2,10,4)
-FC4_INPLACE_ENTRY(ViewWorld,11,4)
-FC4_INPLACE_ENTRY(ViewportWorld,12,4)
-FC4_INPLACE_ENTRY(BoxRectangle,13,16)
-FC4_INPLACE_ENTRY(ViewPoint,14,4)
-FC4_INPLACE_ENTRY(ViewportFixed,15,4)
-FC4_INPLACE_ENTRY(Rotation,16,0)
-FC4_INPLACE_ENTRY(Ground,17,0)
-FC4_INPLACE_ENTRY(Cross,18,0)
-FC4_INPLACE_ENTRY(PrimitiveIndices,19,0)
-FC4_INPLACE_ENTRY(LanguageFromSystem,20,4)
-FC4_INPLACE_ENTRY(SystemFromLanguage,21,4)
-FC4_INPLACE_ENTRY(LanguageAlias,22,4)
-FC4_INPLACE_ENTRY(PrimaryLanguage,23,4)
-FC4_INPLACE_ENTRY(DefaultCountry,24,4)
-FC4_INPLACE_ENTRY(SystemCountry,25,0)
-FC4_INPLACE_ENTRY(LightingVertices,26,24)
-FC4_INPLACE_ENTRY(LightingGlobal,27,4)
-FC4_INPLACE_ENTRY(LightingShadow,28,4)
-FC4_INPLACE_ENTRY(LightingNight,29,0)
-
-#include "FC4InplaceRound3.h"
-
-void Dispatch(fc4::inplace::Registers* registers, fc4::inplace::MachineState* machine) {
-    const auto i=registers->index;
-    if (i>=20) { Round3Dispatch(registers,machine);return; }
-    auto* args=reinterpret_cast<uint32_t*>(registers+1);
-    const unsigned bytes=i==13?16:(i>=17?12:((i==1||i==4||i==5||i==7||i==16)?8:4));
-    void* self=i<16?reinterpret_cast<void*>(registers->ecx):nullptr;
-    const auto pointer=[&](unsigned at) { return reinterpret_cast<void*>(args[at]); };
-    Capture c; Packet p{};
-    if (self) c.Add(self,0x470);
-    if (i==1 || i==7) { c.Add(pointer(0),4,0,false);c.Add(pointer(1),4,1,false); }
-    else if (i==4 || i==13) {
-        c.Add(pointer(0),12);c.Add(pointer(1),12);
-        std::memcpy(p.data(),pointer(0),12);std::memcpy(p.data()+3,pointer(1),12);
-        if (i==13) { c.Add(pointer(2),8,0,false);c.Add(pointer(3),8,2,false); }
-    } else if (i==5) { c.Add(pointer(1),12,0);p[0]=args[0]; }
-    else if (i==17 || i==18) {
-        c.Add(pointer(0),12);c.Add(pointer(1),12);c.Add(pointer(2),12,0);
-        std::memcpy(p.data(),pointer(0),12);std::memcpy(p.data()+3,pointer(1),12);
-        if (i==18) p[6]=2;
-    } else if (i==19) { c.Add(pointer(2),12,0,false);p[0]=args[0];p[1]=args[1]; }
-    else {
-        const unsigned size=i==0?8:12;
-        c.Add(pointer(0),size,i==14?-1:0);std::memcpy(p.data(),pointer(0),size);
-        if (i==16) p[3]=args[1];
-    }
-    Observe(i,self,p,c,reinterpret_cast<uintptr_t>(args)+bytes,[&] {
-        fc4_inplace_invoke(registers,machine,functions[i].original,args,bytes,i<16);
-        return (registers->eax&0xff)!=0;
-    });
-}
-#define FORWARDER(F) reinterpret_cast<void*>(F)
-void* forwarders[] = {FORWARDER(Clip2),FORWARDER(ZoomRotation),FORWARDER(ViewViewport),FORWARDER(Fixed),
-    FORWARDER(ViewBox),FORWARDER(CityCorner),FORWARDER(Clip3),FORWARDER(VisibleEdges),FORWARDER(WorldView),
-    FORWARDER(WorldViewport),FORWARDER(WorldViewport2),FORWARDER(ViewWorld),FORWARDER(ViewportWorld),
-    FORWARDER(BoxRectangle),FORWARDER(ViewPoint),FORWARDER(ViewportFixed),FORWARDER(Rotation),
-    FORWARDER(Ground),FORWARDER(Cross),FORWARDER(PrimitiveIndices),
-    FORWARDER(LanguageFromSystem),FORWARDER(SystemFromLanguage),FORWARDER(LanguageAlias),
-    FORWARDER(PrimaryLanguage),FORWARDER(DefaultCountry),FORWARDER(SystemCountry),
-    FORWARDER(LightingVertices),FORWARDER(LightingGlobal),FORWARDER(LightingShadow),FORWARDER(LightingNight)};
-#undef FORWARDER
-
-void Report(const Function& fn, const Count& c, const char* source) {
-    fc4::Log("inplace summary name=%s rva=%08x bytes=%u installed=%u source=%s calls=%llu sampled=%llu compared=%llu exact=%llu float_only=%llu different=%llu outside=%llu refused=%llu nested=%llu mutation=%llu detected=%llu max_ulp=%u",
-        fn.name,fn.va-static_cast<uint32_t>(imageBase),fn.bytes,fn.installed?1:0,source,c.calls,c.sampled,c.compared,c.exact,c.floatOnly,c.different,c.outside,c.refused,c.nested,c.mutation,c.detected,c.maxUlp);
-}
-}
-
-extern "C" void fc4_inplace_dispatch(fc4::inplace::Registers* registers, fc4::inplace::MachineState* machine) {
-    Dispatch(registers,machine);
-}
-
-namespace fc4 {
-void InplaceStartup() {
-    const auto selection=Setting("inplace",nullptr);
-    if (selection.empty()) return;
-    if (!Supported()) { Log("inplace: unsupported executable identity; no patches");return; }
-    const auto mutations=Setting("inplace_mutate",nullptr);
-    fixtures=SettingInt("inplace_fixture",nullptr,0)!=0;
-    for (unsigned i=0;i<std::size(functions);++i) {
-        auto& fn=functions[i];
-        if (!Selected(selection,fn.name)) continue;
-        fn.mutate=Selected(mutations,fn.name);
-        fn.installed=Install(fn,forwarders[i]); active|=fn.installed;
-        Log("inplace install name=%s rva=%08x bytes=%u installed=%u reason=%s",fn.name,
-            fn.va-static_cast<uint32_t>(imageBase),fn.bytes,fn.installed?1:0,fn.installed?"ok":"unsupported-entry-or-busy");
-    }
-    Log("inplace: active=%u sample=first50-then1in20 capture=private-regions cap_mib=64 writes=net-neighbourhood-only fixture=%u",active?1:0,fixtures?1:0);
-}
-void InplaceReport() {
-    if (!active) return;
-    AcquireSRWLockExclusive(&sampleLock);
-    for (const auto& fn:functions) { Report(fn,fn.natural,"natural");Report(fn,fn.fixture,"fixture"); }
-    ReleaseSRWLockExclusive(&sampleLock);
-}
-void InplaceCityLoaded() {
-    if (!active || !fixtures) return;
-    // Explicitly constructed data, not credited as a natural test-city call.
-    // VirtualAlloc isolates fixture storage from observer stack/CRT heap changes.
-    auto* words=static_cast<uint32_t*>(VirtualAlloc(nullptr,0x2000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE));
-    if (!words) return;
-    const auto bits=[](float f) { uint32_t u;std::memcpy(&u,&f,4);return u; };
-    words[0]=1;words[0x0c/4]=4;words[0x20/4]=words[0x24/4]=bits(4096);
-    words[0x108/4]=words[0x110/4]=bits(-256); words[0x10c/4]=words[0x114/4]=bits(256);
-    words[0x118/4]=bits(1);words[0x11c/4]=bits(8192);
-    words[0x44c/4]=words[0x454/4]=bits(1);
-    for (unsigned offset=0x458;offset<=0x46c;offset+=4) words[offset/4]=bits(1);
-    auto* a=words+0x500/4;auto* b=a+8;auto* out=b+8;auto* br=out+8;
-    fixture=true;
-    for (unsigned sample=0;sample<16;++sample) for (unsigned i=0;i<std::size(functions);++i) {
-        if (!functions[i].installed) continue;
-        if (i>=20) { Round3Fixture(i,sample,words);continue; }
-        if (sample==0) Log("inplace fixture begin name=%s",functions[i].name);
-        words[0x10/4]=sample%4;
-        for (unsigned j=0;j<3;++j) { a[j]=bits(float(int(sample)-8)+float(j));b[j]=bits(float(sample)+float(j)+1);out[j]=bits(10); }
-        const auto va=functions[i].va;
-        switch (i) {
-        case 1:case 7: reinterpret_cast<void(__thiscall*)(void*,void*,void*)>(va)(words,out,br);break;
-        case 4: reinterpret_cast<bool(__thiscall*)(void*,void*,void*)>(va)(words,a,b);break;
-        case 5: reinterpret_cast<void(__thiscall*)(void*,int,void*)>(va)(words,sample%5,out);break;
-        case 13: reinterpret_cast<void(__thiscall*)(void*,void*,void*,void*,void*)>(va)(words,a,b,out,br);break;
-        case 14: reinterpret_cast<bool(__thiscall*)(void*,void*)>(va)(words,a);break;
-        case 16: reinterpret_cast<void(__cdecl*)(void*,int)>(va)(a,sample%4);break;
-        case 17:case 18: reinterpret_cast<void(__cdecl*)(void*,void*,void*)>(va)(a,b,out);break;
-        case 19: reinterpret_cast<void(__cdecl*)(int,int,void*)>(va)(sample%6,sample,out);break;
-        default: reinterpret_cast<void(__thiscall*)(void*,void*)>(va)(words,a);break;
-        }
-    }
-    fixture=false;
-    VirtualFree(words,0,MEM_RELEASE);
-    InplaceReport();
-}
-}
+#include "FC4CompareRuntime.h"

@@ -1199,3 +1199,5 @@ mod netocc_pole;
 mod gzfw_shadow;
 // S3 round 3: private native-layout transport, no DLL ABI exports.
 mod inplace3;
+// Registry compare adapters; private static-link transport, no public DLL ABI.
+mod compare;

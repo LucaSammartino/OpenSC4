@@ -49,6 +49,8 @@ if(FC4_CHECKED AND MSVC)
 endif()
 
 
+
+
 # Debug info embedded in each object (/Z7) instead of a shared per-target PDB (/Zi): the objects become
 # cacheable (sccache, below) and the compiler no longer talks to mspdbsrv. The linker still writes the PDB.
 if(MSVC)
@@ -1345,4 +1347,29 @@ if(TARGET FreeCity4)
     target_include_directories(fc4_inplace_test PRIVATE plugin)
     target_compile_options(fc4_inplace_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME inplace_mechanics COMMAND fc4_inplace_test)
+endif()
+
+# Registry-only compare bindings; C++ forwarders are generated from published contracts.
+if(TARGET FreeCity4)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    file(GLOB FC4_COMPARE_ROWS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/*.tsv")
+    set(FC4_COMPARE_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/compare/FC4CompareRows.inc")
+    add_custom_command(OUTPUT "${FC4_COMPARE_GENERATED}"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
+            --engine "${CMAKE_CURRENT_SOURCE_DIR}" --output "${FC4_COMPARE_GENERATED}"
+        DEPENDS ${FC4_COMPARE_ROWS} "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
+        VERBATIM)
+    target_sources(FreeCity4 PRIVATE "${FC4_COMPARE_GENERATED}")
+    target_include_directories(FreeCity4 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/compare")
+    target_compile_definitions(FreeCity4 PRIVATE FC4_COMPARE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../build-runs")
+    add_executable(fc4_compare_data_test tests/compare_data_test.cpp)
+    target_include_directories(fc4_compare_data_test PRIVATE plugin)
+    target_compile_options(fc4_compare_data_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME compare_value_schema COMMAND fc4_compare_data_test)
+    add_executable(fc4_compare_runtime_test tests/compare_runtime_test.cpp "${FC4_COMPARE_GENERATED}")
+    target_include_directories(fc4_compare_runtime_test PRIVATE plugin "${CMAKE_CURRENT_BINARY_DIR}/compare")
+    target_compile_definitions(fc4_compare_runtime_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN
+        FC4_COMPARE_ROOT="${CMAKE_CURRENT_BINARY_DIR}/compare-unit")
+    target_compile_options(fc4_compare_runtime_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME compare_dispatch_modes COMMAND fc4_compare_runtime_test)
 endif()

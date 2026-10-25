@@ -679,3 +679,5 @@ std::string IniPath();
 // storage bytes, returned lengths and untouched guards against Rust (section 2.6.1).
 // inplace = names / all; inplace_mutate = names / all; inplace_fixture = 0 / 1:
 // S3 entry-hook observer, independent default-off switches (FC4Inplace.h).
+// compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
+// registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.

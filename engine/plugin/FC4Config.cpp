@@ -431,6 +431,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "dbpf_bounds_shadow",
                                   // S3 entry-hook experiment; all default off.
                                   "inplace", "inplace_mutate", "inplace_fixture",
+                                  // Function compare registry; opt-in only.
+                                  "compare", "compare_mode", "compare_record", "compare_corpus", "compare_dense",
+                                  "compare_record_limit", "compare_case_limit",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
