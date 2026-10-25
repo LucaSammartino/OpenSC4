@@ -657,6 +657,7 @@ fn mysim_record_round_trip() {
         );
         assert!(fc4_mysim_set_residence(f.p, 1, HOME));
         let o = fc4_advisors_advisor_object(f.p, 1);
+        assert!(fc4_mysim_set_dispatch(f.p, 1, 0xD15));
         let mut out = Out::default();
         assert!(fc4_adv_obj_write(o, &ostream(&mut out)));
         // Version 17, state 1, slot 2, then the residence (host token).
@@ -670,6 +671,8 @@ fn mysim_record_round_trip() {
         let mut loaded = fc4_mysim_state::default();
         assert!(fc4_adv_mysim_get_state(n, &mut loaded));
         assert_eq!((loaded.slot, loaded.residence, loaded.generation), (2, HOME, 1));
+        assert_eq!(loaded.dispatch, 0xD15);
+        assert_eq!(f.game.refs(0xD15), 2, "live and restored MySims own their dispatch references");
         assert_eq!(f.game.refs(HOME), 2, "the read residence is held");
         let mut again = Out::default();
         assert!(fc4_adv_obj_write(n, &ostream(&mut again)));

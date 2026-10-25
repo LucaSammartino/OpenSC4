@@ -2490,6 +2490,15 @@ pub unsafe extern "C" fn fc4_mysim_text(
 
 /// Slot 13 `SetResidence(b)` (0 = none).
 #[no_mangle]
+pub unsafe extern "C" fn fc4_mysim_set_dispatch(p: *mut fc4_advisors, id: i32, dispatch: u64) -> bool {
+    with_sim(p, id, false, |m| {
+        m.set_dispatch(opt(dispatch));
+        true
+    })
+}
+
+/// Slot 13 `SetResidence(b)` (0 = none).
+#[no_mangle]
 pub unsafe extern "C" fn fc4_mysim_set_residence(p: *mut fc4_advisors, id: i32, building: u64) -> bool {
     with_sim(p, id, false, |m| m.set_residence(opt(building)))
 }
@@ -2590,7 +2599,9 @@ pub unsafe extern "C" fn fc4_mysim_local_grade(p: *const fc4_advisors, id: i32, 
 // Per-object MySim calls also work during class-store Read, before the
 // advisor has an ID or has been inserted into the system map (§6.2).
 fn with_mysim_object<R>(o: *const fc4_adv_obj, fallback: R, f: impl FnOnce(&MySim) -> R) -> R {
-    unsafe { advisor_of(o) }.and_then(|a| guard(None, || MySim::with(a, f))).unwrap_or(fallback)
+    unsafe { advisor_of(o) }
+        .and_then(|a| guard(None, || MySim::with(a, f)))
+        .unwrap_or(fallback)
 }
 
 #[no_mangle]
@@ -2628,7 +2639,15 @@ pub unsafe extern "C" fn fc4_adv_mysim_move_in(
     path_len: usize,
 ) -> bool {
     with_mysim_object(o, false, |m| {
-        m.move_in(slot, bytes(name, name_len), male, sign, bytes(bio, bio_len), bitmap, bytes(path, path_len));
+        m.move_in(
+            slot,
+            bytes(name, name_len),
+            male,
+            sign,
+            bytes(bio, bio_len),
+            bitmap,
+            bytes(path, path_len),
+        );
         true
     })
 }

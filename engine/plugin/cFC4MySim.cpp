@@ -184,6 +184,17 @@ void CreateDispatch(int32_t sim) {
     fc4_advisors* core = fc4::CurrentAdvisorCore();
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     void* obj = nullptr;
+    fc4_mysim_state saved{};
+    if (MySimState(sim, &saved) && saved.dispatch != 0) {
+        auto* u = fc4::FromToken(saved.dispatch);
+        if (auto* d = cFC4MySimDispatch::FromUnknown(u)) {
+            FC4_ADDREF(static_cast<cFC4IMySimDispatch*>(d));
+            d->SetOwner(core, sim);
+            d->Init();
+            Dispatches()[sim] = d;
+            return;
+        }
+    }
     if (core == nullptr || com == nullptr ||
         !com->GetClassObject(kFC4_CLSID_cSC4MySimDispatch, kFC4_IID_cSC4MySimDispatch, &obj) || obj == nullptr) {
         fc4::Log("mysims: dispatch for MySim %d not created", sim);
@@ -202,6 +213,7 @@ void CreateDispatch(int32_t sim) {
     fc4_mysim_state st{};
     if (MySimState(sim, &st) && st.residence != 0) d->SetHome(st.residence);
     Dispatches()[sim] = d;
+    fc4_mysim_set_dispatch(core, sim, fc4::TokenOf(static_cast<cFC4IMySimDispatch*>(d)));
 }
 
 void ReleaseDispatch(int32_t sim) {

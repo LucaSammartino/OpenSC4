@@ -13153,6 +13153,7 @@ bool fc4_adv_mysim_move_in(const fc4_adv_obj* obj, uint8_t slot,
     const uint8_t* path, size_t path_len);
 bool fc4_adv_mysim_notify(const fc4_adv_obj* obj, uint32_t slot,
     uint64_t building, uint32_t data, float x, float z);
+bool fc4_mysim_set_dispatch(fc4_advisors* system, int32_t id, uint64_t dispatch);
 #ifdef __cplusplus
 }
 #endif

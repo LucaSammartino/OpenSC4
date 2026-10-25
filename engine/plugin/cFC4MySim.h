@@ -18,6 +18,7 @@
 #include "fc4.h"
 
 #include <cstdint>
+#include <string>
 
 class cIGZUnknown;
 class cFC4Advisor;

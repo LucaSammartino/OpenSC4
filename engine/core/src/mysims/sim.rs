@@ -10,6 +10,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::{Rc, Weak};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::advisors::{AdviceSubject, Advisor, AdvisorExt, AdvisorMessage, Target};
 use crate::rng::{derive_seed, FixedSeeds, RzRandom};
@@ -79,12 +80,30 @@ pub struct MySimState {
 }
 
 /// One MySim.
+struct StateLock(RwLock<MySimState>);
+
+impl StateLock {
+    fn new(state: MySimState) -> Self {
+        Self(RwLock::new(state))
+    }
+    fn borrow(&self) -> RwLockReadGuard<'_, MySimState> {
+        self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    fn borrow_mut(&self) -> RwLockWriteGuard<'_, MySimState> {
+        self.0.write().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    fn get_mut(&mut self) -> &mut MySimState {
+        self.0.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// Public getters run on the game's second thread during OnTick (§5.1).
 pub struct MySim {
     host: Rc<dyn MySimHost>,
     class_id: u32,
     adv: RefCell<Weak<Advisor>>,
     rng: RefCell<RzRandom>,
-    s: RefCell<MySimState>,
+    s: StateLock,
 }
 
 fn num(b: bool) -> f64 {
@@ -115,7 +134,7 @@ impl MySim {
                     process_clock: seed,
                 },
             )),
-            s: RefCell::new(MySimState {
+            s: StateLock::new(MySimState {
                 local_area_size: 10,
                 ..MySimState::default()
             }),
@@ -201,6 +220,11 @@ impl MySim {
     /// Slot 12.
     pub fn job(&self) -> Option<u64> {
         self.s.borrow().job
+    }
+
+    /// The live dispatch is also the version-17 saved reference (§6.2).
+    pub fn set_dispatch(&self, token: Option<u64>) {
+        self.set_ref(|s| &mut s.dispatch, token);
     }
     fn has_job(&self) -> bool {
         let s = self.s.borrow();
@@ -1408,9 +1432,8 @@ impl AdvisorExt for MySim {
                 self.s.borrow_mut().neighbor_job = found;
             }
         }
-        if self.s.borrow().dispatch.is_none() {
-            self.host.dispatch_command(id, "create");
-        }
+        // The host creates a missing dispatch or binds the loaded one.
+        self.host.dispatch_command(id, "create");
         let mut tuning = BTreeMap::new();
         for (k, d) in TUNING {
             tuning.insert(k.to_string(), self.host.tuning(k).unwrap_or(d));

@@ -737,8 +737,8 @@ void fc4::FillMySimLuaHost(fc4_mysim_host* h) {
         cISCLua* L = g_live ? g_live->Lua() : nullptr;
         if (!L) return false;
         if (g_mysimTables.find(id) == g_mysimTables.end()) {
-            L->PushNewTable();
-            g_mysimTables[id] = L->Ref();
+            L->NewTable();
+            g_mysimTables[id] = L->Ref(1);
         }
         return true;
     };
